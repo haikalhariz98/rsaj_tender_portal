@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 import { SIMULATED_LABEL, simulatedReceiptLines } from "@/lib/integration/payment-gateway";
 import { loadBidContext } from "@/lib/portal/bids/context-store";
 import { loadReleaseFacts } from "@/lib/portal/bids/inspection-store";
+import { paymentSay } from "@/lib/portal/bids/payment-say";
 import { loadOnlineView } from "@/lib/portal/bids/purchase-read";
 
 import { requireSupplier } from "../../../../_auth/supplier";
@@ -85,14 +86,15 @@ export default async function PayPage({ params, searchParams }: { params: Promis
   // Awaiting payment, and online payment is not switched on: say so in the organisation's name.
   if (!view.payment.available) {
     const org = view.payment.organisation;
+    const say = paymentSay(view.payment.reason, org);
     return (
       <>
         {head("Pay for the documents", { text: "Awaiting payment", tone: "warn" })}
         <Card>
-          <CardHeader icon={<WalletIcon size={17} />} title="Online payment is not connected yet" subtitle={`Started ${view.purchase.startedOn}. Fee ${view.purchase.amount}.`} />
+          <CardHeader icon={<WalletIcon size={17} />} title={say.title} subtitle={`Started ${view.purchase.startedOn}. Fee ${view.purchase.amount}.`} />
           <CardBody className="flex flex-col gap-3">
             <Callout tone="info" title="How to pay">
-              Online payment is not connected yet. Pay the fee as {org} instructs; the documents are released when {org} records your receipt.
+              {say.instruct}
             </Callout>
             <p className="text-[13px] text-ink-3">{view.payment.words}</p>
             <div>

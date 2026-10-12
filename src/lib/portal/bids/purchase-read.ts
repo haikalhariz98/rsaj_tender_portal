@@ -10,6 +10,7 @@ import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
 import { blockingChecks, type PreSaleCheck } from "./checks";
 import type { BidContext } from "./context-store";
 import { failedTriesExhausted, FAILED_TRIES_WORDS } from "./limits";
+import type { PaymentReason } from "./payment-say";
 import { buyerStandingCheck, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS, type PaidChannel, type PurchaseState } from "./purchase";
 import { loadSaleFacts } from "./sale-facts";
 
@@ -36,7 +37,7 @@ export interface OnlineView {
     lastFailure: null | { method: string; text: string };
   } | null;
   /// Whether it can be paid online now, the methods offered, and where it cannot why, with the words to show the buyer.
-  payment: { available: boolean; methods: readonly string[]; words: string; organisation: string };
+  payment: { available: boolean; /** Why not, or AVAILABLE: the screens say the true thing for each (never "not connected" for a purchase that ran out of tries). */ reason: PaymentReason; methods: readonly string[]; words: string; organisation: string };
 }
 
 /// The buyer's standing as the checks read it: the account, the contact on the supplier record, and the supplier's standing on the register.
@@ -66,7 +67,7 @@ export async function loadOnlineView(tx: Tx, actor: BuyerActor, ctx: BidContext)
   const checks = onlinePurchaseChecks(facts.checks, buyer);
   const reading = gatewayReading({ simulatorOn: policy?.paymentSimulatorOn ?? null, methods: policy?.simulatedPaymentMethods ?? [] }, simulatorAllowedByDeployment());
   // SEC-2: a purchase that has failed too often takes no more tries; the page says to ask the office.
-  const exhausted = mine?.state === "AWAITING_PAYMENT" && failedTriesExhausted(mine._count.attempts);
+  const exhausted = reading.available && mine?.state === "AWAITING_PAYMENT" && failedTriesExhausted(mine._count.attempts);
   const judged = judgePurchase({ saleMode: ctx.ex.saleMode, releaseOnline: policy?.electronicDocumentRelease ?? null, feeSet: window.feeAmount != null, checks, alreadyBought: facts.sale != null || mine?.state === "PAID", purchaseStands: false });
   const state: OnlineView["state"] = mine ? mine.state : "NOT_BOUGHT";
   const first = judged.outcome === "FAULTS" ? judged.faults[0] : judged.outcome === "REFUSED" ? "REFUSED" : null;
@@ -93,6 +94,6 @@ export async function loadOnlineView(tx: Tx, actor: BuyerActor, ctx: BidContext)
           lastFailure: mine.state === "AWAITING_PAYMENT" && lastFail ? { method: lastFail.method, text: lastFail.failureText } : null,
         }
       : null,
-    payment: { available: reading.available && !exhausted, methods: reading.available && !exhausted ? reading.methods : [], words: exhausted ? FAILED_TRIES_WORDS : reading.available ? SIMULATED_LABEL : reading.words, organisation: ctx.org.name },
+    payment: { available: reading.available && !exhausted, reason: exhausted ? "TRIES_EXHAUSTED" : reading.available ? "AVAILABLE" : reading.why, methods: reading.available && !exhausted ? reading.methods : [], words: exhausted ? FAILED_TRIES_WORDS : reading.available ? SIMULATED_LABEL : reading.words, organisation: ctx.org.name },
   };
 }

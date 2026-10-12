@@ -7,7 +7,8 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import type { SupplierActor } from "@/lib/auth/types";
-import { SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
+import { SIMULATED_LABEL } from "@/lib/integration/payment-labels";
+import { paymentSay } from "@/lib/portal/bids/payment-say";
 import { db } from "@/lib/db";
 import type { BidContext } from "@/lib/portal/bids/context-store";
 import { SUPERSEDED_NOTICE_WORDS } from "@/lib/portal/bids/non-award";
@@ -202,7 +203,7 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
               ...(d.online
                 ? [
                     { label: "How to buy", value: "Online, through this portal" },
-                    { label: "How to pay", value: d.online.payment.available ? `On the payment simulator (${SIMULATED_LABEL}), by ${d.online.payment.methods.join(", ")}` : "Online payment is not connected yet" },
+                    { label: "How to pay", value: d.online.payment.available ? `On the payment simulator (${SIMULATED_LABEL}), by ${d.online.payment.methods.join(", ")}` : paymentSay(d.online.payment.reason, d.online.payment.organisation).how },
                   ]
                 : [
                     { label: "Buy them at", value: d.sale.place || "Not stated" },
@@ -212,7 +213,7 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
           />
           {d.online?.state === "AWAITING_PAYMENT" && (
             <Callout tone="info" title="You have started buying the documents">
-              Started on {d.online.purchase?.startedOn}. {d.online.payment.available ? "They are released to you once you have paid." : `Online payment is not connected yet. Pay the fee as ${d.online.payment.organisation} instructs; the documents are released when ${d.online.payment.organisation} records your receipt.`}
+              Started on {d.online.purchase?.startedOn}. {paymentSay(d.online.payment.reason, d.online.payment.organisation).instruct}
               {d.online.purchase?.lastFailure && ` Your last try on ${d.online.purchase.lastFailure.method} failed (${SIMULATED_LABEL}), so it is still waiting.`}
             </Callout>
           )}

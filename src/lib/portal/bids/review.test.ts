@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { simulatedSales, SIMULATED_NO_MONEY, uncollectedReceipts } from "@/lib/integration/fee-receipt";
 import { PAYMENT_SIMULATOR_ENV, simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
-import { gatewayReading } from "@/lib/integration/payment-gateway";
+import { gatewayReading, isFinanceReceipt, paymentSimulator } from "@/lib/integration/payment-gateway";
 
 import { failedTriesExhausted, isRepeatDownload, MAX_FAILED_PAYMENT_TRIES, rateVerdict, RATE_LIMITS, windowStartOf } from "./limits";
+import { paymentSay } from "./payment-say";
 import { holdsBidStanding, holdsReleasedPurchase } from "./purchase";
 import { releaseState, releaseText } from "./release";
 
@@ -117,5 +118,21 @@ describe("the bounds on what a supplier can make the system write (SEC-2)", () =
     expect(isRepeatDownload(null, t)).toBe(false);
     expect(isRepeatDownload(new Date(t.getTime() - 60_000), t)).toBe(true);
     expect(isRepeatDownload(new Date(t.getTime() - 11 * 60_000), t)).toBe(false);
+  });
+});
+
+describe("what the pay screens say for each reason online payment is not on", () => {
+  it("never says 'not connected' of a purchase that ran out of tries, nor of a copy that does not allow the simulator", () => {
+    const say = (r: Parameters<typeof paymentSay>[0]) => paymentSay(r, "Jabatan Contoh");
+    expect(say("TRIES_EXHAUSTED").instruct).toMatch(/Ask Jabatan Contoh to record your payment/);
+    expect(say("TRIES_EXHAUSTED").title).not.toMatch(/not connected/);
+    expect(say("NOT_ALLOWED").title).toMatch(/not available here/);
+    expect(say("OFF").title).toMatch(/not connected yet/);
+    expect(say("NO_METHODS").how).toMatch(/not connected yet/);
+  });
+  it("a simulated payment is a finance receipt by the simulator's own flag, whatever else the record carries", () => {
+    expect(isFinanceReceipt({ paymentChannel: "SIMULATED", financeReceiptNo: "R-1", voidedAt: null })).toBe(paymentSimulator.countsAsFinanceReceipt);
+    expect(paymentSimulator.countsAsFinanceReceipt).toBe(false);
+    expect(isFinanceReceipt({ paymentChannel: "COUNTER", financeReceiptNo: "R-1", voidedAt: null })).toBe(true);
   });
 });

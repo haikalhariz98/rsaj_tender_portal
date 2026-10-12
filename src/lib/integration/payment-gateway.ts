@@ -8,10 +8,11 @@
  *
  *  - every thing that shows a simulated payment says "Simulated payment" (`SIMULATED_LABEL`): the simulated page, the receipt, the supplier's purchase, the
  *    officer's register and every export;
- *  - a simulated payment is never a finance receipt: `countsAsFinanceReceipt` is false and `isFinanceReceipt` says so for any record, so nothing can count one
- *    towards reconciliation or put one in a finance export;
- *  - the simulator is switched on by a nullable configuration switch (`WindowPolicy.paymentSimulatorOn`, two-person path); unset or off, it refuses in words and the
- *    documents are paid for at the finance counter, the officer recording the receipt (the manual adapter in `fee-receipt.ts`).
+ *  - a simulated payment is never a finance receipt: `isFinanceReceipt` reads the simulator's `countsAsFinanceReceipt` (false) for its channel, and every reader of a sale
+ *    (the reconciliation lists in `fee-receipt.ts`) goes through it, so nothing counts one towards reconciliation or puts one in a finance export;
+ *  - the simulator is available only when BOTH the organisation has switched it on (`WindowPolicy.paymentSimulatorOn`, two-person path, with a method to offer) AND the deployment
+ *    allows it (`PAYMENT_SIMULATOR_ALLOWED`, `payment-deployment.ts`, SR-10 review SEC-1); unset, off, or not allowed here, it refuses in words and the documents are paid for
+ *    at the finance counter, the officer recording the receipt (the manual adapter in `fee-receipt.ts`).
  */
 
 import { createHash } from "node:crypto";
@@ -90,7 +91,9 @@ export const offeredMethod = (methods: readonly string[], chosen: string): strin
  * Whether a sale's payment is a finance receipt that finance's records and any finance export may count: only a payment that carries a finance receipt number and
  * did not come through the simulator. A simulated payment is never one, whatever else it carries.
  */
-export const isFinanceReceipt = (s: { paymentChannel: "COUNTER" | "SIMULATED"; financeReceiptNo: string | null; voidedAt: Date | null }): boolean => s.paymentChannel !== "SIMULATED" && !s.voidedAt && !!s.financeReceiptNo?.trim();
+export const isFinanceReceipt = (s: { paymentChannel: "COUNTER" | "SIMULATED"; financeReceiptNo: string | null; voidedAt: Date | null }): boolean =>
+  // The simulator's own flag decides for its channel, so the claim in the gateway and the reading of a sale cannot drift apart.
+  (s.paymentChannel === "SIMULATED" ? paymentSimulator.countsAsFinanceReceipt : true) && !s.voidedAt && !!s.financeReceiptNo?.trim();
 
 /// The receipt a buyer is shown for a payment made: plain words naming it as simulated, with the reference, the method and the amount.
 export function simulatedReceiptLines(i: { reference: string; method: string; amount: string; paidOnText: string; organisation: string }): string[] {

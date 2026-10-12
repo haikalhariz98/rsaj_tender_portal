@@ -24,6 +24,7 @@ import { INVITED_READING_LABEL, UNPURCHASED_LABEL } from "@/lib/opening/labels";
 
 import { CalendarDrawer, ChannelDrawer, EditMethodBidRule, EditMethodOpeningRule, EditOpeningPolicy, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
 
 export const dynamic = "force-dynamic";
 
@@ -174,7 +175,7 @@ export default async function InvitationControlsPage() {
                 setting(RULE_LABEL.mandatoryAttendance, <Setting value={r.attendance.value} unset={UNSET.attendance} source={p.attendanceProvenance} />),
                 setting("Release the tender documents online after payment", <Setting value={release?.electronicDocumentRelease == null ? "Not set" : release.electronicDocumentRelease ? "Released online once an officer records the payment" : "Collected at the counter only"} unset="Not set, so documents are collected at the counter and nothing is released online." source={release?.electronicReleaseProvenance ?? null} />),
                 setting("How the tender documents are sold", <Setting value={release?.documentSaleMode ? saleModeWords(release.documentSaleMode) : "Not set"} unset="Not set, so an exercise made now cannot be published until the organisation says how its documents are sold." />),
-                setting("Demonstration payment simulator", <Setting value={release?.paymentSimulatorOn == null ? "Not set" : release.paymentSimulatorOn ? "On: a demonstration, no money moves" : "Off"} unset="Not set, so a buyer cannot pay online: the office records the payment instead." />),
+                setting("Demonstration payment simulator", <Setting value={release?.paymentSimulatorOn == null ? "Not set" : release.paymentSimulatorOn ? (simulatorAllowedByDeployment() ? "On: a demonstration, no money moves" : "On, but this copy of the system is not set up for demonstrations, so no one can pay on it and a payment already made on it releases nothing") : "Off"} unset="Not set, so a buyer cannot pay online: the office records the payment instead." />),
                 setting("Payment methods the simulator offers", <Setting value={release?.simulatedPaymentMethods.length ? release.simulatedPaymentMethods.join(", ") : "Not set"} unset="None set, so the simulator offers nothing to choose from." />),
                 setting("Template for the published notice", <Setting value={c.policy.templates.notice} unset={UNSET.template} />),
                 setting("Template for a letter of invitation", <Setting value={c.policy.templates.invitation} unset={UNSET.template} />),

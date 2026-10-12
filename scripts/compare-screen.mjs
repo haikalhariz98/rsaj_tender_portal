@@ -401,6 +401,17 @@ const DECIDED_ABSENT = [
     match: /^(Buy at|Ways to pay|Inspect the documents at|Hours|Where to hand in your bid)$/,
     why: "SR-10 (ruling 16): an exercise sold online states no counter, hours, payment counter or place of submission; it says the documents are bought through the supplier portal",
   },
+  // Wave 3a review (SR-15 ruling 24, M3; SR-10 ruling 17): decided differences from the sample, recorded so each stays visible.
+  {
+    screen: /^[/]sourcing[/][^/]+$/,
+    match: /^(Kelas \(register\)|Class as read|Status)$/,
+    why: "SR-15 (ruling 24, review M3): the schedule of tenders carries Kelas, the supplier register's reading frozen when the offer was read, beside Class as read (what the officer recorded from the envelope) and Status, as separate columns, so neither is passed off as the other; the screen, the print and the CSV take their headings from one list",
+  },
+  {
+    screen: /^[/]supplier[/]bids[/][^/]+[/]documents$/,
+    match: /^(Document|Kind|Download)$/,
+    why: "SR-10 (ruling 17): the released documents list the issued parts of the approved pack as files and texts to download; each download is logged against the company. The sample has no download list",
+  },
   // 6.15a (plan §5, OD-1..OD-10): the staff-side supplier register, on the supplier screens only.
   {
     screen: /^\/suppliers/,

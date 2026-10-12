@@ -1,7 +1,7 @@
 "use client";
 
 import { DataList, type Row } from "@/components/data-list";
-import { SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
+import { SIMULATED_LABEL } from "@/lib/integration/payment-labels";
 
 import { RecordPurchaseReceiptDrawer } from "./editors";
 
