@@ -1,6 +1,6 @@
 /**
- * Demo data for Sourcing Requirements v2 SR-08, SR-09 and SR-11 (rulings 12 to 14, ADR 0035). Invented throughout. The demo may write these directly (ruling G2);
- * a customer's own settings arrive through Configuration, by two people.
+ * Demo data for Sourcing Requirements v2 SR-08, SR-09 and SR-11 (rulings 12 to 14, ADR 0035). Invented throughout. The demo writes these directly only inside demo:load on a fresh
+ * database (rulings G2 and 12c); a customer's own settings arrive through Configuration, by two people.
  *
  * - The organisation's two scope switches are both OFF: a new exercise opened in the demo pins "no specification panel" and "the bill is an uploaded Excel file".
  *   The demonstration's own exercises were authored under the earlier behaviour, with their panels and bills, so they are pinned to use both (as the migration
@@ -40,7 +40,16 @@ export async function demoBqWorkbook(): Promise<Buffer> {
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
+/**
+ * Configuration rows: written only by `demo:load` on a fresh database (ruling 12c, 2026-10-12; G2). There is no standalone mode (`demo:switches` is retired). All the writes are one
+ * transaction, so a failure leaves none of them, and the pins it takes are the demonstration's own exercises (`demo_` ids) and no other.
+ */
 export async function loadScopeSwitchesDemo(db: Db, organisationId: string, now = new Date()) {
+  const bytes = await demoBqWorkbook();
+  return (db as PrismaClient).$transaction((tx) => writeScopeSwitches(tx as unknown as Db, organisationId, now, bytes), { timeout: 120_000, maxWait: 30_000 });
+}
+
+async function writeScopeSwitches(db: Db, organisationId: string, now: Date, bytes: Buffer) {
   const trail: Record<string, unknown>[] = [];
   let n = 0;
   const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", changes: object[], reason = "") =>
@@ -67,8 +76,8 @@ export async function loadScopeSwitchesDemo(db: Db, organisationId: string, now 
     entry("ScopePolicy", row.id, "Scope and estimate policy", policy ? "UPDATE" : "CREATE", diffFields(policy ? { specificationPanel: words(policy.specPanelUsed), onScreenBill: words(policy.onScreenBillUsed) } : null, { specificationPanel: words(next.specPanelUsed), onScreenBill: words(next.onScreenBillUsed) }), "Demonstration setting: no specification panel, and the bill of quantities is an uploaded Excel file.");
   }
 
-  // An exercise whose pin is still not set takes the setting.
-  const unpinned = await db.sourcingExercise.findMany({ where: { organisationId, OR: [{ specPanelUsed: null }, { onScreenBillUsed: null }] }, select: { id: true, reference: true, title: true, specPanelUsed: true, onScreenBillUsed: true } });
+  // One of the demonstration's own exercises whose pin is still not set takes the setting (never another exercise).
+  const unpinned = await db.sourcingExercise.findMany({ where: { organisationId, id: { startsWith: P }, OR: [{ specPanelUsed: null }, { onScreenBillUsed: null }] }, select: { id: true, reference: true, title: true, specPanelUsed: true, onScreenBillUsed: true } });
   for (const ex of unpinned) {
     const to = { specPanelUsed: ex.specPanelUsed ?? next.specPanelUsed, onScreenBillUsed: ex.onScreenBillUsed ?? next.onScreenBillUsed };
     await db.sourcingExercise.update({ where: { id: ex.id }, data: to });
@@ -83,7 +92,6 @@ export async function loadScopeSwitchesDemo(db: Db, organisationId: string, now 
     if (!classRow) throw new Error("Demo template file: the demonstration's document class is missing.");
     const docId = `${P}bqtemplate`;
     const versionId = `${docId}v1`;
-    const bytes = await demoBqWorkbook();
     const title = "Prescribed bill of quantities workbook (demonstration)";
     const filename = "bill-of-quantities-template.xlsx";
     await db.blobContent.createMany({ data: [{ organisationId, sha256: sha(bytes), byteSize: BigInt(bytes.length), bytes: new Uint8Array(bytes), storedAt: now }], skipDuplicates: true });

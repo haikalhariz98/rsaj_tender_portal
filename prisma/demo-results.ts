@@ -121,21 +121,10 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
   ] as const) if (!ok) fail(`${what} is not loaded`);
   // The acts below continue every demo id series after what the database holds (a run on a database loaded earlier).
   await seedActIds(db);
-  // A live clause whose "every agreement carries it" is unset refuses every pack's submission. The demo loaded before
-  // 2026-10-06 left its own valuation clause demo_cl2 so (demo-lifecycle.ts now sets it): decided here, once, through
-  // Configuration's own act at the real instant, ASSUMED, with its reason. Any other unset clause is the organisation's: refused.
+  // A live clause whose "every agreement carries it" is unset refuses every pack's submission, so the fixture needs every one set.
   const unset = await db.clauseText.findMany({ where: { organisationId, mandatoryInAgreements: null, retiredOn: null } });
-  if (unset.some((c) => c.id !== `${P}cl2`)) fail(`a clause that is not the demo's has "every agreement carries it" unset (${unset.map((c) => c.titleEn).join(", ")}): set it under Configuration first`);
-  const cl2 = unset.find((c) => c.id === `${P}cl2`);
-  if (cl2) {
-    const { saveClause } = await import("../src/app/configuration/tender-documents/conditions-core");
-    const nowKl = new Date(Date.now() + 8 * 3_600_000 - 60_000).toISOString().slice(0, 16);
-    await act(nowKl, "the demo's valuation clause decided", saveClause, {
-      id: cl2.id, code: cl2.code, titleEn: cl2.titleEn, titleMs: cl2.titleMs, bodyEn: cl2.bodyEn, bodyMs: cl2.bodyMs, mandatoryInAgreements: "no", sortOrder: String(cl2.sortOrder),
-      governingSource: cl2.governingSource, provenance: "ASSUMED", notes: "Invented for the demo: not every agreement need carry it.",
-      reason: "The demo loaded this clause with whether every agreement carries it unset, which refuses every pack's submission. Set to No (invented, ASSUMED) so the Results demo's quotation can be submitted (product owner's ruling 4, 2026-10-06).",
-    });
-  }
+  // Ruling 12c (2026-10-12): an add-on step on a loaded database writes no configuration. The demo's own clause is set by demo:load (demo-lifecycle.ts); a database loaded before that is told what to set.
+  if (unset.length) fail(`the clause "${unset[0].titleEn}" has "every agreement carries it" not set, which refuses every pack's submission: set it under Configuration, Tender documents, Clauses first`);
 
   const trail: { id: string; organisationId: string; entity: string; entityId: string; entityLabel: string; action: "CREATE" | "UPDATE" | "DELETE"; at: Date; changes: object[]; reason: string; unattributed: boolean }[] = [];
   let n = 0;

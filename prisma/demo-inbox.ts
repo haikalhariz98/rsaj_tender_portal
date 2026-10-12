@@ -7,7 +7,7 @@
  *   people none at all, so the screen also shows what "Reporting line not set for ..." does. The Chief Executive is recorded as having nobody above them.
  * - one notification rule for the event "a matter not carried", naming the Head of Contract & Procurement, so a not-approved memo can be issued and read.
  *
- * Additive: `npm run demo:inbox` applies it to a database the demo is already loaded in, and does nothing where it is already there. Every row has a demo id. Nothing
+ * Written only by `npm run demo:load` on a fresh database (ruling 12c, 2026-10-12): these are configuration rows. `npm run demo:inbox` on a loaded database writes nothing and names what is not set. Every row has a demo id. Nothing
  * here deletes a row (the trail is permanent). The notification rule is not written where the organisation already has one for the event.
  */
 
@@ -33,8 +33,11 @@ const LINES: readonly [string, string, string | null, string | null][] = [
 ];
 const RULE_ID = `${P}nr_not_carried`;
 
-export async function inboxDemoLoaded(db: PrismaClient): Promise<boolean> {
-  return (await db.reportingLine.count({ where: { id: { startsWith: `${P}rl` } } })) > 0;
+/// What the demonstration would add and the database lacks, without writing a thing (ruling 12c): the reporting lines of its people, and the rule for a matter not carried.
+export async function inboxDemoMissing(db: PrismaClient, organisationId: string): Promise<{ lines: number; rule: boolean }> {
+  const existing = new Set((await db.reportingLine.findMany({ where: { organisationId, personId: { in: LINES.map((l) => l[0]) } }, select: { personId: true } })).map((r) => r.personId));
+  const rule = (await db.notificationRule.count({ where: { organisationId, eventKey: NOT_CARRIED_EVENT_KEY } })) === 0;
+  return { lines: LINES.filter((l) => !existing.has(l[0])).length, rule };
 }
 
 /// Returns what it wrote. A second run, or a database where the rows stand, writes nothing.

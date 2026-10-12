@@ -125,4 +125,22 @@ describe("the demo loader is additive (Phase 1d)", () => {
     expect(wipe.out).toMatch(/demo:wipe is retired: nothing was removed/);
     expect(await counts()).toEqual(before);
   });
+
+  // Ruling 12c (2026-10-12, G2): configuration is written only by demo:load on a fresh database.
+  it("the retired switches mode prints why, exits non-zero and writes nothing", { timeout: 1_000_000 }, async () => {
+    const before = await counts();
+    const switches = demo("switches");
+    expect(switches.status).toBe(1);
+    expect(switches.out).toMatch(/demo:switches is retired: nothing was written/);
+    expect(switches.out).toMatch(/Configuration/);
+    expect(await counts()).toEqual(before);
+  });
+
+  it("an add-on step on a loaded database writes no configuration: the inbox step finds its rows there and says so", { timeout: 1_000_000 }, async () => {
+    const before = await counts();
+    const inbox = demo("inbox");
+    expect(inbox.status, inbox.out).toBe(0);
+    expect(inbox.out).toMatch(/already there: nothing was written/);
+    expect(await counts()).toEqual(before);
+  });
 });

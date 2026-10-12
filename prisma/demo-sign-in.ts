@@ -62,3 +62,11 @@ export function demoSignInRefusal(lines: readonly string[]): string {
     "Nothing was removed. Once a demo person has a sign-in account, or has made a change while signed in, the demonstration is not wiped: npm run demo:results adds to a loaded database, and a full reload starts from a new database.",
   ].join("\n");
 }
+
+/// Why `npm run demo:switches` no longer writes anything (product owner's ruling 12c, 2026-10-12; ruling G2).
+export const DEMO_SWITCHES_RETIRED = [
+  "npm run demo:switches is retired: nothing was written.",
+  "It changed organisation-wide configuration (the upload rules, the scope policy, a tender document part's template file) with one person's write, which the",
+  "two-person path forbids (ruling G2). The demonstration writes configuration only inside npm run demo:load on a fresh database. On a database that already",
+  "holds the demo, set these through Configuration: Documents (upload rules), Scope and estimate (the two switches) and Tender documents (a part's template file).",
+].join("\n");

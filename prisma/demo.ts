@@ -31,9 +31,9 @@ import { loadMyProjectsDemo } from "./demo-my-projects";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
-import { inboxDemoLoaded, loadInboxDemo } from "./demo-inbox";
+import { inboxDemoMissing, loadInboxDemo } from "./demo-inbox";
 import { checkResultsDemo, loadResultsDemo, resultsDemoState } from "./demo-results";
-import { DEMO_PREFIX, DEMO_WIPE_RETIRED, demoIsLoaded, demoStarted } from "./demo-sign-in";
+import { DEMO_PREFIX, DEMO_SWITCHES_RETIRED, DEMO_WIPE_RETIRED, demoIsLoaded, demoStarted } from "./demo-sign-in";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
 import { DEMO_ACTOR } from "./demo-actor";
@@ -56,6 +56,7 @@ import { demoOrgId, demoScope } from "./demo-org";
  *   npm run demo:results   add the Results fixture to a database loaded before it existed
  *   npm run demo:inbox     add the reporting lines and the not-approved memo rule (Phase 3c) to a database loaded before they existed
  *   npm run demo:wipe      retired (Phase 1d): refuses and explains, removes nothing
+ *   npm run demo:switches  retired (ruling 12c): refuses and explains, writes nothing. Configuration rows are written only by demo:load on a fresh database.
  *
  * Every row is created with an id prefixed `demo_`. Nothing else in the product uses that prefix.
  *
@@ -2129,9 +2130,19 @@ async function inbox() {
     console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
     return;
   }
-  if (await inboxDemoLoaded(db)) console.log("The reporting lines are already there; only a missing rule is added.");
-  const made = await loadInboxDemo(db, org.id);
-  console.log(`${made.lines} reporting lines added${made.rule ? ", and the notification rule for a matter not carried" : ""}.`);
+  // Ruling 12c: the reporting lines and the notification rule are configuration. An add-on step on a loaded database writes none; it says what is missing.
+  const missing = await inboxDemoMissing(db, org.id);
+  if (missing.lines === 0 && !missing.rule) console.log("The reporting lines and the not-approved memo rule are already there: nothing was written.");
+  else {
+    console.log(
+      `Nothing was written: this step would add configuration, which the demonstration writes only when it is first loaded (ruling G2). ${[
+        missing.lines > 0 ? `${missing.lines} reporting line(s) of the demonstration's people are not set: add them under Configuration, Users` : null,
+        missing.rule ? "the notification rule for a matter not carried is not set: add it under Configuration, Notifications" : null,
+      ]
+        .filter(Boolean)
+        .join("; ")}.`,
+    );
+  }
 }
 
 /**
@@ -2191,33 +2202,23 @@ async function contractor() {
   console.log(made.notes.length ? `Added: ${made.notes.join("; ")}.` : "The contractor is already linked: nothing was written.");
 }
 
-/**
- * Sourcing Requirements v2 SR-08, SR-09, SR-11: the organisation's scope switches (both off) and the bill workbook's template file (prisma/demo-switches.ts), for a database the demo is
- * already loaded in. Nothing where it stands; it sets no exercise's pin that is already set.
- */
-async function switches() {
-  const org = await organisation();
-  if (!(await demoIsLoaded(db))) {
-    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
-    return;
-  }
-  const made = await loadScopeSwitchesDemo(db, org.id);
-  await attributeSeededRows(db, org.id);
-  console.log(`Scope switches: setting ${made.policySet ? "set (both off)" : "already set"}; ${made.pinned} exercise(s) took it; template file set on ${made.templateSet} part(s).`);
-}
-
 const mode = process.argv[2];
 
 if (mode === "wipe") {
   console.error(DEMO_WIPE_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "contractor" && mode !== "switches") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|contractor|switches>");
+// Ruling 12c (2026-10-12): the scope switches, upload rules and template file are configuration, written only inside the load on a fresh database. This mode touches nothing.
+if (mode === "switches") {
+  console.error(DEMO_SWITCHES_RETIRED);
+  process.exit(1);
+}
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "contractor") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|contractor>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "contractor" ? contractor() : mode === "switches" ? switches() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "contractor" ? contractor() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);
