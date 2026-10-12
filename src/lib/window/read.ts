@@ -13,7 +13,7 @@ import { chooseFaults } from "@/lib/evaluation/pin";
 import { loadAttributions } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
-import { uncollectedReceipts } from "@/lib/integration/fee-receipt";
+import { simulatedSales, uncollectedReceipts } from "@/lib/integration/fee-receipt";
 import { EXERCISE_STATUS_LABEL, REGIME_LABEL } from "@/lib/method/labels";
 import { loadExercise } from "@/lib/method/repo";
 import { nameRouteLabel, nameRoutesOf, windowChangeRoutesOf } from "@/lib/method/approval";
@@ -33,8 +33,9 @@ import { windowEditFault } from "./edit";
 import { attendanceCsv, isMandatory, mandatoryPermittedFor } from "./events";
 import { inviteeEditFault, inviteeListFault, regKey } from "./invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "./judge";
-import { SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
-import { onlinePaymentAvailable, physicalItemsApply, saleModeWords, takeSaleModeFaults } from "./sale-mode";
+import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
+import { gatewayReading, SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
+import { physicalItemsApply, saleModeWords, takeSaleModeFaults } from "./sale-mode";
 import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, RULE_LABEL, advertisedOnlyNote, bidNouns, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
 import { closingHistory, isPublished, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
@@ -214,7 +215,7 @@ export async function windowTab(organisationId: string, exerciseId: string, hidd
       physical: physicalItemsApply(ex.saleMode),
       words: saleModeWords(ex.saleMode),
       setting: saleModeWords(d.sale.saleMode),
-      onlinePayment: onlinePaymentAvailable(d.sale.online),
+      onlinePayment: gatewayReading(d.sale.online, simulatorAllowedByDeployment()).available,
       take: allowed(takeSaleModeFaults({ status: ex.status, published: isPublished(ex.status) || !!w?.publishedAt, pin: ex.saleMode, setting: d.sale.saleMode })[0]),
     },
     actions: {
@@ -323,7 +324,7 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
     // SR-10 (ruling 16): an exercise sold online is bought through the portal; its register does not offer a counter sale.
     online: ex.saleMode === "ONLINE",
     awaitingPayment: awaiting.map((p) => ({ id: p.id, supplier: p.supplier.registeredName, reference: p.supplier.reference, buyer: p.buyer.contact.name, amount: money(p.amount), startedOn: formatOrgDateTime(p.createdAt, org.timeZone), failedTries: p._count.attempts })),
-    onlinePayment: onlinePaymentAvailable(d.sale.online),
+    onlinePayment: gatewayReading(d.sale.online, simulatorAllowedByDeployment()).available,
     rows: sales.map((s) => {
       const acked = addenda.filter((a) => a.recipients.some((c) => c.partyId === s.partyId && c.acknowledgedOn)).length;
       return {
@@ -345,6 +346,8 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
       };
     }),
     reconciliation: uncollectedReceipts(sales).map((s) => ({ id: s.id, purchaser: s.party.name, soldOn: day(s.soldOn), amount: money(s.amount) })),
+    // SEC-1: a simulated sale stands for no money, so it is listed apart ("Simulated, no money received") and never counted as a receipt.
+    simulatedNoMoney: simulatedSales(sales).map((s) => ({ id: s.id, purchaser: s.party.name, soldOn: day(s.soldOn), amount: money(s.amount) })),
     parties: d.parties.map((p) => ({ id: p.id, name: p.name, registrationNo: p.registrationNo, cameAs: PARTY_SOURCE_LABEL[p.source], invited: p.source === "PROPOSED_INVITEE" })),
     // 6.15a fix M-2: the register's registered suppliers a sale may name (the contractor is linked to it at the sale).
     // Residual 6: never an unbounded list. Up to SALE_SUPPLIER_CHOICES registered suppliers by name, searched in
@@ -510,12 +513,13 @@ export async function invitationConfig(organisationId: string) {
   };
 }
 
-/// The organisation's reconciliation exceptions (FR-ADV-009 partial): live sales with no finance receipt, oldest first. A sale paid on the payment simulator (SR-10) is never one: it is not a finance receipt and never will be.
+/// The organisation's reconciliation (FR-ADV-009 partial): live counter sales with no finance receipt, oldest first, and apart from them the live sales paid on the payment simulator (SR-10), "Simulated, no money received": listed, never dropped and never counted as a receipt.
 export async function receiptExceptions(organisationId: string) {
   const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { id: true } });
   if (!org) return [];
-  const sales = await db.documentSale.findMany({ where: { organisationId: org.id, voidedAt: null, financeReceiptNo: null, paymentChannel: "COUNTER" }, include: { party: { select: { name: true } }, window: { select: { exercise: { select: { id: true, reference: true } } } } }, orderBy: { soldOn: "asc" } });
-  return sales.map((s) => ({ id: s.id, exerciseId: s.window.exercise.id, exercise: s.window.exercise.reference, purchaser: s.party.name, soldOn: day(s.soldOn), amount: money(s.amount) }));
+  const sales = await db.documentSale.findMany({ where: { organisationId: org.id, voidedAt: null }, include: { party: { select: { name: true } }, window: { select: { exercise: { select: { id: true, reference: true } } } } }, orderBy: { soldOn: "asc" } });
+  const row = (s: (typeof sales)[number], kind: "AWAITING_RECEIPT" | "SIMULATED") => ({ id: s.id, kind, exerciseId: s.window.exercise.id, exercise: s.window.exercise.reference, purchaser: s.party.name, soldOn: day(s.soldOn), amount: money(s.amount) });
+  return [...uncollectedReceipts(sales).map((s) => row(s, "AWAITING_RECEIPT")), ...simulatedSales(sales).map((s) => row(s, "SIMULATED"))];
 }
 
 /**

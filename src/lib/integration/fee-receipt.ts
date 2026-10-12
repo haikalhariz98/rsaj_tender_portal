@@ -10,6 +10,7 @@
  */
 
 import { matchesFormat } from "./award-commitment";
+import { isFinanceReceipt } from "./payment-gateway";
 
 export interface FeeReceipt {
   number: string;
@@ -40,10 +41,22 @@ export const manualFeeReceipt: FeeReceiptGateway = {
   },
 };
 
+type ReconcilableSale = { voidedAt: Date | null; financeReceiptNo: string | null; soldOn: Date; paymentChannel?: "COUNTER" | "SIMULATED" };
+
+/// A sale with no `paymentChannel` is a counter sale (the column's default).
+const channelOf = (s: { paymentChannel?: "COUNTER" | "SIMULATED" }) => s.paymentChannel ?? "COUNTER";
+
 /**
- * The reconciliation exceptions: live sales with no receipt recorded, oldest first. A simulated payment (SR-10) is never an exception: it is not a finance receipt and never
- * will be, so finance has nothing to reconcile it to and it must not appear to be waiting for one.
+ * The reconciliation exceptions: live counter sales with no finance receipt recorded, oldest first. A simulated payment (SR-10) is never one: it is not a finance receipt and never
+ * will be, so finance has nothing to reconcile it to and it must not appear to be waiting for one. It is listed apart (`simulatedSales`), never dropped. A sale is "with a receipt" by
+ * `isFinanceReceipt`, the one definition, so what finance counts and what this list leaves out cannot differ.
  */
-export function uncollectedReceipts<S extends { voidedAt: Date | null; financeReceiptNo: string | null; soldOn: Date; paymentChannel?: "COUNTER" | "SIMULATED" }>(sales: readonly S[]): S[] {
-  return sales.filter((s) => !s.voidedAt && !s.financeReceiptNo && s.paymentChannel !== "SIMULATED").sort((a, b) => a.soldOn.getTime() - b.soldOn.getTime());
+export function uncollectedReceipts<S extends ReconcilableSale>(sales: readonly S[]): S[] {
+  return sales.filter((s) => !s.voidedAt && channelOf(s) !== "SIMULATED" && !isFinanceReceipt({ paymentChannel: channelOf(s), financeReceiptNo: s.financeReceiptNo, voidedAt: s.voidedAt })).sort((a, b) => a.soldOn.getTime() - b.soldOn.getTime());
 }
+
+/// The live sales paid on the payment simulator, oldest first: "Simulated, no money received". Listed for the officer so a sale that stands for nothing is seen, and never counted as a receipt.
+export const simulatedSales = <S extends ReconcilableSale>(sales: readonly S[]): S[] => sales.filter((s) => !s.voidedAt && channelOf(s) === "SIMULATED").sort((a, b) => a.soldOn.getTime() - b.soldOn.getTime());
+
+/// How the reconciliation list calls a simulated sale.
+export const SIMULATED_NO_MONEY = "Simulated, no money received";

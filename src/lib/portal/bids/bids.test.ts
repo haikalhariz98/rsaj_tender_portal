@@ -223,21 +223,21 @@ describe("the pre-sale checks (FR-ADV-010)", () => {
 describe("the tender documents: when they are released online", () => {
   const sale = { voidedAt: null as Date | null, financeReceiptNo: "R-100" as string | null };
   it("not set means nothing is released online, and is not the same as off", () => {
-    expect(releaseState({ setting: null, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("NOT_SET");
-    expect(releaseState({ setting: false, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("OFF");
+    expect(releaseState({ simulatorAllowed: true, setting: null, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("NOT_SET");
+    expect(releaseState({ simulatorAllowed: true, setting: false, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("OFF");
     expect(releaseWords.NOT_SET.detail).toContain("has not set");
     expect(releaseWords.OFF.detail).not.toContain("has not set");
   });
   it("needs a sale that stands and a recorded payment receipt", () => {
-    expect(releaseState({ setting: true, sale: null, phase: "OPEN_FOR_PURCHASE" })).toBe("NO_SALE");
-    expect(releaseState({ setting: true, sale: { ...sale, voidedAt: NOW }, phase: "OPEN_FOR_PURCHASE" })).toBe("NO_SALE");
-    expect(releaseState({ setting: true, sale: { ...sale, financeReceiptNo: null }, phase: "OPEN_FOR_PURCHASE" })).toBe("AWAITING_RECEIPT");
-    expect(releaseState({ setting: true, sale: { ...sale, financeReceiptNo: "  " }, phase: "OPEN_FOR_PURCHASE" })).toBe("AWAITING_RECEIPT");
-    expect(releaseState({ setting: true, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("READY");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale: null, phase: "OPEN_FOR_PURCHASE" })).toBe("NO_SALE");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale: { ...sale, voidedAt: NOW }, phase: "OPEN_FOR_PURCHASE" })).toBe("NO_SALE");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale: { ...sale, financeReceiptNo: null }, phase: "OPEN_FOR_PURCHASE" })).toBe("AWAITING_RECEIPT");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale: { ...sale, financeReceiptNo: "  " }, phase: "OPEN_FOR_PURCHASE" })).toBe("AWAITING_RECEIPT");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("READY");
   });
   it("is released from publication to the closing only, and never for a cancelled exercise", () => {
     for (const p of WINDOW_PHASES) {
-      expect(releaseState({ setting: true, sale, phase: p }) === "READY", p).toBe(p === "PUBLISHED" || p === "OPEN_FOR_PURCHASE" || p === "CLOSED_FOR_PURCHASE");
+      expect(releaseState({ simulatorAllowed: true, setting: true, sale, phase: p }) === "READY", p).toBe(p === "PUBLISHED" || p === "OPEN_FOR_PURCHASE" || p === "CLOSED_FOR_PURCHASE");
     }
   });
 });

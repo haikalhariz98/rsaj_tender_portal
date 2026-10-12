@@ -36,13 +36,13 @@ describe("the payment simulator (SR-10, ruling 17 as amended)", () => {
     expect(isFinanceReceipt({ paymentChannel: "COUNTER", financeReceiptNo: null, voidedAt: null })).toBe(false);
   });
   it("is available only with the switch on and a method configured; otherwise it refuses in words, and the fallback is the officer's receipt", () => {
-    expect(gatewayReading({ simulatorOn: true, methods: ["Card"] }).available).toBe(true);
+    expect(gatewayReading({ simulatorOn: true, methods: ["Card"] }, true).available).toBe(true);
     for (const f of [{ simulatorOn: null, methods: ["Card"] }, { simulatorOn: false, methods: ["Card"] }, { simulatorOn: true, methods: [] }]) {
-      const r = gatewayReading(f);
+      const r = gatewayReading(f, true);
       expect(r.available).toBe(false);
       expect(!r.available && r.words.length).toBeGreaterThan(20);
     }
-    const unset = gatewayReading({ simulatorOn: null, methods: [] });
+    const unset = gatewayReading({ simulatorOn: null, methods: [] }, true);
     expect(!unset.available && unset.why).toBe("NOT_SET");
   });
   it("a buyer can only name a method the organisation offers", () => {
@@ -95,46 +95,46 @@ describe("judgePurchase", () => {
 describe("holdsReleasedPurchase: who may later submit a bid (wave 3b)", () => {
   const sale = (o: Partial<{ voidedAt: Date | null; financeReceiptNo: string | null; paymentChannel: "COUNTER" | "SIMULATED" }> = {}) => ({ voidedAt: null, financeReceiptNo: null, paymentChannel: "SIMULATED" as const, ...o });
   it("a paid purchase whose sale stands is released, by the simulator or by an officer's receipt", () => {
-    expect(holdsReleasedPurchase({ releaseOnline: true, purchase: { state: "PAID" }, sale: sale() })).toEqual({ released: true, basis: "PAID_PURCHASE" });
-    expect(holdsReleasedPurchase({ releaseOnline: true, purchase: { state: "PAID" }, sale: sale({ paymentChannel: "COUNTER", financeReceiptNo: "R-9" }) })).toEqual({ released: true, basis: "PAID_PURCHASE" });
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: true, purchase: { state: "PAID" }, sale: sale() })).toEqual({ released: true, basis: "PAID_PURCHASE" });
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: true, purchase: { state: "PAID" }, sale: sale({ paymentChannel: "COUNTER", financeReceiptNo: "R-9" }) })).toEqual({ released: true, basis: "PAID_PURCHASE" });
   });
   it("an unpaid purchase, a voided sale and no purchase are not released", () => {
-    expect(holdsReleasedPurchase({ releaseOnline: true, purchase: { state: "AWAITING_PAYMENT" }, sale: null }).released).toBe(false);
-    expect(holdsReleasedPurchase({ releaseOnline: true, purchase: { state: "PAID" }, sale: sale({ voidedAt: new Date() }) }).released).toBe(false);
-    expect(holdsReleasedPurchase({ releaseOnline: true, purchase: null, sale: null }).released).toBe(false);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: true, purchase: { state: "AWAITING_PAYMENT" }, sale: null }).released).toBe(false);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: true, purchase: { state: "PAID" }, sale: sale({ voidedAt: new Date() }) }).released).toBe(false);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: true, purchase: null, sale: null }).released).toBe(false);
   });
   it("a counter sale with its receipt recorded is released; without the receipt, or simulated with no purchase, it is not", () => {
-    expect(holdsReleasedPurchase({ releaseOnline: true, purchase: null, sale: sale({ paymentChannel: "COUNTER", financeReceiptNo: "R-1" }) }).basis).toBe("COUNTER_SALE_WITH_RECEIPT");
-    expect(holdsReleasedPurchase({ releaseOnline: true, purchase: null, sale: sale({ paymentChannel: "COUNTER" }) }).released).toBe(false);
-    expect(holdsReleasedPurchase({ releaseOnline: true, purchase: null, sale: sale() }).released).toBe(false);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: true, purchase: null, sale: sale({ paymentChannel: "COUNTER", financeReceiptNo: "R-1" }) }).basis).toBe("COUNTER_SALE_WITH_RECEIPT");
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: true, purchase: null, sale: sale({ paymentChannel: "COUNTER" }) }).released).toBe(false);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: true, purchase: null, sale: sale() }).released).toBe(false);
   });
   it("a paid purchase stays released if the organisation later turns release off (G1: a gate in flight is not rewritten); a counter sale's receipt counts only while it releases online", () => {
-    expect(holdsReleasedPurchase({ releaseOnline: false, purchase: { state: "PAID" }, sale: sale() }).released).toBe(true);
-    expect(holdsReleasedPurchase({ releaseOnline: null, purchase: { state: "PAID" }, sale: sale() }).released).toBe(true);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: false, purchase: { state: "PAID" }, sale: sale() }).released).toBe(true);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: null, purchase: { state: "PAID" }, sale: sale() }).released).toBe(true);
     const counter = sale({ paymentChannel: "COUNTER", financeReceiptNo: "R-1" });
-    expect(holdsReleasedPurchase({ releaseOnline: false, purchase: null, sale: counter }).released).toBe(false);
-    expect(holdsReleasedPurchase({ releaseOnline: null, purchase: null, sale: counter }).released).toBe(false);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: false, purchase: null, sale: counter }).released).toBe(false);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: null, purchase: null, sale: counter }).released).toBe(false);
   });
   it("does not depend on the phase: a released purchase stays released after the closing, when the pack itself is no longer open", () => {
-    const input = { releaseOnline: true, purchase: { state: "PAID" as const }, sale: sale() };
+    const input = { simulatorAllowed: true, releaseOnline: true, purchase: { state: "PAID" as const }, sale: sale() };
     expect(holdsReleasedPurchase(input).released).toBe(true);
-    expect(releaseState({ setting: true, sale: input.sale, purchase: input.purchase, phase: "CLOSED" })).toBe("NOT_OPEN");
-    expect(releaseState({ setting: true, sale: input.sale, purchase: input.purchase, phase: "OPEN_FOR_PURCHASE" })).toBe("READY");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale: input.sale, purchase: input.purchase, phase: "CLOSED" })).toBe("NOT_OPEN");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale: input.sale, purchase: input.purchase, phase: "OPEN_FOR_PURCHASE" })).toBe("READY");
   });
 });
 
 describe("releaseState with an online purchase", () => {
   it("is waiting for payment while the purchase is awaiting it", () => {
-    expect(releaseState({ setting: true, sale: null, purchase: { state: "AWAITING_PAYMENT" }, phase: "OPEN_FOR_PURCHASE" })).toBe("AWAITING_PAYMENT");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale: null, purchase: { state: "AWAITING_PAYMENT" }, phase: "OPEN_FOR_PURCHASE" })).toBe("AWAITING_PAYMENT");
   });
   it("a simulated sale releases like a recorded receipt, and a simulated sale with no purchase does not", () => {
     const sale = { voidedAt: null, financeReceiptNo: null, paymentChannel: "SIMULATED" as const };
-    expect(releaseState({ setting: true, sale, purchase: { state: "PAID" }, phase: "PUBLISHED" })).toBe("READY");
-    expect(releaseState({ setting: true, sale, purchase: null, phase: "PUBLISHED" })).toBe("AWAITING_RECEIPT");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale, purchase: { state: "PAID" }, phase: "PUBLISHED" })).toBe("READY");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale, purchase: null, phase: "PUBLISHED" })).toBe("AWAITING_RECEIPT");
   });
   it("is unchanged for the counter: no purchase, a sale, a receipt", () => {
-    expect(releaseState({ setting: true, sale: { voidedAt: null, financeReceiptNo: "R-1" }, phase: "OPEN_FOR_PURCHASE" })).toBe("READY");
-    expect(releaseState({ setting: true, sale: { voidedAt: null, financeReceiptNo: null }, phase: "OPEN_FOR_PURCHASE" })).toBe("AWAITING_RECEIPT");
-    expect(releaseState({ setting: null, sale: null, phase: "OPEN_FOR_PURCHASE" })).toBe("NOT_SET");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale: { voidedAt: null, financeReceiptNo: "R-1" }, phase: "OPEN_FOR_PURCHASE" })).toBe("READY");
+    expect(releaseState({ simulatorAllowed: true, setting: true, sale: { voidedAt: null, financeReceiptNo: null }, phase: "OPEN_FOR_PURCHASE" })).toBe("AWAITING_RECEIPT");
+    expect(releaseState({ simulatorAllowed: true, setting: null, sale: null, phase: "OPEN_FOR_PURCHASE" })).toBe("NOT_SET");
   });
 });

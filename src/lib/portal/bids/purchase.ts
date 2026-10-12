@@ -85,21 +85,38 @@ export function judgePurchase(i: { saleMode: "COUNTER" | "ONLINE" | null; releas
   return i.checks.some((c) => c.state === "BLOCK") ? { outcome: "REFUSED" } : { outcome: "MAKE" };
 }
 
+type SaleOfSupplier = { voidedAt: Date | null; financeReceiptNo: string | null; paymentChannel: "COUNTER" | "SIMULATED" };
+
+/// SEC-1: a sale paid on the payment simulator stands for no money, so it counts only while the deployment allows the simulator. A counter sale is not affected.
+const standsHere = (sale: SaleOfSupplier | null, simulatorAllowed: boolean): SaleOfSupplier | null => (sale && !sale.voidedAt && (sale.paymentChannel !== "SIMULATED" || simulatorAllowed) ? sale : null);
+
 /**
- * Whether a supplier holds a RELEASED purchase of an exercise's documents, which is what lets it later submit a bid (wave 3b). Pure and independent of the phase: a
- * purchase released at the sale stays released after the closing, so a bid in time is not refused for the sale having ended. A purchase counts once it is paid and its
- * sale stands (a voided sale is no purchase), by either payment and no other; a counter sale with its receipt recorded counts only where the organisation releases documents online.
+ * Whether the DOCUMENTS are released to a supplier (FR-VND-012): it holds a paid online purchase whose sale stands, by either payment and no other, or a counter sale with its finance
+ * receipt recorded where the organisation releases documents online (OD-11). Pure and independent of the phase: a purchase released at the sale stays released after the closing.
+ * `simulatorAllowed` is the deployment's permission (SEC-1, `simulatorAllowedByDeployment`), required so no caller can forget it: a simulated payment releases nothing where it is withheld.
+ * The bid is a different question with a different answer (`holdsBidStanding`).
  */
 export function holdsReleasedPurchase(i: {
   releaseOnline: boolean | null;
   purchase: { state: PurchaseState } | null;
   /// The supplier's sale on the exercise that stands or was voided; null: none.
-  sale: { voidedAt: Date | null; financeReceiptNo: string | null; paymentChannel: "COUNTER" | "SIMULATED" } | null;
+  sale: SaleOfSupplier | null;
+  simulatorAllowed: boolean;
 }): { released: boolean; basis: "PAID_PURCHASE" | "COUNTER_SALE_WITH_RECEIPT" | null } {
-  const sale = i.sale && !i.sale.voidedAt ? i.sale : null;
+  const sale = standsHere(i.sale, i.simulatorAllowed);
   // A paid purchase was released when it was taken (a purchase is refused unless documents are released online), so a later change of the organisation's setting does not unmake it: a gate on an exercise in flight is not rewritten (G1).
   if (i.purchase?.state === "PAID" && sale) return { released: true, basis: "PAID_PURCHASE" };
   // The counter's own flow: an officer sold the documents and recorded the finance receipt, and the organisation releases documents online.
   if (i.releaseOnline === true && sale && sale.paymentChannel === "COUNTER" && !!sale.financeReceiptNo?.trim()) return { released: true, basis: "COUNTER_SALE_WITH_RECEIPT" };
   return { released: false, basis: null };
+}
+
+/**
+ * Whether a supplier stands as a buyer of the documents for the purpose of SUBMITTING A BID (wave 3b), which is the opening's own reading (`LIVE_SALE`, X-11): it holds a sale that
+ * stands, a counter sale with or without its receipt recorded (the receipt is finance's paperwork and does not decide who may tender), or a paid online purchase. The documents' release
+ * is stricter, and rightly (`holdsReleasedPurchase`): a bid is judged by the same sale the opening will find, so a supplier is not let to tender only to be found "no live purchase".
+ * A simulated payment counts only while the deployment allows the simulator (SEC-1), as at the opening. Product owner to confirm (the wave 3a builder raised the same question).
+ */
+export function holdsBidStanding(i: { sale: SaleOfSupplier | null; simulatorAllowed: boolean }): boolean {
+  return standsHere(i.sale, i.simulatorAllowed) != null;
 }

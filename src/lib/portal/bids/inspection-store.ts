@@ -10,7 +10,8 @@ import { downloadRequestFault } from "@/lib/documents/request-guard";
 
 import { inspectionReading, isRepeatInspection } from "./documents";
 import type { PurchaseState } from "./purchase";
-import { releaseState, releaseWords, type ReleaseState } from "./release";
+import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
+import { releaseState, releaseText, type ReleaseState } from "./release";
 
 /**
  * A supplier opens the Tender Table Document, or the pack released to it (FR-DOC-010, FR-VND-012, Phase 4d).
@@ -31,7 +32,7 @@ export type OpenResult =
   | { open: false; ctx: BidContext | null; headline: string; detail: string; crossSite?: true };
 
 /// The supplier's sale that stands on this window, and the organisation's release setting, read together.
-export async function loadReleaseFacts(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, ctx: BidContext): Promise<{ state: ReleaseState; setting: boolean | null; sale: { id: string; soldOn: Date; financeReceiptNo: string | null; paymentChannel: "COUNTER" | "SIMULATED" } | null; purchase: { id: string; state: PurchaseState } | null }> {
+export async function loadReleaseFacts(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, ctx: BidContext): Promise<{ state: ReleaseState; words: { short: string; detail: string }; setting: boolean | null; sale: { id: string; soldOn: Date; financeReceiptNo: string | null; paymentChannel: "COUNTER" | "SIMULATED" } | null; purchase: { id: string; state: PurchaseState } | null }> {
   const window = ctx.ex.window;
   const partyIds = ctx.parties.map((p) => p.id);
   const [policy, sale, purchase] = await Promise.all([
@@ -42,8 +43,10 @@ export async function loadReleaseFacts(tx: Tx, actor: Pick<SupplierActor, "suppl
   ]);
   const setting = policy?.electronicDocumentRelease ?? null;
   const mine = purchase && purchase.organisationId === actor.organisationId ? { id: purchase.id, state: purchase.state } : null;
+  const state = releaseState({ setting, sale: sale ? { voidedAt: sale.voidedAt, financeReceiptNo: sale.financeReceiptNo, paymentChannel: sale.paymentChannel } : null, purchase: mine, phase: ctx.phase, simulatorAllowed: simulatorAllowedByDeployment() });
   return {
-    state: releaseState({ setting, sale: sale ? { voidedAt: sale.voidedAt, financeReceiptNo: sale.financeReceiptNo, paymentChannel: sale.paymentChannel } : null, purchase: mine, phase: ctx.phase }),
+    state,
+    words: releaseText(state, { saleMode: ctx.ex.saleMode, simulated: sale?.paymentChannel === "SIMULATED" }),
     setting,
     sale: sale ? { id: sale.id, soldOn: sale.soldOn, financeReceiptNo: sale.financeReceiptNo, paymentChannel: sale.paymentChannel } : null,
     purchase: mine,
@@ -75,7 +78,7 @@ export async function openForInspection(actor: SupplierActor, i: { exerciseId: s
 
   if (i.kind === "PACK") {
     const release = await loadReleaseFacts(db, actor, ctx);
-    if (release.state !== "READY") return { open: false, ctx, headline: releaseWords[release.state].short, detail: releaseWords[release.state].detail };
+    if (release.state !== "READY") return { open: false, ctx, headline: release.words.short, detail: release.words.detail };
   } else {
     const early = inspectionReading(tableDocumentAvailability(ctx.phase), { approved: true });
     if (!early.open) return { open: false, ctx, headline: early.headline, detail: early.detail };

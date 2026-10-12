@@ -5,7 +5,7 @@ import type { AuditActor } from "@/lib/auth/types";
 import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
-import { readRegister, registerAtSale } from "@/lib/suppliers/sale-hook";
+import { registerAtSale } from "@/lib/suppliers/sale-hook";
 import { supplierFaultText } from "@/lib/suppliers/labels";
 import { ENTITY, saleFields } from "@/lib/window/audit-view";
 import { releaseAnnotation } from "@/lib/window/sale";
@@ -135,11 +135,4 @@ export async function markPurchasePaid(tx: Tx, i: PaidInput): Promise<{ saleId: 
     await writeAudit(tx, { actor: i.auditActor, organisationId: org.id, entity: ENTITY.addendumCopy, entityId: copy.id, entityLabel: `${exercise.reference} · Addendum ${a.number} · ${party.name}` }, "CREATE", diffFields(null, { recipient: party.name, given: "with the documents" }));
   }
   return { saleId: sale.id, partyName: party.name };
-}
-
-/// The register's reading before a payment is taken, without the lock: a buyer barred meanwhile is told so before any attempt is recorded.
-export async function registerBars(tx: Tx, org: { id: string; timeZone: string | null; today: string }, supplierId: string, exerciseId: string): Promise<string | null> {
-  const r = await readRegister(tx, org, supplierId, exerciseId);
-  const blocks = r.check.findings.filter((f) => f.level === "block");
-  return blocks.length ? blocks.map((f) => supplierFaultText(f)).join(" ") : null;
 }

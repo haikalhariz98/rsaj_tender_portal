@@ -16,6 +16,7 @@ import { FormReader } from "@/lib/validate";
 import { saleModeWords, type SaleMode } from "@/lib/window/sale-mode";
 import { BID_RULE_FAULT_TEXT, bidRuleFaults, bidRuleToSave } from "@/lib/bids/config";
 import { methodOpeningFaults, methodOpeningToSave, OPENING_CONFIG_FAULT_TEXT, openingPolicyFaults, openingPolicyToSave, type OpeningConfigFault } from "@/lib/opening/config";
+import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -102,7 +103,13 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
     const templates = await tx.documentTemplate.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } });
     const before = await tx.windowPolicy.findUnique({ where: { organisationId: org.id } });
     const fs = policyFaults(
-      { ...v, templateIds: [v.noticeTemplateId, v.invitationTemplateId, v.addendumTemplateId], paymentMethods: paymentMethodsFromText(v.paymentMethodsText) },
+      {
+        ...v,
+        templateIds: [v.noticeTemplateId, v.invitationTemplateId, v.addendumTemplateId],
+        paymentMethods: paymentMethodsFromText(v.paymentMethodsText),
+        // SEC-1: the simulator is switched ON only where the deployment allows it. Leaving it as it stands (on already, or off, or unset) is never refused for that.
+        simulatorSwitchNotAllowed: v.paymentSimulatorOn === true && before?.paymentSimulatorOn !== true && !simulatorAllowedByDeployment(),
+      },
       { channels: channels.map((c) => ({ id: c.id, retiredOn: c.retiredOn ? storedDay(c.retiredOn) : null })), calendars: calendars.map((c) => ({ id: c.id, retiredOn: c.retiredOn ? storedDay(c.retiredOn) : null })), templateIds: templates.map((t) => t.id), today },
     );
     if (fs.length) return refusal(fs);

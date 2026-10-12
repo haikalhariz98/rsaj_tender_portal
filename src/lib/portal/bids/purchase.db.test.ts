@@ -199,12 +199,15 @@ describe("paying on the payment simulator", () => {
     // It is never a finance receipt, and not among the receipts to collect.
     expect(isFinanceReceipt({ paymentChannel: sale.paymentChannel, financeReceiptNo: sale.financeReceiptNo, voidedAt: sale.voidedAt })).toBe(false);
     expect(uncollectedReceipts([sale])).toEqual([]);
-    // Nor is it among the organisation's receipts to collect, which the reconciliation reads from the database.
-    expect((await receiptExceptions(organisationId)).map((e) => e.id)).not.toContain(sale.id);
+    // Nor is it among the organisation's receipts to collect, which the reconciliation reads from the database. SEC-1 (SR-10 review): it is not dropped either.
+    // It is listed apart as "Simulated, no money received", so an officer sees a sale that stands for nothing.
+    const recon = await receiptExceptions(organisationId);
+    expect(recon.filter((e) => e.kind === "AWAITING_RECEIPT").map((e) => e.id)).not.toContain(sale.id);
+    expect(recon.filter((e) => e.kind === "SIMULATED").map((e) => e.id)).toContain(sale.id);
     // Released, and the predicate for a later bid holds, independently of the phase.
     const ctx = (await loadBidContext(db, s.actor, online.exerciseId))!;
     expect((await loadReleaseFacts(db, s.actor, ctx)).state).toBe("READY");
-    expect(holdsReleasedPurchase({ releaseOnline: true, purchase: { state: after.state }, sale: { voidedAt: sale.voidedAt, financeReceiptNo: sale.financeReceiptNo, paymentChannel: sale.paymentChannel } }).released).toBe(true);
+    expect(holdsReleasedPurchase({ simulatorAllowed: true, releaseOnline: true, purchase: { state: after.state }, sale: { voidedAt: sale.voidedAt, financeReceiptNo: sale.financeReceiptNo, paymentChannel: sale.paymentChannel } }).released).toBe(true);
     // A double press changes nothing: the payment that stands answers, and no second attempt is kept.
     expect(await settlePayment(s.actor, { exerciseId: online.exerciseId, method: METHODS[0], choice: "PAY" })).toMatchObject({ outcome: "PAID", already: true });
     expect(await db.paymentAttempt.count({ where: { purchaseId: purchase.id } })).toBe(2);

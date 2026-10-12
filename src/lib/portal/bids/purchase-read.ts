@@ -2,12 +2,14 @@ import type { Tx } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
 import { dayIn } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
+import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
 import { gatewayReading, SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
 import { formatMoney, parseSen } from "@/lib/money";
 import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
 
 import { blockingChecks, type PreSaleCheck } from "./checks";
 import type { BidContext } from "./context-store";
+import { failedTriesExhausted, FAILED_TRIES_WORDS } from "./limits";
 import { buyerStandingCheck, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS, type PaidChannel, type PurchaseState } from "./purchase";
 import { loadSaleFacts } from "./sale-facts";
 
@@ -27,6 +29,8 @@ export interface OnlineView {
   /// The purchase, once made.
   purchase: {
     startedOn: string;
+    /// The fee as it was when the purchase was made (frozen on the purchase), not the window's fee now.
+    amount: string;
     paid: null | { on: string; channel: PaidChannel; channelWords: string; method: string | null; reference: string | null; amount: string };
     /// The last failed try, while the purchase is still awaiting payment.
     lastFailure: null | { method: string; text: string };
@@ -55,12 +59,14 @@ export async function loadOnlineView(tx: Tx, actor: BuyerActor, ctx: BidContext)
     tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true, paymentSimulatorOn: true, simulatedPaymentMethods: true } }),
     tx.documentPurchase.findUnique({
       where: { windowId_supplierId: { windowId: window.id, supplierId: actor.supplierId } },
-      select: { organisationId: true, state: true, createdAt: true, paidAt: true, paidChannel: true, paidMethod: true, paidReference: true, amount: true, attempts: { orderBy: { attemptNo: "desc" }, take: 1, select: { outcome: true, method: true, failureText: true } } },
+      select: { organisationId: true, state: true, createdAt: true, paidAt: true, paidChannel: true, paidMethod: true, paidReference: true, amount: true, attempts: { orderBy: { attemptNo: "desc" }, take: 1, select: { outcome: true, method: true, failureText: true } }, _count: { select: { attempts: { where: { outcome: "FAILED" } } } } },
     }),
   ]);
   const mine = purchase && purchase.organisationId === actor.organisationId ? purchase : null;
   const checks = onlinePurchaseChecks(facts.checks, buyer);
-  const reading = gatewayReading({ simulatorOn: policy?.paymentSimulatorOn ?? null, methods: policy?.simulatedPaymentMethods ?? [] });
+  const reading = gatewayReading({ simulatorOn: policy?.paymentSimulatorOn ?? null, methods: policy?.simulatedPaymentMethods ?? [] }, simulatorAllowedByDeployment());
+  // SEC-2: a purchase that has failed too often takes no more tries; the page says to ask the office.
+  const exhausted = mine?.state === "AWAITING_PAYMENT" && failedTriesExhausted(mine._count.attempts);
   const judged = judgePurchase({ saleMode: ctx.ex.saleMode, releaseOnline: policy?.electronicDocumentRelease ?? null, feeSet: window.feeAmount != null, checks, alreadyBought: facts.sale != null || mine?.state === "PAID", purchaseStands: false });
   const state: OnlineView["state"] = mine ? mine.state : "NOT_BOUGHT";
   const first = judged.outcome === "FAULTS" ? judged.faults[0] : judged.outcome === "REFUSED" ? "REFUSED" : null;
@@ -82,10 +88,11 @@ export async function loadOnlineView(tx: Tx, actor: BuyerActor, ctx: BidContext)
     purchase: mine
       ? {
           startedOn: formatDate(dayIn(mine.createdAt, ctx.org.timeZone)),
+          amount: formatMoney(parseSen(mine.amount.toString())),
           paid: mine.state === "PAID" && mine.paidAt && mine.paidChannel ? { on: formatDate(dayIn(mine.paidAt, ctx.org.timeZone)), channel: mine.paidChannel, channelWords: PAID_CHANNEL_WORDS[mine.paidChannel], method: mine.paidMethod, reference: mine.paidChannel === "SIMULATED" ? mine.paidReference : null, amount: formatMoney(parseSen(mine.amount.toString())) } : null,
           lastFailure: mine.state === "AWAITING_PAYMENT" && lastFail ? { method: lastFail.method, text: lastFail.failureText } : null,
         }
       : null,
-    payment: { available: reading.available, methods: reading.available ? reading.methods : [], words: reading.available ? SIMULATED_LABEL : reading.words, organisation: ctx.org.name },
+    payment: { available: reading.available && !exhausted, methods: reading.available && !exhausted ? reading.methods : [], words: exhausted ? FAILED_TRIES_WORDS : reading.available ? SIMULATED_LABEL : reading.words, organisation: ctx.org.name },
   };
 }

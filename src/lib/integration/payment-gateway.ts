@@ -60,20 +60,25 @@ export const paymentSimulator: PaymentGateway = {
   },
 };
 
-export type GatewayUnavailable = "NOT_SET" | "OFF" | "NO_METHODS";
+export type GatewayUnavailable = "NOT_SET" | "OFF" | "NOT_ALLOWED" | "NO_METHODS";
 
 export type GatewayReading = { available: true; gateway: PaymentGateway; methods: readonly string[] } | { available: false; why: GatewayUnavailable; words: string };
 
 export const GATEWAY_UNAVAILABLE_WORDS: Readonly<Record<GatewayUnavailable, string>> = {
   NOT_SET: "The organisation has not set whether online payment is on (the payment simulator is not set), so documents cannot be paid for here.",
   OFF: "Online payment is switched off, so documents cannot be paid for here.",
+  NOT_ALLOWED: "Online payment here is a demonstration only and this copy of the system is not set up for demonstrations so documents cannot be paid for here. The procurement office records the payment instead.",
   NO_METHODS: "Online payment is on, but the organisation has set no payment method to offer, so documents cannot be paid for here.",
 };
 
-/// Whether a buyer can pay online now, and by which methods; if not, why, in words. The fallback is the officer-recorded receipt.
-export function gatewayReading(f: OnlinePaymentFacts): GatewayReading {
+/**
+ * Whether a buyer can pay online now, and by which methods; if not, why, in words. The fallback is the officer-recorded receipt. `deploymentAllows` is the deployment's permission for
+ * the simulator (`simulatorAllowedByDeployment`): required, so no caller can forget it, and without it the simulator is never available whatever the organisation switched on.
+ */
+export function gatewayReading(f: OnlinePaymentFacts, deploymentAllows: boolean): GatewayReading {
   if (f.simulatorOn == null) return { available: false, why: "NOT_SET", words: GATEWAY_UNAVAILABLE_WORDS.NOT_SET };
   if (f.simulatorOn === false) return { available: false, why: "OFF", words: GATEWAY_UNAVAILABLE_WORDS.OFF };
+  if (!deploymentAllows) return { available: false, why: "NOT_ALLOWED", words: GATEWAY_UNAVAILABLE_WORDS.NOT_ALLOWED };
   if (!onlinePaymentAvailable(f)) return { available: false, why: "NO_METHODS", words: GATEWAY_UNAVAILABLE_WORDS.NO_METHODS };
   return { available: true, gateway: paymentSimulator, methods: f.methods };
 }

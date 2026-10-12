@@ -19,7 +19,7 @@ import { loadOnlineView, type OnlineView } from "./purchase-read";
 import { loadMyNotices } from "./list-store";
 import { awardStands, noticeStands } from "./non-award";
 import { sortNotices, type PortalNotice } from "./notices";
-import { releaseWords, type ReleaseState } from "./release";
+import type { ReleaseState } from "./release";
 import { loadSaleFacts } from "./sale-facts";
 import { signUpFaults, signUpState, windowFault, withdrawFaults, type SignUpState } from "./signup";
 import { bidStanding, type BidStanding } from "./standing";
@@ -186,7 +186,7 @@ export async function documentsTab(client: Tx, actor: Who & Pick<SupplierActor, 
     bought,
     canRequest: blocks.length === 0 && facts.standing == null && facts.sale == null && facts.checks.length > 0,
     table: inspectionReading(tableDocumentAvailability(ctx.phase), { approved: true }),
-    release: { state: release.state, short: releaseWords[release.state].short, detail: releaseWords[release.state].detail },
+    release: { state: release.state, short: release.words.short, detail: release.words.detail },
     online: await loadOnlineView(client, actor, ctx),
   };
 }

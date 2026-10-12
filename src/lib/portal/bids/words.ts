@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 
 import { REPRESENTATIVE_MAX } from "./signup";
 import { COLLECTOR_MAX } from "./checks";
+import { FAILED_TRIES_WORDS } from "./limits";
 import type { BidFault, BidFinding } from "./types";
 
 export interface Words {
@@ -51,6 +52,7 @@ const OWN: Readonly<Record<BidFault, (d: Data) => Words>> = {
   PAYMENT_UNAVAILABLE: (d) => w(String(d.words ?? "Documents cannot be paid for online here."), "Dokumen tidak boleh dibayar dalam talian di sini. Pejabat akan merekodkan bayaran anda."),
   METHOD_NOT_OFFERED: () => w("Choose one of the payment methods offered.", "Pilih salah satu kaedah bayaran yang ditawarkan."),
   NOT_ON_SALE: () => w("The documents are not on sale now, so they cannot be paid for.", "Dokumen tidak dijual sekarang, jadi ia tidak boleh dibayar."),
+  TOO_MANY_FAILED_TRIES: () => w(FAILED_TRIES_WORDS, "Pembelian ini telah gagal dibayar berkali-kali, jadi tiada percubaan lagi diterima di sini. Minta pejabat perolehan merekodkan bayaran anda."),
   PAYMENT_BARRED: (d) => w(String(d.words ?? "The supplier register does not allow the documents to be sold to your company."), "Daftar pembekal tidak membenarkan dokumen dijual kepada syarikat anda."),
   // Decisions log, 2026-10-09, ruling on 1875(3): the supplier's standing bars this act, in its own words (src/lib/portal/standing-gate.ts).
   SUPPLIER_STANDING_BARS: (d) => w(String(d.en ?? ""), String(d.ms ?? "")),

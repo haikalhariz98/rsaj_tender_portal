@@ -4,12 +4,13 @@
  * empty. A save is refused with its reason; nothing here supplies a value. Pure.
  */
 
+import { SIMULATOR_NOT_ALLOWED_WORDS } from "@/lib/integration/payment-deployment";
 import { isClockTime, isDay } from "@/lib/dates";
 import { REGIMES } from "@/lib/method/types";
 
 import type { Finding } from "./types";
 
-export type PolicyFault = "DAYS_NOT_VALID" | "TARGET_BELOW_MINIMUM" | "TIME_NOT_VALID" | "NAMED_CHANNEL_REQUIRED" | "CHANNEL_NOT_FOR_RULE" | "CHANNEL_RETIRED" | "CALENDAR_RETIRED" | "CALENDAR_UNKNOWN" | "CHANNEL_UNKNOWN" | "TEMPLATE_UNKNOWN" | "TIME_ZONE_NOT_SET" | "PAYMENT_METHOD_TOO_LONG" | "PAYMENT_METHODS_TOO_MANY" | "PAYMENT_METHOD_REPEATED";
+export type PolicyFault = "DAYS_NOT_VALID" | "TARGET_BELOW_MINIMUM" | "TIME_NOT_VALID" | "NAMED_CHANNEL_REQUIRED" | "CHANNEL_NOT_FOR_RULE" | "CHANNEL_RETIRED" | "CALENDAR_RETIRED" | "CALENDAR_UNKNOWN" | "CHANNEL_UNKNOWN" | "TEMPLATE_UNKNOWN" | "TIME_ZONE_NOT_SET" | "PAYMENT_METHOD_TOO_LONG" | "PAYMENT_METHODS_TOO_MANY" | "PAYMENT_METHOD_REPEATED" | "ONLINE_NEEDS_RELEASE" | "SIMULATOR_NOT_ALLOWED";
 
 export interface PolicyInput {
   minAdvertisementDays: number | null;
@@ -23,6 +24,11 @@ export interface PolicyInput {
   templateIds: readonly (string | null)[];
   /// SR-10 (ruling 17): the payment methods the simulator offers, one label each.
   paymentMethods?: readonly string[];
+  /// S3: an organisation that sells online releases documents online, so selling online with the release not set to Yes is refused. Absent: not judged (a caller that does not save these).
+  documentSaleMode?: "COUNTER" | "ONLINE" | null;
+  electronicDocumentRelease?: boolean | null;
+  /// SEC-1: the save would switch the payment simulator on, and the deployment has not allowed the simulator. Worked out by the action (it reads the deployment and the setting as it stands), refused here in words.
+  simulatorSwitchNotAllowed?: boolean;
 }
 
 export const PAYMENT_METHOD_MAX_LENGTH = 80;
@@ -67,6 +73,8 @@ export function policyFaults(p: PolicyInput, known: { channels: readonly { id: s
   if (methods.some((m) => m.length > PAYMENT_METHOD_MAX_LENGTH)) f("PAYMENT_METHOD_TOO_LONG", { max: PAYMENT_METHOD_MAX_LENGTH });
   if (methods.length > PAYMENT_METHODS_MAX) f("PAYMENT_METHODS_TOO_MANY", { max: PAYMENT_METHODS_MAX });
   if (new Set(methods.map((m) => m.toLowerCase())).size !== methods.length) f("PAYMENT_METHOD_REPEATED");
+  if (p.documentSaleMode === "ONLINE" && p.electronicDocumentRelease !== true) f("ONLINE_NEEDS_RELEASE");
+  if (p.simulatorSwitchNotAllowed) f("SIMULATOR_NOT_ALLOWED");
   if (zoneNeeded) f("TIME_ZONE_NOT_SET");
   return out;
 }
@@ -176,6 +184,10 @@ export function configFaultText(f: Finding & { line?: number }): string {
       return `At most ${f.data?.max ?? PAYMENT_METHODS_MAX} payment methods may be offered.`;
     case "PAYMENT_METHOD_REPEATED":
       return "A payment method is listed twice. Give each once.";
+    case "ONLINE_NEEDS_RELEASE":
+      return "Documents cannot be sold online while the release of documents online is not set to Yes: a buyer would pay and be handed nothing. Set \"Release the documents online after payment\" to Yes first, or sell at the counter.";
+    case "SIMULATOR_NOT_ALLOWED":
+      return SIMULATOR_NOT_ALLOWED_WORDS;
     case "REGIME_UNKNOWN":
       return "Choose the band the floor applies to.";
     case "FLOOR_EXISTS":

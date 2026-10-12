@@ -42,6 +42,11 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
           The number is typed in from finance&apos;s receipt. Until then the sale stays on the list of receipts to collect: {d.reconciliation.map((r) => `${r.purchaser} (sold ${r.soldOn}, ${r.amount})`).join("; ")}.
         </Callout>
       )}
+      {d.simulatedNoMoney.length > 0 && (
+        <Callout tone="info" title={`Simulated, no money received: ${d.simulatedNoMoney.length} ${d.simulatedNoMoney.length === 1 ? "sale" : "sales"}`}>
+          These were paid on the payment simulator, so no money moved and there is no finance receipt to wait for. They are listed here so that no one takes them for takings: {d.simulatedNoMoney.map((r) => `${r.purchaser} (sold ${r.soldOn}, ${r.amount})`).join("; ")}.
+        </Callout>
+      )}
       {d.online && (
         <Callout tone="info" title="These documents are bought online">
           {d.onlinePayment

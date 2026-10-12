@@ -56,6 +56,7 @@ export type BidFault =
   | "METHOD_NOT_OFFERED"
   | "NOT_ON_SALE"
   | "PAYMENT_BARRED"
+  | "TOO_MANY_FAILED_TRIES"
   // The supplier's standing bars the act (ruling on 1875(3)); the words are in the finding's data.
   | "SUPPLIER_STANDING_BARS";
 

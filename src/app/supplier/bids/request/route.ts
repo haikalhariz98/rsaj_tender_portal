@@ -1,5 +1,8 @@
 import { supplierPost } from "../../../_auth/supplier";
 import { BIDS_BODY_LIMIT, parseRequestBody } from "@/lib/portal/bids/api";
+import { countAndJudge } from "@/lib/portal/bids/rate-store";
+import { RATE_LIMITED_WORDS } from "@/lib/portal/bids/limits";
+import { db } from "@/lib/db";
 import { startPurchase, settlePayment } from "@/lib/portal/bids/purchase-store";
 import { requestDocuments, withdrawRequest } from "@/lib/portal/bids/request-store";
 
@@ -29,6 +32,9 @@ export async function POST(request: Request) {
     }
     if (action === "pay") {
       // SR-10: the buyer's answer on the simulated provider's page. A failure is an answer, not an error: the purchase stays awaiting payment, with the failure shown.
+      // SEC-2: each account may try to pay only so often. Counted before anything is judged, so a refused try counts too, and written nowhere that is a trail.
+      const rate = await countAndJudge(db, { organisationId: actor.organisationId, accountId: actor.accountId, action: "payment-attempt" });
+      if (rate.limited) return Response.json({ ok: false, code: "RATE_LIMITED", message: RATE_LIMITED_WORDS["payment-attempt"] }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": String(rate.retryAfterSeconds) } });
       const settled = await settlePayment(actor, { exerciseId, method, choice: choice! });
       if (settled.outcome === "FAILED") return reply({ ok: false, code: "PAYMENT_FAILED", message: settled.failureText, reference: settled.reference }, 200);
       return reply({ ok: true, action, reference: settled.reference });

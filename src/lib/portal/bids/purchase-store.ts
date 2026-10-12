@@ -3,7 +3,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
-import { formatDate } from "@/lib/format";
+import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
 import { gatewayReading, offeredMethod, paymentSimulator, SIMULATED_LABEL, type PaymentChoice } from "@/lib/integration/payment-gateway";
 import { formatMoney, parseSen } from "@/lib/money";
 import { standingBarFinding } from "@/lib/portal/standing-gate";
@@ -14,6 +14,7 @@ import { lockSaleRows } from "@/lib/window/lock";
 import { blockingChecks } from "./checks";
 import { loadBidContext } from "./context-store";
 import { lockExerciseSide } from "./lock";
+import { failedTriesExhausted } from "./limits";
 import { judgePurchase, onlinePurchaseChecks, type PurchaseFault } from "./purchase";
 import { buyerCheckOf } from "./purchase-read";
 import { markPurchasePaid, PurchaseBarred, PurchaseNotAwaiting } from "./purchase-paid";
@@ -105,7 +106,7 @@ export async function settlePayment(actor: SupplierActor, i: { exerciseId: strin
       }
       // Read inside the lock: the switch turned off meanwhile refuses here.
       const policy = await tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { paymentSimulatorOn: true, simulatedPaymentMethods: true, electronicDocumentRelease: true } });
-      const reading = gatewayReading({ simulatorOn: policy?.paymentSimulatorOn ?? null, methods: policy?.simulatedPaymentMethods ?? [] });
+      const reading = gatewayReading({ simulatorOn: policy?.paymentSimulatorOn ?? null, methods: policy?.simulatedPaymentMethods ?? [] }, simulatorAllowedByDeployment());
       if (!reading.available) return refuse([{ code: "PAYMENT_UNAVAILABLE", level: "block", data: { words: reading.words } }]);
       if (policy?.electronicDocumentRelease !== true) return refuse([{ code: "RELEASE_NOT_ONLINE", level: "block" }]);
       if (ctx.ex.saleMode !== "ONLINE") return refuse([{ code: "NOT_SOLD_ONLINE", level: "block" }]);
@@ -117,6 +118,8 @@ export async function settlePayment(actor: SupplierActor, i: { exerciseId: strin
       if (bar) return refuse([standingBarFinding(bar)]);
 
       await lockSaleRows(tx, window.id);
+      // SEC-2: a purchase that has failed this often takes no more tries, so the append-only attempts cannot grow without end. The office records the receipt instead.
+      if (failedTriesExhausted(await tx.paymentAttempt.count({ where: { purchaseId: purchase.id, outcome: "FAILED" } }))) return refuse([{ code: "TOO_MANY_FAILED_TRIES", level: "block" }]);
       const attemptNo = (await tx.paymentAttempt.count({ where: { purchaseId: purchase.id } })) + 1;
       const settled = paymentSimulator.settle({ purchaseId: purchase.id, attemptNo, method }, i.choice);
       const audit = { actor: auditActorOf(actor), organisationId: actor.organisationId, entity: ENTITY.purchase, entityId: purchase.id, entityLabel: `${ctx.ex.reference} · Online purchase by ${actor.supplierName}` };
@@ -127,7 +130,7 @@ export async function settlePayment(actor: SupplierActor, i: { exerciseId: strin
         return { outcome: "FAILED", reference: settled.reference, method, failureText: settled.failureText };
       }
 
-      // A buyer barred by the register since it began is told so before an attempt is kept (the paying act reads the register again on the locked supplier row).
+      // The attempt and the payment are one transaction: a buyer the register has barred since the purchase began is refused by the paying act, and this attempt row rolls back with it, so a refused payment leaves no attempt.
       await tx.paymentAttempt.create({ data: { organisationId: actor.organisationId, purchaseId: purchase.id, attemptNo, method, outcome: "PAID", reference: settled.reference, attemptedAt: now, byAccountId: actor.accountId } });
       await markPurchasePaid(tx, {
         org: { id: ctx.org.id, timeZone: ctx.org.timeZone, today: ctx.org.today },
@@ -148,6 +151,3 @@ export async function settlePayment(actor: SupplierActor, i: { exerciseId: strin
     throw e;
   }
 }
-
-/// The date a paid purchase is shown with.
-export const paidOnText = (day: string) => formatDate(day);
