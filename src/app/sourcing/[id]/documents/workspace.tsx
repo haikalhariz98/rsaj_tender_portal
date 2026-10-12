@@ -78,6 +78,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
     state: p.state,
     stateTone: p.stateKey === "neutral" ? undefined : p.stateKey,
     omittedBecause: p.omittedBecause,
+    earlierOmission: p.earlierOmission,
     missing: p.missing,
     template: p.template,
     files: p.frozen ? p.frozen.files.map((f) => ({ title: f.title, versionNo: f.versionNo, live: true })) : p.files,

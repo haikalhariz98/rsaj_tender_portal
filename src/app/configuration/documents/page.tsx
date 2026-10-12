@@ -19,6 +19,7 @@ import {
   RETENTION_TRIGGER_LABEL,
   SUPPLIER_UPLOADER_WORDS,
 } from "@/lib/documents/labels";
+import { supplierAcceptedTypes } from "@/lib/documents/media";
 import { attentionText, classReadiness } from "@/lib/documents/readiness";
 import { attachableVersion, attachRefusal } from "@/lib/documents/targets";
 import { stagedDocuments, standingHolds, uploadContext } from "@/lib/documents/read";
