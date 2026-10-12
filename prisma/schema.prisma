@@ -6548,6 +6548,22 @@ model PurchaseDownload {
   @@index([supplierId])
 }
 
+/// How many times a portal account has done an action in one fixed time window (SEC-2): the per-account rate limit on the download route and the pay action. Not a trail: it is upserted,
+/// and a row older than a day is removed by the next count. No foreign keys on purpose: it is a throttle, never evidence, and it must not hold a supplier or an account in place.
+model PortalRateCounter {
+  id             String   @id @default(cuid())
+  organisationId String
+  accountId      String
+  /// What was counted, such as "document-download" or "payment-attempt".
+  action         String
+  /// The start of the fixed window, UTC.
+  windowStart    DateTime
+  count          Int      @default(0)
+
+  @@unique([accountId, action, windowStart])
+  @@index([windowStart])
+}
+
 /// What the tender documents were opened as, for the inspection log (FR-DOC-010) and the online release (FR-VND-012).
 enum TenderViewKind {
   TABLE_DOCUMENT
