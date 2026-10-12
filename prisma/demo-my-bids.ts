@@ -1,6 +1,7 @@
 /**
  * Demo data for Phase 4d: the supplier's My Bids workspace. Invented throughout; nothing here is a customer's figure, list, wording or source. It sets no policy: the organisation's decision on notices to
- * unsuccessful tenderers (D7) and on releasing documents online stay unset, so the screens show that state and the founder can decide them under Configuration.
+ * unsuccessful tenderers (D7) stays unset, so the screens show that state and the founder can decide it under Configuration. (Wave 3a, SR-10: on a fresh load the window policy's release of the
+ * documents online, the payment simulator and its methods are set by `prisma/demo-switches.ts`, and DEMO/SX/0018/2026 is the demonstration's one exercise sold online.)
  *
  *   demo_vnd2  Demo Paip Services, which bought the documents of DEMO/SX/0018/2026 (an advertised exercise open for bids, with its addendum 1) and was a bidder in DEMO/SX/0016/2026.
  *              Its portal account `demo.supplier6` waits for activation; `npm run demo:accounts` gives it the demonstration password. It has an addendum to acknowledge, and it has opened the

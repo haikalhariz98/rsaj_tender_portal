@@ -108,9 +108,12 @@ describe("holdsReleasedPurchase: who may later submit a bid (wave 3b)", () => {
     expect(holdsReleasedPurchase({ releaseOnline: true, purchase: null, sale: sale({ paymentChannel: "COUNTER" }) }).released).toBe(false);
     expect(holdsReleasedPurchase({ releaseOnline: true, purchase: null, sale: sale() }).released).toBe(false);
   });
-  it("nothing is released where the organisation has not set that documents are released online", () => {
-    expect(holdsReleasedPurchase({ releaseOnline: null, purchase: { state: "PAID" }, sale: sale() }).released).toBe(false);
-    expect(holdsReleasedPurchase({ releaseOnline: false, purchase: { state: "PAID" }, sale: sale() }).released).toBe(false);
+  it("a paid purchase stays released if the organisation later turns release off (G1: a gate in flight is not rewritten); a counter sale's receipt counts only while it releases online", () => {
+    expect(holdsReleasedPurchase({ releaseOnline: false, purchase: { state: "PAID" }, sale: sale() }).released).toBe(true);
+    expect(holdsReleasedPurchase({ releaseOnline: null, purchase: { state: "PAID" }, sale: sale() }).released).toBe(true);
+    const counter = sale({ paymentChannel: "COUNTER", financeReceiptNo: "R-1" });
+    expect(holdsReleasedPurchase({ releaseOnline: false, purchase: null, sale: counter }).released).toBe(false);
+    expect(holdsReleasedPurchase({ releaseOnline: null, purchase: null, sale: counter }).released).toBe(false);
   });
   it("does not depend on the phase: a released purchase stays released after the closing, when the pack itself is no longer open", () => {
     const input = { releaseOnline: true, purchase: { state: "PAID" as const }, sale: sale() };

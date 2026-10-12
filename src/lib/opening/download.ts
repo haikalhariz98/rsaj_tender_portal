@@ -53,9 +53,9 @@ export function openingCsv(kind: OpeningDownloadKind, o: DownloadOpening): { csv
     return { csv: out.join("\r\n") };
   }
   if (!o.summary) return { refusal: "NO_SUMMARY" };
-  const classes = new Map(o.rows.map((r) => [r.listingNo, r.registerClass] as const));
-  out.push(line(["Bil.", "Bidder", "Kelas (register)", "Price as read", "At the opening"]));
-  for (const r of o.summary.rows) out.push(line([String(r.listingNo), r.bidderName, kelasOf(classes.get(r.listingNo) ?? null), priceText(r.openingPrice), r.label]));
+  const same = new Map(o.rows.map((r) => [r.listingNo, r] as const));
+  out.push(line(["Bil.", "Bidder", "Kelas (register)", "Price as read", "Completion period", "At the opening"]));
+  for (const r of o.summary.rows) out.push(line([String(r.listingNo), r.bidderName, kelasOf(same.get(r.listingNo)?.registerClass ?? null), priceText(r.openingPrice), same.get(r.listingNo)?.period ?? "", r.label]));
   return { csv: out.join("\r\n") };
 }
 

@@ -2,13 +2,12 @@ import { createHash } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { authenticateSupplier } from "@/lib/auth/supplier-identity";
-import { readSupplierSession } from "@/lib/auth/supplier-session-store";
 import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
-import { facts, makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
+import { makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS } from "@/lib/test-db/auth-fixtures";
 import { uncollectedReceipts } from "@/lib/integration/fee-receipt";
 import { isFinanceReceipt } from "@/lib/integration/payment-gateway";
+import { receiptExceptions } from "@/lib/window/read";
 
 import { loadBidContext } from "./context-store";
 import { prepareDownload, releasedPackOf } from "./download-store";
@@ -75,11 +74,25 @@ async function exercise(saleMode: "ONLINE" | "COUNTER"): Promise<Fixture> {
 async function supplier(status: "REGISTERED" | "APPLICANT" = "REGISTERED"): Promise<{ actor: SupplierActor; supplierId: string; accountId: string }> {
   const s = await makeSupplierAccount(organisationId);
   if (status === "REGISTERED") await db.supplier.update({ where: { id: s.supplier.id }, data: { status, registeredOn: D(at(-100)) } });
-  const signedIn = await authenticateSupplier({ loginName: s.loginName, password: s.password }, facts(), null);
-  if (!signedIn.ok) throw new Error("sign-in failed");
-  const read = await readSupplierSession(signedIn.token, { sourceAddress: "203.0.113.9" });
-  if (!read.ok) throw new Error("session failed");
-  return { actor: read.actor, supplierId: s.supplier.id, accountId: s.account!.id };
+  // The actor the portal reads from a session, stood in for: the stores take the supplier, the account and the organisation from it and from nothing in a request.
+  const actor: SupplierActor = {
+    kind: "SUPPLIER",
+    accountId: s.account!.id,
+    sessionId: `sess_${randomId()}`,
+    contactId: s.contact.id,
+    displayName: s.contact.name,
+    supplierId: s.supplier.id,
+    supplierName: s.supplier.registeredName,
+    loginName: s.loginName,
+    organisationId,
+    organisationTimeZone: "Asia/Kuala_Lumpur",
+    stepUpAt: null,
+    sessionCreatedAt: new Date(),
+    sourceAddress: null,
+    mustChangePassword: false,
+    resetNoticePending: false,
+  };
+  return { actor, supplierId: s.supplier.id, accountId: s.account!.id };
 }
 
 const setSwitches = (v: { release?: boolean | null; simulator?: boolean | null; methods?: string[] }) =>
@@ -96,9 +109,9 @@ const refusedWith = async (p: Promise<unknown>, code: string) => {
 };
 
 beforeAll(async () => {
-  organisationId = (await testOrganisation()).id;
+  // Its own organisation: the window policy it switches on and off is the organisation's one row, which no other file's tests should share.
+  organisationId = (await db.organisation.create({ data: { code: `PU_${randomId()}`, name: "Online purchase", timeZone: "Asia/Kuala_Lumpur" } })).id;
   await setPolicy(organisationId, SUPPLIER_SETTINGS);
-  await db.organisation.update({ where: { id: organisationId }, data: { timeZone: "Asia/Kuala_Lumpur" } });
   officerId = (await makePerson(organisationId, `Purchase officer ${randomId()}`)).id;
   requisitionId = (
     await db.requisition.create({
@@ -186,6 +199,8 @@ describe("paying on the payment simulator", () => {
     // It is never a finance receipt, and not among the receipts to collect.
     expect(isFinanceReceipt({ paymentChannel: sale.paymentChannel, financeReceiptNo: sale.financeReceiptNo, voidedAt: sale.voidedAt })).toBe(false);
     expect(uncollectedReceipts([sale])).toEqual([]);
+    // Nor is it among the organisation's receipts to collect, which the reconciliation reads from the database.
+    expect((await receiptExceptions(organisationId)).map((e) => e.id)).not.toContain(sale.id);
     // Released, and the predicate for a later bid holds, independently of the phase.
     const ctx = (await loadBidContext(db, s.actor, online.exerciseId))!;
     expect((await loadReleaseFacts(db, s.actor, ctx)).state).toBe("READY");

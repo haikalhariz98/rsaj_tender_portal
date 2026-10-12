@@ -13,6 +13,7 @@ import { OPENING_STATEMENT } from "@/lib/opening/labels";
 import { openingSection, scheduleSection, type OpeningSectionView, type OpeningView, type ScheduleSectionView } from "@/lib/opening/read";
 
 import { FLOW_LABEL } from "@/lib/method/flow";
+import { NO_CLASS_ON_REGISTER } from "@/lib/opening/download";
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
 import { EnvelopesToOpen, OffersRead } from "./lists";
@@ -303,12 +304,16 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
       period: { kind: "text", text: r.period },
     },
   }));
+  // SR-15: the Grand Summary's Kelas and Tempoh Kerja are the schedule row's of the same Bil.
+  const scheduleRow = new Map(o.rows.map((r) => [r.listingNo, r] as const));
   const summary: Row[] = (o.summary?.rows ?? []).map((r) => ({
     id: `s${r.listingNo}`,
     search: `${r.listingNo} ${r.bidderName}`,
     cells: {
       listing: { kind: "text", text: `No. ${r.listingNo}` },
       bidder: { kind: "text", text: r.bidderName },
+      kelas: { kind: "text", text: scheduleRow.get(r.listingNo)?.registerClass ?? NO_CLASS_ON_REGISTER },
+      period: { kind: "text", text: scheduleRow.get(r.listingNo)?.period ?? "" },
       openingPrice: sulitText(r.openingPrice),
       label: { kind: "badge", text: r.label, tone: r.lowest ? "brand" : r.qualified ? "ok" : undefined },
     },
@@ -378,8 +383,10 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
             columns={[
               { key: "listing", label: "Bil.", width: "90px", mobile: "primary" },
               { key: "bidder", label: "Bidder", mobile: "meta" },
-              { key: "openingPrice", label: "Price as read", width: "190px", sulit: true, mobile: "meta" },
-              { key: "label", label: "At the opening", width: "220px", mobile: "meta" },
+              { key: "kelas", label: "Kelas (register)", width: "190px", mobile: "meta" },
+              { key: "openingPrice", label: "Price as read", width: "170px", sulit: true, mobile: "meta" },
+              { key: "period", label: "Completion period", width: "150px", mobile: "meta" },
+              { key: "label", label: "At the opening", width: "200px", mobile: "meta" },
             ]}
             rows={summary}
           />

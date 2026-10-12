@@ -53,7 +53,9 @@ describe("openingCsv (SR-15, ruling 24)", () => {
     if ("refusal" in r) throw new Error("refused");
     const lines = r.csv.split("\r\n");
     expect(lines[0]).toBe('"Grand Summary · Main opening"');
-    expect(r.csv).toContain('"1","Acme Sdn Bhd","G6","RM 1,000.00","Qualified"');
+    // Kelas and Tempoh Kerja are those of the schedule row with the same Bil.
+    expect(r.csv).toContain('"Completion period","At the opening"');
+    expect(r.csv).toContain('"1","Acme Sdn Bhd","G6","RM 1,000.00","12 months","Qualified"');
     expect(r.csv).toContain(`"'=Evil","${NO_CLASS_ON_REGISTER}"`);
   });
   it("refuses a Grand Summary that was not frozen", () => {

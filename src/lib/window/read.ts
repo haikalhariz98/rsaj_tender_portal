@@ -510,11 +510,11 @@ export async function invitationConfig(organisationId: string) {
   };
 }
 
-/// The organisation's reconciliation exceptions (FR-ADV-009 partial): live sales with no finance receipt, oldest first.
+/// The organisation's reconciliation exceptions (FR-ADV-009 partial): live sales with no finance receipt, oldest first. A sale paid on the payment simulator (SR-10) is never one: it is not a finance receipt and never will be.
 export async function receiptExceptions(organisationId: string) {
   const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { id: true } });
   if (!org) return [];
-  const sales = await db.documentSale.findMany({ where: { organisationId: org.id, voidedAt: null, financeReceiptNo: null }, include: { party: { select: { name: true } }, window: { select: { exercise: { select: { id: true, reference: true } } } } }, orderBy: { soldOn: "asc" } });
+  const sales = await db.documentSale.findMany({ where: { organisationId: org.id, voidedAt: null, financeReceiptNo: null, paymentChannel: "COUNTER" }, include: { party: { select: { name: true } }, window: { select: { exercise: { select: { id: true, reference: true } } } } }, orderBy: { soldOn: "asc" } });
   return sales.map((s) => ({ id: s.id, exerciseId: s.window.exercise.id, exercise: s.window.exercise.reference, purchaser: s.party.name, soldOn: day(s.soldOn), amount: money(s.amount) }));
 }
 

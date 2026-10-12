@@ -88,7 +88,7 @@ export function judgePurchase(i: { saleMode: "COUNTER" | "ONLINE" | null; releas
 /**
  * Whether a supplier holds a RELEASED purchase of an exercise's documents, which is what lets it later submit a bid (wave 3b). Pure and independent of the phase: a
  * purchase released at the sale stays released after the closing, so a bid in time is not refused for the sale having ended. A purchase counts once it is paid and its
- * sale stands (a voided sale is no purchase), by either payment and no other, and only where the organisation releases documents online.
+ * sale stands (a voided sale is no purchase), by either payment and no other; a counter sale with its receipt recorded counts only where the organisation releases documents online.
  */
 export function holdsReleasedPurchase(i: {
   releaseOnline: boolean | null;
@@ -96,10 +96,10 @@ export function holdsReleasedPurchase(i: {
   /// The supplier's sale on the exercise that stands or was voided; null: none.
   sale: { voidedAt: Date | null; financeReceiptNo: string | null; paymentChannel: "COUNTER" | "SIMULATED" } | null;
 }): { released: boolean; basis: "PAID_PURCHASE" | "COUNTER_SALE_WITH_RECEIPT" | null } {
-  if (i.releaseOnline !== true) return { released: false, basis: null };
   const sale = i.sale && !i.sale.voidedAt ? i.sale : null;
+  // A paid purchase was released when it was taken (a purchase is refused unless documents are released online), so a later change of the organisation's setting does not unmake it: a gate on an exercise in flight is not rewritten (G1).
   if (i.purchase?.state === "PAID" && sale) return { released: true, basis: "PAID_PURCHASE" };
-  // The counter's own flow: an officer sold the documents and recorded the finance receipt.
-  if (sale && sale.paymentChannel === "COUNTER" && !!sale.financeReceiptNo?.trim()) return { released: true, basis: "COUNTER_SALE_WITH_RECEIPT" };
+  // The counter's own flow: an officer sold the documents and recorded the finance receipt, and the organisation releases documents online.
+  if (i.releaseOnline === true && sale && sale.paymentChannel === "COUNTER" && !!sale.financeReceiptNo?.trim()) return { released: true, basis: "COUNTER_SALE_WITH_RECEIPT" };
   return { released: false, basis: null };
 }

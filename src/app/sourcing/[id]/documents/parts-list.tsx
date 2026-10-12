@@ -5,7 +5,7 @@ import Link from "next/link";
 import { DataList, type Row } from "@/components/data-list";
 import { OwnerDocumentsButton } from "@/components/attachments/owner-documents-button";
 import { Blocked } from "@/components/ui/blocked";
-import { Button, buttonClass } from "@/components/ui/button";
+import { buttonClass } from "@/components/ui/button";
 
 import { PickTemplateDrawer } from "./editors";
 

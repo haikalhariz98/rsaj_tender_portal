@@ -83,7 +83,9 @@ async function writeScopeSwitches(db: Db, organisationId: string, now: Date, byt
   // SR-10 (rulings 16 and 17, as amended by the founder on 2026-10-09): how documents are sold, the online release of the documents, and the payment simulator with the methods it offers, set on the
   // window policy where they are not set. The organisation sells at the counter (every demonstration exercise was authored that way), so an exercise made after the load pins the counter; the one
   // exercise below is the demonstration's online sale. The simulator is a demonstration: it must be switched off before go-live (backlog).
-  const wp = await db.windowPolicy.findUnique({ where: { organisationId } });
+  // Only the demonstration's own policy row (as the upload rules above): a customer's own window policy is never given a payment simulator by a load.
+  const wpRow = await db.windowPolicy.findUnique({ where: { organisationId } });
+  const wp = wpRow && wpRow.id === `${P}wp1` ? wpRow : null;
   if (wp && (wp.documentSaleMode == null || wp.electronicDocumentRelease == null || wp.paymentSimulatorOn == null || wp.simulatedPaymentMethods.length === 0)) {
     const to = {
       documentSaleMode: wp.documentSaleMode ?? ("COUNTER" as const),
