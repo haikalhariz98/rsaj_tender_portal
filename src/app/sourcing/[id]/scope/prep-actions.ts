@@ -8,12 +8,12 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { personIsAdministrator } from "@/lib/auth/administration-guard";
-import { namingRefusal, type Reader } from "@/lib/auth/sulit-store";
+import { namingOthersRefusal, namingRefusal, type Reader } from "@/lib/auth/sulit-store";
 import type { AuditActor } from "@/lib/auth/types";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { loadOpeningRoster } from "@/lib/opening/roster-store";
-import { addOfficerFaults, controlledChangeFaults, rosterChange, type RosterOfficer } from "@/lib/opening/roster";
+import { addOfficerFaults, controlledChangeFaults, isListFault, rosterChange, type RosterOfficer } from "@/lib/opening/roster";
 import { rosterChangeText, rosterFindingText } from "@/lib/opening/roster-labels";
 import { openingFindingText } from "@/lib/opening/labels";
 import { withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
@@ -107,6 +107,17 @@ async function officerFacts(tx: Tx, organisationId: string, personId: string): P
   return { id: p.id, personId: p.id, name: p.name, active: p.isActive, orgUnitCode: p.orgUnitCode, administrator: await personIsAdministrator(tx, p.id) };
 }
 
+/// A refusal of the incoming officer, put against the field it belongs to: the person's own faults against the person, the list's (the committee, the number) as the form's message.
+function incomingRefusal(faults: ReturnType<typeof addOfficerFaults>): FormState | null {
+  const blocking = faults.filter((f) => f.level === "block");
+  if (blocking.length === 0) return null;
+  const own = blocking.filter((f) => !isListFault(f.code));
+  const list = blocking.filter((f) => isListFault(f.code));
+  const text = (fs: typeof blocking) => fs.map(rosterFindingText).join(" ");
+  if (list.length) return { ok: false, message: text(list), ...(own.length ? { errors: { personId: text(own) } } : {}) };
+  return { ok: false, errors: { personId: text(own) } };
+}
+
 /// Name one more officer to open the bids. Allowed until the documents are submitted; after that an officer is replaced, not added.
 export async function nameOpeningOfficer(_prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
@@ -124,8 +135,8 @@ export async function nameOpeningOfficer(_prev: FormState, data: FormData): Prom
     const roster = await loadOpeningRoster(ex, l.org, tx);
     const officer = await officerFacts(tx, l.org.id, personId);
     if (!officer) return { ok: false, errors: { personId: "Choose someone on record." } };
-    const faults = addOfficerFaults(roster.input, officer).filter((f) => f.level === "block");
-    if (faults.length) return { ok: false, errors: { personId: faults.map(rosterFindingText).join(" ") } };
+    const refusedBy = incomingRefusal(addOfficerFaults(roster.input, officer));
+    if (refusedBy) return refusedBy;
     // Being named opens the exercise's classified figures to the officer, as a participant is: the same rule says who may do it.
     const refused = await namingRefusal(tx, actor, ex.id, [officer.id]);
     if (refused) return { ok: false, errors: { personId: refused } };
@@ -153,6 +164,9 @@ export async function removeOpeningOfficer(_prev: FormState, data: FormData): Pr
     const change = rosterChange({ status: ex.status, closing: ex.closingAt, now: new Date(), openingStarted: (await tx.opening.count({ where: { exerciseId: ex.id } })) > 0 });
     if (change.fault) return { ok: false, message: openingFindingText({ code: change.fault, level: "block" }) };
     if (change.change !== "FREE") return { ok: false, message: "The documents are already submitted. An officer is replaced, with the authority and reason, not taken off." };
+    // Who may take an officer off is who may name one: the roster decides who opens the classified figures.
+    const notAllowed = await namingOthersRefusal(tx, actor, ex.id);
+    if (notAllowed) return { ok: false, message: notAllowed };
     const row = await tx.exerciseOpeningOfficer.findFirst({ where: { id: officerId, organisationId: actor.organisationId, exerciseId: ex.id, endedAt: null }, include: { person: { select: { name: true } } } });
     if (!row) return { ok: false, message: "That officer is no longer named." };
     await tx.exerciseOpeningOfficer.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { endedAt: new Date(), endedByPersonId: actor.personId, endedReason: reason } });
@@ -164,7 +178,7 @@ export async function removeOpeningOfficer(_prev: FormState, data: FormData): Pr
 /**
  * Replace an officer with another (ruling 11). Before submission it is an ordinary edit with a reason. From submission to the closing it is a
  * controlled change: the authority it is made under and the reason are recorded, and the replacement faces the same seat, size and
- * independence checks. At the closing, and after it, it is refused: the bids cannot be opened without both officers, and the exercise would
+ * independence checks. At the closing, and after it, it is refused: the bids cannot be opened without every named officer, and the exercise would
  * have to be re-tendered. (For an online exercise the key is rewrapped here; that arrives with SR-13.)
  */
 export async function substituteOpeningOfficer(_prev: FormState, data: FormData): Promise<FormState> {
@@ -193,8 +207,8 @@ export async function substituteOpeningOfficer(_prev: FormState, data: FormData)
     const without = { ...roster.input, officers: roster.input.officers.filter((o) => o.personId !== departing.personId) };
     const officer = await officerFacts(tx, l.org.id, personId);
     if (!officer) return { ok: false, errors: { personId: "Choose someone on record." } };
-    const faults = addOfficerFaults(without, officer).filter((f) => f.level === "block");
-    if (faults.length) return { ok: false, errors: { personId: faults.map(rosterFindingText).join(" ") } };
+    const refusedBy = incomingRefusal(addOfficerFaults(without, officer));
+    if (refusedBy) return refusedBy;
     const refused = await namingRefusal(tx, actor, ex.id, [officer.id]);
     if (refused) return { ok: false, errors: { personId: refused } };
     const seat = roster.input.seats.find((s) => s.personId === officer.id)!;

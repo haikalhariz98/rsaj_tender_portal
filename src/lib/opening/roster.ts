@@ -76,9 +76,24 @@ export function rosterFaults(i: RosterInput): Finding<RosterFault>[] {
   return out;
 }
 
-/// Naming one more officer: the roster with them on it, without the finding that it is still short.
+/// The findings that belong to the roster as a whole, not to one person on it.
+const LISTWIDE: ReadonlySet<RosterFault> = new Set<RosterFault>(["COMMITTEE_NOT_SET", "COMMITTEE_NOT_FOUND", "PANEL_SIZE_NOT_SET", "OFFICERS_SHORT", "OFFICERS_TOO_MANY"]);
+
+/// Whether a finding is about the list (the committee, the number) rather than about the person being named.
+export const isListFault = (code: string) => LISTWIDE.has(code as RosterFault);
+
+/**
+ * Naming one more officer, or the one who replaces another: only what is wrong with the incoming person, the committee and the number,
+ * and the person being named twice. An officer who stays is not judged again here (their faults belong to the submit and opening gates),
+ * so replacing one officer is never blocked by the state of another, and several replacements can follow one another. The list still
+ * being short is not a fault of naming.
+ */
 export function addOfficerFaults(i: RosterInput, added: RosterOfficer): Finding<RosterFault>[] {
-  return rosterFaults({ ...i, officers: [...i.officers, added] }).filter((f) => f.code !== "OFFICERS_SHORT");
+  const whole = rosterFaults({ ...i, officers: [...i.officers, added] });
+  const alone = rosterFaults({ ...i, officers: [added] });
+  const listLevel = whole.filter((f) => (LISTWIDE.has(f.code) && f.code !== "OFFICERS_SHORT") || f.code === "PICKED_TWICE");
+  const aboutThem = alone.filter((f) => !LISTWIDE.has(f.code));
+  return [...listLevel, ...aboutThem];
 }
 
 // ------------------------------------------------------------------ changing the roster
@@ -89,7 +104,7 @@ export type RosterChangeFault = "EXERCISE_CANCELLED" | "AFTER_CLOSING" | "OPENIN
 /**
  * How the roster may change now (ruling 11). Before the documents are submitted it is an ordinary edit. From submission to the closing it
  * changes only by a controlled change, with the authority it is made under and a reason recorded. At the closing, and after it, it does not
- * change at all: no substitution, and no single-person recovery; the exercise cannot be opened without both officers, and the screen says
+ * change at all: no substitution, and no single-person recovery; the exercise cannot be opened without every named officer, and the screen says
  * it must be re-tendered. (For an online exercise the key is rewrapped at substitution; that waits for SR-13, ruling 20 and 21.)
  */
 export function rosterChange(i: { status: string; closing: Date | null; now: Date; openingStarted: boolean }): { change: RosterChange; fault: RosterChangeFault | null } {

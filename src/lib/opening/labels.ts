@@ -123,7 +123,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   OFFICERS_TOO_MANY: (f) => `${plural(Number(d(f, "required")), "opening officer is", "opening officers are")} needed, and ${Number(d(f, "named"))} are named. Take one off first.`,
   OFFICER_IS_ADMINISTRATOR: (f) => `${d(f, "person")} holds an administrator account. Administration is kept apart from approvals and certification, so an administrator does not open bids. Name someone else.`,
   EXERCISE_CANCELLED: () => "The exercise is cancelled, so its opening officers stand as they were.",
-  AFTER_CLOSING: () => "The closing has passed. The opening officers can no longer be changed, and the bids cannot be opened without both of them. If one cannot take part, the exercise must be re-tendered.",
+  AFTER_CLOSING: () => "The closing has passed. The opening officers can no longer be changed, and the bids cannot be opened without every named officer. If one cannot take part, the exercise must be re-tendered.",
   OPENING_STARTED: () => "The opening has started, so its officers stand as they are.",
   AUTHORITY_REQUIRED: () => "Say what authority the change is made under.",
   PANEL_SIZE_NOT_SET: () => `The committee's opening panel size is not set. Set it under ${SETTING_AT.committee}.`,

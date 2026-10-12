@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { addOfficerFaults, controlledChangeFaults, rosterChange, rosterFaults, type RosterInput, type RosterOfficer } from "./roster";
+import { addOfficerFaults, controlledChangeFaults, isListFault, rosterChange, rosterFaults, type RosterInput, type RosterOfficer } from "./roster";
 import { rosterActs } from "./roster-labels";
 
 /**
@@ -81,6 +81,33 @@ describe("naming one more officer", () => {
     expect(addOfficerFaults(base, officer("p3")).map((f) => f.code)).toEqual(["OFFICERS_TOO_MANY"]);
     expect(addOfficerFaults({ ...base, officers: [officer("p1")] }, officer("p2", { administrator: true })).map((f) => f.code)).toEqual(["OFFICER_IS_ADMINISTRATOR"]);
     expect(addOfficerFaults({ ...base, officers: [officer("p1")] }, officer("p1")).map((f) => f.code)).toContain("PICKED_TWICE");
+  });
+  // SR-07 (ruling 11): replacing one officer never re-judges the one who stays, or the roster could lock for good.
+  it("judges the incoming person only: an officer who stays and holds no seat does not block a replacement", () => {
+    const stranded = { ...base, officers: [officer("x1"), officer("x2")] };
+    const without = (id: string) => ({ ...stranded, officers: stranded.officers.filter((o) => o.personId !== id) });
+    expect(rosterFaults(stranded).map((f) => f.code)).toContain("NOT_ON_COMMITTEE");
+    expect(addOfficerFaults(without("x1"), officer("p1"))).toEqual([]);
+    expect(addOfficerFaults(without("x2"), officer("p2"))).toEqual([]);
+  });
+  it("several replacements can follow one another", () => {
+    let officers = [officer("x1"), officer("x2")];
+    for (const [out, inn] of [["x1", "p1"], ["x2", "p2"]] as const) {
+      const rest = officers.filter((o) => o.personId !== out);
+      expect(addOfficerFaults({ ...base, officers: rest }, officer(inn))).toEqual([]);
+      officers = [...rest, officer(inn)];
+    }
+    expect(codes({ ...base, officers })).toEqual([]);
+  });
+  it("still refuses an incoming person who cannot sit, is named twice, or would be one too many", () => {
+    expect(addOfficerFaults({ ...base, officers: [officer("x1")] }, officer("x9")).map((f) => f.code)).toEqual(["NOT_ON_COMMITTEE"]);
+    expect(addOfficerFaults({ ...base, officers: [officer("p1")] }, officer("p3", { active: false })).map((f) => f.code)).toEqual(["PERSON_INACTIVE"]);
+    expect(addOfficerFaults({ ...base, officers: [officer("x1")] }, officer("x1")).map((f) => f.code)).toContain("PICKED_TWICE");
+    expect(addOfficerFaults(base, officer("p3")).map((f) => f.code)).toEqual(["OFFICERS_TOO_MANY"]);
+  });
+  it("tells list-wide findings from the person's own", () => {
+    expect(isListFault("PANEL_SIZE_NOT_SET")).toBe(true);
+    expect(isListFault("NOT_ON_COMMITTEE")).toBe(false);
   });
   it("is refused while the committee's size is not set", () => {
     expect(addOfficerFaults({ ...base, officers: [], policy: { ...policy, panelSize: null } }, officer("p1")).map((f) => f.code)).toEqual(["PANEL_SIZE_NOT_SET"]);
