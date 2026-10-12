@@ -163,8 +163,8 @@ export interface ExerciseForWindow {
   tenderingStartOn: Date | null;
   regime: string | null;
   sourcingMethodCode: string;
-  /// Pinned when the exercise was made: it was submitted under the notice gate (SR-06) and the opening roster (SR-07). Absent: not.
-  openingRosterRequired?: boolean;
+  /// Pinned when the exercise was made: it was submitted under the notice gate (SR-06) and the opening roster (SR-07). Read from the stored exercise, so a loader cannot leave it out.
+  openingRosterRequired: boolean;
   estimatedValue: { toString(): string };
   approvalInstances: readonly { id: string; domain: string; awardId: string | null; status: string; openedAt: Date; createdAt: Date; cond: string | null }[];
   /// 6.8 (E-2): the evaluation model chosen, its pinned snapshot, and the contract basis its route is read from. Absent: none.

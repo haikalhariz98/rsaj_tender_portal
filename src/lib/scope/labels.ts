@@ -246,7 +246,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   CUSTODY_NOT_SET: `Who holds the estimate's copies is not set. ${SET_IT}`,
   NOT_IN_CUSTODY: "That person does not hold the estimate's copies.",
   // pack.ts
-  BASIS_NOT_CHOSEN: "Choose the exercise's contract basis on its Contract type tab.",
+  BASIS_NOT_CHOSEN: "Choose the exercise's contract basis by editing the exercise.",
   BASIS_BQ_NOT_SET: `Whether the contract basis is let on a bill of quantities is not set. ${SET_IT}`,
   BQ_REVISION_OPEN: "A revision of the bill is being drafted; the finalised version is the one that goes with the documents.",
   PANEL_NOT_VERIFIED: "The specification panel is not verified. Complete it under Scope and estimate, Scope.",

@@ -13,8 +13,8 @@ import type { AuditActor } from "@/lib/auth/types";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { loadOpeningRoster } from "@/lib/opening/roster-store";
-import { addOfficerFaults, controlledChangeFaults, isListFault, rosterChange, type RosterOfficer } from "@/lib/opening/roster";
-import { rosterChangeText, rosterFindingText } from "@/lib/opening/roster-labels";
+import { addOfficerFaults, controlledChangeFaults, rosterChange, type RosterOfficer } from "@/lib/opening/roster";
+import { incomingRefusal, rosterChangeText } from "@/lib/opening/roster-labels";
 import { openingFindingText } from "@/lib/opening/labels";
 import { withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
@@ -107,17 +107,6 @@ async function officerFacts(tx: Tx, organisationId: string, personId: string): P
   return { id: p.id, personId: p.id, name: p.name, active: p.isActive, orgUnitCode: p.orgUnitCode, administrator: await personIsAdministrator(tx, p.id) };
 }
 
-/// A refusal of the incoming officer, put against the field it belongs to: the person's own faults against the person, the list's (the committee, the number) as the form's message.
-function incomingRefusal(faults: ReturnType<typeof addOfficerFaults>): FormState | null {
-  const blocking = faults.filter((f) => f.level === "block");
-  if (blocking.length === 0) return null;
-  const own = blocking.filter((f) => !isListFault(f.code));
-  const list = blocking.filter((f) => isListFault(f.code));
-  const text = (fs: typeof blocking) => fs.map(rosterFindingText).join(" ");
-  if (list.length) return { ok: false, message: text(list), ...(own.length ? { errors: { personId: text(own) } } : {}) };
-  return { ok: false, errors: { personId: text(own) } };
-}
-
 /// Name one more officer to open the bids. Allowed until the documents are submitted; after that an officer is replaced, not added.
 export async function nameOpeningOfficer(_prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
@@ -136,7 +125,7 @@ export async function nameOpeningOfficer(_prev: FormState, data: FormData): Prom
     const officer = await officerFacts(tx, l.org.id, personId);
     if (!officer) return { ok: false, errors: { personId: "Choose someone on record." } };
     const refusedBy = incomingRefusal(addOfficerFaults(roster.input, officer));
-    if (refusedBy) return refusedBy;
+    if (refusedBy) return { ok: false, ...(refusedBy.message ? { message: refusedBy.message } : {}), ...(refusedBy.personId ? { errors: { personId: refusedBy.personId } } : {}) };
     // Being named opens the exercise's classified figures to the officer, as a participant is: the same rule says who may do it.
     const refused = await namingRefusal(tx, actor, ex.id, [officer.id]);
     if (refused) return { ok: false, errors: { personId: refused } };
@@ -208,7 +197,7 @@ export async function substituteOpeningOfficer(_prev: FormState, data: FormData)
     const officer = await officerFacts(tx, l.org.id, personId);
     if (!officer) return { ok: false, errors: { personId: "Choose someone on record." } };
     const refusedBy = incomingRefusal(addOfficerFaults(without, officer));
-    if (refusedBy) return refusedBy;
+    if (refusedBy) return { ok: false, ...(refusedBy.message ? { message: refusedBy.message } : {}), ...(refusedBy.personId ? { errors: { personId: refusedBy.personId } } : {}) };
     const refused = await namingRefusal(tx, actor, ex.id, [officer.id]);
     if (refused) return { ok: false, errors: { personId: refused } };
     const seat = roster.input.seats.find((s) => s.personId === officer.id)!;

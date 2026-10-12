@@ -43,12 +43,17 @@ export function OfficersList({
       ]}
       rows={rows}
       actionsWidth={300}
-      actions={(id) => (
-        <>
-          {substitute.allowed && <SubstituteOfficerDrawer exerciseId={exerciseId} officerId={id} name={nameOf(id)} candidates={candidates} controlled={!!substitute.controlled} />}
-          {remove.allowed && <RemoveOfficerDrawer exerciseId={exerciseId} officerId={id} name={nameOf(id)} />}
-        </>
-      )}
+      // No actions at all (after the closing, say) leaves out the column rather than an empty one.
+      actions={
+        substitute.allowed || remove.allowed
+          ? (id) => (
+              <>
+                {substitute.allowed && <SubstituteOfficerDrawer exerciseId={exerciseId} officerId={id} name={nameOf(id)} candidates={candidates} controlled={!!substitute.controlled} />}
+                {remove.allowed && <RemoveOfficerDrawer exerciseId={exerciseId} officerId={id} name={nameOf(id)} />}
+              </>
+            )
+          : undefined
+      }
     />
   );
 }

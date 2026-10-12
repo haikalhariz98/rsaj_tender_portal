@@ -77,9 +77,9 @@ export function rosterFaults(i: RosterInput): Finding<RosterFault>[] {
 }
 
 /// The findings that belong to the roster as a whole, not to one person on it.
-const LISTWIDE: ReadonlySet<RosterFault> = new Set<RosterFault>(["COMMITTEE_NOT_SET", "COMMITTEE_NOT_FOUND", "PANEL_SIZE_NOT_SET", "OFFICERS_SHORT", "OFFICERS_TOO_MANY"]);
+const LISTWIDE: ReadonlySet<RosterFault> = new Set<RosterFault>(["COMMITTEE_NOT_SET", "COMMITTEE_NOT_FOUND", "PANEL_SIZE_NOT_SET", "OFFICERS_SHORT", "OFFICERS_TOO_MANY", "EXCLUSION_RULE_NOT_SET", "EXCLUDED_UNIT_NOT_SET"]);
 
-/// Whether a finding is about the list (the committee, the number) rather than about the person being named.
+/// Whether a finding is about the list (the committee, its number and its independence rule) rather than about the person being named.
 export const isListFault = (code: string) => LISTWIDE.has(code as RosterFault);
 
 /**

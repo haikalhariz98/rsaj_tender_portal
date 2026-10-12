@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { addOfficerFaults, controlledChangeFaults, isListFault, rosterChange, rosterFaults, type RosterInput, type RosterOfficer } from "./roster";
-import { rosterActs } from "./roster-labels";
+import { incomingRefusal, rosterActs } from "./roster-labels";
 
 /**
  * SR-07 (ruling 11): the officers named on an exercise to open its bids. The number is the committee's panel size, never a literal; an
@@ -170,5 +170,33 @@ describe("what the Opening officers card offers (rosterActs)", () => {
   });
   it("the naming rule's refusal is carried (an administrator account, or not named on the exercise)", () => {
     expect(rosterActs({ ...base, nameRefusal: "An administrator account does not name people." }).name).toMatchObject({ allowed: false, reason: "An administrator account does not name people." });
+  });
+});
+
+describe("a naming refusal withholds taking an officer off too (the action asks the same rule)", () => {
+  const free = { change: { change: "FREE" as const, fault: null }, committeeReady: true, size: 2, named: 1, candidates: 3, nameRefusal: null };
+  it("with the reason the naming rule gave", () => {
+    const a = rosterActs({ ...free, nameRefusal: "You are not named on this exercise." });
+    expect(a.remove).toEqual({ allowed: false, reason: "You are not named on this exercise." });
+  });
+});
+
+describe("where a refusal of the incoming officer is put (incomingRefusal)", () => {
+  const f = (code: string, level: "block" | "warn" = "block", data?: Record<string, string>) => ({ code, level, ...(data ? { data } : {}) });
+  it("the person's own faults go to the person field", () => {
+    expect(incomingRefusal([f("NOT_ON_COMMITTEE", "block", { person: "Aida" })])).toEqual({ personId: expect.stringContaining("Aida") });
+    expect(incomingRefusal([f("PICKED_TWICE", "block", { person: "Aida" })])).toEqual({ personId: expect.any(String) });
+  });
+  it("the list's faults (committee, number, independence rule) are the form's message, not the person's", () => {
+    for (const code of ["COMMITTEE_NOT_SET", "PANEL_SIZE_NOT_SET", "OFFICERS_TOO_MANY", "EXCLUDED_UNIT_NOT_SET"]) {
+      const r = incomingRefusal([f(code, "block", { required: "2", named: "3" })]);
+      expect(r?.message, code).toEqual(expect.any(String));
+      expect(r?.personId, code).toBeUndefined();
+    }
+  });
+  it("both at once are split, and a warning refuses nothing", () => {
+    expect(Object.keys(incomingRefusal([f("PANEL_SIZE_NOT_SET"), f("PERSON_INACTIVE", "block", { person: "Aida" })])!).sort()).toEqual(["message", "personId"]);
+    expect(incomingRefusal([f("EXCLUSION_RULE_NOT_SET", "warn")])).toBeNull();
+    expect(incomingRefusal([])).toBeNull();
   });
 });

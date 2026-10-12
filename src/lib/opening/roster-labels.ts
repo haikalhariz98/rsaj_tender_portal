@@ -5,7 +5,7 @@
  */
 
 import { openingFindingText, SETTING_AT } from "./labels";
-import type { RosterChangeFault } from "./roster";
+import { isListFault, type RosterChangeFault } from "./roster";
 import type { Finding } from "./types";
 
 const d = (f: Finding, k: string) => String(f.data?.[k] ?? "");
@@ -19,6 +19,20 @@ const OWN: Readonly<Record<string, (f: Finding) => string>> = {
 /// A roster finding in words.
 export function rosterFindingText(f: Finding): string {
   return OWN[f.code]?.(f) ?? openingFindingText(f);
+}
+
+/**
+ * A refusal of the person being named or put in a replacement, put against the field it belongs to: what is wrong with the person goes to the
+ * person field; what is wrong with the list (the committee, its number, its independence rule) is the form's message, since choosing someone
+ * else would not mend it. Warnings do not refuse. Null: nothing refuses.
+ */
+export function incomingRefusal(faults: readonly Finding[]): { message?: string; personId?: string } | null {
+  const blocking = faults.filter((f) => f.level === "block");
+  if (blocking.length === 0) return null;
+  const words = (fs: readonly Finding[]) => fs.map(rosterFindingText).join(" ");
+  const list = blocking.filter((f) => isListFault(f.code));
+  const own = blocking.filter((f) => !isListFault(f.code));
+  return { ...(list.length ? { message: words(list) } : {}), ...(own.length ? { personId: words(own) } : {}) };
 }
 
 /// Why the roster cannot change now, or what a controlled change still lacks.
@@ -50,7 +64,8 @@ export function rosterActs(i: {
   const controlled = i.change.change === "CONTROLLED";
   const afterSubmission = "The documents are submitted, so an officer is replaced by a controlled change, not added or taken off.";
   const substitute: Allowed & { controlled?: boolean } = i.nameRefusal ? no(i.nameRefusal) : i.candidates === 0 ? no("Nobody else holds a seat on the opening committee today.") : { ...ok, controlled };
-  const remove = controlled ? no(afterSubmission) : ok;
+  // Taking an officer off asks the same naming rule as naming one (the action refuses on it), so it is withheld with the same reason.
+  const remove = controlled ? no(afterSubmission) : i.nameRefusal ? no(i.nameRefusal) : ok;
   if (controlled) return { name: no(afterSubmission), remove, substitute };
   if (!i.committeeReady) return { name: no("The method names no opening committee, or it is not configured. Set it under Configuration, Reference data."), remove, substitute };
   if (i.size == null) return { name: no("The number of opening officers is not set. Set the opening committee's panel size under Configuration, Committees."), remove, substitute };

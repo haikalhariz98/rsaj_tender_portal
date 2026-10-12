@@ -197,7 +197,7 @@ const START_TEXT: Record<StartFault, (f: Finding) => string> = {
   LIVE_PACK_EXISTS: () => "A version of the tender documents is already being prepared or is with approval.",
   PACK_APPROVED: () => "The tender documents are approved for tendering. A change now is an addendum, issued under Publishing on Tender documents once the exercise is published.",
   NO_PACK: () => "This exercise's method assembles no tender documents.",
-  BASIS_NOT_SET: () => "The contract basis is not set, and the pack's parts follow it. Set it on the exercise's Contract type tab.",
+  BASIS_NOT_SET: () => "The contract basis is not set, and the pack's parts follow it. Choose it by editing the exercise.",
   COMPOSITION_NOT_SET: () => `No parts are configured for this pack kind and contract basis. ${SET_PARTS}`,
   DUPLICATE_ROLE: (f) => `Two parts are configured as the ${ROLE_WORDS(d(f, "role"))} for this pack kind and basis, so which one the pack takes is unclear. Retire one under Configuration, Tender documents.`,
   NO_CONDITIONS_PART: () => `No conditions of contract part is configured for this pack kind and basis, so the pack names no standard form. ${SET_PARTS}`,
@@ -403,7 +403,7 @@ export function findingHref(exerciseId: string, family: keyof SubmitFindings, f:
       if (f.code === "APPENDIX_INCOMPLETE") return `${ex}/appendix`;
       return `${ex}?tab=documents#parts`;
     case "scope":
-      if (f.code === "BASIS_NOT_CHOSEN") return `${ex}?tab=overview`;
+      if (f.code === "BASIS_NOT_CHOSEN") return `${ex}/edit`;
       if (BILL_CODES.has(f.code)) return `${ex}?tab=scope&section=bq`;
       if (ESTIMATE_CODES.has(f.code)) return `${ex}?tab=scope&section=estimate`;
       return `${ex}?tab=scope&section=scope`;
