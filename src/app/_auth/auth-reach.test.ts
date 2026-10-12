@@ -160,6 +160,7 @@ describe("every route handler asks who is signed in first, and every one that ch
   /// A handler that refuses outright with no read at all needs no session to do so.
   const EXCEPTIONS: Record<string, string> = {
     "api/documents/versions/[id]/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download (audit C-2).",
+    "sourcing/[id]/opening/download/[kind]/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry, as the staff download does: Next would otherwise answer a HEAD with the GET handler, which reads the schedule and writes an access row for every SULIT price it judges (SR-10 review SEC-4).",
     "supplier/bids/[id]/download/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry, as the staff download does: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download nobody made (SR-10).",
     "supplier/registration/file/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry, as the staff download does: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download (audit C-2).",
   };

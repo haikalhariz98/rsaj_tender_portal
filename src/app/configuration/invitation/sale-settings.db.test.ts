@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
@@ -30,7 +30,16 @@ const form = (fields: Record<string, string>) => {
   return f;
 };
 
+// SR-10 review SEC-1: the simulator is switched on only where the deployment allows it, so the file says so, and the test of the gate takes it away on purpose.
+const ENV = "PAYMENT_SIMULATOR_ALLOWED";
+const ENV_BEFORE = process.env[ENV];
+afterAll(() => {
+  if (ENV_BEFORE === undefined) delete process.env[ENV];
+  else process.env[ENV] = ENV_BEFORE;
+});
+
 beforeAll(async () => {
+  process.env[ENV] = "true";
   const org = await db.organisation.create({ data: { code: `SS_${randomId()}`, name: "Sale settings", timeZone: "Asia/Kuala_Lumpur" } });
   organisationId = org.id;
   await setPolicy(organisationId, SETTINGS);
@@ -80,5 +89,43 @@ describe("saving how documents are sold and the payment simulator", () => {
       expect(JSON.stringify(out)).toContain(words);
     }
     expect(await db.windowPolicy.findUniqueOrThrow({ where: { organisationId } })).toMatchObject({ documentSaleMode: before.documentSaleMode, paymentSimulatorOn: before.paymentSimulatorOn });
+  });
+});
+
+describe("the deployment's permission to switch the simulator on (SR-10 review SEC-1, S3)", () => {
+  const save = (over: Record<string, string>) =>
+    saveWindowPolicy({ ok: false }, form({ documentSaleMode: "COUNTER", paymentSimulatorOn: "yes", paymentMethodsText: "Card", electronicDocumentRelease: "yes", ...over }));
+
+  it("refuses to switch it on where the deployment has not allowed it, in words, and saves nothing; leaving it as it stands is not refused", async () => {
+    await save({ paymentSimulatorOn: "no" });
+    delete process.env[ENV];
+    try {
+      const before = await db.windowPolicy.findUniqueOrThrow({ where: { organisationId } });
+      const out = await save({});
+      expect(out).toMatchObject({ ok: false });
+      expect(JSON.stringify(out)).toContain("cannot be switched on");
+      expect(JSON.stringify(out)).not.toContain("PAYMENT_SIMULATOR_ALLOWED");
+      expect((await db.windowPolicy.findUniqueOrThrow({ where: { organisationId } })).paymentSimulatorOn).toBe(before.paymentSimulatorOn);
+      // Off, and not set, are never refused for this.
+      expect(await save({ paymentSimulatorOn: "no" })).toMatchObject({ ok: true });
+      expect(await save({ paymentSimulatorOn: "unset" })).toMatchObject({ ok: true });
+    } finally {
+      process.env[ENV] = "true";
+    }
+    expect(await save({})).toMatchObject({ ok: true });
+    // Already on, a save that leaves it on is not refused even when the deployment later stops allowing it.
+    delete process.env[ENV];
+    try {
+      expect(await save({ notes: "unrelated edit" })).toMatchObject({ ok: true });
+    } finally {
+      process.env[ENV] = "true";
+    }
+  });
+
+  it("refuses to sell online while the release of documents online is not Yes", async () => {
+    const out = await save({ documentSaleMode: "ONLINE", electronicDocumentRelease: "unset" });
+    expect(out).toMatchObject({ ok: false });
+    expect(JSON.stringify(out)).toContain("release of documents online");
+    expect(await save({ documentSaleMode: "ONLINE" })).toMatchObject({ ok: true });
   });
 });

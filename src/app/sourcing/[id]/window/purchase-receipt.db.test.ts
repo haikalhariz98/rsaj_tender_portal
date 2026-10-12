@@ -122,8 +122,11 @@ describe("recording the finance receipt of an online purchase", () => {
     who.actor = o.actor;
     const p = await awaiting();
     const party = await db.exerciseParty.create({ data: { organisationId, exerciseId, source: "PURCHASER", name: "P", registrationNo: `RN-${randomId()}`, vendorId: p.supplierId } });
-    await db.documentPurchase.update({ where: { id: p.id }, data: { state: "PAID", paidAt: new Date(), paidChannel: "SIMULATED", paidMethod: "Card", paidReference: "SIM-TEST" } });
-    const sale = await db.documentSale.create({ data: { organisationId, windowId, partyId: party.id, soldOn: D(new Date()), collectedBy: "x", authoritySighted: false, amount: "50.00", paymentMethod: "Simulated payment: Card", annotation: {}, paymentChannel: "SIMULATED", simulatedReference: "SIM-TEST", purchaseId: p.id } });
+    // SR-10 review S8: the database refuses a PAID purchase with no sale by commit, so the purchase moves and its sale is made in one transaction, as markPurchasePaid does.
+    const sale = await db.$transaction(async (tx) => {
+      await tx.documentPurchase.update({ where: { id: p.id }, data: { state: "PAID", paidAt: new Date(), paidChannel: "SIMULATED", paidMethod: "Card", paidReference: "SIM-TEST" } });
+      return tx.documentSale.create({ data: { organisationId, windowId, partyId: party.id, soldOn: D(new Date()), collectedBy: "x", authoritySighted: false, amount: "50.00", paymentMethod: "Simulated payment: Card", annotation: {}, paymentChannel: "SIMULATED", simulatedReference: "SIM-TEST", purchaseId: p.id } });
+    });
     const out = await recordReceipt({ ok: false }, form({ exerciseId, saleId: sale.id, financeReceiptNo: `FIN-${randomId()}` }));
     expect(out).toMatchObject({ ok: false, message: expect.stringContaining("not a finance receipt") });
     expect((await db.documentSale.findUniqueOrThrow({ where: { id: sale.id } })).financeReceiptNo).toBeNull();
@@ -141,7 +144,11 @@ describe("taking the organisation's setting for how the documents are sold (G1)"
     const unset = await takeSaleMode({ ok: false }, form({ exerciseId: ex.id }));
     expect(unset).toMatchObject({ ok: false, message: expect.stringContaining("has not set how documents are sold") });
     expect((await db.sourcingExercise.findUniqueOrThrow({ where: { id: ex.id } })).saleMode).toBeNull();
-    await db.windowPolicy.update({ where: { organisationId }, data: { documentSaleMode: "ONLINE" } });
+    // SR-10 review S3: an exercise does not take an online setting while the organisation's release of documents online is not Yes, so the release is set first.
+    await db.windowPolicy.update({ where: { organisationId }, data: { documentSaleMode: "ONLINE", electronicDocumentRelease: null } });
+    expect(await takeSaleMode({ ok: false }, form({ exerciseId: ex.id }))).toMatchObject({ ok: false, message: expect.stringContaining("release of documents online") });
+    expect((await db.sourcingExercise.findUniqueOrThrow({ where: { id: ex.id } })).saleMode).toBeNull();
+    await db.windowPolicy.update({ where: { organisationId }, data: { electronicDocumentRelease: true } });
     expect(await takeSaleMode({ ok: false }, form({ exerciseId: ex.id }))).toMatchObject({ ok: true });
     expect((await db.sourcingExercise.findUniqueOrThrow({ where: { id: ex.id } })).saleMode).toBe("ONLINE");
     // A pin that is set is never changed, even when the setting has changed since.

@@ -17,10 +17,11 @@ const plain = (text: string, status: number) => new Response(text, { status, hea
  * and a hostile page (or Next answering HEAD with GET) must not be able to fill the log.
  */
 export async function GET(req: Request, ctx: RouteContext<"/sourcing/[id]/opening/download/[kind]">) {
-  if (downloadRequestFault(req.headers.get("sec-fetch-site"))) return plain("This file is opened from the portal's own pages. Open the portal and download it from there.", 403);
   const guard = await staffRoute();
   if (!guard.ok) return guard.response;
   const scope = guard.actor;
+  // Before anything is read or logged (the SULIT gate below writes an access row per price judged): a download another site started writes nothing, as the staff document route.
+  if (downloadRequestFault(req.headers.get("sec-fetch-site"))) return plain("This file is opened from the portal's own pages. Open the portal and download it from there.", 403);
   const { id, kind } = await ctx.params;
   if (!isOpeningDownloadKind(kind)) return plain("That is not a document of the opening.", 404);
   if (await exerciseIsHidden(scope, id)) return plain("That exercise is not one you can open.", 404);

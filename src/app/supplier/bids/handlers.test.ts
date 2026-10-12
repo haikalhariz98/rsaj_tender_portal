@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   withdrawRequest: vi.fn(),
   startPurchase: vi.fn(),
   settlePayment: vi.fn(),
+  countAndJudge: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ db: {} }));
@@ -24,6 +25,8 @@ vi.mock("@/lib/portal/bids/signup-store", async (orig) => ({ ...(await orig<type
 vi.mock("@/lib/portal/bids/acknowledge-store", () => ({ acknowledgeAddendum: h.acknowledge }));
 vi.mock("@/lib/portal/bids/request-store", () => ({ requestDocuments: h.requestDocuments, withdrawRequest: h.withdrawRequest }));
 // Wave 3a (SR-10): buying and paying for the documents online go through the same door.
+// SR-10 review SEC-2: the per-account counter is the database's, so it is stood in for here; its own tests are in `purchase.db.test.ts`.
+vi.mock("@/lib/portal/bids/rate-store", () => ({ countAndJudge: h.countAndJudge }));
 vi.mock("@/lib/portal/bids/purchase-store", () => ({ startPurchase: h.startPurchase, settlePayment: h.settlePayment }));
 
 import { FORM_SECRET_MIN_LENGTH, signFormToken, type FormPurpose } from "@/lib/auth/form-token";
@@ -79,6 +82,7 @@ beforeEach(() => {
   h.readSession.mockResolvedValue({ ok: true, actor: ACTOR, session: { id: "ses1", createdAt: new Date(), lastSeenAt: new Date(), absoluteExpiresAt: new Date() } });
   h.signUp.mockResolvedValue({ registrationId: "r1" });
   h.withdrawSignUp.mockResolvedValue({ registrationId: "r1" });
+  h.countAndJudge.mockResolvedValue({ limited: false });
   h.acknowledge.mockResolvedValue({ acknowledgementId: "a1", on: "2026-10-09" });
   h.requestDocuments.mockResolvedValue({ outcome: "MADE", requestId: "q1", checks: [] });
   h.withdrawRequest.mockResolvedValue({ requestId: "q1" });
@@ -194,6 +198,16 @@ describe("buying and paying online (SR-10), through the same door", () => {
     const failed = await request(post("/supplier/bids/request", { exerciseId: EX, action: "pay", method: "Card", choice: "FAIL" }));
     expect(failed.status).toBe(200);
     expect(await failed.json()).toMatchObject({ ok: false, code: "PAYMENT_FAILED", message: expect.stringContaining("No money moved") });
+  });
+
+  it("pay: an account over its rate is answered 429 with Retry-After and the store is never asked (SEC-2)", async () => {
+    h.countAndJudge.mockResolvedValue({ limited: true, retryAfterSeconds: 17 });
+    const res = await request(post("/supplier/bids/request", { exerciseId: EX, action: "pay", method: "Card", choice: "PAY" }));
+    expect(res.status).toBe(429);
+    expect(res.headers.get("retry-after")).toBe("17");
+    expect((await res.json()).message).toMatch(/too many times/);
+    expect(h.settlePayment).not.toHaveBeenCalled();
+    expect(h.countAndJudge).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ accountId: "acc1", action: "payment-attempt" }));
   });
 
   it("pay: a rule's refusal (the simulator is off) is 422 with its words, never a code", async () => {
