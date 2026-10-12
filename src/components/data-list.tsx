@@ -11,7 +11,7 @@ import {
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, SulitLock, SulitWithheld } from "@/components/ui/badge";
 import { SULIT_COLUMN_WORDS } from "@/lib/sulit-fields";
-import { Button, iconButtonClass } from "@/components/ui/button";
+import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
 import { provenanceLabel, ProvenanceBadge } from "@/components/ui/provenance";
@@ -40,6 +40,8 @@ export type Cell =
   | { kind: "chip"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "person"; name: string; sub?: string }
   | { kind: "link"; text: string; href: string; sub?: string }
+  /// A file to save: a plain anchor with the `download` attribute (never a client-side Link, which could prefetch it and write a log row for a download nobody made).
+  | { kind: "download"; text: string; href: string; label: string }
   /// An overlapping stack of avatars with a +N overflow, as the prototype shows for
   /// who holds a role or who reviews a document.
   | { kind: "avatars"; names: string[]; max?: number }
@@ -219,6 +221,8 @@ function cellText(cell: Cell | undefined): string {
       return cell.name;
     case "link":
       return cell.text;
+    case "download":
+      return "";
     case "avatars":
       return cell.names.join(" ");
     case "badges":
@@ -304,6 +308,12 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
           </Link>
           {cell.sub && <div className="break-words text-[12.5px] text-ink-3">{cell.sub}</div>}
         </div>
+      );
+    case "download":
+      return (
+        <a href={cell.href} download className={buttonClass("secondary", "sm")} aria-label={cell.label}>
+          {cell.text}
+        </a>
       );
     case "avatars":
       return cell.names.length === 0 ? dash : <AvatarStack names={cell.names} max={cell.max ?? 4} />;

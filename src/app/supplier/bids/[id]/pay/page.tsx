@@ -14,7 +14,6 @@ import { db } from "@/lib/db";
 import { SIMULATED_LABEL, simulatedReceiptLines } from "@/lib/integration/payment-gateway";
 import { loadBidContext } from "@/lib/portal/bids/context-store";
 import { loadReleaseFacts } from "@/lib/portal/bids/inspection-store";
-import { releaseWords } from "@/lib/portal/bids/release";
 import { loadOnlineView } from "@/lib/portal/bids/purchase-read";
 
 import { requireSupplier } from "../../../../_auth/supplier";
@@ -68,7 +67,7 @@ export default async function PayPage({ params, searchParams }: { params: Promis
       <>
         {head(p.channel === "SIMULATED" ? "Your receipt (simulated payment)" : "Your receipt", { text: p.channel === "SIMULATED" ? SIMULATED_LABEL : "Paid", tone: p.channel === "SIMULATED" ? "warn" : "ok" })}
         <Card>
-          <CardHeader icon={<WalletIcon size={17} />} title="The documents are paid for" subtitle={`Started ${view.purchase.startedOn}.`} actions={release.state === "READY" ? <ButtonLink href={`/supplier/bids/${id}/documents`} variant="primary" size="sm" prefetch={false}>Open the documents</ButtonLink> : undefined} />
+          <CardHeader icon={<WalletIcon size={17} />} title={release.state === "READY" || release.state === "NOT_OPEN" ? "The documents are paid for" : "Payment made on the simulator"} subtitle={`Started ${view.purchase.startedOn}.`} actions={release.state === "READY" ? <ButtonLink href={`/supplier/bids/${id}/documents`} variant="primary" size="sm" prefetch={false}>Open the documents</ButtonLink> : undefined} />
           <CardBody className="flex flex-col gap-4">
             {p.channel === "SIMULATED" && (
               <Callout tone="warn" title={SIMULATED_LABEL}>
@@ -76,7 +75,7 @@ export default async function PayPage({ params, searchParams }: { params: Promis
               </Callout>
             )}
             <ul className="flex flex-col gap-1.5 text-[14px] text-ink">{lines.map((l) => <li key={l}>{l}</li>)}</ul>
-            <Callout tone={release.state === "READY" ? "ok" : "neutral"} title={releaseWords[release.state].short}>{releaseWords[release.state].detail}</Callout>
+            <Callout tone={release.state === "READY" ? "ok" : "neutral"} title={release.words.short}>{release.words.detail}</Callout>
           </CardBody>
         </Card>
       </>
@@ -90,7 +89,7 @@ export default async function PayPage({ params, searchParams }: { params: Promis
       <>
         {head("Pay for the documents", { text: "Awaiting payment", tone: "warn" })}
         <Card>
-          <CardHeader icon={<WalletIcon size={17} />} title="Online payment is not connected yet" subtitle={`Started ${view.purchase.startedOn}. Fee ${view.fee ?? "not set"}.`} />
+          <CardHeader icon={<WalletIcon size={17} />} title="Online payment is not connected yet" subtitle={`Started ${view.purchase.startedOn}. Fee ${view.purchase.amount}.`} />
           <CardBody className="flex flex-col gap-3">
             <Callout tone="info" title="How to pay">
               Online payment is not connected yet. Pay the fee as {org} instructs; the documents are released when {org} records your receipt.
@@ -114,7 +113,7 @@ export default async function PayPage({ params, searchParams }: { params: Promis
       <>
         {head("Pay for the documents", { text: "Awaiting payment", tone: "warn" })}
         <Card>
-          <CardHeader icon={<WalletIcon size={17} />} title="Choose how to pay" subtitle={`Fee ${view.fee ?? "not set"}. This is a demonstration: no money moves.`} />
+          <CardHeader icon={<WalletIcon size={17} />} title="Choose how to pay" subtitle={`Fee ${view.purchase.amount}. This is a demonstration: no money moves.`} />
           <CardBody className="flex flex-col gap-4">
             <Callout tone="warn" title={SIMULATED_LABEL}>
               The payment is simulated. You will be taken to a simulated provider page, where you choose whether it succeeds or fails.
@@ -156,7 +155,7 @@ export default async function PayPage({ params, searchParams }: { params: Promis
             items={[
               { label: "Paying for", value: ctx.ex.title },
               { label: "Method", value: method },
-              { label: "Amount", value: <span className="font-semibold tabular-nums">{view.fee ?? "Not set"}</span> },
+              { label: "Amount", value: <span className="font-semibold tabular-nums">{view.purchase.amount}</span> },
               { label: "Payer", value: actor.supplierName },
             ]}
           />

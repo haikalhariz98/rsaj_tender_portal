@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { TenderDocumentArticle } from "@/components/tender-document";
-import { ButtonLink, buttonClass } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
+import { DataList, type Cell, type Row } from "@/components/data-list";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -47,6 +48,12 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
   const pack = await releasedPackOf(actor.organisationId, r.ctx.ex.id);
   const token = issueFormToken("bids");
   const link = (q: string) => `/supplier/bids/${id}/download?${q}${token ? `&t=${encodeURIComponent(token)}` : ""}`;
+  // Without the form key the link would be refused, so the cell says so instead of offering it.
+  const get = (title: string, q: string): Cell => (token ? { kind: "download", text: "Download", label: `Download ${title}`, href: link(q) } : { kind: "text", text: "Closed", dim: true });
+  const rows: Row[] = [
+    ...(pack?.files ?? []).map((f): Row => ({ id: `f${f.versionId}`, search: `${f.title} ${f.partLabel}`, cells: { item: { kind: "stack", title: f.title, sub: f.partLabel }, kind: { kind: "text", text: `File, version ${f.versionNo}` }, get: get(f.title, `file=${encodeURIComponent(f.versionId)}`) } })),
+    ...(pack?.texts ?? []).map((t): Row => ({ id: `t${t.id}`, search: `${t.title} ${t.partLabel}`, cells: { item: { kind: "stack", title: t.title, sub: t.partLabel }, kind: { kind: "text", text: "Text" }, get: get(t.title, `text=${encodeURIComponent(t.id)}`) } })),
+  ];
   return (
     <>
       <RecordCrumb label={r.ctx.ex.reference} />
@@ -58,20 +65,21 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
           <CardHeader icon={<DownloadIcon size={17} />} title="Download your documents" subtitle={`The issued parts of version ${pack.packVersion}, as frozen when they were approved for tendering. Each download is logged against your company.`} />
           <CardBody>
             {!token && <p className="mb-3 text-[13px] text-ink-2">Downloads are closed: the person who runs the portal has not set its form key.</p>}
-            <ul className="flex flex-col divide-y divide-line/70">
-              {pack.files.map((f) => (
-                <li key={f.versionId} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <span className="min-w-0 text-[14px] text-ink"><span className="font-semibold">{f.title}</span><span className="block text-[12.5px] text-ink-3">{f.partLabel} · file, version {f.versionNo}</span></span>
-                  {token && <a href={link(`file=${encodeURIComponent(f.versionId)}`)} className={buttonClass("secondary", "sm")} download>Download</a>}
-                </li>
-              ))}
-              {pack.texts.map((t) => (
-                <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <span className="min-w-0 text-[14px] text-ink"><span className="font-semibold">{t.title}</span><span className="block text-[12.5px] text-ink-3">{t.partLabel} · text</span></span>
-                  {token && <a href={link(`text=${encodeURIComponent(t.id)}`)} className={buttonClass("secondary", "sm")} download>Download</a>}
-                </li>
-              ))}
-            </ul>
+            <DataList
+              flat
+              selectable={false}
+              searchable={false}
+              toolbar={false}
+              exportName="released-documents"
+              emptyTitle="Nothing to download"
+              emptyBody="The issued parts of the documents appear here."
+              columns={[
+                { key: "item", label: "Document", mobile: "primary" },
+                { key: "kind", label: "Kind", width: "170px", mobile: "meta" },
+                { key: "get", label: "Download", width: "140px", mobile: "meta" },
+              ]}
+              rows={rows}
+            />
           </CardBody>
         </Card>
       )}

@@ -20,6 +20,17 @@ export const isOpeningDownloadKind = (s: string): s is OpeningDownloadKind => (O
 export const OPENING_DOWNLOAD_TITLE: Readonly<Record<OpeningDownloadKind, string>> = { schedule: "Schedule of tenders", summary: "Grand Summary" };
 export const NO_CLASS_ON_REGISTER = "No class on the register";
 
+/**
+ * The columns of the two documents, once (SR-15 review M3). The screen, the print page and the CSV all take their headings from here, so the three cannot drift: Kelas is the register's reading
+ * frozen when the offer was read, beside "Class as read" (what the officer recorded from the envelope), so neither is passed off as the other.
+ */
+export const SCHEDULE_COLUMNS = { listing: "Bil.", bidder: "Bidder", kelas: "Kelas (register)", classAsRead: "Class as read", status: "Status", price: "Price as read", period: "Completion period" } as const;
+export const SUMMARY_COLUMNS = { listing: "Bil.", bidder: "Bidder", kelas: "Kelas (register)", price: "Price as read", period: "Completion period", label: "At the opening" } as const;
+
+/// The cells of the Kelas columns as every output shows them.
+export const kelasText = (registerClass: string | null): string => registerClass?.trim() || NO_CLASS_ON_REGISTER;
+export const readText = (s: string): string => s.trim() || "—";
+
 /// The part of the schedule section's view that a download reads.
 export interface DownloadOpening {
   title: string;
@@ -39,7 +50,6 @@ export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = 
 };
 
 const priceText = (s: Sulit<string>) => (s.state === "GRANTED" ? s.value : `SULIT · withheld: ${s.words.en}`);
-const kelasOf = (s: string | null) => s?.trim() || NO_CLASS_ON_REGISTER;
 const line = (cells: readonly string[]) => cells.map(quotedCsvCell).join(",");
 
 /// The file as text (CRLF between lines), or the reason there is none.
@@ -47,15 +57,17 @@ export function openingCsv(kind: OpeningDownloadKind, o: DownloadOpening): { csv
   if (!o.finalised) return { refusal: "NOT_FINALISED" };
   const out: string[] = [line([`${OPENING_DOWNLOAD_TITLE[kind]} · ${o.title}`]), line([o.finalisedAt ? `As finalised ${o.finalisedAt}: the copy frozen then.` : "The copy frozen at finalising."]), ...o.header.map((h) => line([h.label, h.value])), ""];
   if (kind === "schedule") {
-    out.push(line(["Bil.", "Bidder", "Kelas (register)", "Class as read", "Status", "Price as read", "Completion period"]));
-    for (const r of o.rows) out.push(line([String(r.listingNo), r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName, kelasOf(r.registerClass), r.registrationClass.trim() || "—", r.registrationStatus.trim() || "—", priceText(r.openingPrice), r.period]));
+    const c = SCHEDULE_COLUMNS;
+    out.push(line([c.listing, c.bidder, c.kelas, c.classAsRead, c.status, c.price, c.period]));
+    for (const r of o.rows) out.push(line([String(r.listingNo), r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName, kelasText(r.registerClass), readText(r.registrationClass), readText(r.registrationStatus), priceText(r.openingPrice), r.period]));
     if (o.benchmark) out.push(line(["—", o.benchmark.sealed ? "Company estimate" : o.benchmark.label, "—", "—", "—", o.benchmark.sealed ? o.benchmark.text : priceText(o.benchmark.companyEstimate), "—"]));
     return { csv: out.join("\r\n") };
   }
   if (!o.summary) return { refusal: "NO_SUMMARY" };
   const same = new Map(o.rows.map((r) => [r.listingNo, r] as const));
-  out.push(line(["Bil.", "Bidder", "Kelas (register)", "Price as read", "Completion period", "At the opening"]));
-  for (const r of o.summary.rows) out.push(line([String(r.listingNo), r.bidderName, kelasOf(same.get(r.listingNo)?.registerClass ?? null), priceText(r.openingPrice), same.get(r.listingNo)?.period ?? "", r.label]));
+  const c = SUMMARY_COLUMNS;
+  out.push(line([c.listing, c.bidder, c.kelas, c.price, c.period, c.label]));
+  for (const r of o.summary.rows) out.push(line([String(r.listingNo), r.bidderName, kelasText(same.get(r.listingNo)?.registerClass ?? null), priceText(r.openingPrice), same.get(r.listingNo)?.period ?? "", r.label]));
   return { csv: out.join("\r\n") };
 }
 

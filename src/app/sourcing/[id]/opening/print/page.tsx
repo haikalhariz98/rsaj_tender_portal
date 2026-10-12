@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { OPENING_DOWNLOAD_TITLE } from "@/lib/opening/download";
+import { kelasText, OPENING_DOWNLOAD_TITLE, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import { scheduleSection } from "@/lib/opening/read";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
@@ -49,6 +49,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
       </>
     );
   }
+  const schedule = new Map(o.rows.map((r) => [r.listingNo, r] as const));
   const watermark = o.finalised ? null : NOT_FINALISED;
   return (
     <>
@@ -81,11 +82,13 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
         </p>
         <Table>
           <THead>
-            <Th>Bil.</Th>
-            <Th>Bidder</Th>
-            <Th>Class and status</Th>
-            <Th numeric>Price as read</Th>
-            <Th>Completion period</Th>
+            <Th>{SCHEDULE_COLUMNS.listing}</Th>
+            <Th>{SCHEDULE_COLUMNS.bidder}</Th>
+            <Th>{SCHEDULE_COLUMNS.kelas}</Th>
+            <Th>{SCHEDULE_COLUMNS.classAsRead}</Th>
+            <Th>{SCHEDULE_COLUMNS.status}</Th>
+            <Th numeric>{SCHEDULE_COLUMNS.price}</Th>
+            <Th>{SCHEDULE_COLUMNS.period}</Th>
           </THead>
           <tbody>
             {o.rows.length === 0 && (
@@ -95,41 +98,50 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
             )}
             {o.rows.map((r) => (
               <Tr key={r.listingNo}>
-                <Td label="Bil.">{r.listingNo}</Td>
-                <Td label="Bidder">{r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName}</Td>
-                <Td label="Class and status">{[r.registrationClass, r.registrationStatus].filter(Boolean).join(" · ") || "—"}</Td>
-                <Td numeric label="Price as read"><SulitValue of={r.openingPrice} /></Td>
-                <Td label="Completion period">{r.period}</Td>
+                <Td label={SCHEDULE_COLUMNS.listing}>{r.listingNo}</Td>
+                <Td label={SCHEDULE_COLUMNS.bidder}>{r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName}</Td>
+                <Td label={SCHEDULE_COLUMNS.kelas}>{kelasText(r.registerClass)}</Td>
+                <Td label={SCHEDULE_COLUMNS.classAsRead}>{readText(r.registrationClass)}</Td>
+                <Td label={SCHEDULE_COLUMNS.status}>{readText(r.registrationStatus)}</Td>
+                <Td numeric label={SCHEDULE_COLUMNS.price}><SulitValue of={r.openingPrice} /></Td>
+                <Td label={SCHEDULE_COLUMNS.period}>{r.period}</Td>
               </Tr>
             ))}
             {o.benchmark && (
               <Tr>
-                <Td label="Bil.">—</Td>
-                <Td label="Bidder">{o.benchmark.sealed ? "Company estimate" : o.benchmark.label}</Td>
-                <Td label="Class and status">—</Td>
-                <Td numeric label="Price as read">{o.benchmark.sealed ? o.benchmark.text : <SulitValue of={o.benchmark.companyEstimate} />}</Td>
-                <Td label="Completion period">—</Td>
+                <Td label={SCHEDULE_COLUMNS.listing}>—</Td>
+                <Td label={SCHEDULE_COLUMNS.bidder}>{o.benchmark.sealed ? "Company estimate" : o.benchmark.label}</Td>
+                <Td label={SCHEDULE_COLUMNS.kelas}>—</Td>
+                <Td label={SCHEDULE_COLUMNS.classAsRead}>—</Td>
+                <Td label={SCHEDULE_COLUMNS.status}>—</Td>
+                <Td numeric label={SCHEDULE_COLUMNS.price}>{o.benchmark.sealed ? o.benchmark.text : <SulitValue of={o.benchmark.companyEstimate} />}</Td>
+                <Td label={SCHEDULE_COLUMNS.period}>—</Td>
               </Tr>
             )}
           </tbody>
         </Table>
         {o.summary && (
           <>
+            {/* The Grand Summary's Kelas and period are the schedule row's of the same Bil. (SR-15). */}
             <h2 className="mt-10 mb-3 text-[17px] font-bold text-ink">{OPENING_DOWNLOAD_TITLE.summary}</h2>
             <Table>
               <THead>
-                <Th>Bil.</Th>
-                <Th>Bidder</Th>
-                <Th numeric>Price as read</Th>
-                <Th>At the opening</Th>
+                <Th>{SUMMARY_COLUMNS.listing}</Th>
+                <Th>{SUMMARY_COLUMNS.bidder}</Th>
+                <Th>{SUMMARY_COLUMNS.kelas}</Th>
+                <Th numeric>{SUMMARY_COLUMNS.price}</Th>
+                <Th>{SUMMARY_COLUMNS.period}</Th>
+                <Th>{SUMMARY_COLUMNS.label}</Th>
               </THead>
               <tbody>
                 {o.summary.rows.map((r) => (
                   <Tr key={r.listingNo}>
-                    <Td label="Bil.">{r.listingNo}</Td>
-                    <Td label="Bidder">{r.bidderName}</Td>
-                    <Td numeric label="Price as read"><SulitValue of={r.openingPrice} /></Td>
-                    <Td label="At the opening">{r.label}</Td>
+                    <Td label={SUMMARY_COLUMNS.listing}>{r.listingNo}</Td>
+                    <Td label={SUMMARY_COLUMNS.bidder}>{r.bidderName}</Td>
+                    <Td label={SUMMARY_COLUMNS.kelas}>{kelasText(schedule.get(r.listingNo)?.registerClass ?? null)}</Td>
+                    <Td numeric label={SUMMARY_COLUMNS.price}><SulitValue of={r.openingPrice} /></Td>
+                    <Td label={SUMMARY_COLUMNS.period}>{schedule.get(r.listingNo)?.period ?? ""}</Td>
+                    <Td label={SUMMARY_COLUMNS.label}>{r.label}</Td>
                   </Tr>
                 ))}
               </tbody>

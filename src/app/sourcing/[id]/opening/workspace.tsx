@@ -13,7 +13,7 @@ import { OPENING_STATEMENT } from "@/lib/opening/labels";
 import { openingSection, scheduleSection, type OpeningSectionView, type OpeningView, type ScheduleSectionView } from "@/lib/opening/read";
 
 import { FLOW_LABEL } from "@/lib/method/flow";
-import { NO_CLASS_ON_REGISTER } from "@/lib/opening/download";
+import { kelasText, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
 import { EnvelopesToOpen, OffersRead } from "./lists";
@@ -299,7 +299,10 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
     sortKeys: { listing: r.listingNo },
     cells: {
       listing: { kind: "text", text: `No. ${r.listingNo}` },
-      bidder: { kind: "stack", title: r.bidderName, sub: [r.registrationClass, r.registrationStatus, r.alternative].filter(Boolean).join(" · ") || undefined },
+      bidder: { kind: "stack", title: r.bidderName, sub: r.alternative || undefined },
+      kelas: { kind: "text", text: kelasText(r.registerClass) },
+      classAsRead: { kind: "text", text: readText(r.registrationClass) },
+      status: { kind: "text", text: readText(r.registrationStatus) },
       openingPrice: sulitText(r.openingPrice),
       period: { kind: "text", text: r.period },
     },
@@ -312,7 +315,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
     cells: {
       listing: { kind: "text", text: `No. ${r.listingNo}` },
       bidder: { kind: "text", text: r.bidderName },
-      kelas: { kind: "text", text: scheduleRow.get(r.listingNo)?.registerClass ?? NO_CLASS_ON_REGISTER },
+      kelas: { kind: "text", text: kelasText(scheduleRow.get(r.listingNo)?.registerClass ?? null) },
       period: { kind: "text", text: scheduleRow.get(r.listingNo)?.period ?? "" },
       openingPrice: sulitText(r.openingPrice),
       label: { kind: "badge", text: r.label, tone: r.lowest ? "brand" : r.qualified ? "ok" : undefined },
@@ -349,10 +352,13 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
           emptyTitle="No offer read yet"
           emptyBody="Each offer opened is listed in opening order."
           columns={[
-            { key: "listing", label: "Bil.", width: "90px", sortable: true, mobile: "primary" },
-            { key: "bidder", label: "Bidder", mobile: "meta" },
-            { key: "openingPrice", label: "Price as read", width: "190px", sulit: true, mobile: "meta" },
-            { key: "period", label: "Completion period", width: "170px", mobile: "meta" },
+            { key: "listing", label: SCHEDULE_COLUMNS.listing, width: "90px", sortable: true, mobile: "primary" },
+            { key: "bidder", label: SCHEDULE_COLUMNS.bidder, mobile: "meta" },
+            { key: "kelas", label: SCHEDULE_COLUMNS.kelas, width: "170px", mobile: "meta" },
+            { key: "classAsRead", label: SCHEDULE_COLUMNS.classAsRead, width: "140px", mobile: "meta" },
+            { key: "status", label: SCHEDULE_COLUMNS.status, width: "120px", mobile: "meta" },
+            { key: "openingPrice", label: SCHEDULE_COLUMNS.price, width: "170px", sulit: true, mobile: "meta" },
+            { key: "period", label: SCHEDULE_COLUMNS.period, width: "150px", mobile: "meta" },
           ]}
           rows={rows}
         />
@@ -381,12 +387,12 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
             emptyTitle="No offer"
             emptyBody="No offer was read."
             columns={[
-              { key: "listing", label: "Bil.", width: "90px", mobile: "primary" },
-              { key: "bidder", label: "Bidder", mobile: "meta" },
-              { key: "kelas", label: "Kelas (register)", width: "190px", mobile: "meta" },
-              { key: "openingPrice", label: "Price as read", width: "170px", sulit: true, mobile: "meta" },
-              { key: "period", label: "Completion period", width: "150px", mobile: "meta" },
-              { key: "label", label: "At the opening", width: "200px", mobile: "meta" },
+              { key: "listing", label: SUMMARY_COLUMNS.listing, width: "90px", mobile: "primary" },
+              { key: "bidder", label: SUMMARY_COLUMNS.bidder, mobile: "meta" },
+              { key: "kelas", label: SUMMARY_COLUMNS.kelas, width: "190px", mobile: "meta" },
+              { key: "openingPrice", label: SUMMARY_COLUMNS.price, width: "170px", sulit: true, mobile: "meta" },
+              { key: "period", label: SUMMARY_COLUMNS.period, width: "150px", mobile: "meta" },
+              { key: "label", label: SUMMARY_COLUMNS.label, width: "200px", mobile: "meta" },
             ]}
             rows={summary}
           />
