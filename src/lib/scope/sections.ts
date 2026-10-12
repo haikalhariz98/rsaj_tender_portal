@@ -29,8 +29,8 @@ export const SCOPE_SECTION_LABEL: Readonly<Record<ScopeSectionId, string>> = {
  */
 const ORDER: readonly ScopeSectionId[] = ["details", "dates", "officers", "notice", "briefing", "scope", "bq", "estimate"];
 
-/// The sections that exist only where the exercise issues tender or quotation documents: its dates, its bids' opening officers, its notice and its briefing.
-const TENDERED_ONLY: ReadonlySet<ScopeSectionId> = new Set<ScopeSectionId>(["dates", "officers", "notice", "briefing"]);
+/// The sections that exist only where the exercise issues tender or quotation documents: its bids' opening officers, its notice and its briefing. The dates stay, for the person in charge; with no pack they say they are not applicable.
+const TENDERED_ONLY: ReadonlySet<ScopeSectionId> = new Set<ScopeSectionId>(["officers", "notice", "briefing"]);
 
 export interface ScopeSectionFacts {
   /// The basis's answer; null when it is not set or no basis is chosen yet.
@@ -39,7 +39,7 @@ export interface ScopeSectionFacts {
   requiresCompanyEstimate: boolean | null;
   hasBill: boolean;
   hasEstimate: boolean;
-  /// Whether the exercise issues tender or quotation documents (so has dates to propose, bids to open, a notice and briefings). Null: not known, and nothing is hidden on a guess.
+  /// Whether the exercise issues tender or quotation documents (so has bids to open, a notice and briefings). Null: not known, and nothing is hidden on a guess.
   tendered?: boolean | null;
 }
 

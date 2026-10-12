@@ -99,7 +99,7 @@ import { DETAILS_LOCKED_TEXT, detailsFault } from "@/lib/method/details";
 import { sourcingFlow } from "@/lib/method/flow";
 import { flowShape } from "@/lib/method/lifecycle";
 import { loadOverviewReads } from "@/lib/method/overview-read";
-import { activeTabOf, invitationRedirectHref } from "@/lib/method/overview-tab";
+import { activeTabOf, CLASSIFICATION_ALIAS, classificationRedirectHref, invitationRedirectHref } from "@/lib/method/overview-tab";
 import { invitationStage } from "@/lib/window/stage";
 import { windowPathOf } from "@/lib/window/publish";
 import type { PackKind } from "@/lib/tender-docs/types";
@@ -210,6 +210,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const noPack = flowShape(ex.status, overviewPack, !!ex.preparedAt) === "NO_PACK";
   // SR-06 (ruling 9): the Invitation tab is gone. An old address (a bookmark, a notification written before) lands where its section went.
   if (asked === "invitation") redirect(invitationRedirectHref(ex.id, section, invitationStage(ex.status, noPack) === "live"));
+  if (asked === CLASSIFICATION_ALIAS) redirect(classificationRedirectHref(ex.id));
   // Founder, 2026-10-05: Classification and Contract type are one Overview now; their old addresses still open it.
   // The Overview is also the tab for an address that names none, or one this exercise has no tab for.
   const tab = activeTabOf(asked, ["overview", "scope", "documents", "bids", "evaluation", ...(flags?.requiresProposal ? ["proposal"] : []), ...(flags?.requiresNameApproval ? ["name"] : []), "award", "access", "history"]);

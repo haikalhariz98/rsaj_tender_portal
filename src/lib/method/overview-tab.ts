@@ -10,6 +10,10 @@ export const OVERVIEW_TAB = "overview";
 /// The tabs an old address named, now the Overview.
 export const OVERVIEW_ALIASES: readonly string[] = ["classification", "contract"];
 
+/// SR-06 (ruling 9): Classification's content is Details & compliance on Scope and estimate, so an old `?tab=classification` address goes there.
+export const CLASSIFICATION_ALIAS = "classification";
+export const classificationRedirectHref = (exerciseId: string) => `/sourcing/${exerciseId}?tab=scope&section=details`;
+
 export function activeTabOf(asked: string | undefined, available: readonly string[]): string {
   if (!asked || OVERVIEW_ALIASES.includes(asked)) return OVERVIEW_TAB;
   return available.includes(asked) ? asked : OVERVIEW_TAB;

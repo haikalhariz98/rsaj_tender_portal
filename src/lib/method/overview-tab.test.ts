@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activeTabOf, invitationRedirect, invitationRedirectHref } from "./overview-tab";
+import { activeTabOf, classificationRedirectHref, invitationRedirect, invitationRedirectHref } from "./overview-tab";
 
 const available = ["overview", "scope", "documents", "award", "history"];
 
@@ -44,5 +44,11 @@ describe("where an old Invitation address lands (SR-06, ruling 9)", () => {
   it("a section it does not know lands as the window does, and the address is the exercise's own", () => {
     expect(invitationRedirect("nonsense", true)).toEqual({ tab: "documents", section: "publishing" });
     expect(invitationRedirectHref("e1", "sales", true)).toBe("/sourcing/e1?tab=bids&section=sales");
+  });
+});
+
+describe("an old Classification address (SR-06)", () => {
+  it("opens Details & compliance on Scope and estimate", () => {
+    expect(classificationRedirectHref("e1")).toBe("/sourcing/e1?tab=scope&section=details");
   });
 });

@@ -28,7 +28,8 @@ describe("the sections of Scope and estimate", () => {
     expect(ALL_SCOPE_SECTIONS.map((s) => s.label)).toEqual(["Details & compliance", "Key dates & person in charge", "Opening officers", "Notice and fee", "Briefing and site visit", "Scope", "Bill of quantities", "Company estimate"]);
   });
   it("an exercise that issues no tender documents has no dates, officers, notice or briefing to prepare, and keeps its details", () => {
-    expect(ids(facts({ tendered: false }))).toEqual(["details", "scope"]);
+    // SR-05 (ruling 8): the dates section stays with no pack, for the person in charge.
+    expect(ids(facts({ tendered: false }))).toEqual(["details", "dates", "scope"]);
     expect(ids(facts({ tendered: true }))).toEqual([...PREP, "scope"]);
     expect(ids(facts({ tendered: null }))).toEqual([...PREP, "scope"]);
   });

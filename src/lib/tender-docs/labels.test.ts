@@ -186,7 +186,7 @@ describe("a finding links to where it is put right (UX 3, 9)", () => {
     expect(findingHref("e1", "scope", fin("BQ_NOT_FINALISED"))).toBe("/sourcing/e1?tab=scope&section=bq");
     expect(findingHref("e1", "scope", fin("BQ_REVISION_OPEN"))).toBe("/sourcing/e1?tab=scope&section=bq");
     expect(findingHref("e1", "scope", fin("ESTIMATE_NOT_LODGED"))).toBe("/sourcing/e1?tab=scope&section=estimate");
-    expect(findingHref("e1", "scope", fin("PANEL_NOT_VERIFIED"))).toBe("/sourcing/e1?tab=scope");
+    expect(findingHref("e1", "scope", fin("PANEL_NOT_VERIFIED"))).toBe("/sourcing/e1?tab=scope&section=scope");
     expect(findingHref("e1", "readiness", fin("BQ_PART_WITHOUT_BQ"))).toBe("/sourcing/e1?tab=scope&section=bq");
   });
   it("a part finding lands on the parts, the dates on the submit card", () => {

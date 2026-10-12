@@ -40,7 +40,7 @@ export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
     return (
       <Card>
         <EmptyState size="sm" title="No briefing or site visit">
-          {d.schedule.allowed ? "Schedule one while the window is being prepared: the notice states its day, time and place." : "None is scheduled. Why one cannot be added now is stated at the top of the page."}
+          {d.schedule.allowed ? "Schedule one while the window is being prepared: the notice states its day, time and place." : "None is scheduled. Briefing and site visit on Scope and estimate says when one can be added."}
         </EmptyState>
       </Card>
     );
