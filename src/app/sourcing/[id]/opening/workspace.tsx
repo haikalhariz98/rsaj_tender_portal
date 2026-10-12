@@ -12,6 +12,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { OPENING_STATEMENT } from "@/lib/opening/labels";
 import { openingSection, scheduleSection, type OpeningSectionView, type OpeningView, type ScheduleSectionView } from "@/lib/opening/read";
 
+import { FLOW_LABEL } from "@/lib/method/flow";
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
 import { EnvelopesToOpen, OffersRead } from "./lists";
@@ -322,7 +323,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
           <div className="flex flex-wrap items-center gap-2">
             {o.finalised && (
               <>
-                <ButtonLink href={`/sourcing/${d.exerciseId}/opening/download/schedule?opening=${o.id}`} variant="secondary" size="sm">Download schedule (CSV)</ButtonLink>
+                <ButtonLink href={`/sourcing/${d.exerciseId}/opening/download/schedule?opening=${o.id}`} variant="secondary" size="sm">Download {FLOW_LABEL.JADUAL} (CSV)</ButtonLink>
                 <ButtonLink href={`/sourcing/${d.exerciseId}/opening/download/summary?opening=${o.id}`} variant="secondary" size="sm">Download Grand Summary (CSV)</ButtonLink>
               </>
             )}

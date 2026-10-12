@@ -226,12 +226,12 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
               Sold on {d.bought.on}. {d.bought.receiptRecorded ? "The office has recorded your payment." : "The office has not recorded your payment receipt yet."}
             </Callout>
           )}
-          {!d.bought && d.request && (
+          {!d.bought && !d.online && d.request && (
             <Callout tone="info" title="You have asked for the documents">
               Requested on {d.request.requestedOn}; {d.request.collector} will collect them. Nothing is sold until an officer records the sale.
             </Callout>
           )}
-          {!d.bought && !d.request && d.refused && (
+          {!d.bought && !d.online && !d.request && d.refused && (
             <Callout tone="err" title={`Your last request was refused on ${d.refused.on}`}>
               <ul className="list-disc pl-5">{d.refused.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
             </Callout>
@@ -266,7 +266,7 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
         />
         <CardBody>
           {d.table.open ? (
-            <p className="text-[13.5px] text-ink-2">This is the part of the documents the notice puts on the tender table. Drawings and other files are bound in separately and are inspected at the counter.</p>
+            <p className="text-[13.5px] text-ink-2">{d.online ? "This is the part of the documents the notice puts on the tender table. The drawings and other files come with the documents you buy: they are released to you here once you have paid." : "This is the part of the documents the notice puts on the tender table. Drawings and other files are bound in separately and are inspected at the counter."}</p>
           ) : (
             <Callout tone="neutral" title={d.table.headline}>{d.table.detail}</Callout>
           )}
@@ -281,7 +281,11 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
           actions={d.release.state === "READY" ? <ButtonLink href={`${base}/documents`} variant="primary" size="sm" prefetch={false}>Open the documents</ButtonLink> : undefined}
         />
         <CardBody>
-          <Callout tone={d.release.state === "READY" ? "ok" : "neutral"} title={d.release.short}>{d.release.detail}</Callout>
+          {d.online && d.release.state === "NO_SALE" ? (
+            <Callout tone="neutral" title="Not bought yet">Press Buy documents above and pay for them. They are released here, to download, as soon as your payment is made.</Callout>
+          ) : (
+            <Callout tone={d.release.state === "READY" ? "ok" : "neutral"} title={d.release.short}>{d.release.detail}</Callout>
+          )}
         </CardBody>
       </Card>
     </div>

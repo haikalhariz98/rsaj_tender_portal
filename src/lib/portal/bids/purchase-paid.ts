@@ -53,7 +53,6 @@ export interface PaidInput {
 
 export async function markPurchasePaid(tx: Tx, i: PaidInput): Promise<{ saleId: string; partyName: string }> {
   const { org, exercise, purchase, by } = i;
-  const label = `${exercise.reference} · Online purchase`;
 
   // The supplier row is locked last, and the register read on it: a suspension recorded meanwhile cannot slip past the payment.
   const register = await registerAtSale(tx, { id: org.id, timeZone: org.timeZone, today: org.today }, purchase.supplierId, exercise.id);
@@ -78,6 +77,7 @@ export async function markPurchasePaid(tx: Tx, i: PaidInput): Promise<{ saleId: 
     await writeAudit(tx, { actor: i.auditActor, organisationId: org.id, entity: ENTITY.party, entityId: party.id, entityLabel: `${exercise.reference} · Party ${party.name}` }, "CREATE", diffFields(null, { party: party.name, registrationNo: party.registrationNo, cameAs: "Bought the documents online", supplier: `${supplier.reference} · ${supplier.registeredName}` }));
   }
 
+  const label = `${exercise.reference} · Online purchase by ${supplier.registeredName}`;
   const simulated = by.channel === "SIMULATED";
   const payment = simulated ? SIMULATED_LABEL : PAID_CHANNEL_WORDS.FINANCE_RECEIPT;
   const annotation = releaseAnnotation({
