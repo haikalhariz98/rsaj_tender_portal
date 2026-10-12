@@ -329,6 +329,7 @@ model Organisation {
   openings                 Opening[]
   openingSittings          OpeningSitting[]
   openingPanelMembers      OpeningPanelMember[]
+  exerciseOpeningOfficers  ExerciseOpeningOfficer[]
   openingAuthorisations    OpeningAuthorisation[]
   openedBids               OpenedBid[]
   openedBidInitials        OpenedBidInitial[]
@@ -569,6 +570,9 @@ model Person {
   panelOverrides           Opening[]                @relation("OpeningPanelOverrideBy")
   openingSittingsRecorded  OpeningSitting[]         @relation("OpeningSittingRecordedBy")
   openingPanelSeats        OpeningPanelMember[]     @relation("OpeningPanelPerson")
+  openingOfficerSeats      ExerciseOpeningOfficer[] @relation("OpeningOfficerPerson")
+  openingOfficersNamed     ExerciseOpeningOfficer[] @relation("OpeningOfficerNamedBy")
+  openingOfficersEnded     ExerciseOpeningOfficer[] @relation("OpeningOfficerEndedBy")
   openingAuthorisations    OpeningAuthorisation[]   @relation("OpeningAuthorisedBy")
   openedBidInitials        OpenedBidInitial[]       @relation("OpenedBidInitialBy")
   openingSignatures        OpeningSignature[]       @relation("OpeningSignedBy")
@@ -1046,6 +1050,7 @@ model CommitteeMember {
   standInAttendances MeetingAttendance[] @relation("StandIn")
   openingPanelSeats  OpeningPanelMember[]
 
+  openingOfficerSeats ExerciseOpeningOfficer[]
   @@index([committeeId, effectiveFrom])
   @@index([personId])
 }
@@ -3354,6 +3359,17 @@ model SourcingExercise {
   /// Null: not recorded. No list is configured for it yet.
   workCode               String?
 
+  /// Sourcing Requirements v2 SR-05 (ruling 8): the dates proposed for the tendering window, entered on Scope and estimate before the documents
+  /// are submitted. Null: not entered, and submission is refused saying so. They read "Proposed" until the approving step records
+  /// `tenderingStartOn` and `closingAt` (BD-64-31 unchanged). The closing is an instant, judged in the organisation's zone.
+  proposedStartOn   DateTime?
+  proposedClosingAt DateTime?
+
+  /// SR-07 (ruling 11, G1): whether the officers who will open are named on the exercise (`openingOfficers`) and the opening is built from
+  /// them. Pinned when the exercise is created. Exercises that existed before were backfilled false: their panel is still picked at the start.
+  openingRosterRequired Boolean @default(true)
+  openingOfficers       ExerciseOpeningOfficer[]
+
   /// 6.5 (FR-ADV-016): the cancelled exercise this one replaces, a new case linked to it.
   replacesExerciseId     String?
   replaces               SourcingExercise?  @relation("ExerciseReplaces", fields: [replacesExerciseId], references: [id], onDelete: SetNull)
@@ -3407,6 +3423,38 @@ model SourcingExercise {
   @@index([requisitionId])
   @@index([personInChargeId])
   specialPermissions SpecialPermission[]
+}
+
+/// SR-07 (ruling 11): an officer named on a sourcing exercise to open its bids. The number required is `Committee.panelSize`, never a literal. Each
+/// holds a seat on the method's opening committee when named. A row ends rather than going: an officer replaced before the closing keeps the
+/// authority and reason, and the audit trail keeps the before and after.
+model ExerciseOpeningOfficer {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  personId       String
+  person         Person           @relation("OpeningOfficerPerson", fields: [personId], references: [id], onDelete: Restrict)
+
+  committeeMemberId String?
+  committeeMember   CommitteeMember? @relation(fields: [committeeMemberId], references: [id], onDelete: SetNull)
+  /// The seat's label as it read when the officer was named.
+  seatLabelSnapshot String
+
+  namedAt         DateTime
+  namedByPersonId String
+  namedBy         Person   @relation("OpeningOfficerNamedBy", fields: [namedByPersonId], references: [id], onDelete: Restrict)
+
+  /// Set when the officer is taken off: replaced by a controlled change (authority and reason recorded) or removed before submission.
+  endedAt         DateTime?
+  endedByPersonId String?
+  endedBy         Person?   @relation("OpeningOfficerEndedBy", fields: [endedByPersonId], references: [id], onDelete: Restrict)
+  endedAuthority  String    @default("")
+  endedReason     String    @default("")
+
+  @@index([exerciseId])
+  @@index([personId])
 }
 
 model ExerciseScopePart {

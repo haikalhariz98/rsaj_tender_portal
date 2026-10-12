@@ -74,7 +74,7 @@ export async function loadEvaluationTab(actor: StaffActor, exerciseId: string, s
     return { actions: null, notes: [], panel: <Card><EmptyState title="Not evaluated here">An exercise is evaluated in the portal once it was published through its invitation window with tender or quotation documents. This one was not.</EmptyState></Card> };
   }
   if (h.neverPinned) {
-    return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement /><Card><EmptyState title="Published before evaluation models existed">It has no pinned model, and none is pinned later. To evaluate it here, cancel it from its Invitation tab and publish a replacement.</EmptyState></Card></div> };
+    return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement /><Card><EmptyState title="Published before evaluation models existed">It has no pinned model, and none is pinned later. To evaluate it here, cancel it from Tender documents, under Publishing, and publish a replacement.</EmptyState></Card></div> };
   }
   const startNote: [string, string][] = h.start && !h.start.allowed.allowed ? [["Start the evaluation", h.start.allowed.reason]] : [];
   const actions = h.start ? <StartEvaluationDrawer exerciseId={exerciseId} allowed={h.start.allowed} people={h.people} carried={h.start.carried} /> : null;

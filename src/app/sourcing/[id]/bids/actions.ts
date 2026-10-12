@@ -426,7 +426,7 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
   const alternativesPermitted = alt === "yes" ? true : alt === "no" ? false : null;
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const w = await loadBidWindow(l.ex.id, tx);
-    if (!w) return { ok: false, message: "The window is not prepared yet. Save its notice items on the Invitation tab first." };
+    if (!w) return { ok: false, message: "The window is not prepared yet. Fill in Notice and fee on Scope and estimate first." };
     const fs = bidFieldsFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, current: { days: w.bidValidityDays, alternativesPermitted: w.alternativesPermitted }, next: { days, provenance, alternativesPermitted }, reason });
     if (fs.length) return refuse(fs);
     // S-6: recorded after publication (BD-66-7's exit), the officer who records it is named, and the

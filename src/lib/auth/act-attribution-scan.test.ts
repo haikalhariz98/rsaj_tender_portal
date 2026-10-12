@@ -38,6 +38,8 @@ const ALLOWED: Readonly<Record<string, string>> = {
   "src/app/sourcing/actions.ts#personInChargeId": DESIGNATION,
   "src/app/sourcing/actions.ts#personId": "A named participant of a restricted exercise: a roster entry, not an act (the participant is not the actor, and who named them is in the audit row).",
   "src/app/sourcing/[id]/scope/actions.ts#preparerPersonId": "The officer a bill of quantities is prepared by: a designation (BqVersion.preparer is NOT_AN_ACT, with its reason).",
+  // SR-07 (ruling 11): the opening officers named on an exercise.
+  "src/app/sourcing/[id]/scope/prep-actions.ts#personId": "An officer named to open the bids of an exercise, or the one replacing them: a roster entry, not an act (who named them is in the audit row, and the officer signs for themselves at the opening).",
   "src/app/sourcing/[id]/evaluation/actions.ts#personId": "A member appointed to the evaluation team: a roster entry, not an act (the appointment is audited with the signed-in actor).",
   "src/app/requisitions/actions.ts#returnedToPersonId": DESIGNATION,
   "src/app/projects/[id]/variation-actions.ts#originatorPersonId": NAMED,

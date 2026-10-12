@@ -25,7 +25,7 @@ export default async function SaleLabelPage(props: PageProps<"/sourcing/[id]/lab
   const [l, register] = await Promise.all([loadExercise(actor.organisationId, id), saleRegister(actor.organisationId, id)]);
   const sale = register?.rows.find((r) => r.id === saleId);
   if (!l || !sale) notFound();
-  const back = `/sourcing/${id}?tab=invitation&section=sales`;
+  const back = `/sourcing/${id}?tab=bids&section=sales`;
   return (
     <>
       <RecordCrumb label={l.ex.reference} />

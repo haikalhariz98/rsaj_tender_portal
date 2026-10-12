@@ -3,32 +3,26 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Accordion } from "@/components/accordion";
-import { OwnerAttachments } from "@/components/attachments/owner-attachments";
-import { ClipboardIcon, FileIcon, RouteIcon, UsersIcon } from "@/components/icons";
+import { FileIcon, RouteIcon } from "@/components/icons";
 import { ActBadge, actLabel } from "@/components/ui/act";
-import { Badge, Chip, SulitValue } from "@/components/ui/badge";
+import { Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
-import { MoreText } from "@/components/ui/more-text";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { Stepper, type StepperStep } from "@/components/ui/stepper";
 import type { Sulit } from "@/lib/auth/sulit-access";
-import { exercisePurposes } from "@/lib/documents/targets";
 import { resolutionText, supersession } from "@/lib/documents/supersession";
 import { formatDate } from "@/lib/format";
 import { disagreesAtBoundary } from "@/lib/method/bands";
-import type { ExerciseEvidence } from "@/lib/documents/evidence";
 import type { AttachmentFact } from "@/lib/documents/types";
-import { CUTOFF_NOT_SET, NO_EVENTS_TEXT, type KeyDatesView } from "@/lib/method/key-dates";
 import {
   APPOINTMENT_STATE_TEXT,
   BEHAVIOUR_LABEL,
   boundarySentence,
   DELIVERABLE_LABEL,
   DERIVATION_TEXT,
-  evidenceChip,
   findingTextFor,
   NOT_SET,
   REGIME_LABEL,
@@ -43,13 +37,7 @@ import { isCoreNotCheckedNotice, profileRows, type BandSnapshot, type Classifica
 import { ignoredMappingsText, ignoredPermitListMappings } from "@/lib/method/taxonomy";
 import type { DeliverableKind, Finding } from "@/lib/method/types";
 import { formatMoney, parseSen } from "@/lib/money";
-import type { ConditionsTab } from "@/lib/tender-docs/read-conditions";
-import { DETAILS as DETAILS_PLACE } from "@/lib/tender-docs/conditions-labels";
-import { capFirst } from "@/lib/tender-docs/frozen-view";
 
-import { ChooseTaxonomyDrawer, EditDetailsDrawer } from "../editors";
-import { AddRequirementDrawer, PermitDrawer, RemoveRequirementDrawer, RestrictionDrawer } from "./documents/conditions-editors";
-import { Findings, NOT_SET as COND_NOT_SET, Registrations, Row, Value } from "./documents/conditions";
 
 /**
  * The exercise's Overview (founder, 2026-10-05): the default tab, replacing Classification and
@@ -100,8 +88,6 @@ function RouteList({ route, hideCoreNotice = false }: { route: RouteSnap; hideCo
   );
 }
 
-type Option = { value: string; label: string };
-
 /// A check recorded with the exercise is a statement about the day it was recorded: where
 /// a live attachment has since satisfied it, it reads as history, not as a warning.
 function judgeFindings(p: Pick<OverviewProps, "l" | "live" | "findings" | "evidenceFacts">) {
@@ -133,16 +119,8 @@ export interface OverviewProps {
   requesterType: string | null;
   draft: boolean;
   officeName: (code: string) => string;
-  evidence: ExerciseEvidence;
   evidenceFacts: AttachmentFact[];
   timeZone: string | null;
-  /// The tender's conditions, and whether this exercise states them at all (an appointment with no tenderers does not).
-  conditions: ConditionsTab | null;
-  keyDates: KeyDatesView;
-  /// Who may be named person in charge (the active people, and the one named now even if since retired).
-  people: Option[];
-  /// Why the details (work code, person in charge) cannot change now, or null.
-  detailsBlocker: string | null;
 }
 
 export function OverviewPanel(p: OverviewProps) {
@@ -155,16 +133,14 @@ export function OverviewPanel(p: OverviewProps) {
         </CardBody>
       </Card>
 
-      <ContractCard p={p} />
-      <DetailsCard p={p} />
-      <KeyDatesCard p={p} />
+      <RequisitionSummaryCard p={p} />
     </div>
   );
 }
 
 // ------------------------------------------------------------------- contract
 
-function ContractCard({ p }: { p: OverviewProps }) {
+function RequisitionSummaryCard({ p }: { p: OverviewProps }) {
   const { l, decided, bands, live, config, flags } = p;
   const ex = l.ex;
   const req = l.req;
@@ -173,8 +149,6 @@ function ContractCard({ p }: { p: OverviewProps }) {
   const derivedName = decided?.contractType.derivedName ?? p.typeName(live?.derivation.code ?? ex.derivedContractTypeCode);
   const basis = decided?.basis ?? config.bases.find((b) => b.code === ex.contractBasisCode) ?? null;
   const overridden = !!state && state !== "DERIVED";
-  const tax = (code: string) => config.taxonomies.find((t) => t.code === code);
-  const ambiguous = p.draft && live ? live.taxonomies.filter((t) => t.state === "AMBIGUOUS") : [];
   const methodOverridden = !!ex.proposedMethodCode && ex.proposedMethodCode !== ex.sourcingMethodCode;
   const { blocking, others } = judgeFindings(p);
   // The checks sit behind "Rules used": the closed accordion still says how many there are.
@@ -184,8 +158,8 @@ function ContractCard({ p }: { p: OverviewProps }) {
     <Card>
       <CardHeader
         icon={<FileIcon size={17} />}
-        title="Contract"
-        subtitle="What is being bought, and how it is approved."
+        title="Requisition summary"
+        subtitle="What is being bought, and how it is approved. Read only: the details are kept under Scope and estimate."
         actions={
           p.draft ? (
             <ButtonLink href={`/sourcing/${ex.id}/edit`} variant="secondary" size="sm">
@@ -215,39 +189,6 @@ function ContractCard({ p }: { p: OverviewProps }) {
             { label: "Contract basis", value: basis ? `${basis.nameEn}${basis.standardFormLabel ? ` · ${basis.standardFormLabel}` : ""}` : "Not chosen: required before documents go into preparation" },
             ...(ex.methodReason ? [{ label: "Why this method", value: ex.methodReason }] : []),
             ...(ex.externalRouteNote ? [{ label: "What the external body decided", value: ex.externalRouteNote }] : []),
-            ...(flags?.requiresJustification || flags?.requiresDossier ? [{ label: "Justification", value: ex.justificationText || "Not recorded" }] : []),
-            ...(flags?.requiresDossier
-              ? [
-                  { label: "Reason", value: p.reasonName ?? "Not recorded" },
-                  { label: "Dossier reference", value: ex.dossierReference ? <span className="font-mono text-[13px]">{ex.dossierReference}</span> : "Numbered when it moves into preparation" },
-                  {
-                    label: "Supporting evidence",
-                    value: (
-                      <span className="flex flex-col items-start gap-1">
-                        <span>{ex.evidenceNote || "No note"}</span>
-                        <Chip tone={evidenceChip(p.evidence.dossier, "dossier").tone}>{evidenceChip(p.evidence.dossier, "dossier").text}</Chip>
-                      </span>
-                    ),
-                  },
-                ]
-              : []),
-            ...(flags?.requiresCoordinationRecord
-              ? [
-                  { label: "Emergency trigger", value: ex.emergencyTrigger || "Not recorded" },
-                  { label: "Coordination meeting", value: ex.coordinationMeetingOn ? formatDate(ex.coordinationMeetingOn) : "Not recorded" },
-                  { label: "Attended by", value: ex.coordinationAttendees || "Not recorded" },
-                  {
-                    label: "Scope fixed",
-                    value: (
-                      <span className="flex flex-col items-start gap-1">
-                        <span>{ex.coordinationScopeNote || "No note"}</span>
-                        <Chip tone={evidenceChip(p.evidence.scope, "scope").tone}>{evidenceChip(p.evidence.scope, "scope").text}</Chip>
-                      </span>
-                    ),
-                  },
-                  { label: "Bill of quantities", value: ex.bqReference ?? "Not recorded" },
-                ]
-              : []),
             ...(flags && !flags.requiresFreshSourcing ? [{ label: "Parent contract", value: <span className="flex flex-col items-start gap-1"><span>{ex.parentContractRef ?? "Not recorded"}</span><Chip tone="warn">Capacity not tracked</Chip></span> }] : []),
           ]}
         />
@@ -287,35 +228,6 @@ function ContractCard({ p }: { p: OverviewProps }) {
               {bands.boundary.source && <span className="text-[12.5px]">{bands.boundary.source}</span>}
             </span>
           </Callout>
-        )}
-
-        {ambiguous.length > 0 && (
-          <Callout tone="warn" title={ambiguous.length === 1 ? "A classification needs a choice" : `${ambiguous.length} classifications need a choice`}>
-            <ul className="mt-1 flex flex-col gap-2">
-              {ambiguous.map((t) => {
-                const tx = tax(t.taxonomyCode);
-                const valueName = (c: string) => tx?.values.find((v) => v.code === c)?.nameEn ?? "A value no longer configured";
-                return (
-                  <li key={t.taxonomyCode} className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="min-w-0 break-words">
-                      <span className="font-semibold">{tx?.nameEn ?? "A classification no longer configured"}</span>: {t.candidates.map(valueName).join(" or ")}
-                    </span>
-                    {tx && <ChooseTaxonomyDrawer id={ex.id} taxonomyCode={t.taxonomyCode} taxonomy={tx.nameEn} candidates={t.candidates.map((c) => ({ value: c, label: valueName(c) }))} />}
-                  </li>
-                );
-              })}
-            </ul>
-          </Callout>
-        )}
-
-        {flags && (flags.requiresDossier || flags.requiresCoordinationRecord) && (
-          <OwnerAttachments
-            owner={{ kind: "exercise", id: ex.id }}
-            title={flags.requiresDossier && flags.requiresCoordinationRecord ? "Dossier evidence and coordination scope" : flags.requiresDossier ? "Dossier evidence" : "Coordination meeting scope"}
-            subtitle={flags.requiresDossier ? "Kept against the exercise. A direct appointment is sent for approval only with its dossier evidence attached." : "Kept against the exercise: the document that fixed the scope at the coordination meeting."}
-            only={exercisePurposes(flags)}
-            required={{ DOSSIER_EVIDENCE: flags.requiresDossier, COORDINATION_SCOPE: flags.requiresCoordinationRecord }}
-          />
         )}
 
         <Accordion title="Rules used" meta={checksMeta}>
@@ -468,214 +380,5 @@ function RulesUsed({ p }: { p: OverviewProps }) {
         </section>
       )}
     </div>
-  );
-}
-
-// ------------------------------------------------------- details & compliance
-
-function DetailsCard({ p }: { p: OverviewProps }) {
-  const ex = p.l.ex;
-  const c = p.conditions;
-  const live = c?.mode === "live" ? c : null;
-  const frozen = c?.mode === "frozen" ? c : null;
-  const before = c?.mode === "before" ? c : null;
-  return (
-    <Card id="conditions" className="scroll-mt-24 overflow-hidden">
-      <CardHeader
-        icon={<UsersIcon size={17} />}
-        title="Details & compliance"
-        subtitle={
-          <>
-            Who may bid, and the exercise&apos;s own details.{" "}
-            <span className="sr-only">The registrations, the restriction and the permit are fixed once the documents go for approval. The work code and the person in charge stay open until an award goes for approval.</span>
-            <MoreText text="The registrations, the restriction and the permit are fixed once the documents go for approval. The work code and the person in charge stay open until an award goes for approval." label="When these can change" />
-          </>
-        }
-        actions={live && live.edit.allowed ? <AddRequirementDrawer exerciseId={live.exerciseId} allowed={live.eligibility.noBodies ? { allowed: false, reason: live.eligibility.noBodies } : live.edit} bodies={live.eligibility.bodyOptions} groups={live.eligibility.groupOptions} typeTest={live.eligibility.typeTest} needs={live.eligibility.needOptions} /> : undefined}
-      />
-      <CardBody className="flex flex-col gap-5">
-        <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-          <Row
-            title="Title"
-            value={<span className="break-words">{ex.title}</span>}
-            action={
-              p.draft ? (
-                <ButtonLink href={`/sourcing/${ex.id}/edit`} variant="ghost" size="sm" aria-label="Edit the title">
-                  Edit
-                </ButtonLink>
-              ) : undefined
-            }
-          />
-          <Row
-            title="Work code"
-            value={ex.workCode ? <span className="break-words">{ex.workCode}</span> : <Badge tone="warn">Not recorded</Badge>}
-            action={<EditDetailsDrawer id={ex.id} people={p.people} personInChargeId={ex.personInChargeId} workCode={ex.workCode} blocker={p.detailsBlocker} what="work code" />}
-          />
-        </ul>
-
-        {c == null ? (
-          <p className="text-[13px] text-ink-3">This exercise issues no tender documents, so there are no registrations, restriction or permit to state.</p>
-        ) : (
-          <>
-            <div>
-              <p className="mb-2 text-[12px] font-semibold text-ink-3">Registrations bidders must hold</p>
-              {live ? (
-                live.eligibility.groups.length === 0 ? (
-                  <p className="rounded-2xl border border-dashed border-line px-4 py-3 text-[13px] text-ink-2">
-                    <Badge tone="warn">Not set</Badge> <span className="ml-1">No registration is recorded, so the notice has no eligibility block.</span>
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-                    {live.eligibility.groups.map((g) => (
-                      <li key={g.number} className="flex flex-col gap-1.5 px-4 py-3">
-                        <span className="text-[12px] font-semibold text-ink-3">{g.heading}</span>
-                        <ul className="flex flex-col gap-1.5">
-                          {g.items.map((r) => (
-                            <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-                              <span className="min-w-0 text-[13.5px] break-words text-ink">
-                                <span className="font-semibold">{capFirst(r.body)}</span>
-                                {r.qualifiers && <span className="text-ink-2"> · {r.qualifiers}</span>}
-                              </span>
-                              <RemoveRequirementDrawer exerciseId={live.exerciseId} id={r.id} label={capFirst(r.body)} allowed={live.edit} />
-                            </li>
-                          ))}
-                        </ul>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              ) : frozen ? (
-                <Registrations groups={frozen.frozen.groups.map((g) => ({ ...g, items: g.items }))} />
-              ) : before ? (
-                <Registrations groups={before.groups} />
-              ) : null}
-              {live && (
-                <p className="mt-2 text-[12.5px] text-ink-3">
-                  The notice states each registration must be valid from the day tendering starts to the closing day: the days proposed when the documents are submitted. The contract type&apos;s registration test: {live.eligibility.typeTest}.
-                </p>
-              )}
-            </div>
-            <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-              {live ? (
-                <>
-                  <Row title={live.restriction.question} value={<Value v={live.restriction.answer} />} action={live.edit.allowed ? <RestrictionDrawer exerciseId={live.exerciseId} question={live.restriction.question} raw={live.restriction.raw} allowed={live.edit} /> : undefined}>
-                    {live.restriction.answer === "Yes" && (
-                      <span className="text-[12.5px] break-words text-ink-3">
-                        Stamped on every generated document: {live.restriction.stampEn === COND_NOT_SET ? "English wording not set" : `“${live.restriction.stampEn}”`}
-                        {live.restriction.stampMs !== COND_NOT_SET ? ` · “${live.restriction.stampMs}”` : ""}
-                      </span>
-                    )}
-                  </Row>
-                  <Row title="Needs the regulator's permit" value={<Value v={live.permit.answer} />} action={live.edit.allowed ? <PermitDrawer exerciseId={live.exerciseId} raw={live.permit.raw} rawPermit={live.permit.rawPermit} options={live.permit.options} list={live.permit.list} allowed={live.edit} /> : undefined}>
-                    {live.permit.permit != null && <span className="text-[12.5px] text-ink-3">Permit type: {live.permit.permit === COND_NOT_SET ? "not chosen" : live.permit.permit}</span>}
-                  </Row>
-                </>
-              ) : (
-                (() => {
-                  const r = frozen ? frozen.frozen : before!;
-                  return (
-                    <>
-                      <Row title={r.restriction.question} value={<Value v={r.restriction.answer} />} />
-                      <Row title="Needs the regulator's permit" value={<Value v={r.permit.answer} />}>
-                        {r.permit.type != null && <span className="text-[12.5px] text-ink-3">Permit type: {r.permit.type === COND_NOT_SET ? "not chosen" : r.permit.type}</span>}
-                      </Row>
-                    </>
-                  );
-                })()
-              )}
-            </ul>
-            {live && !live.edit.allowed && <p className="text-[12.5px] text-ink-3">{live.edit.reason}</p>}
-            {/* Where these findings say "on the Overview tab", this is it: they say "here". Founder, 2026-10-05:
-                what blocks approval is not listed (the rows above already say "Not set", and the submit refuses
-                with the reasons); only warnings and notes show. */}
-            {live && live.edit.allowed && <Findings items={[...live.eligibility.findings, ...live.restriction.findings, ...live.permit.findings].filter((f) => f.level !== "block").map((f) => ({ ...f, text: f.text.split(DETAILS_PLACE).join("here") }))} />}
-            {(frozen || before) && (
-              <p className="text-[12.5px] text-ink-3">
-                {frozen ? `As frozen with version ${frozen.frozen.version}, judged ${frozen.frozen.judgedOn}. They change only in a new version, after a return.` : `Version ${before!.version} was frozen before they were recorded with it.`}{" "}
-                <Link href={`/sourcing/${ex.id}?tab=documents`}>Open the Tender documents</Link>
-              </p>
-            )}
-          </>
-        )}
-      </CardBody>
-    </Card>
-  );
-}
-
-// ------------------------------------------------- key dates & person in charge
-
-function KeyDatesCard({ p }: { p: OverviewProps }) {
-  const ex = p.l.ex;
-  const k = p.keyDates;
-  const dateValue = (d: { state: string; label: string | null; text: string }) =>
-    d.label ? (
-      <span>
-        <span className="font-semibold">{d.label}</span> {d.text}
-      </span>
-    ) : (
-      <span className="text-ink-3">{d.text}</span>
-    );
-  const pic = ex.personInCharge;
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader icon={<ClipboardIcon size={17} />} title="Key dates & person in charge" subtitle="When tendering starts and closes, and who is looking after it." />
-      <CardBody>
-        <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-          {k.start.state === "NOT_APPLICABLE" ? (
-            <Row title="Tendering window" value={<span className="text-ink-3">{k.start.text}</span>}>
-              <span className="text-[12.5px] text-ink-3">This exercise issues no tender documents, so there is no start, closing or briefing to set.</span>
-            </Row>
-          ) : (
-            <>
-              <Row title="Tendering starts" value={dateValue(k.start)} />
-              <Row title="Closing" value={dateValue(k.closing)}>
-                <span className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3">
-                  Organisation&apos;s usual closing time:{" "}
-                  {k.cutoff.text ? (
-                    <>
-                      <span className="text-ink-2">{k.cutoff.text}</span>
-                      <ProvenanceBadge value={k.cutoff.provenance} />
-                    </>
-                  ) : (
-                    <>
-                      <Badge tone="warn">{CUTOFF_NOT_SET}</Badge>
-                      <Link href="/configuration/invitation">Set it under Invitation controls</Link>
-                    </>
-                  )}
-                </span>
-              </Row>
-              <Row title="Briefing and site visits">
-                {k.events.length === 0 ? (
-                  <span className="text-[13px] text-ink-2">
-                    {NO_EVENTS_TEXT}
-                    {k.canSchedule && (
-                      <>
-                        . <Link href={`/sourcing/${ex.id}?tab=invitation&section=briefing`}>Schedule one under Invitation, Briefing</Link>
-                      </>
-                    )}
-                  </span>
-                ) : (
-                  <ul className="flex flex-col gap-1 text-[13.5px] text-ink">
-                    {k.events.map((e) => (
-                      <li key={e.id} className="break-words">
-                        {e.text}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Row>
-            </>
-          )}
-          <Row
-            title="Person in charge"
-            value={pic ? <span className="break-words">{pic.isActive ? pic.name : `${pic.name} (no longer active)`}</span> : <Badge tone="warn">Not recorded</Badge>}
-            action={<EditDetailsDrawer id={ex.id} people={p.people} personInChargeId={ex.personInChargeId} workCode={ex.workCode} blocker={p.detailsBlocker} what="person in charge" />}
-          />
-          <Row title="Requested by" value={<span className="break-words">{p.l.req.requestingPerson?.name ?? "Not recorded"}</span>}>
-            <span className="text-[12.5px] text-ink-3">Named on the requisition, who asked for it; not necessarily who looks after the exercise.</span>
-          </Row>
-        </ul>
-      </CardBody>
-    </Card>
   );
 }

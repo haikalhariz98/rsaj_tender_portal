@@ -268,6 +268,13 @@ const ALLOWED_EXTRA = [
   /^Process flow$/,
   /^Details & compliance$/,
   /^Key dates & person in charge$/,
+  // Sourcing Requirements v2, wave 2a (SR-05, SR-06, SR-07; rulings 8, 9, 11): the sections of Scope and estimate and the sections that took the Invitation tab apart. None is in the sample.
+  /^Opening officers$/,
+  /^Notice and fee$/,
+  /^Briefing and site visit$/,
+  /^Sales and briefing$/,
+  /^Publishing$/,
+  /^Earlier officers$/,
   /^Contract terms bands$/,
   // 6.3 plan §4: the classification lists on Reference data (FR-MTD-006, 009, 011–014).
   /^Proposal items$/,
@@ -351,6 +358,11 @@ const DECIDED_ABSENT = [
     screen: /^\/sourcing\/[^/]+\/appendix$/,
     match: /^Still to enter$/,
     why: "SR-12: the Appendix opens without a list of what is left; Save names each required field left empty, and submission still refuses an incomplete Appendix",
+  },
+  {
+    screen: /^\/sourcing\/[^/]+$/,
+    match: /^Invitation$/,
+    why: "SR-06 (ruling 9): the Invitation tab is gone; its publishing content is the Publishing section of Tender documents, its sale register and briefing attendance are Sales and briefing on Bids and opening, and its notice, fee and briefing are prepared on Scope and estimate; an old ?tab=invitation address is redirected",
   },
   // 6.15a (plan §5, OD-1..OD-10): the staff-side supplier register, on the supplier screens only.
   {

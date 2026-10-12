@@ -21,7 +21,7 @@ export const SETTING_AT = {
 } as const;
 
 /// The exit for an exercise whose frozen rule can never be met (6.7 C-9, review S-4).
-const CANCEL_EXIT = "this exercise's exit is to cancel it, from its Invitation tab";
+const CANCEL_EXIT = "this exercise's exit is to cancel it, from Tender documents, under Publishing";
 
 export const OPENING_KIND_LABEL: Readonly<Record<OpeningKind, string>> = { MAIN: "Opening", SUPPLEMENTARY: "Supplementary opening" };
 
@@ -118,6 +118,14 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   PICKED_TWICE: (f) => `${d(f, "person")} is picked twice.`,
   NOT_ON_COMMITTEE: (f) => `${d(f, "person")} does not hold a seat on the committee on the opening day.`,
   PERSON_INACTIVE: (f) => `${d(f, "person")} is not an active person.`,
+  // ---- the officers named on the exercise (SR-07, ruling 11)
+  OFFICERS_SHORT: (f) => `Name ${plural(Number(d(f, "required")), "opening officer", "opening officers")}: ${Number(d(f, "named")) === 0 ? "none is named yet" : `${Number(d(f, "named"))} named so far`}.`,
+  OFFICERS_TOO_MANY: (f) => `${plural(Number(d(f, "required")), "opening officer is", "opening officers are")} needed, and ${Number(d(f, "named"))} are named. Take one off first.`,
+  OFFICER_IS_ADMINISTRATOR: (f) => `${d(f, "person")} holds an administrator account. Administration is kept apart from approvals and certification, so an administrator does not open bids. Name someone else.`,
+  EXERCISE_CANCELLED: () => "The exercise is cancelled, so its opening officers stand as they were.",
+  AFTER_CLOSING: () => "The closing has passed. The opening officers can no longer be changed, and the bids cannot be opened without both of them. If one cannot take part, the exercise must be re-tendered.",
+  OPENING_STARTED: () => "The opening has started, so its officers stand as they are.",
+  AUTHORITY_REQUIRED: () => "Say what authority the change is made under.",
   PANEL_SIZE_NOT_SET: () => `The committee's opening panel size is not set. Set it under ${SETTING_AT.committee}.`,
   PANEL_SIZE_DIFFERS: (f) => `The committee's opening panel has ${n(f, "required")} members; ${n(f, "picked")} are picked. A panel of another size needs the authority it is assigned under, the reason and who records it.`,
   PANEL_SIZE_OVERRIDDEN: (f) => `A panel of ${n(f, "picked")}, not the committee's ${n(f, "required")}, assigned under a recorded authority.`,

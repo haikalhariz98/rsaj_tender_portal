@@ -203,8 +203,12 @@ export interface SubmitInput {
   /// The behaviours the exercise was decided under (its classification snapshot); null: not recorded.
   profile: readonly { key: BehaviourKey; value: BehaviourValue }[] | null;
   primeCostSums: BehaviourContext["primeCostSums"];
-  /// The proposed start and closing (`approvalDatesFault`'s findings).
+  /// The proposed start and closing (`approvalDatesFault`'s findings), as stored on the exercise (SR-05).
   dates: readonly Finding<DatesFault>[];
+  /// SR-07: the opening officers named on the exercise (`rosterFaults`); none where it was not pinned to name them.
+  officers: readonly Finding[];
+  /// SR-06: the notice, fee, bid validity and briefing prepared on Scope and estimate (`noticeSubmitFaults`).
+  notice: readonly Finding[];
   /// The route as it would open: its state, a refusal in words, and engine errors.
   route: { issue: boolean; state: TenderingRouteState | null; refusal: string | null; errors: readonly string[] };
   /// An Approval for Tendering route is already open on the exercise.
@@ -221,6 +225,8 @@ export interface SubmitFindings {
   behaviour: Finding<BehaviourFault>[];
   conditions: Finding<ConditionsFault>[];
   dates: Finding<DatesFault>[];
+  officers: Finding[];
+  notice: Finding[];
   route: Finding<RouteFault>[];
 }
 
@@ -251,11 +257,13 @@ export function submitFaults(i: SubmitInput): SubmitFindings {
     behaviour: behaviourFaults(i.profile, { appendix: hasAppendixPart ? i.appendix : null, primeCostSums: i.primeCostSums, parts: i.parts }),
     conditions: conditionsFaults(i.parts, i.conditions),
     dates: [...i.dates],
+    officers: [...i.officers],
+    notice: [...i.notice],
     route,
   };
 }
 
 /// Every finding of a submission, flattened.
-export const allOf = (s: SubmitFindings): Finding[] => [...s.edit, ...s.readiness, ...s.scope, ...s.appendix, ...s.behaviour, ...s.conditions, ...s.dates, ...s.route];
+export const allOf = (s: SubmitFindings): Finding[] => [...s.edit, ...s.readiness, ...s.scope, ...s.appendix, ...s.behaviour, ...s.conditions, ...s.dates, ...s.officers, ...s.notice, ...s.route];
 /// The ones that refuse it.
 export const blockingOf = (s: SubmitFindings): Finding[] => allOf(s).filter((f) => f.level === "block");

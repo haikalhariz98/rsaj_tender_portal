@@ -38,6 +38,7 @@ import { packFieldValues } from "@/lib/tender-docs/fields";
 import { appendixText, freezePack } from "@/lib/tender-docs/freeze";
 import { datesFaultText, PACK_KIND_LABEL, partFaultText, startFaultText, submitFindingTexts } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
+import { loadSubmitExtras } from "@/lib/tender-docs/submit-extras";
 import { allOf, blockingOf, markReadyFaults, nextPack, omitFaults, packEditFault, pickTemplateFaults, startPackFaults, submitFaults } from "@/lib/tender-docs/pack";
 import { CONFIG_STILL_UNSET, confirmedChangesFault, flagChanges } from "@/lib/tender-docs/refresh";
 import { isPct, PCT_COLUMN, pctRefusal, type PctField } from "@/lib/tender-docs/percent";
@@ -581,9 +582,8 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
   if (!txGuard.ok) return txGuard.state;
   const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
-  const startOn = String(data.get("startOn") ?? "").trim() || null;
-  const closingDay = String(data.get("closingDay") ?? "").trim() || null;
-  const closingTime = String(data.get("closingTime") ?? "").trim() || null;
+  // SR-05 (ruling 8): the proposed dates are the ones entered on Scope and estimate and stored on the exercise, read below on the locked row;
+  // the submit form no longer carries them.
   // The person who sends it is the route's sender (decisions log, 2026-10-09, ruling on 1860): barred from deciding it, as the name's sender is. Always the signed-in officer's own act.
   const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId", onBehalf: false });
   if (!begun.ok) return begun.state;
@@ -607,7 +607,8 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
     const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(l.org.today)).reverse().map((u) => u.code);
     const holders = (code: string) => holdersFor(code, unitPath, roster, delegations, l.org.today!);
     const route = issue && ctx && method ? tenderingRouteForRequester(ctx.funder, method, Number(senToDecimalString(value)), requesterHolding(holders, l.req.requestingPersonId, value, (pid) => roster.people.some((p) => p.id === pid && p.isActive && p.isAvailable))) : null;
-    const dates = approvalDatesFault({ startOn, closingDay, closingTime, timeZone: l.org.timeZone, today: l.org.today });
+    // SR-05, SR-06, SR-07: the proposed dates, the notice and fee, and the opening officers, read on the locked rows with the rest.
+    const extras = await loadSubmitExtras(l.ex, l.org, tx);
     // Increment 2: the conditions, read on the locked exercise and pack (requirements, answers, clauses, overrides, confirmations).
     const conditions = await loadConditions(l.org.id, l.ex, pack.id, l.org.today, tx);
     const whitelist = packWhitelist(liveClauses(conditions.clauses.clauses, l.org.today));
@@ -620,7 +621,9 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
       appendix: pack.appendix ? appendixFactsOf(pack.appendix) : null,
       profile: profileOf(l.ex.classificationSnapshot),
       primeCostSums: scope.bill?.primeCostSums ?? null,
-      dates: dates.faults,
+      dates: extras.dates,
+      officers: extras.officers,
+      notice: extras.notice,
       route: { issue: !!issue && !!ctx, state: method ? (route?.tenderingState ?? null) : "NO_METHOD_KEY", refusal: route?.refusal ?? null, errors: (route?.warnings ?? []).filter((w) => w.level === "err").map((w) => w.messageEn) },
       routeOpen: tenderingRoutesOf(l.ex.approvalInstances).some((i) => i.status === "PENDING"),
       conditions,
@@ -628,8 +631,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
     const blocks = blockingOf(findings);
     if (blocks.length) {
       const texts = submitFindingTexts(findings).filter((t) => t.level === "block");
-      const dateErrors = Object.fromEntries(findings.dates.map((f) => [f.code === "CLOSING_TIME_NOT_VALID" ? "closingTime" : f.code === "START_IN_PAST" ? "startOn" : "closingDay", datesFaultText(f)]));
-      return { ok: false, message: `Not submitted: ${texts.map((t) => t.text).join(" ")}`, ...(findings.dates.length ? { errors: dateErrors } : {}) };
+      return { ok: false, message: `Not submitted: ${texts.map((t) => t.text).join(" ")}` };
     }
     // ---- freeze (ADR 0013)
     const now = new Date();
@@ -642,7 +644,12 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
     const fields = packFieldValues({ organisationName: org.name, exerciseReference: l.ex.reference, exerciseTitle: l.ex.title, requisitionReference: l.req.reference, packKindLabel: PACK_KIND_LABEL[pack.packKind], versionNo: pack.versionNo, formLabel: pack.formLabelSnapshot, basisName: basis?.nameEn ?? null, typeName: type?.nameEn ?? null });
     const appendixFacts = pack.appendix ? appendixFactsOf(pack.appendix) : null;
     // The validity window the notice states: the proposed days (the approving step must record them, BD-64-31).
-    const window = { startOn: startOn!, closingDay: closingDay! };
+    // The proposal is valid here (a clean `dates` family is what lets us get this far), so it is present.
+    const proposed = extras.proposed!;
+    const startOn = proposed.startOn;
+    const closingDay = proposed.closingDay;
+    const closingTime = proposed.closingTime;
+    const window = { startOn, closingDay };
     const frozen = freezePack({
       parts: pack.parts.map((p) => ({ ...partFactsOf(p), files: pinnedFilesOf(p) })),
       fields,
@@ -742,8 +749,8 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
         faultsSnapshot: submitFindingTexts(findings).map((t) => ({ level: t.level, text: t.text, family: t.family })) as unknown as Prisma.InputJsonValue,
         conditionsSnapshot: conditionsSnapshot(pack.parts.map(partFactsOf), conditions, window) as unknown as Prisma.InputJsonValue,
         bqVersionId: scope.bill?.versionId ?? null,
-        proposedStartOn: dayToDate(startOn!),
-        proposedClosingAt: dates.closingAt,
+        proposedStartOn: dayToDate(startOn),
+        proposedClosingAt: proposed.proposedClosingAt,
         approvalInstanceId: instance.id,
       },
     });

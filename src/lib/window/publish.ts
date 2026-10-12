@@ -23,6 +23,7 @@
 import { blocking, type ChannelFacts, type EventFacts, type Finding, type PublicationFacts, type WindowPath, type WindowPolicyFacts, type CalendarFacts, type FeeFloorFacts } from "./types";
 import { advertisementDay, closingFaults } from "./dates";
 import { eventFaults } from "./events";
+import { itemFaults } from "./items";
 import { feeFaults } from "./fee";
 import { fieldsInWords, type TemplateState } from "./fields";
 import { invitedListFaults } from "./invitees";
@@ -139,13 +140,8 @@ export function publishFaults(i: PublishInput): PublishResult {
   // FR-ADV-003: the notice's items.
   if (i.requirements === 0) f("ELIGIBILITY_MISSING");
   const w = i.window;
-  if (!w.inspectionPlace.trim()) f("INSPECTION_PLACE_MISSING");
-  if (!w.purchasePlace.trim()) f("PURCHASE_PLACE_MISSING");
-  if (!w.inspectionHours.trim()) f("INSPECTION_HOURS_MISSING");
-  if (!w.purchaseFromDay) f("PURCHASE_FROM_NOT_SET");
-  if (w.purchaseFromDay && w.purchaseCloseDay && w.purchaseFromDay > w.purchaseCloseDay) f("PURCHASE_DAYS_OUT_OF_ORDER");
-  if (!w.feePaymentMethods.trim()) f("PAYMENT_METHODS_MISSING");
-  if (!w.submissionPlace.trim()) f("SUBMISSION_PLACE_MISSING");
+  // SR-06 (ruling 9): the same seven checks the submit gate runs (`itemFaults`), kept here as the backstop.
+  out.push(...itemFaults(w));
   if (!i.closingAt) f("CLOSING_NOT_SET");
   for (const e of i.events) out.push(...eventFaults(e, i.policy.mandatoryAttendancePermitted, i.closingAt));
 

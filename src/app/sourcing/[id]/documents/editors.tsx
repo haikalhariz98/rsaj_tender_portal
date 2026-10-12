@@ -65,22 +65,17 @@ export function StartPackDrawer({ exerciseId, label, allowed, rows, notes }: { e
  * Always openable on a draft: what is still missing is not listed on the screen (founder, 2026-10-05).
  * `submitPack` judges everything under lock and refuses with the list, which this drawer shows.
  */
-export function SubmitPackDrawer({ exerciseId, rows, warnings, today }: { exerciseId: string; rows: [string, string][]; warnings: string[]; today: string | null }) {
+export function SubmitPackDrawer({ exerciseId, rows, warnings, today, dates }: { exerciseId: string; rows: [string, string][]; warnings: string[]; today: string | null; dates: { start: string | null; closing: string | null } }) {
   return (
     <RecordEditor
       title="Submit for Approval for Tendering"
       description="Submitting freezes this version: each part's text is stored as it reads now, the bill of quantities is issued unpriced and files are pinned. A version that is frozen is changed only by returning it. If anything is still missing, submitting says what it is and nothing is frozen."
-      columns={2}
-      fields={[
-        hidden("exerciseId"),
-        { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "Today or later. Where the notice states the validity window, it states these days, and the approver records them." },
-        { kind: "date", name: "closingDay", label: "Closing day", required: true, hint: "After the start day." },
-        { kind: "text", name: "closingTime", label: "Closing time", required: true, placeholder: "14:30", hint: "Hours and minutes, 24-hour, the organisation's clock." },
-      ]}
+      fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       sections={
         <div className="flex flex-col gap-4">
-          <Facts rows={rows} />
+          <Facts rows={[...rows, ["Proposed start", dates.start ?? "Not entered"], ["Proposed closing", dates.closing ?? "Not entered"]]} />
+          <p className="text-[12.5px] text-ink-3">The days are the ones entered under Key dates on Scope and estimate. The notice states them, and the approver records them.</p>
           {warnings.map((w) => (
             <Callout key={w} tone="warn">{w}</Callout>
           ))}

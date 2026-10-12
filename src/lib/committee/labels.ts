@@ -121,7 +121,7 @@ export const STAGE_ONE_TABLED_TEXT = "A two-stage tender's first-stage decision 
 /// 6.15 adds the supplier's registration (OD-2 A): approved on its own route, which takes no committee step;
 /// and (a2) its blacklisting (OD-8 A) and a special permission (FR-ADV-017), likewise.
 export const NEVER_TABLED_DOMAINS: readonly string[] = [WINDOW_CHANGE_DOMAIN, SIGNATORY_DOMAIN, NEGOTIATION_DOMAIN, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_BLACKLIST_DOMAIN, SPECIAL_PERMISSION_DOMAIN];
-export const WINDOW_CHANGE_NOT_TABLED_TEXT = "A change to the invitation window is approved on its own route, from the exercise's Invitation tab; that route takes no committee step, so no sitting decides it.";
+export const WINDOW_CHANGE_NOT_TABLED_TEXT = "A change to the invitation window is approved on its own route, from the exercise's Tender documents, under Publishing; that route takes no committee step, so no sitting decides it.";
 export const SIGNATORY_NOT_TABLED_TEXT = "The award's signatory is the office the approval matrix names for the award, shown on the award; no sitting decides it.";
 export const NEGOTIATION_NOT_TABLED_TEXT = "A negotiation is approved on its own route, from the exercise's Evaluation tab, in Meetings and letters; that route takes no committee step, so no sitting decides it.";
 export const SUPPLIER_NOT_TABLED_TEXT = "A supplier matter is approved on its own route, from the supplier's record under Suppliers; that route takes no committee step, so no sitting decides it.";

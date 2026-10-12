@@ -23,6 +23,7 @@ import { DOCUMENT_STATE_LABEL } from "@/lib/suppliers/labels";
 export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   ContractReconciliation: w("Reconciliation", "Penyelarasan"),
   BackdateConfirmation: w("Back-dating confirmed", "Pentarikhan lalu disahkan"),
+  ExerciseOpeningOfficer: w("Opening officer", "Pegawai pembukaan"),
   FormationCheck: w("Formation check", "Semakan pembentukan"),
   CustodyItem: w("Original in custody", "Dokumen asal dalam simpanan"),
   SecurityInstrument: w("Security", "Jaminan"),

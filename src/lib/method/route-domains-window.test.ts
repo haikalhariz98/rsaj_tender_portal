@@ -32,8 +32,9 @@ describe("window_change routes", () => {
     expect(invitationFault(m("selected_tender"), nameRoutesOf([r("n1", NAME_APPROVAL_DOMAIN, "PENDING"), r("w1", WINDOW_CHANGE_DOMAIN, "APPROVED", "2026-10-02")]))?.code).toBe("NAME_NOT_APPROVED");
   });
 
-  it("the worklist reads it in words and opens the Invitation tab", () => {
-    expect(exerciseRouteMatter(WINDOW_CHANGE_DOMAIN)).toEqual({ kind: "Change to the invitation window", tab: "invitation", auditNoun: "window change" });
+  it("the worklist reads it in words and opens Publishing on Tender documents", () => {
+    // SR-06 (ruling 9): the Invitation tab is gone; a change to the window is decided from Tender documents, under Publishing.
+    expect(exerciseRouteMatter(WINDOW_CHANGE_DOMAIN)).toEqual({ kind: "Change to the invitation window", tab: "documents", section: "publishing", auditNoun: "window change" });
   });
 });
 

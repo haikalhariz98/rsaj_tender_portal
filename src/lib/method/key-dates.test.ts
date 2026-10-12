@@ -4,7 +4,7 @@ import { dayToDate } from "@/lib/dates";
 
 import { CLOSING_NOT_GIVEN, keyDatesView, NO_EVENTS_TEXT, NO_WINDOW_TEXT, START_NOT_GIVEN, type KeyDatesInput } from "./key-dates";
 
-const base: KeyDatesInput = { tenderingStartOn: null, closing: null, packs: [], noPack: false, canSchedule: true, defaultClosingTime: null, closingTimeProvenance: null, events: [], timeZone: "Asia/Kuala_Lumpur" };
+const base: KeyDatesInput = { tenderingStartOn: null, closing: null, proposed: { startOn: null, closingAt: null }, packs: [], noPack: false, canSchedule: true, defaultClosingTime: null, closingTimeProvenance: null, events: [], timeZone: "Asia/Kuala_Lumpur" };
 // 06:30 UTC is 14:30 in Kuala Lumpur.
 const closing = new Date("2026-10-15T06:30:00.000Z");
 
@@ -19,6 +19,14 @@ describe("Key dates on the Overview (founder, 2026-10-05)", () => {
     const v = keyDatesView({ ...base, packs: [{ versionNo: 2, status: "SUBMITTED", proposedStartOn: dayToDate("2026-10-01"), proposedClosingAt: closing }] });
     expect(v.start).toEqual({ state: "PROPOSED", label: "Proposed", text: "01 Oct 2026 · version 2" });
     expect(v.closing).toEqual({ state: "PROPOSED", label: "Proposed", text: "15 Oct 2026 · 14:30 · version 2" });
+  });
+
+  it("SR-05 (ruling 8): dates proposed on Scope and estimate before submission read as proposed, with no version, and a submitted pack's frozen proposal wins over them", () => {
+    const v = keyDatesView({ ...base, proposed: { startOn: dayToDate("2026-10-05"), closingAt: closing } });
+    expect(v.start).toEqual({ state: "PROPOSED", label: "Proposed", text: "05 Oct 2026" });
+    expect(v.closing).toEqual({ state: "PROPOSED", label: "Proposed", text: "15 Oct 2026 · 14:30" });
+    const frozen = keyDatesView({ ...base, proposed: { startOn: dayToDate("2026-10-05"), closingAt: closing }, packs: [{ versionNo: 1, status: "SUBMITTED", proposedStartOn: dayToDate("2026-10-01"), proposedClosingAt: closing }] });
+    expect(frozen.start.text).toBe("01 Oct 2026 · version 1");
   });
 
   it("the newest version that has a proposal counts; a newer draft with none does not hide it", () => {

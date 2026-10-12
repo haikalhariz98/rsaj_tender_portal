@@ -63,7 +63,7 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
     case "tenderPackPart":
       return exerciseId ? `/sourcing/${exerciseId}?tab=documents` : "/sourcing";
     case "addendum":
-      return exerciseId ? `/sourcing/${exerciseId}?tab=invitation&section=addenda` : "/sourcing";
+      return exerciseId ? `/sourcing/${exerciseId}?tab=documents&section=publishing` : "/sourcing";
     case "bidWithdrawal":
     case "validityExtension":
       return exerciseId ? `/sourcing/${exerciseId}?tab=bids` : "/sourcing";

@@ -34,6 +34,8 @@ import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LAB
 import { unpurchasedRuleText } from "./unpurchased";
 import { alternativeInsideFaults, openFaults } from "./open";
 import { supplementaryPanel } from "./panel";
+import { rosterFaults } from "./roster";
+import { loadOpeningRoster } from "./roster-store";
 import { invitedCounts, liveScans, openingContext, panelOf, policyOf, presentOf, stateOf, type OpeningContext, type OpeningRow } from "./repo";
 import { INVITED_READING_TEXT, jadualTawaran, lateCount, scheduleFromSnapshot, type ScheduleSnapshot } from "./schedule";
 import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults } from "./start";
@@ -94,8 +96,14 @@ export async function openingSection(organisationId: string, exerciseId: string,
   const estimateLate = !est.ok && est.faults.length === 1 && est.faults[0].code === "ESTIMATE_LATE";
   // Review M-4: what the start would freeze unset, making finalising impossible.
   const rf = frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, invitedReading: c.openingPolicy?.invitedCountReading ?? null, checklist: openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda }) });
+  // SR-07 (ruling 11): where the exercise names its opening officers they are the panel. What can have changed since they were named stops the start here, in words;
+  // the size and the presence are the table's (an officer's absence, a panel of another size on an override), judged by the start itself.
+  const rosterCtx = l.ex.openingRosterRequired ? await loadOpeningRoster(l.ex, l.org) : null;
+  const rosterBlocks: Finding[] = rosterCtx ? rosterFaults(rosterCtx.input).filter((f) => f.level === "block" && f.code !== "OFFICERS_SHORT" && f.code !== "OFFICERS_TOO_MANY") : [];
+  const rosterOptions = rosterCtx ? rosterCtx.rows.map((r) => ({ value: r.personId, label: `${r.name} · ${r.seatLabel}` })) : null;
   const start = {
-    allowed: allowedOf([...sf, ...rf, ...config, ...(est.ok || estimateLate ? [] : est.faults)]),
+    roster: rosterOptions,
+    allowed: allowedOf([...sf, ...rf, ...config, ...rosterBlocks, ...(est.ok || estimateLate ? [] : est.faults)]),
     committee: c.committee?.nameEn ?? null,
     panelSize: c.committee?.panelSize ?? null,
     independence: c.committee?.panelExclusionRule == null ? openingFindingText({ code: "EXCLUSION_RULE_NOT_SET", level: "warn" }) : c.committee.panelExclusionRule ? "Each member is checked against the committee's independence rule." : "The committee excludes no unit from its panel.",
@@ -144,7 +152,7 @@ export async function openingSection(organisationId: string, exerciseId: string,
     start,
     startNeeded: c.main == null,
     /// R-3: the supplementary opening's panel is picked from the main opening's committee.
-    supplementary: { seats: c.mainSeats.map((s) => ({ value: s.personId, label: `${people.find((p) => p.value === s.personId)?.label ?? c.roster.people.find((p) => p.id === s.personId)?.name ?? "A person not on record"} · ${s.seatLabel}` })), panelSize: c.mainCommittee?.panelSize ?? null },
+    supplementary: { roster: rosterOptions, seats: c.mainSeats.map((s) => ({ value: s.personId, label: `${people.find((p) => p.value === s.personId)?.label ?? c.roster.people.find((p) => p.id === s.personId)?.name ?? "A person not on record"} · ${s.seatLabel}` })), panelSize: c.mainCommittee?.panelSize ?? null },
     late,
     estimate,
     estimateOverride: estimateLate ? { roleConfigured: c.scopePolicy.estimateOverrideRoleCode != null } : null,

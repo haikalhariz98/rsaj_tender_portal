@@ -23,6 +23,8 @@ export const PRICE_FIELDS = ["openingPrice", "openingPrices", "correctedPrice", 
 
 /// The sections of the exercise's "Bids and opening" tab, in order. The strip is the shared Tabs' second level.
 export const BIDS_SECTIONS = [
+  // SR-06 (ruling 9): the sale register, requests and briefing attendance are the first section.
+  { id: "sales", label: "Sales and briefing" },
   { id: "received", label: "Received" },
   { id: "opening", label: "Opening" },
   { id: "schedule", label: "Schedule" },
@@ -72,7 +74,7 @@ export async function loadOpening(actor: StaffActor, exerciseId: string): Promis
   const notes: [string, string][] = d.startNeeded && !d.start.allowed.allowed ? [["Start the opening", d.start.allowed.reason]] : [];
   return {
     notes,
-    actions: d.startNeeded ? <StartOpeningDrawer exerciseId={exerciseId} allowed={d.start.allowed} seats={d.start.seats} people={d.people} panelSize={d.start.panelSize} independence={d.start.independence} estimateLate={d.start.estimateLate} noteId={EXERCISE_NOTE_ID} /> : null,
+    actions: d.startNeeded ? <StartOpeningDrawer exerciseId={exerciseId} allowed={d.start.allowed} seats={d.start.seats} roster={d.start.roster} people={d.people} panelSize={d.start.panelSize} independence={d.start.independence} estimateLate={d.start.estimateLate} noteId={EXERCISE_NOTE_ID} /> : null,
     panel: <OpeningPanel d={d} viewerPersonId={actor.personId} />,
   };
 }
@@ -89,6 +91,7 @@ function OpeningPanel({ d, viewerPersonId }: { d: OpeningSectionView; viewerPers
               columns={2}
               items={[
                 { label: "Opened by", value: d.start.committee ?? "The method names no opening committee" },
+                ...(d.start.roster ? [{ label: "Opening officers", value: d.start.roster.map((o) => o.label).join("; ") || "None named" }] : []),
                 { label: "Panel size", value: d.start.panelSize == null ? "Not set" : String(d.start.panelSize) },
                 { label: "Independence", value: d.start.independence },
                 { label: "The box", value: d.box.lockedAt ? `Locked ${d.box.lockedAt}` : "Not recorded as locked" },
@@ -258,7 +261,7 @@ function LateCard({ d }: { d: OpeningSectionView }) {
               <span className="block text-[12px] break-words text-ink-3">{`Received ${e.received} · ${e.markings}`}</span>
             </span>
             <Chip tone={e.tone === "neutral" ? undefined : e.tone}>{e.state}</Chip>
-            {e.decisionId && e.startSupplementary && <StartSupplementaryDrawer exerciseId={d.exerciseId} decisionId={e.decisionId} sequence={e.sequence} allowed={e.startSupplementary} seats={d.supplementary.seats} people={d.people} panelSize={d.supplementary.panelSize} />}
+            {e.decisionId && e.startSupplementary && <StartSupplementaryDrawer exerciseId={d.exerciseId} decisionId={e.decisionId} sequence={e.sequence} allowed={e.startSupplementary} seats={d.supplementary.seats} roster={d.supplementary.roster} people={d.people} panelSize={d.supplementary.panelSize} />}
           </li>
         ))}
       </ul>

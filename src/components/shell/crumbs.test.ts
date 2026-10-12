@@ -94,7 +94,7 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
     expect(labels(trail("/sourcing/sx1", null))).toEqual(["Sourcing", "Exercise"]);
     expect(labels(trail("/sourcing/new", null))).toEqual(["Sourcing", "New exercise"]);
     expect(trail("/sourcing/sx1/evaluation/report", "EX/1")[2].href).toBe("/sourcing/sx1?tab=evaluation&section=report");
-    expect(trail("/sourcing/sx1/label/s1", "EX/1")[2].href).toBe("/sourcing/sx1?tab=invitation&section=sales");
+    expect(trail("/sourcing/sx1/label/s1", "EX/1")[2].href).toBe("/sourcing/sx1?tab=bids&section=sales");
     expect(trail("/sourcing/sx1/opening/print", "EX/1")[2].href).toBe("/sourcing/sx1?tab=bids&section=schedule");
   });
   it("a printed award document's crumb is the page itself; configuration's sections are named", () => {

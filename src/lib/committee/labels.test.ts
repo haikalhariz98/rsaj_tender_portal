@@ -65,7 +65,7 @@ describe("domains no sitting decides: window change and award signatory (6.6 rev
     const { recordTabledText } = await import("./labels");
     expect(sittingTablesDomain(WINDOW_CHANGE_DOMAIN)).toBe(false);
     expect(sittingTablesDomain(SIGNATORY_DOMAIN)).toBe(false);
-    expect(recordTabledText(WINDOW_CHANGE_DOMAIN)).toMatch(/approved on its own route, from the exercise's Invitation tab; that route takes no committee step/);
+    expect(recordTabledText(WINDOW_CHANGE_DOMAIN)).toMatch(/approved on its own route, from the exercise's Tender documents, under Publishing; that route takes no committee step/);
     expect(recordTabledText(SIGNATORY_DOMAIN)).toMatch(/office the approval matrix names for the award/);
   });
   it("the drawer's domain options, as built from the labels, leave out every domain a sitting does not table", async () => {

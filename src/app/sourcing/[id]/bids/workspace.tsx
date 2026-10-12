@@ -43,7 +43,7 @@ export async function loadBids(scope: StaffActor, exerciseId: string, status: st
         <div className="flex flex-col gap-6">
           <Statement />
           <Card>
-            <EmptyState title="Envelopes are received once the exercise is published" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=invitation&section=window`} variant="secondary" size="sm">Open the Invitation tab</ButtonLink>}>
+            <EmptyState title="Envelopes are received once the exercise is published" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=documents&section=publishing`} variant="secondary" size="sm">Open Publishing</ButtonLink>}>
               Bids are received after the exercise is advertised or invited. The company estimate&apos;s lodgement into the box, made earlier, is recorded here when it is lodged.
             </EmptyState>
           </Card>

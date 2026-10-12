@@ -1,0 +1,135 @@
+import { requireStaff } from "@/app/_auth/actor";
+import { Accordion } from "@/components/accordion";
+import { UsersIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Callout, EmptyState } from "@/components/ui/feedback";
+import { KeyValues } from "@/components/ui/stat";
+import { db } from "@/lib/db";
+import { namingOthersRefusal } from "@/lib/auth/sulit-store";
+import { formatDate } from "@/lib/format";
+import { loadExercise } from "@/lib/method/repo";
+import { rosterChange, rosterFaults } from "@/lib/opening/roster";
+import { loadOpeningRoster } from "@/lib/opening/roster-store";
+import { ROSTER_AFTER_CLOSING_NOTE, rosterActs, rosterFindingText } from "@/lib/opening/roster-labels";
+import { SETTING_AT } from "@/lib/opening/labels";
+
+import { NameOfficerDrawer, RemoveOfficerDrawer, SubstituteOfficerDrawer } from "./prep-editors";
+
+/**
+ * Opening officers, the third section of Scope and estimate (Sourcing Requirements v2, SR-07, ruling 11): the officers who will open the bids,
+ * named before the documents are submitted. The number is the opening committee's panel size, never a literal here; an unset size says so
+ * rather than reading as none. Each holds a seat on the committee the method names. Replacing one is possible until the closing, by a controlled
+ * change with its authority and reason; after the closing the card says plainly that the exercise cannot be opened without both and would have
+ * to be re-tendered.
+ */
+export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
+  const actor = await requireStaff();
+  const l = await loadExercise(actor.organisationId, exerciseId);
+  if (!l) return null;
+  const { ex, org } = l;
+  const roster = await loadOpeningRoster(ex, org);
+  const openings = await db.opening.count({ where: { exerciseId: ex.id } });
+
+  if (!ex.openingRosterRequired) {
+    return (
+      <Card>
+        <CardHeader icon={<UsersIcon size={17} />} title="Opening officers" subtitle="Who will open the bids." />
+        <CardBody>
+          <Callout tone="info" title="Its panel is picked when the opening starts">
+            This exercise was made before opening officers were named on the exercise. Its panel is drawn from the opening committee&apos;s seats when the opening starts, as it was when it was made.
+          </Callout>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  const change = rosterChange({ status: ex.status, closing: ex.closingAt, now: new Date(), openingStarted: openings > 0 });
+  const nameRefusal = await namingOthersRefusal(db, actor, ex.id);
+  const size = roster.committee?.panelSize ?? null;
+  const acts = rosterActs({ change, committeeReady: !!roster.input.committee, size, named: roster.rows.length, candidates: roster.candidates.length, nameRefusal });
+  const findings = rosterFaults(roster.input);
+  const blocks = findings.filter((f) => f.level === "block" && f.code !== "OFFICERS_SHORT");
+  const warns = findings.filter((f) => f.level !== "block");
+  const complete = size != null && roster.rows.length === size && blocks.length === 0;
+  const needed = size == null ? "The number of opening officers is not set." : `${size === 1 ? "One officer is" : `${size} officers are`} needed.`;
+  const options = roster.candidates.map((c) => ({ value: c.personId, label: `${c.name} · ${c.seatLabel}` }));
+
+  return (
+    <div className="flex flex-col gap-6">
+      {!roster.input.committee && (
+        <Callout tone="warn" title={roster.input.committeeCode ? "The opening committee is not configured" : "The method names no opening committee"} action={<ButtonLink href="/configuration/reference-data" size="sm" variant="secondary">Open Reference data</ButtonLink>}>
+          Opening officers are drawn from the committee the method names. Until it is set, nobody can be named, and the documents cannot be submitted.
+        </Callout>
+      )}
+      {roster.input.committee && size == null && (
+        <Callout tone="warn" title="The number of opening officers is not set" action={<ButtonLink href="/configuration/committees" size="sm" variant="secondary">Open Committees</ButtonLink>}>
+          It is the panel size of {roster.input.committee.name}, set under {SETTING_AT.committee}. Until it is set, nobody can be named and the documents cannot be submitted.
+        </Callout>
+      )}
+      <Card className="overflow-hidden">
+        <CardHeader
+          icon={<UsersIcon size={17} />}
+          title="Opening officers"
+          subtitle="Who will open the bids. They are named before the documents are submitted."
+          actions={
+            <span className="flex flex-wrap items-center gap-2">
+              {size != null && <Badge tone={complete ? "ok" : "warn"}>{`${roster.rows.length} of ${size} named`}</Badge>}
+              <NameOfficerDrawer exerciseId={ex.id} allowed={acts.name} candidates={options} needed={needed} />
+            </span>
+          }
+        />
+        <CardBody className="flex flex-col gap-4">
+          <KeyValues
+            columns={2}
+            items={[
+              { label: "Opened by", value: roster.input.committee?.name ?? "No committee" },
+              { label: "Number needed", value: size == null ? <Badge tone="warn">Not set</Badge> : String(size) },
+              { label: "Independence", value: roster.input.policy.exclusionRule == null ? <Badge tone="warn">Rule not set: officers are not checked</Badge> : roster.input.policy.exclusionRule ? "Each is checked against the committee's independence rule" : "The committee excludes no unit" },
+            ]}
+          />
+          {roster.rows.length === 0 ? (
+            <EmptyState size="sm" title="Nobody is named yet">{acts.name.allowed ? "Name the officers who will open the bids. Each must hold a seat on the opening committee." : acts.name.reason}</EmptyState>
+          ) : (
+            <ul className="divide-y divide-line/70 rounded-2xl border border-line">
+              {roster.rows.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+                  <span className="min-w-0">
+                    <span className="block text-[13.5px] font-semibold break-words text-ink">{r.name}</span>
+                    <span className="block text-[12.5px] text-ink-3">{r.seatLabel} · named {formatDate(r.namedAt)} by {r.namedBy}</span>
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    {acts.substitute.allowed && <SubstituteOfficerDrawer exerciseId={ex.id} officerId={r.id} name={r.name} candidates={options} controlled={!!acts.substitute.controlled} />}
+                    {acts.remove.allowed && <RemoveOfficerDrawer exerciseId={ex.id} officerId={r.id} name={r.name} />}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {blocks.map((f, i) => (
+            <Callout key={i} tone="err">{rosterFindingText(f)}</Callout>
+          ))}
+          {warns.map((f, i) => (
+            <Callout key={i} tone="warn">{rosterFindingText(f)}</Callout>
+          ))}
+          {!acts.substitute.allowed && change.fault && <Callout tone="info" title="The officers can no longer be changed">{acts.substitute.reason}</Callout>}
+          {change.change === "CONTROLLED" && <p className="text-[12.5px] text-ink-3">{ROSTER_AFTER_CLOSING_NOTE}</p>}
+          {change.change === "FREE" && <p className="text-[12.5px] text-ink-3">{ROSTER_AFTER_CLOSING_NOTE} Once the documents are submitted an officer is replaced by a controlled change with its authority and reason.</p>}
+        </CardBody>
+        {roster.ended.length > 0 && (
+          <Accordion title="Earlier officers" meta={`${roster.ended.length} on record`}>
+            <ul className="divide-y divide-line/70">
+              {roster.ended.map((e, i) => (
+                <li key={i} className="flex flex-col gap-0.5 px-5 py-3 text-[13px] sm:px-6">
+                  <span className="font-semibold text-ink">{e.name} <span className="font-normal text-ink-3">· {e.seatLabel}</span></span>
+                  <span className="text-ink-2">Taken off {formatDate(e.endedAt)} by {e.endedBy}{e.authority ? ` under ${e.authority}` : ""}: {e.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </Accordion>
+        )}
+      </Card>
+    </div>
+  );
+}

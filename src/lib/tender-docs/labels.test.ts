@@ -191,7 +191,16 @@ describe("a finding links to where it is put right (UX 3, 9)", () => {
   });
   it("a part finding lands on the parts, the dates on the submit card", () => {
     expect(findingHref("e1", "readiness", fin("PART_NOT_READY"))).toBe("/sourcing/e1?tab=documents#parts");
-    expect(findingHref("e1", "dates", fin("DATES_REQUIRED"))).toBe("/sourcing/e1?tab=documents#submit");
+    // SR-05 (ruling 8): the proposed dates are entered on Scope and estimate now, so their findings land there; only the approver's mismatch stays on the route.
+    expect(findingHref("e1", "dates", fin("DATES_REQUIRED"))).toBe("/sourcing/e1?tab=scope&section=dates");
+    expect(findingHref("e1", "dates", fin("DATES_DIFFER_FROM_DOCUMENTS"))).toBe("/sourcing/e1?tab=documents#submit");
+  });
+  it("SR-06, SR-07: the notice, the briefing and the opening officers land on their sections of Scope and estimate", () => {
+    expect(findingHref("e1", "notice", fin("FEE_NOT_SET"))).toBe("/sourcing/e1?tab=scope&section=notice");
+    expect(findingHref("e1", "notice", fin("BID_VALIDITY_NOT_SET"))).toBe("/sourcing/e1?tab=scope&section=notice");
+    expect(findingHref("e1", "notice", fin("MANDATORY_NOT_ANSWERED"))).toBe("/sourcing/e1?tab=scope&section=briefing");
+    expect(findingHref("e1", "officers", fin("OFFICERS_SHORT"))).toBe("/sourcing/e1?tab=scope&section=officers");
+    expect(findingHref("e1", "officers", fin("PANEL_SIZE_NOT_SET"))).toBe("/configuration/committees");
   });
 });
 

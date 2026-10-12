@@ -26,7 +26,7 @@ export const SETTING_AT = {
 } as const;
 
 /// The exit for an exercise whose frozen rule can never be met (6.7 C-9 precedent; E-1).
-const CANCEL_EXIT = "this exercise's exit is to cancel it, from its Invitation tab, and publish a replacement";
+const CANCEL_EXIT = "this exercise's exit is to cancel it, from Tender documents, under Publishing, and publish a replacement";
 
 export const ROUTE_LABEL: Readonly<Record<EvaluationRoute, string>> = { TRADITIONAL: "Traditional", TWO_STAGE: "Two-stage" };
 export const STAGE_KIND_LABEL: Readonly<Record<StageKind, string>> = {
@@ -125,7 +125,7 @@ const TEXT: Record<string, (f: Finding) => string> = {
   SUPPLEMENTARY_IN_PROGRESS: (f) => `${f.data?.supplementary ? `Supplementary opening ${f.data.supplementary}` : "A supplementary opening"} is under way. Finalise it first: its offer may join the evaluation.`,
   DECIMALS_NOT_SET: () => `How many decimal places a score is shown and judged at is not set. Set it under ${SETTING_AT.policy}; it is frozen when the evaluation starts.`,
   BOUNDARY_NOT_RECORDED: () => `The exercise's quotation ceiling was never recorded when it was classified, so a bid above it cannot be told apart; ${CANCEL_EXIT}.`,
-  NOTHING_CARRIED: () => "No bid was carried to evaluation at the opening, so there is nothing to evaluate. The exercise's exit is to cancel it, from its Invitation tab.",
+  NOTHING_CARRIED: () => "No bid was carried to evaluation at the opening, so there is nothing to evaluate. The exercise's exit is to cancel it, from Tender documents, under Publishing.",
   TIME_ZONE_NOT_SET: () => `The organisation's time zone is not set, so nothing can be dated. Set it under ${SETTING_AT.organisation}.`,
   PERSON_REQUIRED: () => "Choose who records it: an active person on record.",
   // ---- the team (team.ts)
@@ -264,9 +264,9 @@ const TEXT: Record<string, (f: Finding) => string> = {
   LOOP_VERSION_NOT_RECORDED: () => "The matter does not record which evaluation version it was tabled on, so no new evaluation version opens: the decision is recorded as made.",
   // ---- the loop
   LOOP_TARGET_UNKNOWN: () => "The outcome returns the matter to a stage the product does not know, so no new evaluation version opens. Choose one of the evaluation's stages for it under Configuration › Committees.",
-  TERMINAL_NEVER_REOPENS: () => "The outcome ends the matter: the evaluation does not reopen. Cancelling the exercise is asked for on its Invitation tab.",
+  TERMINAL_NEVER_REOPENS: () => "The outcome ends the matter: the evaluation does not reopen. Cancelling the exercise is asked for under Publishing on Tender documents.",
   // ---- choosing and pinning (pin.ts)
-  EVALUATION_MODEL_NOT_SET: () => "No evaluation model is chosen. Choose an issued one on the Invitation tab, Window section, Evaluation model.",
+  EVALUATION_MODEL_NOT_SET: () => "No evaluation model is chosen. Choose an issued one on Tender documents, under Publishing, Evaluation model.",
   EVALUATION_MODEL_NOT_ISSUED: (f) => `${f.data?.model ?? "The model"} is a draft. Issue it under ${SETTING_AT.models} first.`,
   EVALUATION_MODEL_RETIRED: (f) => `${f.data?.model ?? "The model"} is retired. Choose an issued version under the Window section's Evaluation model.`,
   EVALUATION_ROUTE_NOT_SET: (f) => `Which evaluation route a contract on ${f.data?.basis ?? "this basis"} takes is not set. Set it under ${SETTING_AT.bases}.`,

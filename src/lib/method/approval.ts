@@ -202,16 +202,16 @@ export const exerciseRoutesOf = <T extends { domain: string; awardId?: string | 
 
 /// What an exercise route is called, where it opens and how its audit rows name it.
 /// Labels only: the domain key never reaches a screen.
-export const EXERCISE_ROUTE_MATTER: Record<ExerciseRouteDomain, { kind: string; tab: string; auditNoun: string }> = {
+export const EXERCISE_ROUTE_MATTER: Record<ExerciseRouteDomain, { kind: string; tab: string; section?: string; auditNoun: string }> = {
   [NAME_APPROVAL_DOMAIN]: { kind: "Approval of the name", tab: "name", auditNoun: "name approval" },
   [TENDERING_APPROVAL_DOMAIN]: { kind: "Approval for tendering", tab: "documents", auditNoun: "approval for tendering" },
-  [WINDOW_CHANGE_DOMAIN]: { kind: "Change to the invitation window", tab: "invitation", auditNoun: "window change" },
+  [WINDOW_CHANGE_DOMAIN]: { kind: "Change to the invitation window", tab: "documents", section: "publishing", auditNoun: "window change" },
   [NEGOTIATION_DOMAIN]: { kind: "Negotiation with a tenderer", tab: "evaluation", auditNoun: "negotiation" },
 };
 
 /// The label of an exercise route of any domain. A domain the product does not know
 /// reads as an approval on the exercise and opens the exercise itself.
-export function exerciseRouteMatter(domain: string): { kind: string; tab: string | null; auditNoun: string } {
+export function exerciseRouteMatter(domain: string): { kind: string; tab: string | null; section?: string; auditNoun: string } {
   return isExerciseDomain(domain) ? EXERCISE_ROUTE_MATTER[domain] : { kind: "Approval on the exercise", tab: null, auditNoun: "approval" };
 }
 

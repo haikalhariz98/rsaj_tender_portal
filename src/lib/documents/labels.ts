@@ -183,7 +183,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   DELEGATION_ENDED: "The delegation has ended, so nothing more is attached to it.",
   DELEGATION_ZONE_UNSET: "The organisation's time zone is not set, so today cannot be told and whether the delegation has ended cannot be judged. Set it under Configuration › Organisation, then attach or change its documents.",
   BQ_FINALISED: "This version of the bill is finalised and keeps the file it was imported from. To import another, start a revision of the bill.",
-  PACK_FROZEN: "The tender documents were submitted on this and stand as they were frozen. A change waits until they are returned for amendment, and is made then (a pack's part on its next version); after approval for tendering a change is an addendum, issued on the Invitation tab.",
+  PACK_FROZEN: "The tender documents were submitted on this and stand as they were frozen. A change waits until they are returned for amendment, and is made then (a pack's part on its next version); after approval for tendering a change is an addendum, issued under Publishing on Tender documents.",
   NOT_APPROVED_FOR_TENDERING: "A publication's proof is attached once the exercise is approved for tendering, when it can be published.",
   WINDOW_NOT_PUBLISHED: "An attendance sheet is attached once the exercise is advertised or invited and the event is held.",
   ADDENDUM_ISSUED: "The addendum is issued on this signed copy and stands as issued. A further change is another addendum.",

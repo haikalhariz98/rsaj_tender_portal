@@ -139,7 +139,9 @@ export function windowFindingText(f: Finding): string {
       return "The organisation's time zone is not set, so no day can be judged. Set it under Configuration, Organisation.";
 
     case "WINDOW_ITEMS_NOT_PREPARED":
-      return `Prepare the window: where the documents are inspected and bought, the hours, the days of sale, how the fee is paid and the fee (${d.count} items not written yet).`;
+      return `Prepare the notice and fee on Scope and estimate: where the documents are inspected and bought, the hours, the days of sale, how the fee is paid and the fee (${d.count} items not written yet).`;
+    case "BID_VALIDITY_NOT_SET":
+      return "The number of days the bids stay valid is not set. Enter it under Notice and fee on Scope and estimate (SR-06).";
 
     // ---- the advertisement day and channels (FR-ADV-001, OD-3)
     case "RULE_NOT_SET":
@@ -424,7 +426,7 @@ export function windowFindingText(f: Finding): string {
     case "WINDOW_PUBLISHED":
       return "The window is published, so this stands as published. A change now is an addendum, or a change to the closing.";
     case "WINDOW_NOT_PREPARED":
-      return "The window is not prepared yet. Save its notice items on the Invitation tab first.";
+      return "The window is not prepared yet. Fill in Notice and fee on Scope and estimate first.";
     case "CHANNEL_RETIRED":
       return "That channel is retired or no longer configured.";
     case "CHANNEL_ALREADY_RECORDED":
@@ -436,7 +438,7 @@ export function windowFindingText(f: Finding): string {
     case "NOT_INVITED":
       return "Only an invitee whose letter of invitation was issued is sold the documents.";
     case "PUBLISH_NOT_READY":
-      return "The invitation is not ready to publish: see what the Invitation tab says blocks it.";
+      return "The invitation is not ready to publish: see what Publishing on Tender documents says blocks it.";
     default: {
       // 6.8 (E-2): the evaluation model's pin is judged with the publication; its words are evaluation's.
       if (PIN_CODES.has(f.code)) return evaluationFindingText(f);

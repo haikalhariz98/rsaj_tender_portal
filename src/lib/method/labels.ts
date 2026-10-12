@@ -315,9 +315,9 @@ export function findingText(f: Finding): string {
     case "PROPOSAL_NOT_REVIEWED":
       return "The proposal has not been reviewed.";
     case "TAXONOMY_AMBIGUOUS":
-      return "A classification needs a choice on the Contract type tab.";
+      return "A classification needs a choice under Details & compliance on Scope and estimate.";
     case "BLOCKING_FAULTS":
-      return "The exercise has faults to correct: see the Classification tab.";
+      return "The exercise has faults to correct: see Details & compliance on Scope and estimate.";
     case "DOCUMENTS_RULE_NOT_SET":
       return "The sourcing method does not say which tender documents it assembles. Set its document pack under Configuration, Tender documents, Sourcing methods.";
     case "NOT_BY_THIS_ACT":
@@ -326,9 +326,9 @@ export function findingText(f: Finding): string {
         : d.act === "APPROVAL"
           ? "The exercise is approved for tendering only by the approving step of its route, which records the start and closing."
           : d.act === "PUBLICATION"
-            ? "The exercise is advertised or invited only by publishing it on the Invitation tab, once every check there passes."
+            ? "The exercise is advertised or invited only by publishing it under Publishing on Tender documents, once every check there passes."
             : d.act === "WINDOW_CANCELLATION"
-              ? "An advertised or invited exercise is cancelled only through a cancellation approved on its Invitation tab, which records the reason, the refund and who is told."
+              ? "An advertised or invited exercise is cancelled only through a cancellation approved under Publishing on Tender documents, which records the reason, the refund and who is told."
               : d.act === "UNSEAL"
                 ? "The tender box is opened only on the second of two authorisations by present panel members, on the Opening tab."
                 : d.act === "OPENING_FINALISED"
@@ -345,7 +345,7 @@ export function findingText(f: Finding): string {
     case "DATES_REQUIRED":
       return "Record the tendering start and closing date with the approving decision.";
     case "PUBLISH_NOT_READY":
-      return "The invitation is not ready to publish: see what the Invitation tab says blocks it.";
+      return "The invitation is not ready to publish: see what Publishing on Tender documents says blocks it.";
     case "UNSEAL_NOT_AUTHORISED":
       return "The tender box is opened only once two different panel members present have each authorised it at this sitting.";
     case "OPENING_NOT_READY":
@@ -361,7 +361,7 @@ export function findingText(f: Finding): string {
     case "NAME_LIST_FROZEN":
       return "The exercise is published, so its invitee list stands as approved. To invite others, cancel the exercise and open a replacement.";
     case "NAME_NO_INVITEES":
-      return "No contractor is proposed for invitation, so there is no list to approve. Add the invitees on the Invitation tab first.";
+      return "No contractor is proposed for invitation, so there is no list to approve. Add the invitees under Publishing on Tender documents first.";
     case "NAME_NOT_ASKED":
       return "This exercise's method does not ask for name approval.";
     // actions

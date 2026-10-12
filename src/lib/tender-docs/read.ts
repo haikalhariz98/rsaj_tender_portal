@@ -62,6 +62,7 @@ import { changeListKey, flagChanges, refreshView } from "./refresh";
 import { formatPct } from "./percent";
 import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, loadTenderPolicy, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, type PackRow } from "./repo";
 import { decisionWindow, tenderingRouteForRequester, timeIn } from "./tendering";
+import { loadSubmitExtras } from "./submit-extras";
 import { liveClauses } from "./clauses";
 import { conditionFieldValues, conditionStamp, readConditionsSnapshot } from "./conditions";
 import { packWhitelist } from "./fields";
@@ -138,8 +139,10 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
       route = tenderingRouteForRequester(ctx.funder, method, Number(senToDecimalString(value)), requesterHolding((code) => holdersFor(code, unitPath, roster, delegations, on), req.requestingPersonId, value, (pid) => roster.people.some((p) => p.id === pid && p.isActive && p.isAvailable)));
     }
   }
+  // SR-05, SR-06, SR-07: the dates, notice and officers the submit gate also reads, judged the way the act will judge them.
+  const extras = shown?.status === "DRAFT" && conditions ? await loadSubmitExtras(ex, org) : null;
   const submit =
-    shown?.status === "DRAFT" && conditions
+    shown?.status === "DRAFT" && conditions && extras
       ? submitFaults({
           packStatus: shown.status,
           exerciseStatus: ex.status,
@@ -149,7 +152,9 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
           appendix,
           profile: profileOf(ex.classificationSnapshot),
           primeCostSums: scope.bill?.primeCostSums ?? null,
-          dates: [],
+          dates: extras.dates,
+          officers: extras.officers,
+          notice: extras.notice,
           route: { issue: issueInForce, state: route?.tenderingState ?? (issueInForce ? "NO_METHOD_KEY" : null), refusal: route?.refusal ?? null, errors: (route?.warnings ?? []).filter((w) => w.level === "err").map((w) => w.messageEn) },
           routeOpen: tenderingRoutesOf(ex.approvalInstances).some((i) => i.status === "PENDING"),
           conditions,
@@ -188,6 +193,8 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
       notRecorded: profile == null ? behaviourFaultText({ code: "PROFILE_NOT_RECORDED", level: "block" }) : null,
     },
     route: withWindowNote(await routeView(ex, org, req), packs.find((p) => p.status === "SUBMITTED") ?? null),
+    /// What the submit drawer says will be frozen: the dates entered on Scope and estimate (SR-05), or that they are not entered.
+    entered: { start: ex.proposedStartOn ? formatDate(ex.proposedStartOn) : null, closing: ex.proposedClosingAt ? closingText(ex.proposedClosingAt, org.timeZone) : null },
     dates: approved
       ? { start: formatDate(approved.approvedStartOn), closing: closingText(approved.approvedClosingAt, org.timeZone), approvedOn: formatDate(approved.approvedAt) }
       : shown?.status === "SUBMITTED"

@@ -289,3 +289,27 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
 }
 
 export type BidsTab = NonNullable<Awaited<ReturnType<typeof bidsTab>>>;
+
+/**
+ * The bid validity and the alternative-bids answer, as Notice and fee on Scope and estimate states them (Sourcing Requirements v2, SR-06,
+ * ruling 9, answer 4). The same answer the Received section keeps showing after publication; one reading, so the two never differ. Nothing
+ * here is a default: left empty, the validity is "Not set", and the documents cannot be submitted.
+ */
+export async function bidAnswers(organisationId: string, exerciseId: string) {
+  const org = await exerciseOrg(organisationId);
+  if (!org) return null;
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, status: true, packKindSnapshot: true } });
+  if (!ex) return null;
+  const window = await loadBidWindow(ex.id);
+  // Allowed as the action allows it: an unprepared window has nothing to write the answer on, and says so.
+  const judged = window ? allowed(bidFieldsFaults({ status: ex.status, packKind: ex.packKindSnapshot, current: { days: window.bidValidityDays, alternativesPermitted: window.alternativesPermitted }, next: { days: window.bidValidityDays ?? 1, provenance: "ASSUMED", alternativesPermitted: window.alternativesPermitted }, reason: "-" })) : ({ allowed: false, reason: "Fill in the notice and fee first: the validity is written on the same record." } as const);
+  return {
+    exerciseId: ex.id,
+    allowed: judged,
+    days: window?.bidValidityDays ?? null,
+    provenance: window?.bidValidityProvenance ? PROVENANCE_WORD[window.bidValidityProvenance as keyof typeof PROVENANCE_WORD] : null,
+    alternatives: ALTERNATIVE_LABEL[alternativeStatus(window?.alternativesPermitted ?? null)],
+    values: { bidValidityDays: window?.bidValidityDays == null ? "" : String(window.bidValidityDays), bidValidityProvenance: window?.bidValidityProvenance ?? "", alternativesPermitted: window?.alternativesPermitted == null ? "unset" : window.alternativesPermitted ? "yes" : "no" },
+    needsReason: isPublishedStatus(ex.status),
+  };
+}

@@ -44,7 +44,7 @@ export function EditWindowDrawer({ exerciseId, items, allowed, first }: { exerci
   if (!allowed.allowed) return null;
   return (
     <RecordEditor
-      title={first ? "Prepare the window" : "Edit the window"}
+      title={first ? "Fill in notice and fee" : "Edit notice and fee"}
       description="What the notice states: where the documents are inspected and bought, the days of sale, the fee and where tenders go. The closing is not changed here: it was recorded when the documents were approved, and moves only by a closing change."
       columns={2}
       fields={[
@@ -63,7 +63,7 @@ export function EditWindowDrawer({ exerciseId, items, allowed, first }: { exerci
       values={{ exerciseId, specialPermissionOffered: "unset", ...(items ?? {}) }}
       action={saveWindow}
       submitLabel="Save"
-      trigger={{ label: first ? "Prepare the window" : "Edit the window", className: first ? primary : secondary }}
+      trigger={{ label: first ? "Fill in notice and fee" : "Edit notice and fee", className: first ? primary : secondary }}
       size="lg"
     />
   );

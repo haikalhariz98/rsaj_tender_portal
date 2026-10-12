@@ -97,6 +97,9 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "src/lib/window/events.ts": "judges an event against the closing it is given; writes nothing",
   "src/lib/window/fields.ts": "states the closing in an instrument's words; writes nothing",
   "src/lib/window/repo.ts": "reads the exercise's closing for the window's rules; writes nothing",
+  // SR-05 (ruling 8): the key dates as the sections of Scope and estimate show them, proposed and then recorded; the proposal is written to its own column.
+  "src/lib/method/key-dates.ts": "shapes the key dates for Scope and estimate from the stored proposal and the approved closing; writes nothing",
+  "src/lib/method/prep-read.ts": "reads the exercise's proposed closing and the approved one for Key dates & person in charge; writes nothing",
   "src/lib/window/judge.ts": "passes the closing to the phase and the instruments; writes nothing",
   "src/lib/window/read.ts": "shows the closing's history from the stored dates; writes nothing",
   "src/lib/window/gate.ts": "derives the award gate's phase from the closing; writes nothing",

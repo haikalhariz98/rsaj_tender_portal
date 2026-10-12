@@ -14,8 +14,8 @@ import type { Finding } from "./types";
 const d = (f: Finding, k: string) => (f.data?.[k] == null ? "" : String(f.data[k]));
 const CONFIG = "under Configuration, Tender documents";
 const TAB = "on the Tender documents tab";
-/// Founder, 2026-10-05: the registrations, the restriction and the permit are answered on the Overview.
-export const DETAILS = "on the Overview tab, under Details & compliance";
+/// Founder, 2026-10-05: the registrations, the restriction and the permit are answered under Details & compliance; Sourcing Requirements v2 (SR-05, ruling 8) moved that card from the Overview to Scope and estimate.
+export const DETAILS = "on Scope and estimate, under Details & compliance";
 
 export const ASSURANCE_KIND_LABEL: Readonly<Record<AssuranceKind, string>> = {
   NO_AMBIGUITY: "Free from ambiguity and contradiction",
@@ -81,8 +81,8 @@ export function conditionsFixHref(code: string, exerciseId: string): string {
   if (["NOTICE_LACKS_ELIGIBILITY", "PERMIT_NOT_IN_INSTRUCTIONS", "PERMIT_FIELD_NOT_REGULATED"].includes(code)) return `/sourcing/${exerciseId}?tab=documents#parts`;
   if (code.startsWith("ASSURANCE")) return `/sourcing/${exerciseId}?tab=documents#assurance`;
   if (code.startsWith("CLAUSE") || code === "AGREEMENT_PART_MISSING") return `/sourcing/${exerciseId}?tab=documents#clauses`;
-  // The registrations, the restriction and the permit are answered on the Overview (founder, 2026-10-05).
-  return `/sourcing/${exerciseId}?tab=overview#conditions`;
+  // The registrations, the restriction and the permit are answered under Details & compliance on Scope and estimate (SR-05, ruling 8).
+  return `/sourcing/${exerciseId}?tab=scope&section=details#conditions`;
 }
 
 const CONFIRM_TEXT: Record<ConfirmFault, string> = {

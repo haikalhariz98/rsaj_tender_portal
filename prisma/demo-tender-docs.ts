@@ -441,6 +441,8 @@ export async function submit(db: Db, organisationId: string, s: { packId: string
   const findings = submitFaults({
     packStatus: pack.status, exerciseStatus: l.ex.status, parts: pack.parts.map(td.partFactsOf), content: { bqFinalised: scope.bill != null, appendixComplete: appendix ? appendixComplete(appendix) : null, whitelist },
     scope: scope.input, appendix, profile: td.profileOf(l.ex.classificationSnapshot), primeCostSums: scope.bill?.primeCostSums ?? null, dates: dates.faults,
+    // SR-06, SR-07: the history is written as it was lived, before the notice and the officers were prepared on the exercise; `prisma/demo-officers.ts` names them afterwards.
+    officers: [], notice: [],
     route: { issue: !!issue, state: route.tenderingState, refusal: route.refusal, errors: route.warnings.filter((w) => w.level === "err").map((w) => w.messageEn) },
     routeOpen: tenderingRoutesOf(l.ex.approvalInstances).some((i) => i.status === "PENDING"),
     conditions,
@@ -475,6 +477,8 @@ export async function submit(db: Db, organisationId: string, s: { packId: string
     },
   });
   entry("ApprovalInstance", s.routeId, `${ref} · approval for tendering`, "CREATE", s.at, diffFields(null, { matrix: issue!.label, rule: rule.labelEn, route: route.chain.map((c) => `${roleLabel(c.roleCode)} (${ACT_LABEL[c.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: false, ifRejected: "Returned for amendment" }));
+  // SR-05 (ruling 8): the dates are kept on the exercise as proposed, as Scope and estimate keeps them, until the approving step records them.
+  await db.sourcingExercise.update({ where: { id: l.ex.id }, data: { proposedStartOn: day(s.startOn), proposedClosingAt: dates.closingAt } });
   await db.tenderPack.update({ where: { id: s.packId }, data: { status: "SUBMITTED", submittedAt: s.at, frozenAt: s.at, manifest: frozen.manifest as object, faultsSnapshot: [], conditionsSnapshot: cond.conditionsSnapshot(pack.parts.map(td.partFactsOf), conditions, window) as object, bqVersionId: scope.bill?.versionId ?? null, proposedStartOn: day(s.startOn), proposedClosingAt: dates.closingAt, approvalInstanceId: s.routeId } });
   if (pack.appendix) await db.conditionsAppendix.update({ where: { id: pack.appendix.id }, data: { status: "COMPLETE" } });
   entry(ENTITY.pack, s.packId, `${ref} · Tender documents v${pack.versionNo}`, "UPDATE", s.at, packStatusAudit("DRAFT", "SUBMITTED", { proposedStart: s.startOn, proposedClosing: `${s.closingDay}, ${s.closingTime}`, partsFrozen: frozen.documents.length, filesPinned: frozen.manifest.reduce((x, m) => x + m.files.length, 0), warnings: null }));

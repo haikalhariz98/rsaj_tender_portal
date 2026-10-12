@@ -72,6 +72,7 @@ export async function exerciseAccessFacts(client: Tx, organisationId: string, id
       participants: { select: { personId: true } },
       evaluations: { select: { team: { select: { personId: true } } } },
       openings: { select: { panel: { select: { personId: true } } } },
+      openingOfficers: { where: { endedAt: null }, select: { personId: true } },
     },
   });
   // What the exercise's routes and sittings name, worked out now for all of the exercises at once (ruling of 2026-10-08 on log line 1711): never a list anyone keeps.
@@ -92,6 +93,7 @@ export async function exerciseAccessFacts(client: Tx, organisationId: string, id
         proposalReviewerId: r.proposalReviewerPersonId,
         evaluationTeamIds: r.evaluations.flatMap((e) => e.team.map((m) => m.personId)),
         openingPanelIds: r.openings.flatMap((o) => o.panel.map((m) => m.personId)),
+        openingOfficerIds: r.openingOfficers.map((o) => o.personId),
         stepHolderIds: routedOf(r.id, "holderIds"),
         stepDeciderIds: routedOf(r.id, "deciderIds"),
         committeeMemberIds: committees.get(r.id) ?? [],
@@ -189,7 +191,7 @@ export async function namingRefusal(client: Tx, actor: StaffActor, exerciseId: s
   // Naming adds to the STORED list, which outlasts a step and a sitting. So only a person the exercise names by that list (a participant, the person in charge, the proposal's reviewer, the
   // evaluation team, the opening panel) may name others: the names worked out from the routes and the sittings (ruling of 2026-10-08 on log line 1711) open the exercise to read, and a
   // passing holder of a step could otherwise name themselves into it for good.
-  const actorNamed = !!facts && namedOn("exercise", { ...facts.named, stepHolderIds: [], stepDeciderIds: [], committeeMemberIds: [] }, sulitActor.personId).length > 0;
+  const actorNamed = !!facts && namedOn("exercise", { ...facts.named, stepHolderIds: [], stepDeciderIds: [], committeeMemberIds: [], openingOfficerIds: [] }, sulitActor.personId).length > 0;
   const holdsPermission = actor.permissions.has("sourcing.participants.manage");
   const fault = namingFault({ actor: sulitActor, actorNamed, holdsPermission, targets, selfAllowed: opts.selfAllowed });
   if (!fault) return null;

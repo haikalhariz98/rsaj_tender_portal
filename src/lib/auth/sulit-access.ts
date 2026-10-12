@@ -91,6 +91,9 @@ export interface ExerciseNamedFacts {
   stepHolderIds: readonly string[];
   stepDeciderIds: readonly string[];
   committeeMemberIds: readonly string[];
+  /// SR-07 (ruling 11): the officers named on the exercise to open its bids, while they stand. They are named on the exercise so that they can see it and open it; like the
+  /// routed names they are read from the roster when needed and are not a list of participants, so they never count towards who may name others. Absent: none are named.
+  openingOfficerIds?: readonly string[];
 }
 
 /// Who a requisition, or one matter of a contract, names by what its approval route says (ruling of 2026-10-08, the amendment of the 2026-10-06 ruling on log line 1526). Worked out when
@@ -110,7 +113,7 @@ export interface RoutedNamedFacts {
 /// identity-card number stay with the permission). `matterAmountScope` says which matters carry such an amount.
 export const ROUTED_CONTRACT_FIELDS: readonly string[] = SULIT_FIELDS.filter((f) => f.routedAmount).map((f) => f.field);
 
-export type NamedAs = "PARTICIPANT" | "PERSON_IN_CHARGE" | "PROPOSAL_REVIEWER" | "EVALUATION_TEAM" | "OPENING_PANEL" | "STEP_HOLDER" | "STEP_DECIDER" | "COMMITTEE_MEMBER" | "REQUESTER" | "VERIFIER";
+export type NamedAs = "PARTICIPANT" | "PERSON_IN_CHARGE" | "PROPOSAL_REVIEWER" | "EVALUATION_TEAM" | "OPENING_PANEL" | "STEP_HOLDER" | "STEP_DECIDER" | "COMMITTEE_MEMBER" | "OPENING_OFFICER" | "REQUESTER" | "VERIFIER";
 
 const NAMED_AS_WORDS: Readonly<Record<NamedAs, Words>> = {
   PARTICIPANT: { en: "a named participant", ms: "peserta yang dinamakan" },
@@ -122,6 +125,7 @@ const NAMED_AS_WORDS: Readonly<Record<NamedAs, Words>> = {
   STEP_HOLDER: { en: `someone who ${ROUTED_NAMED_WORDS.STEP_HOLDER.en}`, ms: `seseorang yang ${ROUTED_NAMED_WORDS.STEP_HOLDER.ms}` },
   STEP_DECIDER: { en: `someone who ${ROUTED_NAMED_WORDS.STEP_DECIDER.en}`, ms: `seseorang yang ${ROUTED_NAMED_WORDS.STEP_DECIDER.ms}` },
   COMMITTEE_MEMBER: { en: `a ${ROUTED_NAMED_WORDS.COMMITTEE_MEMBER.en}`, ms: `seorang ${ROUTED_NAMED_WORDS.COMMITTEE_MEMBER.ms}` },
+  OPENING_OFFICER: { en: "an officer named to open its bids", ms: "pegawai yang dinamakan untuk membuka bidaannya" },
   REQUESTER: { en: "the officer it was raised for", ms: "pegawai yang untuknya ia dibangkitkan" },
   VERIFIER: { en: "the officer who checked it", ms: "pegawai yang menyemaknya" },
 };
@@ -140,6 +144,7 @@ export function namedOnExercise(f: ExerciseNamedFacts, personId: string): NamedA
   if (f.stepHolderIds.includes(personId)) out.push("STEP_HOLDER");
   if (f.stepDeciderIds.includes(personId)) out.push("STEP_DECIDER");
   if (f.committeeMemberIds.includes(personId)) out.push("COMMITTEE_MEMBER");
+  if (f.openingOfficerIds?.includes(personId)) out.push("OPENING_OFFICER");
   return out;
 }
 

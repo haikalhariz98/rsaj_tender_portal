@@ -107,6 +107,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
     <SubmitPackDrawer
       exerciseId={exerciseId}
       today={today}
+      dates={d.entered}
       warnings={warnings}
       rows={[
         ["Version", d.facts.version],
@@ -162,7 +163,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
             </Callout>
           )}
           {!d.pack && !d.start.allowed && <Callout tone="info" title="Not started">{d.start.reason}</Callout>}
-          {d.facts.status === TENDERING_STATE_LABEL.APPROVED && <Callout tone="ok" title={TENDERING_STATE_LABEL.APPROVED}>The documents stand as frozen. A change from here is an addendum, made on the Invitation tab once the window is published.</Callout>}
+          {d.facts.status === TENDERING_STATE_LABEL.APPROVED && <Callout tone="ok" title={TENDERING_STATE_LABEL.APPROVED}>The documents stand as frozen. A change from here is an addendum, made under Publishing once the window is published.</Callout>}
         </CardBody>
         {d.pack && (
           <div className="border-t border-line">

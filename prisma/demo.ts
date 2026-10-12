@@ -21,6 +21,7 @@ import { checkWindowDemo, loadWindowDemo } from "./demo-window";
 import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
 import { checkBidsDemo, configureBidsDemo, loadBidsDemo } from "./demo-bids";
 import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo } from "./demo-opening";
+import { loadOpeningOfficersDemo } from "./demo-officers";
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo } from "./demo-evaluation";
 import { loadCompanyDemo } from "./demo-company";
 import { loadMyBidsDemo } from "./demo-my-bids";
@@ -748,6 +749,11 @@ async function load() {
   await checkOpeningDemo(db);
   // 6.8 read back after the award (E-9: demo_aw7 names the recommended tenderer).
   await checkEvaluationDemo(db);
+  // SR-05 to SR-07 (rulings 8, 9, 11): the officers named to open, and the preparation of the pack still being prepared.
+  {
+    const officers = await loadOpeningOfficersDemo(db, organisationId);
+    console.log(`Opening officers named: ${officers.named}${officers.left.length ? `; left as they are: ${officers.left.join("; ")}` : ""}`);
+  }
   // 6.15a: the supplier register, its configuration and seven suppliers recorded from paper; every act
   // judged by the product's own rules as it is written and dated relative to the load day (X-10).
   await configureSuppliersDemo(db, organisationId);

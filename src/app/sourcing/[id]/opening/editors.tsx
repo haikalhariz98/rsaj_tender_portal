@@ -53,6 +53,16 @@ function blockedOr(allowed: Allowed, label: string, node: () => React.ReactNode,
 
 // ------------------------------------------------------------------ starting
 
+/// Where the exercise names its opening officers (SR-07) the panel is those officers, and only who is present is asked.
+const rosterPanelFields = (officers: Option[], people: Option[]): Field[] => [
+  { kind: "note", text: `The panel is the officers named on the exercise: ${officers.map((o) => o.label).join("; ")}. Nobody else sits, authorises or signs.` },
+  { kind: "tokens", name: "present", label: "Present at the opening", options: officers, placeholder: "Pick who is present", hint: "Fixed when the opening starts. An absent member neither authorises, initials nor signs. At least two must be present." },
+  by("Opening.startedBy", people, "startedByPersonId", "Recorded by"),
+  { kind: "note", text: "Only if the committee's panel size has changed since the officers were named: the authority a panel of another size is assigned under and the reason. You record it." },
+  { kind: "text", name: "panelOverrideAuthority", label: "Authority for a panel of another size" },
+  { kind: "textarea", name: "panelOverrideReason", label: "Why the panel is of another size" },
+];
+
 const panelFields = (seats: Option[], people: Option[], panelSize: number | null): Field[] => [
   { kind: "tokens", name: "panel", label: "The panel", options: seats, placeholder: "Pick from the committee's seats", hint: panelSize == null ? "The committee's panel size is not set." : `The committee's opening panel has ${panelSize} ${panelSize === 1 ? "member" : "members"}.` },
   { kind: "tokens", name: "present", label: "Present at the opening", options: seats, placeholder: "Pick who is present", hint: "Fixed when the opening starts. An absent member neither authorises, initials nor signs. At least two must be present." },
@@ -62,18 +72,18 @@ const panelFields = (seats: Option[], people: Option[], panelSize: number | null
   { kind: "textarea", name: "panelOverrideReason", label: "Why the panel is of another size" },
 ];
 
-export function StartOpeningDrawer({ exerciseId, allowed, seats, people, panelSize, independence, estimateLate, noteId }: { exerciseId: string; allowed: Allowed; seats: Option[]; people: Option[]; panelSize: number | null; independence: string; estimateLate: string | null; noteId: string }) {
+export function StartOpeningDrawer({ exerciseId, allowed, seats, roster, people, panelSize, independence, estimateLate, noteId }: { exerciseId: string; allowed: Allowed; seats: Option[]; roster: Option[] | null; people: Option[]; panelSize: number | null; independence: string; estimateLate: string | null; noteId: string }) {
   return blockedOr(
     allowed,
     "Start the opening",
     () => (
       <RecordEditor
         title="Start the opening"
-        description={`The panel is drawn from the seats of the committee the method names, each member present or not. The checklist each bid is checked against, and the rules its verdicts read, are frozen now. ${independence}`}
+        description={`${roster ? "The panel is the officers named on the exercise" : "The panel is drawn from the seats of the committee the method names"}, each member present or not. The checklist each bid is checked against, and the rules its verdicts read, are frozen now. ${independence}`}
         columns={2}
         fields={[
           hidden("exerciseId"),
-          ...panelFields(seats, people, panelSize),
+          ...(roster ? rosterPanelFields(roster, people) : panelFields(seats, people, panelSize)),
           ...(estimateLate
             ? ([
                 { kind: "note", text: estimateLate },
@@ -93,13 +103,13 @@ export function StartOpeningDrawer({ exerciseId, allowed, seats, people, panelSi
   );
 }
 
-export function StartSupplementaryDrawer({ exerciseId, decisionId, sequence, allowed, seats, people, panelSize }: { exerciseId: string; decisionId: string; sequence: number; allowed: Allowed; seats: Option[]; people: Option[]; panelSize: number | null }) {
+export function StartSupplementaryDrawer({ exerciseId, decisionId, sequence, allowed, seats, roster, people, panelSize }: { exerciseId: string; decisionId: string; sequence: number; allowed: Allowed; seats: Option[]; roster: Option[] | null; people: Option[]; panelSize: number | null }) {
   return blockedOr(allowed, "Start its supplementary opening", () => (
     <RecordEditor
       title={`Supplementary opening of envelope ${sequence}`}
       description="The committee admitted this late envelope. It is opened at its own opening, under the main opening's checklist and rules, by a panel drawn as the main one was; its offer is added to the schedule as a new version."
       columns={2}
-      fields={[hidden("exerciseId"), hidden("decisionId"), ...panelFields(seats, people, panelSize)]}
+      fields={[hidden("exerciseId"), hidden("decisionId"), ...(roster ? rosterPanelFields(roster, people) : panelFields(seats, people, panelSize))]}
       values={{ exerciseId, decisionId }}
       action={startSupplementaryOpening}
       submitLabel="Start the supplementary opening"

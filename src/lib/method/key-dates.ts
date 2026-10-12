@@ -9,10 +9,20 @@
  * closing time that nobody has configured is "not set", not midnight.
  */
 
+import { clockTimeIn, dayIn, storedDay } from "@/lib/dates";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import type { Provenance } from "@/lib/reference/types";
 import { SITE_EVENT_KIND_LABEL } from "@/lib/window/labels";
 import type { SiteEventKind } from "@/lib/window/types";
+
+/// The proposal stored on the exercise (SR-05, ruling 8) as the date rules and the form read it: the start and closing days and the closing time, in the organisation's zone.
+export function proposedDatesOf(ex: { proposedStartOn: Date | null; proposedClosingAt: Date | null }, timeZone: string | null) {
+  return {
+    startOn: ex.proposedStartOn ? storedDay(ex.proposedStartOn) : null,
+    closingDay: ex.proposedClosingAt && timeZone ? dayIn(ex.proposedClosingAt, timeZone) : null,
+    closingTime: ex.proposedClosingAt && timeZone ? clockTimeIn(ex.proposedClosingAt, timeZone) : null,
+  };
+}
 
 export type DateState = "APPROVED" | "PROPOSED" | "NOT_GIVEN" | "NOT_APPLICABLE";
 
@@ -29,6 +39,8 @@ export interface KeyDatesInput {
   tenderingStartOn: Date | null;
   /// The closing as the exercise holds it now (named `closing`: it is read here, never written).
   closing: Date | null;
+  /// SR-05 (ruling 8): the dates proposed on Scope and estimate before submission, stored on the exercise. Read after the approved dates and a submitted pack's frozen proposal.
+  proposed: { startOn: Date | null; closingAt: Date | null };
   /// The tender pack versions, newest first: only a proposal on the version now submitted counts. A returned
   /// version's proposal was refused, and a draft's is not entered until it is submitted (as the Tender documents tab).
   packs: readonly { versionNo: number; status: string; proposedStartOn: Date | null; proposedClosingAt: Date | null }[];
@@ -43,8 +55,9 @@ export interface KeyDatesInput {
   timeZone: string | null;
 }
 
-export const START_NOT_GIVEN = "Proposed when the documents are submitted";
-export const CLOSING_NOT_GIVEN = "Proposed when the documents are submitted";
+export const DATES_LOCKED_TEXT = "The dates are proposed before the documents are submitted. After that the proposal is frozen with them, and the approver records the dates tendering will run on.";
+export const START_NOT_GIVEN = "Not entered yet: propose it before the documents are submitted";
+export const CLOSING_NOT_GIVEN = "Not entered yet: propose it before the documents are submitted";
 export const NO_WINDOW_TEXT = "Not applicable: this exercise has no tendering window";
 export const NO_EVENTS_TEXT = "None scheduled";
 export const CUTOFF_NOT_SET = "Not set";
@@ -67,12 +80,16 @@ export function keyDatesView(i: KeyDatesInput): KeyDatesView {
     ? { state: "APPROVED", label: "Approved", text: formatDate(i.tenderingStartOn) }
     : proposed?.proposedStartOn
       ? { state: "PROPOSED", label: "Proposed", text: `${formatDate(proposed.proposedStartOn)} · version ${proposed.versionNo}` }
-      : { state: "NOT_GIVEN", label: null, text: START_NOT_GIVEN };
+      : i.proposed.startOn
+        ? { state: "PROPOSED", label: "Proposed", text: formatDate(i.proposed.startOn) }
+        : { state: "NOT_GIVEN", label: null, text: START_NOT_GIVEN };
   const closing: KeyDate = i.closing
     ? { state: "APPROVED", label: "Approved", text: formatOrgDateTime(i.closing, i.timeZone) }
     : proposed?.proposedClosingAt
       ? { state: "PROPOSED", label: "Proposed", text: `${formatOrgDateTime(proposed.proposedClosingAt, i.timeZone)} · version ${proposed.versionNo}` }
-      : { state: "NOT_GIVEN", label: null, text: CLOSING_NOT_GIVEN };
+      : i.proposed.closingAt
+        ? { state: "PROPOSED", label: "Proposed", text: formatOrgDateTime(i.proposed.closingAt, i.timeZone) }
+        : { state: "NOT_GIVEN", label: null, text: CLOSING_NOT_GIVEN };
   const events = i.events
     .filter((e) => e.cancelledAt == null)
     .slice()

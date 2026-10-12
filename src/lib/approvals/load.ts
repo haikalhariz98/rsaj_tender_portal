@@ -99,7 +99,7 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
           ? (() => {
               // Labelled by domain, never by the absence of an award (ruling X-5).
               const m = exerciseRouteMatter(r.domain);
-              return { label: `${r.exercise.reference} · ${r.exercise.title}`, kind: m.kind, href: m.tab ? `/sourcing/${r.exercise.id}?tab=${m.tab}` : `/sourcing/${r.exercise.id}` };
+              return { label: `${r.exercise.reference} · ${r.exercise.title}`, kind: m.kind, href: m.tab ? `/sourcing/${r.exercise.id}?tab=${m.tab}${m.section ? `&section=${m.section}` : ""}` : `/sourcing/${r.exercise.id}` };
             })()
           : r.requisition
             ? { label: `${r.requisition.reference} · ${r.requisition.title}`, kind: "Requisition", href: `/requisitions/${r.requisition.id}?tab=approval` }

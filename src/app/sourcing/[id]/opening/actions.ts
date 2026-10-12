@@ -34,6 +34,8 @@ import { openingFindingText } from "@/lib/opening/labels";
 import { lockOpenedBidRows, lockOpeningRows } from "@/lib/opening/lock";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "@/lib/opening/open";
 import { panelFaults, supplementaryPanel } from "@/lib/opening/panel";
+import { loadOpeningRoster } from "@/lib/opening/roster-store";
+import { rosterFaults } from "@/lib/opening/roster";
 import { actFaults } from "@/lib/opening/state";
 import { invitedCounts, openingContext, openingPolicyFrozen, panelOf, panelSnapshot, policyOf, presentOf, stateOf, summaryLabelsOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
 import { unpurchasedRecordAudit, unpurchasedRule, type LiveUnpurchased } from "@/lib/opening/unpurchased";
@@ -109,6 +111,24 @@ function readPanel(data: FormData): { personId: string; present: boolean }[] {
   return ids.map((personId) => ({ personId, present: present.has(personId) || data.get(`present:${personId}`) === "on" || data.get(`present:${personId}`) === "yes" }));
 }
 
+/// Who is marked present in the form, by id.
+function readPresent(data: FormData): Set<string> {
+  return new Set(data.getAll("present").flatMap((v) => splitValues(String(v))));
+}
+
+/**
+ * The panel an opening starts with. Where the exercise names its opening officers (SR-07, ruling 11) it is those officers and nobody else:
+ * the form asks only who is present, and the roster is judged again here for the one thing that can change after they were named, that an
+ * officer has since come to hold an administrator account. Seats, size and independence are judged by the panel's own rules below. Where it
+ * does not (made before officers were named on the exercise), the panel is the pick posted, as it always was.
+ */
+async function startingPicks(tx: Tx, l: { ex: { id: string; sourcingMethodCode: string; openingRosterRequired: boolean }; org: { id: string; code: string; today: string | null } }, data: FormData): Promise<{ picks: { personId: string; present: boolean }[]; faults: Finding[] }> {
+  if (!l.ex.openingRosterRequired) return { picks: readPanel(data), faults: [] };
+  const roster = await loadOpeningRoster(l.ex, l.org, tx);
+  const present = readPresent(data);
+  return { picks: roster.rows.map((r) => ({ personId: r.personId, present: present.has(r.personId) })), faults: rosterFaults(roster.input).filter((f) => f.code === "OFFICER_IS_ADMINISTRATOR") };
+}
+
 async function pickedPeople(tx: Tx, orgId: string, picks: readonly { personId: string; present: boolean }[]) {
   const people = await tx.person.findMany({ where: { organisationId: orgId, id: { in: picks.map((p) => p.personId) } }, select: { id: true, name: true, isActive: true, orgUnitCode: true } });
   return picks.map((p) => {
@@ -148,9 +168,10 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
     lateAct = late.act;
   }
   const lateOverridePersonId = lateAct?.subjectPersonId ?? null;
-  const picks = readPanel(data);
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const person = await nameOf(tx, l.org.id, startedByPersonId);
+    const { picks, faults: rosterBlocks } = await startingPicks(tx, l, data);
+    if (blocking(rosterBlocks).length) return refuse(rosterBlocks);
     const sf = startFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, publishedThroughWindow: c.window?.publishedAt != null, timeZone: l.org.timeZone, phase: c.gate.phase, boxLocked: c.boxLocked, changePending: c.gate.changePending, mainExists: c.main != null, personActive: !!person });
     if (blocking(sf).length) return refuse(sf);
     // Review M-4: a rule frozen unset that would make finalising impossible refuses the start, naming it.
@@ -260,9 +281,10 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
   const act = begun.act;
   const startedByPersonId = act.subjectPersonId;
   const overridePersonId = overrideAuthority.trim() || overrideReason.trim() ? startedByPersonId : null;
-  const picks = readPanel(data);
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const person = await nameOf(tx, l.org.id, startedByPersonId);
+    const { picks, faults: rosterBlocks } = await startingPicks(tx, l, data);
+    if (blocking(rosterBlocks).length) return refuse(rosterBlocks);
     const decision = await tx.committeeDecision.findFirst({ where: { id: decisionId, bidEnvelope: { exerciseId: l.ex.id }, meeting: { committee: { organisationId: actor.organisationId } } }, select: { id: true, matterKind: true, outcome: true, bidEnvelopeId: true, withdrawnAt: true, meeting: { select: { reference: true } } } });
     const envelope = decision?.bidEnvelopeId ? (c.envelopes.find((e) => e.id === decision.bidEnvelopeId) ?? null) : null;
     const sf = supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: decision && !decision.withdrawnAt ? { matterKind: decision.matterKind ?? "", outcome: decision.outcome, bidEnvelopeId: decision.bidEnvelopeId } : null, alreadyOpened: c.openings.some((o) => o.admissionDecisionId === decisionId), envelope: envelope ? { status: envelope.status, late: envelope.late } : null, personActive: !!person, timeZone: l.org.timeZone });

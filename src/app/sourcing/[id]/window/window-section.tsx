@@ -312,14 +312,14 @@ function RulesUsed({ d }: { d: WindowTab }) {
   );
 }
 
-/// The notice's items and the fee with its basis: the card the window is prepared on, in preparation and after.
+/// The notice's items and the fee with its basis: the card Notice and fee on Scope and estimate is made of (SR-06, ruling 9), in preparation and after.
 export function WindowItemsCard({ d, c }: { d: WindowTab; c: WindowContext }) {
   return (
     <Card>
       <CardHeader
         icon={<FileIcon size={17} />}
-        title="What the notice states, and the fee"
-        subtitle={d.actions.save.allowed ? "The notice's items, and what a set of the documents costs and why." : d.actions.save.reason}
+        title="Notice and fee"
+        subtitle={d.actions.save.allowed ? "What the notice states, and what a set of the documents costs and why." : d.actions.save.reason}
         actions={<EditWindowDrawer exerciseId={c.exerciseId} items={d.items} allowed={d.actions.save} first={!d.hasWindow} />}
       />
       {!d.items ? (

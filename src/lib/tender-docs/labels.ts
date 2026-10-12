@@ -8,8 +8,10 @@ import { nameRouteLabel } from "@/lib/method/approval";
 import { BEHAVIOUR_LABEL, TENDERING_STATE_LABEL } from "@/lib/method/labels";
 import type { BehaviourKey } from "@/lib/method/profile";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
+import { rosterFindingText } from "@/lib/opening/roster-labels";
 import { scopeFaultText } from "@/lib/scope/labels";
 import { routeTone, stepTone, type StatusTone } from "@/lib/ui/status-tone";
+import { windowFindingText } from "@/lib/window/labels";
 
 import { APPENDIX_FIELD_LABEL, type AppendixField, type AppendixFault } from "./appendix";
 import { conditionsFaultText, conditionsFixHref } from "./conditions-labels";
@@ -193,7 +195,7 @@ const START_TEXT: Record<StartFault, (f: Finding) => string> = {
   PREPARED_BEFORE_ASSEMBLY: () => "This exercise was prepared before tender document assembly existed, so it keeps the earlier path: its documents are prepared outside the portal and its award opens as before.",
   NO_PACK_FOR_METHOD: () => "This exercise's method assembles no tender documents, so there is no pack to prepare.",
   LIVE_PACK_EXISTS: () => "A version of the tender documents is already being prepared or is with approval.",
-  PACK_APPROVED: () => "The tender documents are approved for tendering. A change now is an addendum, issued on the Invitation tab once the exercise is published.",
+  PACK_APPROVED: () => "The tender documents are approved for tendering. A change now is an addendum, issued under Publishing on Tender documents once the exercise is published.",
   NO_PACK: () => "This exercise's method assembles no tender documents.",
   BASIS_NOT_SET: () => "The contract basis is not set, and the pack's parts follow it. Set it on the exercise's Contract type tab.",
   COMPOSITION_NOT_SET: () => `No parts are configured for this pack kind and contract basis. ${SET_PARTS}`,
@@ -244,6 +246,9 @@ const DATES_TEXT: Record<DatesFault, string> = {
 
 export const datesFaultText = (f: Finding) => DATES_TEXT[f.code as DatesFault] ?? "The tendering dates are not valid.";
 
+/// The same, said at submission (SR-05, ruling 8): the proposed dates are entered on Scope and estimate, so the sentence says where to put them right.
+export const submitDatesText = (f: Finding) => (f.code === "DATES_DIFFER_FROM_DOCUMENTS" || f.code === "TIME_ZONE_NOT_SET" ? datesFaultText(f) : `${datesFaultText(f)} Enter them under Key dates on Scope and estimate.`);
+
 const ROUTE_TEXT: Record<RouteFault, (f: Finding) => string> = {
   NO_ISSUE_IN_FORCE: () => "No approval matrix is issued and in force today, so the approval for tendering cannot be routed. Issue one under Configuration, Approval matrix.",
   ROUTE_NO_METHOD_KEY: () => "The sourcing method is not tied to any approval rule. Set its approval matrix method under Configuration, Reference data.",
@@ -266,7 +271,9 @@ export function submitFindingTexts(s: SubmitFindings): { level: Finding["level"]
   add("appendix", s.appendix, appendixFaultText);
   add("behaviour", s.behaviour, behaviourFaultText);
   add("conditions", s.conditions, conditionsFaultText);
-  add("dates", s.dates, datesFaultText);
+  add("dates", s.dates, submitDatesText);
+  add("officers", s.officers, rosterFindingText);
+  add("notice", s.notice, windowFindingText);
   add("route", s.route, routeFaultText);
   return out;
 }
@@ -410,7 +417,12 @@ export function findingHref(exerciseId: string, family: keyof SubmitFindings, f:
     case "conditions":
       return conditionsFixHref(f.code, exerciseId);
     case "dates":
-      return `${ex}?tab=documents#submit`;
+      // SR-05 (ruling 8): the proposed dates are entered on Scope and estimate, not in the submit drawer.
+      return f.code === "DATES_DIFFER_FROM_DOCUMENTS" ? `${ex}?tab=documents#submit` : `${ex}?tab=scope&section=dates`;
+    case "officers":
+      return f.code === "COMMITTEE_NOT_SET" || f.code === "COMMITTEE_NOT_FOUND" ? "/configuration/reference-data" : f.code === "PANEL_SIZE_NOT_SET" || f.code === "EXCLUSION_RULE_NOT_SET" || f.code === "EXCLUDED_UNIT_NOT_SET" ? "/configuration/committees" : `${ex}?tab=scope&section=officers`;
+    case "notice":
+      return f.code.startsWith("EVENT_") || f.code.startsWith("MANDATORY_") ? `${ex}?tab=scope&section=briefing` : `${ex}?tab=scope&section=notice`;
     case "route":
       return "/configuration/approval-matrix";
   }

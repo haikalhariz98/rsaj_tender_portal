@@ -143,6 +143,9 @@ const submit = (x: Partial<SubmitInput> = {}): SubmitInput => ({
   profile: behaviourProfile(works),
   primeCostSums: 0n,
   dates: [],
+  // SR-06, SR-07 (rulings 9 and 11): the notice and the opening officers join the gate; a clean submission has none outstanding.
+  officers: [],
+  notice: [],
   route: { issue: true, state: "RESOLVED", refusal: null, errors: [] },
   routeOpen: false,
   conditions: CLEAR_CONDITIONS,
@@ -200,6 +203,12 @@ describe("submission's other checks", () => {
   });
   it("the proposed dates' findings are carried", () => {
     expect(codes(allOf(submitFaults(submit({ dates: [{ code: "DATES_REQUIRED", level: "block" }] }))))).toEqual(["DATES_REQUIRED"]);
+  });
+  it("SR-06, SR-07: the notice and the opening officers are carried, each in its own family", () => {
+    const f = submitFaults(submit({ officers: [{ code: "OFFICERS_SHORT", level: "block" }], notice: [{ code: "FEE_NOT_SET", level: "block" }] }));
+    expect(codes(f.officers)).toEqual(["OFFICERS_SHORT"]);
+    expect(codes(f.notice)).toEqual(["FEE_NOT_SET"]);
+    expect(codes(blockingOf(f))).toEqual(["OFFICERS_SHORT", "FEE_NOT_SET"]);
   });
   it("increment 2: the tender's conditions bind it (FR-DOC-005, 006, 009, 011, 014)", () => {
     expect(codes(submitFaults(submit({ parts: [part(), declaration] })).conditions)).toEqual(["NOTICE_PART_MISSING"]);

@@ -46,7 +46,7 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
           title="Sale register"
           subtitle={`${live.length} ${live.length === 1 ? "set" : "sets"} sold${d.rows.length > live.length ? `, ${d.rows.length - live.length} void` : ""} at ${d.fee}. ${d.phase}.`}
           divided={false}
-          actions={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=invitation&section=addenda`} variant="ghost" size="sm">See the addenda</ButtonLink>}
+          actions={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=documents&section=publishing`} variant="ghost" size="sm">See the addenda</ButtonLink>}
         />
         <CardBody className="flex flex-col gap-3 border-t border-line">
           <Callout tone="warn" title="Registration and suspension are checked only for a linked contractor">

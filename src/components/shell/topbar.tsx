@@ -179,7 +179,7 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
   if (segments[0] === "sourcing" && segments.length >= 3 && segments[1] !== "new") {
     const id = segments[1];
     crumbs[1].label = recordName ?? "Exercise";
-    const SECTION: Record<string, [string, string]> = { evaluation: ["Evaluation", "?tab=evaluation&section=report"], label: ["Sales", "?tab=invitation&section=sales"], opening: ["Bid opening", "?tab=bids&section=schedule"] };
+    const SECTION: Record<string, [string, string]> = { evaluation: ["Evaluation", "?tab=evaluation&section=report"], label: ["Sales", "?tab=bids&section=sales"], opening: ["Bid opening", "?tab=bids&section=schedule"] };
     const section = SECTION[segments[2]];
     if (section) crumbs[2] = { label: section[0], href: `/sourcing/${id}${section[1]}` };
     const last = crumbs.length - 1;

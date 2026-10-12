@@ -164,7 +164,8 @@ describe("an unprepared window's blockers fold under the first", () => {
   it("every item fault becomes one 'Prepare the window', first; the others stand", () => {
     const out = foldUnpreparedWindow([f("INSPECTION_PLACE_MISSING"), f("CLOSING_NOT_SET"), f("PAYMENT_METHODS_MISSING"), f("FEE_NOT_SET")], false);
     expect(out.map((x) => x.code)).toEqual(["WINDOW_ITEMS_NOT_PREPARED", "CLOSING_NOT_SET"]);
-    expect(windowFindingText(out[0])).toMatch(/^Prepare the window/);
+    // SR-06 (ruling 9): "Prepare the window" is now "Notice and fee", prepared on Scope and estimate; the folded finding says so.
+    expect(windowFindingText(out[0])).toMatch(/^Prepare the notice and fee on Scope and estimate/);
     expect(windowFindingText(out[0])).toContain("3 items");
   });
   it("a prepared window's findings are returned as they are", () => {

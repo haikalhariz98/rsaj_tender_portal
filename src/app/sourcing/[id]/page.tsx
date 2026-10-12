@@ -8,9 +8,9 @@ import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { SCOPE_ENTITY_LABEL } from "@/lib/scope/audit-view";
 import { attachmentFacts } from "@/lib/documents/repo";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
-import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, GlobeIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
+import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
@@ -99,7 +99,8 @@ import { DETAILS_LOCKED_TEXT, detailsFault } from "@/lib/method/details";
 import { sourcingFlow } from "@/lib/method/flow";
 import { flowShape } from "@/lib/method/lifecycle";
 import { loadOverviewReads } from "@/lib/method/overview-read";
-import { activeTabOf } from "@/lib/method/overview-tab";
+import { activeTabOf, invitationRedirectHref } from "@/lib/method/overview-tab";
+import { invitationStage } from "@/lib/window/stage";
 import { windowPathOf } from "@/lib/window/publish";
 import type { PackKind } from "@/lib/tender-docs/types";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
@@ -121,10 +122,16 @@ import {
   SubmitProposalDrawer,
 } from "../editors";
 import { DocumentsWorkspace } from "./documents/workspace";
-import { invitationSectionOf, invitationSectionsFor, loadInvitation } from "./window/workspace";
+import { loadPublishing, loadSalesAndBriefing } from "./window/workspace";
+import { DOCUMENTS_SECTIONS, documentsSectionOf } from "./documents/sections";
 import { scopeSectionFacts } from "@/lib/scope/read";
 import { ALL_SCOPE_SECTIONS, scopeSectionOf, visibleScopeSections } from "@/lib/scope/sections";
 import { ScopeWorkspace } from "./scope/workspace";
+import { DetailsSection } from "./scope/details-section";
+import { KeyDatesSection } from "./scope/key-dates-section";
+import { OfficersSection } from "./scope/officers-section";
+import { BriefingPrepSection, NoticeSection } from "./scope/notice-section";
+import { loadConditionsRead, loadKeyDatesRead } from "@/lib/method/prep-read";
 import { money, OverviewPanel, pct, tone } from "./overview";
 import type { ReactNode } from "react";
 import { requireStaff } from "@/app/_auth/actor";
@@ -198,9 +205,14 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // A draft is judged now, as its next save would be; a decided exercise renders from its record.
   const ev = draft && ctx ? evaluateExercise(draftOf(ex), ctx) : null;
   const flags = decided?.method.flags ?? method ?? null;
+  // The pack the exercise assembles, and whether it is the no-pack path (no tender documents, so no window).
+  const overviewPack = draft ? (method?.documentPackKind ?? null) : ex.packKindSnapshot;
+  const noPack = flowShape(ex.status, overviewPack, !!ex.preparedAt) === "NO_PACK";
+  // SR-06 (ruling 9): the Invitation tab is gone. An old address (a bookmark, a notification written before) lands where its section went.
+  if (asked === "invitation") redirect(invitationRedirectHref(ex.id, section, invitationStage(ex.status, noPack) === "live"));
   // Founder, 2026-10-05: Classification and Contract type are one Overview now; their old addresses still open it.
   // The Overview is also the tab for an address that names none, or one this exercise has no tab for.
-  const tab = activeTabOf(asked, ["overview", "scope", "documents", "invitation", "bids", "evaluation", ...(flags?.requiresProposal ? ["proposal"] : []), ...(flags?.requiresNameApproval ? ["name"] : []), "award", "access", "history"]);
+  const tab = activeTabOf(asked, ["overview", "scope", "documents", "bids", "evaluation", ...(flags?.requiresProposal ? ["proposal"] : []), ...(flags?.requiresNameApproval ? ["name"] : []), "award", "access", "history"]);
   const methodName = decided?.method.nameEn ?? method?.nameEn ?? "A method no longer configured";
   const typeName = (code: string | null) => (code ? (config.types.find((t) => t.code === code)?.nameEn ?? "A type no longer configured") : null);
   const personName = (pid: string | null) => (pid ? (people.find((p) => p.id === pid)?.name ?? "Not on record") : null);
@@ -255,6 +267,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   };
 
 
+  // SR-06 (ruling 9): what the window's sections need from the exercise, handed to whichever section shows it (Publishing on Tender documents, Sales and briefing on Bids and opening, and the notice and briefing on Scope and estimate).
+  const windowCtx = { exerciseId: ex.id, reference: ex.reference, status: ex.status, noPack, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions };
   // 6.5: the Invitation tab is read one section at a time, and only while it is the tab being looked at.
   // Its header acts (publish, extend, record a sale...) come with it, so they are never judged for another tab.
   const published = isPublished(ex.status);
@@ -262,7 +276,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const [nameList, nameMatters] = tab === "name" && flagsNeedName(ex.sourcingMethodCode, cfg.config.methods) ? await Promise.all([nameListTab(actor.organisationId, ex.id), exerciseMatters(ex.id)]) : [null, []];
   // 6.6, 6.7: the Bids and opening tab, read one section at a time and only while it is the tab being looked at; its header acts come with it.
   const bidsSection = bidsSectionOf(section);
-  const bids = tab !== "bids" ? null : bidsSection === "opening" ? await loadOpening(actor, ex.id) : bidsSection === "schedule" ? await loadSchedule(actor, ex.id) : await loadBids(actor, ex.id, ex.status);
+  const bids = tab !== "bids" ? null : bidsSection === "opening" ? await loadOpening(actor, ex.id) : bidsSection === "schedule" ? await loadSchedule(actor, ex.id) : bidsSection === "sales" ? await loadSalesAndBriefing(actor, windowCtx) : await loadBids(actor, ex.id, ex.status);
   // 6.8: the Evaluation tab, read one section at a time and only while it is the tab being looked at; its header acts come with it.
   const evaluationSection = evaluationSectionOf(section);
   const evaluation = tab === "evaluation" ? await loadEvaluationTab(actor, ex.id, evaluationSection) : null;
@@ -277,12 +291,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   })() : [];
   // Founder, 2026-10-05: the Overview, read only while it is the tab being looked at (its own reads: the
   // tender conditions, the pack's proposed dates, the window's briefings and the organisation's closing time).
-  const overviewPack = draft ? (method?.documentPackKind ?? null) : ex.packKindSnapshot;
-  const noPack = flowShape(ex.status, overviewPack, !!ex.preparedAt) === "NO_PACK";
-  const inv =
-    tab === "invitation"
-      ? await loadInvitation(actor, invitationSectionOf(section), { exerciseId: ex.id, reference: ex.reference, status: ex.status, noPack, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions })
-      : null;
+  const documentsSection = documentsSectionOf(section);
+  // Publishing: read only while it is the section being looked at. Its header acts (publish, extend, cancel, draft an addendum) come with it, so they are never judged for another tab.
+  const inv = tab === "documents" && documentsSection === "publishing" ? await loadPublishing(actor, windowCtx) : null;
 
   // Asked in draft or in preparation, and again after a refusal or withdrawal (ruling on BD-4).
   const canAskName = live && !!method?.requiresNameApproval && !openName && !approvedName;
@@ -308,7 +319,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     BASIS_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a basis" },
     TYPE_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a type" },
     METHOD_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a method" },
-    TAXONOMY_AMBIGUOUS: { href: `/sourcing/${ex.id}?tab=overview`, label: "Choose it" },
+    TAXONOMY_AMBIGUOUS: { href: `/sourcing/${ex.id}?tab=scope&section=details`, label: "Choose it" },
     PROPOSAL_NOT_REVIEWED: { href: `/sourcing/${ex.id}?tab=proposal`, label: "Open the Proposal tab" },
     JUSTIFICATION_REQUIRED: { href: `/sourcing/${ex.id}/edit`, label: "Edit the justification" },
     REASON_REQUIRED: { href: `/sourcing/${ex.id}/edit`, label: "Choose a reason" },
@@ -319,8 +330,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
   // The same rule the cancel action enforces: a live award stands on the exercise.
   const liveAward = exerciseCancelBlockedBy(awards);
-  // A published exercise is cancelled on its approval route, asked for from the Invitation tab (FR-ADV-016).
-  const cancelBlocker = liveAward ? `award ${liveAward.reference} stands on this exercise — cancel the award first.` : published ? "A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees." : null;
+  // A published exercise is cancelled on its approval route, asked for under Publishing on Tender documents (FR-ADV-016).
+  const cancelBlocker = liveAward ? `award ${liveAward.reference} stands on this exercise — cancel the award first.` : published ? "A published exercise is cancelled from Tender documents, under Publishing: it goes to approval with a reason and an answer on the fees." : null;
   const unavailable: [string, string | null][] = [
     ["Submit proposal", draft && method?.requiresProposal && ex.proposalState === "DRAFT" ? submitBlocker : null],
     ["Request name approval", canAskName ? nameBlocker : null],
@@ -400,8 +411,37 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // Only the scope tab's own strip is drawn from this, so it is read only while that tab is the one looked at.
   const scopeSections = tab === "scope" ? visibleScopeSections(await scopeSectionFacts(actor.organisationId, ex.id)) : ALL_SCOPE_SECTIONS;
   const scopeSection = scopeSectionOf(section, scopeSections);
-  const overview = tab === "overview" ? await loadOverviewReads(ex, ex.closingAt, org, { kind: overviewPack, noPack }) : null;
+  const overview = tab === "overview" ? await loadOverviewReads(ex) : null;
   const detailsRefused = detailsFault({ status: ex.status, awards });
+  // The person named now stays on the list even if since retired, so the drawer shows who it is.
+  const detailsPeople = people.filter((x) => x.isActive || x.id === ex.personInChargeId).map((x) => ({ value: x.id, label: x.isActive ? x.name : `${x.name} (no longer active)` }));
+  // SR-05 to SR-07: the first five sections of Scope and estimate, built here because the page already holds the exercise they are judged on; each reads only its own data, and only while it is the section looked at.
+  const keyDatesRead = tab === "scope" && scopeSection === "dates" ? await loadKeyDatesRead(ex, ex.closingAt, org, { kind: overviewPack, noPack }) : null;
+  const prepared =
+    tab !== "scope" ? null : scopeSection === "details" ? (
+      <DetailsSection
+        p={{
+          l,
+          draft,
+          conditions: await loadConditionsRead(org.id, ex.id, noPack),
+          people: detailsPeople,
+          detailsBlocker: detailsRefused ? DETAILS_LOCKED_TEXT[detailsRefused] : null,
+          config,
+          live: ev ? { taxonomies: ev.taxonomies } : null,
+          flags,
+          reasonName: decided ? (decided.justification?.reasonName ?? null) : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null),
+          evidence,
+        }}
+      />
+    ) : scopeSection === "dates" && keyDatesRead ? (
+      <KeyDatesSection l={l} keyDates={keyDatesRead} people={detailsPeople} detailsBlocker={detailsRefused ? DETAILS_LOCKED_TEXT[detailsRefused] : null} timeZone={org.timeZone} usualClosingTime={keyDatesRead.cutoff.text} />
+    ) : scopeSection === "officers" ? (
+      <OfficersSection exerciseId={ex.id} />
+    ) : scopeSection === "notice" ? (
+      <NoticeSection scope={actor} c={windowCtx} />
+    ) : scopeSection === "briefing" ? (
+      <BriefingPrepSection scope={actor} c={windowCtx} />
+    ) : null;
   const cancelledAt = ex.status === "CANCELLED" ? await exerciseCancelledAt(l) : null;
   const tabs = [
     {
@@ -448,14 +488,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             requesterType={typeName(req.contractTypeCode)}
             draft={draft}
             officeName={(c) => roster.offices.find((o) => o.code === c)?.nameEn ?? issue?.matrix.roles[c]?.nameEn ?? "An office no longer configured"}
-            evidence={evidence}
             evidenceFacts={evidenceFacts}
             timeZone={org.timeZone}
-            conditions={overview.conditions}
-            keyDates={overview.keyDates}
-            // The person named now stays on the list even if since retired, so the drawer shows who it is.
-            people={people.filter((x) => x.isActive || x.id === ex.personInChargeId).map((x) => ({ value: x.id, label: x.isActive ? x.name : `${x.name} (no longer active)` }))}
-            detailsBlocker={detailsRefused ? DETAILS_LOCKED_TEXT[detailsRefused] : null}
           />
         ),
     },
@@ -466,26 +500,16 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       sections: [...scopeSections],
       section: scopeSection,
       // Read only while it is the tab being looked at, and only for the section named.
-      panel: tab === "scope" ? <ScopeWorkspace exerciseId={ex.id} section={scopeSection} /> : null,
+      panel: tab === "scope" ? <ScopeWorkspace exerciseId={ex.id} section={scopeSection} prepared={prepared} /> : null,
     },
     {
       id: "documents",
       label: "Tender documents",
       icon: <FileIcon size={15} />,
-      // Read only while it is the tab being looked at.
-      lazy: true,
-      panel: tab === "documents" ? <DocumentsWorkspace exerciseId={ex.id} today={today} routes={latestFirst(tenderingRoutesOf(ex.approvalInstances))} /> : null,
-    },
-    {
-      id: "invitation",
-      label: "Invitation",
-      icon: <GlobeIcon size={15} />,
-      sections: invitationSectionsFor(ex.status),
-      section: invitationSectionOf(section),
-      // Without sections (before approval for tendering) the panel is still the server's, so selecting the tab asks for it.
-      lazy: !invitationSectionsFor(ex.status),
+      sections: [...DOCUMENTS_SECTIONS],
+      section: documentsSection,
       // Read only while it is the tab being looked at, and only for the section named.
-      panel: inv?.panel ?? null,
+      panel: tab !== "documents" ? null : documentsSection === "publishing" ? (inv?.panel ?? null) : <DocumentsWorkspace exerciseId={ex.id} today={today} routes={latestFirst(tenderingRoutesOf(ex.approvalInstances))} />,
     },
     {
       id: "bids",
@@ -748,6 +772,7 @@ function RoutedNames({ named, personName }: { named: ExerciseAccessFacts["named"
     { kind: "STEP_HOLDER" as const, ids: named.stepHolderIds },
     { kind: "STEP_DECIDER" as const, ids: named.stepDeciderIds },
     { kind: "COMMITTEE_MEMBER" as const, ids: named.committeeMemberIds },
+    { kind: "OPENING_OFFICER" as const, ids: named.openingOfficerIds ?? [] },
   ];
   return (
     <div className="flex flex-col gap-3">
@@ -890,7 +915,7 @@ async function NamePanel({
       </Callout>
       {list && list.invited && (
         <Card className="overflow-hidden">
-          <CardHeader icon={<UsersIcon size={17} />} title="The invitee list" subtitle={list.frozen ? "Frozen: the exercise is invited." : list.route ? `${list.route.label}. ${list.route.state}` : "Proposed on the Invitation tab. The name is asked for with this list."} actions={<Link href={`/sourcing/${ex.id}?tab=invitation&section=window`} className="text-[13px] font-semibold">Open the Invitation tab</Link>} />
+          <CardHeader icon={<UsersIcon size={17} />} title="The invitee list" subtitle={list.frozen ? "Frozen: the exercise is invited." : list.route ? `${list.route.label}. ${list.route.state}` : "Proposed under Publishing on Tender documents. The name is asked for with this list."} actions={<Link href={`/sourcing/${ex.id}?tab=documents&section=publishing`} className="text-[13px] font-semibold">Open Publishing</Link>} />
           <CardBody className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="mb-2 text-[12px] font-semibold text-ink-3">As it stands</p>
@@ -1095,6 +1120,7 @@ const ENTITY_LABEL: Record<string, string> = {
   ExerciseProposalAnswer: "Proposal item",
   ExerciseTaxonomyValue: "Classification",
   ExerciseParticipant: "Participant",
+  ExerciseOpeningOfficer: "Opening officer",
   Requisition: "Requisition",
 };
 const ACTION_LABEL = { CREATE: "Created", UPDATE: "Changed", DELETE: "Removed" } as const;

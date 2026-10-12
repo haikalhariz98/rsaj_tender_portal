@@ -103,11 +103,17 @@ async function loadAll(organisationId: string, exerciseId: string) {
 export async function scopeSectionFacts(organisationId: string, exerciseId: string): Promise<ScopeSectionFacts | null> {
   const org = await exerciseOrg(organisationId);
   if (!org) return null;
-  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, sourcingMethodCode: true, contractBasisCode: true } });
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, sourcingMethodCode: true, contractBasisCode: true, packKindSnapshot: true } });
   if (!ex) return null;
   const rules = await loadScopeRules(org.id, ex);
-  const [bills, estimates] = await Promise.all([db.bqVersion.count({ where: { exerciseId: ex.id } }), db.companyEstimate.count({ where: { exerciseId: ex.id } })]);
-  return { requiresBq: rules.basis?.requiresBq ?? null, requiresCompanyEstimate: rules.method?.requiresCompanyEstimate ?? null, hasBill: bills > 0, hasEstimate: estimates > 0 };
+  const [bills, estimates, method] = await Promise.all([
+    db.bqVersion.count({ where: { exerciseId: ex.id } }),
+    db.companyEstimate.count({ where: { exerciseId: ex.id } }),
+    // Before the exercise is prepared its pack kind is the method's; after, the one written on it (SR-05: dates, officers, notice and briefing exist only where tender or quotation documents are issued).
+    ex.packKindSnapshot ? Promise.resolve(null) : db.sourcingMethod.findFirst({ where: { organisationId: org.id, code: ex.sourcingMethodCode }, select: { documentPackKind: true } }),
+  ]);
+  const kind = ex.packKindSnapshot ?? method?.documentPackKind ?? null;
+  return { requiresBq: rules.basis?.requiresBq ?? null, requiresCompanyEstimate: rules.method?.requiresCompanyEstimate ?? null, hasBill: bills > 0, hasEstimate: estimates > 0, tendered: kind == null ? null : kind === "TENDER" || kind === "QUOTATION" };
 }
 
 // ------------------------------------------------------------------ Scope tab
