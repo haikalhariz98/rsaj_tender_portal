@@ -114,6 +114,13 @@ async function writeScopeSwitches(db: Db, organisationId: string, now: Date, byt
   const online = await db.sourcingExercise.findFirst({ where: { organisationId, id: `${P}sx18`, saleMode: "COUNTER" }, select: { id: true, reference: true, title: true } });
   if (online) {
     await db.sourcingExercise.update({ where: { id: online.id }, data: { saleMode: "ONLINE" } });
+    // SR-10 review: asking for the documents is the counter's way. A request still standing on this exercise would wait for an officer for ever now that it is sold online, so it is ended (the request is kept,
+    // never deleted), and a request is not made for it again (`demo-my-bids.ts`). Demo load only, on a fresh database (ruling 12c).
+    const standing = await db.documentRequest.findMany({ where: { refusedAt: null, endedAt: null, window: { exerciseId: online.id } }, select: { id: true, supplier: { select: { registeredName: true } } } });
+    for (const r of standing) {
+      await db.documentRequest.update({ where: { id: r.id }, data: { endedAt: now } });
+      entry("DocumentRequest", r.id, `${online.reference} · Request for the documents by ${r.supplier.registeredName}`, "UPDATE", diffFields({ request: "Waiting for an officer" }, { request: "Ended" }), "Demonstration setting: the exercise is now sold online, where a buyer buys instead of asking.");
+    }
     entry("SourcingExercise", online.id, `${online.reference} · ${online.title}`, "UPDATE", diffFields({ howDocumentsAreSold: "At the counter" }, { howDocumentsAreSold: "Online, through the supplier portal" }), "Demonstration setting: the exercise the online purchase and the payment simulator are shown on.");
   }
 

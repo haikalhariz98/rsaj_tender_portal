@@ -6,8 +6,8 @@
  *   demo_vnd2  Demo Paip Services, which bought the documents of DEMO/SX/0018/2026 (an advertised exercise open for bids, with its addendum 1) and was a bidder in DEMO/SX/0016/2026.
  *              Its portal account `demo.supplier6` waits for activation; `npm run demo:accounts` gives it the demonstration password. It has an addendum to acknowledge, and it has opened the
  *              Tender Table Document once (an inspection-log row).
- *   demo_vnd1  Contoh Bina Sdn Bhd, which has bought nothing of DEMO/SX/0018/2026. Its account `demo.supplier7` has asked for the documents (a request waiting for an officer), and can sign up for the
- *              briefing added to that exercise, three days ahead.
+ *   demo_vnd1  Contoh Bina Sdn Bhd, which has bought nothing of DEMO/SX/0018/2026. DEMO/SX/0018/2026 is sold online in the demonstration, so its account `demo.supplier7` has Buy documents
+ *              to press (an exercise sold at the counter would have a request waiting for an officer instead), and can sign up for the briefing added to that exercise, three days ahead.
  *
  * Applied alone to a database the demonstration is already loaded in by `npm run demo:my-bids`, and at the end of a full load. Nothing is deleted or replaced: a second run adds nothing.
  */
@@ -50,7 +50,7 @@ export async function loadMyBidsDemo(db: Db, organisationId: string): Promise<{ 
     if (trail.length) await db.auditEntry.createMany({ data: trail.splice(0) as never });
   };
 
-  const sx18 = await db.sourcingExercise.findUnique({ where: { id: `${P}sx18` }, select: { id: true, reference: true, status: true, window: { select: { id: true, publishedAt: true } } } });
+  const sx18 = await db.sourcingExercise.findUnique({ where: { id: `${P}sx18` }, select: { id: true, reference: true, status: true, saleMode: true, window: { select: { id: true, publishedAt: true } } } });
   if (!sx18?.window?.publishedAt || sx18.status !== "ADVERTISED") {
     notes.push("DEMO/SX/0018/2026 is not an advertised exercise in this database, so the My Bids demonstration was not added");
     return { loaded: false, notes };
@@ -84,7 +84,9 @@ export async function loadMyBidsDemo(db: Db, organisationId: string): Promise<{ 
     await db.tenderInspectionEvent.create({ data: { id: `${P}insp1`, organisationId, windowId: sx18.window.id, supplierId: `${P}vnd2`, kind: "TABLE_DOCUMENT", documentVersion: pack?.versionNo ?? 1, viewedBySupplierAccountId: acc6.id, viewedAt: T(D(-2), "15:20") } });
     notes.push("one opening of the Tender Table Document by demo_vnd2, in the inspection log");
   }
-  if (acc7 && !(await db.documentRequest.findFirst({ where: { windowId: sx18.window.id, supplierId: `${P}vnd1` }, select: { id: true } }))) {
+  // SR-10 review: a request for the documents is the counter's way of asking. On an exercise sold online (the demonstration's sx18 is, since `demo-switches.ts`) a buyer buys instead, so a
+  // request made here would wait for an officer forever. The request is made only where the exercise is sold at the counter.
+  if (acc7 && sx18.saleMode !== "ONLINE" && !(await db.documentRequest.findFirst({ where: { windowId: sx18.window.id, supplierId: `${P}vnd1` }, select: { id: true } }))) {
     const checks = [
       { key: "ON_SALE", state: "PASS", detail: "The documents are on sale now." },
       { key: "REGISTER", state: "PASS", detail: "Registered, not cancelled, not suspended and not blacklisted, on the supplier register." },

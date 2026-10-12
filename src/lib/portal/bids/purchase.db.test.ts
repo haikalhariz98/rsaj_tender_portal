@@ -12,6 +12,9 @@ import { receiptExceptions } from "@/lib/window/read";
 import { loadBidContext } from "./context-store";
 import { prepareDownload, releasedPackOf } from "./download-store";
 import { loadReleaseFacts } from "./inspection-store";
+import { countAndJudge } from "./rate-store";
+import { MAX_FAILED_PAYMENT_TRIES, RATE_LIMITS } from "./limits";
+import { PAYMENT_SIMULATOR_ENV } from "@/lib/integration/payment-deployment";
 import { holdsReleasedPurchase } from "./purchase";
 import { markPurchasePaid } from "./purchase-paid";
 import { settlePayment, startPurchase } from "./purchase-store";
@@ -108,7 +111,15 @@ const refusedWith = async (p: Promise<unknown>, code: string) => {
   expect((e as BidRefused).faults.map((f) => f.code), code).toContain(code);
 };
 
+const ENV_BEFORE = process.env[PAYMENT_SIMULATOR_ENV];
+// SR-10 review SEC-1: the deployment must allow the simulator for any of these to pay on it, so the file says so, and the tests of the gate take it away on purpose.
+const deployment = (allowed: boolean) => {
+  if (allowed) process.env[PAYMENT_SIMULATOR_ENV] = "true";
+  else delete process.env[PAYMENT_SIMULATOR_ENV];
+};
+
 beforeAll(async () => {
+  deployment(true);
   // Its own organisation: the window policy it switches on and off is the organisation's one row, which no other file's tests should share.
   organisationId = (await db.organisation.create({ data: { code: `PU_${randomId()}`, name: "Online purchase", timeZone: "Asia/Kuala_Lumpur" } })).id;
   await setPolicy(organisationId, SUPPLIER_SETTINGS);
@@ -125,6 +136,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (ENV_BEFORE === undefined) delete process.env[PAYMENT_SIMULATOR_ENV];
+  else process.env[PAYMENT_SIMULATOR_ENV] = ENV_BEFORE;
   await db.sourcingExercise.updateMany({ where: { id: { in: [online.exerciseId, counter.exerciseId] } }, data: { status: "CANCELLED" } });
   await db.windowPolicy.deleteMany({ where: { organisationId } });
 });
@@ -333,19 +346,123 @@ describe("downloading what a released purchase releases", () => {
     if (!text.ok) throw new Error(text.text);
     expect(Buffer.from(text.body).toString()).toContain("Instructions to tenderers");
     await text.commit();
-    // Each is a row; asking again is another row, none deduplicated.
+    // SR-10 review SEC-2: the same item taken again within ten minutes is one download for the log (it was a row each time); taken again later, it is logged again.
     const again = await prepareDownload(s.actor, { exerciseId: online.exerciseId, file: online.versionId, text: null, secFetchSite: null });
     if (!again.ok) throw new Error(again.text);
     await again.commit();
+    expect(await db.purchaseDownload.count({ where: { supplierId: s.supplierId } })).toBe(2);
+    const later = await prepareDownload(s.actor, { exerciseId: online.exerciseId, file: online.versionId, text: null, secFetchSite: null }, new Date(Date.now() + 11 * 60_000));
+    if (!later.ok) throw new Error(later.text);
+    await later.commit();
     const rows = await db.purchaseDownload.findMany({ where: { supplierId: s.supplierId }, orderBy: { downloadedAt: "asc" } });
     expect(rows.map((r) => r.kind)).toEqual(["FILE", "MERGED_TEXT", "FILE"]);
     expect(rows.every((r) => r.accountId === s.accountId && r.packVersion === 1)).toBe(true);
     // A SULIT file is never served to a supplier, and a version the pack does not name is not found.
     const secret = pack.files.find((f) => f.title === "Secret")!;
     expect(await prepareDownload(s.actor, { exerciseId: online.exerciseId, file: secret.versionId, text: null, secFetchSite: null })).toMatchObject({ ok: false, status: 403 });
+    // SEC-3: the refusal is an access event naming the supplier's account, as the staff route's is.
+    const refusals = await db.documentAccessEvent.findMany({ where: { actorSupplierAccountId: s.accountId, kind: "REFUSED", versionId: secret.versionId } });
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0].reasonCode).not.toBe("");
     expect(await prepareDownload(s.actor, { exerciseId: online.exerciseId, file: "nosuchversion1", text: null, secFetchSite: null })).toMatchObject({ ok: false, status: 404 });
     // Another supplier, with no purchase, is served nothing.
     const other = await supplier();
     expect(await prepareDownload(other.actor, { exerciseId: online.exerciseId, file: online.versionId, text: null, secFetchSite: null })).toMatchObject({ ok: false, status: 403 });
+  });
+});
+
+describe("the deployment's permission for the simulator (SR-10 review SEC-1)", () => {
+  it("without it, a buyer cannot pay on the simulator even with the organisation's switch on", async () => {
+    const s = await supplier();
+    await startPurchase(s.actor, { exerciseId: online.exerciseId });
+    deployment(false);
+    try {
+      const e = await settlePayment(s.actor, { exerciseId: online.exerciseId, method: METHODS[0], choice: "PAY" }).then(() => null, (x) => x);
+      expect(e).toBeInstanceOf(BidRefused);
+      expect((e as BidRefused).faults[0]).toMatchObject({ code: "PAYMENT_UNAVAILABLE" });
+      const ctx = (await loadBidContext(db, s.actor, online.exerciseId))!;
+      const view = await documentsTab(db, s.actor, ctx);
+      expect(view.online!.payment.available).toBe(false);
+    } finally {
+      deployment(true);
+    }
+  });
+
+  it("a purchase paid on the simulator releases nothing and is no purchase for a bid once the deployment stops allowing it, and is listed as simulated, not dropped", async () => {
+    const s = await supplier();
+    await startPurchase(s.actor, { exerciseId: online.exerciseId });
+    await settlePayment(s.actor, { exerciseId: online.exerciseId, method: METHODS[0], choice: "PAY" });
+    const ctx = (await loadBidContext(db, s.actor, online.exerciseId))!;
+    expect((await loadReleaseFacts(db, s.actor, ctx)).state).toBe("READY");
+    deployment(false);
+    try {
+      const facts = await loadReleaseFacts(db, s.actor, ctx);
+      expect(facts.state).toBe("SIMULATION_NOT_ALLOWED");
+      expect(facts.words.short).toContain("simulator");
+      expect(await prepareDownload(s.actor, { exerciseId: online.exerciseId, file: online.versionId, text: null, secFetchSite: null })).toMatchObject({ ok: false, status: 403 });
+      const sale = await db.documentSale.findFirstOrThrow({ where: { purchase: { supplierId: s.supplierId, windowId: online.windowId } } });
+      expect((await receiptExceptions(organisationId)).filter((e) => e.kind === "SIMULATED").map((e) => e.id)).toContain(sale.id);
+    } finally {
+      deployment(true);
+    }
+    expect((await loadReleaseFacts(db, s.actor, ctx)).state).toBe("READY");
+  });
+});
+
+describe("what the database refuses of a purchase and a sale (SR-10 review SEC-6)", () => {
+  it("a paid purchase and a sale are not changed after the fact, and a purchase is not paid without its sale", async () => {
+    const s = await supplier();
+    await startPurchase(s.actor, { exerciseId: online.exerciseId });
+    const purchase = await db.documentPurchase.findFirstOrThrow({ where: { supplierId: s.supplierId, windowId: online.windowId } });
+    // What was bought and for how much does not change, even while the purchase awaits payment.
+    await expect(db.documentPurchase.update({ where: { id: purchase.id }, data: { amount: "1.00" } })).rejects.toThrow(/PA004|refused/);
+    // PAID without a sale: the deferred check refuses at commit.
+    await expect(
+      db.documentPurchase.update({ where: { id: purchase.id }, data: { state: "PAID", paidAt: new Date(), paidChannel: "SIMULATED", paidMethod: "x", paidReference: "SIM-NOSALE" } }),
+    ).rejects.toThrow(/PA006|without the sale/);
+    expect((await db.documentPurchase.findUniqueOrThrow({ where: { id: purchase.id } })).state).toBe("AWAITING_PAYMENT");
+
+    await settlePayment(s.actor, { exerciseId: online.exerciseId, method: METHODS[0], choice: "PAY" });
+    // Paid is final: nothing moves it back, or on.
+    await expect(db.documentPurchase.update({ where: { id: purchase.id }, data: { state: "AWAITING_PAYMENT", paidAt: null, paidChannel: null, paidMethod: null, paidReference: null } })).rejects.toThrow(/PA004|refused/);
+    await expect(db.documentPurchase.update({ where: { id: purchase.id }, data: { paidMethod: "Other" } })).rejects.toThrow(/PA004|refused/);
+    const sale = await db.documentSale.findUniqueOrThrow({ where: { purchaseId: purchase.id } });
+    // A simulated sale never becomes a counter sale, never loses its reference and never leaves its purchase.
+    await expect(db.documentSale.update({ where: { id: sale.id }, data: { paymentChannel: "COUNTER" } })).rejects.toThrow();
+    await expect(db.documentSale.update({ where: { id: sale.id }, data: { simulatedReference: "SIM-OTHER" } })).rejects.toThrow();
+    await expect(db.documentSale.update({ where: { id: sale.id }, data: { purchaseId: null } })).rejects.toThrow();
+    // What a sale may still do is be voided by an officer's act elsewhere: a column the guard does not hold.
+    await expect(db.documentSale.update({ where: { id: sale.id }, data: { checkNote: "noted" } })).resolves.toBeTruthy();
+  });
+});
+
+describe("the bounds on what a supplier can make the system write (SR-10 review SEC-2)", () => {
+  it("a purchase that has failed the bounded number of times takes no more tries, and says what to do", async () => {
+    const s = await supplier();
+    await startPurchase(s.actor, { exerciseId: online.exerciseId });
+    for (let i = 0; i < MAX_FAILED_PAYMENT_TRIES; i++) await settlePayment(s.actor, { exerciseId: online.exerciseId, method: METHODS[1], choice: "FAIL" });
+    await refusedWith(settlePayment(s.actor, { exerciseId: online.exerciseId, method: METHODS[0], choice: "PAY" }), "TOO_MANY_FAILED_TRIES");
+    const purchase = await db.documentPurchase.findFirstOrThrow({ where: { supplierId: s.supplierId, windowId: online.windowId } });
+    expect(purchase.state).toBe("AWAITING_PAYMENT");
+    expect(await db.paymentAttempt.count({ where: { purchaseId: purchase.id } })).toBe(MAX_FAILED_PAYMENT_TRIES);
+    const view = await documentsTab(db, s.actor, (await loadBidContext(db, s.actor, online.exerciseId))!);
+    expect(view.online!.payment).toMatchObject({ available: false });
+    expect(view.online!.payment.words).toMatch(/procurement office/);
+  });
+
+  it("the per-account counter limits one account and not another, and starts afresh in the next window", async () => {
+    const a = await supplier();
+    const b = await supplier();
+    const { limit, windowSeconds } = RATE_LIMITS["payment-attempt"];
+    const t = new Date("2030-01-01T10:00:10Z");
+    const ask = (acct: typeof a, at: Date) => countAndJudge(db, { organisationId, accountId: acct.accountId, action: "payment-attempt" }, at);
+    for (let i = 0; i < limit; i++) expect(await ask(a, t)).toEqual({ limited: false });
+    expect(await ask(a, t)).toMatchObject({ limited: true });
+    expect(await ask(b, t)).toEqual({ limited: false });
+    expect(await ask(a, new Date(t.getTime() + windowSeconds * 1000))).toEqual({ limited: false });
+    // The counter is not a trail: it is upserted, and rows a day old are removed on the way.
+    expect(await db.portalRateCounter.count({ where: { accountId: a.accountId } })).toBe(2);
+    await ask(a, new Date(t.getTime() + 3 * 24 * 60 * 60 * 1000));
+    expect(await db.portalRateCounter.count({ where: { accountId: a.accountId } })).toBe(1);
   });
 });

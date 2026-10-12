@@ -17,25 +17,63 @@ import { lex } from "@/lib/scan/source";
  * Paths are compared with forward slashes, so the scan holds on Windows as on Linux.
  */
 
-const SRC = path.join(process.cwd(), "src");
+const ROOTS = ["src", "prisma", "scripts"].map((r) => path.join(process.cwd(), r));
+const SOURCE = /\.(ts|tsx|mts|cts|mjs|js)$/;
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {
     const p = path.join(dir, n);
-    return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) && !p.includes(`${path.sep}generated${path.sep}`) ? [p] : [];
+    if (statSync(p).isDirectory()) return n === "migrations" || n === "node_modules" || p.includes(`${path.sep}generated${path.sep}`) ? [] : walk(p);
+    return SOURCE.test(n) && !/\.test\.[a-z]+$/.test(n) ? [p] : [];
   });
-const FILES = walk(SRC).map((f) => ({ file: path.relative(process.cwd(), f).split(path.sep).join("/"), src: lex(readFileSync(f, "utf8")), code: lex(readFileSync(f, "utf8"), { only: "comments" }), raw: readFileSync(f, "utf8") }));
+// SEC / S8: the scan walks prisma/ (the demo loaders) and scripts/ as well as src/, because a loader or a script writes with the same client.
+const FILES = ROOTS.flatMap(walk).map((f) => ({ file: path.relative(process.cwd(), f).split(path.sep).join("/"), src: lex(readFileSync(f, "utf8")), code: lex(readFileSync(f, "utf8"), { only: "comments" }), raw: readFileSync(f, "utf8") }));
 const filesMatching = (re: RegExp) => FILES.filter((f) => re.test(f.src)).map((f) => f.file).sort();
 
+const PAID = "src/lib/portal/bids/purchase-paid.ts";
+const STORE = "src/lib/portal/bids/purchase-store.ts";
+const ACTIONS = "src/app/sourcing/[id]/window/register-actions.ts";
+/// The only (file, method) pairs that write a DocumentPurchase: a first purchase is made in the store, and a purchase becomes paid in `markPurchasePaid`.
+const PURCHASE_WRITES: readonly string[] = [`${STORE}#create`, `${PAID}#updateMany`];
+const PURCHASE_READS = new Set(["findUnique", "findFirst", "findMany", "findUniqueOrThrow", "findFirstOrThrow", "count", "aggregate", "groupBy"]);
+
 describe("the writers of paid (SR-10)", () => {
-  it("only markPurchasePaid writes a paid state on a purchase", () => {
-    // A write of the state: `state: "PAID"` inside a documentPurchase update or create.
-    const writers = FILES.filter((f) => /documentPurchase\.(?:update|updateMany|create|upsert)\([^;]*state:\s*"PAID"/s.test(f.raw)).map((f) => f.file);
-    expect(writers).toEqual(["src/lib/portal/bids/purchase-paid.ts"]);
+  it("only two (file, method) pairs write a DocumentPurchase at all, and every other use of the delegate is a read", () => {
+    const writes: string[] = [];
+    for (const f of FILES) {
+      // Every mention of the delegate, however it is reached or aliased (`const p = tx.documentPurchase`, `db["documentPurchase"]`): its next token must be a read, or the pair is a write.
+      for (const m of f.src.matchAll(/\bdocumentPurchase\b\s*(?:\.\s*(\w+)|[^.\s])/g)) {
+        const method = m[1];
+        if (!method || !PURCHASE_READS.has(method)) writes.push(`${f.file}#${method ?? "(used as a value)"}`);
+      }
+      if (/\[\s*"documentPurchase"\s*\]/.test(f.code)) writes.push(`${f.file}#(by name)`);
+    }
+    expect([...new Set(writes)].sort()).toEqual([...PURCHASE_WRITES].sort());
   });
 
-  it("markPurchasePaid has exactly two callers: the simulator's settlement and the officer's receipt", () => {
-    const callers = FILES.filter((f) => /\bmarkPurchasePaid\(/.test(f.src) && f.file !== "src/lib/portal/bids/purchase-paid.ts").map((f) => f.file);
-    expect(callers.sort()).toEqual(["src/app/sourcing/[id]/window/register-actions.ts", "src/lib/portal/bids/purchase-store.ts"]);
+  it("no nested write reaches a purchase through a relation, and no raw SQL names the table outside the two files", () => {
+    const nested = /\b(?:documentPurchases|purchaseReceiptsRecorded|documentPurchasesMade|purchases|purchase)\s*:\s*\{\s*(?:create|createMany|connectOrCreate|upsert|update|updateMany|delete|deleteMany|set)\b/;
+    expect(filesMatching(nested)).toEqual([]);
+    const raw = FILES.filter((f) => /\$(?:queryRaw|executeRaw)(?:Unsafe)?|Prisma\.sql|\bsql`/.test(f.src) && /"DocumentPurchase"/.test(f.code)).map((f) => f.file);
+    expect(raw.filter((f) => f !== PAID && f !== STORE)).toEqual([]);
+  });
+
+  it("only markPurchasePaid writes a paid state on a purchase, and its file exports nothing that could write one", () => {
+    const writers = FILES.filter((f) => /documentPurchase\.(?:update|updateMany|create|createMany|createManyAndReturn|updateManyAndReturn|upsert)\([^;]*state:\s*"PAID"/s.test(f.raw)).map((f) => f.file);
+    expect(writers).toEqual([PAID]);
+    const paid = FILES.find((f) => f.file === PAID)!;
+    // The paid write is in one function, and the file exports only that function and its two refusals: nothing else in the file can be called to write it.
+    expect([...paid.src.matchAll(/documentPurchase\.updateMany\(/g)]).toHaveLength(1);
+    const exported = [...paid.src.matchAll(/^export\s+(?:async\s+)?(?:function|class|const|let|var)\s+(\w+)/gm)].map((m) => m[1]).sort();
+    expect(exported).toEqual(["PurchaseBarred", "PurchaseNotAwaiting", "markPurchasePaid"]);
+    expect(/^export\s*\{|^export\s+default/m.test(paid.src)).toBe(false);
+  });
+
+  it("markPurchasePaid has exactly two callers, found however it is imported or aliased", () => {
+    // By the module it comes from, so `import { markPurchasePaid as pay }` and `import * as p from ".../purchase-paid"` are caught as well as a direct call.
+    const importers = FILES.filter((f) => f.file !== PAID && /from\s+["'][^"']*purchase-paid["']|require\(\s*["'][^"']*purchase-paid["']\s*\)|import\(\s*["'][^"']*purchase-paid["']\s*\)/.test(f.code)).map((f) => f.file);
+    expect(importers.sort()).toEqual([ACTIONS, STORE]);
+    const named = FILES.filter((f) => f.file !== PAID && /\bmarkPurchasePaid\b/.test(f.src)).map((f) => f.file);
+    expect(named.sort()).toEqual([ACTIONS, STORE]);
   });
 
   it("the simulated channel is chosen in one caller and the officer's in the other, never the reverse", () => {
@@ -67,9 +105,13 @@ describe("the writers of paid (SR-10)", () => {
     expect(naming).not.toContain("src/lib/portal/bids/purchase-store.ts");
   });
 
-  it("the reconciliation list leaves a simulated payment out", () => {
+  it("the reconciliation reads a receipt by the one definition (isFinanceReceipt) and lists a simulated sale apart, in the sale register's reader and the organisation's", () => {
+    // SR-10 review SEC-1: the claim "a simulated payment is never a finance receipt" is enforced by code that every reader goes through, not by a comment.
     const fee = FILES.find((f) => f.file === "src/lib/integration/fee-receipt.ts")!;
-    expect(fee.raw).toMatch(/paymentChannel\s*!==\s*"SIMULATED"/);
+    expect(fee.src).toMatch(/\bisFinanceReceipt\(/);
+    const read = FILES.find((f) => f.file === "src/lib/window/read.ts")!;
+    expect(read.src).toMatch(/\buncollectedReceipts\(/);
+    expect(read.src).toMatch(/\bsimulatedSales\(/);
   });
 
   it("the sale register reads the channel before it reads a receipt, so a simulated payment is called so", () => {
@@ -78,8 +120,8 @@ describe("the writers of paid (SR-10)", () => {
   });
 });
 
-/// Files that name `financeReceiptNo` as a value they read or show, not one they store: views, filters, and the reading functions. Listed so a new writer is a new line here, with a reason.
-const WRITERS: string[] = ["src/app/sourcing/[id]/window/register-actions.ts", "src/lib/portal/bids/purchase-paid.ts"];
+/// `prisma/demo-window.ts` is the demonstration loader, which writes counter sales with their receipts (never a simulated one). Files that name `financeReceiptNo` as a value they read or show, not one they store: views, filters, and the reading functions. Listed so a new writer is a new line here, with a reason.
+const WRITERS: string[] = ["prisma/demo-window.ts", "src/app/sourcing/[id]/window/register-actions.ts", "src/lib/portal/bids/purchase-paid.ts"];
 const READERS: string[] = [
   "src/lib/portal/bids/workspace-store.ts",
   "src/lib/window/read.ts",
