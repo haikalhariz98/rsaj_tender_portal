@@ -61,7 +61,9 @@ export async function loadOpeningOfficersDemo(db: Db, organisationId: string, no
     for (const [i, p] of chosen.entries()) {
       const id = `${P}oo${named.length + i + 1}`;
       await db.exerciseOpeningOfficer.create({ data: { id, organisationId, exerciseId: ex.id, personId: p.personId, committeeMemberId: p.committeeMemberId, seatLabelSnapshot: p.seatLabelSnapshot, namedAt, namedByPersonId: by.id } });
-      entry("ExerciseOpeningOfficer", id, `${ex.reference} · Opening officer`, "CREATE", namedAt, diffFields(null, { officer: p.personId, seat: p.seatLabelSnapshot }));
+      // As the product's naming action writes it: the person's name, never an id.
+      const who = await db.person.findUniqueOrThrow({ where: { id: p.personId }, select: { name: true } });
+      entry("ExerciseOpeningOfficer", id, `${ex.reference} · Opening officer · ${who.name}`, "CREATE", namedAt, diffFields(null, { officer: who.name, seat: p.seatLabelSnapshot, committee: roster.committee.nameEn }));
     }
     named.push(...chosen.map((_, i) => `${ex.reference}#${i}`));
     const after = await loadOpeningRoster(ex, { id: org.id, code: org.code, today }, db);
