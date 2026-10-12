@@ -364,6 +364,16 @@ const DECIDED_ABSENT = [
     match: /^Invitation$/,
     why: "SR-06 (ruling 9): the Invitation tab is gone; its publishing content is the Publishing section of Tender documents, its sale register and briefing attendance are Sales and briefing on Bids and opening, and its notice, fee and briefing are prepared on Scope and estimate; an old ?tab=invitation address is redirected",
   },
+  {
+    screen: /^\/sourcing\/[^/]+$/,
+    match: /^(Tendering starts on|Closing day|Closing time)$/,
+    why: "SR-05 (ruling 8): the submit drawer no longer asks for the days; they are entered as proposed dates under Key dates & person in charge on Scope and estimate, before submission, and the drawer shows them",
+  },
+  {
+    screen: /^\/sourcing\/[^/]+$/,
+    match: /^The panel$/,
+    why: "SR-07 (ruling 11): where the exercise names its opening officers, the start of the opening no longer picks a panel from the committee's seats; the panel is those officers and the form asks only who is present",
+  },
   // 6.15a (plan §5, OD-1..OD-10): the staff-side supplier register, on the supplier screens only.
   {
     screen: /^\/suppliers/,
