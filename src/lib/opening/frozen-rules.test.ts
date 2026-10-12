@@ -40,6 +40,7 @@ describe("the words (S-4)", () => {
     expect(notJudged).toMatch(/Documents approved later take the setting \(Configuration › Tender documents\)/);
   });
   it("this exercise's exit is cancellation (C-9)", () => {
+    // SR-06 (ruling 9): the Invitation tab is gone; the exit is named at Tender documents, under Publishing.
     expect(notJudged).toMatch(/this exercise's exit is to cancel it, from Tender documents, under Publishing\.$/);
     expect(consequence).not.toMatch(/\bset it\b/i);
     expect(consequence).toMatch(/Windows published later take the setting \(Configuration › Invitation, under Bid receipt, by sourcing method\)/);

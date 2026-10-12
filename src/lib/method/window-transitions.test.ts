@@ -43,6 +43,7 @@ describe("cancelling a published exercise (FR-ADV-016)", () => {
     // The plain cancel act (a reason, no route) is refused: it names where cancelling is done.
     const plain = transitionFault(from, "CANCELLED", { today, reason: "Scope withdrawn" });
     expect(codes(plain)).toEqual(["NOT_BY_THIS_ACT"]);
+    // SR-06 (ruling 9): the Invitation tab is gone; cancelling a published exercise is done from Publishing on Tender documents.
     expect(findingText(plain[0])).toMatch(/Publishing on Tender documents/);
     expect(codes(transitionFault(from, "CANCELLED", { today, via: "WINDOW_CANCELLATION", reason: "  " }))).toEqual(["CANCEL_REASON_REQUIRED"]);
   });
@@ -53,6 +54,7 @@ describe("cancelling a published exercise (FR-ADV-016)", () => {
 
   it("each act's refusal has words", () => {
     for (const act of ["PUBLICATION", "WINDOW_CANCELLATION"]) expect(findingText({ code: "NOT_BY_THIS_ACT", level: "block", data: { act } })).not.toMatch(/route for tendering is rejected/);
+    // SR-06 (ruling 9): as above, the words point at Publishing on Tender documents.
     expect(findingText({ code: "PUBLISH_NOT_READY", level: "block" })).toMatch(/Publishing on Tender documents/);
   });
 });

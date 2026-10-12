@@ -94,6 +94,7 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
     expect(labels(trail("/sourcing/sx1", null))).toEqual(["Sourcing", "Exercise"]);
     expect(labels(trail("/sourcing/new", null))).toEqual(["Sourcing", "New exercise"]);
     expect(trail("/sourcing/sx1/evaluation/report", "EX/1")[2].href).toBe("/sourcing/sx1?tab=evaluation&section=report");
+    // SR-06 (ruling 9): the Invitation tab is gone; the sale register is Sales and briefing on Bids and opening.
     expect(trail("/sourcing/sx1/label/s1", "EX/1")[2].href).toBe("/sourcing/sx1?tab=bids&section=sales");
     expect(trail("/sourcing/sx1/opening/print", "EX/1")[2].href).toBe("/sourcing/sx1?tab=bids&section=schedule");
   });

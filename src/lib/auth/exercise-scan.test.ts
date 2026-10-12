@@ -45,6 +45,8 @@ export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
   "src/app/sourcing/[id]/documents/workspace.tsx": "rendered only by the exercise page, which refuses a hidden exercise first",
   "src/app/sourcing/[id]/evaluation/workspace.tsx": "rendered only by the exercise page, which refuses a hidden exercise first",
   "src/app/sourcing/[id]/scope/officers-section.tsx": "SR-07: a section of Scope and estimate, rendered only by the exercise page, which refuses a hidden exercise first",
+  // O1 (ruling 10): `src/lib/method/overview-read.ts` is no longer listed. The Overview is now the requisition summary and the flow; the tender conditions,
+  // key dates and briefings it read moved to Scope and estimate (`prep-read.ts`, below), so it reads no exercise on its own and needs no entry.
   "src/lib/method/prep-read.ts": "SR-05: the reads of Scope and estimate's Details and Key dates sections, called by the exercise page after its guard",
   "src/app/sourcing/[id]/scope/workspace.tsx": "rendered only by the exercise page, which refuses a hidden exercise first",
   "src/app/suppliers/[id]/standing-panels.tsx": "reads the exercises left after the supplier loader removed the hidden ones (`l.hidden`, from `loadSupplier`)",
