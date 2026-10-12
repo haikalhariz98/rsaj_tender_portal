@@ -180,7 +180,7 @@ const READINESS_TEXT: Record<Exclude<ReadinessFault, ContentFault | "MANDATORY_U
   DECLARATION_PART_MISSING: () => `Every tender and quotation pack binds the bidder's declaration as a mandatory part, and this pack's parts have none. Add a declaration part for this pack kind under Configuration, Tender documents.`,
   DECLARATION_NOT_MANDATORY: (f) => `The bidder's declaration (part ${d(f, "part")}) must be mandatory. ${SET_PARTS_REFRESH}`,
   NO_PARTS: () => "The pack has no parts.",
-  PART_WAS_OMITTED: (f) => `Part ${d(f, "part")} was left out earlier by an officer (reason given: ${d(f, "reason")}). Parts are now judged by their content, and this one is in order, so it will be issued when you submit. If it should not be issued, cancel and do not submit; its earlier reason stays on its History.`,
+  PART_WAS_OMITTED: (f) => `Part ${d(f, "part")} was left out earlier by an officer (reason given: ${d(f, "reason")}). Parts are now judged by their content, and this one is in order, so it will be issued when you submit; there is no way to leave it out. To keep it out of this version, do not submit it. Its earlier reason stays on its History.`,
   RETURN_NOT_SET: (f) => `Whether a bidder returns part ${d(f, "part")} with the bid is not set. Approved like this, these documents keep it unset, and the bid opening will be refused when it is finalised: completeness cannot be judged against an unset answer, and the only way on then is to cancel the exercise. ${SET_PARTS_REFRESH}`,
 };
 

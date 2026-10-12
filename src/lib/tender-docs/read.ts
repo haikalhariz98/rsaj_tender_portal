@@ -57,7 +57,7 @@ import {
   UPLIFT_KIND_LABEL,
   yesNoNotSet,
 } from "./labels";
-import { isLivePack, issuedPart, mayHoldFile, NOT_ISSUED_REASON, packEditFault, partIssue, startPackFaults, submitFaults, nextPack, takesFile, type ContentContext } from "./pack";
+import { billPartRequired, isLivePack, issuedPart, mayHoldFile, NOT_ISSUED_REASON, packEditFault, partIssue, startPackFaults, submitFaults, nextPack, takesFile, type ContentContext } from "./pack";
 import { distinctOffices, pickTemplateView } from "./part-view";
 import { wasOmittedByOfficer } from "./pack";
 import { newPartsKey, newPartsOf, newPartsView } from "./new-parts";
@@ -311,7 +311,8 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
         issuedAs: asFile ? "A file" : row.source === "TEMPLATE" ? "Merged text" : row.source === "APPENDIX" ? "The Appendix, filled in as a form" : "The bill of quantities, unpriced",
         uploadNote: uploadStampNote(restricted, asFile ? "UPLOAD" : row.source),
         preparedBy: c.unitName(row.ownerOrgUnitCode),
-        mandatory: yesNoNotSet(row.mandatory),
+        // Review S5: the line says what the gate will hold the part to.
+        mandatory: draft && billPartRequired(facts, content) ? "Yes" : yesNoNotSet(row.mandatory),
         inTableDocument: yesNoNotSet(row.inTableDocument),
         state,
         stateKey,

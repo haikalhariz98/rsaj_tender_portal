@@ -253,6 +253,15 @@ export function mediaFault(sniffed: Sniffed, declared: { filename: string; conte
   return null;
 }
 
+/**
+ * The staff upload's judgement (ruling 12a): `mediaFault`, except that a ZIP the archive reader refused is refused as an Office file, with the reason, rather than as a bare archive. The unset
+ * rules and every other fault still come first and unchanged. `office`: why `inspectArchive` refused the file, null where it was not a ZIP or was accepted.
+ */
+export function staffMediaFault(sniffed: Sniffed, declared: { filename: string; contentType?: string | null }, policy: StorePolicy, office: OfficeRefusal | null): Finding<MediaFault> | null {
+  const judged = mediaFault(sniffed, declared, policy);
+  return judged?.code === "ARCHIVE_NOT_ACCEPTED" && office ? { code: "OFFICE_FILE_REFUSED", level: "block", data: { reason: office } } : judged;
+}
+
 /// Whether a policy's allowed types are all ones the product can recognise.
 export function unknownPolicyTypes(types: readonly string[]): string[] {
   return types.filter((t) => !isKnownMediaType(t));

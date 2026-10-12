@@ -4,7 +4,7 @@ import ExcelJS from "exceljs";
 
 import { documentFaultText } from "./labels";
 import { uploadFaultText } from "@/lib/portal/registration/words";
-import { ARCHIVE_TAIL_BYTES, DOCX_TYPE, inspectArchive, mediaFault, ooxmlTypeOf, sniffMediaType, supplierAcceptedTypes, typeFromHeader, typeFromName, unknownPolicyTypes, XLSX_TYPE } from "./media";
+import { ARCHIVE_TAIL_BYTES, DOCX_TYPE, inspectArchive, mediaFault, ooxmlTypeOf, sniffMediaType, staffMediaFault, supplierAcceptedTypes, typeFromHeader, typeFromName, unknownPolicyTypes, XLSX_TYPE } from "./media";
 import type { StorePolicy } from "./types";
 
 const bytes = (...xs: (number | string)[]) => new Uint8Array(xs.flatMap((x) => (typeof x === "string" ? [...Buffer.from(x, "latin1")] : [x])));
@@ -381,5 +381,24 @@ describe("a refused Office file says why and what to do instead; the supplier si
     const f = mediaFault(sniffMediaType(book.subarray(0, 512)), { filename: "bq.xlsx" }, { allowedMediaTypes: supplierAcceptedTypes([XLSX_TYPE, "application/pdf"]), maxBytes: 1n });
     expect(f?.code).toBe("ARCHIVE_NOT_ACCEPTED");
     expect(uploadFaultText({ code: "TYPE_NOT_ALLOWED", level: "block" }).en).toMatch(/listed beside the upload button/);
+  });
+});
+
+describe("the staff upload judges a refused Office file with its reason (ruling 12a)", () => {
+  const officePolicy: StorePolicy = { ...policy, allowedMediaTypes: [...policy.allowedMediaTypes, XLSX_TYPE] };
+  it("a macro-enabled workbook is refused as an Office file, naming why", () => {
+    const z = crafted([...OFFICE, "xl/vbaProject.bin"]);
+    const verdict = verdictOf(z);
+    const f = staffMediaFault(sniffMediaType(z.subarray(0, 512)), { filename: "bq.xlsx" }, officePolicy, "refused" in verdict ? verdict.refused : null);
+    expect(f).toEqual({ code: "OFFICE_FILE_REFUSED", level: "block", data: { reason: "MACRO" } });
+    expect(documentFaultText(f!)).toMatch(/macros/);
+  });
+  it("the unset rules still come first, and a ZIP that is no Office file at all is still an archive", () => {
+    const z = crafted(OFFICE);
+    expect(staffMediaFault("application/zip", { filename: "bq.xlsx" }, { ...policy, allowedMediaTypes: [] }, "MACRO")?.code).toBe("TYPES_NOT_SET");
+    expect(staffMediaFault("application/zip", { filename: "bq.xlsx" }, officePolicy, null)?.code).toBe("ARCHIVE_NOT_ACCEPTED");
+    // An accepted workbook is judged as ever.
+    expect(staffMediaFault(XLSX_TYPE, { filename: "bq.xlsx" }, officePolicy, null)).toBeNull();
+    expect(z.length).toBeGreaterThan(0);
   });
 });

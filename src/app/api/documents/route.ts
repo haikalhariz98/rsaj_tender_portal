@@ -9,7 +9,7 @@ import { limitBody } from "@/lib/documents/body";
 import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency";
 import { documentFaultText } from "@/lib/documents/labels";
 import { effectiveCap, readLimit, requestLengthFault, sizeFault } from "@/lib/documents/limits";
-import { ARCHIVE_TAIL_BYTES, inspectArchive, mediaFault, sniffMediaType, SNIFF_BYTES, type OfficeRefusal } from "@/lib/documents/media";
+import { ARCHIVE_TAIL_BYTES, inspectArchive, sniffMediaType, SNIFF_BYTES, staffMediaFault, type OfficeRefusal } from "@/lib/documents/media";
 import { STAGED_FOR_DELEGATION, STAGED_FOR_TEMPLATE_FILE } from "@/lib/documents/staged-for";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
@@ -111,8 +111,7 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
     else officeRefusal = verdict.refused;
   }
   // Ruling 12a: a refused Office file says why and what to do instead. The unset-rules fault still comes first.
-  const judged = mediaFault(sniffed, { filename: fileName, contentType: file.type }, policy);
-  const media = judged?.code === "ARCHIVE_NOT_ACCEPTED" && officeRefusal ? ({ code: "OFFICE_FILE_REFUSED", level: "block", data: { reason: officeRefusal } } as const) : judged;
+  const media = staffMediaFault(sniffed, { filename: fileName, contentType: file.type }, policy, officeRefusal);
   if (media) return refuse(415, media, at);
   // The upload is recorded by the signed-in officer (Phase 2b): the person is the session's, never a field of the form.
   // An administrator account does no transactional act (NFR-SEC-004), and uploading a document is one, except for the scan of a delegation's signed recommendation: the delegation

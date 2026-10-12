@@ -678,7 +678,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
       const to = issued[i];
       if (row.state === to.state && row.omittedReason === to.omittedReason) continue;
       await tx.tenderPackPart.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { state: to.state, omittedReason: to.omittedReason } });
-      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${pack.versionNo} · part ${row.printedNumber}`), "UPDATE", partAudit(partAuditFacts(row, row.template?.nameEn ?? null), partAuditFacts({ ...row, state: to.state, omittedReason: to.omittedReason }, row.template?.nameEn ?? null)), to.omittedReason === NOT_ISSUED_REASON ? notIssuedReason(row.source) : "");
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${pack.versionNo} · part ${row.printedNumber}`), "UPDATE", partAudit(partAuditFacts(row, row.template?.nameEn ?? null), partAuditFacts({ ...row, state: to.state, omittedReason: to.omittedReason }, row.template?.nameEn ?? null)), to.omittedReason === NOT_ISSUED_REASON ? notIssuedReason(to.source) : "");
     }
     if (pack.appendix && appendixFacts) {
       await tx.conditionsAppendix.update({ where: { id: pack.appendix.id, organisationId: actor.organisationId }, data: { status: "COMPLETE" } });

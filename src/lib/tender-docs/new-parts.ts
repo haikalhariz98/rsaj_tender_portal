@@ -13,10 +13,14 @@ import type { ResolvedPart } from "./types";
 export const TAKE_PARTS_LABEL = "Take newly configured parts";
 
 /// The parts the configuration resolves now that the draft does not hold, in printed order. None where the composition cannot be resolved (the start findings say why).
-export function newPartsOf(composition: Composition, held: readonly { partCode: string }[]): ResolvedPart[] {
+///
+/// A part is not listed if the draft already holds a part of its role (other than OTHER, which may repeat): the composition replaces a general part with a basis-specific one of the same
+/// role, so taking both would give the draft two conditions parts, or two bills, which no composition would ever produce. The draft's own part stands; a start of the next version takes the new one.
+export function newPartsOf(composition: Composition, held: readonly { partCode: string; role: string }[]): ResolvedPart[] {
   if ("fault" in composition) return [];
   const have = new Set(held.map((p) => p.partCode));
-  return composition.parts.filter((p) => !have.has(p.code));
+  const roles = new Set(held.map((p) => p.role));
+  return composition.parts.filter((p) => !have.has(p.code) && (p.role === "OTHER" || !roles.has(p.role)));
 }
 
 /// The list shown, as the key the officer confirms with: the act recomputes it under the pack's lock and writes only if it is still the same.
