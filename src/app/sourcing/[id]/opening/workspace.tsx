@@ -317,7 +317,17 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
         icon={<FileIcon size={17} />}
         title={<span className="inline-flex flex-wrap items-center gap-2">{`Schedule of tenders · ${o.title}`}<Badge tone={o.finalised ? "ok" : "warn"} dot>{o.finalised ? `Finalised ${o.finalisedAt}` : "Not finalised: a draft from the record"}</Badge></span>}
         subtitle={o.finalised ? "Frozen when the opening was finalised; it never changes." : "Built from the record as it stands. It is frozen when the opening is finalised."}
-        actions={<ButtonLink href={`/sourcing/${d.exerciseId}/opening/print?opening=${o.id}`} variant="secondary" size="sm">Print</ButtonLink>}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {o.finalised && (
+              <>
+                <ButtonLink href={`/sourcing/${d.exerciseId}/opening/download/schedule?opening=${o.id}`} variant="secondary" size="sm">Download schedule (CSV)</ButtonLink>
+                <ButtonLink href={`/sourcing/${d.exerciseId}/opening/download/summary?opening=${o.id}`} variant="secondary" size="sm">Download Grand Summary (CSV)</ButtonLink>
+              </>
+            )}
+            <ButtonLink href={`/sourcing/${d.exerciseId}/opening/print?opening=${o.id}`} variant="secondary" size="sm">Print</ButtonLink>
+          </div>
+        }
       />
       <CardBody className="border-t border-line">
         <KeyValues columns={2} items={o.header} />
