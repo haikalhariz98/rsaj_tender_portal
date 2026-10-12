@@ -216,3 +216,15 @@ describe("small wording rules (UX 22)", () => {
     expect(trailLabel("Tender documents v2 · Appendix")).toBe("Tender documents v2 · Appendix");
   });
 });
+
+describe("why an optional part was Not issued (review nit)", () => {
+  it("says what was actually missing, by how the part is issued", async () => {
+    const { notIssuedReason, notIssuedWords } = await import("./labels");
+    expect(notIssuedWords("UPLOAD")).toBe("Not issued: nothing was uploaded to this part when the documents were submitted.");
+    // A merged-text part left out because its merge was incomplete is not "nothing was uploaded".
+    expect(notIssuedWords("TEMPLATE")).toMatch(/merged text was incomplete/);
+    expect(notIssuedWords("TEMPLATE")).not.toMatch(/nothing was uploaded/);
+    expect(notIssuedReason("BQ_UNPRICED")).toMatch(/bill of quantities/);
+    expect(notIssuedReason("APPENDIX")).toMatch(/Appendix/);
+  });
+});

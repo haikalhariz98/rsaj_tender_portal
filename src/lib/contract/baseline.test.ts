@@ -71,6 +71,13 @@ describe("the builders' works value and the first interim minimum (§8.3)", () =
   it("a bill with lines not complete does not state the sums", () => {
     expect(sourceOf("sums", inputs({ bq: { versionNo: 1, primeCostSums: 0n, provisionalSums: 0n, incompleteLines: 2 } }))).toBeNull();
   });
+
+  // Review M2 / ruling 13: a basis let on a bill whose bill is an uploaded file has no bill version pinned. Nothing at the baseline refuses for ever: the sums are keyed (ENTERED).
+  it("with no bill version at all, the sums can be keyed, so a bill-based basis in file mode is not blocked for ever", () => {
+    expect(sourceOf("sums", inputs({ bq: null }))).toBeNull();
+    expect(enterFault("sums", inputs({ bq: null }))).toBeNull();
+    expect(enterFault("sums", inputs())).toBe("STATED_ELSEWHERE");
+  });
 });
 
 describe("liquidated damages a day (§8.6, Q-6)", () => {

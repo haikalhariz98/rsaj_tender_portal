@@ -23,7 +23,7 @@ import { tableDocumentNote } from "@/lib/window/read";
 import { RouteSteps } from "../route-steps";
 import { ConditionsCards } from "./conditions";
 import { InspectionLogCard } from "./inspection-log";
-import { DecideDrawer, type FixedWindow, RefreshFlagsDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
+import { DecideDrawer, type FixedWindow, RefreshFlagsDrawer, StartPackDrawer, SubmitPackDrawer, TakeNewPartsDrawer } from "./editors";
 import { PartsList, type PartRow } from "./parts-list";
 import { requireStaff } from "@/app/_auth/actor";
 
@@ -169,6 +169,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
                 <p className="text-[14px] font-bold text-ink">Documents to issue</p>
                 <p className="text-[12.5px] text-ink-3">{hasBq ? "In print order. Each line is ready as soon as its file is uploaded, or its text merges without a missing field. The bill of quantities is issued unpriced where it is built on screen." : "In print order. Each line is ready as soon as its file is uploaded, or its text merges without a missing field."}</p>
               </div>
+              {d.pack.newParts && <TakeNewPartsDrawer exerciseId={exerciseId} parts={d.pack.newParts.parts} confirmedParts={d.pack.newPartsKey ?? ""} />}
               {d.pack.refresh && <RefreshFlagsDrawer exerciseId={exerciseId} refresh={d.pack.refresh} confirmedChanges={d.pack.refreshKey ?? ""} />}
             </div>
             <PartsList exerciseId={exerciseId} parts={parts} />

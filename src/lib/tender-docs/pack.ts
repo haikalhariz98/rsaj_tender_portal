@@ -67,6 +67,9 @@ export interface ContentContext {
   bqFinalised: boolean;
   /// SR-09 (ruling 13): the exercise's pin. False: the bill is an uploaded file, so the bill part takes a file as an uploaded part does. Null: not set (the gate says so).
   billOnScreen: boolean | null;
+  /// Review S5: whether the contract basis is let on a bill of quantities. True with the bill off screen: the bill part is mandatory, whatever its configured flag says, since no bill is
+  /// no tender. Null/absent: not known or not set (the scope findings say so).
+  basisRequiresBq?: boolean | null;
   /// The Appendix is complete (no `appendixFaults`); null where the pack has none.
   appendixComplete: boolean | null;
   /// The merge fields a template may name: the pack's and the live clauses' (`packWhitelist`). Absent: the pack's only, so a clause citation is refused (fails safe).
@@ -129,6 +132,9 @@ export type PartIssue =
   | { state: "NOT_ISSUED"; faults: Finding<ContentFault>[] }
   | { state: "NOT_READY"; faults: Finding<ContentFault>[] };
 
+/// Review S5: the bill part where the basis needs a bill and the bill is an uploaded file. It cannot be left out: a bill-based basis with no bill at all is not a tender.
+export const billPartRequired = (p: Pick<PackPartFacts, "source">, ctx: Pick<ContentContext, "billOnScreen" | "basisRequiresBq">): boolean => p.source === "BQ_UNPRICED" && ctx.billOnScreen === false && ctx.basisRequiresBq === true;
+
 export function partIssue(p: PackPartFacts, ctx: ContentContext): PartIssue {
   const faults = partContentFaults(p, ctx);
   if (faults.length === 0) {
@@ -137,7 +143,7 @@ export function partIssue(p: PackPartFacts, ctx: ContentContext): PartIssue {
     if (p.source === "TEMPLATE" && p.liveUploads === 0) return { state: "READY", as: "TEXT" };
     return { state: "READY", as: "FILE" };
   }
-  return p.mandatory === false ? { state: "NOT_ISSUED", faults } : { state: "NOT_READY", faults };
+  return p.mandatory === false && !billPartRequired(p, ctx) ? { state: "NOT_ISSUED", faults } : { state: "NOT_READY", faults };
 }
 
 /// The part as submission settles it: ready, "Not issued" (omitted with that reason), or not ready (the readiness findings block it).
@@ -178,7 +184,10 @@ export function pickTemplateFaults(p: PackPartFacts, t: TemplateFacts, packStatu
 
 // ------------------------------------------------------------------ the pack's readiness
 
-export type ReadinessFault = ContentFault | "BILL_PART_MISSING" | "MANDATORY_UNSET" | "PART_NOT_READY" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED" | "DECLARATION_PART_MISSING" | "DECLARATION_NOT_MANDATORY" | "NO_PARTS" | "RETURN_NOT_SET";
+export type ReadinessFault = ContentFault | "BILL_PART_MISSING" | "PART_WAS_OMITTED" | "MANDATORY_UNSET" | "PART_NOT_READY" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED" | "DECLARATION_PART_MISSING" | "DECLARATION_NOT_MANDATORY" | "NO_PARTS" | "RETURN_NOT_SET";
+
+/// Review S6: a part an officer omitted with a reason of their own, before ruling 14 removed the Omit act (the engine's own "Not issued" is not one).
+export const wasOmittedByOfficer = (p: Pick<PackPartFacts, "state" | "omittedReason">): boolean => p.state === "OMITTED" && p.omittedReason.trim() !== "" && p.omittedReason !== NOT_ISSUED_REASON;
 
 /**
  * Everything the parts still need (FR-DOC-001): each part ready or, where not mandatory,
@@ -195,6 +204,8 @@ export function packReadiness(parts: readonly PackPartFacts[], ctx: ContentConte
     // SR-11: ready is derived from the content, never from a stored state. An optional part with nothing to issue is "Not issued" and does not block.
     const issue = partIssue(p, ctx);
     if (issue.state === "NOT_READY") out.push(...issue.faults);
+    // Review S6: a draft already in progress changes outcome silently otherwise. A part an officer once left out is now judged by its content, so with content in order it WILL be issued. Said at submission, with the officer's own reason, which stays visible on the line. Honouring the old omission is not offered: Omit and Reopen are gone (ruling 14), so nothing could ever reverse it.
+    if (wasOmittedByOfficer(p) && issue.state === "READY") out.push({ code: "PART_WAS_OMITTED", level: "warn", data: { part, reason: p.omittedReason } });
   }
   // Phase 2 close-out 67-C1: which mandatory parts a bidder returns is frozen with the approved pack and
   // read at the opening (6.7), where an unset answer blocks finalising (CHECKLIST_NOT_JUDGED, exit:
@@ -242,7 +253,7 @@ export interface SubmitInput {
   exerciseStatus: ExerciseStatus;
   parts: readonly PackPartFacts[];
   /// What the parts' content is judged by. Whether the bill is on screen is the exercise's pin, read once from `scope.onScreenBillUsed`.
-  content: Omit<ContentContext, "billOnScreen">;
+  content: Omit<ContentContext, "billOnScreen" | "basisRequiresBq">;
   /// 6.2 OD-4: the scope's readiness inputs, read on locked rows.
   scope: PackInput;
   /// The Appendix, where the composition has one (a part with role APPENDIX); else null.
@@ -287,7 +298,7 @@ export interface SubmitFindings {
 export function submitFaults(i: SubmitInput): SubmitFindings {
   const edit = packEditFault(i.packStatus, i.exerciseStatus);
   const hasAppendixPart = i.parts.some((p) => p.role === "APPENDIX");
-  const ctx: ContentContext = { ...i.content, billOnScreen: i.scope.onScreenBillUsed };
+  const ctx: ContentContext = { ...i.content, billOnScreen: i.scope.onScreenBillUsed, basisRequiresBq: i.scope.basis?.requiresBq ?? null };
   // SR-11: every check below that reads a part's state or source reads the part as submission settles and issues it.
   const issued = i.parts.map((p) => issuedPart(p, ctx));
   const readiness = packReadiness(i.parts, ctx);

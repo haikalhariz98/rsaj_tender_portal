@@ -36,18 +36,19 @@ import { appendixAudit, ENTITY, packCreatedAudit, packStatusAudit, partAudit, ty
 import { formLabel, resolveComposition } from "@/lib/tender-docs/composition";
 import { packFieldValues } from "@/lib/tender-docs/fields";
 import { appendixText, freezePack } from "@/lib/tender-docs/freeze";
-import { datesFaultText, PACK_KIND_LABEL, partFaultText, startFaultText, submitFindingTexts } from "@/lib/tender-docs/labels";
+import { datesFaultText, notIssuedReason, PACK_KIND_LABEL, partFaultText, startFaultText, submitFindingTexts } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { loadSubmitExtras } from "@/lib/tender-docs/submit-extras";
 import { allOf, blockingOf, issuedPart, mayHoldFile, nextPack, NOT_ISSUED_REASON, packEditFault, pickTemplateFaults, startPackFaults, submitFaults } from "@/lib/tender-docs/pack";
+import { confirmedPartsFault, newPartsOf } from "@/lib/tender-docs/new-parts";
 import { CONFIG_STILL_UNSET, confirmedChangesFault, flagChanges } from "@/lib/tender-docs/refresh";
 import { isPct, PCT_COLUMN, pctRefusal, type PctField } from "@/lib/tender-docs/percent";
 import { liveClauses } from "@/lib/tender-docs/clauses";
 import { conditionFieldValues, conditionsSnapshot, conditionStamp, readConditionsSnapshot } from "@/lib/tender-docs/conditions";
 import { packWhitelist } from "@/lib/tender-docs/fields";
-import { appendixFactsOf, loadClauses, loadConditions, loadConfiguredParts, loadPacks, loadTemplates, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, templateFactsOf, type PackRow } from "@/lib/tender-docs/repo";
+import { appendixFactsOf, contentContextOf, loadClauses, loadConditions, loadConfiguredParts, loadPacks, loadTemplates, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, templateFactsOf, type PackRow } from "@/lib/tender-docs/repo";
 import { approvalDatesFault, estimateLeadWarning, frozenWindowFault, RETURN_DECIDED_BY, returnOutcome, TENDERING_DOMAIN, tenderingRejectionSnapshot, tenderingRouteForRequester } from "@/lib/tender-docs/tendering";
-import type { Finding } from "@/lib/tender-docs/types";
+import type { Finding, ResolvedPart } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
@@ -149,6 +150,32 @@ const partAuditFacts = (p: { printedNumber: string; labelSnapshot: string; role:
 
 // ------------------------------------------------------------------ starting a pack
 
+/// A part as a pack is started with it, or as a part configured later is added to a draft (one shape for both). SR-11 (ruling 14): ready is derived from the content, never stored by an act; a part starts as not started and submission settles it.
+function newPartData(organisationId: string, packId: string, p: ResolvedPart, templateId: string | null) {
+  return {
+    organisationId,
+    packId,
+    partCode: p.code,
+    printedNumber: p.printedNumber,
+    sortOrder: p.sortOrder,
+    labelSnapshot: p.labelEn,
+    labelMsSnapshot: p.labelMs,
+    role: p.role,
+    content: p.content,
+    source: p.source,
+    mandatory: p.mandatory,
+    inTableDocument: p.inTableDocument,
+    // 6.7 (6.6 ruling): as configured when the part is taken, with its provenance; never refreshed onto a frozen pack.
+    returnedByBidder: p.returnedByBidder ?? null,
+    returnedByBidderProvenance: p.returnedByBidderProvenance ?? null,
+    ownerOrgUnitCode: p.ownerOrgUnitCode,
+    templateCode: p.templateCode,
+    templateId: p.source === "TEMPLATE" && p.content !== "BESPOKE" ? templateId : null,
+    state: "NOT_STARTED" as const,
+    omittedReason: "",
+  };
+}
+
 /**
  * Start the exercise's tender documents: version 1 from the configured composition for its
  * pack kind and basis, or — where the latest version was returned for amendment — the next
@@ -190,31 +217,7 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
     for (const p of composition.parts) {
       const was = copyFrom?.parts.find((x) => x.partCode === p.code) ?? null;
       const template = was?.templateId ? (templates.find((t) => t.id === was.templateId) ?? null) : p.templateCode ? (byCode.get(p.templateCode) ?? null) : null;
-      const row = await tx.tenderPackPart.create({
-        data: {
-          organisationId: l.org.id,
-          packId: pack.id,
-          partCode: p.code,
-          printedNumber: p.printedNumber,
-          sortOrder: p.sortOrder,
-          labelSnapshot: p.labelEn,
-          labelMsSnapshot: p.labelMs,
-          role: p.role,
-          content: p.content,
-          source: p.source,
-          mandatory: p.mandatory,
-          inTableDocument: p.inTableDocument,
-          // 6.7 (6.6 ruling): as configured when the pack starts, with its provenance; never refreshed onto a frozen pack.
-          returnedByBidder: p.returnedByBidder ?? null,
-          returnedByBidderProvenance: p.returnedByBidderProvenance ?? null,
-          ownerOrgUnitCode: p.ownerOrgUnitCode,
-          templateCode: p.templateCode,
-          templateId: p.source === "TEMPLATE" && p.content !== "BESPOKE" ? (template?.id ?? null) : null,
-          // SR-11 (ruling 14): ready is derived from the content, never stored by an act; a part starts as not started and submission settles it.
-          state: "NOT_STARTED",
-          omittedReason: "",
-        },
-      });
+      const row = await tx.tenderPackPart.create({ data: newPartData(l.org.id, pack.id, p, template?.id ?? null) });
       await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${versionNo} · part ${p.printedNumber}`), "CREATE", partAudit(null, partAuditFacts(row, row.templateId ? (template?.nameEn ?? null) : null)));
       // The returned version's files go with the part, each judged as an attachment now: an uploaded part's, a merged-text part's that replaced its text (SR-11), and the bill's where it is a file (SR-09).
       if (was && mayHoldFile(row, { billOnScreen: l.ex.onScreenBillUsed })) {
@@ -294,6 +297,49 @@ export async function refreshPartFlags(_prev: FormState, data: FormData): Promis
       };
       await tx.tenderPackPart.update({ where: { id: part.id, organisationId: actor.organisationId }, data: next });
       await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, ...next }, part.template?.nameEn ?? null)), "Refreshed from the configuration");
+    }
+    return { ok: true };
+  });
+}
+
+/**
+ * Take the parts configured since this draft was started (review M2; ruling 13). A draft keeps the parts it was started with, and the refresh above takes only two answers, so a part
+ * added to Configuration afterwards (the bill of quantities part, once the bill is an uploaded file) could never reach it: a block with no way out but cancelling. This adds the
+ * parts the configuration resolves now for this exercise (same resolver as `startPack`) that the draft does not hold, each audited, with the Appendix begun if one comes. It only
+ * adds: nothing the draft holds is changed or removed, and a frozen version is never touched. The officer confirms the list shown; a different list now is refused.
+ */
+export async function takeNewParts(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const exerciseId = exerciseIdOf(data);
+  const confirmed = data.get("confirmedParts");
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
+    const pack = draftOf(packs);
+    if (!pack) return NO_PACK;
+    const edit = packEditFault(pack.status, l.ex.status);
+    if (edit) return refuse([edit]);
+    if (!l.org.today) return NO_ZONE;
+    const composition = resolveComposition(await loadConfiguredParts(l.org.id, tx), l.ex.packKindSnapshot ?? "NONE", l.ex.contractBasisCode, l.org.today);
+    if ("fault" in composition) return refuse([{ code: composition.fault, level: "block", ...(composition.role ? { data: { role: composition.role } } : {}) }], startFaultText, "Nothing was added:");
+    const fresh = newPartsOf(composition, pack.parts);
+    const changed = confirmedPartsFault(typeof confirmed === "string" ? confirmed : null, fresh);
+    if (changed) return { ok: false, message: changed };
+    if (fresh.length === 0) return { ok: false, message: "Nothing to add: the draft already holds every part the configuration gives this exercise." };
+    const templates = await loadTemplates(l.org.id, tx);
+    for (const p of fresh) {
+      const template = p.templateCode ? (templates.find((t) => t.code === p.templateCode) ?? null) : null;
+      const row = await tx.tenderPackPart.create({ data: newPartData(l.org.id, pack.id, p, template?.id ?? null) });
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${pack.versionNo} · part ${p.printedNumber}`), "CREATE", partAudit(null, partAuditFacts(row, row.templateId ? (template?.nameEn ?? null) : null)), "Taken from the configuration after the draft was started");
+    }
+    // A new Appendix part begins its form empty, as a started pack's does.
+    if (fresh.some((p) => p.role === "APPENDIX") && !pack.appendix) {
+      const appx = await tx.conditionsAppendix.create({ data: { organisationId: l.org.id, packId: pack.id, status: "DRAFT" } });
+      const names = await officeNames(tx, l.org.id);
+      const stored = (await loadPacks(exerciseId, tx)).find((x) => x.id === pack.id)!.appendix!;
+      const facts = appendixFactsOf(stored);
+      if (appendixComplete(facts)) await tx.conditionsAppendix.update({ where: { id: appx.id, organisationId: actor.organisationId }, data: { status: "COMPLETE" } });
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.appendix, appx.id, label(l, `Tender documents v${pack.versionNo} · Appendix`), "CREATE", appendixAudit(null, facts, names.name));
     }
     return { ok: true };
   });
@@ -593,7 +639,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
     const closingTime = proposed.closingTime;
     const window = { startOn, closingDay };
     // SR-11, ADR 0035: each part as submission settles it: ready, "Not issued" (an optional part with nothing to issue), and issued from its file where it has one.
-    const contentCtx = { bqFinalised: scope.bill != null, billOnScreen: l.ex.onScreenBillUsed, appendixComplete: pack.appendix ? appendixComplete(appendixFactsOf(pack.appendix)) : null, whitelist };
+    const contentCtx = contentContextOf({ scope, appendix: pack.appendix, whitelist });
     const issued = pack.parts.map((p) => issuedPart(partFactsOf(p), contentCtx));
     const frozen = freezePack({
       parts: pack.parts.map((p, i) => ({ ...issued[i], files: pinnedFilesOf(p) })),
@@ -632,7 +678,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
       const to = issued[i];
       if (row.state === to.state && row.omittedReason === to.omittedReason) continue;
       await tx.tenderPackPart.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { state: to.state, omittedReason: to.omittedReason } });
-      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${pack.versionNo} · part ${row.printedNumber}`), "UPDATE", partAudit(partAuditFacts(row, row.template?.nameEn ?? null), partAuditFacts({ ...row, state: to.state, omittedReason: to.omittedReason }, row.template?.nameEn ?? null)), to.omittedReason === NOT_ISSUED_REASON ? "Nothing was uploaded to this optional part when the documents were submitted" : "");
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${pack.versionNo} · part ${row.printedNumber}`), "UPDATE", partAudit(partAuditFacts(row, row.template?.nameEn ?? null), partAuditFacts({ ...row, state: to.state, omittedReason: to.omittedReason }, row.template?.nameEn ?? null)), to.omittedReason === NOT_ISSUED_REASON ? notIssuedReason(row.source) : "");
     }
     if (pack.appendix && appendixFacts) {
       await tx.conditionsAppendix.update({ where: { id: pack.appendix.id, organisationId: actor.organisationId }, data: { status: "COMPLETE" } });

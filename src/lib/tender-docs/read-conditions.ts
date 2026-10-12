@@ -23,7 +23,7 @@ import { eligibilityEditFault, eligibilityFaults, noticeFaults, registrationText
 import { assuranceRequiredText, BEFORE_CONDITIONS_TEXT, frozenConditionsView, groupHeadings } from "./frozen-view";
 import { NOT_SET, yesNoNotSet } from "./labels";
 import { permitFaults, permitLabel } from "./permit";
-import { loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, loadClauses, partFactsOf, profileOf } from "./repo";
+import { loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, loadClauses, issuedPartsOf, profileOf } from "./repo";
 import { needLabel, type NeedKind } from "./requirement-needs";
 import { loadNeedValues } from "./requirement-store";
 import { restrictionFaults } from "./stamp";
@@ -74,7 +74,8 @@ export async function conditionsTab(organisationId: string, exerciseId: string) 
   const draft = packs.find((p) => p.status === "DRAFT") ?? null;
   const editFault = eligibilityEditFault(ex.status);
   const edit: Allowed = editFault ? no(CONDITIONS_FROZEN_TEXT) : today ? ok : no("The organisation's time zone is not set, so the tender's conditions cannot be judged. Set it under Configuration, Organisation.");
-  const parts = draft ? draft.parts.map(partFactsOf) : [];
+  // Review S4: the parts as submission will read them (settled, and issued from the source each has), so a card says what the gate will raise.
+  const parts = draft ? await issuedPartsOf(db, org, ex, draft) : [];
   const isLive = (retiredOn: string | null) => today != null && (retiredOn == null || retiredOn > today);
   const profile = profileOf(ex.classificationSnapshot);
   const registrationTest = profile?.find((p) => p.key === "registrationTest")?.value;

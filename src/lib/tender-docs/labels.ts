@@ -176,10 +176,11 @@ const PART_ACT_TEXT: Record<Exclude<PartActFault, EditFault | ContentFault>, (f:
 
 const READINESS_TEXT: Record<Exclude<ReadinessFault, ContentFault | "MANDATORY_UNSET" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED">, (f: Finding) => string> = {
   PART_NOT_READY: (f) => `Part ${d(f, "part")} is not ready.`,
-  BILL_PART_MISSING: () => "The contract basis is let on a bill of quantities, this exercise's bill is an uploaded file, and the pack has no bill of quantities part to upload it to. Add the part under Configuration, Tender documents.",
+  BILL_PART_MISSING: () => "The contract basis is let on a bill of quantities, this exercise's bill is an uploaded file, and the pack has no bill of quantities part to upload it to. Add the part under Configuration, Tender documents, then use Take newly configured parts on this draft.",
   DECLARATION_PART_MISSING: () => `Every tender and quotation pack binds the bidder's declaration as a mandatory part, and this pack's parts have none. Add a declaration part for this pack kind under Configuration, Tender documents.`,
   DECLARATION_NOT_MANDATORY: (f) => `The bidder's declaration (part ${d(f, "part")}) must be mandatory. ${SET_PARTS_REFRESH}`,
   NO_PARTS: () => "The pack has no parts.",
+  PART_WAS_OMITTED: (f) => `Part ${d(f, "part")} was left out earlier by an officer (reason given: ${d(f, "reason")}). Parts are now judged by their content, and this one is in order, so it will be issued when you submit. If it should not be issued, cancel and do not submit; its earlier reason stays on its History.`,
   RETURN_NOT_SET: (f) => `Whether a bidder returns part ${d(f, "part")} with the bid is not set. Approved like this, these documents keep it unset, and the bid opening will be refused when it is finalised: completeness cannot be judged against an unset answer, and the only way on then is to cancel the exercise. ${SET_PARTS_REFRESH}`,
 };
 
@@ -434,3 +435,20 @@ export function findingHref(exerciseId: string, family: keyof SubmitFindings, f:
 
 /// The behaviour card's two halves: checked on the documents here, and checked after award.
 export const BEHAVIOUR_AFTER_AWARD_WHERE = { CONTRACT: "Checked when the contract is formed", POST_AWARD: "Checked after award, in contract administration" } as const;
+
+/// Why an optional part was recorded "Not issued" when the documents were submitted, by how the part is issued (it was always "nothing was uploaded", which is untrue of a merged-text part whose merge was incomplete).
+export function notIssuedReason(source: PartSource): string {
+  switch (source) {
+    case "TEMPLATE":
+      return "Its merged text was incomplete when the documents were submitted, and no file was uploaded in its place";
+    case "BQ_UNPRICED":
+      return "There was no bill of quantities ready to issue when the documents were submitted";
+    case "APPENDIX":
+      return "The Appendix was incomplete when the documents were submitted";
+    case "UPLOAD":
+      return "Nothing was uploaded to this part when the documents were submitted";
+  }
+}
+
+/// The same, as the frozen pack and its print page say it.
+export const notIssuedWords = (source: PartSource): string => `Not issued: ${notIssuedReason(source).replace(/^./, (c) => c.toLowerCase())}.`;

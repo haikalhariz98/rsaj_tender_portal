@@ -40,6 +40,7 @@ import {
   type AppendixState,
   NOT_APPLICABLE_BEFORE_ASSEMBLY,
   NOT_SET,
+  notIssuedWords,
   periodText,
   PACK_KIND_LABEL,
   PACK_STATUS_LABEL,
@@ -58,9 +59,11 @@ import {
 } from "./labels";
 import { isLivePack, issuedPart, mayHoldFile, NOT_ISSUED_REASON, packEditFault, partIssue, startPackFaults, submitFaults, nextPack, takesFile, type ContentContext } from "./pack";
 import { distinctOffices, pickTemplateView } from "./part-view";
+import { wasOmittedByOfficer } from "./pack";
+import { newPartsKey, newPartsOf, newPartsView } from "./new-parts";
 import { changeListKey, flagChanges, refreshView } from "./refresh";
 import { formatPct } from "./percent";
-import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, loadTenderPolicy, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, type PackRow } from "./repo";
+import { appendixFactsOf, contentContextOf, loadConfiguredParts, loadPacks, loadTemplates, loadTenderPolicy, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, type PackRow } from "./repo";
 import { decisionWindow, tenderingRouteForRequester, timeIn } from "./tendering";
 import { loadSubmitExtras } from "./submit-extras";
 import { liveClauses } from "./clauses";
@@ -99,9 +102,9 @@ async function context(organisationId: string, exerciseId: string) {
 // ------------------------------------------------------------------ Tender documents tab
 
 /// The template file of each configured part (SR-11), by the part's code: its name and the address that downloads it. A withdrawn file is no template.
-async function templateFilesOf(configured: readonly { code: string; templateFileVersionId?: string | null }[]): Promise<Map<string, TemplateFileView>> {
+async function templateFilesOf(organisationId: string, configured: readonly { code: string; templateFileVersionId?: string | null }[]): Promise<Map<string, TemplateFileView>> {
   const ids = [...new Set(configured.map((x) => x.templateFileVersionId).filter((x): x is string => !!x))];
-  const versions = ids.length ? await db.documentVersion.findMany({ where: { id: { in: ids }, withdrawnAt: null }, select: { id: true, originalFilename: true } }) : [];
+  const versions = ids.length ? await db.documentVersion.findMany({ where: { organisationId, id: { in: ids }, withdrawnAt: null }, select: { id: true, originalFilename: true } }) : [];
   return new Map(configured.map((x) => [x.code, versions.find((v) => v.id === x.templateFileVersionId) ? { filename: versions.find((v) => v.id === x.templateFileVersionId)!.originalFilename, href: `/api/documents/versions/${x.templateFileVersionId}` } : null]));
 }
 
@@ -126,9 +129,9 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
   // Increment 2: the conditions, on the organisation's day (none judged without it).
   const conditions = on ? await loadConditions(org.id, ex, shown?.status === "DRAFT" ? shown.id : null, on) : null;
   const whitelist = packWhitelist(conditions ? liveClauses(conditions.clauses.clauses, on!) : []);
-  const content: ContentContext = { bqFinalised: scope.bill != null, billOnScreen: ex.onScreenBillUsed, appendixComplete: appendix ? appendixComplete(appendix) : null, whitelist };
+  const content: ContentContext = contentContextOf({ scope, appendix: shown?.appendix ?? null, whitelist });
   // SR-11: the template file each configured part carries, as a line offers it.
-  const templateFiles = await templateFilesOf(c.configured);
+  const templateFiles = await templateFilesOf(c.org.id, c.configured);
 
   // The route as it would open, for the submit check (the dates are the drawer's own).
   let route: ReturnType<typeof tenderingRouteForRequester> | null = null;
@@ -248,6 +251,8 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
   const restricted = p.frozenAt ? (readConditionsSnapshot(p.conditionsSnapshot)?.restriction.restricted ?? null) : c.ex.restrictedTender;
   const editFault = packEditFault(p.status, c.ex.status);
   const editReason = editFault ? partFaultText(editFault) : null;
+  const kind = c.ex.packKindSnapshot;
+  const freshParts = editable && p.status === "DRAFT" && c.org.today && kind && kind !== "NONE" ? newPartsOf(resolveComposition(c.configured, kind, c.ex.contractBasisCode, c.org.today), p.parts) : null;
   return {
     id: p.id,
     versionNo: p.versionNo,
@@ -259,6 +264,9 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
     refresh: editable && p.status === "DRAFT" ? refreshView(p.parts.map(partFactsOf), c.configured) : null,
     /// The list that refresh shows, as the key the officer confirms with it (64-C2).
     refreshKey: editable && p.status === "DRAFT" ? changeListKey(flagChanges(p.parts.map(partFactsOf), c.configured)) : null,
+    /// Draft only (review M2): the parts configured since the draft was started, which the draft can take; null where there are none.
+    newParts: freshParts ? newPartsView(freshParts) : null,
+    newPartsKey: freshParts ? newPartsKey(freshParts) : null,
     parts: p.parts.map((row) => {
       const facts = partFactsOf(row);
       const frozenEntry = manifest?.find((m) => m.partCode === row.partCode) ?? null;
@@ -308,6 +316,8 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
         state,
         stateKey,
         omittedBecause: !draft && row.state === "OMITTED" && row.omittedReason !== NOT_ISSUED_REASON ? row.omittedReason : null,
+        /// Review S6: a draft part an officer once omitted (before ruling 14), with the reason they gave. It is judged by its content now, and the line says so.
+        earlierOmission: draft && wasOmittedByOfficer(facts) ? row.omittedReason : null,
         missing,
         template: row.template ? `${row.template.nameEn}, text version ${row.template.bodyVersion}` : row.source === "TEMPLATE" ? NOT_SET : null,
         files,
@@ -326,7 +336,7 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
                 : ({ kind: "NONE" as const, reason: row.source === "APPENDIX" ? "The Appendix is filled in as a form." : "No template set" } as const),
           upload: fileGate.allowed ? (single && live.length > 0 ? { allowed: false as const, reason: partFaultText({ code: "BILL_IS_ONE_FILE", level: "block" }) } : fileGate) : fileGate,
           replace: fileGate.allowed ? (live.length > 0 ? fileGate : { allowed: false as const, reason: "Nothing to replace yet. Upload the first file." }) : fileGate,
-          download: newest ? ({ allowed: true as const, href: `/api/documents/versions/${newest.versionId}`, name: `${newest.title}, version ${newest.versionNo}`, more: (draft ? live.length : frozenFiles.length) - 1 } as const) : ({ allowed: false as const, reason: row.source === "TEMPLATE" ? "Nothing is uploaded. The merged text is issued as it reads when the documents are submitted." : row.source === "APPENDIX" ? "The Appendix is filled in as a form." : "No file has been uploaded." } as const),
+          download: newest ? ({ allowed: true as const, href: `/api/documents/versions/${newest.versionId}`, name: `${newest.title}, version ${newest.versionNo}`, more: (draft ? live.length : frozenFiles.length) - 1 } as const) : ({ allowed: false as const, reason: row.source === "TEMPLATE" ? (draft ? "Nothing is uploaded. The merged text is issued as it reads when the documents are submitted." : row.state === "OMITTED" && row.omittedReason === NOT_ISSUED_REASON ? "Nothing was uploaded and this part was not issued." : "Nothing was uploaded. The merged text was issued as it read when the documents were submitted.") : row.source === "APPENDIX" ? "The Appendix is filled in as a form." : "No file has been uploaded." } as const),
         },
         frozen: frozenEntry ? { files: frozenEntry.files.map((f) => ({ title: f.title, versionNo: f.versionNo, fingerprint: f.sha256 })) } : null,
       };
@@ -496,7 +506,7 @@ export async function printView(organisationId: string, exerciseId: string, set:
       parts: (set === "table" ? tableDocumentManifest(manifest) : manifest).map((m) => ({
         printedNumber: m.printedNumber,
         label: m.label,
-        omitted: m.state === "OMITTED" ? (m.omittedReason === NOT_ISSUED_REASON ? "Not issued: nothing was uploaded to this part when the documents were submitted." : `Omitted: ${m.omittedReason}`) : null,
+        omitted: m.state === "OMITTED" ? (m.omittedReason === NOT_ISSUED_REASON ? notIssuedWords(m.source) : `Omitted: ${m.omittedReason}`) : null,
         texts: pack.documents.filter((d) => d.partCode === m.partCode).map((d) => ({ language: d.language === "MS" ? "Malay" : "English", paragraphs: d.renderedText.split("\n\n"), fidelity: d.templateName ? `From ${d.templateName}${d.templateFormCode ? ` (${d.templateFormCode})` : ""}, text version ${d.templateBodyVersion}, frozen ${formatOrgDay(d.frozenAt, c.org.timeZone)}.` : `${PART_SOURCE_LABEL[d.source]}, frozen ${formatOrgDay(d.frozenAt, c.org.timeZone)}.` })),
         files: m.files.map((f) => ({ title: f.title, versionNo: f.versionNo, fingerprint: f.sha256 })),
         stampNote: uploadStampNote(restrictedFrozen, m.source),
@@ -601,7 +611,7 @@ export async function tenderDocsConfig(organisationId: string, showRetired = fal
   const retired = (p: { retiredOn: string | null }) => partRetiredOn(p.retiredOn, today);
   // SR-11: the template file each part carries, by name (a file withdrawn since reads as none).
   const fileIds = [...new Set(parts.map((p) => p.templateFileVersionId).filter((x): x is string => !!x))];
-  const fileVersions = fileIds.length ? await db.documentVersion.findMany({ where: { id: { in: fileIds }, withdrawnAt: null }, select: { id: true, originalFilename: true, versionNo: true } }) : [];
+  const fileVersions = fileIds.length ? await db.documentVersion.findMany({ where: { organisationId: org.id, id: { in: fileIds }, withdrawnAt: null }, select: { id: true, originalFilename: true, versionNo: true } }) : [];
   const templateFileOf = (id: string | null | undefined) => {
     const v = id ? fileVersions.find((x) => x.id === id) : null;
     return v ? `${v.originalFilename}, version ${v.versionNo}` : null;

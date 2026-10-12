@@ -51,7 +51,7 @@ export function BqSection({ d }: { d: Data }) {
     <div className="flex flex-col gap-6">
       {d.readOnly && (
         <Callout tone="info" title="Earlier record">
-          This exercise does not build its bill of quantities on screen (Requirements v2, SR-09), so this bill is kept as it was recorded and nothing more is entered on it. The bill of quantities is an uploaded file under Tender documents.
+          This exercise does not build its bill of quantities on screen, so this bill is kept as it was recorded and nothing more is entered on it. The bill of quantities is an uploaded file under Tender documents.
         </Callout>
       )}
       <Callout tone="neutral" title="Priced figures are SULIT">{d.statement}</Callout>

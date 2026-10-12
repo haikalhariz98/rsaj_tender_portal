@@ -40,7 +40,7 @@ import { bqCsvFilename, bqToCsv, decodeCsv, parseBqCsv } from "@/lib/scope/csv";
 import { scopeCitationFault, scopeFileMatterSubject, scopeMatterSubject, SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { billFileOf } from "@/lib/tender-docs/repo";
-import { switchWords, takeSettingFaults } from "@/lib/scope/switches";
+import { SWITCH_LABEL, switchWords, takeSettingFaults } from "@/lib/scope/switches";
 import { backstopCode } from "@/lib/scope/unique-violation";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { FormReader } from "@/lib/validate";
@@ -1045,6 +1045,6 @@ export async function takeScopeSettings(_prev: FormState, data: FormData): Promi
     await tx.sourcingExercise.update({ where: { id: exerciseId, organisationId: actor.organisationId }, data: r.changes });
     const words = (v: { specPanelUsed: boolean | null; onScreenBillUsed: boolean | null }) => ({ specificationPanel: switchWords(v.specPanelUsed), onScreenBillOfQuantities: switchWords(v.onScreenBillUsed) });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields(words(l.ex), words({ specPanelUsed: r.changes.specPanelUsed ?? l.ex.specPanelUsed, onScreenBillUsed: r.changes.onScreenBillUsed ?? l.ex.onScreenBillUsed })), "Took the organisation's setting");
-    return { ok: true, message: r.stillUnset.length ? `Taken. ${r.stillUnset.map((k) => scopeFaultText({ code: "SETTING_NOT_SET", level: "block", data: { switch: k === "specPanelUsed" ? "Specification panel used" : "On-screen bill used" } })).join(" ")}` : undefined };
+    return { ok: true, message: r.stillUnset.length ? `Taken. ${r.stillUnset.map((k) => scopeFaultText({ code: "SETTING_NOT_SET", level: "block", data: { switch: SWITCH_LABEL[k] } })).join(" ")}` : undefined };
   });
 }

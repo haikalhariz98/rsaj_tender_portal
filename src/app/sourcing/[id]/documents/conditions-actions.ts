@@ -18,7 +18,7 @@ import { lockPackRows } from "@/lib/tender-docs/owner";
 import { permitLabel, permitSaveFaults } from "@/lib/tender-docs/permit";
 import { NEED_FIELD, NEED_KINDS, needFaultField, needFaults, requirementAuditWords, type NeedChoice, type NeedFault } from "@/lib/tender-docs/requirement-needs";
 import { createRequirement, deleteRequirement, loadNeedValues } from "@/lib/tender-docs/requirement-store";
-import { loadClauses, loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, partFactsOf, type PackRow } from "@/lib/tender-docs/repo";
+import { loadClauses, loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, issuedPartsOf, type PackRow } from "@/lib/tender-docs/repo";
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
@@ -222,7 +222,7 @@ export async function recordAssurance(_prev: FormState, data: FormData): Promise
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
     const existing = await loadConfirmations(pack.id, tx);
     const startedOn = dayOf(pack.createdAt, l.org.timeZone);
-    const faults = confirmFaults({ packStatus: pack.status, exerciseStatus: l.ex.status, kind, parts: pack.parts.map(partFactsOf), existing, person, confirmedOn: storedDay(on), today: l.org.today, packStartedOn: startedOn });
+    const faults = confirmFaults({ packStatus: pack.status, exerciseStatus: l.ex.status, kind, parts: await issuedPartsOf(tx, l.org, l.ex, pack), existing, person, confirmedOn: storedDay(on), today: l.org.today, packStartedOn: startedOn });
     if (faults.length) {
       const f = faults[0];
       return f.code === "PERSON_REQUIRED" || f.code === "PERSON_NOT_ACTIVE" ? { ok: false, errors: { personId: confirmFaultText(f) } } : f.code.startsWith("DAY") ? { ok: false, errors: { confirmedOn: confirmFaultText(f) } } : refuse(faults, confirmFaultText);

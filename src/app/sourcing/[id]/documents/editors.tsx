@@ -6,9 +6,10 @@ import { Callout } from "@/components/ui/feedback";
 
 import { TENDERING_STATE_LABEL } from "@/lib/tender-docs/labels";
 
+import { TAKE_PARTS_LABEL } from "@/lib/tender-docs/new-parts";
 import { REFRESH_LABEL, type RefreshView } from "@/lib/tender-docs/refresh";
 
-import { pickPartTemplate, recordTenderingDecision, refreshPartFlags, startPack, submitPack } from "./actions";
+import { pickPartTemplate, recordTenderingDecision, refreshPartFlags, startPack, submitPack, takeNewParts } from "./actions";
 
 /**
  * The drawers of the Tender documents tab. Fields are data; every rule sits in the action and
@@ -109,6 +110,29 @@ export function RefreshFlagsDrawer({ exerciseId, refresh, confirmedChanges }: { 
       action={refreshPartFlags}
       submitLabel="Take them from the configuration"
       trigger={{ label: REFRESH_LABEL, className: secondary }}
+      size="md"
+    />
+  );
+}
+
+/// Review M2: the parts configured since this draft was started, taken into it. `confirmedParts` is the key of the list shown: the act writes only that list.
+export function TakeNewPartsDrawer({ exerciseId, parts, confirmedParts }: { exerciseId: string; parts: string[]; confirmedParts: string }) {
+  return (
+    <RecordEditor
+      title={TAKE_PARTS_LABEL}
+      description="A version keeps the parts it was started with. These parts were configured after this draft was started. Taking them adds them to this draft; nothing already on it is changed or removed, and a frozen version is never changed."
+      fields={[hidden("exerciseId"), hidden("confirmedParts")]}
+      values={{ exerciseId, confirmedParts }}
+      sections={
+        <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] text-ink-2">
+          {parts.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+      }
+      action={takeNewParts}
+      submitLabel="Add them to this draft"
+      trigger={{ label: TAKE_PARTS_LABEL, className: secondary }}
       size="md"
     />
   );

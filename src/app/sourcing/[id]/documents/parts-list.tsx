@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { DataList, type Row } from "@/components/data-list";
 import { OwnerDocumentsButton } from "@/components/attachments/owner-documents-button";
+import { Blocked } from "@/components/ui/blocked";
 import { Button, buttonClass } from "@/components/ui/button";
 
 import { PickTemplateDrawer } from "./editors";
@@ -31,6 +32,8 @@ export interface PartRow {
   state: string;
   stateTone: "ok" | "warn" | undefined;
   omittedBecause: string | null;
+  /// A draft part an officer once omitted, with the reason given: it is issued by its content now (ruling 14).
+  earlierOmission: string | null;
   /// What a part that is not ready lacks, or says an optional part will be recorded Not issued.
   missing: string | null;
   template: string | null;
@@ -47,6 +50,22 @@ export interface PartRow {
   };
 }
 
+/// Why each act that cannot be done now cannot, by the act's name, with the acts that share a reason grouped: what the disabled buttons point at (review U2), so the reason is on the page and not only in a tooltip.
+function blockedReasons(p: PartRow): { text: string; id: string } | null {
+  const t = p.actions.template;
+  const all: [string, string | null][] = [
+    ["Template", t.kind === "MERGED" ? (t.pick.allowed ? null : t.pick.reason) : t.kind === "NONE" ? t.reason : null],
+    ["Upload", p.actions.upload.allowed ? null : p.actions.upload.reason],
+    ["Download", p.actions.download.allowed ? null : p.actions.download.reason],
+    ["Replace", p.actions.replace.allowed ? null : p.actions.replace.reason],
+  ];
+  const byReason = new Map<string, string[]>();
+  for (const [name, reason] of all) if (reason) byReason.set(reason, [...(byReason.get(reason) ?? []), name]);
+  if (byReason.size === 0) return null;
+  const text = [...byReason].map(([reason, names]) => `${names.join(" and ")}: ${reason.replace(/.$/, "")}.`).join(" ");
+  return { text, id: `part-${p.id}-reasons` };
+}
+
 /**
  * The parts of the pack in print order, on the shared DataList (SR-11, ruling 14). Every line offers Template, Upload, Download and Replace; there is no Open, Mark ready,
  * Omit, Reopen or View as frozen. A part is ready as soon as its content is in order, so its state is read, not set. Where an act cannot be done now it is disabled with its
@@ -56,10 +75,9 @@ export function PartsList({ exerciseId, parts }: { exerciseId: string; parts: Pa
   const byId = new Map(parts.map((p) => [p.id, p]));
   const rows: Row[] = parts.map((p) => {
     const tableText = p.inTableDocument === "Yes" ? "In the Tender Table Document" : p.inTableDocument === "No" ? "Not in the Tender Table Document" : "Tender Table Document: not set";
-    const sub = [p.role, tableText, p.preparedBy === "Not set" ? null : `Prepared by ${p.preparedBy}`, p.template ? (p.template === "Not set" ? "No template chosen" : `Template: ${p.template}`) : null, p.omittedBecause ? `Omitted: ${p.omittedBecause}` : null].filter(Boolean).join(" · ");
+    const sub = [p.role, tableText, p.preparedBy === "Not set" ? null : `Prepared by ${p.preparedBy}`, p.template ? (p.template === "Not set" ? "No template chosen" : `Template: ${p.template}`) : null, p.omittedBecause ? `Omitted: ${p.omittedBecause}` : null, p.earlierOmission ? `Left out earlier by an officer: ${p.earlierOmission}` : null].filter(Boolean).join(" · ");
     const liveFiles = p.files.filter((f) => f.live);
-    const noTemplate = p.actions.template.kind === "NONE" && !p.isAppendix ? p.actions.template.reason : null;
-    const note = [p.missing, noTemplate ? `${noTemplate}.` : null, p.uploadNote ? `${p.uploadNote}.` : null].filter(Boolean).join(" ") || undefined;
+    const note = [p.missing, p.uploadNote ? `${p.uploadNote}.` : null].filter(Boolean).join(" ") || undefined;
     return {
       id: p.id,
       search: `${p.printedNumber} ${p.label}`,
@@ -102,9 +120,7 @@ export function PartsList({ exerciseId, parts }: { exerciseId: string; parts: Pa
                   Fill in
                 </Link>
               ) : (
-                <Button size="sm" variant="secondary" disabled title="The Appendix is entered once the version is started.">
-                  Fill in
-                </Button>
+                <Blocked label="Fill in" reason="The Appendix is entered once the version is started." ariaLabel={`Fill in ${name}`} />
               )}
             </span>
           );
@@ -112,47 +128,43 @@ export function PartsList({ exerciseId, parts }: { exerciseId: string; parts: Pa
         const upload = p.actions.upload;
         const replace = p.actions.replace;
         const dl = p.actions.download;
+        const why = blockedReasons(p);
         return (
           <span className="flex flex-wrap items-center justify-end gap-1">
             {t.kind === "MERGED" ? (
               t.pick.allowed ? (
                 <PickTemplateDrawer exerciseId={exerciseId} partId={p.id} partLabel={name} options={t.pick.options} current={t.pick.current} draftHref={t.draftHref} file={t.file} />
               ) : (
-                <Button size="sm" variant="ghost" disabled title={t.pick.reason} aria-label={`Template for ${name}: ${t.pick.reason}`}>
-                  Template
-                </Button>
+                <Blocked label="Template" reason={t.pick.reason} noteId={why!.id} ariaLabel={`Template for ${name}`} />
               )
             ) : t.kind === "FILE" ? (
               <a href={t.file.href} className={buttonClass("ghost", "sm")} aria-label={`Download the template file for ${name}: ${t.file.filename}`} title={t.file.filename}>
                 Template
               </a>
             ) : (
-              <Button size="sm" variant="ghost" disabled title={t.reason} aria-label={`Template for ${name}: ${t.reason}`}>
-                Template
-              </Button>
+              <Blocked label="Template" reason={t.reason} noteId={why!.id} ariaLabel={`Template for ${name}`} />
             )}
             {upload.allowed ? (
               <OwnerDocumentsButton owner={{ kind: "tenderPackPart", id: p.id }} label={name} triggerLabel="Upload" title="Upload a file to this part" subtitle="Kept in the document store, with its fingerprint. The part is ready as soon as a file is uploaded, and the file freezes with the version." options={{ only: ["TENDER_PART"] }} />
             ) : (
-              <Button size="sm" variant="ghost" disabled title={upload.reason} aria-label={`Upload to ${name}: ${upload.reason}`}>
-                Upload
-              </Button>
+              <Blocked label="Upload" reason={upload.reason} noteId={why!.id} ariaLabel={`Upload to ${name}`} />
             )}
             {dl.allowed ? (
               <a href={dl.href} className={buttonClass("ghost", "sm")} aria-label={`Download ${dl.name} for ${name}${dl.more > 0 ? `; ${dl.more} more in Upload` : ""}`} title={dl.more > 0 ? `${dl.name}. ${dl.more} more file${dl.more === 1 ? "" : "s"} are listed under Upload.` : dl.name}>
                 Download
               </a>
             ) : (
-              <Button size="sm" variant="ghost" disabled title={dl.reason} aria-label={`Download for ${name}: ${dl.reason}`}>
-                Download
-              </Button>
+              <Blocked label="Download" reason={dl.reason} noteId={why!.id} ariaLabel={`Download for ${name}`} />
             )}
             {replace.allowed ? (
               <OwnerDocumentsButton owner={{ kind: "tenderPackPart", id: p.id }} label={name} triggerLabel="Replace" title="Replace the file of this part" subtitle="A corrected file goes in place of the one now attached, as a new version of the same document. The earlier version stays on the record." options={{ only: ["TENDER_PART"] }} />
             ) : (
-              <Button size="sm" variant="ghost" disabled title={replace.reason} aria-label={`Replace for ${name}: ${replace.reason}`}>
-                Replace
-              </Button>
+              <Blocked label="Replace" reason={replace.reason} noteId={why!.id} ariaLabel={`Replace for ${name}`} />
+            )}
+            {why && (
+              <span id={why.id} className="basis-full text-right text-[12.5px] leading-snug text-ink-3">
+                {why.text}
+              </span>
             )}
           </span>
         );

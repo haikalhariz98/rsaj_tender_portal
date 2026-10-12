@@ -19,9 +19,11 @@ import { panelState } from "@/lib/scope/panel";
 import { estimateFactsOf, linesOf, loadBqVersions, loadEstimates, loadPanel, loadScopeMatters, loadScopeRules } from "@/lib/scope/repo";
 import { scopeApproval, scopeApprovalForFile } from "@/lib/scope/scope-matter";
 
-import type { AppendixFacts } from "./appendix";
+import { appendixComplete, type AppendixFacts } from "./appendix";
 import type { AssuranceKind, ConfirmationFacts } from "./assurance";
-import type { ClauseFacts, OverrideFacts } from "./clauses";
+import { liveClauses, type ClauseFacts, type OverrideFacts } from "./clauses";
+import { packWhitelist } from "./fields";
+import { issuedPart, type ContentContext } from "./pack";
 import type { ConditionsInput } from "./conditions";
 import type { RegistrationBodyFacts, RequirementFacts } from "./eligibility";
 import type { PermitList } from "./permit";
@@ -145,6 +147,28 @@ export function partFactsOf(p: PackPartRow): PackPartFacts {
     omittedReason: p.omittedReason,
     liveUploads: p.attachments.filter(isLive).length,
   };
+}
+
+/**
+ * What a part's content is judged by, from one place (review S4, S5): the gate, the Tender documents tab and the Conditions cards all read a part through this, so what the
+ * screen shows is what submission will raise. The pin, the bill, whether the basis needs one, the Appendix and the merge fields.
+ */
+export function contentContextOf(i: { scope: { bill: unknown | null; input: Pick<PackInput, "onScreenBillUsed" | "basis"> }; appendix: AppendixRow | null; whitelist: ContentContext["whitelist"] }): ContentContext {
+  return {
+    bqFinalised: i.scope.bill != null,
+    billOnScreen: i.scope.input.onScreenBillUsed,
+    basisRequiresBq: i.scope.input.basis?.requiresBq ?? null,
+    appendixComplete: i.appendix ? appendixComplete(appendixFactsOf(i.appendix)) : null,
+    whitelist: i.whitelist,
+  };
+}
+
+/// A draft's parts as submission would read them (`issuedPart`): settled, and with the source each is issued from. For the readers of the Conditions cards and the acts beside them.
+export async function issuedPartsOf(client: Tx, org: { id: string; today: string | null }, ex: Parameters<typeof scopeReadiness>[1], pack: PackRow): Promise<PackPartFacts[]> {
+  const scope = await scopeReadiness(org.id, ex, client);
+  const whitelist = packWhitelist(org.today ? liveClauses(await loadClauses(org.id, client), org.today) : []);
+  const ctx = contentContextOf({ scope, appendix: pack.appendix, whitelist });
+  return pack.parts.map((p) => issuedPart(partFactsOf(p), ctx));
 }
 
 /// The live files of an uploaded part, as the freeze pins them.

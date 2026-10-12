@@ -398,3 +398,34 @@ describe("submission with the bill as an uploaded file, and files in place of me
     expect(freezePack({ parts: [{ ...none, files: [] }], fields: {}, bill: null, appendix: null }).manifest[0]).toMatchObject({ state: "OMITTED", omittedReason: "Not issued", files: [] });
   });
 });
+
+describe("review S5: the bill part is mandatory where the basis needs a bill and the bill is a file", () => {
+  const optionalBill = part({ partCode: "p7a", printedNumber: "7a", label: "Bills of quantities", role: "BILL_OF_QUANTITIES", source: "BQ_UNPRICED", content: "BESPOKE", template: null, mandatory: false });
+  const fileCtx = { bqFinalised: false, billOnScreen: false, appendixComplete: true };
+  it("an optional bill part with no file is Not issued where the basis needs no bill, but not ready where it does", () => {
+    expect(partIssue(optionalBill, { ...fileCtx, basisRequiresBq: false }).state).toBe("NOT_ISSUED");
+    expect(partIssue(optionalBill, { ...fileCtx, basisRequiresBq: true }).state).toBe("NOT_READY");
+    // On screen, the bill's own findings judge it; an unset answer is not read as either.
+    expect(partIssue(optionalBill, { ...fileCtx, billOnScreen: true, basisRequiresBq: true }).state).toBe("NOT_ISSUED");
+    expect(partIssue(optionalBill, { ...fileCtx, basisRequiresBq: null }).state).toBe("NOT_ISSUED");
+  });
+  it("submission refuses a bill basis with the bill off, and an optional bill part with no file; a file clears it", () => {
+    const off = { scope: { ...cleanScope, onScreenBillUsed: false, bq: [], panelBill: null } };
+    const s = submitFaults(submit({ ...off, parts: [part(), declaration, notice, optionalBill] }));
+    expect(codes(s.readiness)).toEqual(["UPLOAD_MISSING"]);
+    expect(blockingOf(submitFaults(submit({ ...off, parts: [part(), declaration, notice, { ...optionalBill, liveUploads: 1 }] })))).toEqual([]);
+  });
+});
+
+describe("review S6: a part an officer once omitted is warned about, with the reason, before it is issued", () => {
+  it("an old omission whose content is now in order is warned (the pack is not blocked)", () => {
+    const omitted = part({ state: "OMITTED", omittedReason: "Not needed for this works", mandatory: false });
+    const s = submitFaults(submit({ parts: [omitted, declaration, notice] }));
+    expect(s.readiness).toEqual([{ code: "PART_WAS_OMITTED", level: "warn", data: { part: "2. Form of tender", reason: "Not needed for this works" } }]);
+    expect(blockingOf(s)).toEqual([]);
+  });
+  it("the engine's own Not issued is not an officer's omission, and an old omission with nothing to issue says nothing", () => {
+    expect(codes(submitFaults(submit({ parts: [part({ state: "OMITTED", omittedReason: NOT_ISSUED_REASON, mandatory: false }), declaration, notice] })).readiness)).toEqual([]);
+    expect(codes(submitFaults(submit({ parts: [part({ state: "OMITTED", omittedReason: "Not needed", mandatory: false, template: null }), declaration, notice] })).readiness)).toEqual([]);
+  });
+});
