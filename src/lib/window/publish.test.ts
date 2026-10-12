@@ -26,6 +26,7 @@ const ok: PublishInput = {
   restricted: false,
   // SR-10 (ruling 16, G1): the exercise's pinned sale mode is part of the input; the cases here are of the counter sale unless they say otherwise.
   saleMode: "COUNTER",
+  releaseOnline: true,
   requirements: 1,
   window: {
     inspectionPlace: "Tender table, Level 2",
@@ -214,5 +215,17 @@ describe("SR-10 (ruling 16, G1): how the documents are sold", () => {
   });
   it("refuses, naming the pin, while how the documents are sold is not set", () => {
     expect(codes(publishFaults({ ...ok, saleMode: null }))).toEqual(["SALE_MODE_NOT_SET"]);
+  });
+});
+
+describe("an online exercise at publication (SR-10 review M1 and S3)", () => {
+  it("is refused on a restricted tender, and where the organisation does not release documents online", () => {
+    expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", restricted: true }))).toContain("ONLINE_RESTRICTED");
+    expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", releaseOnline: null, window: { ...ok.window, inspectionPlace: "", purchasePlace: "", inspectionHours: "", feePaymentMethods: "", submissionPlace: "" } }))).toContain("ONLINE_NEEDS_RELEASE");
+    expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", releaseOnline: false }))).toContain("ONLINE_NEEDS_RELEASE");
+  });
+  it("a counter exercise is not held back by either", () => {
+    expect(codes(publishFaults({ ...ok, saleMode: "COUNTER", restricted: true, releaseOnline: null }))).not.toContain("ONLINE_RESTRICTED");
+    expect(codes(publishFaults({ ...ok, saleMode: "COUNTER", releaseOnline: null }))).not.toContain("ONLINE_NEEDS_RELEASE");
   });
 });

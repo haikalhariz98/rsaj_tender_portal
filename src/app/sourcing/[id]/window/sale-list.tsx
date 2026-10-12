@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DataList, type Row } from "@/components/data-list";
 import { Button, buttonClass } from "@/components/ui/button";
 
+import { SIMULATED_LABEL } from "@/lib/integration/payment-labels";
 import { voidRefusalNote } from "@/lib/window/sale";
 
 import { RecordReceiptDrawer, VoidSaleDrawer } from "./editors";
@@ -51,7 +52,7 @@ export function SaleList({ exerciseId, sales }: { exerciseId: string; sales: Sal
         kind: "chips",
         items: [
           ...(s.voided ? [{ text: "Void", tone: "err" as const }] : []),
-          ...(s.simulated ? [{ text: "Simulated payment", tone: "warn" as const }] : []),
+          ...(s.simulated ? [{ text: SIMULATED_LABEL, tone: "warn" as const }] : []),
           ...s.checks.map((c) => ({ text: c.text, tone: c.warn ? ("warn" as const) : ("ok" as const) })),
         ],
       },

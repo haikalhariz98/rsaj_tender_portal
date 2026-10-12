@@ -59,9 +59,11 @@ describe("the checks online", () => {
     expect(out.find((c) => c.key === "AUTHORITY")).toMatchObject({ state: "PASS" });
     expect(out.some((c) => c.state === "BRING")).toBe(false);
   });
-  it("a restricted tender's certificate is said to be read from the register, never passed", () => {
+  // SR-10 review M1: it used to be said to be read from the register at the opening, which is not true (nothing records the certificate online and the opening then eliminates the bid). A restricted tender is not sold online.
+  it("a restricted tender is not sold online, and the buyer is told so in words", () => {
     const out = onlinePurchaseChecks([{ key: "RESTRICTION", state: "BRING", detail: "Bring it" }], buyerStandingCheck(OK_BUYER));
-    expect(out.find((c) => c.key === "RESTRICTION")).toMatchObject({ state: "INFO" });
+    expect(out.find((c) => c.key === "RESTRICTION")).toMatchObject({ state: "BLOCK" });
+    expect(out.find((c) => c.key === "RESTRICTION")?.detail).not.toMatch(/bid is opened|checks it/);
   });
   it("the standing reading blocks an inactive account, a retired contact and a barred supplier, each in words", () => {
     expect(buyerStandingCheck({ ...OK_BUYER, accountActive: false }).state).toBe("BLOCK");

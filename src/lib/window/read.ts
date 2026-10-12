@@ -41,7 +41,7 @@ import { closingHistory, isPublished, sinceApprovedLines, standingEntry, tableDo
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
 import { foldUnpreparedWindow } from "./publish";
 import { annotationLines, isAnnotation, voidRefusalIsRegisterWide, voidSaleFault } from "./sale";
-import { registerReadOn, saleChecks } from "./sale-checks";
+import { onlineAuthorityOf, registerReadOn, saleChecks } from "./sale-checks";
 import type { Finding, Provenance, WindowPath } from "./types";
 
 const NOT_SET = "Not set";
@@ -216,7 +216,7 @@ export async function windowTab(organisationId: string, exerciseId: string, hidd
       words: saleModeWords(ex.saleMode),
       setting: saleModeWords(d.sale.saleMode),
       onlinePayment: gatewayReading(d.sale.online, simulatorAllowedByDeployment()).available,
-      take: allowed(takeSaleModeFaults({ status: ex.status, published: isPublished(ex.status) || !!w?.publishedAt, pin: ex.saleMode, setting: d.sale.saleMode })[0]),
+      take: allowed(takeSaleModeFaults({ status: ex.status, published: isPublished(ex.status) || !!w?.publishedAt, pin: ex.saleMode, setting: d.sale.saleMode, restricted: ex.restrictedTender, releaseOnline: d.sale.releaseOnline })[0]),
     },
     actions: {
       save: allowed(editFault),
@@ -337,7 +337,7 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
         amount: money(s.amount),
         soldOn: day(s.soldOn),
         paymentMethod: s.paymentMethod,
-        checks: saleChecks({ authoritySighted: s.authoritySighted, certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck, registerReadOn: registerReadOn(s.eligibilitySnapshot), noSupplierNamed: s.noSupplierNamed }, closingDay(ex.closingAt, org.timeZone)),
+        checks: saleChecks({ authoritySighted: s.authoritySighted, onlineAuthority: onlineAuthorityOf(s.purchase?.checks), certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck, registerReadOn: registerReadOn(s.eligibilitySnapshot), noSupplierNamed: s.noSupplierNamed }, closingDay(ex.closingAt, org.timeZone)),
         addendaAcknowledged: `${acked} of ${addenda.length}`,
         issuedBy: s.issuedBy ? attributed.read({ entity: "DocumentSale", id: s.id, slot: "issuedBy" }, s.issuedBy.name).en : "Released online: no officer issued it",
         voided: s.voidedAt ? `Voided: ${s.voidReason}` : null,

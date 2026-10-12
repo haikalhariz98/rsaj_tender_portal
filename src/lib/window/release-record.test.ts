@@ -5,7 +5,7 @@ import { annotationLines, isAnnotation, releaseAnnotation, saleAnnotation } from
 describe("the label of a set bought online is a release record (SR-10, ruling 16)", () => {
   const base = { exerciseReference: "SX/1", purchaser: "Contoh Bina Sdn Bhd", address: "1 Jalan Demo", phone: "03-1", fax: "", closingText: "30 Nov 2026, 15:00" };
   it("names the buyer and the time, how it was paid and the reference, and says no officer issued it", () => {
-    const a = releaseAnnotation({ ...base, release: { buyer: "Aini Binti Ahmad", releasedAtText: "12 Oct 2026, 10:15", payment: "Simulated payment", reference: "SIM-ABC123" } });
+    const a = releaseAnnotation({ ...base, channel: "SIMULATED", release: { buyer: "Aini Binti Ahmad", releasedAtText: "12 Oct 2026, 10:15", payment: "Simulated payment", reference: "SIM-ABC123" } });
     expect(isAnnotation(a)).toBe(true);
     const lines = annotationLines(a);
     expect(lines).toContain("Released to: Aini Binti Ahmad, signed in to the supplier portal");
@@ -15,9 +15,9 @@ describe("the label of a set bought online is a release record (SR-10, ruling 16
     expect(lines.some((l) => /no officer issued it/.test(l))).toBe(true);
   });
   it("never carries a simulated reference as a finance receipt", () => {
-    const sim = releaseAnnotation({ ...base, release: { buyer: "A", releasedAtText: "t", payment: "Simulated payment", reference: "SIM-1" } });
+    const sim = releaseAnnotation({ ...base, channel: "SIMULATED", release: { buyer: "A", releasedAtText: "t", payment: "Simulated payment", reference: "SIM-1" } });
     expect(sim.receipt).toBeNull();
-    const rec = releaseAnnotation({ ...base, release: { buyer: "A", releasedAtText: "t", payment: "Finance receipt recorded by an officer", reference: "R-77" } });
+    const rec = releaseAnnotation({ ...base, channel: "FINANCE_RECEIPT", release: { buyer: "A", releasedAtText: "t", payment: "Finance receipt recorded by an officer", reference: "R-77" } });
     expect(rec.receipt).toBe("R-77");
   });
   it("leaves the counter sale's label as it was", () => {

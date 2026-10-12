@@ -13,7 +13,6 @@
  * recorded later: a sale without one is on the reconciliation list (FR-ADV-009 partial). Pure.
  */
 
-import { SIMULATED_LABEL as SIMULATED_PAYMENT_WORDS } from "@/lib/integration/payment-gateway";
 import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 
 import { attendanceFaults } from "./events";
@@ -131,7 +130,7 @@ export function isReceiptDuplicate(e: unknown): boolean {
  */
 export const ATTESTABLE_CHECKS: readonly CheckState[] = ["NOT_CHECKED", "FAILED"];
 
-export type VoidFault = "REASON_REQUIRED" | "ALREADY_VOID" | "WINDOW_CLOSED" | "EXERCISE_CANCELLED" | "ENVELOPE_HELD";
+export type VoidFault = "REASON_REQUIRED" | "ALREADY_VOID" | "ONLINE_SALE" | "WINDOW_CLOSED" | "EXERCISE_CANCELLED" | "ENVELOPE_HELD";
 
 /**
  * Whether a refusal to void holds for every sale on the register alike (the window's state, not
@@ -150,8 +149,10 @@ export const voidRefusalNote = (reason: string) => `Void is not available: ${rea
  * Before opening no envelope names a bidder (6.6 OD-2), so it holds from 6.7 on, where an
  * envelope is matched to its party; the window has closed by then too, and both are said.
  */
-export function voidSaleFault(s: { voidedAt: Date | null }, phase: WindowPhase, reason: string, holdsEnvelope = false): Finding<VoidFault> | null {
+export function voidSaleFault(s: { voidedAt: Date | null; purchaseId?: string | null }, phase: WindowPhase, reason: string, holdsEnvelope = false): Finding<VoidFault> | null {
   if (s.voidedAt) return { code: "ALREADY_VOID", level: "block" };
+  // M2: a sale made by an online purchase is not voided. The purchase is one per supplier and window and stays paid, so voiding the sale would leave the buyer unable to buy again and still shown as having paid.
+  if (s.purchaseId) return { code: "ONLINE_SALE", level: "block" };
   if (holdsEnvelope) return { code: "ENVELOPE_HELD", level: "block" };
   if (phase === "CANCELLED") return { code: "EXERCISE_CANCELLED", level: "block" };
   if (phase === "CLOSED" || phase === "UNKNOWN") return { code: "WINDOW_CLOSED", level: "block", data: { phase } };
@@ -194,7 +195,7 @@ export interface ReleaseRecord {
   reference: string | null;
 }
 
-export function releaseAnnotation(i: { exerciseReference: string; purchaser: string; address: string; phone: string; fax: string; closingText: string; release: ReleaseRecord }) {
+export function releaseAnnotation(i: { exerciseReference: string; purchaser: string; address: string; phone: string; fax: string; closingText: string; release: ReleaseRecord; /** Decides whether the label carries a receipt: by the channel, never by the words of the label. */ channel: "SIMULATED" | "FINANCE_RECEIPT" }) {
   return {
     v: 1 as const,
     exercise: i.exerciseReference,
@@ -205,7 +206,7 @@ export function releaseAnnotation(i: { exerciseReference: string; purchaser: str
     closing: i.closingText,
     issuedBy: i.release.buyer,
     issuedOn: i.release.releasedAtText,
-    receipt: i.release.payment === SIMULATED_PAYMENT_WORDS ? null : i.release.reference,
+    receipt: i.channel === "SIMULATED" ? null : i.release.reference,
     recorded: "released online",
     release: i.release,
   };

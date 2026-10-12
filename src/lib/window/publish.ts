@@ -24,7 +24,7 @@ import { blocking, type ChannelFacts, type EventFacts, type Finding, type Public
 import { advertisementDay, closingFaults } from "./dates";
 import { eventFaults } from "./events";
 import { itemFaults, UNPREPARED_ITEM_CODES } from "./items";
-import { saleModeFault, type SaleMode } from "./sale-mode";
+import { onlineSaleFaults, saleModeFault, type OnlineSaleFault, type SaleMode } from "./sale-mode";
 import { feeFaults } from "./fee";
 import { fieldsInWords, type TemplateState } from "./fields";
 import { invitedListFaults } from "./invitees";
@@ -70,6 +70,7 @@ export type PublishFault =
   | "CHANGE_PENDING"
   | "BID_VALIDITY_NOT_SET"
   | "SALE_MODE_NOT_SET"
+  | OnlineSaleFault
   | "TIME_ZONE_UNSET";
 
 export interface PublishInput {
@@ -81,6 +82,8 @@ export interface PublishInput {
   restricted: boolean | null;
   /// SR-10 (G1): how the documents are sold on this exercise, as pinned. Null: not set, and publication refuses saying so.
   saleMode: SaleMode | null;
+  /// S3: whether the organisation releases documents online (`electronicDocumentRelease`), as it stands now. Null: not set.
+  releaseOnline: boolean | null;
   requirements: number;
   window: {
     inspectionPlace: string;
@@ -152,6 +155,8 @@ export function publishFaults(i: PublishInput): PublishResult {
   out.push(...itemFaults(w, i.saleMode));
   const sm = saleModeFault(i.saleMode);
   if (sm) out.push(sm);
+  // M1 and S3: an online sale needs the documents released online, and is refused on a restricted tender.
+  out.push(...onlineSaleFaults({ saleMode: i.saleMode, restricted: i.restricted, releaseOnline: i.releaseOnline }));
   if (i.bidValidity.required && i.bidValidity.days == null) f("BID_VALIDITY_NOT_SET");
   if (!i.closingAt) f("CLOSING_NOT_SET");
   for (const e of i.events) out.push(...eventFaults(e, i.policy.mandatoryAttendancePermitted, i.closingAt));

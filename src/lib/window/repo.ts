@@ -81,7 +81,7 @@ const WINDOW_INCLUDE = {
   feeLines: { orderBy: [{ sortOrder: "asc" as const }, { id: "asc" as const }] },
   publications: { include: { recordedBy: { select: { id: true, name: true } } }, orderBy: [{ publishedOn: "asc" as const }, { id: "asc" as const }] },
   letters: { include: { party: true }, orderBy: [{ frozenAt: "asc" as const }, { id: "asc" as const }] },
-  sales: { include: { party: true, issuedBy: { select: { id: true, name: true } } }, orderBy: [{ soldOn: "asc" as const }, { createdAt: "asc" as const }, { id: "asc" as const }] },
+  sales: { include: { party: true, issuedBy: { select: { id: true, name: true } }, purchase: { select: { checks: true } } }, orderBy: [{ soldOn: "asc" as const }, { createdAt: "asc" as const }, { id: "asc" as const }] },
   events: {
     include: { attendance: { include: { party: true, recordedBy: { select: { id: true, name: true } } }, orderBy: [{ recordedAt: "asc" as const }, { id: "asc" as const }] } },
     orderBy: [{ startsAt: "asc" as const }, { id: "asc" as const }],
@@ -118,9 +118,9 @@ export async function approvedPackDates(exerciseId: string, client: Tx = db) {
 }
 
 /// SR-10: the organisation's sale setting and the online payment switched on, read beside the window rules (no window rule reads them, so they are not in `WindowPolicyFacts`, which is snapshotted at publication).
-export async function loadSaleSettings(organisationId: string, client: Tx = db): Promise<{ saleMode: import("./sale-mode").SaleMode | null; online: import("./sale-mode").OnlinePaymentFacts }> {
-  const row = await client.windowPolicy.findUnique({ where: { organisationId }, select: { documentSaleMode: true, paymentSimulatorOn: true, simulatedPaymentMethods: true } });
-  return { saleMode: row?.documentSaleMode ?? null, online: { simulatorOn: row?.paymentSimulatorOn ?? null, methods: row?.simulatedPaymentMethods ?? [] } };
+export async function loadSaleSettings(organisationId: string, client: Tx = db): Promise<{ saleMode: import("./sale-mode").SaleMode | null; releaseOnline: boolean | null; online: import("./sale-mode").OnlinePaymentFacts }> {
+  const row = await client.windowPolicy.findUnique({ where: { organisationId }, select: { documentSaleMode: true, electronicDocumentRelease: true, paymentSimulatorOn: true, simulatedPaymentMethods: true } });
+  return { saleMode: row?.documentSaleMode ?? null, releaseOnline: row?.electronicDocumentRelease ?? null, online: { simulatorOn: row?.paymentSimulatorOn ?? null, methods: row?.simulatedPaymentMethods ?? [] } };
 }
 
 /// A window's events as the rules read them.

@@ -16,10 +16,10 @@
 
 import { createHash } from "node:crypto";
 
+import { SIMULATED_LABEL } from "./payment-labels";
 import { onlinePaymentAvailable, type OnlinePaymentFacts } from "@/lib/window/sale-mode";
 
-/// What every simulated payment is called, wherever it is shown.
-export const SIMULATED_LABEL = "Simulated payment";
+export { SIMULATED_LABEL };
 
 export type PaymentChoice = "PAY" | "FAIL";
 

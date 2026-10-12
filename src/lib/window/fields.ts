@@ -41,7 +41,7 @@ const COMMON: readonly { key: string; labelEn: string }[] = [
   { key: "window.submissionPlace", labelEn: "Where tenders are submitted" },
   { key: "window.closing", labelEn: "Closing date and time" },
   { key: "window.advertisedOn", labelEn: "Advertisement date" },
-  // SR-10 (ruling 16): says how an online exercise's documents are bought, and promises online payment only where it is switched on. Online exercises only.
+  // SR-10 (ruling 16): says how an online exercise's documents are bought, and promises online payment only where it is switched on. Blank on a counter exercise.
   { key: HOW_TO_BUY_KEY, labelEn: "How to buy the documents (online sales only)" },
 ];
 
@@ -71,8 +71,10 @@ export const WINDOW_FIELD_KEYS: ReadonlySet<string> = new Set(Object.values(WIND
  * online sale. With no mode (the template screen, which serves both) every field is known.
  */
 export const windowWhitelist = (instrument: Instrument, mode: SaleMode | null = null): MergeWhitelist => {
-  const fs = WINDOW_MERGE_FIELDS[instrument].filter((f) => (mode === "ONLINE" ? !PHYSICAL_MERGE_KEYS.has(f.key) : mode == null || f.key !== HOW_TO_BUY_KEY));
-  return { has: (k) => fs.some((f) => f.key === k), label: (k) => fs.find((f) => f.key === k)?.labelEn ?? "A field" };
+  // S4: the how-to-buy field is known on every exercise and blank (not missing) where the documents are sold at the counter, so one template serves both ways of selling. The physical fields are the
+  // other direction: on an online exercise they stay retired, as ruled (design 0003, SR-10), because blanking "inspected at ..." out of a notice would leave a sentence that says nothing.
+  const fs = WINDOW_MERGE_FIELDS[instrument].filter((f) => (mode === "ONLINE" ? !PHYSICAL_MERGE_KEYS.has(f.key) : true));
+  return { has: (k) => fs.some((f) => f.key === k), label: (k) => fs.find((f) => f.key === k)?.labelEn ?? "A field", emptyOk: (k) => k === HOW_TO_BUY_KEY && mode !== "ONLINE" };
 };
 
 /**
@@ -147,7 +149,7 @@ export function windowFieldValues(c: WindowFieldContext, lang: Lang): Record<str
     "window.submissionPlace": c.submissionPlace,
     "window.closing": dayAndTime(c.closingAt, c.timeZone, lang),
     "window.advertisedOn": formatDay(c.advertisementDay, lang),
-    [HOW_TO_BUY_KEY]: c.saleMode === "ONLINE" ? howToBuyText(c.onlinePayment) : "",
+    [HOW_TO_BUY_KEY]: c.saleMode === "ONLINE" ? howToBuyText(c.onlinePayment, lang) : "",
   };
 }
 

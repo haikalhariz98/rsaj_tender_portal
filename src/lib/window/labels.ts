@@ -142,6 +142,10 @@ export function windowFindingText(f: Finding): string {
       return d.online
         ? `Prepare the notice and fee on Scope and estimate: the days of sale and the fee (${d.count} items not written yet).`
         : `Prepare the notice and fee on Scope and estimate: where the documents are inspected and bought, the hours, the days of sale, how the fee is paid and the fee (${d.count} items not written yet).`;
+    case "ONLINE_RESTRICTED":
+      return "This tender is restricted to suppliers with a status certificate, and a purchase online has no counter where an officer can sight one. Until the procurement office rules how a restricted tender is checked online, it is sold at the counter. This exercise cannot be sold online: its way of selling cannot be changed once taken, so make the exercise again when the organisation sells at the counter.";
+    case "ONLINE_NEEDS_RELEASE":
+      return `Documents cannot be sold online while the organisation's release of documents online is ${d.setting ?? "not set to Yes"}: a buyer would pay and be handed nothing. Set "Release the documents online after payment" to Yes under Configuration, Invitation.`;
     case "NOTHING_TO_TAKE":
       return "How this exercise's documents are sold is already set, so there is nothing to take.";
     case "SETTING_NOT_SET":
@@ -371,6 +375,8 @@ export function windowFindingText(f: Finding): string {
       return "The day cannot be after today.";
     case "ALREADY_VOID":
       return "The sale is already voided.";
+    case "ONLINE_SALE":
+      return "This sale was made by the buyer's online purchase and payment, which stay on record, so it cannot be voided here: the buyer would be left unable to buy again while still shown as having paid. If it was made in error, tell the procurement lead, who decides how it is put right. Any refund of an online payment is the finance office's.";
     case "WINDOW_CLOSED":
       return "The window has closed, so the sale stands.";
     case "EXERCISE_CANCELLED":

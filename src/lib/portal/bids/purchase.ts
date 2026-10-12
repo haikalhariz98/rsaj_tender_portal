@@ -7,9 +7,8 @@
  *  - by an officer recording the finance receipt, where online payment is not switched on (the fallback): the channel is then the finance receipt's.
  * A simulated payment is never a finance receipt (`payment-gateway.ts`).
  *
- * The pre-sale checks are the counter's (`preSaleChecks`), with the two an officer sights at the counter replaced, because there is no counter: the proof of authority
- * the officer sighted (FR-ADV-010) becomes a reading of the signed-in person's standing on the supplier record, and the status certificate of a restricted tender is
- * said to be read from the register, not passed.
+ * The pre-sale checks are the counter's (`preSaleChecks`), with the proof of authority an officer sights at the counter (FR-ADV-010) replaced by a reading of the signed-in person's standing on the supplier record, because there is no counter. The status certificate
+ * of a restricted tender cannot be shown online either, so a restricted tender is not sold online at all (M1, a product owner question: it needs a reading from the supplier register to be ruled).
  */
 
 import type { StandingBar } from "@/lib/portal/standing-gate";
@@ -55,7 +54,8 @@ export function onlinePurchaseChecks(counter: readonly PreSaleCheck[], buyer: Pr
   for (const c of counter) {
     if (c.key === "AUTHORITY") continue;
     if (c.key === "RESTRICTION" && c.state === "BRING") {
-      out.push({ key: "RESTRICTION", state: "INFO", detail: "The notice restricts who may tender. There is no counter to show your status certificate at: the office reads it from your company's record on the supplier register, which it checks when your bid is opened." });
+      // M1 (SR-10 review): nothing records a status certificate for an online buyer, and the opening would find it not evidenced and eliminate the bid, so a restricted tender is not sold online until a reading from the supplier register is ruled.
+      out.push({ key: "RESTRICTION", state: "BLOCK", detail: "The notice restricts who may tender, and a purchase online has no counter where your status certificate could be shown, so the documents of this tender are not sold online. Ask the procurement office how to buy them." });
       continue;
     }
     out.push(c);

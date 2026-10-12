@@ -34,11 +34,21 @@ const UNREAD_WORDS: Record<CheckState, string> = { NOT_CHECKED: "not checked: so
 /// Residual 2: recorded under the register with no supplier named at the sale.
 const NOT_NAMED_WORDS = "not checked: no supplier is named for the contractor at this sale";
 
+/**
+ * S7: an online sale has no officer sighting a letter of authority. What stands in its place is the reading of the signed-in person's standing on the supplier record, kept with the purchase when it was made
+ * (`buyerStandingCheck`). This finds it in the purchase's stored checks, in the words the buyer was shown, or null where the sale did not come from a purchase.
+ */
+export function onlineAuthorityOf(checks: unknown): { text: string; warn: boolean } | null {
+  if (!Array.isArray(checks)) return null;
+  const c = checks.find((x): x is { key: string; state: string; detail: string } => typeof x === "object" && x != null && (x as { key?: unknown }).key === "AUTHORITY" && typeof (x as { detail?: unknown }).detail === "string");
+  return c ? { text: c.detail, warn: c.state !== "PASS" } : null;
+}
+
 export function saleChecks(
-  s: { authoritySighted: boolean | null; certSighted: CertSighted | null; certValidUntil: string | null; registrationCheck: CheckState; suspensionCheck: CheckState; registerReadOn: string | null; noSupplierNamed: boolean },
+  s: { authoritySighted: boolean | null; /** An online sale: the buyer's standing as read when it bought (`onlineAuthorityOf`), shown in place of the officer's sighting. */ onlineAuthority?: { text: string; warn: boolean } | null; certSighted: CertSighted | null; certValidUntil: string | null; registrationCheck: CheckState; suspensionCheck: CheckState; registerReadOn: string | null; noSupplierNamed: boolean },
   closingDay: string | null,
 ): SaleCheck[] {
-  const out: SaleCheck[] = [{ text: `Authority: ${s.authoritySighted ? "sighted" : "not sighted"}`, warn: !s.authoritySighted }];
+  const out: SaleCheck[] = s.onlineAuthority ? [{ text: `Buyer's standing (read online, no letter of authority sighted): ${s.onlineAuthority.text}`, warn: s.onlineAuthority.warn }] : [{ text: `Authority: ${s.authoritySighted ? "sighted" : "not sighted"}`, warn: !s.authoritySighted }];
   if (s.certSighted) {
     const until = s.certValidUntil ? `, valid until ${formatDate(s.certValidUntil)}` : "";
     const early = certExpiresBeforeClosing(s.certValidUntil, closingDay);

@@ -4,6 +4,7 @@
  * no I/O. The actions call it on rows read under their locks; the screens on the same mapping.
  */
 
+import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
 import { dayIn, storedDay } from "@/lib/dates";
 import { latestFirst, nameRoutesOf, windowChangeRoutesOf } from "@/lib/method/approval";
 import { parseSen } from "@/lib/money";
@@ -63,7 +64,8 @@ export function fieldContext(d: WindowData, ex: ExerciseDates & { reference: str
     events: (w?.events ?? []).map((e) => ({ kind: e.kind, startsAt: e.startsAt, place: e.place, mandatory: e.mandatory, cancelled: e.cancelledAt != null })),
     mandatoryPermitted: mandatoryPermittedFor(w, d.policy.mandatoryAttendancePermitted).permitted,
     saleMode: ex.saleMode ?? null,
-    onlinePayment: d.sale.online,
+    // SEC-1: the notice promises online payment only where the deployment allows the simulator too.
+    onlinePayment: { ...d.sale.online, simulatorOn: d.sale.online.simulatorOn === true ? simulatorAllowedByDeployment() : d.sale.online.simulatorOn },
   };
 }
 
@@ -113,6 +115,7 @@ export function judgePublish(d: WindowData, ex: ExerciseForWindow, org: { timeZo
     windowPath: window,
     restricted: ex.restrictedTender,
     saleMode: ex.saleMode,
+    releaseOnline: d.sale.releaseOnline,
     requirements: d.tender.requirements.length,
     window: {
       inspectionPlace: w?.inspectionPlace ?? "",

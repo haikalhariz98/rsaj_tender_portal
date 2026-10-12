@@ -301,7 +301,10 @@ export async function recordPurchaseReceipt(_prev: FormState, data: FormData): P
     if (!person) return { ok: false, errors: { issuedByPersonId: windowFindingText({ code: "PERSON_REQUIRED", level: "block" }) } };
     const purchase = await tx.documentPurchase.findFirst({ where: { id: purchaseId, windowId: w.id, organisationId: l.org.id }, select: { id: true, supplierId: true, amount: true, state: true, buyerAccountId: true, supplier: { select: { registeredName: true } }, buyer: { select: { contact: { select: { name: true } } } } } });
     if (!purchase || purchase.state !== "AWAITING_PAYMENT") return { ok: false, message: "That purchase is not awaiting payment on this exercise." };
-    if (phaseOf(l.ex, w, new Date(), l.org.timeZone).phase === "CANCELLED") return refuse([{ code: "EXERCISE_CANCELLED", level: "block" }], "Not recorded:");
+    // S1: the sale phase rule of the counter sale (`saleFaults`) and of the buyer's own payment (`settlePayment`): the documents are sold only while on sale, so a receipt is not recorded outside it either.
+    const phase = phaseOf(l.ex, w, new Date(), l.org.timeZone).phase;
+    if (phase === "CANCELLED") return refuse([{ code: "EXERCISE_CANCELLED", level: "block" }], "Not recorded:");
+    if (phase !== "OPEN_FOR_PURCHASE") return refuse([{ code: "SALE_CLOSED", level: "block", data: { phase } }], "Not recorded:");
     const taken = !!(await tx.documentSale.findFirst({ where: { organisationId: l.org.id, financeReceiptNo: number }, select: { id: true } }));
     const fs = manualFeeReceipt.check({ number, recordedOn: l.org.today }, { pattern: null, today: l.org.today, taken });
     if (fs.length) return { ok: false, errors: { financeReceiptNo: fs.map((code) => windowFindingText({ code, level: "block" })).join(" ") } };

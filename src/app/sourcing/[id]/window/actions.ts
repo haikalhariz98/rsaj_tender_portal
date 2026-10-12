@@ -96,7 +96,7 @@ export async function takeSaleMode(_prev: FormState, data: FormData): Promise<Fo
   const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   return inWindow(actor, exerciseId, async (tx, l, d) => {
-    const faults = takeSaleModeFaults({ status: l.ex.status, published: isPublished(l.ex.status) || !!d.window?.publishedAt, pin: l.ex.saleMode, setting: d.sale.saleMode });
+    const faults = takeSaleModeFaults({ status: l.ex.status, published: isPublished(l.ex.status) || !!d.window?.publishedAt, pin: l.ex.saleMode, setting: d.sale.saleMode, restricted: l.ex.restrictedTender, releaseOnline: d.sale.releaseOnline });
     if (faults.length) return refuse(faults);
     await tx.sourcingExercise.update({ where: { id: exerciseId, organisationId: actor.organisationId }, data: { saleMode: d.sale.saleMode } });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, label(l, "How the documents are sold"), "UPDATE", diffFields({ howDocumentsAreSold: saleModeWords(l.ex.saleMode) }, { howDocumentsAreSold: saleModeWords(d.sale.saleMode) }), "Took the organisation's setting");

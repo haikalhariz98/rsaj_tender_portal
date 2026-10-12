@@ -18,6 +18,8 @@ export interface Rendered {
 export interface MergeWhitelist {
   has(key: string): boolean;
   label(key: string): string;
+  /// A known field whose value may be empty without being missing (S4: a field that exists for one way of selling and is deliberately blank for the other). Absent: none.
+  emptyOk?(key: string): boolean;
 }
 
 const FIELD = /\{\{\s*([^{}]*?)\s*\}\}/g;
@@ -33,6 +35,7 @@ export function renderWith(body: string, fields: Readonly<Record<string, string>
     }
     const v = fields[key];
     if (v == null || v.trim() === "") {
+      if (whitelist.emptyOk?.(key)) return "";
       missing.add(key);
       return `[${whitelist.label(key).toLowerCase()} not recorded]`;
     }

@@ -48,18 +48,35 @@ export function saleModeFault(pin: SaleMode | null): Finding<SaleModeFault> | nu
   return pin == null ? { code: "SALE_MODE_NOT_SET", level: "block" } : null;
 }
 
-export type TakeSaleModeFault = "EXERCISE_CANCELLED" | "ALREADY_PUBLISHED" | "NOTHING_TO_TAKE" | "SETTING_NOT_SET";
+export type TakeSaleModeFault = "EXERCISE_CANCELLED" | "ALREADY_PUBLISHED" | "NOTHING_TO_TAKE" | "SETTING_NOT_SET" | OnlineSaleFault;
+
+export type OnlineSaleFault = "ONLINE_RESTRICTED" | "ONLINE_NEEDS_RELEASE";
+
+/**
+ * What stops an exercise being SOLD ONLINE (SR-10 review M1 and S3). Pure.
+ *  - M1: a restricted tender asks for the purchaser's status certificate, which an officer sights at the counter. An online purchase has no counter, nothing records the certificate, and the opening
+ *    would find every online buyer "not evidenced" and eliminate it. Until a reading from the supplier register is ruled, a restricted tender is not sold online (PRODUCT OWNER QUESTION, logged).
+ *  - S3: an online purchase releases the documents only where the organisation releases documents online (`electronicDocumentRelease` Yes), so selling online with it unset or off would take a fee for
+ *    documents that stay at the counter. `restricted` null (not answered yet) is not judged here, publication asks the restriction anyway.
+ */
+export function onlineSaleFaults(i: { saleMode: SaleMode | null; restricted: boolean | null; releaseOnline: boolean | null }): Finding<OnlineSaleFault>[] {
+  if (i.saleMode !== "ONLINE") return [];
+  const out: Finding<OnlineSaleFault>[] = [];
+  if (i.restricted === true) out.push({ code: "ONLINE_RESTRICTED", level: "block" });
+  if (i.releaseOnline !== true) out.push({ code: "ONLINE_NEEDS_RELEASE", level: "block", data: { setting: i.releaseOnline == null ? "not set" : "off" } });
+  return out;
+}
 
 /**
  * Whether the exercise may take the organisation's setting now. Allowed only while the pin is not set and before the exercise is published, and only when the setting
  * is set: it copies the configured value and is not a free choice. A pin that is set is never changed.
  */
-export function takeSaleModeFaults(i: { status: ExerciseStatus; published: boolean; pin: SaleMode | null; setting: SaleMode | null }): Finding<TakeSaleModeFault>[] {
+export function takeSaleModeFaults(i: { status: ExerciseStatus; published: boolean; pin: SaleMode | null; setting: SaleMode | null; restricted: boolean | null; releaseOnline: boolean | null }): Finding<TakeSaleModeFault>[] {
   if (i.status === "CANCELLED") return [{ code: "EXERCISE_CANCELLED", level: "block" }];
   if (i.published) return [{ code: "ALREADY_PUBLISHED", level: "block" }];
   if (i.pin != null) return [{ code: "NOTHING_TO_TAKE", level: "block" }];
   if (i.setting == null) return [{ code: "SETTING_NOT_SET", level: "block" }];
-  return [];
+  return onlineSaleFaults({ saleMode: i.setting, restricted: i.restricted, releaseOnline: i.releaseOnline });
 }
 
 /// The online payment the organisation has switched on: the simulator today, a provider later. Both a switch and at least one method are needed.
@@ -74,7 +91,12 @@ export const onlinePaymentAvailable = (f: OnlinePaymentFacts): boolean => f.simu
  * The notice's statement of how to buy an online exercise's documents. It promises online payment only where it is switched on: with the simulator
  * (or, later, a provider) off, it says the office records the payment and releases the documents, so a notice never promises what the portal cannot do.
  */
-export function howToBuyText(f: OnlinePaymentFacts): string {
+export function howToBuyText(f: OnlinePaymentFacts, lang: "EN" | "MS" = "EN"): string {
+  if (lang === "MS") {
+    return onlinePaymentAvailable(f)
+      ? "Beli dokumen secara dalam talian melalui portal pembekal dan buat bayaran di sana. Dokumen dikeluarkan kepada anda sebaik sahaja bayaran dibuat."
+      : "Mohon dokumen secara dalam talian melalui portal pembekal. Bayaran dalam talian tidak disediakan: pejabat perolehan merekodkan bayaran anda, kemudian mengeluarkan dokumen kepada anda.";
+  }
   return onlinePaymentAvailable(f)
     ? "Buy the documents online through the supplier portal and pay there. They are released to you once the payment is made."
     : "Ask for the documents online through the supplier portal. Online payment is not available: the procurement office records your payment, and then releases the documents to you.";

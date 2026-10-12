@@ -81,6 +81,7 @@ export async function markPurchasePaid(tx: Tx, i: PaidInput): Promise<{ saleId: 
   const simulated = by.channel === "SIMULATED";
   const payment = simulated ? SIMULATED_LABEL : PAID_CHANNEL_WORDS.FINANCE_RECEIPT;
   const annotation = releaseAnnotation({
+    channel: by.channel,
     exerciseReference: exercise.reference,
     purchaser: party.name,
     address: party.address,
