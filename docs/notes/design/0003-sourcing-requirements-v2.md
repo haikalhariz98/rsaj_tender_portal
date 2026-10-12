@@ -959,3 +959,80 @@ and says so in words). The document supersedes only what it names. A spec Must t
     - No notice is sent at the opening stage.
     - The supplier's My bids shows "Opened; the result follows the evaluation" and never shows the verdict.
     - The notice belongs to the evaluation and award round.
+
+### Wave 2b: open points (product owner, for the founder, 2026-10-12)
+
+12a. **Office files in the document store (ADR 0035 item 11, commit 77fe072c): accepted for staff uploads, amended.**
+    - Staff may upload .xlsx and .docx, recognised by the names in the ZIP's central directory and never unpacked. Macro, encrypted, ZIP64 and
+      legacy .xls/.doc files stay refused. Each organisation still lists the types in its own upload rules, which ship unset. Without this,
+      SR-09's "upload the completed BQ Excel" cannot be met.
+    - Amendment 1 (code change, honesty). The `ARCHIVE_NOT_ACCEPTED` words say the portal "cannot tell apart" an Office file. That is now false
+      for staff. A refused Office file must say why in words: macro-enabled, password-protected, or not readable as a workbook or Word document.
+      It must say what to do instead: save as .xlsx or .docx without macros or a password, or as PDF. The supplier portal still refuses every
+      Office file, so its words must stay true there too. Use two fault codes or one sentence true on both sides, with a test for each side.
+    - Amendment 2 (code change; a product-owner tightening that no requirement asks for, which the founder may lift). On the same reasoning as the macro refusal, refuse an archive whose directory lists ActiveX controls
+      (`activeX/`) or embedded OLE objects (`/embeddings/`). Say so in words. Pictures (`media/`) stay allowed. Add tests. There is no malware
+      scan yet, so the store must not take in executable content it cannot inspect.
+    - NFR-SEC-007 (M) requires every upload to be scanned for malware. Scanning is already an open go-live condition. Office files join it by
+      name (backlog entry, document only).
+    - Amendment 3 (code change, honesty). The supplier portal reads the same upload rules (`DocumentStorePolicy.allowedMediaTypes`, through
+      `loadUploadSettings`), and its registration screen lists them to the supplier (`src/lib/portal/registration/view.ts`). On `perolehan`
+      it now tells suppliers that .xlsx and .docx are accepted, and then refuses them. The supplier-facing list must show only the types the
+      supplier path recognises (one pure function, tested). Configuration › Documents must say beside the two Office types that they apply to
+      staff uploads only, until the wave 3 ruling below.
+    - **Suppliers (SR-13): not now.** In practice a supplier returns the priced BQ as the prescribed Excel, so online bids will need .xlsx (and
+      may need .docx). That is decided in the wave 3 sealing ADR (ruling 20), which must cover:
+      - the same recogniser, one function shared with the staff path;
+      - accepted types configured per part (ruling 19), shipping unset;
+      - the supplier routes reading the file's tail;
+      - type checking and the malware scan running on the plain bytes **before** sealing, since nothing can inspect ciphertext. This makes
+        scanning a precondition of the ruling 21 go-live gate;
+      - figures still coming only from the declared fields, never parsed from the Excel (rulings 20 and 24).
+
+12b. **"Per part kind" (ruling 14): confirmed as the configured part.** "Per part kind" means a row of Configuration › Tender documents, not
+    the closed `PartRole` list, because two parts of one role can be different forms (ADR 0035 item 9). Ruling 23's "opening-check flag on
+    part kinds" is read the same way, so wave 3 does not diverge. No code change.
+
+12c. **G2 breach (`npm run demo:switches` on the founder's database `perolehan`): the writes stand, disclosed. The mode is retired.**
+    - What was written, all audited and attributed to the demo loader (audit ids `demo_swau1` to `demo_swau7`), with no exercise pin changed
+      (all 23 exercises keep both pins "used"). There were three configuration changes, not two (the builder's report left out the first):
+      - the upload rules, which gained .xlsx and .docx;
+      - the scope policy, where both switches went from "not set" to "not used";
+      - a template file on the two bill-of-quantities parts.
+    - This broke G2 and the SR-01 ruling (log, 2026-10-09: "No direct-write script" on the founder's database). It is recorded as a breach,
+      not an ambiguity.
+    - **Not undone now.** Writing the earlier values back today would itself be a one-person write of configuration, the very thing G2
+      forbids. The founder's organisation holds only invented demonstration data. The trail names the writer and the reason, and the
+      configuration screens' History shows it; no Configuration screen (Scope, Documents, Tender documents) claims that two people issued it.
+      The 2026-10-01 case of a one-person write to the demo organisation was disclosed and accepted, and the value was put back by a demo
+      reload. A reload is no longer possible: `demo:wipe` is retired and the loaders are additive (ADR 0034 D11). Today the only undo is
+      another one-person configuration write. That is why the writes stand, and the rule stands.
+    - **Once the founder has his second account**, he reviews the three writes. He then confirms them, or reverses or changes any of them
+      through Configuration by the two-person path. The scope form already offers "Not set". Nothing is deleted, and the database is not
+      reset. Put this in the hand-over.
+    - **The script from now on (code change):**
+      - Configuration rows (any table edited through Configuration's two-person path) are written by the demo only inside `demo:load` on a
+        fresh database, as `demoStarted` reports it. That is the seed G2 allows.
+      - The standalone `switches` mode is retired as `demo:wipe` was: it prints why and exits non-zero, writing nothing.
+      - No additive step run on an already-loaded database writes a configuration row. Where a step's demonstration needs a setting that is
+        not set, it says which setting and where, in words, and writes nothing for it.
+      - Additive business-row steps (the 2026-10-06 ruling 4 precedent) are unaffected.
+      - Add a test that the retired mode writes nothing and exits non-zero.
+      - "Demo organisation only" cannot be enforced as written. `demoIsLoaded` reads the whole database, and the founder's organisation is
+        itself the demonstration's. The fresh-load rule above is the enforceable form.
+
+12d. **The demo's own exercises stay pinned "used": confirmed.** They were authored with panels and on-screen bills. G1 forbids rewriting the
+    gates of an existing exercise, and G3 keeps their records. Only exercises created after a setting is issued take it. No code change.
+    - Optional, not part of this ruling: one new demo exercise pinned off, with its own `demo_` id, made through the product's own create
+      act and only in `demo:load` on a fresh database. It would show the SR-08, SR-09 and SR-11 behaviour without hand-authoring.
+
+12e. **"Take the organisation's setting": confirmed.** Without it, G1 would leave an exercise created while a setting was unset blocked
+    for ever.
+    - Checked in `src/lib/scope/switches.ts`, its tests and `takeScopeSettings`:
+      - it refuses while the organisation's own setting is not set, naming which;
+      - it refuses from the first submission and on a cancelled exercise;
+      - it never changes a pin that is set;
+      - it copies the configured value only, with no free choice;
+      - it writes the before and after in the same transaction, under the exercise's lock.
+    - Taking one switch while the other's setting is unset takes the one and reports the other in words. That is accepted.
+    - Minor tidy, not blocking: the action restates the two switch labels. It should use `SWITCH_LABEL`.
