@@ -22,6 +22,7 @@ import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
 import { checkBidsDemo, configureBidsDemo, loadBidsDemo } from "./demo-bids";
 import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo } from "./demo-opening";
 import { loadOpeningOfficersDemo } from "./demo-officers";
+import { loadScopeSwitchesDemo } from "./demo-switches";
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo } from "./demo-evaluation";
 import { loadCompanyDemo } from "./demo-company";
 import { loadMyBidsDemo } from "./demo-my-bids";
@@ -753,6 +754,11 @@ async function load() {
   {
     const officers = await loadOpeningOfficersDemo(db, organisationId);
     console.log(`Opening officers named: ${officers.named}${officers.left.length ? `; left as they are: ${officers.left.join("; ")}` : ""}`);
+  }
+  // SR-08, SR-09, SR-11 (rulings 12 to 14): the organisation's scope switches both off, and the prescribed bill workbook as the bill part's template file.
+  {
+    const made = await loadScopeSwitchesDemo(db, organisationId);
+    console.log(`Scope switches: setting ${made.policySet ? "set (both off)" : "already set"}; ${made.pinned} exercise(s) took it; template file set on ${made.templateSet} part(s).`);
   }
   // 6.15a: the supplier register, its configuration and seven suppliers recorded from paper; every act
   // judged by the product's own rules as it is written and dated relative to the load day (X-10).
@@ -2185,18 +2191,33 @@ async function contractor() {
   console.log(made.notes.length ? `Added: ${made.notes.join("; ")}.` : "The contractor is already linked: nothing was written.");
 }
 
+/**
+ * Sourcing Requirements v2 SR-08, SR-09, SR-11: the organisation's scope switches (both off) and the bill workbook's template file (prisma/demo-switches.ts), for a database the demo is
+ * already loaded in. Nothing where it stands; it sets no exercise's pin that is already set.
+ */
+async function switches() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  const made = await loadScopeSwitchesDemo(db, org.id);
+  await attributeSeededRows(db, org.id);
+  console.log(`Scope switches: setting ${made.policySet ? "set (both off)" : "already set"}; ${made.pinned} exercise(s) took it; template file set on ${made.templateSet} part(s).`);
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
   console.error(DEMO_WIPE_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "contractor") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|contractor>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "contractor" && mode !== "switches") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|contractor|switches>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "contractor" ? contractor() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "contractor" ? contractor() : mode === "switches" ? switches() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

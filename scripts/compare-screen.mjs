@@ -374,6 +374,22 @@ const DECIDED_ABSENT = [
     match: /^The panel$/,
     why: "SR-07 (ruling 11): where the exercise names its opening officers, the start of the opening no longer picks a panel from the committee's seats; the panel is those officers and the form asks only who is present",
   },
+  // Sourcing Requirements v2, wave 2b (rulings 12 to 14, ADR 0035). Neither is in the sample; listed so each removal stays visible.
+  {
+    screen: /^[/]sourcing[/][^/]+$/,
+    match: /^(Specification panel|Signed panel form)$/,
+    why: "SR-08 (ruling 12): on an exercise pinned not to use a panel the section is hidden and the panel leaves the submit gate; an exercise that uses one keeps it, and an earlier one is read only",
+  },
+  {
+    screen: /^[/]sourcing[/][^/]+$/,
+    match: /^Bill of quantities$/,
+    why: "SR-09 (ruling 13): on an exercise pinned not to build its bill on screen the section is hidden; the bill is an uploaded Excel part under Tender documents; an earlier bill is read only",
+  },
+  {
+    screen: /^[/]sourcing[/][^/]+$/,
+    match: /^(Open|Mark ready|Omit|Reopen|Rework|View as frozen|Put back)$/,
+    why: "SR-11 (ruling 14): every tender document line offers Template, Upload, Download and Replace; a part is ready when its content is, and an optional one with nothing to issue is recorded Not issued",
+  },
   // 6.15a (plan §5, OD-1..OD-10): the staff-side supplier register, on the supplier screens only.
   {
     screen: /^\/suppliers/,

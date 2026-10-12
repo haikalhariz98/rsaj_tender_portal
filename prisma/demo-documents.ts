@@ -25,6 +25,7 @@ import { createHash } from "node:crypto";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { attached, detached, documentCreated, filed, holdPlaced, repinAudit, versionCreated, versionWithdrawn } from "../src/lib/documents/audit-view";
 import { PURPOSE_LABEL } from "../src/lib/documents/labels";
+import { DOCX_TYPE, XLSX_TYPE } from "../src/lib/documents/media";
 import type { AttachmentPurpose, SecurityClass } from "../src/lib/documents/types";
 import { initialsLogo } from "../src/lib/organisation/png";
 import { bqImportAudit } from "../src/lib/scope/audit-view";
@@ -38,7 +39,7 @@ const at = (iso: string) => new Date(`${iso}:00.000Z`);
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
 export const DEMO_POLICY_ID = `${P}docpolicy`;
-const DEMO_POLICY = { allowedMediaTypes: ["application/pdf", "image/png", "image/jpeg", "text/csv"], maxBytes: 20n * 1024n * 1024n };
+const DEMO_POLICY = { allowedMediaTypes: ["application/pdf", "image/png", "image/jpeg", "text/csv", XLSX_TYPE, DOCX_TYPE], maxBytes: 20n * 1024n * 1024n };
 
 // ------------------------------------------------------------------ the bytes
 
