@@ -1475,7 +1475,7 @@ async function loadMethodSelection(organisationId: string, from: Date) {
   // the same functions a save uses.
   const SX = (n: number) => `DEMO/SX/${String(n).padStart(4, "0")}/2026`;
   const ex = (n: number, rq: number, title: string, value: string, method: string, extra: object = {}) => ({
-    id: `${P}sx${n}`, organisationId, reference: SX(n), requisitionId: `${P}rq${rq}`, title, estimatedValue: value, sourcingMethodCode: method,
+    id: `${P}sx${n}`, organisationId, specPanelUsed: true, onScreenBillUsed: true, reference: SX(n), requisitionId: `${P}rq${rq}`, title, estimatedValue: value, sourcingMethodCode: method,
     createdAt: day("2026-09-01"), ...extra,
   });
   await db.sourcingExercise.createMany({

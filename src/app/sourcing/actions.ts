@@ -29,6 +29,8 @@ import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } f
 import { transitionFault, openFault } from "@/lib/method/exercise";
 import { DELIVERABLE_LABEL, findingText, findingTextFor, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { PACK_KIND_LABEL } from "@/lib/tender-docs/labels";
+import { loadScopePolicy } from "@/lib/scope/repo";
+import { pinFrom, switchWords } from "@/lib/scope/switches";
 import { voidLivePacks } from "@/lib/tender-docs/store";
 import { behaviourProfile } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalRecordOf, proposalReopen, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
@@ -323,6 +325,9 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
       const on = dayToDate(l.org.today!);
       const reference = await issueReference(tx, l.org.id, "exercise", on);
       const m = ev.method!;
+      // SR-08, SR-09 (rulings 12 and 13, G1): the exercise takes the organisation's two scope switches as they stand, set or not. Creating is never refused for an unset one:
+      // the pin reads "not set" and submission says so, in words, until the officer takes the setting.
+      const pin = pinFrom(await loadScopePolicy(l.org.id, tx));
       const row = await tx.sourcingExercise.create({
         data: {
           organisationId: l.org.id,
@@ -334,11 +339,12 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
           requisitionRuleKey: ctx.approved?.ruleKey ?? null,
           requisitionRuleLabel: ctx.approved?.ruleLabel ?? null,
           proposalState: proposalStateFor(m.requiresProposal, null, true),
+          ...pin,
           ...determinationColumns(ev, issue, methodNameOf(cfg.config), on),
           ...methodColumns(v, ev),
         },
       });
-      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference }));
+      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference, specificationPanel: switchWords(pin.specPanelUsed), onScreenBillOfQuantities: switchWords(pin.onScreenBillUsed) }));
       await nameActorOnRestricted(tx, actor, l.org.id, { id: row.id, reference: row.reference, restricted: row.restricted }, "MADE");
       // A contract type chosen other than the derived one is an override, and is attributed to the officer who made it.
       if (ev.type.state !== "DERIVED") await act.write(tx, row.id);

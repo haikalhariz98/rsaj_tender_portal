@@ -119,7 +119,8 @@ describe("unsetCount and visibleRows", () => {
 describe("62-C4: what the header counts", () => {
   it("names only the policy fields whose absence holds a bill back, and never the override office", async () => {
     const { POLICY_FIELDS_HOLDING_WORK_BACK, unsetCount } = await import("./config");
-    expect([...POLICY_FIELDS_HOLDING_WORK_BACK]).toEqual(["Measurement standard", "Qualification a bill's preparer holds"]);
+    // SR-08, SR-09 (rulings 12 and 13, G2): the two scope switches hold work back too, so they are counted; the bill's two settings are as before.
+    expect([...POLICY_FIELDS_HOLDING_WORK_BACK]).toEqual(["Specification panel used", "On-screen bill used", "Measurement standard", "Qualification a bill's preparer holds"]);
     expect(POLICY_FIELDS_HOLDING_WORK_BACK).not.toContain("Office that may accept a late estimate");
     expect(POLICY_FIELDS_HOLDING_WORK_BACK).not.toContain("Most verifiers on a specification panel");
     // An unset override office, with every other optional setting unset, adds nothing.

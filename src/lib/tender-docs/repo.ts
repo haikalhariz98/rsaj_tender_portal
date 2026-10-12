@@ -17,7 +17,7 @@ import { lodgementBehind } from "@/lib/scope/estimate";
 import type { PackInput } from "@/lib/scope/pack";
 import { panelState } from "@/lib/scope/panel";
 import { estimateFactsOf, linesOf, loadBqVersions, loadEstimates, loadPanel, loadScopeMatters, loadScopeRules } from "@/lib/scope/repo";
-import { scopeApproval } from "@/lib/scope/scope-matter";
+import { scopeApproval, scopeApprovalForFile } from "@/lib/scope/scope-matter";
 
 import type { AppendixFacts } from "./appendix";
 import type { AssuranceKind, ConfirmationFacts } from "./assurance";
@@ -193,7 +193,7 @@ export function profileOf(classificationSnapshot: unknown) {
  * bill versions, panel, live estimate and scope matters, and the method's and basis's
  * rules. Read inside the submission's transaction after the 6.2 rows are locked.
  */
-export async function scopeReadiness(organisationId: string, ex: { id: string; sourcingMethodCode: string; contractBasisCode: string | null }, client: Tx = db) {
+export async function scopeReadiness(organisationId: string, ex: { id: string; sourcingMethodCode: string; contractBasisCode: string | null; specPanelUsed: boolean | null; onScreenBillUsed: boolean | null }, client: Tx = db) {
   // One after the other: inside a transaction the client is one connection.
   const versions = await loadBqVersions(ex.id, client);
   const panel = await loadPanel(ex.id, client);
@@ -202,17 +202,21 @@ export async function scopeReadiness(organisationId: string, ex: { id: string; s
   const matters = await loadScopeMatters(ex.id, client);
   const live = estimates.find((e) => e.state !== "VOID");
   const facts = live ? estimateFactsOf(live) : null;
+  // SR-09: where the bill is an uploaded file, scope approval is read of that file's version, and no bill is issued from the on-screen one.
+  const billFile = ex.onScreenBillUsed === false ? await billFileOf(ex.id, client) : null;
   const input: PackInput = {
     basis: rules.basis ? { requiresBq: rules.basis.requiresBq } : null,
     method: rules.method ? { requiresCompanyEstimate: rules.method.requiresCompanyEstimate } : null,
     bq: versions,
+    specPanelUsed: ex.specPanelUsed,
+    onScreenBillUsed: ex.onScreenBillUsed,
     panel: panelState(panel ? { status: panel.status, liveScanVersionIds: panel.liveScanVersionIds, verifiedSnapshot: panel.verifiedSnapshot } : null),
     panelBill: panel?.bqVersion ? { versionNo: panel.bqVersion.versionNo, status: panel.bqVersion.status } : null,
     estimate: facts ? { state: facts.state, behind: lodgementBehind(facts) } : null,
-    scope: scopeApproval(rules.method, versions, matters).state,
+    scope: (billFile ? scopeApprovalForFile(rules.method, billFile.file, billFile.hasPart, matters, billFile.history) : scopeApproval(rules.method, versions, matters)).state,
   };
   const { finalised } = currentBq(versions);
-  const bill: { versionId: string; frozen: FrozenBq; primeCostSums: Sen } | null = finalised
+  const bill: { versionId: string; frozen: FrozenBq; primeCostSums: Sen } | null = finalised && ex.onScreenBillUsed === true
     ? {
         versionId: finalised.id,
         frozen: { versionNo: finalised.versionNo, sections: finalised.sections.map((s) => ({ number: s.number, title: s.title, items: linesOf({ ...finalised, sections: [s] }) })) },
@@ -220,7 +224,50 @@ export async function scopeReadiness(organisationId: string, ex: { id: string; s
       }
     : null;
   const lastVersion = live?.versions[live.versions.length - 1] ?? null;
-  return { input, bill, panelId: panel?.id ?? null, lastEstimateVersionOn: lastVersion ? storedDay(lastVersion.preparedOn) : null };
+  return { input, bill, billFile, panelId: panel?.id ?? null, lastEstimateVersionOn: lastVersion ? storedDay(lastVersion.preparedOn) : null };
+}
+
+/// SR-09: the bill as an uploaded file: the pack's bill part and its live file. `hasPart`: the latest pack has a bill part (true while no pack is started, when it cannot be judged). `file`: the newest live file as a version of the document store, or null.
+export interface BillFile {
+  hasPart: boolean;
+  partId: string | null;
+  file: { id: string; versionNo: number; documentId: string; title: string; sha256: string; filename: string } | null;
+  liveFiles: number;
+  /// Every version that has been the bill part's file (live or replaced), so an approval of an earlier one is said to be of an earlier one.
+  history: { id: string; versionNo: number }[];
+}
+
+export async function billFileOf(exerciseId: string, client: Tx = db): Promise<BillFile> {
+  const pack = await client.tenderPack.findFirst({
+    where: { exerciseId, status: { not: "VOID" } },
+    orderBy: { versionNo: "desc" },
+    select: {
+      parts: {
+        where: { source: "BQ_UNPRICED" },
+        take: 1,
+        select: {
+          id: true,
+          attachments: {
+            where: { purpose: "TENDER_PART" },
+            orderBy: [{ attachedAt: "desc" }, { id: "desc" }],
+            select: { detachedAt: true, version: { select: { id: true, versionNo: true, documentId: true, sha256: true, originalFilename: true, withdrawnAt: true, document: { select: { title: true } } } } },
+          },
+        },
+      },
+    },
+  });
+  if (!pack) return { hasPart: true, partId: null, file: null, liveFiles: 0, history: [] };
+  const part = pack.parts[0] ?? null;
+  const all = part?.attachments ?? [];
+  const live = all.filter((a) => a.detachedAt == null && a.version.withdrawnAt == null);
+  const newest = live[0]?.version ?? null;
+  return {
+    hasPart: part != null,
+    partId: part?.id ?? null,
+    file: newest ? { id: newest.id, versionNo: newest.versionNo, documentId: newest.documentId, title: newest.document.title, sha256: newest.sha256, filename: newest.originalFilename } : null,
+    liveFiles: live.length,
+    history: all.map((x) => ({ id: x.version.id, versionNo: x.version.versionNo })),
+  };
 }
 
 /// The pack kind an exercise assembles now, from its snapshot; null before document assembly.

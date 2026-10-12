@@ -15,6 +15,9 @@ import { formatPct } from "@/lib/tender-docs/percent";
 import { PACK_KINDS, PART_CONTENTS, PART_ROLES, PART_SOURCES, type ConfiguredPart, type Provenance } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { documentFaultText } from "@/lib/documents/labels";
+import { filed } from "@/lib/documents/audit-view";
+import { lockVersion } from "@/lib/documents/service";
 import type { OrgScope } from "@/lib/org-scope";
 
 /**
@@ -134,6 +137,49 @@ export async function saveTenderPart(_prev: FormState, data: FormData): Promise<
       const changes = diffFields(await partWords(tx, org.id, { ...before, provenance: before.provenance as Provenance, retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }), await partWords(tx, org.id, { ...part, retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }));
       if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: before.id, entityLabel: `Tender document part · ${part.labelEn}`, reason }, "UPDATE", changes);
     }
+    return done();
+  });
+}
+
+/**
+ * Set, replace or remove the template file of a configured part (SR-11, ruling 14). The file is a version in the document store, staged through the upload route as any
+ * file is (class, classification, fingerprint, audit); this step, run when a second person issues the proposal, files its document and points the part at it, in one transaction
+ * with the part's row locked. A template file is for officers to download, so it must be a version that stands and a document whose class sets a classification (an unclassified
+ * document is never served). Removing it leaves the part with no template ("No template set"); the file itself stays in the store. Never an exercise's pack: packs already started
+ * keep nothing of it, because the line reads the part's configuration as it stands.
+ */
+export async function saveTenderPartTemplateFile(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const org = await organisation(actor);
+  if (!org) return NO_ORG;
+  const id = String(data.get("id") ?? "").trim();
+  const versionId = String(data.get("versionId") ?? "").trim();
+  const remove = String(data.get("remove") ?? "") === "yes";
+  const reason = String(data.get("reason") ?? "");
+  if (!remove && !versionId) return { ok: false, errors: { file: "Choose the template file." } };
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await tx.$queryRaw`SELECT id FROM "TenderDocumentPart" WHERE id = ${id} AND "organisationId" = ${org.id} FOR UPDATE`;
+    const before = await tx.tenderDocumentPart.findFirst({ where: { id, organisationId: org.id }, select: { labelEn: true, templateFileVersion: { select: { versionNo: true, originalFilename: true } } } });
+    if (!before) return GONE;
+    const words = (v: { versionNo: number; originalFilename: string } | null) => (v ? `${v.originalFilename}, version ${v.versionNo}` : "No template set");
+    if (remove) {
+      await tx.tenderDocumentPart.update({ where: { id, organisationId: actor.organisationId }, data: { templateFileVersionId: null } });
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: id, entityLabel: `Tender document part · ${before.labelEn}`, reason }, "UPDATE", diffFields({ templateFile: words(before.templateFileVersion) }, { templateFile: words(null) }));
+      return done();
+    }
+    // The document is locked before the version is judged: a withdrawal committed while this waited is seen, never pointed at.
+    const v = await lockVersion(tx, versionId, org.id);
+    if (!v) return { ok: false, errors: { file: documentFaultText({ code: "VERSION_UNKNOWN", level: "block" }) } };
+    if (v.withdrawnAt != null) return { ok: false, errors: { file: documentFaultText({ code: "VERSION_WITHDRAWN", level: "block" }) } };
+    const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId, organisationId: org.id }, include: { documentClass: { select: { classification: true } } } });
+    if (doc.classificationSnapshot == null) return { ok: false, errors: { file: "That file's class sets no classification, so it could not be downloaded. Choose a class that sets one, under Configuration, Documents." } };
+    const after = await tx.documentVersion.findUniqueOrThrow({ where: { id: v.id, organisationId: org.id }, select: { versionNo: true, originalFilename: true } });
+    await tx.tenderDocumentPart.update({ where: { id, organisationId: actor.organisationId }, data: { templateFileVersionId: v.id } });
+    if (doc.status === "STAGED") {
+      await tx.document.update({ where: { id: doc.id, organisationId: org.id }, data: { status: "FILED", filedAt: new Date() } });
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "Document", entityId: doc.id, entityLabel: `Document · ${doc.title}` }, "UPDATE", filed());
+    }
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: id, entityLabel: `Tender document part · ${before.labelEn}`, reason }, "UPDATE", diffFields({ templateFile: words(before.templateFileVersion) }, { templateFile: words(after) }));
     return done();
   });
 }

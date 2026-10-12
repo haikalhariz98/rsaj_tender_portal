@@ -50,7 +50,7 @@ export function awardFacts(a: { status: AwardStatus; instrumentKind: InstrumentK
 /// (BD-62-26; a missing or malformed snapshot names none) and its live signed-form attachments.
 export const panelFacts = (p: {
   status: "DRAFT" | "VERIFIED";
-  exercise: { status: ExerciseStatus };
+  exercise: { status: ExerciseStatus; specPanelUsed: boolean | null };
   verifiedSnapshot: unknown;
   attachments: readonly { purpose: string; versionId: string; detachedAt: Date | null; version: { withdrawnAt: Date | null } }[];
 }): OwnerFacts => ({
@@ -59,6 +59,8 @@ export const panelFacts = (p: {
   status: p.status,
   verifiedScanVersionIds: verifiedScanVersionIds(p.verifiedSnapshot),
   liveScanVersionIds: p.attachments.filter((a) => a.purpose === "SPEC_PANEL_FORM" && isLive(a)).map((a) => a.versionId),
+  // SR-08: the exercise's pin.
+  used: p.exercise.specPanelUsed,
 });
 
 /// What a panel's facts are read from: its snapshot and its signed-form attachments, live or not.
@@ -69,14 +71,17 @@ export const PANEL_FACTS_SELECT = {
 } as const;
 
 /// 6.2 Q-3: a bill of quantities version, with its exercise's status.
-export const bqVersionFacts = (v: { status: "DRAFT" | "FINALISED" | "SUPERSEDED"; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "bqVersion", exerciseStatus: v.exercise.status, status: v.status });
+export const bqVersionFacts = (v: { status: "DRAFT" | "FINALISED" | "SUPERSEDED"; exercise: { status: ExerciseStatus; onScreenBillUsed: boolean | null } }): OwnerFacts => ({ kind: "bqVersion", exerciseStatus: v.exercise.status, status: v.status, onScreen: v.exercise.onScreenBillUsed });
 
 /// 6.4: a tender pack's part, with its pack's and exercise's status and where its content comes from.
-export const tenderPackPartFacts = (p: { source: PartSource; pack: { status: TenderPackStatus; exercise: { status: ExerciseStatus } } }): OwnerFacts => ({
+export const tenderPackPartFacts = (p: { source: PartSource; pack: { status: TenderPackStatus; exercise: { status: ExerciseStatus; onScreenBillUsed?: boolean | null } }; _count?: { attachments: number } }): OwnerFacts => ({
   kind: "tenderPackPart",
   exerciseStatus: p.pack.exercise.status,
   packStatus: p.pack.status,
   source: p.source,
+  // SR-09: the exercise's pin. Absent (a caller that does not read it): not set, which keeps the bill part closed to a file.
+  billOnScreen: p.pack.exercise.onScreenBillUsed ?? null,
+  liveFiles: p._count?.attachments ?? 0,
 });
 
 /// 6.5: an addendum, with its exercise's status.

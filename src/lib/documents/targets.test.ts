@@ -78,7 +78,7 @@ describe("ownerHref", () => {
 
 describe("6.2 Q-3: a bill's imported file is never offered as a place to attach", () => {
   it("a bill version lists no purpose, so nothing is filed against it from the received list", () => {
-    const [t] = attachTargets([{ id: "v1", label: "DEMO/SX/15/2026 · Bill of quantities, version 1", facts: { kind: "bqVersion", exerciseStatus: "DRAFT", status: "DRAFT" } }]);
+    const [t] = attachTargets([{ id: "v1", label: "DEMO/SX/15/2026 · Bill of quantities, version 1", facts: { kind: "bqVersion", onScreen: true, exerciseStatus: "DRAFT", status: "DRAFT" } }]);
     expect(t.purposes).toEqual([]);
   });
 });

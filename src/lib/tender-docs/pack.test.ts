@@ -10,7 +10,9 @@ import type { AppendixFacts } from "./appendix";
 import { resolveComposition } from "./composition";
 import { appendixText, freezePack, packManifest, unpricedBqText } from "./freeze";
 import type { ConditionsInput } from "./conditions";
-import { allOf, blockingOf, markReadyFaults, nextPack, omitFaults, packEditFault, packReadiness, pickTemplateFaults, startPackFaults, submitFaults, templateFaults, type SubmitInput } from "./pack";
+// SR-11 (ruling 14): there is no Mark ready and no Omit, so `markReadyFaults` is `partReadyFaults` (the content check a line's note and the gate share) and `omitFaults` is gone;
+// a part is ready when its content is in order (`partIssue`) and an optional one with nothing to issue is "Not issued".
+import { allOf, blockingOf, issuedPart, mayHoldFile, nextPack, NOT_ISSUED_REASON, packEditFault, packReadiness, partIssue, partReadyFaults, pickTemplateFaults, settledPart, startPackFaults, submitFaults, takesFile, templateFaults, type SubmitInput } from "./pack";
 import { OMP005_QUOTATION_PARTS, SK001_TENDER_PARTS } from "./sk001-fixture";
 import type { PackPartFacts, TemplateFacts } from "./types";
 
@@ -22,7 +24,8 @@ const part = (x: Partial<PackPartFacts> = {}): PackPartFacts => ({
   partCode: "p2", printedNumber: "2", sortOrder: 20, label: "Form of tender", role: "FORM_OF_TENDER", content: "STANDARD", source: "TEMPLATE", mandatory: true, inTableDocument: true, returnedByBidder: true, templateCode: "form_of_tender", template: template(), state: "READY", omittedReason: "", liveUploads: 0, ...x,
 });
 const declaration = part({ partCode: "p9", printedNumber: "9", label: "Declaration", role: "DECLARATION", template: template({ id: "tpl9", code: "declaration", nameEn: "Declaration", bodyEn: "I declare." }) });
-const CTX = { bqFinalised: true, appendixComplete: true };
+// SR-09: the bill is on screen in these cases, as every exercise before the switch was.
+const CTX = { bqFinalised: true, billOnScreen: true, appendixComplete: true };
 /// Increment 2 (faithful fixture update): a notice carrying the eligibility block (FR-DOC-005),
 /// and conditions every check passes with no finding at all.
 const notice = part({ partCode: "p1", printedNumber: "1", label: "Notice", role: "INVITATION", template: template({ id: "tpl1n", code: "notice", nameEn: "Notice", bodyEn: "Registered with {{eligibility.registration}}, valid {{eligibility.window}}." }) });
@@ -37,44 +40,97 @@ const CLEAR_CONDITIONS: ConditionsInput = {
 
 describe("a part's content, by its source (FR-DOC-003)", () => {
   it("a template part needs its template, with text, a first language where it has two, and only pack merge fields", () => {
-    expect(codes(markReadyFaults(part({ state: "NOT_STARTED", template: null }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX))).toEqual(["TEMPLATE_NOT_SET"]);
+    expect(codes(partReadyFaults(part({ state: "NOT_STARTED", template: null }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX))).toEqual(["TEMPLATE_NOT_SET"]);
     expect(codes(templateFaults(template({ bodyEn: " ", bodyMs: null })))).toEqual(["TEMPLATE_BODY_EMPTY"]);
     expect(codes(templateFaults(template({ bodyMs: "Tawaran.", primaryLanguage: null })))).toEqual(["TEMPLATE_LANGUAGE_NOT_SET"]);
     expect(templateFaults(template({ bodyEn: "Awarded to {{awardee.name}}." }))).toEqual([{ code: "TEMPLATE_UNKNOWN_FIELD", level: "block", data: { template: "Form of tender", fields: "{{awardee.name}}" } }]);
-    expect(markReadyFaults(part({ state: "NOT_STARTED" }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX)).toEqual([]);
+    expect(partReadyFaults(part({ state: "NOT_STARTED" }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX)).toEqual([]);
   });
   it("a bespoke part is never drawn from the library", () => {
-    expect(codes(markReadyFaults(part({ state: "NOT_STARTED", content: "BESPOKE" }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX))).toEqual(["BESPOKE_FROM_LIBRARY"]);
+    expect(codes(partReadyFaults(part({ state: "NOT_STARTED", content: "BESPOKE" }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX))).toEqual(["BESPOKE_FROM_LIBRARY"]);
     expect(codes(pickTemplateFaults(part({ content: "BESPOKE" }), template(), "DRAFT", "DOCUMENTS_IN_PREPARATION"))).toEqual(["BESPOKE_FROM_LIBRARY"]);
     expect(codes(pickTemplateFaults(part({ source: "UPLOAD" }), template(), "DRAFT", "DOCUMENTS_IN_PREPARATION"))).toEqual(["NOT_A_TEMPLATE_PART"]);
   });
   it("the bill part needs a finalised bill; the Appendix part a complete Appendix; an uploaded part its file", () => {
-    expect(codes(markReadyFaults(part({ state: "NOT_STARTED", source: "BQ_UNPRICED", content: "BESPOKE", template: null }), "DRAFT", "DOCUMENTS_IN_PREPARATION", { ...CTX, bqFinalised: false }))).toEqual(["BQ_PART_WITHOUT_BQ"]);
-    expect(codes(markReadyFaults(part({ state: "NOT_STARTED", source: "APPENDIX", content: "BESPOKE", template: null }), "DRAFT", "DOCUMENTS_IN_PREPARATION", { ...CTX, appendixComplete: false }))).toEqual(["APPENDIX_INCOMPLETE"]);
-    expect(codes(markReadyFaults(part({ state: "NOT_STARTED", source: "UPLOAD", content: "BESPOKE", template: null, liveUploads: 0 }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX))).toEqual(["UPLOAD_MISSING"]);
-    expect(markReadyFaults(part({ state: "NOT_STARTED", source: "UPLOAD", content: "BESPOKE", template: null, liveUploads: 1 }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX)).toEqual([]);
+    expect(codes(partReadyFaults(part({ state: "NOT_STARTED", source: "BQ_UNPRICED", content: "BESPOKE", template: null }), "DRAFT", "DOCUMENTS_IN_PREPARATION", { ...CTX, bqFinalised: false }))).toEqual(["BQ_PART_WITHOUT_BQ"]);
+    expect(codes(partReadyFaults(part({ state: "NOT_STARTED", source: "APPENDIX", content: "BESPOKE", template: null }), "DRAFT", "DOCUMENTS_IN_PREPARATION", { ...CTX, appendixComplete: false }))).toEqual(["APPENDIX_INCOMPLETE"]);
+    expect(codes(partReadyFaults(part({ state: "NOT_STARTED", source: "UPLOAD", content: "BESPOKE", template: null, liveUploads: 0 }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX))).toEqual(["UPLOAD_MISSING"]);
+    expect(partReadyFaults(part({ state: "NOT_STARTED", source: "UPLOAD", content: "BESPOKE", template: null, liveUploads: 1 }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX)).toEqual([]);
   });
   it("only a draft pack on an exercise in preparation changes", () => {
     expect(packEditFault("SUBMITTED", "PENDING_APPROVAL_FOR_TENDERING")?.code).toBe("EXERCISE_NOT_IN_PREPARATION");
     expect(packEditFault("RETURNED", "DOCUMENTS_IN_PREPARATION")?.code).toBe("PACK_NOT_DRAFT");
-    expect(codes(markReadyFaults(part({ state: "NOT_STARTED" }), "SUBMITTED", "PENDING_APPROVAL_FOR_TENDERING", CTX))).toEqual(["EXERCISE_NOT_IN_PREPARATION"]);
+    expect(codes(partReadyFaults(part({ state: "NOT_STARTED" }), "SUBMITTED", "PENDING_APPROVAL_FOR_TENDERING", CTX))).toEqual(["EXERCISE_NOT_IN_PREPARATION"]);
   });
 });
 
-describe("omitting a part", () => {
-  it("only one configured as not mandatory, and only with the reason", () => {
-    expect(omitFaults(part({ mandatory: false }), "DRAFT", "DOCUMENTS_IN_PREPARATION", "Not needed for supply")).toEqual([]);
-    expect(codes(omitFaults(part({ mandatory: false }), "DRAFT", "DOCUMENTS_IN_PREPARATION", " "))).toEqual(["OMIT_REASON_REQUIRED"]);
-    expect(codes(omitFaults(part({ mandatory: true }), "DRAFT", "DOCUMENTS_IN_PREPARATION", "x"))).toEqual(["MANDATORY_OMITTED"]);
-    expect(codes(omitFaults(part({ mandatory: null }), "DRAFT", "DOCUMENTS_IN_PREPARATION", "x"))).toEqual(["MANDATORY_UNSET"]);
+describe("a part that has nothing to issue (SR-11, ruling 14: no Omit, \"Not issued\" instead)", () => {
+  it("an optional part with nothing to issue is recorded Not issued; a mandatory one is not ready; a mandatory flag that is not set is not an excuse", () => {
+    const empty = { source: "UPLOAD" as const, content: "BESPOKE" as const, template: null, liveUploads: 0 };
+    expect(partIssue(part({ ...empty, mandatory: false }), CTX)).toMatchObject({ state: "NOT_ISSUED" });
+    expect(partIssue(part({ ...empty, mandatory: true }), CTX)).toMatchObject({ state: "NOT_READY" });
+    expect(partIssue(part({ ...empty, mandatory: null }), CTX)).toMatchObject({ state: "NOT_READY" });
+    expect(settledPart(part({ ...empty, mandatory: false }), CTX)).toMatchObject({ state: "OMITTED", omittedReason: NOT_ISSUED_REASON });
+    expect(NOT_ISSUED_REASON).toBe("Not issued");
+  });
+  it("is settled from the content, not from a stored state: what an officer once marked is judged again", () => {
+    expect(settledPart(part({ state: "NOT_STARTED" }), CTX)).toMatchObject({ state: "READY", omittedReason: "" });
+    expect(settledPart(part({ state: "OMITTED", omittedReason: "old", mandatory: true }), CTX)).toMatchObject({ state: "READY", omittedReason: "" });
+    expect(settledPart(part({ state: "READY", template: null }), CTX)).toMatchObject({ state: "NOT_STARTED" });
+  });
+});
+
+describe("a part is ready on its content, by its source (SR-11, SR-09, ADR 0035)", () => {
+  const upload = (x: Partial<PackPartFacts> = {}) => part({ source: "UPLOAD", content: "BESPOKE", template: null, liveUploads: 0, ...x });
+  it("an uploaded part is ready on its first live file", () => {
+    expect(partIssue(upload(), CTX).state).toBe("NOT_READY");
+    expect(partIssue(upload({ liveUploads: 1 }), CTX)).toEqual({ state: "READY", as: "FILE" });
+  });
+  it("a merged-text part is ready when its merge has no missing field, and a file uploaded to it replaces the merged text as the issued part", () => {
+    expect(partIssue(part(), CTX)).toEqual({ state: "READY", as: "TEXT" });
+    // The merge is not judged once a file stands in its place: even a template that would not merge.
+    const broken = part({ template: template({ bodyEn: "Awarded to {{awardee.name}}." }), liveUploads: 1 });
+    expect(codes(partReadyFaults(broken, "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX))).toEqual([]);
+    expect(partIssue(broken, CTX)).toEqual({ state: "READY", as: "FILE" });
+    expect(codes(partReadyFaults({ ...broken, liveUploads: 0 }, "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX))).toEqual(["TEMPLATE_UNKNOWN_FIELD"]);
+  });
+  it("the bill part is the on-screen bill when the exercise builds one, and an uploaded file when it does not (SR-09)", () => {
+    const bill = part({ source: "BQ_UNPRICED", content: "BESPOKE", template: null });
+    expect(codes(partReadyFaults(bill, "DRAFT", "DOCUMENTS_IN_PREPARATION", { ...CTX, bqFinalised: false }))).toEqual(["BQ_PART_WITHOUT_BQ"]);
+    expect(partIssue(bill, CTX)).toEqual({ state: "READY", as: "BILL" });
+    // Off: a finalised bill earlier on the exercise is not what is issued; the file is.
+    const off = { ...CTX, billOnScreen: false };
+    expect(partReadyFaults(bill, "DRAFT", "DOCUMENTS_IN_PREPARATION", off)).toEqual([{ code: "UPLOAD_MISSING", level: "block", data: { part: "2. Form of tender", bill: 1 } }]);
+    expect(partIssue({ ...bill, liveUploads: 1 }, off)).toEqual({ state: "READY", as: "FILE" });
+    expect(takesFile(bill, off)).toBe(true);
+    expect(takesFile(bill, CTX)).toBe(false);
+  });
+  it("a file may be held by an uploaded part, a merged-text part and the bill where it is a file; never by the Appendix or the on-screen bill", () => {
+    const off = { billOnScreen: false };
+    expect(mayHoldFile({ source: "UPLOAD" }, CTX)).toBe(true);
+    expect(mayHoldFile({ source: "TEMPLATE" }, CTX)).toBe(true);
+    expect(mayHoldFile({ source: "APPENDIX" }, off)).toBe(false);
+    expect(mayHoldFile({ source: "BQ_UNPRICED" }, CTX)).toBe(false);
+    expect(mayHoldFile({ source: "BQ_UNPRICED" }, off)).toBe(true);
+    // Not set: the bill part holds nothing until the pin is set.
+    expect(mayHoldFile({ source: "BQ_UNPRICED" }, { billOnScreen: null })).toBe(false);
+  });
+  it("a merged-text part with a file is read by the checks as an uploaded part: its template words are not what is issued", () => {
+    const p = issuedPart(part({ liveUploads: 1 }), CTX);
+    expect(p).toMatchObject({ source: "UPLOAD", template: null, state: "READY" });
+    expect(issuedPart(part(), CTX)).toMatchObject({ source: "TEMPLATE", state: "READY" });
+    expect(issuedPart(part({ source: "BQ_UNPRICED", content: "BESPOKE", template: null, liveUploads: 1 }), { ...CTX, billOnScreen: false })).toMatchObject({ source: "UPLOAD", state: "READY" });
   });
 });
 
 describe("the pack's readiness (FR-DOC-001, 008)", () => {
   it("every part ready, or omitted with a reason where not mandatory, and the declaration bound in", () => {
     expect(packReadiness([part(), declaration], CTX)).toEqual([]);
-    expect(codes(packReadiness([part({ state: "NOT_STARTED" }), declaration], CTX))).toEqual(["PART_NOT_READY"]);
-    expect(codes(packReadiness([part({ state: "OMITTED", mandatory: false, omittedReason: "" }), declaration], CTX))).toEqual(["OMIT_REASON_REQUIRED"]);
+    // SR-11: the stored state is not read. A part with its content in order is ready whatever it was marked; one without says what it lacks (it was PART_NOT_READY).
+    expect(packReadiness([part({ state: "NOT_STARTED" }), declaration], CTX)).toEqual([]);
+    expect(codes(packReadiness([part({ state: "READY", template: null }), declaration], CTX))).toEqual(["TEMPLATE_NOT_SET"]);
+    // An optional part with nothing to issue is Not issued, which does not block (it was OMIT_REASON_REQUIRED without a reason).
+    expect(packReadiness([part({ state: "OMITTED", mandatory: false, omittedReason: "", template: null }), declaration], CTX)).toEqual([]);
     expect(codes(packReadiness([part({ mandatory: null }), declaration], CTX))).toEqual(["MANDATORY_UNSET"]);
   });
   it("a ready part whose content has since gone is not ready", () => {
@@ -128,6 +184,9 @@ const cleanScope: PackInput = {
   basis: { requiresBq: true },
   method: { requiresCompanyEstimate: true },
   bq: [{ status: "FINALISED", versionNo: 1 }],
+  // SR-08, SR-09 (G1): an exercise that uses both, as every exercise before the pins did.
+  specPanelUsed: true,
+  onScreenBillUsed: true,
   panel: "VERIFIED",
   panelBill: { versionNo: 1, status: "FINALISED" },
   estimate: { state: "LODGED", behind: false },
@@ -290,5 +349,52 @@ describe("freezing renders each template part from its body version and pins eve
     expect(text).toContain("10% of the contract sum");
     expect(text).toContain("Defects liability period: 12 months");
     expect(text).not.toMatch(/HOD_CP|PERCENT_OF_SUM_PER_DAY/);
+  });
+});
+
+describe("submission with the bill as an uploaded file, and files in place of merged text (SR-09, SR-11, ADR 0035)", () => {
+  const billPart = part({ partCode: "p7a", printedNumber: "7a", label: "Bills of quantities", role: "BILL_OF_QUANTITIES", source: "BQ_UNPRICED", content: "BESPOKE", template: null });
+  const off: Partial<SubmitInput> = { scope: { ...cleanScope, onScreenBillUsed: false, bq: [], panelBill: null } };
+  it("a bill file uploaded to the bill part clears the gate; with none the part says it is missing (a mandatory part)", () => {
+    expect(blockingOf(submitFaults(submit({ ...off, parts: [part(), declaration, notice, { ...billPart, liveUploads: 1 }] })))).toEqual([]);
+    const s = submitFaults(submit({ ...off, parts: [part(), declaration, notice, billPart] }));
+    expect(s.readiness).toEqual([{ code: "UPLOAD_MISSING", level: "block", data: { part: "7a. Bills of quantities", bill: 1 } }]);
+  });
+  it("an exercise let on a bill whose pack has no bill part to upload it to is told so, and it is cleared in configuration", () => {
+    const s = submitFaults(submit({ ...off }));
+    expect(codes(s.readiness)).toEqual(["BILL_PART_MISSING"]);
+    // On screen, or a basis not let on a bill: not said.
+    expect(codes(submitFaults(submit()).readiness)).toEqual([]);
+    expect(codes(submitFaults(submit({ scope: { ...cleanScope, onScreenBillUsed: false, basis: { requiresBq: false } } })).readiness)).toEqual([]);
+  });
+  it("the bill's side of the nomination check is not made without an on-screen bill, and says so; it is never a pass", () => {
+    const noNomination = behaviourProfile({ ...works, nominationAllowed: false });
+    const on = submitFaults(submit({ profile: noNomination, primeCostSums: sen("18000.00") }));
+    expect(codes(on.behaviour)).toEqual(["NOMINATION_NOT_FOR_TYPE"]);
+    const f = submitFaults(submit({ ...off, parts: [part(), declaration, notice, { ...billPart, liveUploads: 1 }], profile: noNomination, primeCostSums: null }));
+    expect(f.behaviour).toEqual([{ code: "NOMINATION_BILL_NOT_CHECKED", level: "info" }]);
+    // Not a block, so it neither refuses nor reads as a pass.
+    expect(blockingOf(f)).toEqual([]);
+  });
+  it("a merged-text part with a file is read by the notice check as a file it cannot read: warned, not blocked", () => {
+    const f = submitFaults(submit({ parts: [part(), declaration, { ...notice, liveUploads: 1 }] }));
+    expect(f.conditions.filter((x) => x.level === "block")).toEqual([]);
+    expect(codes(f.conditions)).toContain("NOTICE_NOT_CHECKED");
+  });
+  it("freezing pins the file by its hash and renders no text for the part it replaces; the restriction stamp is not printed on a file", () => {
+    const file = { versionId: "v9", documentId: "d9", versionNo: 2, sha256: "ab".repeat(32), title: "Form of tender (signed)" };
+    const withFile = part({ liveUploads: 1 });
+    const issued = issuedPart(withFile, CTX);
+    const { documents, manifest } = freezePack({ parts: [{ ...issued, files: [file] }], fields: { "exercise.title": "x", "exercise.reference": "y" }, bill: null, appendix: null, stamp: { EN: "RESTRICTED", MS: "TERHAD" } });
+    expect(documents).toEqual([]);
+    expect(manifest[0]).toMatchObject({ partCode: "p2", source: "UPLOAD", state: "READY", template: null, files: [file], stamped: false });
+    // The bill as a file, frozen the same way, and no bill is pinned.
+    const bill = issuedPart({ ...billPart, liveUploads: 1 }, { ...CTX, billOnScreen: false });
+    const frozen = freezePack({ parts: [{ ...bill, files: [file] }], fields: {}, bill: null, appendix: null });
+    expect(frozen.documents).toEqual([]);
+    expect(frozen.manifest[0]).toMatchObject({ source: "UPLOAD", bill: null, files: [file] });
+    // An optional part that had nothing to issue is frozen as omitted, with the reason "Not issued".
+    const none = issuedPart(part({ partCode: "p12", printedNumber: "12", source: "UPLOAD", content: "BESPOKE", template: null, mandatory: false }), CTX);
+    expect(freezePack({ parts: [{ ...none, files: [] }], fields: {}, bill: null, appendix: null }).manifest[0]).toMatchObject({ state: "OMITTED", omittedReason: "Not issued", files: [] });
   });
 });

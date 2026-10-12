@@ -5,6 +5,10 @@
  * SCOPE_RULE_NOT_SET, SCOPE_COMMITTEE_NOT_SET and SCOPE_ACT_NOT_SET block naming the setting, and
  * SCOPE_NOT_APPROVED blocks until the finalised bill's scope matter is carried.
  *
+ * SR-08 and SR-09 (rulings 12 and 13, ADR 0035): the specification panel's findings, and the on-screen bill's, are judged only on an exercise pinned
+ * to use them (`specPanelUsed`, `onScreenBillUsed`, frozen at the first submission). A pin that is not set blocks, in words, and says how to set it.
+ * Where the bill is an uploaded file, scope approval is read of that file's version (`scope-matter.ts`), and the file itself is a part of the pack.
+ *
  * Unset configuration never reads as "not needed" (OD-6): a method whose estimate rule is
  * unset, or a basis whose bill rule is unset, blocks naming the setting. Each finding's
  * words (labels.ts) say where to fix it.
@@ -15,6 +19,8 @@ import { scopeClears, type ScopeApprovalState } from "./scope-matter";
 import type { BqStatus, EstimateState, Finding } from "./types";
 
 export type PackFault =
+  | "SPEC_PANEL_SWITCH_NOT_SET"
+  | "BILL_SWITCH_NOT_SET"
   | "BASIS_NOT_CHOSEN"
   | "BASIS_BQ_NOT_SET"
   | "BQ_NOT_FINALISED"
@@ -38,6 +44,10 @@ export interface PackInput {
   method: { requiresCompanyEstimate: boolean | null } | null;
   /// The bill's versions' statuses (and numbers, where known, to name them).
   bq: readonly { status: BqStatus; versionNo?: number }[];
+  /// SR-08 (ruling 12): whether the specification panel is used on this exercise, as pinned. Null: not set.
+  specPanelUsed: boolean | null;
+  /// SR-09 (ruling 13): whether the bill of quantities is built on screen on this exercise, as pinned. Null: not set. False: it is an uploaded file.
+  onScreenBillUsed: boolean | null;
   panel: PanelState;
   /// The bill version the panel certifies, null where it names none. Required: a verified
   /// panel is only as good as the bill it was verified on.
@@ -50,21 +60,26 @@ export interface PackInput {
 
 export function packFaults(i: PackInput): Finding<PackFault>[] {
   const out: Finding<PackFault>[] = [];
+  if (i.specPanelUsed == null) out.push({ code: "SPEC_PANEL_SWITCH_NOT_SET", level: "block" });
+  if (i.onScreenBillUsed == null) out.push({ code: "BILL_SWITCH_NOT_SET", level: "block" });
   if (i.basis == null) out.push({ code: "BASIS_NOT_CHOSEN", level: "block" });
   else if (i.basis.requiresBq == null) out.push({ code: "BASIS_BQ_NOT_SET", level: "block" });
-  else if (i.basis.requiresBq) {
+  else if (i.basis.requiresBq && i.onScreenBillUsed === true) {
     // `started` lets the words tell no bill at all from a draft that is not finalised yet; the
     // panel's own finding of the same code (panel.ts) carries none and keeps its own sentence.
     if (!i.bq.some((v) => v.status === "FINALISED")) out.push({ code: "BQ_NOT_FINALISED", level: "block", data: { started: i.bq.length > 0 ? 1 : 0 } });
     else if (i.bq.some((v) => v.status === "DRAFT")) out.push({ code: "BQ_REVISION_OPEN", level: "warn" });
   }
-  if (i.panel === "SCAN_GONE") out.push({ code: "PANEL_SCAN_GONE", level: "block" });
-  else if (i.panel !== "VERIFIED") out.push({ code: "PANEL_NOT_VERIFIED", level: "block" });
+  // SR-08: the panel's findings leave the gate where the exercise does not use a panel (an earlier panel stays readable, never judged).
+  if (i.specPanelUsed === true) {
+    if (i.panel === "SCAN_GONE") out.push({ code: "PANEL_SCAN_GONE", level: "block" });
+    else if (i.panel !== "VERIFIED") out.push({ code: "PANEL_NOT_VERIFIED", level: "block" });
+  }
   // A panel verified on a bill since superseded certifies quantities that no longer stand.
   // It compares two bills, so it is said only where both exist: with no finalised bill the finding
   // above already says so, and a comparison against nothing would only confuse.
   const finalised = i.bq.find((v) => v.status === "FINALISED");
-  if ((i.panel === "VERIFIED" || i.panel === "SCAN_GONE") && i.panelBill != null && i.panelBill.status !== "FINALISED" && finalised != null) {
+  if (i.specPanelUsed === true && i.onScreenBillUsed === true && (i.panel === "VERIFIED" || i.panel === "SCAN_GONE") && i.panelBill != null && i.panelBill.status !== "FINALISED" && finalised != null) {
     const current = finalised.versionNo ?? null;
     out.push({ code: "PANEL_BILL_SUPERSEDED", level: "block", data: { panelVersion: i.panelBill.versionNo, current } });
   }
@@ -79,6 +94,7 @@ export function packFaults(i: PackInput): Finding<PackFault>[] {
   if (i.scope === "RULE_NOT_SET") out.push({ code: "SCOPE_RULE_NOT_SET", level: "block" });
   else if (i.scope === "COMMITTEE_NOT_SET") out.push({ code: "SCOPE_COMMITTEE_NOT_SET", level: "block" });
   else if (i.scope === "ACT_NOT_SET") out.push({ code: "SCOPE_ACT_NOT_SET", level: "block" });
-  else if (i.scope !== "METHOD_NOT_CONFIGURED" && !scopeClears(i.scope)) out.push({ code: "SCOPE_NOT_APPROVED", level: "block", data: { state: i.scope } });
+  // Without the bill's switch the approval cannot be judged of a bill or of a file; the switch's own finding above says so.
+  else if (i.scope !== "METHOD_NOT_CONFIGURED" && i.onScreenBillUsed != null && !scopeClears(i.scope)) out.push({ code: "SCOPE_NOT_APPROVED", level: "block", data: { state: i.scope, file: i.onScreenBillUsed ? 0 : 1 } });
   return out;
 }

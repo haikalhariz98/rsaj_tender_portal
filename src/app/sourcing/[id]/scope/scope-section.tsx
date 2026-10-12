@@ -12,7 +12,7 @@ import { formatDate } from "@/lib/format";
 import type { scopeTab } from "@/lib/scope/read";
 import { NOT_SET, SCOPE_CONFIG_PATH } from "@/lib/scope/labels";
 
-import { EditPanelDrawer, MarkVerifiedDrawer, TableScopeDrawer, VerifyColumnDrawer } from "./editors";
+import { EditPanelDrawer, MarkVerifiedDrawer, TableScopeDrawer, TakeSettingsDrawer, VerifyColumnDrawer } from "./editors";
 
 type Data = NonNullable<Awaited<ReturnType<typeof scopeTab>>>;
 
@@ -20,21 +20,55 @@ const STATE_TONE: Record<Data["panel"]["state"], Tone> = { NONE: "neutral", DRAF
 const levelTone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 
 /**
+ * SR-08 and SR-09 (rulings 12 and 13): the section opens with how this exercise is prepared (the two switches it is pinned to), the specification panel and its signed form are
+ * shown only where the exercise uses a panel (an earlier panel stays, read only), and the scope approval is of the bill, or of the uploaded bill file.
+ *
  * Scope: the specification panel with its signed form, and the scope approval. (The
  * scope statement lives in the bill of quantities' header, and the readiness card is gone:
  * founder decision, 2026-10-05.) Every verification is "recorded on behalf of, not signed"; the panel is
  * verified only with a live SULIT scan of its signed form.
  */
 export function ScopeSection({ d }: { d: Data }) {
-  const { panel, exercise, approval } = d;
+  const { panel, exercise, approval, switches } = d;
+  const readOnly = d.panelReadOnly;
   const columnsUnset = panel.id != null && panel.columns.length === 0;
+  const billWords = switches.bill.pin == null ? "Not set" : switches.bill.pin ? "Built on screen" : "An uploaded Excel file, under Tender documents";
+  const panelWords = switches.panel.pin == null ? "Not set" : switches.panel.pin ? "Used" : "Not used";
+  const unsetPins = switches.panel.pin == null || switches.bill.pin == null;
   return (
     <div className="flex flex-col gap-6">
+      <Card id="how-prepared" className="scroll-mt-24">
+        <CardHeader
+          icon={<ShieldIcon size={17} />}
+          title="How this exercise is prepared"
+          subtitle="Fixed from the organisation's setting when the exercise was made, and frozen when its tender documents are first submitted."
+          actions={unsetPins && switches.take ? <TakeSettingsDrawer exerciseId={exercise.id} take={switches.take} rows={[["Specification panel", `${panelWords}, organisation's setting: ${switches.panel.setting}`], ["Bill of quantities", `${billWords}, organisation's setting: ${switches.bill.setting === "Used" ? "Built on screen" : switches.bill.setting === "Not used" ? "An uploaded Excel file" : "Not set"}`]]} /> : undefined}
+        />
+        <CardBody className="flex flex-col gap-4">
+          <KeyValues
+            columns={2}
+            items={[
+              { label: "Specification panel", value: panelWords === "Not set" ? <Badge tone="warn">Not set</Badge> : panelWords },
+              { label: "Bill of quantities", value: billWords === "Not set" ? <Badge tone="warn">Not set</Badge> : billWords },
+            ]}
+          />
+          {unsetPins && (
+            <Callout tone="warn" title="Submission waits for this">
+              {switches.panel.pin == null && "Whether this exercise uses a specification panel is not set. "}
+              {switches.bill.pin == null && "Whether it builds its bill of quantities on screen is not set. "}
+              The tender documents cannot be submitted until they are. Take the organisation&apos;s setting here; if the organisation has not set them, set them under{" "}
+              <Link href={switches.configHref} className="font-semibold">Configuration, Scope and estimate</Link>, where a second person issues the change.
+            </Callout>
+          )}
+        </CardBody>
+      </Card>
+
+      {d.panelShown && (
       <Card id="specification-panel" className="scroll-mt-24">
         <CardHeader
           icon={<UsersIcon size={17} />}
-          title="Specification panel"
-          subtitle={panel.statement}
+          title={readOnly ? "Earlier specification panel" : "Specification panel"}
+          subtitle={readOnly ? "Kept as it was recorded. This exercise does not use a specification panel, so nothing more is recorded on it." : panel.statement}
           actions={<Badge tone={STATE_TONE[panel.state]} dot>{panel.stateLabel}</Badge>}
         />
         {panel.id == null ? (
@@ -43,10 +77,12 @@ export function ScopeSection({ d }: { d: Data }) {
           </EmptyState>
         ) : (
           <CardBody className="flex flex-col gap-5">
+            {!readOnly && (
             <div className="flex flex-wrap items-start gap-3">
               <EditPanelDrawer exerciseId={exercise.id} isNew={false} raw={panel.raw} kinds={panel.options.contractKinds} statuses={panel.options.projectStatuses} bills={panel.options.bills} clearsVerifications={panel.state === "VERIFIED" || panel.columns.some((c) => c.verifiedBy != null)} />
               <MarkVerifiedDrawer exerciseId={exercise.id} verify={panel.verify} scans={panel.signedFormScans} reverify={panel.reverify} />
             </div>
+            )}
             {panel.findings.length > 0 && (
               <div className="flex flex-col gap-2">
                 {panel.findings.map((f, i) => (
@@ -88,7 +124,7 @@ export function ScopeSection({ d }: { d: Data }) {
                           <span className="block text-[12.5px] text-ink-3">Not verified yet</span>
                         )}
                       </span>
-                      {c.verifiedBy ? <Badge tone="ok" dot>Verified</Badge> : panel.state === "VERIFIED" ? null : <VerifyColumnDrawer exerciseId={exercise.id} column={c.code} columnLabel={c.label} people={panel.options.people.map((p) => ({ value: p.id, label: p.name }))} />}
+                      {c.verifiedBy ? <Badge tone="ok" dot>Verified</Badge> : panel.state === "VERIFIED" || readOnly ? null : <VerifyColumnDrawer exerciseId={exercise.id} column={c.code} columnLabel={c.label} people={panel.options.people.map((p) => ({ value: p.id, label: p.name }))} />}
                     </li>
                   ))}
                 </ul>
@@ -107,12 +143,13 @@ export function ScopeSection({ d }: { d: Data }) {
           </CardBody>
         )}
       </Card>
+      )}
 
-      {panel.id ? (
+      {d.panelShown && (panel.id ? (
         <div id="signed-panel-form" className="scroll-mt-24">
         <OwnerAttachments
           owner={{ kind: "specificationPanel", id: panel.id }}
-          title="Signed panel form"
+          title={readOnly ? "Earlier signed panel form" : "Signed panel form"}
           subtitle="Scanned and filed as SULIT. A verified panel stands only while the scan it was verified on is live; another scan attached later counts once the panel is verified again."
           only={["SPEC_PANEL_FORM"]}
           required={{ SPEC_PANEL_FORM: true }}
@@ -125,13 +162,13 @@ export function ScopeSection({ d }: { d: Data }) {
             The scan is filed against the panel, so the panel is saved first.
           </EmptyState>
         </Card>
-      )}
+      ))}
 
       <Card id="scope-approval" className="scroll-mt-24 overflow-hidden">
         <CardHeader
           icon={<ScaleIcon size={17} />}
           title="Scope approval"
-          subtitle="Whether the finalised bill's scope is approved by the committee the sourcing method names, read from the decision at its sitting."
+          subtitle={approval.fileMode ? "Whether the uploaded bill of quantities' scope is approved by the committee the sourcing method names, read from the decision at its sitting. A replaced file is a new version and is approved in its own right." : "Whether the finalised bill's scope is approved by the committee the sourcing method names, read from the decision at its sitting."}
           actions={<Badge tone={approval.badge.tone} dot>{approval.badge.label}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">
@@ -151,7 +188,7 @@ export function ScopeSection({ d }: { d: Data }) {
           {/* Offered only where tabling is the next step; every other state's callout above says what is next. */}
           {["NOT_TABLED", "DEFERRED", "OUTCOME_NOT_RECORDED"].includes(approval.state) && (
             <div className="flex flex-wrap items-center gap-3">
-              <TableScopeDrawer exerciseId={exercise.id} table={approval.table} />
+              <TableScopeDrawer exerciseId={exercise.id} table={approval.table} file={approval.fileMode} />
             </div>
           )}
         </CardBody>
@@ -165,7 +202,7 @@ export function ScopeSection({ d }: { d: Data }) {
               exportName="scope-matters"
               emptyTitle="Nothing tabled"
               columns={[
-                { key: "version", label: "Bill", width: "14%", mobile: "primary" },
+                { key: "version", label: approval.fileMode ? "Uploaded bill" : "Bill", width: "14%", mobile: "primary" },
                 { key: "sitting", label: "Sitting", width: "22%", mobile: "meta" },
                 { key: "act", label: "Act", width: "14%", mobile: "meta" },
                 { key: "tabled", label: "Tabled", mobile: "meta" },

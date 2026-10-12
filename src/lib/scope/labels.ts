@@ -14,6 +14,7 @@ import type { BqCsvFault, ImportBlock } from "./csv";
 import type { MarkVerifiedFault, PanelFault, PanelState, VerifyFault } from "./panel";
 import type { PriceFault, RateScheduleStatus, ScheduleFault } from "./rates";
 import type { ScopeApproval, ScopeApprovalState, ScopeCitationFault } from "./scope-matter";
+import type { TakeSettingFault } from "./switches";
 import type { BqItemKind, BqRateSource, BqScopedBy, BqStatus, EstimateEventKind, EstimateState, Finding } from "./types";
 
 /// Where the scope and estimate rules are set.
@@ -155,6 +156,7 @@ export type ScopeCode =
   | ViewFault
   | PackFault
   | ScopeCitationFault
+  | TakeSettingFault
   | PriceFault
   | ScheduleFault
   // The acts themselves.
@@ -177,7 +179,14 @@ export type ScopeCode =
   | "FILE_REFUSED"
   | "DRAFT_NOT_EMPTY"
   | "NO_DRAFT"
-  | "NO_OPEN_SITTING";
+  | "NO_OPEN_SITTING"
+  // SR-08 and SR-09: an act of a panel or an on-screen bill, on an exercise pinned off or not set.
+  | "PANEL_NOT_USED"
+  | "BILL_NOT_ON_SCREEN"
+  | "PANEL_SWITCH_NOT_SET"
+  | "BILL_SWITCH_NOT_SET_ACT"
+  | "SWITCH_INVALID"
+  | "NO_BILL_FILE";
 
 const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | number | null>) => string)>> = {
   // bq.ts
@@ -249,6 +258,8 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   BASIS_NOT_CHOSEN: "Choose the exercise's contract basis by editing the exercise.",
   BASIS_BQ_NOT_SET: `Whether the contract basis is let on a bill of quantities is not set. ${SET_IT}`,
   BQ_REVISION_OPEN: "A revision of the bill is being drafted; the finalised version is the one that goes with the documents.",
+  SPEC_PANEL_SWITCH_NOT_SET: "Whether this exercise uses a specification panel is not set. Take the organisation's setting under Scope and estimate, Scope; if the organisation has not set it, set it under Configuration, Scope and estimate.",
+  BILL_SWITCH_NOT_SET: "Whether this exercise builds its bill of quantities on screen is not set. Take the organisation's setting under Scope and estimate, Scope; if the organisation has not set it, set it under Configuration, Scope and estimate.",
   PANEL_NOT_VERIFIED: "The specification panel is not verified. Complete it under Scope and estimate, Scope.",
   PANEL_SCAN_GONE: "The scan of the signed form the panel was verified on has been withdrawn or taken off, so the panel no longer counts as verified. A scan attached since does not count by itself: make sure a SULIT scan of the signed form is attached, then use Mark verified on the panel to verify it again.",
   PANEL_BILL_SUPERSEDED: (d) => `The specification panel was verified on version ${d.panelVersion ?? "?"} of the bill, which is no longer the finalised one${d.current != null ? ` (version ${d.current} is)` : ""}. Edit the panel under Scope and estimate, Scope to name the current bill, then verify it again.`,
@@ -259,7 +270,17 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   SCOPE_RULE_NOT_SET: `Whether this sourcing method needs its scope approved by a committee is not set. ${SET_IT}`,
   SCOPE_COMMITTEE_NOT_SET: `This sourcing method needs its scope approved by a committee, and which committee is not set. ${SET_IT}`,
   SCOPE_ACT_NOT_SET: `This sourcing method needs its scope approved by a committee, and the act the committee discharges on it is not set, so nothing is tabled and no decision reads as approval. ${SET_IT}`,
-  SCOPE_NOT_APPROVED: (d) => `The scope is not approved: ${SCOPE_STATE_TEXT[(d.state as ScopeApprovalState) ?? "NOT_TABLED"] ?? SCOPE_STATE_TEXT.NOT_TABLED} See Scope and estimate, Scope.`,
+  SCOPE_NOT_APPROVED: (d) => `The scope is not approved: ${scopeStateText((d.state as ScopeApprovalState) ?? "NOT_TABLED", d.file === 1)} See Scope and estimate, Scope.`,
+  // SR-08, SR-09 and the take-the-setting act
+  ALREADY_SUBMITTED: "The tender documents have been submitted on this exercise, so its switches are frozen. They change only if the exercise is cancelled and made again.",
+  NOTHING_TO_TAKE: "Both switches are already set on this exercise, so there is nothing to take.",
+  SETTING_NOT_SET: (d) => `The organisation has not set "${d.switch ?? "this switch"}". Set it under Configuration, Scope and estimate; it is a proposal a second person issues. Then take it here.`,
+  PANEL_NOT_USED: "This exercise does not use a specification panel (Requirements v2, SR-08), so nothing is recorded on it. An earlier panel stays readable.",
+  PANEL_SWITCH_NOT_SET: "Whether this exercise uses a specification panel is not set. Take the organisation's setting first.",
+  BILL_NOT_ON_SCREEN: "This exercise does not build its bill of quantities on screen (Requirements v2, SR-09). The bill is an uploaded file under Tender documents. An earlier bill stays readable.",
+  BILL_SWITCH_NOT_SET_ACT: "Whether this exercise builds its bill of quantities on screen is not set. Take the organisation's setting first.",
+  SWITCH_INVALID: "Choose used or not used.",
+  NO_BILL_FILE: "There is no bill of quantities file to table. Upload it under Tender documents first.",
   // scope-matter.ts
   SCOPE_NOT_REQUIRED: "This sourcing method does not ask for its scope to be approved by a committee, so nothing is tabled.",
   VERSION_NOT_FINALISED: "Only the finalised bill is tabled. Finalise the draft first.",
@@ -336,6 +357,7 @@ export const SCOPE_STATE_TEXT: Readonly<Record<ScopeApprovalState, string>> = {
   COMMITTEE_NOT_SET: `which committee approves the scope is not set. ${SET_IT}`,
   ACT_NOT_SET: `the act the committee discharges on the scope is not set, so no decision reads as approval. ${SET_IT}`,
   NO_FINALISED_BILL: "there is no finalised bill to table yet. Finalise the bill of quantities first.",
+  NO_BILL_PART: "the sourcing method asks for the scope to be approved, and these tender documents have no bill of quantities part to upload the file to. Add the part under Configuration, Tender documents, or set under Configuration, Scope and estimate that this method does not need its scope approved.",
   NOT_TABLED: "the finalised bill has not been tabled. Table it at a sitting of the committee.",
   PENDING: "the finalised bill is tabled and waiting for the committee's decision.",
   DEFERRED: "the committee deferred it. Table it again at a later sitting.",
@@ -345,6 +367,18 @@ export const SCOPE_STATE_TEXT: Readonly<Record<ScopeApprovalState, string>> = {
   OUTCOME_NOT_RECORDED: "the committee did not carry it and no outcome was recorded, so it cannot be read either way. Table it again.",
 };
 
+/// SR-09: the same states where the bill is an uploaded file rather than built on screen.
+const SCOPE_FILE_STATE_TEXT: Partial<Record<ScopeApprovalState, string>> = {
+  NO_FINALISED_BILL: "no bill of quantities file is uploaded yet. Upload it under Tender documents.",
+  NOT_TABLED: "the uploaded bill of quantities has not been tabled. Table it at a sitting of the committee.",
+  PENDING: "the uploaded bill of quantities is tabled and waiting for the committee's decision.",
+  RETURNED: "the committee returned it. Upload the revised file and table that version.",
+  ENDED: "the committee ended the matter. Upload the revised file and table that version, or cancel the exercise.",
+};
+
+/// The words for a scope state; `file`: the bill is an uploaded file (SR-09).
+export const scopeStateText = (state: ScopeApprovalState, file: boolean): string => (file ? SCOPE_FILE_STATE_TEXT[state] : undefined) ?? SCOPE_STATE_TEXT[state];
+
 export const SCOPE_STATE_BADGE: Readonly<Record<ScopeApprovalState, { label: string; tone: "ok" | "warn" | "err" | "neutral" | "info" }>> = {
   METHOD_NOT_CONFIGURED: { label: "Method not configured", tone: "err" },
   RULE_NOT_SET: { label: "Rule not set", tone: "warn" },
@@ -352,6 +386,7 @@ export const SCOPE_STATE_BADGE: Readonly<Record<ScopeApprovalState, { label: str
   COMMITTEE_NOT_SET: { label: "Committee not set", tone: "warn" },
   ACT_NOT_SET: { label: "Act not set", tone: "warn" },
   NO_FINALISED_BILL: { label: "No finalised bill", tone: "warn" },
+  NO_BILL_PART: { label: "No bill part to approve", tone: "warn" },
   NOT_TABLED: { label: "Not tabled", tone: "warn" },
   PENDING: { label: "Waiting for the decision", tone: "info" },
   DEFERRED: { label: "Deferred", tone: "warn" },
@@ -364,9 +399,10 @@ export const SCOPE_STATE_BADGE: Readonly<Record<ScopeApprovalState, { label: str
 /// The scope card's sentence: the state, the version and where it was decided or waits.
 /// `committee` is today's; a matter decided or waiting is named by its own sitting's
 /// committee (62-C1), which is today's unless configuration has moved on.
-export function scopeApprovalLine(a: ScopeApproval, today: string | null, formatDay: (d: Date) => string = (d) => formatDate(d)): string {
+export function scopeApprovalLine(a: ScopeApproval, today: string | null, formatDay: (d: Date) => string = (d) => formatDate(d), file = false): string {
   const committee = a.decisive?.record?.committee ?? a.decisive?.committeeName ?? today;
-  const v = a.versionNo != null ? `Version ${a.versionNo} of the bill` : "The bill";
+  const what = file ? "the uploaded bill of quantities" : "the bill";
+  const v = a.versionNo != null ? `Version ${a.versionNo} of ${what}` : file ? "The uploaded bill of quantities" : "The bill";
   const where = a.decisive?.record ? `${a.decisive.record.meetingReference}${a.decisive.record.decisionDate ? `, ${formatDay(a.decisive.record.decisionDate)}` : ""}` : (a.decisive?.sittingReference ?? null);
   const earlier = a.earlierApprovedVersionNo != null && a.state !== "APPROVED" ? ` Version ${a.earlierApprovedVersionNo} was approved; a finalised revision is approved in its own right.` : "";
   switch (a.state) {
@@ -378,11 +414,11 @@ export function scopeApprovalLine(a: ScopeApproval, today: string | null, format
     case "ENDED":
     case "OUTCOME_NOT_RECORDED":
     case "DEFERRED":
-      return `${v}: ${SCOPE_STATE_TEXT[a.state]}${where ? ` (${where})` : ""}${earlier}`;
+      return `${v}: ${scopeStateText(a.state, file)}${where ? ` (${where})` : ""}${earlier}`;
     case "NOT_TABLED":
       return `${v}: not tabled yet. Table it at a sitting of the ${committee ?? "committee"}.${earlier}`;
     default:
-      return `Scope approval: ${SCOPE_STATE_TEXT[a.state]}${earlier}`;
+      return `Scope approval: ${scopeStateText(a.state, file)}${earlier}`;
   }
 }
 

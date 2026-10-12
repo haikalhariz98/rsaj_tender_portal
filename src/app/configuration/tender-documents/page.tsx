@@ -19,6 +19,9 @@ import { conditionsConfig } from "@/lib/tender-docs/read-config-conditions";
 
 import { BodyDrawer, ClauseDrawer, RestoreDrawer, RetireDrawer } from "./conditions-editors";
 import { EditMethodPack, EditTenderPolicy, PartDrawer, RestorePartDrawer, RetirePartDrawer, type PartValues } from "./editors";
+import { RemoveTemplateFileDrawer, TemplateFileDrawer } from "./template-file";
+import { uploadContext } from "@/lib/documents/read";
+import { uploadView } from "@/lib/documents/views";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +60,8 @@ const tri = (v: boolean | null) => (v === true ? "yes" : v === false ? "no" : "u
 export default async function TenderDocumentsConfigurationPage({ searchParams }: { searchParams: Promise<{ retired?: string }> }) {
   const actor = await requireStaff();
   const showRetired = (await searchParams).retired === "1";
-  const [c, k] = await Promise.all([tenderDocsConfig(actor.organisationId, showRetired), conditionsConfig(actor.organisationId, showRetired)]);
+  const [c, k, uploadCtx] = await Promise.all([tenderDocsConfig(actor.organisationId, showRetired), conditionsConfig(actor.organisationId, showRetired), uploadContext(actor.organisationId)]);
+  const upload = uploadView(uploadCtx ?? { classes: [], people: [], allowedMediaTypes: [], maxBytes: null, ceiling: null, cap: null, refusals: [], timeZoneSet: false, statement: "" });
   if (!c) {
     return (
       <>
@@ -361,13 +365,13 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                 g.byBasis.map((b) => (
                   <div key={b.basis} className="border-t border-line first:border-t-0">
                     <p className="bg-sunken px-5 py-2 text-[12.5px] font-semibold text-ink-2 sm:px-6">{b.basis === "Every basis" ? "On every basis" : `On ${b.basis}`}</p>
-                    <Table minWidth={760}>
+                    <Table minWidth={1000}>
                       <colgroup>
                         <col style={{ minWidth: 260 }} />
                         <col style={{ width: 150 }} />
                         <col style={{ width: 150 }} />
                         <col style={{ width: 120 }} />
-                        <ActionsCol icons={1} labelled={2} />
+                        <ActionsCol icons={1} labelled={4} />
                       </colgroup>
                       <THead>
                         <Th>Part</Th>
@@ -378,7 +382,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                       </THead>
                       <tbody>
                         {b.parts.map((r) => {
-                          const sub = [r.role, r.content, r.template ? `Template: ${r.template}` : r.source, r.retired ? `Retired${r.raw.retiredOn ? ` from ${formatDate(r.raw.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ");
+                          const sub = [r.role, r.content, r.template ? `Template: ${r.template}` : r.source, r.templateFile ? `Template file: ${r.templateFile}` : "No template file", r.retired ? `Retired${r.raw.retiredOn ? ` from ${formatDate(r.raw.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ");
                           return (
                             <Tr key={r.id}>
                               <Td><CellStack title={`${r.printedNumber}. ${r.label}`} sub={sub} /></Td>
@@ -404,6 +408,8 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                                 <RowActions>
                                   <HistoryButton iconOnly entity="TenderDocumentPart" entityId={r.id} label={`${r.printedNumber}. ${r.label}`} />
                                   <PartDrawer part={{ id: r.id, label: `${r.printedNumber}. ${r.label}`, values: partValues(r) }} options={options} />
+                                  <TemplateFileDrawer id={r.id} label={`${r.printedNumber}. ${r.label}`} current={r.templateFile} upload={upload} />
+                                  {r.templateFile && <RemoveTemplateFileDrawer id={r.id} label={`${r.printedNumber}. ${r.label}`} />}
                                   {r.retired ? <RestorePartDrawer id={r.id} label={`${r.printedNumber}. ${r.label}`} /> : <RetirePartDrawer id={r.id} label={`${r.printedNumber}. ${r.label}`} />}
                                 </RowActions>
                               </Td>

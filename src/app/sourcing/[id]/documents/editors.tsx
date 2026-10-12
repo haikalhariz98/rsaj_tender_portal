@@ -8,7 +8,7 @@ import { TENDERING_STATE_LABEL } from "@/lib/tender-docs/labels";
 
 import { REFRESH_LABEL, type RefreshView } from "@/lib/tender-docs/refresh";
 
-import { markPartReady, omitPart, pickPartTemplate, recordTenderingDecision, refreshPartFlags, reopenPart, startPack, submitPack } from "./actions";
+import { pickPartTemplate, recordTenderingDecision, refreshPartFlags, startPack, submitPack } from "./actions";
 
 /**
  * The drawers of the Tender documents tab. Fields are data; every rule sits in the action and
@@ -114,66 +114,35 @@ export function RefreshFlagsDrawer({ exerciseId, refresh, confirmedChanges }: { 
   );
 }
 
-export function PickTemplateDrawer({ exerciseId, partId, partLabel, options, current }: { exerciseId: string; partId: string; partLabel: string; options: Option[]; current: string }) {
+/**
+ * Template (SR-11): for a merged-text part, the library template it is merged from and the merged draft to download. The part is issued as that text unless a file is
+ * uploaded in its place; there is nothing to mark ready. `file`: the organisation's own template file for this part, where Configuration names one.
+ */
+export function PickTemplateDrawer({ exerciseId, partId, partLabel, options, current, draftHref, file }: { exerciseId: string; partId: string; partLabel: string; options: Option[]; current: string; draftHref: string | null; file: { filename: string; href: string } | null }) {
   return (
     <RecordEditor
       title={`Template for ${partLabel}`}
-      description="The part is printed from the template's text as it stands when the version is submitted. Choosing another takes the part back to not ready."
+      description="The part is issued as the template's text, merged with this exercise's details when the version is submitted, unless a file is uploaded to it in its place. It is ready when the merge has no missing field."
       fields={[hidden("exerciseId"), hidden("partId"), { kind: "select", name: "templateId", label: "Template", required: true, placeholder: "Choose", options }]}
       values={{ exerciseId, partId, templateId: current }}
+      sections={
+        <div className="flex flex-col gap-2 text-[13.5px]">
+          {draftHref ? (
+            <a href={draftHref} className="font-semibold">Download the merged draft</a>
+          ) : (
+            <p className="text-ink-3">Choose a template to download its merged draft.</p>
+          )}
+          {file && (
+            <a href={file.href} className="font-semibold">
+              Download the organisation&apos;s template file: {file.filename}
+            </a>
+          )}
+        </div>
+      }
       action={pickPartTemplate}
       submitLabel="Use this template"
-      trigger={{ label: "Template", className: ghost, ariaLabel: `Choose the template for ${partLabel}` }}
+      trigger={{ label: "Template", className: ghost, ariaLabel: `Template for ${partLabel}: the merged text and its draft` }}
       size="md"
-    />
-  );
-}
-
-export function MarkReadyDrawer({ exerciseId, partId, partLabel, allowed }: { exerciseId: string; partId: string; partLabel: string; allowed: Allowed }) {
-  if (!allowed.allowed) return null;
-  return (
-    <RecordEditor
-      title={`Mark ${partLabel} ready`}
-      description="It is checked again as it is saved: its template, file, bill or Appendix must be in place."
-      fields={[hidden("exerciseId"), hidden("partId")]}
-      values={{ exerciseId, partId }}
-      action={markPartReady}
-      submitLabel="Mark ready"
-      trigger={{ label: "Mark ready", className: secondary, ariaLabel: `Mark ${partLabel} ready` }}
-      size="sm"
-    />
-  );
-}
-
-export function OmitPartDrawer({ exerciseId, partId, partLabel, allowed }: { exerciseId: string; partId: string; partLabel: string; allowed: Allowed }) {
-  if (!allowed.allowed) return null;
-  return (
-    <RecordEditor
-      title={`Omit ${partLabel}`}
-      description="The part is left out of this version, and the reason goes on its record. It can be put back until the version is submitted."
-      fields={[hidden("exerciseId"), hidden("partId")]}
-      values={{ exerciseId, partId }}
-      destructive={{ reasonLabel: "Why it is omitted" }}
-      cancelLabel="Keep the part"
-      action={omitPart}
-      submitLabel="Omit the part"
-      trigger={{ label: "Omit", className: ghost, ariaLabel: `Omit ${partLabel}` }}
-      size="sm"
-    />
-  );
-}
-
-export function ReopenPartDrawer({ exerciseId, partId, partLabel, state }: { exerciseId: string; partId: string; partLabel: string; state: string }) {
-  return (
-    <RecordEditor
-      title={state === "Omitted" ? `Put ${partLabel} back` : `Rework ${partLabel}`}
-      description="The part goes back to not ready, to be made ready again."
-      fields={[hidden("exerciseId"), hidden("partId")]}
-      values={{ exerciseId, partId }}
-      action={reopenPart}
-      submitLabel={state === "Omitted" ? "Put it back" : "Take it back to not ready"}
-      trigger={{ label: state === "Omitted" ? "Put back" : "Rework", className: ghost, ariaLabel: `${state === "Omitted" ? "Put back" : "Rework"} ${partLabel}` }}
-      size="sm"
     />
   );
 }

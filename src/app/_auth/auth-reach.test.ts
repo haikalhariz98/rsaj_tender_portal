@@ -92,7 +92,8 @@ describe("the scan finds what it should", () => {
     // Phase 4c adds the Company workspace's two uploads: a document (a replacement, a renewal, an answer to the office's request) and a change of bank details.
     // Changed for Phase 4d: My Bids adds three route handlers (event, acknowledge, request), so 30. The count is of files, and each is held below.
     // Changed for Phase 4e: My Projects adds three (submit, diary, certificate), so 33.
-    expect(ROUTE_FILES.length).toBe(33);
+    // Changed for Sourcing Requirements v2 SR-11 (ruling 14): the merged draft of a tender document part is downloaded from a route handler, so 34. It asks who is signed in first.
+    expect(ROUTE_FILES.length).toBe(34);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });

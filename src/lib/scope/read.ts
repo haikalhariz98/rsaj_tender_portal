@@ -51,6 +51,7 @@ import {
   CSV_EXPORT_NOTE,
   CSV_IMPORT_NOTE,
   scopeApprovalLine,
+  scopeStateText,
   scopeRuleMovedNote,
   scopeRuleWords,
 } from "./labels";
@@ -63,7 +64,9 @@ import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { ACT_LABEL } from "@/lib/labels";
 import { loadRoster } from "@/lib/people/load";
-import { scopeApproval } from "./scope-matter";
+import { scopeApproval, scopeApprovalForFile } from "./scope-matter";
+import { billFileOf } from "@/lib/tender-docs/repo";
+import { switchWords, takeSettingFaults } from "./switches";
 import { columnsInForce, panelFaults, panelState, standingVerifications, verifyPanelFault } from "./panel";
 import { blocking, type BqScopedBy, type Finding } from "./types";
 
@@ -79,7 +82,7 @@ const yesNo = (b: boolean | null) => (b == null ? NOT_SET : b ? "Yes" : "No");
 async function loadAll(organisationId: string, exerciseId: string) {
   const org = await exerciseOrg(organisationId);
   if (!org) return null;
-  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, contractBasisCode: true, closingAt: true } });
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, contractBasisCode: true, closingAt: true, specPanelUsed: true, onScreenBillUsed: true } });
   if (!ex) return null;
   const [policy, versions, panel, estimates, rules, scopeMatters] = await Promise.all([
     loadScopePolicy(org.id),
@@ -89,8 +92,10 @@ async function loadAll(organisationId: string, exerciseId: string) {
     loadScopeRules(org.id, ex),
     loadScopeMatters(ex.id),
   ]);
-  const approval = scopeApproval(rules.method, versions, scopeMatters);
-  return { org, ex, policy, versions, panel, estimates, rules, scopeMatters, approval };
+  // SR-09: where the bill is an uploaded file, scope approval is read of that file's version (ADR 0035).
+  const billFile = ex.onScreenBillUsed === false ? await billFileOf(ex.id) : null;
+  const approval = billFile ? scopeApprovalForFile(rules.method, billFile.file, billFile.hasPart, scopeMatters, billFile.history) : scopeApproval(rules.method, versions, scopeMatters);
+  return { org, ex, policy, versions, panel, estimates, rules, scopeMatters, approval, billFile };
 }
 
 // ------------------------------------------------------------------ Which sections the tab shows
@@ -103,7 +108,7 @@ async function loadAll(organisationId: string, exerciseId: string) {
 export async function scopeSectionFacts(organisationId: string, exerciseId: string): Promise<ScopeSectionFacts | null> {
   const org = await exerciseOrg(organisationId);
   if (!org) return null;
-  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, sourcingMethodCode: true, contractBasisCode: true, packKindSnapshot: true } });
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, sourcingMethodCode: true, contractBasisCode: true, packKindSnapshot: true, onScreenBillUsed: true } });
   if (!ex) return null;
   const rules = await loadScopeRules(org.id, ex);
   const [bills, estimates, method] = await Promise.all([
@@ -113,7 +118,7 @@ export async function scopeSectionFacts(organisationId: string, exerciseId: stri
     ex.packKindSnapshot ? Promise.resolve(null) : db.sourcingMethod.findFirst({ where: { organisationId: org.id, code: ex.sourcingMethodCode }, select: { documentPackKind: true } }),
   ]);
   const kind = ex.packKindSnapshot ?? method?.documentPackKind ?? null;
-  return { requiresBq: rules.basis?.requiresBq ?? null, requiresCompanyEstimate: rules.method?.requiresCompanyEstimate ?? null, hasBill: bills > 0, hasEstimate: estimates > 0, tendered: kind == null ? null : kind === "TENDER" || kind === "QUOTATION" };
+  return { requiresBq: rules.basis?.requiresBq ?? null, requiresCompanyEstimate: rules.method?.requiresCompanyEstimate ?? null, billUsed: ex.onScreenBillUsed, hasBill: bills > 0, hasEstimate: estimates > 0, tendered: kind == null ? null : kind === "TENDER" || kind === "QUOTATION" };
 }
 
 // ------------------------------------------------------------------ Scope tab
@@ -122,6 +127,16 @@ export async function scopeTab(organisationId: string, exerciseId: string, viewe
   const a = await loadAll(organisationId, exerciseId);
   if (!a) return null;
   const { org, ex, policy, versions, panel, rules } = a;
+  // SR-08, SR-09: the switches this exercise is pinned to, beside the organisation's setting, and whether it may take the setting now.
+  const submitted = (await db.tenderPack.count({ where: { exerciseId: ex.id, submittedAt: { not: null } } })) > 0;
+  const take = takeSettingFaults({ status: ex.status, submitted, pin: { specPanelUsed: ex.specPanelUsed, onScreenBillUsed: ex.onScreenBillUsed }, setting: { specPanelUsed: policy.specPanelUsed, onScreenBillUsed: policy.onScreenBillUsed } });
+  const switches = {
+    panel: { pin: ex.specPanelUsed, words: switchWords(ex.specPanelUsed), setting: switchWords(policy.specPanelUsed) },
+    bill: { pin: ex.onScreenBillUsed, words: switchWords(ex.onScreenBillUsed), setting: switchWords(policy.onScreenBillUsed) },
+    /// Offered while some pin is not set; judged by the rule the act runs.
+    take: ex.specPanelUsed == null || ex.onScreenBillUsed == null ? (judged(take.faults) as Allowed) : null,
+    configHref: SCOPE_CONFIG_PATH,
+  };
   const [columns, people, lists] = await Promise.all([
     loadPanelColumns(org.id),
     db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -144,6 +159,10 @@ export async function scopeTab(organisationId: string, exerciseId: string, viewe
   const attributed = await loadAttributions(db, org.id, [{ entity: "SpecPanelVerification", slot: "person", ids: standing.map((v) => v.id) }]);
   return {
     exercise: { id: ex.id, reference: ex.reference, title: ex.title },
+    switches,
+    /// SR-08: the panel is worked on only where the exercise uses one; an exercise that does not use one shows an earlier panel read only, if it holds one (G3).
+    panelShown: ex.specPanelUsed === true || panel != null,
+    panelReadOnly: ex.specPanelUsed !== true,
     panel: {
       id: panel?.id ?? null,
       state,
@@ -192,7 +211,9 @@ export async function scopeTab(organisationId: string, exerciseId: string, viewe
  * same `scopeCitationFault` and Secretariat rule the act runs under its locks.
  */
 async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>, people: { id: string; name: string }[], viewerPersonId: string | null) {
-  const { org, ex, rules, versions, approval } = a;
+  const { org, ex, rules, versions, approval, billFile } = a;
+  /// SR-09: the bill is an uploaded file; the thing tabled and approved is that file's version.
+  const fileMode = billFile != null;
   const rule = rules.method;
   const code = rule?.scopeCommitteeCode ?? null;
   const committee = code ? await db.committee.findFirst({ where: { organisationId: org.id, code }, select: { id: true, nameEn: true, secretariatRoleCode: true } }) : null;
@@ -200,20 +221,20 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
     committee ? db.meeting.findMany({ where: { committeeId: committee.id, status: { in: ["SCHEDULED", "IN_PROGRESS"] } }, orderBy: [{ meetingDate: "asc" }, { reference: "asc" }], select: { id: true, reference: true, meetingDate: true } }) : Promise.resolve([]),
     loadRoster(org.code),
     db.committeeDecision.findMany({
-      where: { matterKind: "SCOPE", bqVersion: { exerciseId: ex.id } },
+      where: { matterKind: "SCOPE", OR: [{ bqVersion: { exerciseId: ex.id } }, { scopeExerciseId: ex.id }] },
       orderBy: [{ tabledAt: "desc" }, { id: "desc" }],
-      select: { id: true, meetingId: true, outcome: true, act: true, withdrawnAt: true, tabledAt: true, decisionDate: true, notApprovedOutcomeNameEn: true, bqVersion: { select: { versionNo: true } }, meeting: { select: { reference: true, meetingDate: true, status: true, committee: { select: { nameEn: true } } } }, tabledBy: { select: { name: true } } },
+      select: { id: true, meetingId: true, outcome: true, act: true, withdrawnAt: true, tabledAt: true, decisionDate: true, notApprovedOutcomeNameEn: true, bqVersion: { select: { versionNo: true } }, scopeFileVersion: { select: { versionNo: true } }, meeting: { select: { reference: true, meetingDate: true, status: true, committee: { select: { nameEn: true } } } }, tabledBy: { select: { name: true } } },
     }),
   ]);
   const holders = committee ? secretariatHoldersOn(roster, committee.secretariatRoleCode, org.today) : [];
   // Who tabled each matter, signed or recorded from paper, is read from its attribution (Phase 2b).
   const tabled = await loadAttributions(db, org.id, [{ entity: "CommitteeDecision", slot: "tabledBy", ids: rows.map((m) => m.id) }]);
-  const finalised = versions.find((v) => v.status === "FINALISED") ?? null;
+  const finalised = fileMode ? (billFile.file ? { id: billFile.file.id, versionNo: billFile.file.versionNo, status: "FINALISED" as const } : null) : (versions.find((v) => v.status === "FINALISED") ?? null);
   const committeeName = committee?.nameEn ?? (code ? "A committee no longer configured" : null);
   const reasons: string[] = [];
-  if (!finalised) reasons.push(scopeFaultText("VERSION_NOT_FINALISED"));
+  if (!finalised) reasons.push(fileMode ? (billFile.hasPart ? scopeFaultText("NO_BILL_FILE") : scopeStateText("NO_BILL_PART", true)) : scopeFaultText("VERSION_NOT_FINALISED"));
   else {
-    const f = scopeCitationFault({ exercise: { id: ex.id, status: ex.status }, rule, version: finalised, sitting: { committeeCode: code ?? "", frozen: false }, act: rule?.scopeAct ?? null, matters: a.scopeMatters.filter((m) => m.bqVersionId === finalised.id) });
+    const f = scopeCitationFault({ exercise: { id: ex.id, status: ex.status }, rule, version: { id: finalised.id, exerciseId: ex.id, status: "FINALISED" }, sitting: { committeeCode: code ?? "", frozen: false }, act: rule?.scopeAct ?? null, matters: a.scopeMatters.filter((m) => m.bqVersionId === finalised.id) });
     reasons.push(...blocking(f).map((x) => scopeFaultText(x)));
   }
   if (reasons.length === 0 && committee && sittings.length === 0) reasons.push(scopeFaultText({ code: "NO_OPEN_SITTING", level: "block", data: { committee: committee.nameEn } }));
@@ -240,7 +261,8 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
   return {
     state: approval.state,
     badge: SCOPE_STATE_BADGE[approval.state],
-    line: scopeApprovalLine(approval, committeeName),
+    fileMode,
+    line: scopeApprovalLine(approval, committeeName, undefined, fileMode),
     moved,
     rule: {
       required: rule == null ? "The sourcing method is no longer configured" : rule.scopeApprovalRequired == null ? NOT_SET : rule.scopeApprovalRequired ? "Yes" : "No",
@@ -253,7 +275,7 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
     configHref: SCOPE_CONFIG_PATH,
     matters: rows.map((m) => ({
       id: m.id,
-      version: `Version ${m.bqVersion?.versionNo ?? "?"}`,
+      version: m.scopeFileVersion ? `Uploaded bill, version ${m.scopeFileVersion.versionNo}` : `Version ${m.bqVersion?.versionNo ?? "?"}`,
       sitting: m.meeting.reference,
       sittingHref: `/committees/${m.meetingId}`,
       committee: m.meeting.committee.nameEn,
@@ -298,6 +320,7 @@ export async function bqTab(organisationId: string, exerciseId: string, figures:
   const scheduleItems = inForce.flatMap((i) => i.items.map((it) => ({ value: `${i.id}|${it.code}`, label: `${i.label}, ${issueText(i.issueNo)}: ${it.code} ${it.descriptionEn} (${money(it.rate)}${it.unit ? ` per ${it.unit}` : ""})` })));
   const { finalised, draft } = currentBq(versions);
   const current = draft ?? finalised;
+  const off: Allowed | null = ex.onScreenBillUsed === true ? null : { allowed: false, reason: scopeFaultText(ex.onScreenBillUsed === false ? "BILL_NOT_ON_SCREEN" : "BILL_SWITCH_NOT_SET_ACT") };
   const holdings = current?.preparerPersonId ? await loadHoldings(org.id, db, [current.preparerPersonId]) : [];
   // The day a later issue replaced the one a line was priced from, where it has.
   const supersededOn = (scheduleId: string | null) => {
@@ -371,15 +394,17 @@ export async function bqTab(organisationId: string, exerciseId: string, figures:
     current: current ? view(current) : null,
     finalised: finalised && finalised !== current ? view(finalised) : null,
     versions: versions.map((v) => ({ id: v.id, versionNo: v.versionNo, status: BQ_STATUS_LABEL[v.status], finalisedOn: v.finalisedAt ? formatOrgDay(v.finalisedAt, org.timeZone) : null, revisionReason: v.revisionReason || null })),
+    /// SR-09: an exercise not pinned to build its bill on screen holds an earlier bill read only (G3): every act below is closed, with the reason.
+    readOnly: off != null,
     actions: {
-      start: judged(startBqFaults(versions, ex.status)),
+      start: off ?? judged(startBqFaults(versions, ex.status)),
       // A rate cannot be entered, a line cannot be priced and a bill cannot be finalised by someone the bill's figures are closed to (Phase 3b).
-      edit: figures.state === "WITHHELD" ? ({ allowed: false, reason: `The priced bill is SULIT and is closed to you. ${figures.words.en}` } as Allowed) : draft ? judged(draftEditFaults(draft, ex.status)) : ({ allowed: false, reason: "Start the bill, or a revision, to edit it." } as Allowed),
-      finalise: figures.state === "WITHHELD" ? ({ allowed: false, reason: `The priced bill is SULIT and is closed to you. ${figures.words.en}` } as Allowed) : draft
+      edit: off ? off : figures.state === "WITHHELD" ? ({ allowed: false, reason: `The priced bill is SULIT and is closed to you. ${figures.words.en}` } as Allowed) : draft ? judged(draftEditFaults(draft, ex.status)) : ({ allowed: false, reason: "Start the bill, or a revision, to edit it." } as Allowed),
+      finalise: off ? off : figures.state === "WITHHELD" ? ({ allowed: false, reason: `The priced bill is SULIT and is closed to you. ${figures.words.en}` } as Allowed) : draft
         ? judged(finaliseFaults({ status: draft.status, scopedBy: draft.scopedBy, followsStandard: draft.followsStandard, departuresText: draft.departuresText, preparerPersonId: draft.preparerPersonId, lines: linesOf(draft), sectionNumbers: draft.sections.map((s) => s.number) }, { policy, holdings, qualifications, today: org.today, exerciseStatus: ex.status }))
         : ({ allowed: false, reason: "There is no draft to finalise." } as Allowed),
       // A reason is asked for in the dialog; the button is judged without it.
-      revise: judged(reviseFaults(versions, ex.status, "given")),
+      revise: off ?? judged(reviseFaults(versions, ex.status, "given")),
     },
     options: { templates: templates.map((t) => ({ value: t.code, label: t.nameEn })), people, scopedBy: Object.entries(SCOPED_BY_LABEL).map(([value, label]) => ({ value, label })), kinds: Object.entries(ITEM_KIND_LABEL).map(([value, label]) => ({ value, label })), scheduleItems },
     schedulesNote: org.today == null ? scopeFaultText("TIME_ZONE_NOT_SET") : inForce.length === 0 ? "No schedule of rates is in force today, so every rate is entered. Schedules are issued under Configuration, Scope and estimate." : `In force today: ${inForce.map((i) => `${i.label}, ${issueText(i.issueNo)} (from ${formatDate(i.effectiveFrom!)})`).join("; ")}.`,
@@ -387,7 +412,7 @@ export async function bqTab(organisationId: string, exerciseId: string, figures:
       importNote: CSV_IMPORT_NOTE,
       exportNote: CSV_EXPORT_NOTE,
       /// Import goes into the draft: the same rule as editing it, plus the upload rules being set.
-      import: !draft
+      import: off ? off : !draft
         ? ({ allowed: false, reason: scopeFaultText("NO_DRAFT") } as Allowed)
         : !judged(draftEditFaults(draft, ex.status)).allowed
           ? judged(draftEditFaults(draft, ex.status))
@@ -496,6 +521,8 @@ export async function scopeConfiguration(organisationId: string) {
     policy: {
       raw: policy,
       fields: [
+        { label: "Specification panel used", value: policy.specPanelUsed == null ? NOT_SET : policy.specPanelUsed ? "Used" : "Not used", provenance: null },
+        { label: "On-screen bill used", value: policy.onScreenBillUsed == null ? NOT_SET : policy.onScreenBillUsed ? "Built on screen" : "An uploaded Excel file", provenance: null },
         { label: "Measurement standard", value: policy.measurementStandardLabel ?? NOT_SET, provenance: provenanceText(policy.measurementStandardProvenance), rawProvenance: policy.measurementStandardProvenance },
         { label: "Qualification a bill's preparer holds", value: nameOf(qualifications, policy.bqPreparerQualificationCode), provenance: null },
         { label: "Estimate made at least this many days before closing", value: policy.estimateLeadDays == null ? NOT_SET : `${policy.estimateLeadDays} day${policy.estimateLeadDays === 1 ? "" : "s"}`, provenance: provenanceText(policy.estimateLeadProvenance), rawProvenance: policy.estimateLeadProvenance },

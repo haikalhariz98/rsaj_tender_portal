@@ -11,7 +11,7 @@ export interface TenderPart {
   label: string;
   omitted: string | null;
   texts: { language: string; paragraphs: string[]; fidelity: string }[];
-  files: { title: string; versionNo: number }[];
+  files: { title: string; versionNo: number; fingerprint?: string }[];
   stampNote: string | null;
 }
 
@@ -67,7 +67,7 @@ export function TenderDocumentArticle({ v, table, notes, footer }: { v: TenderDo
               <ul className="text-[13px] text-ink-2">
                 {p.files.map((f) => (
                   <li key={f.title}>
-                    File bound in: {f.title}, version {f.versionNo}.
+                    File issued: {f.title}, version {f.versionNo}{f.fingerprint ? `, fingerprint ${f.fingerprint.slice(0, 12)}…` : ""}.
                   </li>
                 ))}
               </ul>

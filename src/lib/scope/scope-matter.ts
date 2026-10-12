@@ -19,6 +19,11 @@
  * tabled next; a later change, unsetting included, never turns a decided approval back,
  * and a matter still waiting is decided under the rule it was tabled under, or withdrawn
  * and tabled again. Where configuration has moved on, `ruleMove` says from what to what.
+ *
+ * SR-09 (ruling 13, ADR 0035): where the bill is not built on screen the matter names the version of the uploaded bill file instead
+ * (`CommitteeDecision.scopeFileVersionId`), and `scopeApprovalForFile` reads it the same way. A replaced file is a new version, so an
+ * approval of the old one does not speak for it and lapses. Where the pack has no bill part there is no file to approve: that is said
+ * (`NO_BILL_PART`) and cleared in configuration, never a block with no way out.
  */
 
 import type { DecisionRecord } from "@/lib/committee/record";
@@ -42,6 +47,7 @@ export interface ScopeRule {
 /// A SCOPE matter as the rules read it. `record` is `decisionRecord()`, null while pending.
 export interface ScopeMatter {
   id: string;
+  /// What the matter tables: a bill version, or (SR-09) the version of the uploaded bill file. One key either way.
   bqVersionId: string | null;
   committeeCode: string;
   /// The act the matter was tabled under (CommitteeDecision.act).
@@ -84,6 +90,8 @@ export type ScopeApprovalState =
   | "COMMITTEE_NOT_SET"
   | "ACT_NOT_SET"
   | "NO_FINALISED_BILL"
+  /// SR-09: the bill is an uploaded file and the pack has no bill part to upload it to.
+  | "NO_BILL_PART"
   | "NOT_TABLED"
   | "PENDING"
   | "DEFERRED"
@@ -136,6 +144,17 @@ export function scopeApproval(
     if (!rule.scopeAct) return { state: "ACT_NOT_SET", ...none };
   }
   return { ...read, movedOn: read.decisive ? ruleMove(rule, read.decisive) : null };
+}
+
+/**
+ * SR-09: where scope approval stands when the bill is an uploaded file. `file` is the bill part's live file as a document version (null: none uploaded yet),
+ * `hasBillPart`: the pack has a bill part. Read as `scopeApproval` reads a finalised bill, the file's version being the thing approved.
+ */
+export function scopeApprovalForFile(rule: ScopeRule | null, file: { id: string; versionNo: number } | null, hasBillPart: boolean, matters: readonly ScopeMatter[], earlierFiles: readonly { id: string; versionNo: number }[] = []): ScopeApproval {
+  // The file in force is the one finalised; the versions it replaced are superseded, so an approval of one is said to be of an earlier version.
+  const versions = [...(file ? [{ id: file.id, versionNo: file.versionNo, status: "FINALISED" as const }] : []), ...earlierFiles.filter((e) => e.id !== file?.id).map((e) => ({ ...e, status: "SUPERSEDED" as const }))];
+  const s = scopeApproval(rule, versions, matters);
+  return s.state === "NO_FINALISED_BILL" && !hasBillPart ? { ...s, state: "NO_BILL_PART" } : s;
 }
 
 /// The state the matters give the finalised version, each under the rule it was tabled under.
@@ -249,3 +268,6 @@ export function scopeCitationFault(i: {
 /// first, then the version, never an id. The same words are the audit entry's label, so the
 /// matter is phrased one way wherever it is read.
 export const scopeMatterSubject = (exerciseTitle: string, versionNo: number) => `${exerciseTitle}, scope version ${versionNo}`;
+
+/// The same for a matter that tables the uploaded bill of quantities (SR-09).
+export const scopeFileMatterSubject = (exerciseTitle: string, versionNo: number) => `${exerciseTitle}, uploaded bill of quantities, version ${versionNo}`;

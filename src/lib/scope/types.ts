@@ -36,6 +36,9 @@ export const blocking = <C extends string>(fs: readonly Finding<C>[]) => fs.filt
 
 /// The organisation's scope and estimate rules (ScopePolicy). Every field unset is null.
 export interface ScopePolicy {
+  /// SR-08, SR-09 (rulings 12 and 13, G2): whether the specification panel is used, and whether the bill is built on screen. Null: not set.
+  specPanelUsed: boolean | null;
+  onScreenBillUsed: boolean | null;
   measurementStandardLabel: string | null;
   measurementStandardProvenance: Provenance | null;
   bqPreparerQualificationCode: string | null;
@@ -54,6 +57,8 @@ export interface ScopePolicy {
 
 /// No row, or a row with nothing set: the same, and nothing is assumed.
 export const UNSET_SCOPE_POLICY: ScopePolicy = {
+  specPanelUsed: null,
+  onScreenBillUsed: null,
   measurementStandardLabel: null,
   measurementStandardProvenance: null,
   bqPreparerQualificationCode: null,

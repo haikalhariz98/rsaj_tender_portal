@@ -73,6 +73,9 @@ export async function saveScopePolicy(_prev: FormState, data: FormData): Promise
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
   const typed = {
+    // SR-08, SR-09 (G2): three-state. Not set is not "not used": an exercise made while it is unset pins "not set" and cannot be submitted.
+    specPanelUsed: triState(r.choice("specPanelUsed", "Specification panel used", ["yes", "no", "unset"] as const)),
+    onScreenBillUsed: triState(r.choice("onScreenBillUsed", "On-screen bill used", ["yes", "no", "unset"] as const)),
     measurementStandardLabel: r.optionalText("measurementStandardLabel"),
     measurementStandardProvenance: r.choice("measurementStandardProvenance", "Provenance", PROVENANCE),
     bqPreparerQualificationCode: r.optionalText("bqPreparerQualificationCode"),
@@ -110,6 +113,8 @@ export async function saveScopePolicy(_prev: FormState, data: FormData): Promise
       const name = (rows: { code: string; nameEn: string }[], c: string | null) => (c == null ? null : (rows.find((x) => x.code === c)?.nameEn ?? "A row no longer configured"));
       return {
         ...p,
+        specPanelUsed: p.specPanelUsed == null ? "Not set" : p.specPanelUsed ? "Used" : "Not used",
+        onScreenBillUsed: p.onScreenBillUsed == null ? "Not set" : p.onScreenBillUsed ? "Built on screen" : "An uploaded Excel file",
         bqPreparerQualificationCode: name(qualifications, p.bqPreparerQualificationCode),
         estimateCustodianRoleCode: name(offices, p.estimateCustodianRoleCode),
         estimateAuditRoleCode: name(offices, p.estimateAuditRoleCode),

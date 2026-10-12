@@ -56,7 +56,7 @@ import {
   UPLIFT_KIND_LABEL,
   yesNoNotSet,
 } from "./labels";
-import { isLivePack, markReadyFaults, omitFaults, packEditFault, startPackFaults, submitFaults, nextPack } from "./pack";
+import { isLivePack, issuedPart, mayHoldFile, NOT_ISSUED_REASON, packEditFault, partIssue, startPackFaults, submitFaults, nextPack, takesFile, type ContentContext } from "./pack";
 import { distinctOffices, pickTemplateView } from "./part-view";
 import { changeListKey, flagChanges, refreshView } from "./refresh";
 import { formatPct } from "./percent";
@@ -69,13 +69,9 @@ import { packWhitelist } from "./fields";
 import { tableDocumentManifest } from "./freeze";
 import { loadConditions } from "./repo";
 import { restrictionFact, stamped, uploadStampNote } from "./stamp";
-import type { Finding, PackKind } from "./types";
+import type { PackKind } from "./types";
 
 export type Allowed = { allowed: true } | { allowed: false; reason: string };
-const judged = (fs: readonly Finding[], text: (f: Finding) => string = partFaultText): Allowed => {
-  const b = fs.filter((f) => f.level === "block");
-  return b.length ? { allowed: false, reason: b.map(text).join(" ") } : { allowed: true };
-};
 const money = (s: bigint | null) => (s == null ? NOT_SET : formatSen(s));
 const provenance = (p: string | null | undefined) => (p ? ((PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET) : NOT_SET);
 
@@ -102,6 +98,13 @@ async function context(organisationId: string, exerciseId: string) {
 
 // ------------------------------------------------------------------ Tender documents tab
 
+/// The template file of each configured part (SR-11), by the part's code: its name and the address that downloads it. A withdrawn file is no template.
+async function templateFilesOf(configured: readonly { code: string; templateFileVersionId?: string | null }[]): Promise<Map<string, TemplateFileView>> {
+  const ids = [...new Set(configured.map((x) => x.templateFileVersionId).filter((x): x is string => !!x))];
+  const versions = ids.length ? await db.documentVersion.findMany({ where: { id: { in: ids }, withdrawnAt: null }, select: { id: true, originalFilename: true } }) : [];
+  return new Map(configured.map((x) => [x.code, versions.find((v) => v.id === x.templateFileVersionId) ? { filename: versions.find((v) => v.id === x.templateFileVersionId)!.originalFilename, href: `/api/documents/versions/${x.templateFileVersionId}` } : null]));
+}
+
 export async function documentsTab(organisationId: string, exerciseId: string) {
   const c = await context(organisationId, exerciseId);
   if (!c) return null;
@@ -123,7 +126,9 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
   // Increment 2: the conditions, on the organisation's day (none judged without it).
   const conditions = on ? await loadConditions(org.id, ex, shown?.status === "DRAFT" ? shown.id : null, on) : null;
   const whitelist = packWhitelist(conditions ? liveClauses(conditions.clauses.clauses, on!) : []);
-  const content = { bqFinalised: scope.bill != null, appendixComplete: appendix ? appendixComplete(appendix) : null, whitelist };
+  const content: ContentContext = { bqFinalised: scope.bill != null, billOnScreen: ex.onScreenBillUsed, appendixComplete: appendix ? appendixComplete(appendix) : null, whitelist };
+  // SR-11: the template file each configured part carries, as a line offers it.
+  const templateFiles = await templateFilesOf(c.configured);
 
   // The route as it would open, for the submit check (the dates are the drawer's own).
   let route: ReturnType<typeof tenderingRouteForRequester> | null = null;
@@ -161,7 +166,9 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
         })
       : null;
   const profile = profileOf(ex.classificationSnapshot);
-  const behaviourFindings = shown ? behaviourFaults(profile, { appendix, primeCostSums: scope.bill?.primeCostSums ?? null, parts: shown.parts.map(partFactsOf) }) : [];
+  // SR-11: the checks read the parts as submission settles them (ready, "Not issued", issued as a file), on a draft; a frozen pack's are as they were frozen.
+  const checked = shown ? shown.parts.map((p) => (shown.status === "DRAFT" ? issuedPart(partFactsOf(p), content) : partFactsOf(p))) : [];
+  const behaviourFindings = shown ? behaviourFaults(profile, { appendix, primeCostSums: scope.bill?.primeCostSums ?? null, billOnScreen: ex.onScreenBillUsed, parts: checked }) : [];
   const valueText = (k: string) => {
     const v = profile?.find((p) => p.key === k)?.value ?? null;
     return v == null ? NOT_SET : typeof v === "boolean" ? (v ? "Yes" : "No") : Array.isArray(v) ? v.join(", ") : String(v);
@@ -180,7 +187,7 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
       restricted: legacy ? NOT_APPLICABLE_BEFORE_ASSEMBLY : restrictionFact({ frozen: shown?.frozenAt != null, snapshot: shown?.frozenAt ? readConditionsSnapshot(shown.conditionsSnapshot)?.restriction.restricted : undefined, answer: ex.restrictedTender }),
     },
     start: start.length ? { allowed: false as const, reason: start.map(startFaultText).join(" ") } : { allowed: true as const, label: next.copyFrom ? `Start version ${next.versionNo} from the returned version ${next.copyFrom.versionNo}` : "Start the tender documents" },
-    pack: shown ? packView(shown, c, ex.id, editable, content) : null,
+    pack: shown ? packView(shown, c, ex.id, editable, content, templateFiles) : null,
     readiness: submit
       ? submitFindingTexts(submit).map((t) => ({ level: t.level, text: t.text, href: findingHref(ex.id, t.family, t.finding) }))
       : [],
@@ -218,7 +225,7 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
 }
 
 const behaviourKeyOf = (code: string) =>
-  ({ DLP_MONTHS_REQUIRED: "defectsLiabilityApplies", DLP_NOT_FOR_TYPE: "defectsLiabilityApplies", NOMINATION_NOT_FOR_TYPE: "nominationAllowed", BOND_FORMS_REQUIRED: "startRequiresSecurities" })[code] ?? null;
+  ({ DLP_MONTHS_REQUIRED: "defectsLiabilityApplies", DLP_NOT_FOR_TYPE: "defectsLiabilityApplies", NOMINATION_NOT_FOR_TYPE: "nominationAllowed", NOMINATION_BILL_NOT_CHECKED: "nominationAllowed", BOND_FORMS_REQUIRED: "startRequiresSecurities" })[code] ?? null;
 
 /// The closing as the organisation reads it: "29 Oct 2026, 14:30".
 function closingText(at: Date | null, timeZone: string | null): string {
@@ -227,10 +234,20 @@ function closingText(at: Date | null, timeZone: string | null): string {
 }
 const storedDayIn = (at: Date, tz: string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
 
-function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>>, exerciseId: string, editable: boolean, content: { bqFinalised: boolean; appendixComplete: boolean | null }) {
+/// A template file of a configured part, as a line offers it: the file's name and the address that downloads it, or null where none is set (or its version was withdrawn).
+export type TemplateFileView = { filename: string; href: string } | null;
+
+/**
+ * The pack's parts as the Tender documents tab lists them (SR-11, ruling 14): each line offers Template, Upload, Download and Replace, each with whether it can be
+ * done now and, if not, why. There is no Open, Mark ready, Omit, Reopen or "View as frozen". A draft's state is derived from its content (`partIssue`); a frozen
+ * pack's is the one it was frozen with. The Appendix stays a form, with a link to fill it in (SR-12, a decided difference).
+ */
+function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>>, exerciseId: string, editable: boolean, content: ContentContext, templateFiles: ReadonlyMap<string, TemplateFileView>) {
   const manifest = packManifest(p.manifest);
   /// The restriction as this version stands under it: frozen with the pack, or the exercise's answer while it is a draft (U6).
   const restricted = p.frozenAt ? (readConditionsSnapshot(p.conditionsSnapshot)?.restriction.restricted ?? null) : c.ex.restrictedTender;
+  const editFault = packEditFault(p.status, c.ex.status);
+  const editReason = editFault ? partFaultText(editFault) : null;
   return {
     id: p.id,
     versionNo: p.versionNo,
@@ -244,40 +261,74 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
     refreshKey: editable && p.status === "DRAFT" ? changeListKey(flagChanges(p.parts.map(partFactsOf), c.configured)) : null,
     parts: p.parts.map((row) => {
       const facts = partFactsOf(row);
-      const frozenDocs = p.documents.filter((d) => d.partCode === row.partCode);
       const frozenEntry = manifest?.find((m) => m.partCode === row.partCode) ?? null;
+      const draft = p.status === "DRAFT";
+      const issue = draft ? partIssue(facts, content) : null;
+      const files = row.attachments.map((a) => ({ id: a.id, versionId: a.version.id, title: a.version.document.title, versionNo: a.version.versionNo, live: a.detachedAt == null && a.version.withdrawnAt == null }));
+      const live = files.filter((f) => f.live);
+      // What is issued from this part: its file where it takes one or one has been uploaded in place of its merged text; else its own source.
+      const asFile = takesFile(facts, content) || (row.source === "TEMPLATE" && live.length > 0);
+      const frozenFiles = frozenEntry?.files ?? [];
+      const newest = draft ? (live[0] ? { versionId: live[live.length - 1].versionId, title: live[live.length - 1].title, versionNo: live[live.length - 1].versionNo } : null) : frozenFiles[0] ? { versionId: frozenFiles[0].versionId, title: frozenFiles[0].title, versionNo: frozenFiles[0].versionNo } : null;
+      const state = draft
+        ? issue!.state === "READY"
+          ? "Ready"
+          : issue!.state === "NOT_ISSUED"
+            ? "Not issued"
+            : "Not ready"
+        : row.state === "OMITTED" && row.omittedReason === NOT_ISSUED_REASON
+          ? "Not issued"
+          : PART_STATE_LABEL[row.state];
+      const stateKey = state === "Ready" ? ("ok" as const) : state === "Not issued" || state === "Omitted" ? ("neutral" as const) : ("warn" as const);
+      // What is missing, in words: a part not ready says what it needs; an optional part with nothing to issue says it will be recorded so.
+      const missing = issue && issue.state !== "READY" ? issue.faults.map(partFaultText).join(" ") : null;
+      const fileGate: Allowed = !mayHoldFile(facts, content)
+        ? { allowed: false, reason: row.source === "APPENDIX" ? "The Appendix is filled in as a form." : content.billOnScreen == null ? partFaultText({ code: "BILL_SWITCH_NOT_SET", level: "block" }) : "The bill of quantities is built on screen on this exercise, so it is not uploaded." }
+        : !editable
+          ? { allowed: false, reason: editReason ?? "These documents are not being prepared." }
+          : { allowed: true };
+      const single = row.source === "BQ_UNPRICED";
+      const file = templateFiles.get(row.partCode) ?? null;
       return {
         id: row.id,
         printedNumber: row.printedNumber,
         label: row.labelSnapshot,
         /// The pack's own notice (its invitation): the part the printed pack opens at.
         isNotice: row.role === "INVITATION",
+        isAppendix: row.source === "APPENDIX",
         role: PART_ROLE_LABEL[row.role],
         content: PART_CONTENT_LABEL[row.content],
         source: PART_SOURCE_LABEL[row.source],
-        uploadNote: uploadStampNote(restricted, row.source),
+        /// How the part is issued, in words: its file, its merged text, the form, or the bill.
+        issuedAs: asFile ? "A file" : row.source === "TEMPLATE" ? "Merged text" : row.source === "APPENDIX" ? "The Appendix, filled in as a form" : "The bill of quantities, unpriced",
+        uploadNote: uploadStampNote(restricted, asFile ? "UPLOAD" : row.source),
         preparedBy: c.unitName(row.ownerOrgUnitCode),
         mandatory: yesNoNotSet(row.mandatory),
         inTableDocument: yesNoNotSet(row.inTableDocument),
-        state: PART_STATE_LABEL[row.state],
-        stateKey: row.state === "READY" ? ("ok" as const) : row.state === "OMITTED" ? ("neutral" as const) : ("warn" as const),
-        omittedBecause: row.state === "OMITTED" ? row.omittedReason : null,
+        state,
+        stateKey,
+        omittedBecause: !draft && row.state === "OMITTED" && row.omittedReason !== NOT_ISSUED_REASON ? row.omittedReason : null,
+        missing,
         template: row.template ? `${row.template.nameEn}, text version ${row.template.bodyVersion}` : row.source === "TEMPLATE" ? NOT_SET : null,
-        files: row.attachments.map((a) => ({ id: a.id, title: a.version.document.title, versionNo: a.version.versionNo, live: a.detachedAt == null && a.version.withdrawnAt == null })),
-        /// Attaching goes through the document store (owner kind tenderPackPart, purpose TENDER_PART).
-        attach: row.source === "UPLOAD" ? (editable ? { allowed: true as const, ownerKind: "tenderPackPart" as const, ownerId: row.id, purpose: "TENDER_PART" as const } : { allowed: false as const, reason: partFaultText({ code: "PACK_NOT_DRAFT", level: "block" }) }) : null,
+        files,
         actions: {
-          markReady: judged(markReadyFaults(facts, p.status, c.ex.status, content)),
-          omit: judged(omitFaults(facts, p.status, c.ex.status, "reason given")),
-          reopen: editable ? (row.state === "NOT_STARTED" ? { allowed: false as const, reason: "This part is not marked ready or omitted." } : { allowed: true as const }) : judged([packEditFault(p.status, c.ex.status)!]),
-          pickTemplate: pickTemplateView({ source: row.source, content: row.content, templateId: row.templateId, printedNumber: row.printedNumber, label: row.labelSnapshot }, c.templates, editable ? null : packEditFault(p.status, c.ex.status), suitedTemplateCodes(c.configured, row.role)),
+          /// Template: a merged-text part's library template and its merged draft; any other part's configured template file, or "No template set".
+          template:
+            row.source === "TEMPLATE"
+              ? ({
+                  kind: "MERGED" as const,
+                  pick: pickTemplateView({ source: row.source, content: row.content, templateId: row.templateId, printedNumber: row.printedNumber, label: row.labelSnapshot }, c.templates, editable ? null : editFault, suitedTemplateCodes(c.configured, row.role)),
+                  draftHref: row.templateId && editable ? `/sourcing/${exerciseId}/documents/draft/${row.id}` : null,
+                  file,
+                } as const)
+              : file
+                ? ({ kind: "FILE" as const, file } as const)
+                : ({ kind: "NONE" as const, reason: row.source === "APPENDIX" ? "The Appendix is filled in as a form." : "No template set" } as const),
+          upload: fileGate.allowed ? (single && live.length > 0 ? { allowed: false as const, reason: partFaultText({ code: "BILL_IS_ONE_FILE", level: "block" }) } : fileGate) : fileGate,
+          replace: fileGate.allowed ? (live.length > 0 ? fileGate : { allowed: false as const, reason: "Nothing to replace yet. Upload the first file." }) : fileGate,
+          download: newest ? ({ allowed: true as const, href: `/api/documents/versions/${newest.versionId}`, name: `${newest.title}, version ${newest.versionNo}`, more: (draft ? live.length : frozenFiles.length) - 1 } as const) : ({ allowed: false as const, reason: row.source === "TEMPLATE" ? "Nothing is uploaded. The merged text is issued as it reads when the documents are submitted." : row.source === "APPENDIX" ? "The Appendix is filled in as a form." : "No file has been uploaded." } as const),
         },
-        frozen: frozenEntry
-          ? {
-              texts: frozenDocs.map((d) => ({ language: d.language === "MS" ? "Malay" : "English", text: d.renderedText, from: d.templateName ? `${d.templateName}, text version ${d.templateBodyVersion}` : PART_SOURCE_LABEL[d.source] })),
-              files: frozenEntry.files.map((f) => ({ title: f.title, versionNo: f.versionNo, fingerprint: f.sha256 })),
-            }
-          : null,
+        frozen: frozenEntry ? { files: frozenEntry.files.map((f) => ({ title: f.title, versionNo: f.versionNo, fingerprint: f.sha256 })) } : null,
       };
     }),
   };
@@ -445,7 +496,7 @@ export async function printView(organisationId: string, exerciseId: string, set:
       parts: (set === "table" ? tableDocumentManifest(manifest) : manifest).map((m) => ({
         printedNumber: m.printedNumber,
         label: m.label,
-        omitted: m.state === "OMITTED" ? `Omitted: ${m.omittedReason}` : null,
+        omitted: m.state === "OMITTED" ? (m.omittedReason === NOT_ISSUED_REASON ? "Not issued: nothing was uploaded to this part when the documents were submitted." : `Omitted: ${m.omittedReason}`) : null,
         texts: pack.documents.filter((d) => d.partCode === m.partCode).map((d) => ({ language: d.language === "MS" ? "Malay" : "English", paragraphs: d.renderedText.split("\n\n"), fidelity: d.templateName ? `From ${d.templateName}${d.templateFormCode ? ` (${d.templateFormCode})` : ""}, text version ${d.templateBodyVersion}, frozen ${formatOrgDay(d.frozenAt, c.org.timeZone)}.` : `${PART_SOURCE_LABEL[d.source]}, frozen ${formatOrgDay(d.frozenAt, c.org.timeZone)}.` })),
         files: m.files.map((f) => ({ title: f.title, versionNo: f.versionNo, fingerprint: f.sha256 })),
         stampNote: uploadStampNote(restrictedFrozen, m.source),
@@ -480,7 +531,7 @@ export async function printView(organisationId: string, exerciseId: string, set:
       label: p.labelSnapshot,
       omitted: p.state === "OMITTED" ? `Omitted: ${p.omittedReason}` : null,
       texts:
-        p.source === "TEMPLATE" && p.template
+        p.source === "TEMPLATE" && p.template && pinnedFilesOf(p).length === 0
           ? (["MS", "EN"] as const).flatMap((lang) => {
               const body = lang === "MS" ? p.template!.bodyMs : p.template!.bodyEn;
               return body?.trim() ? [{ language: lang === "MS" ? "Malay" : "English", paragraphs: stamped(renderedText(renderWith(body, { ...fields, ...(byLang?.[lang] ?? {}) }, whitelist)), stamp?.[lang]).split("\n\n"), fidelity: `From ${p.template!.nameEn}${p.template!.formCode ? ` (${p.template!.formCode})` : ""}, text version ${p.template!.bodyVersion}, as it stands now.` }] : [];
@@ -494,6 +545,39 @@ export async function printView(organisationId: string, exerciseId: string, set:
       stampNote: uploadStampNote(stamp ? true : null, p.source),
     })),
   };
+}
+
+/**
+ * One merged-text part as a plain-text draft to download (SR-11, ruling 14: "Template" on a merged-text line downloads the merged draft): its template in each language it has
+ * text in, merged with the exercise's details as they stand now and marked as a draft. A field with nothing to merge is said as the merge says it. Null where the part is not a merged-text
+ * part of the draft pack, or has no template. Reads only.
+ */
+export async function mergedDraft(organisationId: string, exerciseId: string, partId: string): Promise<{ filename: string; text: string } | null> {
+  const c = await context(organisationId, exerciseId);
+  if (!c) return null;
+  const pack = c.packs.find((p) => isLivePack(p.status)) ?? null;
+  const p = pack?.parts.find((x) => x.id === partId) ?? null;
+  if (!pack || !p || p.source !== "TEMPLATE" || !p.template) return null;
+  const org = await db.organisation.findUniqueOrThrow({ where: { id: c.org.id }, select: { name: true } });
+  const basis = await db.contractBasis.findFirst({ where: { organisationId: c.org.id, code: pack.contractBasisCode }, select: { nameEn: true } });
+  const type = c.ex.contractTypeCode ? await db.contractType.findFirst({ where: { organisationId: c.org.id, code: c.ex.contractTypeCode }, select: { nameEn: true } }) : null;
+  const fields = packFieldValues({ organisationName: org.name, exerciseReference: c.ex.reference, exerciseTitle: c.ex.title, requisitionReference: c.req.reference, packKindLabel: PACK_KIND_LABEL[pack.packKind], versionNo: pack.versionNo, formLabel: pack.formLabelSnapshot, basisName: basis?.nameEn ?? null, typeName: type?.nameEn ?? null });
+  const conditions = c.org.today ? await loadConditions(c.org.id, c.ex, pack.id, c.org.today) : null;
+  const byLang = conditions ? conditionFieldValues(conditions, null) : null;
+  if (byLang) for (const lang of ["EN", "MS"] as const) byLang[lang][WINDOW_FIELD] = WINDOW_PLACEHOLDER;
+  const whitelist = packWhitelist(conditions ? liveClauses(conditions.clauses.clauses, c.org.today!) : []);
+  const stamp = conditions ? conditionStamp(conditions) : null;
+  const t = p.template;
+  const blocks = (["MS", "EN"] as const).flatMap((lang) => {
+    const body = lang === "MS" ? t.bodyMs : t.bodyEn;
+    if (!body?.trim()) return [];
+    const text = stamped(renderedText(renderWith(body, { ...fields, ...(byLang?.[lang] ?? {}) }, whitelist)), stamp?.[lang]);
+    return [`${lang === "MS" ? "Malay" : "English"}\n\n${text}`];
+  });
+  if (blocks.length === 0) return null;
+  const head = [`${c.ex.reference} · ${p.printedNumber}. ${p.labelSnapshot}`, `Draft, not issued: the template ${t.nameEn}, text version ${t.bodyVersion}, merged with this exercise's details as they stand now.`].join("\n");
+  const safe = `${c.ex.reference} part ${p.printedNumber} draft`.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return { filename: `${safe}.txt`, text: [head, ...blocks].join("\n\n----\n\n") + "\n" };
 }
 
 /// The frozen text of one part, joined (the print view and tests read it as one string).
@@ -515,6 +599,13 @@ export async function tenderDocsConfig(organisationId: string, showRetired = fal
   // The organisation's day, never UTC's: unset zone leaves a retirement not judged, and says so.
   const today = todayIn(new Date(), org.timeZone);
   const retired = (p: { retiredOn: string | null }) => partRetiredOn(p.retiredOn, today);
+  // SR-11: the template file each part carries, by name (a file withdrawn since reads as none).
+  const fileIds = [...new Set(parts.map((p) => p.templateFileVersionId).filter((x): x is string => !!x))];
+  const fileVersions = fileIds.length ? await db.documentVersion.findMany({ where: { id: { in: fileIds }, withdrawnAt: null }, select: { id: true, originalFilename: true, versionNo: true } }) : [];
+  const templateFileOf = (id: string | null | undefined) => {
+    const v = id ? fileVersions.find((x) => x.id === id) : null;
+    return v ? `${v.originalFilename}, version ${v.versionNo}` : null;
+  };
   const basisName = (code: string | null) => (code ? (bases.find((b) => b.code === code)?.nameEn ?? "A basis no longer configured") : "Every basis");
   const groups = (["TENDER", "QUOTATION"] as const).map((k) => {
     const rows = parts.filter((p) => p.packKind === k && (showRetired || retired(p) !== true));
@@ -534,6 +625,8 @@ export async function tenderDocsConfig(organisationId: string, showRetired = fal
           // 6.7 (6.6 ruling): asked of a mandatory part only; the declaration is returned by definition.
           returned: r.mandatory !== true ? null : r.role === "DECLARATION" ? "Returned by the bidder (the declaration always is)" : r.returnedByBidder == null ? NOT_SET : r.returnedByBidder ? "Returned by the bidder" : "Not returned by the bidder",
           template: r.templateCode ? (templates.find((t) => t.code === r.templateCode)?.nameEn ?? "A template no longer configured") : null,
+          /// SR-11: the template file an officer downloads from the part's line; null: no template set.
+          templateFile: templateFileOf(r.templateFileVersionId),
           preparedBy: r.ownerOrgUnitCode ? (units.find((u) => u.code === r.ownerOrgUnitCode)?.nameEn ?? "An office no longer configured") : NOT_SET,
           provenance: provenance(r.provenance),
           governingSource: r.governingSource || null,

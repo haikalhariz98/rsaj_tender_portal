@@ -232,8 +232,8 @@ export async function matterIsHidden(actor: Reader, decisionId: string): Promise
   const restricted = await restrictedExerciseIds(db, actor.organisationId);
   if (restricted.length === 0) return false;
   if ((await hiddenDecisionIds([decisionId], restricted)).size === 0) return false;
-  const row = await db.committeeDecision.findUnique({ where: { id: decisionId, meeting: { committee: { organisationId: actor.organisationId } } }, select: { exerciseId: true, bqVersion: { select: { exerciseId: true } }, bidEnvelope: { select: { exerciseId: true } }, evaluationBidder: { select: { evaluation: { select: { exerciseId: true } } } } } });
-  const exerciseId = [row?.exerciseId, row?.bqVersion?.exerciseId, row?.bidEnvelope?.exerciseId, row?.evaluationBidder?.evaluation.exerciseId].find((id): id is string => !!id && restricted.includes(id));
+  const row = await db.committeeDecision.findUnique({ where: { id: decisionId, meeting: { committee: { organisationId: actor.organisationId } } }, select: { exerciseId: true, scopeExerciseId: true, bqVersion: { select: { exerciseId: true } }, bidEnvelope: { select: { exerciseId: true } }, evaluationBidder: { select: { evaluation: { select: { exerciseId: true } } } } } });
+  const exerciseId = [row?.exerciseId, row?.bqVersion?.exerciseId, row?.scopeExerciseId, row?.bidEnvelope?.exerciseId, row?.evaluationBidder?.evaluation.exerciseId].find((id): id is string => !!id && restricted.includes(id));
   return exerciseId ? exerciseIsHidden(actor, exerciseId) : false;
 }
 

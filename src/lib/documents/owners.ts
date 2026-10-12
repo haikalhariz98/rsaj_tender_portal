@@ -122,7 +122,7 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
         // BD-62-26: the snapshot and the live scans, read under the panel's lock.
         const p = await tx.specificationPanel.findFirst({ where: { id: ref.id, exerciseId, organisationId: l.org.id }, select: PANEL_FACTS_SELECT });
         if (!p) return null;
-        const facts = panelFacts({ ...p, exercise: { status: l.ex.status } });
+        const facts = panelFacts({ ...p, exercise: { status: l.ex.status, specPanelUsed: l.ex.specPanelUsed } });
         return fn(tx, {
           ref,
           organisationId: l.org.id,
@@ -142,7 +142,7 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
         await lockBqRows(tx, exerciseId);
         const v = await tx.bqVersion.findFirst({ where: { id: ref.id, exerciseId, organisationId: l.org.id }, select: { status: true, versionNo: true } });
         if (!v) return null;
-        const facts = bqVersionFacts({ status: v.status, exercise: { status: l.ex.status } });
+        const facts = bqVersionFacts({ status: v.status, exercise: { status: l.ex.status, onScreenBillUsed: l.ex.onScreenBillUsed } });
         return fn(tx, {
           ref,
           organisationId: l.org.id,
@@ -162,7 +162,7 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
         await lockPackRows(tx, exerciseId);
         const p = await tx.tenderPackPart.findFirst({ where: { id: ref.id, organisationId: l.org.id, pack: { exerciseId } }, select: PACK_PART_FACTS_SELECT });
         if (!p) return null;
-        const facts = tenderPackPartFacts({ source: p.source, pack: { status: p.pack.status, exercise: { status: l.ex.status } } });
+        const facts = tenderPackPartFacts({ source: p.source, pack: { status: p.pack.status, exercise: { status: l.ex.status, onScreenBillUsed: l.ex.onScreenBillUsed } }, _count: p._count });
         return fn(tx, {
           ref,
           organisationId: l.org.id,

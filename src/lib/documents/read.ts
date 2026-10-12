@@ -56,11 +56,11 @@ export async function readOwner(organisationId: string, ref: OwnerRef): Promise<
       return d ? { facts: delegationFacts(d, org.today), label: `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}` } : null;
     }
     case "specificationPanel": {
-      const p = await db.specificationPanel.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { ...PANEL_FACTS_SELECT, exercise: { select: { status: true, reference: true } } } });
+      const p = await db.specificationPanel.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { ...PANEL_FACTS_SELECT, exercise: { select: { status: true, reference: true, specPanelUsed: true } } } });
       return p ? { facts: panelFacts(p), label: `${p.exercise.reference} · Specification panel` } : null;
     }
     case "bqVersion": {
-      const v = await db.bqVersion.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, versionNo: true, exercise: { select: { status: true, reference: true } } } });
+      const v = await db.bqVersion.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, versionNo: true, exercise: { select: { status: true, reference: true, onScreenBillUsed: true } } } });
       return v ? { facts: bqVersionFacts(v), label: `${v.exercise.reference} · Bill of quantities, version ${v.versionNo}` } : null;
     }
     case "tenderPackPart": {
@@ -329,7 +329,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     case "specificationPanel": {
       const where = { organisationId: org.id, ...(hidden.length ? { exerciseId: { notIn: [...hidden] } } : {}) };
       const [rows, total] = await Promise.all([
-        db.specificationPanel.findMany({ where, orderBy: { exercise: { createdAt: "desc" } }, take, select: { id: true, ...PANEL_FACTS_SELECT, exerciseId: true, exercise: { select: { status: true, reference: true, title: true } } } }),
+        db.specificationPanel.findMany({ where, orderBy: { exercise: { createdAt: "desc" } }, take, select: { id: true, ...PANEL_FACTS_SELECT, exerciseId: true, exercise: { select: { status: true, reference: true, title: true, specPanelUsed: true } } } }),
         db.specificationPanel.count({ where }),
       ]);
       return { records: attachTargets(rows.map((p) => ({ id: p.id, label: `${p.exercise.reference} · ${p.exercise.title}`, href: ownerHref("specificationPanel", p.id, p.exerciseId), facts: panelFacts(p) }))), total };
@@ -340,7 +340,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
       return { records: [], total: 0 };
     case "tenderPackPart": {
       // 6.4: the uploaded parts of draft packs, newest pack first, in print order.
-      const where = { organisationId: org.id, source: "UPLOAD" as const, pack: { status: "DRAFT" as const, ...(out ? { exerciseId: out } : {}) } };
+      const where = { organisationId: org.id, source: { in: ["UPLOAD", "TEMPLATE", "BQ_UNPRICED"] as ("UPLOAD" | "TEMPLATE" | "BQ_UNPRICED")[] }, pack: { status: "DRAFT" as const, ...(out ? { exerciseId: out } : {}) } };
       const [rows, total] = await Promise.all([
         db.tenderPackPart.findMany({ where, orderBy: [{ pack: { createdAt: "desc" } }, { sortOrder: "asc" }], take, select: { id: true, ...PACK_PART_FACTS_SELECT } }),
         db.tenderPackPart.count({ where }),

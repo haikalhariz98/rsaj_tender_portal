@@ -65,10 +65,12 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
     id: p.id,
     printedNumber: p.printedNumber,
     label: p.label,
-    isNotice: p.isNotice,
+    isAppendix: p.isAppendix,
+    appendixHref: d.appendixHref,
     role: p.role,
     content: p.content,
     source: p.source,
+    issuedAs: p.issuedAs,
     uploadNote: p.uploadNote,
     preparedBy: p.preparedBy,
     mandatory: p.mandatory,
@@ -76,15 +78,10 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
     state: p.state,
     stateTone: p.stateKey === "neutral" ? undefined : p.stateKey,
     omittedBecause: p.omittedBecause,
+    missing: p.missing,
     template: p.template,
-    isUpload: p.attach != null,
-    files: p.frozen ? p.frozen.files.map((f) => ({ title: f.title, versionNo: f.versionNo, live: true, fingerprint: f.fingerprint })) : p.files,
-    hasFrozenText: p.frozen != null,
-    markReady: p.actions.markReady,
-    omit: p.actions.omit,
-    reopen: p.actions.reopen,
-    pickTemplate: p.actions.pickTemplate,
-    templateId: p.actions.pickTemplate.allowed ? p.actions.pickTemplate.current : "",
+    files: p.frozen ? p.frozen.files.map((f) => ({ title: f.title, versionNo: f.versionNo, live: true })) : p.files,
+    actions: p.actions,
   }));
   // A draft has no pack kind yet: it is recorded when the exercise moves into preparation.
   const notDecided = d.exercise.status === "Draft" && !d.pack;
@@ -170,11 +167,11 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 sm:px-6">
               <div className="min-w-[12rem] flex-1">
                 <p className="text-[14px] font-bold text-ink">Documents to issue</p>
-                <p className="text-[12.5px] text-ink-3">{hasBq ? "In print order. The bill of quantities is issued unpriced: no rate or amount reaches tenderers." : "In print order, as configured when this version was started."}</p>
+                <p className="text-[12.5px] text-ink-3">{hasBq ? "In print order. Each line is ready as soon as its file is uploaded, or its text merges without a missing field. The bill of quantities is issued unpriced where it is built on screen." : "In print order. Each line is ready as soon as its file is uploaded, or its text merges without a missing field."}</p>
               </div>
               {d.pack.refresh && <RefreshFlagsDrawer exerciseId={exerciseId} refresh={d.pack.refresh} confirmedChanges={d.pack.refreshKey ?? ""} />}
             </div>
-            <PartsList exerciseId={exerciseId} parts={parts} printHref={d.printHref ?? `/sourcing/${exerciseId}/documents/print`} />
+            <PartsList exerciseId={exerciseId} parts={parts} />
           </div>
         )}
       </Card>

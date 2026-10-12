@@ -10,7 +10,7 @@ import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency"
 import { documentFaultText } from "@/lib/documents/labels";
 import { effectiveCap, readLimit, requestLengthFault, sizeFault } from "@/lib/documents/limits";
 import { mediaFault, sniffMediaType, SNIFF_BYTES } from "@/lib/documents/media";
-import { STAGED_FOR_DELEGATION } from "@/lib/documents/staged-for";
+import { STAGED_FOR_DELEGATION, STAGED_FOR_TEMPLATE_FILE } from "@/lib/documents/staged-for";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
 import type { Finding } from "@/lib/documents/types";
@@ -20,7 +20,7 @@ import type { Finding } from "@/lib/documents/types";
  * a new version of an existing document (`documentId`). Attaching it to a record is the
  * owner's act, which takes the returned `versionId`.
  *
- * Multipart form fields: `file`, `title`, `documentClassId`, `recordedByPersonId`, `stagedFor` (only `delegation-recommendation`),
+ * Multipart form fields: `file`, `title`, `documentClassId`, `recordedByPersonId`, `stagedFor` (only `delegation-recommendation` and `tender-part-template`),
  * optional `receivedOn` (YYYY-MM-DD), `note`, `documentId`.
  *
  * Refused before anything else, and never logged: a request from nobody signed in, one that is not same-origin
@@ -114,7 +114,12 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
   if (forDelegation && scope.isAdministrator && !scope.permissions.has("configuration.draft")) {
     return Response.json({ ok: false, code: "ACT_REFUSED", message: "You do not hold the permission to draft configuration, so you cannot attach a delegation's signed recommendation." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   }
-  const begun = await beginAct(scope, form, "DocumentVersion.recordedBy", { personField: "recordedByPersonId", ...(forDelegation ? { administratorMayAs: "Delegation.fromPerson" } : {}) });
+  // SR-11: a template file for a tender document part is proposed as a configuration change, so the same exemption holds for it, and for the same permission.
+  const forTemplate = form.get("stagedFor") === STAGED_FOR_TEMPLATE_FILE;
+  if (forTemplate && scope.isAdministrator && !scope.permissions.has("configuration.draft")) {
+    return Response.json({ ok: false, code: "ACT_REFUSED", message: "You do not hold the permission to draft configuration, so you cannot stage a template file." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  }
+  const begun = await beginAct(scope, form, "DocumentVersion.recordedBy", { personField: "recordedByPersonId", ...(forDelegation ? { administratorMayAs: "Delegation.fromPerson" } : forTemplate ? { administratorMayAs: "ConfigurationChange.proposedBy" } : {}) });
   if (!begun.ok) return Response.json({ ok: false, code: "ACT_REFUSED", message: begun.state.message ?? Object.values(begun.state.errors ?? {}).join(" ") }, { status: 403, headers: { "Cache-Control": "no-store" } });
   const act = begun.act;
   // The one copy of the file this route makes; the parsed form is let go with it.

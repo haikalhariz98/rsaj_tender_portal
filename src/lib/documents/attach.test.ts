@@ -211,8 +211,9 @@ describe("only a live attachment is relied on (review carry 5)", () => {
   });
 });
 
+// SR-08, SR-09 (rulings 12 and 13): the owner facts of a panel and of a bill version carry the exercise's pin. The cases below are of an exercise that uses both, which is what every exercise before the pins was backfilled to; the pinned-off and not-set cases are at the end.
 describe("6.2 Q-1: the signed specification panel form, on its panel, SULIT", () => {
-  const panel = (x: Partial<Extract<OwnerFacts, { kind: "specificationPanel" }>> = {}): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus: "DRAFT", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [], ...x });
+  const panel = (x: Partial<Extract<OwnerFacts, { kind: "specificationPanel" }>> = {}): OwnerFacts => ({ kind: "specificationPanel", used: true, exerciseStatus: "DRAFT", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [], ...x });
   const sulit = { classification: "SULIT" as const };
 
   it("belongs on a panel only, and a panel takes nothing else", () => {
@@ -252,7 +253,7 @@ describe("6.2 Q-1: the signed specification panel form, on its panel, SULIT", ()
 });
 
 describe("BD-62-26: a verified panel relies only on the live scan its snapshot names", () => {
-  const panel = (x: Partial<Extract<OwnerFacts, { kind: "specificationPanel" }>> = {}): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus: "DRAFT", status: "VERIFIED", verifiedScanVersionIds: ["snap"], liveScanVersionIds: [], ...x });
+  const panel = (x: Partial<Extract<OwnerFacts, { kind: "specificationPanel" }>> = {}): OwnerFacts => ({ kind: "specificationPanel", used: true, exerciseStatus: "DRAFT", status: "VERIFIED", verifiedScanVersionIds: ["snap"], liveScanVersionIds: [], ...x });
   it("the snapshot scan is refused even beside a live scan the panel was never verified on", () => {
     // Two live scans of the purpose: the old count rule let either come off. The snapshot one may not.
     const owner = panel({ liveScanVersionIds: ["snap", "later"] });
@@ -280,7 +281,7 @@ describe("BD-62-26: a verified panel relies only on the live scan its snapshot n
     const W = new Date("2026-09-30T00:00:00Z");
     const facts = panelFacts({
       status: "VERIFIED",
-      exercise: { status: "DOCUMENTS_IN_PREPARATION" },
+      exercise: { status: "DOCUMENTS_IN_PREPARATION", specPanelUsed: true },
       verifiedSnapshot: { scans: [{ versionId: "snap" }] },
       attachments: [
         { purpose: "SPEC_PANEL_FORM", versionId: "snap", detachedAt: null, version: { withdrawnAt: null } },
@@ -293,7 +294,7 @@ describe("BD-62-26: a verified panel relies only on the live scan its snapshot n
 });
 
 describe("6.2 Q-3: a bill's imported CSV, on the bill version, attached only by the import", () => {
-  const bq = (x: Partial<Extract<OwnerFacts, { kind: "bqVersion" }>> = {}): OwnerFacts => ({ kind: "bqVersion", exerciseStatus: "DRAFT", status: "DRAFT", ...x });
+  const bq = (x: Partial<Extract<OwnerFacts, { kind: "bqVersion" }>> = {}): OwnerFacts => ({ kind: "bqVersion", onScreen: true, exerciseStatus: "DRAFT", status: "DRAFT", ...x });
 
   it("belongs on a bill version only, and a bill version takes nothing else", () => {
     expect(purposeFits("BQ_IMPORT_SOURCE", bq())).toBe(true);
@@ -330,7 +331,7 @@ describe("6.2 Q-3: a bill's imported CSV, on the bill version, attached only by 
     const f = repinFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } });
     expect(codes(f)).toEqual(["ATTACHED_BY_OWNER_ACT"]);
     // Other purposes re-pin as before.
-    expect(repinFault({ purpose: "SPEC_PANEL_FORM", owner: { kind: "specificationPanel", exerciseStatus: "DRAFT", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [] }, reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } })).toEqual([]);
+    expect(repinFault({ purpose: "SPEC_PANEL_FORM", owner: { kind: "specificationPanel", used: true, exerciseStatus: "DRAFT", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [] }, reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } })).toEqual([]);
   });
 });
 
@@ -342,16 +343,16 @@ describe("X-8: an exercise's status freezes it, its panel and its bill alike, ev
   });
   it("the panel and the bill version read the exercise's status through it", () => {
     for (const exerciseStatus of ["DRAFT", "DOCUMENTS_IN_PREPARATION"] as const) {
-      expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", exerciseStatus, status: "VERIFIED", verifiedScanVersionIds: [], liveScanVersionIds: [] })).toEqual({ state: "OPEN" });
-      expect(ownerState("BQ_IMPORT_SOURCE", { kind: "bqVersion", exerciseStatus, status: "DRAFT" })).toEqual({ state: "OPEN" });
+      expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", used: true, exerciseStatus, status: "VERIFIED", verifiedScanVersionIds: [], liveScanVersionIds: [] })).toEqual({ state: "OPEN" });
+      expect(ownerState("BQ_IMPORT_SOURCE", { kind: "bqVersion", onScreen: true, exerciseStatus, status: "DRAFT" })).toEqual({ state: "OPEN" });
     }
-    expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", exerciseStatus: "CANCELLED", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [] })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
-    expect(ownerState("BQ_IMPORT_SOURCE", { kind: "bqVersion", exerciseStatus: "CANCELLED", status: "DRAFT" })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
+    expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", used: true, exerciseStatus: "CANCELLED", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [] })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
+    expect(ownerState("BQ_IMPORT_SOURCE", { kind: "bqVersion", onScreen: true, exerciseStatus: "CANCELLED", status: "DRAFT" })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
   });
 });
 
 describe("6.4 (BD-64-4, ADR 0013): the panel stands frozen with the tender pack submitted on it", () => {
-  const panel = (exerciseStatus: "PENDING_APPROVAL_FOR_TENDERING" | "APPROVED_FOR_TENDERING"): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus, status: "VERIFIED", verifiedScanVersionIds: ["v1"], liveScanVersionIds: ["v1"] });
+  const panel = (exerciseStatus: "PENDING_APPROVAL_FOR_TENDERING" | "APPROVED_FOR_TENDERING"): OwnerFacts => ({ kind: "specificationPanel", used: true, exerciseStatus, status: "VERIFIED", verifiedScanVersionIds: ["v1"], liveScanVersionIds: ["v1"] });
   const filed = { version: { withdrawnAt: null }, documentClass: { classification: "SULIT" as const } };
   for (const exerciseStatus of ["PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING"] as const) {
     it(`${exerciseStatus}: frozen, saying the pack froze on it`, () => {
@@ -369,5 +370,24 @@ describe("6.4 (BD-64-4, ADR 0013): the panel stands frozen with the tender pack 
   }
   it("open again once the documents are returned for amendment (the exercise is back in preparation)", () => {
     expect(ownerState("SPEC_PANEL_FORM", { ...panel("PENDING_APPROVAL_FOR_TENDERING"), exerciseStatus: "DOCUMENTS_IN_PREPARATION" } as OwnerFacts)).toEqual({ state: "OPEN" });
+  });
+});
+
+describe("SR-08, SR-09: an exercise pinned not to use a panel, or not to build its bill on screen, keeps none (rulings 12 and 13)", () => {
+  const panel = (used: boolean | null): OwnerFacts => ({ kind: "specificationPanel", used, exerciseStatus: "DOCUMENTS_IN_PREPARATION", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [] });
+  const bq = (onScreen: boolean | null): OwnerFacts => ({ kind: "bqVersion", onScreen, exerciseStatus: "DOCUMENTS_IN_PREPARATION", status: "DRAFT" });
+  it("a panel is open on an exercise that uses one, closed on one that does not, and not ready where the pin is not set", () => {
+    expect(ownerState("SPEC_PANEL_FORM", panel(true))).toEqual({ state: "OPEN" });
+    expect(ownerState("SPEC_PANEL_FORM", panel(false))).toEqual({ state: "FROZEN", exit: "PANEL_NOT_USED" });
+    expect(ownerState("SPEC_PANEL_FORM", panel(null))).toEqual({ state: "NOT_READY", exit: "SWITCH_NOT_SET" });
+    const f = attachFault({ purpose: "SPEC_PANEL_FORM", owner: panel(false), version: live, documentClass: { classification: "SULIT" } });
+    expect(codes(f)).toEqual(["OWNER_FROZEN"]);
+    expect(documentFaultText(f[0])).toMatch(/does not use a specification panel/);
+  });
+  it("a bill version is open on an exercise that builds one on screen, closed on one that does not, and not ready where the pin is not set", () => {
+    expect(ownerState("BQ_IMPORT_SOURCE", bq(true))).toEqual({ state: "OPEN" });
+    expect(ownerState("BQ_IMPORT_SOURCE", bq(false))).toEqual({ state: "FROZEN", exit: "BILL_NOT_ON_SCREEN" });
+    expect(ownerState("BQ_IMPORT_SOURCE", bq(null))).toEqual({ state: "NOT_READY", exit: "SWITCH_NOT_SET" });
+    expect(documentFaultText(attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(false), version: live, documentClass: internal, byOwnerAct: true })[0])).toMatch(/does not build its bill of quantities on screen/);
   });
 });

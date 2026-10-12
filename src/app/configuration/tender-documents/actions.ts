@@ -13,6 +13,11 @@ export async function saveTenderPart(prev: FormState, data: FormData): Promise<F
   return proposed;
 }
 
+export async function saveTenderPartTemplateFile(prev: FormState, data: FormData): Promise<FormState> {
+  const proposed = await stageEdit("tender-documents.saveTenderPartTemplateFile", prev, data);
+  return proposed;
+}
+
 export async function retireTenderPart(prev: FormState, data: FormData): Promise<FormState> {
   const proposed = await stageEdit("tender-documents.retireTenderPart", prev, data);
   return proposed;

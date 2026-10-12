@@ -21,6 +21,7 @@ import {
   startBq,
   startBqRevision,
   tableScope,
+  takeScopeSettings,
   voidEstimate,
 } from "./actions";
 
@@ -469,14 +470,17 @@ export function VoidEstimateDrawer({ exerciseId, estimateId, preparerName, allow
 export function TableScopeDrawer({
   exerciseId,
   table,
+  file = false,
 }: {
   exerciseId: string;
   table: { allowed: Allowed; versionId: string | null; versionNo: number | null; committee: string | null; act: string | null; sittings: Option[]; holders: Option[] };
+  /// SR-09: the bill is an uploaded file, and it is that file's version that is tabled.
+  file?: boolean;
 }) {
-  if (!table.allowed.allowed || !table.versionId) return <Blocked label="Table the scope" reason={table.allowed.allowed ? "There is no finalised bill to table." : table.allowed.reason} primary />;
+  if (!table.allowed.allowed || !table.versionId) return <Blocked label="Table the scope" reason={table.allowed.allowed ? (file ? "There is no uploaded bill of quantities to table." : "There is no finalised bill to table.") : table.allowed.reason} primary />;
   return (
     <RecordEditor
-      title={`Table version ${table.versionNo} of the bill for scope approval`}
+      title={file ? `Table version ${table.versionNo} of the uploaded bill of quantities for scope approval` : `Table version ${table.versionNo} of the bill for scope approval`}
       description={`A matter at a sitting of the ${table.committee ?? "committee"}, naming this version, under the act the sourcing method sets (${table.act ?? "not set"}). It is decided there; tabling is by a holder of the committee's Secretariat office, who signs in and tables it.`}
       fields={[
         hidden("exerciseId"),
@@ -488,6 +492,36 @@ export function TableScopeDrawer({
       action={tableScope}
       submitLabel="Table the scope"
       trigger={{ label: "Table the scope", className: buttonClass("primary", "sm") }}
+      size="md"
+    />
+  );
+}
+
+/**
+ * Take the organisation's setting for the switches this exercise holds as "not set" (SR-08, SR-09, ADR 0035). It copies what Configuration says now, once, and is not a free choice:
+ * from the first submission the exercise's switches are frozen. Disabled with the reason where the organisation has not set them either.
+ */
+export function TakeSettingsDrawer({ exerciseId, take, rows }: { exerciseId: string; take: Allowed; rows: [string, string][] }) {
+  if (!take.allowed) return <Blocked label="Take the organisation's setting" reason={take.reason} primary />;
+  return (
+    <RecordEditor
+      title="Take the organisation's setting"
+      description="This exercise was made while the organisation had not set these. It takes what Configuration says now, once. From the first submission of its tender documents they are frozen, so a later change to the setting never changes how this exercise is judged."
+      fields={[hidden("exerciseId")]}
+      values={{ exerciseId }}
+      sections={
+        <dl className="grid gap-x-4 gap-y-2.5 text-[13.5px] sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]">
+          {rows.map(([k, v]) => (
+            <div key={k} className="contents">
+              <dt className="font-semibold text-ink-3">{k}</dt>
+              <dd className="min-w-0 break-words text-ink">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      }
+      action={takeScopeSettings}
+      submitLabel="Take the setting"
+      trigger={{ label: "Take the organisation's setting", className: buttonClass("primary", "sm") }}
       size="md"
     />
   );

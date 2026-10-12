@@ -11,6 +11,9 @@ import type { Finding, Provenance } from "./types";
 export type ConfigFault = "PROVENANCE_REQUIRED" | "LEAD_NEGATIVE" | "LIMIT_BELOW_ONE" | "UNKNOWN_QUALIFICATION" | "UNKNOWN_OFFICE" | "UNKNOWN_LIST" | "PERMIT_LIST" | "PERIOD_REVERSED";
 
 export interface PolicyDraft {
+  /// SR-08, SR-09 (rulings 12 and 13, G2): whether the specification panel is used, and whether the bill is built on screen. Null: not set.
+  specPanelUsed?: boolean | null;
+  onScreenBillUsed?: boolean | null;
   measurementStandardLabel: string | null;
   measurementStandardProvenance: Provenance | null;
   bqPreparerQualificationCode: string | null;
@@ -149,7 +152,8 @@ export function unsetCount(i: { policyValues: readonly string[]; rules: readonly
 /// counted: the estimate's lead time is a warning until 6.7, the two offices matter once sign-in
 /// exists, the two lists and the benchmark's name fall back to words, "no limit" on verifiers is an
 /// answer, and an unset override office means no late estimate is accepted, which is never a gap.
-export const POLICY_FIELDS_HOLDING_WORK_BACK: readonly string[] = ["Measurement standard", "Qualification a bill's preparer holds"];
+/// SR-08, SR-09 (G2): the two switches are counted too. Unset, an exercise made now pins "not set" and cannot be submitted until the setting is made.
+export const POLICY_FIELDS_HOLDING_WORK_BACK: readonly string[] = ["Specification panel used", "On-screen bill used", "Measurement standard", "Qualification a bill's preparer holds"];
 
 /// The rows a list shows: the retired ones only when asked for.
 export const visibleRows = <T,>(rows: readonly T[], isRetired: (r: T) => boolean, showRetired: boolean): T[] => (showRetired ? [...rows] : rows.filter((r) => !isRetired(r)));

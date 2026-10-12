@@ -5,7 +5,8 @@ import { packFaults, type PackInput } from "./pack";
 import { scopeApproval } from "./scope-matter";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
-const ready: PackInput = { basis: { requiresBq: true }, method: { requiresCompanyEstimate: true }, bq: [{ status: "FINALISED" }], panel: "VERIFIED", panelBill: { versionNo: 1, status: "FINALISED" }, estimate: { state: "LODGED", behind: false }, scope: "APPROVED" };
+// SR-08, SR-09 (rulings 12 and 13, G1): the pins are inputs now. These cases are of an exercise that uses both, which is what every exercise before the pins was backfilled to.
+const ready: PackInput = { basis: { requiresBq: true }, method: { requiresCompanyEstimate: true }, bq: [{ status: "FINALISED" }], specPanelUsed: true, onScreenBillUsed: true, panel: "VERIFIED", panelBill: { versionNo: 1, status: "FINALISED" }, estimate: { state: "LODGED", behind: false }, scope: "APPROVED" };
 const judge = (x: Partial<PackInput> = {}) => packFaults({ ...ready, ...x });
 
 describe("packFaults: what 6.4 enforces when the documents go for approval (OD-4)", () => {
@@ -68,7 +69,7 @@ describe("packFaults: what 6.4 enforces when the documents go for approval (OD-4
     expect(judge({ method: { requiresCompanyEstimate: false }, estimate: null })).toEqual([]);
   });
   it("each finding names where to fix it", () => {
-    const all = packFaults({ basis: { requiresBq: null }, method: { requiresCompanyEstimate: null }, bq: [], panel: "NONE", panelBill: null, estimate: null, scope: "NOT_REQUIRED" });
+    const all = packFaults({ basis: { requiresBq: null }, method: { requiresCompanyEstimate: null }, bq: [], specPanelUsed: true, onScreenBillUsed: true, panel: "NONE", panelBill: null, estimate: null, scope: "NOT_REQUIRED" });
     for (const f of all) expect(scopeFaultText(f)).toMatch(/Configuration|tab|Scope|Company estimate|Contract type/);
   });
 });
@@ -104,11 +105,40 @@ describe("packFaults: scope approval (increment 2, OD-9, FR-REQ-014)", () => {
     for (const s of ["NO_FINALISED_BILL", "NOT_TABLED", "PENDING", "DEFERRED", "RETURNED", "ENDED", "OUTCOME_NOT_RECORDED"] as const) {
       const f = judge({ scope: s });
       expect(codes(f), s).toEqual(["SCOPE_NOT_APPROVED"]);
-      expect(f[0].data, s).toEqual({ state: s });
+      // SR-09: the finding also says whether the bill it speaks of is an uploaded file (0: built on screen).
+      expect(f[0].data, s).toEqual({ state: s, file: 0 });
       expect(scopeFaultText(f[0]), s).toMatch(/Scope/);
     }
   });
   it("a method no longer configured is said once, not again for scope", () => {
     expect(codes(judge({ method: null, scope: "METHOD_NOT_CONFIGURED" }))).toEqual(["METHOD_NOT_CONFIGURED"]);
+  });
+});
+
+describe("packFaults: the two switches pinned on the exercise (SR-08, SR-09, rulings 12 and 13, ADR 0035)", () => {
+  it("an exercise not pinned to use a panel is not judged on one: its findings leave the gate (SR-08)", () => {
+    expect(codes(judge({ panel: "NONE" }))).toEqual(["PANEL_NOT_VERIFIED"]);
+    expect(judge({ specPanelUsed: false, panel: "NONE" })).toEqual([]);
+    expect(judge({ specPanelUsed: false, panel: "SCAN_GONE", panelBill: { versionNo: 1, status: "SUPERSEDED" }, bq: [{ status: "FINALISED", versionNo: 2 }] })).toEqual([]);
+  });
+  it("an exercise not pinned to build its bill on screen is not judged on one: the bill's findings leave the gate (SR-09)", () => {
+    expect(codes(judge({ bq: [] }))).toEqual(["BQ_NOT_FINALISED"]);
+    expect(judge({ onScreenBillUsed: false, bq: [] })).toEqual([]);
+    // The panel's check against the bill does not run with no bill to compare.
+    expect(judge({ onScreenBillUsed: false, bq: [], panelBill: { versionNo: 1, status: "SUPERSEDED" } })).toEqual([]);
+  });
+  it("a pin that is not set blocks, in words, and says how to set it; it is never read as off", () => {
+    const f = judge({ specPanelUsed: null, onScreenBillUsed: null });
+    expect(codes(f)).toEqual(["SPEC_PANEL_SWITCH_NOT_SET", "BILL_SWITCH_NOT_SET"]);
+    for (const x of f) expect(scopeFaultText(x)).toMatch(/is not set. Take the organisation's setting under Scope and estimate, Scope/);
+    // Nothing else about the panel or the bill is judged on a guess, and the scope approval is not judged of a bill or a file it cannot name.
+    expect(codes(judge({ specPanelUsed: null, onScreenBillUsed: null, panel: "NONE", bq: [], scope: "NOT_TABLED" }))).toEqual(["SPEC_PANEL_SWITCH_NOT_SET", "BILL_SWITCH_NOT_SET"]);
+  });
+  it("scope approval of an uploaded bill says so in its words (SR-09)", () => {
+    const f = judge({ onScreenBillUsed: false, bq: [], scope: "NO_FINALISED_BILL" });
+    expect(f).toEqual([{ code: "SCOPE_NOT_APPROVED", level: "block", data: { state: "NO_FINALISED_BILL", file: 1 } }]);
+    expect(scopeFaultText(f[0])).toMatch(/no bill of quantities file is uploaded yet. Upload it under Tender documents/);
+    const part = judge({ onScreenBillUsed: false, bq: [], scope: "NO_BILL_PART" });
+    expect(scopeFaultText(part[0])).toMatch(/no bill of quantities part to upload the file to.*Configuration, Tender documents.*Configuration, Scope and estimate/);
   });
 });

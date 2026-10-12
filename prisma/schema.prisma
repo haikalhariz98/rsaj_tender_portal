@@ -1145,6 +1145,13 @@ model CommitteeDecision {
   /// FR-REQ-014): a typed key, set only on a SCOPE matter (CHECK in the migration).
   bqVersionId String?
   bqVersion   BqVersion?       @relation(fields: [bqVersionId], references: [id], onDelete: SetNull)
+  /// SR-09 (ruling 13, ADR 0035): the version of the uploaded bill of quantities a SCOPE matter tables where the bill is not built on screen: a typed key, set only on a
+  /// SCOPE matter and never with `bqVersionId` (CHECKs in the migration). A replaced file is a new version, so an approval of the old one lapses.
+  scopeFileVersionId String?
+  scopeFileVersion   DocumentVersion? @relation("ScopeFileVersion", fields: [scopeFileVersionId], references: [id], onDelete: Restrict)
+  /// The exercise that file belongs to, set with it (CHECK). Not `exerciseId`: that key marks an exercise matter (the appointment), and a scope matter must not read as one.
+  scopeExerciseId    String?
+  scopeExercise      SourcingExercise? @relation("ScopeMatterExercise", fields: [scopeExerciseId], references: [id], onDelete: Restrict)
   /// The late envelope a LATE_TENDER matter decides admission of (6.6 FR-CTE-008): a typed key,
   /// set only on a LATE_TENDER matter (CHECK in the migration). CARRIED admits it, NOT_CARRIED does not.
   bidEnvelopeId String?
@@ -1225,6 +1232,8 @@ model CommitteeDecision {
   @@index([exerciseId])
   @@index([requisitionGateId])
   @@index([bqVersionId])
+  @@index([scopeFileVersionId])
+  @@index([scopeExerciseId])
   @@index([bidEnvelopeId])
   @@index([evaluationBidderId])
 }
@@ -3370,6 +3379,14 @@ model SourcingExercise {
   openingRosterRequired Boolean @default(true)
   openingOfficers       ExerciseOpeningOfficer[]
 
+  /// SR-08 and SR-09 (rulings 12 and 13, G1, ADR 0035): whether the specification panel and the on-screen bill of quantities are used on this exercise.
+  /// Pinned from the organisation's setting (`ScopePolicy`) when the exercise is created and frozen at the first submission, never read live. Null: not set,
+  /// and submission refuses in words until the officer takes the organisation's setting. Exercises that existed before were backfilled true (their present behaviour).
+  specPanelUsed    Boolean?
+  onScreenBillUsed Boolean?
+  /// SR-09: the scope matters keyed to this exercise's uploaded bill file.
+  scopeFileMatters CommitteeDecision[] @relation("ScopeMatterExercise")
+
   /// 6.5 (FR-ADV-016): the cancelled exercise this one replaces, a new case linked to it.
   replacesExerciseId     String?
   replaces               SourcingExercise?  @relation("ExerciseReplaces", fields: [replacesExerciseId], references: [id], onDelete: SetNull)
@@ -4567,6 +4584,10 @@ model DocumentVersion {
 
   attachments  DocumentAttachment[]
   accessEvents DocumentAccessEvent[]
+  /// SR-11: configured tender-document parts whose template file is this version.
+  tenderPartTemplates TenderDocumentPart[] @relation("TenderPartTemplateFile")
+  /// SR-09: scope matters keyed to this version as the bill of quantities file.
+  scopeMatters        CommitteeDecision[]  @relation("ScopeFileVersion")
 
   @@unique([documentId, versionNo])
   @@index([organisationId, sha256])
@@ -4811,6 +4832,10 @@ model ScopePolicy {
   estimateAuditRoleCode         String?
   /// The office that may override a late estimate (6.7). Null: no override.
   estimateOverrideRoleCode      String?
+  /// SR-08 (ruling 12, G2): whether the specification panel is used. Null: not set, and an exercise created now pins "not set". Two-person path.
+  specPanelUsed                 Boolean?
+  /// SR-09 (ruling 13, G2): whether the bill of quantities is built on screen (true) or is an uploaded Excel tender document (false). Null: not set.
+  onScreenBillUsed              Boolean?
   /// Most verifiers a specification panel names. Null: no limit set (a warning, not a block).
   panelSignatoryLimit           Int?
   panelSignatoryLimitProvenance Provenance?
@@ -5262,6 +5287,10 @@ model TenderDocumentPart {
   ownerOrgUnitCode  String?
   /// The library template a STANDARD or MIXED part draws (DocumentTemplate.code).
   templateCode      String?
+  /// SR-11 (ruling 14): the template file an officer downloads for this part, a version in the document store. Set through the two-person path.
+  /// Null: no template set.
+  templateFileVersionId String?
+  templateFileVersion   DocumentVersion? @relation("TenderPartTemplateFile", fields: [templateFileVersionId], references: [id], onDelete: Restrict)
 
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)

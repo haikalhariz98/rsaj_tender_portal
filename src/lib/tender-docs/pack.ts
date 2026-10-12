@@ -9,6 +9,11 @@
  * freezes it: the parts' text is rendered and stored, the bill and the files are pinned,
  * and from then on nothing on it changes. A returned pack stays as it was; the next
  * version starts from it. Every finding names what to do and where (labels.ts). Pure.
+ *
+ * SR-11 (ruling 14, ADR 0035, superseding ADR 0008 and 0013 only where a file is uploaded): a part is not marked ready, it IS ready when its content is in
+ * order, derived here (`partIssue`). An uploaded part is ready on its first live file; a merged-text part when its merge has no missing field, or when a
+ * file is uploaded to it, the file then being what is issued; the bill part, where the bill is not built on screen (SR-09), is an uploaded part. An optional
+ * part with nothing to issue is recorded "Not issued" at submission; a mandatory one blocks.
  */
 
 import { returnedByDefinition } from "@/lib/opening/checklist";
@@ -27,6 +32,9 @@ import type { ExerciseStatus, Finding, PackKind, PackPartFacts, TemplateFacts, T
 /// The packs that are live: a draft, or one with approval. At most one per exercise.
 export const LIVE_PACK_STATUSES: readonly TenderPackStatus[] = ["DRAFT", "SUBMITTED"];
 export const isLivePack = (s: TenderPackStatus) => LIVE_PACK_STATUSES.includes(s);
+
+/// SR-11: the reason recorded on an optional part that had nothing to issue when the documents were submitted.
+export const NOT_ISSUED_REASON = "Not issued";
 
 /// A part as it is named in a finding: its printed number and label.
 export const partName = (p: Pick<PackPartFacts, "printedNumber" | "label">) => `${p.printedNumber}. ${p.label}`;
@@ -57,6 +65,8 @@ export type ContentFault =
 export interface ContentContext {
   /// The exercise has a finalised bill to issue unpriced.
   bqFinalised: boolean;
+  /// SR-09 (ruling 13): the exercise's pin. False: the bill is an uploaded file, so the bill part takes a file as an uploaded part does. Null: not set (the gate says so).
+  billOnScreen: boolean | null;
   /// The Appendix is complete (no `appendixFaults`); null where the pack has none.
   appendixComplete: boolean | null;
   /// The merge fields a template may name: the pack's and the live clauses' (`packWhitelist`). Absent: the pack's only, so a clause citation is refused (fails safe).
@@ -75,20 +85,29 @@ export function templateFaults(t: TemplateFacts, whitelist: MergeWhitelist = PAC
   return out;
 }
 
+/// SR-09, SR-11: whether a part is issued as an uploaded file by its nature: an uploaded part, or the bill part where the bill is not built on screen.
+export const takesFile = (p: Pick<PackPartFacts, "source">, ctx: Pick<ContentContext, "billOnScreen">): boolean => p.source === "UPLOAD" || (p.source === "BQ_UNPRICED" && ctx.billOnScreen === false);
+
+/// SR-11: whether a file may be uploaded to the part at all. Not the Appendix, which stays a form (SR-12); not the on-screen bill.
+export const mayHoldFile = (p: Pick<PackPartFacts, "source">, ctx: Pick<ContentContext, "billOnScreen">): boolean => takesFile(p, ctx) || p.source === "TEMPLATE";
+
 /**
  * What a part's content needs before it is ready, from its source (FR-DOC-003): a STANDARD
- * or MIXED part's template with text; a BESPOKE part never from the library; the bill
- * finalised; the Appendix complete; an uploaded part's file attached.
+ * or MIXED part's template with text, or (SR-11) a file uploaded in its place; a BESPOKE part never
+ * from the library; the bill finalised, or (SR-09) its file; the Appendix complete; an uploaded part's file attached.
  */
 export function partContentFaults(p: PackPartFacts, ctx: ContentContext): Finding<ContentFault>[] {
   const part = partName(p);
   switch (p.source) {
     case "TEMPLATE": {
+      // ADR 0035: an uploaded file replaces the merged text as the issued part, so the merge is not judged.
+      if (p.liveUploads > 0) return [];
       if (p.content === "BESPOKE") return [{ code: "BESPOKE_FROM_LIBRARY", level: "block", data: { part } }];
       if (!p.template) return [{ code: "TEMPLATE_NOT_SET", level: "block", data: { part } }];
       return templateFaults(p.template, ctx.whitelist).map((f) => ({ ...f, data: { ...f.data, part } }));
     }
     case "BQ_UNPRICED":
+      if (ctx.billOnScreen === false) return p.liveUploads > 0 ? [] : [{ code: "UPLOAD_MISSING", level: "block", data: { part, bill: 1 } }];
       return ctx.bqFinalised ? [] : [{ code: "BQ_PART_WITHOUT_BQ", level: "block", data: { part } }];
     case "APPENDIX":
       return ctx.appendixComplete === true ? [] : [{ code: "APPENDIX_INCOMPLETE", level: "block", data: { part } }];
@@ -97,26 +116,55 @@ export function partContentFaults(p: PackPartFacts, ctx: ContentContext): Findin
   }
 }
 
+/// ALREADY_READY, ALREADY_OMITTED, MANDATORY_OMITTED and OMIT_REASON_REQUIRED are no longer raised (SR-11: no Mark ready, no Omit); their words stay for the History of packs that were.
 export type PartActFault = EditFault | ContentFault | "ALREADY_READY" | "ALREADY_OMITTED" | "MANDATORY_OMITTED" | "MANDATORY_UNSET" | "OMIT_REASON_REQUIRED" | "NOT_A_TEMPLATE_PART";
 
-/// Marking a part ready: its content as its source needs it.
-export function markReadyFaults(p: PackPartFacts, packStatus: TenderPackStatus, exerciseStatus: ExerciseStatus, ctx: ContentContext): Finding<PartActFault>[] {
-  const edit = packEditFault(packStatus, exerciseStatus);
-  if (edit) return [edit];
-  if (p.state === "READY") return [{ code: "ALREADY_READY", level: "block" }];
-  return partContentFaults(p, ctx);
+/**
+ * SR-11 (ruling 14): what a part is, now, when its content is judged. There is no Mark ready and no Omit: a part is ready when its content is in
+ * order, and an optional one with nothing to issue is "Not issued" (recorded as such at submission, NOT_ISSUED_REASON). A mandatory part whose
+ * content is not in order is not ready and says what is missing.
+ */
+export type PartIssue =
+  | { state: "READY"; as: "FILE" | "TEXT" | "FORM" | "BILL" }
+  | { state: "NOT_ISSUED"; faults: Finding<ContentFault>[] }
+  | { state: "NOT_READY"; faults: Finding<ContentFault>[] };
+
+export function partIssue(p: PackPartFacts, ctx: ContentContext): PartIssue {
+  const faults = partContentFaults(p, ctx);
+  if (faults.length === 0) {
+    if (p.source === "APPENDIX") return { state: "READY", as: "FORM" };
+    if (p.source === "BQ_UNPRICED" && ctx.billOnScreen !== false) return { state: "READY", as: "BILL" };
+    if (p.source === "TEMPLATE" && p.liveUploads === 0) return { state: "READY", as: "TEXT" };
+    return { state: "READY", as: "FILE" };
+  }
+  return p.mandatory === false ? { state: "NOT_ISSUED", faults } : { state: "NOT_READY", faults };
 }
 
-/// Omitting a part: only one configured as not mandatory, and with the reason.
-export function omitFaults(p: PackPartFacts, packStatus: TenderPackStatus, exerciseStatus: ExerciseStatus, reason: string): Finding<PartActFault>[] {
+/// The part as submission settles it: ready, "Not issued" (omitted with that reason), or not ready (the readiness findings block it).
+export function settledPart<P extends PackPartFacts>(p: P, ctx: ContentContext): P {
+  const i = partIssue(p, ctx);
+  if (i.state === "READY") return { ...p, state: "READY", omittedReason: "" };
+  if (i.state === "NOT_ISSUED") return { ...p, state: "OMITTED", omittedReason: NOT_ISSUED_REASON };
+  return { ...p, state: "NOT_STARTED", omittedReason: "" };
+}
+
+/**
+ * The part as the checks after the readiness read it: settled (ready, "Not issued"), and with the source it is issued from. A merged-text part with a file is
+ * issued as a file (ADR 0035), so the checks that read a template's words (the clauses, the notice's eligibility block, the validity window) treat it as an
+ * uploaded part, which they already say they cannot read. The bill part is an uploaded part where the bill is not built on screen (SR-09).
+ */
+export function issuedPart<P extends PackPartFacts>(p: P, ctx: ContentContext): P {
+  const s = settledPart(p, ctx);
+  if (p.source === "TEMPLATE" && p.liveUploads > 0) return { ...s, source: "UPLOAD", template: null };
+  if (p.source === "BQ_UNPRICED" && ctx.billOnScreen === false) return { ...s, source: "UPLOAD" };
+  return s;
+}
+
+/// Whether the part's content is in order now, with the edit gate: what a line's note and the submit gate share (renamed from markReadyFaults, SR-11).
+export function partReadyFaults(p: PackPartFacts, packStatus: TenderPackStatus, exerciseStatus: ExerciseStatus, ctx: ContentContext): Finding<PartActFault>[] {
   const edit = packEditFault(packStatus, exerciseStatus);
   if (edit) return [edit];
-  if (p.state === "OMITTED") return [{ code: "ALREADY_OMITTED", level: "block" }];
-  const out: Finding<PartActFault>[] = [];
-  if (p.mandatory === true) out.push({ code: "MANDATORY_OMITTED", level: "block", data: { part: partName(p) } });
-  else if (p.mandatory == null) out.push({ code: "MANDATORY_UNSET", level: "block", data: { part: partName(p) } });
-  if (!reason.trim()) out.push({ code: "OMIT_REASON_REQUIRED", level: "block", data: { part: partName(p) } });
-  return out;
+  return partContentFaults(p, ctx);
 }
 
 /// Choosing the library template a part draws (FR-DOC-003): a template part, not bespoke, with text.
@@ -130,7 +178,7 @@ export function pickTemplateFaults(p: PackPartFacts, t: TemplateFacts, packStatu
 
 // ------------------------------------------------------------------ the pack's readiness
 
-export type ReadinessFault = ContentFault | "MANDATORY_UNSET" | "PART_NOT_READY" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED" | "DECLARATION_PART_MISSING" | "DECLARATION_NOT_MANDATORY" | "NO_PARTS" | "RETURN_NOT_SET";
+export type ReadinessFault = ContentFault | "BILL_PART_MISSING" | "MANDATORY_UNSET" | "PART_NOT_READY" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED" | "DECLARATION_PART_MISSING" | "DECLARATION_NOT_MANDATORY" | "NO_PARTS" | "RETURN_NOT_SET";
 
 /**
  * Everything the parts still need (FR-DOC-001): each part ready or, where not mandatory,
@@ -144,11 +192,9 @@ export function packReadiness(parts: readonly PackPartFacts[], ctx: ContentConte
   for (const p of parts) {
     const part = partName(p);
     if (p.mandatory == null) out.push({ code: "MANDATORY_UNSET", level: "block", data: { part } });
-    if (p.state === "NOT_STARTED") out.push({ code: "PART_NOT_READY", level: "block", data: { part } });
-    else if (p.state === "OMITTED") {
-      if (p.mandatory === true) out.push({ code: "MANDATORY_OMITTED", level: "block", data: { part } });
-      if (!p.omittedReason.trim()) out.push({ code: "OMIT_REASON_REQUIRED", level: "block", data: { part } });
-    } else out.push(...partContentFaults(p, ctx));
+    // SR-11: ready is derived from the content, never from a stored state. An optional part with nothing to issue is "Not issued" and does not block.
+    const issue = partIssue(p, ctx);
+    if (issue.state === "NOT_READY") out.push(...issue.faults);
   }
   // Phase 2 close-out 67-C1: which mandatory parts a bidder returns is frozen with the approved pack and
   // read at the opening (6.7), where an unset answer blocks finalising (CHECKLIST_NOT_JUDGED, exit:
@@ -195,7 +241,8 @@ export interface SubmitInput {
   packStatus: TenderPackStatus;
   exerciseStatus: ExerciseStatus;
   parts: readonly PackPartFacts[];
-  content: ContentContext;
+  /// What the parts' content is judged by. Whether the bill is on screen is the exercise's pin, read once from `scope.onScreenBillUsed`.
+  content: Omit<ContentContext, "billOnScreen">;
   /// 6.2 OD-4: the scope's readiness inputs, read on locked rows.
   scope: PackInput;
   /// The Appendix, where the composition has one (a part with role APPENDIX); else null.
@@ -240,6 +287,12 @@ export interface SubmitFindings {
 export function submitFaults(i: SubmitInput): SubmitFindings {
   const edit = packEditFault(i.packStatus, i.exerciseStatus);
   const hasAppendixPart = i.parts.some((p) => p.role === "APPENDIX");
+  const ctx: ContentContext = { ...i.content, billOnScreen: i.scope.onScreenBillUsed };
+  // SR-11: every check below that reads a part's state or source reads the part as submission settles and issues it.
+  const issued = i.parts.map((p) => issuedPart(p, ctx));
+  const readiness = packReadiness(i.parts, ctx);
+  // SR-09: a basis let on a bill, an uploaded bill, and a pack with no part to upload it to: clearable in configuration, said here.
+  if (ctx.billOnScreen === false && i.scope.basis?.requiresBq === true && !i.parts.some((p) => p.source === "BQ_UNPRICED")) readiness.push({ code: "BILL_PART_MISSING", level: "block" });
   const route: Finding<RouteFault>[] = [];
   if (i.routeOpen) route.push({ code: "ROUTE_OPEN", level: "block" });
   if (!i.route.issue) route.push({ code: "NO_ISSUE_IN_FORCE", level: "block" });
@@ -251,11 +304,11 @@ export function submitFaults(i: SubmitInput): SubmitFindings {
   if (i.route.issue && i.route.state === "RESOLVED") for (const e of i.route.errors) route.push({ code: "ROUTE_ERROR", level: "block", data: { text: e } });
   return {
     edit: edit ? [edit] : [],
-    readiness: packReadiness(i.parts, i.content),
+    readiness,
     scope: packFaults(i.scope),
     appendix: hasAppendixPart ? (i.appendix ? appendixFaults(i.appendix) : [{ code: "APPENDIX_NOT_STARTED", level: "block" }]) : [],
-    behaviour: behaviourFaults(i.profile, { appendix: hasAppendixPart ? i.appendix : null, primeCostSums: i.primeCostSums, parts: i.parts }),
-    conditions: conditionsFaults(i.parts, i.conditions),
+    behaviour: behaviourFaults(i.profile, { appendix: hasAppendixPart ? i.appendix : null, primeCostSums: i.primeCostSums, billOnScreen: ctx.billOnScreen, parts: issued }),
+    conditions: conditionsFaults(issued, i.conditions),
     dates: [...i.dates],
     officers: [...i.officers],
     notice: [...i.notice],

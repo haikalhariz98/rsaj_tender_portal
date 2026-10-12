@@ -107,7 +107,7 @@ export async function loadBidsDemo(db: Db, organisationId: string, hooks: BidsDe
   // ---- sx20: a requisition, the exercise, 6.2 and 6.4 by their own acts, then the window (6.5's acts)
   await loadRequisition(db, organisationId, W, T);
   await db.sourcingExercise.create({
-    data: { id: NEW_EXERCISE, organisationId, reference: SX(20), requisitionId: `${P}rq35`, title: "Clear water tank relining, Demo Heights", estimatedValue: "420000.00", sourcingMethodCode: "open_tender", methodReason: "", status: "DRAFT", contractBasisCode: "ds", createdAt: T(W(10), "10:00") },
+    data: { id: NEW_EXERCISE, organisationId, specPanelUsed: true, onScreenBillUsed: true, reference: SX(20), requisitionId: `${P}rq35`, title: "Clear water tank relining, Demo Heights", estimatedValue: "420000.00", sourcingMethodCode: "open_tender", methodReason: "", status: "DRAFT", contractBasisCode: "ds", createdAt: T(W(10), "10:00") },
   });
   await db.exerciseScopePart.create({ data: { id: `${NEW_EXERCISE}p1`, exerciseId: NEW_EXERCISE, deliverableKind: "MEASURED_CONSTRUCTION", amount: "420000.00", description: "Clear water tank relining, Demo Heights", sortOrder: 1 } });
   await hooks.determine([NEW_EXERCISE]);

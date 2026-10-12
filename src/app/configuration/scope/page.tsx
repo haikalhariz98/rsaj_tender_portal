@@ -39,6 +39,8 @@ function Setting({ value, unset }: { value: string; unset: string }) {
 
 /// What each policy field leaves undecided while it is unset, in the order of the read model.
 const UNSET: Record<string, string> = {
+  "Specification panel used": "An exercise made now pins this as not set, and cannot be submitted until it is set (and the exercise takes it).",
+  "On-screen bill used": "An exercise made now pins this as not set, and cannot be submitted until it is set (and the exercise takes it).",
   "Measurement standard": "A bill cannot be finalised: it has no standard to follow.",
   "Qualification a bill's preparer holds": "A bill cannot be finalised: nobody can be judged qualified to prepare it.",
   "Estimate made at least this many days before closing": "The estimate's lead time cannot be judged. No number is assumed.",
@@ -95,6 +97,8 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
   const leadUnset = p.estimateLeadDays == null;
 
   const policyValues: Record<string, string> = {
+    specPanelUsed: p.specPanelUsed == null ? "" : p.specPanelUsed ? "yes" : "no",
+    onScreenBillUsed: p.onScreenBillUsed == null ? "" : p.onScreenBillUsed ? "yes" : "no",
     measurementStandardLabel: p.measurementStandardLabel ?? "",
     measurementStandardProvenance: p.measurementStandardProvenance ?? "",
     bqPreparerQualificationCode: p.bqPreparerQualificationCode ?? "",
@@ -168,6 +172,8 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
             <KeyValues
               columns={2}
               items={[
+                setting("Specification panel used"),
+                setting("On-screen bill used"),
                 setting("Measurement standard"),
                 setting("Qualification a bill's preparer holds"),
                 setting("Estimate made at least this many days before closing"),

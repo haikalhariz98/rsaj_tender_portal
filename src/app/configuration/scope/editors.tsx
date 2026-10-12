@@ -29,6 +29,8 @@ export function EditScopePolicy({ values, qualifications, offices, lists }: { va
       description="Every value is the organisation's own choice. Leave one empty to leave it unset; a value set says where it came from."
       columns={2}
       fields={[
+        { kind: "select", name: "specPanelUsed", label: "Specification panel used", placeholder: "Not set", options: [{ value: "yes", label: "Used" }, { value: "no", label: "Not used" }], hint: "Each exercise takes this when it is made and keeps it. Not used removes the panel and its signed form from the exercise and from submission." },
+        { kind: "select", name: "onScreenBillUsed", label: "On-screen bill used", placeholder: "Not set", options: [{ value: "yes", label: "Built on screen" }, { value: "no", label: "An uploaded Excel file" }], hint: "Each exercise takes this when it is made and keeps it. An uploaded file is a document line under Tender documents, with its template; its prime cost and provisional sums are entered at the contract baseline." },
         { kind: "text", name: "measurementStandardLabel", label: "Measurement standard a bill follows", hint: "As the organisation names it." },
         provenance("measurementStandardProvenance"),
         { kind: "select", name: "bqPreparerQualificationCode", label: "Qualification a bill's preparer holds", placeholder: "Not set", options: qualifications },

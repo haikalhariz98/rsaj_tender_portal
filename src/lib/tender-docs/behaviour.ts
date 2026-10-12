@@ -27,13 +27,16 @@ export const BEHAVIOURS_AFTER_AWARD: readonly { key: BehaviourKey; where: "CONTR
   { key: "claimsApprovalCommitteeCode", where: "POST_AWARD" },
 ];
 
-export type BehaviourFault = "PROFILE_NOT_RECORDED" | "BEHAVIOUR_NOT_SET" | "DLP_MONTHS_REQUIRED" | "DLP_NOT_FOR_TYPE" | "NOMINATION_NOT_FOR_TYPE" | "BOND_FORMS_REQUIRED";
+export type BehaviourFault = "PROFILE_NOT_RECORDED" | "BEHAVIOUR_NOT_SET" | "DLP_MONTHS_REQUIRED" | "DLP_NOT_FOR_TYPE" | "NOMINATION_NOT_FOR_TYPE" | "NOMINATION_BILL_NOT_CHECKED" | "BOND_FORMS_REQUIRED";
 
 export interface BehaviourContext {
   /// The pack's Appendix, or null where its composition has none.
   appendix: Pick<AppendixFacts, "dlpApplies" | "dlpMonths" | "pcSumWorksApply" | "pcSumWorksText"> | null;
   /// The prime cost sums in the bill the pack issues (6.2 `bqTotals`), or null with no bill.
   primeCostSums: Sen | null;
+  /// SR-09 (ruling 13): whether the bill is built on screen on this exercise, as pinned. False: the bill is a file the system does not read, so the bill's side of the nomination check is not made.
+  /// Absent or true: it is made as before.
+  billOnScreen?: boolean | null;
   parts: readonly Pick<PackPartFacts, "role" | "mandatory" | "inTableDocument" | "state">[];
 }
 
@@ -61,7 +64,9 @@ export function behaviourFaults(profile: readonly { key: BehaviourKey; value: Be
   const nomination = value("nominationAllowed");
   if (nomination == null) notSet("nominationAllowed");
   else if (nomination === false) {
-    if (ctx.primeCostSums != null && ctx.primeCostSums > 0n) out.push({ code: "NOMINATION_NOT_FOR_TYPE", level: "block", data: { where: "BILL" } });
+    // SR-09: with no on-screen bill there are no prime cost sums to read, so the bill's side is "not checked", never a pass. The Appendix's answer below is still checked.
+    if (ctx.billOnScreen === false) out.push({ code: "NOMINATION_BILL_NOT_CHECKED", level: "info" });
+    else if (ctx.primeCostSums != null && ctx.primeCostSums > 0n) out.push({ code: "NOMINATION_NOT_FOR_TYPE", level: "block", data: { where: "BILL" } });
     if (ctx.appendix && (ctx.appendix.pcSumWorksApply === true || ctx.appendix.pcSumWorksText.trim() !== "")) out.push({ code: "NOMINATION_NOT_FOR_TYPE", level: "block", data: { where: "APPENDIX" } });
   }
 

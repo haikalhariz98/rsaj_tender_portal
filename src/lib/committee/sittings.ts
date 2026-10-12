@@ -126,6 +126,8 @@ export async function loadSitting(scope: OrgScope, id: string, client: Tx = db, 
           dependsOn: { select: { id: true, subject: true, outcome: true } },
           // 6.2 OD-9: the bill version a SCOPE matter tables, to name and link it.
           bqVersion: { select: { versionNo: true, status: true, exerciseId: true } },
+          // SR-09: or the uploaded bill file's version, with the exercise it belongs to (scopeExerciseId).
+          scopeFileVersion: { select: { versionNo: true } },
         },
       },
     },

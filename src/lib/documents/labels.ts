@@ -183,6 +183,9 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   DELEGATION_ENDED: "The delegation has ended, so nothing more is attached to it.",
   DELEGATION_ZONE_UNSET: "The organisation's time zone is not set, so today cannot be told and whether the delegation has ended cannot be judged. Set it under Configuration › Organisation, then attach or change its documents.",
   BQ_FINALISED: "This version of the bill is finalised and keeps the file it was imported from. To import another, start a revision of the bill.",
+  PANEL_NOT_USED: "This exercise does not use a specification panel (Requirements v2, SR-08), so nothing is attached to one.",
+  BILL_NOT_ON_SCREEN: "This exercise does not build its bill of quantities on screen (Requirements v2, SR-09). The bill is a file under Tender documents.",
+  SWITCH_NOT_SET: "Whether this exercise uses a specification panel, and whether it builds its bill on screen, is not set. Take the organisation's setting under Scope and estimate, Scope, first.",
   PACK_FROZEN: "The tender documents were submitted on this and stand as they were frozen. A change waits until they are returned for amendment, and is made then (a pack's part on its next version); after approval for tendering a change is an addendum, issued under Publishing on Tender documents.",
   NOT_APPROVED_FOR_TENDERING: "A publication's proof is attached once the exercise is approved for tendering, when it can be published.",
   WINDOW_NOT_PUBLISHED: "An attendance sheet is attached once the exercise is advertised or invited and the event is held.",
@@ -383,6 +386,8 @@ export function documentFaultText(f: Finding): string {
       return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is kept ${classificationLabel(d.required as SecurityClass)}, and this document is ${d.classification ? classificationLabel(d.classification as SecurityClass) : "not classified"}. Raise its classification to ${classificationLabel(d.required as SecurityClass)} on the document, or upload it again under a class classified ${classificationLabel(d.required as SecurityClass)}.`;
     case "ALREADY_ATTACHED":
       return "That document is already attached here.";
+    case "BILL_IS_ONE_FILE":
+      return "The bill of quantities is one file, and one is already uploaded. Use Replace to put a corrected file in its place.";
     case "ATTACHED_BY_OWNER_ACT":
       return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is attached by importing it on the bill of quantities, which reads it in the same step. Import it there.`;
     case "RELIED_ON":

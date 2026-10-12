@@ -17,7 +17,8 @@ const part = (x: Partial<PackPartFacts> = {}): PackPartFacts => ({
   partCode: "p2", printedNumber: "2", sortOrder: 20, label: "Form of tender", role: "FORM_OF_TENDER", content: "STANDARD", source: "TEMPLATE", mandatory: true, inTableDocument: true, templateCode: "t", template, state: "READY", omittedReason: "", liveUploads: 0, ...x,
 });
 const declaration = part({ partCode: "p9", printedNumber: "9", label: "Declaration", role: "DECLARATION", returnedByBidder: null });
-const CTX = { bqFinalised: true, appendixComplete: true };
+// SR-09: the content context carries the exercise's pin; the bill is on screen here, as before the switch.
+const CTX = { bqFinalised: true, billOnScreen: true, appendixComplete: true };
 const warn = (parts: PackPartFacts[]) => packReadiness(parts, CTX).filter((f) => f.code === "RETURN_NOT_SET");
 
 describe("a mandatory part's 'returned by the bidder' unset at approval (67-C1)", () => {

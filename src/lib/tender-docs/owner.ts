@@ -26,7 +26,9 @@ export const PACK_PART_FACTS_SELECT = {
   source: true,
   printedNumber: true,
   labelSnapshot: true,
-  pack: { select: { status: true, versionNo: true, exerciseId: true, exercise: { select: { status: true, reference: true } } } },
+  pack: { select: { status: true, versionNo: true, exerciseId: true, exercise: { select: { status: true, reference: true, onScreenBillUsed: true } } } },
+  /// SR-09: the live files it holds (the bill is one file).
+  _count: { select: { attachments: { where: { purpose: "TENDER_PART" as const, detachedAt: null, version: { withdrawnAt: null } } } } },
 } as const;
 
 /// The part as the trail and the screens name it: its exercise's reference, never an id.

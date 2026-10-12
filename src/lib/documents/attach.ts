@@ -54,12 +54,13 @@ export type OwnerFacts =
   /// 6.2: a specification panel, judged with its exercise's status. BD-62-26: the scan
   /// versions its `verifiedSnapshot` names, and the version of each live attachment of the
   /// signed form (one entry per attachment), so reliance falls only on a scan it was verified on.
-  | { kind: "specificationPanel"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "VERIFIED"; verifiedScanVersionIds: readonly string[]; liveScanVersionIds: readonly string[] }
+  | { kind: "specificationPanel"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "VERIFIED"; verifiedScanVersionIds: readonly string[]; liveScanVersionIds: readonly string[]; used: boolean | null }
   /// 6.2 Q-3: a bill of quantities version, judged with its exercise's status.
-  | { kind: "bqVersion"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "FINALISED" | "SUPERSEDED" }
-  /// 6.4: a tender pack's part, judged with its pack's and exercise's status. Only a part whose
-  /// content is uploaded (source UPLOAD) keeps a file.
-  | { kind: "tenderPackPart"; exerciseStatus: ExerciseStatus; packStatus: TenderPackStatus; source: PartSource }
+  | { kind: "bqVersion"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "FINALISED" | "SUPERSEDED"; onScreen: boolean | null }
+  /// 6.4: a tender pack's part, judged with its pack's and exercise's status. SR-11: a part whose content is uploaded (source UPLOAD), a merged-text part
+  /// (a file then replaces the merged text), and the bill part where the bill is not built on screen (SR-09, `billOnScreen` false) keep a file; the Appendix does not.
+  /// `liveFiles`: the files it holds now (the bill is one file).
+  | { kind: "tenderPackPart"; exerciseStatus: ExerciseStatus; packStatus: TenderPackStatus; source: PartSource; billOnScreen: boolean | null; liveFiles: number }
   /// 6.5: an addendum, judged with its exercise's status. Its signed copy changes only while it is a draft.
   | { kind: "addendum"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "ISSUED" | "VOID" }
   /// 6.6 (X-11): a bid withdrawal, judged with its exercise's status. Its letter may follow the record.
@@ -177,6 +178,10 @@ export type OwnerExit =
   | "DELEGATION_ENDED"
   | "DELEGATION_ZONE_UNSET"
   | "BQ_FINALISED"
+  /// SR-08, SR-09: the exercise is pinned not to use a panel, or not to build its bill on screen, or the pin is not set.
+  | "PANEL_NOT_USED"
+  | "BILL_NOT_ON_SCREEN"
+  | "SWITCH_NOT_SET"
   | "PACK_FROZEN"
   | "NOT_APPROVED_FOR_TENDERING"
   | "WINDOW_NOT_PUBLISHED"
@@ -219,6 +224,7 @@ export type AttachFault =
   | "CLASSIFICATION_NOT_SET"
   | "CLASSIFICATION_BELOW_PURPOSE"
   | "ATTACHED_BY_OWNER_ACT"
+  | "BILL_IS_ONE_FILE"
   | "ALREADY_ATTACHED";
 
 /// Whether the purpose belongs on this owner at all.
@@ -227,7 +233,8 @@ export function purposeFits(purpose: AttachmentPurpose, owner: OwnerFacts): bool
   if (owner.kind === "award") return RETURN_PURPOSES[owner.instrumentKind].includes(purpose);
   // 6.4: a part keeps a file only where its content is uploaded; a template, the bill or the
   // Appendix is frozen from its own source (FR-DOC-003).
-  if (owner.kind === "tenderPackPart") return owner.source === "UPLOAD";
+  // SR-11 (ADR 0035): and a merged-text part takes a file that replaces its merged text, and (SR-09) the bill part where the bill is not on screen.
+  if (owner.kind === "tenderPackPart") return owner.source === "UPLOAD" || owner.source === "TEMPLATE" || (owner.source === "BQ_UNPRICED" && owner.billOnScreen === false);
   // 6.5: a publication's proof belongs to an advertised window; an attendance sheet to any window.
   if (owner.kind === "exercise" && purpose === "PUBLICATION_PROOF") return owner.window?.path === "ADVERTISED";
   if (owner.kind === "exercise" && purpose === "ATTENDANCE_SHEET") return owner.window != null;
@@ -275,10 +282,16 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): Owner
       // 6.4 (BD-64-4, ADR 0013): the tender pack froze on this panel, so its signed form is
       // neither attached, taken off nor re-pinned while the pack is with approval or approved;
       // the panel's own rule (`exerciseAllowsPanel`) decides, so the two never disagree.
+      // SR-08: an exercise pinned not to use a panel keeps none; one whose pin is not set is not ready for one.
+      if (owner.used === false) return { state: "FROZEN", exit: "PANEL_NOT_USED" };
+      if (owner.used == null) return { state: "NOT_READY", exit: "SWITCH_NOT_SET" };
       const allows = exerciseAllowsPanel(owner.exerciseStatus);
       return allows === "OPEN" ? { state: "OPEN" } : { state: "FROZEN", exit: allows };
     }
     case "bqVersion":
+      // SR-09: an exercise pinned not to build its bill on screen keeps none; one whose pin is not set is not ready for one.
+      if (owner.onScreen === false) return { state: "FROZEN", exit: "BILL_NOT_ON_SCREEN" };
+      if (owner.onScreen == null) return { state: "NOT_READY", exit: "SWITCH_NOT_SET" };
       // A finalised or superseded bill keeps the file it was imported from, as it stands.
       if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
       return owner.status === "DRAFT" ? { state: "OPEN" } : { state: "FROZEN", exit: "BQ_FINALISED" };
@@ -474,6 +487,8 @@ export function attachFault(i: AttachInput): Finding<AttachFault>[] {
   const required = PURPOSE_CLASSIFICATION[i.purpose];
   if (i.documentClass && required && classification !== required) out.push({ code: "CLASSIFICATION_BELOW_PURPOSE", level: "block", data: { purpose: i.purpose, required, classification } });
   if (i.alreadyAttached) out.push({ code: "ALREADY_ATTACHED", level: "block" });
+  // SR-09: the bill, where it is a file, is one file; a corrected one replaces it (a new version), it is not added beside it.
+  if (i.owner.kind === "tenderPackPart" && i.owner.source === "BQ_UNPRICED" && i.owner.billOnScreen === false && i.owner.liveFiles > 0 && !i.alreadyAttached) out.push({ code: "BILL_IS_ONE_FILE", level: "block" });
   return out;
 }
 

@@ -79,6 +79,8 @@ export interface ConfiguredPart {
   returnedByBidderProvenance?: Provenance | null;
   ownerOrgUnitCode: string | null;
   templateCode: string | null;
+  /// SR-11 (ruling 14): the template file an officer downloads for the part, a version in the document store. Absent or null: no template set.
+  templateFileVersionId?: string | null;
   governingSource: string;
   provenance: Provenance;
   /// The organisation's day it was retired on, or null.

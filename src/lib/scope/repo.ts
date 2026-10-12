@@ -27,6 +27,8 @@ export async function loadScopePolicy(organisationId: string, client: Tx = db): 
   return {
     exists: true,
     notes: p.notes,
+    specPanelUsed: p.specPanelUsed,
+    onScreenBillUsed: p.onScreenBillUsed,
     measurementStandardLabel: p.measurementStandardLabel,
     measurementStandardProvenance: p.measurementStandardProvenance as Provenance | null,
     bqPreparerQualificationCode: p.bqPreparerQualificationCode,
@@ -144,11 +146,12 @@ export async function loadScopeRules(organisationId: string, ex: { sourcingMetho
  */
 export async function loadScopeMatters(exerciseId: string, client: Tx = db): Promise<ScopeMatter[]> {
   const rows = await client.committeeDecision.findMany({
-    where: { matterKind: "SCOPE", bqVersion: { exerciseId } },
+    // SR-09: a matter tables a bill version, or the version of the uploaded bill file (which names its exercise).
+    where: { matterKind: "SCOPE", OR: [{ bqVersion: { exerciseId } }, { scopeExerciseId: exerciseId }] },
     orderBy: [{ tabledAt: "asc" }, { id: "asc" }],
     include: { meeting: { include: { committee: { select: { code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } },
   });
-  return rows.map((d) => ({ id: d.id, bqVersionId: d.bqVersionId, committeeCode: d.meeting.committee.code, act: d.act, withdrawn: d.withdrawnAt != null, sittingCancelled: d.meeting.status === "CANCELLED", tabledAt: d.tabledAt, record: recordOf(d), sittingReference: d.meeting.reference, committeeName: d.meeting.committee.nameEn }));
+  return rows.map((d) => ({ id: d.id, bqVersionId: d.bqVersionId ?? d.scopeFileVersionId, committeeCode: d.meeting.committee.code, act: d.act, withdrawn: d.withdrawnAt != null, sittingCancelled: d.meeting.status === "CANCELLED", tabledAt: d.tabledAt, record: recordOf(d), sittingReference: d.meeting.reference, committeeName: d.meeting.committee.nameEn }));
 }
 
 /// The organisation's schedules of rates, issue by issue, as `rates.ts` reads them (days as YYYY-MM-DD).

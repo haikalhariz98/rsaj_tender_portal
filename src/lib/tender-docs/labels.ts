@@ -161,7 +161,7 @@ const CONTENT_TEXT: Record<ContentFault, (f: Finding) => string> = {
   TEMPLATE_UNKNOWN_FIELD: (f) => `${f.data?.part ? `Part ${d(f, "part")}: the` : "The"} template ${d(f, "template")} names ${d(f, "fields")}, which a tender document does not fill. Correct it under Configuration, Templates.`,
   BESPOKE_FROM_LIBRARY: (f) => `Part ${d(f, "part")} is prepared for this exercise, so it cannot be drawn from the template library. It is uploaded, or comes from the bill or the Appendix.`,
   BQ_PART_WITHOUT_BQ: (f) => `Part ${d(f, "part")} issues the bill of quantities unpriced, and the exercise has no finalised bill. Finalise it on the Bill of quantities tab.`,
-  UPLOAD_MISSING: (f) => `Part ${d(f, "part")} has no file attached. Attach it to the part under Documents; it can then be marked ready.`,
+  UPLOAD_MISSING: (f) => (f.data?.bill ? `Part ${d(f, "part")} is the bill of quantities, an uploaded Excel file on this exercise. Download its template, fill it in, and upload it on this line; the part is ready as soon as a file is uploaded.` : `Part ${d(f, "part")} has no file. Upload one on its line; the part is ready as soon as a file is uploaded.`),
   APPENDIX_INCOMPLETE: (f) => `Part ${d(f, "part")}: the Appendix is not complete yet. Complete it on the Appendix page.`,
 };
 
@@ -175,7 +175,8 @@ const PART_ACT_TEXT: Record<Exclude<PartActFault, EditFault | ContentFault>, (f:
 };
 
 const READINESS_TEXT: Record<Exclude<ReadinessFault, ContentFault | "MANDATORY_UNSET" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED">, (f: Finding) => string> = {
-  PART_NOT_READY: (f) => `Part ${d(f, "part")} is not ready. Make it ready, or omit it with the reason where it is not mandatory.`,
+  PART_NOT_READY: (f) => `Part ${d(f, "part")} is not ready.`,
+  BILL_PART_MISSING: () => "The contract basis is let on a bill of quantities, this exercise's bill is an uploaded file, and the pack has no bill of quantities part to upload it to. Add the part under Configuration, Tender documents.",
   DECLARATION_PART_MISSING: () => `Every tender and quotation pack binds the bidder's declaration as a mandatory part, and this pack's parts have none. Add a declaration part for this pack kind under Configuration, Tender documents.`,
   DECLARATION_NOT_MANDATORY: (f) => `The bidder's declaration (part ${d(f, "part")}) must be mandatory. ${SET_PARTS_REFRESH}`,
   NO_PARTS: () => "The pack has no parts.",
@@ -229,6 +230,7 @@ const BEHAVIOUR_TEXT: Record<BehaviourFault, (f: Finding) => string> = {
   DLP_NOT_FOR_TYPE: () => "The contract type has no defects liability period, and the Appendix states one. Say it does not apply, on the Appendix page.",
   NOMINATION_NOT_FOR_TYPE: (f) =>
     f.data?.where === "BILL" ? "The contract type allows no nomination, and the bill holds a prime cost sum. Revise the bill." : "The contract type allows no nomination, and the Appendix states prime cost sum work. Remove it on the Appendix page.",
+  NOMINATION_BILL_NOT_CHECKED: () => "Not checked: this exercise's bill of quantities is an uploaded file, so prime cost sums in it are not read. The Appendix's answer is still checked. Enter prime cost and provisional sums at the contract baseline once the contract is formed.",
   BOND_FORMS_REQUIRED: () => "The contract type needs securities before the work starts, so the bond forms must be bound in as a mandatory part of the Tender Table Document. Configure the part under Configuration, Tender documents.",
 };
 
@@ -400,6 +402,7 @@ export function findingHref(exerciseId: string, family: keyof SubmitFindings, f:
       return `${ex}?tab=documents`;
     case "readiness":
       if (f.code === "BQ_PART_WITHOUT_BQ") return `${ex}?tab=scope&section=bq`;
+      if (f.code === "BILL_PART_MISSING") return "/configuration/tender-documents";
       if (f.code === "APPENDIX_INCOMPLETE") return `${ex}/appendix`;
       return `${ex}?tab=documents#parts`;
     case "scope":
@@ -412,6 +415,7 @@ export function findingHref(exerciseId: string, family: keyof SubmitFindings, f:
     case "behaviour":
       if (f.code === "DLP_MONTHS_REQUIRED" && f.data?.appendix !== 0) return `${ex}/appendix#${APPENDIX_CARD.dlp}`;
       if (f.code === "DLP_NOT_FOR_TYPE") return `${ex}/appendix#${APPENDIX_CARD.dlp}`;
+      if (f.code === "NOMINATION_BILL_NOT_CHECKED") return `${ex}?tab=documents#parts`;
       if (f.code === "NOMINATION_NOT_FOR_TYPE") return f.data?.where === "BILL" ? `${ex}?tab=scope&section=bq` : `${ex}/appendix#${APPENDIX_CARD.primeCost}`;
       return "/configuration/reference-data";
     case "conditions":

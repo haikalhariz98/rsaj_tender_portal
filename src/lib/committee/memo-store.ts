@@ -32,6 +32,7 @@ export async function matterOfDecision(tx: Tx, organisationId: string, decisionI
       requisition: UNIT_OF_REQUISITION,
       exercise: REQUISITION_OF_EXERCISE,
       bqVersion: { select: { exerciseId: true, exercise: REQUISITION_OF_EXERCISE } },
+      scopeExercise: REQUISITION_OF_EXERCISE,
       bidEnvelope: { select: { exerciseId: true, exercise: REQUISITION_OF_EXERCISE } },
       evaluationBidder: { select: { evaluation: { select: { exerciseId: true, exercise: REQUISITION_OF_EXERCISE } } } },
       variation: { select: { contract: EXERCISE_OF_CONTRACT } },
@@ -43,6 +44,7 @@ export async function matterOfDecision(tx: Tx, organisationId: string, decisionI
     d.requisition ??
     d.exercise?.requisition ??
     d.bqVersion?.exercise.requisition ??
+    d.scopeExercise?.requisition ??
     d.bidEnvelope?.exercise.requisition ??
     d.evaluationBidder?.evaluation.exercise.requisition ??
     d.variation?.contract.award.exercise.requisition ??

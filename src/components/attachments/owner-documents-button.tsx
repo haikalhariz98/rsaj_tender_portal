@@ -18,7 +18,9 @@ import { AttachmentPanel } from "./attachment-panel";
  * its own for them (a delegation in Users & roles). Loaded when opened. The panel inside
  * is the shared one: the same decisions, the same reasons.
  */
-export function OwnerDocumentsButton({ owner, label, options, iconOnly = false, title = "Signed recommendation", subtitle = "The absent holder's signed recommendation to re-delegate." }: {
+export function OwnerDocumentsButton({ owner, label, options, iconOnly = false, triggerLabel, title = "Signed recommendation", subtitle = "The absent holder's signed recommendation to re-delegate." }: {
+  /// The button's word where it is not "Documents" (a tender document line's "Upload" and "Replace", SR-11). The drawer it opens is the same.
+  triggerLabel?: string;
   /// What the panel is headed and described as; the defaults are the delegation's.
   title?: string;
   subtitle?: string; owner: OwnerRef; label: string; options?: PanelOptions; /// For a table row: the icon alone, named by `Documents of …`, so the row needs no room for the word.
@@ -46,7 +48,7 @@ export function OwnerDocumentsButton({ owner, label, options, iconOnly = false, 
         type="button"
         ref={opener}
         className={iconOnly ? iconButtonClass("sm") : buttonClass("ghost", "sm")}
-        aria-label={`Documents of ${label}`}
+        aria-label={triggerLabel ? `${triggerLabel} ${label}` : `Documents of ${label}`}
         title={iconOnly ? `Documents of ${label}` : undefined}
         onClick={async () => {
           setOpen(true);
@@ -54,8 +56,8 @@ export function OwnerDocumentsButton({ owner, label, options, iconOnly = false, 
           setView(await loadOwnerPanel(owner, options));
         }}
       >
-        <FileIcon size={15} />
-        {!iconOnly && "Documents"}
+        {!triggerLabel && <FileIcon size={15} />}
+        {!iconOnly && (triggerLabel ?? "Documents")}
       </button>
       {open &&
         createPortal(

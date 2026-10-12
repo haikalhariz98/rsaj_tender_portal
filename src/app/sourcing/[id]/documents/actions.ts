@@ -39,7 +39,7 @@ import { appendixText, freezePack } from "@/lib/tender-docs/freeze";
 import { datesFaultText, PACK_KIND_LABEL, partFaultText, startFaultText, submitFindingTexts } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { loadSubmitExtras } from "@/lib/tender-docs/submit-extras";
-import { allOf, blockingOf, markReadyFaults, nextPack, omitFaults, packEditFault, pickTemplateFaults, startPackFaults, submitFaults } from "@/lib/tender-docs/pack";
+import { allOf, blockingOf, issuedPart, mayHoldFile, nextPack, NOT_ISSUED_REASON, packEditFault, pickTemplateFaults, startPackFaults, submitFaults } from "@/lib/tender-docs/pack";
 import { CONFIG_STILL_UNSET, confirmedChangesFault, flagChanges } from "@/lib/tender-docs/refresh";
 import { isPct, PCT_COLUMN, pctRefusal, type PctField } from "@/lib/tender-docs/percent";
 import { liveClauses } from "@/lib/tender-docs/clauses";
@@ -190,7 +190,6 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
     for (const p of composition.parts) {
       const was = copyFrom?.parts.find((x) => x.partCode === p.code) ?? null;
       const template = was?.templateId ? (templates.find((t) => t.id === was.templateId) ?? null) : p.templateCode ? (byCode.get(p.templateCode) ?? null) : null;
-      const state = was ? was.state : "NOT_STARTED";
       const row = await tx.tenderPackPart.create({
         data: {
           organisationId: l.org.id,
@@ -211,14 +210,15 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
           ownerOrgUnitCode: p.ownerOrgUnitCode,
           templateCode: p.templateCode,
           templateId: p.source === "TEMPLATE" && p.content !== "BESPOKE" ? (template?.id ?? null) : null,
-          state,
-          omittedReason: was?.state === "OMITTED" ? was.omittedReason : "",
+          // SR-11 (ruling 14): ready is derived from the content, never stored by an act; a part starts as not started and submission settles it.
+          state: "NOT_STARTED",
+          omittedReason: "",
         },
       });
       await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${versionNo} · part ${p.printedNumber}`), "CREATE", partAudit(null, partAuditFacts(row, row.templateId ? (template?.nameEn ?? null) : null)));
-      // The returned version's files go with the part, each judged as an attachment now.
-      if (was && p.source === "UPLOAD") {
-        const facts = tenderPackPartFacts({ source: row.source, pack: { status: "DRAFT", exercise: { status: l.ex.status } } });
+      // The returned version's files go with the part, each judged as an attachment now: an uploaded part's, a merged-text part's that replaced its text (SR-11), and the bill's where it is a file (SR-09).
+      if (was && mayHoldFile(row, { billOnScreen: l.ex.onScreenBillUsed })) {
+        const facts = tenderPackPartFacts({ source: row.source, pack: { status: "DRAFT", exercise: { status: l.ex.status, onScreenBillUsed: l.ex.onScreenBillUsed } } });
         for (const a of was.attachments) {
           const v = await tx.documentVersion.findUnique({ where: { id: a.versionId, organisationId: actor.organisationId }, select: { id: true, versionNo: true, sha256: true, withdrawnAt: true, document: { select: { title: true, classificationSnapshot: true, documentClass: { select: { classification: true } } } } } });
           if (!v || a.detachedAt) continue;
@@ -226,10 +226,6 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
           const att = await tx.documentAttachment.create({ data: { organisationId: l.org.id, purpose: "TENDER_PART", versionId: v.id, tenderPackPartId: row.id } });
           const owner = label(l, `Tender documents v${versionNo} · part ${p.printedNumber}, ${p.labelEn}`);
           await audit(tx, toAuditActor(actor), l.org.id, "DocumentAttachment", att.id, `${owner} · Tender document part`, "CREATE", attached({ purpose: "TENDER_PART", title: v.document.title, versionNo: v.versionNo, sha256: v.sha256, owner }));
-        }
-        if (state === "READY" && !(await tx.documentAttachment.count({ where: { tenderPackPartId: row.id, detachedAt: null } }))) {
-          await tx.tenderPackPart.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { state: "NOT_STARTED" } });
-          await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${versionNo} · part ${p.printedNumber}`), "UPDATE", diffFields({ state: "Ready" }, { state: "Not ready", why: "Its file could not be carried from the returned version." }));
         }
       }
     }
@@ -262,26 +258,6 @@ function lockedPart(l: LockedExercise, packs: readonly PackRow[], partId: string
   const edit = packEditFault(pack.status, l.ex.status);
   if (edit) throw new Refusal(refuse([edit]));
   return { pack, part };
-}
-
-/// Mark a part ready: its content as its source needs it (FR-DOC-003).
-export async function markPartReady(_prev: FormState, data: FormData): Promise<FormState> {
-  const txGuard = await staffForAct("TRANSACTION");
-  if (!txGuard.ok) return txGuard.state;
-  const actor = txGuard.actor;
-  const exerciseId = exerciseIdOf(data);
-  const partId = String(data.get("partId") ?? "");
-  return inPacks(actor, exerciseId, async (tx, l, packs) => {
-    const { pack, part } = lockedPart(l, packs, partId);
-    await lockBqRows(tx, exerciseId);
-    const bqFinalised = (await tx.bqVersion.count({ where: { exerciseId, status: "FINALISED" } })) > 0;
-    const appx = pack.appendix ? appendixComplete(appendixFactsOf(pack.appendix)) : null;
-    const faults = markReadyFaults(partFactsOf(part), pack.status, l.ex.status, { bqFinalised, appendixComplete: appx, whitelist: await whitelistOn(tx, l.org.id, l.org.today) });
-    if (faults.length) return refuse(faults);
-    await tx.tenderPackPart.update({ where: { id: part.id, organisationId: actor.organisationId }, data: { state: "READY", omittedReason: "" } });
-    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "READY", omittedReason: "" }, part.template?.nameEn ?? null)));
-    return { ok: true };
-  });
 }
 
 /**
@@ -323,41 +299,7 @@ export async function refreshPartFlags(_prev: FormState, data: FormData): Promis
   });
 }
 
-/// Omit a part that is not mandatory, with the reason.
-export async function omitPart(_prev: FormState, data: FormData): Promise<FormState> {
-  const txGuard = await staffForAct("TRANSACTION");
-  if (!txGuard.ok) return txGuard.state;
-  const actor = txGuard.actor;
-  const exerciseId = exerciseIdOf(data);
-  const partId = String(data.get("partId") ?? "");
-  const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
-  return inPacks(actor, exerciseId, async (tx, l, packs) => {
-    const { pack, part } = lockedPart(l, packs, partId);
-    const faults = omitFaults(partFactsOf(part), pack.status, l.ex.status, reason);
-    if (faults.length) return faults.some((f) => f.code === "OMIT_REASON_REQUIRED") && faults.length === 1 ? { ok: false, errors: { reason: partFaultText(faults[0]) } } : refuse(faults);
-    await tx.tenderPackPart.update({ where: { id: part.id, organisationId: actor.organisationId }, data: { state: "OMITTED", omittedReason: reason } });
-    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "OMITTED", omittedReason: reason }, part.template?.nameEn ?? null)), reason);
-    return { ok: true };
-  });
-}
-
-/// Take a part back to not ready (to rework it, or to include a part that was omitted).
-export async function reopenPart(_prev: FormState, data: FormData): Promise<FormState> {
-  const txGuard = await staffForAct("TRANSACTION");
-  if (!txGuard.ok) return txGuard.state;
-  const actor = txGuard.actor;
-  const exerciseId = exerciseIdOf(data);
-  const partId = String(data.get("partId") ?? "");
-  return inPacks(actor, exerciseId, async (tx, l, packs) => {
-    const { pack, part } = lockedPart(l, packs, partId);
-    if (part.state === "NOT_STARTED") return { ok: false, message: "This part is already not ready." };
-    await tx.tenderPackPart.update({ where: { id: part.id, organisationId: actor.organisationId }, data: { state: "NOT_STARTED", omittedReason: "" } });
-    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "NOT_STARTED", omittedReason: "" }, part.template?.nameEn ?? null)));
-    return { ok: true };
-  });
-}
-
-/// Choose the library template a part draws (FR-DOC-003). A ready part goes back to not ready: its content changed.
+/// Choose the library template a part draws (FR-DOC-003). Whether the part is ready follows its content (SR-11), so nothing else is written.
 export async function pickPartTemplate(_prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
@@ -372,8 +314,8 @@ export async function pickPartTemplate(_prev: FormState, data: FormData): Promis
     const faults = pickTemplateFaults(partFactsOf(part), templateFactsOf(t), pack.status, l.ex.status, await whitelistOn(tx, l.org.id, l.org.today));
     if (faults.length) return refuse(faults);
     if (part.templateId === t.id) return { ok: true };
-    await tx.tenderPackPart.update({ where: { id: part.id, organisationId: actor.organisationId }, data: { templateId: t.id, state: "NOT_STARTED" } });
-    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "NOT_STARTED" }, t.nameEn)));
+    await tx.tenderPackPart.update({ where: { id: part.id, organisationId: actor.organisationId }, data: { templateId: t.id } });
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts(part, t.nameEn)));
     return { ok: true };
   });
 }
@@ -650,8 +592,11 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
     const closingDay = proposed.closingDay;
     const closingTime = proposed.closingTime;
     const window = { startOn, closingDay };
+    // SR-11, ADR 0035: each part as submission settles it: ready, "Not issued" (an optional part with nothing to issue), and issued from its file where it has one.
+    const contentCtx = { bqFinalised: scope.bill != null, billOnScreen: l.ex.onScreenBillUsed, appendixComplete: pack.appendix ? appendixComplete(appendixFactsOf(pack.appendix)) : null, whitelist };
+    const issued = pack.parts.map((p) => issuedPart(partFactsOf(p), contentCtx));
     const frozen = freezePack({
-      parts: pack.parts.map((p) => ({ ...partFactsOf(p), files: pinnedFilesOf(p) })),
+      parts: pack.parts.map((p, i) => ({ ...issued[i], files: pinnedFilesOf(p) })),
       fields,
       fieldsByLanguage: conditionFieldValues(conditions, window),
       whitelist,
@@ -681,6 +626,13 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
       });
       const part = pack.parts.find((p) => p.partCode === d.partCode)!;
       await audit(tx, toAuditActor(actor), l.org.id, ENTITY.document, row.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "CREATE", diffFields(null, { part: `${part.printedNumber}. ${part.labelSnapshot}`, frozenFrom: d.templateName ? `${d.templateName}, text version ${d.templateBodyVersion}` : d.source === "BQ_UNPRICED" ? "The bill of quantities, unpriced" : "The Appendix as entered", language: d.language === "MS" ? "Malay" : "English" }));
+    }
+    // SR-11: the state each part is frozen with is written to it, and an optional part that had nothing to issue is recorded "Not issued" in the History.
+    for (const [i, row] of pack.parts.entries()) {
+      const to = issued[i];
+      if (row.state === to.state && row.omittedReason === to.omittedReason) continue;
+      await tx.tenderPackPart.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { state: to.state, omittedReason: to.omittedReason } });
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${pack.versionNo} · part ${row.printedNumber}`), "UPDATE", partAudit(partAuditFacts(row, row.template?.nameEn ?? null), partAuditFacts({ ...row, state: to.state, omittedReason: to.omittedReason }, row.template?.nameEn ?? null)), to.omittedReason === NOT_ISSUED_REASON ? "Nothing was uploaded to this optional part when the documents were submitted" : "");
     }
     if (pack.appendix && appendixFacts) {
       await tx.conditionsAppendix.update({ where: { id: pack.appendix.id, organisationId: actor.organisationId }, data: { status: "COMPLETE" } });
@@ -747,7 +699,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
         frozenAt: now,
         manifest: frozen.manifest as unknown as Prisma.InputJsonValue,
         faultsSnapshot: submitFindingTexts(findings).map((t) => ({ level: t.level, text: t.text, family: t.family })) as unknown as Prisma.InputJsonValue,
-        conditionsSnapshot: conditionsSnapshot(pack.parts.map(partFactsOf), conditions, window) as unknown as Prisma.InputJsonValue,
+        conditionsSnapshot: conditionsSnapshot(issued, conditions, window) as unknown as Prisma.InputJsonValue,
         bqVersionId: scope.bill?.versionId ?? null,
         proposedStartOn: dayToDate(startOn),
         proposedClosingAt: proposed.proposedClosingAt,

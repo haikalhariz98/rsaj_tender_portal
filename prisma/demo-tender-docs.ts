@@ -340,7 +340,8 @@ export async function startPack(db: Db, organisationId: string, p: { id: string;
     const prior = was?.parts.find((x) => x.partCode === c.code) ?? null;
     const template = c.source === "TEMPLATE" && c.templateCode ? (templates.find((t) => t.code === c.templateCode) ?? null) : null;
     const id = `${p.id}_${c.code}`;
-    const state = prior?.state ?? "NOT_STARTED";
+    // SR-11 (ruling 14): a part's state is derived from its content and written when the documents are submitted; a new version starts every part as not started.
+    const state = "NOT_STARTED";
     await db.tenderPackPart.create({ data: { id, organisationId, packId: p.id, partCode: c.code, printedNumber: c.printedNumber, sortOrder: c.sortOrder, labelSnapshot: c.labelEn, labelMsSnapshot: c.labelMs, role: c.role, content: c.content, source: c.source, mandatory: c.mandatory, inTableDocument: c.inTableDocument, returnedByBidder: c.returnedByBidder ?? null, returnedByBidderProvenance: c.returnedByBidderProvenance ?? null, ownerOrgUnitCode: c.ownerOrgUnitCode, templateCode: c.templateCode, templateId: template?.id ?? null, state } });
     entry(ENTITY.part, id, `${ex.reference} · Tender documents v${p.versionNo} · part ${c.printedNumber}`, "CREATE", p.at, partAudit(null, { printedNumber: c.printedNumber, label: c.labelEn, role: c.role, content: c.content, source: c.source, mandatory: c.mandatory, inTableDocument: c.inTableDocument, returnedByBidder: c.returnedByBidder ?? null, state, omittedReason: "", templateName: template?.nameEn ?? null }));
     // A returned version's files go with the part (the attach judged as startPack judges it).
@@ -384,26 +385,28 @@ export async function enterAppendix(db: Db, organisationId: string, packId: stri
   entry(ENTITY.appendix, aid, `${ref} · Tender documents v${pack.versionNo} · Appendix`, "UPDATE", when, appendixAudit(before, { ...after, status }, office));
 }
 
-/// Mark every part ready, each judged by markReadyFaults as the action judges it.
+/**
+ * Check that every part can be issued, each judged as the product judges it. SR-11 (ruling 14): there is no Mark ready any more, so this writes nothing; a part is
+ * ready when its content is in order, and the state is written when the documents are submitted (`submit`, as submitPack writes it). A part that cannot be issued
+ * and is not optional stops the load.
+ */
 export async function markAllReady(db: Db, organisationId: string, packId: string, ref: string, when: Date, entry: Add) {
+  void ref; void when; void entry;
   const { loadPacks, partFactsOf, appendixFactsOf, scopeReadiness } = await import("../src/lib/tender-docs/repo");
-  const { markReadyFaults } = await import("../src/lib/tender-docs/pack");
+  const { partIssue } = await import("../src/lib/tender-docs/pack");
   const pack = await db.tenderPack.findUniqueOrThrow({ where: { id: packId }, select: { exerciseId: true } });
-  const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: pack.exerciseId }, select: { id: true, status: true, sourcingMethodCode: true, contractBasisCode: true } });
+  const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: pack.exerciseId }, select: { id: true, status: true, sourcingMethodCode: true, contractBasisCode: true, specPanelUsed: true, onScreenBillUsed: true } });
   const row = (await loadPacks(pack.exerciseId)).find((x) => x.id === packId)!;
   const scope = await scopeReadiness(organisationId, ex);
-  // The clause citations a template may make, as markPartReady reads them (increment 2).
+  // The clause citations a template may make, as the submission reads them (increment 2).
   const { liveClauses } = await import("../src/lib/tender-docs/clauses");
   const { packWhitelist } = await import("../src/lib/tender-docs/fields");
   const { loadClauses } = await import("../src/lib/tender-docs/repo");
   const whitelist = packWhitelist(liveClauses(await loadClauses(organisationId), "2026-10-01"));
-  const content = { bqFinalised: scope.bill != null, appendixComplete: row.appendix ? appendixComplete(appendixFactsOf(row.appendix)) : null, whitelist };
-  for (const p of row.parts.filter((x) => x.state === "NOT_STARTED")) {
-    const f = markReadyFaults(partFactsOf(p), row.status, ex.status, content);
-    if (f.length) throw new Error(`Demo part ${p.id} cannot be made ready: ${f.map((x) => x.code).join(", ")}`);
-    await db.tenderPackPart.update({ where: { id: p.id }, data: { state: "READY" } });
-    const facts = { printedNumber: p.printedNumber, label: p.labelSnapshot, role: p.role, content: p.content, source: p.source, mandatory: p.mandatory, inTableDocument: p.inTableDocument, omittedReason: "", templateName: p.template?.nameEn ?? null };
-    entry(ENTITY.part, p.id, `${ref} · Tender documents v${row.versionNo} · part ${p.printedNumber}`, "UPDATE", when, partAudit({ ...facts, state: "NOT_STARTED" }, { ...facts, state: "READY" }));
+  const content = { bqFinalised: scope.bill != null, billOnScreen: ex.onScreenBillUsed, appendixComplete: row.appendix ? appendixComplete(appendixFactsOf(row.appendix)) : null, whitelist };
+  for (const p of row.parts) {
+    const issue = partIssue(partFactsOf(p), content);
+    if (issue.state === "NOT_READY") throw new Error(`Demo part ${p.id} cannot be issued: ${issue.faults.map((x) => x.code).join(", ")}`);
   }
 }
 
@@ -455,7 +458,11 @@ export async function submit(db: Db, organisationId: string, s: { packId: string
   const type = await db.contractType.findFirst({ where: { organisationId, code: l.ex.contractTypeCode ?? "" }, select: { nameEn: true } });
   const fields = packFieldValues({ organisationName: org.name, exerciseReference: l.ex.reference, exerciseTitle: l.ex.title, requisitionReference: l.req.reference, packKindLabel: PACK_KIND_LABEL[pack.packKind], versionNo: pack.versionNo, formLabel: pack.formLabelSnapshot, basisName: basis?.nameEn ?? null, typeName: type?.nameEn ?? null });
   const window = { startOn: s.startOn, closingDay: s.closingDay };
-  const frozen = freezePack({ parts: pack.parts.map((p) => ({ ...td.partFactsOf(p), files: td.pinnedFilesOf(p) })), fields, fieldsByLanguage: cond.conditionFieldValues(conditions, window), whitelist, stamp: cond.conditionStamp(conditions), clauses: liveClauses(conditions.clauses.clauses, subDay), bill: scope.bill ? { versionId: scope.bill.versionId, frozen: scope.bill.frozen } : null, appendix: pack.appendix && appendix ? { id: pack.appendix.id, facts: appendix, text: appendixText(appendix, office) } : null });
+  // SR-11, ADR 0035: each part as submission settles it, as submitPack settles it.
+  const { issuedPart } = await import("../src/lib/tender-docs/pack");
+  const contentCtx = { bqFinalised: scope.bill != null, billOnScreen: l.ex.onScreenBillUsed, appendixComplete: appendix ? appendixComplete(appendix) : null, whitelist };
+  const issued = pack.parts.map((p) => issuedPart(td.partFactsOf(p), contentCtx));
+  const frozen = freezePack({ parts: pack.parts.map((p, i) => ({ ...issued[i], files: td.pinnedFilesOf(p) })), fields, fieldsByLanguage: cond.conditionFieldValues(conditions, window), whitelist, stamp: cond.conditionStamp(conditions), clauses: liveClauses(conditions.clauses.clauses, subDay), bill: scope.bill ? { versionId: scope.bill.versionId, frozen: scope.bill.frozen } : null, appendix: pack.appendix && appendix ? { id: pack.appendix.id, facts: appendix, text: appendixText(appendix, office) } : null });
   const ref = l.ex.reference;
   for (const [i, d] of frozen.documents.entries()) {
     const id = `${s.packId}_doc${i + 1}`;
@@ -479,7 +486,15 @@ export async function submit(db: Db, organisationId: string, s: { packId: string
   entry("ApprovalInstance", s.routeId, `${ref} · approval for tendering`, "CREATE", s.at, diffFields(null, { matrix: issue!.label, rule: rule.labelEn, route: route.chain.map((c) => `${roleLabel(c.roleCode)} (${ACT_LABEL[c.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: false, ifRejected: "Returned for amendment" }));
   // SR-05 (ruling 8): the dates are kept on the exercise as proposed, as Scope and estimate keeps them, until the approving step records them.
   await db.sourcingExercise.update({ where: { id: l.ex.id }, data: { proposedStartOn: day(s.startOn), proposedClosingAt: dates.closingAt } });
-  await db.tenderPack.update({ where: { id: s.packId }, data: { status: "SUBMITTED", submittedAt: s.at, frozenAt: s.at, manifest: frozen.manifest as object, faultsSnapshot: [], conditionsSnapshot: cond.conditionsSnapshot(pack.parts.map(td.partFactsOf), conditions, window) as object, bqVersionId: scope.bill?.versionId ?? null, proposedStartOn: day(s.startOn), proposedClosingAt: dates.closingAt, approvalInstanceId: s.routeId } });
+  await db.tenderPack.update({ where: { id: s.packId }, data: { status: "SUBMITTED", submittedAt: s.at, frozenAt: s.at, manifest: frozen.manifest as object, faultsSnapshot: [], conditionsSnapshot: cond.conditionsSnapshot(issued, conditions, window) as object, bqVersionId: scope.bill?.versionId ?? null, proposedStartOn: day(s.startOn), proposedClosingAt: dates.closingAt, approvalInstanceId: s.routeId } });
+  // SR-11: the state each part is frozen with is written, as submitPack writes it.
+  for (const [i, row] of pack.parts.entries()) {
+    const to = issued[i];
+    if (row.state === to.state && row.omittedReason === to.omittedReason) continue;
+    await db.tenderPackPart.update({ where: { id: row.id }, data: { state: to.state, omittedReason: to.omittedReason } });
+    const facts = (x: { state: typeof row.state; omittedReason: string }) => ({ printedNumber: row.printedNumber, label: row.labelSnapshot, role: row.role, content: row.content, source: row.source, mandatory: row.mandatory, inTableDocument: row.inTableDocument, omittedReason: x.omittedReason, state: x.state, templateName: row.template?.nameEn ?? null });
+    entry(ENTITY.part, row.id, `${ref} · Tender documents v${pack.versionNo} · part ${row.printedNumber}`, "UPDATE", s.at, partAudit(facts(row), facts(to)));
+  }
   if (pack.appendix) await db.conditionsAppendix.update({ where: { id: pack.appendix.id }, data: { status: "COMPLETE" } });
   entry(ENTITY.pack, s.packId, `${ref} · Tender documents v${pack.versionNo}`, "UPDATE", s.at, packStatusAudit("DRAFT", "SUBMITTED", { proposedStart: s.startOn, proposedClosing: `${s.closingDay}, ${s.closingTime}`, partsFrozen: frozen.documents.length, filesPinned: frozen.manifest.reduce((x, m) => x + m.files.length, 0), warnings: null }));
   const t = transitionFault(l.ex.status, "PENDING_APPROVAL_FOR_TENDERING", { today: subDay, via: "SUBMISSION", packFaults: 0 });
@@ -536,7 +551,7 @@ export async function decide(db: Db, organisationId: string, d: { packId: string
   entry("SourcingExercise", l.ex.id, `${ref} · ${l.ex.title}`, "UPDATE", d.at, diffFields({ status: l.ex.status, tenderingStarts: null, closing: null }, { status: "APPROVED_FOR_TENDERING", tenderingStarts: d.dates!.startOn, closing: `${d.dates!.closingDay}, ${d.dates!.closingTime}` }));
 }
 
-/// Take the drawings' carried file off and reopen the part, as detachDocument and reopenPart write it.
+/// Take the drawings' carried file off, as detachDocument writes it.
 async function reworkDrawings(db: Db, organisationId: string, packId: string, ref: string, when: Date, entry: Add) {
   const partId = `${packId}_demo_q_drawings`;
   const part = await db.tenderPackPart.findUniqueOrThrow({ where: { id: partId }, include: { attachments: { include: { version: { include: { document: { select: { title: true } } } } } }, pack: { select: { versionNo: true } } } });
@@ -545,9 +560,7 @@ async function reworkDrawings(db: Db, organisationId: string, packId: string, re
     await db.documentAttachment.update({ where: { id: a.id }, data: { detachedAt: when, detachReason: reason } });
     entry("DocumentAttachment", a.id, `${ref} · Tender pack v${part.pack.versionNo} · part ${part.printedNumber}, ${part.labelSnapshot} · ${PURPOSE_LABEL.TENDER_PART}`, "UPDATE", when, diffFields({ purpose: PURPOSE_LABEL.TENDER_PART, document: a.version.document.title, attached: "yes" }, { purpose: PURPOSE_LABEL.TENDER_PART, document: a.version.document.title, attached: "no", detachedBecause: reason }), reason);
   }
-  await db.tenderPackPart.update({ where: { id: partId }, data: { state: "NOT_STARTED" } });
-  const facts = { printedNumber: part.printedNumber, label: part.labelSnapshot, role: part.role, content: part.content, source: part.source, mandatory: part.mandatory, inTableDocument: part.inTableDocument, omittedReason: "", templateName: null };
-  entry(ENTITY.part, partId, `${ref} · Tender documents v${part.pack.versionNo} · part ${part.printedNumber}`, "UPDATE", when, partAudit({ ...facts, state: "READY" }, { ...facts, state: "NOT_STARTED" }));
+  // SR-11: a part with no file is simply not ready; there is no Reopen to record.
 }
 
 /// Change some of the Appendix's fields, as saveAppendix writes it (status following the rule).
@@ -625,7 +638,7 @@ export async function checkTenderDocs(db: Db) {
   const fail = (what: string) => {
     throw new Error(`Demo 6.4: ${what}`);
   };
-  const sx1 = await db.sourcingExercise.findUniqueOrThrow({ where: { id: `${P}sx1` }, select: { id: true, organisationId: true, status: true, closingAt: true, tenderingStartOn: true, sourcingMethodCode: true, contractBasisCode: true } });
+  const sx1 = await db.sourcingExercise.findUniqueOrThrow({ where: { id: `${P}sx1` }, select: { id: true, organisationId: true, specPanelUsed: true, onScreenBillUsed: true, status: true, closingAt: true, tenderingStartOn: true, sourcingMethodCode: true, contractBasisCode: true } });
   const p1 = await db.tenderPack.findUniqueOrThrow({ where: { id: `${P}tpk1` } });
   if (sx1.status !== "APPROVED_FOR_TENDERING" || p1.status !== "APPROVED") fail("sx1 is not approved for tendering.");
   if (sx1.closingAt?.getTime() !== p1.approvedClosingAt?.getTime() || sx1.tenderingStartOn?.getTime() !== p1.approvedStartOn?.getTime()) fail("sx1's dates are not those frozen on its pack (X-2).");

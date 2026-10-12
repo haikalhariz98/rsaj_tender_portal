@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { DecisionRecord } from "@/lib/committee/record";
 
 import { scopeApprovalLine, scopeFaultText, scopeRuleMovedNote, scopeRuleWords, SCOPE_STATE_BADGE, SCOPE_STATE_TEXT } from "./labels";
-import { countsFor, ruleMove, scopeApproval, scopeCitationFault, scopeClears, scopeMatterSubject, type ScopeMatter, type ScopeRule } from "./scope-matter";
+import { countsFor, ruleMove, scopeApproval, scopeApprovalForFile, scopeCitationFault, scopeClears, scopeFileMatterSubject, scopeMatterSubject, type ScopeMatter, type ScopeRule } from "./scope-matter";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 const rule: ScopeRule = { scopeApprovalRequired: true, scopeCommitteeCode: "TECH", scopeAct: "A" };
@@ -273,5 +273,41 @@ describe("62-C1: a scope matter is judged under the committee and act written on
       "This matter was tabled under the rule configured then: Recommend by the Board. Configuration now leaves the committee or its act not set. It is decided under the rule it was tabled under. To table the bill under today's rule instead, withdraw it from SIT/1 and table it again.",
     );
     expect(scopeRuleWords(null, "Board")).toBeNull();
+  });
+});
+
+describe("scope approval of an uploaded bill (SR-09, ruling 13, ADR 0035)", () => {
+  const file1 = { id: "fv1", versionNo: 1 };
+  const file2 = { id: "fv2", versionNo: 2 };
+  const onFile = (id: string, x: Partial<ScopeMatter> = {}) => matter("d-" + id, { bqVersionId: id, ...x });
+  it("reads the file's version as it reads a finalised bill: not tabled, then pending, then approved", () => {
+    expect(scopeApprovalForFile(rule, file1, true, []).state).toBe("NOT_TABLED");
+    expect(scopeApprovalForFile(rule, file1, true, [onFile("fv1")]).state).toBe("PENDING");
+    expect(scopeApprovalForFile(rule, file1, true, [onFile("fv1", { record: record("CARRIED", "2026-09-25") })]).state).toBe("APPROVED");
+  });
+  it("lapses when the file is replaced: an approval of the old version does not speak for the new one, and it says the earlier was approved", () => {
+    const approvedOld = [onFile("fv1", { record: record("CARRIED", "2026-09-25") })];
+    const a = scopeApprovalForFile(rule, file2, true, approvedOld, [file1, file2]);
+    expect(a.state).toBe("NOT_TABLED");
+    expect(a.earlierApprovedVersionNo).toBe(1);
+    expect(scopeClears(a.state)).toBe(false);
+    // The new version is approved in its own right.
+    expect(scopeApprovalForFile(rule, file2, true, [...approvedOld, onFile("fv2", { record: record("CARRIED", "2026-10-01") })]).state).toBe("APPROVED");
+  });
+  it("with no file yet it says so, and with no bill part to upload it to it says that instead (cleared in configuration, never for ever)", () => {
+    expect(scopeApprovalForFile(rule, null, true, []).state).toBe("NO_FINALISED_BILL");
+    expect(scopeApprovalForFile(rule, null, false, []).state).toBe("NO_BILL_PART");
+    expect(scopeClears("NO_BILL_PART")).toBe(false);
+    // A method that does not ask for scope approval is not blocked by the missing part, and an unset rule is still said first.
+    expect(scopeApprovalForFile({ scopeApprovalRequired: false, scopeCommitteeCode: null, scopeAct: null }, null, false, []).state).toBe("NOT_REQUIRED");
+    expect(scopeApprovalForFile({ scopeApprovalRequired: null, scopeCommitteeCode: null, scopeAct: null }, null, false, []).state).toBe("RULE_NOT_SET");
+  });
+  it("is worded for a file, and the matter is named for one", () => {
+    expect(scopeApprovalLine(scopeApprovalForFile(rule, file1, true, []), "Technical Committee", undefined, true)).toMatch(/Version 1 of the uploaded bill of quantities: not tabled yet/);
+    expect(scopeApprovalLine(scopeApprovalForFile(rule, null, true, []), null, undefined, true)).toMatch(/no bill of quantities file is uploaded yet. Upload it under Tender documents/);
+    expect(scopeApprovalLine(scopeApprovalForFile(rule, null, false, []), null, undefined, true)).toMatch(/no bill of quantities part to upload the file to/);
+    expect(SCOPE_STATE_BADGE.NO_BILL_PART.tone).toBe("warn");
+    expect(SCOPE_STATE_TEXT.NO_BILL_PART).toMatch(/Configuration, Tender documents/);
+    expect(scopeFileMatterSubject("Filter renewal", 2)).toBe("Filter renewal, uploaded bill of quantities, version 2");
   });
 });

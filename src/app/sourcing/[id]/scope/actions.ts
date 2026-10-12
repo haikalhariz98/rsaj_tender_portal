@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { Prisma } from "@/generated/prisma/client";
-import type { FieldChange } from "@/lib/audit/diff";
+import { diffFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
@@ -37,7 +37,10 @@ import { lockSittingIn } from "@/lib/committee/sittings";
 import { ACT_LABEL } from "@/lib/labels";
 import { loadRoster } from "@/lib/people/load";
 import { bqCsvFilename, bqToCsv, decodeCsv, parseBqCsv } from "@/lib/scope/csv";
-import { scopeCitationFault, scopeMatterSubject, SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
+import { scopeCitationFault, scopeFileMatterSubject, scopeMatterSubject, SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
+import { lockPackRows } from "@/lib/tender-docs/owner";
+import { billFileOf } from "@/lib/tender-docs/repo";
+import { switchWords, takeSettingFaults } from "@/lib/scope/switches";
 import { backstopCode } from "@/lib/scope/unique-violation";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { FormReader } from "@/lib/validate";
@@ -69,6 +72,12 @@ class Refusal extends Error {
     super(state.message ?? "Refused");
   }
 }
+
+/// SR-08, SR-09: an act of the specification panel or of the on-screen bill refuses on an exercise pinned not to use it, and on one whose pin is not set. Reachable by a direct post, so refused here and not only hidden.
+const needs = (ex: { specPanelUsed: boolean | null; onScreenBillUsed: boolean | null }, what: "panel" | "bill"): FormState | null => {
+  const pin = what === "panel" ? ex.specPanelUsed : ex.onScreenBillUsed;
+  return pin === true ? null : refuseCodes([pin === false ? (what === "panel" ? "PANEL_NOT_USED" : "BILL_NOT_ON_SCREEN") : what === "panel" ? "PANEL_SWITCH_NOT_SET" : "BILL_SWITCH_NOT_SET_ACT"]);
+};
 
 const refuse = (fs: readonly Finding[]): FormState => ({ ok: false, message: `Nothing was saved: ${blocking(fs).map((f) => scopeFaultText(f)).join(" ")}` });
 /// The estimate's refusals: codes only, as fixed sentences, never a figure, a reason or any finding data.
@@ -126,6 +135,8 @@ export async function startBq(_prev: FormState, data: FormData): Promise<FormSta
   const exerciseId = exerciseIdOf(data);
   const templateCode = String(data.get("templateCode") ?? "").trim() || null;
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "bill");
+    if (off) return off;
     await lockBqRows(tx, exerciseId);
     const versions = await tx.bqVersion.findMany({ where: { exerciseId }, select: { status: true } });
     const faults = startBqFaults(versions, l.ex.status);
@@ -170,6 +181,8 @@ export async function saveBqHeader(_prev: FormState, data: FormData): Promise<Fo
   const provisionalExcludedFromFirm = triState(r.choice("provisionalExcludedFromFirm", "Provisional quantities in the firm value", ["yes", "no", "unstated"] as const));
   if (r.failed) return { ok: false, errors: r.errors };
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "bill");
+    if (off) return off;
     const v = await lockedDraft(tx, l, versionId);
     const preparer = preparerPersonId ? await activePerson(l.org.id, preparerPersonId, tx) : null;
     if (preparerPersonId && !preparer) return { ok: false, errors: { preparerPersonId: scopeFaultText("PERSON_UNKNOWN") } };
@@ -195,6 +208,8 @@ export async function saveBqSection(_prev: FormState, data: FormData): Promise<F
   const sortOrder = r.int("sortOrder", "Order") ?? 0;
   if (r.failed) return { ok: false, errors: r.errors };
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "bill");
+    if (off) return off;
     const v = await lockedDraft(tx, l, versionId);
     const before = sectionId ? await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id, organisationId: actor.organisationId } }) : null;
     if (sectionId && !before) return RECORD_GONE;
@@ -222,6 +237,8 @@ export async function removeBqSection(_prev: FormState, data: FormData): Promise
   const versionId = String(data.get("versionId") ?? "");
   const sectionId = String(data.get("sectionId") ?? "");
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "bill");
+    if (off) return off;
     const v = await lockedDraft(tx, l, versionId);
     const s = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id, organisationId: actor.organisationId }, include: { items: true } });
     if (!s) return RECORD_GONE;
@@ -259,6 +276,8 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
   if (r.failed || !kind) return { ok: false, errors: r.errors };
   const quantity = quantityRaw ? quantityRaw.replace(/,/g, "") : null;
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "bill");
+    if (off) return off;
     const v = await lockedDraft(tx, l, versionId);
     const section = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id, organisationId: actor.organisationId } });
     if (!section) return { ok: false, errors: { sectionId: scopeFaultText("SECTION_REQUIRED") } };
@@ -309,6 +328,8 @@ export async function removeBqItem(_prev: FormState, data: FormData): Promise<Fo
   const versionId = String(data.get("versionId") ?? "");
   const itemId = String(data.get("itemId") ?? "");
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "bill");
+    if (off) return off;
     const v = await lockedDraft(tx, l, versionId);
     const i = await tx.bqItem.findFirst({ where: { id: itemId, section: { versionId: v.id }, organisationId: actor.organisationId } });
     if (!i) return RECORD_GONE;
@@ -331,6 +352,8 @@ export async function finaliseBq(_prev: FormState, data: FormData): Promise<Form
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "bill");
+    if (off) return off;
     await lockBqRows(tx, exerciseId);
     const versions = await loadBqVersions(exerciseId, tx);
     const v = versions.find((x) => x.id === versionId);
@@ -369,6 +392,8 @@ export async function startBqRevision(_prev: FormState, data: FormData): Promise
   const exerciseId = exerciseIdOf(data);
   const reason = String(data.get("reason") ?? "").trim();
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "bill");
+    if (off) return off;
     await lockBqRows(tx, exerciseId);
     const versions = await loadBqVersions(exerciseId, tx);
     const faults = reviseFaults(versions, l.ex.status, reason);
@@ -426,6 +451,8 @@ export async function savePanel(_prev: FormState, data: FormData): Promise<FormS
   const bqVersionId = r.optionalText("bqVersionId");
   if (r.failed) return { ok: false, errors: r.errors };
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "panel");
+    if (off) return off;
     const fault = panelEditFault(l.ex.status);
     if (fault.length) return refuse(fault);
     const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
@@ -494,6 +521,8 @@ export async function recordPanelVerification(_prev: FormState, data: FormData):
   const personId = act.subjectPersonId;
   const verifiedOn = act.day ? dayToDate(act.day) : null;
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "panel");
+    if (off) return off;
     const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
     if (!existing) return { ok: false, message: "Save the panel's details first." };
     await lockPanelRow(tx, existing.id);
@@ -523,6 +552,8 @@ export async function markPanelVerified(_prev: FormState, data: FormData): Promi
   const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "panel");
+    if (off) return off;
     const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
     if (!existing) return { ok: false, message: "Save the panel's details first." };
     await lockPanelRow(tx, existing.id);
@@ -782,8 +813,17 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
   const tabledByPersonId = tablerAct.subjectPersonId;
   const roster = await loadRoster(actor.organisationCode);
   const result = await inExercise(actor, exerciseId, async (tx, l) => {
+    // SR-09 (ruling 13): where the bill is an uploaded file the matter tables that file's version; where it is built on screen, the finalised bill. A pin that is not set tables nothing.
+    if (l.ex.onScreenBillUsed == null) return refuseCodes(["BILL_SWITCH_NOT_SET_ACT"]);
+    const fileMode = l.ex.onScreenBillUsed === false;
     await lockBqRows(tx, exerciseId);
-    const version = await tx.bqVersion.findFirst({ where: { id: versionId, organisationId: l.org.id }, select: { id: true, exerciseId: true, status: true, versionNo: true } });
+    if (fileMode) await lockPackRows(tx, exerciseId);
+    const billFile = fileMode ? await billFileOf(exerciseId, tx) : null;
+    // The file read under the lock must be the one the officer saw: a replaced file is another version, and an approval of the old one does not speak for it.
+    if (fileMode && (!billFile?.file || billFile.file.id !== versionId)) return refuseCodes([billFile?.file ? "CHANGED" : "NO_BILL_FILE"]);
+    const version = fileMode
+      ? { id: billFile!.file!.id, exerciseId, status: "FINALISED" as const, versionNo: billFile!.file!.versionNo }
+      : await tx.bqVersion.findFirst({ where: { id: versionId, organisationId: l.org.id }, select: { id: true, exerciseId: true, status: true, versionNo: true } });
     if (!version) return RECORD_GONE;
     const s = await lockSittingIn(tx, actor, meetingId, roster);
     if (!s) return { ok: false, errors: { meetingId: scopeFaultText("SITTING_GONE") } };
@@ -807,11 +847,11 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
         ? { ok: false, errors: { tabledByPersonId: TABLING_FAULT_MESSAGE[tabling.fault] } }
         : { ok: false, message: `Nothing was saved: ${TABLING_FAULT_MESSAGE[tabling.fault]}` };
     }
-    const subject = scopeMatterSubject(l.ex.title, version.versionNo);
+    const subject = fileMode ? scopeFileMatterSubject(l.ex.title, version.versionNo) : scopeMatterSubject(l.ex.title, version.versionNo);
     const tabledAt = dayToDate(s.today!);
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     const row = await tx.committeeDecision.create({
-      data: { meetingId: s.meeting.id, subject, domain: SCOPE_DOMAIN, matterKind: "SCOPE", matterRef: l.ex.reference, bqVersionId: version.id, act, tabledByPersonId, tabledAt, sequence },
+      data: { meetingId: s.meeting.id, subject, domain: SCOPE_DOMAIN, matterKind: "SCOPE", matterRef: l.ex.reference, ...(fileMode ? { scopeFileVersionId: version.id, scopeExerciseId: exerciseId } : { bqVersionId: version.id }), act, tabledByPersonId, tabledAt, sequence },
     });
     await audit(tx, toAuditActor(actor), l.org.id, "CommitteeDecision", row.id, subject, "CREATE",
       scopeTabledAudit({ subject, versionNo: version.versionNo, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, act: ACT_LABEL[act] ?? "An act the portal does not name", tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: s.today! }));
@@ -850,6 +890,8 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
   const s = blobStore();
   if ("fault" in s) return { ok: false, message: `Nothing was saved: ${documentFaultText({ code: s.fault, level: "block" })}` };
   return inExercise(actor, exerciseId, async (tx, l) => {
+    const off = needs(l.ex, "bill");
+    if (off) return off;
     const v = await lockedDraft(tx, l, bqVersionId).catch((e) => {
       if (e instanceof Refusal && e.state === RECORD_GONE) throw new Refusal({ ok: false, message: scopeFaultText("NO_DRAFT") });
       throw e;
@@ -869,7 +911,7 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
     const existingLines = existing.reduce((n, x) => n + x.items.length, 0);
     if (existingLines > 0 && !replace) return { ok: false, errors: { replace: scopeFaultText("DRAFT_NOT_EMPTY") } };
     const already = await tx.documentAttachment.findFirst({ where: { bqVersionId: v.id, purpose: "BQ_IMPORT_SOURCE", detachedAt: null, version: { documentId: doc.documentId } }, select: { id: true } });
-    const owner = bqVersionFacts({ status: v.status, exercise: { status: l.ex.status } });
+    const owner = bqVersionFacts({ status: v.status, exercise: { status: l.ex.status, onScreenBillUsed: l.ex.onScreenBillUsed } });
     const attachFaults = attachFault({ purpose: "BQ_IMPORT_SOURCE", owner, version: doc, documentClass: stored.document.documentClass, documentClassification: stored.document.classificationSnapshot, alreadyAttached: !!already && !replace, byOwnerAct: true });
     if (blocking(attachFaults).length) return { ok: false, message: `Nothing was saved: ${blocking(attachFaults).map(documentFaultText).join(" ")}` };
 
@@ -975,4 +1017,34 @@ export async function exportBqCsv(_prev: BqExportResult, data: FormData): Promis
     return { ok: true };
   }, priced ? { bq: actor } : {});
   return result.ok ? out : { ok: false, message: result.message };
+}
+
+// ------------------------------------------------------------------ SR-08 and SR-09: the two switches pinned on the exercise (ruling G1)
+
+/**
+ * Take the organisation's setting for the two scope switches the exercise holds as "not set" (ADR 0035). Allowed only while the pin is not set and no
+ * pack has been submitted; it copies the configured value and is not a free choice, and it refuses in words while the organisation's own setting is not
+ * set. A pin that is set is never changed. One audited act, with the exercise locked and the setting read under the lock.
+ */
+export async function takeScopeSettings(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const exerciseId = exerciseIdOf(data);
+  return inExercise(actor, exerciseId, async (tx, l) => {
+    const policy = await loadScopePolicy(l.org.id, tx);
+    // Read after the exercise's lock: a submission that committed while this waited is seen.
+    const submitted = (await tx.tenderPack.count({ where: { exerciseId, submittedAt: { not: null } } })) > 0;
+    const r = takeSettingFaults({
+      status: l.ex.status,
+      submitted,
+      pin: { specPanelUsed: l.ex.specPanelUsed, onScreenBillUsed: l.ex.onScreenBillUsed },
+      setting: { specPanelUsed: policy.specPanelUsed, onScreenBillUsed: policy.onScreenBillUsed },
+    });
+    if (r.faults.length) return refuse(r.faults);
+    await tx.sourcingExercise.update({ where: { id: exerciseId, organisationId: actor.organisationId }, data: r.changes });
+    const words = (v: { specPanelUsed: boolean | null; onScreenBillUsed: boolean | null }) => ({ specificationPanel: switchWords(v.specPanelUsed), onScreenBillOfQuantities: switchWords(v.onScreenBillUsed) });
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields(words(l.ex), words({ specPanelUsed: r.changes.specPanelUsed ?? l.ex.specPanelUsed, onScreenBillUsed: r.changes.onScreenBillUsed ?? l.ex.onScreenBillUsed })), "Took the organisation's setting");
+    return { ok: true, message: r.stillUnset.length ? `Taken. ${r.stillUnset.map((k) => scopeFaultText({ code: "SETTING_NOT_SET", level: "block", data: { switch: k === "specPanelUsed" ? "Specification panel used" : "On-screen bill used" } })).join(" ")}` : undefined };
+  });
 }
