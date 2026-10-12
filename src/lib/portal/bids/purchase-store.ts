@@ -77,7 +77,9 @@ export async function startPurchase(actor: SupplierActor, i: { exerciseId: strin
 
     // One purchase per supplier and window; a paid one was caught above as "already bought", so only a first purchase reaches here.
     const made = await tx.documentPurchase.create({ data: { organisationId: actor.organisationId, windowId: window.id, supplierId: actor.supplierId, buyerAccountId: actor.accountId, createdAt: now, amount: window.feeAmount!.toString(), checks: stored } });
-    await writeAudit(tx, { ...audit, entity: ENTITY.purchase, entityId: made.id, entityLabel: label }, "CREATE", diffFields(null, { purchase: "Started buying the documents online", state: "Awaiting payment", fee: formatMoney(parseSen(window.feeAmount!.toString())), boughtBy: actor.displayName, madeBy: "the supplier's own portal account" }));
+    // Ruling 17a: the register's reading of a restricted tender's evidence document goes in the trail, a warning included, in the officer's words.
+    const restriction = await restrictionCheckOf(tx, actor, ctx, facts.checks, "STAFF");
+    await writeAudit(tx, { ...audit, entity: ENTITY.purchase, entityId: made.id, entityLabel: label }, "CREATE", diffFields(null, { purchase: "Started buying the documents online", state: "Awaiting payment", fee: formatMoney(parseSen(window.feeAmount!.toString())), boughtBy: actor.displayName, madeBy: "the supplier's own portal account", ...(restriction ? { restriction: `${restriction.state === "WARN" ? "Warning. " : ""}${restriction.detail}` } : {}) }));
     return { outcome: "MADE", purchaseId: made.id };
   }, TX);
 }
@@ -134,7 +136,7 @@ export async function settlePayment(actor: SupplierActor, i: { exerciseId: strin
       await tx.paymentAttempt.create({ data: { organisationId: actor.organisationId, purchaseId: purchase.id, attemptNo, method, outcome: "PAID", reference: settled.reference, attemptedAt: now, byAccountId: actor.accountId } });
       await markPurchasePaid(tx, {
         org: { id: ctx.org.id, timeZone: ctx.org.timeZone, today: ctx.org.today },
-        exercise: { id: ctx.ex.id, reference: ctx.ex.reference, title: ctx.ex.title, closes: ctx.ex.closingAt },
+        exercise: { id: ctx.ex.id, reference: ctx.ex.reference, title: ctx.ex.title, closes: ctx.ex.closingAt, restricted: ctx.ex.restrictedTender === true },
         window: { id: window.id },
         purchase: { id: purchase.id, supplierId: actor.supplierId, amount: purchase.amount },
         buyer: { accountId: actor.accountId, name: actor.displayName },

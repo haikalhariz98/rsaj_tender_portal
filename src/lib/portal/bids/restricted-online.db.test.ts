@@ -8,7 +8,7 @@ import { liveSaleOf, restrictionFinding } from "@/lib/opening/findings";
 import { registerRestrictionOf } from "@/lib/opening/restriction-read";
 import { OPENING_SALE_SELECT, saleFactsOf } from "@/lib/opening/repo";
 import { makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS } from "@/lib/test-db/auth-fixtures";
-import { onlineRestrictionOf, saleChecks } from "@/lib/window/sale-checks";
+import { onlineRestrictionOfSale, saleChecks } from "@/lib/window/sale-checks";
 
 import { settlePayment, startPurchase } from "./purchase-store";
 
@@ -27,6 +27,7 @@ let otherTypeId: string;
 let exerciseId: string;
 let windowId: string;
 let closingDay: string;
+let closingAt: Date;
 const DAY = 24 * 60 * 60 * 1000;
 const at = (days: number) => new Date(Date.now() + days * DAY);
 const D = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000Z`);
@@ -101,7 +102,7 @@ beforeAll(async () => {
     create: { organisationId, electronicDocumentRelease: true, paymentSimulatorOn: true, simulatedPaymentMethods: METHODS },
     update: { electronicDocumentRelease: true, paymentSimulatorOn: true, simulatedPaymentMethods: METHODS },
   });
-  const closingAt = at(30);
+  closingAt = at(30);
   closingDay = dayIn(closingAt, "Asia/Kuala_Lumpur");
   const ex = await db.sourcingExercise.create({
     data: { organisationId, reference: `RO/EX/${randomId()}`, requisitionId, title: "Restricted pump house", estimatedValue: "1000.00", sourcingMethodCode: "BID_METHOD", status: "ADVERTISED", closingAt, saleMode: "ONLINE", restrictedTender: true },
@@ -178,8 +179,9 @@ describe("17a: a restricted tender sold online, from purchase to the opened bid'
     const sale = await db.documentSale.findFirstOrThrow({ where: { windowId, purchaseId: purchase.id } });
     expect(sale.restrictionCertSighted).toBeNull();
     expect(sale.restrictionCertValidUntil).toBeNull();
-    const rows = saleChecks({ authoritySighted: false, certSighted: null, certValidUntil: null, registrationCheck: "CLEAR", suspensionCheck: "CLEAR", registerReadOn: ymd(new Date()), noSupplierNamed: false, onlineRestriction: onlineRestrictionOf(purchase.checks) }, closingDay);
-    expect(rows.find((r) => r.text.startsWith("Restriction"))?.text).toMatch(/Verified on the supplier register: your document STA-GOOD/);
+    const rows = saleChecks({ authoritySighted: false, certSighted: null, certValidUntil: null, registrationCheck: "CLEAR", suspensionCheck: "CLEAR", registerReadOn: ymd(new Date()), noSupplierNamed: false, onlineRestriction: onlineRestrictionOfSale(sale.eligibilitySnapshot, purchase.checks) }, closingDay);
+    // Review of 17a (finding 7): the staff register speaks of the supplier, from the reading frozen on the sale, never in the buyer's "your".
+    expect(rows.find((r) => r.text.startsWith("Restriction"))?.text).toMatch(/Verified on the supplier register: the supplier's document STA-GOOD/);
 
     // The opening reads the sale as it reads it from the window, and the restriction from the register for the closing day.
     const sales = (await db.documentSale.findMany({ where: { windowId }, select: OPENING_SALE_SELECT })).map(saleFactsOf);
@@ -187,7 +189,7 @@ describe("17a: a restricted tender sold online, from purchase to the opened bid'
     expect(live?.purchaseSupplierId).toBe(supplierId);
     // The counter's reading of this sale would find NOT_EVIDENCED (no sighting): this is why the register is read instead.
     expect(restrictionFinding(true, live, closingDay)).toEqual({ finding: "NOT_EVIDENCED" });
-    const read = await db.$transaction((tx) => registerRestrictionOf(tx, { id: organisationId, timeZone: "Asia/Kuala_Lumpur" }, closingDay, live!.purchaseSupplierId!, new Date()));
+    const read = await db.$transaction((tx) => registerRestrictionOf(tx, { id: organisationId, timeZone: "Asia/Kuala_Lumpur" }, { day: closingDay, at: closingAt }, live!.purchaseSupplierId!, new Date()));
     expect(read).toMatchObject({ finding: "EVIDENCED", reading: { source: "SUPPLIER_REGISTER", finding: "EVIDENCED", reason: "COVERS_CLOSING_DAY", closingDay, document: { id: doc.id, reference: "STA-GOOD" } } });
   });
 
@@ -203,7 +205,7 @@ describe("17a: a restricted tender sold online, from purchase to the opened bid'
     await settlePayment(actor, { exerciseId, method: METHODS[0], choice: "PAY" });
 
     const org = { id: organisationId, timeZone: "Asia/Kuala_Lumpur" };
-    const readNow = () => db.$transaction((tx) => registerRestrictionOf(tx, org, closingDay, supplierId, new Date()));
+    const readNow = () => db.$transaction((tx) => registerRestrictionOf(tx, org, { day: closingDay, at: closingAt }, supplierId, new Date()));
     expect(await readNow()).toMatchObject({ finding: "NOT_EVIDENCED", reading: { reason: "EXPIRED_BEFORE_CLOSING", document: { reference: "STA-OLD" } } });
 
     // A renewal lodged by the closing day and waiting for its check: not assessed, and it stays so each time the reading is taken again.
@@ -222,7 +224,7 @@ describe("17a: a restricted tender sold online, from purchase to the opened bid'
     const old = await lodge(supplierId, { verification: "VERIFIED", expiresInDays: 20 });
     const renewal = await lodge(supplierId, { verification: "NOT_CHECKED", expiresInDays: 700, validFromDays: 21, lodgedDays: 0, supersedesId: old.id });
     const org = { id: organisationId, timeZone: "Asia/Kuala_Lumpur" };
-    const readNow = () => db.$transaction((tx) => registerRestrictionOf(tx, org, closingDay, supplierId, new Date()));
+    const readNow = () => db.$transaction((tx) => registerRestrictionOf(tx, org, { day: closingDay, at: closingAt }, supplierId, new Date()));
     expect(await readNow()).toMatchObject({ finding: "NOT_ASSESSED" });
     await db.supplierDocument.update({ where: { id: renewal.id }, data: { verification: "NOT_IN_ORDER", verificationNote: "Not legible.", verifiedByPersonId: officerId, verifiedOn: D(new Date()), verifiedAt: new Date() } });
     expect(await readNow()).toMatchObject({ finding: "NOT_EVIDENCED", reading: { reason: "EXPIRED_BEFORE_CLOSING" } });
@@ -232,14 +234,14 @@ describe("17a: a restricted tender sold online, from purchase to the opened bid'
     const { supplierId } = await supplier();
     await lodge(supplierId, { verification: "VERIFIED", expiresInDays: null, expiresOnDay: closingDay });
     const org = { id: organisationId, timeZone: "Asia/Kuala_Lumpur" };
-    const readNow = () => db.$transaction((tx) => registerRestrictionOf(tx, org, closingDay, supplierId, new Date()));
+    const readNow = () => db.$transaction((tx) => registerRestrictionOf(tx, org, { day: closingDay, at: closingAt }, supplierId, new Date()));
     await policy({ type: null, closingDayCounts: true });
     expect(await readNow()).toEqual({ fault: { code: "RESTRICTION_EVIDENCE_TYPE_NOT_SET", level: "block" } });
     // Expiring on the closing day itself with the closing-day rule unset cannot be judged.
     await policy({ type: typeId, closingDayCounts: null });
     expect(await readNow()).toEqual({ fault: { code: "RESTRICTION_CLOSING_DAY_RULE_NOT_SET", level: "block" } });
     // The closing day cannot be told without the organisation's time zone: a fault, not a reading on an empty day.
-    expect(await db.$transaction((tx) => registerRestrictionOf(tx, org, null, supplierId, new Date()))).toEqual({ fault: { code: "TIME_ZONE_NOT_SET", level: "block" } });
+    expect(await db.$transaction((tx) => registerRestrictionOf(tx, org, { day: null, at: closingAt }, supplierId, new Date()))).toEqual({ fault: { code: "TIME_ZONE_NOT_SET", level: "block" } });
   });
 
   it("the database holds the new finding, so an opened bid can freeze it", async () => {

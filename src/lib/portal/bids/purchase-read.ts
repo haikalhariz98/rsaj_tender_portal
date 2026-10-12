@@ -12,7 +12,7 @@ import { blockingChecks, type PreSaleCheck } from "./checks";
 import type { BidContext } from "./context-store";
 import { failedTriesExhausted, FAILED_TRIES_WORDS } from "./limits";
 import type { PaymentReason } from "./payment-say";
-import { buyerStandingCheck, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS, restrictionPurchaseCheck, type PaidChannel, type PurchaseState } from "./purchase";
+import { buyerStandingCheck, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS, restrictionPurchaseCheck, type PaidChannel, type PurchaseState, type WordsFor } from "./purchase";
 import { loadSaleFacts } from "./sale-facts";
 
 /**
@@ -53,13 +53,13 @@ export async function buyerCheckOf(tx: Tx, actor: BuyerActor, now: Date): Promis
 }
 
 /// Ruling 17a: the restricted tender's check for an online purchase, from the supplier register. Null where the counter's checks carry no restriction (the tender is not restricted, or the organisation's day is unknown).
-export async function restrictionCheckOf(tx: Tx, actor: BuyerActor, ctx: BidContext, counter: readonly PreSaleCheck[]): Promise<PreSaleCheck | null> {
+export async function restrictionCheckOf(tx: Tx, actor: BuyerActor, ctx: BidContext, counter: readonly PreSaleCheck[], by: WordsFor = "BUYER"): Promise<PreSaleCheck | null> {
   if (!counter.some((c) => c.key === "RESTRICTION" && c.state === "BRING") || !ctx.org.today) return null;
   const [reading, tender] = await Promise.all([
     restrictionForPurchase(tx, { id: actor.organisationId }, actor.supplierId, { today: ctx.org.today, closingDay: ctx.ex.closingAt && ctx.org.timeZone ? dayIn(ctx.ex.closingAt, ctx.org.timeZone) : null }),
     tx.tenderDocumentPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { restrictionLabelEn: true } }),
   ]);
-  return restrictionPurchaseCheck(reading, tender?.restrictionLabelEn?.trim() || null);
+  return restrictionPurchaseCheck(reading, tender?.restrictionLabelEn?.trim() || null, by);
 }
 
 export async function loadOnlineView(tx: Tx, actor: BuyerActor, ctx: BidContext): Promise<OnlineView | null> {

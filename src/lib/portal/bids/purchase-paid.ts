@@ -2,15 +2,17 @@ import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { AuditActor } from "@/lib/auth/types";
-import { dayToDate } from "@/lib/dates";
+import { dayIn, dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
+import { purchaseReadingOf, type PurchaseReading } from "@/lib/suppliers/restriction-register";
+import { restrictionForPurchase } from "@/lib/suppliers/restriction-store";
 import { registerAtSale } from "@/lib/suppliers/sale-hook";
 import { supplierFaultText } from "@/lib/suppliers/labels";
 import { ENTITY, saleFields } from "@/lib/window/audit-view";
 import { releaseAnnotation } from "@/lib/window/sale";
 
-import { PAID_CHANNEL_WORDS } from "./purchase";
+import { PAID_CHANNEL_WORDS, restrictionPurchaseCheck } from "./purchase";
 
 /**
  * THE writer of "paid" (SR-10, ruling 17 as amended). A purchase becomes PAID here and nowhere else, and this is called from exactly two places: the payment simulator's
@@ -41,7 +43,8 @@ export type PaidBy =
 
 export interface PaidInput {
   org: { id: string; timeZone: string | null; today: string };
-  exercise: { id: string; reference: string; title: string; closes: Date | null };
+  /// `restricted`: the tender restricts who may tender (the same predicate as the counter's RESTRICTION check), so the supplier register is read again at payment (ruling 17a).
+  exercise: { id: string; reference: string; title: string; closes: Date | null; restricted: boolean };
   window: { id: string };
   purchase: { id: string; supplierId: string; amount: { toString(): string } };
   buyer: { accountId: string; name: string };
@@ -58,6 +61,17 @@ export async function markPurchasePaid(tx: Tx, i: PaidInput): Promise<{ saleId: 
   const register = await registerAtSale(tx, { id: org.id, timeZone: org.timeZone, today: org.today }, purchase.supplierId, exercise.id);
   const blocks = register.check.findings.filter((f) => f.level === "block");
   if (blocks.length) throw new PurchaseBarred(blocks.map((f) => supplierFaultText(f)).join(" "));
+
+  // Ruling 17a: a restricted tender's evidence document is read again here, on the same locked supplier row. It was read when the purchase began, and a document can lapse or be found not in order between
+  // that and the payment (which may be days later, or an officer's receipt). The structured reading is frozen on the sale, and the officer's words are put in the trail.
+  let restriction: { reading: PurchaseReading; words: string; warn: boolean } | null = null;
+  if (exercise.restricted) {
+    const closingDay = exercise.closes && org.timeZone ? dayIn(exercise.closes, org.timeZone) : null;
+    const read = await restrictionForPurchase(tx, { id: org.id }, purchase.supplierId, { today: org.today, closingDay });
+    if (read.outcome === "REFUSE") throw new PurchaseBarred(restrictionPurchaseCheck(read, null, by.channel === "SIMULATED" ? "BUYER" : "STAFF").detail);
+    const check = restrictionPurchaseCheck(read, null, "STAFF");
+    restriction = { reading: purchaseReadingOf(read, org.today, closingDay), words: check.detail, warn: check.state === "WARN" };
+  }
 
   const moved = await tx.documentPurchase.updateMany({
     where: { id: purchase.id, organisationId: org.id, state: "AWAITING_PAYMENT" },
@@ -113,13 +127,14 @@ export async function markPurchasePaid(tx: Tx, i: PaidInput): Promise<{ saleId: 
     purchaseId: purchase.id,
   };
   const sale = await tx.documentSale.create({
-    data: { organisationId: org.id, windowId: i.window.id, ...row, annotation: annotation as unknown as Prisma.InputJsonValue, ...(register.snapshot ? { eligibilitySnapshot: register.snapshot as unknown as Prisma.InputJsonValue } : {}) },
+    data: { organisationId: org.id, windowId: i.window.id, ...row, annotation: annotation as unknown as Prisma.InputJsonValue, ...(register.snapshot || restriction ? { eligibilitySnapshot: { ...(register.snapshot ?? {}), ...(restriction ? { restriction: restriction.reading } : {}) } as unknown as Prisma.InputJsonValue } : {}) },
   });
   await writeAudit(tx, { actor: i.auditActor, organisationId: org.id, entity: ENTITY.sale, entityId: sale.id, entityLabel: `${exercise.reference} · Sale · ${party.name}` }, "CREATE", diffFields(null, {
     ...saleFields({ ...row, partyName: party.name, issuedBy: simulated ? "Nobody: released online" : by.personName }),
     howPaid: payment,
     reference: simulated ? by.reference : null,
     releasedTo: i.buyer.name,
+    ...(restriction ? { restriction: `${restriction.warn ? "Warning. " : ""}${restriction.words}` } : {}),
   }));
   await writeAudit(tx, { actor: i.auditActor, organisationId: org.id, entity: ENTITY.purchase, entityId: purchase.id, entityLabel: label }, "UPDATE", diffFields({ state: "Awaiting payment" }, {
     state: "Paid",

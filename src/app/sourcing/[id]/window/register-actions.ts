@@ -311,7 +311,7 @@ export async function recordPurchaseReceipt(_prev: FormState, data: FormData): P
     try {
       const paid = await markPurchasePaid(tx, {
         org: { id: l.org.id, timeZone: l.org.timeZone, today: l.org.today },
-        exercise: { id: l.ex.id, reference: l.ex.reference, title: l.ex.title, closes: l.ex.closingAt },
+        exercise: { id: l.ex.id, reference: l.ex.reference, title: l.ex.title, closes: l.ex.closingAt, restricted: l.ex.restrictedTender === true },
         window: { id: w.id },
         purchase: { id: purchase.id, supplierId: purchase.supplierId, amount: purchase.amount },
         buyer: { accountId: purchase.buyerAccountId, name: purchase.buyer.contact.name },

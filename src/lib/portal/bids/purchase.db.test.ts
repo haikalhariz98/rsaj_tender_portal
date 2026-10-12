@@ -267,7 +267,7 @@ describe("the officer recording the finance receipt, the other way to paid", () 
     await db.$transaction(async (tx) => {
       await markPurchasePaid(tx, {
         org: { id: organisationId, timeZone: "Asia/Kuala_Lumpur", today: new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10) },
-        exercise: { id: online.exerciseId, reference: "R", title: "T", closes: at(30) },
+        exercise: { id: online.exerciseId, reference: "R", title: "T", closes: at(30), restricted: false },
         window: { id: online.windowId },
         purchase: { id: purchase.id, supplierId: s.supplierId, amount: purchase.amount },
         buyer: { accountId: s.accountId, name: s.actor.displayName },
@@ -292,7 +292,7 @@ describe("the officer recording the finance receipt, the other way to paid", () 
     const again = db.$transaction((tx) =>
       markPurchasePaid(tx, {
         org: { id: organisationId, timeZone: "Asia/Kuala_Lumpur", today: new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10) },
-        exercise: { id: online.exerciseId, reference: "R", title: "T", closes: at(30) },
+        exercise: { id: online.exerciseId, reference: "R", title: "T", closes: at(30), restricted: false },
         window: { id: online.windowId },
         purchase: { id: purchase.id, supplierId: s.supplierId, amount: purchase.amount },
         buyer: { accountId: s.accountId, name: "x" },
