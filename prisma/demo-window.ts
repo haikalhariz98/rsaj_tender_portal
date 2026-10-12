@@ -170,6 +170,11 @@ export async function loadWindowDemo(db: Db, organisationId: string, hooks: Wind
   const created = T(W(14), "10:00");
   await createExercises(db, organisationId, [19, 17, 18], created);
   await hooks.determine([`${P}sx19`, `${P}sx17`, `${P}sx18`]);
+  // These four tell the story of windows published before the register asked for the bids' validity and before officers were named on an
+  // exercise (the validity is recorded afterwards, with a reason). They are the exercises that existed before the wave-2a gates, as the
+  // migration left them (`openingRosterRequired` false), so publication does not hold them to the validity the gate now asks for.
+  const beforeTheGate = async () => void (await db.sourcingExercise.updateMany({ where: { organisationId, id: { in: [...WINDOW_EXERCISES] } }, data: { openingRosterRequired: false } }));
+  await beforeTheGate();
 
   const acts = new Acts(db, organisationId, tz, entry);
   let doc = 30;
@@ -230,6 +235,7 @@ export async function loadWindowDemo(db: Db, organisationId: string, hooks: Wind
   {
     await createExercises(db, organisationId, [16], T(W(9), "16:00"), `${P}sx19`);
     await hooks.determine([`${P}sx16`]);
+    await beforeTheGate();
     const sx = `${P}sx16`;
     await prepare(16, W(8), W(7), W(6), { startOn: W(6), closingDay: W(1) }, works("grade D4, category civil works"), false);
     await acts.saveWindow(sx, `${P}win16`, tenderWindow(W(6), W(3)), T(W(6), "09:30"));
