@@ -12,7 +12,7 @@ import { windowEditFault } from "@/lib/window/edit";
 
 import { isPublishedStatus, type ExerciseStatus, type Finding } from "./types";
 
-export type BidFieldsFault = "WINDOW_NOT_EDITABLE" | "VALIDITY_ALREADY_SET" | "REASON_REQUIRED" | "DAYS_REQUIRED" | "PROVENANCE_REQUIRED";
+export type BidFieldsFault = "WINDOW_NOT_EDITABLE" | "VALIDITY_ALREADY_SET" | "REASON_REQUIRED" | "DAYS_REQUIRED" | "PROVENANCE_REQUIRED" | "VALIDITY_REQUIRED";
 
 export function bidFieldsFaults(i: {
   status: ExerciseStatus;
@@ -20,12 +20,19 @@ export function bidFieldsFaults(i: {
   current: { days: number | null; alternativesPermitted: boolean | null };
   next: { days: number | null; provenance: string | null; alternativesPermitted: boolean | null };
   reason: string;
+  /// SR-06 (ruling 9): the exercise was submitted under the notice gate (`openingRosterRequired`), which asks for the validity. Once it is
+  /// submitted, a validity that is set cannot be cleared. Absent: not asked.
+  validityRequired?: boolean;
 }): Finding<BidFieldsFault>[] {
   const out: Finding<BidFieldsFault>[] = [];
   const f = (code: BidFieldsFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (i.next.days != null && !i.next.provenance) f("PROVENANCE_REQUIRED");
   const edit = windowEditFault(i.status, i.packKind);
-  if (!edit) return out;
+  if (!edit) {
+    // Submitted under the notice gate: the validity it was submitted with stays (it is changed, not cleared).
+    if (i.validityRequired && i.status !== "DOCUMENTS_IN_PREPARATION" && i.current.days != null && i.next.days == null) f("VALIDITY_REQUIRED");
+    return out;
+  }
   // Published: only the validity left unset may be recorded, once, with a reason.
   if (edit.code === "WINDOW_PUBLISHED" && isPublishedStatus(i.status)) {
     if (i.current.days != null) f("VALIDITY_ALREADY_SET");

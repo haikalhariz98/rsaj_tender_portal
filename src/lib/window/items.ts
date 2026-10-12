@@ -67,7 +67,8 @@ export interface NoticeSubmitInput {
   basisTotal: Sen;
 }
 
-const ITEM_CODES: ReadonlySet<string> = new Set<string>(["INSPECTION_PLACE_MISSING", "PURCHASE_PLACE_MISSING", "INSPECTION_HOURS_MISSING", "PURCHASE_FROM_NOT_SET", "PAYMENT_METHODS_MISSING", "SUBMISSION_PLACE_MISSING", "FEE_NOT_SET"]);
+/// What an unprepared window leaves empty: each of these is the same fact, that the items are not written yet. Publication folds the same set.
+export const UNPREPARED_ITEM_CODES: ReadonlySet<string> = new Set<string>(["INSPECTION_PLACE_MISSING", "PURCHASE_PLACE_MISSING", "INSPECTION_HOURS_MISSING", "PURCHASE_FROM_NOT_SET", "PAYMENT_METHODS_MISSING", "SUBMISSION_PLACE_MISSING", "FEE_NOT_SET"]);
 
 /**
  * What stands between the notice, fee and briefing and the documents going for approval. A window with nothing written folds its
@@ -83,7 +84,7 @@ export function noticeSubmitFaults(i: NoticeSubmitInput): Finding[] {
   out.push(...feeFaults({ fee: w?.fee ?? null, regime: i.regime, floors: i.floors, basisTotal: i.basisTotal }));
   if (!w) {
     const folded = [...itemFaults({ inspectionPlace: "", purchasePlace: "", inspectionHours: "", purchaseFromDay: null, purchaseCloseDay: null, feePaymentMethods: "", submissionPlace: "" }), ...out.filter((f) => f.code === "FEE_NOT_SET")];
-    const rest = out.filter((f) => !ITEM_CODES.has(f.code));
+    const rest = out.filter((f) => !UNPREPARED_ITEM_CODES.has(f.code));
     out.length = 0;
     out.push({ code: "WINDOW_ITEMS_NOT_PREPARED", level: "block", data: { count: folded.length } }, ...rest);
   }

@@ -141,7 +141,7 @@ export function windowFindingText(f: Finding): string {
     case "WINDOW_ITEMS_NOT_PREPARED":
       return `Prepare the notice and fee on Scope and estimate: where the documents are inspected and bought, the hours, the days of sale, how the fee is paid and the fee (${d.count} items not written yet).`;
     case "BID_VALIDITY_NOT_SET":
-      return "The number of days the bids stay valid is not set. Enter it under Notice and fee on Scope and estimate (SR-06).";
+      return "The number of days the bids stay valid is not set. Enter it under Notice and fee on Scope and estimate.";
 
     // ---- the advertisement day and channels (FR-ADV-001, OD-3)
     case "RULE_NOT_SET":

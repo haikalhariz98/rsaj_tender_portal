@@ -427,7 +427,7 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const w = await loadBidWindow(l.ex.id, tx);
     if (!w) return { ok: false, message: "The window is not prepared yet. Fill in Notice and fee on Scope and estimate first." };
-    const fs = bidFieldsFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, current: { days: w.bidValidityDays, alternativesPermitted: w.alternativesPermitted }, next: { days, provenance, alternativesPermitted }, reason });
+    const fs = bidFieldsFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, current: { days: w.bidValidityDays, alternativesPermitted: w.alternativesPermitted }, next: { days, provenance, alternativesPermitted }, reason, validityRequired: l.ex.openingRosterRequired });
     if (fs.length) return refuse(fs);
     // S-6: recorded after publication (BD-66-7's exit), the officer who records it is named, and the
     // trail keeps who beside when and why, so the validity card can show all three.

@@ -121,6 +121,8 @@ export function judgePublish(d: WindowData, ex: ExerciseForWindow, org: { timeZo
       submissionPlace: w?.submissionPlace ?? "",
       closingTimeReason: w?.closingTimeReason ?? "",
     },
+    // SR-06 (ruling 9): the validity is asked at publication only for an exercise submitted under the notice gate.
+    bidValidity: { required: ex.openingRosterRequired === true, days: w?.bidValidityDays ?? null },
     events: w ? eventFactsOf(w) : [],
     policy: d.policy,
     calendar: d.calendar,

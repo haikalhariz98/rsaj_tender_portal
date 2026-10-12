@@ -36,6 +36,7 @@ const ok: PublishInput = {
     submissionPlace: "Tender box, Level 1",
     closingTimeReason: "",
   },
+  bidValidity: { required: false, days: 90 },
   events: [event()],
   policy: SPEC_POLICY,
   calendar: SPEC_CALENDAR,
@@ -78,6 +79,8 @@ describe("each refusal alone", () => {
     ["RESTRICTION_NOT_ANSWERED", { restricted: null }],
     ["STAMP_NOT_SET", { restricted: true, template: { state: "OK", missing: [], unknown: [], stampMissing: true } }],
     ["ELIGIBILITY_MISSING", { requirements: 0 }],
+    // SR-06 (ruling 9): asked at publication only for an exercise submitted under the notice gate.
+    ["BID_VALIDITY_NOT_SET", { bidValidity: { required: true, days: null } }],
     ["CLOSING_NOT_SET", { closingAt: null }],
     ["BEFORE_TENDERING_START", { tenderingStartOn: "2026-11-04", window: { ...ok.window, purchaseFromDay: "2026-11-04" } }],
     ["PUBLICATION_IN_FUTURE", { today: "2026-11-02", records: [...records.slice(0, 2), { channelId: WEBSITE.id, publishedOn: "2026-11-02" }], window: { ...ok.window }, tenderingStartOn: "2026-11-01" }],
@@ -146,6 +149,17 @@ describe("each refusal alone", () => {
     expect(codes(publishFaults({ ...invitedOk, invited: { ...invitedOk.invited!, nameRoutes: [] } }))).toEqual(["NAME_NOT_REQUESTED"]);
     expect(codes(publishFaults({ ...invitedOk, invited: { ...invitedOk.invited!, proposed: [{ registrationNo: "A1" }] } }))).toEqual(["LIST_CHANGED"]);
     expect(codes(publishFaults({ ...invitedOk, invited: { ...invitedOk.invited!, nameRoutes: [route("APPROVED", [])] } }))).toEqual(["LIST_NOT_RECORDED"]);
+  });
+});
+
+describe("the bid validity at publication (SR-06, ruling 9)", () => {
+  const blocks = (i: PublishInput) => publishFaults(i).findings.map((f) => f.code);
+  it("an exercise submitted under the notice gate is held back until the validity is set", () => {
+    expect(blocks({ ...ok, bidValidity: { required: true, days: null } })).toContain("BID_VALIDITY_NOT_SET");
+    expect(blocks({ ...ok, bidValidity: { required: true, days: 90 } })).not.toContain("BID_VALIDITY_NOT_SET");
+  });
+  it("an exercise approved before the gate is not held back", () => {
+    expect(blocks({ ...ok, bidValidity: { required: false, days: null } })).not.toContain("BID_VALIDITY_NOT_SET");
   });
 });
 

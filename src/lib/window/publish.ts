@@ -23,7 +23,7 @@
 import { blocking, type ChannelFacts, type EventFacts, type Finding, type PublicationFacts, type WindowPath, type WindowPolicyFacts, type CalendarFacts, type FeeFloorFacts } from "./types";
 import { advertisementDay, closingFaults } from "./dates";
 import { eventFaults } from "./events";
-import { itemFaults } from "./items";
+import { itemFaults, UNPREPARED_ITEM_CODES } from "./items";
 import { feeFaults } from "./fee";
 import { fieldsInWords, type TemplateState } from "./fields";
 import { invitedListFaults } from "./invitees";
@@ -67,6 +67,7 @@ export type PublishFault =
   | "TEMPLATE_INCOMPLETE"
   | "TEMPLATE_UNKNOWN_FIELD"
   | "CHANGE_PENDING"
+  | "BID_VALIDITY_NOT_SET"
   | "TIME_ZONE_UNSET";
 
 export interface PublishInput {
@@ -89,6 +90,9 @@ export interface PublishInput {
     submissionPlace: string;
     closingTimeReason: string;
   };
+  /// SR-06 (ruling 9): the days the bids stay valid. `required` only for an exercise submitted under the notice gate (`openingRosterRequired`),
+  /// so exercises approved before it are not held back at publication.
+  bidValidity: { required: boolean; days: number | null };
   events: readonly EventFacts[];
   policy: WindowPolicyFacts;
   calendar: CalendarFacts | null;
@@ -142,6 +146,7 @@ export function publishFaults(i: PublishInput): PublishResult {
   const w = i.window;
   // SR-06 (ruling 9): the same seven checks the submit gate runs (`itemFaults`), kept here as the backstop.
   out.push(...itemFaults(w));
+  if (i.bidValidity.required && i.bidValidity.days == null) f("BID_VALIDITY_NOT_SET");
   if (!i.closingAt) f("CLOSING_NOT_SET");
   for (const e of i.events) out.push(...eventFaults(e, i.policy.mandatoryAttendancePermitted, i.closingAt));
 
@@ -186,7 +191,7 @@ export const publishBlocks = (r: PublishResult) => blocking(r.findings);
 
 /// What an unprepared window leaves empty: each of these is the same fact, that the window's items
 /// are not written yet.
-const ITEM_FAULTS: ReadonlySet<string> = new Set(["INSPECTION_PLACE_MISSING", "PURCHASE_PLACE_MISSING", "INSPECTION_HOURS_MISSING", "PURCHASE_FROM_NOT_SET", "PAYMENT_METHODS_MISSING", "SUBMISSION_PLACE_MISSING", "FEE_NOT_SET"]);
+const ITEM_FAULTS = UNPREPARED_ITEM_CODES;
 
 /**
  * Before the window is prepared every one of its items is missing, and listing each says the same

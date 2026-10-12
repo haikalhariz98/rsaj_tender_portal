@@ -266,6 +266,8 @@ export function bidFindingText(f: Finding): string {
       return "The window's answers are prepared before publication and frozen once it is published.";
     case "VALIDITY_ALREADY_SET":
       return "The validity was set before publication and stands as the documents state it.";
+    case "VALIDITY_REQUIRED":
+      return "The documents were submitted with this validity, so it can be changed but not cleared.";
     case "DAYS_REQUIRED":
       return "Give the days the tender documents state.";
     case "PROVENANCE_REQUIRED":

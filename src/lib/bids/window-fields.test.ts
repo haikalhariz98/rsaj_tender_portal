@@ -20,6 +20,17 @@ describe("the window's bid answers (FR-BID-006, 009)", () => {
     expect(codes({ status: "ADVERTISED", current: { days: 90, alternativesPermitted: false }, reason: "x" })).toEqual(["VALIDITY_ALREADY_SET"]);
     expect(codes({ status: "INVITED", current: { days: null, alternativesPermitted: null }, reason: "x" })).toEqual(["WINDOW_NOT_EDITABLE"]);
   });
+  // SR-06 (ruling 9): once submitted under the notice gate, the validity can be changed but not cleared.
+  it("submitted under the notice gate: a set validity is changed, not cleared", () => {
+    const set = { days: 90, alternativesPermitted: false };
+    const cleared = { days: null, provenance: null, alternativesPermitted: false };
+    expect(codes({ validityRequired: true, current: set, next: cleared })).toEqual(["VALIDITY_REQUIRED"]);
+    expect(codes({ validityRequired: true, status: "PENDING_APPROVAL_FOR_TENDERING", current: set, next: cleared })).toEqual(["VALIDITY_REQUIRED"]);
+    expect(codes({ validityRequired: true, current: set, next: { ...next, alternativesPermitted: false } })).toEqual([]);
+    // Still being prepared, or made before the gate: an ordinary edit.
+    expect(codes({ validityRequired: true, status: "DOCUMENTS_IN_PREPARATION", current: set, next: cleared })).toEqual([]);
+    expect(codes({ validityRequired: false, current: set, next: cleared })).toEqual([]);
+  });
   it("not before preparation, never on a cancelled exercise", () => {
     expect(codes({ status: "DRAFT" })).toEqual(["WINDOW_NOT_EDITABLE"]);
     expect(codes({ status: "CANCELLED" })).toEqual(["WINDOW_NOT_EDITABLE"]);
