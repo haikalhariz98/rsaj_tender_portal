@@ -9,10 +9,17 @@ import { voidSaleFault } from "./sale";
 /** The SR-10 and SR-15 wave 3a review: M2 (an online sale is not voided), S7 (the online buyer's standing), M3 (one list of columns). */
 
 describe("M2: a sale made by an online purchase is not voided", () => {
-  it("is refused with words that send the officer on, whatever the reason given", () => {
+  it("is refused with words that say what is true, whatever the reason given", () => {
     const f = voidSaleFault({ voidedAt: null, purchaseId: "pur1" }, "OPEN_FOR_PURCHASE", "Entered in error");
     expect(f).toMatchObject({ code: "ONLINE_SALE", level: "block" });
-    expect(windowFindingText(f!)).toMatch(/procurement lead/);
+    // 17b: the words no longer name "the procurement lead", a role the product does not have. They say the sale stands, it cannot be reversed in the portal yet,
+    // the opening still judges standing and eligibility, and a refund follows the organisation's own finance procedure outside the portal.
+    const words = windowFindingText(f!);
+    expect(words).not.toMatch(/procurement lead/i);
+    expect(words).toMatch(/stands/);
+    expect(words).toMatch(/cannot be reversed in the portal yet/);
+    expect(words).toMatch(/opening still judges the buyer's standing and eligibility/);
+    expect(words).toMatch(/finance procedure outside the portal/);
     expect(windowFindingText(f!)).not.toMatch(/ONLINE_SALE/);
   });
   it("a counter sale is voided as before, and an already voided one says so first", () => {

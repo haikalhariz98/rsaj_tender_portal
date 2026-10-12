@@ -376,7 +376,7 @@ export function windowFindingText(f: Finding): string {
     case "ALREADY_VOID":
       return "The sale is already voided.";
     case "ONLINE_SALE":
-      return "This sale was made by the buyer's online purchase and payment, which stay on record, so it cannot be voided here: the buyer would be left unable to buy again while still shown as having paid. If it was made in error, tell the procurement lead, who decides how it is put right. Any refund of an online payment is the finance office's.";
+      return "This sale was made by the buyer's online purchase and payment, so it stands and cannot be voided here. It cannot be reversed in the portal yet. The opening still judges the buyer's standing and eligibility when its bid is opened. Any refund follows the organisation's own finance procedure outside the portal, and is not recorded here.";
     case "WINDOW_CLOSED":
       return "The window has closed, so the sale stands.";
     case "EXERCISE_CANCELLED":

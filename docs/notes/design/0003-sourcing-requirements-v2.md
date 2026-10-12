@@ -1036,3 +1036,63 @@ and says so in words). The document supersedes only what it names. A spec Must t
       - it writes the before and after in the same transaction, under the exercise's lock.
     - Taking one switch while the other's setting is unset takes the one and reports the other in words. That is accepted.
     - Minor tidy, not blocking: the action restates the two switch labels. It should use `SWITCH_LABEL`.
+
+### Wave 3a: open points (product owner, for the founder, 2026-10-12)
+
+17a. **A restricted tender sold online (review M1): the supplier register evidences the restriction. The tender is not kept counter-only.**
+    - **Why not counter-only.**
+      - The sale mode is copied from the organisation's setting when an exercise is created. It is taken only while unset (G1, 12e), and no act sets an exercise to COUNTER by choice.
+      - So in an organisation that sells ONLINE, a restricted tender pins ONLINE and `ONLINE_RESTRICTED` refuses its publication for ever. That is a block that can never clear (ruling 13; wave 2b review M2).
+      - A counter path would also need the physical fields that answer 3 removed.
+      - FR-VND-012 (M) makes the online purchase "subject to the pre-sale checks at FR-ADV-010", so the specification expects these checks online.
+      - Ruling 16 already replaced the officer's sighting of authority with a reading of the register. This extends the same reading to the restriction.
+    - **What evidences it.** Only the organisation's configured evidence document (`SupplierPolicy.restrictionEvidenceTypeId`, BD-615-1), lodged on the supplier's record and VERIFIED by an officer. The declared claim (`bumiputeraClaimCode`) is never read for this.
+    - **At the purchase** (pure, tested; the outcomes mirror the counter's `saleFaults`):
+      - The evidence type is not set: refused, in words that name the setting.
+      - No verified evidence document is in force on the day of purchase (none lodged, lodged but not verified, found not in order, or expired): refused. The attempt is kept with its reason (FR-ADV-010: "refused with the reason recorded").
+      - In force today but it lapses before the closing day: the purchase is allowed with a warning. It says a renewal must be lodged and verified before the closing day, or the bid will be found not evidenced. This mirrors the counter's `CERT_EXPIRES_BEFORE_CLOSING`.
+      - The sale keeps the register's reading frozen (`eligibilitySnapshot`). The sale register shows "Restriction: verified on the supplier register" with the document's reference and validity, in place of the certificate-sighted fields. It never says "original sighted".
+    - **At the opening.** For a sale made from an online purchase, `restrictionFinding` reads the register's restriction reading for the closing day, frozen on the opened bid. It never reads the sale's sighting columns, which are empty for an online sale. For a counter sale nothing changes.
+      - A verified document in force on the closing day: EVIDENCED. None: NOT_EVIDENCED, which is eliminatory, as on paper.
+      - The closing-day edge follows the register's `expiryOnClosingDayCounts`, shown on screen. An exercise is pinned to one sale mode, so its buyers are never judged under two rules.
+      - A configuration gap (evidence type or closing-day rule not set) is a blocking fault at the opening, in words, as `RESTRICTION_NOT_ANSWERED` is. It is never a finding.
+      - A renewal lodged before the closing and not yet verified is "not assessed". It is never EVIDENCED and never quietly NOT_EVIDENCED. That bid's verdict waits, with the reason in words. While it reads not assessed, the reading is taken again, audited and frozen again, each time the officer acts on the bid. The wait ends when the document is verified (EVIDENCED) or found not in order (NOT_EVIDENCED), so the opening can always finish (ruling 13). The last reading taken decides the verdict and is the one shown.
+    - **Remove the three refusals** (`ONLINE_RESTRICTED` at taking the setting, at publication and in the policy save, and the BLOCK in `onlinePurchaseChecks`) in the same change as the purchase and opening sides, never before.
+      - Today an online sale reaches the paper opening, where an empty sighting reads NOT_EVIDENCED. Lifting the refusal alone would eliminate every online buyer.
+      - Tests change only to match this ruling, citing 17a.
+    - **Hand-over.** CPD's SK002 amendment (G6, already a go-live dependency) must say that an officer's verification of the evidence document on the register stands for showing the certificate at the counter (SK002 7.5.1(b),(c)).
+    - **Code:** a separate fix, not part of wave 3b. It does not wait for wave 3b, and it must land before any organisation sells online.
+
+17b. **Undoing an online sale (review M2): the refusal stands for now, with true words. A controlled reversal is needed before any organisation sells online for real.**
+    - **What is wrong with refusing alone.** Without the simulator, an online purchase is paid only by an officer typing the finance receipt against it (`recordPurchaseReceipt`).
+      - A receipt typed against the wrong purchase gives documents and bid standing to a supplier who did not pay.
+      - It also uses up the number, because receipts are unique across all sales, voided ones included. The supplier who did pay cannot be recorded as paid, and so cannot tender.
+      - The refusal leaves that in place, and that is a correctness fault.
+      - Prisma's lack of partial indexes is not the reason to refuse: migration `20261102200000` already writes raw-SQL triggers.
+    - **Now (a small separate fix):** the `ONLINE_SALE` words must say only what is true. "The procurement lead" is a role the product does not have, and nothing in the product can put the sale right. Say instead:
+      - the sale stands;
+      - it cannot be reversed in the portal yet;
+      - the opening still judges the buyer's standing and eligibility;
+      - any refund follows the organisation's own finance procedure outside the portal, and is not recorded here.
+    - **The reversal** (a separate fix, not wave 3b; a go-live condition for online selling, entered in the backlog):
+      - **For which sales:** sales from a purchase paid by a finance receipt or by the simulator. A real provider's refund comes with that adapter (INT-10), behind the same façade.
+      - **Who:** a two-person act. A signed-in officer proposes it with a reason. A different signed-in officer approves it, and that officer did not record the receipt. Reuse an existing two-person pattern (the configuration change, or the opening's dual authorisation). If neither fits a sale, the ADR says why.
+      - **When:** while the window is open and the buyer holds no bid, as the counter's void (`WINDOW_CLOSED`, `ENVELOPE_HELD`). After that it is refused in words, and the opening judges the bid.
+      - **Effect, in one audited transaction under the window lock:**
+        - the sale is voided with its reason;
+        - the purchase moves PAID to VOIDED. This is a new transition the trigger explicitly allows, not a loosened guard;
+        - one live purchase per supplier and window is enforced by a raw-SQL partial unique index, so the supplier may buy again;
+        - the release and the bid standing end. Downloads already made stay logged.
+      - **The receipt:** where the reversal corrects a receipt typed against the wrong purchase, the number moves to the right purchase, which is awaiting payment, in the same audited transaction. The voided sale's column is cleared, and the old value stays in the audited before and after. The unique index on receipt numbers is unchanged (OD-11), and the counter's one-person void is unchanged.
+      - Not part of this ruling: a voided counter sale also keeps its receipt number, so a counter receipt typed in error cannot be moved. That is a separate open point for the founder.
+      - **Money:** the product moves none. If the organisation refunds, an officer types finance's refund reference; the system never makes one up. With none typed, the record reads "No refund recorded". Whether a fee is refunded is the organisation's policy (compare FR-ADV-016) and is never assumed.
+
+17c. **A bid does not also require the finance receipt (review S9). `holdsBidStanding` stands as built.**
+    - A counter sale already requires the officer's collector and payment method. A missing receipt number is only a warning (`RECEIPT_NOT_RECORDED`): the fee was taken, and the number is finance's paperwork.
+    - An online purchase stands only once it is PAID, by the gateway or by a recorded finance receipt, and its sale is written only then. So online standing already requires a confirmed payment.
+    - Requiring the receipt would split the bid gate from the opening's `LIVE_SALE`. A buyer who paid could then be refused a bid because of back-office lag, or the paper opening's rule would have to change, which nothing asks for.
+    - Receipt gaps already surface in the reconciliation list (`receiptExceptions`, FR-ADV-009).
+    - The open point of the wave 3a review (log, 2026-10-12, item 3): a counter sale counts for a bid whatever `electronicDocumentRelease` says. The release setting governs only the online documents.
+    - **Code:** none now. In wave 3b:
+      - `holdsBidStanding` and the live-sale reading inside the opening's `saleFinding` (not its invitee-list check) are one function, or a test pins them equal;
+      - the "Product owner to confirm" comment is replaced with a citation of 17c.

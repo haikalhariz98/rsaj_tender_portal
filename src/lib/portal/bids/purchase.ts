@@ -115,7 +115,7 @@ export function holdsReleasedPurchase(i: {
  * Whether a supplier stands as a buyer of the documents for the purpose of SUBMITTING A BID (wave 3b), which is the opening's own reading (`LIVE_SALE`, X-11): it holds a sale that
  * stands, a counter sale with or without its receipt recorded (the receipt is finance's paperwork and does not decide who may tender), or a paid online purchase. The documents' release
  * is stricter, and rightly (`holdsReleasedPurchase`): a bid is judged by the same sale the opening will find, so a supplier is not let to tender only to be found "no live purchase".
- * A simulated payment counts only while the deployment allows the simulator (SEC-1), as at the opening. Product owner to confirm (the wave 3a builder raised the same question).
+ * A simulated payment counts only while the deployment allows the simulator (SEC-1), as at the opening. The product owner confirmed this predicate (ruling 17c, wave 3a review S9): a bid does not also require the finance receipt, and a counter sale counts whatever `electronicDocumentRelease` says, because the release setting governs the online documents only.
  */
 export function holdsBidStanding(i: { sale: SaleOfSupplier | null; simulatorAllowed: boolean }): boolean {
   return standsHere(i.sale, i.simulatorAllowed) != null;

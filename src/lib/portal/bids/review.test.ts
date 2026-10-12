@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { simulatedSales, SIMULATED_NO_MONEY, uncollectedReceipts } from "@/lib/integration/fee-receipt";
 import { PAYMENT_SIMULATOR_ENV, simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
 import { gatewayReading, isFinanceReceipt, paymentSimulator } from "@/lib/integration/payment-gateway";
+import { saleFinding } from "@/lib/opening/findings";
 
 import { failedTriesExhausted, isRepeatDownload, MAX_FAILED_PAYMENT_TRIES, rateVerdict, RATE_LIMITS, windowStartOf } from "./limits";
 import { paymentSay } from "./payment-say";
@@ -64,6 +65,16 @@ describe("S9: the bid predicate is the opening's, the release is stricter", () =
   it("a counter sale that stands counts for a bid whether or not its receipt is recorded; the documents still need the receipt", () => {
     expect(holdsBidStanding({ sale: counter(null), simulatorAllowed: true })).toBe(true);
     expect(holdsReleasedPurchase({ releaseOnline: true, purchase: null, sale: counter(null), simulatorAllowed: true }).released).toBe(false);
+  });
+  it("17c: a counter sale counts for a bid whatever electronicDocumentRelease says; the release setting governs the online documents only", () => {
+    // `holdsBidStanding` takes no release input at all, which is the point: the setting cannot change the answer. The opening's own LIVE_SALE (`saleFinding`) takes none either.
+    for (const releaseOnline of [null, false, true]) {
+      expect(holdsBidStanding({ sale: counter(null), simulatorAllowed: true })).toBe(true);
+      expect(holdsBidStanding({ sale: counter("R-1"), simulatorAllowed: true })).toBe(true);
+      // The documents, by contrast, follow the setting.
+      expect(holdsReleasedPurchase({ releaseOnline, purchase: null, sale: counter("R-1"), simulatorAllowed: true }).released).toBe(releaseOnline === true);
+    }
+    expect(saleFinding("p1", [{ partyId: "p1", voided: false, certSighted: null, certValidUntil: null }], "ADVERTISED", new Set())).toBe("LIVE_SALE");
   });
   it("a voided sale, or none, does not count; a simulated one counts only while the deployment allows it", () => {
     expect(holdsBidStanding({ sale: null, simulatorAllowed: true })).toBe(false);
