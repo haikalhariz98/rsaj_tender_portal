@@ -15,6 +15,16 @@ export type Consequence = "ELIMINATE" | "REPORT";
 /// The finding frozen on an offer, read back defensively. Null: none (not linked when opened).
 export const eligibilityFindingOf = (raw: unknown): EligibilitySnapshot | null => (isEligibilitySnapshot(raw) ? raw : null);
 
+/**
+ * The class (Kelas) the register held for a bidder when its offer was read (SR-15, ruling 24): the grade the frozen eligibility reading found held, for the work the exercise needs
+ * (`GRADE` rows' held label). Null: the bidder was not linked to the register, or the exercise asked for no grade, so the register gave none and nothing is invented.
+ */
+export function registerClassOf(raw: unknown): string | null {
+  const f = eligibilityFindingOf(raw);
+  const held = [...new Set((f?.rows ?? []).filter((r) => r.kind === "GRADE").map((r) => r.data?.held?.trim() ?? "").filter(Boolean))];
+  return held.length ? held.join(", ") : null;
+}
+
 /// Whether an offer's frozen finding is NOT_ELIGIBLE. Not assessed is not a failure.
 export const ineligibleOf = (raw: unknown) => eligibilityFindingOf(raw)?.verdict === "NOT_ELIGIBLE";
 

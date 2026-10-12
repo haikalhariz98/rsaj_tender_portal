@@ -29,7 +29,7 @@ import { COPY_NOT_COMPARED_LABEL, COPY_NOT_COMPARED_TEXT, copyFindingFault, copy
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./finalise";
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
 import { freshInitials } from "./initials";
-import { consequenceFor, eligibilityFindingOf, ineligibleOf } from "@/lib/suppliers/opening-hook";
+import { consequenceFor, eligibilityFindingOf, ineligibleOf, registerClassOf } from "@/lib/suppliers/opening-hook";
 import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, RESTRICTION_FINDING_LABEL, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, seatWords, VERDICT_LABEL, VERDICT_TONE } from "./labels";
 import { unpurchasedRuleText } from "./unpurchased";
 import { alternativeInsideFaults, openFaults } from "./open";
@@ -384,6 +384,8 @@ export async function scheduleSection(reader: Reader & { organisationTimeZone: s
   const { l, c, people } = r;
   const tz = l.org.timeZone;
   const counts = invitedCounts(c);
+  // SR-15 (ruling 24): the class the register held, frozen on each offer when it was read.
+  const registerClassByListing = new Map(c.openings.flatMap((x) => x.bids.map((b) => [b.listingNo, registerClassOf(b.eligibilityFinding)] as const)));
   const openings = c.openings.map((o) => {
     const frozen = scheduleFromSnapshot(o.scheduleSnapshot) as (ScheduleSnapshot & { invitedReadingProvenance?: string | null }) | null;
     const snap = policyOf(o.policySnapshot);
@@ -432,7 +434,7 @@ export async function scheduleSection(reader: Reader & { organisationTimeZone: s
         // S-3: a rule recorded on the opening after it started says so, with when and by whom.
         ...(snap.unpurchased.recordedLater ? [{ label: "A bid with no live purchase", value: unpurchasedRuleText(snap, null, tz) }] : []),
       ],
-      rows: s.rows.map((row) => ({ ...row, openingPrice: through(prices, () => formatMoney(parseSen(row.openingPrice))), period: periodText(row.period), alternative: row.isAlternative ? `Alternative${row.parentListingNo != null ? ` to No. ${row.parentListingNo}` : ""}` : null })),
+      rows: s.rows.map((row) => ({ ...row, registerClass: registerClassByListing.get(row.listingNo) ?? null, openingPrice: through(prices, () => formatMoney(parseSen(row.openingPrice))), period: periodText(row.period), alternative: row.isAlternative ? `Alternative${row.parentListingNo != null ? ` to No. ${row.parentListingNo}` : ""}` : null })),
       benchmark: "notRequired" in bm ? null : bm.sealed ? { sealed: true as const, text: SEALED_UNTIL_FINALISED } : { sealed: false as const, label: bm.label ?? "Company estimate", companyEstimate: applyDecision<string>(estimate?.decision ?? { state: "WITHHELD", basis: "SEALED" }, "estimate", () => formatMoney(parseSen(bm.companyEstimate))) },
       // The lowest qualifying offer is marked by comparing the prices: for a reader who may not read them the mark is left off, or it would say which is lowest.
       summary: summary ? { labels: summary.labels, rows: summary.rows.map((x) => ({ ...x, openingPrice: through(prices, () => formatMoney(parseSen(x.openingPrice))), lowest: prices.state === "GRANTED" && x.lowest, label: prices.state === "GRANTED" || !x.lowest ? x.label : x.qualified ? summary.labels.qualified : summary.labels.notQualified })) } : null,

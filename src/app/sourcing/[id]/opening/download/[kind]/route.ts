@@ -2,7 +2,7 @@ import { staffRoute } from "@/app/_auth/route";
 import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
 import { DOWNLOAD_REFUSAL_TEXT, isOpeningDownloadKind, openingCsv, openingDownloadName } from "@/lib/opening/download";
 import { scheduleSection } from "@/lib/opening/read";
-import { PRICE_FIELDS } from "../../workspace";
+import { PRICE_FIELDS } from "../../price-fields";
 
 export const dynamic = "force-dynamic";
 

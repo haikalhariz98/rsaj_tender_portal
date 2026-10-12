@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { sulitGranted, sulitWithheld } from "@/lib/auth/sulit-access";
+import { registerClassOf } from "@/lib/suppliers/opening-hook";
 
 import { DOWNLOAD_REFUSAL_TEXT, NO_CLASS_ON_REGISTER, openingCsv, openingDownloadName, type DownloadOpening } from "./download";
 
@@ -10,8 +11,8 @@ const opening = (over: Partial<DownloadOpening> = {}): DownloadOpening => ({
   finalisedAt: "12 Oct 2026, 10:00",
   header: [{ label: "Reference", value: "T-1" }],
   rows: [
-    { listingNo: 1, bidderName: "Acme Sdn Bhd", registrationClass: "G5", registrationStatus: "Active", openingPrice: sulitGranted("RM 1,000.00", "ORGANISATION_PERMISSION"), period: "12 months", alternative: null },
-    { listingNo: 2, bidderName: "=Evil", registrationClass: "", registrationStatus: "", openingPrice: sulitGranted("RM 900.00", "ORGANISATION_PERMISSION"), period: "6 months", alternative: "Alternative to No. 1" },
+    { listingNo: 1, bidderName: "Acme Sdn Bhd", registrationClass: "G5", registerClass: "G6", registrationStatus: "Active", openingPrice: sulitGranted("RM 1,000.00", "ORGANISATION_PERMISSION"), period: "12 months", alternative: null },
+    { listingNo: 2, bidderName: "=Evil", registrationClass: "", registerClass: null, registrationStatus: "", openingPrice: sulitGranted("RM 900.00", "ORGANISATION_PERMISSION"), period: "6 months", alternative: "Alternative to No. 1" },
   ],
   benchmark: { sealed: false, label: "Company estimate", companyEstimate: sulitGranted("RM 950.00", "ORGANISATION_PERMISSION") },
   summary: { rows: [{ listingNo: 1, bidderName: "Acme Sdn Bhd", openingPrice: sulitGranted("RM 1,000.00", "ORGANISATION_PERMISSION"), label: "Qualified" }, { listingNo: 2, bidderName: "=Evil", openingPrice: sulitGranted("RM 900.00", "ORGANISATION_PERMISSION"), label: "Not qualified" }] },
@@ -28,7 +29,7 @@ describe("openingCsv (SR-15, ruling 24)", () => {
     if ("refusal" in r) throw new Error("refused");
     const lines = r.csv.split("\r\n");
     expect(lines[0]).toBe('"Schedule of tenders · Main opening"');
-    const body = lines.slice(lines.indexOf('"Bil.","Bidder","Class","Status","Price as read","Completion period"') + 1);
+    const body = lines.slice(lines.indexOf('"Bil.","Bidder","Kelas (register)","Class as read","Status","Price as read","Completion period"') + 1);
     expect(body.map((l) => l.split(",")[0])).toEqual(['"1"', '"2"', '"—"']);
     expect(body[2]).toContain("Company estimate");
     expect(body[2]).toContain("RM 950.00");
@@ -52,7 +53,7 @@ describe("openingCsv (SR-15, ruling 24)", () => {
     if ("refusal" in r) throw new Error("refused");
     const lines = r.csv.split("\r\n");
     expect(lines[0]).toBe('"Grand Summary · Main opening"');
-    expect(r.csv).toContain('"1","Acme Sdn Bhd","G5","RM 1,000.00","Qualified"');
+    expect(r.csv).toContain('"1","Acme Sdn Bhd","G6","RM 1,000.00","Qualified"');
     expect(r.csv).toContain(`"'=Evil","${NO_CLASS_ON_REGISTER}"`);
   });
   it("refuses a Grand Summary that was not frozen", () => {
@@ -60,5 +61,16 @@ describe("openingCsv (SR-15, ruling 24)", () => {
   });
   it("names the file with letters, digits and hyphens only", () => {
     expect(openingDownloadName("T/2026 1", "schedule", 1)).toBe("T-2026-1-schedule-of-tenders-opening-1.csv");
+  });
+});
+
+describe("registerClassOf (SR-15: Kelas is the register's frozen reading)", () => {
+  const finding = (rows: { kind: string; data?: Record<string, string> }[]) => ({ judgedOn: "2026-10-01", supplierId: "s", supplierReference: "SUP-1", standing: "REGISTERED", verdict: "ELIGIBLE", rows: rows.map((r) => ({ result: "PASS", reason: "GRADE_MET", requirementId: null, ...r })) });
+  it("reads the grade the register held", () => {
+    expect(registerClassOf(finding([{ kind: "GRADE", data: { needed: "G4", held: "G6" } }, { kind: "CATEGORY" }]))).toBe("G6");
+  });
+  it("gives nothing where the bidder was not linked or the register named no grade", () => {
+    expect(registerClassOf(null)).toBeNull();
+    expect(registerClassOf(finding([{ kind: "CATEGORY" }]))).toBeNull();
   });
 });

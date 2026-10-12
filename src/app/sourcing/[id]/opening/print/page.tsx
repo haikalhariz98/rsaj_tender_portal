@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { OPENING_DOWNLOAD_TITLE } from "@/lib/opening/download";
 import { scheduleSection } from "@/lib/opening/read";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
@@ -65,7 +66,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
             <span className="-rotate-30 text-center text-[9cqw] leading-none font-bold tracking-wider whitespace-nowrap text-ink/[0.09]">{watermark}</span>
           </div>
         )}
-        <h1 className="mb-1 text-[22px] leading-tight font-bold text-ink">Schedule of tenders</h1>
+        <h1 className="mb-1 text-[22px] leading-tight font-bold text-ink">{OPENING_DOWNLOAD_TITLE.schedule}</h1>
         <p className="mb-6 text-[13.5px] text-ink-2">{o.title}</p>
         <dl className="mb-8 grid gap-x-8 gap-y-2 text-[13.5px] sm:grid-cols-2">
           {o.header.map((h) => (
@@ -114,7 +115,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
         </Table>
         {o.summary && (
           <>
-            <h2 className="mt-10 mb-3 text-[17px] font-bold text-ink">Grand Summary</h2>
+            <h2 className="mt-10 mb-3 text-[17px] font-bold text-ink">{OPENING_DOWNLOAD_TITLE.summary}</h2>
             <Table>
               <THead>
                 <Th>Bil.</Th>

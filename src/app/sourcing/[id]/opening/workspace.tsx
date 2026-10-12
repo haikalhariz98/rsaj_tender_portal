@@ -19,7 +19,8 @@ import type { StaffActor } from "@/lib/auth/types";
 import { sulitExerciseGate } from "@/app/_auth/sulit";
 
 /// What the opening's prices are registered as (`SULIT_FIELDS`): asked together, once.
-export const PRICE_FIELDS = ["openingPrice", "openingPrices", "correctedPrice", "correctedPrices"] as const;
+import { PRICE_FIELDS } from "./price-fields";
+export { PRICE_FIELDS };
 
 /// The sections of the exercise's "Bids and opening" tab, in order. The strip is the shared Tabs' second level.
 export const BIDS_SECTIONS = [
