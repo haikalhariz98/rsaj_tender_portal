@@ -119,6 +119,8 @@ export interface UploadInput {
   act?: ActWriter;
   receivedOn: string | null;
   note: string;
+  /// What a new document is staged for (`staged-for.ts`), recorded on it. Ignored for a version added to a document.
+  stagedFor?: string | null;
 }
 
 export interface UploadResult {
@@ -217,6 +219,7 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
             documentClassId: cls.id,
             classificationSnapshot: cls.classification,
             retentionSnapshot: retentionSnapshotOf(cls) as unknown as Prisma.InputJsonValue,
+            stagedFor: i.stagedFor ?? null,
           },
         });
         await writeAudit(tx, { actor, organisationId: i.org.id, entity: "Document", entityId: doc.id, entityLabel: `Document · ${doc.title}` }, "CREATE", documentCreated({ title: doc.title, className: cls.nameEn, classification: cls.classification, status: "STAGED" }));

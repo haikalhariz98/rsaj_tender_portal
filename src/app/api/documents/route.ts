@@ -150,6 +150,7 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
       act,
       receivedOn: fields.receivedOn,
       note: fields.note,
+      stagedFor: forTemplate ? STAGED_FOR_TEMPLATE_FILE : forDelegation ? STAGED_FOR_DELEGATION : null,
     });
     return Response.json(
       { ok: true, ...result, warnings: result.warnings.map((w) => ({ code: w.code, message: documentFaultText(w) })) },

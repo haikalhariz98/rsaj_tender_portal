@@ -18,6 +18,7 @@ import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import { documentFaultText } from "@/lib/documents/labels";
 import { filed } from "@/lib/documents/audit-view";
 import { lockVersion } from "@/lib/documents/service";
+import { templateFileRefusal } from "@/lib/documents/staged-for";
 import type { OrgScope } from "@/lib/org-scope";
 
 /**
@@ -173,6 +174,9 @@ export async function saveTenderPartTemplateFile(_prev: FormState, data: FormDat
     if (v.withdrawnAt != null) return { ok: false, errors: { file: documentFaultText({ code: "VERSION_WITHDRAWN", level: "block" }) } };
     const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId, organisationId: org.id }, include: { documentClass: { select: { classification: true } } } });
     if (doc.classificationSnapshot == null) return { ok: false, errors: { file: "That file's class sets no classification, so it could not be downloaded. Choose a class that sets one, under Configuration, Documents." } };
+    // Review S7: any version of the organisation was accepted. Now only a document staged for this purpose, which no record holds, and never a SULIT one.
+    const refused = templateFileRefusal({ stagedFor: doc.stagedFor, classification: doc.classificationSnapshot, attachments: await tx.documentAttachment.count({ where: { organisationId: org.id, version: { documentId: doc.id } } }) });
+    if (refused) return { ok: false, errors: { file: refused } };
     const after = await tx.documentVersion.findUniqueOrThrow({ where: { id: v.id, organisationId: org.id }, select: { versionNo: true, originalFilename: true } });
     await tx.tenderDocumentPart.update({ where: { id, organisationId: actor.organisationId }, data: { templateFileVersionId: v.id } });
     if (doc.status === "STAGED") {

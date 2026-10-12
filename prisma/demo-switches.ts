@@ -18,6 +18,7 @@ import type { PrismaClient } from "../src/generated/prisma/client";
 import { diffFields } from "../src/lib/audit/diff";
 import { versionCreated, documentCreated, filed } from "../src/lib/documents/audit-view";
 import { DOCX_TYPE, XLSX_TYPE } from "../src/lib/documents/media";
+import { STAGED_FOR_TEMPLATE_FILE } from "../src/lib/documents/staged-for";
 import { DEMO_ACTOR } from "./demo-actor";
 import { DEMO_POLICY_ID } from "./demo-documents";
 import { DEMO_PREFIX as P } from "./demo-sign-in";
@@ -97,7 +98,7 @@ async function writeScopeSwitches(db: Db, organisationId: string, now: Date, byt
     await db.blobContent.createMany({ data: [{ organisationId, sha256: sha(bytes), byteSize: BigInt(bytes.length), bytes: new Uint8Array(bytes), storedAt: now }], skipDuplicates: true });
     const retention = (await db.documentClass.findUniqueOrThrow({ where: { id: classRow.id }, select: { retentionMonths: true, retentionTrigger: true, disposalMethod: true, disposalAuthorityRoleCode: true, nameEn: true, provenance: true } }));
     await db.document.create({
-      data: { id: docId, organisationId, title, documentClassId: classRow.id, classificationSnapshot: classRow.classification, retentionSnapshot: JSON.parse(JSON.stringify({ retentionMonths: retention.retentionMonths, retentionTrigger: retention.retentionTrigger, disposalMethod: retention.disposalMethod, disposalAuthorityRoleCode: retention.disposalAuthorityRoleCode, className: retention.nameEn, provenance: retention.provenance })), status: "FILED", createdAt: now, filedAt: now },
+      data: { id: docId, organisationId, title, documentClassId: classRow.id, classificationSnapshot: classRow.classification, retentionSnapshot: JSON.parse(JSON.stringify({ retentionMonths: retention.retentionMonths, retentionTrigger: retention.retentionTrigger, disposalMethod: retention.disposalMethod, disposalAuthorityRoleCode: retention.disposalAuthorityRoleCode, className: retention.nameEn, provenance: retention.provenance })), status: "FILED", stagedFor: STAGED_FOR_TEMPLATE_FILE, createdAt: now, filedAt: now },
     });
     await db.documentVersion.create({ data: { id: versionId, organisationId, documentId: docId, versionNo: 1, sha256: sha(bytes), byteSize: BigInt(bytes.length), mediaType: XLSX_TYPE, originalFilename: filename, recordedByPersonId: `${P}p3`, storedAt: now } });
     entry("Document", docId, `Document · ${title}`, "CREATE", documentCreated({ title, className: classRow.nameEn, classification: classRow.classification, status: "STAGED" }));

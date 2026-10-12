@@ -4540,6 +4540,9 @@ model Document {
   status                 DocumentStatus @default(STAGED)
   createdAt              DateTime       @default(now())
   filedAt                DateTime?
+  /// What the file was uploaded for where that decides what it may later be used as (`src/lib/documents/staged-for.ts`): a template file for a tender document part is accepted
+  /// only from a document staged for it. Null: no purpose recorded.
+  stagedFor              String?
 
   versions DocumentVersion[]
   holds    LegalHold[]
