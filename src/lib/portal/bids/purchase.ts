@@ -8,10 +8,12 @@
  * A simulated payment is never a finance receipt (`payment-gateway.ts`).
  *
  * The pre-sale checks are the counter's (`preSaleChecks`), with the proof of authority an officer sights at the counter (FR-ADV-010) replaced by a reading of the signed-in person's standing on the supplier record, because there is no counter. The status certificate
- * of a restricted tender cannot be shown online either, so a restricted tender is not sold online at all (M1, a product owner question: it needs a reading from the supplier register to be ruled).
+ * of a restricted tender cannot be shown online either, so it is evidenced from the supplier register instead (ruling 17a): the organisation's configured evidence document, verified by an officer, and never the declared claim.
  */
 
+import { formatDate } from "@/lib/format";
 import type { StandingBar } from "@/lib/portal/standing-gate";
+import type { LapseKind, PurchaseRefusal, PurchaseRestriction } from "@/lib/suppliers/restriction-register";
 
 import type { PreSaleCheck } from "./checks";
 
@@ -48,14 +50,43 @@ export function buyerStandingCheck(b: BuyerFacts): PreSaleCheck {
   return { key: "AUTHORITY", state: "PASS", detail: `You are signed in as ${b.name}, a current contact of your company on the supplier register, so you may buy the documents for it.` };
 }
 
-/// The counter's checks made fit for an online purchase: the officer's sighting of authority is replaced by the reading above, and a restricted tender's certificate is said to be read from the register.
-export function onlinePurchaseChecks(counter: readonly PreSaleCheck[], buyer: PreSaleCheck): PreSaleCheck[] {
+/// Why a purchase of a restricted tender is refused, in words for the buyer. The supplier register is named, and nothing is "brought" to a counter.
+const RESTRICTION_REFUSAL: Readonly<Record<PurchaseRefusal, string>> = {
+  EVIDENCE_TYPE_NOT_SET: "The notice restricts who may tender, and the office has not set which document on the supplier register evidences that, so the documents cannot be sold to your company yet. Tell the procurement office.",
+  NONE_LODGED: "The notice restricts who may tender, and your company has no status document on the supplier register. Lodge it under Company, wait for an officer to verify it, and then buy the documents.",
+  NOT_VERIFIED: "The notice restricts who may tender, and your company's status document on the supplier register has not been verified by an officer yet. Once it is verified you can buy the documents.",
+  NOT_IN_ORDER: "The notice restricts who may tender, and your company's status document on the supplier register was found not in order. Lodge a corrected one under Company and wait for an officer to verify it.",
+  NOT_APPLICABLE: "The notice restricts who may tender, and your company's status document is recorded on the supplier register as not applicable, so it does not evidence the restriction. Ask the procurement office.",
+  NOT_YET_VALID: "The notice restricts who may tender, and your company's verified status document on the supplier register is not valid yet. It can evidence the restriction only once it is valid.",
+  EXPIRED: "The notice restricts who may tender, and your company's status document on the supplier register has expired. Lodge the renewal under Company and wait for an officer to verify it, and then buy the documents.",
+};
+
+const LAPSE_WORDS: Readonly<Record<LapseKind, string>> = {
+  BEFORE_CLOSING: "It expires before the closing day, so a renewal must be lodged and verified by an officer before the closing day or your bid will be found not evidenced.",
+  ON_CLOSING_DAY_NOT_COUNTED: "It expires on the closing day, and the organisation does not count a document expiring on the closing day as valid, so a renewal must be lodged and verified before the closing day or your bid will be found not evidenced.",
+  ON_CLOSING_DAY_NOT_SET: "It expires on the closing day, and the organisation has not yet set whether that counts as valid, so lodge and have a renewal verified before the closing day to be safe.",
+};
+
+/**
+ * The restricted tender's check for an ONLINE purchase (ruling 17a), in place of the counter's "bring the certificate": the register's reading of the configured evidence document. Allowed
+ * with a warning when it lapses before the closing day. The document's reference and validity are in the words, so the purchase keeps them (and the sale register shows them).
+ */
+export function restrictionPurchaseCheck(r: PurchaseRestriction, label: string | null): PreSaleCheck {
+  if (r.outcome === "REFUSE") return { key: "RESTRICTION", state: "BLOCK", detail: RESTRICTION_REFUSAL[r.reason] };
+  const d = r.document;
+  const cited = `${d.reference ? `document ${d.reference}` : "status document"}${d.expiresOn ? `, valid until ${formatDate(d.expiresOn)}` : ", with no expiry"}`;
+  const lead = `${label ? `${label}: ` : "The notice restricts who may tender. "}Verified on the supplier register: your ${cited}.`;
+  return r.lapses ? { key: "RESTRICTION", state: "WARN", detail: `${lead} ${LAPSE_WORDS[r.lapses.kind]}` } : { key: "RESTRICTION", state: "PASS", detail: lead };
+}
+
+/// The counter's checks made fit for an online purchase: the officer's sighting of authority is replaced by the reading above, and a restricted tender's certificate by the register's reading of the evidence document (17a).
+export function onlinePurchaseChecks(counter: readonly PreSaleCheck[], buyer: PreSaleCheck, restriction: PreSaleCheck | null): PreSaleCheck[] {
   const out: PreSaleCheck[] = [];
   for (const c of counter) {
     if (c.key === "AUTHORITY") continue;
     if (c.key === "RESTRICTION" && c.state === "BRING") {
-      // M1 (SR-10 review): nothing records a status certificate for an online buyer, and the opening would find it not evidenced and eliminate the bid, so a restricted tender is not sold online until a reading from the supplier register is ruled.
-      out.push({ key: "RESTRICTION", state: "BLOCK", detail: "The notice restricts who may tender, and a purchase online has no counter where your status certificate could be shown, so the documents of this tender are not sold online. Ask the procurement office how to buy them." });
+      // Never passed on its own say-so: a restricted tender with no reading is stopped, not let through.
+      out.push(restriction ?? { key: "RESTRICTION", state: "BLOCK", detail: "The notice restricts who may tender, and the supplier register could not be read for your company's status document. Tell the procurement office." });
       continue;
     }
     out.push(c);

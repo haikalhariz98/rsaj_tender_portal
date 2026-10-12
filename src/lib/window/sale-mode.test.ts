@@ -14,15 +14,15 @@ describe("the pin (G1)", () => {
     expect(saleModeFault("COUNTER")).toBeNull();
   });
   it("may be taken only while unset, before publication, from a setting that is set, on an exercise not cancelled", () => {
-    const ok = { status: "DRAFT" as const, published: false, pin: null, setting: "ONLINE" as const, restricted: false as boolean | null, releaseOnline: true as boolean | null };
+    const ok = { status: "DRAFT" as const, published: false, pin: null, setting: "ONLINE" as const, releaseOnline: true as boolean | null };
     expect(takeSaleModeFaults(ok)).toEqual([]);
-    // SR-10 review M1 and S3: an exercise does not take an online setting when it is restricted, or when the organisation does not release documents online.
-    expect(takeSaleModeFaults({ ...ok, restricted: true }).map((f) => f.code)).toEqual(["ONLINE_RESTRICTED"]);
+    // SR-10 review S3: an exercise does not take an online setting when the organisation does not release documents online.
+    // Ruling 17a lifted the earlier M1 refusal (ONLINE_RESTRICTED): a restricted tender takes the online setting, since its restriction is evidenced from the supplier register. `takeSaleModeFaults` no longer even asks whether the tender is restricted.
     expect(takeSaleModeFaults({ ...ok, releaseOnline: null }).map((f) => f.code)).toEqual(["ONLINE_NEEDS_RELEASE"]);
-    expect(takeSaleModeFaults({ ...ok, releaseOnline: false, restricted: true }).map((f) => f.code)).toEqual(["ONLINE_RESTRICTED", "ONLINE_NEEDS_RELEASE"]);
-    // The counter has neither limit, and a restriction not yet answered is left to publication.
-    expect(takeSaleModeFaults({ ...ok, setting: "COUNTER", restricted: true, releaseOnline: null })).toEqual([]);
-    expect(takeSaleModeFaults({ ...ok, restricted: null })).toEqual([]);
+    expect(takeSaleModeFaults({ ...ok, releaseOnline: false }).map((f) => f.code)).toEqual(["ONLINE_NEEDS_RELEASE"]);
+    expect(takeSaleModeFaults({ ...ok }).map((f) => f.code)).not.toContain("ONLINE_RESTRICTED");
+    // The counter has no such limit.
+    expect(takeSaleModeFaults({ ...ok, setting: "COUNTER", releaseOnline: null })).toEqual([]);
     expect(takeSaleModeFaults({ ...ok, pin: "COUNTER" }).map((f) => f.code)).toEqual(["NOTHING_TO_TAKE"]);
     expect(takeSaleModeFaults({ ...ok, published: true }).map((f) => f.code)).toEqual(["ALREADY_PUBLISHED"]);
     expect(takeSaleModeFaults({ ...ok, setting: null }).map((f) => f.code)).toEqual(["SETTING_NOT_SET"]);

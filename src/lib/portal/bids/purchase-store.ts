@@ -16,7 +16,7 @@ import { loadBidContext } from "./context-store";
 import { lockExerciseSide } from "./lock";
 import { failedTriesExhausted } from "./limits";
 import { judgePurchase, onlinePurchaseChecks, type PurchaseFault } from "./purchase";
-import { buyerCheckOf } from "./purchase-read";
+import { buyerCheckOf, restrictionCheckOf } from "./purchase-read";
 import { markPurchasePaid, PurchaseBarred, PurchaseNotAwaiting } from "./purchase-paid";
 import { loadSaleFacts } from "./sale-facts";
 import { auditActorOf } from "./signup-store";
@@ -57,7 +57,7 @@ export async function startPurchase(actor: SupplierActor, i: { exerciseId: strin
 
     const facts = await loadSaleFacts(tx, actor, ctx);
     const [buyer, policy] = await Promise.all([buyerCheckOf(tx, actor, now), tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true } })]);
-    const checks = onlinePurchaseChecks(facts.checks, buyer);
+    const checks = onlinePurchaseChecks(facts.checks, buyer, await restrictionCheckOf(tx, actor, ctx, facts.checks));
     const judged = judgePurchase({ saleMode: ctx.ex.saleMode, releaseOnline: policy?.electronicDocumentRelease ?? null, feeSet: window.feeAmount != null, checks, alreadyBought: facts.sale != null || standing?.state === "PAID", purchaseStands: false });
     if (judged.outcome === "FAULTS") return refuse(judged.faults.map((code: PurchaseFault): BidFinding => ({ code, level: "block" })));
 

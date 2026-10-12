@@ -31,7 +31,8 @@ export type ChecklistAnswer = "PRESENT" | "ABSENT" | "NOT_APPLICABLE";
 export const CHECKLIST_ANSWERS: readonly ChecklistAnswer[] = ["PRESENT", "ABSENT", "NOT_APPLICABLE"];
 export type OpeningVerdict = "PASS" | "REJECT";
 export type SaleFinding = "LIVE_SALE" | "NO_LIVE_SALE" | "NOT_ON_INVITEE_LIST";
-export type RestrictionFinding = "NOT_RESTRICTED" | "EVIDENCED" | "NOT_EVIDENCED";
+/// NOT_ASSESSED (ruling 17a): a sale from an online purchase whose evidence document has a renewal lodged and not yet verified. Never evidenced and never quietly not evidenced: the verdict waits.
+export type RestrictionFinding = "NOT_RESTRICTED" | "EVIDENCED" | "NOT_EVIDENCED" | "NOT_ASSESSED";
 export type InvitedCountReading = "PURCHASERS" | "INVITEES";
 export type UnpurchasedConsequence = "ELIMINATE" | "REPORT";
 export type CopyCheck = "MATCH" | "MISMATCH" | "NOT_IN_BOX";

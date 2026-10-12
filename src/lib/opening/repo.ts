@@ -31,6 +31,7 @@ import { windowGate } from "@/lib/window/gate";
 import type { OpeningPolicySnapshot } from "./policy";
 import { openingState, type OpeningState } from "./state";
 import type { SeatHolder } from "./panel";
+import type { SaleFacts } from "./findings";
 import type { InvitedCountReading } from "./types";
 
 export const OPENING_INCLUDE = {
@@ -55,6 +56,14 @@ export const OPENING_INCLUDE = {
   copyExplanation: { include: { recordedBy: { select: { name: true } } } },
   attachments: { where: { purpose: "SIGNED_SCHEDULE" as const }, select: { id: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
 } satisfies Prisma.OpeningInclude;
+
+/// What the opening reads of each sale on the window. A sale made from an online purchase names the purchase's supplier (ruling 17a), whose supplier register the restriction is read from.
+export const OPENING_SALE_SELECT = { id: true, partyId: true, voidedAt: true, paymentChannel: true, restrictionCertSighted: true, restrictionCertValidUntil: true, purchase: { select: { supplierId: true } } } as const;
+
+type SaleRowForOpening = { partyId: string; voidedAt: Date | null; paymentChannel: "COUNTER" | "SIMULATED"; restrictionCertSighted: SaleFacts["certSighted"]; restrictionCertValidUntil: Date | null; purchase: { supplierId: string } | null };
+
+// SEC-1: a sale paid on the payment simulator stands for no money, so it counts as a purchase only while the deployment allows the simulator, the same rule that releases the documents and admits a bid.
+export const saleFactsOf = (s: SaleRowForOpening): SaleFacts => ({ partyId: s.partyId, voided: s.voidedAt != null || (s.paymentChannel === "SIMULATED" && !simulatorAllowedByDeployment()), certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, purchaseSupplierId: s.purchase?.supplierId ?? null });
 
 export async function loadOpenings(exerciseId: string, client: Tx = db) {
   return client.opening.findMany({ where: { exerciseId }, orderBy: { sequenceNo: "asc" }, include: OPENING_INCLUDE });
@@ -103,7 +112,7 @@ export async function openingContext(l: { org: { id: string; code: string; timeZ
   // One after the other: inside a transaction the client is one connection.
   const window = await client.exerciseWindow.findUnique({
     where: { exerciseId: ex.id },
-    select: { id: true, path: true, publishedAt: true, policySnapshot: true, alternativesPermitted: true, purchaseFromDay: true, purchaseCloseDay: true, sales: { orderBy: { createdAt: "asc" }, select: { id: true, partyId: true, voidedAt: true, paymentChannel: true, restrictionCertSighted: true, restrictionCertValidUntil: true } }, letters: { select: { partyId: true } }, addenda: { where: { status: "ISSUED" }, orderBy: { number: "asc" }, select: { number: true, title: true } } },
+    select: { id: true, path: true, publishedAt: true, policySnapshot: true, alternativesPermitted: true, purchaseFromDay: true, purchaseCloseDay: true, sales: { orderBy: { createdAt: "asc" }, select: OPENING_SALE_SELECT }, letters: { select: { partyId: true } }, addenda: { where: { status: "ISSUED" }, orderBy: { number: "asc" }, select: { number: true, title: true } } },
   });
   const gate = windowGate(ex, window, now, org.timeZone);
   const bidRule = await loadBidRule(window, org.id, ex.sourcingMethodCode, client);
@@ -154,7 +163,7 @@ export async function openingContext(l: { org: { id: string; code: string; timeZ
     main,
     parties,
     // SEC-1: a sale paid on the payment simulator stands for no money, so it counts as a purchase only while the deployment allows the simulator, the same rule that releases the documents and admits a bid.
-    sales: (window?.sales ?? []).map((s) => ({ partyId: s.partyId, voided: s.voidedAt != null || (s.paymentChannel === "SIMULATED" && !simulatorAllowedByDeployment()), certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null })),
+    sales: (window?.sales ?? []).map(saleFactsOf),
     invitedPartyIds: new Set((window?.letters ?? []).map((x) => x.partyId)),
     addenda: (window?.addenda ?? []).filter((a) => a.number != null).map((a) => ({ number: a.number!, title: a.title })),
     pack,

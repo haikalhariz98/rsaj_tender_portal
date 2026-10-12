@@ -6,12 +6,13 @@ import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployme
 import { gatewayReading, SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
 import { formatMoney, parseSen } from "@/lib/money";
 import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
+import { restrictionForPurchase } from "@/lib/suppliers/restriction-store";
 
 import { blockingChecks, type PreSaleCheck } from "./checks";
 import type { BidContext } from "./context-store";
 import { failedTriesExhausted, FAILED_TRIES_WORDS } from "./limits";
 import type { PaymentReason } from "./payment-say";
-import { buyerStandingCheck, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS, type PaidChannel, type PurchaseState } from "./purchase";
+import { buyerStandingCheck, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS, restrictionPurchaseCheck, type PaidChannel, type PurchaseState } from "./purchase";
 import { loadSaleFacts } from "./sale-facts";
 
 /**
@@ -51,6 +52,16 @@ export async function buyerCheckOf(tx: Tx, actor: BuyerActor, now: Date): Promis
   return buyerStandingCheck({ name: actor.displayName, accountActive: account?.status === "ACTIVE", contactCurrent: !!account && account.contact.retiredOn == null, bar });
 }
 
+/// Ruling 17a: the restricted tender's check for an online purchase, from the supplier register. Null where the counter's checks carry no restriction (the tender is not restricted, or the organisation's day is unknown).
+export async function restrictionCheckOf(tx: Tx, actor: BuyerActor, ctx: BidContext, counter: readonly PreSaleCheck[]): Promise<PreSaleCheck | null> {
+  if (!counter.some((c) => c.key === "RESTRICTION" && c.state === "BRING") || !ctx.org.today) return null;
+  const [reading, tender] = await Promise.all([
+    restrictionForPurchase(tx, { id: actor.organisationId }, actor.supplierId, { today: ctx.org.today, closingDay: ctx.ex.closingAt && ctx.org.timeZone ? dayIn(ctx.ex.closingAt, ctx.org.timeZone) : null }),
+    tx.tenderDocumentPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { restrictionLabelEn: true } }),
+  ]);
+  return restrictionPurchaseCheck(reading, tender?.restrictionLabelEn?.trim() || null);
+}
+
 export async function loadOnlineView(tx: Tx, actor: BuyerActor, ctx: BidContext): Promise<OnlineView | null> {
   const window = ctx.ex.window;
   if (!window || ctx.ex.saleMode !== "ONLINE") return null;
@@ -64,7 +75,7 @@ export async function loadOnlineView(tx: Tx, actor: BuyerActor, ctx: BidContext)
     }),
   ]);
   const mine = purchase && purchase.organisationId === actor.organisationId ? purchase : null;
-  const checks = onlinePurchaseChecks(facts.checks, buyer);
+  const checks = onlinePurchaseChecks(facts.checks, buyer, await restrictionCheckOf(tx, actor, ctx, facts.checks));
   const reading = gatewayReading({ simulatorOn: policy?.paymentSimulatorOn ?? null, methods: policy?.simulatedPaymentMethods ?? [] }, simulatorAllowedByDeployment());
   // SEC-2: a purchase that has failed too often takes no more tries; the page says to ask the office.
   const exhausted = reading.available && mine?.state === "AWAITING_PAYMENT" && failedTriesExhausted(mine._count.attempts);

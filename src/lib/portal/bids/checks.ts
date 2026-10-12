@@ -18,8 +18,8 @@ import type { EventFacts, WindowPath } from "@/lib/window/types";
 import type { BidFinding } from "./types";
 
 export type CheckKey = "ON_SALE" | "INVITED" | "REGISTER" | "ATTENDANCE" | "RESTRICTION" | "AUTHORITY" | "ALREADY";
-/// PASS: made and clear. BLOCK: stops the request. BRING: sighted by an officer at the counter, so it is never passed here. INFO: nothing to do.
-export type CheckState = "PASS" | "BLOCK" | "BRING" | "INFO";
+/// PASS: made and clear. BLOCK: stops the request. BRING: sighted by an officer at the counter, so it is never passed here. INFO: nothing to do. WARN: allowed, with something the buyer must act on before the closing (17a).
+export type CheckState = "PASS" | "BLOCK" | "BRING" | "INFO" | "WARN";
 
 export interface PreSaleCheck {
   key: CheckKey;

@@ -20,6 +20,8 @@ export interface SaleFacts {
   certSighted: "ORIGINAL" | "CERTIFIED_COPY" | "NOT_SHOWN" | null;
   /// The day the certificate is valid until, as recorded at the sale (YYYY-MM-DD); null: not recorded.
   certValidUntil: string | null;
+  /// Ruling 17a: the supplier a sale from an online purchase was made to; null for a sale at the counter. Such a sale has no sighting columns, and its restriction is read from the supplier register.
+  purchaseSupplierId?: string | null;
 }
 
 /// The bidder's live sale, where it holds one (the latest not voided).

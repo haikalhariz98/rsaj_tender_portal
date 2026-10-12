@@ -8,7 +8,7 @@
  *   unset blocks;
  * - the sale (X-11, OD-4): a bidder with no live sale, or not invited, is eliminated or reported by
  *   the method's `unpurchasedBidConsequence`; unset blocks only where such a bid exists;
- * - the restriction (FR-DOC-009, SK001 7.3.4 (a)): NOT_EVIDENCED is eliminatory;
+ * - the restriction (FR-DOC-009, SK001 7.3.4 (a)): NOT_EVIDENCED is eliminatory; NOT_ASSESSED (ruling 17a, a renewal on the register waiting to be verified) holds the verdict;
  * - an alternative the documents do not permit is recorded, never considered: never PASS;
  * - 6.15a (FR-BID-008 on paper, OD-6 A): a linked bidder the supplier register found not eligible,
  *   frozen when its envelope was opened, is eliminated or reported by the register's
@@ -41,7 +41,7 @@ export interface VerdictPolicy {
   ineligible?: UnpurchasedConsequence | null;
 }
 
-export type NotSetFault = "CHECKLIST_NOT_JUDGED" | "ANSWERS_INCOMPLETE" | "CONSEQUENCE_NOT_SET" | "UNPURCHASED_CONSEQUENCE_NOT_SET" | "ALTERNATIVES_NOT_STATED" | "INELIGIBLE_CONSEQUENCE_NOT_SET";
+export type NotSetFault = "CHECKLIST_NOT_JUDGED" | "ANSWERS_INCOMPLETE" | "CONSEQUENCE_NOT_SET" | "UNPURCHASED_CONSEQUENCE_NOT_SET" | "ALTERNATIVES_NOT_STATED" | "INELIGIBLE_CONSEQUENCE_NOT_SET" | "RESTRICTION_NOT_ASSESSED";
 
 /// What the rules make of one bid: the items missing, the eliminatory grounds, what is reported, and what is not set.
 export function judgeBid(bid: BidForVerdict, checklist: OpeningChecklist, answers: ReadonlyMap<string, ChecklistAnswer>, policy: VerdictPolicy): { missing: ChecklistItem[]; unanswered: ChecklistItem[]; grounds: Ground[]; reported: Reported[]; notSet: Finding<NotSetFault>[] } {
@@ -64,6 +64,8 @@ export function judgeBid(bid: BidForVerdict, checklist: OpeningChecklist, answer
     else reported.push(invite ? "NOT_INVITED_REPORTED" : "NOT_PURCHASED_REPORTED");
   }
   if (bid.restrictionFinding === "NOT_EVIDENCED") grounds.push("NOT_EVIDENCED");
+  // Ruling 17a: a renewal on the supplier register waiting for its check is not a ground and not a pass. The verdict waits (a PASS would otherwise go through, having no ground against it).
+  if (bid.restrictionFinding === "NOT_ASSESSED") notSet.push({ code: "RESTRICTION_NOT_ASSESSED", level: "block" });
   if (bid.ineligible) {
     const c = policy.ineligible ?? null;
     if (c == null) notSet.push({ code: "INELIGIBLE_CONSEQUENCE_NOT_SET", level: "block" });

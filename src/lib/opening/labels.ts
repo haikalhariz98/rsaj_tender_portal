@@ -5,6 +5,7 @@
  */
 
 import { formatDate } from "@/lib/format";
+import { CLOSING_FAULT_WORDS, isRestrictionReading } from "@/lib/suppliers/restriction-register";
 
 import type { Ground, Reported } from "./verdict";
 import type { AlternativeConsideration, ChecklistAnswer, CopyCheck, Finding, InvitedCountReading, OpeningKind, OpeningPhase, OpeningVerdict, PeriodUnit, RestrictionFinding, SaleFinding, UnpurchasedConsequence } from "./types";
@@ -55,7 +56,23 @@ export const RESTRICTION_FINDING_LABEL: Readonly<Record<RestrictionFinding, stri
   NOT_RESTRICTED: "Not a restricted tender",
   EVIDENCED: "Restriction evidenced at the sale",
   NOT_EVIDENCED: "Restriction not evidenced",
+  NOT_ASSESSED: "Restriction not assessed",
 };
+
+/// The finding in words. A sale from an online purchase was read from the supplier register (ruling 17a), and the words say so, never "sighted".
+export function restrictionLabel(finding: RestrictionFinding, reading: unknown): string {
+  if (!isRestrictionReading(reading)) return RESTRICTION_FINDING_LABEL[finding];
+  switch (finding) {
+    case "EVIDENCED":
+      return "Restriction verified on the supplier register";
+    case "NOT_EVIDENCED":
+      return "Restriction not evidenced on the supplier register";
+    case "NOT_ASSESSED":
+      return "Restriction not assessed: a renewal on the supplier register is waiting to be verified";
+    default:
+      return RESTRICTION_FINDING_LABEL[finding];
+  }
+}
 
 export const ALTERNATIVE_LABEL: Readonly<Record<AlternativeConsideration, string>> = { CONSIDERED: "Alternative, considered", NOT_CONSIDERED: "Alternative, not considered" };
 
@@ -191,6 +208,9 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   WITHDRAWAL_UNRESOLVED: (f) => `${plural(n(f, "count"), "withdrawal is", "withdrawals are")} neither matched to an envelope nor explained.`,
   // ---- findings and the checklist
   RESTRICTION_NOT_ANSWERED: () => "Whether the tender is restricted is not answered on its documents.",
+  RESTRICTION_EVIDENCE_TYPE_NOT_SET: () => CLOSING_FAULT_WORDS.EVIDENCE_TYPE_NOT_SET,
+  RESTRICTION_CLOSING_DAY_RULE_NOT_SET: () => CLOSING_FAULT_WORDS.CLOSING_DAY_RULE_NOT_SET,
+  RESTRICTION_NOT_ASSESSED: () => "This bidder bought the documents online, and a renewal of its status document was lodged on the supplier register by the closing day and is waiting for an officer to verify it. The restriction is not assessed, so no verdict is recorded yet. It is read again each time you act on this offer; it ends when the document is verified or found not in order.",
   NOT_ON_CHECKLIST: () => "That item is not on the opening's checklist.",
   ANSWER_REQUIRED: () => "Choose present, absent or not applicable.",
   CHECKLIST_NOT_JUDGED: (f) => `Whether a bidder returns ${d(f, "parts")} was not set when the tender documents were approved, so completeness cannot be judged against it. Documents approved later take the setting (${SETTING_AT.parts}); these keep the answer they were approved with, so ${CANCEL_EXIT}.`,

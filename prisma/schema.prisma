@@ -6841,11 +6841,14 @@ enum SaleFinding {
 }
 
 /// FR-DOC-009 on paper: whether the restriction's certificate sighted at the sale was valid on the
-/// closing day. Computed at opening, never typed.
+/// closing day. Computed at opening, never typed. For a sale made from an online purchase it reads the
+/// supplier register instead (ruling 17a), and NOT_ASSESSED is a renewal lodged and not yet verified:
+/// never evidenced and never quietly not evidenced, it holds the bid's verdict until the register is read again.
 enum RestrictionFinding {
   NOT_RESTRICTED
   EVIDENCED
   NOT_EVIDENCED
+  NOT_ASSESSED
 }
 
 /// OD-9: what the schedule's count of tenderers invited reads. A customer's switch, shipped unset.
@@ -7053,6 +7056,10 @@ model OpenedBid {
 
   saleFinding        SaleFinding
   restrictionFinding RestrictionFinding
+  /// Ruling 17a: what the supplier register said of the restriction's evidence document for the closing day, frozen with the
+  /// finding and frozen again each time the officer acts while the finding reads not assessed. Null: the sale was at the counter
+  /// (the sighting columns on the sale decide) or the exercise is not restricted.
+  restrictionReading Json?
   /// 6.15a (FR-BID-008 on paper, OD-6 A): the register's eligibility of a linked bidder, frozen when the
   /// envelope is opened. Null: the bidder was not linked to the register then.
   eligibilityFinding Json?

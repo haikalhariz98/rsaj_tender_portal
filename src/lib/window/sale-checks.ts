@@ -44,12 +44,23 @@ export function onlineAuthorityOf(checks: unknown): { text: string; warn: boolea
   return c ? { text: c.detail, warn: c.state !== "PASS" } : null;
 }
 
+/**
+ * Ruling 17a: an online sale of a restricted tender has no sighted certificate. What stands in its place is the supplier register's reading of the configured evidence document, kept with the purchase when it was
+ * made (`restrictionPurchaseCheck`), in the words the buyer was shown: "verified on the supplier register", with the document's reference and validity. Null where the purchase kept none.
+ */
+export function onlineRestrictionOf(checks: unknown): { text: string; warn: boolean } | null {
+  if (!Array.isArray(checks)) return null;
+  const c = checks.find((x): x is { key: string; state: string; detail: string } => typeof x === "object" && x != null && (x as { key?: unknown }).key === "RESTRICTION" && typeof (x as { detail?: unknown }).detail === "string");
+  return c ? { text: c.detail, warn: c.state !== "PASS" } : null;
+}
+
 export function saleChecks(
-  s: { authoritySighted: boolean | null; /** An online sale: the buyer's standing as read when it bought (`onlineAuthorityOf`), shown in place of the officer's sighting. */ onlineAuthority?: { text: string; warn: boolean } | null; certSighted: CertSighted | null; certValidUntil: string | null; registrationCheck: CheckState; suspensionCheck: CheckState; registerReadOn: string | null; noSupplierNamed: boolean },
+  s: { authoritySighted: boolean | null; /** An online sale of a restricted tender: the register's reading kept with the purchase (`onlineRestrictionOf`), shown in place of the certificate an officer sights. */ onlineRestriction?: { text: string; warn: boolean } | null; /** An online sale: the buyer's standing as read when it bought (`onlineAuthorityOf`), shown in place of the officer's sighting. */ onlineAuthority?: { text: string; warn: boolean } | null; certSighted: CertSighted | null; certValidUntil: string | null; registrationCheck: CheckState; suspensionCheck: CheckState; registerReadOn: string | null; noSupplierNamed: boolean },
   closingDay: string | null,
 ): SaleCheck[] {
   const out: SaleCheck[] = s.onlineAuthority ? [{ text: `Buyer's standing (read online, no letter of authority sighted): ${s.onlineAuthority.text}`, warn: s.onlineAuthority.warn }] : [{ text: `Authority: ${s.authoritySighted ? "sighted" : "not sighted"}`, warn: !s.authoritySighted }];
-  if (s.certSighted) {
+  if (s.onlineRestriction) out.push({ text: `Restriction: ${s.onlineRestriction.text}`, warn: s.onlineRestriction.warn });
+  else if (s.certSighted) {
     const until = s.certValidUntil ? `, valid until ${formatDate(s.certValidUntil)}` : "";
     const early = certExpiresBeforeClosing(s.certValidUntil, closingDay);
     out.push({

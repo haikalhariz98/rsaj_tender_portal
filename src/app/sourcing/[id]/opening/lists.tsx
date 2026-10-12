@@ -62,6 +62,7 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
     sortKeys: { listing: b.listingNo },
     note:
       [
+        b.restrictionWhy,
         b.grounds.length ? `Eliminatory: ${b.grounds.join("; ")}.` : null,
         b.reported.length ? `Reported to the committee: ${b.reported.join("; ")}.` : null,
         b.verdict?.reason ? `Why not carried: ${b.verdict.reason}` : null,
@@ -78,7 +79,7 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
         kind: "chips",
         items: [
           { text: b.sale, tone: b.saleTone },
-          ...(b.restriction ? [{ text: b.restriction, tone: b.restriction.startsWith("Restriction not") ? ("err" as const) : ("ok" as const) }] : []),
+          ...(b.restriction ? [{ text: b.restriction, tone: b.restrictionTone }] : []),
           ...(b.eligibility ? [b.eligibility] : []),
           ...(b.corrected ? [{ text: b.corrected, tone: "info" as const }] : []),
         ],

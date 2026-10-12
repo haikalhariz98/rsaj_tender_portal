@@ -155,8 +155,8 @@ export function publishFaults(i: PublishInput): PublishResult {
   out.push(...itemFaults(w, i.saleMode));
   const sm = saleModeFault(i.saleMode);
   if (sm) out.push(sm);
-  // M1 and S3: an online sale needs the documents released online, and is refused on a restricted tender.
-  out.push(...onlineSaleFaults({ saleMode: i.saleMode, restricted: i.restricted, releaseOnline: i.releaseOnline }));
+  // S3: an online sale needs the documents released online. A restricted tender is no longer refused online (ruling 17a).
+  out.push(...onlineSaleFaults({ saleMode: i.saleMode, releaseOnline: i.releaseOnline }));
   if (i.bidValidity.required && i.bidValidity.days == null) f("BID_VALIDITY_NOT_SET");
   if (!i.closingAt) f("CLOSING_NOT_SET");
   for (const e of i.events) out.push(...eventFaults(e, i.policy.mandatoryAttendancePermitted, i.closingAt));

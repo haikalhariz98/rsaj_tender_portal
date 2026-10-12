@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { gatewayReading, isFinanceReceipt, offeredMethod, paymentSimulator, simulatedReference, SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
 
 import type { PreSaleCheck } from "./checks";
-import { buyerStandingCheck, holdsReleasedPurchase, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS } from "./purchase";
+import { buyerStandingCheck, holdsReleasedPurchase, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS, restrictionPurchaseCheck } from "./purchase";
 import { releaseState } from "./release";
 
 const pass = (key: PreSaleCheck["key"]): PreSaleCheck => ({ key, state: "PASS", detail: "ok" });
@@ -54,17 +54,61 @@ describe("the payment simulator (SR-10, ruling 17 as amended)", () => {
 describe("the checks online", () => {
   it("replaces the officer's sighting of authority with a reading of the signed-in person's standing", () => {
     const counter: PreSaleCheck[] = [pass("ON_SALE"), pass("REGISTER"), { key: "AUTHORITY", state: "BRING", detail: "Bring proof" }];
-    const out = onlinePurchaseChecks(counter, buyerStandingCheck(OK_BUYER));
+    const out = onlinePurchaseChecks(counter, buyerStandingCheck(OK_BUYER), null);
     expect(out.filter((c) => c.key === "AUTHORITY")).toHaveLength(1);
     expect(out.find((c) => c.key === "AUTHORITY")).toMatchObject({ state: "PASS" });
     expect(out.some((c) => c.state === "BRING")).toBe(false);
   });
-  // SR-10 review M1: it used to be said to be read from the register at the opening, which is not true (nothing records the certificate online and the opening then eliminates the bid). A restricted tender is not sold online.
-  it("a restricted tender is not sold online, and the buyer is told so in words", () => {
-    const out = onlinePurchaseChecks([{ key: "RESTRICTION", state: "BRING", detail: "Bring it" }], buyerStandingCheck(OK_BUYER));
-    expect(out.find((c) => c.key === "RESTRICTION")).toMatchObject({ state: "BLOCK" });
-    expect(out.find((c) => c.key === "RESTRICTION")?.detail).not.toMatch(/bid is opened|checks it/);
+  // 17a (replacing the SR-10 review M1 test, which held that a restricted tender is not sold online): the counter's "bring the certificate" is replaced by the supplier register's reading of the evidence document.
+  it("17a: a restricted tender's check is the register's reading, in place of bringing the certificate to a counter", () => {
+    const reading = restrictionPurchaseCheck({ outcome: "ALLOW", document: { id: "d1", reference: "STA-1", validFrom: "2026-01-01", expiresOn: "2027-12-31" }, lapses: null }, null);
+    const out = onlinePurchaseChecks([{ key: "RESTRICTION", state: "BRING", detail: "Bring it" }], buyerStandingCheck(OK_BUYER), reading);
+    expect(out.find((c) => c.key === "RESTRICTION")).toBe(reading);
+    expect(out.some((c) => c.state === "BRING")).toBe(false);
   });
+  it("17a: a restricted tender with no reading is stopped and never let through", () => {
+    const out = onlinePurchaseChecks([{ key: "RESTRICTION", state: "BRING", detail: "Bring it" }], buyerStandingCheck(OK_BUYER), null);
+    expect(out.find((c) => c.key === "RESTRICTION")).toMatchObject({ state: "BLOCK" });
+  });
+  it("17a: a tender that is not restricted carries no restriction check", () => {
+    expect(onlinePurchaseChecks([pass("ON_SALE")], buyerStandingCheck(OK_BUYER), null).some((c) => c.key === "RESTRICTION")).toBe(false);
+  });
+});
+
+describe("17a: the restricted tender's check at the purchase, in words", () => {
+  const doc = { id: "d1", reference: "STA-1", validFrom: "2026-01-01", expiresOn: "2027-12-31" };
+  it("a verified document in force through the closing day passes, citing its reference and validity and saying 'verified on the supplier register'", () => {
+    const c = restrictionPurchaseCheck({ outcome: "ALLOW", document: doc, lapses: null }, "Bumiputera tender");
+    expect(c).toMatchObject({ key: "RESTRICTION", state: "PASS" });
+    expect(c.detail).toMatch(/Bumiputera tender: Verified on the supplier register: your document STA-1, valid until/);
+    expect(c.detail).not.toMatch(/sighted|original|bring/i);
+  });
+  it("one that lapses before the closing day is allowed with a warning that says a renewal must be lodged and verified", () => {
+    for (const kind of ["BEFORE_CLOSING", "ON_CLOSING_DAY_NOT_COUNTED", "ON_CLOSING_DAY_NOT_SET"] as const) {
+      const c = restrictionPurchaseCheck({ outcome: "ALLOW", document: doc, lapses: { kind, on: "2026-11-15" } }, null);
+      expect(c.state).toBe("WARN");
+      expect(c.detail).toMatch(/renewal/);
+    }
+    expect(restrictionPurchaseCheck({ outcome: "ALLOW", document: doc, lapses: { kind: "BEFORE_CLOSING", on: "2026-11-15" } }, null).detail).toMatch(/not evidenced/);
+  });
+  it("every refusal blocks, in words that name the register and carry no code", () => {
+    for (const reason of ["EVIDENCE_TYPE_NOT_SET", "NONE_LODGED", "NOT_VERIFIED", "NOT_IN_ORDER", "NOT_APPLICABLE", "NOT_YET_VALID", "EXPIRED"] as const) {
+      const c = restrictionPurchaseCheck({ outcome: "REFUSE", reason }, null);
+      expect(c).toMatchObject({ key: "RESTRICTION", state: "BLOCK" });
+      expect(c.detail).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
+      expect(c.detail).not.toMatch(/bring|counter|sighted/i);
+    }
+    expect(restrictionPurchaseCheck({ outcome: "REFUSE", reason: "EVIDENCE_TYPE_NOT_SET" }, null).detail).toMatch(/has not set which document/);
+  });
+  it("a WARN is not a block: the purchase is made", () => {
+    const warn = restrictionPurchaseCheck({ outcome: "ALLOW", document: doc, lapses: { kind: "BEFORE_CLOSING", on: "2026-11-15" } }, null);
+    expect(judgePurchase({ saleMode: "ONLINE", releaseOnline: true, feeSet: true, checks: [pass("ON_SALE"), warn], alreadyBought: false, purchaseStands: false })).toEqual({ outcome: "MAKE" });
+    const block = restrictionPurchaseCheck({ outcome: "REFUSE", reason: "EXPIRED" }, null);
+    expect(judgePurchase({ saleMode: "ONLINE", releaseOnline: true, feeSet: true, checks: [pass("ON_SALE"), block], alreadyBought: false, purchaseStands: false })).toEqual({ outcome: "REFUSED" });
+  });
+});
+
+describe("the standing reading (SR-10)", () => {
   it("the standing reading blocks an inactive account, a retired contact and a barred supplier, each in words", () => {
     expect(buyerStandingCheck({ ...OK_BUYER, accountActive: false }).state).toBe("BLOCK");
     expect(buyerStandingCheck({ ...OK_BUYER, contactCurrent: false }).detail).toMatch(/no longer a current contact/);

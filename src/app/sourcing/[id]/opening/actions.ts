@@ -30,7 +30,8 @@ import { finaliseFaults, markFaults, recordFaults } from "@/lib/opening/finalise
 import { liveSaleOf, restrictionFinding, saleFinding } from "@/lib/opening/findings";
 import { grandSummary } from "@/lib/opening/grand-summary";
 import { freshInitials, initialStale } from "@/lib/opening/initials";
-import { openingFindingText } from "@/lib/opening/labels";
+import { openingFindingText, restrictionLabel } from "@/lib/opening/labels";
+import { restrictionReadingWords } from "@/lib/suppliers/restriction-register";
 import { lockOpenedBidRows, lockOpeningRows } from "@/lib/opening/lock";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "@/lib/opening/open";
 import { panelFaults, supplementaryPanel } from "@/lib/opening/panel";
@@ -49,6 +50,8 @@ import { consequenceFor, ineligibleOf } from "@/lib/suppliers/opening-hook";
 import { eligibilityAtOpening } from "@/lib/suppliers/standing-repo";
 import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals";
 
+import { registerRestrictionOf } from "@/lib/opening/restriction-read";
+import { readingJson, retakeRestriction } from "./restriction";
 import { activePerson, audit, exerciseIdOf, inWindow, label, Refusal, type LockedWindow } from "../window/shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct, type PreparedAct } from "@/app/_auth/act";
@@ -585,8 +588,13 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
     if (!party) await audit(tx, toAuditActor(actor), l.org.id, "ExerciseParty", bidder.id, label(l, `Party · ${bidder.name}`), "CREATE", diffFields(null, { party: bidder.name, registrationNo: bidder.registrationNo, cameAs: "Named at opening, from its bid" }));
     const sale = saleFinding(bidder.id, c.sales, snap.path, c.invitedPartyIds);
     // R-5: judged on the closing day in the organisation's zone, never an empty day; a refusal after the party's write rolls back.
-    const restriction = restrictionFinding(snap.restrictedTender, liveSaleOf(bidder.id, c.sales), c.closingDay);
+    // Ruling 17a: a sale made from an online purchase has no sighting, so a restricted tender is read from the supplier register for the closing day and the reading is frozen with the offer.
+    const liveSale = liveSaleOf(bidder.id, c.sales);
+    const fromRegister = snap.restrictedTender === true && liveSale?.purchaseSupplierId ? await registerRestrictionOf(tx, l.org, c.closingDay, liveSale.purchaseSupplierId, now) : null;
+    if (fromRegister && "fault" in fromRegister) throw new Refusal(refuse([fromRegister.fault]));
+    const restriction = fromRegister ?? restrictionFinding(snap.restrictedTender, liveSale, c.closingDay);
     if ("fault" in restriction) throw new Refusal(refuse([restriction.fault]));
+    const restrictionReading = fromRegister && "reading" in fromRegister ? fromRegister.reading : null;
     // 6.15a (FR-BID-008 on paper, OD-6 A): a bidder linked to the register is judged on its locked row (the supplier last), frozen with the offer.
     const eligibility = party?.vendorId ? await eligibilityAtOpening(tx, l.org, party.vendorId, l.ex.id) : null;
     const listingNo = nextListingNo(c.openings.flatMap((x) => x.bids.map((b) => b.listingNo)));
@@ -598,6 +606,7 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
         bidderNameAsRead: party ? (bidderName.trim() || party.name) : bidder.name, registrationClassAsRead: registrationClass, registrationStatusAsRead: registrationStatus,
         priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays,
         isAlternative, parentOpenedBidId: parent?.id ?? null, alternativeStatus: alternative, saleFinding: sale, restrictionFinding: restriction.finding,
+        ...(restrictionReading ? { restrictionReading: readingJson(restrictionReading) } : {}),
         ...(eligibility ? { eligibilityFinding: eligibility as unknown as Prisma.InputJsonValue } : {}),
       },
     });
@@ -607,7 +616,7 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
     if (moved.count !== 1) throw new Refusal(ENVELOPE_CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, e!.id, label(l, `Envelope ${e!.sequence}`), "UPDATE", diffFields({ ...statusField("RECEIVED"), bidder: null }, { ...statusField("OPENED"), bidder: bidder.name }));
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${listingNo}`), "CREATE",
-      diffFields(null, { ...openedBidFields({ listingNo, envelope: `Envelope ${e!.sequence}`, bidder: bid.bidderNameAsRead, registrationClass, registrationStatus, price: offer.price!, period, validityDays: offer.validityDays, alternative, parentListingNo: parent?.listingNo ?? null, sale, restriction: restriction.finding, at: now }, l.org.timeZone), ...(eligibility ? { supplierRegister: `${eligibility.supplierReference}: ${eligibility.verdict === "ELIGIBLE" ? "eligible" : eligibility.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}, judged ${eligibility.judgedOn}` } : {}) }));
+      diffFields(null, { ...openedBidFields({ listingNo, envelope: `Envelope ${e!.sequence}`, bidder: bid.bidderNameAsRead, registrationClass, registrationStatus, price: offer.price!, period, validityDays: offer.validityDays, alternative, parentListingNo: parent?.listingNo ?? null, sale, restriction: restriction.finding, at: now }, l.org.timeZone), ...(restrictionReading ? { restriction: restrictionLabel(restriction.finding, restrictionReading), restrictionReading: restrictionReadingWords(restrictionReading) } : {}), ...(eligibility ? { supplierRegister: `${eligibility.supplierReference}: ${eligibility.verdict === "ELIGIBLE" ? "eligible" : eligibility.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}, judged ${eligibility.judgedOn}` } : {}) }));
     return { ok: true, message: `Opened as No. ${listingNo}. Each panel member present now initials it, and its checklist is answered.` };
   }, { prices: actor });
 }
@@ -639,6 +648,7 @@ export async function recordAlternative(_prev: FormState, data: FormData): Promi
         bidderNameAsRead: main.bidderNameAsRead, registrationClassAsRead: main.registrationClassAsRead, registrationStatusAsRead: main.registrationStatusAsRead,
         priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays,
         isAlternative: true, parentOpenedBidId: main.id, alternativeStatus: alternative, saleFinding: main.saleFinding, restrictionFinding: main.restrictionFinding,
+        ...(main.restrictionReading != null ? { restrictionReading: main.restrictionReading as Prisma.InputJsonValue } : {}),
         // 6.15a: the bidder's register finding goes with its alternative, as its sale finding does.
         ...(main.eligibilityFinding != null ? { eligibilityFinding: main.eligibilityFinding as Prisma.InputJsonValue } : {}),
       },
@@ -671,6 +681,8 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
     const stale = !!existing && initialStale(bid, existing);
     const fs = markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId, already: !!existing && !stale, sameOpening: true });
     if (blocking(fs).length) return refuse(fs);
+    // Ruling 17a: a restriction not yet assessed is read again each time the officer acts on the offer.
+    await retakeRestriction(tx, actor, l, c, o.bids, bid, now);
     const name = o.panel.find((p) => p.personId === personId)!.person.name;
     if (existing) {
       await tx.openedBidInitial.update({ where: { id: existing.id, organisationId: actor.organisationId }, data: { recordedAt: now, correctionNo: bid.asReadCorrections } });
@@ -703,6 +715,8 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
     const fs = [...actFaults(stateOf(o, l.ex.status)), ...answerFaults(checklist.items, itemKey, answer)];
     if (blocking(fs).length) return refuse(fs);
+    // Ruling 17a: a restriction not yet assessed is read again each time the officer acts on the offer.
+    await retakeRestriction(tx, actor, l, c, o.bids, bid, now);
     const item = checklist.items.find((i) => i.key === itemKey)!;
     const before = bid.answers.find((a) => a.itemKey === itemKey) ?? null;
     if (before?.answer === answer) return { ok: true };
@@ -743,7 +757,10 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     const answers = new Map(bid.answers.map((a) => [a.itemKey, a.answer]));
     const unpurchased = unpurchasedRule(snap, liveUnpurchased(c), now, person.name);
     const policy = { completenessEliminates: snap.completeness.eliminates, unpurchased: unpurchased.consequence, ineligible: consequenceFor(o.policySnapshot, c.supplierPolicy?.ineligibleBidConsequence ?? null) };
-    const facts = { saleFinding: bid.saleFinding, restrictionFinding: bid.restrictionFinding, isAlternative: bid.isAlternative, alternativeStatus: bid.alternativeStatus, ineligible: ineligibleOf(bid.eligibilityFinding) };
+    // Ruling 17a: a restriction not yet assessed is read again now, audited and frozen again, and the last reading taken decides. A configuration gap found now is a fault in words.
+    const retaken = await retakeRestriction(tx, actor, l, c, o.bids, bid, now);
+    if ("fault" in retaken) return refuse([retaken.fault]);
+    const facts = { saleFinding: bid.saleFinding, restrictionFinding: retaken.finding, isAlternative: bid.isAlternative, alternativeStatus: bid.alternativeStatus, ineligible: ineligibleOf(bid.eligibilityFinding) };
     const fs = verdictFaults({ state: stateOf(o, l.ex.status), sameOpening: true, bid: facts, checklist, answers, policy, verdict, reason });
     if (blocking(fs).length) return fs.length === 1 && fs[0].code === "REASON_REQUIRED" ? { ok: false, errors: { verdictReason: openingFindingText(fs[0]) } } : refuse(fs);
     const j = judgeBid(facts, checklist, answers, policy);
@@ -785,6 +802,8 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
     const changed = JSON.stringify(asReadFields(was)) !== JSON.stringify(asReadFields(next));
     const fs = correctionFaults({ state: stateOf(o, l.ex.status), sameOpening: !o.finalisedAt, reason, changed, price: offer.price, period: offer.period });
     if (blocking(fs).length) return refuse(fs);
+    // Ruling 17a: a restriction not yet assessed is read again each time the officer acts on the offer.
+    await retakeRestriction(tx, actor, l, c, o.bids, bid, now);
     await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { bidderNameAsRead: next.bidder, registrationClassAsRead: registrationClass, registrationStatusAsRead: registrationStatus, priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays, asReadCorrectedAt: now, asReadCorrections: bid.asReadCorrections + 1 } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields(asReadFields(was), asReadFields(next)), reason);
     return { ok: true, message: "Corrected. Each panel member present initials it again." };

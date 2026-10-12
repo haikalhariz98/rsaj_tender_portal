@@ -24,8 +24,8 @@ import { AcknowledgeControl, BuyControl, RequestControl, SignUpControl } from ".
 
 type Props = { actor: SupplierActor; ctx: BidContext; token: string | null };
 
-const STATE_TONE = { PASS: "ok", BLOCK: "err", BRING: "warn", INFO: "info" } as const;
-const STATE_TEXT = { PASS: "Clear", BLOCK: "Stops the request", BRING: "Bring to the counter", INFO: "For your information" } as const;
+const STATE_TONE = { PASS: "ok", BLOCK: "err", BRING: "warn", INFO: "info", WARN: "warn" } as const;
+const STATE_TEXT = { PASS: "Clear", BLOCK: "Stops the request", BRING: "Bring to the counter", INFO: "For your information", WARN: "Act before the closing" } as const;
 
 export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
   const o = await overviewTab(db, actor, ctx);

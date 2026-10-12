@@ -30,7 +30,8 @@ import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./f
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
 import { freshInitials } from "./initials";
 import { consequenceFor, eligibilityFindingOf, ineligibleOf, registerClassOf } from "@/lib/suppliers/opening-hook";
-import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, RESTRICTION_FINDING_LABEL, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, seatWords, VERDICT_LABEL, VERDICT_TONE } from "./labels";
+import { isRestrictionReading, restrictionReadingWords } from "@/lib/suppliers/restriction-register";
+import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, restrictionLabel, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, seatWords, VERDICT_LABEL, VERDICT_TONE } from "./labels";
 import { unpurchasedRuleText } from "./unpurchased";
 import { alternativeInsideFaults, openFaults } from "./open";
 import { supplementaryPanel } from "./panel";
@@ -219,7 +220,10 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       alternative: b.isAlternative ? `${b.alternativeStatus ? ALTERNATIVE_LABEL[b.alternativeStatus] : "Alternative"}${b.parentOpenedBid ? ` to No. ${b.parentOpenedBid.listingNo}` : ""}` : null,
       sale: SALE_FINDING_LABEL[b.saleFinding],
       saleTone: (b.saleFinding === "LIVE_SALE" ? "ok" : "warn") as "ok" | "warn",
-      restriction: b.restrictionFinding === "NOT_RESTRICTED" ? null : RESTRICTION_FINDING_LABEL[b.restrictionFinding],
+      restriction: b.restrictionFinding === "NOT_RESTRICTED" ? null : restrictionLabel(b.restrictionFinding, b.restrictionReading),
+      restrictionTone: (b.restrictionFinding === "NOT_EVIDENCED" ? "err" : b.restrictionFinding === "NOT_ASSESSED" ? "warn" : "ok") as "ok" | "warn" | "err",
+      /// Ruling 17a: for a sale from an online purchase, what the supplier register said and when, in words.
+      restrictionWhy: isRestrictionReading(b.restrictionReading) ? restrictionReadingWords(b.restrictionReading) : null,
       /// 6.15a: the supplier register's finding, frozen when the envelope was opened. Null: the bidder was not linked.
       eligibility: (() => {
         const f = eligibilityFindingOf(b.eligibilityFinding);
