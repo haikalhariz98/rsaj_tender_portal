@@ -1,5 +1,6 @@
 import { requireStaff } from "@/app/_auth/actor";
 import { Accordion } from "@/components/accordion";
+import { DataList } from "@/components/data-list";
 import { UsersIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -15,13 +16,14 @@ import { loadOpeningRoster } from "@/lib/opening/roster-store";
 import { ROSTER_AFTER_CLOSING_NOTE, rosterActs, rosterFindingText } from "@/lib/opening/roster-labels";
 import { SETTING_AT } from "@/lib/opening/labels";
 
-import { NameOfficerDrawer, RemoveOfficerDrawer, SubstituteOfficerDrawer } from "./prep-editors";
+import { OfficersList } from "./officers-list";
+import { NameOfficerDrawer } from "./prep-editors";
 
 /**
  * Opening officers, the third section of Scope and estimate (Sourcing Requirements v2, SR-07, ruling 11): the officers who will open the bids,
  * named before the documents are submitted. The number is the opening committee's panel size, never a literal here; an unset size says so
  * rather than reading as none. Each holds a seat on the committee the method names. Replacing one is possible until the closing, by a controlled
- * change with its authority and reason; after the closing the card says plainly that the exercise cannot be opened without both and would have
+ * change with its authority and reason; after the closing the card says plainly that the exercise cannot be opened without every named officer and would have
  * to be re-tendered.
  */
 export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
@@ -92,20 +94,24 @@ export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
           {roster.rows.length === 0 ? (
             <EmptyState size="sm" title="Nobody is named yet">{acts.name.allowed ? "Name the officers who will open the bids. Each must hold a seat on the opening committee." : acts.name.reason}</EmptyState>
           ) : (
-            <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-              {roster.rows.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
-                  <span className="min-w-0">
-                    <span className="block text-[13.5px] font-semibold break-words text-ink">{r.name}</span>
-                    <span className="block text-[12.5px] text-ink-3">{r.seatLabel} · named {formatDate(r.namedAt)} by {r.namedBy}</span>
-                  </span>
-                  <span className="flex flex-wrap items-center gap-2">
-                    {acts.substitute.allowed && <SubstituteOfficerDrawer exerciseId={ex.id} officerId={r.id} name={r.name} candidates={options} controlled={!!acts.substitute.controlled} />}
-                    {acts.remove.allowed && <RemoveOfficerDrawer exerciseId={ex.id} officerId={r.id} name={r.name} />}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-hidden rounded-2xl border border-line">
+              <OfficersList
+                exerciseId={ex.id}
+                candidates={options}
+                names={Object.fromEntries(roster.rows.map((r) => [r.id, r.name]))}
+                substitute={acts.substitute}
+                remove={acts.remove}
+                rows={roster.rows.map((r) => ({
+                  id: r.id,
+                  search: r.name,
+                  cells: {
+                    officer: { kind: "text", text: r.name },
+                    seat: { kind: "text", text: r.seatLabel, dim: true },
+                    named: { kind: "text", text: `${formatDate(r.namedAt)} by ${r.namedBy}`, dim: true },
+                  },
+                }))}
+              />
+            </div>
           )}
           {blocks.map((f, i) => (
             <Callout key={i} tone="err">{rosterFindingText(f)}</Callout>
@@ -119,14 +125,30 @@ export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
         </CardBody>
         {roster.ended.length > 0 && (
           <Accordion title="Earlier officers" meta={`${roster.ended.length} on record`}>
-            <ul className="divide-y divide-line/70">
-              {roster.ended.map((e, i) => (
-                <li key={i} className="flex flex-col gap-0.5 px-5 py-3 text-[13px] sm:px-6">
-                  <span className="font-semibold text-ink">{e.name} <span className="font-normal text-ink-3">· {e.seatLabel}</span></span>
-                  <span className="text-ink-2">Taken off {formatDate(e.endedAt)} by {e.endedBy}{e.authority ? ` under ${e.authority}` : ""}: {e.reason}</span>
-                </li>
-              ))}
-            </ul>
+            <DataList
+              flat
+              selectable={false}
+              searchable={false}
+              toolbar={false}
+              exportName="earlier-opening-officers"
+              emptyTitle="No earlier officers"
+              columns={[
+                { key: "officer", label: "Officer", width: "24%", mobile: "primary" },
+                { key: "seat", label: "Seat", width: "16%", mobile: "meta" },
+                { key: "ended", label: "Taken off", width: "22%", mobile: "meta" },
+                { key: "why", label: "Authority and reason", mobile: "meta" },
+              ]}
+              rows={roster.ended.map((e, i) => ({
+                id: String(i),
+                search: e.name,
+                cells: {
+                  officer: { kind: "text", text: e.name },
+                  seat: { kind: "text", text: e.seatLabel, dim: true },
+                  ended: { kind: "text", text: `${formatDate(e.endedAt)} by ${e.endedBy}` },
+                  why: { kind: "text", text: `${e.authority ? `Under ${e.authority}: ` : ""}${e.reason}`, dim: true },
+                },
+              }))}
+            />
           </Accordion>
         )}
       </Card>
