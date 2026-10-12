@@ -84,6 +84,8 @@ describe("the demo loader is additive (Phase 1d)", () => {
     const first = demo("load");
     expect(first.status, first.out).toBe(0);
     expect(first.out).not.toMatch(/already present/);
+    // SR-07 (ruling 11): the demo names the opening officers, and the exercise still being prepared would pass the product's own submit gate (the load stops otherwise).
+    expect(first.out).toMatch(/Opening officers named: [1-9]/);
     const after1 = await counts();
     expect(after1.OrgUnit).toBeGreaterThan(0);
     expect(after1.AuditEntry).toBeGreaterThan(0);

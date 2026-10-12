@@ -33,11 +33,13 @@ export async function loadOpeningOfficersDemo(db: Db, organisationId: string, no
 
   const exercises = await db.sourcingExercise.findMany({
     where: { organisationId, openingRosterRequired: true, packKindSnapshot: { in: ["TENDER", "QUOTATION"] }, status: { not: "CANCELLED" } },
-    select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, openingRosterRequired: true, createdAt: true, openingOfficers: { select: { id: true } } },
+    select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, openingRosterRequired: true, createdAt: true, personInChargeId: true, openingOfficers: { select: { id: true } }, requisition: { select: { requestingPersonId: true } } },
     orderBy: { reference: "asc" },
   });
   const named: string[] = [];
   const left: string[] = [];
+  /// What the product's own submit gate would still refuse on an exercise whose documents are still being prepared: the load stops on it.
+  const refused: string[] = [];
   for (const ex of exercises) {
     if (ex.openingOfficers.length) continue;
     const roster = await loadOpeningRoster(ex, { id: org.id, code: org.code, today }, db);
@@ -52,8 +54,10 @@ export async function loadOpeningOfficersDemo(db: Db, organisationId: string, no
     const accounts = new Set((await db.staffAccount.findMany({ where: { organisationId, isAdministrator: true }, select: { personId: true } })).map((a) => a.personId));
     const chosen = people.filter((p) => !accounts.has(p.personId)).slice(0, size);
     const namedAt = new Date(Math.min(now.getTime(), ex.createdAt.getTime() + 86_400_000));
-    // Named by the person in charge of the exercise's requisition is not recorded here: the demo loader names them.
-    const by = await db.person.findFirstOrThrow({ where: { organisationId, isActive: true }, orderBy: { id: "asc" }, select: { id: true } });
+    // Named by the exercise's person in charge, as it is in the story; else by the person who asked for it.
+    const byId = ex.personInChargeId ?? ex.requisition?.requestingPersonId;
+    if (!byId) throw new Error(`Demo opening officers: ${ex.reference} has neither a person in charge nor a requester to have named them.`);
+    const by = { id: byId };
     for (const [i, p] of chosen.entries()) {
       const id = `${P}oo${named.length + i + 1}`;
       await db.exerciseOpeningOfficer.create({ data: { id, organisationId, exerciseId: ex.id, personId: p.personId, committeeMemberId: p.committeeMemberId, seatLabelSnapshot: p.seatLabelSnapshot, namedAt, namedByPersonId: by.id } });
@@ -89,13 +93,14 @@ export async function loadOpeningOfficersDemo(db: Db, organisationId: string, no
     const id = `${P}winp${ex.id.slice(-4)}`;
     const items = { inspectionPlace: "Contract & Procurement, level 3, 1 Demo Avenue", purchasePlace: "Finance counter, ground floor, 1 Demo Avenue", inspectionHours: "Monday to Friday, 9.00 am to 4.00 pm", feeAmount: "200.00", feePaymentMethods: "Bank draft or cheque to Demo Utilities Sdn Bhd, or cash at the counter", submissionPlace: "The tender box, ground floor, 1 Demo Avenue", bidValidityDays: 90, bidValidityProvenance: "ASSUMED" as const, purchaseFromDay: new Date(`${plusDays(today, 8)}T00:00:00.000Z`), purchaseCloseDay: new Date(`${plusDays(today, 26)}T00:00:00.000Z`) };
     await db.exerciseWindow.create({ data: { id, organisationId, exerciseId: ex.id, path, ...items, createdAt: now } });
-    entry("ExerciseWindow", id, `${ex.reference} · Notice and fee`, "CREATE", now, diffFields(null, { path, fee: "RM200.00", bidValidityDays: 90 }));
+    entry("ExerciseWindow", id, `${ex.reference} Â· Notice and fee`, "CREATE", now, diffFields(null, { path, fee: "RM200.00", bidValidityDays: 90 }));
     const fresh = await db.sourcingExercise.findUniqueOrThrow({ where: { id: ex.id }, select: { id: true, sourcingMethodCode: true, regime: true, packKindSnapshot: true, openingRosterRequired: true, proposedStartOn: true, proposedClosingAt: true } });
     const extras = await loadSubmitExtras(fresh, { id: org.id, code: org.code, timeZone: org.timeZone, today }, db);
     const open = [...extras.dates, ...extras.officers, ...extras.notice].filter((f) => f.level === "block").map((f) => f.code);
-    if (open.length) left.push(`${ex.reference} would still be refused for: ${open.join(", ")}`);
+    if (open.length) refused.push(`${ex.reference} would still be refused for: ${open.join(", ")}`);
   }
 
   if (trail.length) await db.auditEntry.createMany({ data: trail as never });
+  if (refused.length) throw new Error(`Demo opening officers: ${refused.join("; ")}`);
   return { named: named.length, left };
 }
