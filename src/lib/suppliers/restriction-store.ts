@@ -34,11 +34,11 @@ export interface FrozenRule {
  * and the closing time it was taken under, so it can be taken again on the same footing. `frozen` holds a retake, or a later bidder of the same opening, to the type and rule the opening started with
  * (one opening judges every bidder under one rule); a part of it that was not set then is read from the live setting, so a rule set since is not refused for ever.
  */
-export async function restrictionAtOpening(tx: Tx, org: { id: string }, supplierId: string, day: { closingDay: string; closingAt: Date | null; readOn: string }, frozen: FrozenRule | null = null): Promise<{ reading: RestrictionReading } | { fault: ClosingFault }> {
+export async function restrictionAtOpening(tx: Tx, org: { id: string }, supplierId: string, day: { closingDay: string; closingTime: Date | null; readOn: string }, frozen: FrozenRule | null = null): Promise<{ reading: RestrictionReading } | { fault: ClosingFault }> {
   await lockSupplierRow(tx, supplierId);
   const policy = await supplierPolicyOf(org.id, tx);
   const typeId = frozen?.evidenceTypeId ?? policy.restrictionEvidenceTypeId;
   const docs = await evidenceDocuments(tx, org.id, supplierId, typeId);
-  const r = readRestrictionForClosing({ evidenceTypeSet: typeId != null, docs, closingDay: day.closingDay, closingAt: day.closingAt, readOn: day.readOn, expiryOnClosingDayCounts: frozen?.closingDayCounts ?? policy.expiryOnClosingDayCounts });
+  const r = readRestrictionForClosing({ evidenceTypeSet: typeId != null, docs, closingDay: day.closingDay, closingTime: day.closingTime, readOn: day.readOn, expiryOnClosingDayCounts: frozen?.closingDayCounts ?? policy.expiryOnClosingDayCounts });
   return "fault" in r ? r : { reading: { ...r.reading, supplierId, ...(typeId ? { evidenceTypeId: typeId } : {}) } };
 }

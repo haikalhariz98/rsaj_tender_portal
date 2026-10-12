@@ -181,7 +181,7 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
     const bid = await db.openedBid.findFirstOrThrow({ where: { openingId: opening.id } });
     expect(bid.restrictionFinding).toBe("NOT_ASSESSED");
     // Frozen with the first reading: the supplier, the document type, the closing-day rule and the closing time.
-    expect(bid.restrictionReading).toMatchObject({ supplierId: buyer.supplierId, evidenceTypeId: typeId, closingDayCounts: true, closingAt: closingAt.toISOString(), reason: "RENEWAL_NOT_VERIFIED" });
+    expect(bid.restrictionReading).toMatchObject({ supplierId: buyer.supplierId, evidenceTypeId: typeId, closingDayCounts: true, closingTime: closingAt.toISOString(), reason: "RENEWAL_NOT_VERIFIED" });
 
     // A verdict now, while the renewal waits, is refused in words and says the reading was taken again.
     const waiting = await recordVerdict({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));

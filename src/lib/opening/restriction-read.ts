@@ -13,7 +13,7 @@ export type RegisterRestriction = { finding: RestrictionFinding; reading: Restri
 
 export async function registerRestrictionOf(tx: Tx, org: { id: string; timeZone: string | null }, closing: { day: string | null; at: Date | null }, supplierId: string, now: Date, frozen: FrozenRule | null = null): Promise<RegisterRestriction> {
   if (!closing.day) return { fault: { code: "TIME_ZONE_NOT_SET", level: "block" } };
-  const r = await restrictionAtOpening(tx, org, supplierId, { closingDay: closing.day, closingAt: closing.at, readOn: dayIn(now, org.timeZone) }, frozen);
+  const r = await restrictionAtOpening(tx, org, supplierId, { closingDay: closing.day, closingTime: closing.at, readOn: dayIn(now, org.timeZone) }, frozen);
   if ("fault" in r) return { fault: { code: r.fault === "EVIDENCE_TYPE_NOT_SET" ? "RESTRICTION_EVIDENCE_TYPE_NOT_SET" : "RESTRICTION_CLOSING_DAY_RULE_NOT_SET", level: "block" } };
   return { finding: r.reading.finding, reading: r.reading };
 }

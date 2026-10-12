@@ -118,7 +118,7 @@ export interface RestrictionReading {
   supplierId?: string;
   evidenceTypeId?: string;
   /// The closing time the lodgings were judged against (ISO), so a renewal lodged on the closing day after closing time is not counted.
-  closingAt?: string;
+  closingTime?: string;
 }
 
 export type ClosingFault = "EVIDENCE_TYPE_NOT_SET" | "CLOSING_DAY_RULE_NOT_SET";
@@ -129,14 +129,14 @@ export const isRestrictionReading = (v: unknown): v is RestrictionReading => !!v
  * Whether a verified document of the evidence type is in force on the closing day. Documents lodged after the closing day are not read (a late lodging does not rescue a bid).
  * Where the document in force falls short but a renewal lodged by the closing day is waiting for its check, the answer is NOT_ASSESSED until an officer verifies it or finds it not in order.
  */
-export function readRestrictionForClosing(i: { evidenceTypeSet: boolean; docs: readonly EvidenceDocument[]; closingDay: string; /** The closing time. A document lodged on the closing day counts only if it was lodged by this moment. */ closingAt?: Date | null; readOn: string; expiryOnClosingDayCounts: boolean | null }): { reading: RestrictionReading } | { fault: ClosingFault } {
+export function readRestrictionForClosing(i: { evidenceTypeSet: boolean; docs: readonly EvidenceDocument[]; closingDay: string; /** The closing time. A document lodged on the closing day counts only if it was lodged by this moment. */ closingTime?: Date | null; readOn: string; expiryOnClosingDayCounts: boolean | null }): { reading: RestrictionReading } | { fault: ClosingFault } {
   if (!i.evidenceTypeSet) return { fault: "EVIDENCE_TYPE_NOT_SET" };
   // Lodged on an earlier day: by the closing. Lodged on the closing day itself: only if by the closing time (review of 17a, finding 6). Lodged later: never.
-  const docs = i.docs.filter((d) => d.lodgedOn < i.closingDay || (d.lodgedOn === i.closingDay && (d.lodgedAt == null || i.closingAt == null || d.lodgedAt.getTime() <= i.closingAt.getTime())));
+  const docs = i.docs.filter((d) => d.lodgedOn < i.closingDay || (d.lodgedOn === i.closingDay && (d.lodgedAt == null || i.closingTime == null || d.lodgedAt.getTime() <= i.closingTime.getTime())));
   const waitingDocs = docs.filter((d) => d.verification === "NOT_CHECKED");
   const waiting = waitingDocs.length > 0;
   const firstLodging = waiting && !waitingDocs.some((d) => d.supersedesId != null);
-  const base = { source: "SUPPLIER_REGISTER" as const, readOn: i.readOn, closingDay: i.closingDay, closingDayCounts: i.expiryOnClosingDayCounts, ...(i.closingAt ? { closingAt: i.closingAt.toISOString() } : {}) };
+  const base = { source: "SUPPLIER_REGISTER" as const, readOn: i.readOn, closingDay: i.closingDay, closingDayCounts: i.expiryOnClosingDayCounts, ...(i.closingTime ? { closingTime: i.closingTime.toISOString() } : {}) };
   /// Falls short: not assessed while a renewal waits for its check, otherwise not evidenced for the reason.
   const short = (reason: ClosingReason, document: EvidenceDocument | null): { reading: RestrictionReading } => ({
     reading: waiting ? { ...base, finding: "NOT_ASSESSED", reason: "RENEWAL_NOT_VERIFIED", document: document ? cite(document) : null, ...(firstLodging ? { firstLodging } : {}) } : { ...base, finding: "NOT_EVIDENCED", reason, document: document ? cite(document) : null },

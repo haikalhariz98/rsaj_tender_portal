@@ -143,7 +143,7 @@ describe("review of 17a (finding 6): a lodging on the closing day counts only if
   const closingAt = new Date("2026-12-01T00:30:00+08:00");
   const old = doc({ expiresOn: "2026-11-01" });
   const renewal = (lodgedAt: string, o: Partial<EvidenceDocument> = {}) => doc({ verification: "NOT_CHECKED", verifiedOn: null, supersedesId: old.id, lodgedOn: "2026-12-01", lodgedAt: new Date(lodgedAt), ...o });
-  const at = (docs: EvidenceDocument[]) => readRestrictionForClosing({ evidenceTypeSet: true, docs, closingDay: "2026-12-01", closingAt, readOn: "2026-12-01", expiryOnClosingDayCounts: true });
+  const at = (docs: EvidenceDocument[]) => readRestrictionForClosing({ evidenceTypeSet: true, docs, closingDay: "2026-12-01", closingTime: closingAt, readOn: "2026-12-01", expiryOnClosingDayCounts: true });
   const finding = (r: ReturnType<typeof at>) => ("reading" in r ? `${r.reading.finding}/${r.reading.reason}` : r.fault);
   it("a renewal lodged before the closing time that day is waited for", () => {
     expect(finding(at([old, renewal("2026-12-01T00:10:00+08:00")]))).toBe("NOT_ASSESSED/RENEWAL_NOT_VERIFIED");
@@ -161,7 +161,7 @@ describe("review of 17a (finding 6): a lodging on the closing day counts only if
   });
   it("the closing time is frozen with the reading", () => {
     const r = at([old]);
-    expect("reading" in r && r.reading.closingAt).toBe("2026-11-30T16:30:00.000Z");
+    expect("reading" in r && r.reading.closingTime).toBe("2026-11-30T16:30:00.000Z");
   });
 });
 
