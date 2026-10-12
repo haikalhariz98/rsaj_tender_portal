@@ -67,13 +67,16 @@ describe("S9: the bid predicate is the opening's, the release is stricter", () =
     expect(holdsReleasedPurchase({ releaseOnline: true, purchase: null, sale: counter(null), simulatorAllowed: true }).released).toBe(false);
   });
   it("17c: a counter sale counts for a bid whatever electronicDocumentRelease says; the release setting governs the online documents only", () => {
-    // `holdsBidStanding` takes no release input at all, which is the point: the setting cannot change the answer. The opening's own LIVE_SALE (`saleFinding`) takes none either.
-    for (const releaseOnline of [null, false, true]) {
-      expect(holdsBidStanding({ sale: counter(null), simulatorAllowed: true })).toBe(true);
-      expect(holdsBidStanding({ sale: counter("R-1"), simulatorAllowed: true })).toBe(true);
-      // The documents, by contrast, follow the setting.
-      expect(holdsReleasedPurchase({ releaseOnline, purchase: null, sale: counter("R-1"), simulatorAllowed: true }).released).toBe(releaseOnline === true);
-    }
+    // `holdsBidStanding` takes no release input at all, so the setting cannot change its answer: that is held here by comparing it with the documents' release, which does take it (review of 17a, finding 9).
+    // Across the three values of the setting the documents' release changes, and the standing to bid, for the very same counter sale with its receipt, does not.
+    const released = [null, false, true].map((releaseOnline) => holdsReleasedPurchase({ releaseOnline, purchase: null, sale: counter("R-1"), simulatorAllowed: true }).released);
+    expect(released).toEqual([false, false, true]);
+    const standing = [null, false, true].map(() => holdsBidStanding({ sale: counter("R-1"), simulatorAllowed: true }));
+    expect(standing).toEqual([true, true, true]);
+    // A counter sale with no receipt recorded yet still stands for a bid, and releases nothing under any value.
+    expect(holdsBidStanding({ sale: counter(null), simulatorAllowed: true })).toBe(true);
+    for (const releaseOnline of [null, false, true]) expect(holdsReleasedPurchase({ releaseOnline, purchase: null, sale: counter(null), simulatorAllowed: true }).released).toBe(false);
+
     expect(saleFinding("p1", [{ partyId: "p1", voided: false, certSighted: null, certValidUntil: null }], "ADVERTISED", new Set())).toBe("LIVE_SALE");
   });
   it("a voided sale, or none, does not count; a simulated one counts only while the deployment allows it", () => {

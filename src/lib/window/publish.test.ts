@@ -221,7 +221,11 @@ describe("SR-10 (ruling 16, G1): how the documents are sold", () => {
 describe("an online exercise at publication (SR-10 review S3, and ruling 17a for a restricted tender)", () => {
   it("is refused where the organisation does not release documents online, and no longer on a restricted tender", () => {
     // Ruling 17a lifted the M1 refusal: a restricted tender sold online is evidenced from the supplier register, so publication does not refuse it.
-    expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", restricted: true }))).not.toContain("ONLINE_RESTRICTED");
+    // A restricted ONLINE exercise publishes: it raises the very faults an unrestricted one does (none here), and the restriction itself, answered, adds nothing.
+    expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", restricted: true }))).toEqual([]);
+    expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", restricted: true }))).toEqual(codes(publishFaults({ ...ok, saleMode: "ONLINE", restricted: false })));
+    // It still answers for the restriction: only the earlier refusal went, not the question.
+    expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", restricted: null }))).toContain("RESTRICTION_NOT_ANSWERED");
     expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", releaseOnline: null, window: { ...ok.window, inspectionPlace: "", purchasePlace: "", inspectionHours: "", feePaymentMethods: "", submissionPlace: "" } }))).toContain("ONLINE_NEEDS_RELEASE");
     expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", releaseOnline: false }))).toContain("ONLINE_NEEDS_RELEASE");
   });

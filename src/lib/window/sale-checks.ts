@@ -6,7 +6,9 @@
 
 import { formatDate } from "@/lib/format";
 
+import { restrictionPurchaseCheck } from "@/lib/portal/bids/purchase";
 import { isEligibilitySnapshot } from "@/lib/suppliers/eligibility";
+import { isPurchaseReading } from "@/lib/suppliers/restriction-register";
 
 import { CERT_SIGHTED_LABEL } from "./labels";
 import { certExpiresBeforeClosing } from "./sale";
@@ -52,6 +54,20 @@ export function onlineRestrictionOf(checks: unknown): { text: string; warn: bool
   if (!Array.isArray(checks)) return null;
   const c = checks.find((x): x is { key: string; state: string; detail: string } => typeof x === "object" && x != null && (x as { key?: unknown }).key === "RESTRICTION" && typeof (x as { detail?: unknown }).detail === "string");
   return c ? { text: c.detail, warn: c.state !== "PASS" } : null;
+}
+
+/**
+ * What the sale register shows of the restriction of a sale made from an online purchase (ruling 17a), in the officer's words. The structured reading frozen on the sale (`eligibilitySnapshot.restriction`,
+ * written where the purchase was paid) is the source. A sale paid before it was kept falls back to the purchase's own check, which was worded for the buyer, so only whether it passed is taken from it.
+ */
+export function onlineRestrictionOfSale(snapshot: unknown, checks: unknown): { text: string; warn: boolean } | null {
+  const frozen = snapshot && typeof snapshot === "object" ? (snapshot as { restriction?: unknown }).restriction : null;
+  if (isPurchaseReading(frozen)) {
+    const c = restrictionPurchaseCheck({ outcome: "ALLOW", document: frozen.document, lapses: frozen.lapses }, null, "STAFF");
+    return { text: c.detail, warn: c.state !== "PASS" };
+  }
+  const kept = onlineRestrictionOf(checks);
+  return kept ? { text: "Verified on the supplier register when the documents were bought. The document's details were not kept with this sale.", warn: kept.warn } : null;
 }
 
 export function saleChecks(

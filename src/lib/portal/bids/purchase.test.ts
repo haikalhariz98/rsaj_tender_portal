@@ -92,13 +92,30 @@ describe("17a: the restricted tender's check at the purchase, in words", () => {
     expect(restrictionPurchaseCheck({ outcome: "ALLOW", document: doc, lapses: { kind: "BEFORE_CLOSING", on: "2026-11-15" } }, null).detail).toMatch(/not evidenced/);
   });
   it("every refusal blocks, in words that name the register and carry no code", () => {
-    for (const reason of ["EVIDENCE_TYPE_NOT_SET", "NONE_LODGED", "NOT_VERIFIED", "NOT_IN_ORDER", "NOT_APPLICABLE", "NOT_YET_VALID", "EXPIRED"] as const) {
-      const c = restrictionPurchaseCheck({ outcome: "REFUSE", reason }, null);
-      expect(c).toMatchObject({ key: "RESTRICTION", state: "BLOCK" });
-      expect(c.detail).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
-      expect(c.detail).not.toMatch(/bring|counter|sighted/i);
+    for (const reason of ["EVIDENCE_TYPE_NOT_SET", "NONE_LODGED", "NOT_VERIFIED", "NOT_IN_ORDER", "NOT_APPLICABLE", "NOT_YET_VALID", "EXPIRED", "EXPIRED_RENEWAL_WAITING"] as const) {
+      for (const by of ["BUYER", "STAFF"] as const) {
+        const c = restrictionPurchaseCheck({ outcome: "REFUSE", reason }, null, by);
+        expect(c).toMatchObject({ key: "RESTRICTION", state: "BLOCK" });
+        expect(c.detail).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
+        expect(c.detail).not.toMatch(/bring|counter|sighted/i);
+        // Review of 17a (finding 7): each audience is spoken to in its own voice.
+        expect(c.detail).not.toMatch(by === "BUYER" ? /the supplier's|the supplier has/ : /\byour\b|under Company/);
+      }
     }
+    // Review of 17a (finding 7): an expired document with a renewal already waiting is not told to lodge one.
+    expect(restrictionPurchaseCheck({ outcome: "REFUSE", reason: "EXPIRED_RENEWAL_WAITING" }, null).detail).not.toMatch(/Lodge/);
+    expect(restrictionPurchaseCheck({ outcome: "REFUSE", reason: "EXPIRED_RENEWAL_WAITING" }, null).detail).toMatch(/waiting for an officer/);
+    expect(restrictionPurchaseCheck({ outcome: "REFUSE", reason: "EXPIRED" }, null).detail).toMatch(/Lodge the renewal/);
     expect(restrictionPurchaseCheck({ outcome: "REFUSE", reason: "EVIDENCE_TYPE_NOT_SET" }, null).detail).toMatch(/has not set which document/);
+  });
+  it("review of 17a (finding 7): the staff register is given the staff's words, and a warning for a waiting renewal says it must be verified rather than lodged", () => {
+    const staff = restrictionPurchaseCheck({ outcome: "ALLOW", document: doc, lapses: { kind: "BEFORE_CLOSING", on: "2026-11-15", renewalWaiting: true } }, null, "STAFF");
+    expect(staff.state).toBe("WARN");
+    expect(staff.detail).toMatch(/Verified on the supplier register: the supplier's document STA-1/);
+    expect(staff.detail).not.toMatch(/\byour\b/);
+    expect(staff.detail).toMatch(/the renewal lodged must be verified/);
+    expect(restrictionPurchaseCheck({ outcome: "ALLOW", document: doc, lapses: { kind: "BEFORE_CLOSING", on: "2026-11-15", renewalWaiting: true } }, null).detail).toMatch(/the renewal you lodged must be verified/);
+    expect(restrictionPurchaseCheck({ outcome: "ALLOW", document: doc, lapses: { kind: "BEFORE_CLOSING", on: "2026-11-15" } }, null).detail).toMatch(/a renewal must be lodged and verified/);
   });
   it("a WARN is not a block: the purchase is made", () => {
     const warn = restrictionPurchaseCheck({ outcome: "ALLOW", document: doc, lapses: { kind: "BEFORE_CLOSING", on: "2026-11-15" } }, null);

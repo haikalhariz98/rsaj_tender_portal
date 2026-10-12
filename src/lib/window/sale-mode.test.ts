@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { windowWhitelist, windowFieldValues, renderInstrument, type WindowFieldContext } from "./fields";
@@ -20,7 +22,14 @@ describe("the pin (G1)", () => {
     // Ruling 17a lifted the earlier M1 refusal (ONLINE_RESTRICTED): a restricted tender takes the online setting, since its restriction is evidenced from the supplier register. `takeSaleModeFaults` no longer even asks whether the tender is restricted.
     expect(takeSaleModeFaults({ ...ok, releaseOnline: null }).map((f) => f.code)).toEqual(["ONLINE_NEEDS_RELEASE"]);
     expect(takeSaleModeFaults({ ...ok, releaseOnline: false }).map((f) => f.code)).toEqual(["ONLINE_NEEDS_RELEASE"]);
-    expect(takeSaleModeFaults({ ...ok }).map((f) => f.code)).not.toContain("ONLINE_RESTRICTED");
+    // Ruling 17a: the online setting is taken, with no fault at all, by an exercise that is restricted. The function is given no restriction to refuse on (its only inputs are the status, the pin, the setting and the release setting),
+    // and the two callers pass none, so nothing about a restricted tender can stop the take.
+    expect(takeSaleModeFaults({ ...ok })).toEqual([]);
+    for (const caller of ["src/app/sourcing/[id]/window/actions.ts", "src/lib/window/read.ts"]) {
+      const src = readFileSync(caller, "utf8");
+      const call = src.slice(src.indexOf("takeSaleModeFaults({"), src.indexOf("})", src.indexOf("takeSaleModeFaults({")));
+      expect(call, caller).not.toMatch(/restrict/i);
+    }
     // The counter has no such limit.
     expect(takeSaleModeFaults({ ...ok, setting: "COUNTER", releaseOnline: null })).toEqual([]);
     expect(takeSaleModeFaults({ ...ok, pin: "COUNTER" }).map((f) => f.code)).toEqual(["NOTHING_TO_TAKE"]);

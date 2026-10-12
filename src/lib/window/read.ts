@@ -41,7 +41,7 @@ import { closingHistory, isPublished, sinceApprovedLines, standingEntry, tableDo
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
 import { foldUnpreparedWindow } from "./publish";
 import { annotationLines, isAnnotation, voidRefusalIsRegisterWide, voidSaleFault } from "./sale";
-import { onlineAuthorityOf, onlineRestrictionOf, registerReadOn, saleChecks } from "./sale-checks";
+import { onlineAuthorityOf, onlineRestrictionOfSale, registerReadOn, saleChecks } from "./sale-checks";
 import type { Finding, Provenance, WindowPath } from "./types";
 
 const NOT_SET = "Not set";
@@ -337,7 +337,7 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
         amount: money(s.amount),
         soldOn: day(s.soldOn),
         paymentMethod: s.paymentMethod,
-        checks: saleChecks({ authoritySighted: s.authoritySighted, onlineAuthority: onlineAuthorityOf(s.purchase?.checks), onlineRestriction: onlineRestrictionOf(s.purchase?.checks), certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck, registerReadOn: registerReadOn(s.eligibilitySnapshot), noSupplierNamed: s.noSupplierNamed }, closingDay(ex.closingAt, org.timeZone)),
+        checks: saleChecks({ authoritySighted: s.authoritySighted, onlineAuthority: onlineAuthorityOf(s.purchase?.checks), onlineRestriction: onlineRestrictionOfSale(s.eligibilitySnapshot, s.purchase?.checks), certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck, registerReadOn: registerReadOn(s.eligibilitySnapshot), noSupplierNamed: s.noSupplierNamed }, closingDay(ex.closingAt, org.timeZone)),
         addendaAcknowledged: `${acked} of ${addenda.length}`,
         issuedBy: s.issuedBy ? attributed.read({ entity: "DocumentSale", id: s.id, slot: "issuedBy" }, s.issuedBy.name).en : "Released online: no officer issued it",
         voided: s.voidedAt ? `Voided: ${s.voidReason}` : null,

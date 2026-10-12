@@ -91,7 +91,10 @@ describe("17a: the counter's reading is unchanged, and an online sale is told ap
     ];
     for (const [from, to] of parts) {
       const body = src.slice(src.indexOf(from), src.indexOf(to));
-      expect(body, from).toMatch(/retakeRestriction\(tx, actor, l, c, o\.bids, bid, now\)/);
+      // Review of 17a (finding 2): the retake takes the opening itself (so it can see that it is finalised) and runs only after the act has been judged able to proceed.
+      expect(body, from).toMatch(/retakeRestriction\(tx, actor, l, c, o, bid, now\)/);
+      expect(body.indexOf("blocking("), from).toBeGreaterThan(-1);
+      expect(body.indexOf("blocking("), from).toBeLessThan(body.indexOf("retakeRestriction("));
     }
     // The verdict judges on the finding just read, not the one it loaded.
     const verdict = src.slice(src.indexOf("export async function recordVerdict("), src.indexOf("/// OD-10: correct a keying slip"));
@@ -101,7 +104,11 @@ describe("17a: the counter's reading is unchanged, and an online sale is told ap
     const src = readFileSync("src/app/sourcing/[id]/opening/actions.ts", "utf8");
     expect(src).toMatch(/restrictionReading: main\.restrictionReading as Prisma\.InputJsonValue/);
     const retake = readFileSync("src/app/sourcing/[id]/opening/restriction.ts", "utf8");
-    expect(retake).toMatch(/openingBids\.filter\(\(x\) => x\.partyId === bid\.partyId && x\.restrictionFinding === "NOT_ASSESSED"\)/);
+    expect(retake).toMatch(/o\.bids\.filter\(\(x\) => x\.partyId === bid\.partyId && x\.restrictionFinding === "NOT_ASSESSED"\)/);
+    // Review of 17a (finding 5): the alternative's audit carries the reading's words, as the offer's own does.
+    const alt = src.slice(src.indexOf("export async function recordAlternative("), src.indexOf("// ------------------------------------------------------------------ initials"));
+    expect(alt).toMatch(/restrictionLabel\(main\.restrictionFinding, main\.restrictionReading\)/);
+    expect(alt).toMatch(/restrictionReadingWords\(main\.restrictionReading\)/);
   });
 });
 

@@ -45,7 +45,19 @@ describe("17a at the purchase: only the verified evidence document in force toda
   it("a renewal waiting for its check does not rescue an expired document", () => {
     const old = doc({ expiresOn: "2026-09-01" });
     const renewal = doc({ verification: "NOT_CHECKED", verifiedOn: null, supersedesId: old.id, lodgedOn: "2026-10-01" });
-    expect(buy([old, renewal])).toEqual({ outcome: "REFUSE", reason: "EXPIRED" });
+    // Review of 17a (finding 7): still refused, but the reason says a renewal is already waiting, so the buyer is not told to lodge one.
+    expect(buy([old, renewal])).toEqual({ outcome: "REFUSE", reason: "EXPIRED_RENEWAL_WAITING" });
+    expect(buy([old])).toEqual({ outcome: "REFUSE", reason: "EXPIRED" });
+  });
+  it("review of 17a (finding 7): a verified renewal that has not started but covers the closing day takes the warning away, and one that does not cover it does not", () => {
+    const old = doc({ expiresOn: "2026-11-15" });
+    const covers = doc({ supersedesId: old.id, validFrom: "2026-11-16", expiresOn: "2028-01-01", lodgedOn: "2026-10-01" });
+    expect(buy([old, covers])).toMatchObject({ outcome: "ALLOW", document: { id: old.id }, lapses: null });
+    const startsAfter = doc({ supersedesId: old.id, validFrom: "2026-12-05", expiresOn: "2028-01-01", lodgedOn: "2026-10-01" });
+    expect(buy([old, startsAfter])).toMatchObject({ outcome: "ALLOW", lapses: { kind: "BEFORE_CLOSING", on: "2026-11-15" } });
+    // Waiting for its check is not covering: it may yet be found not in order. The warning stays and says the waiting renewal must be verified.
+    const waiting = doc({ supersedesId: old.id, verification: "NOT_CHECKED", verifiedOn: null, validFrom: "2026-11-16", expiresOn: "2028-01-01", lodgedOn: "2026-10-01" });
+    expect(buy([old, waiting])).toMatchObject({ outcome: "ALLOW", lapses: { kind: "BEFORE_CLOSING", renewalWaiting: true } });
   });
   it("is allowed when in force through the closing day", () => {
     const d = doc();
@@ -123,6 +135,56 @@ describe("17a at the opening: the register's reading for the closing day", () =>
     expect(finding(open([doc({ lodgedOn: "2026-12-01" })]))).toBe("NOT_EVIDENCED/NONE_LODGED");
     const old = doc({ expiresOn: "2026-11-01" });
     expect(finding(open([old, doc({ verification: "NOT_CHECKED", verifiedOn: null, supersedesId: old.id, lodgedOn: "2026-12-01" })]))).toBe("NOT_EVIDENCED/EXPIRED_BEFORE_CLOSING");
+  });
+});
+
+describe("review of 17a (finding 6): a lodging on the closing day counts only if it was by the closing time, in the organisation's day", () => {
+  // Closing at 00:30 on 1 Dec in Kuala Lumpur (UTC+8) is 16:30 UTC on 30 Nov: the organisation's closing day is 2026-12-01, the UTC day is not.
+  const closingAt = new Date("2026-12-01T00:30:00+08:00");
+  const old = doc({ expiresOn: "2026-11-01" });
+  const renewal = (lodgedAt: string, o: Partial<EvidenceDocument> = {}) => doc({ verification: "NOT_CHECKED", verifiedOn: null, supersedesId: old.id, lodgedOn: "2026-12-01", lodgedAt: new Date(lodgedAt), ...o });
+  const at = (docs: EvidenceDocument[]) => readRestrictionForClosing({ evidenceTypeSet: true, docs, closingDay: "2026-12-01", closingAt, readOn: "2026-12-01", expiryOnClosingDayCounts: true });
+  const finding = (r: ReturnType<typeof at>) => ("reading" in r ? `${r.reading.finding}/${r.reading.reason}` : r.fault);
+  it("a renewal lodged before the closing time that day is waited for", () => {
+    expect(finding(at([old, renewal("2026-12-01T00:10:00+08:00")]))).toBe("NOT_ASSESSED/RENEWAL_NOT_VERIFIED");
+  });
+  it("a renewal lodged after the closing time that day is not read, though it is the closing day", () => {
+    expect(finding(at([old, renewal("2026-12-01T00:45:00+08:00")]))).toBe("NOT_EVIDENCED/EXPIRED_BEFORE_CLOSING");
+  });
+  it("one lodged the day before counts whatever the time, and one lodged the day after never does", () => {
+    expect(finding(at([old, renewal("2026-11-30T23:59:00+08:00", { lodgedOn: "2026-11-30" })]))).toBe("NOT_ASSESSED/RENEWAL_NOT_VERIFIED");
+    expect(finding(at([old, renewal("2026-12-02T09:00:00+08:00", { lodgedOn: "2026-12-02" })]))).toBe("NOT_EVIDENCED/EXPIRED_BEFORE_CLOSING");
+  });
+  it("a verified renewal lodged after the closing time does not rescue the bid", () => {
+    expect(finding(at([old, renewal("2026-12-01T00:45:00+08:00", { verification: "VERIFIED", verifiedOn: "2026-12-01" })]))).toBe("NOT_EVIDENCED/EXPIRED_BEFORE_CLOSING");
+    expect(finding(at([old, renewal("2026-12-01T00:10:00+08:00", { verification: "VERIFIED", verifiedOn: "2026-12-01" })]))).toBe("EVIDENCED/COVERS_CLOSING_DAY");
+  });
+  it("the closing time is frozen with the reading", () => {
+    const r = at([old]);
+    expect("reading" in r && r.reading.closingAt).toBe("2026-11-30T16:30:00.000Z");
+  });
+});
+
+describe("review of 17a (finding 8): the words say a renewal only when what waits is a renewal", () => {
+  const open = (docs: EvidenceDocument[]) => readRestrictionForClosing({ evidenceTypeSet: true, docs, closingDay: "2026-11-30", readOn: "2026-11-29", expiryOnClosingDayCounts: true });
+  it("a first lodging waiting for its check is not called a renewal", () => {
+    const r = open([doc({ verification: "NOT_CHECKED", verifiedOn: null })]);
+    if (!("reading" in r)) throw new Error("expected a reading");
+    expect(r.reading.firstLodging).toBe(true);
+    expect(restrictionReadingWords(r.reading)).toMatch(/the evidence document was lodged/);
+    expect(restrictionReadingWords(r.reading)).not.toMatch(/renewal/);
+  });
+  it("a renewal waiting for its check is called one", () => {
+    const old = doc({ expiresOn: "2026-11-01" });
+    const r = open([old, doc({ verification: "NOT_CHECKED", verifiedOn: null, supersedesId: old.id })]);
+    if (!("reading" in r)) throw new Error("expected a reading");
+    expect(r.reading.firstLodging).toBeUndefined();
+    expect(restrictionReadingWords(r.reading)).toMatch(/a renewal of the evidence document was lodged/);
+  });
+  it("a reading settled for want of a supplier says so in words, with no code", () => {
+    const words = restrictionReadingWords({ source: "SUPPLIER_REGISTER", readOn: "2026-11-29", closingDay: "2026-11-30", finding: "NOT_EVIDENCED", reason: "SUPPLIER_NOT_FOUND", document: null, closingDayCounts: true });
+    expect(words).toMatch(/cannot be found/);
+    expect(words).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
   });
 });
 
