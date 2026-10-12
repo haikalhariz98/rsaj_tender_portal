@@ -81,6 +81,21 @@ for, and an exercise already in flight must not have its gates rewritten by a la
     accepts them stays its own upload rule (Configuration, Documents), which ships unset. Legacy .xls and .doc are not recognised. This changes
     the store's contract for staff uploads only; the supplier portal's uploads still read the first bytes alone, and so still refuse a ZIP.
 
+    **Amended 2026-10-12 (ruling 12a and the wave 2b review).** The end of the archive must be exactly a ZIP end: the first end record from the back accounts for every byte after it
+    (its comment is the rest of the file), both disk numbers are 0, the entry counts agree, the directory ends where the end record begins, and the walk over the entries ends exactly at
+    the directory size; a file failing any of it is refused as unreadable, never guessed at (an end record forged in the comment, junk after the end, a directory that stops short).
+    ZIP64 is refused by its locator, the end record sentinels, an entry's sentinel size or offset and the 0x0001 extra field. A refused Office file now says why (macros, password,
+    ActiveX or embedded objects, a Word template, or not readable as a workbook or Word document) and what to do instead. Refused by name, wherever they sit and in any case: any
+    `vbaProject`, `macros` binary or `macrosheets`, any `activeX/` or `embeddings/` directory (a product-owner tightening that no requirement asks for; the founder may lift it),
+    and a Word document that carries `word/_rels/settings.xml.rels` (the place an `attachedTemplate` lives). Pictures (`media/`) stay allowed. The supplier portal still refuses every
+    Office file, and the list it shows suppliers is the organisation's rules less the Office types (`supplierAcceptedTypes`).
+
+    **Remaining risk, recorded and not solved here.** Only the central directory is read. A reader that trusts the local headers could see other names than the directory lists (no
+    cross-check is possible within the file's tail). The contents of `[Content_Types].xml` are not read, so a macro-enabled main type declared there under a plain name is not seen.
+    The contents of relationship files are not read, so an external link (`xl/externalLinks/`, allowed because ordinary workbooks carry them) or a remote target is not seen, and a
+    Word document with a settings relationship file is refused whether or not its target is external (a document made from a template may be refused with it: it is told to save a copy
+    or a PDF). Nothing is unpacked or scanned: malware scanning of Office files joins the open NFR-SEC-007 go-live condition by name (backlog).
+
 ## Consequences
 
 - A customer sets two policy switches once, by two people, and every new exercise follows them; an old one never changes under its

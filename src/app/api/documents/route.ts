@@ -9,7 +9,7 @@ import { limitBody } from "@/lib/documents/body";
 import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency";
 import { documentFaultText } from "@/lib/documents/labels";
 import { effectiveCap, readLimit, requestLengthFault, sizeFault } from "@/lib/documents/limits";
-import { ARCHIVE_TAIL_BYTES, mediaFault, ooxmlTypeOf, sniffMediaType, SNIFF_BYTES } from "@/lib/documents/media";
+import { ARCHIVE_TAIL_BYTES, inspectArchive, mediaFault, sniffMediaType, SNIFF_BYTES, type OfficeRefusal } from "@/lib/documents/media";
 import { STAGED_FOR_DELEGATION, STAGED_FOR_TEMPLATE_FILE } from "@/lib/documents/staged-for";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
@@ -104,8 +104,15 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
   const head = new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer());
   let sniffed = sniffMediaType(head);
   // SR-09, SR-11: a ZIP is a workbook or a Word document if the names its directory lists say so; the end of the file is read for that, and nothing is unpacked.
-  if (sniffed === "application/zip") sniffed = ooxmlTypeOf(new Uint8Array(await file.slice(Math.max(0, file.size - ARCHIVE_TAIL_BYTES)).arrayBuffer()), file.size) ?? "application/zip";
-  const media = mediaFault(sniffed, { filename: fileName, contentType: file.type }, policy);
+  let officeRefusal: OfficeRefusal | null = null;
+  if (sniffed === "application/zip") {
+    const verdict = inspectArchive(new Uint8Array(await file.slice(Math.max(0, file.size - ARCHIVE_TAIL_BYTES)).arrayBuffer()), file.size);
+    if ("type" in verdict) sniffed = verdict.type;
+    else officeRefusal = verdict.refused;
+  }
+  // Ruling 12a: a refused Office file says why and what to do instead. The unset-rules fault still comes first.
+  const judged = mediaFault(sniffed, { filename: fileName, contentType: file.type }, policy);
+  const media = judged?.code === "ARCHIVE_NOT_ACCEPTED" && officeRefusal ? ({ code: "OFFICE_FILE_REFUSED", level: "block", data: { reason: officeRefusal } } as const) : judged;
   if (media) return refuse(415, media, at);
   // The upload is recorded by the signed-in officer (Phase 2b): the person is the session's, never a field of the form.
   // An administrator account does no transactional act (NFR-SEC-004), and uploading a document is one, except for the scan of a delegation's signed recommendation: the delegation

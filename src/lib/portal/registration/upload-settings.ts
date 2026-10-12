@@ -1,5 +1,6 @@
 import type { Tx } from "@/lib/audit/record";
 import { effectiveCap } from "@/lib/documents/limits";
+import { supplierAcceptedTypes } from "@/lib/documents/media";
 import { loadStorePolicy } from "@/lib/documents/service";
 import { deploymentCeiling } from "@/lib/documents/store";
 
@@ -27,7 +28,8 @@ export async function loadUploadSettings(client: Tx, organisationId: string, set
     }),
   ]);
   const cap = effectiveCap(storePolicy, deploymentCeiling());
-  const store: UploadStore = { allowedTypes: storePolicy.allowedMediaTypes, capBytes: "fault" in cap ? null : cap.cap };
+  const store: UploadStore = { // Ruling 12a: the Office types in the upload rules are staff-only, so a supplier is neither told nor judged by them.
+    allowedTypes: supplierAcceptedTypes(storePolicy.allowedMediaTypes), capBytes: "fault" in cap ? null : cap.cap };
   const policyFor = (classId: string | null): UploadPolicy => {
     const cls = classId ? classes.find((c) => c.id === classId) : undefined;
     return { classId: cls ? classId : null, classIsSulit: cls ? cls.classification === "SULIT" : undefined, maxFiles: settings.policy.uploadMaxFilesPerApplication, maxBytes: settings.policy.uploadMaxBytesPerApplication };

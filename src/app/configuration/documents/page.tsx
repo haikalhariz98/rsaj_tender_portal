@@ -183,7 +183,15 @@ export default async function DocumentsConfigPage() {
             items={[
               {
                 label: "Allowed types",
-                value: policy && policy.allowedMediaTypes.length > 0 ? <span className="flex flex-wrap gap-1.5">{policy.allowedMediaTypes.map((t) => <Badge key={t}>{mediaLabel(t)}</Badge>)}</span> : <Badge tone="warn">Not set, uploads refused</Badge>,
+                value:
+                  policy && policy.allowedMediaTypes.length > 0 ? (
+                    <span className="flex flex-col gap-1.5">
+                      <span className="flex flex-wrap gap-1.5">{policy.allowedMediaTypes.map((t) => <Badge key={t}>{mediaLabel(t)}</Badge>)}</span>
+                      {policy.allowedMediaTypes.some((t) => !supplierAcceptedTypes([t]).length) && <span className="text-[12.5px] text-ink-3">Excel workbooks and Word documents apply to staff uploads only. Suppliers are not offered them and cannot upload them.</span>}
+                    </span>
+                  ) : (
+                    <Badge tone="warn">Not set, uploads refused</Badge>
+                  ),
               },
               {
                 label: "Largest file",

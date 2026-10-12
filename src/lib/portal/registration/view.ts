@@ -3,6 +3,7 @@
  * the shaping here is what lets a test say that a step shows the office's own words, that a setting not set is named, and that no code is shown alone.
  */
 
+import { supplierAcceptedTypes } from "@/lib/documents/media";
 import { codeSections } from "./codes";
 import { fillText } from "./declaration";
 import { draftOf, type DraftView } from "./draft-view";
@@ -51,8 +52,8 @@ export function needList(ctx: RegistrationContext): NeedView[] {
 
 /// The words for the files an upload takes, from the organisation's own settings: never a literal. Null where the organisation has not set them.
 export function acceptNote(store: UploadStore, mediaLabel: (type: string) => string, formatBytes: (n: bigint) => string): string | null {
-  if (store.allowedTypes.length === 0 || store.capBytes == null) return null;
-  return `${store.allowedTypes.map(mediaLabel).join(", ")}; up to ${formatBytes(store.capBytes)} each.`;
+  if (supplierAcceptedTypes(store.allowedTypes).length === 0 || store.capBytes == null) return null;
+  return `${supplierAcceptedTypes(store.allowedTypes).map(mediaLabel).join(", ")}; up to ${formatBytes(store.capBytes)} each.`;
 }
 
 /// Why an upload of this kind is closed, in words naming the setting, or null where it is open. The quota is judged when a file arrives, not here.

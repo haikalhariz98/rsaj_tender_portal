@@ -306,6 +306,23 @@ export function classificationChoiceText(c: { value: SecurityClass | null; allow
 export const NEW_VERSION_NOTE =
   "Upload the corrected file. This record then points at the new version; the old version stays stored and the change is recorded with your reason.";
 
+/// Why a staff upload of an Office file (a ZIP the portal tried to read as a workbook or Word document) was refused, and what to do instead (ruling 12a). The supplier portal takes no Office file at all and says so in its own words.
+export function officeRefusalText(reason: string): string {
+  const instead = "Save it again as a plain .xlsx or .docx, or as a PDF, and upload that.";
+  switch (reason) {
+    case "MACRO":
+      return `This file holds macros (it is macro-enabled, or lists a macro project), which the portal does not accept. ${instead} Remove the macros first.`;
+    case "ENCRYPTED":
+      return `This file is password-protected, so the portal cannot read it. Remove the password, then save it again as a plain .xlsx or .docx, or as a PDF, and upload that.`;
+    case "ACTIVE_CONTENT":
+      return `This file holds ActiveX controls or embedded objects, which the portal does not accept. Pictures are fine. Remove the controls or objects, then ${instead.charAt(0).toLowerCase()}${instead.slice(1)}`;
+    case "EXTERNAL_TEMPLATE":
+      return `This Word document is attached to a template, which Word can load from outside the file, so the portal does not accept it. Copy its text into a new document, or save it as a PDF, and upload that.`;
+    default:
+      return `This file is not readable as a workbook (.xlsx) or a Word document (.docx): it is another kind of archive, or damaged, or built in a way the portal cannot check. ${instead}`;
+  }
+}
+
 /// The text for any finding this module's rules, the store and the route handlers return.
 export function documentFaultText(f: Finding): string {
   const d = f.data ?? {};
@@ -316,7 +333,9 @@ export function documentFaultText(f: Finding): string {
     case "TYPE_NOT_RECOGNISED":
       return "The portal cannot tell what this file is from its contents. Upload it as a PDF, or as a PNG, JPEG or TIFF image.";
     case "ARCHIVE_NOT_ACCEPTED":
-      return "This file is a ZIP archive or an Office file, which the portal cannot tell apart from its contents. Save it as a PDF and upload that.";
+      return "This file is a ZIP archive, which the portal does not accept. Save it as a PDF and upload that.";
+    case "OFFICE_FILE_REFUSED":
+      return officeRefusalText(String(d.reason));
     case "MARKUP_NEVER_ACCEPTED":
       return "Web pages and SVG drawings are never accepted. Save it as a PDF and upload that.";
     case "TYPE_NOT_ALLOWED":

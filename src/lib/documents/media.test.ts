@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 
 import { documentFaultText } from "./labels";
-import { ARCHIVE_TAIL_BYTES, DOCX_TYPE, mediaFault, ooxmlTypeOf, sniffMediaType, typeFromHeader, typeFromName, unknownPolicyTypes, XLSX_TYPE } from "./media";
+import { uploadFaultText } from "@/lib/portal/registration/words";
+import { ARCHIVE_TAIL_BYTES, DOCX_TYPE, inspectArchive, mediaFault, ooxmlTypeOf, sniffMediaType, supplierAcceptedTypes, typeFromHeader, typeFromName, unknownPolicyTypes, XLSX_TYPE } from "./media";
 import type { StorePolicy } from "./types";
 
 const bytes = (...xs: (number | string)[]) => new Uint8Array(xs.flatMap((x) => (typeof x === "string" ? [...Buffer.from(x, "latin1")] : [x])));
@@ -226,5 +227,159 @@ describe("a workbook or a Word document is told from a ZIP by the names its arch
     expect(typeFromName("Bill.XLSX")).toBe(XLSX_TYPE);
     expect(typeFromName("Form.docx")).toBe(DOCX_TYPE);
     expect(unknownPolicyTypes([XLSX_TYPE, DOCX_TYPE, "application/msword"])).toEqual(["application/msword"]);
+  });
+});
+
+// ------------------------------------------------------------------ ruling 12a, M3, S1, S2: refusals say why, and the archive's end cannot be spoofed
+
+const le16 = (n: number) => [n & 255, (n >> 8) & 255];
+const le32 = (n: number) => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+
+interface Crafted {
+  flags?: number;
+  /// Central-directory entry overrides.
+  extra?: number[];
+  sizeField?: number;
+  /// The end record's comment (any bytes).
+  comment?: number[];
+  count?: number;
+  cdSizeAdjust?: number;
+  disk?: number;
+  trailing?: number[];
+  locator?: boolean;
+  method?: number;
+}
+
+/// A ZIP with one stored entry per name, where each piece the reader checks can be bent.
+function crafted(names: string[], o: Crafted = {}): Uint8Array {
+  const local: number[] = [];
+  const central: number[] = [];
+  for (const name of names) {
+    const n = [...Buffer.from(name, "utf8")];
+    const at = local.length;
+    local.push(...le32(0x04034b50), ...le16(20), ...le16(0), ...le16(0), ...le16(0), ...le16(0), ...le32(0), ...le32(0), ...le32(0), ...le16(n.length), ...le16(0), ...n);
+    central.push(
+      ...le32(0x02014b50), ...le16(20), ...le16(20), ...le16(o.flags ?? 0), ...le16(o.method ?? 0), ...le16(0), ...le16(0), ...le32(0), ...le32(o.sizeField ?? 0), ...le32(0),
+      ...le16(n.length), ...le16((o.extra ?? []).length), ...le16(0), ...le16(0), ...le16(0), ...le32(0), ...le32(at), ...n, ...(o.extra ?? []),
+    );
+  }
+  const comment = o.comment ?? [];
+  const count = o.count ?? names.length;
+  const locator = o.locator ? [...le32(0x07064b50), ...new Array(16).fill(0)] : [];
+  const eocd = [...le32(0x06054b50), ...le16(o.disk ?? 0), ...le16(0), ...le16(count), ...le16(count), ...le32(central.length + (o.cdSizeAdjust ?? 0)), ...le32(local.length), ...le16(comment.length)];
+  return new Uint8Array([...local, ...central, ...locator, ...eocd, ...comment, ...(o.trailing ?? [])]);
+}
+const verdictOf = (z: Uint8Array) => inspectArchive(tailOf(z), z.length);
+const OFFICE = ["[Content_Types].xml", "_rels/.rels", "xl/workbook.xml", "xl/worksheets/sheet1.xml"];
+
+describe("the end of an archive is what a ZIP's end is, or the file is refused (review M3)", () => {
+  it("a well-formed workbook is accepted", () => {
+    expect(verdictOf(crafted(OFFICE))).toEqual({ type: XLSX_TYPE });
+  });
+  it("an end record forged inside the real one's comment is refused, not followed", () => {
+    // The forged record belongs to a clean archive carried in the comment, while the real directory (before it) lists a macro project.
+    const clean = crafted(OFFICE);
+    const real = crafted([...OFFICE, "xl/vbaProject.bin"], { comment: [...clean] });
+    expect(verdictOf(real)).toEqual({ refused: "UNREADABLE" });
+    // The forged record is judged on its own: its offsets are not those of this file.
+    expect(verdictOf(crafted(OFFICE, { comment: [...le32(0x06054b50), ...new Array(18).fill(0)] }))).toEqual({ refused: "UNREADABLE" });
+  });
+  it("junk after the end record is refused", () => {
+    expect(verdictOf(crafted(OFFICE, { trailing: [1, 2, 3] }))).toEqual({ refused: "UNREADABLE" });
+  });
+  it("a comment the end record accounts for exactly is fine", () => {
+    expect(verdictOf(crafted(OFFICE, { comment: [0x20, 0x20, 0x20] }))).toEqual({ type: XLSX_TYPE });
+  });
+  it("a directory that stops short of its entries, or runs past them, is refused", () => {
+    expect(verdictOf(crafted(OFFICE, { count: OFFICE.length + 1 }))).toEqual({ refused: "UNREADABLE" });
+    expect(verdictOf(crafted(OFFICE, { count: OFFICE.length - 1 }))).toEqual({ refused: "UNREADABLE" });
+  });
+  it("a directory size that does not reach the end record is refused", () => {
+    expect(verdictOf(crafted(OFFICE, { cdSizeAdjust: -4 }))).toEqual({ refused: "UNREADABLE" });
+    expect(verdictOf(crafted(OFFICE, { cdSizeAdjust: 4 }))).toEqual({ refused: "UNREADABLE" });
+  });
+  it("a multi-part archive is refused", () => {
+    expect(verdictOf(crafted(OFFICE, { disk: 1 }))).toEqual({ refused: "UNREADABLE" });
+  });
+  it("a real workbook with a picture is still accepted (pictures are not active content), and a damaged copy is not", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Bill");
+    ws.addRow(["Item"]);
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    ws.addImage(wb.addImage({ buffer: png as never, extension: "png" }), "A2:B3");
+    const book = new Uint8Array(await wb.xlsx.writeBuffer());
+    expect(verdictOf(book)).toEqual({ type: XLSX_TYPE });
+    expect(verdictOf(new Uint8Array([...book, 0]))).toEqual({ refused: "UNREADABLE" });
+    expect(verdictOf(book.subarray(0, book.length - 5))).toEqual({ refused: "UNREADABLE" });
+  });
+});
+
+describe("what makes an Office file active, wherever it sits (review S1, ruling 12a)", () => {
+  it.each([
+    [["xl/vbaProject.bin"], "MACRO"],
+    [["word/VBAPROJECT.BIN"], "MACRO"],
+    [["xl/macros.bin"], "MACRO"],
+    [["xl/macrosheets/sheet1.xml"], "MACRO"],
+    [["xl/ActiveX/activeX1.xml"], "ACTIVE_CONTENT"],
+    [["xl/embeddings/oleObject1.bin"], "ACTIVE_CONTENT"],
+    [["XL/Embeddings/package.xlsx"], "ACTIVE_CONTENT"],
+  ])("%j is refused as %s", (extra, reason) => {
+    expect(verdictOf(crafted([...OFFICE, ...extra]))).toEqual({ refused: reason });
+  });
+  it("a picture is not", () => {
+    expect(verdictOf(crafted([...OFFICE, "xl/media/image1.png"]))).toEqual({ type: XLSX_TYPE });
+  });
+  it("a Word document with a settings relationship file (an attached template) is refused, one without is not", () => {
+    const doc = ["[Content_Types].xml", "word/document.xml", "word/settings.xml"];
+    expect(verdictOf(crafted(doc))).toEqual({ type: DOCX_TYPE });
+    expect(verdictOf(crafted([...doc, "word/_rels/settings.xml.rels"]))).toEqual({ refused: "EXTERNAL_TEMPLATE" });
+  });
+  it("a password-protected entry is refused as such", () => {
+    expect(verdictOf(crafted(OFFICE, { flags: 1 }))).toEqual({ refused: "ENCRYPTED" });
+    expect(verdictOf(crafted(OFFICE, { method: 99 }))).toEqual({ refused: "ENCRYPTED" });
+  });
+});
+
+describe("ZIP64 is refused by more than the end record's sentinels (review S2)", () => {
+  it("by the locator in front of the end record", () => {
+    expect(verdictOf(crafted(OFFICE, { locator: true }))).toEqual({ refused: "UNREADABLE" });
+  });
+  it("by an entry whose size is the sentinel", () => {
+    expect(verdictOf(crafted(OFFICE, { sizeField: 0xffffffff }))).toEqual({ refused: "UNREADABLE" });
+  });
+  it("by the 0x0001 extra field", () => {
+    expect(verdictOf(crafted(OFFICE, { extra: [...le16(0x0001), ...le16(8), ...new Array(8).fill(0)] }))).toEqual({ refused: "UNREADABLE" });
+    // Another extra field is not held against the file.
+    expect(verdictOf(crafted(OFFICE, { extra: [...le16(0x5455), ...le16(1), 0] }))).toEqual({ type: XLSX_TYPE });
+  });
+});
+
+describe("a refused Office file says why and what to do instead; the supplier side stays true (ruling 12a)", () => {
+  it.each([
+    ["MACRO", /macros/],
+    ["ENCRYPTED", /password/],
+    ["ACTIVE_CONTENT", /ActiveX/],
+    ["EXTERNAL_TEMPLATE", /template/],
+    ["UNREADABLE", /not readable as a workbook/],
+  ])("%s", (reason, why) => {
+    const text = documentFaultText({ code: "OFFICE_FILE_REFUSED", level: "block", data: { reason } });
+    expect(text).toMatch(why);
+    expect(text).toMatch(/PDF/);
+    // The staff words never claim the portal cannot tell Office files apart.
+    expect(text).not.toMatch(/cannot tell apart/);
+  });
+  it("the archive words no longer claim the portal cannot tell Office files apart", () => {
+    expect(documentFaultText({ code: "ARCHIVE_NOT_ACCEPTED", level: "block" })).not.toMatch(/cannot tell apart|Office/);
+  });
+  it("a supplier is offered, and judged by, only the types its path recognises", () => {
+    expect(supplierAcceptedTypes(["application/pdf", XLSX_TYPE, "image/png", DOCX_TYPE, "text/csv"])).toEqual(["application/pdf", "image/png", "text/csv"]);
+    expect(supplierAcceptedTypes([XLSX_TYPE, DOCX_TYPE])).toEqual([]);
+  });
+  it("the supplier path refuses a workbook (a ZIP to it) in words that are true", () => {
+    const book = crafted(OFFICE);
+    // The supplier routes read only the opening bytes: a workbook is a ZIP there, and is refused as one.
+    const f = mediaFault(sniffMediaType(book.subarray(0, 512)), { filename: "bq.xlsx" }, { allowedMediaTypes: supplierAcceptedTypes([XLSX_TYPE, "application/pdf"]), maxBytes: 1n });
+    expect(f?.code).toBe("ARCHIVE_NOT_ACCEPTED");
+    expect(uploadFaultText({ code: "TYPE_NOT_ALLOWED", level: "block" }).en).toMatch(/listed beside the upload button/);
   });
 });

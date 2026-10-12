@@ -75,47 +75,113 @@ export const ARCHIVE_TAIL_BYTES = 256 * 1024;
 const u16 = (b: Uint8Array, at: number) => b[at] | (b[at + 1] << 8);
 const u32 = (b: Uint8Array, at: number) => (b[at] | (b[at + 1] << 8) | (b[at + 2] << 16) | (b[at + 3] << 24)) >>> 0;
 
+/// Why an archive that is not accepted as an Office file was refused (ruling 12a). Said to the officer in words (`documentFaultText`, OFFICE_FILE_REFUSED).
+export type OfficeRefusal =
+  /// A macro project, a macro sheet or a binary of macros.
+  | "MACRO"
+  /// Password-protected (an encrypted entry).
+  | "ENCRYPTED"
+  /// ActiveX controls or embedded objects (ruling 12a, amendment 2).
+  | "ACTIVE_CONTENT"
+  /// A Word document attached to a template, which Word can load from outside the file.
+  | "EXTERNAL_TEMPLATE"
+  /// Not a workbook or a Word document, or one whose structure cannot be read with certainty (ZIP64, a damaged or ambiguous end, a directory that does not add up).
+  | "UNREADABLE";
+
+export type ArchiveVerdict = { type: typeof XLSX_TYPE | typeof DOCX_TYPE } | { refused: OfficeRefusal };
+
+const ZIP_EOCD = 0x06054b50;
+const ZIP_CENTRAL = 0x02014b50;
+const MACRO_SEGMENT = /^(vbaproject.*|vbadata.*|macros?(\..*)?|macrosheets)$/i;
+const unreadable: ArchiveVerdict = { refused: "UNREADABLE" };
+
+/// Whether a ZIP entry name belongs to a macro: any segment of its path (wherever it sits, any case) naming a VBA project, a macros binary or macro sheets.
+const isMacroName = (name: string) => name.split("/").some((seg) => MACRO_SEGMENT.test(seg));
+/// ActiveX controls and embedded objects: an `activeX/` or an `embeddings/` directory anywhere. Pictures (`media/`) are not among them.
+const isActiveName = (name: string) => /(^|\/)(activex|embeddings)\//i.test(name);
+
 /**
  * What a ZIP file is, told from the names its central directory lists (NFR-SEC-007). A ZIP signature alone cannot tell a workbook from any other archive, but a workbook's
  * archive holds `[Content_Types].xml` and `xl/workbook.xml`, and a Word document's holds `word/document.xml`. The names are read from the end of the file (`tail`: its last
- * bytes, `size`: the whole file's length) and nothing is unpacked or run. Null when it is neither, when the archive has a macro project, uses ZIP64 or is encrypted, or when its
- * directory is not within `tail`: a file that cannot be told is refused as the archive it is.
+ * bytes, `size`: the whole file's length) and nothing is unpacked or run.
+ *
+ * The file is accepted only when its end is exactly what a ZIP's end is, so that two readers cannot see two different archives in it (an end record forged inside the comment,
+ * junk after the real one, a directory that stops short): the first end record found from the back must account for every byte after it (its comment is the rest of the file); both
+ * disk numbers are 0 and its entry counts agree; the directory ends exactly where the end record begins; and the walk over the entries ends exactly at the directory's end. A file
+ * that fails any of it is refused as unreadable, never guessed at. Also refused, with the reason: ZIP64 (by its locator, its sentinels, an entry's sentinel size or offset, or its
+ * 0x0001 extra field), encryption, a macro project or macro sheets or a macros binary anywhere, ActiveX and embedded objects, and a Word document that names a template.
+ *
+ * Remaining risk, recorded in ADR 0035: only the central directory is read, so a reader that trusts the local headers could see other names; the contents of
+ * `[Content_Types].xml` and of the relationship files are not read, so a macro-enabled main type declared there, an external link or an `attachedTemplate` target is not seen
+ * (the presence of the Word settings relationship file is what refuses a document with a template).
  */
-export function ooxmlTypeOf(tail: Uint8Array, size: number): typeof XLSX_TYPE | typeof DOCX_TYPE | null {
+export function inspectArchive(tail: Uint8Array, size: number): ArchiveVerdict {
   const start = size - tail.length;
-  // The end-of-central-directory record: 22 bytes, then at most a 65,535-byte comment.
+  // The end-of-central-directory record: 22 bytes, then at most a 65,535-byte comment. The first signature from the back is THE end record; if it does not hold up, nothing else is tried.
   let eocd = -1;
   for (let i = tail.length - 22; i >= Math.max(0, tail.length - 22 - 65535); i--) {
-    if (tail[i] === 0x50 && tail[i + 1] === 0x4b && tail[i + 2] === 0x05 && tail[i + 3] === 0x06) {
+    if (u32(tail, i) === ZIP_EOCD) {
       eocd = i;
       break;
     }
   }
-  if (eocd < 0) return null;
+  if (eocd < 0) return unreadable;
+  if (eocd + 22 + u16(tail, eocd + 20) !== tail.length) return unreadable; // junk after the record, or a comment that overruns the file
+  if (eocd >= 20 && u32(tail, eocd - 20) === 0x07064b50) return unreadable; // the ZIP64 end-of-directory locator
+  const disk = u16(tail, eocd + 4);
+  const cdDisk = u16(tail, eocd + 6);
+  const onDisk = u16(tail, eocd + 8);
   const count = u16(tail, eocd + 10);
   const cdSize = u32(tail, eocd + 12);
   const cdOffset = u32(tail, eocd + 16);
-  if (count === 0xffff || cdSize === 0xffffffff || cdOffset === 0xffffffff) return null; // ZIP64
+  if (count === 0xffff || onDisk === 0xffff || cdSize === 0xffffffff || cdOffset === 0xffffffff) return unreadable; // ZIP64
+  if (disk !== 0 || cdDisk !== 0 || onDisk !== count) return unreadable; // a multi-part archive
+  if (cdOffset + cdSize !== start + eocd) return unreadable; // the directory must end where the end record begins
   const from = cdOffset - start;
-  if (from < 0 || from + cdSize > tail.length) return null;
+  if (from < 0) return unreadable;
+  const end = from + cdSize;
   const names: string[] = [];
+  let encrypted = false;
   let at = from;
   for (let n = 0; n < count; n++) {
-    if (at + 46 > from + cdSize || u32(tail, at) !== 0x02014b50) return null;
+    if (at + 46 > end || u32(tail, at) !== ZIP_CENTRAL) return unreadable;
     const flags = u16(tail, at + 8);
+    const method = u16(tail, at + 10);
     const nameLen = u16(tail, at + 28);
     const extraLen = u16(tail, at + 30);
     const commentLen = u16(tail, at + 32);
-    if (flags & 1) return null; // encrypted
-    if (at + 46 + nameLen > tail.length) return null;
+    const next = at + 46 + nameLen + extraLen + commentLen;
+    if (next > end) return unreadable;
+    if (u32(tail, at + 20) === 0xffffffff || u32(tail, at + 24) === 0xffffffff || u32(tail, at + 42) === 0xffffffff || u16(tail, at + 34) === 0xffff) return unreadable; // ZIP64 entry
+    for (let x = at + 46 + nameLen, xEnd = x + extraLen; x + 4 <= xEnd; x += 4 + u16(tail, x + 2)) if (u16(tail, x) === 0x0001) return unreadable; // ZIP64 extra field
+    if (flags & 0x41 || method === 99) encrypted = true;
     names.push(new TextDecoder("utf-8").decode(tail.subarray(at + 46, at + 46 + nameLen)));
-    at += 46 + nameLen + extraLen + commentLen;
+    at = next;
   }
-  if (!names.includes("[Content_Types].xml")) return null;
-  if (names.some((x) => /(^|\/)vbaProject\.bin$/i.test(x))) return null;
-  if (names.includes("xl/workbook.xml") && !names.includes("word/document.xml")) return XLSX_TYPE;
-  if (names.includes("word/document.xml") && !names.includes("xl/workbook.xml")) return DOCX_TYPE;
-  return null;
+  if (at !== end) return unreadable; // the directory is longer than the entries it holds
+  if (encrypted) return { refused: "ENCRYPTED" };
+  if (!names.includes("[Content_Types].xml")) return unreadable;
+  if (names.some(isMacroName)) return { refused: "MACRO" };
+  if (names.some(isActiveName)) return { refused: "ACTIVE_CONTENT" };
+  const isWorkbook = names.includes("xl/workbook.xml");
+  const isDocument = names.includes("word/document.xml");
+  if (isWorkbook === isDocument) return unreadable; // neither, or both
+  if (isDocument && names.some((x) => x.toLowerCase() === "word/_rels/settings.xml.rels")) return { refused: "EXTERNAL_TEMPLATE" };
+  return { type: isWorkbook ? XLSX_TYPE : DOCX_TYPE };
+}
+
+/// The type of a ZIP file that is an Office file this product accepts; null for any ZIP it refuses (`inspectArchive` says why).
+export function ooxmlTypeOf(tail: Uint8Array, size: number): typeof XLSX_TYPE | typeof DOCX_TYPE | null {
+  const v = inspectArchive(tail, size);
+  return "type" in v ? v.type : null;
+}
+
+/// The types the supplier portal can take from a file's own bytes (ruling 12a, amendment 3). The Office types are staff-only: the supplier routes read only a file's opening bytes, where a workbook is just a ZIP.
+export const SUPPLIER_MEDIA_TYPES: readonly KnownMediaType[] = ["application/pdf", "image/png", "image/jpeg", "image/tiff", "text/csv"];
+
+/// The types the organisation's upload rules list that a supplier's upload can actually be: the rules less the Office types. Shown to suppliers, and what their uploads are judged by.
+export function supplierAcceptedTypes(types: readonly string[]): string[] {
+  return types.filter((t) => (SUPPLIER_MEDIA_TYPES as readonly string[]).includes(t));
 }
 
 const EXTENSION_TYPE: Readonly<Record<string, KnownMediaType>> = {
@@ -160,6 +226,7 @@ export type MediaFault =
   | "TYPES_NOT_SET"
   | "TYPE_NOT_RECOGNISED"
   | "ARCHIVE_NOT_ACCEPTED"
+  | "OFFICE_FILE_REFUSED"
   | "MARKUP_NEVER_ACCEPTED"
   | "TYPE_NOT_ALLOWED"
   | "NAME_WITHOUT_TYPE"

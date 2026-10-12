@@ -79,7 +79,7 @@ export const hasRegistrationFaultText = (code: string): boolean => code in TEXT;
 export function uploadFaultText(f: Finding<UploadFault>, kind: "document" | "statement" = "document"): Words {
   switch (f.code) {
     case "STORE_POLICY_NOT_SET":
-      return w("Uploads are closed: the procurement office has not set which kinds of file it takes and how large they may be. Tell the procurement office.", "Muat naik ditutup: pejabat perolehan belum menetapkan jenis fail yang diterima dan saiz maksimumnya. Maklumkan kepada pejabat perolehan.");
+      return w("Uploads are closed: the procurement office has not set which kinds of file it takes from suppliers and how large they may be. Tell the procurement office.", "Muat naik ditutup: pejabat perolehan belum menetapkan jenis fail yang diterima daripada pembekal dan saiz maksimumnya. Maklumkan kepada pejabat perolehan.");
     case "CLASS_NOT_SET":
       return w(`Uploads are closed: the procurement office has not set ${s(f.data, "setting") || UPLOAD_SETTING_NAME[kind].cls}. Tell the procurement office.`, `Muat naik ditutup: pejabat perolehan belum menetapkan ${s(f.data, "setting") || UPLOAD_SETTING_NAME[kind].cls}. Maklumkan kepada pejabat perolehan.`);
     case "STATEMENT_CLASS_NOT_SULIT":

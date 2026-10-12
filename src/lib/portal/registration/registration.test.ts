@@ -9,6 +9,8 @@ import { creditor, ctx, doc, draft, FALSE_SHA, FIXTURE_ORGANISATION, GIRO_SHA, t
 import type { DeclarationInput } from "./types";
 import { hasRegistrationFaultText, registrationFaultText, uploadFaultText } from "./words";
 import { uploadFault } from "./upload";
+import { acceptNote } from "./view";
+import { XLSX_TYPE } from "@/lib/documents/media";
 
 const blocks = (fs: { code: string; level: string }[]) => fs.filter((f) => f.level === "block").map((f) => f.code);
 
@@ -462,5 +464,16 @@ describe("what the audit trail says of a change to the bank details", () => {
     for (const v of ["123456789", "987654321", "Old Name", "DEMOMYKL"]) expect(text).not.toContain(v);
     expect(creditorTrailChanges({ bankAccountNo: "1" }, { bankAccountNo: " " })).toEqual([{ field: "bankAccountNo", before: "Entered", after: null }]);
     expect(creditorTrailChanges({ bankAccountNo: "1" }, { bankAccountNo: "1 " })).toEqual([]);
+  });
+});
+
+describe("the types a supplier is told it may upload (ruling 12a, amendment 3)", () => {
+  const label = (t: string) => t;
+  const size = (n: bigint) => `${n}`;
+  it("lists only what the supplier path accepts, though the rules list Office files for staff", () => {
+    expect(acceptNote({ allowedTypes: ["application/pdf", XLSX_TYPE, "image/png"], capBytes: 5n }, label, size)).toBe("application/pdf, image/png; up to 5 each.");
+  });
+  it("says nothing where the rules list only Office types: nothing a supplier can upload", () => {
+    expect(acceptNote({ allowedTypes: [XLSX_TYPE], capBytes: 5n }, label, size)).toBeNull();
   });
 });

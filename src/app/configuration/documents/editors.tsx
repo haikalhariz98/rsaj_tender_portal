@@ -175,7 +175,7 @@ export function EditStorePolicy({ policy }: { policy: { allowedMediaTypes: reado
           label: "Allowed types",
           placeholder: "Not set",
           options: KNOWN_MEDIA_TYPES.map((t) => ({ value: t, label: MEDIA_LABEL[t] })),
-          hint: "Only types the portal can recognise from a file's own contents are offered. Leave it empty and uploads are refused until it is set.",
+          hint: "Only types the portal can recognise from a file's own contents are offered. Excel workbooks and Word documents apply to staff uploads only: suppliers are not offered them and cannot upload them. Leave it empty and uploads are refused until it is set.",
         },
         {
           kind: "text",
