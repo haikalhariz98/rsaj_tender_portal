@@ -316,6 +316,9 @@ model Organisation {
   siteEventRegistrations     SiteEventRegistration[]
   addendumAcknowledgements   AddendumAcknowledgement[]
   documentRequests           DocumentRequest[]
+  documentPurchases          DocumentPurchase[]
+  paymentAttempts            PaymentAttempt[]
+  purchaseDownloads          PurchaseDownload[]
   tenderInspectionEvents     TenderInspectionEvent[]
   nonAwardNotices            NonAwardNotice[]
   /// Phase 4e: the contractor's submissions and their service levels, and the announcements board.
@@ -555,6 +558,7 @@ model Person {
   rateSchedulesIssued      RateSchedule[]           @relation("RateScheduleIssuedBy")
   publicationsRecorded     PublicationRecord[]      @relation("PublicationRecordedBy")
   documentSalesIssued      DocumentSale[]           @relation("SaleIssuedBy")
+  purchaseReceiptsRecorded DocumentPurchase[]       @relation("PurchaseReceiptRecordedBy")
   attendanceRecorded       SiteEventAttendance[]    @relation("AttendanceRecordedBy")
   nonAwardNoticesIssued    NonAwardNotice[]         @relation("NonAwardIssuedBy")
   /// Phase 4e: the officer's answer to a contractor's submission, and the announcements board.
@@ -3384,6 +3388,9 @@ model SourcingExercise {
   /// and submission refuses in words until the officer takes the organisation's setting. Exercises that existed before were backfilled true (their present behaviour).
   specPanelUsed    Boolean?
   onScreenBillUsed Boolean?
+  /// SR-10 (ruling 16, G1): how the tender documents are sold on this exercise. Pinned from the organisation's setting (`WindowPolicy.documentSaleMode`) when the exercise is created and
+  /// frozen at publication, never read live. Null: not set, and publication refuses in words until the officer takes the organisation's setting. Exercises that existed before were backfilled COUNTER.
+  saleMode SaleMode?
   /// SR-09: the scope matters keyed to this exercise's uploaded bill file.
   scopeFileMatters CommitteeDecision[] @relation("ScopeMatterExercise")
 
@@ -5813,6 +5820,13 @@ model WindowPolicy {
   /// Phase 4d (FR-VND-012): whether the tender documents are released online to a supplier once an officer has recorded the payment receipt. Null: not set, and not set means nothing is released online.
   electronicDocumentRelease Boolean?
   electronicReleaseProvenance Provenance?
+  /// SR-10 (ruling 16, G2): how the documents are sold on an exercise created now: at the counter, or online through the supplier portal. Null: not set, and an exercise created now pins "not set". Two-person path.
+  documentSaleMode SaleMode?
+  /// SR-10 (ruling 17, as amended by the founder 2026-10-09): whether the demonstration payment simulator is on. Null: not set, and the simulator refuses in words and the office records the payment instead.
+  /// It is a demonstration, not a payment provider: it must be switched off before go-live (backlog). Two-person path.
+  paymentSimulatorOn Boolean?
+  /// The payment methods the simulator offers a buyer (configuration; the labels are the customer's). Empty: none set, and the simulator refuses in words.
+  simulatedPaymentMethods String[] @default([])
   noticeTemplateId     String?
   noticeTemplate       DocumentTemplate? @relation("WindowNoticeTemplate", fields: [noticeTemplateId], references: [id], onDelete: Restrict)
   invitationTemplateId String?
@@ -5823,6 +5837,12 @@ model WindowPolicy {
   dateRuleSource String   @default("")
   notes          String   @default("")
   updatedAt      DateTime @updatedAt
+}
+
+/// SR-10 (ruling 16): how the tender documents are sold. COUNTER: a supplier asks online and an officer sells at the counter and records the receipt. ONLINE: a supplier buys through the portal.
+enum SaleMode {
+  COUNTER
+  ONLINE
 }
 
 /// A channel an open tender is published through (FR-ADV-001). Shipped empty.
@@ -5979,6 +5999,8 @@ model ExerciseWindow {
   events         SiteEvent[]
   addenda        Addendum[]
   documentRequests DocumentRequest[]
+  purchases        DocumentPurchase[]
+  purchaseDownloads PurchaseDownload[]
   inspections      TenderInspectionEvent[]
 }
 
@@ -6196,8 +6218,17 @@ model DocumentSale {
   /// The finance system's receipt number, consumed, never minted (OD-11). Null: not yet recorded.
   financeReceiptNo  String?
   receiptRecordedOn DateTime?
-  issuedByPersonId  String
-  issuedBy          Person     @relation("SaleIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
+  /// The issuing officer. Null only for a sale made by an online purchase paid on the payment simulator (CHECK): nobody issues it, and it says so.
+  issuedByPersonId  String?
+  issuedBy          Person?    @relation("SaleIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
+  /// SR-10 (ruling 17): how it was paid. COUNTER: at the finance counter, the officer recording the receipt number (`financeReceiptNo`). SIMULATED: on the demonstration payment
+  /// simulator; never a finance receipt, so it never carries a receipt number (CHECK) and never reaches reconciliation or a finance export.
+  paymentChannel    SalePaymentChannel @default(COUNTER)
+  /// The simulated reference of a simulated payment, null otherwise (CHECK, paired with the channel).
+  simulatedReference String?
+  /// The online purchase this sale was made by, null for a sale at the counter.
+  purchaseId        String?  @unique
+  purchase          DocumentPurchase? @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
   /// FR-ADV-011: the purchaser's particulars and the closing as stated, with the issuing officer.
   annotation        Json
   voidedAt          DateTime?
@@ -6397,6 +6428,123 @@ model DocumentRequest {
   endedBy        SupplierAccount? @relation("DocumentRequestEndedBySupplier", fields: [endedBySupplierAccountId], references: [id], onDelete: Restrict)
 
   @@index([windowId])
+  @@index([supplierId])
+}
+
+/// SR-10 (ruling 17): where a purchase stands. Written to PAID only by `markPurchasePaid`, called by exactly two acts: the payment simulator's settlement and an officer recording the finance receipt.
+enum PurchaseState {
+  AWAITING_PAYMENT
+  PAID
+}
+
+/// How a paid purchase was paid.
+enum PaymentChannel {
+  SIMULATED
+  FINANCE_RECEIPT
+}
+
+/// How a sale was paid (SR-10).
+enum SalePaymentChannel {
+  COUNTER
+  SIMULATED
+}
+
+enum PaymentOutcome {
+  PAID
+  FAILED
+}
+
+/// What a downloaded file was: a file of the pack, or a merged text.
+enum PurchaseDownloadKind {
+  FILE
+  MERGED_TEXT
+}
+
+/// SR-10 (ruling 17): a supplier's online purchase of the tender documents. Made by the supplier ("Buy documents") awaiting payment; paid by the payment simulator, or by an officer recording
+/// the finance receipt; and no other way. A paid purchase makes the sale (`DocumentSale.purchaseId`) the register and every reader of a sale read. One per supplier and window.
+model DocumentPurchase {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow @relation(fields: [windowId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  /// The portal account that bought: its name, standing and time are the release record's.
+  buyerAccountId String
+  buyer          SupplierAccount @relation("DocumentPurchasedBySupplier", fields: [buyerAccountId], references: [id], onDelete: Restrict)
+  createdAt      DateTime
+  /// The window's fee as it stood when the purchase was made.
+  amount         Decimal        @db.Decimal(18, 2)
+  /// The pre-sale checks as judged when it was made, each with its result in words (FR-ADV-010, online).
+  checks         Json
+
+  state          PurchaseState  @default(AWAITING_PAYMENT)
+  paidAt         DateTime?
+  paidChannel    PaymentChannel?
+  /// The method chosen on the simulated provider's page. Simulated only.
+  paidMethod     String?
+  /// The simulated reference. Simulated only; never a finance receipt number.
+  paidReference  String?
+  /// The officer who recorded the finance receipt (FINANCE_RECEIPT only).
+  receiptRecordedByPersonId String?
+  receiptRecordedBy         Person? @relation("PurchaseReceiptRecordedBy", fields: [receiptRecordedByPersonId], references: [id], onDelete: Restrict)
+
+  sale           DocumentSale?
+  attempts       PaymentAttempt[]
+  downloads      PurchaseDownload[]
+
+  @@unique([windowId, supplierId])
+  @@index([supplierId])
+}
+
+/// One try at paying a purchase on the payment simulator, kept whether it paid or failed (a failure is shown to the buyer and stays on record). Append-only.
+model PaymentAttempt {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  purchaseId     String
+  purchase       DocumentPurchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+  /// 1, 2, ... in the order made.
+  attemptNo      Int
+  /// The method chosen, as the organisation configured it then.
+  method         String
+  outcome        PaymentOutcome
+  /// The simulated reference of this attempt.
+  reference      String
+  failureText    String           @default("")
+  attemptedAt    DateTime
+  byAccountId    String
+  by             SupplierAccount  @relation("PaymentAttemptBySupplier", fields: [byAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([purchaseId, attemptNo])
+}
+
+/// One download of a released file or merged text by a supplier with a released purchase (SR-10): who, what and when. Append-only; every download is a row, none is deduplicated.
+model PurchaseDownload {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow   @relation(fields: [windowId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseId     String?
+  purchase       DocumentPurchase? @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+  accountId      String
+  account        SupplierAccount  @relation("PurchaseDownloadBySupplier", fields: [accountId], references: [id], onDelete: Restrict)
+
+  kind           PurchaseDownloadKind
+  /// The pack version the file belongs to.
+  packVersion    Int
+  /// The part's printed number and label, and the file's title.
+  partLabel      String
+  title          String
+  documentVersionId String?
+  downloadedAt   DateTime
+
+  @@index([windowId, downloadedAt])
   @@index([supplierId])
 }
 
@@ -7985,6 +8133,8 @@ model Supplier {
   eventRegistrations       SiteEventRegistration[]
   addendumAcknowledgements AddendumAcknowledgement[]
   documentRequests         DocumentRequest[]
+  purchases                DocumentPurchase[]
+  purchaseDownloads        PurchaseDownload[]
   tenderInspections        TenderInspectionEvent[]
   contractorSubmissions    ContractorSubmission[]
 
@@ -11655,6 +11805,9 @@ model SupplierAccount {
   eventsRegistered         SiteEventRegistration[]   @relation("EventRegisteredBySupplier")
   eventRegistrationsEnded  SiteEventRegistration[]   @relation("EventRegistrationEndedBySupplier")
   addendaAcknowledged      AddendumAcknowledgement[] @relation("AddendumAcknowledgedBySupplier")
+  documentPurchasesMade    DocumentPurchase[]        @relation("DocumentPurchasedBySupplier")
+  paymentAttemptsMade      PaymentAttempt[]          @relation("PaymentAttemptBySupplier")
+  purchaseDownloadsMade    PurchaseDownload[]        @relation("PurchaseDownloadBySupplier")
   documentRequestsMade     DocumentRequest[]         @relation("DocumentRequestedBySupplier")
   documentRequestsEnded    DocumentRequest[]         @relation("DocumentRequestEndedBySupplier")
   tenderInspections        TenderInspectionEvent[]   @relation("TenderInspectedBySupplier")

@@ -17,6 +17,8 @@ export const OPPORTUNITY_SELECT = {
   restricted: true,
   restrictedTender: true,
   closingAt: true,
+  // SR-10 (ruling 16): how the documents are sold decides whether a place, hours and a payment counter are stated.
+  saleMode: true,
   sourcingMethodCode: true,
   // Only whether an award was issued, to move an awarded exercise from the board to Results.
   awards: { select: { status: true } },

@@ -19,6 +19,7 @@ import { invitationConfig } from "@/lib/window/read";
 import { BID_RULE_UNSET, BID_RULES_APPLY_TEXT, bidRulesNotSet, invitationBadge } from "@/lib/bids/config";
 import { OPENING_RULE_UNSET, OPENING_RULES_APPLY_TEXT, openingPolicyNotSet, openingRulesNotSet } from "@/lib/opening/config";
 import { PRODUCT_SUMMARY_LABELS } from "@/lib/opening/grand-summary";
+import { saleModeWords } from "@/lib/window/sale-mode";
 import { INVITED_READING_LABEL, UNPURCHASED_LABEL } from "@/lib/opening/labels";
 
 import { CalendarDrawer, ChannelDrawer, EditMethodBidRule, EditMethodOpeningRule, EditOpeningPolicy, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
@@ -88,7 +89,7 @@ export default async function InvitationControlsPage() {
     : [null, [], [], [], [], [], null];
   const p = c.policy.values;
   // Phase 4d: the online release of the documents is read beside the window rules, not through `WindowPolicyFacts` (no window rule reads it).
-  const release = await db.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true, electronicReleaseProvenance: true } });
+  const release = await db.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true, electronicReleaseProvenance: true, documentSaleMode: true, paymentSimulatorOn: true, simulatedPaymentMethods: true } });
   const rule = (label: string) => c.policy.rules.find((r) => r.label === label)!;
   const named = <T extends { id: string }>(xs: T[], id: string | null) => xs.find((x) => x.id === id);
   const channelOptions = c.channels.filter((x) => !x.retired).map((x) => ({ value: x.id, label: x.nameEn }));
@@ -111,6 +112,9 @@ export default async function InvitationControlsPage() {
     attendanceProvenance: p.attendanceProvenance ?? "",
     electronicDocumentRelease: tri(release?.electronicDocumentRelease),
     electronicReleaseProvenance: release?.electronicReleaseProvenance ?? "",
+    documentSaleMode: release?.documentSaleMode ?? "unset",
+    paymentSimulatorOn: tri(release?.paymentSimulatorOn),
+    paymentMethodsText: (release?.simulatedPaymentMethods ?? []).join("\n"),
     noticeTemplateId: p.noticeTemplateId ?? "",
     invitationTemplateId: p.invitationTemplateId ?? "",
     addendumTemplateId: p.addendumTemplateId ?? "",
@@ -169,6 +173,9 @@ export default async function InvitationControlsPage() {
                 setting("Holiday calendar", <Setting value={named(c.calendars, p.calendarId)?.name ?? "Not set"} unset={UNSET.calendar} />),
                 setting(RULE_LABEL.mandatoryAttendance, <Setting value={r.attendance.value} unset={UNSET.attendance} source={p.attendanceProvenance} />),
                 setting("Release the tender documents online after payment", <Setting value={release?.electronicDocumentRelease == null ? "Not set" : release.electronicDocumentRelease ? "Released online once an officer records the payment" : "Collected at the counter only"} unset="Not set, so documents are collected at the counter and nothing is released online." source={release?.electronicReleaseProvenance ?? null} />),
+                setting("How the tender documents are sold", <Setting value={release?.documentSaleMode ? saleModeWords(release.documentSaleMode) : "Not set"} unset="Not set, so an exercise made now cannot be published until the organisation says how its documents are sold." />),
+                setting("Demonstration payment simulator", <Setting value={release?.paymentSimulatorOn == null ? "Not set" : release.paymentSimulatorOn ? "On: a demonstration, no money moves" : "Off"} unset="Not set, so a buyer cannot pay online: the office records the payment instead." />),
+                setting("Payment methods the simulator offers", <Setting value={release?.simulatedPaymentMethods.length ? release.simulatedPaymentMethods.join(", ") : "Not set"} unset="None set, so the simulator offers nothing to choose from." />),
                 setting("Template for the published notice", <Setting value={c.policy.templates.notice} unset={UNSET.template} />),
                 setting("Template for a letter of invitation", <Setting value={c.policy.templates.invitation} unset={UNSET.template} />),
                 setting("Template for an addendum", <Setting value={c.policy.templates.addendum} unset={UNSET.template} />),

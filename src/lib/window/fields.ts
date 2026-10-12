@@ -18,6 +18,8 @@ import { renderWith, renderedText, type MergeWhitelist } from "@/lib/templates/m
 import { registrationText, validityWindowText, type RequirementFacts } from "@/lib/tender-docs/eligibility";
 import { stamped } from "@/lib/tender-docs/stamp";
 
+import { HOW_TO_BUY_KEY, howToBuyText, PHYSICAL_MERGE_KEYS, type OnlinePaymentFacts, type SaleMode } from "./sale-mode";
+
 export type Instrument = "NOTICE" | "INVITATION" | "ADDENDUM";
 type Lang = "MS" | "EN";
 
@@ -39,6 +41,8 @@ const COMMON: readonly { key: string; labelEn: string }[] = [
   { key: "window.submissionPlace", labelEn: "Where tenders are submitted" },
   { key: "window.closing", labelEn: "Closing date and time" },
   { key: "window.advertisedOn", labelEn: "Advertisement date" },
+  // SR-10 (ruling 16): says how an online exercise's documents are bought, and promises online payment only where it is switched on. Online exercises only.
+  { key: HOW_TO_BUY_KEY, labelEn: "How to buy the documents (online sales only)" },
 ];
 
 export const WINDOW_MERGE_FIELDS: Readonly<Record<Instrument, readonly { key: string; labelEn: string }[]>> = {
@@ -61,8 +65,13 @@ export const WINDOW_MERGE_FIELDS: Readonly<Record<Instrument, readonly { key: st
 /// Every key any window instrument fills: a template naming one is accepted when it is saved.
 export const WINDOW_FIELD_KEYS: ReadonlySet<string> = new Set(Object.values(WINDOW_MERGE_FIELDS).flatMap((fs) => fs.map((f) => f.key)));
 
-export const windowWhitelist = (instrument: Instrument): MergeWhitelist => {
-  const fs = WINDOW_MERGE_FIELDS[instrument];
+/**
+ * The fields an instrument may name for an exercise sold in a given way (SR-10, ruling 16). An online sale has no place, hours or payment counter, so the five fields
+ * describing them are retired for it and a template naming one is reported as naming a field the portal does not fill; "how to buy the documents" exists only for an
+ * online sale. With no mode (the template screen, which serves both) every field is known.
+ */
+export const windowWhitelist = (instrument: Instrument, mode: SaleMode | null = null): MergeWhitelist => {
+  const fs = WINDOW_MERGE_FIELDS[instrument].filter((f) => (mode === "ONLINE" ? !PHYSICAL_MERGE_KEYS.has(f.key) : mode == null || f.key !== HOW_TO_BUY_KEY));
   return { has: (k) => fs.some((f) => f.key === k), label: (k) => fs.find((f) => f.key === k)?.labelEn ?? "A field" };
 };
 
@@ -97,6 +106,9 @@ export interface WindowFieldContext {
   events: readonly { kind: "BRIEFING" | "SITE_VISIT"; startsAt: Date; place: string; mandatory: boolean | null; cancelled: boolean }[];
   /// Whether mandatory attendance is permitted (OD-8): an event's answer is stated only then.
   mandatoryPermitted: boolean | null;
+  /// SR-10: how the documents are sold on this exercise, and the online payment the organisation has switched on (what the notice may say about paying).
+  saleMode: SaleMode | null;
+  onlinePayment: OnlinePaymentFacts;
 }
 
 const NONE = { EN: "None", MS: "Tiada" } as const;
@@ -135,6 +147,7 @@ export function windowFieldValues(c: WindowFieldContext, lang: Lang): Record<str
     "window.submissionPlace": c.submissionPlace,
     "window.closing": dayAndTime(c.closingAt, c.timeZone, lang),
     "window.advertisedOn": formatDay(c.advertisementDay, lang),
+    [HOW_TO_BUY_KEY]: c.saleMode === "ONLINE" ? howToBuyText(c.onlinePayment) : "",
   };
 }
 
@@ -181,6 +194,7 @@ export function renderInstrument(
   template: TemplateFacts | null,
   fields: (lang: Lang) => Record<string, string>,
   stamp: { EN: string | null; MS: string | null } | null,
+  mode: SaleMode | null = null,
 ): { state: TemplateState; language: Lang | null; text: string | null; missing: string[]; unknown: string[]; stampMissing: boolean; fields: Record<string, string> } {
   const none = (state: TemplateState) => ({ state, language: null, text: null, missing: [], unknown: [], stampMissing: false, fields: {} });
   if (!template) return none("NOT_SET");
@@ -189,7 +203,7 @@ export function renderInstrument(
   if (!lang) return none("NO_LANGUAGE");
   const body = lang === "EN" ? template.bodyEn! : template.bodyMs!;
   const values = fields(lang);
-  const r = renderWith(body, values, windowWhitelist(instrument));
+  const r = renderWith(body, values, windowWhitelist(instrument, mode));
   const words = stamp ? stamp[lang] : null;
   return { state: "OK", language: lang, text: stamped(renderedText(r), words), missing: r.missing, unknown: r.unknown, stampMissing: !!stamp && !words?.trim(), fields: values };
 }

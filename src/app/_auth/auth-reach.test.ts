@@ -93,7 +93,9 @@ describe("the scan finds what it should", () => {
     // Changed for Phase 4d: My Bids adds three route handlers (event, acknowledge, request), so 30. The count is of files, and each is held below.
     // Changed for Phase 4e: My Projects adds three (submit, diary, certificate), so 33.
     // Changed for Sourcing Requirements v2 SR-11 (ruling 14): the merged draft of a tender document part is downloaded from a route handler, so 34. It asks who is signed in first.
-    expect(ROUTE_FILES.length).toBe(34);
+    // Changed for Sourcing Requirements v2 wave 3a (SR-10, SR-15; rulings 17 and 24): the schedule and the Grand Summary of a finalised opening download from a staff route (asks who is signed in first),
+    // and a supplier whose purchase is released downloads its files and texts from a portal route (asks the portal's guard first), so 36.
+    expect(ROUTE_FILES.length).toBe(36);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });
@@ -158,6 +160,7 @@ describe("every route handler asks who is signed in first, and every one that ch
   /// A handler that refuses outright with no read at all needs no session to do so.
   const EXCEPTIONS: Record<string, string> = {
     "api/documents/versions/[id]/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download (audit C-2).",
+    "supplier/bids/[id]/download/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry, as the staff download does: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download nobody made (SR-10).",
     "supplier/registration/file/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry, as the staff download does: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download (audit C-2).",
   };
 

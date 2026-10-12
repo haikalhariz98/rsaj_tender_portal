@@ -390,6 +390,17 @@ const DECIDED_ABSENT = [
     match: /^(Open|Mark ready|Omit|Reopen|Rework|View as frozen|Put back)$/,
     why: "SR-11 (ruling 14): every tender document line offers Template, Upload, Download and Replace; a part is ready when its content is, and an optional one with nothing to issue is recorded Not issued",
   },
+  // Sourcing Requirements v2, wave 3a (SR-10, ruling 16).
+  {
+    screen: /^[/]sourcing[/][^/]+$/,
+    match: /^(Documents inspected at|Documents bought at|Hours|How the fee is paid|Where tenders are submitted)$/,
+    why: "SR-10 (ruling 16): on an exercise pinned to an online sale the four physical sale fields and \"How the fee is paid\" are neither asked nor shown (the columns stay); the exercise is bought through the supplier portal. An exercise sold at the counter keeps them",
+  },
+  {
+    screen: /^\/supplier\/opportunities\/[^/]+$/,
+    match: /^(Buy at|Ways to pay|Inspect the documents at|Hours|Where to hand in your bid)$/,
+    why: "SR-10 (ruling 16): an exercise sold online states no counter, hours, payment counter or place of submission; it says the documents are bought through the supplier portal",
+  },
   // 6.15a (plan §5, OD-1..OD-10): the staff-side supplier register, on the supplier screens only.
   {
     screen: /^\/suppliers/,

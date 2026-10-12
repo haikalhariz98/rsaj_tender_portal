@@ -75,6 +75,8 @@ const row = (o: Partial<OpportunityRow> = {}): OpportunityRow => ({
   restricted: false,
   restrictedTender: false,
   closingAt: CLOSING,
+  // SR-10 (ruling 16): the counter sale, which states a place, hours and a payment counter; an online one does not.
+  saleMode: "COUNTER",
   sourcingMethodCode: "open_quotation",
   awards: [],
   registrationRequirements: [
@@ -211,5 +213,18 @@ describe("the one read behind the public pages", () => {
   it("takes an award's status and nothing else about it, and only issued addenda", () => {
     expect((OPPORTUNITY_SELECT.awards as { select: object }).select).toEqual({ status: true });
     expect(OPPORTUNITY_SELECT.window.select.addenda.where).toEqual({ status: "ISSUED" });
+  });
+});
+
+describe("SR-10 (ruling 16): an exercise sold online states no counter", () => {
+  const ctx = { now: NOW, timeZone: "Asia/Kuala_Lumpur", methodNames: new Map(), restrictionLabel: null };
+  it("withholds the place, the hours and how to pay, whatever an earlier record holds, and says it is online", () => {
+    const online = toPublicOpportunity(row({ saleMode: "ONLINE" }), ctx);
+    const d = online && "detail" in online ? online.detail : null;
+    expect(d?.sale).toMatchObject({ online: true, place: "", payment: "", inspectionPlace: "", inspectionHours: "", submissionPlace: "" });
+    const counter = toPublicOpportunity(row({ saleMode: "COUNTER" }), ctx);
+    const c = counter && "detail" in counter ? counter.detail : null;
+    expect(c?.sale.online).toBe(false);
+    expect(c?.sale.place).not.toBe("");
   });
 });

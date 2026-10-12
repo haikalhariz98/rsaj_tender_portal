@@ -24,6 +24,7 @@ import { blocking, type ChannelFacts, type EventFacts, type Finding, type Public
 import { advertisementDay, closingFaults } from "./dates";
 import { eventFaults } from "./events";
 import { itemFaults, UNPREPARED_ITEM_CODES } from "./items";
+import { saleModeFault, type SaleMode } from "./sale-mode";
 import { feeFaults } from "./fee";
 import { fieldsInWords, type TemplateState } from "./fields";
 import { invitedListFaults } from "./invitees";
@@ -68,6 +69,7 @@ export type PublishFault =
   | "TEMPLATE_UNKNOWN_FIELD"
   | "CHANGE_PENDING"
   | "BID_VALIDITY_NOT_SET"
+  | "SALE_MODE_NOT_SET"
   | "TIME_ZONE_UNSET";
 
 export interface PublishInput {
@@ -77,6 +79,8 @@ export interface PublishInput {
   methodPath: WindowPath | null;
   windowPath: WindowPath | null;
   restricted: boolean | null;
+  /// SR-10 (G1): how the documents are sold on this exercise, as pinned. Null: not set, and publication refuses saying so.
+  saleMode: SaleMode | null;
   requirements: number;
   window: {
     inspectionPlace: string;
@@ -145,7 +149,9 @@ export function publishFaults(i: PublishInput): PublishResult {
   if (i.requirements === 0) f("ELIGIBILITY_MISSING");
   const w = i.window;
   // SR-06 (ruling 9): the same seven checks the submit gate runs (`itemFaults`), kept here as the backstop.
-  out.push(...itemFaults(w));
+  out.push(...itemFaults(w, i.saleMode));
+  const sm = saleModeFault(i.saleMode);
+  if (sm) out.push(sm);
   if (i.bidValidity.required && i.bidValidity.days == null) f("BID_VALIDITY_NOT_SET");
   if (!i.closingAt) f("CLOSING_NOT_SET");
   for (const e of i.events) out.push(...eventFaults(e, i.policy.mandatoryAttendancePermitted, i.closingAt));
@@ -198,11 +204,11 @@ const ITEM_FAULTS = UNPREPARED_ITEM_CODES;
  * thing six times. They fold under one first finding, "Prepare the window" (UX U5); the others
  * (the closing, the channels, the template) stand on their own. A prepared window is returned as is.
  */
-export function foldUnpreparedWindow(findings: readonly Finding[], hasWindow: boolean): Finding[] {
+export function foldUnpreparedWindow(findings: readonly Finding[], hasWindow: boolean, saleMode: SaleMode | null = "COUNTER"): Finding[] {
   if (hasWindow) return [...findings];
   const folded = findings.filter((f) => ITEM_FAULTS.has(f.code));
   if (folded.length === 0) return [...findings];
-  const first: Finding = { code: "WINDOW_ITEMS_NOT_PREPARED", level: "block", data: { count: folded.length } };
+  const first: Finding = { code: "WINDOW_ITEMS_NOT_PREPARED", level: "block", data: { count: folded.length, ...(saleMode === "ONLINE" ? { online: 1 } : {}) } };
   return [first, ...findings.filter((f) => !ITEM_FAULTS.has(f.code))];
 }
 

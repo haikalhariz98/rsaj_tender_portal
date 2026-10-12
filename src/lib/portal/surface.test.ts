@@ -50,10 +50,14 @@ describe("the public copy", () => {
   });
 
   it("serves the two pages that log an inspection to a GET and never to a HEAD, which would log an opening nobody made (Phase 4d review)", () => {
-    for (const p of ["/supplier/bids/ex1/table-document", "/supplier/bids/ex1/documents"]) {
+    // Wave 3a (SR-10): a download of a released file is logged on every request, so it is never answered to a HEAD either.
+    for (const p of ["/supplier/bids/ex1/table-document", "/supplier/bids/ex1/documents", "/supplier/bids/ex1/download"]) {
       expect(get(p), p).toBe(true);
       expect(publicAllows({ method: "HEAD", pathname: p, hasServerAction: false }), p).toBe(false);
     }
+    // The payment page of an online purchase (SR-10) is a page like any other: it logs nothing when asked about.
+    expect(get("/supplier/bids/ex1/pay")).toBe(true);
+    expect(publicAllows({ method: "HEAD", pathname: "/supplier/bids/ex1/pay", hasServerAction: false })).toBe(true);
     // The other pages of the workspace answer a HEAD as any page does.
     expect(publicAllows({ method: "HEAD", pathname: "/supplier/bids/ex1", hasServerAction: false })).toBe(true);
   });

@@ -13,6 +13,7 @@ import { loadOpeningRoster, rosterFindings } from "@/lib/opening/roster-store";
 import { parseSen } from "@/lib/money";
 import { feeBasisTotal } from "@/lib/window/fee";
 import { noticeSubmitFaults } from "@/lib/window/items";
+import type { SaleMode } from "@/lib/window/sale-mode";
 import { loadFloors, loadWindowPolicy } from "@/lib/window/repo";
 import type { Finding as WindowFinding } from "@/lib/window/types";
 
@@ -34,6 +35,8 @@ export interface ExerciseForExtras {
   regime: string | null;
   packKindSnapshot: string | null;
   openingRosterRequired: boolean;
+  /// SR-10 (G1): how the documents are sold, as pinned. Null: not set.
+  saleMode: SaleMode | null;
   proposedStartOn: Date | null;
   proposedClosingAt: Date | null;
 }
@@ -85,6 +88,7 @@ export async function loadSubmitExtras(ex: ExerciseForExtras, org: { id: string;
         }
       : null,
     events: (w?.events ?? []).map((e) => ({ kind: e.kind, startsAt: e.startsAt, place: e.place, mandatory: e.mandatory, cancelled: e.cancelledAt != null })),
+    saleMode: ex.saleMode,
     mandatoryAttendancePermitted: policy.mandatoryAttendancePermitted,
     proposedClosingAt: proposed?.proposedClosingAt ?? null,
     regime: ex.regime,

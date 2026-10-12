@@ -13,6 +13,7 @@
  * recorded later: a sale without one is on the reconciliation list (FR-ADV-009 partial). Pure.
  */
 
+import { SIMULATED_LABEL as SIMULATED_PAYMENT_WORDS } from "@/lib/integration/payment-gateway";
 import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 
 import { attendanceFaults } from "./events";
@@ -180,11 +181,55 @@ export function saleAnnotation(i: { purchaser: string; address: string; phone: s
   };
 }
 
-export type SaleAnnotation = ReturnType<typeof saleAnnotation>;
+/**
+ * SR-10 (ruling 16): for a set bought online the label of FR-ADV-011 is a release record. It names the buyer (the person signed in to the supplier portal) and the time
+ * the documents were released, how the payment was made (a simulated payment says so) and its reference, and says no officer issued it.
+ */
+export interface ReleaseRecord {
+  buyer: string;
+  releasedAtText: string;
+  /// How it was paid, in words ("Simulated payment", "Finance receipt recorded by an officer").
+  payment: string;
+  /// The simulated reference, or the finance receipt number the officer recorded.
+  reference: string | null;
+}
+
+export function releaseAnnotation(i: { exerciseReference: string; purchaser: string; address: string; phone: string; fax: string; closingText: string; release: ReleaseRecord }) {
+  return {
+    v: 1 as const,
+    exercise: i.exerciseReference,
+    purchaser: i.purchaser,
+    address: i.address,
+    telephone: i.phone,
+    fax: i.fax,
+    closing: i.closingText,
+    issuedBy: i.release.buyer,
+    issuedOn: i.release.releasedAtText,
+    receipt: i.release.payment === SIMULATED_PAYMENT_WORDS ? null : i.release.reference,
+    recorded: "released online",
+    release: i.release,
+  };
+}
+
+export type SaleAnnotation = Omit<ReturnType<typeof saleAnnotation>, "v"> & { v: 1; release?: ReleaseRecord };
 
 /// The printable label's lines (FR-ADV-011), from the frozen annotation. Missing particulars read "Not recorded".
 export function annotationLines(a: SaleAnnotation): string[] {
   const or = (v: string | null) => (v && v.trim() ? v : "Not recorded");
+  if (a.release) {
+    return [
+      `Exercise: ${a.exercise}`,
+      `Issued to: ${a.purchaser}`,
+      `Address: ${or(a.address)}`,
+      `Telephone: ${or(a.telephone)}`,
+      `Closing: ${a.closing}`,
+      `Released to: ${a.release.buyer}, signed in to the supplier portal`,
+      `Released on: ${a.release.releasedAtText}`,
+      `Payment: ${a.release.payment}`,
+      `Reference: ${or(a.release.reference)}`,
+      "Issued by: released online, no officer issued it",
+    ];
+  }
   return [
     `Exercise: ${a.exercise}`,
     `Issued to: ${a.purchaser}`,

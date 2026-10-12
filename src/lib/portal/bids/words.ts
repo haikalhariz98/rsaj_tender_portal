@@ -40,6 +40,18 @@ const OWN: Readonly<Record<BidFault, (d: Data) => Words>> = {
   REQUEST_STANDS: () => w("You have already asked for the documents. The office is waiting to sell them to you.", "Anda telah meminta dokumen. Pejabat sedang menunggu untuk menjualnya kepada anda."),
   NO_REQUEST: () => w("You have no request for the documents to withdraw.", "Anda tiada permintaan dokumen untuk ditarik balik."),
   ALREADY_BOUGHT: () => w("The documents have already been sold to your company.", "Dokumen telah dijual kepada syarikat anda."),
+  // SR-10: buying the documents online and paying for them.
+  SOLD_ONLINE: () => w("The documents of this exercise are bought online, not asked for. Open the documents tab and press Buy documents.", "Dokumen pelawaan ini dibeli dalam talian, bukan dipinta. Buka tab dokumen dan tekan Beli dokumen."),
+  NOT_SOLD_ONLINE: () => w("The documents of this exercise are not sold online.", "Dokumen pelawaan ini tidak dijual dalam talian."),
+  RELEASE_NOT_ONLINE: () => w("The organisation has not set that documents are released online, so they cannot be bought here. Ask the procurement office.", "Organisasi belum menetapkan bahawa dokumen dikeluarkan dalam talian, jadi ia tidak boleh dibeli di sini. Tanya pejabat perolehan."),
+  FEE_NOT_SET: () => w("The fee for the documents is not set, so they cannot be bought yet. Tell the procurement office.", "Yuran dokumen belum ditetapkan, jadi ia belum boleh dibeli. Maklumkan kepada pejabat perolehan."),
+  PURCHASE_STANDS: () => w("You have already started buying these documents. Open your purchase to pay for it.", "Anda telah mula membeli dokumen ini. Buka pembelian anda untuk membayarnya."),
+  NO_PURCHASE: () => w("You have no purchase of these documents to pay for.", "Anda tiada pembelian dokumen ini untuk dibayar."),
+  ALREADY_PAID: () => w("This purchase is already paid.", "Pembelian ini telah dibayar."),
+  PAYMENT_UNAVAILABLE: (d) => w(String(d.words ?? "Documents cannot be paid for online here."), "Dokumen tidak boleh dibayar dalam talian di sini. Pejabat akan merekodkan bayaran anda."),
+  METHOD_NOT_OFFERED: () => w("Choose one of the payment methods offered.", "Pilih salah satu kaedah bayaran yang ditawarkan."),
+  NOT_ON_SALE: () => w("The documents are not on sale now, so they cannot be paid for.", "Dokumen tidak dijual sekarang, jadi ia tidak boleh dibayar."),
+  PAYMENT_BARRED: (d) => w(String(d.words ?? "The supplier register does not allow the documents to be sold to your company."), "Daftar pembekal tidak membenarkan dokumen dijual kepada syarikat anda."),
   // Decisions log, 2026-10-09, ruling on 1875(3): the supplier's standing bars this act, in its own words (src/lib/portal/standing-gate.ts).
   SUPPLIER_STANDING_BARS: (d) => w(String(d.en ?? ""), String(d.ms ?? "")),
   REQUEST_REFUSED: () => w("The documents cannot be sold to your company at the moment. The reasons are listed above.", "Dokumen tidak boleh dijual kepada syarikat anda buat masa ini. Sebabnya disenaraikan di atas."),

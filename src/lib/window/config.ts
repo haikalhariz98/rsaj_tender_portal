@@ -9,7 +9,7 @@ import { REGIMES } from "@/lib/method/types";
 
 import type { Finding } from "./types";
 
-export type PolicyFault = "DAYS_NOT_VALID" | "TARGET_BELOW_MINIMUM" | "TIME_NOT_VALID" | "NAMED_CHANNEL_REQUIRED" | "CHANNEL_NOT_FOR_RULE" | "CHANNEL_RETIRED" | "CALENDAR_RETIRED" | "CALENDAR_UNKNOWN" | "CHANNEL_UNKNOWN" | "TEMPLATE_UNKNOWN" | "TIME_ZONE_NOT_SET";
+export type PolicyFault = "DAYS_NOT_VALID" | "TARGET_BELOW_MINIMUM" | "TIME_NOT_VALID" | "NAMED_CHANNEL_REQUIRED" | "CHANNEL_NOT_FOR_RULE" | "CHANNEL_RETIRED" | "CALENDAR_RETIRED" | "CALENDAR_UNKNOWN" | "CHANNEL_UNKNOWN" | "TEMPLATE_UNKNOWN" | "TIME_ZONE_NOT_SET" | "PAYMENT_METHOD_TOO_LONG" | "PAYMENT_METHODS_TOO_MANY" | "PAYMENT_METHOD_REPEATED";
 
 export interface PolicyInput {
   minAdvertisementDays: number | null;
@@ -21,7 +21,15 @@ export interface PolicyInput {
   advertisementChannelId: string | null;
   calendarId: string | null;
   templateIds: readonly (string | null)[];
+  /// SR-10 (ruling 17): the payment methods the simulator offers, one label each.
+  paymentMethods?: readonly string[];
 }
+
+export const PAYMENT_METHOD_MAX_LENGTH = 80;
+export const PAYMENT_METHODS_MAX = 12;
+
+/// The methods as typed, one per line: trimmed, blank lines dropped. The order typed is the order offered.
+export const paymentMethodsFromText = (text: string | null | undefined): string[] => (text ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
 export function policyFaults(p: PolicyInput, known: { channels: readonly { id: string; retiredOn: string | null }[]; calendars: readonly { id: string; retiredOn: string | null }[]; templateIds: readonly string[]; today: string | null }): Finding<PolicyFault>[] {
   const out: Finding<PolicyFault>[] = [];
@@ -55,6 +63,10 @@ export function policyFaults(p: PolicyInput, known: { channels: readonly { id: s
     else if (retired(c.retiredOn)) f("CALENDAR_RETIRED");
   }
   for (const t of p.templateIds) if (t && !known.templateIds.includes(t)) f("TEMPLATE_UNKNOWN");
+  const methods = p.paymentMethods ?? [];
+  if (methods.some((m) => m.length > PAYMENT_METHOD_MAX_LENGTH)) f("PAYMENT_METHOD_TOO_LONG", { max: PAYMENT_METHOD_MAX_LENGTH });
+  if (methods.length > PAYMENT_METHODS_MAX) f("PAYMENT_METHODS_TOO_MANY", { max: PAYMENT_METHODS_MAX });
+  if (new Set(methods.map((m) => m.toLowerCase())).size !== methods.length) f("PAYMENT_METHOD_REPEATED");
   if (zoneNeeded) f("TIME_ZONE_NOT_SET");
   return out;
 }
@@ -158,6 +170,12 @@ export function configFaultText(f: Finding & { line?: number }): string {
       return "The organisation's time zone is not set, so whether that channel or calendar is retired cannot be judged today. Set the time zone under Configuration, Organisation.";
     case "TEMPLATE_UNKNOWN":
       return "That template is no longer configured.";
+    case "PAYMENT_METHOD_TOO_LONG":
+      return `A payment method is named in at most ${f.data?.max ?? PAYMENT_METHOD_MAX_LENGTH} characters.`;
+    case "PAYMENT_METHODS_TOO_MANY":
+      return `At most ${f.data?.max ?? PAYMENT_METHODS_MAX} payment methods may be offered.`;
+    case "PAYMENT_METHOD_REPEATED":
+      return "A payment method is listed twice. Give each once.";
     case "REGIME_UNKNOWN":
       return "Choose the band the floor applies to.";
     case "FLOOR_EXISTS":

@@ -108,6 +108,8 @@ export interface OpportunityRow {
   restricted: boolean;
   restrictedTender: boolean | null;
   closingAt: Date | null;
+  /// SR-10: how the documents are sold, as pinned on the exercise. Null: not set.
+  saleMode: "COUNTER" | "ONLINE" | null;
   sourcingMethodCode: string;
   awards: { status: string }[];
   registrationRequirements: { bodyLabelSnapshot: string; qualifiers: string; alternativeGroup: number; sortOrder: number }[];
@@ -157,7 +159,8 @@ export interface PublicAddendum {
 }
 
 export interface PublicDetail {
-  sale: { state: SaleState; from: string | null; until: string | null; place: string; fee: string | null; payment: string; inspectionPlace: string; inspectionHours: string; submissionPlace: string };
+  /// `online`: the documents are bought through the portal, so no place, hours or payment counter is stated (the strings are empty).
+  sale: { state: SaleState; online: boolean; from: string | null; until: string | null; place: string; fee: string | null; payment: string; inspectionPlace: string; inspectionHours: string; submissionPlace: string };
   events: PublicEvent[];
   addenda: PublicAddendum[];
   /// Each group's alternatives; a bidder holds one from every group.
@@ -225,14 +228,16 @@ export function toPublicOpportunity(row: OpportunityRow, ctx: ProjectionContext)
     detail: {
       sale: {
         state: saleOf(phase),
+        online: row.saleMode === "ONLINE",
         from: w.purchaseFromDay ? formatDay(storedDay(w.purchaseFromDay), "EN") : null,
         until: w.purchaseCloseDay ? formatDay(storedDay(w.purchaseCloseDay), "EN") : null,
-        place: w.purchasePlace,
+        // An exercise sold online has no counter: whatever an earlier record holds in these columns is not stated (the columns stay, unread).
+        place: row.saleMode === "ONLINE" ? "" : w.purchasePlace,
         fee: feeText(w.feeAmount),
-        payment: w.feePaymentMethods,
-        inspectionPlace: w.inspectionPlace,
-        inspectionHours: w.inspectionHours,
-        submissionPlace: w.submissionPlace,
+        payment: row.saleMode === "ONLINE" ? "" : w.feePaymentMethods,
+        inspectionPlace: row.saleMode === "ONLINE" ? "" : w.inspectionPlace,
+        inspectionHours: row.saleMode === "ONLINE" ? "" : w.inspectionHours,
+        submissionPlace: row.saleMode === "ONLINE" ? "" : w.submissionPlace,
       },
       events: [...w.events]
         .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())

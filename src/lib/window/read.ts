@@ -33,6 +33,8 @@ import { windowEditFault } from "./edit";
 import { attendanceCsv, isMandatory, mandatoryPermittedFor } from "./events";
 import { inviteeEditFault, inviteeListFault, regKey } from "./invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "./judge";
+import { SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
+import { onlinePaymentAvailable, physicalItemsApply, saleModeWords, takeSaleModeFaults } from "./sale-mode";
 import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, RULE_LABEL, advertisedOnlyNote, bidNouns, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
 import { closingHistory, isPublished, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
@@ -183,7 +185,7 @@ export async function windowTab(organisationId: string, exerciseId: string, hidd
           edit: allowed(inviteeEditFault(ex.status)),
         }
       : null,
-    findings: words(foldUnpreparedWindow(j.result.findings, !!w)),
+    findings: words(foldUnpreparedWindow(j.result.findings, !!w, j.input.saleMode)),
     notice: w?.noticeText ? { text: w.noticeText, template: w.noticeTemplateCode ? `${d.templates.notice?.nameEn ?? "A template"}, text version ${w.noticeTemplateBodyVersion}` : null } : j.notice?.text ? { text: j.notice.text, template: null, preview: true } : null,
     history: history.map((h, i) => ({ stands: standingEntry(history.length, phase.phase) === i, what: h.source === "APPROVED" ? "Approved for tendering" : CLOSING_CHANGE_KIND_LABEL[h.source], closing: formatOrgDateTime(h.closingAt, tz), lastDayOfSale: h.purchaseCloseDay ? day(h.purchaseCloseDay) : null, on: h.at ? formatOrgDateTime(h.at, tz) : NOT_SET, reason: h.reason || null })),
     changes: (w?.closingChanges ?? []).map((c) => {
@@ -206,6 +208,15 @@ export async function windowTab(organisationId: string, exerciseId: string, hidd
     replacedBy: related.filter((r) => r.replacesExerciseId === ex.id).map((r) => ({ id: r.id, reference: r.reference })),
     cancelledOn,
     evaluation: evaluationShown(d, ex, tz),
+    // SR-10 (ruling 16, G1): how this exercise's documents are sold (pinned), what the organisation's setting is now, and whether the exercise may take it.
+    sale: {
+      mode: ex.saleMode,
+      physical: physicalItemsApply(ex.saleMode),
+      words: saleModeWords(ex.saleMode),
+      setting: saleModeWords(d.sale.saleMode),
+      onlinePayment: onlinePaymentAvailable(d.sale.online),
+      take: allowed(takeSaleModeFaults({ status: ex.status, published: isPublished(ex.status) || !!w?.publishedAt, pin: ex.saleMode, setting: d.sale.saleMode })[0]),
+    },
     actions: {
       save: allowed(editFault),
       publish: firstBlock(j.result.findings) ? { allowed: false as const, reason: windowFindingText(firstBlock(j.result.findings)!) } : { allowed: true as const },
@@ -297,6 +308,8 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
   // 65-C2: a purchaser holding a bid envelope keeps its sale (an envelope names its party from 6.7's opening on).
   // Phase 4d (FR-VND-012): what suppliers asked for from their portal accounts, and what became of it.
   const requests = w ? await requestsOfWindow(db, org.id, w.id, org.timeZone) : [];
+  // SR-10: online purchases still awaiting payment. An officer may record the finance receipt for one (where online payment is not switched on, or the buyer paid at the counter).
+  const awaiting = w ? await db.documentPurchase.findMany({ where: { windowId: w.id, organisationId: org.id, state: "AWAITING_PAYMENT" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, amount: true, createdAt: true, supplier: { select: { reference: true, registeredName: true } }, buyer: { select: { contact: { select: { name: true } } } }, _count: { select: { attempts: true } } } }) : [];
   const holders = new Set((await db.bidEnvelope.findMany({ where: { exerciseId, partyId: { not: null }, status: { not: "WITHDRAWN" }, kind: { not: "COMPANY_ESTIMATE" } }, select: { partyId: true } })).map((e) => e.partyId));
   return {
     voidAll: sales.some((s) => !s.voidedAt) && registerVoid && voidRefusalIsRegisterWide(registerVoid) ? windowFindingText(registerVoid) : null,
@@ -307,19 +320,25 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
     restricted: ex.restrictedTender === true ? { label: d.tender.restrictionLabel ?? "Restricted", asks: "The original or a certified copy of the purchaser's status certificate, and the day it is valid until." } : null,
     fee: money(w?.feeAmount),
     requests,
+    // SR-10 (ruling 16): an exercise sold online is bought through the portal; its register does not offer a counter sale.
+    online: ex.saleMode === "ONLINE",
+    awaitingPayment: awaiting.map((p) => ({ id: p.id, supplier: p.supplier.registeredName, reference: p.supplier.reference, buyer: p.buyer.contact.name, amount: money(p.amount), startedOn: formatOrgDateTime(p.createdAt, org.timeZone), failedTries: p._count.attempts })),
+    onlinePayment: onlinePaymentAvailable(d.sale.online),
     rows: sales.map((s) => {
       const acked = addenda.filter((a) => a.recipients.some((c) => c.partyId === s.partyId && c.acknowledgedOn)).length;
       return {
         id: s.id,
         purchaser: s.party.name,
         registrationNo: s.party.registrationNo,
-        receipt: s.financeReceiptNo ?? "Not recorded",
+        // SR-10: a simulated payment is called so wherever it is shown, and is never a receipt (nor "to collect").
+        simulated: s.paymentChannel === "SIMULATED",
+        receipt: s.paymentChannel === "SIMULATED" ? `${SIMULATED_LABEL} · ${s.simulatedReference}` : (s.financeReceiptNo ?? "Not recorded"),
         amount: money(s.amount),
         soldOn: day(s.soldOn),
         paymentMethod: s.paymentMethod,
         checks: saleChecks({ authoritySighted: s.authoritySighted, certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck, registerReadOn: registerReadOn(s.eligibilitySnapshot), noSupplierNamed: s.noSupplierNamed }, closingDay(ex.closingAt, org.timeZone)),
         addendaAcknowledged: `${acked} of ${addenda.length}`,
-        issuedBy: attributed.read({ entity: "DocumentSale", id: s.id, slot: "issuedBy" }, s.issuedBy.name).en,
+        issuedBy: s.issuedBy ? attributed.read({ entity: "DocumentSale", id: s.id, slot: "issuedBy" }, s.issuedBy.name).en : "Released online: no officer issued it",
         voided: s.voidedAt ? `Voided: ${s.voidReason}` : null,
         void: s.voidedAt ? null : rowVoid(voidSaleFault(s, phase, "-", holders.has(s.partyId))),
         label: isAnnotation(s.annotation) ? annotationLines(s.annotation) : [],

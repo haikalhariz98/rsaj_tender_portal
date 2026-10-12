@@ -7,13 +7,14 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import type { SupplierActor } from "@/lib/auth/types";
+import { SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
 import { db } from "@/lib/db";
 import type { BidContext } from "@/lib/portal/bids/context-store";
 import { SUPERSEDED_NOTICE_WORDS } from "@/lib/portal/bids/non-award";
 import { NOTICE_DELIVERY_STATEMENT } from "@/lib/portal/bids/notices";
 import { addendaTab, briefingsTab, documentsTab, outcomeTab, overviewTab } from "@/lib/portal/bids/workspace-store";
 
-import { AcknowledgeControl, RequestControl, SignUpControl } from "./controls";
+import { AcknowledgeControl, BuyControl, RequestControl, SignUpControl } from "./controls";
 
 /**
  * The tabs of one exercise in My Bids (Phase 4d). Each panel reads only its own slice (`workspace-store.ts`), as the session's supplier, for an exercise it may see. What is not set, not open or not
@@ -57,7 +58,7 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
               items={[
                 { label: "Closes", value: o.facts.closing ?? "Not set" },
                 { label: "Documents on sale", value: o.facts.saleFrom && o.facts.saleUntil ? `${o.facts.saleFrom} to ${o.facts.saleUntil}` : "Not set" },
-                { label: "Bids are handed in at", value: o.facts.submissionPlace || "Not stated" },
+                ...(o.facts.online ? [] : [{ label: "Bids are handed in at", value: o.facts.submissionPlace || "Not stated" }]),
                 { label: "You can open it because", value: o.facts.via === "PUBLIC" ? "It is advertised to everyone." : "The procurement office has linked your company to it." },
                 ...(o.facts.parties.length ? [{ label: "Your company is named as", value: o.facts.parties.join(", ") }] : []),
               ]}
@@ -174,9 +175,17 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
         <CardHeader
           icon={<FileIcon size={17} />}
           title="The tender documents"
-          subtitle="Bought from the procurement office. Ask here, and an officer sells them to you and records the payment."
+          subtitle={d.online ? "Bought online, through this portal. Press Buy documents, pay, and they are released to you." : "Bought from the procurement office. Ask here, and an officer sells them to you and records the payment."}
           actions={
-            d.bought ? undefined : d.request ? (
+            d.online ? (
+              d.online.state === "NOT_BOUGHT" ? (
+                <BuyControl exerciseId={ctx.ex.id} token={token} why={d.online.canBuy ? null : d.online.whyNot ?? "The documents cannot be bought at the moment."} payHref={`${base}/pay`} />
+              ) : d.online.state === "AWAITING_PAYMENT" ? (
+                <ButtonLink href={`${base}/pay`} variant="primary" size="sm" prefetch={false}>Pay for the documents</ButtonLink>
+              ) : (
+                <ButtonLink href={`${base}/pay`} variant="secondary" size="sm" prefetch={false}>See your receipt</ButtonLink>
+              )
+            ) : d.bought ? undefined : d.request ? (
               <RequestControl exerciseId={ctx.ex.id} token={token} mode="withdraw" defaultName={actor.displayName} collector={d.request.collector} why={null} />
             ) : (
               <RequestControl exerciseId={ctx.ex.id} token={token} mode="request" defaultName={actor.displayName} collector={null} why={d.canRequest ? null : blocking[0]?.detail ?? "The documents cannot be asked for at the moment."} />
@@ -189,11 +198,30 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
             items={[
               { label: "On sale", value: d.sale.from && d.sale.until ? `${d.sale.from} to ${d.sale.until}` : "Dates not set" },
               { label: "Fee", value: d.sale.fee ?? "Not set" },
-              { label: "Buy them at", value: d.sale.place || "Not stated" },
-              { label: "How to pay", value: d.sale.payment || "Not stated" },
+              // SR-10 (ruling 16): an exercise sold online has no counter to buy at or pay at.
+              ...(d.online
+                ? [
+                    { label: "How to buy", value: "Online, through this portal" },
+                    { label: "How to pay", value: d.online.payment.available ? `On the payment simulator (${SIMULATED_LABEL}), by ${d.online.payment.methods.join(", ")}` : "Online payment is not connected yet" },
+                  ]
+                : [
+                    { label: "Buy them at", value: d.sale.place || "Not stated" },
+                    { label: "How to pay", value: d.sale.payment || "Not stated" },
+                  ]),
             ]}
           />
-          {d.bought && (
+          {d.online?.state === "AWAITING_PAYMENT" && (
+            <Callout tone="info" title="You have started buying the documents">
+              Started on {d.online.purchase?.startedOn}. {d.online.payment.available ? "They are released to you once you have paid." : `Online payment is not connected yet. Pay the fee as ${d.online.payment.organisation} instructs; the documents are released when ${d.online.payment.organisation} records your receipt.`}
+              {d.online.purchase?.lastFailure && ` Your last try on ${d.online.purchase.lastFailure.method} failed (${SIMULATED_LABEL}), so it is still waiting.`}
+            </Callout>
+          )}
+          {d.online?.state === "PAID" && d.online.purchase?.paid && (
+            <Callout tone={d.online.purchase.paid.channel === "SIMULATED" ? "warn" : "ok"} title={d.online.purchase.paid.channel === "SIMULATED" ? `The documents are paid for (${SIMULATED_LABEL})` : "The documents are paid for"}>
+              Paid on {d.online.purchase.paid.on}, {d.online.purchase.paid.amount}. {d.online.purchase.paid.channel === "SIMULATED" ? `Simulated payment by ${d.online.purchase.paid.method}, reference ${d.online.purchase.paid.reference}: no money moved and it is not a receipt of ${ctx.org.name}.` : d.online.purchase.paid.channelWords + "."}
+            </Callout>
+          )}
+          {d.bought && !d.online && (
             <Callout tone="ok" title="The documents were sold to your company">
               Sold on {d.bought.on}. {d.bought.receiptRecorded ? "The office has recorded your payment." : "The office has not recorded your payment receipt yet."}
             </Callout>
@@ -212,13 +240,13 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
       </Card>
 
       <Card>
-        <CardHeader icon={<ClipboardIcon size={17} />} title="Checks before the documents are sold" subtitle="The office makes the same checks at the counter. Items marked for the counter are checked there by an officer." />
+        <CardHeader icon={<ClipboardIcon size={17} />} title="Checks before the documents are sold" subtitle={d.online ? "Made when you press Buy documents. Who is signed in, and their standing on your company's record, takes the place of an officer sighting a letter of authority." : "The office makes the same checks at the counter. Items marked for the counter are checked there by an officer."} />
         <CardBody pad="none">
-          {d.checks.length === 0 ? (
+          {(d.online?.checks ?? d.checks).length === 0 ? (
             <EmptyState title="The checks cannot be made yet" size="sm">The dates of this exercise are not complete. Tell the procurement office.</EmptyState>
           ) : (
             <ul className="divide-y divide-line/70">
-              {d.checks.map((c) => (
+              {(d.online?.checks ?? d.checks).map((c) => (
                 <li key={c.key} className="flex flex-col gap-1.5 px-5 py-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
                   <p className="min-w-0 text-[13.5px] text-ink-2">{c.detail}</p>
                   <Badge tone={STATE_TONE[c.state]} className="shrink-0 self-start">{STATE_TEXT[c.state]}</Badge>
@@ -249,7 +277,7 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Your copy of the documents online"
-          subtitle="Released only when the organisation has chosen to, after an officer records your payment."
+          subtitle={d.online ? "Released once your payment is made, and open to you here until the closing." : "Released only when the organisation has chosen to, after an officer records your payment."}
           actions={d.release.state === "READY" ? <ButtonLink href={`${base}/documents`} variant="primary" size="sm" prefetch={false}>Open the documents</ButtonLink> : undefined}
         />
         <CardBody>

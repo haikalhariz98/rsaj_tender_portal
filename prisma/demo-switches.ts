@@ -25,6 +25,9 @@ import { DEMO_PREFIX as P } from "./demo-sign-in";
 
 type Db = PrismaClient;
 
+/// The payment methods the demonstration's simulator offers (SR-10, ruling 17). Invented; a customer lists its own.
+export const DEMO_PAYMENT_METHODS = ["Online banking (FPX)", "Credit or debit card", "E-wallet"] as const;
+
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
 /// The prescribed workbook an officer fills in with the bill's sections and quantities. Invented.
@@ -75,6 +78,41 @@ async function writeScopeSwitches(db: Db, organisationId: string, now: Date, byt
       ? await db.scopePolicy.update({ where: { organisationId }, data: next })
       : await db.scopePolicy.create({ data: { id: `${P}scopepolicy`, organisationId, ...next } });
     entry("ScopePolicy", row.id, "Scope and estimate policy", policy ? "UPDATE" : "CREATE", diffFields(policy ? { specificationPanel: words(policy.specPanelUsed), onScreenBill: words(policy.onScreenBillUsed) } : null, { specificationPanel: words(next.specPanelUsed), onScreenBill: words(next.onScreenBillUsed) }), "Demonstration setting: no specification panel, and the bill of quantities is an uploaded Excel file.");
+  }
+
+  // SR-10 (rulings 16 and 17, as amended by the founder on 2026-10-09): how documents are sold, the online release of the documents, and the payment simulator with the methods it offers, set on the
+  // window policy where they are not set. The organisation sells at the counter (every demonstration exercise was authored that way), so an exercise made after the load pins the counter; the one
+  // exercise below is the demonstration's online sale. The simulator is a demonstration: it must be switched off before go-live (backlog).
+  const wp = await db.windowPolicy.findUnique({ where: { organisationId } });
+  if (wp && (wp.documentSaleMode == null || wp.electronicDocumentRelease == null || wp.paymentSimulatorOn == null || wp.simulatedPaymentMethods.length === 0)) {
+    const to = {
+      documentSaleMode: wp.documentSaleMode ?? ("COUNTER" as const),
+      electronicDocumentRelease: wp.electronicDocumentRelease ?? true,
+      electronicReleaseProvenance: wp.electronicReleaseProvenance ?? ("ASSUMED" as const),
+      paymentSimulatorOn: wp.paymentSimulatorOn ?? true,
+      simulatedPaymentMethods: wp.simulatedPaymentMethods.length ? wp.simulatedPaymentMethods : [...DEMO_PAYMENT_METHODS],
+    };
+    await db.windowPolicy.update({ where: { organisationId }, data: to });
+    const sale = (m: string | null) => (m === "ONLINE" ? "Online, through the supplier portal" : m === "COUNTER" ? "At the counter" : "Not set");
+    const onOff = (v: boolean | null) => (v == null ? "Not set" : v ? "On" : "Off");
+    entry(
+      "WindowPolicy",
+      wp.id,
+      "Invitation controls · policy",
+      "UPDATE",
+      diffFields(
+        { howDocumentsAreSold: sale(wp.documentSaleMode), onlineRelease: onOff(wp.electronicDocumentRelease), paymentSimulator: onOff(wp.paymentSimulatorOn), paymentMethodsOffered: wp.simulatedPaymentMethods.join(", ") || "Not set" },
+        { howDocumentsAreSold: sale(to.documentSaleMode), onlineRelease: onOff(to.electronicDocumentRelease), paymentSimulator: `${onOff(to.paymentSimulatorOn)} (a demonstration, not a payment provider)`, paymentMethodsOffered: to.simulatedPaymentMethods.join(", ") },
+      ),
+      "Demonstration setting: documents are sold at the counter; one exercise is sold online, paid on the simulator. Switch the simulator off before go-live.",
+    );
+  }
+  // The demonstration's online exercise: DEMO/SX/0018/2026 was authored, with its sales and its notice, before the sale mode existed, and is pinned to the counter like the rest. For the demonstration it is the
+  // one sold online, so the supplier portal shows Buy documents and the payment simulator on it. A demonstration exception, written here and nowhere else (a customer's exercise is pinned when it is made, G1).
+  const online = await db.sourcingExercise.findFirst({ where: { organisationId, id: `${P}sx18`, saleMode: "COUNTER" }, select: { id: true, reference: true, title: true } });
+  if (online) {
+    await db.sourcingExercise.update({ where: { id: online.id }, data: { saleMode: "ONLINE" } });
+    entry("SourcingExercise", online.id, `${online.reference} · ${online.title}`, "UPDATE", diffFields({ howDocumentsAreSold: "At the counter" }, { howDocumentsAreSold: "Online, through the supplier portal" }), "Demonstration setting: the exercise the online purchase and the payment simulator are shown on.");
   }
 
   // One of the demonstration's own exercises whose pin is still not set takes the setting (never another exercise).

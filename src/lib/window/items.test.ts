@@ -28,6 +28,8 @@ const base: NoticeSubmitInput = {
   regime: "ONE",
   floors: [{ regime: "ONE", minimum: 10000n }],
   basisTotal: 0n,
+  // SR-10 (ruling 16, G1): the exercise's pinned sale mode is part of the input; these tests are of the counter sale unless they say otherwise.
+  saleMode: "COUNTER",
 };
 
 const codes = (i: NoticeSubmitInput) => noticeSubmitFaults(i).map((f) => f.code);
@@ -73,5 +75,20 @@ describe("noticeSubmitFaults (SR-06)", () => {
     expect(codes({ ...base, events: [event], proposedClosingAt: closing })).toContain("EVENT_AFTER_CLOSING");
     expect(codes({ ...base, events: [{ ...event, place: "" }] })).toContain("EVENT_PLACE_MISSING");
     expect(codes({ ...base, events: [{ ...event, cancelled: true, place: "" }] })).toEqual([]);
+  });
+});
+
+describe("SR-10 (ruling 16, G1): the notice's items by how the documents are sold", () => {
+  const blank = { ...items, inspectionPlace: "", purchasePlace: "", inspectionHours: "", feePaymentMethods: "", submissionPlace: "" };
+  it("an online exercise is not asked for the places, the hours or how the fee is paid, and a blank window folds to the two items it does have", () => {
+    expect(codes({ ...base, window: { ...blank, bidValidityDays: 90 }, saleMode: "ONLINE" })).toEqual([]);
+    const out = noticeSubmitFaults({ ...base, window: null, saleMode: "ONLINE" });
+    expect(out[0]).toMatchObject({ code: "WINDOW_ITEMS_NOT_PREPARED", data: { count: 2, online: 1 } });
+  });
+  it("a counter exercise still is", () => {
+    expect(codes({ ...base, window: { ...blank, bidValidityDays: 90 }, saleMode: "COUNTER" })).toEqual(["INSPECTION_PLACE_MISSING", "PURCHASE_PLACE_MISSING", "INSPECTION_HOURS_MISSING", "PAYMENT_METHODS_MISSING", "SUBMISSION_PLACE_MISSING"]);
+  });
+  it("an exercise whose pin is not set is refused until it is", () => {
+    expect(codes({ ...base, saleMode: null })).toContain("SALE_MODE_NOT_SET");
   });
 });

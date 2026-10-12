@@ -9,10 +9,11 @@ import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
 import { REGIME_LABEL } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
-import { configFaultText, floorFaults, parseHolidayCsv, policyFaults, weekendFaults, yearFault } from "@/lib/window/config";
+import { configFaultText, floorFaults, parseHolidayCsv, paymentMethodsFromText, policyFaults, weekendFaults, yearFault } from "@/lib/window/config";
 import { DAY_RULE_LABEL } from "@/lib/window/labels";
 import { ADVERTISEMENT_DAY_RULES, type AdvertisementDayRule } from "@/lib/window/types";
 import { FormReader } from "@/lib/validate";
+import { saleModeWords, type SaleMode } from "@/lib/window/sale-mode";
 import { BID_RULE_FAULT_TEXT, bidRuleFaults, bidRuleToSave } from "@/lib/bids/config";
 import { methodOpeningFaults, methodOpeningToSave, OPENING_CONFIG_FAULT_TEXT, openingPolicyFaults, openingPolicyToSave, type OpeningConfigFault } from "@/lib/opening/config";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
@@ -37,6 +38,7 @@ const GONE: FormState = { ok: false, message: "That record no longer exists. Rel
 const TRI = ["yes", "no", "unset"] as const;
 const tri = (v: string | null): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
 const NOT_SET = "Not set";
+const saleModeChoice = (v: string | null): SaleMode | null => (v === "COUNTER" || v === "ONLINE" ? v : null);
 const WEEKDAY = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 async function organisation(scope: OrgScope) {
@@ -80,6 +82,10 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
     // Phase 4d (FR-VND-012): whether the tender documents are released online to a supplier after an officer records the payment. Unset releases nothing.
     electronicDocumentRelease: tri(r.choice("electronicDocumentRelease", "Release the documents online after payment", TRI)),
     electronicReleaseProvenance: r.choice("electronicReleaseProvenance", "Where the release decision comes from", PROVENANCE),
+    // SR-10 (rulings 16 and 17): how the documents are sold on an exercise created now, and the demonstration payment simulator with the methods it offers. Unset is not "off".
+    documentSaleMode: saleModeChoice(r.choice("documentSaleMode", "How the documents are sold", ["COUNTER", "ONLINE", "unset"] as const)),
+    paymentSimulatorOn: tri(r.choice("paymentSimulatorOn", "Payment simulator", TRI)),
+    paymentMethodsText: r.text("paymentMethodsText", "Payment methods", { max: 2000 }),
     noticeTemplateId: r.optionalText("noticeTemplateId"),
     invitationTemplateId: r.optionalText("invitationTemplateId"),
     addendumTemplateId: r.optionalText("addendumTemplateId"),
@@ -96,7 +102,7 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
     const templates = await tx.documentTemplate.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } });
     const before = await tx.windowPolicy.findUnique({ where: { organisationId: org.id } });
     const fs = policyFaults(
-      { ...v, templateIds: [v.noticeTemplateId, v.invitationTemplateId, v.addendumTemplateId] },
+      { ...v, templateIds: [v.noticeTemplateId, v.invitationTemplateId, v.addendumTemplateId], paymentMethods: paymentMethodsFromText(v.paymentMethodsText) },
       { channels: channels.map((c) => ({ id: c.id, retiredOn: c.retiredOn ? storedDay(c.retiredOn) : null })), calendars: calendars.map((c) => ({ id: c.id, retiredOn: c.retiredOn ? storedDay(c.retiredOn) : null })), templateIds: templates.map((t) => t.id), today },
     );
     if (fs.length) return refusal(fs);
@@ -118,13 +124,17 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
             attendanceFrom: prov(p.attendanceProvenance),
             onlineRelease: p.electronicDocumentRelease == null ? NOT_SET : p.electronicDocumentRelease ? "Released online after payment" : "Collected at the counter only",
             onlineReleaseFrom: prov(p.electronicReleaseProvenance),
+            howDocumentsAreSold: saleModeWords(p.documentSaleMode),
+            paymentSimulator: p.paymentSimulatorOn == null ? NOT_SET : p.paymentSimulatorOn ? "On (a demonstration, not a payment provider)" : "Off",
+            paymentMethodsOffered: "paymentMethodsText" in p ? paymentMethodsFromText(p.paymentMethodsText).join(", ") || NOT_SET : p.simulatedPaymentMethods.join(", ") || NOT_SET,
             noticeTemplate: templates.find((t) => t.id === p.noticeTemplateId)?.nameEn ?? NOT_SET,
             invitationTemplate: templates.find((t) => t.id === p.invitationTemplateId)?.nameEn ?? NOT_SET,
             addendumTemplate: templates.find((t) => t.id === p.addendumTemplateId)?.nameEn ?? NOT_SET,
             sourceCited: p.dateRuleSource || null,
           }
         : null;
-    const row = { ...v };
+    const { paymentMethodsText, ...rest } = v;
+    const row = { ...rest, simulatedPaymentMethods: paymentMethodsFromText(paymentMethodsText) };
     if (!before) {
       const created = await tx.windowPolicy.create({ data: { organisationId: org.id, ...row } });
       await audit(tx, toAuditActor(actor), org.id, "WindowPolicy", created.id, "Invitation controls · policy", "CREATE", diffFields(null, words(v)!), reason);

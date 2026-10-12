@@ -28,9 +28,9 @@ export function surfaceOf(value: string | undefined | null): Surface {
 const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", "/supplier/bids", "/supplier/company", "/supplier/projects", SUPPLIER_ANNOUNCEMENTS_PAGE, ...SUPPLIER_AUTH_PAGES, ...SUPPLIER_REGISTRATION_GET_PATHS]);
 const OPPORTUNITY = /^\/supplier\/opportunities\/[A-Za-z0-9_-]+$/;
 /// Phase 4d: one exercise in My Bids, and the two pages that open its tender documents. One id segment each; the posts are literal paths (`SUPPLIER_BIDS_POST_PATHS`), so a post to a path like these is refused.
-const BID_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+(?:\/(?:table-document|documents))?$/;
+const BID_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+(?:\/(?:table-document|documents|pay|download))?$/;
 /// The two of those that write the inspection log on every render. A page that is only asked about (HEAD) is not opened, so it is not served: a HEAD would otherwise log an opening nobody made.
-const INSPECTION_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+\/(?:table-document|documents)$/;
+const INSPECTION_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+\/(?:table-document|documents|download)$/;
 /// Phase 4e: one contract in My Projects. One id segment; the posts are literal paths (`SUPPLIER_PROJECTS_POST_PATHS`).
 const PROJECT_PAGE = /^\/supplier\/projects\/[A-Za-z0-9_-]+$/;
 /// The organisation's logo, addressed by its own fingerprint.

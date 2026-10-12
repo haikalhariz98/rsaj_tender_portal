@@ -255,3 +255,55 @@ export function RequestControl({ exerciseId, token, mode, defaultName, collector
     </>
   );
 }
+
+// ------------------------------------------------------------------ buying the documents online (SR-10)
+
+/**
+ * "Buy documents" on an exercise sold online. It makes a purchase that waits for payment and then takes the buyer to pay for it: nothing is paid or released by pressing it. Where something stops the
+ * purchase, the button is disabled and says what, beside it; a check that refuses it is shown with its reasons.
+ */
+export function BuyControl({ exerciseId, token, why, label = "Buy documents", payHref }: { exerciseId: string; token: string | null; why: string | null; label?: string; payHref: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reasons, setReasons] = useState<string[]>([]);
+
+  if (why) {
+    return (
+      <span className="flex flex-col items-end gap-1">
+        <Button variant="primary" size="sm" disabled>{label}</Button>
+        <Why>{why}</Why>
+      </span>
+    );
+  }
+
+  async function buy() {
+    setBusy(true);
+    setError(null);
+    setReasons([]);
+    const res = await postBids(SUPPLIER_BIDS_POSTS.request, token, { exerciseId, action: "buy" });
+    setBusy(false);
+    if (res.status === 200 && res.body?.ok) {
+      router.push(payHref);
+      return;
+    }
+    if (res.body?.code === "REFUSED") {
+      setReasons(res.body.reasons ?? []);
+      if (res.body.recorded) router.refresh();
+      return;
+    }
+    setError(answerWords(res.status, res.body));
+  }
+
+  return (
+    <span className="flex flex-col items-end gap-2">
+      <Button variant="primary" size="sm" icon={<FileIcon size={15} />} onClick={buy} disabled={busy || !token}>{busy ? "Starting…" : label}</Button>
+      {error && <Callout tone="err" className="max-w-sm text-left">{error}</Callout>}
+      {reasons.length > 0 && (
+        <Callout tone="err" title="The documents cannot be sold to your company at the moment" className="max-w-sm text-left">
+          <ul className="list-disc pl-5">{reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+        </Callout>
+      )}
+    </span>
+  );
+}

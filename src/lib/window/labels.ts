@@ -139,7 +139,15 @@ export function windowFindingText(f: Finding): string {
       return "The organisation's time zone is not set, so no day can be judged. Set it under Configuration, Organisation.";
 
     case "WINDOW_ITEMS_NOT_PREPARED":
-      return `Prepare the notice and fee on Scope and estimate: where the documents are inspected and bought, the hours, the days of sale, how the fee is paid and the fee (${d.count} items not written yet).`;
+      return d.online
+        ? `Prepare the notice and fee on Scope and estimate: the days of sale and the fee (${d.count} items not written yet).`
+        : `Prepare the notice and fee on Scope and estimate: where the documents are inspected and bought, the hours, the days of sale, how the fee is paid and the fee (${d.count} items not written yet).`;
+    case "NOTHING_TO_TAKE":
+      return "How this exercise's documents are sold is already set, so there is nothing to take.";
+    case "SETTING_NOT_SET":
+      return "The organisation has not set how documents are sold. Set it under Configuration, Invitation, and an exercise takes it from there.";
+    case "SALE_MODE_NOT_SET":
+      return "How this exercise's documents are sold (at the counter, or online) is not set, because the organisation had not set it when the exercise was made. Take the organisation's setting under Notice and fee on Scope and estimate; if it is not set either, set it under Configuration, Invitation."
     case "BID_VALIDITY_NOT_SET":
       return "The number of days the bids stay valid is not set. Enter it under Notice and fee on Scope and estimate.";
 

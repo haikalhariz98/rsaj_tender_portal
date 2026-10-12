@@ -6,9 +6,9 @@ import { Callout } from "@/components/ui/feedback";
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { Facts } from "../documents/editors";
 
-import { chooseEvaluationModel, recordLetterDelivery, proposeInvitee, publishWindow, recordPublication, removeFeeLine, removeInvitee, removePublication, saveFeeLine, saveWindow } from "./actions";
+import { chooseEvaluationModel, recordLetterDelivery, proposeInvitee, publishWindow, recordPublication, removeFeeLine, removeInvitee, removePublication, saveFeeLine, saveWindow, takeSaleMode } from "./actions";
 import { requestCancellation, requestClosingChange, recordNoticeDelivery, recordWindowChangeDecision } from "./change-actions";
-import { cancelEvent, issueAddendum, markEventHeld, recordAddendumDelivery, recordAttendance, recordReceipt, recordSale, saveAddendum, scheduleEvent, setEventMandatory, voidAddendum, voidSale } from "./register-actions";
+import { cancelEvent, issueAddendum, markEventHeld, recordAddendumDelivery, recordAttendance, recordPurchaseReceipt, recordReceipt, recordSale, saveAddendum, scheduleEvent, setEventMandatory, voidAddendum, voidSale } from "./register-actions";
 
 /**
  * The drawers of the Invitation tab. Fields are data; every rule sits in the action and the pure
@@ -40,23 +40,45 @@ const RECORDED_AS_YOURS = "It is recorded as yours.";
 
 export type WindowItems = { inspectionPlace: string; purchasePlace: string; inspectionHours: string; purchaseFromDay: string; purchaseCloseDay: string; feeAmount: string; feePaymentMethods: string; submissionPlace: string; closingTimeReason: string; specialPermissionOffered: string };
 
-export function EditWindowDrawer({ exerciseId, items, allowed, first }: { exerciseId: string; items: WindowItems | null; allowed: Allowed; first: boolean }) {
+/// SR-10 (ruling 16, G1): take the organisation's setting for how this exercise's documents are sold. Disabled with the reason where the organisation has not set it either.
+export function TakeSaleModeDrawer({ exerciseId, take, setting }: { exerciseId: string; take: Allowed; setting: string }) {
+  if (!take.allowed) return <Blocked label="Take the organisation's setting" reason={take.reason} primary />;
+  return (
+    <RecordEditor
+      title="Take the organisation's setting"
+      description={`This exercise was made while the organisation had not said how its documents are sold. It takes what Configuration says now, once: ${setting}. From publication it is frozen, so a later change to the setting never changes how this exercise is judged.`}
+      fields={[hidden("exerciseId")]}
+      values={{ exerciseId }}
+      action={takeSaleMode}
+      submitLabel="Take the setting"
+      trigger={{ label: "Take the organisation's setting", className: primary }}
+      size="md"
+    />
+  );
+}
+
+export function EditWindowDrawer({ exerciseId, items, allowed, first, online = false }: { exerciseId: string; items: WindowItems | null; allowed: Allowed; first: boolean; online?: boolean }) {
   if (!allowed.allowed) return null;
   return (
     <RecordEditor
       title={first ? "Fill in notice and fee" : "Edit notice and fee"}
-      description="What the notice states: where the documents are inspected and bought, the days of sale, the fee and where tenders go. The closing is not changed here: it was recorded when the documents were approved, and moves only by a closing change."
+      description={`${online ? "What the notice states: the days of sale and the fee. The documents are bought online through the supplier portal, so there is no place or hour of sale to state." : "What the notice states: where the documents are inspected and bought, the days of sale, the fee and where tenders go."} The closing is not changed here: it was recorded when the documents were approved, and moves only by a closing change.`}
       columns={2}
       fields={[
         hidden("exerciseId"),
-        { kind: "text", name: "inspectionPlace", label: "Where the documents are inspected", required: true },
-        { kind: "text", name: "purchasePlace", label: "Where the documents are bought", required: true },
-        { kind: "text", name: "inspectionHours", label: "Inspection and purchase hours", required: true, hint: "As the notice states them." },
-        { kind: "text", name: "submissionPlace", label: "Where tenders are submitted", required: true },
+        // SR-10 (ruling 16): an exercise sold online has no places, hours or payment counter, so the form does not ask for them.
+        ...(online
+          ? []
+          : ([
+              { kind: "text", name: "inspectionPlace", label: "Where the documents are inspected", required: true },
+              { kind: "text", name: "purchasePlace", label: "Where the documents are bought", required: true },
+              { kind: "text", name: "inspectionHours", label: "Inspection and purchase hours", required: true, hint: "As the notice states them." },
+              { kind: "text", name: "submissionPlace", label: "Where tenders are submitted", required: true },
+            ] satisfies Field[])),
         { kind: "date", name: "purchaseFromDay", label: "First day of sale", required: true, hint: "Not before the advertisement day." },
         { kind: "date", name: "purchaseCloseDay", label: "Last day of sale", required: true, hint: "Judged against the closing by the cut-off set under Invitation controls." },
         { kind: "money", name: "feeAmount", label: "Document fee", required: true, hint: "Entered, not worked out from the basis. Judged against the minimum for its band." },
-        { kind: "text", name: "feePaymentMethods", label: "How the fee is paid", required: true },
+        ...(online ? [] : ([{ kind: "text", name: "feePaymentMethods", label: "How the fee is paid", required: true }] satisfies Field[])),
         { kind: "textarea", name: "closingTimeReason", label: "Why the closing time is not the usual one", hint: "Only if the closing time differs from the default time set under Invitation controls." },
         { kind: "select", name: "specialPermissionOffered", label: "Special permission", options: [{ value: "unset", label: "Not stated" }, { value: "yes", label: "Offered" }, { value: "no", label: "Not offered" }], hint: "Whether the notice offers special permission to a firm short of a grade or a field code. Not stated: none is granted on this exercise." },
       ]}
@@ -438,6 +460,25 @@ export function RecordSaleDrawer({
       submitLabel="Record the sale"
       trigger={{ label: "Record a sale", className: primary }}
       size="lg"
+    />
+  );
+}
+
+/**
+ * Record the finance receipt of an online purchase awaiting payment (SR-10, ruling 17: the officer-recorded receipt stays as the second writer of "paid"). The number is finance's, typed as it reads; the
+ * portal never makes one, and a simulated payment is never one. Recording it pays the online purchase and releases the documents to the buyer.
+ */
+export function RecordPurchaseReceiptDrawer({ exerciseId, purchaseId, name }: { exerciseId: string; purchaseId: string; name: string }) {
+  return (
+    <RecordEditor
+      title={`Receipt number for ${name}`}
+      description="The number on finance's receipt, typed as it reads. Recording it pays the online purchase and releases the documents to the buyer. The portal never makes a number up, and a number already on another sale is refused."
+      fields={[hidden("exerciseId"), hidden("purchaseId"), { kind: "text", name: "financeReceiptNo", label: "Receipt number", required: true, mono: true }, actorField("DocumentSale.issuedBy", { name: "issuedByPersonId" })]}
+      values={{ exerciseId, purchaseId }}
+      action={recordPurchaseReceipt}
+      submitLabel="Record the receipt"
+      trigger={{ label: "Record receipt", className: ghost, ariaLabel: `Record the finance receipt for the online purchase by ${name}` }}
+      size="sm"
     />
   );
 }

@@ -212,6 +212,8 @@ export const DETAIL = {
   fee: w("Fee", "Yuran"),
   feeNotStated: w("The fee is not stated. Ask the procurement office.", "Yuran tidak dinyatakan. Tanya pejabat perolehan."),
   buyAt: w("Buy at", "Beli di"),
+  howToBuy: w("How to buy", "Cara membeli"),
+  boughtOnline: w("Online, through the supplier portal. Sign in and open My Bids to buy the documents.", "Dalam talian, melalui portal pembekal. Log masuk dan buka Bida Saya untuk membeli dokumen."),
   onSale: w("On sale", "Dijual"),
   payBy: w("Ways to pay", "Cara bayaran"),
   inspect: w("Inspect the documents at", "Semak dokumen di"),

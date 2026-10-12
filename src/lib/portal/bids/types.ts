@@ -44,6 +44,18 @@ export type BidFault =
   | "NO_REQUEST"
   | "ALREADY_BOUGHT"
   | "REQUEST_REFUSED"
+  // Buying the documents online and paying for them (SR-10).
+  | "SOLD_ONLINE"
+  | "NOT_SOLD_ONLINE"
+  | "RELEASE_NOT_ONLINE"
+  | "FEE_NOT_SET"
+  | "PURCHASE_STANDS"
+  | "NO_PURCHASE"
+  | "ALREADY_PAID"
+  | "PAYMENT_UNAVAILABLE"
+  | "METHOD_NOT_OFFERED"
+  | "NOT_ON_SALE"
+  | "PAYMENT_BARRED"
   // The supplier's standing bars the act (ruling on 1875(3)); the words are in the finding's data.
   | "SUPPLIER_STANDING_BARS";
 

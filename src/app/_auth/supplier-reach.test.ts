@@ -33,7 +33,9 @@ const PORTAL = walk(path.join(SRC, "app", "supplier")).map((f) => ({ file: rel(f
 // Phase 4d: My Bids' three JSON posts are held by the section further down (`app/supplier/bids/`), as the registration's and the Company workspace's are: this first section is for the doors a stranger reaches.
 // Phase 4e: My Projects' three JSON posts are held by their own section (`app/supplier/projects/`).
 const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/") && !f.file.startsWith("app/supplier/bids/") && !f.file.startsWith("app/supplier/projects/"));
-const BIDS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/bids/"));
+// Wave 3a (SR-10): the one GET under a dynamic segment (`app/supplier/bids/[id]/download`) is a read of a released file, held by its own test below; the others are the JSON posts.
+const BIDS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/bids/") && !f.file.includes("/[id]/"));
+const BIDS_DOWNLOADS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/bids/") && f.file.includes("/[id]/"));
 const BIDS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && f.file.startsWith("app/supplier/bids"));
 const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/"));
 const PROJECTS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && (f.file.startsWith("app/supplier/projects") || f.file.startsWith("app/supplier/announcements")));
@@ -290,12 +292,26 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
     expect(lex(read("lib/portal/bids/api.ts"), { only: "comments" })).not.toMatch(/\b(?:b|body)\.(?:supplierId|organisationId|accountId|supplierAccountId|acknowledgedOn|requestedAt)\b/);
   });
 
+  it("the download of a released file is one GET that asks the portal's guard first, and a HEAD that reads nothing (SR-10)", () => {
+    expect(BIDS_DOWNLOADS.map((f) => f.file)).toEqual(["app/supplier/bids/[id]/download/route.ts"]);
+    const f = BIDS_DOWNLOADS[0];
+    expect(methods(f.src)).toEqual(["GET", "HEAD"]);
+    const code = lex(f.src);
+    const get = code.slice(code.search(/export\s+async\s+function\s+GET\b/));
+    expect(get.slice(get.search(/\bawait\b/)).startsWith("await supplierGet(request, ")).toBe(true);
+    expect(get).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+    // The supplier is the session's: the query names a file or a text, never a supplier.
+    expect(lex(f.src, { only: "comments" })).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId)["']\s*\)/);
+    expect(f.src).not.toMatch(/^\s*["']use server["']/m);
+  });
+
   it("hold no server action", () => {
     for (const f of [...BIDS_HANDLERS, ...BIDS_PAGES]) expect(f.src, f.file).not.toMatch(/^\s*["']use server["']/m);
   });
 
   it("every page asks who is signed in first, and reads its supplier from the actor", () => {
-    expect(BIDS_PAGES.length).toBe(4);
+    // Wave 3a (SR-10) adds the payment page of an online purchase, so 5.
+    expect(BIDS_PAGES.length).toBe(5);
     for (const f of BIDS_PAGES) {
       expect(f.src, f.file).toMatch(/const actor = await requireSupplier\(\);/);
       // The id in the address is an exercise's; it is never taken for a supplier's.

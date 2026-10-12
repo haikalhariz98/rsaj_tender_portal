@@ -40,7 +40,10 @@ export const manualFeeReceipt: FeeReceiptGateway = {
   },
 };
 
-/// The reconciliation exceptions: live sales with no receipt recorded, oldest first.
-export function uncollectedReceipts<S extends { voidedAt: Date | null; financeReceiptNo: string | null; soldOn: Date }>(sales: readonly S[]): S[] {
-  return sales.filter((s) => !s.voidedAt && !s.financeReceiptNo).sort((a, b) => a.soldOn.getTime() - b.soldOn.getTime());
+/**
+ * The reconciliation exceptions: live sales with no receipt recorded, oldest first. A simulated payment (SR-10) is never an exception: it is not a finance receipt and never
+ * will be, so finance has nothing to reconcile it to and it must not appear to be waiting for one.
+ */
+export function uncollectedReceipts<S extends { voidedAt: Date | null; financeReceiptNo: string | null; soldOn: Date; paymentChannel?: "COUNTER" | "SIMULATED" }>(sales: readonly S[]): S[] {
+  return sales.filter((s) => !s.voidedAt && !s.financeReceiptNo && s.paymentChannel !== "SIMULATED").sort((a, b) => a.soldOn.getTime() - b.soldOn.getTime());
 }

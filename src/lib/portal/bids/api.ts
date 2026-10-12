@@ -41,14 +41,21 @@ export function parseAcknowledgeBody(b: Record<string, unknown>): Parsed<Acknowl
 
 export interface RequestBody {
   exerciseId: string;
-  action: "request" | "withdraw";
+  /// "request" and "withdraw" are the counter's; "buy" and "pay" are an online sale's (SR-10): the same door, the same guard.
+  action: "request" | "withdraw" | "buy" | "pay";
   collectorName: string;
+  /// "pay" only: the payment method chosen, as the organisation configured it, and what the buyer chose on the simulated provider's page.
+  method: string;
+  choice: "PAY" | "FAIL" | null;
 }
 
 export function parseRequestBody(b: Record<string, unknown>): Parsed<RequestBody> {
   if (!isId(b.exerciseId)) return bad("Say which exercise this is for.");
-  if (b.action !== "request" && b.action !== "withdraw") return bad("Say whether you are asking for the documents or withdrawing the request.");
+  if (b.action !== "request" && b.action !== "withdraw" && b.action !== "buy" && b.action !== "pay") return bad("Say whether you are asking for the documents, withdrawing the request, buying them or paying for them.");
   const collectorName = text(b.collectorName, 240);
   if (collectorName == null) return bad("The name is not text.");
-  return { ok: true, value: { exerciseId: b.exerciseId, action: b.action, collectorName } };
+  const method = text(b.method, 120);
+  if (method == null) return bad("The payment method is not text.");
+  if (b.action === "pay" && b.choice !== "PAY" && b.choice !== "FAIL") return bad("Choose Pay successfully or Payment fails.");
+  return { ok: true, value: { exerciseId: b.exerciseId, action: b.action, collectorName, method: method.trim(), choice: b.choice === "PAY" || b.choice === "FAIL" ? b.choice : null } };
 }

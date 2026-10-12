@@ -182,7 +182,7 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
   const sx = RESULTS_EXERCISE;
   const created = T(W(15), "16:30");
   const ref = await db.$transaction((tx) => issueReference(tx as never, organisationId, "exercise", dayToDate(W(15))));
-  await db.sourcingExercise.create({ data: { id: sx, organisationId, specPanelUsed: true, onScreenBillUsed: true, reference: ref, requisitionId: RQ, title: TITLE, estimatedValue: VALUE, sourcingMethodCode: "open_quotation", methodReason: "", status: "DRAFT", contractBasisCode: "ds", createdAt: created } });
+  await db.sourcingExercise.create({ data: { id: sx, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", reference: ref, requisitionId: RQ, title: TITLE, estimatedValue: VALUE, sourcingMethodCode: "open_quotation", methodReason: "", status: "DRAFT", contractBasisCode: "ds", createdAt: created } });
   await db.exerciseScopePart.create({ data: { id: `${sx}p1`, exerciseId: sx, deliverableKind: "MEASURED_CONSTRUCTION", amount: VALUE, description: TITLE, sortOrder: 1 } });
   await hooks.determine([sx]);
   const scopeOn = W(14);

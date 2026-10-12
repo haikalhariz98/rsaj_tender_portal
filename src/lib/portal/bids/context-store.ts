@@ -24,6 +24,8 @@ export const CONTEXT_SELECT = {
   restricted: true,
   restrictedTender: true,
   closingAt: true,
+  // SR-10: how the documents are sold, as pinned on the exercise.
+  saleMode: true,
   window: {
     select: {
       id: true,

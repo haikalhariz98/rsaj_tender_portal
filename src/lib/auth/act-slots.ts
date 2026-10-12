@@ -390,6 +390,7 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "OrgUnit.headPerson": CONFIGURATION,
   "CostCentre.ownerPerson": CONFIGURATION,
   "BudgetCode.holderPerson": CONFIGURATION,
+  "DocumentPurchase.receiptRecordedBy": "SR-10: mirrors DocumentSale.issuedBy of the sale this purchase made, which is the attributed act: the officer who recorded the finance receipt. Not an act of its own.",
   "PersonQualification.person": "A qualification the person holds, kept as reference data: the person is the subject of the record. Who recorded it is in the audit row.",
   "StaffAccount.person": "The binding of a sign-in account to its Person: identity, bound for good once made.",
   "OneTimeCode.issuedBy": "The issuer of a code is the signed-in actor of an account-administration act, written in the sign-in log and the audit trail.",

@@ -31,6 +31,8 @@ export const ENTITY = {
   signUp: "SiteEventRegistration",
   acknowledgement: "AddendumAcknowledgement",
   documentRequest: "DocumentRequest",
+  // SR-10: an online purchase of the documents, paid on the simulator or by an officer recording the receipt.
+  purchase: "DocumentPurchase",
   nonAwardNotice: "NonAwardNotice",
 } as const;
 

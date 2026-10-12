@@ -117,7 +117,8 @@ function Body({ o, d }: { o: NonNullable<Awaited<ReturnType<typeof loadOpportuni
               { label: DETAIL.reference.en, value: o.reference },
               { label: DETAIL.method.en, value: o.method || METHOD_NOT_STATED.en },
               { label: DETAIL.closing.en, value: <span className="font-semibold">{o.closing}</span> },
-              { label: DETAIL.submissionPlace.en, value: or(d.sale.submissionPlace) },
+              // SR-10 (ruling 16): an exercise sold online states no place of submission or sale.
+              ...(d.sale.online ? [] : [{ label: DETAIL.submissionPlace.en, value: or(d.sale.submissionPlace) }]),
             ]}
           />
           {o.state === "OPEN" && <p className="mt-4 text-[13px] text-ink-3">{DETAIL.closingNote.en}</p>}
@@ -132,10 +133,14 @@ function Body({ o, d }: { o: NonNullable<Awaited<ReturnType<typeof loadOpportuni
             items={[
               { label: DETAIL.fee.en, value: d.sale.fee ?? DETAIL.feeNotStated.en },
               { label: DETAIL.onSale.en, value: days ?? NOT_STATED },
-              { label: DETAIL.buyAt.en, value: or(d.sale.place) },
-              { label: DETAIL.payBy.en, value: or(d.sale.payment) },
-              { label: DETAIL.inspect.en, value: or(d.sale.inspectionPlace) },
-              { label: DETAIL.hours.en, value: or(d.sale.inspectionHours) },
+              ...(d.sale.online
+                ? [{ label: DETAIL.howToBuy.en, value: DETAIL.boughtOnline.en }]
+                : [
+                    { label: DETAIL.buyAt.en, value: or(d.sale.place) },
+                    { label: DETAIL.payBy.en, value: or(d.sale.payment) },
+                    { label: DETAIL.inspect.en, value: or(d.sale.inspectionPlace) },
+                    { label: DETAIL.hours.en, value: or(d.sale.inspectionHours) },
+                  ]),
             ]}
           />
         </CardBody>

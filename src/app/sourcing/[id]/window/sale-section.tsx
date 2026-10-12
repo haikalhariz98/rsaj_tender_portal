@@ -7,6 +7,7 @@ import { Callout } from "@/components/ui/feedback";
 import type { saleRegister } from "@/lib/window/read";
 
 import { RecordSaleDrawer } from "./editors";
+import { PurchasesList } from "./purchases-list";
 import type { Person, WindowContext } from "./window-section";
 import { RequestsList } from "./requests-list";
 import { SaleList } from "./sale-list";
@@ -19,8 +20,9 @@ export function saleHeader(d: Sales, c: WindowContext): { actions: ReactNode; no
   const invited = d.pathKey === "INVITED";
   const parties: Person[] = d.parties.filter((p) => !bought.has(p.registrationNo) && (!invited || p.invited)).map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` }));
   return {
-    actions: <RecordSaleDrawer exerciseId={c.exerciseId} allowed={d.open} parties={parties} invited={invited} restricted={d.restricted} people={c.people} fee={d.fee} suppliers={d.suppliers.options} suppliersTotal={d.suppliers.total} />,
-    notes: [...(d.open.allowed ? [] : [["Record a sale", d.open.reason] as [string, string]]), ...(d.voidAll ? [["Void a sale", d.voidAll] as [string, string]] : [])],
+    // SR-10 (ruling 16, G3): an exercise sold online is bought through the supplier portal, so the counter sale is not offered on it.
+    actions: d.online ? null : <RecordSaleDrawer exerciseId={c.exerciseId} allowed={d.open} parties={parties} invited={invited} restricted={d.restricted} people={c.people} fee={d.fee} suppliers={d.suppliers.options} suppliersTotal={d.suppliers.total} />,
+    notes: [...(d.online || d.open.allowed ? [] : [["Record a sale", d.open.reason] as [string, string]]), ...(d.voidAll ? [["Void a sale", d.voidAll] as [string, string]] : [])],
   };
 }
 
@@ -40,6 +42,19 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
           The number is typed in from finance&apos;s receipt. Until then the sale stays on the list of receipts to collect: {d.reconciliation.map((r) => `${r.purchaser} (sold ${r.soldOn}, ${r.amount})`).join("; ")}.
         </Callout>
       )}
+      {d.online && (
+        <Callout tone="info" title="These documents are bought online">
+          {d.onlinePayment
+            ? "A supplier buys them through the portal and pays on the demonstration payment simulator; the sale appears below the moment it is paid. A simulated payment is never a finance receipt: it carries no receipt number, is not among the receipts to collect and never reaches a finance export."
+            : "A supplier buys them through the portal. Online payment is not switched on, so the buyer pays at the finance counter and you record the receipt against its purchase below; the documents are then released."}
+        </Callout>
+      )}
+      {d.online && (
+        <Card className="overflow-hidden">
+          <CardHeader icon={<InboxIcon size={17} />} title="Bought online, awaiting payment" subtitle={`${d.awaitingPayment.length} ${d.awaitingPayment.length === 1 ? "purchase waits" : "purchases wait"} for payment. Record the finance receipt of one that paid at the counter.`} />
+          <PurchasesList exerciseId={c.exerciseId} purchases={d.awaitingPayment} onlinePayment={d.onlinePayment} />
+        </Card>
+      )}
       <Card className="overflow-hidden">
         <CardHeader
           icon={<FileIcon size={17} />}
@@ -49,6 +64,11 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
           actions={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=documents&section=publishing`} variant="ghost" size="sm">See the addenda</ButtonLink>}
         />
         <CardBody className="flex flex-col gap-3 border-t border-line">
+          {d.rows.some((r) => r.simulated) && (
+            <Callout tone="warn" title="Some sales were paid on the payment simulator">
+              A sale marked Simulated payment is a demonstration: no money moved and it is not a finance receipt. It carries no receipt number and is not counted among the receipts to collect.
+            </Callout>
+          )}
           <Callout tone="warn" title="Registration and suspension are checked only for a linked contractor">
             A contractor linked to the supplier register is checked against it at the sale, and its eligibility is kept with the sale. One not linked cannot be checked here: its sale carries that warning on to bid receipt and evaluation. Link a contractor from its supplier&apos;s record under Suppliers.
           </Callout>

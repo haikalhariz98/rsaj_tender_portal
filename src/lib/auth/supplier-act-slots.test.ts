@@ -46,6 +46,9 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "AddendumAcknowledgement.acknowledgedBy": "Who acknowledged an addendum (Phase 4d): the column is the record, the row is append-only, and it is not delivery. It signs nothing.",
   "DocumentRequest.requestedBy": "Who asked for the tender documents (Phase 4d): the column is the record, and the request starts no sale and signs nothing.",
   "DocumentRequest.endedBy": "Who withdrew the request (Phase 4d): paired with `endedAt` by CHECK, and audited with the account.",
+  "DocumentPurchase.buyer": "Who bought the documents online (SR-10): the column is the record, and it names the person signed in whose standing was read. Paying is a separate row (PaymentAttempt.by) and the payment simulator is not a signature.",
+  "PaymentAttempt.by": "Who pressed Pay successfully or Payment fails on the simulated provider page (SR-10): append-only for every login, one row per try, failures kept.",
+  "PurchaseDownload.account": "Who downloaded a released file or text (SR-10): append-only for every login, one row per download, none deduplicated.",
   "TenderInspectionEvent.viewedBy": "Who opened the tender documents (Phase 4d): the inspection log itself, append-only for every login, written before the content is shown.",
   "SiteDiaryEntry.disputedBy": "Who recorded a disagreement on a diary entry from the portal (Phase 4e): the column is the record, audited with the account. A disagreement is words, not a signature; the entry is then the S.O.'s.",
 };

@@ -11,6 +11,7 @@
 
 import type { Sen } from "@/lib/money";
 
+import { PHYSICAL_ITEM_CODES, physicalItemsApply, saleModeFault, type SaleMode, type SaleModeFault } from "./sale-mode";
 import { eventFaults } from "./events";
 import { feeFaults } from "./fee";
 import type { EventFacts, FeeFloorFacts, Finding } from "./types";
@@ -38,10 +39,17 @@ export interface WindowItems {
   closingTimeReason: string;
 }
 
-/// The seven findings about the notice's own items: places, hours, the first day of sale and its order, how the fee is paid, and where tenders go.
-export function itemFaults(w: Pick<WindowItems, "inspectionPlace" | "purchasePlace" | "inspectionHours" | "purchaseFromDay" | "purchaseCloseDay" | "feePaymentMethods" | "submissionPlace">): Finding<ItemFault>[] {
+/**
+ * The seven findings about the notice's own items: places, hours, the first day of sale and its order, how the fee is paid, and where tenders go.
+ * SR-10 (ruling 16): for an exercise sold online the five that describe a physical sale (the places, the hours, how the fee is paid) are not asked, because the
+ * fields are not on the form; the first day of sale and its order stay.
+ */
+export function itemFaults(w: Pick<WindowItems, "inspectionPlace" | "purchasePlace" | "inspectionHours" | "purchaseFromDay" | "purchaseCloseDay" | "feePaymentMethods" | "submissionPlace">, mode: SaleMode | null = "COUNTER"): Finding<ItemFault>[] {
   const out: Finding<ItemFault>[] = [];
-  const f = (code: ItemFault) => out.push({ code, level: "block" });
+  const f = (code: ItemFault) => {
+    if (!physicalItemsApply(mode) && PHYSICAL_ITEM_CODES.has(code)) return;
+    out.push({ code, level: "block" });
+  };
   if (!w.inspectionPlace.trim()) f("INSPECTION_PLACE_MISSING");
   if (!w.purchasePlace.trim()) f("PURCHASE_PLACE_MISSING");
   if (!w.inspectionHours.trim()) f("INSPECTION_HOURS_MISSING");
@@ -52,12 +60,14 @@ export function itemFaults(w: Pick<WindowItems, "inspectionPlace" | "purchasePla
   return out;
 }
 
-export type NoticeFault = ItemFault | "WINDOW_ITEMS_NOT_PREPARED" | "BID_VALIDITY_NOT_SET";
+export type NoticeFault = ItemFault | SaleModeFault | "WINDOW_ITEMS_NOT_PREPARED" | "BID_VALIDITY_NOT_SET";
 
 export interface NoticeSubmitInput {
   /// The window as written on the exercise; null: no item has been written.
   window: (WindowItems & { bidValidityDays: number | null }) | null;
   events: readonly Pick<EventFacts, "kind" | "startsAt" | "place" | "mandatory" | "cancelled">[];
+  /// SR-10 (G1): how the documents are sold on this exercise, as pinned. Null: not set, and the submission refuses saying so.
+  saleMode: SaleMode | null;
   /// Whether mandatory attendance may be asked, from the customer's policy; null: not set.
   mandatoryAttendancePermitted: boolean | null;
   /// The closing the documents will propose; null where it is not known (an event is then not judged against it).
@@ -79,14 +89,16 @@ export const UNPREPARED_ITEM_CODES: ReadonlySet<string> = new Set<string>(["INSP
 export function noticeSubmitFaults(i: NoticeSubmitInput): Finding[] {
   const out: Finding[] = [];
   const w = i.window;
-  if (w) out.push(...itemFaults(w));
+  if (w) out.push(...itemFaults(w, i.saleMode));
+  const sm = saleModeFault(i.saleMode);
+  if (sm) out.push(sm);
   for (const e of i.events) out.push(...eventFaults(e, i.mandatoryAttendancePermitted, i.proposedClosingAt));
   out.push(...feeFaults({ fee: w?.fee ?? null, regime: i.regime, floors: i.floors, basisTotal: i.basisTotal }));
   if (!w) {
-    const folded = [...itemFaults({ inspectionPlace: "", purchasePlace: "", inspectionHours: "", purchaseFromDay: null, purchaseCloseDay: null, feePaymentMethods: "", submissionPlace: "" }), ...out.filter((f) => f.code === "FEE_NOT_SET")];
+    const folded = [...itemFaults({ inspectionPlace: "", purchasePlace: "", inspectionHours: "", purchaseFromDay: null, purchaseCloseDay: null, feePaymentMethods: "", submissionPlace: "" }, i.saleMode), ...out.filter((f) => f.code === "FEE_NOT_SET")];
     const rest = out.filter((f) => !UNPREPARED_ITEM_CODES.has(f.code));
     out.length = 0;
-    out.push({ code: "WINDOW_ITEMS_NOT_PREPARED", level: "block", data: { count: folded.length } }, ...rest);
+    out.push({ code: "WINDOW_ITEMS_NOT_PREPARED", level: "block", data: { count: folded.length, ...(i.saleMode === "ONLINE" ? { online: 1 } : {}) } }, ...rest);
   }
   if (!w || w.bidValidityDays == null) out.push({ code: "BID_VALIDITY_NOT_SET", level: "block" });
   return out;

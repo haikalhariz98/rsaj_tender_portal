@@ -24,6 +24,8 @@ const ok: PublishInput = {
   methodPath: "ADVERTISED",
   windowPath: "ADVERTISED",
   restricted: false,
+  // SR-10 (ruling 16, G1): the exercise's pinned sale mode is part of the input; the cases here are of the counter sale unless they say otherwise.
+  saleMode: "COUNTER",
   requirements: 1,
   window: {
     inspectionPlace: "Tender table, Level 2",
@@ -193,5 +195,24 @@ describe("6.8 E-2: the evaluation model is judged with the publication", () => {
     expect(codes(publishFaults({ ...ok, evaluationModel: { ...ok.evaluationModel, model: null } }))).toEqual(["EVALUATION_MODEL_NOT_SET"]);
     expect(codes(publishFaults({ ...ok, evaluationModel: { ...ok.evaluationModel, basis: { name: "Design and build", route: "TWO_STAGE" } } }))).toEqual(["EVALUATION_ROUTE_MISMATCH"]);
     expect(codes(publishFaults({ ...ok, evaluationModel: { ...ok.evaluationModel, pinned: true } }))).toEqual(["EVALUATION_MODEL_PINNED"]);
+  });
+});
+
+describe("SR-10 (ruling 16, G1): how the documents are sold", () => {
+  const empty = { inspectionPlace: "", purchasePlace: "", inspectionHours: "", feePaymentMethods: "", submissionPlace: "" };
+  const physical = ["INSPECTION_PLACE_MISSING", "PURCHASE_PLACE_MISSING", "INSPECTION_HOURS_MISSING", "PAYMENT_METHODS_MISSING", "SUBMISSION_PLACE_MISSING"];
+  it("asks for the places, the hours and how the fee is paid at the counter", () => {
+    expect(codes(publishFaults({ ...ok, saleMode: "COUNTER", window: { ...ok.window, ...empty } }))).toEqual(expect.arrayContaining(physical));
+  });
+  it("does not ask for them online: the four findings and the payment-methods finding are gone, nothing else is", () => {
+    const online = codes(publishFaults({ ...ok, saleMode: "ONLINE", window: { ...ok.window, ...empty } }));
+    for (const c of physical) expect(online).not.toContain(c);
+    expect(online).toEqual([]);
+    // The days of sale and the fee are still asked for.
+    expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", window: { ...ok.window, ...empty, purchaseFromDay: null } }))).toEqual(["PURCHASE_FROM_NOT_SET"]);
+    expect(codes(publishFaults({ ...ok, saleMode: "ONLINE", window: { ...ok.window, ...empty, fee: null } }))).toContain("FEE_NOT_SET");
+  });
+  it("refuses, naming the pin, while how the documents are sold is not set", () => {
+    expect(codes(publishFaults({ ...ok, saleMode: null }))).toEqual(["SALE_MODE_NOT_SET"]);
   });
 });

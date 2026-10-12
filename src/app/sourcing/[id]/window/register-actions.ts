@@ -28,6 +28,7 @@ import { lockSupplierRow } from "@/lib/suppliers/lock";
 import { saleSupplier } from "@/lib/suppliers/sale";
 import { registerAtSale } from "@/lib/suppliers/sale-hook";
 
+import { markPurchasePaid, PurchaseBarred, PurchaseNotAwaiting } from "@/lib/portal/bids/purchase-paid";
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, notes, refuse, Refusal, type LockedWindow } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
@@ -118,6 +119,8 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     if (!l.org.today) return NO_ZONE;
     const w = d.window;
     if (!w) return NO_WINDOW;
+    // SR-10 (ruling 16, G3): an exercise sold online is bought through the supplier portal; the counter sale is offered only on an exercise pinned to the counter.
+    if (l.ex.saleMode === "ONLINE") return { ok: false, message: "Not sold: the documents of this exercise are bought online through the supplier portal, not at the counter. Where a buyer paid at the finance counter, record the receipt against its online purchase." };
     await lockSaleRows(tx, w.id);
     const person = await activePerson(tx, l.org.id, personId);
     if (!person) return { ok: false, errors: { issuedByPersonId: windowFindingText({ code: "PERSON_REQUIRED", level: "block" }) } };
@@ -259,6 +262,8 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
     const s = d.window?.sales.find((x) => x.id === saleId);
     if (!s || s.voidedAt) return { ok: false, message: "That sale is not live on this exercise." };
     if (s.financeReceiptNo) return { ok: false, message: "A receipt number is already recorded on this sale." };
+    // SR-10 (ruling 17): a simulated payment is never a finance receipt, so no receipt number is recorded against it, whatever finance holds.
+    if (s.paymentChannel === "SIMULATED") return { ok: false, message: "This sale was paid on the payment simulator. A simulated payment is not a finance receipt, so no receipt number can be recorded against it." };
     const taken = !!(await tx.documentSale.findFirst({ where: { organisationId: l.org.id, financeReceiptNo: number, NOT: { id: s.id } }, select: { id: true } }));
     const fs = manualFeeReceipt.check({ number, recordedOn: l.org.today }, { pattern: null, today: l.org.today, taken });
     if (fs.length) return { ok: false, errors: { financeReceiptNo: fs.map((code) => windowFindingText({ code, level: "block" })).join(" ") } };
@@ -266,6 +271,58 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
     await tx.documentSale.update({ where: { id: s.id, organisationId: actor.organisationId }, data: { financeReceiptNo: number, receiptRecordedOn: on } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.sale, s.id, label(l, `Sale · ${s.party.name}`), "UPDATE", diffFields({ financeReceipt: null }, { financeReceipt: number, receiptRecordedOn: formatDate(l.org.today), source: "typed by an officer from the finance receipt" }));
     return { ok: true };
+  }), { ok: false, errors: { financeReceiptNo: windowFindingText({ code: "TAKEN", level: "block" }) } });
+}
+
+/**
+ * Record the finance receipt of an online purchase that is awaiting payment (SR-10, ruling 17: the officer-recorded receipt stays as the second writer of "paid"). It is used where
+ * online payment is not switched on (the simulator refuses in words and the buyer pays at the finance counter), or where a buyer paid at the counter all the same. The number is
+ * typed from finance's receipt, never made up, checked against the configured format and refused if another sale holds it. The purchase is paid by `markPurchasePaid`, the one
+ * writer of "paid", with the channel "finance receipt"; the documents are released as for any payment. The signed-in officer is the one who recorded it.
+ */
+export async function recordPurchaseReceipt(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const exerciseId = exerciseIdOf(data);
+  const purchaseId = String(data.get("purchaseId") ?? "");
+  const r = new FormReader(data);
+  const number = r.text("financeReceiptNo", "Receipt number", { required: true, max: 80 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "DocumentSale.issuedBy", { personField: "issuedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return receiptGuarded(() => inWindow(actor, exerciseId, async (tx, l, d) => {
+    if (!l.org.today) return NO_ZONE;
+    const w = d.window;
+    if (!w) return NO_WINDOW;
+    await lockSaleRows(tx, w.id);
+    const person = await activePerson(tx, l.org.id, act.subjectPersonId);
+    if (!person) return { ok: false, errors: { issuedByPersonId: windowFindingText({ code: "PERSON_REQUIRED", level: "block" }) } };
+    const purchase = await tx.documentPurchase.findFirst({ where: { id: purchaseId, windowId: w.id, organisationId: l.org.id }, select: { id: true, supplierId: true, amount: true, state: true, buyerAccountId: true, supplier: { select: { registeredName: true } }, buyer: { select: { contact: { select: { name: true } } } } } });
+    if (!purchase || purchase.state !== "AWAITING_PAYMENT") return { ok: false, message: "That purchase is not awaiting payment on this exercise." };
+    if (phaseOf(l.ex, w, new Date(), l.org.timeZone).phase === "CANCELLED") return refuse([{ code: "EXERCISE_CANCELLED", level: "block" }], "Not recorded:");
+    const taken = !!(await tx.documentSale.findFirst({ where: { organisationId: l.org.id, financeReceiptNo: number }, select: { id: true } }));
+    const fs = manualFeeReceipt.check({ number, recordedOn: l.org.today }, { pattern: null, today: l.org.today, taken });
+    if (fs.length) return { ok: false, errors: { financeReceiptNo: fs.map((code) => windowFindingText({ code, level: "block" })).join(" ") } };
+    try {
+      const paid = await markPurchasePaid(tx, {
+        org: { id: l.org.id, timeZone: l.org.timeZone, today: l.org.today },
+        exercise: { id: l.ex.id, reference: l.ex.reference, title: l.ex.title, closes: l.ex.closingAt },
+        window: { id: w.id },
+        purchase: { id: purchase.id, supplierId: purchase.supplierId, amount: purchase.amount },
+        buyer: { accountId: purchase.buyerAccountId, name: purchase.buyer.contact.name },
+        now: new Date(),
+        by: { channel: "FINANCE_RECEIPT", personId: person.id, personName: person.name, receiptNo: number },
+        auditActor: toAuditActor(actor),
+      });
+      await act.write(tx, paid.saleId);
+      return { ok: true, message: `Receipt recorded. The documents are released to ${paid.partyName}.` };
+    } catch (e) {
+      if (e instanceof PurchaseBarred) throw new Refusal({ ok: false, message: `Not recorded: ${e.words}` });
+      if (e instanceof PurchaseNotAwaiting) throw new Refusal({ ok: false, message: "That purchase is no longer awaiting payment." });
+      throw e;
+    }
   }), { ok: false, errors: { financeReceiptNo: windowFindingText({ code: "TAKEN", level: "block" }) } });
 }
 

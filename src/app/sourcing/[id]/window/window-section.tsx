@@ -30,6 +30,7 @@ import { tabActs } from "./tab-acts";
 import {
   ChooseEvaluationModelDrawer,
   EditWindowDrawer,
+  TakeSaleModeDrawer,
   FeeLineDrawer,
   LetterDeliveryDrawer,
   NoticeDeliveryDrawer,
@@ -320,21 +321,32 @@ export function WindowItemsCard({ d, c }: { d: WindowTab; c: WindowContext }) {
         icon={<FileIcon size={17} />}
         title="Notice and fee"
         subtitle={d.actions.save.allowed ? "What the notice states, and what a set of the documents costs and why." : d.actions.save.reason}
-        actions={<EditWindowDrawer exerciseId={c.exerciseId} items={d.items} allowed={d.actions.save} first={!d.hasWindow} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {d.sale.mode == null && <TakeSaleModeDrawer exerciseId={c.exerciseId} take={d.sale.take} setting={d.sale.setting} />}
+            <EditWindowDrawer exerciseId={c.exerciseId} items={d.items} allowed={d.actions.save} first={!d.hasWindow} online={!d.sale.physical} />
+          </div>
+        }
       />
       {!d.items ? (
-        <EmptyState size="sm" title="Not prepared yet">The window has no items yet: where the documents are inspected and bought, the days of sale and the fee.</EmptyState>
+        <EmptyState size="sm" title="Not prepared yet">{d.sale.physical ? "The window has no items yet: where the documents are inspected and bought, the days of sale and the fee." : "The window has no items yet: the days of sale and the fee."}</EmptyState>
       ) : (
         <CardBody className="flex flex-col gap-4">
           <KeyValues
             columns={2}
             items={[
-              { label: "Documents inspected at", value: d.items.inspectionPlace || "Not recorded" },
-              { label: "Documents bought at", value: d.items.purchasePlace || "Not recorded" },
-              { label: "Hours", value: d.items.inspectionHours || "Not recorded" },
-              { label: `${cap(d.bid.many)} submitted at`, value: d.items.submissionPlace || "Not recorded" },
+              { label: "How the documents are sold", value: d.sale.mode == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">{`The organisation's setting is: ${d.sale.setting}. Take it above; publication is refused until this is set.`}</span></span> : d.sale.words },
+              // SR-10 (ruling 16): the places, the hours and how the fee is paid describe a sale at a counter. An exercise sold online does not show them (the columns stay).
+              ...(d.sale.physical
+                ? [
+                    { label: "Documents inspected at", value: d.items.inspectionPlace || "Not recorded" },
+                    { label: "Documents bought at", value: d.items.purchasePlace || "Not recorded" },
+                    { label: "Hours", value: d.items.inspectionHours || "Not recorded" },
+                    { label: `${cap(d.bid.many)} submitted at`, value: d.items.submissionPlace || "Not recorded" },
+                  ]
+                : []),
               { label: "Document fee", value: <span className="font-semibold tabular-nums">{d.fee.amount}</span> },
-              { label: "How the fee is paid", value: d.items.feePaymentMethods || "Not recorded" },
+              ...(d.sale.physical ? [{ label: "How the fee is paid", value: d.items.feePaymentMethods || "Not recorded" }] : []),
               ...(d.fee.floor == null ? [{ label: "The least the fee may be", value: <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">No minimum is set for this band, so the window cannot be published.</span></span> }] : []),
               ...(d.items.closingTimeReason ? [{ label: "Why the closing time differs", value: d.items.closingTimeReason }] : []),
               { label: "Special permission", value: d.items.specialPermissionOffered === "yes" ? "Offered" : d.items.specialPermissionOffered === "no" ? "Not offered" : <span className="text-ink-3">Not stated: none is granted on this exercise</span> },

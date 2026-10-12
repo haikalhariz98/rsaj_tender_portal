@@ -267,7 +267,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
   // ------------------------------------------------ the exercises, in preparation
   await db.sourcingExercise.createMany({
     data: EXERCISES.map((x) => ({
-      id: `${P}sx${x.n}`, organisationId, specPanelUsed: true, onScreenBillUsed: true, reference: SX(x.n), requisitionId: `${P}rq${x.rq}`, title: x.title, estimatedValue: x.value, sourcingMethodCode: x.method,
+      id: `${P}sx${x.n}`, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", reference: SX(x.n), requisitionId: `${P}rq${x.rq}`, title: x.title, estimatedValue: x.value, sourcingMethodCode: x.method,
       status: "DOCUMENTS_IN_PREPARATION" as const, contractBasisCode: "bq", createdAt: day("2026-09-02"),
     })),
   });

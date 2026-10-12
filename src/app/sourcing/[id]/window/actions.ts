@@ -25,6 +25,7 @@ import { FormReader } from "@/lib/validate";
 import { chooseFaults } from "@/lib/evaluation/pin";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, notes } from "./shared";
+import { physicalItemsApply, saleModeWords, takeSaleModeFaults } from "@/lib/window/sale-mode";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
@@ -67,17 +68,38 @@ export async function saveWindow(_prev: FormState, data: FormData): Promise<Form
   return inWindow(actor, exerciseId, async (tx, l, d) => {
     const ef = windowEditFault(l.ex.status, l.ex.packKindSnapshot);
     if (ef) return refuse([ef]);
-    const after = { inspectionPlace, purchasePlace, inspectionHours, purchaseFromDay: purchaseFrom, purchaseCloseDay: purchaseClose, feeAmount: fee, feePaymentMethods, submissionPlace, closingTimeReason, specialPermissionOffered };
+    // SR-10 (ruling 16): an exercise sold online has no places, hours or payment counter. The form does not carry them, and the columns are left as they are: they stay, unread.
+    const physical = physicalItemsApply(l.ex.saleMode) ? { inspectionPlace, purchasePlace, inspectionHours, feePaymentMethods, submissionPlace } : {};
+    const after = { ...physical, purchaseFromDay: purchaseFrom, purchaseCloseDay: purchaseClose, feeAmount: fee, closingTimeReason, specialPermissionOffered };
     if (!d.window) {
       const { method } = pathOf(d);
       if (!method) return refuse([{ code: "PATH_NOT_SET", level: "block" }]);
       const w = await tx.exerciseWindow.create({ data: { organisationId: l.org.id, exerciseId, path: method, ...after } });
-      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "CREATE", diffFields(null, windowFields({ ...after, path: method })));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "CREATE", diffFields(null, windowFields({ inspectionPlace: "", purchasePlace: "", inspectionHours: "", feePaymentMethods: "", submissionPlace: "", ...after, path: method })));
       return { ok: true };
     }
     const w = d.window;
     await tx.exerciseWindow.update({ where: { id: w.id, organisationId: actor.organisationId }, data: after });
-    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "UPDATE", diffFields(windowFields(w), windowFields({ ...after })));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "UPDATE", diffFields(windowFields(w), windowFields({ ...w, ...after })));
+    return { ok: true };
+  });
+}
+
+/**
+ * Take the organisation's setting for how this exercise's documents are sold (SR-10, ruling 16, G1). Allowed only while the pin is not set and before the exercise
+ * is published; it copies what Configuration says now, once, and is not a free choice. A pin that is set is never changed. One audited act, with the exercise locked
+ * and the setting read under the lock.
+ */
+export async function takeSaleMode(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const exerciseId = exerciseIdOf(data);
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
+    const faults = takeSaleModeFaults({ status: l.ex.status, published: isPublished(l.ex.status) || !!d.window?.publishedAt, pin: l.ex.saleMode, setting: d.sale.saleMode });
+    if (faults.length) return refuse(faults);
+    await tx.sourcingExercise.update({ where: { id: exerciseId, organisationId: actor.organisationId }, data: { saleMode: d.sale.saleMode } });
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, label(l, "How the documents are sold"), "UPDATE", diffFields({ howDocumentsAreSold: saleModeWords(l.ex.saleMode) }, { howDocumentsAreSold: saleModeWords(d.sale.saleMode) }), "Took the organisation's setting");
     return { ok: true };
   });
 }

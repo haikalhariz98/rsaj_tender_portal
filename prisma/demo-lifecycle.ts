@@ -216,7 +216,7 @@ export async function loadLifecycleSetup(db: Db, organisationId: string): Promis
       steps: { create: chain.map(([roleCode, roleLabel, a, pid, name, on], i) => ({ id: `${P}as131_${i + 1}`, sequence: i + 1, roleCode, roleLabel, act: a, nonDelegable: a === "MR", sourceRuleKey: "demo.requisition.4", decision: "DONE", decidedByPersonId: `${P}${pid}`, decidedByName: name, decidedOn: day(on), recordedAt: day(on) })) },
     },
   });
-  await db.sourcingExercise.create({ data: { id: SX, organisationId, specPanelUsed: true, onScreenBillUsed: true, reference: SX_REF, requisitionId: RQ, title: TITLE, estimatedValue: value, sourcingMethodCode: "open_tender", status: "DOCUMENTS_IN_PREPARATION", contractBasisCode: "bq", createdAt: day("2026-04-20") } });
+  await db.sourcingExercise.create({ data: { id: SX, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", reference: SX_REF, requisitionId: RQ, title: TITLE, estimatedValue: value, sourcingMethodCode: "open_tender", status: "DOCUMENTS_IN_PREPARATION", contractBasisCode: "bq", createdAt: day("2026-04-20") } });
   await db.exerciseScopePart.create({ data: { id: `${SX}p1`, exerciseId: SX, deliverableKind: "MEASURED_CONSTRUCTION", amount: value, description: TITLE, sortOrder: 1 } });
   // The series move past what the demo took (never back).
   for (const [id, next] of [[`${P}n1`, 44], [`${P}n5`, 23], [`${P}n2`, 6]] as const) {

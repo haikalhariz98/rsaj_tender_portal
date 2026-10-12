@@ -9,6 +9,7 @@ import { loadBidContext, type BidContext } from "./context-store";
 import { downloadRequestFault } from "@/lib/documents/request-guard";
 
 import { inspectionReading, isRepeatInspection } from "./documents";
+import type { PurchaseState } from "./purchase";
 import { releaseState, releaseWords, type ReleaseState } from "./release";
 
 /**
@@ -30,15 +31,23 @@ export type OpenResult =
   | { open: false; ctx: BidContext | null; headline: string; detail: string; crossSite?: true };
 
 /// The supplier's sale that stands on this window, and the organisation's release setting, read together.
-export async function loadReleaseFacts(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, ctx: BidContext): Promise<{ state: ReleaseState; setting: boolean | null; sale: { id: string; soldOn: Date; financeReceiptNo: string | null } | null }> {
+export async function loadReleaseFacts(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, ctx: BidContext): Promise<{ state: ReleaseState; setting: boolean | null; sale: { id: string; soldOn: Date; financeReceiptNo: string | null; paymentChannel: "COUNTER" | "SIMULATED" } | null; purchase: { id: string; state: PurchaseState } | null }> {
   const window = ctx.ex.window;
   const partyIds = ctx.parties.map((p) => p.id);
-  const [policy, sale] = await Promise.all([
+  const [policy, sale, purchase] = await Promise.all([
     tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true } }),
-    window && partyIds.length ? tx.documentSale.findFirst({ where: { windowId: window.id, organisationId: actor.organisationId, partyId: { in: partyIds }, voidedAt: null }, select: { id: true, soldOn: true, financeReceiptNo: true, voidedAt: true } }) : Promise.resolve(null),
+    window && partyIds.length ? tx.documentSale.findFirst({ where: { windowId: window.id, organisationId: actor.organisationId, partyId: { in: partyIds }, voidedAt: null }, select: { id: true, soldOn: true, financeReceiptNo: true, voidedAt: true, paymentChannel: true } }) : Promise.resolve(null),
+    // SR-10: the supplier's online purchase of the documents, if it made one.
+    window ? tx.documentPurchase.findUnique({ where: { windowId_supplierId: { windowId: window.id, supplierId: actor.supplierId } }, select: { id: true, state: true, organisationId: true } }) : Promise.resolve(null),
   ]);
   const setting = policy?.electronicDocumentRelease ?? null;
-  return { state: releaseState({ setting, sale: sale ? { voidedAt: sale.voidedAt, financeReceiptNo: sale.financeReceiptNo } : null, phase: ctx.phase }), setting, sale: sale ? { id: sale.id, soldOn: sale.soldOn, financeReceiptNo: sale.financeReceiptNo } : null };
+  const mine = purchase && purchase.organisationId === actor.organisationId ? { id: purchase.id, state: purchase.state } : null;
+  return {
+    state: releaseState({ setting, sale: sale ? { voidedAt: sale.voidedAt, financeReceiptNo: sale.financeReceiptNo, paymentChannel: sale.paymentChannel } : null, purchase: mine, phase: ctx.phase }),
+    setting,
+    sale: sale ? { id: sale.id, soldOn: sale.soldOn, financeReceiptNo: sale.financeReceiptNo, paymentChannel: sale.paymentChannel } : null,
+    purchase: mine,
+  };
 }
 
 /**

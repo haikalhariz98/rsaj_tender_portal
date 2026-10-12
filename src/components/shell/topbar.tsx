@@ -62,6 +62,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   announcements: "Announcements",
   // Phase 4d: the Tender Table Document a supplier inspects, under one exercise of My Bids.
   "table-document": "Tender Table Document",
+  // Wave 3a (SR-10): the payment page of a document purchase, under one exercise of My Bids.
+  pay: "Payment",
 };
 
 /// What a record under a section is called, for its breadcrumb.

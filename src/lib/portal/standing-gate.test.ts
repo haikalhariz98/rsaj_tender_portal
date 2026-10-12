@@ -64,6 +64,8 @@ const GATED = [
   "src/lib/portal/bids/acknowledge-store.ts",
   "src/lib/portal/bids/signup-store.ts",
   "src/lib/portal/bids/request-store.ts",
+  // Wave 3a (SR-10): buying and paying for the documents online asks the standing (the buyer's reading, and again at the payment).
+  "src/lib/portal/bids/purchase-store.ts",
   "src/lib/portal/projects/submission-store.ts",
   "src/lib/portal/projects/certificate-store.ts",
   "src/lib/portal/company/bank-store.ts",
@@ -74,6 +76,8 @@ const GATED = [
 const EXEMPT: Readonly<Record<string, string>> = {
   "src/lib/portal/projects/diary-store.ts": "its acts run through `inHeldContract` (submission-store.ts), which asks",
   "src/lib/portal/bids/inspection-store.ts": "opening the tender documents is a read, and is logged (log 2026-10-09, 1915)",
+  "src/lib/portal/bids/download-store.ts": "downloading what a released purchase releases is a read, and is logged; the release is judged on the request by the rule that opens the documents on screen (SR-10)",
+  "src/lib/portal/bids/purchase-paid.ts": "the one writer of paid, called only inside purchase-store.ts (which asks the standing) and an officer's recording of a receipt (a staff act); it reads the register itself on the locked supplier row (SR-10)",
   "src/lib/portal/registration/declaration.ts": "the online application of an applicant, not yet on the register: its status is judged by `registration/state.ts`",
   "src/lib/portal/registration/draft-store.ts": "the online application of an applicant, not yet on the register: its status is judged by `registration/state.ts`",
   "src/lib/portal/registration/submit-store.ts": "the online application of an applicant, not yet on the register: its status is judged by `registration/state.ts`",

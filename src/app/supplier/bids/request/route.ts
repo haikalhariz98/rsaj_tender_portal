@@ -1,5 +1,6 @@
 import { supplierPost } from "../../../_auth/supplier";
 import { BIDS_BODY_LIMIT, parseRequestBody } from "@/lib/portal/bids/api";
+import { startPurchase, settlePayment } from "@/lib/portal/bids/purchase-store";
 import { requestDocuments, withdrawRequest } from "@/lib/portal/bids/request-store";
 
 import { refusalReply, reply } from "../reply";
@@ -18,8 +19,20 @@ export async function POST(request: Request) {
 
   const parsed = parseRequestBody(post.fields);
   if (!parsed.ok) return reply({ ok: false, code: "VALIDATION", message: parsed.message }, 400);
-  const { exerciseId, action, collectorName } = parsed.value;
+  const { exerciseId, action, collectorName, method, choice } = parsed.value;
   try {
+    if (action === "buy") {
+      // SR-10: "Buy documents" on an exercise sold online. It makes a purchase awaiting payment; nothing is paid or released here.
+      const made = await startPurchase(actor, { exerciseId });
+      if (made.outcome === "REFUSED") return reply({ ok: false, code: "REFUSED", message: made.reasons[0] ?? "The documents cannot be sold to your company at the moment.", reasons: made.reasons, recorded: made.recorded }, 422);
+      return reply({ ok: true, action, purchase: made.outcome });
+    }
+    if (action === "pay") {
+      // SR-10: the buyer's answer on the simulated provider's page. A failure is an answer, not an error: the purchase stays awaiting payment, with the failure shown.
+      const settled = await settlePayment(actor, { exerciseId, method, choice: choice! });
+      if (settled.outcome === "FAILED") return reply({ ok: false, code: "PAYMENT_FAILED", message: settled.failureText, reference: settled.reference }, 200);
+      return reply({ ok: true, action, reference: settled.reference });
+    }
     if (action === "withdraw") {
       await withdrawRequest(actor, { exerciseId });
       return reply({ ok: true, action });

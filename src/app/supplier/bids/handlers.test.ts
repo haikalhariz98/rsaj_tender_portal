@@ -13,6 +13,8 @@ const h = vi.hoisted(() => ({
   acknowledge: vi.fn(),
   requestDocuments: vi.fn(),
   withdrawRequest: vi.fn(),
+  startPurchase: vi.fn(),
+  settlePayment: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ db: {} }));
@@ -21,6 +23,8 @@ vi.mock("@/lib/auth/supplier-session-store", () => ({ readSupplierSession: h.rea
 vi.mock("@/lib/portal/bids/signup-store", async (orig) => ({ ...(await orig<typeof import("@/lib/portal/bids/signup-store")>()), signUp: h.signUp, withdrawSignUp: h.withdrawSignUp }));
 vi.mock("@/lib/portal/bids/acknowledge-store", () => ({ acknowledgeAddendum: h.acknowledge }));
 vi.mock("@/lib/portal/bids/request-store", () => ({ requestDocuments: h.requestDocuments, withdrawRequest: h.withdrawRequest }));
+// Wave 3a (SR-10): buying and paying for the documents online go through the same door.
+vi.mock("@/lib/portal/bids/purchase-store", () => ({ startPurchase: h.startPurchase, settlePayment: h.settlePayment }));
 
 import { FORM_SECRET_MIN_LENGTH, signFormToken, type FormPurpose } from "@/lib/auth/form-token";
 import type { SupplierActor } from "@/lib/auth/types";
@@ -168,6 +172,40 @@ describe("what each hands its store", () => {
   });
 });
 
+describe("buying and paying online (SR-10), through the same door", () => {
+  it("buy: the exercise and nothing else is handed to the store, and a refusal by the checks is answered with its reasons", async () => {
+    h.startPurchase.mockResolvedValue({ outcome: "MADE", purchaseId: "p1" });
+    const ok = await request(post("/supplier/bids/request", { exerciseId: EX, action: "buy", supplierId: "sup_other", collectorName: "ignored" }));
+    expect(ok.status).toBe(200);
+    expect(h.startPurchase).toHaveBeenCalledWith(ACTOR, { exerciseId: EX });
+    h.startPurchase.mockResolvedValue({ outcome: "REFUSED", recorded: true, reasons: ["Your company is suspended."] });
+    const res = await request(post("/supplier/bids/request", { exerciseId: EX, action: "buy" }));
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ ok: false, code: "REFUSED", reasons: ["Your company is suspended."], recorded: true });
+  });
+
+  it("pay: the method and the choice are handed over; a paid answer carries the simulated reference, and a failure is an answer (200) that says it failed, with its words", async () => {
+    h.settlePayment.mockResolvedValue({ outcome: "PAID", reference: "SIM-1", method: "Card", already: false });
+    const paid = await request(post("/supplier/bids/request", { exerciseId: EX, action: "pay", method: "Card", choice: "PAY" }));
+    expect(paid.status).toBe(200);
+    expect(await paid.json()).toMatchObject({ ok: true, reference: "SIM-1" });
+    expect(h.settlePayment).toHaveBeenCalledWith(ACTOR, { exerciseId: EX, method: "Card", choice: "PAY" });
+    h.settlePayment.mockResolvedValue({ outcome: "FAILED", reference: "SIM-2", method: "Card", failureText: "The simulated provider declined the payment. No money moved." });
+    const failed = await request(post("/supplier/bids/request", { exerciseId: EX, action: "pay", method: "Card", choice: "FAIL" }));
+    expect(failed.status).toBe(200);
+    expect(await failed.json()).toMatchObject({ ok: false, code: "PAYMENT_FAILED", message: expect.stringContaining("No money moved") });
+  });
+
+  it("pay: a rule's refusal (the simulator is off) is 422 with its words, never a code", async () => {
+    h.settlePayment.mockRejectedValue(new BidRefused([{ code: "PAYMENT_UNAVAILABLE", level: "block", data: { words: "Online payment is switched off, so documents cannot be paid for here." } }]));
+    const res = await request(post("/supplier/bids/request", { exerciseId: EX, action: "pay", method: "Card", choice: "PAY" }));
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.message).toContain("switched off");
+    expect(body.message).not.toMatch(/PAYMENT_UNAVAILABLE/);
+  });
+});
+
 describe("what a store refuses, said in words", () => {
   it("a thing that is not the supplier's to see is 404 with the same words whether it exists or not", async () => {
     h.signUp.mockRejectedValue(new BidRefused([{ code: "NOT_FOUND", level: "block" }], 404));
@@ -192,7 +230,9 @@ describe("what a store refuses, said in words", () => {
       expect((await event(post("/supplier/bids/event", bad))).status).toBe(400);
     }
     expect((await acknowledge(post("/supplier/bids/acknowledge", { exerciseId: EX }))).status).toBe(400);
-    expect((await request(post("/supplier/bids/request", { exerciseId: EX, action: "buy" }))).status).toBe(400);
+    // Wave 3a (SR-10): "buy" and "pay" are now actions of this door (an online sale's), so a body naming one is read; an action it does not know is still refused.
+    expect((await request(post("/supplier/bids/request", { exerciseId: EX, action: "delete" }))).status).toBe(400);
+    expect((await request(post("/supplier/bids/request", { exerciseId: EX, action: "pay", method: "Card", choice: "MAYBE" }))).status).toBe(400);
     nothingDone();
   });
 });

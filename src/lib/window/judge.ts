@@ -15,9 +15,10 @@ import { windowPhase } from "./phase";
 import { evaluationPin, publishFaults, windowPathOf, type PublishInput } from "./publish";
 import { basisTotalOf, eventFactsOf, type ExerciseForWindow, type PartyRow, type WindowData } from "./repo";
 import type { WindowPath } from "./types";
+import type { SaleMode } from "./sale-mode";
 
 /// The exercise's status and its closing instant, as the phase and the instruments read them.
-type ExerciseDates = { status: ExerciseForWindow["status"]; closingAt: Date | null };
+type ExerciseDates = { status: ExerciseForWindow["status"]; closingAt: Date | null; saleMode?: SaleMode | null };
 
 export const proposedInvitees = (parties: readonly PartyRow[]) => parties.filter((p) => p.source === "PROPOSED_INVITEE");
 
@@ -61,6 +62,8 @@ export function fieldContext(d: WindowData, ex: ExerciseDates & { reference: str
     submissionPlace: w?.submissionPlace ?? "",
     events: (w?.events ?? []).map((e) => ({ kind: e.kind, startsAt: e.startsAt, place: e.place, mandatory: e.mandatory, cancelled: e.cancelledAt != null })),
     mandatoryPermitted: mandatoryPermittedFor(w, d.policy.mandatoryAttendancePermitted).permitted,
+    saleMode: ex.saleMode ?? null,
+    onlinePayment: d.sale.online,
   };
 }
 
@@ -69,19 +72,19 @@ const stampOf = (ex: Pick<ExerciseForWindow, "restrictedTender">, d: WindowData)
 /// The notice, rendered for this window on its advertisement day (advertised path).
 export function renderNotice(d: WindowData, ex: ExerciseForWindow, timeZone: string | null, advertisementDay: string | null) {
   const ctx = fieldContext(d, ex, timeZone, advertisementDay);
-  return renderInstrument("NOTICE", d.templates.notice, (lang) => windowFieldValues(ctx, lang), stampOf(ex, d));
+  return renderInstrument("NOTICE", d.templates.notice, (lang) => windowFieldValues(ctx, lang), stampOf(ex, d), ex.saleMode);
 }
 
 /// One letter per proposed invitee, rendered for the invitation day (invited path).
 export function renderLetters(d: WindowData, ex: ExerciseForWindow, timeZone: string | null, invitationDay: string | null) {
   const ctx = fieldContext(d, ex, timeZone, invitationDay);
-  return proposedInvitees(d.parties).map((p) => ({ party: p, rendered: renderInstrument("INVITATION", d.templates.invitation, (lang) => ({ ...windowFieldValues(ctx, lang), ...inviteeFieldValues(p) }), stampOf(ex, d)) }));
+  return proposedInvitees(d.parties).map((p) => ({ party: p, rendered: renderInstrument("INVITATION", d.templates.invitation, (lang) => ({ ...windowFieldValues(ctx, lang), ...inviteeFieldValues(p) }), stampOf(ex, d), ex.saleMode) }));
 }
 
 /// An addendum rendered as it would issue now, with the number it would take.
 export function renderAddendum(d: WindowData, ex: ExerciseForWindow, timeZone: string | null, a: { number: number | null; title: string; whatChanged: string; issuedOn: string | null }) {
   const ctx = fieldContext(d, ex, timeZone, d.window?.advertisementDay ? storedDay(d.window.advertisementDay) : null);
-  return renderInstrument("ADDENDUM", d.templates.addendum, (lang) => ({ ...windowFieldValues(ctx, lang), ...addendumFieldValues(a, lang) }), stampOf(ex, d));
+  return renderInstrument("ADDENDUM", d.templates.addendum, (lang) => ({ ...windowFieldValues(ctx, lang), ...addendumFieldValues(a, lang) }), stampOf(ex, d), ex.saleMode);
 }
 
 /// The template's state for the publication's judgement: for letters, the worst of them (every letter must render).
@@ -109,6 +112,7 @@ export function judgePublish(d: WindowData, ex: ExerciseForWindow, org: { timeZo
     methodPath: method,
     windowPath: window,
     restricted: ex.restrictedTender,
+    saleMode: ex.saleMode,
     requirements: d.tender.requirements.length,
     window: {
       inspectionPlace: w?.inspectionPlace ?? "",

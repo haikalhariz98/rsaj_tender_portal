@@ -117,6 +117,12 @@ export async function approvedPackDates(exerciseId: string, client: Tx = db) {
   return client.tenderPack.findFirst({ where: { exerciseId, status: "APPROVED" }, orderBy: { versionNo: "desc" }, select: { approvedStartOn: true, approvedClosingAt: true, approvedAt: true } });
 }
 
+/// SR-10: the organisation's sale setting and the online payment switched on, read beside the window rules (no window rule reads them, so they are not in `WindowPolicyFacts`, which is snapshotted at publication).
+export async function loadSaleSettings(organisationId: string, client: Tx = db): Promise<{ saleMode: import("./sale-mode").SaleMode | null; online: import("./sale-mode").OnlinePaymentFacts }> {
+  const row = await client.windowPolicy.findUnique({ where: { organisationId }, select: { documentSaleMode: true, paymentSimulatorOn: true, simulatedPaymentMethods: true } });
+  return { saleMode: row?.documentSaleMode ?? null, online: { simulatorOn: row?.paymentSimulatorOn ?? null, methods: row?.simulatedPaymentMethods ?? [] } };
+}
+
 /// A window's events as the rules read them.
 export function eventFactsOf(w: Pick<WindowRow, "events">): EventFacts[] {
   return w.events.map((e) => ({
@@ -165,6 +171,8 @@ export interface ExerciseForWindow {
   sourcingMethodCode: string;
   /// Pinned when the exercise was made: it was submitted under the notice gate (SR-06) and the opening roster (SR-07). Read from the stored exercise, so a loader cannot leave it out.
   openingRosterRequired: boolean;
+  /// SR-10 (G1): how the documents are sold, pinned when the exercise was made. Null: not set.
+  saleMode: import("./sale-mode").SaleMode | null;
   estimatedValue: { toString(): string };
   approvalInstances: readonly { id: string; domain: string; awardId: string | null; status: string; openedAt: Date; createdAt: Date; cond: string | null }[];
   /// 6.8 (E-2): the evaluation model chosen, its pinned snapshot, and the contract basis its route is read from. Absent: none.
@@ -191,6 +199,8 @@ export async function windowData(organisationId: string, ex: ExerciseForWindow, 
   const approved = await approvedPackDates(ex.id, client);
   const method = ex.sourcingMethodCode ? await client.sourcingMethod.findFirst({ where: { organisationId, code: ex.sourcingMethodCode }, select: { nameEn: true, requiresAdvertisement: true, invitesNamedSuppliers: true, requiresNameApproval: true } }) : null;
   const org = await client.organisation.findUniqueOrThrow({ where: { id: organisationId }, select: { name: true } });
+  // SR-10: how documents are sold (the organisation's setting, for a pin to be taken from) and the online payment switched on (what a notice may say about paying).
+  const sale = await loadSaleSettings(organisationId, client);
   const notice = await loadTemplate(policy.noticeTemplateId, client);
   const invitation = await loadTemplate(policy.invitationTemplateId, client);
   const addendum = await loadTemplate(policy.addendumTemplateId, client);
@@ -201,7 +211,7 @@ export async function windowData(organisationId: string, ex: ExerciseForWindow, 
   const basis = ex.contractBasisCode ? await client.contractBasis.findFirst({ where: { organisationId, code: ex.contractBasisCode }, select: { nameEn: true, evaluationRoute: true } }) : null;
   const models = await client.evaluationModel.findMany({ where: { organisationId, status: "ISSUED" }, orderBy: [{ nameEn: "asc" }, { version: "desc" }], select: { id: true, code: true, version: true, nameEn: true, route: true } });
   const suggested = ex.sourcingMethodCode ? ((await client.sourcingMethod.findFirst({ where: { organisationId, code: ex.sourcingMethodCode }, select: { defaultEvaluationModelCode: true } }))?.defaultEvaluationModelCode ?? null) : null;
-  return { policy, calendar, channels, floors, window, parties, tender, approved, method, organisationName: org.name, templates: { notice, invitation, addendum }, invitees, evaluation: { model: evaluationModel, basis, models, suggested } };
+  return { policy, calendar, channels, floors, window, parties, tender, approved, method, sale, organisationName: org.name, templates: { notice, invitation, addendum }, invitees, evaluation: { model: evaluationModel, basis, models, suggested } };
 }
 
 export type WindowData = Awaited<ReturnType<typeof windowData>>;

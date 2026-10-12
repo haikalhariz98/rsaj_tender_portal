@@ -865,7 +865,7 @@ async function loadQuotation(db: Db, organisationId: string, tz: string, W: (k: 
   // ---- the exercise, 6.2 and 6.4 by their own acts
   const sx = QUOTATION;
   const ref = SX(21);
-  await db.sourcingExercise.create({ data: { id: sx, organisationId, specPanelUsed: true, onScreenBillUsed: true, reference: ref, requisitionId: rq, title, estimatedValue: value, sourcingMethodCode: "open_quotation", methodReason: "", status: "DRAFT", contractBasisCode: "ds", createdAt: T(W(22), "10:00") } });
+  await db.sourcingExercise.create({ data: { id: sx, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", reference: ref, requisitionId: rq, title, estimatedValue: value, sourcingMethodCode: "open_quotation", methodReason: "", status: "DRAFT", contractBasisCode: "ds", createdAt: T(W(22), "10:00") } });
   await db.exerciseScopePart.create({ data: { id: `${sx}p1`, exerciseId: sx, deliverableKind: "MEASURED_CONSTRUCTION", amount: value, description: title, sortOrder: 1 } });
   await raiseSeries(db, `${P}n5`, 22);
   await hooks.determine([sx]);

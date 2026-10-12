@@ -1115,6 +1115,7 @@ const ENTITY_LABEL: Record<string, string> = {
   SiteEventRegistration: "Sign-up for a briefing or visit",
   AddendumAcknowledgement: "Addendum acknowledged",
   DocumentRequest: "Request for the documents",
+  DocumentPurchase: "Online purchase of the documents",
   NonAwardNotice: "Notice of the outcome",
   SourcingExercise: "Exercise",
   ExerciseScopePart: "Scope",

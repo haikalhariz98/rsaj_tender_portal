@@ -15,6 +15,8 @@ export interface SaleRow {
   purchaser: string;
   registrationNo: string;
   receipt: string;
+  /// SR-10: paid on the payment simulator: not a finance receipt, and not waiting for one.
+  simulated: boolean;
   amount: string;
   soldOn: string;
   paymentMethod: string;
@@ -37,7 +39,7 @@ export function SaleList({ exerciseId, sales }: { exerciseId: string; sales: Sal
   const byId = new Map(sales.map((s) => [s.id, s]));
   const rows: Row[] = sales.map((s) => ({
     id: s.id,
-    views: [...(s.voided ? ["void"] : ["live"]), ...(!s.voided && s.receipt === "Not recorded" ? ["noreceipt"] : [])],
+    views: [...(s.voided ? ["void"] : ["live"]), ...(!s.voided && !s.simulated && s.receipt === "Not recorded" ? ["noreceipt"] : [])],
     search: `${s.purchaser} ${s.registrationNo} ${s.receipt}`,
     sortKeys: { soldOn: s.soldOn, purchaser: s.purchaser },
     note: s.voided ?? (s.void && !s.void.allowed && !s.void.registerWide ? voidRefusalNote(s.void.reason) : undefined),
@@ -49,6 +51,7 @@ export function SaleList({ exerciseId, sales }: { exerciseId: string; sales: Sal
         kind: "chips",
         items: [
           ...(s.voided ? [{ text: "Void", tone: "err" as const }] : []),
+          ...(s.simulated ? [{ text: "Simulated payment", tone: "warn" as const }] : []),
           ...s.checks.map((c) => ({ text: c.text, tone: c.warn ? ("warn" as const) : ("ok" as const) })),
         ],
       },
@@ -85,7 +88,7 @@ export function SaleList({ exerciseId, sales }: { exerciseId: string; sales: Sal
             <Link href={`/sourcing/${exerciseId}/label/${s.id}`} className={buttonClass("ghost", "sm")} aria-label={`Print the label for ${s.purchaser}`}>
               Label
             </Link>
-            {!s.voided && s.receipt === "Not recorded" && <RecordReceiptDrawer exerciseId={exerciseId} saleId={s.id} name={s.purchaser} />}
+            {!s.voided && !s.simulated && s.receipt === "Not recorded" && <RecordReceiptDrawer exerciseId={exerciseId} saleId={s.id} name={s.purchaser} />}
             {!s.voided && s.void && (s.void.allowed ? <VoidSaleDrawer exerciseId={exerciseId} saleId={s.id} name={s.purchaser} /> : <Button size="sm" variant="ghost" disabled title={s.void.reason}>Void</Button>)}
           </span>
         );

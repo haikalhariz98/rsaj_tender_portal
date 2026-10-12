@@ -31,6 +31,8 @@ import { DELIVERABLE_LABEL, findingText, findingTextFor, EXERCISE_STATUS_LABEL }
 import { PACK_KIND_LABEL } from "@/lib/tender-docs/labels";
 import { loadScopePolicy } from "@/lib/scope/repo";
 import { pinFrom, switchWords } from "@/lib/scope/switches";
+import { pinSaleMode, saleModeWords } from "@/lib/window/sale-mode";
+import { loadSaleSettings } from "@/lib/window/repo";
 import { voidLivePacks } from "@/lib/tender-docs/store";
 import { behaviourProfile } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalRecordOf, proposalReopen, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
@@ -328,6 +330,8 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
       // SR-08, SR-09 (rulings 12 and 13, G1): the exercise takes the organisation's two scope switches as they stand, set or not. Creating is never refused for an unset one:
       // the pin reads "not set" and submission says so, in words, until the officer takes the setting.
       const pin = pinFrom(await loadScopePolicy(l.org.id, tx));
+      // SR-10 (ruling 16, G1): likewise how the documents are sold, from the window policy's setting, set or not.
+      const saleMode = pinSaleMode((await loadSaleSettings(l.org.id, tx)).saleMode);
       const row = await tx.sourcingExercise.create({
         data: {
           organisationId: l.org.id,
@@ -340,11 +344,12 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
           requisitionRuleLabel: ctx.approved?.ruleLabel ?? null,
           proposalState: proposalStateFor(m.requiresProposal, null, true),
           ...pin,
+          saleMode,
           ...determinationColumns(ev, issue, methodNameOf(cfg.config), on),
           ...methodColumns(v, ev),
         },
       });
-      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference, specificationPanel: switchWords(pin.specPanelUsed), onScreenBillOfQuantities: switchWords(pin.onScreenBillUsed) }));
+      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference, specificationPanel: switchWords(pin.specPanelUsed), onScreenBillOfQuantities: switchWords(pin.onScreenBillUsed), howDocumentsAreSold: saleModeWords(saleMode) }));
       await nameActorOnRestricted(tx, actor, l.org.id, { id: row.id, reference: row.reference, restricted: row.restricted }, "MADE");
       // A contract type chosen other than the derived one is an override, and is attributed to the officer who made it.
       if (ev.type.state !== "DERIVED") await act.write(tx, row.id);

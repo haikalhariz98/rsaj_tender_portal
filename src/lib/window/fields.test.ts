@@ -29,6 +29,9 @@ const ctx: WindowFieldContext = {
   submissionPlace: "Tender box",
   events: [{ kind: "BRIEFING", startsAt: klAt("2026-11-06", "10:00"), place: "Room 2", mandatory: true, cancelled: false }],
   mandatoryPermitted: true,
+  // SR-10 (ruling 16): the sale mode and the online payment are part of the context; these tests are of the counter sale.
+  saleMode: "COUNTER",
+  onlinePayment: { simulatorOn: null, methods: [] },
 };
 const tpl = (over: Partial<TemplateFacts> = {}): TemplateFacts => ({ id: "t", code: "notice", nameEn: "Notice", bodyEn: "{{exercise.reference}} closes {{window.closing}}. Fee {{window.fee}}. Briefing: {{window.briefing}}. Site visit: {{window.siteVisit}}.", bodyMs: null, primaryLanguage: null, bodyVersion: 3, ...over });
 

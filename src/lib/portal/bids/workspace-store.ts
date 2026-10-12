@@ -15,6 +15,7 @@ import { requestState, type PreSaleCheck, type RequestState } from "./checks";
 import { isInvited, type BidContext } from "./context-store";
 import { inspectionReading, type InspectionReading } from "./documents";
 import { loadReleaseFacts } from "./inspection-store";
+import { loadOnlineView, type OnlineView } from "./purchase-read";
 import { loadMyNotices } from "./list-store";
 import { awardStands, noticeStands } from "./non-award";
 import { sortNotices, type PortalNotice } from "./notices";
@@ -158,9 +159,11 @@ export interface DocumentsView {
   canRequest: boolean;
   table: InspectionReading;
   release: { state: ReleaseState; short: string; detail: string };
+  /// SR-10: buying the documents online, on an exercise sold that way; null at the counter.
+  online: OnlineView | null;
 }
 
-export async function documentsTab(client: Tx, actor: Who, ctx: BidContext): Promise<DocumentsView> {
+export async function documentsTab(client: Tx, actor: Who & Pick<SupplierActor, "accountId" | "displayName">, ctx: BidContext): Promise<DocumentsView> {
   const w = ctx.ex.window;
   const facts = await loadSaleFacts(client, actor, ctx);
   const release = await loadReleaseFacts(client, actor, ctx);
@@ -184,6 +187,7 @@ export async function documentsTab(client: Tx, actor: Who, ctx: BidContext): Pro
     canRequest: blocks.length === 0 && facts.standing == null && facts.sale == null && facts.checks.length > 0,
     table: inspectionReading(tableDocumentAvailability(ctx.phase), { approved: true }),
     release: { state: release.state, short: releaseWords[release.state].short, detail: releaseWords[release.state].detail },
+    online: await loadOnlineView(client, actor, ctx),
   };
 }
 
@@ -234,7 +238,8 @@ export async function outcomeTab(client: Tx, actor: Who, ctx: BidContext): Promi
 // ------------------------------------------------------------------ the overview
 
 export interface OverviewView {
-  facts: { closing: string | null; saleFrom: string | null; saleUntil: string | null; submissionPlace: string; via: "PUBLIC" | "LINKED"; parties: string[] };
+  /// `submissionPlace` is empty for an exercise sold online (SR-10): there is no counter, so no place is stated.
+  facts: { closing: string | null; saleFrom: string | null; saleUntil: string | null; submissionPlace: string; online: boolean; via: "PUBLIC" | "LINKED"; parties: string[] };
   standing: BidStanding;
   /// What the supplier has done and what comes next, in words, most pressing first.
   todo: string[];
@@ -279,7 +284,8 @@ export async function overviewTab(client: Tx, actor: Who, ctx: BidContext): Prom
       closing: ctx.ex.closingAt && ctx.ex.status !== "CANCELLED" ? instantText(ctx.ex.closingAt, ctx.org.timeZone) : null,
       saleFrom: dayText(window?.purchaseFromDay ?? null),
       saleUntil: dayText(window?.purchaseCloseDay ?? null),
-      submissionPlace: window?.submissionPlace ?? "",
+      submissionPlace: ctx.ex.saleMode === "ONLINE" ? "" : (window?.submissionPlace ?? ""),
+      online: ctx.ex.saleMode === "ONLINE",
       via: ctx.seen.via,
       parties: ctx.parties.map((p) => p.name),
     },
