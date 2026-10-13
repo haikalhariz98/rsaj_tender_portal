@@ -13,6 +13,7 @@
 
 import { formatDate } from "@/lib/format";
 import type { StandingBar } from "@/lib/portal/standing-gate";
+import { saleStands } from "@/lib/sales/standing";
 import type { LapseKind, PurchaseRefusal, PurchaseRestriction } from "@/lib/suppliers/restriction-register";
 
 import type { PreSaleCheck } from "./checks";
@@ -144,7 +145,8 @@ export function judgePurchase(i: { saleMode: "COUNTER" | "ONLINE" | null; releas
 type SaleOfSupplier = { voidedAt: Date | null; financeReceiptNo: string | null; paymentChannel: "COUNTER" | "SIMULATED" };
 
 /// SEC-1: a sale paid on the payment simulator stands for no money, so it counts only while the deployment allows the simulator. A counter sale is not affected.
-const standsHere = (sale: SaleOfSupplier | null, simulatorAllowed: boolean): SaleOfSupplier | null => (sale && !sale.voidedAt && (sale.paymentChannel !== "SIMULATED" || simulatorAllowed) ? sale : null);
+/// Wave 3b (17c, 20m): the one predicate (`saleStands`) the opening and the online submission's door read too.
+const standsHere = (sale: SaleOfSupplier | null, simulatorAllowed: boolean): SaleOfSupplier | null => (saleStands(sale, simulatorAllowed) ? sale : null);
 
 /**
  * Whether the DOCUMENTS are released to a supplier (FR-VND-012): it holds a paid online purchase whose sale stands, by either payment and no other, or a counter sale with its finance
@@ -174,5 +176,5 @@ export function holdsReleasedPurchase(i: {
  * A simulated payment counts only while the deployment allows the simulator (SEC-1), as at the opening. The product owner confirmed this predicate (ruling 17c, wave 3a review S9): a bid does not also require the finance receipt, and a counter sale counts whatever `electronicDocumentRelease` says, because the release setting governs the online documents only.
  */
 export function holdsBidStanding(i: { sale: SaleOfSupplier | null; simulatorAllowed: boolean }): boolean {
-  return standsHere(i.sale, i.simulatorAllowed) != null;
+  return saleStands(i.sale, i.simulatorAllowed);
 }

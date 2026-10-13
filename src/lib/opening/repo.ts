@@ -25,6 +25,7 @@ import type { OrgUnit } from "@/lib/organisation/types";
 import { loadRoster, type RosterData } from "@/lib/people/load";
 import { holdersOf } from "@/lib/people/roster";
 import type { Provenance } from "@/lib/reference/types";
+import { voidedAtOpening } from "@/lib/sales/standing";
 import { estimateFactsOf, loadEstimates, loadScopePolicy } from "@/lib/scope/repo";
 import { windowGate } from "@/lib/window/gate";
 
@@ -63,7 +64,8 @@ export const OPENING_SALE_SELECT = { id: true, partyId: true, voidedAt: true, pa
 type SaleRowForOpening = { partyId: string; voidedAt: Date | null; paymentChannel: "COUNTER" | "SIMULATED"; restrictionCertSighted: SaleFacts["certSighted"]; restrictionCertValidUntil: Date | null; purchase: { supplierId: string } | null };
 
 // SEC-1: a sale paid on the payment simulator stands for no money, so it counts as a purchase only while the deployment allows the simulator, the same rule that releases the documents and admits a bid.
-export const saleFactsOf = (s: SaleRowForOpening): SaleFacts => ({ partyId: s.partyId, voided: s.voidedAt != null || (s.paymentChannel === "SIMULATED" && !simulatorAllowedByDeployment()), certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, purchaseSupplierId: s.purchase?.supplierId ?? null });
+// Wave 3b (17c, 20m): voided exactly when it does not stand, by the one predicate the purchase and the online submission's door read (`saleStands`).
+export const saleFactsOf = (s: SaleRowForOpening): SaleFacts => ({ partyId: s.partyId, voided: voidedAtOpening(s, simulatorAllowedByDeployment()), certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, purchaseSupplierId: s.purchase?.supplierId ?? null });
 
 export async function loadOpenings(exerciseId: string, client: Tx = db) {
   return client.opening.findMany({ where: { exerciseId }, orderBy: { sequenceNo: "asc" }, include: OPENING_INCLUDE });

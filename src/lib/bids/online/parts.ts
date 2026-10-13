@@ -1,12 +1,71 @@
 /**
- * Uploading one bid part: its rule, its type, its size, its hash and its scan (ADR 0036 D6, rulings 12a, 20o; build plan §1.3, written verbatim). Pure.
+ * Uploading one bid part: its rule, its type, its size, its hash and its scan (ADR 0036 D6, rulings 12a, 19, 20e, 20o; build plan §1.3). Pure.
+ *
+ * The type is the one the file's own bytes say (the shared recogniser: `sniffed`, and for a ZIP the Office reading of its end, `office`), never its name. THREAT and
+ * ERROR refuse the file in either mode (20o, M3); NOT_SCANNED is stored only under DEMONSTRATION with no scanner configured. The route's own guards (the channel,
+ * the switch, publication, the key and its fingerprint, the sale, the invitee list, the late window, the body's rate) are judged before the body is read (step 9).
  */
 
 import type { ArchiveVerdict, Sniffed } from "@/lib/documents/media";
 import type { ScanResult } from "@/lib/documents/store/types";
+import { MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE } from "@/lib/portal/bids/limits";
 
 import type { BidPartRule, OnlineSubmissionMode, PartUploadFault, StoredScan } from "./types";
 
+/// Recognised only to be refused, whatever a part's list says: markup and an archive that is not an Office document.
+const NEVER_ACCEPTED: readonly string[] = ["text/html", "image/svg+xml", "application/zip"];
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
 // src/lib/bids/online/parts.ts (D6)
-export declare function partUploadFaults(i: { rule: BidPartRule | null; sniffed: Sniffed; office: ArchiveVerdict | null; size: bigint; storeCap: bigint | null; browserSha256: string; serverSha256: string; scan: ScanResult; mode: OnlineSubmissionMode; scannerConfigured: boolean; draftFilesBySupplier: number }): PartUploadFault[];
-export declare function storedScan(scan: ScanResult, mode: OnlineSubmissionMode, scannerConfigured: boolean): StoredScan | null;  // null: refuse
+/**
+ * Every refusal of one part's upload. `size` is the body's length in bytes; `storeCap` the deployment's ceiling on one file (null: not set, and nothing is taken).
+ * `browserSha256` is the hash the supplier's browser computed (lower-case hex), `serverSha256` the server's of the bytes it read. `draftFilesBySupplier` counts the
+ * supplier's drafts on the exercise before this one.
+ */
+export function partUploadFaults(i: { rule: BidPartRule | null; sniffed: Sniffed; office: ArchiveVerdict | null; size: bigint; storeCap: bigint | null; browserSha256: string; serverSha256: string; scan: ScanResult; mode: OnlineSubmissionMode; scannerConfigured: boolean; draftFilesBySupplier: number }): PartUploadFault[] {
+  const out: PartUploadFault[] = [];
+  const add = (f: PartUploadFault) => {
+    if (!out.includes(f)) out.push(f);
+  };
+  if (i.draftFilesBySupplier >= MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE) add("TOO_MANY_DRAFT_FILES");
+  if (!i.rule) {
+    add("PART_UNKNOWN");
+    return out;
+  }
+  if (!i.rule.returnedByBidder) add("PART_NOT_RETURNED");
+
+  // The size: the part's own limit and the deployment's ceiling, the smaller of the two.
+  const partMax = /^[1-9][0-9]*$/.test(i.rule.maxBytes) ? BigInt(i.rule.maxBytes) : null;
+  if (partMax === null || i.storeCap === null) add("SIZE_NOT_SET");
+  if (i.size <= BigInt(0)) add("EMPTY");
+  else if ((partMax !== null && i.size > partMax) || (i.storeCap !== null && i.size > i.storeCap)) add("TOO_LARGE");
+
+  // The type, by the bytes.
+  if (i.rule.acceptedMediaTypes.length === 0) add("TYPES_NOT_SET");
+  else if (i.office && "refused" in i.office) add("OFFICE_REFUSED");
+  else {
+    const type = i.office && "type" in i.office ? i.office.type : i.sniffed;
+    if (type === null || NEVER_ACCEPTED.includes(type) || !i.rule.acceptedMediaTypes.includes(type)) add("TYPE_NOT_ACCEPTED");
+  }
+
+  // The bytes the server read are the bytes the supplier's browser hashed.
+  if (!SHA256_HEX.test(i.browserSha256) || i.browserSha256 !== i.serverSha256) add("HASH_MISMATCH");
+
+  // The scan (12a, 20o).
+  if (storedScan(i.scan, i.mode, i.scannerConfigured) === null) add(i.scan === "THREAT" ? "THREAT" : "SCAN_ERROR");
+  return out;
+}
+
+/// What a stored file's scan reads, or null to refuse it. THREAT and ERROR refuse in both modes. NOT_SCANNED is only "no scanner configured, under DEMONSTRATION":
+/// under LIVE (which requires a scanner), or with a scanner configured, a file that was not scanned is refused as a scan that failed.
+export function storedScan(scan: ScanResult, mode: OnlineSubmissionMode, scannerConfigured: boolean): StoredScan | null {  // null: refuse
+  switch (scan) {
+    case "CLEAN":
+      return "CLEAN";
+    case "NOT_SCANNED":
+      return mode === "DEMONSTRATION" && !scannerConfigured ? "NOT_SCANNED" : null;
+    case "THREAT":
+    case "ERROR":
+      return null;
+  }
+}

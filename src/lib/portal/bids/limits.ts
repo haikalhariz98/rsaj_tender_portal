@@ -65,5 +65,20 @@ export const isRepeatDownload = (last: Date | null, now: Date): boolean => last 
  */
 export const MAX_STAMP_SKEW_SECONDS = 30;
 
+/**
+ * Caps per supplier per exercise (20e, threat S17, S19): never a pool shared between suppliers, so one bidder cannot use up another's room. PRODUCT BEHAVIOUR, not
+ * customer policy. A cap never blocks a withdrawal and never removes a standing bid; at the cap the words say that the last submission stands.
+ *  - Submissions (bids, alternatives and replacements together): a supplier hands in a bid and perhaps a few alternatives, and may replace each a few times before the
+ *    closing. 20 is far above that, and keeps the append-only register from being filled by one account.
+ *  - Draft files held at once: a pack returns perhaps ten to twenty parts, and a supplier may upload a part again before submitting. 40 drafts held at once covers a
+ *    full pack twice over; a discarded draft frees its place.
+ */
+export const MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE = 20;
+export const MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE = 40;
+
 // src/lib/portal/bids/limits.ts (20w): only the first rate refusal per account per window writes a SealedAccessEvent
-export declare function rateRefusalLogged(countInWindow: number, limit: number): boolean;   // true only when countInWindow === limit + 1
+/// The count is this request's place in the window, itself included (`rateVerdict`): the first refusal is the one just over the limit. Every later refusal in the same
+/// window is refused without a row, so one signed-in account cannot fill the sealed access log (S19); the throttle's own rows are not a record and say nothing.
+export function rateRefusalLogged(countInWindow: number, limit: number): boolean {   // true only when countInWindow === limit + 1
+  return countInWindow === limit + 1;
+}
