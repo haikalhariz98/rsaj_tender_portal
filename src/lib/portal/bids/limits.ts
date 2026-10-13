@@ -64,3 +64,6 @@ export const isRepeatDownload = (last: Date | null, now: Date): boolean => last 
  * Written as the literal 30 into migration 20261103110000 (the stamp and the withdrawal triggers); `triggers.db.test.ts` pins the two equal.
  */
 export const MAX_STAMP_SKEW_SECONDS = 30;
+
+// src/lib/portal/bids/limits.ts (20w): only the first rate refusal per account per window writes a SealedAccessEvent
+export declare function rateRefusalLogged(countInWindow: number, limit: number): boolean;   // true only when countInWindow === limit + 1

@@ -22,7 +22,9 @@ export interface BlobStore {
   get(organisationId: string, sha256: string): Promise<Uint8Array | null>;
 }
 
-export type ScanResult = "NOT_SCANNED" | "CLEAN" | "THREAT";
+/// Wave 3b (SR-13, ADR 0036 D6, M3, 20o) adds ERROR: a configured scanner that failed or could not be reached. It is never NOT_SCANNED, which means only that no scanner
+/// is configured. A bid part reading THREAT or ERROR is refused in either mode (`storedScan`). Step 9 makes the scanner return it and every reader exhaustive over it.
+export type ScanResult = "NOT_SCANNED" | "CLEAN" | "THREAT" | "ERROR";
 
 /// Malware scanning (NFR-SEC-007). Ships unconfigured (OD-4): every version reads NOT_SCANNED.
 export interface MalwareScanner {
