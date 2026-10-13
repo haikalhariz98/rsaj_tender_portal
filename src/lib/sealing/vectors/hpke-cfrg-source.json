@@ -1,0 +1,24 @@
+{
+  "source": "The CFRG HPKE test vectors (draft-irtf-cfrg-hpke, published as RFC 9180), test-vectors.json, fetched once on 2026-10-13 from https://raw.githubusercontent.com/cfrg/draft-irtf-cfrg-hpke/master/test-vectors.json. Each entry here is that file entry exactly as it stands in it (the bytes between its braces), with one newline added.",
+  "sourceSha256": "61fc662f01996cd06d713dacf5e133167bd309a1f329442d53f1e21a47b3ede6",
+  "sourceBytes": 5892257,
+  "entries": {
+    "hpke-cfrg-x25519-sha256-aes256gcm.json": {
+      "mode": 0,
+      "kem_id": 32,
+      "kdf_id": 1,
+      "aead_id": 2,
+      "index": 4,
+      "entrySha256": "a8a6fb52f2b3db8d4572eff37b14214d4323c17ee080a8219d8dda4e509d56b8"
+    },
+    "hpke-cfrg-x25519-sha256-aes128gcm.json": {
+      "mode": 0,
+      "kem_id": 32,
+      "kdf_id": 1,
+      "aead_id": 1,
+      "index": 0,
+      "entrySha256": "3ca4e66302122a9aae7d286a85353112cf270f21c4db9b577cc8a0b81ecdade5",
+      "note": "the suite of RFC 9180 appendix A.1"
+    }
+  }
+}

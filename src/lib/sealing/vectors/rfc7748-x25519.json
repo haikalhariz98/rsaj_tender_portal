@@ -1,0 +1,30 @@
+{
+  "source": "RFC 7748, Elliptic Curves for Security, section 5.2 (test vectors) and section 6.1 (Diffie-Hellman). Transcribed from the RFC text; the second single-step vector of 5.2 is not included (see the test).",
+  "single": [
+    {
+      "scalar": "a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4",
+      "u": "e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c",
+      "output": "c3da55379de9c6908e94ea4df28d084f32eccf03491c71f754b4075577a28552"
+    }
+  ],
+  "iterated": {
+    "start": "0900000000000000000000000000000000000000000000000000000000000000",
+    "after": [
+      {
+        "iterations": 1,
+        "k": "422c8e7a6227d7bca1350b3e2bb7279f7897b87bb6854b783c60e80311ae3079"
+      },
+      {
+        "iterations": 1000,
+        "k": "684cf59ba83309552800ef566f2f4d3c1c3887c49360e3875f2eb94d99532c51"
+      }
+    ]
+  },
+  "dh": {
+    "alicePrivate": "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+    "alicePublic": "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
+    "bobPrivate": "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb",
+    "bobPublic": "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
+    "shared": "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"
+  }
+}

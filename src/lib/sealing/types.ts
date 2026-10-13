@@ -1,5 +1,6 @@
 /**
- * The crypto contract of online sealed bids (wave 3b, ADR 0036 D2, D3, D4; build plan §1.1, written verbatim). `node:crypto` only, no new dependency.
+ * The crypto contract of online sealed bids (wave 3b, ADR 0036 D2, D3, D4; build plan §1.1, written verbatim). `node:crypto` only, no new dependency. The
+ * types are here as written; the functions are re-exported from the files that implement them (step 4).
  */
 
 export type Bytes = Uint8Array;
@@ -27,18 +28,10 @@ export interface WrappedKey { params: ScryptParams; pepperId: string | null; sea
 export interface X25519KeyPair { publicKey: Bytes; privateKey: Bytes }
 export class SealError extends Error { constructor(readonly code: "TAG" | "LOW_ORDER" | "FORMAT" | "LENGTH" | "PEPPER") { super(code); } }
 
-export declare function generateX25519(): X25519KeyPair;
-export declare function publicOf(privateKey: Bytes): Bytes;
-export declare function hpkeSeal(recipientPublic: Bytes, plaintext: Bytes, aad: AadContext): HpkeSealed;
-export declare function hpkeOpen(recipientPrivate: Bytes, sealed: HpkeSealed, aad: AadContext): Bytes;          // throws SealError
-export declare function gcmSeal(key: Bytes, plaintext: Bytes, aad: AadContext): GcmSealed;
-export declare function gcmOpen(key: Bytes, sealed: GcmSealed, aad: AadContext): Bytes;                          // throws SealError
-export declare function wrapKey(privateKey: Bytes, passphrase: string, pepper: { id: string; key: Bytes } | null, aad: AadContext): Promise<WrappedKey>;
-/// 20v: the caller checks the wrap's pepper FIRST, with its own fault, never counted toward the passphrase lockout and never worded as a wrong passphrase.
-export declare function pepperFault(w: WrappedKey, held: { id: string } | null): "PEPPER_NOT_HELD" | null;
-/// null: wrong passphrase ONLY. Called with a pepper that is not the wrap's (pepperFault skipped), it throws SealError("PEPPER"): a programming error, not a wrong passphrase.
-export declare function unwrapKey(w: WrappedKey, passphrase: string, pepper: { id: string; key: Bytes } | null, aad: AadContext): Promise<Bytes | null>;
-export declare function splitKey(k: Bytes, n: number): Bytes[];                                                  // n-of-n XOR, n >= 2
-export declare function combineShares(shares: readonly Bytes[], expectedPublic: Bytes): { ok: true; k: Bytes } | { ok: false; fault: "SHARE_COUNT" | "SHARE_MISMATCH" };
-export declare function fingerprint(publicKey: Bytes): string;
-export declare function zero(...buffers: Bytes[]): void;
+// The functions of the contract (build plan §1.1), each implemented in its own file. `contract.test.ts` holds every one to the plan's signature, written there verbatim.
+export { fingerprint, generateX25519, publicOf } from "./x25519";
+export { hpkeSeal } from "./hpke";
+export { gcmSeal, zero } from "./aead";
+export { gcmOpen, hpkeOpen } from "./open";       // throws SealError
+export { pepperFault, unwrapKey, wrapKey } from "./kdf";
+export { combineShares, splitKey } from "./split";
