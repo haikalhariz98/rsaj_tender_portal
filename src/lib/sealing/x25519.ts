@@ -51,9 +51,10 @@ export function x25519(privateKey: Bytes, publicKey: Bytes): Bytes {
   let out: Buffer;
   try {
     out = diffieHellman({ privateKey: priv, publicKey: pub });
-  } catch (e) {
-    if ((e as { code?: string }).code === "ERR_OSSL_FAILED_DURING_DERIVATION") throw new SealError("LOW_ORDER");
-    throw e;
+  } catch {
+    // Both keys are 32 bytes and both imported, so the derivation can fail only on its output being all zero, which OpenSSL refuses itself. Its error code
+    // may differ between OpenSSL releases, so any failure here is read as the low-order key it can only be, not by one release's code.
+    throw new SealError("LOW_ORDER");
   }
   if (out.every((b) => b === 0)) throw new SealError("LOW_ORDER");
   return new Uint8Array(out);
