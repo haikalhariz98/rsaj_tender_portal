@@ -18,6 +18,7 @@ import { db } from "@/lib/db";
 import { isLive } from "@/lib/documents/evidence";
 import type { ExerciseRow } from "@/lib/method/repo";
 import { senFromDecimal, parseSen } from "@/lib/money";
+import { priceRead } from "@/lib/opening/price";
 import { evaluationSet } from "@/lib/opening/carry";
 import type { OpeningForGate } from "@/lib/opening/award-gate";
 import { pathTo } from "@/lib/organisation/structure";
@@ -136,7 +137,8 @@ export function bidderFacts(b: EvaluationBidderRow, meetings: EvaluationRow["mee
     listingNo: b.openedBid.listingNo,
     bidderName: b.openedBid.bidderNameAsRead,
     registrationNo: b.openedBid.party.registrationNo,
-    priceAsRead: senFromDecimal(b.openedBid.priceAsRead),
+    // Review S5: never a missing price read as 0 (`priceRead` refuses, naming the bid). The evaluation reads finalised openings only.
+    priceAsRead: senFromDecimal(priceRead(b.openedBid)),
     correctedPrice: b.correctedPrice != null ? senFromDecimal(b.correctedPrice) : null,
     period: b.openedBid.completionPeriod != null && b.openedBid.completionUnit ? { value: b.openedBid.completionPeriod, unit: b.openedBid.completionUnit as PeriodUnit } : null,
     excludedReason: b.excludedReason,

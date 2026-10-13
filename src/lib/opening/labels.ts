@@ -241,6 +241,8 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   PERIOD_INCOMPLETE: () => "Give the completion period with its unit, or neither.",
   MAIN_NOT_OPENED: () => "Open the envelope's main offer first.",
   NOTHING_CHANGED: () => "Nothing differs from what was recorded.",
+  // Review S6 (ADR 0036 D10, ruling 20): an online bid's price is written only by the finalise, so before it there is no read price to correct.
+  PRICE_NOT_READ: () => "This bid's price is not read yet: an online bid's price is unsealed when the opening is finalised, so there is nothing to correct before then.",
   // ---- verdicts
   VERDICT_REQUIRED: () => "Choose carried or not carried.",
   PASS_WITH_MISSING_DOCUMENT: (f) => `${d(f, "missing")} is missing, and the method eliminates an incomplete bid: it cannot be carried.`,

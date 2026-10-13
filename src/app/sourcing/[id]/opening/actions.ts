@@ -802,11 +802,13 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
+    // Review S6: an online bid's price is not read before its finalising. Refused in words, before anything reads the price (which would throw).
+    if (bid.priceAsRead == null) return refuse(correctionFaults({ state: stateOf(o, l.ex.status), sameOpening: !o.finalisedAt, reason, changed: true, price: offer.price, period: offer.period, priceRead: false }));
     const period = periodOf(offer.period);
     const was = { bidder: bid.bidderNameAsRead, registrationClass: bid.registrationClassAsRead, registrationStatus: bid.registrationStatusAsRead, price: parseSen(priceRead(bid).toString()), period: bid.completionPeriod != null && bid.completionUnit ? { value: bid.completionPeriod, unit: bid.completionUnit } : null, validityDays: bid.validityDaysStated };
     const next = { bidder: bidderName.trim(), registrationClass, registrationStatus, price: offer.price ?? (0n as Sen), period, validityDays: offer.validityDays };
     const changed = JSON.stringify(asReadFields(was)) !== JSON.stringify(asReadFields(next));
-    const fs = correctionFaults({ state: stateOf(o, l.ex.status), sameOpening: !o.finalisedAt, reason, changed, price: offer.price, period: offer.period });
+    const fs = correctionFaults({ state: stateOf(o, l.ex.status), sameOpening: !o.finalisedAt, reason, changed, price: offer.price, period: offer.period, priceRead: true });
     if (blocking(fs).length) return refuse(fs);
     // Ruling 17a: a restriction not yet assessed is read again each time the officer acts on the offer.
     await retakeRestriction(tx, actor, l, c, o, bid, now);

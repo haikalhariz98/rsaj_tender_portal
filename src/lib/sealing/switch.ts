@@ -48,7 +48,7 @@ export function channelSettingFaults(channel: SubmissionChannel | null, online: 
 /// The words for each, as a screen says them. Never a code. The two attestations are deployment facts the portal cannot check (20o, 20v).
 export const LIVE_ISSUE_WORDS: Readonly<Record<LiveIssueFault, string>> = {
   REVIEW_NOT_RECORDED: "The outside cryptography review is not recorded.",
-  AMENDMENT_NOT_RECORDED: "The amendment of the bid procedure (SK002 and SK003) is not recorded.",
+  AMENDMENT_NOT_RECORDED: "The amendment of the organisation's bid procedure is not recorded.",
   ACCEPTANCE_NOT_RECORDED: "The organisation's written acceptance of the limits of online sealing is not recorded.",
   SCANNER_NOT_CONFIGURED: "No malware scanner is configured for this copy of the system.",
   LIVE_NOT_ALLOWED_BY_DEPLOYMENT: "This copy of the system has not been told it may take live online bids. Whoever runs the system must allow it in the deployment settings first (the file .env.example says how).",

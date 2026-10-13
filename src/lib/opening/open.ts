@@ -120,12 +120,15 @@ export function alternativeInsideFaults(i: { state: OpeningState; main: { openin
   return out;
 }
 
-export type CorrectionFault = ActFault | "REASON_REQUIRED" | "NOTHING_CHANGED" | "PRICE_REQUIRED" | "PERIOD_INCOMPLETE" | "NOT_THIS_OPENING";
+export type CorrectionFault = ActFault | "REASON_REQUIRED" | "NOTHING_CHANGED" | "PRICE_REQUIRED" | "PERIOD_INCOMPLETE" | "NOT_THIS_OPENING" | "PRICE_NOT_READ";
 
 /// OD-10: a keying slip in what was read is corrected before finalising, with the reason, audited before and after.
-export function correctionFaults(i: { state: OpeningState; sameOpening: boolean; reason: string; changed: boolean; price: Sen | null; period: { value: number | null; unit: string | null } }): Finding<CorrectionFault>[] {
+/// `priceRead`: whether the bid's price was read. An online bid's is not until its opening is finalised (ADR 0036 D10, ruling 20), and nothing typed corrects
+/// what was never read: PRICE_NOT_READ, said in words, where the caller would otherwise meet `PriceNotReadError` (review S6).
+export function correctionFaults(i: { state: OpeningState; sameOpening: boolean; reason: string; changed: boolean; price: Sen | null; period: { value: number | null; unit: string | null }; priceRead: boolean }): Finding<CorrectionFault>[] {
   const out: Finding<CorrectionFault>[] = [...actFaults(i.state)];
   const f = (code: CorrectionFault) => out.push({ code, level: "block" });
+  if (!i.priceRead) f("PRICE_NOT_READ");
   if (!i.sameOpening) f("NOT_THIS_OPENING");
   if (!i.reason.trim()) f("REASON_REQUIRED");
   if (i.price == null) f("PRICE_REQUIRED");

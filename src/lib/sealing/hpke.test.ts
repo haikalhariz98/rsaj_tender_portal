@@ -31,7 +31,11 @@ const PINNED: Record<string, string> = {
   "hpke-cfrg-x25519-sha256-aes256gcm.json": "34f651ff9568b274632c851b4e117a82757d345b1a893846a8cb756f3bb51e4b",
   "hpke-cfrg-x25519-sha256-aes128gcm.json": "176bb0efeed8f1d442fca3f3beca0129605122a062a6dbbc2f8d799eb9970fbe",
 };
-/// The SHA-256 of the whole CFRG test-vectors.json the entries were cut from.
+/// The SHA-256 of the whole CFRG test-vectors.json the entries were cut from, as recorded when it was fetched (2026-10-13).
+/// What this proves, and what it does not (security audit): the test never reaches the network and does not hold the source file, so it cannot check this digest
+/// against the CFRG's file. It only pins the provenance record, so the recorded digest cannot change unnoticed. That the vendored entries are the CFRG's is
+/// shown by the entries themselves: each file's own SHA-256 is pinned above, and every vector in them passes against the code below. A reviewer who wants the
+/// link to the source checks it by hand: fetch the file named in `hpke-cfrg-source.json`, and compare its SHA-256 and the entry at each recorded index.
 const CFRG_SOURCE_SHA256 = "61fc662f01996cd06d713dacf5e133167bd309a1f329442d53f1e21a47b3ede6";
 
 interface Entry {
@@ -42,12 +46,12 @@ interface Entry {
   exports: { exporter_context: string; L: number; exported_value: string }[];
 }
 
-describe("the vendored vectors are the CFRG file's entries, unchanged", () => {
+describe("the vendored vectors are unchanged since they were cut from the CFRG file (the source file itself is not re-checked here)", () => {
   it.each(Object.entries(PINNED))("%s has its pinned SHA-256", (name, digest) => {
     expect(sha256(read(name))).toBe(digest);
   });
 
-  it("the provenance record names the source file and each entry's own hash, and they agree with the files", () => {
+  it("the provenance record is unchanged, and each entry's own hash in it agrees with the vendored file", () => {
     const source = JSON.parse(read("hpke-cfrg-source.json").toString("utf8")) as { sourceSha256: string; entries: Record<string, { entrySha256: string; mode: number; kem_id: number; kdf_id: number; aead_id: number }> };
     expect(source.sourceSha256).toBe(CFRG_SOURCE_SHA256);
     for (const [name, e] of Object.entries(source.entries)) {

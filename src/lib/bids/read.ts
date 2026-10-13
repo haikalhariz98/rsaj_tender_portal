@@ -147,7 +147,8 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
       admission: a ? { state: a.state, label: ADMISSION_LABEL[a.state], sitting: a.matter?.sittingReference ?? null, matterId: a.matter?.id ?? null } : null,
       correct: e.kind === "COMPANY_ESTIMATE" || e.status === "WITHDRAWN" ? null : correct,
       table,
-      returnable: e.status === "WITHDRAWN" && !e.returnedUnopenedOn && !cancelled,
+      // Review S7: only a paper envelope is handed back; an online one has nothing to return, and its row never changes but by its status (trigger 2).
+      returnable: e.channel !== "ONLINE" && e.status === "WITHDRAWN" && !e.returnedUnopenedOn && !cancelled,
       alternativeTo: e.parentEnvelopeId ? (envelopes.find((p) => p.id === e.parentEnvelopeId)?.sequence ?? null) : null,
     };
   });

@@ -33,6 +33,7 @@ import { evaluationLabel } from "./lock";
 import { inForce, loadEvaluations } from "./repo";
 import { NEGOTIATION_DOMAIN } from "./types";
 import { senFromDecimal, formatMoney } from "@/lib/money";
+import { priceRead } from "@/lib/opening/price";
 import type { AuditActor } from "@/lib/auth/types";
 
 /// A supplementary opening starts the version for the person who finalised it, and says how in `act` (attributed in the same transaction); a committee's loop starts it for nobody.
@@ -57,7 +58,7 @@ export async function openNewVersion(
   const evaluations = await loadEvaluations(x.exercise.id, tx);
   const prev = inForce(evaluations);
   if (!prev) return null;
-  const openings = await tx.opening.findMany({ where: { exerciseId: x.exercise.id }, select: { kind: true, finalisedAt: true, bids: { select: { id: true, verdict: true, priceAsRead: true } } } });
+  const openings = await tx.opening.findMany({ where: { exerciseId: x.exercise.id }, select: { kind: true, finalisedAt: true, bids: { select: { id: true, listingNo: true, verdict: true, priceAsRead: true } } } });
   const set = evaluationSet(openings.map((o) => ({ kind: o.kind, finalised: o.finalisedAt != null, bids: o.bids.map((b) => ({ ...b, openedBidId: b.id })) })));
   const plan = carryPlan(prev.bidders.map((b) => ({ id: b.id, openedBidId: b.openedBidId, row: b })), set);
   const target = cause.trigger === "LOOP" ? loopTarget(cause.key) : null;
@@ -142,7 +143,9 @@ export async function openNewVersion(
   }
   for (const openedBidId of plan.fresh) {
     const bid = set.find((b) => b.openedBidId === openedBidId)!;
-    const j = ceilingExclusion(senFromDecimal(bid.priceAsRead), x.ceiling);
+    // Review S5: a price not read (an online bid before its finalising) refuses loudly, naming the bid, never reads as 0. An evaluation starts only on a
+    // finalised opening, so this never fires in use.
+    const j = ceilingExclusion(senFromDecimal(priceRead(bid)), x.ceiling);
     const reason = exclusionReason(j);
     if (reason) excluded++;
     await tx.evaluationBidder.create({ data: { organisationId: x.organisationId, evaluationId: next.id, openedBidId, excludedReason: reason, ceilingSnapshot: { regime: x.ceiling.regime, boundary: x.ceiling.boundary != null ? x.ceiling.boundary.toString() : null, operator: x.ceiling.operator } } });

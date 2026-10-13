@@ -30,7 +30,9 @@ export interface ScheduleRowInput {
   bidderName: string;
   registrationClass: string;
   registrationStatus: string;
-  price: Sen;
+  /// Null only on the draft drawn before an online opening's finalising, where the price is still sealed (ADR 0036 D10, review S6). A frozen schedule never
+  /// holds one: the finalise writes every price before it freezes (a trigger refuses to finalise with a price missing).
+  price: Sen | null;
   period: { value: number; unit: PeriodUnit } | null;
   isAlternative: boolean;
   /// Its main offer's Bil., for an alternative.
@@ -44,8 +46,8 @@ export interface ScheduleRow {
   bidderName: string;
   registrationClass: string;
   registrationStatus: string;
-  /// Decimal string, two places (SULIT).
-  openingPrice: string;
+  /// Decimal string, two places (SULIT). Null: not read yet, on a draft only (review S6); a screen says `PRICE_NOT_READ_WORDS`.
+  openingPrice: string | null;
   period: { value: number; unit: PeriodUnit } | null;
   isAlternative: boolean;
   parentListingNo: number | null;
@@ -92,7 +94,7 @@ export function jadualTawaran(i: {
   const rows = i.rows
     .filter((r) => r.openingSequence <= i.version)
     .sort((a, b) => a.listingNo - b.listingNo)
-    .map((r) => ({ listingNo: r.listingNo, bidderName: r.bidderName, registrationClass: r.registrationClass, registrationStatus: r.registrationStatus, openingPrice: senToDecimalString(r.price), period: r.period, isAlternative: r.isAlternative, parentListingNo: r.parentListingNo }));
+    .map((r) => ({ listingNo: r.listingNo, bidderName: r.bidderName, registrationClass: r.registrationClass, registrationStatus: r.registrationStatus, openingPrice: r.price == null ? null : senToDecimalString(r.price), period: r.period, isAlternative: r.isAlternative, parentListingNo: r.parentListingNo }));
   const benchmark: ScheduleSnapshot["benchmark"] = "notRequired" in i.benchmark ? { notRequired: true } : i.benchmark.sealed ? { sealed: true } : { sealed: false, label: i.benchmark.label, companyEstimate: senToDecimalString(i.benchmark.value) };
   return {
     schedule: {

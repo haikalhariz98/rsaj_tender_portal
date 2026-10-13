@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseSen } from "@/lib/money";
 
 import { open } from "./fixture";
+import { openingFindingText } from "./labels";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "./open";
 
 /** FR-OPN-005, FR-BID-006, OD-2, OD-10: opening an envelope, its Bil., its alternatives, and a corrected keying slip. */
@@ -65,11 +66,16 @@ describe("alternatives (FR-BID-006)", () => {
 });
 
 describe("correcting a keying slip (OD-10)", () => {
-  const f = (x: Partial<Parameters<typeof correctionFaults>[0]>) => correctionFaults({ state: open(), sameOpening: true, reason: "Typed 279 for 297", changed: true, price: parseSen("297000"), period: { value: null, unit: null }, ...x }).map((y) => y.code);
+  // Review S6: the input names whether the bid's price was read; a paper bid's always is.
+  const f = (x: Partial<Parameters<typeof correctionFaults>[0]>) => correctionFaults({ state: open(), sameOpening: true, reason: "Typed 279 for 297", changed: true, price: parseSen("297000"), period: { value: null, unit: null }, priceRead: true, ...x }).map((y) => y.code);
   it("before finalising, with a reason, where something changes", () => {
     expect(f({})).toEqual([]);
     expect(f({ reason: "" })).toEqual(["REASON_REQUIRED"]);
     expect(f({ changed: false })).toEqual(["NOTHING_CHANGED"]);
   });
   it("after signing, never", () => expect(f({ state: open({ finalised: true }) })).toEqual(["FINALISED"]));
+  it("an online bid whose price is not read yet is refused in words, never thrown (review S6)", () => {
+    expect(f({ priceRead: false })).toEqual(["PRICE_NOT_READ"]);
+    expect(openingFindingText({ code: "PRICE_NOT_READ", level: "block" })).toMatch(/price is not read yet/);
+  });
 });

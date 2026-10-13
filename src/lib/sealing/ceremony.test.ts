@@ -69,6 +69,14 @@ describe("publication's sealing refusals (D1, D3, D7, 20h, 20o, 20v)", () => {
     expect(words.size).toBe(10);
   });
 
+  // Ruling 20z: the channel unset says why and where, as the sale mode's words do, so the refusal is never a dead end (ruling 13).
+  it("the channel not set says why, and where to take it or set it", () => {
+    const text = publishSealingWords({ code: "CHANNEL_NOT_SET", level: "block" });
+    expect(text).toMatch(/because the organisation had not set it when the exercise was made/);
+    expect(text).toMatch(/Take the organisation's setting under Notice and fee on Scope and estimate/);
+    expect(text).toMatch(/two people set it under Configuration, Invitation/);
+  });
+
   it("a rule unset is named by its part, and a part the bidder does not return is not judged", () => {
     const fs = publishSealingFaults({ ...base, rules: [rule({ acceptedMediaTypes: [], label: "Surat Akuan Pembida" }), rule({ packPartId: "p2", returnedByBidder: false, acceptedMediaTypes: [], maxBytes: "" })] });
     expect(fs).toEqual([{ code: "PART_TYPES_NOT_SET", level: "block", data: { label: "Surat Akuan Pembida" } }]);

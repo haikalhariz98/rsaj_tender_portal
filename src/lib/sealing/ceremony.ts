@@ -86,8 +86,9 @@ export function publishSealingFaults(i: { channel: SubmissionChannel | null; onl
 export function publishSealingWords(fnd: Finding): string {
   const label = String(fnd.data?.label ?? "a returned part");
   switch (fnd.code as PublishSealingFault) {
+    // Ruling 20z: why and where, as SALE_MODE_NOT_SET says it. The take act is step 8's, beside the sale mode's.
     case "CHANNEL_NOT_SET":
-      return "How bids are submitted on this exercise (on paper or online) is not set. Take the organisation's setting first.";
+      return "How bids are submitted on this exercise (on paper, or online and sealed) is not set, because the organisation had not set it when the exercise was made. Take the organisation's setting under Notice and fee on Scope and estimate; if it is not set either, two people set it under Configuration, Invitation.";
     case "ONLINE_NOT_SET":
       return "Online submission of bids is not set for the organisation, so an online exercise cannot be published.";
     case "ONLINE_NOT_ALLOWED":

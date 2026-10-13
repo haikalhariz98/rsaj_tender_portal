@@ -49,7 +49,8 @@ describe("every act refuses CANCELLED, first and alone", () => {
   it("openEnvelope, recordAlternative, correctAsRead", () => {
     expect(codes(openFaults({ state: cancelled, envelope: { id: "e3", kind: "BID", status: "RECEIVED", late: false }, withdrawn: false, admittedEnvelopeId: null, bidder: { partyId: "x", name: "", registrationNo: "", registrationTaken: false }, price: parseSen("1.00"), period: { value: null, unit: null }, isAlternative: false, alternativesPermitted: false, parent: null, timeZone: "Asia/Kuala_Lumpur" }))).toEqual(["CANCELLED"]);
     expect(codes(alternativeInsideFaults({ state: cancelled, main: { openingMatches: true, isAlternative: false }, alternativesPermitted: true, price: parseSen("1.00"), period: { value: null, unit: null } }))).toEqual(["CANCELLED"]);
-    expect(codes(correctionFaults({ state: cancelled, sameOpening: true, reason: "slip", changed: true, price: parseSen("1.00"), period: { value: null, unit: null } }))).toEqual(["CANCELLED"]);
+    // Review S6: correctionFaults now names whether the price was read; a paper bid's always is.
+    expect(codes(correctionFaults({ state: cancelled, sameOpening: true, reason: "slip", changed: true, price: parseSen("1.00"), period: { value: null, unit: null }, priceRead: true }))).toEqual(["CANCELLED"]);
   });
   it("recordInitial, recordSignature, recordScheduleDetails", () => {
     expect(codes(markFaults({ state: cancelled, panel: PANEL, personId: "p1", already: false, sameOpening: true }))).toEqual(["CANCELLED"]);

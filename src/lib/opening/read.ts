@@ -46,7 +46,7 @@ import { adjournFaults, authorisationFaults } from "./unseal";
 import { judgeBid } from "./verdict";
 import { verdictDrift } from "./verdict-drift";
 import { matchFaults } from "./withdrawals";
-import { priceOrWords, priceRead } from "./price";
+import { priceOrWords } from "./price";
 
 export type Allowed = { allowed: true } | { allowed: false; reason: string };
 export const allowedOf = (fs: readonly Finding[]): Allowed => (blocking(fs).length ? { allowed: false, reason: [...new Set(blocking(fs).map(openingFindingText))].join(" ") } : { allowed: true });
@@ -195,8 +195,9 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       // C-3 (b): a box envelope's time is the lock's, never a receipt time.
       source: e.receivedSource === "BOX_AT_OPENING" ? `${SOURCE_LABEL.BOX_AT_OPENING} at ${time(e.receivedAt, tz)}` : `Received ${time(e.receivedAt, tz)}`,
       markings: e.markings,
-      state: e.status === "OPENED" ? `Opened as No. ${bid?.listingNo ?? "—"}` : e.status === "WITHDRAWN" || withdrawnIds.has(e.id) ? "Withdrawn, not opened" : "Sealed",
-      tone: (e.status === "OPENED" ? "ok" : e.status === "WITHDRAWN" ? "neutral" : "warn") as "ok" | "neutral" | "warn",
+      // Review S7: an online envelope replaced before the closing (SUPERSEDED) is never opened, and never reads as sealed and waiting.
+      state: e.status === "OPENED" ? `Opened as No. ${bid?.listingNo ?? "—"}` : e.status === "WITHDRAWN" || withdrawnIds.has(e.id) ? "Withdrawn, not opened" : e.status === "SUPERSEDED" ? "Replaced, not opened" : "Sealed",
+      tone: (e.status === "OPENED" ? "ok" : e.status === "WITHDRAWN" || e.status === "SUPERSEDED" ? "neutral" : "warn") as "ok" | "neutral" | "warn",
       open: e.status === "RECEIVED" && !withdrawnIds.has(e.id) ? allowedOf(openFaults({ state, envelope: { id: e.id, kind: e.kind, status: e.status, late: e.late }, withdrawn: withdrawnIds.has(e.id), admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null, bidder: { partyId: "-", name: "", registrationNo: "", registrationTaken: false }, price: 1n as Sen, period: { value: null, unit: null }, isAlternative: e.kind === "ALTERNATIVE", alternativesPermitted: snap.alternativesPermitted, parent: null, timeZone: tz })) : null,
     };
   });
@@ -399,7 +400,7 @@ export async function scheduleSection(reader: Reader & { organisationTimeZone: s
     const summary: GrandSummary | null = o.finalisedAt ? summaryFromSnapshot(o.grandSummarySnapshot) : null;
     let schedule: ScheduleSnapshot | null = frozen;
     if (!frozen) {
-      const rows = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: parseSen(priceRead(b).toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
+      const rows = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: b.priceAsRead == null ? null : parseSen(b.priceAsRead.toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
       const estimateHeld = c.estimate && c.estimate.state !== "VOID";
       schedule = jadualTawaran({
         version: o.sequenceNo,
@@ -440,7 +441,7 @@ export async function scheduleSection(reader: Reader & { organisationTimeZone: s
         // S-3: a rule recorded on the opening after it started says so, with when and by whom.
         ...(snap.unpurchased.recordedLater ? [{ label: "A bid with no live purchase", value: unpurchasedRuleText(snap, null, tz) }] : []),
       ],
-      rows: s.rows.map((row) => ({ ...row, registerClass: registerClassByListing.get(row.listingNo) ?? null, openingPrice: through(prices, () => formatMoney(parseSen(row.openingPrice))), period: periodText(row.period), alternative: row.isAlternative ? `Alternative${row.parentListingNo != null ? ` to No. ${row.parentListingNo}` : ""}` : null })),
+      rows: s.rows.map((row) => ({ ...row, registerClass: registerClassByListing.get(row.listingNo) ?? null, openingPrice: through(prices, () => priceOrWords(row.openingPrice, (p) => formatMoney(parseSen(p)))), period: periodText(row.period), alternative: row.isAlternative ? `Alternative${row.parentListingNo != null ? ` to No. ${row.parentListingNo}` : ""}` : null })),
       benchmark: "notRequired" in bm ? null : bm.sealed ? { sealed: true as const, text: SEALED_UNTIL_FINALISED } : { sealed: false as const, label: bm.label ?? "Company estimate", companyEstimate: applyDecision<string>(estimate?.decision ?? { state: "WITHHELD", basis: "SEALED" }, "estimate", () => formatMoney(parseSen(bm.companyEstimate))) },
       // The lowest qualifying offer is marked by comparing the prices: for a reader who may not read them the mark is left off, or it would say which is lowest.
       summary: summary ? { labels: summary.labels, rows: summary.rows.map((x) => ({ ...x, openingPrice: through(prices, () => formatMoney(parseSen(x.openingPrice))), lowest: prices.state === "GRANTED" && x.lowest, label: prices.state === "GRANTED" || !x.lowest ? x.label : x.qualified ? summary.labels.qualified : summary.labels.notQualified })) } : null,

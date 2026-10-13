@@ -54,6 +54,9 @@ describe("issuing LIVE (20o, 20v)", () => {
       expect(w, k).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
     }
     expect(LIVE_ISSUE_WORDS.PUBLIC_ROLE_NOT_ATTESTED).toMatch(/attested, not checked by the portal/);
+    // Review N2: the customer's document codes are configuration, never product words.
+    for (const [k, w] of Object.entries(LIVE_ISSUE_WORDS)) expect(w, k).not.toMatch(/SK0\d\d/);
+    expect(LIVE_ISSUE_WORDS.AMENDMENT_NOT_RECORDED).toMatch(/the organisation's bid procedure/);
     expect(LIVE_ISSUE_WORDS.HARDENING_NOT_ATTESTED).toMatch(/attested, not checked by the portal/);
     for (const w of Object.values(ONLINE_SUBMISSION_WORDS)) expect(w).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
     expect(DEMONSTRATION_WORDS).toBe("Demonstration — not for real tenders");

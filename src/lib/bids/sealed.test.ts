@@ -173,6 +173,17 @@ const KEY_MATERIAL_COLUMNS: Readonly<Record<string, string>> = {
   "OnlineBidFile.bodyIv": "the body's GCM nonce: public by design, useless without the data key",
   "OnlineBidFile.releasedDek": "the data key in plain, written only after the finalise has made the bid's figures public, and shredded once the file is moved (M5)",
 };
+/// Security audit 9: the columns named like a hash or a digest, each a digest of ciphertext (which says nothing of the plain bid) or of the receipt built from those.
+const DIGEST_COLUMNS: Readonly<Record<string, string>> = {
+  "OnlineBidFile.cipherSha256": "the SHA-256 of the file's ciphertext, the key of its stored bytes; the plain file's hash is sealed in its metadata",
+  "OnlineBid.manifestCipherSha256": "the SHA-256 of the sealed manifest's ciphertext",
+  "OnlineBid.declarationCipherSha256": "the SHA-256 of the sealed declaration's ciphertext; the declared price is never hashed in plain",
+  "OnlineBid.receiptDigest": "the receipt's digest, over the exercise, sequence, stamp, key fingerprint and the ciphertext digests only (receipt.ts)",
+  "SealedEstimateLodgement.cipherSha256": "the SHA-256 of the sealed estimate's ciphertext; the figure is never hashed in plain",
+  // Named like a hash only by "share": each is a SEALED column above, ciphertext, no digest at all.
+  "ExerciseKeyShare.sealedShare": "not a hash: an officer's share, sealed (listed with the SEALED columns)",
+  "ShareRelease.sealedShares": "not a hash: the forwarded shares, sealed (listed with the SEALED columns)",
+};
 /// ADR 0036 D9 (20a): the plain identity links on the sealed tables. AuditEntry and ActAttribution carry the account too, and are pinned elsewhere.
 const IDENTITY_COLUMNS = ["OnlineBid.submittedBySupplierAccountId", "OnlineBid.supplierId", "OnlineBidFile.supplierId", "OnlineBidFile.uploadedBySupplierAccountId", "SealedAccessEvent.supplierAccountId"];
 
@@ -184,7 +195,8 @@ const columnsOf = (model: string) =>
     .filter((l) => /^\w+\s+\w/.test(l) && !l.startsWith("//") && !l.startsWith("@@"))
     .map((l) => {
       const [name, type] = l.split(/\s+/);
-      return { name, type: type.replace(/[?[\]]/g, ""), relation: /@relation\(/.test(l) || /^[A-Z]/.test(type) && !["String", "Int", "BigInt", "Boolean", "DateTime", "Bytes", "Decimal", "Json", "Float"].includes(type.replace(/[?[\]]/g, "")) };
+      // An `Unsupported("…")` column (the xid8 transaction columns, migration 20261103200000) is a scalar of the database's, never a relation.
+      return { name, type: type.replace(/[?[\]]/g, ""), relation: /@relation\(/.test(l) || (/^[A-Z]/.test(type) && !type.startsWith("Unsupported(") && !["String", "Int", "BigInt", "Boolean", "DateTime", "Bytes", "Decimal", "Json", "Float"].includes(type.replace(/[?[\]]/g, ""))) };
     });
 
 describe("the online sealed-bid tables hold ciphertext and named key material only (SR-13, ADR 0036 D12, ruling 20)", () => {
@@ -204,6 +216,14 @@ describe("the online sealed-bid tables hold ciphertext and named key material on
       expect(cols.filter((c) => c.type === "Decimal" || c.type === "Float").map((c) => c.name), m).toEqual([]);
       expect(cols.filter((c) => !c.relation).map((c) => c.name).filter((n) => /price|amount|period|filename|name|media|plain|figure|total/i.test(n)), m).toEqual([]);
     }
+  });
+
+  // Security audit 9: a hash of a plain value (a file's plain SHA-256, say) would say what a sealed bid holds, and is not Bytes, so the Bytes scan would miss it.
+  // Every column named like a hash or a digest is listed here with what it is a hash of, so one cannot be added unseen.
+  it("every column named like a hash or a digest is a digest of ciphertext or of the receipt, each named with its reason (audit 9)", () => {
+    const named = SEALED_BID_TABLES.flatMap((m) => columnsOf(m).filter((c) => !c.relation && /sha|hash|digest/i.test(c.name)).map((c) => `${m}.${c.name}`)).sort();
+    expect(named).toEqual(Object.keys(DIGEST_COLUMNS).sort());
+    for (const [k, why] of Object.entries(DIGEST_COLUMNS)) expect(why.length, k).toBeGreaterThan(20);
   });
 
   it("the plain identity columns are exactly ADR 0036 D9's list (20a)", () => {
