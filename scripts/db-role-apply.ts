@@ -55,11 +55,11 @@ export async function refreshAppGrants(sql: SqlClient, input: { role: string }):
 }
 
 /// CONNECT, then every grant and revoke, in this database. Returns the tables that exist now.
-async function grantAll(sql: SqlClient, role: string, who: { owner: string; schema: string }): Promise<Set<string>> {
+async function grantAll(sql: SqlClient, role: string, who: { owner: string; schema: string; database: string }): Promise<Set<string>> {
   const rows = <T>(text: string, ...values: unknown[]) => sql.$queryRawUnsafe<T[]>(text, ...values);
   const [connect] = await rows<{ ddl: string }>(`SELECT format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), $1::text) AS ddl`, role);
   await sql.$executeRawUnsafe(connect.ddl);
   const existing = new Set((await rows<{ name: string }>(`SELECT tablename::text AS name FROM pg_tables WHERE schemaname = current_schema()`)).map((r) => r.name));
-  for (const statement of grantStatements({ role, owner: who.owner, schema: who.schema, existing })) await sql.$executeRawUnsafe(statement);
+  for (const statement of grantStatements({ role, owner: who.owner, schema: who.schema, database: who.database, existing })) await sql.$executeRawUnsafe(statement);
   return existing;
 }

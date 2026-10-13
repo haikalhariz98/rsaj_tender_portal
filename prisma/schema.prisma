@@ -6836,6 +6836,9 @@ model BidEnvelope {
   /// 6.7 (OD-4): a bid found in the box, registered at this opening (BOX_AT_OPENING only, CHECK).
   registeredAtOpeningId String?
   registeredAtOpening   Opening?  @relation("EnvelopeRegisteredAtOpening", fields: [registeredAtOpeningId], references: [id], onDelete: Restrict)
+  /// Wave 3b (security audit 2): the transaction that inserted the row, set by the insert trigger and never changed. "Written in this transaction" is read from
+  /// it, never from the row's xmin, which any later UPDATE resets (migration 20261103200000).
+  insertedXact Unsupported("xid8")?
 
   withdrawal      BidWithdrawal?
   admissionMatters CommitteeDecision[]
@@ -7025,6 +7028,10 @@ model Opening {
   /// The second authorisation's stamp: the box opened (MAIN) or the envelope released (SUPPLEMENTARY).
   unsealedAt        DateTime?
   finalisedAt       DateTime?
+  /// Wave 3b (security audit 2): the transaction that set `unsealedAt` and `finalisedAt`, kept by trigger, so an online bid is opened, and a data key released,
+  /// only in the act that unseals or finalises, never after a later UPDATE of the row (migration 20261103200000).
+  unsealedXact      Unsupported("xid8")?
+  finalisedXact     Unsupported("xid8")?
 
   /// MAIN: the box's LOCKED event as judged at start (C-3), and the seconds from the closing to it.
   boxLockedAt    DateTime?
@@ -7380,6 +7387,8 @@ model PublishedKeyChange {
   byPersonId      String
   by              Person             @relation("PublishedKeyChangeBy", fields: [byPersonId], references: [id], onDelete: Restrict)
   at              DateTime
+  /// The transaction that inserted it, set by trigger (security audit 2, migration 20261103200000).
+  insertedXact    Unsupported("xid8")?
 
   @@index([exerciseId, at])
 }
@@ -7515,6 +7524,10 @@ model OnlineBid {
   declarationDek               Bytes
   declarationCipherSha256      String
   receiptDigest                String
+  /// The transaction that inserted it, and the one that last moved its status, each set by trigger and never by a writer (security audit 2, migration
+  /// 20261103200000).
+  insertedXact                 Unsupported("xid8")?
+  statusXact                   Unsupported("xid8")?
 
   parts OnlineBidPart[]
 

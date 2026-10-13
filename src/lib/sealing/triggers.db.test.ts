@@ -18,7 +18,11 @@ import { applyAppRole } from "../../../scripts/db-role-apply";
  * The app's login is played by `perolehan_app_test` (NOLOGIN), given exactly the grants `scripts/db-roles.ts` gives the real one through the same function, and
  * reached with SET LOCAL ROLE, as in `trail-integrity.db.test.ts`. Every act here runs as that role unless the test is about the owner. The rows are written in raw
  * SQL, as an attacker holding the app's login would write them: the triggers, not the application, are what is under test. Each refusal is told apart by its
- * SQLSTATE: PA010 to PA024 the wave 3b triggers, PA001 the append-only trail, 42501 a missing privilege, 23505 a unique key.
+ * SQLSTATE: PA010 to PA027 the wave 3b triggers, PA001 the append-only trail, 42501 a missing privilege, 23505 a unique key.
+ *
+ * The stage A security audit and code review (migration 20261103200000) added rules that change how a test must write its rows, each change citing its finding:
+ * an ONLINE envelope is never written without its submission (audit 2), so a test that wants only an envelope writes a submission with it; and a supplier holds
+ * one standing bid per exercise (audit 7, review S1), so a test that needs two standing bids takes two suppliers.
  */
 
 const TEST_ROLE = "perolehan_app_test";
@@ -148,8 +152,8 @@ async function draftFile(tx: Tx, ex: Ex, who: { supplierId: string; accountId: s
   return id;
 }
 
-async function submit(tx: Tx, ex: Ex, who: { supplierId: string; accountId: string }, o: { kind?: "BID" | "ALTERNATIVE"; parent?: string; replaces?: string; files?: string[]; stamp?: string } = {}) {
-  const envelopeId = await envelope(tx, ex.id, { kind: o.kind, stamp: o.stamp });
+async function submit(tx: Tx, ex: Ex, who: { supplierId: string; accountId: string }, o: { kind?: "BID" | "ALTERNATIVE"; parent?: string; replaces?: string; files?: string[]; stamp?: string; late?: boolean } = {}) {
+  const envelopeId = await envelope(tx, ex.id, { kind: o.kind, stamp: o.stamp, late: o.late });
   const bidId = newId("bid");
   await tx.$executeRawUnsafe(
     `INSERT INTO "OnlineBid" ("id","organisationId","exerciseId","keyId","envelopeId","supplierId","submittedBySupplierAccountId","kind","parentOnlineBidId","replacesOnlineBidId",
@@ -163,6 +167,13 @@ async function submit(tx: Tx, ex: Ex, who: { supplierId: string; accountId: stri
   }
   return { bidId, envelopeId };
 }
+
+/// An ONLINE envelope as trigger 1 judges it, written with the submission it must have by the commit (audit 2): an alternative of `s1` naming no parent, so the
+/// one-standing-bid rule never touches it. Returns the envelope.
+const stamped = async (tx: Tx, ex: Ex, o: { stamp?: string; late?: boolean } = {}) => (await submit(tx, ex, s1, { kind: "ALTERNATIVE", ...o })).envelopeId;
+
+/// A fresh supplier, for a test that needs a standing bid of its own (audit 7: one per supplier per exercise).
+const fresh = () => supplier();
 
 /// A replace, as the act will write it: the new submission, then the old one REPLACED with the new one's stamp, its envelope SUPERSEDED, and its alternatives re-pointed.
 async function replace(tx: Tx, ex: Ex, who: { supplierId: string; accountId: string }, old: { bidId: string; envelopeId: string }, stamp?: string) {
@@ -218,12 +229,16 @@ afterAll(async () => {
 });
 
 describe("the skew is one number (MAX_STAMP_SKEW_SECONDS)", () => {
-  it("the migration's literal is the product constant in limits.ts", () => {
-    const sql = readFileSync(path.join(process.cwd(), "prisma", "migrations", "20261103110000_sr13_sealed_tables_triggers", "migration.sql"), "utf8");
-    const literals = [...sql.matchAll(/make_interval\(secs => (\d+)\)/g)].map((m) => Number(m[1]));
-    expect(literals.length).toBe(2);
-    for (const n of literals) expect(n).toBe(MAX_STAMP_SKEW_SECONDS);
-    expect([...sql.matchAll(/within (\d+) seconds/g)].map((m) => Number(m[1])).every((n) => n === MAX_STAMP_SKEW_SECONDS)).toBe(true);
+  it("every migration's literal is the product constant in limits.ts", () => {
+    const read = (name: string) => readFileSync(path.join(process.cwd(), "prisma", "migrations", name, "migration.sql"), "utf8");
+    // Migration B, as applied, and the stage A fix round's replacement functions (migration 20261103200000): every skew literal is the one constant.
+    for (const [name, count] of [["20261103110000_sr13_sealed_tables_triggers", 2], ["20261103200000_sr13_sealed_triggers_hardened", 3]] as const) {
+      const sql = read(name);
+      const literals = [...sql.matchAll(/make_interval\(secs => (\d+)\)/g)].map((m) => Number(m[1]));
+      expect(literals.length, name).toBe(count);
+      for (const n of literals) expect(n, name).toBe(MAX_STAMP_SKEW_SECONDS);
+      expect([...sql.matchAll(/within (\d+) seconds/g)].map((m) => Number(m[1])).every((n) => n === MAX_STAMP_SKEW_SECONDS), name).toBe(true);
+    }
   });
 });
 
@@ -233,18 +248,19 @@ describe("trigger 1: the stamp on an ONLINE envelope (H2)", () => {
     ex = await onlineExercise();
   });
 
+  // Audit 2: each accepted envelope is written with its submission (`stamped`), since an envelope alone is refused at the commit.
   it("refuses a stamp outside the skew, in the future, or not a whole second; takes one inside it", async () => {
-    expect(await refusal(asApp((tx) => envelope(tx, ex.id, { stamp: `${NOW} - interval '${MAX_STAMP_SKEW_SECONDS + 1} seconds'` })))).toBe("PA010");
-    expect(await refusal(asApp((tx) => envelope(tx, ex.id, { stamp: `${NOW} + interval '5 seconds'` })))).toBe("PA010");
-    expect(await refusal(asApp((tx) => envelope(tx, ex.id, { stamp: `${NOW} - interval '1.5 seconds'` })))).toBe("PA010");
-    expect(await refusal(asApp((tx) => envelope(tx, ex.id, { stamp: `${NOW} - interval '${MAX_STAMP_SKEW_SECONDS - 1} seconds'` })))).toBeNull();
+    expect(await refusal(asApp((tx) => stamped(tx, ex, { stamp: `${NOW} - interval '${MAX_STAMP_SKEW_SECONDS + 1} seconds'` })))).toBe("PA010");
+    expect(await refusal(asApp((tx) => stamped(tx, ex, { stamp: `${NOW} + interval '5 seconds'` })))).toBe("PA010");
+    expect(await refusal(asApp((tx) => stamped(tx, ex, { stamp: `${NOW} - interval '1.5 seconds'` })))).toBe("PA010");
+    expect(await refusal(asApp((tx) => stamped(tx, ex, { stamp: `${NOW} - interval '${MAX_STAMP_SKEW_SECONDS - 1} seconds'` })))).toBeNull();
   });
 
   it("the closing second is in time and the next second is late, judged by the trigger against the closing as it stands", async () => {
     await setClosing(ex.id, -5);
     const closing = (await one<{ c: Date }>(`SELECT "closingAt" AS c FROM "SourcingExercise" WHERE "id" = $1`, ex.id)).c;
-    const atClosing = await asApp((tx) => envelope(tx, ex.id, { stamp: CLOSING(ex.id) }));
-    const after = await asApp((tx) => envelope(tx, ex.id, { stamp: `${CLOSING(ex.id)} + interval '1 second'` }));
+    const atClosing = await asApp((tx) => stamped(tx, ex, { stamp: CLOSING(ex.id) }));
+    const after = await asApp((tx) => stamped(tx, ex, { stamp: `${CLOSING(ex.id)} + interval '1 second'` }));
     const read = (id: string) => one<{ late: boolean; judged: Date; after: boolean }>(`SELECT "late", "closingAtJudged" AS judged, "recordedAfterClosing" AS after FROM "BidEnvelope" WHERE "id" = $1`, id);
     expect(await read(atClosing)).toMatchObject({ late: false, after: false });
     expect(await read(after)).toMatchObject({ late: true, after: true });
@@ -255,10 +271,10 @@ describe("trigger 1: the stamp on an ONLINE envelope (H2)", () => {
   it("a forged late = false after the closing is overwritten to true", async () => {
     const late = await onlineExercise();
     await setClosing(late.id, -10);
-    const id = await asApp((tx) => envelope(tx, late.id, { late: false }));
+    const id = await asApp((tx) => stamped(tx, late, { late: false }));
     expect((await one<{ late: boolean }>(`SELECT "late" FROM "BidEnvelope" WHERE "id" = $1`, id)).late).toBe(true);
     // And a forged late = true in time is overwritten to false.
-    const inTime = await asApp((tx) => envelope(tx, ex.id, { late: true }));
+    const inTime = await asApp((tx) => stamped(tx, ex, { late: true }));
     expect((await one<{ late: boolean }>(`SELECT "late" FROM "BidEnvelope" WHERE "id" = $1`, inTime)).late).toBe(false);
   });
 
@@ -284,10 +300,29 @@ describe("trigger 1: the stamp on an ONLINE envelope (H2)", () => {
   it("refuses a late insert once the main opening exists, and any insert at all", async () => {
     const opened = await onlineExercise();
     await setClosing(opened.id, -60);
-    expect(await refusal(asApp((tx) => envelope(tx, opened.id)))).toBeNull();
+    expect(await refusal(asApp((tx) => stamped(tx, opened)))).toBeNull();
     await mainOpening(opened.id);
-    expect(await refusal(asApp((tx) => envelope(tx, opened.id)))).toBe("PA011");
+    expect(await refusal(asApp((tx) => stamped(tx, opened)))).toBe("PA011");
   });
+
+  it("an ONLINE envelope written without its submission is refused at the commit (audit 2)", async () => {
+    expect(await refusal(asApp((tx) => envelope(tx, ex.id)))).toBe("PA013");
+  });
+
+  it("a stamp read at the start of a transaction held open past the skew is refused: the bound is the moment of the insert (audit 3, ruling 20aa)", async () => {
+    const held = refusal(
+      db.$transaction(
+        async (tx) => {
+          await tx.$executeRawUnsafe(`SET LOCAL ROLE ${TEST_ROLE}`);
+          await tx.$executeRawUnsafe(`SELECT pg_sleep(${MAX_STAMP_SKEW_SECONDS + 2})`);
+          // now() is still the transaction's start: under now() this stamp sat inside the skew however long the transaction was held.
+          return stamped(tx, ex, { stamp: `date_trunc('second', now())` });
+        },
+        { timeout: (MAX_STAMP_SKEW_SECONDS + 20) * 1000, maxWait: 10_000 },
+      ),
+    );
+    expect(await held).toBe("PA010");
+  }, (MAX_STAMP_SKEW_SECONDS + 30) * 1000);
 });
 
 describe("triggers 2, 3 and 6: a submission, a replace, a withdrawal, and the parent link", () => {
@@ -313,14 +348,16 @@ describe("triggers 2, 3 and 6: a submission, a replace, a withdrawal, and the pa
     expect((await one<{ status: string }>(`SELECT "status"::text FROM "BidEnvelope" WHERE "id" = $1`, replacement.envelopeId)).status).toBe("WITHDRAWN");
   });
 
-  it("an OnlineBid without its envelope inserted in the same transaction is refused", async () => {
-    const envelopeId = await asApp((tx) => envelope(tx, ex.id));
+  // Audit 2: an envelope can no longer be left alone at a commit, so "an envelope from another transaction" is one that has its own submission. The OnlineBid
+  // naming it is refused by trigger 3, before the unique key on envelopeId is reached.
+  it("an OnlineBid whose envelope was not inserted in the same transaction is refused", async () => {
+    const earlier = await asApp((tx) => stamped(tx, ex));
     const late = refusal(
       asApp((tx) =>
         tx.$executeRawUnsafe(
           `INSERT INTO "OnlineBid" ("id","organisationId","exerciseId","keyId","envelopeId","supplierId","submittedBySupplierAccountId","kind","sealedManifest","manifestDek","manifestCipherSha256","sealedDeclaration","declarationDek","declarationCipherSha256","receiptDigest")
-           VALUES ($1,$2,$3,$4,$5,$6,$7,'BID',decode($8,'hex'),decode($8,'hex'),$9,decode($8,'hex'),decode($8,'hex'),$9,$9)`,
-          newId("bid"), org, ex.id, ex.keyId, envelopeId, s1.supplierId, s1.accountId, hex(40), hex(32),
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'ALTERNATIVE',decode($8,'hex'),decode($8,'hex'),$9,decode($8,'hex'),decode($8,'hex'),$9,$9)`,
+          newId("bid"), org, ex.id, ex.keyId, earlier, s1.supplierId, s1.accountId, hex(40), hex(32),
         ),
       ),
     );
@@ -328,34 +365,50 @@ describe("triggers 2, 3 and 6: a submission, a replace, a withdrawal, and the pa
   });
 
   it("a second OnlineBidPart with the same file is refused, and a file of another supplier's is never taken", async () => {
-    const file = await asApp((tx) => draftFile(tx, ex, s1));
-    await asApp((tx) => submit(tx, ex, s1, { files: [file] }));
-    expect(await refusal(asApp((tx) => submit(tx, ex, s2, { files: [file] })))).toMatch(/^(23505|PA013)$/);
-    const other = await asApp((tx) => draftFile(tx, ex, s2));
-    expect(await refusal(asApp((tx) => submit(tx, ex, s1, { files: [other] })))).toBe("PA013");
-    // The unique key itself, past the trigger: two submissions written in one transaction, both naming the same draft.
-    const third = await asApp((tx) => draftFile(tx, ex, s1));
+    const [a, b] = [await fresh(), await fresh()];
+    const file = await asApp((tx) => draftFile(tx, ex, a));
+    await asApp((tx) => submit(tx, ex, a, { files: [file] }));
+    expect(await refusal(asApp((tx) => submit(tx, ex, b, { files: [file] })))).toMatch(/^(23505|PA013)$/);
+    const other = await asApp((tx) => draftFile(tx, ex, b));
+    expect(await refusal(asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", files: [other] })))).toBe("PA013");
+    // The unique key itself, past the trigger: two submissions written in one transaction, both naming the same draft (alternatives, so audit 7 does not decide it).
+    const third = await asApp((tx) => draftFile(tx, ex, a));
     expect(
       await refusal(
         asApp(async (tx) => {
-          const a = await submit(tx, ex, s1);
-          const b = await submit(tx, ex, s1);
-          await tx.$executeRawUnsafe(`INSERT INTO "OnlineBidPart" ("organisationId","onlineBidId","fileId") VALUES ($1,$2,$3)`, org, a.bidId, third);
-          await tx.$executeRawUnsafe(`INSERT INTO "OnlineBidPart" ("organisationId","onlineBidId","fileId") VALUES ($1,$2,$3)`, org, b.bidId, third);
+          const x = await submit(tx, ex, a, { kind: "ALTERNATIVE" });
+          const y = await submit(tx, ex, a, { kind: "ALTERNATIVE" });
+          await tx.$executeRawUnsafe(`INSERT INTO "OnlineBidPart" ("organisationId","onlineBidId","fileId") VALUES ($1,$2,$3)`, org, x.bidId, third);
+          await tx.$executeRawUnsafe(`INSERT INTO "OnlineBidPart" ("organisationId","onlineBidId","fileId") VALUES ($1,$2,$3)`, org, y.bidId, third);
         }),
       ),
     ).toBe("23505");
   });
 
-  it("an alternative naming a parent that is not the supplier's own live bid is refused", async () => {
-    const theirs = await asApp((tx) => submit(tx, ex, s2));
-    expect(await refusal(asApp((tx) => submit(tx, ex, s1, { kind: "ALTERNATIVE", parent: theirs.bidId })))).toBe("PA013");
+  it("an alternative naming a parent that is not the supplier's own live bid is refused, and so is one naming an alternative (review S3)", async () => {
+    const [a, b] = [await fresh(), await fresh()];
+    const theirs = await asApp((tx) => submit(tx, ex, b));
+    expect(await refusal(asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", parent: theirs.bidId })))).toBe("PA013");
+    const mine = await asApp((tx) => submit(tx, ex, a));
+    const alt = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", parent: mine.bidId }));
+    expect(await refusal(asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", parent: alt.bidId })))).toBe("PA013");
+  });
+
+  it("a replacement is of the replaced submission's kind, in both directions (review M1)", async () => {
+    const a = await fresh();
+    const bid = await asApp((tx) => submit(tx, ex, a));
+    const alt = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE" }));
+    expect(await refusal(asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", replaces: bid.bidId })))).toBe("PA013");
+    expect(await refusal(asApp((tx) => submit(tx, ex, a, { kind: "BID", replaces: alt.bidId })))).toBe("PA013");
+    // Of the same kind it stands.
+    expect(await refusal(asApp((tx) => replace(tx, ex, a, bid)))).toBeNull();
   });
 
   it("a parent moved other than by the parent's own replacement or withdrawal is refused", async () => {
-    const mine = await asApp((tx) => submit(tx, ex, s1));
-    const other = await asApp((tx) => submit(tx, ex, s1));
-    const alt = await asApp((tx) => submit(tx, ex, s1, { kind: "ALTERNATIVE", parent: mine.bidId }));
+    const [a, b] = [await fresh(), await fresh()];
+    const mine = await asApp((tx) => submit(tx, ex, a));
+    const other = await asApp((tx) => submit(tx, ex, b));
+    const alt = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", parent: mine.bidId }));
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "parentOnlineBidId" = $2 WHERE "id" = $1`, alt.bidId, other.bidId)))).toBe("PA016");
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "parentOnlineBidId" = NULL WHERE "id" = $1`, alt.bidId)))).toBe("PA016");
     // The parent withdrawn in an earlier transaction does not let a later one clear the link: the move belongs to the withdrawal's act.
@@ -364,8 +417,17 @@ describe("triggers 2, 3 and 6: a submission, a replace, a withdrawal, and the pa
       await tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = 'WITHDRAWN' WHERE "id" = $1`, mine.envelopeId);
     });
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "parentOnlineBidId" = NULL WHERE "id" = $1`, alt.bidId)))).toBe("PA016");
+    // Audit 2: under xmin, an UPDATE of the withdrawn parent that changed nothing let a later transaction clear the link. Not now.
+    expect(
+      await refusal(
+        asApp(async (tx) => {
+          await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = "status" WHERE "id" = $1`, mine.bidId);
+          await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "parentOnlineBidId" = NULL WHERE "id" = $1`, alt.bidId);
+        }),
+      ),
+    ).toBe("PA016");
     // A bid never names a parent.
-    expect(await refusal(asApp((tx) => submit(tx, ex, s1, { kind: "BID", parent: other.bidId })))).toMatch(/^(23514|PA013)$/);
+    expect(await refusal(asApp((tx) => submit(tx, ex, b, { kind: "BID", parent: other.bidId })))).toMatch(/^(23514|PA013)$/);
   });
 
   it("REPLACED and WITHDRAWN after the closing are refused, judged by the act's own stamp", async () => {
@@ -382,19 +444,21 @@ describe("triggers 2, 3 and 6: a submission, a replace, a withdrawal, and the pa
   });
 
   it("a withdrawal's stamp outside the skew is refused", async () => {
-    const mine = await asApp((tx) => submit(tx, ex, s1));
+    const a = await fresh();
+    const mine = await asApp((tx) => submit(tx, ex, a));
     expect(await refusal(asApp((tx) => withdraw(tx, mine, `${NOW} - interval '${MAX_STAMP_SKEW_SECONDS + 1} seconds'`)))).toBe("PA012");
     expect(await refusal(asApp((tx) => withdraw(tx, mine, `${NOW} + interval '2 seconds'`)))).toBe("PA012");
   });
 
   it("a status moves forward only, and an envelope moves only with its submission", async () => {
-    const mine = await asApp((tx) => submit(tx, ex, s1));
+    const [a, b] = [await fresh(), await fresh()];
+    const mine = await asApp((tx) => submit(tx, ex, a));
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = 'WITHDRAWN' WHERE "id" = $1`, mine.envelopeId)))).toBe("PA012");
     await asApp((tx) => withdraw(tx, mine));
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'SUBMITTED', "statusAt" = NULL WHERE "id" = $1`, mine.bidId)))).toBe("PA012");
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = 'RECEIVED' WHERE "id" = $1`, mine.envelopeId)))).toBe("PA012");
     // The stamp and the late flag are the database's, and never change.
-    const other = await asApp((tx) => submit(tx, ex, s2));
+    const other = await asApp((tx) => submit(tx, ex, b));
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "late" = true WHERE "id" = $1`, other.envelopeId)))).toBe("PA012");
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "receivedAt" = "receivedAt" - interval '1 hour' WHERE "id" = $1`, other.envelopeId)))).toBe("PA012");
   });
@@ -411,6 +475,151 @@ describe("triggers 2, 3 and 6: a submission, a replace, a withdrawal, and the pa
       await tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = 'OPENED' WHERE "id" = $1`, mine.envelopeId);
     });
     expect((await one<{ status: string }>(`SELECT "status"::text FROM "OnlineBid" WHERE "id" = $1`, mine.bidId)).status).toBe("OPENED");
+  });
+});
+
+describe("security audit 2: written in this transaction is the trigger's own record, never a row's xmin", () => {
+  it("an UPDATE of an ONLINE envelope that changes nothing is refused, and so is one that sets its transaction", async () => {
+    const ex = await onlineExercise();
+    const mine = await asApp((tx) => submit(tx, ex, s1));
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = "status" WHERE "id" = $1`, mine.envelopeId)))).toBe("PA012");
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "insertedXact" = pg_current_xact_id() WHERE "id" = $1`, mine.envelopeId)))).toBe("PA012");
+  });
+
+  it("a writer cannot set the transaction columns: the triggers write them", async () => {
+    const ex = await onlineExercise();
+    const mine = await asApp((tx) => submit(tx, ex, s1));
+    const read = () => one<{ ins: string | null; st: string | null }>(`SELECT "insertedXact"::text AS ins, "statusXact"::text AS st FROM "OnlineBid" WHERE "id" = $1`, mine.bidId);
+    const before = await read();
+    expect(before.ins).not.toBeNull();
+    expect(before.st).toBeNull();
+    await asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "statusXact" = pg_current_xact_id() WHERE "id" = $1`, mine.bidId));
+    expect(await read()).toEqual(before);
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "insertedXact" = pg_current_xact_id() WHERE "id" = $1`, mine.bidId)))).toBe("PA014");
+  });
+
+  it("an in-time submission written earlier cannot be taken as the replacement after the closing", async () => {
+    const ex = await onlineExercise();
+    const a = await fresh();
+    // Two alternatives of one supplier: the second names the first as the one it replaces, but the first is not moved in that act.
+    const target = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE" }));
+    const decoy = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", replaces: target.bidId }));
+    await setClosing(ex.id, -5);
+    const markReplaced = (tx: Tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'REPLACED', "statusAt" = (SELECT "receivedAt" FROM "BidEnvelope" WHERE "id" = $2) WHERE "id" = $1`, target.bidId, decoy.envelopeId);
+    expect(await refusal(asApp(markReplaced))).toBe("PA012");
+    // Under xmin, an UPDATE of the decoy that changed nothing made it read as written now. It no longer does.
+    expect(
+      await refusal(
+        asApp(async (tx) => {
+          await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = "status" WHERE "id" = $1`, decoy.bidId);
+          await markReplaced(tx);
+        }),
+      ),
+    ).toBe("PA012");
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = "status" WHERE "id" = $1`, decoy.envelopeId)))).toBe("PA012");
+  });
+
+  it("OPENED is refused after an UPDATE of an opening unsealed in an earlier transaction", async () => {
+    const ex = await onlineExercise();
+    const mine = await asApp((tx) => submit(tx, ex, s1));
+    await setClosing(ex.id, -60);
+    const openingId = await mainOpening(ex.id);
+    await asApp((tx) => tx.$executeRawUnsafe(`UPDATE "Opening" SET "unsealedAt" = "sealed_clock"() WHERE "id" = $1`, openingId));
+    expect(
+      await refusal(
+        asApp(async (tx) => {
+          await tx.$executeRawUnsafe(`UPDATE "Opening" SET "unsealedAt" = "unsealedAt", "unsealedXact" = pg_current_xact_id() WHERE "id" = $1`, openingId);
+          await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'OPENED' WHERE "id" = $1`, mine.bidId);
+        }),
+      ),
+    ).toBe("PA022");
+  });
+
+  it("a data key is released in the finalising transaction, and not after an UPDATE of an opening finalised earlier", async () => {
+    const ex = await onlineExercise();
+    const files = await asApp(async (tx) => [await draftFile(tx, ex, s1), await draftFile(tx, ex, s1)]);
+    const mine = await asApp((tx) => submit(tx, ex, s1, { files }));
+    await setClosing(ex.id, -60);
+    const openingId = await mainOpening(ex.id);
+    const partyId = (await db.exerciseParty.create({ data: { organisationId: org, exerciseId: ex.id, source: "BIDDER_AT_OPENING", name: "Bidder", registrationNo: randomId() } })).id;
+    await asApp(async (tx) => {
+      await tx.$executeRawUnsafe(`UPDATE "Opening" SET "unsealedAt" = "sealed_clock"() WHERE "id" = $1`, openingId);
+      await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'OPENED' WHERE "id" = $1`, mine.bidId);
+      await tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = 'OPENED', "partyId" = $2 WHERE "id" = $1`, mine.envelopeId, partyId);
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "OpenedBid" ("id","organisationId","exerciseId","openingId","envelopeId","listingNo","partyId","openedAt","bidderNameAsRead","priceAsRead","saleFinding","restrictionFinding")
+         VALUES ($1,$2,$3,$4,$5,1,$6,"sealed_clock"(),'Bidder',NULL,'LIVE_SALE','NOT_RESTRICTED')`,
+        newId("ob"), org, ex.id, openingId, mine.envelopeId, partyId,
+      );
+    });
+    const release = (tx: Tx, file: string) => tx.$executeRawUnsafe(`UPDATE "OnlineBidFile" SET "releasedDek" = decode($2,'hex') WHERE "id" = $1`, file, hex(32));
+    // The finalise: the price, then finalisedAt, then the released key, in one transaction.
+    expect(
+      await refusal(
+        asApp(async (tx) => {
+          await tx.$executeRawUnsafe(`UPDATE "OpenedBid" SET "priceAsRead" = 100.00 WHERE "envelopeId" = $1`, mine.envelopeId);
+          await tx.$executeRawUnsafe(`UPDATE "Opening" SET "finalisedAt" = "sealed_clock"() WHERE "id" = $1`, openingId);
+          await release(tx, files[0]);
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      await refusal(
+        asApp(async (tx) => {
+          await tx.$executeRawUnsafe(`UPDATE "Opening" SET "finalisedAt" = "finalisedAt", "finalisedXact" = pg_current_xact_id() WHERE "id" = $1`, openingId);
+          await release(tx, files[1]);
+        }),
+      ),
+    ).toBe("PA015");
+  });
+});
+
+describe("security audit 7 and review S1: one standing bid per supplier per exercise, in time or late", () => {
+  it("a second bid is refused at the commit, in time, late beside in time, and late beside late; a replace in one act stands", async () => {
+    const ex = await onlineExercise();
+    const a = await fresh();
+    const first = await asApp((tx) => submit(tx, ex, a));
+    expect(await refusal(asApp((tx) => submit(tx, ex, a)))).toBe("PA027");
+    expect(await refusal(asApp((tx) => replace(tx, ex, a, first)))).toBeNull();
+    // Alternatives are not limited.
+    expect(await refusal(asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE" })))).toBeNull();
+    await setClosing(ex.id, -10);
+    expect(await refusal(asApp((tx) => submit(tx, ex, a)))).toBe("PA027");
+    const b = await fresh();
+    expect(await refusal(asApp((tx) => submit(tx, ex, b)))).toBeNull();
+    expect(await refusal(asApp((tx) => submit(tx, ex, b)))).toBe("PA027");
+  });
+
+  it("two transactions racing to add a supplier's bid: exactly one commits", async () => {
+    const ex = await onlineExercise();
+    const a = await fresh();
+    let arrived = 0;
+    let release!: () => void;
+    const together = new Promise<void>((resolve) => (release = resolve));
+    const race = () =>
+      refusal(
+        asApp(async (tx) => {
+          await submit(tx, ex, a);
+          if (++arrived === 2) release();
+          await together;
+        }),
+      );
+    const outcomes = await Promise.all([race(), race()]);
+    expect([...outcomes].sort()).toEqual(["PA027", null].sort());
+    expect((await one<{ n: bigint }>(`SELECT count(*) AS n FROM "OnlineBid" WHERE "exerciseId" = $1 AND "supplierId" = $2 AND "status" = 'SUBMITTED'`, ex.id, a.supplierId)).n).toBe(BigInt(1));
+  });
+
+  it("is refused at a stricter isolation, which could not see a rival that committed while it waited", async () => {
+    const ex = await onlineExercise();
+    const a = await fresh();
+    const strict = db.$transaction(
+      async (tx) => {
+        await tx.$executeRawUnsafe(`SET LOCAL ROLE ${TEST_ROLE}`);
+        return submit(tx, ex, a);
+      },
+      { isolationLevel: "RepeatableRead" },
+    );
+    expect(await refusal(strict)).toBe("PA027");
   });
 });
 
@@ -654,6 +863,165 @@ describe("trigger 10: nothing sealed is deleted or truncated, by any login", () 
     const ours = triggers.filter((t) => !(t.table === "BidEnvelope" && !t.name.startsWith("BidEnvelope_online")));
     expect(ours.length).toBeGreaterThan(30);
     expect(ours.filter((t) => t.enabled !== "A")).toEqual([]);
+  });
+});
+
+describe("security audit 1: a temporary table never stands in for a real one", () => {
+  it("the app's login cannot make a temporary table", async () => {
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`CREATE TEMPORARY TABLE "Opening" ("id" text) ON COMMIT DROP`)))).toBe("42501");
+  });
+
+  it("every trigger function runs with the search path pinned, so a login that can make temporary tables still reaches the real ones", async () => {
+    const loose = await db.$queryRawUnsafe<{ name: string; config: string | null }[]>(
+      `SELECT p.proname::text AS name, array_to_string(p.proconfig, ',') AS config FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'public' AND (p.prorettype = 'trigger'::regtype OR p.proname LIKE 'sealed%')
+         AND NOT coalesce('search_path=pg_catalog, public, pg_temp' = ANY (p.proconfig), false)`,
+    );
+    expect(loose).toEqual([]);
+  });
+
+  // The owner can still make temporary tables, so the owner plays the login that could: each shadow below would change the trigger's outcome if the function
+  // resolved names through the session's search path, where pg_temp comes first unless it is named.
+  it("a temporary Opening, SourcingExercise or PublishedKeyChange changes no trigger's outcome", async () => {
+    // An empty temporary "Opening" would hide the main opening: the late insert is still refused.
+    const opened = await onlineExercise();
+    await setClosing(opened.id, -60);
+    await mainOpening(opened.id);
+    expect(
+      await refusal(
+        asOwner(async (tx) => {
+          await tx.$executeRawUnsafe(`CREATE TEMPORARY TABLE "Opening" ("exerciseId" text, "kind" text, "unsealedAt" timestamp, "finalisedAt" timestamp, "unsealedXact" xid8) ON COMMIT DROP`);
+          return stamped(tx, opened);
+        }),
+      ),
+    ).toBe("PA011");
+    // A temporary "SourcingExercise" with a closing a day away would make a late bid read in time: the trigger still judges it late.
+    const late = await onlineExercise();
+    await setClosing(late.id, -10);
+    const envelopeId = await asOwner(async (tx) => {
+      await tx.$executeRawUnsafe(`CREATE TEMPORARY TABLE "SourcingExercise" ("id" text, "closingAt" timestamp, "submissionChannel" text) ON COMMIT DROP`);
+      await tx.$executeRawUnsafe(`INSERT INTO pg_temp."SourcingExercise" VALUES ($1, ${NOW} + interval '1 day', 'ONLINE')`, late.id);
+      return stamped(tx, late);
+    });
+    expect((await one<{ late: boolean }>(`SELECT "late" FROM "BidEnvelope" WHERE "id" = $1`, envelopeId)).late).toBe(true);
+    // A temporary "PublishedKeyChange" naming the move would excuse a fingerprint change: it is still refused at the commit.
+    const ex = await onlineExercise();
+    await asApp((tx) => tx.$executeRawUnsafe(`UPDATE "SourcingExercise" SET "publishedKeyFingerprint" = $2 WHERE "id" = $1`, ex.id, ex.fingerprint));
+    const forged = hex(32);
+    expect(
+      await refusal(
+        asOwner(async (tx) => {
+          await tx.$executeRawUnsafe(`CREATE TEMPORARY TABLE "PublishedKeyChange" ("exerciseId" text, "fromFingerprint" text, "toFingerprint" text, "insertedXact" xid8) ON COMMIT DROP`);
+          await tx.$executeRawUnsafe(`INSERT INTO pg_temp."PublishedKeyChange" VALUES ($1, $2, $3, pg_current_xact_id())`, ex.id, ex.fingerprint, forged);
+          await tx.$executeRawUnsafe(`UPDATE public."SourcingExercise" SET "publishedKeyFingerprint" = $2 WHERE "id" = $1`, ex.id, forged);
+        }),
+      ),
+    ).toBe("PA017");
+  });
+});
+
+describe("security audit 3 and ruling 20aa: the database clock is the moment of the act, on the live definitions", () => {
+  it("sealed_clock reads clock_timestamp() and is volatile, and no sealed trigger function reads the transaction's start", async () => {
+    const clock = await one<{ volatile: string; source: string }>(`SELECT p.provolatile::text AS volatile, p.prosrc AS source FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'sealed_clock'`);
+    expect(clock.volatile).toBe("v");
+    expect(clock.source).toMatch(/clock_timestamp\(\)/);
+    const sealed = await db.$queryRawUnsafe<{ name: string; source: string }[]>(`SELECT p.proname::text AS name, p.prosrc AS source FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'sealed%'`);
+    expect(sealed.length).toBeGreaterThan(20);
+    expect(sealed.filter((f) => /\bnow\s*\(|current_timestamp|transaction_timestamp|statement_timestamp/i.test(f.source)).map((f) => f.name)).toEqual([]);
+    // Triggers 1, 2, 7 and 8 read the clock, each once, into their own variable.
+    for (const name of ["sealed_envelope_stamp", "sealed_online_bid_change", "sealed_exercise_key_change", "sealed_exercise_key_insert", "sealed_lodgement_rules"]) {
+      const source = sealed.find((f) => f.name === name)?.source ?? "";
+      expect(source.match(/"sealed_clock"\(\)/g)?.length, name).toBe(1);
+      expect(source, name).toMatch(/clock timestamp := public\."sealed_clock"\(\)/);
+    }
+  });
+});
+
+describe("security audit 4: how bids are submitted, and the bid rules, are frozen at publication", () => {
+  const draft = async (channel: "PAPER" | "ONLINE", status: "DRAFT" | "APPROVED_FOR_TENDERING" = "DRAFT") =>
+    (
+      await db.sourcingExercise.create({
+        data: {
+          organisationId: org, reference: `SB/EX/${randomId()}`, requisitionId, title: "Channel test", estimatedValue: "1000.00", sourcingMethodCode: "SB_METHOD", status, submissionChannel: channel,
+          ...(status === "APPROVED_FOR_TENDERING" ? { tenderingStartOn: new Date("2026-11-01"), closingAt: new Date(Date.now() + 86_400_000), approvedForTenderingAt: new Date() } : {}),
+        },
+      })
+    ).id;
+  const rules = JSON.stringify({ v: 1, frozenAt: "2026-11-01T00:00:00.000Z", parts: [] });
+
+  it("after publication the channel never changes, either way, and the rules are never written or changed", async () => {
+    const online = (await onlineExercise()).id;
+    const paper = (await onlineExercise(3600, "PAPER")).id;
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "SourcingExercise" SET "submissionChannel" = 'PAPER' WHERE "id" = $1`, online)))).toBe("PA025");
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "SourcingExercise" SET "submissionChannel" = 'ONLINE' WHERE "id" = $1`, paper)))).toBe("PA025");
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "SourcingExercise" SET "onlineBidRules" = $2::jsonb WHERE "id" = $1`, online, rules)))).toBe("PA025");
+  });
+
+  it("before publication the channel moves, the rules are written once, and the publication may write them with its status move", async () => {
+    const id = await draft("PAPER");
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "SourcingExercise" SET "submissionChannel" = 'ONLINE' WHERE "id" = $1`, id)))).toBeNull();
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "SourcingExercise" SET "onlineBidRules" = $2::jsonb WHERE "id" = $1`, id, rules)))).toBeNull();
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "SourcingExercise" SET "onlineBidRules" = '{"v":1,"frozenAt":"x","parts":[1]}'::jsonb WHERE "id" = $1`, id)))).toBe("PA025");
+    const approved = await draft("ONLINE", "APPROVED_FOR_TENDERING");
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "SourcingExercise" SET "status" = 'ADVERTISED', "onlineBidRules" = $2::jsonb WHERE "id" = $1`, approved, rules)))).toBeNull();
+  });
+});
+
+describe("security audit 5: a share release is checked as it is written", () => {
+  const release = (tx: Tx, ex: Ex, o: { from: string; to: string; roster: string; keyId?: string }) =>
+    tx.$executeRawUnsafe(
+      `INSERT INTO "ShareRelease" ("id","organisationId","keyId","purpose","substitutionOfficerId","fromOfficerKeyId","toOfficerKeyId","sealedShares","createdAt")
+       VALUES ($1,$2,$3,'SUBSTITUTION',$4,$5,$6,decode($7,'hex'),"sealed_clock"())`,
+      newId("rel"), org, o.keyId ?? ex.keyId, o.roster, o.from, o.to, hex(80),
+    );
+  const shred = (tx: Tx, shareId: string) => tx.$executeRawUnsafe(`UPDATE "ExerciseKeyShare" SET "sealedShare" = NULL, "endedAt" = "sealed_clock"(), "endedReason" = 'Released at a substitution' WHERE "id" = $1`, shareId);
+
+  async function incoming(ex: Ex) {
+    const personId = (await db.person.create({ data: { organisationId: org, name: `Officer C ${randomId()}` } })).id;
+    const roster = (await db.exerciseOpeningOfficer.create({ data: { organisationId: org, exerciseId: ex.id, personId, seatLabelSnapshot: "Member", namedAt: new Date(), namedByPersonId: namer } })).id;
+    const keyId = newId("ok");
+    await asApp((tx) =>
+      tx.$executeRawUnsafe(
+        `INSERT INTO "OfficerExerciseKey" ("id","organisationId","exerciseId","openingOfficerId","personId","publicKey","wrappedPrivateKey","kdfLog2N","kdfR","kdfP","kdfSalt","createdAt")
+         VALUES ($1,$2,$3,$4,$5,decode($6,'hex'),decode($7,'hex'),17,8,1,decode($8,'hex'),"sealed_clock"())`,
+        keyId, org, ex.id, roster, personId, hex(32), hex(60), hex(16),
+      ),
+    );
+    return { roster, keyId };
+  }
+
+  it("a forged substitution is refused, so the share it would license stays", async () => {
+    const ex = await onlineExercise();
+    const other = await onlineExercise();
+    const c = await incoming(ex);
+    // The incoming row named is not the incoming key's; the incoming key is another officer's; the departing key has no live share; keys of another exercise.
+    expect(await refusal(asApp((tx) => release(tx, ex, { from: ex.officerKeys[0], to: c.keyId, roster: ex.roster[1] })))).toBe("PA026");
+    expect(await refusal(asApp((tx) => release(tx, ex, { from: ex.officerKeys[0], to: ex.officerKeys[1], roster: c.roster })))).toBe("PA026");
+    expect(await refusal(asApp((tx) => release(tx, ex, { from: c.keyId, to: ex.officerKeys[0], roster: ex.roster[0] })))).toBe("PA026");
+    expect(await refusal(asApp((tx) => release(tx, ex, { from: other.officerKeys[0], to: c.keyId, roster: c.roster })))).toBe("PA026");
+    expect(await refusal(asApp((tx) => release(tx, ex, { from: ex.officerKeys[0], to: c.keyId, roster: c.roster, keyId: other.keyId })))).toBe("PA026");
+    // With no release written, the share cannot be shredded.
+    expect(await refusal(asApp((tx) => shred(tx, ex.shares[0])))).toBe("PA014");
+  });
+
+  it("a substitution at or after the closing is refused", async () => {
+    const ex = await onlineExercise();
+    const c = await incoming(ex);
+    await setClosing(ex.id, -1);
+    expect(await refusal(asApp((tx) => release(tx, ex, { from: ex.officerKeys[0], to: c.keyId, roster: c.roster })))).toBe("PA026");
+  });
+
+  it("a true substitution stands: the departing officer's share released to the incoming officer's key, then shredded", async () => {
+    const ex = await onlineExercise();
+    const c = await incoming(ex);
+    expect(
+      await refusal(
+        asApp(async (tx) => {
+          await release(tx, ex, { from: ex.officerKeys[0], to: c.keyId, roster: c.roster });
+          await shred(tx, ex.shares[0]);
+        }),
+      ),
+    ).toBeNull();
   });
 });
 

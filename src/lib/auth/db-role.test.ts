@@ -10,7 +10,7 @@ import { APPEND_ONLY_TABLES, grantStatements, notYetPresent, roleNameFault, RUNT
 // Wave 3b (SR-13, build plan step 2, ADR 0036 D12): SealedAccessEvent and PublishedKeyChange joined the append-only tables, and the rest of the sealed tables
 // (SEALED_TABLES) lose DELETE and TRUNCATE (migration 20261103110000), so the "every table exists" set has them all.
 const ALL = new Set(["Organisation", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "BlobContent", "_prisma_migrations", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES]);
-const grants = (existing: ReadonlySet<string> = ALL) => grantStatements({ role: "perolehan_app", owner: "perolehan", schema: "public", existing });
+const grants = (existing: ReadonlySet<string> = ALL) => grantStatements({ role: "perolehan_app", owner: "perolehan", schema: "public", database: "perolehan", existing });
 
 describe("the app role's grants (ADR 0034 D11)", () => {
   it("revokes UPDATE, DELETE and TRUNCATE on every append-only table, including the O-1 side table", () => {
@@ -44,6 +44,12 @@ describe("the app role's grants (ADR 0034 D11)", () => {
     const s = grants();
     expect(s.filter((x) => x.startsWith("GRANT")).some((x) => x.includes("TRUNCATE"))).toBe(false);
     expect(s).toContain(`REVOKE ALL ON TABLE "public"."_prisma_migrations" FROM "perolehan_app"`);
+  });
+
+  it("takes TEMPORARY on the database from PUBLIC and from the role, last (wave 3b security audit 1)", () => {
+    const s = grants();
+    expect(s.slice(-2)).toEqual([`REVOKE TEMPORARY ON DATABASE "perolehan" FROM PUBLIC`, `REVOKE TEMPORARY ON DATABASE "perolehan" FROM "perolehan_app"`]);
+    expect(grantStatements({ role: "perolehan_app", owner: "perolehan", schema: "public", database: 'odd"name', existing: ALL }).at(-1)).toBe(`REVOKE TEMPORARY ON DATABASE "odd""name" FROM "perolehan_app"`);
   });
 
   it("sets default privileges for tables the owner makes later, named for that owner", () => {

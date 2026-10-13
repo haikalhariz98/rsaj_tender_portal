@@ -74,7 +74,7 @@ export const ROLE_ATTRIBUTES = "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHE
  * exist yet is skipped and picked up on the next run. Default privileges make tables created later by `owner` readable and writable at
  * once, so a new append-only table is writable until this runs again: run it after every `migrate deploy`.
  */
-export function grantStatements(input: { role: string; owner: string; schema: string; existing: ReadonlySet<string> }): string[] {
+export function grantStatements(input: { role: string; owner: string; schema: string; database: string; existing: ReadonlySet<string> }): string[] {
   const role = quoteIdent(input.role);
   const owner = quoteIdent(input.owner);
   const schema = quoteIdent(input.schema);
@@ -89,6 +89,11 @@ export function grantStatements(input: { role: string; owner: string; schema: st
   for (const w of WITHHELD) {
     if (input.existing.has(w.table)) statements.push(`REVOKE ${w.revoke} ON TABLE ${table(w.table)} FROM ${role}`);
   }
+  // Wave 3b security audit 1: no temporary tables. A temporary table named like a real one could stand in for it in a function that resolves names through the
+  // search path; the trigger functions are fixed to the public schema (migration 20261103200000), and this is the second wall. PUBLIC holds TEMPORARY on every
+  // database by default, so it is taken from PUBLIC as well as from the role. The owner, a superuser in development, keeps it.
+  const database = quoteIdent(input.database);
+  statements.push(`REVOKE TEMPORARY ON DATABASE ${database} FROM PUBLIC`, `REVOKE TEMPORARY ON DATABASE ${database} FROM ${role}`);
   return statements;
 }
 
