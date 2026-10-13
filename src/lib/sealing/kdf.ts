@@ -40,15 +40,18 @@ let running = 0;
 let peak = 0;
 const waiting: (() => void)[] = [];
 
-async function withSlot<T>(work: () => Promise<T>): Promise<T> {
-  if (running >= KDF_MAX_CONCURRENT) await new Promise<void>((resolve) => waiting.push(resolve));
-  running++;
+/// Runs `work` in one of the slots, waiting its turn in arrival order. Exported for the queue's own test.
+export async function withKdfSlot<T>(work: () => Promise<T>): Promise<T> {
+  if (running < KDF_MAX_CONCURRENT) running++;
+  else await new Promise<void>((resolve) => waiting.push(resolve));
   peak = Math.max(peak, running);
   try {
     return await work();
   } finally {
-    running--;
-    waiting.shift()?.();
+    // Security audit 6: the slot passes straight to the first waiter, and `running` does not drop, so an arrival before the waiter resumes finds none free.
+    const next = waiting.shift();
+    if (next) next();
+    else running--;
   }
 }
 
@@ -69,7 +72,7 @@ function checkParams(p: ScryptParams): void {
 
 /// scrypt itself, with the module's memory cap and queue. Exported for the RFC 7914 vectors, which use other salts and lengths.
 export function scryptRaw(password: Bytes, salt: Bytes, length: number, params: { log2N: number; r: number; p: number }): Promise<Bytes> {
-  return withSlot(
+  return withKdfSlot(
     () =>
       new Promise<Bytes>((resolve, reject) =>
         scryptCallback(password, salt, length, { N: 2 ** params.log2N, r: params.r, p: params.p, maxmem: SCRYPT_MAXMEM }, (err, key) => (err ? reject(err) : resolve(new Uint8Array(key)))),

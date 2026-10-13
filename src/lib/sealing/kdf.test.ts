@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { KDF_MAX_CONCURRENT, kdfInput, kdfPeak, PEPPER_NOT_HELD_WORDS, pepperFault, resetKdfPeak, SCRYPT_LOG2N, SCRYPT_P, SCRYPT_R, scryptRaw, unwrapKey, wrapKey, wrapKeyWith } from "./kdf";
+import { KDF_MAX_CONCURRENT, kdfInput, kdfPeak, PEPPER_NOT_HELD_WORDS, pepperFault, resetKdfPeak, SCRYPT_LOG2N, SCRYPT_P, SCRYPT_R, scryptRaw, unwrapKey, withKdfSlot, wrapKey, wrapKeyWith } from "./kdf";
 import { SealError, type AadContext, type WrappedKey } from "./types";
 import { generateX25519 } from "./x25519";
 
@@ -138,5 +138,38 @@ describe("scrypt runs at most two at once", () => {
     await Promise.all(Array.from({ length: 6 }, (_, i) => scryptRaw(utf8(`p${i}`), salt, 32, { log2N: 12, r: 8, p: 1 })));
     expect(KDF_MAX_CONCURRENT).toBe(2);
     expect(kdfPeak()).toBe(KDF_MAX_CONCURRENT);
+  });
+
+  // Security audit 6: a finishing derivation hands its slot straight to the first waiter. Had it freed the slot and woken the waiter, an arrival between the two
+  // (before the waiter resumed) would find a free slot and run a third. The arrival is tried at every microtask offset after a slot is given up, so the window is
+  // hit wherever it falls.
+  it("a slot given up passes straight to the next in the queue, so an arrival in between waits (audit 6)", async () => {
+    const tick = () => Promise.resolve();
+    for (let offset = 0; offset < 12; offset++) {
+      let inside = 0;
+      let most = 0;
+      const gates = Array.from({ length: 4 }, () => {
+        let open!: () => void;
+        const opened = new Promise<void>((resolve) => (open = resolve));
+        return { opened, open };
+      });
+      const job = (i: number) =>
+        withKdfSlot(async () => {
+          inside++;
+          most = Math.max(most, inside);
+          await gates[i].opened;
+          inside--;
+          return i;
+        });
+      const first = [job(0), job(1), job(2)];
+      for (let t = 0; t < 4; t++) await tick();
+      expect(inside, `offset ${offset}`).toBe(2);
+      gates[0].open();
+      for (let t = 0; t < offset; t++) await tick();
+      const late = job(3);
+      for (const g of gates) g.open();
+      expect(await Promise.all([...first, late])).toEqual([0, 1, 2, 3]);
+      expect(most, `offset ${offset}`).toBeLessThanOrEqual(KDF_MAX_CONCURRENT);
+    }
   });
 });
