@@ -9,8 +9,8 @@
  *    it is cleared (20i, G1).
  *  - BID_UPLOAD_MAX_CONCURRENT: how many bid parts this process takes at once, a memory guard (20e). Unset, zero or not a whole number: 3.
  *  - SEALING_PEPPER and SEALING_PEPPER_ID: the scrypt pepper (D4, 20v), base64 of at least 32 random bytes, and the name it is known by. Both or neither. It is held
- *    outside the database and backed up apart from it; losing it loses every exercise wrapped under it, and it is never rotated or removed while any exercise wrapped
- *    under it is not finalised or cancelled (the deployment notes, `docs/notes/sealed-bids-deployment.md`).
+ *    outside the database and backed up apart from it; losing it loses every exercise wrapped under it, and it is kept, unchanged, until no opening of any exercise
+ *    wrapped under it can still follow (20y, which corrects 20v's "finalised or cancelled"; the deployment notes, `docs/notes/sealed-bids-deployment.md`).
  *
  * The pepper's id as the product uses it binds the key's bytes: it is the configured name, "#", and a short check value derived from the key itself. A wrap stores that
  * id. So a deployment that keeps the name but changes the bytes (a restore from the wrong backup, a typing slip) does not hold the wrap's pepper, and the act refuses

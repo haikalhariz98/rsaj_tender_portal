@@ -1445,3 +1445,160 @@ build plan, on the same terms as 20p and 20q.
       - Must-have 6: names the one-officer residual after the unseal (20t).
       - Must-have 7: the pepper's no-rotation rule (20v).
     - **Accepted for building** once these land. No ruling here reverses a default, so steps already planned stand.
+
+These rule on four points raised by the review of wave 3b stage A, steps 1 to 6 (product owner, for the founder, 2026-10-13): S8 (the
+pepper's end condition), S9 (the channel unset for existing organisations), the database clock, and the Malay of the supplier's words. Each
+names the plan step its code belongs to. Where a ruling changes the ADR, the build plan, the threat model or the deployment notes, the list is
+in 20ac, on the same terms as 20p, 20q and 20x.
+
+20y. **S8, the pepper's end condition: restated. The pepper is kept, unchanged, until no opening of any exercise wrapped under it can still
+    follow. This corrects 20v's condition 2 ("not finalised or cancelled").**
+    - **Why.** A late bid admitted by its committee is opened at a supplementary opening, which starts only once the main opening is
+      finalised (FR-CTE-008; `supplementaryFaults`, `MAIN_NOT_FINALISED`). That opening is n-of-n, and its own finalising needs one officer's
+      passphrase (ADR 0036 D3, D10), so both need the pepper. Rotating it at the main finalise would leave an admitted late bid unopenable,
+      and the award blocked for ever by `ADMITTED_UNOPENED`, with cancellation the only way out.
+    - **The condition, on the exercise's own facts.** No opening can still follow when either:
+      1. the exercise is cancelled; or
+      2. its main opening is finalised, and every late online bid in the roll that is not withdrawn is either not admitted (its committee
+         decided NOT_CARRIED), or admitted and opened at a supplementary opening that is itself finalised.
+      - An admission not tabled, pending or deferred keeps the pepper. A decided admission is final, because a second matter is refused
+        (`lateMatterFault`, `ALREADY_DECIDED`).
+      - **An award implies case 2**, because the award gate already requires it (`lateAdmissionFault`; `openingGateFaults`,
+        `ADMITTED_UNOPENED`). That holds only if step 12's envelope readers feed online late envelopes into `needsAdmission` and
+        `admittedEnvelopeIds`, which step 12 must show. The award is a sign of the condition, not the condition.
+    - **Why finalising is the end, not the file move.** After finalising, the mover works from `releasedDek`, which needs no passphrase and
+      no pepper. A late bid that is never admitted stays sealed for ever, and nothing needs to open it.
+    - **Scope.** Every exercise with any officer wrap under that pepper's id. That includes a DEMONSTRATION exercise whose officers set their
+      shares while the deployment had a pepper configured. An exercise wrapped with no pepper is not affected.
+    - **One pepper at a time.** The deployment holds one `SEALING_PEPPER`, so a new pepper replaces the old one. It may replace it only once no
+      exercise wrapped under the old one can still be opened. The deployment notes' "may be added for new exercises" is corrected to say so.
+    - **Not relaxed.** An exercise with no submission can be re-keyed under a new pepper. That is the remedy if a pepper is lost early, not a
+      reason to rotate early.
+    - **So the deployment can follow the rule**, the bid sealing screen lists, read only, the exercises that still need the pepper this
+      deployment holds. The list comes from one pure function with its tests. A rule the operator cannot check is not honest.
+    - **Code.** The deployment notes change now, in the stage A fix round (step 6). The pure rule (`pepperStillNeeded`, in
+      `src/lib/sealing/`) and its list on the step 7 bid sealing screen land with step 15, once the main finalise exists.
+
+20z. **S9, the channel unset for existing organisations: option (c). The organisation's channel stays unset until it is set by the
+    two-person path, and publication refuses in words until then. No migration writes it, and unset is never read as PAPER.**
+    - **This is already ruled.** G1 names the submission channel: an unset setting is pinned "not set", and publication refuses in words
+      until it is set. G2: unset means refuse. 20o repeats it. Migration A (`20261103000000`) follows them: every exercise is backfilled
+      PAPER, and the organisation's setting ships unset.
+    - **"Paper paths are untouched" holds for what it means.** Every exercise that exists is PAPER and keeps its gates, and no paper act
+      changes. It never promised that a new exercise needs no setting. Its words are tightened (20ac).
+    - **What it adds for an existing organisation.** Since wave 3a, `WindowPolicy.documentSaleMode` ships unset on the same row, and an
+      exercise made while it is unset is refused at publication (`SALE_MODE_NOT_SET`). The wave 2b scope switches are the same.
+      - For an organisation whose sale mode is still unset, nothing new: the channel is set in the same two-person change of the same row.
+      - For one that has already set its sale mode, the channel is one more setting on that row, refused in words until it is set. That is
+        G1's rule for every pinned mode, not a contradiction of the ADR.
+    - **(a) is rejected.** A migration writing the organisation's channel would be the first migration to write a customer's policy row.
+      The two sibling migrations (`20261101100000`, `20261102000000`) backfill exercise pins only, which is the present behaviour of things
+      that exist. The channel for future exercises is the customer's policy choice (paper or online, with SK002/SK003 still pending). A
+      migration row would be a configuration change that no one issued, shown in Configuration's History as such: the harm 12c records.
+      12c's text does not allow configuration writes "through a migration backfill". It allows them only inside `demo:load` on a fresh
+      database. The backfill precedent is G1's, and it covers exercise pins only.
+    - **(b) is rejected.** Reading unset as PAPER quietly promotes an unset value (AGENTS.md, "gaps stay honest"; G2). It would also leave
+      the exercise's pin null for ever, while every online branch keys off it.
+    - **Two code changes, so the refusal is never a dead end (ruling 13):**
+      - **Step 8: "Take the organisation's setting" for the channel (12e)**, on the `takeSaleMode` pattern. It is allowed only while the
+        exercise's pin is unset, before publication and on an exercise not cancelled. It is refused while the organisation's own setting is
+        unset, naming it. It copies the configured value only, and writes the before and after under the exercise's lock. The plan does not
+        have it yet.
+      - **`CHANNEL_NOT_SET`'s words say why and where**, as `SALE_MODE_NOT_SET`'s do. The organisation had not set it when the exercise was
+        made. Take the organisation's setting on the exercise. If the organisation's is not set either, it is set under Configuration, on the
+        window policy, by two people. The finding shows in the publication checklist, not only at the refusal. Step 8 (the words may be
+        fixed now, in the stage A fix round, since `ceremony.ts` is step 5's).
+    - **The demo seed: step 18 as planned**, only inside `demo:load` on a fresh database (12c). G1 decides it: an exercise is pinned when it is
+      made, from its organisation, so the online demonstration exercise is made through the product's create act (12d's preference) and takes
+      ONLINE from the window policy. No new demonstration exception to G1 is made.
+      - The demonstration's window policy sets the channel to ONLINE, and the bid sealing mode to DEMONSTRATION. The channel is set only
+        through `channelSettingFaults`, as the editor sets it, never around it.
+      - The demonstration's authored exercises are pinned PAPER explicitly, never left unset, so they keep the paper paths they were
+        authored with (12d).
+      - Where the deployment does not allow demonstration bids at load, `channelSettingFaults` refuses ONLINE. The seed then sets the
+        channel to PAPER, says in words that the online demonstration needs `SEALED_BIDS_DEMONSTRATION_ALLOWED`, and skips step 18's online
+        acts.
+      - If the flag is cleared later, a new demonstration exercise is refused at publication in words (`ONLINE_NOT_ALLOWED`). That is
+        clearable, by the flag or by a two-person change of the channel (ruling 13).
+      - On an already-loaded database the seed writes no configuration, and names the settings that are not set.
+    - **Hand-over.** The founder's database `perolehan` is loaded, so nothing is written there. Read on 2026-10-13: its one window policy
+      (`demo_wp1`) has both `documentSaleMode` and `submissionChannel` unset. Once he has a second account, he sets both in one two-person
+      change of the window policy. Until then, a new exercise there is refused at publication, in words, for each.
+
+20aa. **The database clock: `clock_timestamp()`, the moment of the act. Confirmed, with conditions.**
+    - **Why.** `now()` is the start of the transaction. In a transaction held open, the trigger's bound and a stamp read inside it both sit
+      at the transaction's start, so the skew measures nothing: a bid inserted at 12:30 could carry an 11:59 stamp. `clock_timestamp()` is
+      the moment the trigger runs, so a stamp is at most `MAX_STAMP_SKEW_SECONDS` older than its own insert. That is what H2's "the trigger
+      owns the stamp" and FR-BID-002's "the server's clock" require.
+    - **Conditions:**
+      - `sealed_clock()` reads `clock_timestamp()` and is declared VOLATILE. STABLE would misstate it. Each trigger reads it once into its
+        own variable, as trigger 1 does, so both bounds come from one reading.
+      - Every judgement against the closing on the sealed tables reads it: trigger 1 (the stamp), trigger 2 (a replace, and a withdrawal's
+        `statusAt`), trigger 7 (a key retired after the closing), and trigger 8 (`LODGEMENT_CLOSED`). A database test pins it on the live
+        definitions, not on the migration files (the applied file keeps its `now()`): `sealed_clock` is volatile (`provolatile = 'v'`), and no
+        sealed trigger function's source contains `now()`, `CURRENT_TIMESTAMP` or `transaction_timestamp()`.
+      - **A new migration replaces the function.** `20261103110000` has been applied (log, step 2), and an applied migration is not edited
+        (log 2089).
+      - The application's own stamp (step 10) is `SELECT date_trunc('second', clock_timestamp())`, in its own statement, before the password
+        check. `startOpening`'s `SKEW_NOT_ELAPSED` reads the same clock (step 13).
+      - **The lock-wait edge.** A submit whose transaction waits on the exercise's locks for longer than the skew is now refused (PA010),
+        where under `now()` it would have stood. The skew is not widened. The refusal is caught and said in words: the bid was not taken;
+        submit again; the new stamp decides whether it is late. It writes a `SealedAccessEvent`, and it counts toward no lockout. The act's
+        transaction holds the locks only for its own small writes, so this is rare.
+    - **Code.** The new migration and its trigger test belong to the stage A fix round (step 2): a stamp older than the skew at the moment
+      of insert is refused, even when it is within the skew of the transaction's start. Step 10: the stamp statement, and a handler test of
+      the stale-stamp refusal in words. Step 13: the start reads the same clock.
+
+20ab. **The supplier receipt, My Bids and Received words in Malay: confirmed, in both languages, through the existing `Words`. The Malay is
+    reviewed on the customer's side before LIVE, inside the NFR-LNG-001 go-live condition. It is not a new LIVE gate.**
+    - **Why.** NFR-LNG-001 (M) covers every label and message. The supplier portal's words already carry both languages (`portal/labels.ts`,
+      and the routes' `messageMs`). The 2026-10-09 ruling (log 1936) says new words beside the bilingual tables keep both languages, and no
+      second pattern. Plan §1.3's English-only declarations were the plan's slip.
+    - **Conditions:**
+      - Use `Words` and `w()` from `@/lib/contract/labels`, as `portal/labels.ts` does. No new `{ en, ms }` type.
+      - Plan §1.3's declarations change to match, because step 3 wrote them verbatim. `RECEIPT_WORDS` becomes `{ title: Words; meaning: Words }`.
+        `RECEIVED_WORDS` becomes `{ ordinalLabel: Words; ordinalNote: Words; sequenceLabel: Words }`. `myBidOpenedWords` returns
+        `{ headline: Words; detail: Words; digest: string | null }`.
+      - `RECEIVED_WORDS` is read on a staff screen. It carries both languages too, which is what the layer will need. The screen renders the
+        language its siblings render until the NFR-LNG-001 programme.
+      - **The scans cover the Malay.** Step 5's words scan and step 19's scan for "signed", "proof" and "verified" also look for the Malay:
+        at least `tandatangan` (covering "ditandatangani"), `bukti`, `disahkan`, `mengesahkan` and `pengesahan`. Otherwise 20j and 20s are
+        only half enforced.
+      - The Malay says no more than the English: the same facts and the same limits. The organisation is named from configuration in both.
+        The digest is never translated, and is shown in full in both.
+    - **Customer review.** It is not needed for the build or for DEMONSTRATION. Before LIVE, yes, through the existing go-live condition:
+      NFR-LNG-001 is already one (backlog; log 1936), and the product may not go live until it is met. The sealed-bid supplier words are
+      named in that pass, in both languages, for review by the customer, whose working forms are in Malay and whose SK002/SK003 amendment
+      adopts what a receipt means. No new LIVE column, and no new `liveIssueFaults` fault.
+    - **Code.** The stage A fix round (steps 3 and 5): the types, the Malay, and the Malay in the scan. Step 19: the cross-cutting scan
+      covers the Malay.
+
+20ac. **What ADR 0036, the build plan, the threat model and the deployment notes must change to match 20y–20ab.** These rulings edit none of
+    them. The solution-architect makes the ADR, plan and threat-model changes. The stage A fix round makes the deployment notes change.
+    - **ADR 0036:**
+      - D4, the pepper bullet: 20y's condition, with its two cases, and the one-pepper replacement.
+      - D5, the trigger bullet: `clock_timestamp()`, the moment of the act, not `now()` (20aa).
+      - D1, the demo bullet: the channel is set through `channelSettingFaults`; the authored exercises are pinned PAPER; where the flag is
+        missing at load, the channel is PAPER and the online acts are skipped, in words (20z).
+      - Consequences, "Paper paths are untouched": every exercise that exists is PAPER and keeps its gates, and no paper act changes. A new
+        exercise takes the organisation's channel as it takes the sale mode, and publication refuses in words while it is unset (20z).
+      - Questions: S8, S9, the clock and the Malay point to 20y–20ab.
+    - **Build plan:**
+      - §1.3: the three words declarations as `Words` (20ab).
+      - §1.4, triggers 1 and 2: `clock_timestamp()` in place of `now()`; step 2 gains the database test of the live definitions (20aa).
+      - Step 6: the pepper line reads as 20y.
+      - Step 8: the take-the-channel act and the `CHANNEL_NOT_SET` words. Done when: an exercise made while the organisation's channel is
+        unset is refused at publication in words; it takes the setting once the setting is issued; the take is refused after publication and
+        on a cancelled exercise (20z).
+      - Step 10: the stamp from `clock_timestamp()`. Done when: the stale-stamp refusal is in words and counts toward no lockout (20aa).
+      - Step 12's done-when: online late envelopes reach `needsAdmission` and `admittedEnvelopeIds` (20y).
+      - Step 13: `SKEW_NOT_ELAPSED` reads the same clock (20aa).
+      - Step 15: `pepperStillNeeded` and its read-only list on the bid sealing screen (20y).
+      - Steps 5 and 19: the words scans cover the Malay (20ab).
+      - Step 18: stands as planned (ONLINE under DEMONSTRATION), set through `channelSettingFaults`; the authored exercises are pinned
+        PAPER; the PAPER fallback in words where the flag is missing at load (20z).
+      - Step 21: the rulings cited run to 20ab, and the NFR-LNG-001 backlog row names the sealed-bid supplier words (20ab).
+    - **Threat model §G:** must-have 7, and the lost-pepper residual in S2 and S14, read as 20y.
+    - **Deployment notes** (`docs/notes/sealed-bids-deployment.md`, the pepper section): the third bullet reads as 20y, with the two cases,
+      the one-pepper replacement and the screen's list.
+    - **Accepted for building** once these land. No ruling here reverses a default.

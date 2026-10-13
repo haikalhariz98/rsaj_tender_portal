@@ -134,7 +134,11 @@ describe("the deployment notes list every condition (build plan step 6)", () => 
     ["no quarantine or copy", /no quarantine/i],
     ["the pepper backed up apart from the database", /backed up apart from the database/i],
     ["losing the pepper loses every exercise wrapped under it", /losing it loses every exercise wrapped under it/i],
-    ["the pepper never rotated or removed while an exercise under it is open", /never rotated or removed while any exercise wrapped under it is not finalised or cancelled/i],
+    // Ruling 20y restates 20v's condition: the pepper is kept until no opening of any exercise under it can still follow, with its two cases and one pepper at a time.
+    ["the pepper kept until no opening under it can still follow (20y)", /kept, unchanged, until no opening of any exercise wrapped under it can still follow/i],
+    ["20y's first case: the exercise cancelled", /the exercise is cancelled/i],
+    ["20y's second case: the main opening finalised, and every late bid not admitted or opened at a finalised supplementary opening", /main opening is finalised, \*\*and\*\* every late online bid[^.]*not admitted[^.]*supplementary opening that is itself finalised/i],
+    ["one pepper at a time, replaced only by the rule (20y)", /One pepper at a time[\s\S]*may replace it only once\s+no exercise wrapped under the old one can still be opened/i],
     ["anonymous refusals left to the edge access log: method, path and status, never a body", /edge access log[^.]*method, path and status[^.]*never a body/i],
     ["20w's qualified words for the access log", /every attempt by a signed-in person; where the rate limit refuses repeated attempts, the first in each window is logged/],
     ["the demonstration flag", /SEALED_BIDS_DEMONSTRATION_ALLOWED/],

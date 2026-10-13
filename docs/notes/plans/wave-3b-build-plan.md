@@ -132,10 +132,12 @@ export type SubmitFault =
   | "CHANNEL_NOT_ONLINE" | "ONLINE_NOT_SET" | "ONLINE_NOT_ALLOWED" | "NOT_PUBLISHED" | "CANCELLED" | "KEY_NOT_LIVE"
   | "NO_LIVE_SALE"               // saleStands (17c, 20m)
   | "NOT_ON_INVITEE_LIST"        // matches the purchase's check (20m)
-  | "LIVE_BID_HELD"              // a second main bid while one stands, or a late bid beside a live in-time one (FR-BID-005)
+  | "LIVE_BID_HELD"              // a second main bid while one of the supplier's stands, in time or late (FR-BID-005, review S1)
   | "REPLACE_AFTER_CLOSING" | "NOTHING_TO_REPLACE"
+  | "REPLACE_KIND_CHANGED"       // a bid replaces a bid, an alternative an alternative (review M1)
   | "ALTERNATIVES_NOT_STATED"    // defensive only: publication refuses while unset (20h)
   | "PARENT_NOT_YOUR_LIVE_BID"   // a named parent that is not the supplier's own live bid (20h)
+  | "PARENT_NOT_A_BID"           // a named parent that is an alternative, not a bid (review S3; paper's PARENT_NOT_A_BID)
   | "LATE_CLOSED"                // late submission ends when the main opening is started (20b)
   | "PRICE_INVALID" | "PERIOD_INVALID" | "UNIT_NOT_SET"
   | "FILE_NOT_YOURS" | "FILE_NOT_DRAFT" | "PART_UNKNOWN" | "NO_FILES"
@@ -149,6 +151,9 @@ export interface SubmissionWarning { code: "MANDATORY_PART_MISSING" | "ALTERNATI
 ```
 
 ### 1.3 Pure rules (one file each, each with a `.test.ts`)
+
+Amended by the stage A fix round (2026-10-13; review M1, S1–S4, ruling 20ab) to match the code exactly. A solution-architect review of these amendments is
+owed. The supplier-facing words are the portal's `Words` (`{ en: string; ms: string }`, through `w()` from `@/lib/contract/labels`), never a second shape.
 
 ```ts
 // src/lib/sales/standing.ts (17c, 20m)
@@ -178,9 +183,9 @@ export function submitFaults(i: {
   channel: SubmissionChannel | null; online: ReturnType<typeof onlineSubmissionAllowed>; published: boolean; cancelled: boolean; keyLive: boolean;
   saleStands: boolean; invitedPath: boolean; onInviteeList: boolean;
   stamp: Date; closing: Date; mainOpeningStartedAt: Date | null;          // 20b: the start, not the unseal
-  liveMainInTime: boolean; kind: OnlineBidKind;
-  replaces: { status: OnlineBidStatus; mine: boolean } | null;
-  parent: { status: OnlineBidStatus; mine: boolean } | null | "NONE_NAMED";
+  liveMainStanding: boolean; kind: OnlineBidKind;                         // review S1: any SUBMITTED bid of the supplier's, in time or late
+  replaces: { status: OnlineBidStatus; mine: boolean; kind: OnlineBidKind } | null;           // review M1: REPLACE_KIND_CHANGED where kind differs
+  parent: { status: OnlineBidStatus; mine: boolean; kind: OnlineBidKind } | null | "NONE_NAMED";  // review S3: PARENT_NOT_A_BID where kind is not BID
   alternativesPermitted: boolean | null;
   files: { mine: boolean; state: OnlineBidFileState; packPartId: string }[]; rules: BidPartRule[];
   submissionsBySupplier: number;
@@ -190,19 +195,26 @@ export function withdrawFaults(i: { mine: boolean; status: OnlineBidStatus; stam
 /// The alternatives a withdrawal touches: those named are withdrawn, the rest kept with their link cleared (20h).
 export function withdrawalEffect(target: string, linked: string[], alsoWithdraw: string[]): { withdraw: string[]; clearLink: string[] };
 
+// src/lib/bids/online/words.ts (review S4, ruling 20ab): every supplier-facing refusal, warning and the BUSY answer, in English and Malay
+export const SUBMIT_FAULT_WORDS: Readonly<Record<SubmitFault, Words>>;
+export const WITHDRAW_FAULT_WORDS: Readonly<Record<WithdrawFault, Words>>;
+export const PART_UPLOAD_FAULT_WORDS: Readonly<Record<PartUploadFault, Words>>;
+export function submissionWarningWords(warning: SubmissionWarning): Words;
+export const UPLOAD_BUSY_WORDS: Words;
+
 // src/lib/bids/online/parts.ts (D6)
 export function partUploadFaults(i: { rule: BidPartRule | null; sniffed: Sniffed; office: ArchiveVerdict | null; size: bigint; storeCap: bigint | null; browserSha256: string; serverSha256: string; scan: ScanResult; mode: OnlineSubmissionMode; scannerConfigured: boolean; draftFilesBySupplier: number }): PartUploadFault[];
 export function storedScan(scan: ScanResult, mode: OnlineSubmissionMode, scannerConfigured: boolean): StoredScan | null;  // null: refuse
 
 // src/lib/bids/online/receipt.ts
 export function receiptDigest(i: { exerciseId: string; sequence: number; receivedAt: Date; keyFingerprint: string; manifestCipherSha256: string; declarationCipherSha256: string; fileCipherSha256s: string[] }): string;
-export const RECEIPT_WORDS: { title: string; meaning: string };  // never "signed" / "proof" (scan)
+export const RECEIPT_WORDS: { title: Words; meaning: Words };  // never "signed" / "proof" (scan), in either language (20ab)
 
 // src/lib/bids/online/received.ts (ruling 18 as amended by 20u, 20l)
-export function receivedView(rows: { sequence: number; receivedAt: Date; late: boolean; status: OnlineBidStatus }[], openingStarted: boolean): { count: number; standing: { ordinal: number; sequence: number | null /* null before the start */; receivedAt: Date; late: boolean }[] };
+export function receivedView(rows: { sequence: number; receivedAt: Date; late: boolean; status: OnlineBidStatus }[], openingStarted: boolean): { count: number; inTime: number; late: number; standing: { ordinal: number; sequence: number | null /* null before the start */; receivedAt: Date; late: boolean }[] };  // review S2
 /// 20u: the ordinal column's label and note ("the order of the bids now standing, not the receipt number; it can change before the closing;
 /// the receipt number is shown once the opening starts"), and the sequence column's label from the start. One constant; no component restates it.
-export const RECEIVED_WORDS: { ordinalLabel: string; ordinalNote: string; sequenceLabel: string };
+export const RECEIVED_WORDS: { ordinalLabel: Words; ordinalNote: Words; sequenceLabel: Words };  // 20ab
 
 // src/lib/bids/online/roll.ts (H2)
 export function receiptRoll(rows: { sequence: number; receiptDigest: string; late: boolean; status: OnlineBidStatus }[]): { v: 1; entries: { sequence: number; receiptDigest: string; late: boolean }[]; rollDigest: string };
@@ -212,7 +224,8 @@ export function myBidOpeningState(i: { status: OnlineBidStatus; openingStarted: 
 /// The words carry the digest itself (the listed or opened one), in full, and ask the supplier to compare it with the receipt it kept.
 /// NOT_IN_ROLL names the organisation from configuration and asks the supplier to contact it now, quoting its receipt. OPENED keeps
 /// ruling 25's "Opened; the result follows the evaluation".
-export function myBidOpenedWords(i: { state: MyBidOpeningState; digest: string | null; organisationName: string }): { headline: string; detail: string; digest: string | null };
+/// Audit 8: NOT_IN_ROLL speaks of this submission only ("This submission is not in the list"). 20ab: both languages, the digest never translated.
+export function myBidOpenedWords(i: { state: MyBidOpeningState; digest: string | null; organisationName: string }): { headline: Words; detail: Words; digest: string | null };
 
 // src/lib/portal/bids/limits.ts (20w): only the first rate refusal per account per window writes a SealedAccessEvent
 export function rateRefusalLogged(countInWindow: number, limit: number): boolean;   // true only when countInWindow === limit + 1
@@ -349,8 +362,16 @@ model SealedAccessEvent {                                // append-only
 
 **Triggers.** Each is `ENABLE ALWAYS` with its own SQLSTATE; PA010 to PA029 are reserved here.
 
+**Amended by the stage A fix round (2026-10-13, migration `20261103200000`; security audit 1–5 and 7, review M1 and S3, ruling 20aa).** "The database
+clock" is `sealed_clock()`, which reads `clock_timestamp()`, the moment of the act, and is VOLATILE; `now()` is the transaction's start, and a
+transaction held open would carry the skew's bound back with it. Every trigger function runs with `search_path = pg_catalog, public, pg_temp`
+and names its tables in `public`, and the app's login holds no TEMPORARY on the database. "Written in this transaction" is read from
+trigger-kept `xid8` columns (`insertedXact`, `statusXact`, `unsealedXact`, `finalisedXact`), never from a row's `xmin`, which any UPDATE
+resets.
+
 1. **The stamp on an ONLINE `BidEnvelope` insert (H2).**
-   - `receivedAt` must be whole seconds, and within `[now() − MAX_STAMP_SKEW_SECONDS, now()]`.
+   - `receivedAt` must be whole seconds, and within `[clock − MAX_STAMP_SKEW_SECONDS, clock]`, where clock is `sealed_clock()` read once, at the
+     moment of the insert (20aa).
    - The trigger sets `closingAtJudged` from `SourcingExercise.closingAt`, and `late := receivedAt > closingAtJudged`.
    - A late insert is refused once a main `Opening` exists for the exercise.
    - `MAX_STAMP_SKEW_SECONDS` is a product constant in `limits.ts`, written as a literal into the migration. A test pins the two equal.
@@ -360,11 +381,14 @@ model SealedAccessEvent {                                // append-only
      transaction commits a second later still stands (D7, FR-BID-002).
      - A replace is allowed only if the new envelope's `receivedAt` (inserted in the same transaction, bounded by trigger 1) is
        `<= closingAt`.
-     - A withdrawal is allowed only if `OnlineBid.statusAt` is whole seconds, within `[now() − MAX_STAMP_SKEW_SECONDS, now()]`, and
+     - A withdrawal is allowed only if `OnlineBid.statusAt` is whole seconds, within `[clock − MAX_STAMP_SKEW_SECONDS, clock]` (20aa), and
        `<= closingAt`.
+   - An UPDATE of an ONLINE envelope that changes nothing is refused (audit 2).
      - A cleared alternative link (trigger 6) is judged by its parent's move.
    - OPENED is refused unless the exercise has an `Opening` with the unseal being written.
-3. **`OnlineBid` insert** is refused unless its envelope is ONLINE and was inserted in the same transaction (`xmin` match).
+3. **`OnlineBid` insert** is refused unless its envelope is ONLINE, of the same kind, was inserted in the same transaction (its `insertedXact`), and
+   is stamped within the skew of the clock (audit 2). A replacement is of the replaced submission's kind (M1); a parent is a BID (S3). Every
+   ONLINE envelope has its `OnlineBid` by the commit (deferred, PA013).
 4. **Ciphertext columns are immutable.** Shreds go from set to NULL only.
 5. **`releasedDek`** follows the rule in its column comment.
 6. **`parentOnlineBidId`** may move only:
@@ -375,6 +399,15 @@ model SealedAccessEvent {                                // append-only
 8. **`LODGEMENT_CLOSED`.**
 9. **`pepperId`** may be null only on a DEMONSTRATION exercise.
 10. **No DELETE, and no TRUNCATE**, on any table here.
+11. **The channel and the rules (audit 4, PA025).** `submissionChannel` never changes once the exercise is published (its status ADVERTISED,
+    INVITED or later); `onlineBidRules` never changes once written or published. The publication act writes its pins before, or with, the
+    status move.
+12. **A share release (audit 5, PA026)** is checked as it is written: its keys, opening and authorisation are of its exercise, and it is written
+    unused; a SUBSTITUTION names the incoming officer's live roster row and live key, takes a share the departing officer still holds under the
+    live key, and is written before the closing.
+13. **One standing bid (audit 7, review S1, PA027).** At the commit, under an advisory lock on the supplier and the exercise, at most one
+    SUBMITTED `OnlineBid` of kind BID per supplier per exercise, in time or late. Written at READ COMMITTED only, so the count sees a rival
+    that committed while it waited.
 
 ### 1.5 Routes
 
@@ -539,8 +572,16 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - The opportunity shows the fingerprint's history. The supplier's submit page says that drafts were discarded because the key changed.
 - **Publication.** `window/publish.ts` adds `publishSealingFaults`, which covers `alternativesPermitted` and the pepper under LIVE.
   Publication freezes the channel, the mode, the rules and the fingerprint.
+  - It writes `onlineBidRules` (and the other pins) **before, or in the same UPDATE as, the exercise's move to ADVERTISED or INVITED**: from that
+    status on, trigger 11 refuses any change of the channel or the rules (audit 4, stage A fix round).
+- **Take the organisation's channel (20z, 12e).** On the `takeSaleMode` pattern: allowed only while the exercise's pin is unset, before
+  publication and on an exercise not cancelled; refused while the organisation's own setting is unset, naming it; copies the configured value
+  only, and writes the before and after under the exercise's lock. `CHANNEL_NOT_SET`'s words already say why and where (stage A fix round), and
+  the finding shows in the publication checklist, not only at the refusal.
 - **Done when:**
   - publish refuses, in words, in each case: no key, a stale key, the mode unset, a rule unset, alternatives unstated;
+  - an exercise made while the organisation's channel is unset is refused at publication in words; it takes the setting once the setting is
+    issued; the take is refused after publication and on a cancelled exercise (20z);
   - a DB test publishes n = 2 and then re-keys before any submission: the old shares read NULL, and the change row exists;
   - a re-key after the closing, or with a submission, is refused;
   - no audit JSON holds a secret (a DB test).
@@ -582,6 +623,12 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
 - **Withdraw** works the same way, with `withdrawalEffect`. Its stamp is taken after the body is read and before the password check, and is
   written as `statusAt` (trigger 2).
 - **The void guard (H1).** Do **not** add `OnlineBid` to `voidSaleFault`'s `holdsEnvelope` reading, in this step or any other (20r).
+- **From the stage A fix round** (review M1, S1, S3; audit 2 and 7):
+  - `submitFaults` takes `liveMainStanding` (any SUBMITTED bid of the supplier's, in time or late) and the kind of the replaced bid and of the
+    parent; the store reads them under the locks.
+  - The submit and the replace run at READ COMMITTED (the default): the one-standing-bid trigger refuses any other isolation (PA027).
+  - The envelope and its `OnlineBid` are written in one transaction: an envelope left alone is refused at the commit (PA013). A refusal at
+    the commit (PA013, PA027) is caught and said in words, like the trigger refusals before it.
 - **Done when:**
   - the stamp falls at the closing second and is in time; one second after, it is late;
   - a late bid after the main opening has started is refused (`LATE_CLOSED`);
@@ -629,6 +676,10 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - `count.ts`;
   - the received section.
 - **The audit mask:** `sealedAuditMask` in both audit views, Configuration › Audit and History.
+- **Fixed early, in the stage A fix round (review S7); this step tests them with one bid of each status:**
+  - the Opening page (`opening/read.ts`, the envelopes it opens) read a SUPERSEDED envelope as "Sealed"; it now reads "Replaced, not opened";
+  - the bids page (`bids/read.ts`) offered a return on an online WITHDRAWN envelope; it no longer does. `returnFaults` (`bids/withdrawal.ts`)
+    must refuse an ONLINE envelope as well, in words, since nothing is handed back.
 - **Done when:**
   - a scan shows that only the step 10 stores and the step 13 unseal select the D9 identity columns. **That identity-column scan is pinned
     here (20a).**
@@ -668,7 +719,10 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - a late bid admitted by the committee opens at a supplementary opening;
   - an administrator is refused and the refusal logged;
   - the closing second is refused;
-  - `opening/sealed.test.ts` admits the online writer.
+  - `opening/sealed.test.ts` admits the online writer;
+  - between the unseal and the finalise, the Opening page draws, and its live schedule shows each online price as not read, in words
+    (`PRICE_NOT_READ_WORDS`); `correctAsRead` on an online bid refuses `PRICE_NOT_READ` in words, never throwing `PriceNotReadError` (review S6;
+    the pure refusal and the schedule's words landed in the stage A fix round).
 
 **14. api-engineer: the officer's download.**
 - **`/api/opening/sealed-file`** runs on the internal copy only:
@@ -699,6 +753,14 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - The document and its owner link (unique `onlineBidFileId`, a new owner kind with an X-6 CHECK rebuild) are written in one transaction.
   - `releasedDek` is shredded once the link exists.
   - A reader of an unmoved file triggers its move.
+- **The shred's trigger (review N3).** Trigger 5's function, `sealed_online_bid_file_change`, refuses every shred of `releasedDek` until the
+  document link exists. This step replaces that function in a **new** migration (`CREATE OR REPLACE FUNCTION`, with its
+  `SET search_path = pg_catalog, public, pg_temp` and its `finalisedXact` reading as migration `20261103200000` wrote them), allowing set to
+  NULL once the file's link exists. The applied migrations are never edited.
+- **`pepperStillNeeded` (20y).** A pure rule in `src/lib/sealing/`, with its tests: an exercise wrapped under the deployment's pepper still needs it
+  until it is cancelled, or its main opening is finalised and every non-withdrawn late online bid in the roll is either not admitted
+  (NOT_CARRIED) or admitted and opened at a supplementary opening that is itself finalised. Its read-only list of the exercises that still
+  need the pepper goes on the step 7 bid sealing screen.
 - **Done when:**
   - n = 2 finalises with one officer's passphrase after both signatures;
   - no price exists before the finalise;

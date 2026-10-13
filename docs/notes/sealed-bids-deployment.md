@@ -29,9 +29,20 @@ guess passphrases offline. LIVE requires it.
 - **It is kept outside the database**, in the deployment's secret store. The database never holds it.
 - **It is backed up apart from the database, and losing it loses every exercise wrapped under it.** Without it, no officer can unlock their key, and the exercise's
   bids cannot be opened: the exercise must be re-tendered. Treat its custody and its backup like the custody of a key to the tender box.
-- **The pepper is never rotated or removed while any exercise wrapped under it is not finalised or cancelled (ruling 20v).** Rotating it early, or removing it, makes
-  those exercises unopenable exactly as losing it would. A new pepper (a new name and new bytes) may be added for new exercises only once every exercise under the old
-  one is finalised or cancelled.
+- **The pepper is kept, unchanged, until no opening of any exercise wrapped under it can still follow (ruling 20y, which corrects 20v's "finalised or
+  cancelled").** No opening can still follow an exercise when either:
+  1. the exercise is cancelled; or
+  2. its main opening is finalised, **and** every late online bid in its roll that is not withdrawn is either not admitted (its committee decided not to carry
+     it) or admitted and opened at a supplementary opening that is itself finalised.
+
+  An admission not yet tabled, pending or deferred keeps the pepper. The main opening's finalise is not the end: a late bid admitted after it is opened at a
+  supplementary opening, which needs every named officer's passphrase, and its finalise needs one, so both need the pepper. Rotating it early, or removing it,
+  makes those exercises unopenable exactly as losing it would, and leaves the award blocked. This covers every exercise with any officer wrap under that pepper's
+  name, a demonstration exercise included; an exercise wrapped with no pepper is not affected.
+- **One pepper at a time.** The deployment holds one `SEALING_PEPPER`, so a new pepper (a new name and new bytes) replaces the old one. It may replace it only once
+  no exercise wrapped under the old one can still be opened, by the rule above. An exercise with no submission can be re-keyed under a new pepper: that is the
+  remedy if a pepper is lost early, not a reason to rotate early. The bid sealing screen will list, read only, the exercises that still need the pepper this
+  deployment holds (build plan step 15), so the rule can be checked before a rotation; until then it is checked by hand against the rule above.
 - **The name binds the bytes.** The product stores, in each wrap, the pepper's name and a short check value derived from its bytes. A copy that holds the right name with
   the wrong bytes (a restore from the wrong backup, a slip in typing) is told so: the act is refused because this copy does not hold that exercise's pepper, and the
   officer's passphrase is never counted as wrong for it.
