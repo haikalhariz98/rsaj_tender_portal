@@ -9,6 +9,8 @@
 
 import { createHash } from "node:crypto";
 
+import { w, type Words } from "@/lib/contract/labels";
+
 import type { OnlineBidStatus } from "./types";
 
 export const ROLL_DIGEST_VERSION = "perolehan-roll-v1";
@@ -46,40 +48,54 @@ export function myBidOpeningState(i: { status: OnlineBidStatus; openingStarted: 
 /// The words carry the digest itself (the listed or opened one), in full, and ask the supplier to compare it with the receipt it kept.
 /// NOT_IN_ROLL names the organisation from configuration and asks the supplier to contact it now, quoting its receipt. OPENED keeps
 /// ruling 25's "Opened; the result follows the evaluation".
-export function myBidOpenedWords(i: { state: MyBidOpeningState; digest: string | null; organisationName: string }): { headline: string; detail: string; digest: string | null } {
-  const org = i.organisationName.trim() || "the procurement office";
-  const shown = i.digest ? `Its receipt digest is ${i.digest}.` : "No receipt digest is recorded for it.";
-  const compare = "Compare it with the receipt you printed or saved when you submitted.";
+/// Ruling 20ab: in English and Malay, the Malay saying no more than the English; the organisation is named in both, and the digest is never translated.
+/// Audit 8: NOT_IN_ROLL speaks of this submission only. The supplier may have other receipts that are in the list.
+export function myBidOpenedWords(i: { state: MyBidOpeningState; digest: string | null; organisationName: string }): { headline: Words; detail: Words; digest: string | null } {
+  const name = i.organisationName.trim();
+  const org = w(name || "the procurement office", name || "pejabat perolehan");
+  const shown = i.digest ? w(`Its receipt digest is ${i.digest}.`, `Cincangan resitnya ialah ${i.digest}.`) : w("No receipt digest is recorded for it.", "Tiada cincangan resit direkodkan baginya.");
+  const compare = w("Compare it with the receipt you printed or saved when you submitted.", "Bandingkan dengan resit yang anda cetak atau simpan semasa anda menyerahkan.");
+  const out = (headline: Words, detail: Words) => ({ headline, detail, digest: i.digest });
   switch (i.state) {
     case "LISTED_NOT_OPENED":
-      return {
-        headline: "Listed at the opening, not opened yet",
-        detail: `Your bid is in the list frozen when the opening started. ${shown} ${compare} If the bids have been unsealed and yours is still not shown as opened, contact ${org} now, quoting your receipt.`,
-        digest: i.digest,
-      };
+      return out(
+        w("Listed at the opening, not opened yet", "Disenaraikan semasa pembukaan, belum dibuka"),
+        w(
+          `Your bid is in the list frozen when the opening started. ${shown.en} ${compare.en} If the bids have been unsealed and yours is still not shown as opened, contact ${org.en} now, quoting your receipt.`,
+          `Bida anda ada dalam senarai yang dibekukan semasa pembukaan bermula. ${shown.ms} ${compare.ms} Jika meterai bida telah dibuka dan bida anda masih tidak ditunjukkan sebagai dibuka, hubungi ${org.ms} sekarang, dengan menyebut resit anda.`,
+        ),
+      );
     case "OPENED":
-      return {
-        headline: "Opened; the result follows the evaluation",
-        detail: `Your bid was opened. ${shown} ${compare} Nothing of what was read, nor how it compares, is shown here.`,
-        digest: i.digest,
-      };
+      return out(
+        w("Opened; the result follows the evaluation", "Dibuka; keputusannya menyusul selepas penilaian"),
+        w(
+          `Your bid was opened. ${shown.en} ${compare.en} Nothing of what was read, nor how it compares, is shown here.`,
+          `Bida anda telah dibuka. ${shown.ms} ${compare.ms} Apa yang dibaca, dan bagaimana ia dibandingkan, tidak ditunjukkan di sini.`,
+        ),
+      );
     case "LATE_IN_ROLL":
-      return {
-        headline: "Received after the closing, so not opened at the main opening",
-        detail: `Your bid was received after the closing. It is kept, sealed, and goes to the committee, which decides whether to admit it; if it is admitted, it is opened at a further opening. ${shown} ${compare}`,
-        digest: i.digest,
-      };
+      return out(
+        w("Received after the closing, so not opened at the main opening", "Diterima selepas tarikh tutup, jadi tidak dibuka pada pembukaan utama"),
+        w(
+          `Your bid was received after the closing. It is kept, sealed, and goes to the committee, which decides whether to admit it; if it is admitted, it is opened at a further opening. ${shown.en} ${compare.en}`,
+          `Bida anda diterima selepas tarikh tutup. Ia disimpan, bermeterai, dan dibawa kepada jawatankuasa, yang memutuskan sama ada menerimanya; jika diterima, ia dibuka pada pembukaan berikutnya. ${shown.ms} ${compare.ms}`,
+        ),
+      );
     case "NOT_IN_ROLL":
-      return {
-        headline: "Your bid is not in the opening's list",
-        detail: `None of your receipts is in the list frozen when the opening started. Contact ${org} now, quoting the receipt you kept. ${shown}`,
-        digest: i.digest,
-      };
+      return out(
+        w("This submission is not in the opening's list", "Penyerahan ini tiada dalam senarai pembukaan"),
+        w(
+          `This submission is not in the list frozen when the opening started. Contact ${org.en} now, quoting the receipt you kept. ${shown.en}`,
+          `Penyerahan ini tiada dalam senarai yang dibekukan semasa pembukaan bermula. Hubungi ${org.ms} sekarang, dengan menyebut resit yang anda simpan. ${shown.ms}`,
+        ),
+      );
     case "REPLACED_OR_WITHDRAWN":
-      return {
-        headline: "Not opened, as expected",
-        detail: `This submission was replaced or withdrawn before the closing, so it was not opened, as expected. ${shown}`,
-        digest: i.digest,
-      };
+      return out(
+        w("Not opened, as expected", "Tidak dibuka, seperti yang dijangka"),
+        w(
+          `This submission was replaced or withdrawn before the closing, so it was not opened, as expected. ${shown.en}`,
+          `Penyerahan ini telah diganti atau ditarik balik sebelum tarikh tutup, jadi ia tidak dibuka, seperti yang dijangka. ${shown.ms}`,
+        ),
+      );
   }
 }

@@ -39,9 +39,12 @@ export function parseDeclaration(raw: unknown): { ok: true; value: Declaration }
 
 /**
  * Everything the door refuses, the lateness the stamp gives, the warnings, and whether an alternative will not be considered.
- * - LIVE_BID_HELD: a main bid while one of the supplier's in-time main bids stands (a second, or a late one beside it; FR-BID-005). A replace is the way to change one.
- * - Alternatives (20h): no main bid is needed; a named parent must be the supplier's own live submission; where alternatives are not permitted it is accepted and
- *   marked not considered, with a warning before it is submitted; not stated is refused only defensively (publication refuses it first). A bid names no parent.
+ * - LIVE_BID_HELD: a main bid while one of the supplier's main bids stands, in time or late (FR-BID-005; review S1: a late bid beside a late one too). A replace
+ *   is the way to change one, and a database trigger holds the same rule at the commit (security audit 7).
+ * - A replace (review M1) is of the replaced submission's own kind: a bid replaces a bid, an alternative an alternative, so a replace never makes a second bid.
+ * - Alternatives (20h): no main bid is needed; a named parent must be the supplier's own live bid, never an alternative (review S3, as paper's PARENT_NOT_A_BID);
+ *   where alternatives are not permitted it is accepted and marked not considered, with a warning before it is submitted; not stated is refused only defensively
+ *   (publication refuses it first). A bid names no parent.
  * - Files: at least one; each the supplier's own draft for a part the bidder returns. A mandatory part with no file is warned about, never refused (FR-BID-007).
  * - The cap (20e) counts the supplier's submissions on the exercise before this one.
  */
@@ -49,9 +52,9 @@ export function submitFaults(i: {
   channel: SubmissionChannel | null; online: ReturnType<typeof onlineSubmissionAllowed>; published: boolean; cancelled: boolean; keyLive: boolean;
   saleStands: boolean; invitedPath: boolean; onInviteeList: boolean;
   stamp: Date; closing: Date; mainOpeningStartedAt: Date | null;          // 20b: the start, not the unseal
-  liveMainInTime: boolean; kind: OnlineBidKind;
-  replaces: { status: OnlineBidStatus; mine: boolean } | null;
-  parent: { status: OnlineBidStatus; mine: boolean } | null | "NONE_NAMED";
+  liveMainStanding: boolean; kind: OnlineBidKind;                         // review S1: any SUBMITTED bid of the supplier's, in time or late
+  replaces: { status: OnlineBidStatus; mine: boolean; kind: OnlineBidKind } | null;
+  parent: { status: OnlineBidStatus; mine: boolean; kind: OnlineBidKind } | null | "NONE_NAMED";
   alternativesPermitted: boolean | null;
   files: { mine: boolean; state: OnlineBidFileState; packPartId: string }[]; rules: BidPartRule[];
   submissionsBySupplier: number;
@@ -74,9 +77,10 @@ export function submitFaults(i: {
 
   if (i.replaces !== null) {
     if (!i.replaces.mine || i.replaces.status !== "SUBMITTED") add("NOTHING_TO_REPLACE");
+    else if (i.replaces.kind !== i.kind) add("REPLACE_KIND_CHANGED");
     if (late) add("REPLACE_AFTER_CLOSING");
     warnings.push({ code: "REPLACE_REUPLOADS_ALL" });
-  } else if (i.kind === "BID" && i.liveMainInTime) add("LIVE_BID_HELD");
+  } else if (i.kind === "BID" && i.liveMainStanding) add("LIVE_BID_HELD");
 
   let alternativeNotConsidered = false;
   if (i.kind === "ALTERNATIVE") {
@@ -85,7 +89,10 @@ export function submitFaults(i: {
       alternativeNotConsidered = true;
       warnings.push({ code: "ALTERNATIVE_NOT_CONSIDERED" });
     }
-    if (i.parent !== "NONE_NAMED" && (i.parent === null || !i.parent.mine || i.parent.status !== "SUBMITTED")) add("PARENT_NOT_YOUR_LIVE_BID");
+    if (i.parent !== "NONE_NAMED") {
+      if (i.parent === null || !i.parent.mine || i.parent.status !== "SUBMITTED") add("PARENT_NOT_YOUR_LIVE_BID");
+      else if (i.parent.kind !== "BID") add("PARENT_NOT_A_BID");
+    }
   } else if (i.parent !== "NONE_NAMED") add("PARENT_NOT_YOUR_LIVE_BID");
 
   const returned = i.rules.filter((r) => r.returnedByBidder);

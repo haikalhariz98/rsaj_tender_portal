@@ -1,13 +1,18 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { submitFaults } from "@/lib/bids/online/submission";
+import { PAYMENT_SIMULATOR_ENV } from "@/lib/integration/payment-deployment";
+import { saleFactsOf } from "@/lib/opening/repo";
 import { holdsBidStanding } from "@/lib/portal/bids/purchase";
 import { onlineSubmissionAllowed } from "@/lib/sealing/switch";
 
 import { saleStands, voidedAtOpening } from "./standing";
+
+// saleFactsOf lives beside the opening's loaders; the database is never reached here.
+vi.mock("@/lib/db", () => ({ db: {} }));
 
 /**
  * Ruling 17c and 20m (ADR 0036 D8; build plan step 5): one predicate for whether a sale stands for a bid, read by the purchase (`holdsBidStanding`), the opening
@@ -22,7 +27,7 @@ const door = (stands: boolean, invited: { invitedPath: boolean; onInviteeList: b
   submitFaults({
     channel: "ONLINE", online: onlineSubmissionAllowed("LIVE", { demoAllowed: false, liveAllowed: true }, "SUBMIT"), published: true, cancelled: false, keyLive: true,
     saleStands: stands, ...invited, stamp: new Date("2026-11-10T01:00:00Z"), closing: new Date("2026-11-10T04:00:00Z"), mainOpeningStartedAt: null,
-    liveMainInTime: false, kind: "BID", replaces: null, parent: "NONE_NAMED", alternativesPermitted: true,
+    liveMainStanding: false, kind: "BID", replaces: null, parent: "NONE_NAMED", alternativesPermitted: true,
     files: [{ mine: true, state: "DRAFT", packPartId: "p1" }], rules: [{ packPartId: "p1", label: "Form of Tender", mandatory: true, returnedByBidder: true, acceptedMediaTypes: ["application/pdf"], maxBytes: "1000", openingCheck: true }],
     submissionsBySupplier: 0,
   }).faults;
@@ -55,6 +60,23 @@ describe("a sale stands for a bid (17c)", () => {
     expect(purchase).toMatch(/return saleStands\(i\.sale, i\.simulatorAllowed\);/);
     expect(repo).toMatch(/voided: voidedAtOpening\(s, simulatorAllowedByDeployment\(\)\)/);
     for (const [name, text] of [["purchase.ts", purchase], ["repo.ts", repo]] as const) expect(text, name).not.toMatch(/paymentChannel\s*[!=]==\s*"SIMULATED"\s*&&\s*!/);
+  });
+});
+
+// Review N1: the opening's own reader, `saleFactsOf`, called as the opening calls it, with the deployment's simulator flag set and cleared: it reads a sale as
+// voided exactly when the one predicate says it does not stand.
+describe("the opening's saleFactsOf follows the deployment's simulator flag (17c, SEC-1)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  const row = (s: { voidedAt: Date | null; paymentChannel: "COUNTER" | "SIMULATED" }) => ({ partyId: "p1", ...s, restrictionCertSighted: null, restrictionCertValidUntil: null, purchase: null });
+
+  it.each([["true", true], ["1", true], ["", false], ["false", false]] as const)("with %j: every sale reads voided exactly when it does not stand", (flag, allowed) => {
+    vi.stubEnv(PAYMENT_SIMULATOR_ENV, flag);
+    for (const sale of SALES) {
+      if (!sale) continue;
+      expect(saleFactsOf(row(sale)).voided, JSON.stringify({ sale, flag })).toBe(!saleStands(sale, allowed));
+    }
+    expect(saleFactsOf(row({ voidedAt: null, paymentChannel: "SIMULATED" })).voided).toBe(!allowed);
+    expect(saleFactsOf(row({ voidedAt: null, paymentChannel: "COUNTER" })).voided).toBe(false);
   });
 });
 

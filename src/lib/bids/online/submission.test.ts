@@ -25,9 +25,9 @@ const base = {
   channel: "ONLINE" as const, online: onlineSubmissionAllowed("LIVE", { demoAllowed: false, liveAllowed: true }, "SUBMIT"), published: true, cancelled: false, keyLive: true,
   saleStands: true, invitedPath: false, onInviteeList: false,
   stamp: at("2026-11-04T03:00:00Z"), closing: CLOSING, mainOpeningStartedAt: null as Date | null,
-  liveMainInTime: false, kind: "BID" as "BID" | "ALTERNATIVE",
-  replaces: null as { status: "SUBMITTED" | "REPLACED" | "WITHDRAWN" | "OPENED"; mine: boolean } | null,
-  parent: "NONE_NAMED" as { status: "SUBMITTED" | "REPLACED" | "WITHDRAWN" | "OPENED"; mine: boolean } | null | "NONE_NAMED",
+  liveMainStanding: false, kind: "BID" as "BID" | "ALTERNATIVE",
+  replaces: null as { status: "SUBMITTED" | "REPLACED" | "WITHDRAWN" | "OPENED"; mine: boolean; kind: "BID" | "ALTERNATIVE" } | null,
+  parent: "NONE_NAMED" as { status: "SUBMITTED" | "REPLACED" | "WITHDRAWN" | "OPENED"; mine: boolean; kind: "BID" | "ALTERNATIVE" } | null | "NONE_NAMED",
   alternativesPermitted: true as boolean | null,
   files: [{ mine: true, state: "DRAFT" as const, packPartId: "form" }, { mine: true, state: "DRAFT" as const, packPartId: "summary" }] as { mine: boolean; state: "DRAFT" | "SUBMITTED" | "DISCARDED"; packPartId: string }[],
   rules: RULES,
@@ -81,20 +81,33 @@ describe("lateness, judged on the act's own stamp (FR-BID-002, 20b)", () => {
     expect(judge({ stamp: at("2026-11-04T03:00:00Z"), mainOpeningStartedAt: at("2026-11-04T04:30:00Z") }).faults).toEqual(["LATE_CLOSED"]);
   });
 
-  it("a supplier with a live in-time bid may not add another, in time or late (FR-BID-005); it replaces it instead", () => {
-    expect(judge({ liveMainInTime: true }).faults).toEqual(["LIVE_BID_HELD"]);
-    expect(judge({ liveMainInTime: true, stamp: at("2026-11-04T04:00:01Z") }).faults).toEqual(["LIVE_BID_HELD"]);
-    expect(judge({ liveMainInTime: true, replaces: { status: "SUBMITTED", mine: true } })).toMatchObject({ faults: [], warnings: [{ code: "REPLACE_REUPLOADS_ALL" }] });
+  it("a supplier with a standing bid may not add another, in time or late (FR-BID-005); it replaces it instead", () => {
+    expect(judge({ liveMainStanding: true }).faults).toEqual(["LIVE_BID_HELD"]);
+    expect(judge({ liveMainStanding: true, stamp: at("2026-11-04T04:00:01Z") }).faults).toEqual(["LIVE_BID_HELD"]);
+    expect(judge({ liveMainStanding: true, replaces: { status: "SUBMITTED", mine: true, kind: "BID" } })).toMatchObject({ faults: [], warnings: [{ code: "REPLACE_REUPLOADS_ALL" }] });
+  });
+
+  // Review S1: the standing bid counts whether it came in time or late, so a second late bid beside a late one is refused too. The door's caller reads any
+  // SUBMITTED bid of the supplier's (liveMainStanding), and a database trigger holds the same rule at the commit (security audit 7).
+  it("a late bid beside the supplier's standing late bid is refused (review S1)", () => {
+    expect(judge({ liveMainStanding: true, stamp: at("2026-11-04T05:30:00Z") })).toMatchObject({ faults: ["LIVE_BID_HELD"], late: true });
+    expect(judge({ liveMainStanding: false, stamp: at("2026-11-04T05:30:00Z") })).toMatchObject({ faults: [], late: true });
   });
 });
 
 describe("a replace (D7)", () => {
   it("is the supplier's own live bid, up to and including the closing second", () => {
-    expect(judge({ replaces: { status: "SUBMITTED", mine: true }, stamp: CLOSING }).faults).toEqual([]);
-    expect(judge({ replaces: { status: "SUBMITTED", mine: true }, stamp: at("2026-11-04T04:00:01Z") }).faults).toEqual(["REPLACE_AFTER_CLOSING"]);
-    expect(judge({ replaces: { status: "SUBMITTED", mine: false } }).faults).toEqual(["NOTHING_TO_REPLACE"]);
-    expect(judge({ replaces: { status: "WITHDRAWN", mine: true } }).faults).toEqual(["NOTHING_TO_REPLACE"]);
-    expect(judge({ replaces: { status: "REPLACED", mine: true } }).faults).toEqual(["NOTHING_TO_REPLACE"]);
+    expect(judge({ replaces: { status: "SUBMITTED", mine: true, kind: "BID" }, stamp: CLOSING }).faults).toEqual([]);
+    expect(judge({ replaces: { status: "SUBMITTED", mine: true, kind: "BID" }, stamp: at("2026-11-04T04:00:01Z") }).faults).toEqual(["REPLACE_AFTER_CLOSING"]);
+    expect(judge({ replaces: { status: "SUBMITTED", mine: false, kind: "BID" } }).faults).toEqual(["NOTHING_TO_REPLACE"]);
+    expect(judge({ replaces: { status: "WITHDRAWN", mine: true, kind: "BID" } }).faults).toEqual(["NOTHING_TO_REPLACE"]);
+    expect(judge({ replaces: { status: "REPLACED", mine: true, kind: "BID" } }).faults).toEqual(["NOTHING_TO_REPLACE"]);
+  });
+
+  it("is of the replaced submission's kind, in both directions, so a replace never makes a second bid (review M1)", () => {
+    expect(judge({ kind: "ALTERNATIVE", replaces: { status: "SUBMITTED", mine: true, kind: "BID" } }).faults).toEqual(["REPLACE_KIND_CHANGED"]);
+    expect(judge({ kind: "BID", replaces: { status: "SUBMITTED", mine: true, kind: "ALTERNATIVE" } }).faults).toEqual(["REPLACE_KIND_CHANGED"]);
+    expect(judge({ kind: "ALTERNATIVE", replaces: { status: "SUBMITTED", mine: true, kind: "ALTERNATIVE" } }).faults).toEqual([]);
   });
 });
 
@@ -107,16 +120,21 @@ describe("alternatives (20h)", () => {
   it("are refused, defensively, where alternatives are not stated", () => expect(judge({ kind: "ALTERNATIVE", alternativesPermitted: null }).faults).toEqual(["ALTERNATIVES_NOT_STATED"]));
 
   it("may name a parent only if it is the supplier's own live bid; one that is not is refused", () => {
-    expect(judge({ kind: "ALTERNATIVE", parent: { status: "SUBMITTED", mine: true } }).faults).toEqual([]);
-    expect(judge({ kind: "ALTERNATIVE", parent: { status: "SUBMITTED", mine: false } }).faults).toEqual(["PARENT_NOT_YOUR_LIVE_BID"]);
-    expect(judge({ kind: "ALTERNATIVE", parent: { status: "WITHDRAWN", mine: true } }).faults).toEqual(["PARENT_NOT_YOUR_LIVE_BID"]);
-    expect(judge({ kind: "ALTERNATIVE", parent: { status: "REPLACED", mine: true } }).faults).toEqual(["PARENT_NOT_YOUR_LIVE_BID"]);
+    expect(judge({ kind: "ALTERNATIVE", parent: { status: "SUBMITTED", mine: true, kind: "BID" } }).faults).toEqual([]);
+    expect(judge({ kind: "ALTERNATIVE", parent: { status: "SUBMITTED", mine: false, kind: "BID" } }).faults).toEqual(["PARENT_NOT_YOUR_LIVE_BID"]);
+    expect(judge({ kind: "ALTERNATIVE", parent: { status: "WITHDRAWN", mine: true, kind: "BID" } }).faults).toEqual(["PARENT_NOT_YOUR_LIVE_BID"]);
+    expect(judge({ kind: "ALTERNATIVE", parent: { status: "REPLACED", mine: true, kind: "BID" } }).faults).toEqual(["PARENT_NOT_YOUR_LIVE_BID"]);
     expect(judge({ kind: "ALTERNATIVE", parent: null }).faults).toEqual(["PARENT_NOT_YOUR_LIVE_BID"]);
   });
 
-  it("a main bid names no parent", () => expect(judge({ kind: "BID", parent: { status: "SUBMITTED", mine: true } }).faults).toEqual(["PARENT_NOT_YOUR_LIVE_BID"]));
+  it("a main bid names no parent", () => expect(judge({ kind: "BID", parent: { status: "SUBMITTED", mine: true, kind: "BID" } }).faults).toEqual(["PARENT_NOT_YOUR_LIVE_BID"]));
 
-  it("an alternative beside a live in-time bid is taken: FR-BID-005 limits bids", () => expect(judge({ kind: "ALTERNATIVE", liveMainInTime: true }).faults).toEqual([]));
+  it("an alternative beside a standing bid is taken: FR-BID-005 limits bids", () => expect(judge({ kind: "ALTERNATIVE", liveMainStanding: true }).faults).toEqual([]));
+
+  it("names a bid as its parent, never another alternative (review S3, as paper's PARENT_NOT_A_BID)", () => {
+    expect(judge({ kind: "ALTERNATIVE", parent: { status: "SUBMITTED", mine: true, kind: "ALTERNATIVE" } }).faults).toEqual(["PARENT_NOT_A_BID"]);
+    expect(judge({ kind: "ALTERNATIVE", parent: { status: "SUBMITTED", mine: true, kind: "BID" } }).faults).toEqual([]);
+  });
 });
 
 describe("the door's other refusals, in words", () => {
@@ -140,10 +158,13 @@ describe("the door's other refusals, in words", () => {
     expect(judge(over as Partial<typeof base>).faults).toEqual(faults);
   });
 
-  it("each refusal has words, never a code", () => {
+  // Ruling 20ab: the words carry English and Malay, so each language is checked.
+  it("each refusal has words in both languages, never a code", () => {
     for (const [k, w] of Object.entries(SUBMIT_FAULT_WORDS)) {
-      expect(w.length, k).toBeGreaterThan(15);
-      expect(w, k).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
+      for (const text of [w.en, w.ms]) {
+        expect(text.length, k).toBeGreaterThan(15);
+        expect(text, k).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
+      }
     }
   });
 });
@@ -163,7 +184,8 @@ describe("the cap per supplier per exercise (20e)", () => {
   it("refuses a submission past it, and says the last submission stands", () => {
     expect(judge({ submissionsBySupplier: MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE - 1 }).faults).toEqual([]);
     expect(judge({ submissionsBySupplier: MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE }).faults).toEqual(["TOO_MANY_SUBMISSIONS"]);
-    expect(SUBMIT_FAULT_WORDS.TOO_MANY_SUBMISSIONS).toMatch(/last submission stands/);
+    expect(SUBMIT_FAULT_WORDS.TOO_MANY_SUBMISSIONS.en).toMatch(/last submission stands/);
+    expect(SUBMIT_FAULT_WORDS.TOO_MANY_SUBMISSIONS.ms).toMatch(/penyerahan terakhir anda kekal/);
   });
 });
 

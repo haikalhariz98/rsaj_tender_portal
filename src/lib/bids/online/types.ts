@@ -35,10 +35,12 @@ export type SubmitFault =
   | "CHANNEL_NOT_ONLINE" | "ONLINE_NOT_SET" | "ONLINE_NOT_ALLOWED" | "NOT_PUBLISHED" | "CANCELLED" | "KEY_NOT_LIVE"
   | "NO_LIVE_SALE"               // saleStands (17c, 20m)
   | "NOT_ON_INVITEE_LIST"        // matches the purchase's check (20m)
-  | "LIVE_BID_HELD"              // a second main bid while one stands, or a late bid beside a live in-time one (FR-BID-005)
+  | "LIVE_BID_HELD"              // a second main bid while one of the supplier's stands, in time or late (FR-BID-005, review S1)
   | "REPLACE_AFTER_CLOSING" | "NOTHING_TO_REPLACE"
+  | "REPLACE_KIND_CHANGED"       // a bid replaces a bid, an alternative an alternative (review M1)
   | "ALTERNATIVES_NOT_STATED"    // defensive only: publication refuses while unset (20h)
   | "PARENT_NOT_YOUR_LIVE_BID"   // a named parent that is not the supplier's own live bid (20h)
+  | "PARENT_NOT_A_BID"           // a named parent that is an alternative, not a bid (review S3; paper's PARENT_NOT_A_BID)
   | "LATE_CLOSED"                // late submission ends when the main opening is started (20b)
   | "PRICE_INVALID" | "PERIOD_INVALID" | "UNIT_NOT_SET"
   | "FILE_NOT_YOURS" | "FILE_NOT_DRAFT" | "PART_UNKNOWN" | "NO_FILES"

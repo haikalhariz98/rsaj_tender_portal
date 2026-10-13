@@ -21,12 +21,21 @@ describe("Received before and after the opening's start", () => {
   it("before the start: the standing bids, in stamp order, each with its ordinal, stamp and late flag, and no sequence", () => {
     expect(receivedView(ROWS, false)).toEqual({
       count: 3,
+      inTime: 2,
+      late: 1,
       standing: [
         { ordinal: 1, sequence: null, receivedAt: t("01:00:00"), late: false },
         { ordinal: 2, sequence: null, receivedAt: t("02:30:00"), late: false },
         { ordinal: 3, sequence: null, receivedAt: t("04:10:00"), late: true },
       ],
     });
+  });
+
+  it("counts the standing bids, and of them those in time and those late, so no screen counts (review S2)", () => {
+    expect(receivedView(ROWS, true)).toMatchObject({ count: 3, inTime: 2, late: 1 });
+    expect(receivedView([], false)).toEqual({ count: 0, inTime: 0, late: 0, standing: [] });
+    const v = receivedView(ROWS.map((r) => ({ ...r, late: true })), false);
+    expect([v.count, v.inTime, v.late]).toEqual([3, 0, 3]);
   });
 
   it("from the start: the sequence appears", () => {
@@ -45,11 +54,15 @@ describe("Received before and after the opening's start", () => {
   });
 
   it("the words carry 20u's: the order of the bids now standing, not the receipt number, which can change and is shown once the opening starts", () => {
-    expect(RECEIVED_WORDS.ordinalNote).toMatch(/order of the bids now standing/);
-    expect(RECEIVED_WORDS.ordinalNote).toMatch(/not the receipt number/);
-    expect(RECEIVED_WORDS.ordinalNote).toMatch(/can change before the closing/);
-    expect(RECEIVED_WORDS.ordinalNote).toMatch(/receipt number is shown once the opening starts/);
-    expect(RECEIVED_WORDS.sequenceLabel).toBe("Receipt number");
-    expect(RECEIVED_WORDS.ordinalLabel.length).toBeGreaterThan(2);
+    // Ruling 20ab: the words are `Words`, English and Malay; the Malay says the same things.
+    expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/order of the bids now standing/);
+    expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/not the receipt number/);
+    expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/can change before the closing/);
+    expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/receipt number is shown once the opening starts/);
+    expect(RECEIVED_WORDS.ordinalNote.ms).toMatch(/bukan nombor resit/);
+    expect(RECEIVED_WORDS.ordinalNote.ms).toMatch(/boleh berubah sebelum tarikh tutup/);
+    expect(RECEIVED_WORDS.sequenceLabel).toEqual({ en: "Receipt number", ms: "Nombor resit" });
+    expect(RECEIVED_WORDS.ordinalLabel.en.length).toBeGreaterThan(2);
+    expect(RECEIVED_WORDS.ordinalLabel.ms.length).toBeGreaterThan(2);
   });
 });
