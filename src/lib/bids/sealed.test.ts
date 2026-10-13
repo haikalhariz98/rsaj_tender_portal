@@ -141,3 +141,73 @@ describe("an envelope is never deleted, rejected or set aside (FR-BID-003)", () 
     for (const s of screens) expect(s.text, s.path).not.toMatch(/>\s*(Delete|Reject)[^<]*</);
   });
 });
+
+/**
+ * SR-13 (ADR 0036 D12, ruling 20; wave 3b step 2): the online sealed-bid tables hold ciphertext and named key material only. The paper scans above are unchanged; these
+ * cover the tables ADR 0036 adds for exercises pinned ONLINE.
+ * - a Bytes column is either SEALED (ciphertext, or a key sealed to another key) or KEY_MATERIAL (public, or no secret on its own), each named here with its reason;
+ * - there is no Decimal: no figure is stored plain;
+ * - no column is named like a price, an amount, a period, a filename, a media type, a plain value, a figure or a total;
+ * - the plain identity columns are exactly the D9 list (20a: a recorded gap against FR-BID-001's identity clause, so the list cannot grow unnoticed).
+ */
+const SEALED_BID_TABLES = ["OfficerExerciseKey", "ExerciseSealingKey", "PublishedKeyChange", "ExerciseKeyShare", "ShareRelease", "OnlineBidFile", "OnlineBid", "OnlineBidPart", "OfficerDekGrant", "SealedEstimateLodgement", "SealedAccessEvent"];
+
+const SEALED_COLUMNS: Readonly<Record<string, string>> = {
+  "OfficerExerciseKey.wrappedPrivateKey": "the officer's private key under AES-256-GCM, its key derived from the officer's passphrase (and the pepper under LIVE)",
+  "ExerciseKeyShare.sealedShare": "one officer's share of the exercise key, HPKE-sealed to that officer's key",
+  "ShareRelease.sealedShares": "the shares an officer forwards, HPKE-sealed to the receiving officer's key",
+  "OnlineBidFile.sealedDek": "the file's data key, HPKE-sealed to the exercise key",
+  "OnlineBidFile.sealedMeta": "the file's name, media type, plain hash and size, under its data key",
+  "OnlineBid.sealedManifest": "the submission's manifest, under its data key",
+  "OnlineBid.manifestDek": "the manifest's data key, HPKE-sealed to the exercise key",
+  "OnlineBid.sealedDeclaration": "the declared price and period, under its data key",
+  "OnlineBid.declarationDek": "the declaration's data key, HPKE-sealed to the exercise key",
+  "OfficerDekGrant.sealedDek": "a data key re-sealed to one named officer at the unseal",
+  "SealedEstimateLodgement.sealedEstimate": "the company estimate's figure, under its data key",
+  "SealedEstimateLodgement.estimateDek": "the estimate's data key, HPKE-sealed to the exercise key",
+};
+const KEY_MATERIAL_COLUMNS: Readonly<Record<string, string>> = {
+  "OfficerExerciseKey.publicKey": "a public key: it seals, and opens nothing",
+  "ExerciseSealingKey.publicKey": "a public key: it seals, and opens nothing",
+  "OfficerExerciseKey.kdfSalt": "the scrypt salt: public by design, useless without the passphrase",
+  "OnlineBidFile.bodyIv": "the body's GCM nonce: public by design, useless without the data key",
+  "OnlineBidFile.releasedDek": "the data key in plain, written only after the finalise has made the bid's figures public, and shredded once the file is moved (M5)",
+};
+/// ADR 0036 D9 (20a): the plain identity links on the sealed tables. AuditEntry and ActAttribution carry the account too, and are pinned elsewhere.
+const IDENTITY_COLUMNS = ["OnlineBid.submittedBySupplierAccountId", "OnlineBid.supplierId", "OnlineBidFile.supplierId", "OnlineBidFile.uploadedBySupplierAccountId", "SealedAccessEvent.supplierAccountId"];
+
+/// Each scalar column of a model: its name and its type, relations and block attributes left out.
+const columnsOf = (model: string) =>
+  modelBody(model)
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^\w+\s+\w/.test(l) && !l.startsWith("//") && !l.startsWith("@@"))
+    .map((l) => {
+      const [name, type] = l.split(/\s+/);
+      return { name, type: type.replace(/[?[\]]/g, ""), relation: /@relation\(/.test(l) || /^[A-Z]/.test(type) && !["String", "Int", "BigInt", "Boolean", "DateTime", "Bytes", "Decimal", "Json", "Float"].includes(type.replace(/[?[\]]/g, "")) };
+    });
+
+describe("the online sealed-bid tables hold ciphertext and named key material only (SR-13, ADR 0036 D12, ruling 20)", () => {
+  it("every table the ADR adds is scanned", () => {
+    for (const m of SEALED_BID_TABLES) expect(() => modelBody(m), m).not.toThrow();
+  });
+
+  it("a Bytes column is exactly a SEALED or a KEY_MATERIAL column, each named with its reason", () => {
+    const bytes = SEALED_BID_TABLES.flatMap((m) => columnsOf(m).filter((c) => c.type === "Bytes").map((c) => `${m}.${c.name}`)).sort();
+    expect(bytes).toEqual([...Object.keys(SEALED_COLUMNS), ...Object.keys(KEY_MATERIAL_COLUMNS)].sort());
+    for (const [k, why] of [...Object.entries(SEALED_COLUMNS), ...Object.entries(KEY_MATERIAL_COLUMNS)]) expect(why.length, k).toBeGreaterThan(20);
+  });
+
+  it("no column is a Decimal, a Float or named like a price, an amount, a period, a filename, a media type, a plain value, a figure or a total", () => {
+    for (const m of SEALED_BID_TABLES) {
+      const cols = columnsOf(m);
+      expect(cols.filter((c) => c.type === "Decimal" || c.type === "Float").map((c) => c.name), m).toEqual([]);
+      expect(cols.filter((c) => !c.relation).map((c) => c.name).filter((n) => /price|amount|period|filename|name|media|plain|figure|total/i.test(n)), m).toEqual([]);
+    }
+  });
+
+  it("the plain identity columns are exactly ADR 0036 D9's list (20a)", () => {
+    const identity = SEALED_BID_TABLES.flatMap((m) => columnsOf(m).filter((c) => !c.relation && /supplier/i.test(c.name)).map((c) => `${m}.${c.name}`)).sort();
+    expect(identity).toEqual([...IDENTITY_COLUMNS].sort());
+  });
+});

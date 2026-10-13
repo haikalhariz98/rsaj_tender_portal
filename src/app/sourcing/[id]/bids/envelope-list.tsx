@@ -79,7 +79,7 @@ export function EnvelopeList({ exerciseId, rows, late }: { exerciseId: string; r
         if (!r.correct?.allowed && !r.returnable && !r.table?.allowed) return null;
         return (
           <span className="flex flex-wrap items-center justify-end gap-1">
-            {r.correct?.allowed && <CorrectDrawer exerciseId={exerciseId} envelope={{ id: r.id, sequence: r.sequence, markings: r.markings, channel: r.channelCode, receivedById: r.receivedById }} />}
+            {r.correct?.allowed && r.receivedById && <CorrectDrawer exerciseId={exerciseId} envelope={{ id: r.id, sequence: r.sequence, markings: r.markings, channel: r.channelCode, receivedById: r.receivedById }} />}
             {r.returnable && <ReturnedDrawer exerciseId={exerciseId} envelopeId={r.id} sequence={r.sequence} />}
             {r.table?.allowed && <TableLateDrawer exerciseId={exerciseId} envelopeId={r.id} sequence={r.sequence} committee={late.committee} sittings={late.sittings} holders={late.holders} allowed={r.table} />}
           </span>

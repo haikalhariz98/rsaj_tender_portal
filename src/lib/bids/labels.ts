@@ -27,6 +27,8 @@ export const CHANNEL_LABEL: Readonly<Record<EnvelopeChannel, string>> = {
   POST: "By post",
   COURIER: "By courier",
   BOX: "In the tender box",
+  // Wave 3b (SR-13).
+  ONLINE: "Through the supplier portal",
 };
 
 /// What the trail says about a receipt's recording (S-1b): receivedAt is always the server's
@@ -36,12 +38,19 @@ export const SOURCE_LABEL: Readonly<Record<ReceiptSource, string>> = {
   ENTERED: "Recorded after the event",
   // 6.7 (C-3 b): a bid found in the box at opening is timed by the box's lock, never a receipt time.
   BOX_AT_OPENING: "In the box when it was locked",
+  // Wave 3b (SR-13, H2): the database's clock when the supplier submitted, to the second.
+  PORTAL: "Stamped by the server when submitted",
 };
+
+/// Wave 3b (SR-13): what an ONLINE envelope shows where a paper one names its receiving officer. It names no supplier.
+export const ONLINE_RECEIVER_WORDS = "No receiving officer: submitted through the supplier portal";
 
 export const ENVELOPE_STATUS_LABEL: Readonly<Record<EnvelopeStatus, string>> = {
   RECEIVED: "Received",
   WITHDRAWN: "Withdrawn",
   OPENED: "Opened",
+  // Wave 3b (SR-13, ADR 0036 D7): never opened.
+  SUPERSEDED: "Replaced by a later submission",
 };
 
 export const ADMISSION_LABEL: Readonly<Record<AdmissionState, string>> = {
@@ -198,6 +207,8 @@ export function bidFindingText(f: Finding): string {
       return "Nothing was changed.";
     case "WITHDRAWN":
       return "The envelope is withdrawn and stands as it was recorded.";
+    case "ONLINE_NOT_CORRECTED":
+      return "A bid submitted through the supplier portal is recorded by the system as it arrived, and is never corrected.";
     // ---- box
     case "BEFORE_CLOSING":
       return "The box is locked at or after the closing, not before.";

@@ -25,7 +25,7 @@ import { checklistFor, completenessConsequence } from "./completeness";
 import { correctionFaults } from "./correction";
 import { bidCount, competition } from "./count";
 import { applyFaults, extensionFaults, RECOMMENDED_ATTESTED } from "./extension";
-import { ADMISSION_LABEL, ALTERNATIVE_LABEL, bidFindingText, receiptTime, CHANNEL_LABEL, COMPETITION_LABEL, COMPETITION_TEXT, CONSEQUENCE_LABEL, ENVELOPE_KIND_LABEL, officerStatement, RECORDED_LATER_LABEL, RECORDING_STAMP_LABEL, RETURN_LABEL, SOURCE_LABEL } from "./labels";
+import { ADMISSION_LABEL, ONLINE_RECEIVER_WORDS, ALTERNATIVE_LABEL, bidFindingText, receiptTime, CHANNEL_LABEL, COMPETITION_LABEL, COMPETITION_TEXT, CONSEQUENCE_LABEL, ENVELOPE_KIND_LABEL, officerStatement, RECORDED_LATER_LABEL, RECORDING_STAMP_LABEL, RETURN_LABEL, SOURCE_LABEL } from "./labels";
 import { admission, lateAdmissionFault, lateMatterFault, needsAdmission } from "./late";
 import { LATENESS_READING } from "./lateness";
 import { exerciseFaults } from "./receipt";
@@ -140,7 +140,8 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
       opened: e.status === "OPENED",
       returned: back === "NOT_WITHDRAWN" ? null : RETURN_LABEL[back] + (e.returnedUnopenedOn ? ` on ${formatDate(storedDay(e.returnedUnopenedOn))}` : ""),
       markings: e.markings,
-      receivedBy: attributed.read({ entity: "BidEnvelope", id: e.id, slot: "receivedBy" }, e.receivedBy.name).en,
+      // Wave 3b (SR-13): an ONLINE envelope has no receiving officer (CHECK), so none is named.
+      receivedBy: e.receivedBy ? attributed.read({ entity: "BidEnvelope", id: e.id, slot: "receivedBy" }, e.receivedBy.name).en : ONLINE_RECEIVER_WORDS,
       receivedById: e.receivedByPersonId,
       corrected: e.correctedAt != null,
       admission: a ? { state: a.state, label: ADMISSION_LABEL[a.state], sitting: a.matter?.sittingReference ?? null, matterId: a.matter?.id ?? null } : null,

@@ -17,8 +17,9 @@ export const APP_ROLE_DEFAULT = "perolehan_app";
  * first time this runs after it exists. SignInEventDetail is here per ruling O-1: the operator's purge runs as the owner, never the app.
  * Phase 4d adds a supplier's acknowledgement of an addendum, the inspection log of the tender documents and the notice of non-award (migration `20261016090000_my_bids`).
  * Wave 3a (SR-10) adds every attempt at paying a purchase and every download of a released file (migration `20261102100000_sr10_online_purchase_payment_simulator`).
+ * Wave 3b (SR-13, ADR 0036 D12) adds the sealed access log and the recorded changes of a published exercise key (migration `20261103110000_sr13_sealed_tables_triggers`).
  */
-export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload"] as const;
+export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange"] as const;
 
 /**
  * Stored document bytes (OD-9). A trigger refuses UPDATE and TRUNCATE for every login (migration `20261007120000_blob_content_kept`);
@@ -26,6 +27,13 @@ export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDeta
  * blob is held by DocumentVersion's foreign key (RESTRICT).
  */
 export const CONTENT_TABLES = ["BlobContent"] as const;
+
+/**
+ * The rest of the online sealed-bid tables (wave 3b, ADR 0036 D12). Their rows change only as their triggers allow (a shred sets a column to NULL, a status moves
+ * forward, a lockout counter moves), and are never removed: a trigger refuses DELETE and TRUNCATE for every login (migration
+ * `20261103110000_sr13_sealed_tables_triggers`), and the grants are the second wall. UPDATE stays, for the moves the triggers allow.
+ */
+export const SEALED_TABLES = ["BidSealingPolicy", "OfficerExerciseKey", "ExerciseSealingKey", "ExerciseKeyShare", "ShareRelease", "OnlineBidFile", "OnlineBid", "OnlineBidPart", "OfficerDekGrant", "SealedEstimateLodgement"] as const;
 
 /// Prisma's own bookkeeping. The app has no business reading or writing it.
 export const MIGRATIONS_TABLE = "_prisma_migrations";
@@ -39,6 +47,7 @@ export const WITHHELD: readonly { table: string; revoke: string; held: string }[
   { table: MIGRATIONS_TABLE, revoke: "ALL", held: "SELECT, INSERT, UPDATE, DELETE, TRUNCATE" },
   ...APPEND_ONLY_TABLES.map((table) => ({ table, revoke: "UPDATE, DELETE, TRUNCATE", held: "UPDATE, DELETE, TRUNCATE" })),
   ...CONTENT_TABLES.map((table) => ({ table, revoke: "UPDATE, TRUNCATE", held: "UPDATE, TRUNCATE" })),
+  ...SEALED_TABLES.map((table) => ({ table, revoke: "DELETE, TRUNCATE", held: "DELETE, TRUNCATE" })),
 ];
 
 const IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/;
@@ -84,7 +93,7 @@ export function grantStatements(input: { role: string; owner: string; schema: st
 }
 
 /// The protected tables this run could not revoke on because they do not exist yet, for the operator's report.
-export const notYetPresent = (existing: ReadonlySet<string>) => [...APPEND_ONLY_TABLES, ...CONTENT_TABLES].filter((t) => !existing.has(t));
+export const notYetPresent = (existing: ReadonlySet<string>) => [...APPEND_ONLY_TABLES, ...CONTENT_TABLES, ...SEALED_TABLES].filter((t) => !existing.has(t));
 
 // ------------------------------------------------------------------ who the running app is
 
@@ -126,5 +135,5 @@ export function runtimeRoleVerdict(facts: RuntimeRoleFacts, production: boolean)
 export const RUNTIME_ROLE_WORDS: Record<RuntimeRoleReason, string> = {
   SUPERUSER: "the database superuser, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
   OWNER: "the owner of the tables, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
-  TRAIL_WRITABLE: "a login that can still change or remove records the app should only add to (the audit trail, the sign-in log, document access history or stored document content), or reach the migration history",
+  TRAIL_WRITABLE: "a login that can still change or remove records the app should only add to (the audit trail, the sign-in log, document access history or stored document content), remove sealed bid records, or reach the migration history",
 };

@@ -38,7 +38,8 @@ export async function blindScopesFor(organisationId: string, personId: string | 
     for (const b of opened) {
       const s = slot(b.listingNo);
       for (const n of [b.bidderNameAsRead, b.party.name, b.party.registrationNo]) if (n) s.names.add(n);
-      for (const m of money(senFromDecimal(b.priceAsRead.toString())) ?? []) s.figures.add(m);
+      // Wave 3b (ADR 0036 D10): an online bid has no figure until the finalise, so there is none to look for.
+      for (const m of (b.priceAsRead == null ? null : money(senFromDecimal(b.priceAsRead.toString()))) ?? []) s.figures.add(m);
     }
     for (const b of f.bidders) {
       const s = slot(b.listingNo);

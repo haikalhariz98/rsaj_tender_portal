@@ -31,15 +31,18 @@ export const ENVELOPE_KINDS: readonly EnvelopeKind[] = ["BID", "ALTERNATIVE", "C
 /// The kinds an officer records at receipt; the estimate is lodged by 6.2's act (`recordEstimateLodgement`).
 export const RECEIPT_KINDS: readonly EnvelopeKind[] = ["BID", "ALTERNATIVE"];
 
-export type EnvelopeChannel = "COUNTER" | "POST" | "COURIER" | "BOX";
-export const ENVELOPE_CHANNELS: readonly EnvelopeChannel[] = ["COUNTER", "POST", "COURIER", "BOX"];
+/// Wave 3b (SR-13, ADR 0036 D12) adds ONLINE: submitted through the supplier portal, sealed. No officer receives it, and its stamp is the database's.
+export type EnvelopeChannel = "COUNTER" | "POST" | "COURIER" | "BOX" | "ONLINE";
+export const ENVELOPE_CHANNELS: readonly EnvelopeChannel[] = ["COUNTER", "POST", "COURIER", "BOX", "ONLINE"];
 /// The channels an officer records a receipt through. A bid in the box is registered at opening (6.7, OD-4).
 export const OFFICER_CHANNELS: readonly EnvelopeChannel[] = ["COUNTER", "POST", "COURIER"];
 
 /// 6.7 adds BOX_AT_OPENING: a bid found in the box at opening, timed by the box's LOCKED event (C-3).
-export type ReceiptSource = "SERVER" | "ENTERED" | "BOX_AT_OPENING";
+/// Wave 3b (SR-13, ADR 0036 D5, H2) adds PORTAL: an online submission, stamped by the database clock when the supplier submitted.
+export type ReceiptSource = "SERVER" | "ENTERED" | "BOX_AT_OPENING" | "PORTAL";
 /// 6.7 adds OPENED: opened at an opening; its offer is on 6.7's OpenedBid, never on the envelope.
-export type EnvelopeStatus = "RECEIVED" | "WITHDRAWN" | "OPENED";
+/// Wave 3b (SR-13, ADR 0036 D7) adds SUPERSEDED: an online submission replaced by the same supplier's later one before the closing. ONLINE only (CHECK).
+export type EnvelopeStatus = "RECEIVED" | "WITHDRAWN" | "OPENED" | "SUPERSEDED";
 export type BoxEventKind = "LOCKED" | "UNLOCKED_FOR_OPENING";
 
 /// An envelope as the rules read it.

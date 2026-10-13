@@ -32,6 +32,7 @@ import { parseSen, senFromDecimal, senToDecimalString } from "../src/lib/money";
 import { calendarOf } from "./demo-window";
 import { DEMO_ACTOR } from "./demo-actor";
 import { demoOrgId, loaderGate } from "./demo-org";
+import { priceRead } from "../src/lib/opening/price";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -317,7 +318,7 @@ export class EvaluationActs {
     }
     let excluded = 0;
     for (const b of c.carried) {
-      const reason = exclusionReason(ceilingExclusion(parseSen(b.priceAsRead.toString()), ceiling));
+      const reason = exclusionReason(ceilingExclusion(parseSen(priceRead(b).toString()), ceiling));
       if (reason) excluded++;
       const bid = `${id}_bd${b.listingNo}`;
       await this.db.evaluationBidder.create({ data: { id: bid, organisationId: this.org, evaluationId: id, openedBidId: b.id, excludedReason: reason, ceilingSnapshot: { regime: ceiling.regime, boundary: ceiling.boundary != null ? senToDecimalString(ceiling.boundary) : null, operator: ceiling.operator } } });

@@ -57,6 +57,7 @@ import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct, type PreparedAct } from "@/app/_auth/act";
 import { loadRecorders, recorderKey } from "@/lib/auth/attribution-recorders";
 import type { StaffActor } from "@/lib/auth/types";
+import { priceRead } from "@/lib/opening/price";
 
 /**
  * Writes for 6.7's opening (plan §4, as ruled C-1..C-13). Each runs in one transaction that locks the
@@ -802,7 +803,7 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
     const period = periodOf(offer.period);
-    const was = { bidder: bid.bidderNameAsRead, registrationClass: bid.registrationClassAsRead, registrationStatus: bid.registrationStatusAsRead, price: parseSen(bid.priceAsRead.toString()), period: bid.completionPeriod != null && bid.completionUnit ? { value: bid.completionPeriod, unit: bid.completionUnit } : null, validityDays: bid.validityDaysStated };
+    const was = { bidder: bid.bidderNameAsRead, registrationClass: bid.registrationClassAsRead, registrationStatus: bid.registrationStatusAsRead, price: parseSen(priceRead(bid).toString()), period: bid.completionPeriod != null && bid.completionUnit ? { value: bid.completionPeriod, unit: bid.completionUnit } : null, validityDays: bid.validityDaysStated };
     const next = { bidder: bidderName.trim(), registrationClass, registrationStatus, price: offer.price ?? (0n as Sen), period, validityDays: offer.validityDays };
     const changed = JSON.stringify(asReadFields(was)) !== JSON.stringify(asReadFields(next));
     const fs = correctionFaults({ state: stateOf(o, l.ex.status), sameOpening: !o.finalisedAt, reason, changed, price: offer.price, period: offer.period });
@@ -948,14 +949,14 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
       }
     }
     // The schedule: every offer read up to this opening, in opening order (OD-5 versions).
-    const rows: ScheduleRowInput[] = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: parseSen(b.priceAsRead.toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
+    const rows: ScheduleRowInput[] = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: parseSen(priceRead(b).toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
     const mainSchedule = o.kind === "SUPPLEMENTARY" ? c.main?.scheduleSnapshot : null;
     const priorBenchmark = mainSchedule && typeof mainSchedule === "object" && !Array.isArray(mainSchedule) ? ((mainSchedule as Record<string, unknown>).benchmark as { sealed: false; label: string | null; companyEstimate: string } | { notRequired: true } | undefined) : undefined;
     const benchmark = disclosed?.benchmark ? { sealed: false as const, label: disclosed.benchmark.label, value: disclosed.benchmark.value } : priorBenchmark && "companyEstimate" in priorBenchmark ? { sealed: false as const, label: priorBenchmark.label, value: parseSen(priorBenchmark.companyEstimate) } : { notRequired: true as const };
     const gap = c.main?.lockGapSeconds != null && o.kind === "MAIN" && c.main.boxLockedAt && l.ex.closingAt ? lockGap(l.ex.closingAt, c.main.boxLockedAt) : null;
     const { schedule } = jadualTawaran({ version: o.sequenceNo, title: l.ex.title, reference: l.ex.reference, startDay: l.ex.tenderingStartOn ? storedDay(l.ex.tenderingStartOn) : null, closing: l.ex.closingAt, invited: { reading: snap.invited.reading, ...invitedCounts(c) }, lateCount: lateCount(c.envelopes), pages: o.schedulePages, rows, benchmark, lockGap: gap });
     const verdicts = new Map(c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => [b.id, b.verdict] as const)));
-    const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(b.priceAsRead.toString()), verdict: verdicts.get(b.id) ?? null }))), labels: summaryLabelsOf(snap) });
+    const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(priceRead(b).toString()), verdict: verdicts.get(b.id) ?? null }))), labels: summaryLabelsOf(snap) });
     // After the disclosure's writes: thrown, so they roll back (R-1, R-7).
     if (!("summary" in summary)) throw new Refusal(refuse([summary.fault]));
     const lodged = disclosed?.lodged ?? null;

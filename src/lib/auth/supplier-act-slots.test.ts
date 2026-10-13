@@ -51,6 +51,9 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "PurchaseDownload.account": "Who downloaded a released file or text (SR-10): append-only for every login, one row per download, none deduplicated.",
   "TenderInspectionEvent.viewedBy": "Who opened the tender documents (Phase 4d): the inspection log itself, append-only for every login, written before the content is shown.",
   "SiteDiaryEntry.disputedBy": "Who recorded a disagreement on a diary entry from the portal (Phase 4e): the column is the record, audited with the account. A disagreement is words, not a signature; the entry is then the S.O.'s.",
+  // Wave 3b (SR-13, ADR 0036 D5, D9, ruling 20w).
+  "OnlineBidFile.uploadedBy": "Who uploaded a draft bid part (SR-13): the column is the record, audited with the account and logged in the sealed access log. An upload signs nothing: the submission that takes the part is the signed act (OnlineBid.submittedBy).",
+  "SealedAccessEvent.supplierAccount": "The sealed access log itself (SR-13, ruling 20w): it records a supplier's attempt at sealed content, granted or refused, and is append-only for every login.",
 };
 
 describe("the schema scan finds what it should", () => {
@@ -93,7 +96,8 @@ describe("every SupplierAccount relation is a supplier act slot or is accounted 
     // `CreditorProfile.enteredBy` was listed as not an act while a profile was only ever filled in; a version sent after registration is signed by the account that entered it.
     // Changed for Phase 4e: the contractor's three signatures from the portal, each with the password: a statutory declaration (the one submission kind the store attributes on `ContractorSubmission.submittedBy`),
     // the agent's attestation of a diary entry (FR-SUP-007) and the contractor's block on a certificate (FR-VAR-022).
-    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy", "ContractorSubmission.submittedBy", "SiteDiaryEntry.agentAttestedBy", "CertificateSignature.signedBySupplierAccount"]);
+    // Changed for wave 3b (ADR 0036 D5, threat S11, build plan step 10): an online submission is a signed act, with the password asked again.
+    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy", "ContractorSubmission.submittedBy", "SiteDiaryEntry.agentAttestedBy", "CertificateSignature.signedBySupplierAccount", "OnlineBid.submittedBy"]);
     expect(slotOf("RegistrationDeclaration", "signedBy")!.signatureClass).toBe(false);
   });
 

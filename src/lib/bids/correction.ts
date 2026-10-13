@@ -15,7 +15,8 @@ import { OFFICER_CHANNELS, type EnvelopeChannel, type EnvelopeFacts, type Exerci
 export const CORRECTABLE_FIELDS = ["markings", "channel", "receivedByPersonId"] as const;
 export const IMMUTABLE_FIELDS = ["receivedAt", "sequence", "late", "kind", "statedReceivedAt", "closingAtJudged", "recordedAfterClosing", "partyId", "status"] as const;
 
-export type CorrectionFault = ReceiptFault | "CORRECTION_CLOSED" | "REASON_REQUIRED" | "IMMUTABLE_FIELD" | "NOTHING_CHANGED" | "WITHDRAWN" | "NOT_A_BID";
+/// Wave 3b (SR-13, ADR 0036 D12): ONLINE_NOT_CORRECTED, an envelope submitted through the portal is the database's record (its trigger refuses every change but its status).
+export type CorrectionFault = ReceiptFault | "CORRECTION_CLOSED" | "REASON_REQUIRED" | "IMMUTABLE_FIELD" | "NOTHING_CHANGED" | "WITHDRAWN" | "NOT_A_BID" | "ONLINE_NOT_CORRECTED";
 
 export interface CorrectionChange {
   markings?: string;
@@ -28,7 +29,8 @@ export interface CorrectionChange {
 export function correctionFaults(i: {
   exercise: ExerciseForBids;
   now: Date;
-  envelope: Pick<EnvelopeFacts, "kind" | "status" | "channel"> & { markings: string; receivedByPersonId: string };
+  /// `receivedByPersonId` is null only on an ONLINE envelope, which no officer receives (CHECK).
+  envelope: Pick<EnvelopeFacts, "kind" | "status" | "channel"> & { markings: string; receivedByPersonId: string | null };
   change: CorrectionChange;
   reason: string;
   /// The officer named, where the change names one, is an active Person.
@@ -39,6 +41,7 @@ export function correctionFaults(i: {
   const closing = i.exercise.closing;
   if (closing && isLate(i.now, closing)) f("CORRECTION_CLOSED");
   if (i.envelope.kind === "COMPANY_ESTIMATE") f("NOT_A_BID");
+  if (i.envelope.channel === "ONLINE") f("ONLINE_NOT_CORRECTED");
   if (i.envelope.status === "WITHDRAWN") f("WITHDRAWN");
   for (const field of Object.keys(i.change)) {
     if (!(CORRECTABLE_FIELDS as readonly string[]).includes(field)) f("IMMUTABLE_FIELD", { field });

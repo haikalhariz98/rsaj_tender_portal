@@ -34,8 +34,9 @@ const row = (over: Partial<CapturedAudit> = {}): CapturedAudit => ({
 });
 
 describe("the kinds of an editor's save", () => {
-  it("are eight, each with words in both languages, and none is one of the five kinds with a rule of their own", () => {
-    expect(EDIT_KINDS).toHaveLength(8);
+  // Wave 3b (SR-13, ADR 0036 D1, build plan §1.4 and step 7): BID_SEALING_POLICY, the bid sealing policy's editor on the two-person path, is the ninth.
+  it("are nine, each with words in both languages, and none is one of the five kinds with a rule of their own", () => {
+    expect(EDIT_KINDS).toHaveLength(9);
     for (const k of EDIT_KINDS) {
       expect(isEditKind(k)).toBe(true);
       expect(EDIT_KIND_WORDS[k].en.length).toBeGreaterThan(5);

@@ -470,6 +470,18 @@ model Organisation {
   dayworkRecords           DayworkRecord[]
   variationCertificates    VariationCertificate[]
   sumAdjustments           SumAdjustment[]
+  /// Wave 3b (SR-13, ADR 0036): online sealed bids.
+  officerExerciseKeys       OfficerExerciseKey[]
+  exerciseSealingKeys       ExerciseSealingKey[]
+  publishedKeyChanges       PublishedKeyChange[]
+  exerciseKeyShares         ExerciseKeyShare[]
+  shareReleases             ShareRelease[]
+  onlineBidFiles            OnlineBidFile[]
+  onlineBids                OnlineBid[]
+  onlineBidParts            OnlineBidPart[]
+  officerDekGrants          OfficerDekGrant[]
+  sealedEstimateLodgements  SealedEstimateLodgement[]
+  sealedAccessEvents        SealedAccessEvent[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -608,6 +620,11 @@ model Person {
   supplierDocumentsRecorded     SupplierDocument[]    @relation("SupplierDocumentRecordedBy")
   creditorProfilesVerified      CreditorProfile[]     @relation("CreditorProfileVerifiedBy")
   supplierDocumentsVerified     SupplierDocument[]    @relation("SupplierDocumentVerifiedBy")
+  // Wave 3b (SR-13, ADR 0036 D3, D11, D10): an opening officer's per-exercise key, a recorded re-key, a sealed estimate lodged, and the sealed access log.
+  officerExerciseKeys          OfficerExerciseKey[]      @relation("OfficerKeyPerson")
+  publishedKeyChangesMade      PublishedKeyChange[]      @relation("PublishedKeyChangeBy")
+  sealedEstimatesLodged        SealedEstimateLodgement[] @relation("SealedEstimateLodgedBy")
+  sealedAccessEvents           SealedAccessEvent[]       @relation("SealedAccessStaff")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -3456,6 +3473,14 @@ model SourcingExercise {
   /// 6.8: the evaluation, one version after another.
   evaluations             Evaluation[]
   openedBids         OpenedBid[]
+  /// Wave 3b (SR-13, ADR 0036): the exercise's sealing keys, the officers' keys, its online submissions, the sealed estimate and the access log.
+  officerExerciseKeys      OfficerExerciseKey[]
+  sealingKeys              ExerciseSealingKey[]
+  publishedKeyChanges      PublishedKeyChange[]
+  onlineBidFiles           OnlineBidFile[]
+  onlineBids               OnlineBid[]
+  sealedEstimateLodgements SealedEstimateLodgement[]
+  sealedAccessEvents       SealedAccessEvent[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, dossierReference])
@@ -3492,6 +3517,10 @@ model ExerciseOpeningOfficer {
   endedBy         Person?   @relation("OpeningOfficerEndedBy", fields: [endedByPersonId], references: [id], onDelete: Restrict)
   endedAuthority  String    @default("")
   endedReason     String    @default("")
+  /// Wave 3b (SR-13, ADR 0036 D3, D11): this officer's key for the exercise, the shares sealed to it, and the substitutions it took part in.
+  officerKeys            OfficerExerciseKey[]
+  keyShares              ExerciseKeyShare[]
+  substitutionReleases   ShareRelease[]
 
   @@index([exerciseId])
   @@index([personId])
@@ -4540,6 +4569,8 @@ model BlobContent {
   storedAt DateTime @default(now())
 
   versions DocumentVersion[]
+  /// Wave 3b (SR-13, ADR 0036 D5): the ciphertext of online bid files. Never plaintext (C-6).
+  onlineBidFiles OnlineBidFile[]
 
   @@id([organisationId, sha256])
 }
@@ -5184,6 +5215,8 @@ model CompanyEstimateVersion {
   bqVersionId      String?
   bqVersion        BqVersion?      @relation(fields: [bqVersionId], references: [id], onDelete: Restrict)
   createdAt        DateTime        @default(now())
+  /// Wave 3b (SR-13, ADR 0036 D10, 20g): the sealed lodgements of this version on an online exercise.
+  sealedLodgements SealedEstimateLodgement[]
 
   @@unique([estimateId, versionNo])
 }
@@ -5477,6 +5510,8 @@ model TenderPackPart {
   omittedReason String        @default("")
 
   attachments DocumentAttachment[]
+  /// Wave 3b (SR-13): the online bid files uploaded for this part.
+  onlineBidFiles OnlineBidFile[]
 
   @@unique([packId, partCode])
 }
@@ -6718,6 +6753,8 @@ enum EnvelopeChannel {
   /// In the tender box. A bid's BOX envelope is registered only by 6.7 at opening (OD-4); the
   /// company estimate's lodgement goes into the box and is recorded at lodgement.
   BOX
+  /// SR-13 (ADR 0036 D5): submitted through the supplier portal, sealed. Its stamp, late flag and closing judged are the database's (trigger), and it names no receiving officer.
+  ONLINE
 }
 
 /// Where the received instant came from (OD-3 amended): the server's clock when the officer recorded
@@ -6728,6 +6765,8 @@ enum ReceiptSource {
   /// 6.7 (OD-4, C-3): a bid found in the tender box at opening, registered then. Its time is the
   /// box's LOCKED event (the server's stamp), an upper bound, never a receipt time.
   BOX_AT_OPENING
+  /// SR-13 (ADR 0036 D5, H2): an online submission, stamped by the database clock when the supplier submitted (FR-BID-002), within the stamp skew of the insert.
+  PORTAL
 }
 
 enum EnvelopeStatus {
@@ -6735,6 +6774,8 @@ enum EnvelopeStatus {
   WITHDRAWN
   /// 6.7: opened at an opening (its offer is on the OpenedBid, never here).
   OPENED
+  /// SR-13 (ADR 0036 D7): an online submission replaced by the same supplier's later one before the closing. Never opened, never decrypted.
+  SUPERSEDED
 }
 
 /// The tender box's custody acts. Append-only.
@@ -6768,8 +6809,9 @@ model BidEnvelope {
   statedReceivedAt DateTime?
   entryReason      String    @default("")
   recordedAt       DateTime  @default(now())
-  receivedByPersonId String
-  receivedBy         Person   @relation("EnvelopeReceivedBy", fields: [receivedByPersonId], references: [id], onDelete: Restrict)
+  /// The officer who received a paper envelope. SR-13: null exactly when the envelope is ONLINE, which no officer receives (CHECK).
+  receivedByPersonId String?
+  receivedBy         Person?  @relation("EnvelopeReceivedBy", fields: [receivedByPersonId], references: [id], onDelete: Restrict)
   /// The markings as written on the envelope.
   markings String
   /// The bidder, named only by 6.7's opening (OD-2): null before it.
@@ -6798,6 +6840,8 @@ model BidEnvelope {
   withdrawal      BidWithdrawal?
   admissionMatters CommitteeDecision[]
   openedBids       OpenedBid[]
+  /// SR-13: the online submission this ONLINE envelope registers (ADR 0036 D12: the envelope alone holds the sequence, stamp, late flag and closing judged).
+  onlineBid        OnlineBid?
 
   @@unique([exerciseId, sequence])
   @@index([organisationId])
@@ -7013,6 +7057,9 @@ model Opening {
   scheduleSnapshot     Json?
   grandSummarySnapshot Json?
   faultsSnapshot       Json?
+  /// SR-13 (ADR 0036 D10, H2): an online opening's roll, frozen by `startOpening`: every standing submission's sequence, receipt digest and late flag (`receiptRoll`).
+  /// Null on a paper opening.
+  receiptRoll          Json?
   createdAt            DateTime @default(now())
 
   sittings        OpeningSitting[]
@@ -7025,6 +7072,9 @@ model Opening {
   attachments     DocumentAttachment[]
   /// 6.8 (E-7): the evaluation versions its finalising opened.
   evaluationsOpened Evaluation[] @relation("EvaluationFromSupplementary")
+  /// Wave 3b (SR-13, ADR 0036 D10): the share releases of an online unseal, and the data keys re-sealed to each named officer.
+  shareReleases     ShareRelease[]
+  officerDekGrants  OfficerDekGrant[]
 
   @@unique([exerciseId, sequenceNo])
   @@index([organisationId])
@@ -7093,6 +7143,8 @@ model OpeningAuthorisation {
   sittingNo      Int
   recordedAt     DateTime
   lapsedAt       DateTime?
+  /// Wave 3b (SR-13, ADR 0036 D10): the share release a non-last online authorisation forwards.
+  shareReleases ShareRelease[]
 
   @@unique([openingId, sittingNo, personId])
 }
@@ -7119,7 +7171,9 @@ model OpenedBid {
   bidderNameAsRead         String
   registrationClassAsRead  String @default("")
   registrationStatusAsRead String @default("")
-  priceAsRead              Decimal     @db.Decimal(18, 2)
+  /// SR-13 (ADR 0036 D10, ruling 20): null only on an online bid between its unseal and the finalising, which writes it from the sealed declaration. A trigger refuses
+  /// to finalise an opening while any of its bids reads null, and refuses a null price on a paper envelope.
+  priceAsRead              Decimal?    @db.Decimal(18, 2)
   completionPeriod         Int?
   completionUnit           PeriodUnit?
   validityDaysStated       Int?
@@ -7158,6 +7212,398 @@ model OpenedBid {
   @@index([openingId])
   @@index([envelopeId])
 }
+
+// ------------------------------------------------------------------ wave 3b: online sealed bids (SR-13, ADR 0036)
+//
+// ADR 0036 supersedes ADR 0016 for exercises pinned ONLINE. These tables hold ciphertext and named key material only (src/lib/bids/sealed.test.ts): no price, period,
+// filename, media type or plain hash is a column here. Every DEK is HPKE-sealed to the exercise key or to one named officer's key; every officer key is wrapped under
+// that officer's passphrase (scrypt, with the deployment's pepper under LIVE). Triggers (migration 20261103110000, PA010 to PA022) keep ciphertext immutable, shreds
+// one-way (set to NULL only), status moves forward and judged by the act's own database stamp, and refuse every DELETE and TRUNCATE.
+
+/// What an online submission is (FR-BID-006): a bid, or an alternative that may name the same supplier's live bid as its parent (20h).
+enum OnlineBidKind {
+  BID
+  ALTERNATIVE
+}
+
+/// Where an online submission stands. Moves forward only, judged by the act's own stamp (trigger): SUBMITTED to REPLACED or WITHDRAWN up to the closing second, or
+/// to OPENED at the unseal. A REPLACED or WITHDRAWN bid is never decrypted.
+enum OnlineBidStatus {
+  SUBMITTED
+  REPLACED
+  WITHDRAWN
+  OPENED
+}
+
+/// An uploaded part: a draft until a submission takes it (each file belongs to one submission), or discarded.
+enum OnlineBidFileState {
+  DRAFT
+  SUBMITTED
+  DISCARDED
+}
+
+/// Why shares are released (ADR 0036 D10, D11): forwarded at a non-last authorisation of the unseal, or transferred at a substitution. Finalising needs none (H3 a).
+enum ShareReleasePurpose {
+  UNSEAL
+  SUBSTITUTION
+}
+
+/// What a data key re-sealed to a named officer at the unseal may be used for (ADR 0036 D10): the opening check's downloads, or finalising.
+enum GrantUse {
+  OPENING_CHECK
+  FINALISE
+}
+
+/// Which sealed record a grant's data key opens.
+enum GrantSubject {
+  FILE
+  DECLARATION
+  ESTIMATE
+}
+
+/// What a stored bid file's scan read (ADR 0036 D6, 20o). THREAT and ERROR are refused and never stored. NOT_SCANNED only under DEMONSTRATION with no scanner.
+enum StoredScan {
+  CLEAN
+  NOT_SCANNED
+}
+
+/// The kinds of access to sealed content that are logged (NFR-SEC-003, FR-VND-013, 20w).
+enum SealedAccessKind {
+  SHARE_SET
+  UNLOCK_CHECK
+  KEY_CREATED
+  KEY_RETIRED
+  PART_UPLOAD
+  PART_DISCARD
+  SUBMIT
+  WITHDRAW
+  AUTHORISE
+  DOWNLOAD
+  FINALISE
+  SUBSTITUTION_RELEASE
+  ESTIMATE_LODGED
+}
+
+enum SealedAccessOutcome {
+  GRANTED
+  REFUSED
+}
+
+/// One named opening officer's key pair for one exercise (ADR 0036 D3, 20d): the public key, and the private key wrapped under the officer's own unseal passphrase.
+/// Setting it is the officer's act of "setting their share". At most one live (not retired) per roster row (partial unique index). `pepperId` is null only where the
+/// exercise's frozen mode is DEMONSTRATION (trigger). Only the lockout columns and the retirement change; the key material never does (trigger).
+model OfficerExerciseKey {
+  id               String                 @id @default(cuid())
+  organisationId   String
+  organisation     Organisation           @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId       String
+  exercise         SourcingExercise       @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  openingOfficerId String
+  openingOfficer   ExerciseOpeningOfficer @relation(fields: [openingOfficerId], references: [id], onDelete: Restrict)
+  personId         String
+  person           Person                 @relation("OfficerKeyPerson", fields: [personId], references: [id], onDelete: Restrict)
+
+  /// Key material: the officer's X25519 public key (32 bytes).
+  publicKey         Bytes
+  /// Sealed: the private key under AES-256-GCM, iv || ciphertext || tag, its key derived from the passphrase.
+  wrappedPrivateKey Bytes
+  /// The scrypt parameters the wrap was made with, read back from here, never from constants.
+  kdfLog2N          Int
+  kdfR              Int
+  kdfP              Int
+  /// Key material: the scrypt salt (16 bytes).
+  kdfSalt           Bytes
+  /// The deployment pepper the passphrase was mixed with (HMAC-SHA256) before scrypt. Null: none (DEMONSTRATION only).
+  pepperId          String?
+  /// The passphrase lockout's own counter, apart from the sign-in password's (ADR 0036 D4). A pepper the deployment does not hold never counts (20v).
+  failedAttempts    Int                    @default(0)
+  lockedUntil       DateTime?
+  createdAt         DateTime
+  retiredAt         DateTime?
+  retiredReason     String                 @default("")
+
+  shares            ExerciseKeyShare[]
+  releasesFrom      ShareRelease[]         @relation("ShareReleaseFrom")
+  releasesTo        ShareRelease[]         @relation("ShareReleaseTo")
+  dekGrants         OfficerDekGrant[]
+
+  @@index([exerciseId])
+  @@index([openingOfficerId])
+  @@index([personId])
+}
+
+/// An exercise's sealing key (ADR 0036 D3): the public key every bid's data keys are sealed to, and its fingerprint. The private key is never stored: it is split
+/// n-of-n across the named officers' keys (`ExerciseKeyShare`). At most one live per exercise (partial unique index). After publication a key is created or retired
+/// only with a `PublishedKeyChange` in the same transaction, and never after the closing (trigger).
+model ExerciseSealingKey {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  /// Key material: the exercise's X25519 public key (32 bytes).
+  publicKey     Bytes
+  fingerprint   String
+  /// n: the named officers the key is split across (n-of-n, 20k).
+  officerCount  Int
+  createdAt     DateTime
+  retiredAt     DateTime?
+  retiredReason String    @default("")
+
+  shares             ExerciseKeyShare[]
+  releases           ShareRelease[]
+  onlineBidFiles     OnlineBidFile[]
+  onlineBids         OnlineBid[]
+  sealedLodgements   SealedEstimateLodgement[]
+  changesFrom        PublishedKeyChange[] @relation("PublishedKeyChangeFrom")
+  changesTo          PublishedKeyChange[] @relation("PublishedKeyChangeTo")
+
+  @@index([exerciseId])
+}
+
+/// A change of a published exercise's key (ADR 0036 D11, 20g, 20p): the fingerprint frozen at publication moves only with one of these, shown on the opportunity with
+/// its history. Append-only.
+model PublishedKeyChange {
+  id              String             @id @default(cuid())
+  organisationId  String
+  organisation    Organisation       @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId      String
+  exercise        SourcingExercise   @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  fromKeyId       String
+  fromKey         ExerciseSealingKey @relation("PublishedKeyChangeFrom", fields: [fromKeyId], references: [id], onDelete: Restrict)
+  toKeyId         String
+  toKey           ExerciseSealingKey @relation("PublishedKeyChangeTo", fields: [toKeyId], references: [id], onDelete: Restrict)
+  fromFingerprint String
+  toFingerprint   String
+  reason          String
+  byPersonId      String
+  by              Person             @relation("PublishedKeyChangeBy", fields: [byPersonId], references: [id], onDelete: Restrict)
+  at              DateTime
+
+  @@index([exerciseId, at])
+}
+
+/// One officer's share of an exercise key (ADR 0036 D2, D3), HPKE-sealed to that officer's key. `sealedShare` becomes NULL only by a shred: at a substitution, or
+/// when the whole key is retired (a re-key, or a roster change before publication, 20g), and never comes back (trigger).
+model ExerciseKeyShare {
+  id               String                 @id @default(cuid())
+  organisationId   String
+  organisation     Organisation           @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  keyId            String
+  key              ExerciseSealingKey     @relation(fields: [keyId], references: [id], onDelete: Restrict)
+  openingOfficerId String
+  openingOfficer   ExerciseOpeningOfficer @relation(fields: [openingOfficerId], references: [id], onDelete: Restrict)
+  officerKeyId     String
+  officerKey       OfficerExerciseKey     @relation(fields: [officerKeyId], references: [id], onDelete: Restrict)
+
+  /// Sealed: the share, HPKE-sealed to the officer's key. NULL once shredded.
+  sealedShare Bytes?
+  createdAt   DateTime
+  endedAt     DateTime?
+  endedReason String    @default("")
+
+  @@index([keyId])
+  @@index([officerKeyId])
+}
+
+/// Shares forwarded from one officer's key to another's (ADR 0036 D10, D11, M1): at a non-last authorisation of the unseal, to each officer still to act; or at a
+/// substitution, to the incoming officer. Kept in the database so the unseal survives a restart. `sealedShares` is shredded (set to NULL) once used or lapsed (C-2).
+model ShareRelease {
+  id                    String                  @id @default(cuid())
+  organisationId        String
+  organisation          Organisation            @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  keyId                 String
+  key                   ExerciseSealingKey      @relation(fields: [keyId], references: [id], onDelete: Restrict)
+  purpose               ShareReleasePurpose
+  openingId             String?
+  opening               Opening?                @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  authorisationId       String?
+  authorisation         OpeningAuthorisation?   @relation(fields: [authorisationId], references: [id], onDelete: Restrict)
+  substitutionOfficerId String?
+  substitutionOfficer   ExerciseOpeningOfficer? @relation(fields: [substitutionOfficerId], references: [id], onDelete: Restrict)
+  fromOfficerKeyId      String
+  fromOfficerKey        OfficerExerciseKey      @relation("ShareReleaseFrom", fields: [fromOfficerKeyId], references: [id], onDelete: Restrict)
+  toOfficerKeyId        String
+  toOfficerKey          OfficerExerciseKey      @relation("ShareReleaseTo", fields: [toOfficerKeyId], references: [id], onDelete: Restrict)
+
+  /// Sealed: the shares held, HPKE-sealed to the receiving officer's key. NULL once used or lapsed (shred).
+  sealedShares Bytes?
+  createdAt    DateTime
+  usedAt       DateTime?
+  lapsedAt     DateTime?
+
+  @@index([keyId])
+  @@index([openingId])
+  @@index([toOfficerKeyId])
+}
+
+/// One uploaded bid part, sealed (ADR 0036 D5, D6): the ciphertext is in the document store by its digest (never plaintext, C-6); its data key and its sealed
+/// metadata (filename, media type, plain hash and size) are here. The supplier and account are a plain identity link (20a, a recorded gap; pinned by scan).
+model OnlineBidFile {
+  id                          String           @id @default(cuid())
+  organisationId              String
+  organisation                Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId                  String
+  exercise                    SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  keyId                       String
+  key                         ExerciseSealingKey @relation(fields: [keyId], references: [id], onDelete: Restrict)
+  supplierId                  String
+  supplier                    Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  uploadedBySupplierAccountId String
+  uploadedBy                  SupplierAccount  @relation("OnlineBidFileUploadedBy", fields: [uploadedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// The returned part of the exercise's pack it was uploaded for, as the frozen bid rules name it.
+  packPartId                  String
+  packPart                    TenderPackPart   @relation(fields: [packPartId], references: [id], onDelete: Restrict)
+
+  /// The ciphertext's digest and size, the address of its bytes in the document store (BlobContent, RESTRICT).
+  cipherSha256 String      @db.Char(64)
+  cipherBytes  BigInt
+  blob         BlobContent @relation(fields: [organisationId, cipherSha256], references: [organisationId, sha256], onDelete: Restrict)
+  /// Sealed: the file's data key, HPKE-sealed to the exercise key.
+  sealedDek    Bytes
+  /// Sealed: the FileMeta (filename, media type, plain hash, plain size), under the data key.
+  sealedMeta   Bytes
+  /// Key material: the body's AES-GCM IV (12 bytes).
+  bodyIv       Bytes
+  /// Key material: the data key in plain, written only while its opening is finalising and shredded once the file is moved into the document store (M5).
+  releasedDek  Bytes?
+  scan         StoredScan
+  state        OnlineBidFileState @default(DRAFT)
+  uploadedAt   DateTime
+
+  part OnlineBidPart?
+
+  @@index([exerciseId, supplierId])
+  @@index([keyId])
+}
+
+/// One online submission (ADR 0036 D5, D7): the sealed manifest and declaration, their data keys sealed to the exercise key, and the receipt digest. Its ONLINE
+/// envelope alone holds the sequence, stamp, late flag and closing judged (D12). The supplier and account are a plain identity link (20a, pinned by scan).
+model OnlineBid {
+  id                           String           @id @default(cuid())
+  organisationId               String
+  organisation                 Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId                   String
+  exercise                     SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  keyId                        String
+  key                          ExerciseSealingKey @relation(fields: [keyId], references: [id], onDelete: Restrict)
+  /// The ONLINE envelope, inserted in the same transaction (trigger).
+  envelopeId                   String           @unique
+  envelope                     BidEnvelope      @relation(fields: [envelopeId], references: [id], onDelete: Restrict)
+  supplierId                   String
+  supplier                     Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  submittedBySupplierAccountId String
+  submittedBy                  SupplierAccount  @relation("OnlineBidSubmittedBy", fields: [submittedBySupplierAccountId], references: [id], onDelete: Restrict)
+  kind                         OnlineBidKind
+  /// The current parent: moves only to the parent's replacement, or to NULL on the parent's withdrawal, in the same transaction as that move (20h, M2, trigger).
+  parentOnlineBidId            String?
+  parent                       OnlineBid?       @relation("OnlineBidParent", fields: [parentOnlineBidId], references: [id], onDelete: Restrict)
+  alternatives                 OnlineBid[]      @relation("OnlineBidParent")
+  replacesOnlineBidId          String?          @unique
+  replaces                     OnlineBid?       @relation("OnlineBidReplaces", fields: [replacesOnlineBidId], references: [id], onDelete: Restrict)
+  replacedBy                   OnlineBid?       @relation("OnlineBidReplaces")
+  status                       OnlineBidStatus  @default(SUBMITTED)
+  /// The withdrawal's or replacement's own database stamp, to the second.
+  statusAt                     DateTime?
+  /// Sealed: the Manifest under its data key, and that key HPKE-sealed to the exercise key.
+  sealedManifest               Bytes
+  manifestDek                  Bytes
+  manifestCipherSha256         String
+  /// Sealed: the Declaration (price, period, unit) under its data key, and that key HPKE-sealed to the exercise key.
+  sealedDeclaration            Bytes
+  declarationDek               Bytes
+  declarationCipherSha256      String
+  receiptDigest                String
+
+  parts OnlineBidPart[]
+
+  @@index([exerciseId, supplierId])
+  @@index([keyId])
+}
+
+/// Which files a submission took (H2): each file belongs to one submission (`fileId` unique).
+model OnlineBidPart {
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  onlineBidId    String
+  onlineBid      OnlineBid     @relation(fields: [onlineBidId], references: [id], onDelete: Restrict)
+  fileId         String        @unique
+  file           OnlineBidFile @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@id([onlineBidId, fileId])
+}
+
+/// A data key re-sealed to one named officer at the unseal (ADR 0036 D10, H3 a): OPENING_CHECK for the opening-check files, FINALISE for every other file of an
+/// opened bid, each declaration and the estimate. Never changed (trigger).
+model OfficerDekGrant {
+  id             String             @id @default(cuid())
+  organisationId String
+  organisation   Organisation       @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  openingId      String
+  opening        Opening            @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  officerKeyId   String
+  officerKey     OfficerExerciseKey @relation(fields: [officerKeyId], references: [id], onDelete: Restrict)
+  subject        GrantSubject
+  /// OnlineBidFile.id, OnlineBid.id or SealedEstimateLodgement.id, by `subject`.
+  recordId       String
+  use            GrantUse
+  /// Sealed: the data key, HPKE-sealed to the officer's key.
+  sealedDek      Bytes
+  createdAt      DateTime
+
+  @@unique([openingId, officerKeyId, subject, recordId])
+  @@index([officerKeyId])
+}
+
+/// The company estimate's lodged copy on an online exercise (ADR 0036 D10, FR-EST-007, 20g), sealed under the live key. Refused after the closing (LODGEMENT_CLOSED).
+model SealedEstimateLodgement {
+  id                String                 @id @default(cuid())
+  organisationId    String
+  organisation      Organisation           @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId        String
+  exercise          SourcingExercise       @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  keyId             String
+  key               ExerciseSealingKey     @relation(fields: [keyId], references: [id], onDelete: Restrict)
+  estimateVersionId String
+  estimateVersion   CompanyEstimateVersion @relation(fields: [estimateVersionId], references: [id], onDelete: Restrict)
+  /// Sealed: the estimate's figure under its data key, and that key HPKE-sealed to the exercise key.
+  sealedEstimate    Bytes
+  estimateDek       Bytes
+  cipherSha256      String
+  lodgedAt          DateTime
+  lodgedByPersonId  String
+  lodgedBy          Person                 @relation("SealedEstimateLodgedBy", fields: [lodgedByPersonId], references: [id], onDelete: Restrict)
+  supersededAt      DateTime?
+  supersededReason  String                 @default("")
+
+  @@index([exerciseId])
+}
+
+/// Every attempt by a signed-in person at sealed content, granted or refused (NFR-SEC-003, FR-VND-013, 20w). Of a rate limit's refusals only the first in each window
+/// is written. A refusal before the session check is not an access and is left to the edge log. Never a filename (not `logAccess`). Append-only.
+model SealedAccessEvent {
+  id                String              @id @default(cuid())
+  organisationId    String
+  organisation      Organisation        @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId        String
+  exercise          SourcingExercise    @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  kind              SealedAccessKind
+  outcome           SealedAccessOutcome
+  reasonCode        String              @default("")
+  staffPersonId     String?
+  staffPerson       Person?             @relation("SealedAccessStaff", fields: [staffPersonId], references: [id], onDelete: Restrict)
+  supplierAccountId String?
+  supplierAccount   SupplierAccount?    @relation("SealedAccessSupplier", fields: [supplierAccountId], references: [id], onDelete: Restrict)
+  sessionId         String?
+  sourceAddress     String?
+  recordId          String?
+  at                DateTime
+
+  @@index([exerciseId, at])
+  @@index([organisationId, at])
+}
+
 
 /// A present panel member's initial on one bid as read (FR-OPN-006), attested.
 model OpenedBidInitial {
@@ -8236,6 +8682,9 @@ model Supplier {
   purchaseDownloads        PurchaseDownload[]
   tenderInspections        TenderInspectionEvent[]
   contractorSubmissions    ContractorSubmission[]
+  /// Wave 3b (SR-13, ADR 0036 D9): the supplier's online bid files and submissions. A plain identity link, a recorded gap (20a).
+  onlineBidFiles           OnlineBidFile[]
+  onlineBids               OnlineBid[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, registrationNoKey])
@@ -11915,6 +12364,10 @@ model SupplierAccount {
   diaryEntriesAttested     SiteDiaryEntry[]          @relation("DiaryAgentAttestedBy")
   diaryEntriesDisputed     SiteDiaryEntry[]          @relation("DiaryDisputedBy")
   certificateBlocksSigned  CertificateSignature[]    @relation("CertificateSignedBySupplier")
+  /// Wave 3b (SR-13, ADR 0036 D9): the parts this account uploaded, the bids it submitted, and its sealed access log.
+  onlineBidFilesUploaded   OnlineBidFile[]           @relation("OnlineBidFileUploadedBy")
+  onlineBidsSubmitted      OnlineBid[]               @relation("OnlineBidSubmittedBy")
+  sealedAccessEvents       SealedAccessEvent[]       @relation("SealedAccessSupplier")
 
   @@index([organisationId])
   @@index([supplierId])
@@ -12242,6 +12695,8 @@ enum ConfigurationChangeKind {
   AWARD_TERM_CORRECTION
   CONTRACT_DATE_CORRECTION
   AWARD_RETURN_CORRECTION
+  /// Wave 3b (SR-13, ADR 0036 D1): the bid sealing policy, the switch and the recorded conditions for LIVE.
+  BID_SEALING_POLICY
 }
 
 enum ConfigurationChangeStatus {

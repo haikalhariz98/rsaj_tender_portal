@@ -239,10 +239,12 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
     const person = env.receivedBy;
     const fs = correctionFaults({ exercise: reg.exercise, now, envelope: { kind: env.kind, status: env.status, channel: env.channel, markings: env.markings, receivedByPersonId: env.receivedByPersonId }, change, reason, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
-    const next = { markings: change.markings ?? env.markings, channel: (change.channel ?? env.channel) as EnvelopeChannel, receivedByPersonId: person!.id };
+    // Only a paper envelope reaches here (an ONLINE one is refused above, ONLINE_NOT_CORRECTED), and a paper envelope always names its receiving officer (CHECK).
+    if (!person) return { ok: false, message: "That envelope names no receiving officer, so it is not corrected here." };
+    const next = { markings: change.markings ?? env.markings, channel: (change.channel ?? env.channel) as EnvelopeChannel, receivedByPersonId: person.id };
     await tx.bidEnvelope.update({ where: { id: env.id, organisationId: actor.organisationId }, data: { ...next, correctedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE",
-      diffFields(correctionFields({ channel: env.channel, markings: env.markings, receivedBy: env.receivedBy.name }), correctionFields({ channel: next.channel, markings: next.markings, receivedBy: person!.name })), reason);
+      diffFields(correctionFields({ channel: env.channel, markings: env.markings, receivedBy: person.name }), correctionFields({ channel: next.channel, markings: next.markings, receivedBy: person.name })), reason);
     return { ok: true };
   });
 }

@@ -28,4 +28,8 @@ describe("a clerical correction (FR-BID-005)", () => {
     expect(codes({ envelope: { ...env, status: "WITHDRAWN" } as never })).toEqual(["WITHDRAWN"]);
     expect(codes({ envelope: { ...env, kind: "COMPANY_ESTIMATE" } as never })).toEqual(["NOT_A_BID"]);
   });
+  it("never on an envelope submitted through the supplier portal, nor to the portal's channel (wave 3b, ADR 0036 D12)", () => {
+    expect(codes({ envelope: { ...env, channel: "ONLINE", receivedByPersonId: null } as never })).toEqual(["ONLINE_NOT_CORRECTED"]);
+    expect(codes({ change: { channel: "ONLINE" } as never })).toEqual(["CHANNEL_NOT_FOR_OFFICER"]);
+  });
 });

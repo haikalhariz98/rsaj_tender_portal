@@ -28,6 +28,8 @@ export const EDIT_KINDS = [
   "AWARD_TERM_CORRECTION",
   "CONTRACT_DATE_CORRECTION",
   "AWARD_RETURN_CORRECTION",
+  // Wave 3b (SR-13, ADR 0036 D1, build plan step 7): the bid sealing policy's editor, the switch and the recorded conditions for LIVE.
+  "BID_SEALING_POLICY",
 ] as const;
 export type EditKind = (typeof EDIT_KINDS)[number];
 export const isEditKind = (kind: string): kind is EditKind => (EDIT_KINDS as readonly string[]).includes(kind);
@@ -49,6 +51,7 @@ export const EDIT_KIND_WORDS: Record<EditKind, { en: string; ms: string }> = {
   AWARD_TERM_CORRECTION: { en: "Correct an award's recorded terms", ms: "Betulkan terma anugerah yang direkodkan" },
   CONTRACT_DATE_CORRECTION: { en: "Correct the Contract Date", ms: "Betulkan Tarikh Kontrak" },
   AWARD_RETURN_CORRECTION: { en: "Correct an accepted award's return", ms: "Betulkan pulangan anugerah yang diterima" },
+  BID_SEALING_POLICY: { en: "Change the bid sealing policy", ms: "Ubah dasar pemeteraian bida" },
 };
 
 /// The kinds that are an act of the record, not of configuration: what they carry names a document, an award or a contract, which may sit in an exercise restricted from the reader.

@@ -46,6 +46,7 @@ import { adjournFaults, authorisationFaults } from "./unseal";
 import { judgeBid } from "./verdict";
 import { verdictDrift } from "./verdict-drift";
 import { matchFaults } from "./withdrawals";
+import { priceOrWords, priceRead } from "./price";
 
 export type Allowed = { allowed: true } | { allowed: false; reason: string };
 export const allowedOf = (fs: readonly Finding[]): Allowed => (blocking(fs).length ? { allowed: false, reason: [...new Set(blocking(fs).map(openingFindingText))].join(" ") } : { allowed: true });
@@ -214,7 +215,8 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       bidder: b.bidderNameAsRead,
       registration: [b.party.registrationNo, b.registrationClassAsRead, b.registrationStatusAsRead].filter(Boolean).join(" · "),
       /// SULIT (C-4): held to the reader's answer, so a refused reader is sent no figure.
-      openingPrice: through(prices, () => money(b.priceAsRead)),
+      // Wave 3b (ADR 0036 D10, ruling 20): an online bid's price is not read until the finalise.
+      openingPrice: through(prices, () => priceOrWords(b.priceAsRead, money)),
       period: periodText(period),
       validity: b.validityDaysStated == null ? "Not stated" : `${b.validityDaysStated} days`,
       alternative: b.isAlternative ? `${b.alternativeStatus ? ALTERNATIVE_LABEL[b.alternativeStatus] : "Alternative"}${b.parentOpenedBid ? ` to No. ${b.parentOpenedBid.listingNo}` : ""}` : null,
@@ -397,7 +399,7 @@ export async function scheduleSection(reader: Reader & { organisationTimeZone: s
     const summary: GrandSummary | null = o.finalisedAt ? summaryFromSnapshot(o.grandSummarySnapshot) : null;
     let schedule: ScheduleSnapshot | null = frozen;
     if (!frozen) {
-      const rows = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: parseSen(b.priceAsRead.toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
+      const rows = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: parseSen(priceRead(b).toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
       const estimateHeld = c.estimate && c.estimate.state !== "VOID";
       schedule = jadualTawaran({
         version: o.sequenceNo,

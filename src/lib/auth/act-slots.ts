@@ -120,6 +120,9 @@ export const LABEL_MS: Readonly<Record<string, string>> = {
   "Answered by": "Dijawab oleh",
   "Published by": "Diterbitkan oleh",
   "Attested by": "Disahkan oleh",
+  "Share set by": "Bahagian kunci ditetapkan oleh",
+  "Key changed by": "Kunci ditukar oleh",
+  "Lodged by": "Diserahkan untuk simpanan oleh",
 };
 
 type SlotExtra = Partial<Pick<ActSlot, "signatureClass" | "onBehalf" | "paperGated" | "holder" | "entryPoints" | "administratorMay">>;
@@ -229,6 +232,12 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   paper("OpenedBidInitial", "person", "Initialled by"),
   signed("OpeningSignature", "person", "Signed by", "SIGNATURE", ["src/app/sourcing/[id]/opening/actions.ts#recordSignature"]),
   slot("EstimateCopyExplanation", "recordedBy", "Recorded by"),
+  // Wave 3b (SR-13, ADR 0036 D3, D4, D10, D11): the named officer's act of setting their share (SHARE_SET), a recorded change of a published exercise key (REKEY), and the
+  // sealed lodgement of the company estimate (LODGE_SEALED_ESTIMATE). Setting a share asks the password again (D4); steps 8 and 16 wire each act through `beginAct` with its
+  // entry point and its kind of act, and until then each is on `act-wiring-scan.test.ts`'s NOT_BUILT list.
+  slot("OfficerExerciseKey", "person", "Share set by"),
+  slot("PublishedKeyChange", "by", "Key changed by"),
+  slot("SealedEstimateLodgement", "lodgedBy", "Lodged by"),
 
   // ---- evaluation
   slot("Evaluation", "startedBy", "Started by"),
@@ -402,6 +411,7 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "AuditEntry.actorPerson": "The audit trail itself: it records the actor.",
   "SulitAccessEvent.actorPerson": "The SULIT access log itself (Phase 3a): it records who read or was refused a value, and is append-only.",
   "DocumentAccessEvent.actorPerson": "The document access log itself (Phase 3b): it records who downloaded, checked or was refused a file, and is append-only for the app login.",
+  "SealedAccessEvent.staffPerson": "An access log, not an act (wave 3b, SR-13, NFR-SEC-003, ruling 20w): the sealed access log itself records who reached or was refused sealed content, and is append-only for every login.",
   "ReportingLine.person": "The subordinate of a reporting line: the subject of a configuration record (Phase 3c). Who recorded the line is in the audit row.",
   "ReportingLine.superior": "The superior of a reporting line: the subject of a configuration record (Phase 3c). Who recorded the line is in the audit row.",
   "StaffNotice.recipient": "The person told: the subject of a notice shown in the portal (Phase 3c), not the author of an act.",
@@ -448,6 +458,9 @@ export const SUPPLIER_ACT_SLOTS: readonly ActSlot[] = [
   slot("ContractorSubmission", "submittedBy", "Signed by", { signatureClass: true }),
   slot("SiteDiaryEntry", "agentAttestedBy", "Attested by", { signatureClass: true }),
   slot("CertificateSignature", "signedBySupplierAccount", "Signed by", { signatureClass: true }),
+  // Wave 3b (SR-13, ADR 0036 D5, threat S11): an online submission is a signed act, with the password asked again and a SIGNED attribution written in the same transaction as
+  // its envelope (build plan step 10).
+  slot("OnlineBid", "submittedBy", "Submitted by", { signatureClass: true }),
 ];
 
 export const slotOf = (entity: string, field: string): ActSlot | undefined =>

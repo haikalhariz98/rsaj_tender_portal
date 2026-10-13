@@ -52,3 +52,15 @@ export const failedTriesExhausted = (failedTries: number): boolean => failedTrie
 export const REPEAT_DOWNLOAD_MINUTES = 10;
 
 export const isRepeatDownload = (last: Date | null, now: Date): boolean => last != null && now.getTime() - last.getTime() < REPEAT_DOWNLOAD_MINUTES * 60_000 && now.getTime() >= last.getTime();
+
+// ------------------------------------------------------------------ wave 3b: online sealed bids (SR-13, ADR 0036, ruling 20e)
+
+/**
+ * How far an online submission's stamp may lie behind the database clock when its envelope is inserted (ADR 0036 D5, H2, threat S24). PRODUCT BEHAVIOUR, not customer
+ * policy (20e). The submit takes its stamp from the database clock to the second, then checks the supplier's password (a hash that may queue behind others: up to the
+ * hash pool's limit), then takes the exercise's locks; the envelope's trigger refuses a stamp more than this many seconds old, or in the future. 30 seconds covers a
+ * loaded hash queue and a lock wait with room to spare, and bounds what an application-role writer could back-date (S24) to half a minute. An online opening cannot
+ * start until this long after the closing, so no in-time act is still committing when the roll is frozen.
+ * Written as the literal 30 into migration 20261103110000 (the stamp and the withdrawal triggers); `triggers.db.test.ts` pins the two equal.
+ */
+export const MAX_STAMP_SKEW_SECONDS = 30;

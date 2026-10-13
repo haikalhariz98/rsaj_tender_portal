@@ -28,6 +28,7 @@ import { activePerson, audit, exerciseIdOf } from "../window/shared";
 import { evLabel, GONE_BIDDER, inEvaluation, notes, picks, refuse, signedMoney, stampNow, bidderIdFrom } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
+import { priceRead } from "@/lib/opening/price";
 
 /**
  * Writes for 6.8's evaluation (plan §4, as ruled E-1..E-13): starting it, the team, scores, the
@@ -101,7 +102,7 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
     }
     let excluded = 0;
     for (const b of c.carried) {
-      const j = ceilingExclusion(parseSen(b.priceAsRead.toString()), ceiling);
+      const j = ceilingExclusion(parseSen(priceRead(b).toString()), ceiling);
       const reason = exclusionReason(j);
       if (reason) excluded++;
       const row = await tx.evaluationBidder.create({ data: { organisationId: l.org.id, evaluationId: ev.id, openedBidId: b.id, excludedReason: reason, ceilingSnapshot: { regime: ceiling.regime, boundary: ceiling.boundary != null ? senToDecimalString(ceiling.boundary) : null, operator: ceiling.operator } } });

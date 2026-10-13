@@ -1,20 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import { APPEND_ONLY_TABLES, grantStatements, notYetPresent, roleNameFault, RUNTIME_ROLE_WORDS, runtimeRoleVerdict, WITHHELD } from "./db-role";
+import { APPEND_ONLY_TABLES, grantStatements, notYetPresent, roleNameFault, RUNTIME_ROLE_WORDS, runtimeRoleVerdict, SEALED_TABLES, WITHHELD } from "./db-role";
 
 // BlobContent joined the protected tables in the Phase 1d review (stored bytes are never rewritten), and ActAttribution in Phase 2a (ADR 0034 D12),
 // so the "every table exists" set has both.
 // RegistrationDeclaration joined them in Phase 4b (a supplier's signed declaration is evidence: its trigger is migration 20261013100000).
 // PaymentAttempt and PurchaseDownload joined them in wave 3a (SR-10: every try at paying and every download of a released file; migration 20261102100000).
 // AddendumAcknowledgement, TenderInspectionEvent and NonAwardNotice joined them in Phase 4d (the supplier's acknowledgement, the inspection log and the notice of non-award: migration 20261016090000).
-const ALL = new Set(["Organisation", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "BlobContent", "_prisma_migrations"]);
+// Wave 3b (SR-13, build plan step 2, ADR 0036 D12): SealedAccessEvent and PublishedKeyChange joined the append-only tables, and the rest of the sealed tables
+// (SEALED_TABLES) lose DELETE and TRUNCATE (migration 20261103110000), so the "every table exists" set has them all.
+const ALL = new Set(["Organisation", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "BlobContent", "_prisma_migrations", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES]);
 const grants = (existing: ReadonlySet<string> = ALL) => grantStatements({ role: "perolehan_app", owner: "perolehan", schema: "public", existing });
 
 describe("the app role's grants (ADR 0034 D11)", () => {
   it("revokes UPDATE, DELETE and TRUNCATE on every append-only table, including the O-1 side table", () => {
     const s = grants();
     for (const t of APPEND_ONLY_TABLES) expect(s).toContain(`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE "public"."${t}" FROM "perolehan_app"`);
-    expect(APPEND_ONLY_TABLES).toEqual(expect.arrayContaining(["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload"]));
+    expect(APPEND_ONLY_TABLES).toEqual(expect.arrayContaining(["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange"]));
+  });
+
+  it("revokes DELETE and TRUNCATE on every other sealed-bid table, and leaves UPDATE for the moves their triggers allow (wave 3b step 2)", () => {
+    const s = grants();
+    expect([...SEALED_TABLES]).toEqual(["BidSealingPolicy", "OfficerExerciseKey", "ExerciseSealingKey", "ExerciseKeyShare", "ShareRelease", "OnlineBidFile", "OnlineBid", "OnlineBidPart", "OfficerDekGrant", "SealedEstimateLodgement"]);
+    for (const t of SEALED_TABLES) {
+      expect(s).toContain(`REVOKE DELETE, TRUNCATE ON TABLE "public"."${t}" FROM "perolehan_app"`);
+      expect(s.some((x) => x.startsWith("REVOKE") && x.includes(`"${t}"`) && x.includes("UPDATE"))).toBe(false);
+    }
+    // No table is on two lists.
+    const listed = [...APPEND_ONLY_TABLES, "BlobContent", ...SEALED_TABLES];
+    expect(listed.filter((t, i) => listed.indexOf(t) !== i)).toEqual([]);
   });
 
   it("revokes only after the broad grant, so a re-run never leaves the trail writable", () => {
@@ -46,14 +60,15 @@ describe("the app role's grants (ADR 0034 D11)", () => {
     for (const w of WITHHELD) {
       if (w.revoke !== "ALL") expect(w.held).toBe(w.revoke);
     }
-    expect(WITHHELD.map((w) => w.table)).toEqual(["_prisma_migrations", ...APPEND_ONLY_TABLES, "BlobContent"]);
+    expect(WITHHELD.map((w) => w.table)).toEqual(["_prisma_migrations", ...APPEND_ONLY_TABLES, "BlobContent", ...SEALED_TABLES]);
   });
 
   it("skips a listed table that does not exist yet, and reports it", () => {
     // BlobContent is in this set since the Phase 1d review, so the tables still to come are SulitAccessEvent, as before, and (Phase 4b) RegistrationDeclaration.
     const now = new Set(["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "BlobContent"]);
     expect(grants(now).some((x) => x.includes("SulitAccessEvent") || x.includes("RegistrationDeclaration") || x.includes("AddendumAcknowledgement") || x.includes("TenderInspectionEvent") || x.includes("NonAwardNotice") || x.includes("PaymentAttempt") || x.includes("PurchaseDownload"))).toBe(false);
-    expect(notYetPresent(now)).toEqual(["SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload"]);
+    // Wave 3b (step 2): the sealed-bid tables are listed too, so they are reported until they exist.
+    expect(notYetPresent(now)).toEqual(["SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES]);
     expect(notYetPresent(ALL)).toEqual([]);
   });
 });

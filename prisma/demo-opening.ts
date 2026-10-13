@@ -38,6 +38,7 @@ import { calendarOf, FIRMS } from "./demo-window";
 import { demoPdf, writeDemoDocs } from "./demo-documents";
 import { DEMO_ACTOR } from "./demo-actor";
 import { demoOrgId, demoReader, loaderGate } from "./demo-org";
+import { priceRead } from "../src/lib/opening/price";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -546,13 +547,13 @@ export class OpeningActs {
       personActive: true,
     }));
     const disclosed = lodged && c.estimateFacts ? await discloseAtFinalising(this.db as never, { kind: "SYSTEM", label: "demo loader" }, { organisationId: this.org, reference: l.ex.reference, facts: c.estimateFacts, at, person, paper, benchmarkLabelEn: c.scopePolicy.benchmarkLabelEn }) : null;
-    const rows = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: parseSen(b.priceAsRead.toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
+    const rows = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: parseSen(priceRead(b).toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
     const mainSchedule = o.kind === "SUPPLEMENTARY" ? (c.main?.scheduleSnapshot as { benchmark?: { sealed: false; label: string | null; companyEstimate: string } | { notRequired: true } } | null) : null;
     const prior = mainSchedule?.benchmark;
     const benchmark = disclosed?.benchmark ? { sealed: false as const, label: disclosed.benchmark.label, value: disclosed.benchmark.value } : prior && "companyEstimate" in prior ? { sealed: false as const, label: prior.label, value: parseSen(prior.companyEstimate) } : { notRequired: true as const };
     const gap = o.kind === "MAIN" && o.boxLockedAt && l.ex.closingAt ? lockGap(l.ex.closingAt, o.boxLockedAt) : null;
     const { schedule } = jadualTawaran({ version: o.sequenceNo, title: l.ex.title, reference: l.ex.reference, startDay: l.ex.tenderingStartOn ? storedDay(l.ex.tenderingStartOn) : null, closing: l.ex.closingAt, invited: { reading: snap.invited.reading, ...invitedCounts(c) }, lateCount: lateCount(c.envelopes), pages: o.schedulePages, rows, benchmark, lockGap: gap });
-    const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(b.priceAsRead.toString()), verdict: b.verdict }))), labels: summaryLabelsOf(snap) });
+    const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(priceRead(b).toString()), verdict: b.verdict }))), labels: summaryLabelsOf(snap) });
     if (!("summary" in summary)) throw new Error("Demo 6.7: the Grand Summary was refused.");
     await this.db.opening.update({
       where: { id: openingId },
