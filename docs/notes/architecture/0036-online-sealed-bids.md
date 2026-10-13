@@ -1,7 +1,8 @@
 # 0036 — Online sealed bids: an exercise key split across the named opening officers
 
-**Status:** Proposed. Revised 2026-10-12 after two inputs:
-- the product owner's rulings 20a–20q (`docs/notes/design/0003-sourcing-requirements-v2.md` §6, "Wave 3b: ADR 0036 open questions");
+**Status:** Accepted for building (product owner, for the founder, 2026-10-13, ruling 20x), with the 20x change list applied. Revised after:
+- the product owner's rulings 20a–20q (2026-10-12) and 20r–20x (2026-10-13), in `docs/notes/design/0003-sourcing-requirements-v2.md` §6,
+  "Wave 3b: ADR 0036 open questions";
 - the wave 3b security review (H1–H3, M1–M6, Low).
 
 It rests on rulings 11, 12a, 17c and 18–25.
@@ -11,7 +12,8 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - **Where the rest lives.**
   - Build plan and contracts: `docs/notes/plans/wave-3b-build-plan.md`.
   - Threats: `docs/notes/plans/signin-threat-model.md` §G.
-- **Conflicts.** Where a review finding conflicts with a ruling, this ADR takes a stated default and asks the product owner (Q13–Q17).
+- **Conflicts.** Where a review finding conflicted with a ruling, this ADR took a stated default and asked the product owner (Q13–Q18). Each
+  is now ruled (20r–20w).
 
 ## Context
 
@@ -41,7 +43,7 @@ It rests on rulings 11, 12a, 17c and 18–25.
   - `procedureAmendmentReference` (SK002/SK003);
   - `customerAcceptanceReference`, the customer's written acceptance of the honest limits, naming FR-BID-001's identity clause (20a, 20o);
   - a configured malware scanner;
-  - **(Q17, additions from the review):**
+  - **(20v, additions from the review):**
     - the deployment flag `SEALED_BIDS_LIVE_ALLOWED`;
     - a configured scrypt pepper (D4);
     - recorded attestations, each with who and when, for threat-model must-have 4 (the public-copy database role) and must-have 5 (no core
@@ -103,13 +105,19 @@ It rests on rulings 11, 12a, 17c and 18–25.
   - it differs from the sign-in password;
   - its minimum length is `SecurityPolicy.sealingPassphraseMinLength` (unset refuses), with a CHECK floor of 12;
   - wrong entries lock on their own counter and are logged.
-- **The pepper (review, Q17).** The key-encryption key is `scrypt(HMAC-SHA256(pepper, passphrase))`. The pepper is a deployment secret held
+- **The pepper (review; ruled 20v).** The key-encryption key is `scrypt(HMAC-SHA256(pepper, passphrase))`. The pepper is a deployment secret held
   outside the database (`SEALING_PEPPER`, with `SEALING_PEPPER_ID`).
   - It defends only against someone holding a dump.
   - **Losing it makes every exercise wrapped under it unopenable**, so its custody and its backup, apart from the database, join key loss
     (D11).
   - LIVE requires it. DEMONSTRATION may wrap without it (pepper id null). A demonstration exercise never becomes LIVE (D1), so it never needs
     a re-wrap.
+  - **A missing pepper is not a wrong passphrase (20v).** Before any unwrap, the act compares the wrap's `pepperId` with the pepper the
+    deployment holds. On a mismatch it is refused with its own fault (`PEPPER_NOT_HELD`), in words: this exercise was sealed under a pepper
+    this deployment does not hold, and the deployment must restore it. The refusal never counts toward the officer's passphrase lockout and
+    never says the passphrase is wrong.
+  - **The pepper is never rotated or removed while any exercise wrapped under it is not finalised or cancelled (20v).** Rotating it early
+    or losing it makes those exercises unopenable (D11).
 - **Step-up.** Setting a share, "Check I can still unlock", authorising, signing at finalising, finalising, releasing for a substitution,
   and **every download** ask the sign-in password (`stepUp`) as well as the passphrase (review, 20n).
 
@@ -191,11 +199,13 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - **At the opening,** `saleFinding` is still judged, as defence in depth.
 
 **D9. Before the opening: Received, identity, the void guard.**
-- **Received (ruling 18, 20l, Q16)** shows the count of standing submissions, and for each its **ordinal** among them (1..n by stamp), its
-  stamp and its late flag.
-  - It shows no sequence, because gaps reveal replacements and withdrawals. That conflicts with ruling 18's "sequence", hence Q16.
+- **Received (ruling 18 as amended by 20u, 20l)** shows the count of standing submissions, and for each its **ordinal** among them (1..n by
+  stamp), its stamp and its late flag.
+  - It shows no sequence before the opening starts, because gaps reveal replacements and withdrawals.
+  - **The words (20u):** the ordinal column says it is the order of the bids now standing, not the receipt number, and that it can change
+    before the closing. The receipt number is shown once the opening starts.
   - It shows no replaced or withdrawn rows, and no name, part or size.
-  - The sequence appears after the opening starts.
+  - **The sequence appears from the opening's start.** The supplier's own receipt and My Bids keep showing its own sequence.
 - **Identity: FR-BID-001's identity clause is NOT met against a privileged query** (20a). This is a recorded gap, not accepted.
   - The plain identity columns are `OnlineBid.supplierId` and `submittedBySupplierAccountId`, `OnlineBidFile.supplierId` and
     `uploadedBySupplierAccountId`, and `SealedAccessEvent.supplierAccountId`. `AuditEntry` and `ActAttribution` carry the account too.
@@ -207,8 +217,15 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - **The void guard (H1).** Paper's `ENVELOPE_HELD` (`voidSaleFault`) never fires before the opening, because envelopes are anonymous.
   - Wave 3b keeps that true online. **No code path wires `OnlineBid` into the guard**, and a test shows the register answers the same way for
     every buyer before the opening.
-  - The unbuilt 17b reversal's condition "the buyer holds no bid" cannot be read before the opening without disclosing a bidder. Q13 sets the
-    default.
+  - **17b's bid clause is read as the counter void's `ENVELOPE_HELD` (20r)**, which reads no bid before the opening on either channel. Before
+    the opening the 17b reversal reads no bid. A reversed buyer's sealed bid stands, and the opening judges it by `saleFinding` (no live sale)
+    under the method's `unpurchasedBidConsequence`; an unset consequence blocks in words.
+  - **When the 17b reversal is built (20r):**
+    - its screen never says or implies that the buyer holds no bid. It says that whether this buyer has bid is not shown before the
+      opening, that any bid stays sealed, and that the opening will judge it with no live sale under the method's rule;
+    - the supplier's own purchase screen says the purchase was reversed. A reversed supplier can still withdraw its own bid before the
+      closing;
+    - the reversal joins the S21 test: before the opening it answers the same way for every buyer, with and without online submissions.
   - The review's alternative, a reversal that withdraws the bid, is rejected: the Received count would drop and reveal the bidder.
 
 **D10. Unseal, opening check, finalising (H3 option a).**
@@ -227,21 +244,35 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - **Why option a.** Otherwise one officer who has seen the Grand Summary prices could force a re-tender by refusing, forgetting or being
   deactivated. Option b, a guard on deactivation, covers only deactivation. Each officer already reads each Grand Summary price after the
   unseal, so the extra exposure is small.
-- **What option a changes in ruling 20 (Q15).** After the unseal, "both officers" is held by signatures, not keys. "Only the mandatory
+- **What option a changes in ruling 20 (Q15, confirmed by 20t: "both officers" and "only the mandatory documents" are still met).** After the unseal, "both officers" is held by signatures, not keys. "Only the mandatory
   documents" becomes a code rule against an officer holding a database copy.
 - **After the unseal:**
   - the download route serves only OPENING_CHECK grants, to named officers only;
-  - every attempt, including refusals, writes a `SealedAccessEvent`, never through `logAccess`. **"Attempt" is read as a signed-in actor's
-    request.** A request refused before the session check (no session, cross-site, no form token) is not written to the append-only table,
-    so an anonymous flood cannot fill it (S19). This narrows ruling 20's "every attempt is logged", hence Q18;
+  - every attempt by a signed-in actor, including refusals, writes a `SealedAccessEvent`, never through `logAccess` (20w):
+    - a request refused before the session check (no session, cross-site, no form token) is not an access and writes no row; it is left
+      to the deployment's edge access log, if it keeps one (method, path, status, never a body);
+    - of the per-account rate refusals, **only the first in each rate window writes a row**, and the rest are refused without one, so one
+      signed-in account cannot fill the table (S19);
+    - where the access log is described, the words are "every attempt by a signed-in person; where the rate limit refuses repeated
+      attempts, the first in each window is logged". Never "every attempt is logged" without that qualification;
   - administrators are refused at every sealed entry point;
   - FINALISE grants are read only by `finaliseOnline` (scan);
   - the officer screens say every named officer is needed (20k).
 - **The opening roll (H2).** `startOpening` freezes `Opening.receiptRoll`: every standing submission's sequence, receipt digest and late
   flag. There is no scheduler. Because moves stamped after the closing are refused, and an ONLINE opening cannot start until `MAX_STAMP_SKEW_SECONDS` after the closing (so no in-time act is still committing), the roll taken at the start equals the in-time state at
   the closing. Each opened bid shows its receipt digest and plain hashes.
-- **My Bids (Q14).** After the opening, My Bids tells each supplier whether its own receipt digest was the one opened. It never shows a
-  verdict. This amends ruling 25's wording.
+- **My Bids (20s).** From the opening's start, My Bids **shows the opened receipt digest itself, in full, and asks the supplier to compare
+  it with the receipt it printed or saved when it submitted.** A server sentence "your receipt was the one opened" would compare two server
+  rows, which a writer who fabricated or swapped a bid could make agree (S11). The words come from one pure function, tested for each state:
+  1. in the opening's list, not yet opened (between the start and the unseal): the listed receipt digest is shown;
+  2. opened: the opened receipt digest is shown, and the supplier is asked to compare it with its own receipt;
+  3. in the roll as late, so not opened at the main opening: it goes to the committee (FR-BID-003), and if admitted it moves to state 2 at
+     the supplementary opening;
+  4. no receipt of the supplier's is in the roll: contact the organisation now, quoting the receipt. The organisation is named from
+     configuration, never as a literal.
+  - Replaced and withdrawn bids say they were not opened, as expected.
+  - No verdict and no notice: ruling 25's "Opened; the result follows the evaluation" stays and is extended, not replaced. Nothing is sent.
+    Never "verified", "signed" or "proof" (20j).
 - **Before finalising commits (M5),** the finaliser's grants decrypt every opened file once to verify its GCM tag, one at a time, discarding
   the bytes. Ciphertext is immutable, so there is no gap between the check and the use.
 - **Finalising.** Every named officer signs with step-up; any one of them finalises with their passphrase. The finalise transaction runs
@@ -278,10 +309,13 @@ It rests on rulings 11, 12a, 17c and 18–25.
   - Re-key-and-resubmit, k-of-m and the blinded supplier link go to the founder with the outside review.
 - **Deactivating a share-holder.**
   - **Before the unseal** it is not refused. The screen lists the exercises it would make unopenable and requires a reason.
-  - **Between the unseal and finalising** (the H3 window; review option b, adopted alongside option a), it needs a second approver through
-    the existing two-person path. A deactivated officer cannot sign, so finalising, which needs every named officer's signature (founder
-    answer 5), would otherwise block. Option b covers deactivation only. An officer who simply refuses to sign still blocks finalising, as at
-    a paper opening (S14).
+  - **Between the unseal and finalising** (the H3 window; option b with option a, 20t), it needs a second approver through the existing
+    two-person path.
+  - **Even when two people approve it, that opening can then never be finalised** (20t): the deactivated officer cannot sign, and
+    substitution is refused after the closing (ruling 11). So the deactivation screen lists the openings it would leave unfinalisable and
+    says they must be re-tendered, in this window as well as before the unseal. The way out is the existing cancellation, with its
+    authority: the block is stated and clearable, never silent (ruling 13).
+  - An officer who simply refuses to sign still blocks finalising, as at a paper opening. That is a recorded, attributable act (S14).
 
 **D12. Schema, triggers, grants, scans.** The shapes are in the plan's §1.4.
 - **New tables:**
@@ -350,7 +384,9 @@ It rests on rulings 11, 12a, 17c and 18–25.
     bid. They do not prevent one. The owner role can drop triggers.
   - **The closing is enforced by the database clock and the application, not by the cryptography.** All the named officers together, with a
     database copy, could unseal early.
-  - **After the unseal, one officer with a database copy can read every opened bid's declaration and files** (D10, Q15).
+  - **After the unseal and before finalising, one named officer with a database copy, the deployment's pepper and their own passphrase can
+    read every opened bid's declaration and files, and the lodged estimate figure** (D10, 20t). The customer's written acceptance
+    (threat model §G must-have 6) names this.
   - **An administrator cannot open bids,** but before the unseal can block one by deactivating an officer.
   - **Leaks:** identity at the database level (D9), sizes, times and counts.
 - **What the screens may claim.** The upload screen says "the portal checks and scans your file before sealing it, so its server reads it
@@ -374,7 +410,7 @@ It rests on rulings 11, 12a, 17c and 18–25.
 
 ## Questions
 
-**Ruled (20a–20o).**
+**Ruled (20a–20w).**
 - Q1 → 20a: a recorded gap.
 - Q2 → 20b: until the start of the opening.
 - Q3 → 20c: the named officers.
@@ -390,21 +426,11 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - The invitee door → 20m.
 - A download passphrase every time → 20n.
 - The pin and the switch → 20o.
-
-**Open for the product owner.** Each has a default this design builds.
-- **Q13 (H1 against 17b).** For ONLINE before the opening, the 17b reversal does not read bids. A reversed buyer's sealed bid stands, and
-  the opening finds NO_LIVE_SALE under the method's consequence. *Default:* as stated.
-- **Q14 (H2 against ruling 25).** My Bids tells a supplier, after the opening, whether its receipt digest was the one opened. *Default:*
-  build it.
-- **Q15 (H3 against ruling 20).** After the unseal, one officer cryptographically, and every officer by signature. The "only mandatory
-  documents" rule becomes a code rule. The estimate's FINALISE grant means one officer with a database copy could read the lodged figure
-  before disclosure; this is low risk, because F10 already leaves the retained copy plain. *Default:* option a, with option b for
-  deactivation in that window.
-- **Q16 (Low against ruling 18).** An ordinal in place of the sequence before the opening. *Default:* the ordinal. Keeping the sequence is a
-  one-line change in `receivedView`.
-- **Q17 (M4 and the pepper against 20o).** LIVE also requires `SEALED_BIDS_LIVE_ALLOWED`, the pepper, and the attestations for must-haves 4
-  and 5. *Default:* require them.
-- **Q18 (review Low against ruling 20).** "Every attempt is logged" is read as every signed-in actor's attempt. Anonymous refusals are not
-  written to `SealedAccessEvent`. *Default:* as stated.
+- Q13 → 20r: before the opening the reversal reads no bid, on either channel; the reversal screen's words and the S21 test.
+- Q14 → 20s: My Bids shows the opened digest itself, in four states, and asks the supplier to compare it with its own receipt.
+- Q15 → 20t: option a with option b; the one-officer residual (with the pepper) is named; deactivation in the H3 window says re-tender.
+- Q16 → 20u: the ordinal before the opening, with its words; amends ruling 18.
+- Q17 → 20v: the LIVE additions; a pepper mismatch is its own fault, not counted; no rotation while an exercise under it is open.
+- Q18 → 20w: signed-in attempts are logged; the first rate refusal per account per window writes a row.
 
 **Referred to the founder with the outside review:** re-key-and-resubmit, k-of-m, and the blinded supplier link.

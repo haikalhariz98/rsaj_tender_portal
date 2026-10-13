@@ -1,10 +1,11 @@
 # Wave 3b — online sealed bids (SR-13): build plan
 
-**Status:** Proposed. Revised 2026-10-12 to match the revised ADR 0036, rulings 20a–20q and the wave 3b security review. Not started.
+**Status:** Accepted for building with ADR 0036 (20x, 2026-10-13). Revised to match the ADR, rulings 20a–20x and the wave 3b security
+review. Not started.
 
 - **Design:** ADR 0036 (`docs/notes/architecture/0036-online-sealed-bids.md`).
 - **Threats:** `docs/notes/plans/signin-threat-model.md` §G.
-- **Rulings:** 11, 12a, 17c, 18–25 and 20a–20q (`docs/notes/design/0003-sourcing-requirements-v2.md` §6).
+- **Rulings:** 11, 12a, 17c, 18–25 and 20a–20x (`docs/notes/design/0003-sourcing-requirements-v2.md` §6).
 - **Spec:** FR-BID-001/002/003/005/006/007, NFR-SEC-003, NFR-SEC-007, FR-VND-013, FR-EST-007/009/010, FR-OPN-002/003.
 
 **Go-live.** Nothing goes LIVE before ADR 0036 D1's conditions are recorded. The demo runs under DEMONSTRATION.
@@ -15,8 +16,8 @@
 
 This plan supplies the online unseal, the per-officer downloads and the online finalise that 3c's screens call (§3).
 
-**Open defaults.** Where the ADR's Q13–Q17 are still open, this plan builds the ADR's stated default. Each such step names its Q, so a
-ruling the other way is a local change.
+**Rulings.** The ADR's Q13–Q18 are ruled (20r–20w), each confirming the default this plan builds, with the conditions and words applied
+below. Steps cite the ruling.
 
 ## 0. What the code says today
 
@@ -76,7 +77,7 @@ export interface ScryptParams { log2N: number /* 17 */; r: number /* 8 */; p: nu
 export interface WrappedKey { params: ScryptParams; pepperId: string | null; sealed: GcmSealed }
 
 export interface X25519KeyPair { publicKey: Bytes; privateKey: Bytes }
-export class SealError extends Error { constructor(readonly code: "TAG" | "LOW_ORDER" | "FORMAT" | "LENGTH") { super(code); } }
+export class SealError extends Error { constructor(readonly code: "TAG" | "LOW_ORDER" | "FORMAT" | "LENGTH" | "PEPPER") { super(code); } }
 
 export declare function generateX25519(): X25519KeyPair;
 export declare function publicOf(privateKey: Bytes): Bytes;
@@ -85,7 +86,10 @@ export declare function hpkeOpen(recipientPrivate: Bytes, sealed: HpkeSealed, aa
 export declare function gcmSeal(key: Bytes, plaintext: Bytes, aad: AadContext): GcmSealed;
 export declare function gcmOpen(key: Bytes, sealed: GcmSealed, aad: AadContext): Bytes;                          // throws SealError
 export declare function wrapKey(privateKey: Bytes, passphrase: string, pepper: { id: string; key: Bytes } | null, aad: AadContext): Promise<WrappedKey>;
-export declare function unwrapKey(w: WrappedKey, passphrase: string, pepper: { id: string; key: Bytes } | null, aad: AadContext): Promise<Bytes | null>; // null: wrong passphrase, or the wrap's pepper is not the one given
+/// 20v: the caller checks the wrap's pepper FIRST, with its own fault, never counted toward the passphrase lockout and never worded as a wrong passphrase.
+export declare function pepperFault(w: WrappedKey, held: { id: string } | null): "PEPPER_NOT_HELD" | null;
+/// null: wrong passphrase ONLY. Called with a pepper that is not the wrap's (pepperFault skipped), it throws SealError("PEPPER"): a programming error, not a wrong passphrase.
+export declare function unwrapKey(w: WrappedKey, passphrase: string, pepper: { id: string; key: Bytes } | null, aad: AadContext): Promise<Bytes | null>;
 export declare function splitKey(k: Bytes, n: number): Bytes[];                                                  // n-of-n XOR, n >= 2
 export declare function combineShares(shares: readonly Bytes[], expectedPublic: Bytes): { ok: true; k: Bytes } | { ok: false; fault: "SHARE_COUNT" | "SHARE_MISMATCH" };
 export declare function fingerprint(publicKey: Bytes): string;
@@ -150,7 +154,7 @@ export interface SubmissionWarning { code: "MANDATORY_PART_MISSING" | "ALTERNATI
 // src/lib/sales/standing.ts (17c, 20m)
 export function saleStands(sale: { voidedAt: Date | null; paymentChannel: "COUNTER" | "SIMULATED" } | null, simulatorAllowed: boolean): boolean;
 
-// src/lib/sealing/switch.ts (D1, 20i, 20o, Q17)
+// src/lib/sealing/switch.ts (D1, 20i, 20o, 20v)
 /// `at`: PUBLISH reads the organisation's mode and both deployment flags; SUBMIT reads the exercise's frozen mode, where demoAllowed is read live
 /// (20i) and liveAllowed is NOT consulted, so a published LIVE exercise keeps its pin (20i, G1). SEALED_BIDS_LIVE_ALLOWED gates issuing and publishing only.
 export function onlineSubmissionAllowed(mode: OnlineSubmissionMode | null, deployment: { demoAllowed: boolean; liveAllowed: boolean }, at: "PUBLISH" | "SUBMIT"): { allowed: boolean; demonstration: boolean; fault: "ONLINE_NOT_SET" | "ONLINE_NOT_ALLOWED" | null };
@@ -194,12 +198,24 @@ export function storedScan(scan: ScanResult, mode: OnlineSubmissionMode, scanner
 export function receiptDigest(i: { exerciseId: string; sequence: number; receivedAt: Date; keyFingerprint: string; manifestCipherSha256: string; declarationCipherSha256: string; fileCipherSha256s: string[] }): string;
 export const RECEIPT_WORDS: { title: string; meaning: string };  // never "signed" / "proof" (scan)
 
-// src/lib/bids/online/received.ts (ruling 18, 20l, Q16)
+// src/lib/bids/online/received.ts (ruling 18 as amended by 20u, 20l)
 export function receivedView(rows: { sequence: number; receivedAt: Date; late: boolean; status: OnlineBidStatus }[], openingStarted: boolean): { count: number; standing: { ordinal: number; sequence: number | null /* null before the start */; receivedAt: Date; late: boolean }[] };
+/// 20u: the ordinal column's label and note ("the order of the bids now standing, not the receipt number; it can change before the closing;
+/// the receipt number is shown once the opening starts"), and the sequence column's label from the start. One constant; no component restates it.
+export const RECEIVED_WORDS: { ordinalLabel: string; ordinalNote: string; sequenceLabel: string };
 
 // src/lib/bids/online/roll.ts (H2)
 export function receiptRoll(rows: { sequence: number; receiptDigest: string; late: boolean; status: OnlineBidStatus }[]): { v: 1; entries: { sequence: number; receiptDigest: string; late: boolean }[]; rollDigest: string };
-export function myBidOpenedWords(i: { mine: { receiptDigest: string }; openedDigest: string | null; inRoll: boolean }): string; // Q14; never a verdict (ruling 25)
+/// 20s: from the opening's start, when the roll is frozen. Never a verdict, never "verified", "signed" or "proof".
+export type MyBidOpeningState = "LISTED_NOT_OPENED" | "OPENED" | "LATE_IN_ROLL" | "NOT_IN_ROLL" | "REPLACED_OR_WITHDRAWN";
+export function myBidOpeningState(i: { status: OnlineBidStatus; openingStarted: boolean; unsealed: boolean; rollEntry: { late: boolean } | null; opened: boolean }): MyBidOpeningState | null; // null: before the start
+/// The words carry the digest itself (the listed or opened one), in full, and ask the supplier to compare it with the receipt it kept.
+/// NOT_IN_ROLL names the organisation from configuration and asks the supplier to contact it now, quoting its receipt. OPENED keeps
+/// ruling 25's "Opened; the result follows the evaluation".
+export function myBidOpenedWords(i: { state: MyBidOpeningState; digest: string | null; organisationName: string }): { headline: string; detail: string; digest: string | null };
+
+// src/lib/portal/bids/limits.ts (20w): only the first rate refusal per account per window writes a SealedAccessEvent
+export function rateRefusalLogged(countInWindow: number, limit: number): boolean;   // true only when countInWindow === limit + 1
 
 // src/lib/bids/online/audit-mask.ts (D9)
 export function sealedAuditMask(i: { entity: string; viewer: "NAMED_OFFICER" | "OTHER"; unsealed: boolean; finalised: boolean }): { hideActor: boolean; hideSupplier: boolean };
@@ -238,8 +254,8 @@ model BidSealingPolicy {                // two-person path
   cryptoReviewReference String @default("");        cryptoReviewRecordedAt DateTime?
   procedureAmendmentReference String @default("");  procedureAmendmentRecordedAt DateTime?
   customerAcceptanceReference String @default("");  customerAcceptanceRecordedAt DateTime?   // 20o
-  publicRoleAttestation String @default("");        publicRoleAttestedAt DateTime?; publicRoleAttestedByPersonId String?     // Q17: must-have 4, "not checked by the portal"
-  hardeningAttestation String @default("");         hardeningAttestedAt DateTime?;  hardeningAttestedByPersonId String?      // Q17: must-have 5, "not checked by the portal"
+  publicRoleAttestation String @default("");        publicRoleAttestedAt DateTime?; publicRoleAttestedByPersonId String?     // 20v: must-have 4, "not checked by the portal"
+  hardeningAttestation String @default("");         hardeningAttestedAt DateTime?;  hardeningAttestedByPersonId String?      // 20v: must-have 5, "not checked by the portal"
   provenance Provenance?; notes String @default("")
 }
 // WindowPolicy.submissionChannel SubmissionChannel?
@@ -447,7 +463,9 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - a flipped bit in `enc`, `ct`, `tag`, `iv` or any AAD field fails;
   - `combineShares` recovers *k* for n = 2, 3 and 5. The "altered share" test flips a **non-clamped** bit (not bits 0–2 of byte 0, not
     bit 7 of byte 31) and is refused with `SHARE_MISMATCH`;
-  - `unwrapKey` returns null for a wrong passphrase, and for the wrong pepper;
+  - `unwrapKey` returns null for a wrong passphrase only. `pepperFault` tells a pepper-id mismatch apart, before any unwrap; it does not
+    count toward the lockout, and its words never say the passphrase is wrong (20v). `unwrapKey` called with the wrong pepper throws
+    `SealError("PEPPER")`;
   - the parameters are read from the wrap, not from constants.
 
 **5. domain-engineer: the pure rules (§1.3) and the 17c merge.**
@@ -459,7 +477,10 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
     the supplier's own live bid is refused;
   - `withdrawalEffect` clears the links it keeps;
   - `parentReachable` follows a replace chain, and refuses a jump to another supplier's bid;
-  - `receivedView` hides the sequence before the start (Q16);
+  - `receivedView` hides the sequence before the start, and `RECEIVED_WORDS` carries the 20u words;
+  - `myBidOpeningState` and `myBidOpenedWords` are tested for each of the five states, each carrying the digest, none saying "verified",
+    "signed" or "proof", and NOT_IN_ROLL naming the configured organisation (20s);
+  - `rateRefusalLogged` is true for the first refusal in a window only (20w);
   - `rekeyFaults` refuses after the closing;
   - `storedScan` refuses ERROR in both modes, and NOT_SCANNED under LIVE;
   - `liveIssueFaults` lists every missing condition;
@@ -475,7 +496,9 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - no proxy logs request bodies;
   - HTTPS only;
   - the scanner runs on the same host, over a local socket, with a tmpfs temporary directory and no quarantine or copy;
-  - **the pepper is backed up apart from the database, and losing it loses every exercise wrapped under it.**
+  - **the pepper is backed up apart from the database, and losing it loses every exercise wrapped under it;**
+  - **the pepper is never rotated or removed while any exercise wrapped under it is not finalised or cancelled (20v);**
+  - anonymous refusals are left to the edge access log, if one is kept: method, path and status, never a body (20w).
 - **Done when:**
   - the env readers are tested ("true", "1", empty and "yes" refuse as they should; a short pepper is refused);
   - the notes list every condition.
@@ -524,7 +547,8 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
 
 **9. api-engineer: part upload and discard.**
 - **The route** follows the registration upload pattern:
-  - the guard first; refusals are logged to `SealedAccessEvent` only after the session check, never through `logAccess`;
+  - the guard first; refusals are logged to `SealedAccessEvent` only after the session check, never through `logAccess`. Of the rate
+    refusals, only the first per account per window writes a row (`rateRefusalLogged`, 20w);
   - the deployment limiter, plus **one in flight per supplier**;
   - 411 without a length; the length held to the part's `maxBytes`;
   - `readBounded` with a deadline and a minimum rate (`BID_BODY_DEADLINE_SECONDS` and `BID_BODY_MIN_BYTES_PER_SECOND` in `limits.ts`;
@@ -541,6 +565,7 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - each refusal, including a stub scanner returning ERROR under LIVE and under DEMONSTRATION, and a slow body;
   - another supplier's exercise, which answers 404;
   - a second concurrent upload by the same supplier, which answers BUSY;
+  - repeated rate refusals in one window write exactly one `SealedAccessEvent` (20w);
   - and shows that the blob does not contain the plaintext.
 
 **10. api-engineer: submit, replace and withdraw.**
@@ -556,7 +581,7 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   7. It writes the SIGNED `ActAttribution`, the audit row and the `SealedAccessEvent`.
 - **Withdraw** works the same way, with `withdrawalEffect`. Its stamp is taken after the body is read and before the password check, and is
   written as `statusAt` (trigger 2).
-- **The void guard (H1).** Do **not** add `OnlineBid` to `voidSaleFault`'s `holdsEnvelope` reading, in this step or any other (Q13).
+- **The void guard (H1).** Do **not** add `OnlineBid` to `voidSaleFault`'s `holdsEnvelope` reading, in this step or any other (20r).
 - **Done when:**
   - the stamp falls at the closing second and is in time; one second after, it is late;
   - a late bid after the main opening has started is refused (`LATE_CLOSED`);
@@ -568,7 +593,8 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - the receipt digest recomputes;
   - the audit JSON holds no declaration, filename or plain hash;
   - **the void register answers identically for every buyer before the opening, with and without online submissions** (a DB test over
-    `voidSaleFault` and `voidRefusalNote`);
+    `voidSaleFault` and `voidRefusalNote`). The 17b reversal joins this test when it is built (20r);
+  - repeated rate refusals on submit or withdraw in one window write exactly one `SealedAccessEvent` (20w);
   - the handler test walks the guards.
 
 **11. frontend-engineer: the supplier screens.**
@@ -584,7 +610,9 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
 - **My Bids:**
   - each submission's sequence, stamp, status and receipt digest;
   - Withdraw, listing the linked alternatives with tick boxes;
-  - after the opening, `myBidOpenedWords` (Q14).
+  - from the opening's start, `myBidOpenedWords` in its states (20s): the listed or opened receipt digest in full, the request to compare it
+    with the receipt the supplier kept, the late and not-in-roll words, and "not opened, as expected" for replaced and withdrawn bids. No
+    verdict and nothing sent.
 - **Done when:**
   - the ui-guidelines-reviewer has compared these screens with `/supplier/bids/[id]`;
   - `check-ui` passes;
@@ -592,7 +620,8 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - no arithmetic runs in a component.
 
 **12. workflow-engineer + frontend-engineer: Received, the envelope readers and the audit mask.**
-- **Received:** `receivedView` (count, then ordinal, stamp and late flag; the sequence only after the start; Q16).
+- **Received:** `receivedView` (count, then ordinal, stamp and late flag; the sequence from the opening's start), labelled with
+  `RECEIVED_WORDS` (20u).
 - **The envelope readers** handle SUPERSEDED and online WITHDRAWN (no `BidWithdrawal`):
   - `finaliseFaults` (`ENVELOPE_UNOPENED`, `WITHDRAWAL_UNRESOLVED`);
   - `withdrawalsResolved`;
@@ -697,11 +726,13 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
 - **Deactivation:**
   - before the unseal, it lists the exercises at risk and requires a reason;
   - **between the unseal and finalising**, deactivating a named officer of that opening needs a second approver through the existing
-    two-person path (ADR 0036 D11, review H3 option b).
+    two-person path (ADR 0036 D11, 20t), and the screen lists the openings it would leave unfinalisable and says they must be re-tendered;
+    the way out is the existing cancellation.
 - **Done when:**
   - a DB test substitutes and then unseals;
   - the deactivation screen lists the exercises at risk;
-  - a one-person deactivation of an officer between the unseal and finalising is refused, and the two-person path succeeds.
+  - a one-person deactivation of an officer between the unseal and finalising is refused, and the two-person path succeeds;
+  - in that window the screen lists the opening as left unfinalisable and says re-tender (a test, 20t).
 
 **18. data-migration-engineer: the demo.**
 - **Only in `demo:load` on a fresh database (12c).** It sets:
@@ -749,7 +780,7 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
 - **Done when** the log entry exists, and every NOT MET item is in the backlog.
 
 **21. docs-writer: the record.**
-- Decisions-log entries for the build decisions, with Q1–Q12 cited as ruled (20a–20o) and Q13–Q17 as open.
+- Decisions-log entries for the build decisions, with Q1–Q18 cited as ruled (20a–20w).
 - ADR 0016's status gains a line: "superseded for exercises pinned ONLINE by 0036".
 - Comparators and snapshots updated.
 - **Done when** the text snapshots before and after lose no paper field.
@@ -770,12 +801,12 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
 
 ## 4. Questions
 
-- **Ruled:** Q1–Q12, by 20a–20l, plus 20m–20o. **Referred to the founder with the outside review:** re-key-and-resubmit (20f), k-of-m
-  (20k) and the blinded supplier link (20a).
-- **Open, with the defaults built here:**
-  - **Q13 (H1 and 17b):** the reversal does not read online bids before the opening.
-  - **Q14 (My Bids against ruling 25):** "your receipt digest was the one opened".
-  - **Q15 (H3 option a against ruling 20):** after the unseal, one officer cryptographically, all officers by signature.
-  - **Q16 (ordinal against ruling 18's "sequence"):** the ordinal is shown before the start.
-  - **Q17 (the LIVE additions):** the deployment flag, the pepper and the attestations for must-haves 4 and 5.
-  - **Q18 (logging):** only signed-in actors' attempts are logged.
+- **Ruled:** Q1–Q18 (20a–20w).
+  - Q1–Q12 by 20a–20l, plus 20m–20o.
+  - **Q13 → 20r:** before the opening the reversal reads no bid, on either channel.
+  - **Q14 → 20s:** My Bids shows the opened digest itself, in four states, and asks the supplier to compare it with its own receipt.
+  - **Q15 → 20t:** option a with option b; the residual names the pepper; deactivation in the H3 window says re-tender.
+  - **Q16 → 20u:** the ordinal before the opening, with its words.
+  - **Q17 → 20v:** the LIVE additions; a pepper mismatch is its own fault; no pepper rotation while an exercise under it is open.
+  - **Q18 → 20w:** signed-in attempts are logged; the first rate refusal per account per window writes a row.
+- **Referred to the founder with the outside review:** re-key-and-resubmit (20f), k-of-m (20k) and the blinded supplier link (20a).
