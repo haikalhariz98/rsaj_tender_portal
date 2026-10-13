@@ -27,6 +27,9 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "PeriodAgreement.person": { why: "The agreement on the contract period is a later 6.13 Part B increment: no act writes it.", writer: /\.periodAgreement\.(?:create|update|upsert)/ },
   "LadWaiver.person": { why: "Waiving liquidated damages is a later 6.13 Part B increment: no act writes it.", writer: /\.ladWaiver\.(?:create|update|upsert)/ },
   "LossExpenseClaim.valuedBy": { why: "Valuing a loss-and-expense claim is a later 6.13 Part B increment: no act writes the valuation.", writer: /valuedByPersonId/ },
+  // Wave 3b (SR-13): the attestations are recorded by the bid sealing policy's editor, wave 3b step 7, which is not built yet.
+  "BidSealingPolicy.publicRoleAttestedBy": { why: "The bid sealing policy's editor (wave 3b step 7) records the public-role attestation, and is not built yet.", writer: /publicRoleAttestedByPersonId/ },
+  "BidSealingPolicy.hardeningAttestedBy": { why: "The bid sealing policy's editor (wave 3b step 7) records the hardening attestation, and is not built yet.", writer: /hardeningAttestedByPersonId/ },
 };
 
 function walk(dir: string, out: string[] = []): string[] {

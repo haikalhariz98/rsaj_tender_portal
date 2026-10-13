@@ -294,6 +294,7 @@ model Organisation {
   clauseOverrides       ClauseOverride[]
   packAssurances        PackAssurance[]
   windowPolicy          WindowPolicy?
+  bidSealingPolicy      BidSealingPolicy?
   publicationChannels   PublicationChannel[]
   documentFeeFloors     DocumentFeeFloor[]
   holidayCalendars      HolidayCalendar[]
@@ -698,6 +699,9 @@ model Person {
   staffNotices                 StaffNotice[]           @relation("StaffNoticeRecipient")
   staffNoticesRaised           StaffNotice[]           @relation("StaffNoticeRaisedBy")
   documentAccessEvents         DocumentAccessEvent[] @relation("DocumentAccessActor")
+  // Wave 3b (SR-13, ADR 0036 D1, ruling 20v): the deployment attestations recorded on the bid sealing policy.
+  sealingPublicRoleAttested    BidSealingPolicy[]    @relation("SealingPublicRoleAttestedBy")
+  sealingHardeningAttested     BidSealingPolicy[]    @relation("SealingHardeningAttestedBy")
 }
 
 /// Who holds an authority office, and when.
@@ -3391,6 +3395,18 @@ model SourcingExercise {
   /// SR-10 (ruling 16, G1): how the tender documents are sold on this exercise. Pinned from the organisation's setting (`WindowPolicy.documentSaleMode`) when the exercise is created and
   /// frozen at publication, never read live. Null: not set, and publication refuses in words until the officer takes the organisation's setting. Exercises that existed before were backfilled COUNTER.
   saleMode SaleMode?
+  /// SR-13 (ADR 0036 D1, rulings 12e, 20i, 20o): how bids are submitted on this exercise, on paper (ADR 0016) or online through the supplier portal, sealed (ADR 0036).
+  /// Pinned from the organisation's setting (`WindowPolicy.submissionChannel`) when the exercise is created, taken only while unset, and frozen at publication. Null: not
+  /// set, and publication refuses in words. Exercises that existed before were backfilled PAPER (their present behaviour).
+  submissionChannel       SubmissionChannel?
+  /// SR-13 (20i): the organisation's online submission mode (`BidSealingPolicy.onlineSubmission`), frozen here at publication beside the channel, so a demonstration
+  /// exercise is never promoted to a real one. Null: not published online.
+  onlineSubmissionMode    OnlineSubmissionMode?
+  /// SR-13 (ADR 0036 D7): each returned part's bid rules (`OnlineBidRules`: accepted types, size, opening check), frozen at publication. Null: not published online.
+  onlineBidRules          Json?
+  /// SR-13 (ADR 0036 D3, threat S10): the exercise key's fingerprint, frozen at publication and shown on the opportunity and on every receipt. It moves from one value
+  /// to another only with a `PublishedKeyChange` row in the same transaction (trigger). Null: not published online.
+  publishedKeyFingerprint String?
   /// SR-09: the scope matters keyed to this exercise's uploaded bill file.
   scopeFileMatters CommitteeDecision[] @relation("ScopeMatterExercise")
 
@@ -5301,6 +5317,14 @@ model TenderDocumentPart {
   /// Null: no template set.
   templateFileVersionId String?
   templateFileVersion   DocumentVersion? @relation("TenderPartTemplateFile", fields: [templateFileVersionId], references: [id], onDelete: Restrict)
+  /// SR-13 (ADR 0036 D7, ruling 19): what a bidder may upload for this part online, by the supplier-recognised media types. Empty: not set, and an online exercise
+  /// with a returned part whose types are not set cannot be published. Frozen into `SourcingExercise.onlineBidRules` at publication.
+  bidAcceptedMediaTypes  String[]    @default([])
+  /// SR-13 (ruling 19): the largest file a bidder may upload for this part, in bytes (CHECK above 0). Null: not set, and publication refuses.
+  bidMaxBytes            BigInt?
+  /// SR-13 (ruling 23): whether the opening officers download this part at the opening check (SR-14). Null: not set, and publication refuses.
+  openingCheck           Boolean?
+  openingCheckProvenance Provenance?
 
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
@@ -5827,6 +5851,9 @@ model WindowPolicy {
   paymentSimulatorOn Boolean?
   /// The payment methods the simulator offers a buyer (configuration; the labels are the customer's). Empty: none set, and the simulator refuses in words.
   simulatedPaymentMethods String[] @default([])
+  /// SR-13 (ADR 0036 D1, 20o): how bids are submitted on an exercise created now, on paper or online. Null: not set, and an exercise created now pins "not set". It
+  /// cannot be set to ONLINE while online submission is not allowed (`channelSettingFaults`, ruling 13). Two-person path.
+  submissionChannel SubmissionChannel?
   noticeTemplateId     String?
   noticeTemplate       DocumentTemplate? @relation("WindowNoticeTemplate", fields: [noticeTemplateId], references: [id], onDelete: Restrict)
   invitationTemplateId String?
@@ -5843,6 +5870,55 @@ model WindowPolicy {
 enum SaleMode {
   COUNTER
   ONLINE
+}
+
+/// SR-13 (ADR 0036 D1): how bids are submitted. PAPER: sealed envelopes in the register (ADR 0016). ONLINE: through the supplier portal, sealed under the opening
+/// officers' keys (ADR 0036).
+enum SubmissionChannel {
+  PAPER
+  ONLINE
+}
+
+/// SR-13 (ADR 0036 D1, 20i): whether online submission is a demonstration ("not for real tenders") or live. Frozen on an exercise at publication.
+enum OnlineSubmissionMode {
+  DEMONSTRATION
+  LIVE
+}
+
+/// SR-13 (ADR 0036 D1, rulings 20i, 20o, 20v): the organisation's switch for online sealed bids, and the recorded conditions for issuing LIVE. One row per
+/// organisation, on the two-person path. Every value ships unset: `onlineSubmission` null refuses online submission in words. LIVE is issued only with the three
+/// references recorded, the two deployment attestations recorded (each "attested, not checked by the portal"), a malware scanner configured, the scrypt pepper
+/// configured and the deployment's `SEALED_BIDS_LIVE_ALLOWED` set (`liveIssueFaults`).
+model BidSealingPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// Null: not set, and online submission is refused in words.
+  onlineSubmission OnlineSubmissionMode?
+  /// Threat model must-have 1: the outside cryptography review, by its reference. Empty: not recorded.
+  cryptoReviewReference        String    @default("")
+  cryptoReviewRecordedAt       DateTime?
+  /// Must-have 2: the SK002/SK003 procedure amendment, by its reference. Empty: not recorded.
+  procedureAmendmentReference  String    @default("")
+  procedureAmendmentRecordedAt DateTime?
+  /// Must-have 6 (20o, 20a, 20t): the customer's written acceptance of the honest limits, naming FR-BID-001's identity clause. Empty: not recorded.
+  customerAcceptanceReference  String    @default("")
+  customerAcceptanceRecordedAt DateTime?
+  /// Must-have 4 (20v): the public-copy database role, attested by a named person. Attested, not checked by the portal. Empty: not attested.
+  publicRoleAttestation        String    @default("")
+  publicRoleAttestedAt         DateTime?
+  publicRoleAttestedByPersonId String?
+  publicRoleAttestedBy         Person?   @relation("SealingPublicRoleAttestedBy", fields: [publicRoleAttestedByPersonId], references: [id], onDelete: Restrict)
+  /// Must-have 5 (20v): core dumps and swap off, HTTPS, no body logging, attested by a named person. Attested, not checked by the portal. Empty: not attested.
+  hardeningAttestation         String    @default("")
+  hardeningAttestedAt          DateTime?
+  hardeningAttestedByPersonId  String?
+  hardeningAttestedBy          Person?   @relation("SealingHardeningAttestedBy", fields: [hardeningAttestedByPersonId], references: [id], onDelete: Restrict)
+
+  provenance Provenance?
+  notes      String      @default("")
+  updatedAt  DateTime    @updatedAt
 }
 
 /// A channel an open tender is published through (FR-ADV-001). Shipped empty.
@@ -11923,6 +11999,8 @@ model SecurityPolicy {
   /// O-1: how long the source address and user agent of a sign-in event are kept before the operator may purge them.
   /// At least the address-throttle window, or the throttle would lose its own evidence. Unset: they are kept.
   signInDetailRetentionDays Int?
+  /// SR-13 (ADR 0036 D4): the shortest unseal passphrase an opening officer may set (CHECK at least 12). Null: not set, and no officer can set a share.
+  sealingPassphraseMinLength Int?
 
   updatedAt DateTime @updatedAt
 }
