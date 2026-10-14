@@ -3,7 +3,9 @@
 **Status:** Accepted for building (product owner, for the founder, 2026-10-13, ruling 20x), with the 20x change list applied. Revised after:
 - the product owner's rulings 20a–20q (2026-10-12) and 20r–20x (2026-10-13), in `docs/notes/design/0003-sourcing-requirements-v2.md` §6,
   "Wave 3b: ADR 0036 open questions";
-- the wave 3b security review (H1–H3, M1–M6, Low).
+- the wave 3b security review (H1–H3, M1–M6, Low);
+- the review and security audit of stage A (steps 1–6), and the product owner's rulings on it, 20y–20ac (2026-10-13), with 20ac's change
+  list applied (2026-10-14).
 
 It rests on rulings 11, 12a, 17c and 18–25.
 
@@ -35,6 +37,10 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - **The exercise is pinned twice.**
   - `SourcingExercise.submissionChannel` (PAPER | ONLINE) is pinned at creation and taken only while unset (12e). It is frozen at
     publication and backfilled to PAPER. Unset refuses publication, in words.
+  - **The organisation's channel ships unset (20z).** `WindowPolicy.submissionChannel` is set only by two people, and no migration writes
+    it; unset is never read as PAPER. An exercise made while it is unset is pinned unset. It takes the organisation's setting, once issued,
+    by its own act ("Take the organisation's setting", on the `takeSaleMode` pattern): only while its pin is unset, before publication, and
+    on an exercise not cancelled. `CHANNEL_NOT_SET` says why and where, and shows in the publication checklist.
   - `SourcingExercise.onlineSubmissionMode` (DEMONSTRATION | LIVE) is frozen at publication beside the channel. A demonstration exercise is
     never promoted to a real one (20i).
 - **The switch.** `BidSealingPolicy.onlineSubmission` (null | DEMONSTRATION | LIVE) sits on the two-person path. Null refuses, in words.
@@ -52,11 +58,21 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - **`SEALED_BIDS_LIVE_ALLOWED`** gates only issuing LIVE and publishing under it. A published LIVE exercise keeps its pin and is not stopped
   by the flag (20i).
 - **DEMONSTRATION** needs `SEALED_BIDS_DEMONSTRATION_ALLOWED`, read live (20i), on the SEC-1 pattern. Every supplier screen, receipt and
-  Received then says "Demonstration — not for real tenders".
+  Received then says "Demonstration — not for real tenders", in English and Malay on the supplier's screens (20ab).
 - **Withdrawing LIVE** refuses new publication of ONLINE exercises. Published exercises keep their pin. The switch screen lists the
   published ONLINE exercises still taking bids. An incident is handled per exercise, by a closing extension or a cancellation (20i).
 - **No block that can never clear (ruling 13).** The organisation's channel cannot be set to ONLINE while online submission is not allowed.
-- **The demo** writes these rows only in `demo:load` on a fresh database (12c).
+- **The demo (12c, 12d, 20z)** writes configuration only inside `demo:load` on a fresh database. Its online exercise is made through the
+  product's create act and takes its channel from the window policy (G1); there is no demonstration exception to G1.
+  - The demonstration's window policy sets the channel to ONLINE **only through `channelSettingFaults`**, as the editor sets it, and the
+    bid sealing mode to DEMONSTRATION.
+  - The demonstration's authored exercises are pinned PAPER explicitly, never left unset, so they keep the paper paths they were authored
+    with.
+  - **Where the deployment does not allow demonstration bids at load,** `channelSettingFaults` refuses ONLINE. The seed then sets the
+    channel to PAPER, says in words that the online demonstration needs `SEALED_BIDS_DEMONSTRATION_ALLOWED`, and skips the online acts.
+  - If the flag is cleared later, a new demonstration exercise is refused at publication in words (`ONLINE_NOT_ALLOWED`). That is
+    clearable, by the flag or by a two-person change of the channel (ruling 13).
+  - On an already-loaded database the seed writes no configuration, and names the settings that are not set.
 
 **D2. Construction: `node:crypto` only, no new dependency.**
 - **Sealing to a public key: HPKE base mode** (RFC 9180), single-shot, with DHKEM(X25519, HKDF-SHA256), HKDF-SHA256 and AES-256-GCM.
@@ -116,8 +132,27 @@ It rests on rulings 11, 12a, 17c and 18–25.
     deployment holds. On a mismatch it is refused with its own fault (`PEPPER_NOT_HELD`), in words: this exercise was sealed under a pepper
     this deployment does not hold, and the deployment must restore it. The refusal never counts toward the officer's passphrase lockout and
     never says the passphrase is wrong.
-  - **The pepper is never rotated or removed while any exercise wrapped under it is not finalised or cancelled (20v).** Rotating it early
-    or losing it makes those exercises unopenable (D11).
+  - **The pepper is kept, unchanged, until no opening of any exercise wrapped under it can still follow (20y, correcting 20v's condition
+    2).** No opening can still follow an exercise when either:
+    1. the exercise is cancelled; or
+    2. its main opening is finalised, **and** every late online bid in its roll that is not withdrawn is either not admitted (its committee
+       decided NOT_CARRIED) or admitted and opened at a supplementary opening that is itself finalised.
+    - **Why the main finalise is not the end.** An admitted late bid is opened at a supplementary opening, which starts only once the main
+      opening is finalised (`MAIN_NOT_FINALISED`). That opening is n-of-n, and its own finalise needs one officer's passphrase, so both need
+      the pepper. Rotating at the main finalise would leave the bid unopenable and the award blocked for ever by `ADMITTED_UNOPENED`.
+    - An admission not tabled, pending or deferred keeps the pepper. A decided one is final (`ALREADY_DECIDED`). An award implies case 2,
+      because the award gate requires it, but only if the online late envelopes reach `needsAdmission` and `admittedEnvelopeIds` (plan step
+      12). The award is a sign of the condition, not the condition.
+    - After the finalise the mover works from `releasedDek`, which needs no pepper. A late bid never admitted stays sealed for ever.
+    - **Scope:** every exercise with any officer wrap under that pepper's id. The id is the configured name with a check value of the bytes
+      (`name#check`), so a wrong copy of the bytes is a different pepper. A DEMONSTRATION exercise wrapped while a pepper was configured is
+      included. An exercise wrapped with no pepper is not.
+    - **One pepper at a time.** The deployment holds one `SEALING_PEPPER`, so a new pepper replaces the old one. It may do so only once no
+      exercise under the old one can still be opened. An exercise with no submission can be re-keyed under a new pepper: that is the remedy
+      for an early loss, not a reason to rotate early.
+    - **So the operator can check it,** the bid sealing screen lists, read only, the exercises that still need the pepper this deployment
+      holds, from one pure rule (`pepperStillNeeded`, plan step 15). Rotating early, or losing the pepper, makes those exercises unopenable
+      (D11).
 - **Step-up.** Setting a share, "Check I can still unlock", authorising, signing at finalising, finalising, releasing for a substitution,
   and **every download** ask the sign-in password (`stepUp`) as well as the passphrase (review, 20n).
 
@@ -130,15 +165,23 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - **What plaintext never reaches:** `storeUpload`, `BlobContent` and `DocumentVersion` (C-6).
 - **Submit.**
   1. The bounded JSON body is read.
-  2. The stamp is taken at once from the **database clock**, before the password check. From here on, the database clock is "the server's
-     clock" (FR-BID-002).
+  2. The stamp is taken at once from the **database clock**, before the password check: `SELECT date_trunc('second', clock_timestamp())`,
+     in its own statement (20aa). From here on, the database clock is "the server's clock" (FR-BID-002).
   3. `confirmSupplierPassword` runs on its own committed connection, so a wrong password still counts toward the lockout. This is the 4e
      pattern; the spent step-up moment is reused.
   4. The act's transaction takes the opening's locks (`lockEnvelopeRows`; 20b). It seals the manifest and the declaration (Harga as a
      decimal string, Tempoh Kerja and its unit), and writes the ONLINE `BidEnvelope` and the `OnlineBid`.
-- **The trigger owns the stamp (H2).** It accepts `receivedAt` only within `MAX_STAMP_SKEW_SECONDS` of `now()`, a product constant. It then
-  sets `late` and `closingAtJudged` itself from the exercise's closing as it stands at insert. An extension committed while the act waited
-  is therefore honoured (0016).
+- **The trigger owns the stamp (H2).** It accepts `receivedAt` only within `MAX_STAMP_SKEW_SECONDS` (a product constant) before the
+  database clock at **the moment of the insert**. It then sets `late` and `closingAtJudged` itself from the exercise's closing as it stands
+  at insert. An extension committed while the act waited is therefore honoured (0016).
+  - **The clock (20aa).** `sealed_clock()` reads `clock_timestamp()`, the moment of the act, and is declared VOLATILE. Each trigger reads it
+    once, into its own variable, so both bounds come from one reading. It is not `now()`, the transaction's start: in a transaction held
+    open, a bound read from it moves back with the stamp, and the skew measures nothing. Every judgement against the closing on the sealed
+    tables reads it (the stamp, a replace and a withdrawal, a key retired, `LODGEMENT_CLOSED`), and a database test pins this on the live
+    function definitions.
+  - **The lock-wait edge.** A submit whose transaction waits on the exercise's locks for longer than the skew is refused at insert. The
+    skew is not widened. The refusal is said in words (the bid was not taken; submit again; the new stamp decides whether it is late),
+    writes a `SealedAccessEvent`, and counts toward no lockout.
 - **Stored plain:**
   - on the envelope: sequence, stamp, late flag and status;
   - ciphertext digests and sizes;
@@ -152,7 +195,7 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - **Each file belongs to one submission** (`OnlineBidPart.fileId` unique, H2). A replacement re-uploads every part, and the page says so.
 - **The receipt:** sequence, stamp, key fingerprint and a receipt digest (SHA-256 over exercise, sequence, stamp and every ciphertext
   digest), plus the browser's confirmed plain hashes.
-  - Its words: "Your receipt. It records what the portal told you." **Never "signed" or "proof"** (20j).
+  - Its words: "Your receipt. It records what the portal told you." **Never "signed" or "proof"** (20j), in either language (20ab).
 
 **D6. Type check and scan on plain bytes, before sealing (12a, 20o, M3).**
 - **One shared recogniser** serves the staff and supplier paths (ADR 0035 item 11, reading the tail).
@@ -167,7 +210,10 @@ It rests on rulings 11, 12a, 17c and 18–25.
 
 **D7. Withdraw, replace, late, alternatives, part rules.**
 - **Withdraw and replace** are signed acts, allowed up to and including the closing second.
-  - A replace marks the old bid REPLACED and its envelope SUPERSEDED.
+  - A replace marks the old bid REPLACED and its envelope SUPERSEDED, in the same act that writes the replacement. It is of the replaced
+    submission's own kind: a bid replaces a bid, an alternative an alternative (`REPLACE_KIND_CHANGED`, review M1), so a replace never makes
+    a second bid. A submission that names another as replaced, without that one moving to REPLACED in the same transaction, is refused at
+    the commit (plan §1.4 trigger 14).
   - A withdrawal marks it WITHDRAWN, and withdraws only what it names. The screen lists the linked alternatives so the supplier can withdraw
     them in the same act. A kept alternative has its link cleared in that recorded act (20h).
   - Neither status is ever decrypted.
@@ -176,9 +222,12 @@ It rests on rulings 11, 12a, 17c and 18–25.
   - After the closing, the trigger allows an insert only as `late = true`, and only while no main `Opening` exists. This is how H2's "refuse
     inserts after the closing" is read, so that FR-BID-003 holds.
   - Late bids are sealed, counted and sent to the committee.
-  - A supplier with a live in-time bid may not add a late one (FR-BID-005).
+  - **One standing bid (FR-BID-005, review S1).** A supplier with a standing bid, in time or late, may not add another (`LIVE_BID_HELD`); a
+    replace is the way to change it. The door checks it under the locks, and a deferred trigger holds it at the commit (plan §1.4 trigger
+    13), so the submit runs at READ COMMITTED.
 - **Alternatives (20h, amending ruling 19).**
-  - No main bid is needed. An alternative may name a parent, which must be the supplier's own live bid (`PARENT_NOT_YOUR_LIVE_BID`).
+  - No main bid is needed. An alternative may name a parent, which must be the supplier's own live bid (`PARENT_NOT_YOUR_LIVE_BID`), and a
+    bid, never another alternative (`PARENT_NOT_A_BID`, review S3, as paper's).
   - Where `alternativesPermitted` is false, the alternative is accepted and later recorded `OpenedBid.alternativeStatus = NOT_CONSIDERED`.
     The supplier is told before submitting.
   - Where it is null, publication refuses. `ALTERNATIVES_NOT_STATED` stays only as a defensive refusal.
@@ -259,7 +308,7 @@ It rests on rulings 11, 12a, 17c and 18–25.
   - FINALISE grants are read only by `finaliseOnline` (scan);
   - the officer screens say every named officer is needed (20k).
 - **The opening roll (H2).** `startOpening` freezes `Opening.receiptRoll`: every standing submission's sequence, receipt digest and late
-  flag. There is no scheduler. Because moves stamped after the closing are refused, and an ONLINE opening cannot start until `MAX_STAMP_SKEW_SECONDS` after the closing (so no in-time act is still committing), the roll taken at the start equals the in-time state at
+  flag. There is no scheduler. Because moves stamped after the closing are refused, and an ONLINE opening cannot start until the database clock (`clock_timestamp()`, 20aa) reads `MAX_STAMP_SKEW_SECONDS` after the closing (so no in-time act is still committing), the roll taken at the start equals the in-time state at
   the closing. Each opened bid shows its receipt digest and plain hashes.
 - **My Bids (20s).** From the opening's start, My Bids **shows the opened receipt digest itself, in full, and asks the supplier to compare
   it with the receipt it printed or saved when it submitted.** A server sentence "your receipt was the one opened" would compare two server
@@ -354,7 +403,18 @@ It rests on rulings 11, 12a, 17c and 18–25.
   - `releasedDek` goes from NULL to set only once the opening is finalising, and back to NULL only once its link exists;
   - the fingerprint and key rules (D11);
   - `LODGEMENT_CLOSED`;
-  - no DELETE, and no TRUNCATE.
+  - no DELETE, and no TRUNCATE;
+  - **added by the stage A hardening (migration `20261103200000`; audit 1–5 and 7, review M1 and S3, 20aa):** the channel and the bid rules
+    frozen at publication; a share release checked as it is written; one standing bid per supplier per exercise, at the commit; every ONLINE
+    envelope has its submission by the commit; a replacement of the replaced submission's kind, and a parent that is a bid;
+  - **owed by plan step 10:** a submission naming another as replaced is refused at the commit unless that one moved to REPLACED in the
+    same transaction.
+- **How the triggers know their own transaction.** "Written in this transaction" is read from `xid8` columns that only a trigger writes
+  (`insertedXact`, `statusXact`, `unsealedXact`, `finalisedXact`), never from a row's `xmin`, which any UPDATE resets. An UPDATE of an
+  ONLINE envelope that changes nothing is refused, so a no-op cannot refresh a row's standing.
+- **Names cannot be shadowed.** Every trigger function runs with `search_path = pg_catalog, public, pg_temp` and names its tables in
+  `public`. As a second wall, `db:roles` revokes TEMPORARY on the database from PUBLIC and from the app's role; that revoke reaches a
+  database only when `npm run db:roles` runs, and the owner keeps it.
 - **Grants.** `SealedAccessEvent` and `PublishedKeyChange` are append-only. A new `SEALED_TABLES` list revokes DELETE and TRUNCATE. The
   public-copy role stays a go-live condition (log 1937).
 - **`src/lib/bids/sealed.test.ts`** (SR-13 citation). The paper scans are unchanged. On the sealed tables:
@@ -396,7 +456,11 @@ It rests on rulings 11, 12a, 17c and 18–25.
 ## Consequences
 
 - **Wave 3c** builds the SR-14 matrix and the SR-15 downloads on `OpenedBid` with a NULL price until finalising.
-- **Paper paths are untouched.** Every online branch keys off `submissionChannel`.
+- **Paper paths are unchanged, for what exists (20z).** Every exercise that exists is backfilled PAPER and keeps its gates, and no paper act
+  changes. Every online branch keys off `submissionChannel`.
+- **A new exercise needs the channel set.** It takes the organisation's channel as it takes the sale mode. The organisation's channel
+  ships unset, beside `documentSaleMode` on the same window policy, and is set by two people. Until it is set, publication refuses in
+  words (`CHANNEL_NOT_SET`). For an organisation whose sale mode is also unset, both are set in one two-person change.
 - **Every unseal and supplementary opening needs every named officer.** After the main unseal, finalising needs one officer's passphrase
   and every officer's signature.
 - **A lost passphrase or pepper before the unseal, after the first submission, means re-tendering.**
@@ -430,7 +494,16 @@ It rests on rulings 11, 12a, 17c and 18–25.
 - Q14 → 20s: My Bids shows the opened digest itself, in four states, and asks the supplier to compare it with its own receipt.
 - Q15 → 20t: option a with option b; the one-officer residual (with the pepper) is named; deactivation in the H3 window says re-tender.
 - Q16 → 20u: the ordinal before the opening, with its words; amends ruling 18.
-- Q17 → 20v: the LIVE additions; a pepper mismatch is its own fault, not counted; no rotation while an exercise under it is open.
+- Q17 → 20v: the LIVE additions; a pepper mismatch is its own fault, not counted; its end condition is restated by 20y.
 - Q18 → 20w: signed-in attempts are logged; the first rate refusal per account per window writes a row.
+
+**Ruled (20y–20ab), on points raised by the stage A review; 20ac lists the document changes, applied here.**
+- S8, the pepper's end condition → 20y: kept until no opening of any exercise under it can still follow (D4); `pepperStillNeeded` and
+  its list on the bid sealing screen.
+- S9, the channel unset for existing organisations → 20z: it stays unset until two people set it; the take-the-channel act; the demo
+  through `channelSettingFaults` (D1, Consequences).
+- The database clock → 20aa: `clock_timestamp()`, VOLATILE, read once per trigger; the lock-wait refusal in words (D5).
+- The supplier's words in Malay → 20ab: both languages through the existing `Words`, the scans cover the Malay, reviewed by the customer
+  inside the NFR-LNG-001 go-live condition.
 
 **Referred to the founder with the outside review:** re-key-and-resubmit, k-of-m, and the blinded supplier link.
