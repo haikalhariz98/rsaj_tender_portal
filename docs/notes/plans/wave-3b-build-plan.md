@@ -368,7 +368,9 @@ model SealedAccessEvent {                                // append-only
 }
 ```
 
-**Triggers.** Each is `ENABLE ALWAYS` with its own SQLSTATE; PA010 to PA029 are reserved here.
+**Triggers.** Each is `ENABLE ALWAYS` with its own SQLSTATE; PA010 to PA029 are reserved here. The models above match `prisma/schema.prisma`
+column for column. The trigger list states each rule a builder writes against; the migrations (`20261103110000`, `20261103200000`) are the
+authority for every detail.
 
 **Amended by the stage A fix round (2026-10-13, migration `20261103200000`; security audit 1–5 and 7, review M1 and S3, ruling 20aa).** "The database
 clock" is `sealed_clock()`, which reads `clock_timestamp()`, the moment of the act, and is VOLATILE, read once into each trigger's own variable.
@@ -382,7 +384,9 @@ resets.
 1. **The stamp on an ONLINE `BidEnvelope` insert (H2).**
    - `receivedAt` must be whole seconds, and within `[clock − MAX_STAMP_SKEW_SECONDS, clock]`, where clock is `sealed_clock()` read once, at the
      moment of the insert (20aa).
-   - The trigger sets `closingAtJudged` from `SourcingExercise.closingAt`, and `late := receivedAt > closingAtJudged`.
+   - It refuses an exercise not pinned ONLINE, or with no closing (PA010).
+   - The trigger sets `closingAtJudged` from `SourcingExercise.closingAt`, `late := receivedAt > closingAtJudged`, and
+     `recordedAfterClosing := late`. It sets `insertedXact` on every envelope, whatever the writer sent.
    - A late insert is refused once a main `Opening` exists for the exercise.
    - `MAX_STAMP_SKEW_SECONDS` is a product constant in `limits.ts`, written as a literal into the migration. A test pins the two equal.
 2. **Status moves on ONLINE `BidEnvelope` and `OnlineBid`.**
@@ -396,9 +400,11 @@ resets.
    - An UPDATE of an ONLINE envelope that changes nothing is refused (audit 2).
      - A cleared alternative link (trigger 6) is judged by its parent's move.
    - OPENED is refused unless the exercise has an `Opening` with the unseal being written.
-3. **`OnlineBid` insert** is refused unless its envelope is ONLINE, of the same kind, was inserted in the same transaction (its `insertedXact`), and
-   is stamped within the skew of the clock (audit 2). A replacement is of the replaced submission's kind (M1); a parent is a BID (S3). Every
-   ONLINE envelope has its `OnlineBid` by the commit (deferred, PA013).
+3. **`OnlineBid` insert** is refused unless its envelope is ONLINE, RECEIVED, of the same exercise, organisation and kind, was inserted in the
+   same transaction (its `insertedXact`), and is stamped within the skew of the clock (audit 2). It is written SUBMITTED with no `statusAt`,
+   under the exercise's live key. A named parent must be the same supplier's SUBMITTED bid on the exercise, of kind BID (S3); a named replaced
+   submission the same supplier's SUBMITTED one on the exercise, of the same kind (M1). The trigger sets `insertedXact` and clears
+   `statusXact`. Every ONLINE envelope has its `OnlineBid` by the commit (deferred, PA013).
 4. **Ciphertext columns are immutable.** Shreds go from set to NULL only.
 5. **`releasedDek`** follows the rule in its column comment. Until step 15 replaces its function (`sealed_online_bid_file_change`) in a new
    migration, every shred is refused (PA015), because the document link does not exist yet.
@@ -716,7 +722,9 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
 - **The refusals the database makes are said in words, never thrown at the supplier.** The store maps the SQLSTATE of the act's own
   transaction, after the door's checks passed under the locks:
   - PA010 on the submit's envelope, or PA012 on the withdrawal's status move → `STAMP_STALE` (the lock-wait edge, 20aa);
-  - PA027 at the commit → `LIVE_BID_HELD` (a rival committed first);
+  - PA027 at the commit → `LIVE_BID_HELD` (a rival committed first). PA027 also refuses a stricter isolation, which would be a defect, not
+    a bid the supplier holds; the transaction sets no isolation, and a test pins that it reads `read committed`, so that case cannot reach
+    the supplier as `LIVE_BID_HELD`;
   - PA013, PA016, PA028 and any other sealed SQLSTATE → `NOT_TAKEN`, with the SQLSTATE in the server log (never a body).
   - None counts toward any lockout. Each writes a `SealedAccessEvent` REFUSED with the fault as its `reasonCode`, outside the refused
     transaction.
@@ -989,8 +997,10 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
 - **The runtime role check learns about TEMPORARY (devops-engineer, security audit 1).** `RuntimeRoleFacts` (`src/lib/auth/db-role.ts`)
   gains `temporaryHeld: boolean`: the login, through itself, a role it is a member of, or PUBLIC, still holds TEMPORARY on the database
   (`has_database_privilege(current_user, current_database(), 'TEMPORARY')`, read in `runtime-role-store.ts`). `runtimeRoleVerdict` treats it
-  as unsafe after the superuser and owner checks, with its own reason and words: the login can still make temporary tables, so
-  `npm run db:roles` has not run on this database since the stage A hardening. It refuses sign-in in production as `TRAIL_WRITABLE` does.
+  as a warning, after the superuser, owner and grants checks, with its own words: the login can still make temporary tables, so
+  `npm run db:roles` has not run on this database since the stage A hardening. It is shown on the accounts screen and written to the
+  server log, and it does **not** refuse sign-in: the refusal is kept for a wall that stands alone (the trail's grants), and TEMPORARY is
+  the second wall behind the pinned `search_path`, which every sealed trigger function carries.
 - **Done when** all of these pass, and the paper scans are unchanged (diff-checked); and a DB test as the app role reads `temporaryHeld`
   false after `db:roles` and true where TEMPORARY is granted back, with the verdict's words in each case.
 
