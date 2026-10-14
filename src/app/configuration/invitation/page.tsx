@@ -90,7 +90,7 @@ export default async function InvitationControlsPage() {
     : [null, [], [], [], [], [], null];
   const p = c.policy.values;
   // Phase 4d: the online release of the documents is read beside the window rules, not through `WindowPolicyFacts` (no window rule reads it).
-  const release = await db.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true, electronicReleaseProvenance: true, documentSaleMode: true, paymentSimulatorOn: true, simulatedPaymentMethods: true } });
+  const release = await db.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true, electronicReleaseProvenance: true, documentSaleMode: true, submissionChannel: true, paymentSimulatorOn: true, simulatedPaymentMethods: true } });
   const rule = (label: string) => c.policy.rules.find((r) => r.label === label)!;
   const named = <T extends { id: string }>(xs: T[], id: string | null) => xs.find((x) => x.id === id);
   const channelOptions = c.channels.filter((x) => !x.retired).map((x) => ({ value: x.id, label: x.nameEn }));
@@ -114,6 +114,7 @@ export default async function InvitationControlsPage() {
     electronicDocumentRelease: tri(release?.electronicDocumentRelease),
     electronicReleaseProvenance: release?.electronicReleaseProvenance ?? "",
     documentSaleMode: release?.documentSaleMode ?? "unset",
+    submissionChannel: release?.submissionChannel ?? "unset",
     paymentSimulatorOn: tri(release?.paymentSimulatorOn),
     paymentMethodsText: (release?.simulatedPaymentMethods ?? []).join("\n"),
     noticeTemplateId: p.noticeTemplateId ?? "",
@@ -175,6 +176,7 @@ export default async function InvitationControlsPage() {
                 setting(RULE_LABEL.mandatoryAttendance, <Setting value={r.attendance.value} unset={UNSET.attendance} source={p.attendanceProvenance} />),
                 setting("Release the tender documents online after payment", <Setting value={release?.electronicDocumentRelease == null ? "Not set" : release.electronicDocumentRelease ? "Released online once an officer records the payment" : "Collected at the counter only"} unset="Not set, so documents are collected at the counter and nothing is released online." source={release?.electronicReleaseProvenance ?? null} />),
                 setting("How the tender documents are sold", <Setting value={release?.documentSaleMode ? saleModeWords(release.documentSaleMode) : "Not set"} unset="Not set, so an exercise made now cannot be published until the organisation says how its documents are sold." />),
+                setting("How bids are submitted", <Setting value={release?.submissionChannel === "PAPER" ? "On paper, in a sealed envelope" : release?.submissionChannel === "ONLINE" ? "Online, sealed in the portal" : "Not set"} unset="Not set, so an exercise made now cannot be published until the organisation says how bids are submitted." />),
                 setting("Demonstration payment simulator", <Setting value={release?.paymentSimulatorOn == null ? "Not set" : release.paymentSimulatorOn ? (simulatorAllowedByDeployment() ? "On: a demonstration, no money moves" : "On, but this copy of the system is not set up for demonstrations, so no one can pay on it and a payment already made on it releases nothing") : "Off"} unset="Not set, so a buyer cannot pay online: the office records the payment instead." />),
                 setting("Payment methods the simulator offers", <Setting value={release?.simulatedPaymentMethods.length ? release.simulatedPaymentMethods.join(", ") : "Not set"} unset="None set, so the simulator offers nothing to choose from." />),
                 setting("Template for the published notice", <Setting value={c.policy.templates.notice} unset={UNSET.template} />),

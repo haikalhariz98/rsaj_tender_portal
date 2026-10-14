@@ -18,6 +18,7 @@ const unset: SecurityPolicyValues = {
   resetCodeValidityMinutes: null,
   paperSignatureRecording: null,
   signInDetailRetentionDays: null,
+  sealingPassphraseMinLength: null,
 };
 const signInSet: SecurityPolicyValues = {
   ...unset,
@@ -177,5 +178,14 @@ describe("rangeFault", () => {
     expect(rangeFault("lockoutMinutes", 1.5)).not.toBeNull();
     expect(rangeFault("staffIdleMinutes", 0)).not.toBeNull();
     expect(rangeFault("concurrentSessionAction", 1)).toBeNull(); // not numeric: nothing to hold it to
+  });
+});
+
+describe("the shortest unseal passphrase (wave 3b, ADR 0036 D4)", () => {
+  it("is unset until the organisation sets it, refuses under 12 as the database does, and is needed to set an officer's share", () => {
+    expect(unsetSettings(null, "SET_OFFICER_SHARE")).toEqual(["sealingPassphraseMinLength"]);
+    expect(rangeFault("sealingPassphraseMinLength", 11)).not.toBeNull();
+    expect(rangeFault("sealingPassphraseMinLength", 12)).toBeNull();
+    expect(rangeFault("sealingPassphraseMinLength", 257)).not.toBeNull();
   });
 });

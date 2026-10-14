@@ -27,9 +27,10 @@ export const SETTING_LABELS: Record<SecurityPolicyKey, SettingLabel> = {
   resetCodeValidityMinutes: { en: "How long a one-time code stays valid", ms: "Tempoh kod sekali guna kekal sah" },
   paperSignatureRecording: { en: "Whether a paper decision may be recorded for someone else", ms: "Sama ada keputusan atas kertas boleh direkodkan bagi pihak orang lain" },
   signInDetailRetentionDays: { en: "How long sign-in addresses are kept", ms: "Tempoh alamat log masuk disimpan" },
+  sealingPassphraseMinLength: { en: "Shortest unseal passphrase", ms: "Frasa laluan buka meterai terpendek" },
 };
 
-export type PolicyNeed = "SIGN_IN" | "SUPPLIER_SIGN_IN" | "SET_PASSWORD" | "ISSUE_CODE";
+export type PolicyNeed = "SIGN_IN" | "SUPPLIER_SIGN_IN" | "SET_PASSWORD" | "ISSUE_CODE" | "SET_OFFICER_SHARE";
 
 const NEEDS: Record<PolicyNeed, readonly SecurityPolicyKey[]> = {
   SIGN_IN: [
@@ -55,6 +56,8 @@ const NEEDS: Record<PolicyNeed, readonly SecurityPolicyKey[]> = {
   ],
   SET_PASSWORD: ["passwordMinLength"],
   ISSUE_CODE: ["resetCodeValidityMinutes"],
+  // Wave 3b (SR-13): an opening officer setting their share of an online exercise's key.
+  SET_OFFICER_SHARE: ["sealingPassphraseMinLength"],
 };
 
 /// The settings an act needs that nobody has set, in a stable order. `policy` is null where the organisation has no policy row at all: then every one is unset.
@@ -168,6 +171,7 @@ export const EMPTY_POLICY: SecurityPolicyValues = {
   resetCodeValidityMinutes: null,
   paperSignatureRecording: null,
   signInDetailRetentionDays: null,
+  sealingPassphraseMinLength: null,
 };
 
 /**
@@ -202,6 +206,8 @@ export const SETTING_RANGES: Partial<Record<SecurityPolicyKey, { min: number; ma
   passwordMinLength: { min: 8, max: 256, unit: "characters" },
   resetCodeValidityMinutes: { min: 1, max: 10080, unit: "minutes" },
   signInDetailRetentionDays: { min: 1, max: 3650, unit: "days" },
+  // The floor is the database CHECK's (SecurityPolicy, migration 20261103000000).
+  sealingPassphraseMinLength: { min: 12, max: 256, unit: "characters" },
 };
 
 const UNIT_WORDS: Record<string, string> = { minutes: "minit", sessions: "sesi", attempts: "percubaan", characters: "aksara", days: "hari" };

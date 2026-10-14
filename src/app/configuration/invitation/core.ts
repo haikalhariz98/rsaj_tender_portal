@@ -17,6 +17,9 @@ import { saleModeWords, type SaleMode } from "@/lib/window/sale-mode";
 import { BID_RULE_FAULT_TEXT, bidRuleFaults, bidRuleToSave } from "@/lib/bids/config";
 import { methodOpeningFaults, methodOpeningToSave, OPENING_CONFIG_FAULT_TEXT, openingPolicyFaults, openingPolicyToSave, type OpeningConfigFault } from "@/lib/opening/config";
 import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
+import { sealingDeployment } from "@/lib/integration/sealing-deployment";
+import { channelSettingFaults, onlineSubmissionAllowed } from "@/lib/sealing/switch";
+import type { SubmissionChannel } from "@/lib/bids/online/types";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -39,6 +42,8 @@ const GONE: FormState = { ok: false, message: "That record no longer exists. Rel
 const TRI = ["yes", "no", "unset"] as const;
 const tri = (v: string | null): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
 const NOT_SET = "Not set";
+const channelChoice = (v: string | null): SubmissionChannel | null => (v === "PAPER" || v === "ONLINE" ? v : null);
+const submissionChannelWords = (c: SubmissionChannel | null) => (c === "PAPER" ? "On paper, in a sealed envelope" : c === "ONLINE" ? "Online, sealed in the portal" : NOT_SET);
 const saleModeChoice = (v: string | null): SaleMode | null => (v === "COUNTER" || v === "ONLINE" ? v : null);
 const WEEKDAY = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -85,6 +90,8 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
     electronicReleaseProvenance: r.choice("electronicReleaseProvenance", "Where the release decision comes from", PROVENANCE),
     // SR-10 (rulings 16 and 17): how the documents are sold on an exercise created now, and the demonstration payment simulator with the methods it offers. Unset is not "off".
     documentSaleMode: saleModeChoice(r.choice("documentSaleMode", "How the documents are sold", ["COUNTER", "ONLINE", "unset"] as const)),
+    // SR-13 (ruling 20z): how bids are submitted on an exercise made now. Never read as PAPER while unset.
+    submissionChannel: channelChoice(r.choice("submissionChannel", "How bids are submitted", ["PAPER", "ONLINE", "unset"] as const)),
     paymentSimulatorOn: tri(r.choice("paymentSimulatorOn", "Payment simulator", TRI)),
     paymentMethodsText: r.text("paymentMethodsText", "Payment methods", { max: 2000 }),
     noticeTemplateId: r.optionalText("noticeTemplateId"),
@@ -102,9 +109,12 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
     const calendars = await tx.holidayCalendar.findMany({ where: { organisationId: org.id }, select: { id: true, name: true, retiredOn: true } });
     const templates = await tx.documentTemplate.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } });
     const before = await tx.windowPolicy.findUnique({ where: { organisationId: org.id } });
+    const sealing = await tx.bidSealingPolicy.findUnique({ where: { organisationId: org.id }, select: { onlineSubmission: true } });
     const fs = policyFaults(
       {
         ...v,
+        // Ruling 13: no block that can never clear. Setting the channel to ONLINE is refused while online submission is not allowed (judged as at publication); leaving it as it stands never is.
+        channelOnlineNotAllowed: v.submissionChannel === "ONLINE" && before?.submissionChannel !== "ONLINE" && channelSettingFaults(v.submissionChannel, onlineSubmissionAllowed(sealing?.onlineSubmission ?? null, sealingDeployment(), "PUBLISH")).length > 0,
         templateIds: [v.noticeTemplateId, v.invitationTemplateId, v.addendumTemplateId],
         paymentMethods: paymentMethodsFromText(v.paymentMethodsText),
         // SEC-1: the simulator is switched ON only where the deployment allows it. Leaving it as it stands (on already, or off, or unset) is never refused for that.
@@ -132,6 +142,7 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
             onlineRelease: p.electronicDocumentRelease == null ? NOT_SET : p.electronicDocumentRelease ? "Released online after payment" : "Collected at the counter only",
             onlineReleaseFrom: prov(p.electronicReleaseProvenance),
             howDocumentsAreSold: saleModeWords(p.documentSaleMode),
+            howBidsAreSubmitted: submissionChannelWords(p.submissionChannel ?? null),
             paymentSimulator: p.paymentSimulatorOn == null ? NOT_SET : p.paymentSimulatorOn ? "On (a demonstration, not a payment provider)" : "Off",
             paymentMethodsOffered: "paymentMethodsText" in p ? paymentMethodsFromText(p.paymentMethodsText).join(", ") || NOT_SET : p.simulatedPaymentMethods.join(", ") || NOT_SET,
             noticeTemplate: templates.find((t) => t.id === p.noticeTemplateId)?.nameEn ?? NOT_SET,

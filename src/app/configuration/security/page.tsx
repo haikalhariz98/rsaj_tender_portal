@@ -45,6 +45,11 @@ const GROUPS: { title: string; blurb: string; keys: SecurityPolicyKey[] }[] = [
     keys: ["passwordMinLength", "resetCodeValidityMinutes"],
   },
   {
+    title: "Sealed bids",
+    blurb: "The shortest unseal passphrase an opening officer may set for an online exercise. No officer can set a share while it is not set.",
+    keys: ["sealingPassphraseMinLength"],
+  },
+  {
     title: "Signatures and records",
     blurb: "Whether a paper decision may be recorded for someone else, and how long sign-in addresses are kept.",
     keys: ["paperSignatureRecording", "signInDetailRetentionDays"],
@@ -56,6 +61,7 @@ const CAUTION: Partial<Record<SecurityPolicyKey, string>> = {
   paperSignatureRecording: "A choice for the organisation, and the product advises neither. While it is not set, a paper decision is refused and the form says so.",
   concurrentSessionAction: "A choice for the organisation, and the product advises neither. While it is not set, sign-in is refused.",
   signInDetailRetentionDays: "While it is not set, sign-in addresses are kept. Legal hold (NFR-RET-002) is not built.",
+  sealingPassphraseMinLength: "While it is not set, no opening officer can set a share of an online exercise's key. At least 12; a forgotten passphrase cannot be recovered.",
 };
 
 export default async function SecurityPage() {
@@ -79,7 +85,7 @@ export default async function SecurityPage() {
   ]);
   // Which settings a change is already waiting on, so a second proposal is not made blind to the first.
   const proposed = new Set(waiting.flatMap((w) => Object.keys(((w.payload as { changes?: Record<string, unknown> }).changes ?? {}) as object)));
-  const unset = unsetSettings(policy, "SIGN_IN", "SET_PASSWORD", "ISSUE_CODE");
+  const unset = unsetSettings(policy, "SIGN_IN", "SET_PASSWORD", "ISSUE_CODE", "SET_OFFICER_SHARE");
 
   return (
     <>

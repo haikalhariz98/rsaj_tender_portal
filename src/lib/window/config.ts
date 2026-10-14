@@ -10,7 +10,7 @@ import { REGIMES } from "@/lib/method/types";
 
 import type { Finding } from "./types";
 
-export type PolicyFault = "DAYS_NOT_VALID" | "TARGET_BELOW_MINIMUM" | "TIME_NOT_VALID" | "NAMED_CHANNEL_REQUIRED" | "CHANNEL_NOT_FOR_RULE" | "CHANNEL_RETIRED" | "CALENDAR_RETIRED" | "CALENDAR_UNKNOWN" | "CHANNEL_UNKNOWN" | "TEMPLATE_UNKNOWN" | "TIME_ZONE_NOT_SET" | "PAYMENT_METHOD_TOO_LONG" | "PAYMENT_METHODS_TOO_MANY" | "PAYMENT_METHOD_REPEATED" | "ONLINE_NEEDS_RELEASE" | "SIMULATOR_NOT_ALLOWED";
+export type PolicyFault = "DAYS_NOT_VALID" | "TARGET_BELOW_MINIMUM" | "TIME_NOT_VALID" | "NAMED_CHANNEL_REQUIRED" | "CHANNEL_NOT_FOR_RULE" | "CHANNEL_RETIRED" | "CALENDAR_RETIRED" | "CALENDAR_UNKNOWN" | "CHANNEL_UNKNOWN" | "TEMPLATE_UNKNOWN" | "TIME_ZONE_NOT_SET" | "PAYMENT_METHOD_TOO_LONG" | "PAYMENT_METHODS_TOO_MANY" | "PAYMENT_METHOD_REPEATED" | "ONLINE_NEEDS_RELEASE" | "SIMULATOR_NOT_ALLOWED" | "CHANNEL_ONLINE_NOT_ALLOWED";
 
 export interface PolicyInput {
   minAdvertisementDays: number | null;
@@ -29,6 +29,8 @@ export interface PolicyInput {
   electronicDocumentRelease?: boolean | null;
   /// SEC-1: the save would switch the payment simulator on, and the deployment has not allowed the simulator. Worked out by the action (it reads the deployment and the setting as it stands), refused here in words.
   simulatorSwitchNotAllowed?: boolean;
+  /// SR-13 (ruling 13): the save would set the organisation's submission channel to ONLINE while online submission is not allowed (`channelSettingFaults`, read at PUBLISH). Worked out by the action.
+  channelOnlineNotAllowed?: boolean;
 }
 
 export const PAYMENT_METHOD_MAX_LENGTH = 80;
@@ -75,6 +77,7 @@ export function policyFaults(p: PolicyInput, known: { channels: readonly { id: s
   if (new Set(methods.map((m) => m.toLowerCase())).size !== methods.length) f("PAYMENT_METHOD_REPEATED");
   if (p.documentSaleMode === "ONLINE" && p.electronicDocumentRelease !== true) f("ONLINE_NEEDS_RELEASE");
   if (p.simulatorSwitchNotAllowed) f("SIMULATOR_NOT_ALLOWED");
+  if (p.channelOnlineNotAllowed) f("CHANNEL_ONLINE_NOT_ALLOWED");
   if (zoneNeeded) f("TIME_ZONE_NOT_SET");
   return out;
 }
@@ -188,6 +191,8 @@ export function configFaultText(f: Finding & { line?: number }): string {
       return "Documents cannot be sold online while the release of documents online is not set to Yes: a buyer would pay and be handed nothing. Set \"Release the documents online after payment\" to Yes first, or sell at the counter.";
     case "SIMULATOR_NOT_ALLOWED":
       return SIMULATOR_NOT_ALLOWED_WORDS;
+    case "CHANNEL_ONLINE_NOT_ALLOWED":
+      return "Bids cannot be set to be submitted online while online submission is not allowed: the organisation's bid sealing policy is not set to a mode this copy of the system allows. Set the bid sealing policy under Configuration, Bid sealing first, or leave bids on paper.";
     case "REGIME_UNKNOWN":
       return "Choose the band the floor applies to.";
     case "FLOOR_EXISTS":

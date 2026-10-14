@@ -1,4 +1,5 @@
 import { awardsOperations } from "../awards/operations";
+import { bidSealingOperations } from "../bid-sealing/operations";
 import { budgetOperations } from "../budget/operations";
 import { committeesOperations } from "../committees/operations";
 import { contractsOperations } from "../contracts/operations";
@@ -29,6 +30,7 @@ import { usersOperations } from "../users/operations";
  */
 export const OPERATIONS = {
   ...awardsOperations,
+  ...bidSealingOperations,
   ...budgetOperations,
   ...committeesOperations,
   ...contractsOperations,

@@ -27,9 +27,7 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "PeriodAgreement.person": { why: "The agreement on the contract period is a later 6.13 Part B increment: no act writes it.", writer: /\.periodAgreement\.(?:create|update|upsert)/ },
   "LadWaiver.person": { why: "Waiving liquidated damages is a later 6.13 Part B increment: no act writes it.", writer: /\.ladWaiver\.(?:create|update|upsert)/ },
   "LossExpenseClaim.valuedBy": { why: "Valuing a loss-and-expense claim is a later 6.13 Part B increment: no act writes the valuation.", writer: /valuedByPersonId/ },
-  // Wave 3b (SR-13): the attestations are recorded by the bid sealing policy's editor, wave 3b step 7, which is not built yet.
-  "BidSealingPolicy.publicRoleAttestedBy": { why: "The bid sealing policy's editor (wave 3b step 7) records the public-role attestation, and is not built yet.", writer: /publicRoleAttestedByPersonId/ },
-  "BidSealingPolicy.hardeningAttestedBy": { why: "The bid sealing policy's editor (wave 3b step 7) records the hardening attestation, and is not built yet.", writer: /hardeningAttestedByPersonId/ },
+  // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
   "OfficerExerciseKey.person": { why: "Setting a share is the key ceremony of wave 3b step 8, which is not built yet.", writer: /.officerExerciseKey.(?:create|update|upsert)/ },
   "PublishedKeyChange.by": { why: "Re-keying a published exercise is wave 3b step 8, which is not built yet.", writer: /.publishedKeyChange.(?:create|update|upsert)/ },
   "SealedEstimateLodgement.lodgedBy": { why: "Lodging the company estimate sealed is wave 3b step 16, which is not built yet.", writer: /.sealedEstimateLodgement.(?:create|update|upsert)/ },

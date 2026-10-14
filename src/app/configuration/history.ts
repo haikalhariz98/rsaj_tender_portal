@@ -57,6 +57,7 @@ const ENTITIES = new Set([
   "TenderDocumentPolicy",
   // 6.5: Invitation controls.
   "WindowPolicy",
+  "BidSealingPolicy",
   "PublicationChannel",
   "DocumentFeeFloor",
   "HolidayCalendar",

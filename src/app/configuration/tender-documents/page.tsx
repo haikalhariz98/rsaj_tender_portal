@@ -7,6 +7,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { mediaLabel } from "@/lib/documents/labels";
+import { megabytesFromBytes } from "@/lib/tender-docs/bid-part-rules";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -18,7 +20,7 @@ import { tenderDocsConfig } from "@/lib/tender-docs/read";
 import { conditionsConfig } from "@/lib/tender-docs/read-config-conditions";
 
 import { BodyDrawer, ClauseDrawer, RestoreDrawer, RetireDrawer } from "./conditions-editors";
-import { EditMethodPack, EditTenderPolicy, PartDrawer, RestorePartDrawer, RetirePartDrawer, type PartValues } from "./editors";
+import { EditMethodPack, EditTenderPolicy, PartBidRulesDrawer, PartDrawer, RestorePartDrawer, RetirePartDrawer, type PartValues } from "./editors";
 import { RemoveTemplateFileDrawer, TemplateFileDrawer } from "./template-file";
 import { uploadContext } from "@/lib/documents/read";
 import { uploadView } from "@/lib/documents/views";
@@ -99,6 +101,18 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
     notes: policyRow?.notes ?? "",
   };
 
+  // SR-13: what a bidder may upload for each part online, read beside the parts (it is a rule of online bids only).
+  const bidRuleRows = new Map((await db.tenderDocumentPart.findMany({ where: { organisationId: actor.organisationId }, select: { id: true, bidAcceptedMediaTypes: true, bidMaxBytes: true, openingCheck: true, openingCheckProvenance: true } })).map((x) => [x.id, x]));
+  const bidRuleValues = (id: string): Record<string, string> => {
+    const x = bidRuleRows.get(id);
+    return { bidAcceptedMediaTypes: (x?.bidAcceptedMediaTypes ?? []).join("\n"), bidMaxMegabytes: x?.bidMaxBytes == null ? "" : String(megabytesFromBytes(x.bidMaxBytes) ?? ""), openingCheck: tri(x?.openingCheck ?? null), openingCheckProvenance: x?.openingCheckProvenance ?? "" };
+  };
+  const bidRuleSummary = (id: string): string => {
+    const x = bidRuleRows.get(id);
+    const types = x?.bidAcceptedMediaTypes.length ? x.bidAcceptedMediaTypes.map((t) => mediaLabel(t)).join(", ") : "file types not set";
+    const size = x?.bidMaxBytes == null ? "largest file not set" : `up to ${megabytesFromBytes(x.bidMaxBytes) ?? x.bidMaxBytes} MB`;
+    return `Online: ${types}; ${size}; ${x?.openingCheck == null ? "opening check not set" : x.openingCheck ? "checked at the opening" : "not checked at the opening"}`;
+  };
   const partValues = (r: { raw: Record<string, unknown> }): PartValues => {
     const x = r.raw as Record<string, unknown> & { mandatory: boolean | null; inTableDocument: boolean | null; returnedByBidder?: boolean | null };
     const s = (k: string) => (x[k] == null ? "" : String(x[k]));
@@ -382,7 +396,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                       </THead>
                       <tbody>
                         {b.parts.map((r) => {
-                          const sub = [r.role, r.content, r.template ? `Template: ${r.template}` : r.source, r.templateFile ? `Template file: ${r.templateFile}` : "No template file", r.retired ? `Retired${r.raw.retiredOn ? ` from ${formatDate(r.raw.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ");
+                          const sub = [r.role, r.content, r.template ? `Template: ${r.template}` : r.source, r.templateFile ? `Template file: ${r.templateFile}` : "No template file", r.retired ? `Retired${r.raw.retiredOn ? ` from ${formatDate(r.raw.retiredOn)}` : ""}` : null, r.raw.returnedByBidder === true ? bidRuleSummary(r.id) : null].filter(Boolean).join(" · ");
                           return (
                             <Tr key={r.id}>
                               <Td><CellStack title={`${r.printedNumber}. ${r.label}`} sub={sub} /></Td>
@@ -408,6 +422,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                                 <RowActions>
                                   <HistoryButton iconOnly entity="TenderDocumentPart" entityId={r.id} label={`${r.printedNumber}. ${r.label}`} />
                                   <PartDrawer part={{ id: r.id, label: `${r.printedNumber}. ${r.label}`, values: partValues(r) }} options={options} />
+                                  {r.raw.returnedByBidder === true && <PartBidRulesDrawer id={r.id} label={`${r.printedNumber}. ${r.label}`} values={bidRuleValues(r.id)} />}
                                   <TemplateFileDrawer id={r.id} label={`${r.printedNumber}. ${r.label}`} current={r.templateFile} upload={upload} />
                                   {r.templateFile && <RemoveTemplateFileDrawer id={r.id} label={`${r.printedNumber}. ${r.label}`} />}
                                   {r.retired ? <RestorePartDrawer id={r.id} label={`${r.printedNumber}. ${r.label}`} /> : <RetirePartDrawer id={r.id} label={`${r.printedNumber}. ${r.label}`} />}

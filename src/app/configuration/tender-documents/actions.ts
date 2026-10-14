@@ -37,3 +37,8 @@ export async function saveMethodDocumentPack(prev: FormState, data: FormData): P
   const proposed = await stageEdit("tender-documents.saveMethodDocumentPack", prev, data);
   return proposed;
 }
+
+export async function saveTenderPartBidRules(prev: FormState, data: FormData): Promise<FormState> {
+  const proposed = await stageEdit("tender-documents.saveTenderPartBidRules", prev, data);
+  return proposed;
+}

@@ -21,5 +21,6 @@ export async function loadSecurityPolicy(client: Tx, organisationId: string): Pr
     resetCodeValidityMinutes: row.resetCodeValidityMinutes,
     paperSignatureRecording: row.paperSignatureRecording,
     signInDetailRetentionDays: row.signInDetailRetentionDays,
+    sealingPassphraseMinLength: row.sealingPassphraseMinLength,
   };
 }

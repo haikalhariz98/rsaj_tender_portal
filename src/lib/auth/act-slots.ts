@@ -358,7 +358,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("ConfigurationChange", "decidedBy", "Decided by", { signatureClass: true, administratorMay: "The checker's decision on an administrator grant is made by an administrator (ADR 0034 D15)." }),
   // Wave 3b (SR-13, ADR 0036 D1, ruling 20v): who attested each deployment fact that the portal cannot check, must-have 4 (the public-copy database role) and must-have 5
   // (no core dumps or swap, HTTPS, no body logging). A STATED fact with who and when, shown as "attested, not checked by the portal" and never as a verification. Recorded
-  // through the bid sealing policy's two-person path (`BID_SEALING_POLICY`, wave 3b step 7). No act writes it yet (`act-wiring-scan.test.ts`, NOT_BUILT).
+  // through the bid sealing policy's two-person path (`BID_SEALING_POLICY`, wave 3b step 7): `bid-sealing/core.ts` begins the act, named by the form (the proposer's own).
   slot("BidSealingPolicy", "publicRoleAttestedBy", "Attested by"),
   slot("BidSealingPolicy", "hardeningAttestedBy", "Attested by"),
 ];

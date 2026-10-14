@@ -12,6 +12,9 @@ import { loadTaxonomyUses } from "@/lib/tender-docs/repo";
 import { methodPackFault, PART_CONFIG_FAULT_TEXT, partConfigFaults, POLICY_FAULT_TEXT, policyFaults, policyFaultText } from "@/lib/tender-docs/config";
 import { NOT_SET, PACK_KIND_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, yesNoNotSet } from "@/lib/tender-docs/labels";
 import { formatPct } from "@/lib/tender-docs/percent";
+import { BID_PART_RULE_FAULT_TEXT, bidPartRuleFaults, bytesFromMegabytes, megabytesFromBytes } from "@/lib/tender-docs/bid-part-rules";
+import { mediaLabel } from "@/lib/documents/labels";
+import { splitValues } from "@/lib/ui/select-logic";
 import { PACK_KINDS, PART_CONTENTS, PART_ROLES, PART_SOURCES, type ConfiguredPart, type Provenance } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
@@ -342,6 +345,42 @@ export async function saveMethodDocumentPack(_prev: FormState, data: FormData): 
     const changes = diffFields(words(before), words(v));
     if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "SourcingMethod", entityId: id, entityLabel: before.nameEn, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
     revalidatePath("/configuration/reference-data");
+    return done();
+  });
+}
+
+// ------------------------------------------------------------------ what a bidder may upload for a part, online (SR-13, ruling 19)
+
+const bidRuleWords = (p: { bidAcceptedMediaTypes: string[]; bidMaxBytes: bigint | null; openingCheck: boolean | null; openingCheckProvenance: string | null }) => ({
+  acceptedFileTypes: p.bidAcceptedMediaTypes.length ? p.bidAcceptedMediaTypes.map((t) => mediaLabel(t)).join(", ") : NOT_SET,
+  largestFileMegabytes: p.bidMaxBytes === null ? NOT_SET : (megabytesFromBytes(p.bidMaxBytes) ?? Number(p.bidMaxBytes)),
+  openingCheck: yesNoNotSet(p.openingCheck),
+  openingCheckFrom: p.openingCheck == null ? null : prov(p.openingCheckProvenance),
+});
+
+/// The file types, the largest size and the opening check of a returned part for online bids. Each stays not set until the organisation sets it; publication of an online exercise refuses a part that is not.
+export async function saveTenderPartBidRules(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const org = await organisation(actor);
+  if (!org) return NO_ORG;
+  const id = String(data.get("id") ?? "").trim();
+  const r = new FormReader(data);
+  const types = [...new Set(splitValues(data.get("bidAcceptedMediaTypes")))];
+  const megabytes = r.int("bidMaxMegabytes", "Largest file", { min: 1 });
+  const openingCheck = tri(r.choice("openingCheck", "Opening check", TRI));
+  const openingCheckProvenance = r.choice("openingCheckProvenance", "Where the opening-check answer comes from", PROVENANCE);
+  if (r.failed) return { ok: false, errors: r.errors };
+  const faults = bidPartRuleFaults({ types, megabytes, openingCheck, openingCheckProvenance });
+  if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f === "TYPE_UNKNOWN" ? "bidAcceptedMediaTypes" : f === "SIZE_NOT_VALID" ? "bidMaxMegabytes" : "openingCheckProvenance", BID_PART_RULE_FAULT_TEXT[f]])) };
+  const reason = String(data.get("reason") ?? "");
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await lockOrganisation(tx, org.id);
+    const before = await tx.tenderDocumentPart.findFirst({ where: { id, organisationId: org.id } });
+    if (!before) return GONE;
+    const next = { bidAcceptedMediaTypes: types, bidMaxBytes: bytesFromMegabytes(megabytes), openingCheck, openingCheckProvenance: openingCheck === null ? null : openingCheckProvenance };
+    await tx.tenderDocumentPart.update({ where: { id: before.id, organisationId: actor.organisationId }, data: next });
+    const changes = diffFields(bidRuleWords(before), bidRuleWords(next));
+    if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: before.id, entityLabel: `Tender document part · ${before.labelEn}`, reason }, "UPDATE", changes);
     return done();
   });
 }

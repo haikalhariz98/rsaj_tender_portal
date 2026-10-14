@@ -46,6 +46,7 @@ const UNITS: Partial<Record<SecurityPolicyKey, readonly [string, string]>> = {
   addressThrottleAttempts: ["attempt", "attempts"],
   passwordMinLength: ["character", "characters"],
   signInDetailRetentionDays: ["day", "days"],
+  sealingPassphraseMinLength: ["character", "characters"],
 };
 
 const CHOICES: Partial<Record<SecurityPolicyKey, Readonly<Record<string, string>>>> = {

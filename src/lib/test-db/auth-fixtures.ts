@@ -39,6 +39,7 @@ export const SETTINGS: SecurityPolicyValues = {
   resetCodeValidityMinutes: 60,
   paperSignatureRecording: null,
   signInDetailRetentionDays: null,
+  sealingPassphraseMinLength: null,
 };
 
 export async function testOrganisation() {

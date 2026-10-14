@@ -101,6 +101,8 @@ export interface SecurityPolicyValues {
   resetCodeValidityMinutes: number | null;
   paperSignatureRecording: "ALLOWED" | "REFUSED" | null;
   signInDetailRetentionDays: number | null;
+  /// SR-13 (ADR 0036 D4): the shortest unseal passphrase an opening officer may set. The database holds a floor of 12.
+  sealingPassphraseMinLength: number | null;
 }
 
 export type SecurityPolicyKey = keyof SecurityPolicyValues;

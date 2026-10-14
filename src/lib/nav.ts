@@ -199,6 +199,7 @@ export const CONFIG_SECTIONS: { group: ConfigGroup; items: ConfigItem[] }[] = [
       { href: "/configuration/scope", label: "Scope and estimate", icon: "tools", built: true },
       { href: "/configuration/tender-documents", label: "Tender documents", icon: "files", built: true },
       { href: "/configuration/invitation", label: "Invitation controls", icon: "globe", built: true },
+      { href: "/configuration/bid-sealing", label: "Bid sealing", icon: "shield", built: true },
       { href: "/configuration/evaluation", label: "Evaluation models", icon: "sliders", built: true },
       { href: "/configuration/awards", label: "Award controls", icon: "award", built: true },
     ],

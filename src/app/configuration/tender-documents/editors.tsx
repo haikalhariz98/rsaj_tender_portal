@@ -1,8 +1,10 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { mediaLabel } from "@/lib/documents/labels";
+import { BID_PART_MEDIA_TYPES } from "@/lib/tender-docs/bid-part-rules";
 import { PCT_COLUMN, pctHint } from "@/lib/tender-docs/percent";
 
-import { restoreTenderPart, retireTenderPart, saveMethodDocumentPack, saveTenderPart, saveTenderPolicy } from "./actions";
+import { restoreTenderPart, retireTenderPart, saveMethodDocumentPack, saveTenderPart, saveTenderPartBidRules, saveTenderPolicy } from "./actions";
 
 /**
  * Configuration › Tender documents drawers. No field carries a default: an unset value is
@@ -166,6 +168,31 @@ export function EditTenderPolicy({ values, taxonomies = [] }: { values: Record<s
       submitLabel="Save the policy"
       trigger={{ label: "Edit the policy", className: secondary }}
       size="xl"
+    />
+  );
+}
+
+// ------------------------------------------------------------------ what a bidder may upload for a part, online
+
+export function PartBidRulesDrawer({ id, label, values }: { id: string; label: string; values: Record<string, string> }) {
+  return (
+    <RecordEditor
+      title={`Online upload rules: ${label}`}
+      description="What a bidder may upload for this part when bids are submitted online. An online exercise cannot be published while a part the bidder returns has no file types or no largest size."
+      fields={[
+        hidden("id"),
+        { kind: "tokens", name: "bidAcceptedMediaTypes", label: "File types a bidder may upload", placeholder: "Not set", options: BID_PART_MEDIA_TYPES.map((t) => ({ value: t, label: mediaLabel(t) })), hint: "Only types the portal can recognise from the file itself. A file whose contents are another type is refused." },
+        { kind: "number", name: "bidMaxMegabytes", label: "Largest file, in megabytes", min: 1, hint: "Leave empty if it is not decided. The system's own ceiling applies as well." },
+        { kind: "select", name: "openingCheck", label: "Checked at the opening", placeholder: "Not set", options: THREE, hint: "Whether the opening officers may download this file to check it. Not set holds publication back for a returned part." },
+        provenance("openingCheckProvenance", "Where the opening-check answer comes from"),
+      ]}
+      values={{ id, ...values }}
+      showWhen={{ openingCheckProvenance: { name: "openingCheck", in: ["yes", "no"] } }}
+      reason={{ label: "Why the rules are changed" }}
+      action={saveTenderPartBidRules}
+      submitLabel="Propose"
+      trigger={{ label: "Online rules", className: secondary, ariaLabel: `Online upload rules for ${label}` }}
+      size="md"
     />
   );
 }
