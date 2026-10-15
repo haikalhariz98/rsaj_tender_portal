@@ -1738,3 +1738,21 @@ in 20ac, on the same terms as 20p, 20q and 20x.
     - **Threat model §G:** must-have 5 reads as 20ai.
     - **Deployment notes:** the edge read timeout line says it is part of the must-have 5 attestation (20ai).
     - **Accepted for building** once these land. No ruling here reverses a default.
+
+20ar. **Received's words after 20an: the exercise-wide sequence is the portal's order of receipt, never "the receipt number". This amends
+    20u's words.**
+    - **Why.** `RECEIVED_WORDS` (`src/lib/bids/online/received.ts`) labels the sequence "Receipt number" / "Nombor resit", and its ordinal
+      note says the receipt number is shown once the opening starts. Since 20an no receipt carries the sequence: the supplier's receipt
+      carries its own submission number. An officer told "my receipt says 2" would see 7 against that bid at the opening, a wrong fact on
+      a staff screen.
+    - **The rule.** From the opening's start the sequence is labelled as the portal's order of receipt for the exercise, in both languages
+      (20ab), and the ordinal note says that order is shown once the opening starts. Neither says "receipt number" or "nombor resit". A
+      supplier's receipt is matched at the opening by its receipt digest (20s), never by a number. The opening roll's labels follow the same
+      words. The test that pins the old words is updated citing this ruling.
+    - **Code:** words, in step 12 (Received). Added to 20aq's list: ADR 0036's D10 opening-roll and Received wording, and plan section 1.3's
+      `RECEIVED_WORDS`, are the architect's to amend to match.
+
+20as. **20aj made precise.** `next.config.ts` does not set `proxyClientMaxBodySize`, so the constant is pinned against Next's default
+    (10 MB) or the configured value where one is set. `Content-Length` is the size of the whole multipart body and `DOCUMENT_MAX_BYTES` the
+    size of a file, so the comparison allows for the multipart overhead, and the words name the largest file that will arrive.
+    - **Code:** as 20aj.
