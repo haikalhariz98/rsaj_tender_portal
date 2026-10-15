@@ -192,6 +192,10 @@ export function bidFindingText(f: Finding): string {
       return "The company estimate is not a bid: it is never withdrawn, corrected or tabled for admission here.";
     case "NOT_WITHDRAWN":
       return "Only a withdrawn envelope is handed back unopened.";
+    case "ONLINE_NOTHING_TO_RETURN":
+      return "A bid submitted through the supplier portal was never handed in on paper, so there is nothing to hand back.";
+    case "ONLINE_WITHDRAWS_ITSELF":
+      return "A bid submitted through the supplier portal is withdrawn by its supplier in the portal, not by a letter recorded here.";
     case "ALREADY_RETURNED":
       return "It was already handed back.";
     case "DAY_IN_FUTURE":

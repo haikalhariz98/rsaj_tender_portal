@@ -34,6 +34,13 @@ import { windowFindingText } from "@/lib/window/labels";
 import { KEY_CHANGE_ORDER, loadKeyHistory } from "@/lib/sealing/key-history";
 import { rekeyKey } from "@/lib/sealing/store";
 
+import { bidGate } from "@/lib/bids/repo";
+import { LATE_DOMAIN } from "@/lib/bids/late";
+import { loadOpeningGate } from "@/lib/opening/gate-read";
+import { openingGateFaults } from "@/lib/opening/award-gate";
+import { sealedAuditFactsFor } from "./audit-scope-store";
+import { maskSealedAuditRows, MASKED_ACTOR_WORDS } from "./audit-mask";
+
 import { loadBidScreen } from "./my-bids-store";
 import { receiptDigest, submissionNumbers } from "./receipt";
 import { submitBid, takeStamp, withdrawBid, type SubmitInput } from "./submit-store";
@@ -732,5 +739,71 @@ describe("what the supplier's screens read (build plan step 11)", () => {
     await db.sourcingExercise.update({ where: { id: hidden.id }, data: { restricted: true } });
     expect(await loadKeyHistory(db, a.actor, hidden.id)).toBeNull();
     expect(await loadBidScreen(db, a.actor, hidden.id)).toBeNull();
+  });
+});
+
+describe("an online late envelope reaches the committee and the award gate (step 12, ruling 20y)", () => {
+  /// An exercise with one late bid, the closing having passed by five seconds; returns the late envelope's id.
+  async function withLateBid() {
+    const ex = await exercise();
+    const b = await bidder(ex);
+    const closing = new Date((await takeStamp()).getTime() - 5000);
+    await setClosing(ex, closing);
+    const late = must(await submit(b, ex, { stamp: new Date(closing.getTime() + 1000) }));
+    const envelopeId = (await bidRow(late.onlineBidId)).envelopeId;
+    expect((await bidRow(late.onlineBidId)).envelope).toMatchObject({ late: true, channel: "ONLINE", status: "RECEIVED" });
+    return { ex, envelopeId, late };
+  }
+  async function decide(ex: Ex, envelopeId: string, outcome: "CARRIED" | "NOT_CARRIED") {
+    const meeting = await db.meeting.create({ data: { committeeId, reference: `SUB/LATE/${randomId()}`, meetingDate: D(new Date()) } });
+    await db.committeeDecision.create({
+      data: { meetingId: meeting.id, subject: "Admission of a late envelope", domain: LATE_DOMAIN, matterKind: "LATE_TENDER", bidEnvelopeId: envelopeId, act: "A", tabledAt: D(new Date()), outcome, decisionDate: D(new Date()), ...(outcome === "NOT_CARRIED" ? { outcomeNote: "Not admitted." } : {}) },
+    });
+  }
+  const main = { kind: "MAIN" as const, sequenceNo: 1, finalised: true, liveScans: 1, copyCheck: null, explained: false, admittedEnvelopeId: null };
+  const supplementary = (envelopeId: string, finalised: boolean) => ({ kind: "SUPPLEMENTARY" as const, sequenceNo: 2, finalised, liveScans: 1, copyCheck: null, explained: false, admittedEnvelopeId: envelopeId });
+
+  it("waits for the committee, then (carried) holds the award until its supplementary opening is finalised", async () => {
+    const { ex, envelopeId } = await withLateBid();
+    expect((await bidGate(ex.id, db)).lateFault).toMatchObject({ code: "LATE_UNDECIDED", data: { count: 1 } });
+    expect((await loadOpeningGate(ex.id)).admittedEnvelopeIds).toEqual([]);
+
+    await decide(ex, envelopeId, "CARRIED");
+    expect((await bidGate(ex.id, db)).lateFault).toBeNull();
+    const gate = await loadOpeningGate(ex.id);
+    expect(gate.admittedEnvelopeIds).toEqual([envelopeId]);
+    const asked = (openings: Parameters<typeof openingGateFaults>[0]["openings"]) => openingGateFaults({ ...gate, applies: true, openings }).map((f) => f.code);
+    expect(asked([main])).toEqual(["ADMITTED_UNOPENED"]);
+    expect(asked([main, supplementary(envelopeId, false)])).toEqual(["SUPPLEMENTARY_NOT_FINALISED", "ADMITTED_UNOPENED"]);
+    expect(asked([main, supplementary(envelopeId, true)])).toEqual([]);
+  });
+
+  it("not carried clears the hold and waits for no opening", async () => {
+    const { ex, envelopeId } = await withLateBid();
+    await decide(ex, envelopeId, "NOT_CARRIED");
+    expect((await bidGate(ex.id, db)).lateFault).toBeNull();
+    const gate = await loadOpeningGate(ex.id);
+    expect(gate.admittedEnvelopeIds).toEqual([]);
+    expect(openingGateFaults({ ...gate, applies: true, openings: [main] })).toEqual([]);
+  });
+});
+
+describe("the audit mask on a real bid's rows (step 12, D9, 20c)", () => {
+  it("names the exercise's open named officers, and withholds the actor from them and from everyone before the unseal", async () => {
+    const ex = await exercise();
+    const s = await bidder(ex);
+    const out = must(await submit(s, ex));
+    const rows = (await db.auditEntry.findMany({ where: { entity: "OnlineBid", entityId: out.onlineBidId }, include: { actorPerson: { select: { name: true } } } })).map((r) => ({ ...r, actorName: r.actorKind === "SUPPLIER" ? "A supplier's portal account" : null }));
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.actorKind === "SUPPLIER")).toBe(true);
+    const factsOf = await sealedAuditFactsFor(org, rows);
+    const officers = (await db.exerciseOpeningOfficer.findMany({ where: { exerciseId: ex.id, endedAt: null } })).map((o) => o.personId);
+    expect(factsOf(rows[0])).toEqual({ unsealed: false, finalised: false, namedOfficerPersonIds: expect.arrayContaining(officers) });
+    for (const viewer of [officers[0], issuer, null]) expect(maskSealedAuditRows(rows, factsOf, viewer).every((r) => r.actorName === MASKED_ACTOR_WORDS)).toBe(true);
+    // An officer taken off is no longer named.
+    await db.exerciseOpeningOfficer.updateMany({ where: { exerciseId: ex.id, personId: officers[0] }, data: { endedAt: new Date(), endedByPersonId: issuer, endedAuthority: "Test" } });
+    expect((await sealedAuditFactsFor(org, rows))(rows[0])?.namedOfficerPersonIds).not.toContain(officers[0]);
+    // A record in another organisation, or that does not exist, has no facts, so the mask withholds.
+    expect((await sealedAuditFactsFor(org, [{ entity: "OnlineBid", entityId: "nope" }]))({ entity: "OnlineBid", entityId: "nope" })).toBeNull();
   });
 });

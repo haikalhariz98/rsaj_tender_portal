@@ -10,6 +10,7 @@
  */
 
 import { lockedAtOrAfterClosing } from "@/lib/bids/box";
+import { openingStateOf, unopenedInTime } from "@/lib/bids/envelope-status";
 import { ENVELOPE_KIND_LABEL, receiptTime, SOURCE_LABEL } from "@/lib/bids/labels";
 import { toSecond } from "@/lib/bids/lateness";
 import { dayIn, storedDay } from "@/lib/dates";
@@ -196,8 +197,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       source: e.receivedSource === "BOX_AT_OPENING" ? `${SOURCE_LABEL.BOX_AT_OPENING} at ${time(e.receivedAt, tz)}` : `Received ${time(e.receivedAt, tz)}`,
       markings: e.markings,
       // Review S7: an online envelope replaced before the closing (SUPERSEDED) is never opened, and never reads as sealed and waiting.
-      state: e.status === "OPENED" ? `Opened as No. ${bid?.listingNo ?? "—"}` : e.status === "WITHDRAWN" || withdrawnIds.has(e.id) ? "Withdrawn, not opened" : e.status === "SUPERSEDED" ? "Replaced, not opened" : "Sealed",
-      tone: (e.status === "OPENED" ? "ok" : e.status === "WITHDRAWN" || e.status === "SUPERSEDED" ? "neutral" : "warn") as "ok" | "neutral" | "warn",
+      ...openingStateOf(e, bid ? { listingNo: bid.listingNo } : null, withdrawnIds.has(e.id)),
       open: e.status === "RECEIVED" && !withdrawnIds.has(e.id) ? allowedOf(openFaults({ state, envelope: { id: e.id, kind: e.kind, status: e.status, late: e.late }, withdrawn: withdrawnIds.has(e.id), admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null, bidder: { partyId: "-", name: "", registrationNo: "", registrationTaken: false }, price: 1n as Sen, period: { value: null, unit: null }, isAlternative: e.kind === "ALTERNATIVE", alternativesPermitted: snap.alternativesPermitted, parent: null, timeZone: tz })) : null,
     };
   });
@@ -274,7 +274,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
 
   // ---- finalising: everything but who records it and the paper's figure, which the drawer asks.
   const estimateLodged = o.kind === "MAIN" && c.estimate?.state === "LODGED";
-  const unopened = c.envelopes.filter((e) => e.kind !== "COMPANY_ESTIMATE" && !e.late && e.status === "RECEIVED").length;
+  const unopened = unopenedInTime(c.envelopes);
   const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
   const drift = verdictDrift(o.bids, { checklist, completenessEliminates: snap.completeness.eliminates, unpurchased, ineligible: ineligibleConsequence });
   const ff = finaliseFaults({

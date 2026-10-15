@@ -472,6 +472,14 @@ The public posts join `SUPPLIER_BIDS_POSTS`. The submit page joins `BID_PAGE`, f
 - **Pages:** the "Your bid" tab on `/supplier/bids/[id]` (`?tab=bid`, only where the channel is ONLINE), `/supplier/bids/[id]/submit` (added to `BID_PAGE` in `portal/surface.ts`), the key card on `/supplier/opportunities/[id]` (`YourKey`). Shared: `components/ui/bilingual.tsx` (`Bi`).
 - **For steps 12 and 13.** From the opening's start My Bids matches a supplier's row to the frozen roll by the envelope's sequence (never shown) and shows the roll entry's `receiptDigest`; where the roll holds none (replaced, withdrawn, opened) it shows the supplier's own row digest. If the opening has started and `Opening.receiptRoll` is null, a standing submission is not called "not in the list": the screen says the list is not recorded (`rollMissing`). Step 13's `startOpening` must write `receiptRoll` as `{ v: 1, entries: [{ sequence, receiptDigest, late }], rollDigest }`, and should hand My Bids the digest the unseal opened once that record exists.
 
+### 1.5e What step 12 added beyond §1.3 (built 2026-10-15)
+
+- **Pure, in `src/lib/bids/`:** `envelope-status.ts` (`standing`, `outOfPlay`, `shownInRegister`, `openingStateOf`, `returnable`, `unopenedInTime`, `admittedEnvelopeIdsOf`, `ONLINE_STATUS_OF`), the one place each reader's decision per status lives; `registerNumbers` in `online/received.ts` (the ordinal before the opening's start, the receipt number after, on the ordering `receivedView` uses); `maskSealedAuditRows` in `online/audit-mask.ts`.
+- **Reads:** `online/audit-scope-store.ts` (`sealedAuditFactsFor`: an exercise, its MAIN opening's unseal and finalise, the open named officers, from an id and an exercise only).
+- **Faults:** `ONLINE_NOTHING_TO_RETURN` (`returnFaults`) and `ONLINE_WITHDRAWS_ITSELF` (`withdrawFaults`), `channel` optional on both.
+- **Read model:** `bidsTab` rows carry `sequence` (the displayed number), `numberIsOrdinal`, `label` and `replaced`, and the tab an `online` block (`receivedView`'s counts and the ordinal's words). The start of an online exercise's opening is its Opening row.
+- **Scan:** `sealed.test.ts` pins which files read the online tables and which of those may select the D9 identity columns. Step 13's unseal file joins the second list.
+
 ### 1.5b What step 9 added beyond §1.3 (built 2026-10-14)
 
 - `src/lib/sealing/file-seal.ts` (pure): `sealFile`, and `fileBodyAad`, `fileMetaAad`, `fileDekAad` (recordId = the file's id, partKey = the returned part's id), so step 13's unseal rebuilds them identically. Stored body is `ct || tag` with the IV in `bodyIv`.

@@ -24,6 +24,8 @@ import { openingChecklist } from "@/lib/opening/checklist";
 import { checklistFor, completenessConsequence } from "./completeness";
 import { correctionFaults } from "./correction";
 import { bidCount, competition } from "./count";
+import { ONLINE_STATUS_OF, returnable, shownInRegister } from "./envelope-status";
+import { RECEIVED_WORDS, receivedView, registerNumbers } from "./online/received";
 import { applyFaults, extensionFaults, RECOMMENDED_ATTESTED } from "./extension";
 import { ADMISSION_LABEL, ONLINE_RECEIVER_WORDS, ALTERNATIVE_LABEL, bidFindingText, receiptTime, CHANNEL_LABEL, COMPETITION_LABEL, COMPETITION_TEXT, CONSEQUENCE_LABEL, ENVELOPE_KIND_LABEL, officerStatement, RECORDED_LATER_LABEL, RECORDING_STAMP_LABEL, RETURN_LABEL, SOURCE_LABEL } from "./labels";
 import { admission, lateAdmissionFault, lateMatterFault, needsAdmission } from "./late";
@@ -71,6 +73,14 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
   const rule = reading.rule;
   const x = exerciseForBids(ex, window, timeZone, events);
   const facts = envelopes.map(envelopeFactsOf);
+  // Wave 3b step 12 (20u): an online exercise's opening starts with its Opening row, not with the box (it has none). Until then Received names no sequence, and no online
+  // withdrawal or replacement. The ordinal is the order of the bids now standing.
+  const onlineStarted = (await db.opening.count({ where: { exerciseId: ex.id } })) > 0;
+  const online = envelopes.filter((e) => e.channel === "ONLINE" && e.kind !== "COMPANY_ESTIMATE").map((e) => ({ id: e.id, sequence: e.sequence, receivedAt: e.receivedAt, late: e.late, status: ONLINE_STATUS_OF[e.status] }));
+  const onlineView = receivedView(online, onlineStarted);
+  const numbers = registerNumbers(online, onlineStarted);
+  const shownOf = (e: { id: string; sequence: number }) => numbers.get(e.id) ?? { number: e.sequence, isOrdinal: false };
+  const labelOf = (e: { id: string; sequence: number }) => (shownOf(e).isOrdinal ? `Online bid, ${RECEIVED_WORDS.ordinalLabel.en.toLowerCase()} ${shownOf(e).number}` : `Envelope ${shownOf(e).number}`);
   const cancelled = ex.status === "CANCELLED";
   const time = (d: Date | null) => receiptTime(d, timeZone);
 
@@ -103,8 +113,9 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
     { entity: "ValidityExtension", slot: "recordedBy", ids: extensions.map((e) => e.id) },
     { entity: "BoxEvent", slot: "person", ids: lastBox ? [lastBox.id] : [] },
   ]);
-  const rows = envelopes.map((e) => {
+  const rows = envelopes.filter((e) => shownInRegister(e, onlineStarted)).map((e) => {
     const f = envelopeFactsOf(e);
+    const shown = shownOf(e);
     const a = needsAdmission(f) ? admission(e.id, matters) : null;
     const correct = allowed(correctionFaults({ exercise: x, now, envelope: { kind: e.kind, status: e.status, channel: e.channel, markings: e.markings, receivedByPersonId: e.receivedByPersonId }, change: { markings: `${e.markings} ` }, reason: "-", personActive: true }));
     const table = a && !["ADMITTED", "NOT_ADMITTED", "PENDING"].includes(a.state)
@@ -119,7 +130,10 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
     const back = returnState(f);
     return {
       id: e.id,
-      sequence: e.sequence,
+      /// The number the register shows: the receipt number, or for a standing online bid before the opening starts its ordinal (20u). Never both.
+      sequence: shown.number,
+      numberIsOrdinal: shown.isOrdinal,
+      label: labelOf(e),
       kind: ENVELOPE_KIND_LABEL[e.kind],
       isEstimate: e.kind === "COMPANY_ESTIMATE",
       channel: CHANNEL_LABEL[e.channel],
@@ -137,8 +151,9 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
       late: e.late,
       judgedAgainst: e.closingAtJudged ? formatOrgDateTime(e.closingAtJudged, timeZone) : null,
       withdrawn: e.status === "WITHDRAWN",
+      replaced: e.status === "SUPERSEDED",
       opened: e.status === "OPENED",
-      returned: back === "NOT_WITHDRAWN" ? null : RETURN_LABEL[back] + (e.returnedUnopenedOn ? ` on ${formatDate(storedDay(e.returnedUnopenedOn))}` : ""),
+      returned: back === "NOT_WITHDRAWN" || e.channel === "ONLINE" ? null : RETURN_LABEL[back] + (e.returnedUnopenedOn ? ` on ${formatDate(storedDay(e.returnedUnopenedOn))}` : ""),
       markings: e.markings,
       // Wave 3b (SR-13): an ONLINE envelope has no receiving officer (CHECK), so none is named.
       receivedBy: e.receivedBy ? attributed.read({ entity: "BidEnvelope", id: e.id, slot: "receivedBy" }, e.receivedBy.name).en : ONLINE_RECEIVER_WORDS,
@@ -148,15 +163,15 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
       correct: e.kind === "COMPANY_ESTIMATE" || e.status === "WITHDRAWN" ? null : correct,
       table,
       // Review S7: only a paper envelope is handed back; an online one has nothing to return, and its row never changes but by its status (trigger 2).
-      returnable: e.channel !== "ONLINE" && e.status === "WITHDRAWN" && !e.returnedUnopenedOn && !cancelled,
-      alternativeTo: e.parentEnvelopeId ? (envelopes.find((p) => p.id === e.parentEnvelopeId)?.sequence ?? null) : null,
+      returnable: returnable(e, cancelled),
+      alternativeTo: e.parentEnvelopeId ? ((p) => (p ? labelOf(p).toLowerCase() : null))(envelopes.find((x) => x.id === e.parentEnvelopeId)) : null,
     };
   });
 
   // ---- the count, before opening: officer-received envelopes only
-  const count = bidCount(facts);
+  const count = bidCount(facts, onlineStarted);
   const comp = competition(count.inTime, rule?.minimumBids ?? null);
-  const late = rows.filter((r) => r.late && !r.withdrawn && !r.isEstimate);
+  const late = rows.filter((r) => r.late && !r.withdrawn && !r.replaced && !r.isEstimate);
   const gate = lateAdmissionFault(facts, matters, !!code, reading.committee);
 
   // ---- validity
@@ -201,8 +216,10 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
     acts: { receive, withdraw, lock, extend, answers },
     box: box.state === "NOT_LOCKED" ? { state: "NOT_LOCKED" as const, text: "Not locked yet" } : { state: box.state, text: `${box.state === "LOCKED" ? "Locked" : "Opened for the opening"} at ${time(box.at)} · ${lastBox ? attributed.read({ entity: "BoxEvent", id: lastBox.id, slot: "person" }, box.by).en : box.by}` },
     rows,
-    bidOptions: rows.filter((r) => r.kind === ENVELOPE_KIND_LABEL.BID && !r.withdrawn).map((r) => ({ value: r.id, label: `Envelope ${r.sequence}: ${r.markings}` })),
-    withdrawable: rows.filter((r) => !r.isEstimate && !r.withdrawn && !r.late).map((r) => ({ value: r.id, label: `Envelope ${r.sequence}: ${r.markings}` })),
+    /// Online bids as Received counts them (`receivedView`): the ones now standing, of those in time and late. The ordinal's words come with them (20u).
+    online: { count: onlineView.count, inTime: onlineView.inTime, late: onlineView.late, showsOrdinal: !onlineStarted && onlineView.count > 0, ordinalNote: RECEIVED_WORDS.ordinalNote.en },
+    bidOptions: rows.filter((r) => r.kind === ENVELOPE_KIND_LABEL.BID && !r.withdrawn && r.channelCode !== "ONLINE").map((r) => ({ value: r.id, label: `Envelope ${r.sequence}: ${r.markings}` })),
+    withdrawable: rows.filter((r) => !r.isEstimate && !r.withdrawn && !r.late && r.channelCode !== "ONLINE").map((r) => ({ value: r.id, label: `Envelope ${r.sequence}: ${r.markings}` })),
     withdrawals: withdrawals.map((w) => {
       const letters = w.attachments.filter(isLive).length;
       return {

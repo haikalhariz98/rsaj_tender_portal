@@ -18,14 +18,17 @@ export interface BidCount {
   withdrawn: number;
 }
 
-export function bidCount(envelopes: readonly Pick<EnvelopeFacts, "kind" | "late" | "status">[]): BidCount {
-  const bids = envelopes.filter((e) => e.kind !== "COMPANY_ESTIMATE");
+/// Wave 3b step 12: a replaced online bid (SUPERSEDED) is neither a bid nor a withdrawal, and is never counted. An online withdrawal is counted only once the opening has started
+/// (`onlineOpeningStarted`): before it, the counter would show how many there have been (ruling 20u), which the count dropping already shows only as a smaller number.
+export function bidCount(envelopes: readonly (Pick<EnvelopeFacts, "kind" | "late" | "status"> & Partial<Pick<EnvelopeFacts, "channel">>)[], onlineOpeningStarted = true): BidCount {
+  const bids = envelopes.filter((e) => e.kind !== "COMPANY_ESTIMATE" && e.status !== "SUPERSEDED");
   const live = bids.filter((e) => e.status !== "WITHDRAWN");
+  const withdrawn = bids.filter((e) => e.status === "WITHDRAWN" && (e.channel !== "ONLINE" || onlineOpeningStarted)).length;
   return {
     inTime: live.filter((e) => e.kind === "BID" && !e.late).length,
     late: live.filter((e) => e.late).length,
     alternatives: live.filter((e) => e.kind === "ALTERNATIVE" && !e.late).length,
-    withdrawn: bids.length - live.length,
+    withdrawn,
   };
 }
 

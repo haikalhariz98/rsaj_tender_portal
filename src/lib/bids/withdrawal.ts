@@ -9,15 +9,15 @@
 
 import { exerciseFaults, type ReceiptFault } from "./receipt";
 import { isLate } from "./lateness";
-import type { EnvelopeFacts, ExerciseForBids, Finding } from "./types";
+import type { EnvelopeChannel, EnvelopeFacts, ExerciseForBids, Finding } from "./types";
 
-export type WithdrawFault = ReceiptFault | "AFTER_CLOSING" | "ALREADY_WITHDRAWN" | "NOT_A_BID" | "ENVELOPE_LATE";
+export type WithdrawFault = ReceiptFault | "AFTER_CLOSING" | "ALREADY_WITHDRAWN" | "NOT_A_BID" | "ENVELOPE_LATE" | "ONLINE_WITHDRAWS_ITSELF";
 
 export function withdrawFaults(i: {
   exercise: ExerciseForBids;
   now: Date;
   /// The envelope it withdraws, as read under the lock; null where it is in the box.
-  envelope: (Pick<EnvelopeFacts, "kind" | "late" | "status"> & { withdrawn: boolean }) | null;
+  envelope: (Pick<EnvelopeFacts, "kind" | "late" | "status"> & { withdrawn: boolean; channel?: EnvelopeChannel }) | null;
   markings: string;
   personActive: boolean;
 }): Finding<WithdrawFault>[] {
@@ -26,6 +26,8 @@ export function withdrawFaults(i: {
   const closing = i.exercise.closing;
   if (closing && isLate(i.now, closing)) f("AFTER_CLOSING");
   if (i.envelope) {
+    // Wave 3b step 12: an online bid is withdrawn by its supplier through the portal; a letter received by an officer cannot withdraw it.
+    if (i.envelope.channel === "ONLINE") f("ONLINE_WITHDRAWS_ITSELF");
     if (i.envelope.kind === "COMPANY_ESTIMATE") f("NOT_A_BID");
     // A late envelope arrived after the closing, so it can only be withdrawn after it.
     else if (i.envelope.late) f("ENVELOPE_LATE");
@@ -36,14 +38,16 @@ export function withdrawFaults(i: {
   return out;
 }
 
-export type ReturnFault = "NOT_WITHDRAWN" | "ALREADY_RETURNED" | "TIME_ZONE_UNSET" | "DAY_IN_FUTURE" | "BEFORE_WITHDRAWAL" | "CANCELLED";
+export type ReturnFault = "NOT_WITHDRAWN" | "ALREADY_RETURNED" | "ONLINE_NOTHING_TO_RETURN" | "TIME_ZONE_UNSET" | "DAY_IN_FUTURE" | "BEFORE_WITHDRAWAL" | "CANCELLED";
 
 /// Recording that a withdrawn envelope was handed back unopened, on a day not after today and not before the withdrawal.
-export function returnFaults(i: { envelope: Pick<EnvelopeFacts, "status" | "returnedUnopenedOn">; withdrawnOn: string | null; day: string; today: string | null; cancelled: boolean }): Finding<ReturnFault>[] {
+export function returnFaults(i: { envelope: Pick<EnvelopeFacts, "status" | "returnedUnopenedOn"> & { channel?: EnvelopeChannel }; withdrawnOn: string | null; day: string; today: string | null; cancelled: boolean }): Finding<ReturnFault>[] {
   const out: Finding<ReturnFault>[] = [];
   const f = (code: ReturnFault) => out.push({ code, level: "block" });
   if (i.cancelled) f("CANCELLED");
-  if (i.envelope.status !== "WITHDRAWN") f("NOT_WITHDRAWN");
+  // Wave 3b step 12: nothing was handed in on paper, so nothing is handed back, whether the online bid was withdrawn or replaced.
+  if (i.envelope.channel === "ONLINE") f("ONLINE_NOTHING_TO_RETURN");
+  else if (i.envelope.status !== "WITHDRAWN") f("NOT_WITHDRAWN");
   if (i.envelope.returnedUnopenedOn) f("ALREADY_RETURNED");
   if (!i.today) f("TIME_ZONE_UNSET");
   else if (i.day > i.today) f("DAY_IN_FUTURE");

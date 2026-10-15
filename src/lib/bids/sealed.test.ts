@@ -231,3 +231,42 @@ describe("the online sealed-bid tables hold ciphertext and named key material on
     expect(identity).toEqual([...IDENTITY_COLUMNS].sort());
   });
 });
+
+/**
+ * Wave 3b step 12 (ruling 20a): which code reads the online tables, and which of it selects the D9 identity columns. The list above pins the columns; this pins the readers. A file that
+ * touches the online-bid tables (through the client or in raw SQL) is on one of the two lists below, with its reason, or this fails. Step 13's unseal adds its own file to the first
+ * list, and nothing else may. A file on the second list names no identity column at all.
+ */
+const TOUCHES_ONLINE_TABLES = /\.(?:onlineBid|onlineBidFile|onlineBidPart|sealedAccessEvent)\b|(?:FROM|INTO|UPDATE|JOIN)\s+"(?:OnlineBid|OnlineBidFile|OnlineBidPart|SealedAccessEvent)"/;
+const IDENTITY_TOKENS = /supplierId|supplierAccountId|SupplierAccountId|submittedBy\b|withdrawnBy\b|uploadedBy\b/;
+const MAY_SELECT_IDENTITY: Readonly<Record<string, string>> = {
+  "src/lib/bids/online/submit-store.ts": "step 10: the submit and the withdraw write the supplier and its account on the bid, and read the supplier's own rows",
+  "src/lib/bids/online/upload-store.ts": "step 10: the part upload writes the supplier and its account on the file, and reads the supplier's own files",
+  "src/lib/bids/online/my-bids-store.ts": "step 11: the supplier's own screens read its own submissions, by the session's supplier and no other",
+};
+const SELECTS_NO_IDENTITY: Readonly<Record<string, string>> = {
+  "src/lib/bids/online/audit-scope-store.ts": "step 12: reads an id and an exercise from the online tables to find which exercise an audit row belongs to",
+  "src/lib/sealing/store.ts": "the key ceremony: logs staff acts on the access-event table and reads the keys, never a bid",
+};
+
+describe("only the step 10 stores read the D9 identity columns (20a, step 12)", () => {
+  const touching = sources.filter((s) => !s.path.endsWith(".test.ts") && TOUCHES_ONLINE_TABLES.test(s.text)).map((s) => s.path.replace(/\\/g, "/")).sort();
+
+  it("every file that reads the online tables is listed, with its reason", () => {
+    expect(touching).toEqual([...Object.keys(MAY_SELECT_IDENTITY), ...Object.keys(SELECTS_NO_IDENTITY)].sort());
+    for (const why of [...Object.values(MAY_SELECT_IDENTITY), ...Object.values(SELECTS_NO_IDENTITY)]) expect(why.length).toBeGreaterThan(20);
+  });
+
+  it.each(Object.keys(SELECTS_NO_IDENTITY))("%s names no identity column", (path) => {
+    const text = sources.find((s) => s.path.replace(/\\/g, "/") === path)!.text;
+    expect(text.split("\n").filter((l) => IDENTITY_TOKENS.test(l) && !l.trim().startsWith("*") && !l.trim().startsWith("//"))).toEqual([]);
+  });
+
+  it("no screen, route or other store reaches the identity columns through a relation either", () => {
+    const viaRelation = sources
+      .filter((s) => !s.path.endsWith(".test.ts") && !(s.path.replace(/\\/g, "/") in MAY_SELECT_IDENTITY))
+      .filter((s) => /onlineBid\s*:\s*\{[^}]*(?:supplier|submittedBy|withdrawnBy)/s.test(s.text))
+      .map((s) => s.path);
+    expect(viaRelation).toEqual([]);
+  });
+});

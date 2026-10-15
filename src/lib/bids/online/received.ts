@@ -12,15 +12,23 @@ import type { OnlineBidStatus } from "./types";
 
 const STANDING: readonly OnlineBidStatus[] = ["SUBMITTED", "OPENED"];
 
+/// The bids now standing, in stamp order (two stamps in the same second by their sequence). The one ordering `receivedView` and `registerNumbers` share.
+function standingInOrder<R extends { sequence: number; receivedAt: Date; status: OnlineBidStatus }>(rows: readonly R[]): R[] {
+  return rows.filter((r) => STANDING.includes(r.status)).sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.sequence - b.sequence);
+}
+
 // src/lib/bids/online/received.ts (ruling 18 as amended by 20u, 20l)
 /// Review S2: the count of the bids now standing, and of those the ones in time and the ones late (the plan's "2 standing plus 1 late"), so no screen counts.
 export function receivedView(rows: { sequence: number; receivedAt: Date; late: boolean; status: OnlineBidStatus }[], openingStarted: boolean): { count: number; inTime: number; late: number; standing: { ordinal: number; sequence: number | null /* null before the start */; receivedAt: Date; late: boolean }[] } {
-  const standing = rows
-    .filter((r) => STANDING.includes(r.status))
-    .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.sequence - b.sequence)
-    .map((r, i) => ({ ordinal: i + 1, sequence: openingStarted ? r.sequence : null, receivedAt: r.receivedAt, late: r.late }));
+  const standing = standingInOrder(rows).map((r, i) => ({ ordinal: i + 1, sequence: openingStarted ? r.sequence : null, receivedAt: r.receivedAt, late: r.late }));
   const late = standing.filter((r) => r.late).length;
   return { count: standing.length, inTime: standing.length - late, late, standing };
+}
+
+/// What number each standing bid carries on Received: its ordinal before the opening starts, its receipt number (sequence) from the start (20u). A bid not standing has none.
+/// Built on the same ordering as `receivedView`, so the register and its counts cannot disagree.
+export function registerNumbers(rows: readonly { id: string; sequence: number; receivedAt: Date; status: OnlineBidStatus }[], openingStarted: boolean): Map<string, { number: number; isOrdinal: boolean }> {
+  return new Map(standingInOrder(rows).map((r, i) => [r.id, openingStarted ? { number: r.sequence, isOrdinal: false } : { number: i + 1, isOrdinal: true }]));
 }
 
 /// 20u: the ordinal column's label and note ("the order of the bids now standing, not the receipt number; it can change before the closing;

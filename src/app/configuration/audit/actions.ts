@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 
 import { diffFields } from "@/lib/audit/diff";
 import { actorDisplayName } from "@/lib/audit/actor";
-import { maskRowsForBlindReader, rowsMasked } from "@/lib/evaluation/blind-audit";
+import { maskSealedAuditRows } from "@/lib/bids/online/audit-mask";
+import { sealedAuditFactsFor } from "@/lib/bids/online/audit-scope-store";
+import { maskRowsForBlindReader } from "@/lib/evaluation/blind-audit";
 import { blindScopesFor } from "@/lib/evaluation/blind-audit-store";
 import { auditCsv, entriesOnDays, EXPORT_FAULT_TEXT, exportFault, exportFileName, sha256Hex } from "@/lib/audit/export";
 import { writeAudit } from "@/lib/audit/record";
@@ -62,12 +64,12 @@ export async function exportAuditTrail(_prev: ExportResult, data: FormData): Pro
         include: { actorPerson: { select: { name: true } } },
       });
       const days = entriesOnDays(rows, fromDay!, toDay!, zone);
-      const picked = maskRowsForBlindReader(days, blindScopes);
-      const masked = rowsMasked(days, picked);
-      const file = auditCsv(
-        picked.map((r) => ({ ...r, actorName: actorDisplayName(r) })),
-        zone,
-      );
+      const blind = maskRowsForBlindReader(days, blindScopes);
+      // Wave 3b step 12 (ADR 0036 D9, 20c): an online bid's rows name no bidder before the opening. The actor is named here, then withheld where the mask says so.
+      const named = blind.map((r) => ({ ...r, actorName: actorDisplayName(r) }));
+      const picked = maskSealedAuditRows(named, await sealedAuditFactsFor(org.id, named, tx), actor.personId);
+      const masked = picked.filter((r, i) => blind[i] !== days[i] || r !== named[i]).length;
+      const file = auditCsv(picked, zone);
       const sha256 = sha256Hex(file);
       const fileName = exportFileName(fromDay!, toDay!);
       const row = await tx.auditExport.create({ data: { organisationId: org.id, fromDay: dayToDate(fromDay!), toDay: dayToDate(toDay!), rowCount: picked.length, sha256, fileName } });

@@ -176,7 +176,7 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
     const person = await nameOf(tx, l.org.id, personId);
     const env = envelopeId ? reg.envelopes.find((e) => e.id === envelopeId) : null;
     if (envelopeId && !env) return { ok: false, message: "That envelope is not on this exercise." };
-    const fs = withdrawFaults({ exercise: reg.exercise, now, envelope: env ? { kind: env.kind, late: env.late, status: env.status, withdrawn: env.withdrawal != null } : null, markings, personActive: !!person });
+    const fs = withdrawFaults({ exercise: reg.exercise, now, envelope: env ? { kind: env.kind, late: env.late, status: env.status, channel: env.channel, withdrawn: env.withdrawal != null } : null, markings, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
     const w = await tx.bidWithdrawal.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, receivedAt: now, receivedByPersonId: person!.id, markings, closingAtJudged: l.ex.closingAt!, envelopeId: env?.id ?? null } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.withdrawal, w.id, label(l, env ? `Withdrawal of envelope ${env.sequence}` : "Withdrawal of an envelope in the box"), "CREATE", diffFields(null, withdrawalFields({ receivedAt: w.receivedAt, markings, receivedBy: person!.name, envelopeSequence: env?.sequence ?? null }, l.org.timeZone)));

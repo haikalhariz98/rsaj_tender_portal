@@ -139,6 +139,8 @@ import { exerciseIsHidden, sulitExerciseValue, sulitExerciseGate } from "@/app/_
 import { fieldIsFor, sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import { isBlindMasked, maskAllRows } from "@/lib/evaluation/blind-audit";
+import { maskSealedAuditRows } from "@/lib/bids/online/audit-mask";
+import { sealedAuditFactsFor } from "@/lib/bids/online/audit-scope-store";
 import { blindScopesFor } from "@/lib/evaluation/blind-audit-store";
 import { estimateCustodyForHistory } from "@/lib/opening/read";
 import { namingOthersRefusal } from "@/lib/auth/sulit-store";
@@ -179,7 +181,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // evaluation's rows without a bidder's name or price. Asked only for the History tab, which is the only one that carries the rows.
   const blindScopes = asked === "history" ? await blindScopesFor(org.id, actor.personId, ex.id) : [];
   // Every row of this History is this exercise's, so every row is masked (a route's or a step's row is found by its id and its label may not carry the reference).
-  const history = blindScopes.length ? { ...historyRead, entries: maskAllRows(historyRead.entries, blindScopes[0]) } : historyRead;
+  const blindHistory = blindScopes.length ? { ...historyRead, entries: maskAllRows(historyRead.entries, blindScopes[0]) } : historyRead;
+  // Wave 3b step 12 (ADR 0036 D9, 20c): the rows of an online bid name no bidder before the opening, whoever reads them.
+  const history = asked === "history" ? { ...blindHistory, entries: maskSealedAuditRows(blindHistory.entries, await sealedAuditFactsFor(org.id, blindHistory.entries), actor.personId) } : blindHistory;
   // FR-EST-008: finalising an opening writes the disclosed company estimate (and the paper copy's figure) into the trail, under this exercise's reference, so
   // they are in this History. They are judged by the estimate's custody exactly as the opening's schedule judges them, and the access is logged; nothing is asked
   // (and nothing logged) where no row carries one. An estimate that is void, or none, is not in anyone's custody.

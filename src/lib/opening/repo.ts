@@ -13,6 +13,7 @@ import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployme
 import type { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
 import { lockedAtOrAfterClosing } from "@/lib/bids/box";
+import { admittedEnvelopeIdsOf } from "@/lib/bids/envelope-status";
 import { loadBidRule, loadBoxEvents, loadEnvelopes, loadLateMatters, loadWithdrawals } from "@/lib/bids/repo";
 import { POSITION_LABEL } from "@/lib/committee/labels";
 import { alternatesOn, nonVotingMembersOn, votingSeatsOn, type Seat } from "@/lib/committee/sitting";
@@ -193,7 +194,7 @@ export function gateFacts(c: Pick<OpeningContext, "window" | "ex" | "openings" |
   return {
     applies: c.window?.publishedAt != null && (c.ex.packKindSnapshot === "TENDER" || c.ex.packKindSnapshot === "QUOTATION"),
     openings: c.openings.map((o) => ({ kind: o.kind, sequenceNo: o.sequenceNo, finalised: o.finalisedAt != null, liveScans: liveScans(o), copyCheck: o.estimateCopyCheck, explained: o.copyExplanation != null, admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null })),
-    admittedEnvelopeIds: c.envelopes.filter((e) => e.late && e.kind !== "COMPANY_ESTIMATE").filter((e) => c.lateMatters.some((m) => m.bidEnvelopeId === e.id && !m.withdrawn && m.outcome === "CARRIED")).map((e) => e.id),
+    admittedEnvelopeIds: admittedEnvelopeIdsOf(c.envelopes, c.lateMatters),
     carriedPartyIds: new Set(c.openings.filter((o) => o.finalisedAt).flatMap((o) => o.bids.filter((b) => b.verdict === "PASS").map((b) => b.partyId))),
   };
 }

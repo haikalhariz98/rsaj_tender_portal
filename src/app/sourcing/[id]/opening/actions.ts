@@ -6,6 +6,7 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import type { Tx } from "@/lib/audit/record";
 import { BID_ENTITY, envelopeFields, statusField } from "@/lib/bids/audit-view";
+import { unopenedInTime } from "@/lib/bids/envelope-status";
 import { lockBoxRows, lockEnvelopeRows, lockWithdrawalRows } from "@/lib/bids/lock";
 import { toSecond } from "@/lib/bids/lateness";
 import { ENVELOPE_KIND_LABEL } from "@/lib/bids/labels";
@@ -906,7 +907,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     // 6.15a fix R-6, residual 5: each recorded verdict judged again under the rules about to be frozen (one function, shared with the screen).
     const drift = verdictDrift(o.bids, { checklist, completenessEliminates: snap.completeness.eliminates, unpurchased: unpurchased.consequence, ineligible });
     const estimate = { required: snap.estimate.requires === true, lodged: o.kind === "MAIN" && c.estimate?.state === "LODGED", paperAnswered };
-    const unopened = c.envelopes.filter((e) => e.kind !== "COMPANY_ESTIMATE" && !e.late && e.status === "RECEIVED").length;
+    const unopened = unopenedInTime(c.envelopes);
     const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
     const fs = finaliseFaults({
       state,

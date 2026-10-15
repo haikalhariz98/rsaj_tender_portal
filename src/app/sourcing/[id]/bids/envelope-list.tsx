@@ -24,7 +24,7 @@ export function EnvelopeList({ exerciseId, rows, late }: { exerciseId: string; r
   const list: Row[] = rows.map((r) => ({
     id: r.id,
     views: [r.isEstimate ? "estimate" : r.late ? "late" : "intime", ...(r.withdrawn ? ["withdrawn"] : [])],
-    search: `${r.sequence} ${r.markings} ${r.kind} ${r.channel}`,
+    search: `${r.label} ${r.markings} ${r.kind} ${r.channel}`,
     sortKeys: { sequence: r.sequence },
     note: [
       r.statement,
@@ -33,7 +33,7 @@ export function EnvelopeList({ exerciseId, rows, late }: { exerciseId: string; r
       .filter(Boolean)
       .join(" ") || undefined,
     cells: {
-      sequence: { kind: "stack", title: `Envelope ${r.sequence}`, sub: r.alternativeTo != null ? `${r.kind}, to envelope ${r.alternativeTo}` : r.kind },
+      sequence: { kind: "stack", title: r.label, sub: r.alternativeTo != null ? `${r.kind}, to ${r.alternativeTo}` : r.kind },
       received: { kind: "stack", title: r.received, sub: `${r.stampLabel} · ${r.channel} · ${r.receivedBy}` },
       state: {
         kind: "chips",
@@ -42,6 +42,7 @@ export function EnvelopeList({ exerciseId, rows, late }: { exerciseId: string; r
           ...(r.isEstimate ? [] : [{ text: r.late ? "Late" : "In time", tone: r.late ? ("err" as const) : ("ok" as const) }]),
           ...(r.fromBox ? [{ text: "Found in the box at opening", tone: "info" as const }] : []),
           ...(r.withdrawn ? [{ text: "Withdrawn" }] : []),
+          ...(r.replaced ? [{ text: "Replaced" }] : []),
           ...(r.opened ? [{ text: "Opened", tone: "brand" as const }] : []),
           ...(r.returned ? [{ text: r.returned }] : []),
           ...(r.admission ? [{ text: r.admission.sitting && r.admission.state === "PENDING" ? `${r.admission.label}: ${r.admission.sitting}` : r.admission.label, tone: r.admission.state === "ADMITTED" ? ("ok" as const) : r.admission.state === "NOT_ADMITTED" ? ("err" as const) : ("warn" as const) }] : []),
@@ -81,7 +82,7 @@ export function EnvelopeList({ exerciseId, rows, late }: { exerciseId: string; r
           <span className="flex flex-wrap items-center justify-end gap-1">
             {r.correct?.allowed && r.receivedById && <CorrectDrawer exerciseId={exerciseId} envelope={{ id: r.id, sequence: r.sequence, markings: r.markings, channel: r.channelCode, receivedById: r.receivedById }} />}
             {r.returnable && <ReturnedDrawer exerciseId={exerciseId} envelopeId={r.id} sequence={r.sequence} />}
-            {r.table?.allowed && <TableLateDrawer exerciseId={exerciseId} envelopeId={r.id} sequence={r.sequence} committee={late.committee} sittings={late.sittings} holders={late.holders} allowed={r.table} />}
+            {r.table?.allowed && <TableLateDrawer exerciseId={exerciseId} envelopeId={r.id} name={r.label} committee={late.committee} sittings={late.sittings} holders={late.holders} allowed={r.table} />}
           </span>
         );
       }}

@@ -168,11 +168,11 @@ export function ReturnedDrawer({ exerciseId, envelopeId, sequence }: { exerciseI
 }
 
 /// FR-CTE-008: a late envelope's admission, tabled at a sitting of the method's committee.
-export function TableLateDrawer({ exerciseId, envelopeId, sequence, committee, sittings, holders, allowed }: { exerciseId: string; envelopeId: string; sequence: number; committee: string | null; sittings: Option[]; holders: Option[]; allowed: Allowed }) {
+export function TableLateDrawer({ exerciseId, envelopeId, name, committee, sittings, holders, allowed }: { exerciseId: string; envelopeId: string; name: string; committee: string | null; sittings: Option[]; holders: Option[]; allowed: Allowed }) {
   if (!allowed.allowed) return <Blocked label="Table for admission" reason={allowed.reason} />;
   return (
     <RecordEditor
-      title={`Table envelope ${sequence} for admission`}
+      title={`Table ${name.toLowerCase()} for admission`}
       description={`A matter at a sitting of the ${committee ?? "committee"}, naming this envelope. Carried, it is admitted; not carried, it is not. It is decided there; tabling is by a holder of the committee's Secretariat office, who signs in and tables it.`}
       fields={[
         hidden("exerciseId"),

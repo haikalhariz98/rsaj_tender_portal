@@ -16,6 +16,7 @@
  * Pure.
  */
 
+import { standing } from "./envelope-status";
 import type { EnvelopeFacts, Finding } from "./types";
 import type { RuleSource } from "./rule-snapshot";
 
@@ -38,8 +39,8 @@ export interface LateMatter {
 
 export type AdmissionState = "NOT_TABLED" | "PENDING" | "DEFERRED" | "ADMITTED" | "NOT_ADMITTED";
 
-/// Whether an envelope needs a committee's admission: a late bid or alternative, not withdrawn.
-export const needsAdmission = (e: Pick<EnvelopeFacts, "kind" | "late" | "status">) => e.late && e.kind !== "COMPANY_ESTIMATE" && e.status !== "WITHDRAWN";
+/// Whether an envelope needs a committee's admission: a late bid or alternative, not withdrawn and not replaced (an online late envelope is tabled and decided as a paper one, 20y).
+export const needsAdmission = (e: Pick<EnvelopeFacts, "kind" | "late" | "status">) => e.late && e.kind !== "COMPANY_ESTIMATE" && standing(e);
 
 /// Whether a matter speaks for admission.
 export const counts = (m: LateMatter) => !m.withdrawn && !(m.sittingCancelled && m.outcome == null);
@@ -93,7 +94,7 @@ export function lateMatterFault(i: {
   if (!i.committeeCode) f("COMMITTEE_NOT_SET", i.committeeSource && i.committeeSource !== "LIVE" ? { asPublished: i.committeeSource } : undefined);
   if (i.envelope.kind === "COMPANY_ESTIMATE") f("NOT_A_BID");
   else if (!i.envelope.late) f("NOT_LATE");
-  if (i.envelope.status === "WITHDRAWN") f("WITHDRAWN");
+  if (i.envelope.status === "WITHDRAWN" || i.envelope.status === "SUPERSEDED") f("WITHDRAWN");
   const state = admission(i.envelope.id, i.matters).state;
   if (state === "PENDING") f("ALREADY_TABLED", { sitting: admission(i.envelope.id, i.matters).matter?.sittingReference ?? null });
   if (isDecided(state)) f("ALREADY_DECIDED");

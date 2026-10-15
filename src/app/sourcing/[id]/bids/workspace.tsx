@@ -113,6 +113,11 @@ function BidsPanel({ d }: { d: BidsTab }) {
           subtitle={`${register.length} ${register.length === 1 ? "envelope" : "envelopes"} recorded: ${d.count.inTime} in time, ${d.count.late} late, ${d.count.withdrawn} withdrawn. ${d.count.fromBox > 0 ? `${d.count.fromBox} ${d.count.fromBox === 1 ? "was" : "were"} found in the box at opening, timed by its lock.` : "The box is counted at opening."}`}
           divided={false}
         />
+        {d.online.count > 0 && (
+          <CardBody className="border-t border-line">
+            <p className="text-[13px] text-ink-2">{`Online: ${d.online.count} ${d.online.count === 1 ? "bid" : "bids"} now standing, ${d.online.inTime} in time and ${d.online.late} late.${d.online.showsOrdinal ? ` ${d.online.ordinalNote}` : ""}`}</p>
+          </CardBody>
+        )}
         <EnvelopeList exerciseId={d.exerciseId} rows={d.rows} late={d.late} />
       </Card>
 
@@ -180,12 +185,12 @@ function LateCard({ d }: { d: BidsTab }) {
           {d.late.rows.map((r) => (
             <li key={r.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="min-w-0">
-                <div className="text-[13.5px] font-semibold text-ink">{`Envelope ${r.sequence}`}</div>
+                <div className="text-[13.5px] font-semibold text-ink">{r.label}</div>
                 <div className="text-[12.5px] break-words text-ink-3">{`${r.stampLabel}: ${r.received}, judged against the closing ${r.judgedAgainst ?? "not recorded"}.${r.statement ? ` ${r.statement}` : ""}`}</div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
                 {r.admission && <Chip tone={r.admission.state === "ADMITTED" ? "ok" : r.admission.state === "NOT_ADMITTED" ? "err" : "warn"}>{r.admission.sitting && r.admission.state !== "NOT_TABLED" ? `${r.admission.label} · ${r.admission.sitting}` : r.admission.label}</Chip>}
-                {r.table && <TableLateDrawer exerciseId={d.exerciseId} envelopeId={r.id} sequence={r.sequence} committee={d.late.committee} sittings={d.late.sittings} holders={d.late.holders} allowed={r.table} />}
+                {r.table && <TableLateDrawer exerciseId={d.exerciseId} envelopeId={r.id} name={r.label} committee={d.late.committee} sittings={d.late.sittings} holders={d.late.holders} allowed={r.table} />}
               </div>
             </li>
           ))}
