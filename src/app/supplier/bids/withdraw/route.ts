@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   const refused = passwordNotice(asked);
   if (refused) return refused;
 
-  const done = await withdrawBid(actor, { onlineBidId: body.onlineBidId, alsoWithdraw: body.alsoWithdraw, stamp });
+  const done = await withdrawBid(actor, { onlineBidId: body.onlineBidId, alsoWithdraw: body.alsoWithdraw, stamp, stepUpAt: asked.ok ? asked.at : null });
   if (done.ok) return reply({ ok: true, withdrawn: done.withdrawn, linksCleared: done.linksCleared });
   if (done.reason === "NOT_FOUND") return actNotice("NOT_FOUND", 404);
   return faultsReply(done.faults, WITHDRAW_FAULT_WORDS);

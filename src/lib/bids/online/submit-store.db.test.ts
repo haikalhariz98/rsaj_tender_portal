@@ -161,7 +161,7 @@ async function withdraw(s: Session, onlineBidId: string, alsoWithdraw: string[] 
   const at = stamp ?? (await takeStamp());
   const asked = await confirmSupplierPassword(s.actor, s.identity.password, facts());
   if (!asked.ok) throw new Error("password refused");
-  return withdrawBid(s.actor, { onlineBidId, alsoWithdraw, stamp: at }, hooks);
+  return withdrawBid(s.actor, { onlineBidId, alsoWithdraw, stamp: at, stepUpAt: asked.at }, hooks);
 }
 
 const one = async <T>(sql: string, ...values: unknown[]) => (await db.$queryRawUnsafe<T[]>(sql, ...values))[0];
@@ -401,9 +401,14 @@ describe("a withdrawal", () => {
     for (const id of out.withdrawn) {
       const row = await bidRow(id);
       expect([row.status, row.envelope.status, row.statusAt]).toEqual(["WITHDRAWN", "WITHDRAWN", stamp]);
+      // Ruling 20ak: the account that withdrew is on the row, on the alternative withdrawn in the same act too.
+      expect(row.withdrawnBySupplierAccountId).toBe(s.actor.accountId);
     }
     const keptRow = await bidRow(kept.onlineBidId);
-    expect([keptRow.status, keptRow.parentOnlineBidId]).toEqual(["SUBMITTED", null]);
+    expect([keptRow.status, keptRow.parentOnlineBidId, keptRow.withdrawnBySupplierAccountId]).toEqual(["SUBMITTED", null, null]);
+    // One signed attribution, on the submission withdrawn (one password entry signs one act).
+    const signed = await db.actAttribution.findMany({ where: { entity: "OnlineBid", slot: "withdrawnBy", entityId: { in: [bid.onlineBidId, gone.onlineBidId, kept.onlineBidId] } } });
+    expect(signed.map((a) => [a.entityId, a.mode, a.subjectSupplierAccountId])).toEqual([[bid.onlineBidId, "SIGNED", s.actor.accountId]]);
     expect((await events(ex.id)).filter((e) => e.kind === "WITHDRAW")).toMatchObject([{ outcome: "GRANTED", recordId: bid.onlineBidId }]);
   });
 

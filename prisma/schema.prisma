@@ -7509,6 +7509,9 @@ model OnlineBid {
   supplier                     Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   submittedBySupplierAccountId String
   submittedBy                  SupplierAccount  @relation("OnlineBidSubmittedBy", fields: [submittedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// The supplier account that withdrew it (ruling 20ak): set only with the move to WITHDRAWN, from the stepped-up session (a trigger requires it), and on each alternative withdrawn in the same act.
+  withdrawnBySupplierAccountId String?
+  withdrawnBy                  SupplierAccount? @relation("OnlineBidWithdrawnBy", fields: [withdrawnBySupplierAccountId], references: [id], onDelete: Restrict)
   kind                         OnlineBidKind
   /// The current parent: moves only to the parent's replacement, or to NULL on the parent's withdrawal, in the same transaction as that move (20h, M2, trigger).
   parentOnlineBidId            String?
@@ -12385,6 +12388,7 @@ model SupplierAccount {
   /// Wave 3b (SR-13, ADR 0036 D9): the parts this account uploaded, the bids it submitted, and its sealed access log.
   onlineBidFilesUploaded   OnlineBidFile[]           @relation("OnlineBidFileUploadedBy")
   onlineBidsSubmitted      OnlineBid[]               @relation("OnlineBidSubmittedBy")
+  onlineBidsWithdrawn      OnlineBid[]               @relation("OnlineBidWithdrawnBy")
   sealedAccessEvents       SealedAccessEvent[]       @relation("SealedAccessSupplier")
 
   @@index([organisationId])

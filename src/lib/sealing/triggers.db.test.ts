@@ -185,9 +185,12 @@ async function replace(tx: Tx, ex: Ex, who: { supplierId: string; accountId: str
   return next;
 }
 
+/// The account that withdrew, as the app sets it from the stepped-up session (ruling 20ak): here, the one that submitted.
+const WITHDRAWER = `(SELECT o."submittedBySupplierAccountId" FROM "OnlineBid" o WHERE o."id" = $1)`;
+
 /// A withdrawal stamped by the database clock, its envelope following, and the kept alternatives' links cleared.
 async function withdraw(tx: Tx, bid: { bidId: string; envelopeId: string }, stamp = NOW) {
-  await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'WITHDRAWN', "statusAt" = ${stamp} WHERE "id" = $1`, bid.bidId);
+  await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'WITHDRAWN', "statusAt" = ${stamp}, "withdrawnBySupplierAccountId" = ${WITHDRAWER} WHERE "id" = $1`, bid.bidId);
   await tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = 'WITHDRAWN' WHERE "id" = $1`, bid.envelopeId);
   await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "parentOnlineBidId" = NULL WHERE "parentOnlineBidId" = $1`, bid.bidId);
 }
@@ -415,7 +418,7 @@ describe("triggers 2, 3 and 6: a submission, a replace, a withdrawal, and the pa
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "parentOnlineBidId" = NULL WHERE "id" = $1`, alt.bidId)))).toBe("PA016");
     // The parent withdrawn in an earlier transaction does not let a later one clear the link: the move belongs to the withdrawal's act.
     await asApp(async (tx) => {
-      await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'WITHDRAWN', "statusAt" = ${NOW} WHERE "id" = $1`, mine.bidId);
+      await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'WITHDRAWN', "statusAt" = ${NOW}, "withdrawnBySupplierAccountId" = ${WITHDRAWER} WHERE "id" = $1`, mine.bidId);
       await tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = 'WITHDRAWN' WHERE "id" = $1`, mine.envelopeId);
     });
     expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "parentOnlineBidId" = NULL WHERE "id" = $1`, alt.bidId)))).toBe("PA016");
@@ -1105,6 +1108,37 @@ describe("trigger 15 (PA030): one returned part takes one file in one submission
     const f = await one<{ config: string[]; source: string }>(`SELECT p.proconfig AS config, p.prosrc AS source FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'sealed_one_file_per_part'`);
     expect(f.config).toContain("search_path=pg_catalog, public, pg_temp");
     expect(f.source).toContain('public."OnlineBidPart"');
+  });
+});
+
+describe("a withdrawal names who made it (PA031, ruling 20ak)", () => {
+  it("a move to WITHDRAWN that names no account is refused, and so is one naming another supplier's account", async () => {
+    const [a, b] = [await fresh(), await fresh()];
+    const ex2 = await onlineExercise();
+    const mine = await asApp((tx) => submit(tx, ex2, a));
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'WITHDRAWN', "statusAt" = ${NOW} WHERE "id" = $1`, mine.bidId)))).toBe("PA031");
+    expect(
+      await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'WITHDRAWN', "statusAt" = ${NOW}, "withdrawnBySupplierAccountId" = $2 WHERE "id" = $1`, mine.bidId, b.accountId))),
+    ).toBe("PA031");
+  });
+
+  it("the account is set only with the move: not on a standing submission, and never changed afterwards", async () => {
+    const a = await fresh();
+    const ex2 = await onlineExercise();
+    const mine = await asApp((tx) => submit(tx, ex2, a));
+    // On a standing submission the trigger refuses it (and the CHECK would too).
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "withdrawnBySupplierAccountId" = $2 WHERE "id" = $1`, mine.bidId, a.accountId)))).toBe("PA031");
+    await asApp((tx) => withdraw(tx, mine));
+    const other = await supplier();
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "withdrawnBySupplierAccountId" = $2 WHERE "id" = $1`, mine.bidId, other.accountId)))).toBe("PA031");
+  });
+
+  it("a withdrawal that names its own supplier's account commits", async () => {
+    const a = await fresh();
+    const ex2 = await onlineExercise();
+    const mine = await asApp((tx) => submit(tx, ex2, a));
+    expect(await refusal(asApp((tx) => withdraw(tx, mine)))).toBeNull();
+    expect((await one<{ by: string }>(`SELECT "withdrawnBySupplierAccountId" AS by FROM "OnlineBid" WHERE "id" = $1`, mine.bidId)).by).toBe(a.accountId);
   });
 });
 

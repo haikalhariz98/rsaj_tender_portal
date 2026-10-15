@@ -97,7 +97,8 @@ describe("every SupplierAccount relation is a supplier act slot or is accounted 
     // Changed for Phase 4e: the contractor's three signatures from the portal, each with the password: a statutory declaration (the one submission kind the store attributes on `ContractorSubmission.submittedBy`),
     // the agent's attestation of a diary entry (FR-SUP-007) and the contractor's block on a certificate (FR-VAR-022).
     // Changed for wave 3b (ADR 0036 D5, threat S11, build plan step 10): an online submission is a signed act, with the password asked again.
-    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy", "ContractorSubmission.submittedBy", "SiteDiaryEntry.agentAttestedBy", "CertificateSignature.signedBySupplierAccount", "OnlineBid.submittedBy"]);
+    // Changed again for ruling 20ak: a withdrawal of an online submission is a signed act too.
+    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy", "ContractorSubmission.submittedBy", "SiteDiaryEntry.agentAttestedBy", "CertificateSignature.signedBySupplierAccount", "OnlineBid.submittedBy", "OnlineBid.withdrawnBy"]);
     expect(slotOf("RegistrationDeclaration", "signedBy")!.signatureClass).toBe(false);
   });
 

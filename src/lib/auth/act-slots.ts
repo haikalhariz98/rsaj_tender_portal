@@ -463,6 +463,8 @@ export const SUPPLIER_ACT_SLOTS: readonly ActSlot[] = [
   // Wave 3b (SR-13, ADR 0036 D5, threat S11): an online submission is a signed act, with the password asked again and a SIGNED attribution written in the same transaction as
   // its envelope (build plan step 10).
   slot("OnlineBid", "submittedBy", "Submitted by", { signatureClass: true }),
+  // Ruling 20ak: a withdrawal is a signed act too. One password entry signs one act, so the attribution names the submission withdrawn; an alternative withdrawn in the same act carries the same account in its column.
+  slot("OnlineBid", "withdrawnBy", "Withdrawn by", { signatureClass: true }),
 ];
 
 export const slotOf = (entity: string, field: string): ActSlot | undefined =>

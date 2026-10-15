@@ -16,7 +16,7 @@ import type { SubmitFault, WithdrawFault } from "./types";
 /// The writes of a submit, in the order they are made, and the commit after them.
 export type SubmitStep = "DOORS" | "ENVELOPE" | "BID" | "PARTS" | "FILES" | "REPLACED" | "ENVELOPE_FOLLOWS" | "REPOINT" | "ATTRIBUTION" | "RECORD" | "COMMIT";
 /// The writes of a withdrawal, in order.
-export type WithdrawStep = "DOORS" | "TARGET" | "TARGET_ENVELOPE" | "ALTERNATIVES" | "LINKS" | "RECORD" | "COMMIT";
+export type WithdrawStep = "DOORS" | "TARGET" | "TARGET_ENVELOPE" | "ALTERNATIVES" | "LINKS" | "ATTRIBUTION" | "RECORD" | "COMMIT";
 
 export function submitFaultOfRefusal(sqlState: string, step: SubmitStep): Extract<SubmitFault, "STAMP_STALE" | "LIVE_BID_HELD" | "NOT_TAKEN"> {
   if (sqlState === "PA010" && step === "ENVELOPE") return "STAMP_STALE";

@@ -261,6 +261,8 @@ export interface WithdrawInput {
   alsoWithdraw: string[];
   /// From `takeStamp`, before the password check.
   stamp: Date;
+  /// From `confirmSupplierPassword`: when the password was asked again for this act (ruling 20ak: a withdrawal is a signed act).
+  stepUpAt: Date | null;
 }
 
 export type WithdrawResult =
@@ -303,13 +305,16 @@ export async function withdrawBid(actor: SupplierActor, i: WithdrawInput, hooks:
       const envelopeOf = new Map(mine.map((b) => [b.id, b.envelopeId]));
       for (const [index, id] of effect.withdraw.entries()) {
         at.step = index === 0 ? "TARGET" : "ALTERNATIVES";
-        await tx.onlineBid.update({ where: { id }, data: { status: "WITHDRAWN", statusAt: i.stamp } });
+        await tx.onlineBid.update({ where: { id }, data: { status: "WITHDRAWN", statusAt: i.stamp, withdrawnBySupplierAccountId: actor.accountId } });
         if (index === 0) at.step = "TARGET_ENVELOPE";
         await tx.bidEnvelope.update({ where: { id: envelopeOf.get(id)! }, data: { status: "WITHDRAWN" } });
       }
       at.step = "LINKS";
       for (const id of effect.clearLink) await tx.onlineBid.update({ where: { id }, data: { parentOnlineBidId: null } });
 
+      // The signed attribution of the act, on the submission withdrawn: one password entry signs one act (20ak), so the alternatives named in the same act carry the same account in their column.
+      at.step = "ATTRIBUTION";
+      await attributeSupplierAct(tx, { actor, entity: "OnlineBid", entityId: target.id, slot: "withdrawnBy", stepUpAt: i.stepUpAt, document: { entity: "OnlineBid", id: target.id } });
       at.step = "RECORD";
       for (const id of effect.withdraw) {
         await writeAudit(

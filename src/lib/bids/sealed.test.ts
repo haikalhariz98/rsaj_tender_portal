@@ -185,7 +185,7 @@ const DIGEST_COLUMNS: Readonly<Record<string, string>> = {
   "ShareRelease.sealedShares": "not a hash: the forwarded shares, sealed (listed with the SEALED columns)",
 };
 /// ADR 0036 D9 (20a): the plain identity links on the sealed tables. AuditEntry and ActAttribution carry the account too, and are pinned elsewhere.
-const IDENTITY_COLUMNS = ["OnlineBid.submittedBySupplierAccountId", "OnlineBid.supplierId", "OnlineBidFile.supplierId", "OnlineBidFile.uploadedBySupplierAccountId", "SealedAccessEvent.supplierAccountId"];
+const IDENTITY_COLUMNS = ["OnlineBid.submittedBySupplierAccountId", "OnlineBid.supplierId", "OnlineBid.withdrawnBySupplierAccountId", "OnlineBidFile.supplierId", "OnlineBidFile.uploadedBySupplierAccountId", "SealedAccessEvent.supplierAccountId"];
 
 /// Each scalar column of a model: its name and its type, relations and block attributes left out.
 const columnsOf = (model: string) =>

@@ -207,7 +207,7 @@ describe("the withdraw route", () => {
     const answer = await res.json();
     expect([res.status, answer.ok, answer.withdrawn, answer.linksCleared]).toEqual([200, true, [BID], []]);
     expect(h.order).toEqual(["stamp", "password", "store"]);
-    expect(h.withdraw.mock.calls[0][1]).toEqual({ onlineBidId: BID, alsoWithdraw: ["alt_0000001"], stamp: STAMP });
+    expect(h.withdraw.mock.calls[0][1]).toEqual({ onlineBidId: BID, alsoWithdraw: ["alt_0000001"], stamp: STAMP, stepUpAt: new Date("2026-10-15T04:00:02.000Z") });
   });
 
   it("a wrong password withdraws nothing", async () => {
