@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   withdraw: vi.fn(),
   refusal: vi.fn(),
   withdrawRefusal: vi.fn(),
+  parts: vi.fn(),
   order: [] as string[],
 }));
 
@@ -24,7 +25,7 @@ vi.mock("@/lib/auth/supplier-identity", () => ({ confirmSupplierPassword: h.conf
 vi.mock("@/lib/portal/bids/rate-store", () => ({ countAndJudgeCounted: h.countAndJudge }));
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/lib/bids/online/upload-store", () => ({ logPartRefusal: h.refusal }));
-vi.mock("@/lib/bids/online/submit-store", () => ({ takeStamp: h.takeStamp, submitBid: h.submit, withdrawBid: h.withdraw, logWithdrawRefusal: h.withdrawRefusal }));
+vi.mock("@/lib/bids/online/submit-store", () => ({ takeStamp: h.takeStamp, submitBid: h.submit, withdrawBid: h.withdraw, logWithdrawRefusal: h.withdrawRefusal, partsOfFiles: h.parts }));
 
 import { FORM_SECRET_MIN_LENGTH, FORM_TOKEN_FIELD, signFormToken, type FormPurpose } from "@/lib/auth/form-token";
 import type { SupplierActor } from "@/lib/auth/types";
@@ -57,7 +58,8 @@ beforeEach(() => {
   vi.unstubAllEnvs();
   vi.stubEnv("PORTAL_SURFACE", "public");
   vi.stubEnv("PORTAL_FORM_SECRET", KEY);
-  for (const f of [h.readSession, h.countAndJudge, h.confirm, h.takeStamp, h.submit, h.withdraw, h.refusal, h.withdrawRefusal]) f.mockReset();
+  for (const f of [h.readSession, h.countAndJudge, h.confirm, h.takeStamp, h.submit, h.withdraw, h.refusal, h.withdrawRefusal, h.parts]) f.mockReset();
+  h.parts.mockResolvedValue(["part_form"]);
   h.order.length = 0;
   h.readSession.mockResolvedValue({ ok: true, actor: ACTOR, session: { id: "ses1", createdAt: new Date(), lastSeenAt: new Date(), absoluteExpiresAt: new Date() } });
   h.countAndJudge.mockResolvedValue({ limited: false, count: 1 });
@@ -123,6 +125,18 @@ describe("the submit route", () => {
     await submit(post("submit", { ...GOOD }));
     expect(h.submit.mock.calls[0][0]).toBe(ACTOR);
     expect((await submit(post("submit", { ...GOOD, supplierId: "sup_other" }))).status).toBe(400);
+  });
+
+  it("refuses two files for one part (20al), in words in both languages, before the stamp and the password", async () => {
+    h.parts.mockResolvedValue(["part_form", "part_form"]);
+    const res = await submit(post("submit", { ...GOOD, fileIds: ["file_0000001", "file_0000002"] }));
+    const body = await res.json();
+    expect([res.status, body.code]).toEqual([422, "DUPLICATE_PART"]);
+    expect(body.message).toBe(SUBMIT_FAULT_WORDS.DUPLICATE_PART.en);
+    expect(body.messageMs).toBe(SUBMIT_FAULT_WORDS.DUPLICATE_PART.ms);
+    expect(h.takeStamp).not.toHaveBeenCalled();
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(h.submit).not.toHaveBeenCalled();
   });
 
   it("refuses a declaration the rules refuse, in words in both languages, before the stamp and the password", async () => {

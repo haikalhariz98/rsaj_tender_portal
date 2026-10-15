@@ -44,6 +44,7 @@ export type SubmitFault =
   | "LATE_CLOSED"                // late submission ends when the main opening is started (20b)
   | "PRICE_INVALID" | "PERIOD_INVALID" | "UNIT_NOT_SET"
   | "FILE_NOT_YOURS" | "FILE_NOT_DRAFT" | "PART_UNKNOWN" | "NO_FILES"
+  | "DUPLICATE_PART"             // 20al: two files named for one returned part. A cell of the SR-14 matrix is one file, so the door refuses it and a trigger holds it
   | "TOO_MANY_SUBMISSIONS"       // per supplier per exercise (20e)
   | "STAMP_STALE"                // 20aa: the database refused the act's stamp as older than the skew, because the act waited on the locks
   | "NOT_TAKEN";                 // any other refusal at the write or the commit that the door had already passed: nothing was recorded

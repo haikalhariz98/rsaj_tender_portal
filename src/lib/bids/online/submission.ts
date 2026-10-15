@@ -18,6 +18,14 @@ const PRICE = /^(0|[1-9][0-9]{0,15})(\.[0-9]{1,2})?$/;
 /// The period as `OpenedBid.completionPeriod` holds it: a whole number from 1 (its CHECK) to the largest Int.
 const MAX_PERIOD = 2_147_483_647;
 
+/**
+ * Two files for one returned part (ruling 20al). The SR-14 matrix is a row per opening-check part and a column per bid, so a cell is one file: two under one part would make Pass or Reject
+ * ambiguous and the receipt unclear. Refused at the door, before the stamp and the password; a trigger holds it at the commit. A mandatory part with no file is another matter: it is warned about, never refused (FR-BID-007).
+ */
+export function duplicatePartFaults(packPartIds: readonly string[]): SubmitFault[] {
+  return new Set(packPartIds).size < packPartIds.length ? ["DUPLICATE_PART"] : [];
+}
+
 // src/lib/bids/online/submission.ts (D5, D7, D8)
 /**
  * The declared Harga and Tempoh Kerja (ruling 20, D5). The declaration stays sealed until the finalise writes it into `OpenedBid`, so only what that write can hold is
@@ -97,6 +105,7 @@ export function submitFaults(i: {
 
   const returned = i.rules.filter((r) => r.returnedByBidder);
   if (i.files.length === 0) add("NO_FILES");
+  for (const f of duplicatePartFaults(i.files.map((x) => x.packPartId))) add(f);
   for (const f of i.files) {
     if (!f.mine) add("FILE_NOT_YOURS");
     if (f.state !== "DRAFT") add("FILE_NOT_DRAFT");

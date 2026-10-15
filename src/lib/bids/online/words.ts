@@ -86,6 +86,10 @@ export const SUBMIT_FAULT_WORDS: Readonly<Record<SubmitFault, Words>> = {
     "A file was uploaded for a part the bidder does not return on this exercise.",
     "Fail telah dimuat naik bagi bahagian yang tidak dikembalikan oleh petender pada pelawaan ini.",
   ),
+  DUPLICATE_PART: w(
+    "Two files were named for one part. Each part takes one file: remove one of them, then submit again. Nothing was submitted.",
+    "Dua fail dinamakan bagi satu bahagian. Setiap bahagian menerima satu fail sahaja: buang salah satu, kemudian serahkan semula. Tiada apa yang diserahkan.",
+  ),
   NO_FILES: w("Upload at least one part before submitting.", "Muat naik sekurang-kurangnya satu bahagian sebelum menyerahkan."),
   TOO_MANY_SUBMISSIONS: w(
     `Your company has made ${MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE} submissions on this exercise, the most taken. Nothing new was submitted, and your last submission stands as it is.`,

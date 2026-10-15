@@ -4,7 +4,7 @@ import { PeriodUnit } from "@/generated/prisma/enums";
 import { MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE } from "@/lib/portal/bids/limits";
 import { onlineSubmissionAllowed } from "@/lib/sealing/switch";
 
-import { DECLARED_UNITS, parseDeclaration, submitFaults, withdrawalEffect, withdrawFaults } from "./submission";
+import { DECLARED_UNITS, duplicatePartFaults, parseDeclaration, submitFaults, withdrawalEffect, withdrawFaults } from "./submission";
 import type { BidPartRule } from "./types";
 import { SUBMIT_FAULT_WORDS } from "./words";
 
@@ -154,6 +154,8 @@ describe("the door's other refusals, in words", () => {
     [{ files: [{ mine: true, state: "DISCARDED" as const, packPartId: "form" }] }, ["FILE_NOT_DRAFT"]],
     [{ files: [{ mine: true, state: "DRAFT" as const, packPartId: "nowhere" }] }, ["PART_UNKNOWN"]],
     [{ files: [{ mine: true, state: "DRAFT" as const, packPartId: "conditions" }] }, ["PART_UNKNOWN"]],
+    // 20al: two files for one returned part
+    [{ files: [{ mine: true, state: "DRAFT" as const, packPartId: "form" }, { mine: true, state: "DRAFT" as const, packPartId: "form" }] }, ["DUPLICATE_PART"]],
   ] as const)("%o refuses with %o", (over, faults) => {
     expect(judge(over as Partial<typeof base>).faults).toEqual(faults);
   });
@@ -166,6 +168,19 @@ describe("the door's other refusals, in words", () => {
         expect(text, k).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
       }
     }
+  });
+});
+
+describe("two files for one returned part (ruling 20al)", () => {
+  it("is refused, and one file for each of two parts is not", () => {
+    expect(duplicatePartFaults(["form", "summary", "form"])).toEqual(["DUPLICATE_PART"]);
+    expect(duplicatePartFaults(["form", "summary"])).toEqual([]);
+    expect(duplicatePartFaults([])).toEqual([]);
+  });
+
+  it("is said in both languages, and a missing mandatory part is still only warned about (FR-BID-007)", () => {
+    expect(SUBMIT_FAULT_WORDS.DUPLICATE_PART.en).not.toBe(SUBMIT_FAULT_WORDS.DUPLICATE_PART.ms);
+    expect(judge({ files: [{ mine: true, state: "DRAFT" as const, packPartId: "form" }] }).faults).toEqual([]);
   });
 });
 

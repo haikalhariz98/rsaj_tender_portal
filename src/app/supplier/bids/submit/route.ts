@@ -1,6 +1,7 @@
 import { supplierPost } from "../../../_auth/supplier";
 import { confirmSupplierPassword } from "@/lib/auth/supplier-identity";
-import { submitBid, takeStamp } from "@/lib/bids/online/submit-store";
+import { partsOfFiles, submitBid, takeStamp } from "@/lib/bids/online/submit-store";
+import { duplicatePartFaults } from "@/lib/bids/online/submission";
 import { parseSubmitBody } from "@/lib/bids/online/submit-parse";
 import { logPartRefusal } from "@/lib/bids/online/upload-store";
 import { SUBMIT_FAULT_WORDS, submissionWarningWords } from "@/lib/bids/online/words";
@@ -37,6 +38,10 @@ export async function POST(request: Request) {
     return actNotice("SUBMIT_RATE_LIMITED", 429, { "Retry-After": String(rate.retryAfterSeconds) });
   }
   if (!body.declaration.ok) return faultsReply(body.declaration.faults, SUBMIT_FAULT_WORDS);
+
+  // Two files for one part (20al): judged before the stamp and the password, as the declaration is.
+  const doubled = duplicatePartFaults(await partsOfFiles(actor, body.exerciseId, body.fileIds));
+  if (doubled.length > 0) return faultsReply(doubled, SUBMIT_FAULT_WORDS);
 
   const stamp = await takeStamp();
   const asked = await confirmSupplierPassword(actor, body.password, post.facts);

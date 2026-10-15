@@ -66,6 +66,7 @@ let officers: string[] = [];
 let namer = "";
 let committeeId = "";
 let packPartId = "";
+let otherPartId = "";
 let estimateVersionId = "";
 let s1 = { supplierId: "", accountId: "" };
 let s2 = { supplierId: "", accountId: "" };
@@ -139,7 +140,7 @@ async function envelope(tx: Tx, exerciseId: string, o: { kind?: "BID" | "ALTERNA
   return id;
 }
 
-async function draftFile(tx: Tx, ex: Ex, who: { supplierId: string; accountId: string }) {
+async function draftFile(tx: Tx, ex: Ex, who: { supplierId: string; accountId: string }, part: string = packPartId) {
   const bytes = randomBytes(64);
   const digest = sha256(bytes);
   await tx.$executeRawUnsafe(`INSERT INTO "BlobContent" ("organisationId","sha256","byteSize","bytes") VALUES ($1,$2,64,decode($3,'hex'))`, org, digest, bytes.toString("hex"));
@@ -147,7 +148,7 @@ async function draftFile(tx: Tx, ex: Ex, who: { supplierId: string; accountId: s
   await tx.$executeRawUnsafe(
     `INSERT INTO "OnlineBidFile" ("id","organisationId","exerciseId","keyId","supplierId","uploadedBySupplierAccountId","packPartId","cipherSha256","cipherBytes","sealedDek","sealedMeta","bodyIv","scan","uploadedAt")
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,64,decode($9,'hex'),decode($10,'hex'),decode($11,'hex'),'NOT_SCANNED',"sealed_clock"())`,
-    id, org, ex.id, ex.keyId, who.supplierId, who.accountId, packPartId, digest, hex(80), hex(120), hex(12),
+    id, org, ex.id, ex.keyId, who.supplierId, who.accountId, part, digest, hex(80), hex(120), hex(12),
   );
   return id;
 }
@@ -218,6 +219,7 @@ beforeAll(async () => {
   const packExercise = await onlineExercise();
   const pack = await db.tenderPack.create({ data: { organisationId: org, exerciseId: packExercise.id, versionNo: 1, packKind: "TENDER", contractBasisCode: "X", compositionSnapshot: {} } });
   packPartId = (await db.tenderPackPart.create({ data: { organisationId: org, packId: pack.id, partCode: "FORM", printedNumber: "1", sortOrder: 1, labelSnapshot: "Form of Tender", role: "FORM_OF_TENDER", content: "STANDARD", source: "TEMPLATE" } })).id;
+  otherPartId = (await db.tenderPackPart.create({ data: { organisationId: org, packId: pack.id, partCode: "TECH", printedNumber: "2", sortOrder: 2, labelSnapshot: "Technical proposal", role: "FORM_OF_TENDER", content: "STANDARD", source: "TEMPLATE" } })).id;
   const estimate = await db.companyEstimate.create({ data: { organisationId: org, exerciseId: packExercise.id, preparerPersonId: namer, currentVersionNo: 1 } });
   estimateVersionId = (await db.companyEstimateVersion.create({ data: { organisationId: org, estimateId: estimate.id, versionNo: 1, value: "900.00", preparedOn: new Date("2026-10-01"), preparerPersonId: namer } })).id;
   s1 = await supplier();
@@ -548,8 +550,9 @@ describe("security audit 2: written in this transaction is the trigger's own rec
   });
 
   it("a data key is released in the finalising transaction, and not after an UPDATE of an opening finalised earlier", async () => {
+    // Two files, one for each of two parts: one part takes one file in one submission (ruling 20al, trigger 15).
     const ex = await onlineExercise();
-    const files = await asApp(async (tx) => [await draftFile(tx, ex, s1), await draftFile(tx, ex, s1)]);
+    const files = await asApp(async (tx) => [await draftFile(tx, ex, s1), await draftFile(tx, ex, s1, otherPartId)]);
     const mine = await asApp((tx) => submit(tx, ex, s1, { files }));
     await setClosing(ex.id, -60);
     const openingId = await mainOpening(ex.id);
@@ -1077,6 +1080,31 @@ describe("trigger 14 (PA028): a replace is one act", () => {
     const f = await one<{ config: string[]; source: string }>(`SELECT p.proconfig AS config, p.prosrc AS source FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'sealed_replacement_moved'`);
     expect(f.config).toContain("search_path=pg_catalog, public, pg_temp");
     expect(f.source).toContain('public."OnlineBid"');
+  });
+});
+
+describe("trigger 15 (PA030): one returned part takes one file in one submission (ruling 20al)", () => {
+  it("two files for one part are refused at the commit, as the app role", async () => {
+    const ex = await onlineExercise();
+    const a = await fresh();
+    const refused = await refusal(asApp(async (tx) => submit(tx, ex, a, { files: [await draftFile(tx, ex, a), await draftFile(tx, ex, a)] })));
+    expect(refused).toBe("PA030");
+  });
+
+  it("one file for each of two parts commits", async () => {
+    const ex = await onlineExercise();
+    const a = await fresh();
+    expect(await refusal(asApp(async (tx) => submit(tx, ex, a, { files: [await draftFile(tx, ex, a), await draftFile(tx, ex, a, otherPartId)] })))).toBeNull();
+  });
+
+  it("is a deferred constraint trigger, always enabled, whose function pins its search_path and names its tables in public", async () => {
+    const t = await one<{ enabled: string; deferrable: boolean; initially: boolean }>(
+      `SELECT tgenabled::text AS enabled, tgdeferrable AS deferrable, tginitdeferred AS initially FROM pg_trigger WHERE tgname = 'OnlineBidPart_one_file_per_part' AND NOT tgisinternal`,
+    );
+    expect(t).toEqual({ enabled: "A", deferrable: true, initially: true });
+    const f = await one<{ config: string[]; source: string }>(`SELECT p.proconfig AS config, p.prosrc AS source FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'sealed_one_file_per_part'`);
+    expect(f.config).toContain("search_path=pg_catalog, public, pg_temp");
+    expect(f.source).toContain('public."OnlineBidPart"');
   });
 });
 

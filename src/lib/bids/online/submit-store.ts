@@ -41,6 +41,13 @@ export async function takeStamp(client: Pick<Tx, "$queryRaw"> = db): Promise<Dat
   return rows[0].stamp;
 }
 
+/// The parts the named files are for, read before the stamp and the password so that two files for one part are refused at the door (ruling 20al). Only the supplier's own files on the
+/// exercise count; an id that is not one reads as nothing here, and the store refuses it in its own words under the locks.
+export async function partsOfFiles(actor: Pick<SupplierActor, "organisationId" | "supplierId">, exerciseId: string, fileIds: readonly string[], client: Pick<Tx, "onlineBidFile"> = db): Promise<string[]> {
+  const rows = await client.onlineBidFile.findMany({ where: { id: { in: [...fileIds] }, exerciseId, organisationId: actor.organisationId, supplierId: actor.supplierId }, select: { packPartId: true } });
+  return rows.map((r) => r.packPartId);
+}
+
 class ActNotFound extends Error {}
 class ActRefused extends Error {
   constructor(readonly faults: readonly string[]) {
