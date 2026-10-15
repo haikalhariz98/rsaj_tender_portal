@@ -187,7 +187,7 @@ export async function storePart(actor: SupplierActor, i: StoreInput, now: Date =
         tx,
         { actor: auditActorOf(actor), organisationId: actor.organisationId, entity: "OnlineBidFile", entityId: fileId, entityLabel: `${i.facts.reference} · bid part uploaded (sealed)` },
         "CREATE",
-        diffFields(null, { exercise: i.facts.exerciseId, part: i.packPartId, keyId: key.id, cipherSha256, cipherBytes: String(sealed.cipher.byteLength), scan: stored, state: "DRAFT" }),
+        diffFields(null, { exercise: i.facts.exerciseId, part: i.packPartId, keyId: key.id, cipherSha256, cipherBytes: String(sealed.cipher.byteLength), scan: stored === "CLEAN" ? "Scanned, nothing found" : "Not scanned", state: "Waiting to be submitted" }),
       );
       await logPartAccess(tx, actor, { exerciseId: i.facts.exerciseId, kind: "PART_UPLOAD", outcome: "GRANTED", recordId: fileId }, now);
     }, TX);
@@ -221,7 +221,7 @@ export async function discardPart(actor: SupplierActor, i: { exerciseId: string;
       tx,
       { actor: auditActorOf(actor), organisationId: actor.organisationId, entity: "OnlineBidFile", entityId: file.id, entityLabel: `${ctx.ex.reference} · bid part discarded` },
       "UPDATE",
-      diffFields({ state: "DRAFT" }, { state: "DISCARDED" }),
+      diffFields({ state: "Waiting to be submitted" }, { state: "Discarded" }),
     );
     await logPartAccess(tx, actor, { exerciseId: ctx.ex.id, kind: "PART_DISCARD", outcome: "GRANTED", reasonCode: "", recordId: file.id }, now);
     return { ok: true, changed: true } as const;
