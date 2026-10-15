@@ -21,6 +21,12 @@ const NOT_PUBLISHED = w("The exercise is not open for bids.", "Pelawaan ini tida
 // The portal's own words for the invitee check (`portal/bids/words.ts`, NOT_INVITED), so the purchase and the door say the same (20m).
 const NOT_INVITED = w("This exercise invites named suppliers only, and your company is not on its list.", "Pelawaan ini hanya menjemput pembekal tertentu, dan syarikat anda tiada dalam senarainya.");
 
+const STAMP_STALE = w(
+  "Your submission waited too long behind other work on this exercise, so it was not taken and nothing was recorded. Submit again: the time stamped when you submit again decides whether it is late.",
+  "Penyerahan anda menunggu terlalu lama di belakang kerja lain pada pelawaan ini, jadi ia tidak diterima dan tiada apa yang direkodkan. Serahkan sekali lagi: masa yang dicap apabila anda menyerahkan semula menentukan sama ada ia lewat.",
+);
+const NOT_TAKEN = w("Your submission was not taken and nothing was recorded. Try again.", "Penyerahan anda tidak diterima dan tiada apa yang direkodkan. Cuba lagi.");
+
 export const SUBMIT_FAULT_WORDS: Readonly<Record<SubmitFault, Words>> = {
   CHANNEL_NOT_ONLINE: PAPER_ONLY,
   ONLINE_NOT_SET: w(
@@ -85,6 +91,8 @@ export const SUBMIT_FAULT_WORDS: Readonly<Record<SubmitFault, Words>> = {
     `Your company has made ${MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE} submissions on this exercise, the most taken. Nothing new was submitted, and your last submission stands as it is.`,
     `Syarikat anda telah membuat ${MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE} penyerahan pada pelawaan ini, had paling banyak yang diterima. Tiada apa yang baharu diserahkan, dan penyerahan terakhir anda kekal seperti sedia ada.`,
   ),
+  STAMP_STALE,
+  NOT_TAKEN,
 };
 
 export const WITHDRAW_FAULT_WORDS: Readonly<Record<WithdrawFault, Words>> = {
@@ -96,6 +104,11 @@ export const WITHDRAW_FAULT_WORDS: Readonly<Record<WithdrawFault, Words>> = {
     "Only your own alternatives linked to this bid can be withdrawn with it.",
     "Hanya bida alternatif anda sendiri yang dikaitkan dengan bida ini boleh ditarik balik bersamanya.",
   ),
+  STAMP_STALE: w(
+    "Your withdrawal waited too long behind other work on this exercise, so it was not taken and nothing was recorded. Withdraw again: the time stamped when you withdraw again decides whether it is in time.",
+    "Penarikan balik anda menunggu terlalu lama di belakang kerja lain pada pelawaan ini, jadi ia tidak diterima dan tiada apa yang direkodkan. Tarik balik sekali lagi: masa yang dicap apabila anda menarik balik semula menentukan sama ada ia masih dalam masa.",
+  ),
+  NOT_TAKEN: w("Your withdrawal was not taken and nothing was recorded. Try again.", "Penarikan balik anda tidak diterima dan tiada apa yang direkodkan. Cuba lagi."),
 };
 
 export const PART_UPLOAD_FAULT_WORDS: Readonly<Record<PartUploadFault, Words>> = {
@@ -184,4 +197,30 @@ export const PART_ROUTE_WORDS: Readonly<Record<PartRouteNotice, Words>> = {
   STORE_CLOSED: w("Uploads are closed: the portal's file store is not set up. Contact the procurement office.", "Muat naik ditutup: simpanan fail portal belum disediakan. Hubungi pejabat perolehan."),
   NOT_TAKEN: w("The file was not taken. Nothing was recorded. Try again.", "Fail itu tidak diterima. Tiada apa yang direkodkan. Cuba lagi."),
   FILE_NOT_DRAFT: w("That file is no longer waiting to be submitted, so it cannot be discarded.", "Fail itu tidak lagi menunggu untuk diserahkan, jadi ia tidak boleh dibuang."),
+};
+
+/// The answers of the submit and withdraw routes that are not a rule's refusal (step 10): the rate limit, a request the portal could not read, nothing found, and the password asked
+/// again. The password's answers say nothing of the account beyond what the portal's sign-in already says. Rate refusals say that only the stamp decides lateness (20e).
+export type ActRouteNotice =
+  | "SUBMIT_RATE_LIMITED" | "WITHDRAW_RATE_LIMITED" | "UNREADABLE" | "NOT_FOUND"
+  | "PASSWORD_REQUIRED" | "WRONG_PASSWORD" | "LOCKED" | "THROTTLED" | "ACT_CLOSED";
+export const ACT_ROUTE_WORDS: Readonly<Record<ActRouteNotice, Words>> = {
+  SUBMIT_RATE_LIMITED: w(
+    "You have tried to submit a great many times in the last minute, so this one was not taken. Wait a minute and try again. The time stamped when your submission is accepted decides whether it is late.",
+    "Anda telah cuba menyerahkan terlalu banyak kali dalam seminit yang lalu, jadi penyerahan ini tidak diterima. Tunggu seminit dan cuba lagi. Masa yang dicap apabila penyerahan anda diterima menentukan sama ada ia lewat.",
+  ),
+  WITHDRAW_RATE_LIMITED: w(
+    "You have tried to withdraw a great many times in the last minute, so this one was not taken. Wait a minute and try again. The time stamped when your withdrawal is accepted decides whether it is in time.",
+    "Anda telah cuba menarik balik terlalu banyak kali dalam seminit yang lalu, jadi penarikan balik ini tidak diterima. Tunggu seminit dan cuba lagi. Masa yang dicap apabila penarikan balik anda diterima menentukan sama ada ia masih dalam masa.",
+  ),
+  UNREADABLE: w("That request could not be read. Nothing was done. Reload the page and try again.", "Permintaan itu tidak dapat dibaca. Tiada apa yang dilakukan. Muat semula halaman dan cuba lagi."),
+  NOT_FOUND: w("That is not something you can open.", "Itu bukan sesuatu yang boleh anda buka."),
+  PASSWORD_REQUIRED: w("Enter your password to go on.", "Masukkan kata laluan anda untuk meneruskan."),
+  WRONG_PASSWORD: w("That password is not right. Nothing was done.", "Kata laluan itu tidak betul. Tiada apa yang dilakukan."),
+  LOCKED: w("This account is locked after too many wrong passwords. Try again later.", "Akaun ini dikunci selepas terlalu banyak kata laluan yang salah. Cuba lagi kemudian."),
+  THROTTLED: w("Too many attempts just now. Wait a few minutes and try again.", "Terlalu banyak percubaan sebentar tadi. Tunggu beberapa minit dan cuba lagi."),
+  ACT_CLOSED: w(
+    "This cannot be done at the moment: the procurement office has not finished setting up supplier sign-in. Tell the procurement office.",
+    "Ini tidak dapat dilakukan buat masa ini: pejabat perolehan belum selesai menyediakan log masuk pembekal. Maklumkan kepada pejabat perolehan.",
+  ),
 };

@@ -176,8 +176,8 @@ const stamped = async (tx: Tx, ex: Ex, o: { stamp?: string; late?: boolean } = {
 const fresh = () => supplier();
 
 /// A replace, as the act will write it: the new submission, then the old one REPLACED with the new one's stamp, its envelope SUPERSEDED, and its alternatives re-pointed.
-async function replace(tx: Tx, ex: Ex, who: { supplierId: string; accountId: string }, old: { bidId: string; envelopeId: string }, stamp?: string) {
-  const next = await submit(tx, ex, who, { replaces: old.bidId, stamp });
+async function replace(tx: Tx, ex: Ex, who: { supplierId: string; accountId: string }, old: { bidId: string; envelopeId: string }, stamp?: string, kind?: "BID" | "ALTERNATIVE") {
+  const next = await submit(tx, ex, who, { replaces: old.bidId, stamp, kind });
   await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'REPLACED', "statusAt" = (SELECT "receivedAt" FROM "BidEnvelope" WHERE "id" = $2) WHERE "id" = $1`, old.bidId, next.envelopeId);
   await tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = 'SUPERSEDED' WHERE "id" = $1`, old.envelopeId);
   await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "parentOnlineBidId" = $2 WHERE "parentOnlineBidId" = $1`, old.bidId, next.bidId);
@@ -503,7 +503,15 @@ describe("security audit 2: written in this transaction is the trigger's own rec
     const a = await fresh();
     // Two alternatives of one supplier: the second names the first as the one it replaces, but the first is not moved in that act.
     const target = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE" }));
-    const decoy = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", replaces: target.bidId }));
+    // Trigger 14 (build plan step 10, PA028) now refuses this decoy at the commit, so the fixture is written with that one trigger off, by the owner, in a transaction of its own between the two ALTERs.
+    // The assertions below are unchanged: they are about the status move, which trigger 14 does not touch.
+    await db.$executeRawUnsafe(`ALTER TABLE "OnlineBid" DISABLE TRIGGER "OnlineBid_replacement_moved"`);
+    let decoy: { bidId: string; envelopeId: string };
+    try {
+      decoy = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", replaces: target.bidId }));
+    } finally {
+      await db.$executeRawUnsafe(`ALTER TABLE "OnlineBid" ENABLE ALWAYS TRIGGER "OnlineBid_replacement_moved"`);
+    }
     await setClosing(ex.id, -5);
     const markReplaced = (tx: Tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'REPLACED', "statusAt" = (SELECT "receivedAt" FROM "BidEnvelope" WHERE "id" = $2) WHERE "id" = $1`, target.bidId, decoy.envelopeId);
     expect(await refusal(asApp(markReplaced))).toBe("PA012");
@@ -1022,6 +1030,49 @@ describe("security audit 5: a share release is checked as it is written", () => 
         }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("trigger 14 (PA028): a replace is one act", () => {
+  it("a submission naming a live alternative as replaced, with that alternative left SUBMITTED, is refused at the commit, as the app role", async () => {
+    const ex = await onlineExercise();
+    const a = await fresh();
+    const target = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE" }));
+    expect(await refusal(asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", replaces: target.bidId })))).toBe("PA028");
+    expect((await one<{ status: string }>(`SELECT "status"::text FROM "OnlineBid" WHERE "id" = $1`, target.bidId)).status).toBe("SUBMITTED");
+  });
+
+  it("so is one whose named bid the same transaction moved to WITHDRAWN", async () => {
+    const ex = await onlineExercise();
+    const a = await fresh();
+    const bid = await asApp((tx) => submit(tx, ex, a));
+    expect(
+      await refusal(
+        asApp(async (tx) => {
+          await submit(tx, ex, a, { replaces: bid.bidId });
+          await withdraw(tx, bid);
+        }),
+      ),
+    ).toBe("PA028");
+  });
+
+  it("the step 10 replace, in its order, commits, for a bid and for an alternative", async () => {
+    const ex = await onlineExercise();
+    const a = await fresh();
+    const bid = await asApp((tx) => submit(tx, ex, a));
+    const alt = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", parent: bid.bidId }));
+    expect(await refusal(asApp((tx) => replace(tx, ex, a, alt, undefined, "ALTERNATIVE")))).toBeNull();
+    expect(await refusal(asApp((tx) => replace(tx, ex, a, bid)))).toBeNull();
+  });
+
+  it("is a deferred constraint trigger, always enabled, whose function pins its search_path and names its tables in public", async () => {
+    const t = await one<{ enabled: string; deferrable: boolean; initially: boolean }>(
+      `SELECT tgenabled::text AS enabled, tgdeferrable AS deferrable, tginitdeferred AS initially FROM pg_trigger WHERE tgname = 'OnlineBid_replacement_moved' AND NOT tgisinternal`,
+    );
+    expect(t).toEqual({ enabled: "A", deferrable: true, initially: true });
+    const f = await one<{ config: string[]; source: string }>(`SELECT p.proconfig AS config, p.prosrc AS source FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'sealed_replacement_moved'`);
+    expect(f.config).toContain("search_path=pg_catalog, public, pg_temp");
+    expect(f.source).toContain('public."OnlineBid"');
   });
 });
 

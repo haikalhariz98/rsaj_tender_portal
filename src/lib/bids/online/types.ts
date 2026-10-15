@@ -44,8 +44,10 @@ export type SubmitFault =
   | "LATE_CLOSED"                // late submission ends when the main opening is started (20b)
   | "PRICE_INVALID" | "PERIOD_INVALID" | "UNIT_NOT_SET"
   | "FILE_NOT_YOURS" | "FILE_NOT_DRAFT" | "PART_UNKNOWN" | "NO_FILES"
-  | "TOO_MANY_SUBMISSIONS";      // per supplier per exercise (20e)
-export type WithdrawFault = "NOT_YOURS" | "NOT_LIVE" | "AFTER_CLOSING" | "CANCELLED" | "ALTERNATIVE_NOT_LINKED";
+  | "TOO_MANY_SUBMISSIONS"       // per supplier per exercise (20e)
+  | "STAMP_STALE"                // 20aa: the database refused the act's stamp as older than the skew, because the act waited on the locks
+  | "NOT_TAKEN";                 // any other refusal at the write or the commit that the door had already passed: nothing was recorded
+export type WithdrawFault = "NOT_YOURS" | "NOT_LIVE" | "AFTER_CLOSING" | "CANCELLED" | "ALTERNATIVE_NOT_LINKED" | "STAMP_STALE" | "NOT_TAKEN";
 export type PartUploadFault =
   | "CHANNEL_NOT_ONLINE" | "ONLINE_NOT_ALLOWED" | "NOT_PUBLISHED" | "KEY_NOT_LIVE" | "FINGERPRINT_MISMATCH" | "NO_LIVE_SALE" | "NOT_ON_INVITEE_LIST" | "LATE_CLOSED"
   | "PART_UNKNOWN" | "PART_NOT_RETURNED" | "TYPES_NOT_SET" | "TYPE_NOT_ACCEPTED" | "OFFICE_REFUSED" | "SIZE_NOT_SET" | "TOO_LARGE" | "EMPTY"
