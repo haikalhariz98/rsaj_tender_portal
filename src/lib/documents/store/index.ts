@@ -10,6 +10,7 @@ import type { BlobStore, MalwareScanner } from "./types";
 
 export type { BlobStore, MalwareScanner, ScanResult, DriverName } from "./types";
 export { sha256Hex, isSha256 } from "./digest";
+export { runScan } from "./scanner";
 export { orphanReport, orphanDigests } from "./orphans";
 export { BlobAddressError } from "./postgres";
 

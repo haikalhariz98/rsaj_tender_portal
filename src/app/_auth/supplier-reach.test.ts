@@ -34,7 +34,10 @@ const PORTAL = walk(path.join(SRC, "app", "supplier")).map((f) => ({ file: rel(f
 // Phase 4e: My Projects' three JSON posts are held by their own section (`app/supplier/projects/`).
 const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/") && !f.file.startsWith("app/supplier/bids/") && !f.file.startsWith("app/supplier/projects/"));
 // Wave 3a (SR-10): the one GET under a dynamic segment (`app/supplier/bids/[id]/download`) is a read of a released file, held by its own test below; the others are the JSON posts.
-const BIDS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/bids/") && !f.file.includes("/[id]/"));
+// Wave 3b step 9 (plan section 1.5): the part upload is a multipart post, guarded by `supplierUploadPost` like the registration's and the Company workspace's uploads, so it is held by its own test below.
+const BIDS_UPLOAD = "app/supplier/bids/part/route.ts";
+const BIDS_ALL_POSTS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/bids/") && !f.file.includes("/[id]/"));
+const BIDS_HANDLERS = BIDS_ALL_POSTS.filter((f) => f.file !== BIDS_UPLOAD);
 const BIDS_DOWNLOADS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/bids/") && f.file.includes("/[id]/"));
 const BIDS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && f.file.startsWith("app/supplier/bids"));
 const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/"));
@@ -262,9 +265,9 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
   const HTTP = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
   const methods = (src: string) => [...src.matchAll(HTTP)].map((m) => m[1]);
 
-  it("are exactly the three literal paths the public copy lists, and the list page is there", () => {
-    expect(BIDS_HANDLERS.map(FILE).sort()).toEqual([...SUPPLIER_BIDS_POST_PATHS].sort());
-    expect(Object.values(SUPPLIER_BIDS_POSTS)).toHaveLength(3);
+  it("are exactly the five literal paths the public copy lists (plan section 1.5 adds the part upload and its discard), and the list page is there", () => {
+    expect(BIDS_ALL_POSTS.map(FILE).sort()).toEqual([...SUPPLIER_BIDS_POST_PATHS].sort());
+    expect(Object.values(SUPPLIER_BIDS_POSTS)).toHaveLength(5);
     expect(PORTAL.map((f) => `/${f.file.replace(/^app\//, "").replace(/\/page\.tsx$/, "")}`)).toContain(SUPPLIER_BIDS_PAGE);
   });
 
@@ -279,6 +282,21 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
       // Nothing is parsed before the guard: the first thing read from the body is `post.fields`, after it.
       expect(body.indexOf("post.fields"), f.file).toBeGreaterThan(body.indexOf("guard.ok"));
     }
+  });
+
+  it("the part upload is one POST that asks the portal's upload guard first, and reads no supplier, organisation or account from the request", () => {
+    const f = BIDS_ALL_POSTS.find((x) => x.file === BIDS_UPLOAD)!;
+    expect(methods(f.src)).toEqual(["POST"]);
+    const body = postBody(f.src);
+    expect(body.slice(body.search(/\bawait\b/)).startsWith("await supplierUploadPost(request, ")).toBe(true);
+    expect(f.src).toMatch(/await supplierUploadPost\(request, "bids"\)/);
+    expect(body).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+    expect(f.src).not.toMatch(/^\s*["']use server["']/m);
+    const code = lex(f.src, { only: "comments" });
+    expect(code).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId|uploadedAt)["']\s*\)/);
+    const store = lex(read("lib/bids/online/upload-store.ts"), { only: "comments" });
+    expect(store).not.toMatch(/(?:fields|body|params|searchParams|form)\??\.\s*(?:supplierId|organisationId|accountId)b/);
+    expect(read("lib/bids/online/upload-store.ts")).toMatch(/actor\.supplierId/);
   });
 
   it("no handler, page or store reads a supplier, an organisation, an account, a day or a time from the request", () => {

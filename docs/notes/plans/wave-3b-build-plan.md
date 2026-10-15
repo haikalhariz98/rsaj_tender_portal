@@ -456,6 +456,13 @@ The public posts join `SUPPLIER_BIDS_POSTS`. The submit page joins `BID_PAGE`, f
 - `src/lib/tender-docs/bid-part-rules.ts`: `bidRulesFrom`, the rules publication freezes. `src/lib/window/repo.ts`: `loadSealingFacts`, `loadChannelSetting`. `PublishInput` gains `sealing`.
 - Server actions in `src/app/sourcing/[id]/scope/key-actions.ts`: `setOfficerShare`, `rekeyExercise` (signature-class slots `OfficerExerciseKey.person` and `PublishedKeyChange.by`). `takeSubmissionChannel` is in `window/actions.ts`. `checkUnlock` moves to step 13.
 
+### 1.5b What step 9 added beyond §1.3 (built 2026-10-14)
+
+- `src/lib/sealing/file-seal.ts` (pure): `sealFile`, and `fileBodyAad`, `fileMetaAad`, `fileDekAad` (recordId = the file's id, partKey = the returned part's id), so step 13's unseal rebuilds them identically. Stored body is `ct || tag` with the IV in `bodyIv`.
+- `src/lib/bids/online/parts.ts`: `uploadGateFaults` (the doors, judged before the body) and `partPreBodyFaults` (the rule, the cap on the body). `upload-parse.ts` (query and form), `upload-gate.ts` (the bid limiter and one place per supplier), `upload-store.ts` (`loadUploadFacts`, `storePart`, `discardPart`, `logPartRefusal`).
+- `src/lib/documents/body.ts` `limitBodyPaced`; `media.ts` `recogniseFile` (shared with the staff upload); `store/scanner.ts` `runScan` (a failing scanner is ERROR).
+- Routes: `/supplier/bids/part?exerciseId=&packPartId=` (the ids ride in the query, the form's copies must agree; a decision for the product owner) and `/supplier/bids/part/discard`. Words: `PART_ROUTE_WORDS`.
+
 ### 1.6 Contracts decided after step 3 (2026-10-14), written by the step named
 
 These are not in the code yet. Each step writes its own declaration as given here, first, and then §1.2 or §1.3 takes it in, so that those

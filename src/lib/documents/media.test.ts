@@ -4,7 +4,7 @@ import ExcelJS from "exceljs";
 
 import { documentFaultText } from "./labels";
 import { uploadFaultText } from "@/lib/portal/registration/words";
-import { ARCHIVE_TAIL_BYTES, DOCX_TYPE, inspectArchive, mediaFault, ooxmlTypeOf, sniffMediaType, staffMediaFault, supplierAcceptedTypes, typeFromHeader, typeFromName, unknownPolicyTypes, XLSX_TYPE } from "./media";
+import { ARCHIVE_TAIL_BYTES, DOCX_TYPE, inspectArchive, mediaFault, ooxmlTypeOf, recogniseFile, sniffMediaType, staffMediaFault, supplierAcceptedTypes, typeFromHeader, typeFromName, unknownPolicyTypes, XLSX_TYPE } from "./media";
 import type { StorePolicy } from "./types";
 
 const bytes = (...xs: (number | string)[]) => new Uint8Array(xs.flatMap((x) => (typeof x === "string" ? [...Buffer.from(x, "latin1")] : [x])));
@@ -400,5 +400,23 @@ describe("the staff upload judges a refused Office file with its reason (ruling 
     // An accepted workbook is judged as ever.
     expect(staffMediaFault(XLSX_TYPE, { filename: "bq.xlsx" }, officePolicy, null)).toBeNull();
     expect(z.length).toBeGreaterThan(0);
+  });
+});
+
+describe("recogniseFile (the one recogniser of a file's own bytes, ruling 12a)", () => {
+  const blob = (bytes: Uint8Array) => new Blob([bytes as BlobPart]);
+  it("reads a PDF by its head, with no archive reading", async () => {
+    const r = await recogniseFile(blob(new TextEncoder().encode("%PDF-1.7\nrest")));
+    expect(r).toEqual({ sniffed: "application/pdf", office: null, type: "application/pdf", officeRefusal: null });
+  });
+  it("refuses a ZIP that is not an Office file, with the reason", async () => {
+    const zip = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
+    const r = await recogniseFile(blob(zip));
+    expect(r.sniffed).toBe("application/zip");
+    expect(r.type).toBe("application/zip");
+    expect(r.officeRefusal).toBe("UNREADABLE");
+  });
+  it("says null for bytes it does not know", async () => {
+    expect((await recogniseFile(blob(new Uint8Array([1, 2, 3, 4])))).type).toBeNull();
   });
 });

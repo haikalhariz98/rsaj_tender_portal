@@ -55,6 +55,9 @@ export const SUPPLIER_BIDS_POSTS = {
   event: "/supplier/bids/event",
   acknowledge: "/supplier/bids/acknowledge",
   request: "/supplier/bids/request",
+  // Wave 3b (SR-13, plan section 1.5): one sealed bid part uploaded (multipart) and discarded (JSON). Further posts (submit, withdraw) join in step 10.
+  part: "/supplier/bids/part",
+  partDiscard: "/supplier/bids/part/discard",
 } as const;
 export const SUPPLIER_BIDS_POST_PATHS: readonly string[] = Object.values(SUPPLIER_BIDS_POSTS);
 

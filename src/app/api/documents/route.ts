@@ -9,7 +9,7 @@ import { limitBody } from "@/lib/documents/body";
 import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency";
 import { documentFaultText } from "@/lib/documents/labels";
 import { effectiveCap, readLimit, requestLengthFault, sizeFault } from "@/lib/documents/limits";
-import { ARCHIVE_TAIL_BYTES, inspectArchive, sniffMediaType, SNIFF_BYTES, staffMediaFault, type OfficeRefusal } from "@/lib/documents/media";
+import { recogniseFile, staffMediaFault, type OfficeRefusal } from "@/lib/documents/media";
 import { STAGED_FOR_DELEGATION, STAGED_FOR_TEMPLATE_FILE } from "@/lib/documents/staged-for";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
@@ -101,15 +101,10 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
   if (nameFault) return refuse(422, nameFault, at);
   const tooBig = sizeFault(size, policy, ceiling);
   if (tooBig) return refuse(tooBig.code === "TOO_LARGE" ? 413 : 422, tooBig, at);
-  const head = new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer());
-  let sniffed = sniffMediaType(head);
-  // SR-09, SR-11: a ZIP is a workbook or a Word document if the names its directory lists say so; the end of the file is read for that, and nothing is unpacked.
-  let officeRefusal: OfficeRefusal | null = null;
-  if (sniffed === "application/zip") {
-    const verdict = inspectArchive(new Uint8Array(await file.slice(Math.max(0, file.size - ARCHIVE_TAIL_BYTES)).arrayBuffer()), file.size);
-    if ("type" in verdict) sniffed = verdict.type;
-    else officeRefusal = verdict.refused;
-  }
+  // SR-09, SR-11: a ZIP is a workbook or a Word document if the names its directory lists say so; the end of the file is read for that, and nothing is unpacked (the shared recogniser).
+  const recognised = await recogniseFile(file);
+  const sniffed = recognised.type;
+  const officeRefusal: OfficeRefusal | null = recognised.officeRefusal;
   // Ruling 12a: a refused Office file says why and what to do instead. The unset-rules fault still comes first.
   const media = staffMediaFault(sniffed, { filename: fileName, contentType: file.type }, policy, officeRefusal);
   if (media) return refuse(415, media, at);

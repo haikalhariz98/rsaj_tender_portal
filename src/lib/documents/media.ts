@@ -266,3 +266,21 @@ export function staffMediaFault(sniffed: Sniffed, declared: { filename: string; 
 export function unknownPolicyTypes(types: readonly string[]): string[] {
   return types.filter((t) => !isKnownMediaType(t));
 }
+
+/// What a file is, by its own bytes (ruling 12a), in one place for every upload that judges it: the staff document route, and the bid part's upload (wave 3b, step 9).
+/// `sniffed` is what the first bytes say; `office` is the reading of a ZIP's end (null where the file is not a ZIP); `type` is the type to judge: the Office type where the
+/// archive is a workbook or a Word document, else `sniffed`; `officeRefusal` is why an archive was refused. Nothing is unpacked or run.
+export interface Recognised {
+  sniffed: Sniffed;
+  office: ArchiveVerdict | null;
+  type: Sniffed;
+  officeRefusal: OfficeRefusal | null;
+}
+
+/// `file` is anything that can be sliced and read (a `File`, a `Blob`): only its head and, for a ZIP, its last `ARCHIVE_TAIL_BYTES` are read.
+export async function recogniseFile(file: { size: number; slice(start?: number, end?: number): { arrayBuffer(): Promise<ArrayBuffer> } }): Promise<Recognised> {
+  const sniffed = sniffMediaType(new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer()));
+  if (sniffed !== "application/zip") return { sniffed, office: null, type: sniffed, officeRefusal: null };
+  const office = inspectArchive(new Uint8Array(await file.slice(Math.max(0, file.size - ARCHIVE_TAIL_BYTES)).arrayBuffer()), file.size);
+  return "type" in office ? { sniffed, office, type: office.type, officeRefusal: null } : { sniffed, office, type: sniffed, officeRefusal: office.refused };
+}

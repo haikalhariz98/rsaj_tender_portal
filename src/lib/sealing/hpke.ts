@@ -31,7 +31,8 @@ const KEM_ID = 0x0020; // DHKEM(X25519, HKDF-SHA256)
 const KDF_ID = 0x0001; // HKDF-SHA256
 const NH = 32; // HKDF-SHA256's output size
 const NSECRET = 32;
-const NENC = X25519_KEY_BYTES;
+// X25519_KEY_BYTES, written out: types.ts re-exports x25519 and hpke, so a const read from x25519 at load time is undefined when x25519 is the first module imported (step 9 found it).
+const NENC = 32;
 const MODE_BASE = 0x00;
 const TAG_BYTES = 16;
 

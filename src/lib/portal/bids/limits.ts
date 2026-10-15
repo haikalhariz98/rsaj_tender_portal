@@ -10,11 +10,13 @@
  * If a customer ever needs these to differ, that is a decision to propose, not to infer.
  */
 
-export type RatedAction = "document-download" | "payment-attempt";
+export type RatedAction = "document-download" | "payment-attempt" | "bid-part-upload";
 
 export const RATE_LIMITS: Readonly<Record<RatedAction, { limit: number; windowSeconds: number }>> = {
   "document-download": { limit: 60, windowSeconds: 60 },
   "payment-attempt": { limit: 10, windowSeconds: 60 },
+  // Wave 3b step 9 (20e, 20w): a pack returns perhaps ten to twenty parts and a supplier may upload one again; 30 a minute is far above a person and far below a script.
+  "bid-part-upload": { limit: 30, windowSeconds: 60 },
 };
 
 /// The start of the fixed window a moment falls in: counting is by fixed window, so a counter row is one per account, action and window.
@@ -39,6 +41,7 @@ export const RATE_ROW_KEEP_SECONDS = 24 * 60 * 60;
 export const RATE_LIMITED_WORDS: Readonly<Record<RatedAction, string>> = {
   "document-download": "You have asked for a great many files in the last minute, so this one was not sent. Nothing was logged. Wait a minute and try again.",
   "payment-attempt": "You have tried to pay too many times in the last minute. Nothing was recorded. Wait a minute and try again.",
+  "bid-part-upload": "You have uploaded a great many files in the last minute, so this one was not taken. Wait a minute and try again. Only the time your bid is submitted decides whether it is late, not the time of an upload.",
 };
 
 /// Failed tries to pay on one purchase, after which no further try is taken.
@@ -82,3 +85,15 @@ export const MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE = 40;
 export function rateRefusalLogged(countInWindow: number, limit: number): boolean {   // true only when countInWindow === limit + 1
   return countInWindow === limit + 1;
 }
+
+// ------------------------------------------------------------------ wave 3b step 9: the upload's body (20e)
+
+/**
+ * How long one part's body may take to arrive, and the slowest it may arrive at (threat S17, S19). PRODUCT BEHAVIOUR, not customer policy (20e): an upload holds a slot of the
+ * deployment's bid-upload limit and the supplier's one place, so a body that trickles in would keep every other upload waiting. Five minutes is far longer than any file the
+ * deployment's ceiling allows takes on a working connection, and 16 KB a second (after a 10 second grace for the connection to start) is far below any connection a bid can
+ * be made on and far above a deliberate trickle. A body that is over either is cut off (408) and nothing is kept.
+ */
+export const BID_BODY_DEADLINE_SECONDS = 300;
+export const BID_BODY_MIN_BYTES_PER_SECOND = 16 * 1024;
+export const BID_BODY_GRACE_SECONDS = 10;

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ScanResult } from "@/lib/documents/store/types";
 import { MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE } from "@/lib/portal/bids/limits";
 
-import { partUploadFaults, storedScan } from "./parts";
+import { partPreBodyFaults, partUploadFaults, storedScan, uploadGateFaults } from "./parts";
 import type { BidPartRule } from "./types";
 import { PART_UPLOAD_FAULT_WORDS, UPLOAD_BUSY_WORDS } from "./words";
 
@@ -91,5 +91,36 @@ describe("a part's upload (D6, ruling 19)", () => {
     expect(UPLOAD_BUSY_WORDS.en).toMatch(/submitted decides whether it is late/);
     expect(UPLOAD_BUSY_WORDS.ms).toMatch(/Cuba lagi/);
     expect(UPLOAD_BUSY_WORDS.ms).toMatch(/diserahkan yang menentukan sama ada ia lewat/);
+  });
+});
+
+describe("the upload's own guards, before the body is read (step 9)", () => {
+  const open = { channel: "ONLINE" as const, online: { allowed: true, demonstration: false, fault: null }, published: true, cancelled: false, keyLive: true, fingerprintMatches: true, saleStands: true, invitedPath: false, onInviteeList: false, mainOpeningStartedAt: null as Date | null };
+  it("passes an open exercise", () => expect(uploadGateFaults(open)).toEqual([]));
+  it("a paper exercise answers only that", () => expect(uploadGateFaults({ ...open, channel: "PAPER", keyLive: false })).toEqual(["CHANNEL_NOT_ONLINE"]));
+  it("names each door", () => {
+    expect(uploadGateFaults({ ...open, online: { allowed: false, demonstration: false, fault: "ONLINE_NOT_ALLOWED" } })).toEqual(["ONLINE_NOT_ALLOWED"]);
+    expect(uploadGateFaults({ ...open, published: false })).toEqual(["NOT_PUBLISHED"]);
+    expect(uploadGateFaults({ ...open, cancelled: true })).toEqual(["NOT_PUBLISHED"]);
+    expect(uploadGateFaults({ ...open, keyLive: false })).toEqual(["KEY_NOT_LIVE"]);
+    expect(uploadGateFaults({ ...open, fingerprintMatches: false })).toEqual(["FINGERPRINT_MISMATCH"]);
+    expect(uploadGateFaults({ ...open, saleStands: false })).toEqual(["NO_LIVE_SALE"]);
+    expect(uploadGateFaults({ ...open, invitedPath: true, onInviteeList: false })).toEqual(["NOT_ON_INVITEE_LIST"]);
+    expect(uploadGateFaults({ ...open, mainOpeningStartedAt: new Date() })).toEqual(["LATE_CLOSED"]);
+  });
+});
+
+describe("what a part says before its body is read (step 9)", () => {
+  const cap = (over: Partial<Parameters<typeof partPreBodyFaults>[0]> = {}) => partPreBodyFaults({ rule, storeCap: BigInt(5000), draftFilesBySupplier: 0, ...over });
+  it("the largest body is the smaller of the part's and the deployment's", () => {
+    expect(cap()).toEqual({ faults: [], cap: BigInt(1000) });
+    expect(cap({ storeCap: BigInt(300) }).cap).toBe(BigInt(300));
+  });
+  it("names what is missing", () => {
+    expect(cap({ rule: null }).faults).toEqual(["PART_UNKNOWN"]);
+    expect(cap({ storeCap: null })).toEqual({ faults: ["SIZE_NOT_SET"], cap: null });
+    expect(cap({ rule: { ...rule, acceptedMediaTypes: [] } }).faults).toEqual(["TYPES_NOT_SET"]);
+    expect(cap({ rule: { ...rule, returnedByBidder: false } }).faults).toEqual(["PART_NOT_RETURNED"]);
+    expect(cap({ draftFilesBySupplier: MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE }).faults).toEqual(["TOO_MANY_DRAFT_FILES"]);
   });
 });

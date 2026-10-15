@@ -168,3 +168,20 @@ export const UPLOAD_BUSY_WORDS: Words = w(
   "The portal is busy with other uploads. Try again in a moment. Only the time your bid is submitted decides whether it is late, not the time of an upload.",
   "Portal sedang sibuk dengan muat naik lain. Cuba lagi sebentar lagi. Hanya masa bida anda diserahkan yang menentukan sama ada ia lewat, bukan masa sesuatu muat naik.",
 );
+
+/// The answers of the part upload and discard routes that are not a rule's refusal (step 9): the rate limit, a request the portal could not read, nothing found. Rate
+/// refusals say that only the submission's stamp decides lateness (20e).
+export type PartRouteNotice = "RATE_LIMITED" | "NO_LENGTH" | "UNREADABLE" | "FIELDS_DISAGREE" | "NOT_FOUND" | "STORE_CLOSED" | "NOT_TAKEN" | "FILE_NOT_DRAFT";
+export const PART_ROUTE_WORDS: Readonly<Record<PartRouteNotice, Words>> = {
+  RATE_LIMITED: w(
+    "You have uploaded a great many files in the last minute, so this one was not taken. Wait a minute and try again. Only the time your bid is submitted decides whether it is late, not the time of an upload.",
+    "Anda telah memuat naik terlalu banyak fail dalam seminit yang lalu, jadi fail ini tidak diterima. Tunggu seminit dan cuba lagi. Hanya masa bida anda diserahkan yang menentukan sama ada ia lewat, bukan masa sesuatu muat naik.",
+  ),
+  NO_LENGTH: w("The upload did not say how large it is, so it was not read.", "Muat naik itu tidak menyatakan saiznya, jadi ia tidak dibaca."),
+  UNREADABLE: w("That upload could not be read. Nothing was taken. Try again.", "Muat naik itu tidak dapat dibaca. Tiada apa yang diterima. Cuba lagi."),
+  FIELDS_DISAGREE: w("The page did not say clearly which exercise and which part the file is for, so it was not taken. Reload the page and try again.", "Halaman tidak menyatakan dengan jelas pelawaan dan bahagian mana yang dimaksudkan fail itu, jadi ia tidak diterima. Muat semula halaman dan cuba lagi."),
+  NOT_FOUND: w("That is not something you can open.", "Itu bukan sesuatu yang boleh anda buka."),
+  STORE_CLOSED: w("Uploads are closed: the portal's file store is not set up. Contact the procurement office.", "Muat naik ditutup: simpanan fail portal belum disediakan. Hubungi pejabat perolehan."),
+  NOT_TAKEN: w("The file was not taken. Nothing was recorded. Try again.", "Fail itu tidak diterima. Tiada apa yang direkodkan. Cuba lagi."),
+  FILE_NOT_DRAFT: w("That file is no longer waiting to be submitted, so it cannot be discarded.", "Fail itu tidak lagi menunggu untuk diserahkan, jadi ia tidak boleh dibuang."),
+};

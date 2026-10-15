@@ -10,7 +10,9 @@ import type { ArchiveVerdict, Sniffed } from "@/lib/documents/media";
 import type { ScanResult } from "@/lib/documents/store/types";
 import { MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE } from "@/lib/portal/bids/limits";
 
-import type { BidPartRule, OnlineSubmissionMode, PartUploadFault, StoredScan } from "./types";
+import type { onlineSubmissionAllowed } from "@/lib/sealing/switch";
+
+import type { BidPartRule, OnlineSubmissionMode, PartUploadFault, StoredScan, SubmissionChannel } from "./types";
 
 /// Recognised only to be refused, whatever a part's list says: markup and an archive that is not an Office document.
 const NEVER_ACCEPTED: readonly string[] = ["text/html", "image/svg+xml", "application/zip"];
@@ -68,4 +70,45 @@ export function storedScan(scan: ScanResult, mode: OnlineSubmissionMode, scanner
     case "ERROR":
       return null;
   }
+}
+
+/**
+ * The route's own guards, judged before the body is read (step 9; the same doors as `submitFaults`, in the same order). An exercise that is cancelled reads as not open for
+ * bids, the words a cancelled exercise has here (`PartUploadFault` has no CANCELLED, and the contract is not widened for it). An exercise whose mode is not set at the
+ * door reads as online not allowed. `fingerprintMatches`: the live key's fingerprint is the one frozen at publication (`publishedKeyFingerprint`); a key re-made without its
+ * `PublishedKeyChange` would not match, and nothing is sealed to it.
+ */
+export function uploadGateFaults(i: {
+  channel: SubmissionChannel | null; online: ReturnType<typeof onlineSubmissionAllowed>; published: boolean; cancelled: boolean;
+  keyLive: boolean; fingerprintMatches: boolean; saleStands: boolean; invitedPath: boolean; onInviteeList: boolean; mainOpeningStartedAt: Date | null;
+}): PartUploadFault[] {
+  if (i.channel !== "ONLINE") return ["CHANNEL_NOT_ONLINE"];
+  const out: PartUploadFault[] = [];
+  const add = (f: PartUploadFault) => {
+    if (!out.includes(f)) out.push(f);
+  };
+  if (i.online.fault) add("ONLINE_NOT_ALLOWED");
+  if (!i.published || i.cancelled) add("NOT_PUBLISHED");
+  if (!i.keyLive) add("KEY_NOT_LIVE");
+  else if (!i.fingerprintMatches) add("FINGERPRINT_MISMATCH");
+  if (!i.saleStands) add("NO_LIVE_SALE");
+  if (i.invitedPath && !i.onInviteeList) add("NOT_ON_INVITEE_LIST");
+  if (i.mainOpeningStartedAt !== null) add("LATE_CLOSED");
+  return out;
+}
+
+/**
+ * What can be said of a part before its body is read (step 9): the rule it names, what it takes, and the supplier's drafts held. The largest the body may be is the smaller of
+ * the part's own limit and the deployment's ceiling (null: either is not set, and nothing is taken). The full judgement after the body is `partUploadFaults`, which says these again.
+ */
+export function partPreBodyFaults(i: { rule: BidPartRule | null; storeCap: bigint | null; draftFilesBySupplier: number }): { faults: PartUploadFault[]; cap: bigint | null } {
+  const faults: PartUploadFault[] = [];
+  if (i.draftFilesBySupplier >= MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE) faults.push("TOO_MANY_DRAFT_FILES");
+  if (!i.rule) return { faults: [...faults, "PART_UNKNOWN"], cap: null };
+  if (!i.rule.returnedByBidder) faults.push("PART_NOT_RETURNED");
+  const partMax = /^[1-9][0-9]*$/.test(i.rule.maxBytes) ? BigInt(i.rule.maxBytes) : null;
+  if (partMax === null || i.storeCap === null) faults.push("SIZE_NOT_SET");
+  if (i.rule.acceptedMediaTypes.length === 0) faults.push("TYPES_NOT_SET");
+  const cap = partMax !== null && i.storeCap !== null ? (partMax < i.storeCap ? partMax : i.storeCap) : null;
+  return { faults, cap };
 }

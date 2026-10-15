@@ -78,6 +78,7 @@ export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
   "src/lib/portal/bids/inspection-store.ts": "opens the tender documents only after `loadBidContext` has admitted the exercise for this supplier",
   "src/lib/portal/bids/list-store.ts": "lists only exercises `supplierSees` admits for this supplier, each judged by the same rule as the page of one exercise",
   "src/lib/portal/bids/workspace-store.ts": "a tab's reader, called by the My Bids page of one exercise after `loadBidContext` has admitted it for this supplier",
+  "src/lib/bids/online/upload-store.ts": "SR-13 step 9: a SUPPLIER uploads a bid part. `loadUploadFacts` reads the exercise only after `loadBidContext` (the one gate of My Bids, `supplierSees`) has admitted it for this supplier and answers null otherwise; `logPartRefusal` reads only an exercise id of the actor's own organisation, to know whether a row may be written, and returns nothing of it",
   "src/app/supplier/bids/[id]/panels.tsx": "renders the tabs of the My Bids page of one exercise, which is admitted by `loadBidContext` before any tab renders",
 };
 

@@ -14,7 +14,7 @@ import { MASKED_ACTOR_WORDS } from "./audit-mask";
 import { RECEIPT_WORDS } from "./receipt";
 import { RECEIVED_WORDS } from "./received";
 import { myBidOpenedWords } from "./roll";
-import { PART_UPLOAD_FAULT_WORDS, submissionWarningWords, SUBMIT_FAULT_WORDS, UPLOAD_BUSY_WORDS, WITHDRAW_FAULT_WORDS } from "./words";
+import { PART_UPLOAD_FAULT_WORDS, submissionWarningWords, PART_ROUTE_WORDS, SUBMIT_FAULT_WORDS, UPLOAD_BUSY_WORDS, WITHDRAW_FAULT_WORDS } from "./words";
 
 /**
  * Ruling 20j and 20s (build plan step 5): no words constant, receipt or My Bids state calls the receipt, or anything about a bid, "signed" or "proof" (or
@@ -41,6 +41,7 @@ describe("no words call a receipt or a bid signed, proof or verified, in either 
       ...Object.values(SUBMIT_FAULT_WORDS),
       ...Object.values(WITHDRAW_FAULT_WORDS),
       ...Object.values(PART_UPLOAD_FAULT_WORDS),
+      ...Object.values(PART_ROUTE_WORDS),
       ...(["MANDATORY_PART_MISSING", "ALTERNATIVE_NOT_CONSIDERED", "REPLACE_REUPLOADS_ALL"] as const).map((code) => submissionWarningWords({ code, label: "Part" })),
       UPLOAD_BUSY_WORDS,
       MASKED_ACTOR_WORDS,

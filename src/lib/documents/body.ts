@@ -68,3 +68,88 @@ export function limitBody(body: ReadableStream<Uint8Array> | null, limit: bigint
   const stream = (body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() })).pipeThrough(counted);
   return { stream, seen: () => total, exceeded: () => over };
 }
+
+export interface Pace {
+  /// The whole body must have arrived by then.
+  deadlineMs: number;
+  /// After `graceMs`, the bytes seen so far divided by the time taken must not fall below this.
+  minBytesPerSecond: number;
+  graceMs: number;
+}
+
+export interface PacedBody {
+  stream: ReadableStream<Uint8Array>;
+  seen(): bigint;
+  exceeded(): boolean;
+  /// True when the body was cut off for arriving too slowly (past the deadline, or under the minimum rate). Takes precedence over `exceeded` only when the limit was not passed.
+  tooSlow(): boolean;
+}
+
+/**
+ * `limitBody` with a clock on it (wave 3b step 9; threat S17, S19). A byte count alone never fires when no chunk arrives, so a body that sends nothing would hold its slot for
+ * ever: a timer cuts the stream off at the deadline, and each chunk checks the rate against the time since the body began. The clock and the timer are injectable so a test
+ * proves the cut-off without waiting for it. Chunks pass through to whoever parses the stream; this holds none of them.
+ */
+export function limitBodyPaced(
+  body: ReadableStream<Uint8Array> | null,
+  limit: bigint,
+  pace: Pace,
+  clock: { now(): number; setTimer(fn: () => void, ms: number): unknown; clearTimer(t: unknown): void } = { now: () => Date.now(), setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: (t) => clearTimeout(t as ReturnType<typeof setTimeout>) },
+): PacedBody {
+  const source = (body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() })).getReader();
+  const began = clock.now();
+  let total = 0n;
+  let over = false;
+  let slow = false;
+  let timer: unknown = null;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      timer = clock.setTimer(() => {
+        slow = true;
+        source.cancel().catch(() => undefined);
+        try {
+          controller.error(new Error("The body took too long."));
+        } catch {
+          // already closed or errored
+        }
+      }, pace.deadlineMs);
+    },
+    async pull(controller) {
+      let r: ReadableStreamReadResult<Uint8Array>;
+      try {
+        r = await source.read();
+      } catch (e) {
+        if (timer !== null) clock.clearTimer(timer);
+        controller.error(e);
+        return;
+      }
+      if (r.done) {
+        if (timer !== null) clock.clearTimer(timer);
+        controller.close();
+        return;
+      }
+      total += BigInt(r.value.byteLength);
+      if (total > limit) {
+        over = true;
+        if (timer !== null) clock.clearTimer(timer);
+        await source.cancel().catch(() => undefined);
+        controller.error(new Error("The body is over its limit."));
+        return;
+      }
+      const elapsed = clock.now() - began;
+      if (elapsed > pace.graceMs && Number(total) / (elapsed / 1000) < pace.minBytesPerSecond) {
+        slow = true;
+        if (timer !== null) clock.clearTimer(timer);
+        await source.cancel().catch(() => undefined);
+        controller.error(new Error("The body is arriving too slowly."));
+        return;
+      }
+      controller.enqueue(r.value);
+    },
+    async cancel(reason) {
+      if (timer !== null) clock.clearTimer(timer);
+      await source.cancel(reason).catch(() => undefined);
+    },
+  });
+  return { stream, seen: () => total, exceeded: () => over, tooSlow: () => slow && !over };
+}
