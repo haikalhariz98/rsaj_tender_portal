@@ -112,13 +112,8 @@ export async function saveBidSealingPolicy(
       })
     : null;
   if (hardeningAct && !hardeningAct.ok) return hardeningAct.state;
-  // An attestation is the proposer's own (security review of stage B): the form's hidden field names the person, and a name other than the signed-in person's is refused here, so a
-  // must-have condition of LIVE never reads as attested by someone who did not touch the form.
-  for (const act of [publicAct, hardeningAct]) {
-    if (act?.ok && act.act.subjectPersonId !== actor.personId) {
-      return { ok: false, message: "An attestation is made by the person who records it. Sign in as the person who can state this, and record it yourself." };
-    }
-  }
+  // An attestation is the proposer's own: the two slots are not on-behalf, so `interpretAct` refuses a form that names another person (at the rehearsal), and at the apply the subject
+  // is the proposer, not the applier. Nothing more is checked here: a check on the signed-in person would refuse every second person's apply.
   const publicBy = publicAct?.ok
     ? publicAct.act.subjectPersonId
     : actor.personId;

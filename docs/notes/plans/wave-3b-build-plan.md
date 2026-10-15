@@ -128,7 +128,7 @@ export interface Manifest {
 export interface FileMeta { v: 1; filename: string; mediaType: string; plainSha256: string; plainBytes: string }
 
 /// "Your receipt. It records what the portal told you." Never "signed" or "proof" (20j).
-export interface Receipt { exerciseId: string; sequence: number; receivedAt: string; late: boolean; keyFingerprint: string; receiptDigest: string; demonstration: boolean; alternativeNotConsidered: boolean }
+export interface Receipt { exerciseId: string; submissionNumber: number; /* the supplier's own count, never the exercise-wide sequence (security audit of stage B) */ receivedAt: string; late: boolean; keyFingerprint: string; receiptDigest: string; demonstration: boolean; alternativeNotConsidered: boolean }
 
 export type SubmitFault =
   | "CHANNEL_NOT_ONLINE" | "ONLINE_NOT_SET" | "ONLINE_NOT_ALLOWED" | "NOT_PUBLISHED" | "CANCELLED" | "KEY_NOT_LIVE"
@@ -213,7 +213,7 @@ export function partUploadFaults(i: { rule: BidPartRule | null; sniffed: Sniffed
 export function storedScan(scan: ScanResult, mode: OnlineSubmissionMode, scannerConfigured: boolean): StoredScan | null;  // null: refuse
 
 // src/lib/bids/online/receipt.ts
-export function receiptDigest(i: { exerciseId: string; sequence: number; receivedAt: Date; keyFingerprint: string; manifestCipherSha256: string; declarationCipherSha256: string; fileCipherSha256s: string[] }): string;
+export function receiptDigest(i: { exerciseId: string; submissionNumber: number; receivedAt: Date; keyFingerprint: string; manifestCipherSha256: string; declarationCipherSha256: string; fileCipherSha256s: string[] }): string;
 export const RECEIPT_WORDS: { title: Words; meaning: Words };  // never "signed" / "proof" (scan), in either language (20ab)
 
 // src/lib/bids/online/received.ts (ruling 18 as amended by 20u, 20l)
@@ -799,7 +799,7 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
     reading the `PublishedKeyChange` rows of the exercise, and names the fingerprint the draft was sealed to and the one now live. Done when a DB or handler test re-keys an
     exercise with a supplier's draft waiting and the page's data carries that notice for that supplier only.
 - **My Bids:**
-  - each submission's sequence, stamp, status and receipt digest;
+  - each submission's own number (`submissionNumbers(rows)`, derived from the supplier's own rows in the order accepted, never the exercise-wide `sequence` before the opening's start), stamp, status and receipt digest;
   - Withdraw, listing the linked alternatives with tick boxes;
   - from the opening's start, `myBidOpenedWords` in its states (20s): the listed or opened receipt digest in full, the request to compare it
     with the receipt the supplier kept, the late and not-in-roll words, and "not opened, as expected" for replaced and withdrawn bids. No
@@ -1088,3 +1088,12 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - **The clock → 20aa:** `clock_timestamp()`; the stamp (step 10) and `SKEW_NOT_ELAPSED` (step 13) read it.
   - **The Malay → 20ab:** both languages through `Words`; the scans cover the Malay (steps 5 and 19); the NFR-LNG-001 row (step 21).
 - **Referred to the founder with the outside review:** re-key-and-resubmit (20f), k-of-m (20k) and the blinded supplier link (20a).
+
+### 1.7 Amended by the stage B fix round (2026-10-15)
+
+- **The receipt carries `submissionNumber`, not `sequence`** (security audit: the exercise-wide envelope sequence counts every rival's envelopes, paper and online, so a bidder who replaces its bid
+  learns how many arrived in between). The number is the supplier's own count, derived from its rows by `submissionNumbers` and hashed into the digest, which is version
+  `perolehan-receipt-v2`. The exercise-wide `sequence` stays internal and is shown from the opening's start only (20u). Step 11's My Bids and step 12/13's roll read `submissionNumbers`,
+  or the roll's `sequence` after the start; ADR 0036 lines 196 and 257 still say "sequence" and are the architect's to amend.
+- **`PublishedKeyChange.viaOfficerKeyId`** (migration `20261105100000`): a change made by an officer setting their share again names the signed share that caused it.
+- **Multipart upload routes are outside Next's proxy** (`src/proxy.ts` matcher), and publication under LIVE refuses a share wrapped under another pepper (`PEPPER_CHANGED`).

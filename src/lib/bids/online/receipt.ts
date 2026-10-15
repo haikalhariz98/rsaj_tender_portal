@@ -38,3 +38,13 @@ export const RECEIPT_WORDS: { title: Words; meaning: Words } = {  // never "sign
     "Resit ini merekodkan apa yang dimaklumkan oleh portal kepada anda semasa anda menyerahkan: nombor penyerahan anda, masa yang dicap oleh pelayan, kunci yang digunakan untuk memeterai bida anda, dan cincangan bagi apa yang disimpan. Cetak atau simpan resit ini. Mulai pembukaan bermula, Bida Saya menunjukkan cincangan yang disenaraikan dan dibuka, untuk anda bandingkan dengan cincangan ini.",
   ),
 };
+
+/**
+ * A supplier's own number for each of its submissions on one exercise: 1 for the first it made, then 2, 3 and so on, by the order the portal accepted them (the envelope's
+ * sequence). Nothing is stored for it, because it is a function of the supplier's own rows (a submission is never deleted): the receipt carries it, the digest hashes it, and the
+ * opening's roll and My Bids derive it again from the rows, so a receipt digest recomputes from the stored rows alone. Only the order of the supplier's own rows is read: the gaps in
+ * the exercise-wide sequence, which count rivals' envelopes, never reach the number. Pure.
+ */
+export function submissionNumbers(own: readonly { id: string; sequence: number }[]): Map<string, number> {
+  return new Map([...own].sort((a, b) => a.sequence - b.sequence).map((row, index) => [row.id, index + 1]));
+}

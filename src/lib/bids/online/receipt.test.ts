@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { RECEIPT_DIGEST_VERSION, RECEIPT_WORDS, receiptDigest } from "./receipt";
+import { RECEIPT_DIGEST_VERSION, RECEIPT_WORDS, receiptDigest, submissionNumbers } from "./receipt";
 
 const h = (c: string) => c.repeat(64);
 const base = { exerciseId: "cmex0001", submissionNumber: 7, receivedAt: new Date("2026-11-04T03:59:58Z"), keyFingerprint: h("f"), manifestCipherSha256: h("1"), declarationCipherSha256: h("2"), fileCipherSha256s: [h("a"), h("b")] };
@@ -44,5 +44,15 @@ describe("the receipt's words (20j)", () => {
       expect(w.en).not.toMatch(/\b(signed|signature|proof|proves|verified)\b/i);
       expect(w.ms).not.toMatch(/tandatangan|bukti|disahkan|mengesahkan|pengesahan/i);
     }
+  });
+});
+
+describe("a supplier's own submission numbers", () => {
+  it("count from 1 in the order the portal accepted them, whatever gaps rivals leave in the exercise-wide sequence", () => {
+    const own = [{ id: "c", sequence: 40 }, { id: "a", sequence: 3 }, { id: "b", sequence: 17 }];
+    expect([...submissionNumbers(own)]).toEqual([["a", 1], ["b", 2], ["c", 3]]);
+    // The same rows with different gaps (more rivals in between) give the same numbers: nothing of the rivals' activity is in them.
+    expect([...submissionNumbers(own.map((r) => ({ ...r, sequence: r.sequence * 10 + 5 })))]).toEqual([...submissionNumbers(own)]);
+    expect(submissionNumbers([]).size).toBe(0);
   });
 });

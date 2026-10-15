@@ -31,7 +31,7 @@ import { ensureAdministrator, facts, makeSupplierAccount, randomId, setPolicy, S
 import { voidSaleFault, voidRefusalNote } from "@/lib/window/sale";
 import { windowFindingText } from "@/lib/window/labels";
 
-import { receiptDigest } from "./receipt";
+import { receiptDigest, submissionNumbers } from "./receipt";
 import { submitBid, takeStamp, withdrawBid, type SubmitInput } from "./submit-store";
 import type { BidPartRule, OnlineBidKind } from "./types";
 import { loadUploadFacts, storePart } from "./upload-store";
@@ -236,13 +236,17 @@ describe("a submission", () => {
     const first = await bidder(ex);
     const second = await bidder(ex);
     const one = must(await submit(first, ex));
-    must(await submit(first, ex, { replacesOnlineBidId: one.onlineBidId }));
+    const again = must(await submit(first, ex, { replacesOnlineBidId: one.onlineBidId }));
+    expect([one.receipt.submissionNumber, again.receipt.submissionNumber]).toEqual([1, 2]);
     const mine = must(await submit(second, ex));
     // The exercise-wide sequence has moved on, and the receipt shows none of it.
     expect((await bidRow(mine.onlineBidId)).envelope.sequence).toBeGreaterThan(1);
     expect(mine.receipt.submissionNumber).toBe(1);
     expect(Object.keys(mine.receipt)).not.toContain("sequence");
     const bid = await bidRow(mine.onlineBidId);
+    // The number is derived again from the supplier's own rows alone (nothing is stored for it), so a receipt digest recomputes from the rows.
+    const ownRows = await db.onlineBid.findMany({ where: { exerciseId: ex.id, supplierId: second.actor.supplierId }, select: { id: true, envelope: { select: { sequence: true } } } });
+    expect(submissionNumbers(ownRows.map((r) => ({ id: r.id, sequence: r.envelope.sequence }))).get(mine.onlineBidId)).toBe(mine.receipt.submissionNumber);
     const fileRow = await db.onlineBidFile.findFirstOrThrow({ where: { supplierId: second.actor.supplierId, exerciseId: ex.id } });
     expect(receiptDigest({ exerciseId: ex.id, submissionNumber: 1, receivedAt: new Date(mine.receipt.receivedAt), keyFingerprint: ex.fingerprint, manifestCipherSha256: bid.manifestCipherSha256, declarationCipherSha256: bid.declarationCipherSha256, fileCipherSha256s: [fileRow.cipherSha256] })).toBe(mine.receipt.receiptDigest);
   });
@@ -438,7 +442,7 @@ describe("two acts on one record", () => {
     expect(await db.onlineBid.count({ where: { exerciseId: ex.id, supplierId: who.supplierId, kind: "BID", status: "SUBMITTED" } })).toBe(1);
   });
 
-  it("two submits from ONE session, the password confirmed twice: one is taken and the other is refused in words (NOT_TAKEN), never thrown", async () => {
+  it("a submit carrying a password entry the session has since replaced (a second tab confirmed again) is refused in words (NOT_TAKEN), never thrown, and writes nothing; the fresh entry is taken", async () => {
     const ex = await exercise();
     const s = await bidder(ex);
     const [f1, f2] = [await upload(s, ex), await upload(s, ex)];
@@ -446,13 +450,25 @@ describe("two acts on one record", () => {
     const first = await confirmSupplierPassword(s.actor, s.identity.password, facts());
     const second = await confirmSupplierPassword(s.actor, s.identity.password, facts());
     if (!first.ok || !second.ok) throw new Error("password refused");
-    // The first request's entry is now stale: the second overwrote the session's.
     const input = (fileId: string, at: Date): SubmitInput => ({ exerciseId: ex.id, kind: "BID", parentOnlineBidId: null, replacesOnlineBidId: null, fileIds: [fileId], declaration: DECLARATION, stamp, stepUpAt: at });
-    const results = await Promise.all([submitBid(s.actor, input(f1, first.at)), submitBid(s.actor, input(f2, second.at))]);
-    expect(results.filter((r) => r.ok)).toHaveLength(1);
-    expect(faultsOf(results.find((r) => !r.ok)!)).toEqual(["NOT_TAKEN"]);
-    expect(await db.onlineBid.count({ where: { exerciseId: ex.id, supplierId: s.actor.supplierId, status: "SUBMITTED" } })).toBe(1);
-    expect((await events(ex.id)).filter((e) => e.kind === "SUBMIT" && e.outcome === "REFUSED")).toMatchObject([{ reasonCode: "NOT_TAKEN" }]);
+    // The first request's entry is stale: the second overwrote the session's.
+    expect(await submitBid(s.actor, input(f1, first.at))).toEqual({ ok: false, reason: "REFUSED", faults: ["NOT_TAKEN"] });
+    expect(await db.onlineBid.count({ where: { exerciseId: ex.id } })).toBe(0);
+    expect((await db.onlineBidFile.findUniqueOrThrow({ where: { id: f1 } })).state).toBe("DRAFT");
+    expect((await events(ex.id)).filter((e) => e.kind === "SUBMIT")).toMatchObject([{ outcome: "REFUSED", reasonCode: "NOT_TAKEN" }]);
+    expect(must(await submitBid(s.actor, input(f2, second.at))).receipt.submissionNumber).toBe(1);
+  });
+
+  it("a transaction that runs out of time (P2028) is NOT_TAKEN in words for a submit and for a withdrawal, with one refused event each", async () => {
+    const ex = await exercise();
+    const s = await bidder(ex);
+    const timedOut = { afterDoors: async () => { throw Object.assign(new Error("Transaction API error"), { code: "P2028" }); } };
+    expect(await submit(s, ex, { hooks: timedOut })).toEqual({ ok: false, reason: "REFUSED", faults: ["NOT_TAKEN"] });
+    expect(await db.onlineBid.count({ where: { exerciseId: ex.id } })).toBe(0);
+    const taken = must(await submit(s, ex));
+    expect(await withdraw(s, taken.onlineBidId, [], undefined, timedOut)).toEqual({ ok: false, reason: "REFUSED", faults: ["NOT_TAKEN"] });
+    expect((await db.onlineBid.findUniqueOrThrow({ where: { id: taken.onlineBidId } })).status).toBe("SUBMITTED");
+    expect((await events(ex.id)).filter((e) => e.outcome === "REFUSED").map((e) => [e.kind, e.reasonCode])).toEqual([["SUBMIT", "NOT_TAKEN"], ["WITHDRAW", "NOT_TAKEN"]]);
   });
 
   it("a second standing bid that gets past the door is refused at the commit as LIVE_BID_HELD, in words, not thrown, and nothing of the act remains", async () => {

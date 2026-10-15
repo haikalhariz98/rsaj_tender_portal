@@ -4,9 +4,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { STAFF_COOKIE, SUPPLIER_COOKIE } from "@/lib/auth/routes";
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join, relative, sep } from "node:path";
 
 import { config, proxy } from "./proxy";
+
+// Next's own matcher compiler (the build uses it); it ships no type declarations, so it is loaded by require and typed here.
+const { getMiddlewareMatchers } = createRequire(import.meta.url)("next/dist/build/analysis/get-page-static-info") as {
+  getMiddlewareMatchers: (matcher: unknown, nextConfig: object) => { regexp: string }[];
+};
 
 const call = (url: string, init?: ConstructorParameters<typeof NextRequest>[1]) => proxy(new NextRequest(`http://portal.example${url}`, init));
 const passes = (res: Response) => res.headers.get("x-middleware-next") === "1";
@@ -134,8 +140,10 @@ describe("staff sign-in is not on the public copy (Phase 1a)", () => {
 });
 
 describe("the proxy's matcher (a proxied body is buffered whole and cut at 10 MB before the route's guards run)", () => {
-  // Next compiles the matcher to a path pattern; for this shape it is the regex anchored at both ends.
-  const pattern = new RegExp(`^${config.matcher[0]}$`);
+  // Compiled by Next's own matcher compiler (what the build uses), not by a regex of this file's own.
+  const compiled = getMiddlewareMatchers(config.matcher, {});
+  if (compiled.length !== 1) throw new Error("the proxy has one matcher");
+  const pattern = new RegExp(compiled[0].regexp);
   const runs = (path: string) => pattern.test(path);
 
   it("leaves out every route that takes a multipart upload, and nothing else", () => {

@@ -137,3 +137,20 @@ describe("the organisation's submission channel (ruling 13)", () => {
     expect(await save("ONLINE")).toMatchObject({ ok: true });
   });
 });
+
+describe("the trail and the attester (review of stage B)", () => {
+  it("words the provenance and reads the day in the organisation's zone in the trail, never the code (review of stage B)", async () => {
+    await saveBidSealingPolicy({ ok: false }, form({ onlineSubmission: "DEMONSTRATION", cryptoReviewReference: "R-9", provenance: "OBSERVED" }));
+    const trail = JSON.stringify((await db.auditEntry.findFirstOrThrow({ where: { organisationId, entity: "BidSealingPolicy" }, orderBy: { at: "desc" } })).changes);
+    expect(trail).toContain("Observed");
+    expect(trail).not.toMatch(/OBSERVED|STATED/);
+  });
+
+  it("an attestation naming another person is refused and nothing is written (the form is the proposer's own)", async () => {
+    const before = await db.bidSealingPolicy.findUnique({ where: { organisationId } });
+    const out = await saveBidSealingPolicy({ ok: false }, form({ onlineSubmission: "DEMONSTRATION", hardeningAttestation: "Hardened by someone else", provenance: "STATED", attestedByPersonId: who.admin!.personId }));
+    expect(out).toMatchObject({ ok: false });
+    const after = await db.bidSealingPolicy.findUnique({ where: { organisationId } });
+    expect(after?.hardeningAttestation ?? "").toBe(before?.hardeningAttestation ?? "");
+  });
+});
