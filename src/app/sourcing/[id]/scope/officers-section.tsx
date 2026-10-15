@@ -16,6 +16,7 @@ import { loadOpeningRoster } from "@/lib/opening/roster-store";
 import { ROSTER_AFTER_CLOSING_NOTE, rosterActs, rosterFindingText } from "@/lib/opening/roster-labels";
 import { SETTING_AT } from "@/lib/opening/labels";
 
+import { KeySection } from "./key-section";
 import { OfficersList } from "./officers-list";
 import { NameOfficerDrawer } from "./prep-editors";
 
@@ -152,6 +153,7 @@ export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
           </Accordion>
         )}
       </Card>
+      <KeySection ex={ex} org={org} actor={actor} />
     </div>
   );
 }

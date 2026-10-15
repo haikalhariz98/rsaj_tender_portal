@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { channelSettingFaults, DEMONSTRATION_WORDS, LIVE_ISSUE_WORDS, liveIssueFaults, ONLINE_SUBMISSION_WORDS, onlineSubmissionAllowed } from "./switch";
+import { channelSettingFaults, TAKE_CHANNEL_WORDS, takeChannelFaults, DEMONSTRATION_WORDS, LIVE_ISSUE_WORDS, liveIssueFaults, ONLINE_SUBMISSION_WORDS, onlineSubmissionAllowed } from "./switch";
 
 const BOTH = { demoAllowed: true, liveAllowed: true };
 const NONE = { demoAllowed: false, liveAllowed: false };
@@ -71,5 +71,26 @@ describe("the organisation's channel (ruling 13)", () => {
     expect(channelSettingFaults("ONLINE", allowed)).toEqual([]);
     expect(channelSettingFaults("PAPER", refused)).toEqual([]);
     expect(channelSettingFaults(null, refused)).toEqual([]);
+  });
+});
+
+describe("taking the organisation's channel (20z, 12e)", () => {
+  const base = { status: "DRAFT" as const, published: false, pin: null, setting: "ONLINE" as const };
+  const codes = (i: Parameters<typeof takeChannelFaults>[0]) => takeChannelFaults(i).map((f) => f.code);
+
+  it("is allowed while the pin is unset, before publication, with the setting set", () => {
+    expect(codes(base)).toEqual([]);
+    expect(codes({ ...base, setting: "PAPER" })).toEqual([]);
+  });
+  it("is refused on a cancelled exercise, after publication, with a pin set, and with no setting", () => {
+    expect(codes({ ...base, status: "CANCELLED" })).toEqual(["EXERCISE_CANCELLED"]);
+    expect(codes({ ...base, published: true })).toEqual(["ALREADY_PUBLISHED"]);
+    expect(codes({ ...base, pin: "PAPER" })).toEqual(["NOTHING_TO_TAKE"]);
+    expect(codes({ ...base, setting: null })).toEqual(["SETTING_NOT_SET"]);
+  });
+  it("says where the setting is made, and that two people make it, with no code on show", () => {
+    expect(TAKE_CHANNEL_WORDS.SETTING_NOT_SET).toMatch(/Configuration, Invitation/);
+    expect(TAKE_CHANNEL_WORDS.SETTING_NOT_SET).toMatch(/two people/i);
+    for (const w of Object.values(TAKE_CHANNEL_WORDS)) expect(w).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
   });
 });

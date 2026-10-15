@@ -10,6 +10,8 @@
  */
 
 import type { OnlineSubmissionMode, SubmissionChannel } from "@/lib/bids/online/types";
+import type { ExerciseStatus } from "@/lib/method/types";
+import type { Finding } from "@/lib/window/types";
 
 export type OnlineSubmissionFault = "ONLINE_NOT_SET" | "ONLINE_NOT_ALLOWED";
 
@@ -64,3 +66,26 @@ export const ONLINE_SUBMISSION_WORDS: Readonly<Record<OnlineSubmissionFault, str
 
 /// What every supplier screen, receipt and Received says under DEMONSTRATION (D1).
 export const DEMONSTRATION_WORDS = "Demonstration — not for real tenders";
+
+export type TakeChannelFault = "EXERCISE_CANCELLED" | "ALREADY_PUBLISHED" | "NOTHING_TO_TAKE" | "SETTING_NOT_SET";
+
+/**
+ * Whether the exercise may take the organisation's channel now (ruling 20z, 12e), on the `takeSaleModeFaults` pattern. Allowed only while the exercise's pin is not set, before
+ * publication, on an exercise not cancelled, and only while the organisation's setting is set: it copies that value and is not a free choice. A pin that is set never changes
+ * (trigger 11 after publication).
+ */
+export function takeChannelFaults(i: { status: ExerciseStatus; published: boolean; pin: SubmissionChannel | null; setting: SubmissionChannel | null }): Finding<TakeChannelFault>[] {
+  if (i.status === "CANCELLED") return [{ code: "EXERCISE_CANCELLED", level: "block" }];
+  if (i.published) return [{ code: "ALREADY_PUBLISHED", level: "block" }];
+  if (i.pin !== null) return [{ code: "NOTHING_TO_TAKE", level: "block" }];
+  if (i.setting === null) return [{ code: "SETTING_NOT_SET", level: "block" }];
+  return [];
+}
+
+/// Staff words for each. SETTING_NOT_SET names where the setting is made and that two people make it.
+export const TAKE_CHANNEL_WORDS: Readonly<Record<TakeChannelFault, string>> = {
+  EXERCISE_CANCELLED: "This exercise is cancelled, so how its bids are submitted cannot be set.",
+  ALREADY_PUBLISHED: "This exercise is published, so how its bids are submitted is frozen and cannot be taken now.",
+  NOTHING_TO_TAKE: "How bids are submitted on this exercise is already set, and a setting that is set does not change.",
+  SETTING_NOT_SET: "The organisation has not set how bids are submitted, so there is nothing to take. Two people set it under Configuration, Invitation (one proposes, the other applies); then take it here.",
+};

@@ -16,6 +16,9 @@ import { windowPhase } from "./phase";
 import { evaluationPin, publishFaults, windowPathOf, type PublishInput } from "./publish";
 import { basisTotalOf, eventFactsOf, type ExerciseForWindow, type PartyRow, type WindowData } from "./repo";
 import type { WindowPath } from "./types";
+import { sealingDeployment } from "@/lib/integration/sealing-deployment";
+import { publishSealingFaults } from "@/lib/sealing/ceremony";
+import { onlineSubmissionAllowed } from "@/lib/sealing/switch";
 import type { SaleMode } from "./sale-mode";
 
 /// The exercise's status and its closing instant, as the phase and the instruments read them.
@@ -146,6 +149,8 @@ export function judgePublish(d: WindowData, ex: ExerciseForWindow, org: { timeZo
     invited: path === "INVITED" ? { method: { requiresNameApproval: d.method?.requiresNameApproval ?? false }, nameRoutes: nameRoutesWithLists(ex, d.invitees), proposed } : null,
     // 6.8 (E-2): the model chosen, judged against the basis's route; pinned by the publication.
     evaluationModel: evaluationPin(d, ex),
+    // SR-13: how bids are submitted, and for an online exercise the key, the rules, the switch and the pepper (one rule, `publishSealingFaults`).
+    sealing: publishSealingFaults({ channel: ex.submissionChannel, online: onlineSubmissionAllowed(d.sealing.mode, sealingDeployment(), "PUBLISH"), key: d.sealing.key, rules: d.sealing.rules, alternativesPermitted: w?.alternativesPermitted ?? null, pepperRequired: d.sealing.mode === "LIVE", pepperConfigured: d.sealing.pepper === "SET" }),
   };
   const ok = { state: "OK" as const, missing: [], unknown: [], stampMissing: false };
   const first = publishFaults({ ...base, template: ok });

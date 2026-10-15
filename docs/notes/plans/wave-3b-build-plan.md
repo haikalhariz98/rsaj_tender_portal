@@ -448,13 +448,21 @@ resets.
 
 The public posts join `SUPPLIER_BIDS_POSTS`. The submit page joins `BID_PAGE`, for GET only.
 
+### 1.5a What step 8 added beyond §1.3 (built 2026-10-14)
+
+- `src/lib/sealing/share.ts` (pure): `shareFaults` (who may set a share and when), `rekeyRefusals` (who may change a published exercise's key and when), `pepperForWrapFault` (the pepper a share needs: required unless the organisation's mode is DEMONSTRATION), and their words.
+- `src/lib/sealing/ceremony-seal.ts` (pure): `makeOfficerKey`, `makeExerciseKey`, `officerKeyAad`, `shareAad`. The one place the OFFICER_KEY and SHARE additional data is written, so step 13's unseal rebuilds it identically.
+- `src/lib/sealing/store.ts`: `loadCeremony`, `makeKeyIfComplete`, `rekeyAfterRosterChange`, `rekeyKey` (the re-key, in the order the triggers need), `retireExerciseKey`, `sealedSqlState`.
+- `src/lib/tender-docs/bid-part-rules.ts`: `bidRulesFrom`, the rules publication freezes. `src/lib/window/repo.ts`: `loadSealingFacts`, `loadChannelSetting`. `PublishInput` gains `sealing`.
+- Server actions in `src/app/sourcing/[id]/scope/key-actions.ts`: `setOfficerShare`, `rekeyExercise` (signature-class slots `OfficerExerciseKey.person` and `PublishedKeyChange.by`). `takeSubmissionChannel` is in `window/actions.ts`. `checkUnlock` moves to step 13.
+
 ### 1.6 Contracts decided after step 3 (2026-10-14), written by the step named
 
 These are not in the code yet. Each step writes its own declaration as given here, first, and then §1.2 or §1.3 takes it in, so that those
 sections stay equal to the code.
 
 ```ts
-// src/lib/sealing/switch.ts — step 8 (20z, 12e), on the takeSaleModeFaults pattern
+// src/lib/sealing/switch.ts — step 8 (20z, 12e), on the takeSaleModeFaults pattern. BUILT in step 8 (2026-10-14), as written here; §1.3 holds it.
 export type TakeChannelFault = "EXERCISE_CANCELLED" | "ALREADY_PUBLISHED" | "NOTHING_TO_TAKE" | "SETTING_NOT_SET";
 /// Allowed only while the exercise's pin is unset, before publication, on an exercise not cancelled, and only while the organisation's
 /// WindowPolicy.submissionChannel is set; it copies that value and is not a free choice. A pin that is set never changes (trigger 11 after publication).

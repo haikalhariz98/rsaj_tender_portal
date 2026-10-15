@@ -119,6 +119,8 @@ export interface PublishInput {
   changePending?: boolean;
   /// 6.8 (FR-EVL-005, 006; E-2): the evaluation model chosen and the contract basis's route; publication pins it.
   evaluationModel: PinInput;
+  /// SR-13: the sealing refusals for an online exercise (`publishSealingFaults`), judged by the caller from the key, the rules and the switch. A paper exercise has none; one whose channel is not set has CHANNEL_NOT_SET.
+  sealing: readonly Finding[];
   /// The invited path's list and name routes.
   invited: {
     method: { requiresNameApproval: boolean };
@@ -157,6 +159,7 @@ export function publishFaults(i: PublishInput): PublishResult {
   if (sm) out.push(sm);
   // S3: an online sale needs the documents released online. A restricted tender is no longer refused online (ruling 17a).
   out.push(...onlineSaleFaults({ saleMode: i.saleMode, releaseOnline: i.releaseOnline }));
+  out.push(...i.sealing);
   if (i.bidValidity.required && i.bidValidity.days == null) f("BID_VALIDITY_NOT_SET");
   if (!i.closingAt) f("CLOSING_NOT_SET");
   for (const e of i.events) out.push(...eventFaults(e, i.policy.mandatoryAttendancePermitted, i.closingAt));

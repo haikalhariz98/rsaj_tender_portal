@@ -28,8 +28,6 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "LadWaiver.person": { why: "Waiving liquidated damages is a later 6.13 Part B increment: no act writes it.", writer: /\.ladWaiver\.(?:create|update|upsert)/ },
   "LossExpenseClaim.valuedBy": { why: "Valuing a loss-and-expense claim is a later 6.13 Part B increment: no act writes the valuation.", writer: /valuedByPersonId/ },
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
-  "OfficerExerciseKey.person": { why: "Setting a share is the key ceremony of wave 3b step 8, which is not built yet.", writer: /.officerExerciseKey.(?:create|update|upsert)/ },
-  "PublishedKeyChange.by": { why: "Re-keying a published exercise is wave 3b step 8, which is not built yet.", writer: /.publishedKeyChange.(?:create|update|upsert)/ },
   "SealedEstimateLodgement.lodgedBy": { why: "Lodging the company estimate sealed is wave 3b step 16, which is not built yet.", writer: /.sealedEstimateLodgement.(?:create|update|upsert)/ },
 };
 
@@ -285,6 +283,8 @@ describe("a signature-class act asks the password where it is signed", () => {
   /// (the opening's `OpeningPanelMember`, whose label is what a screen reads). The column named must be written by the act and must exist on the model.
   const CAPACITY_COLUMN: Readonly<Record<string, string>> = {
     "OpeningAuthorisation.person": "panelMemberId",
+    // Wave 3b step 8 (ADR 0036 D4): an officer sets their share in the capacity of the roster row they were named on. A re-key has no column of its own and writes the seat as its role.
+    "OfficerExerciseKey.person": "openingOfficerId",
     "OpeningSignature.person": "panelMemberId",
     // FR-EST-005 (Phase 3d): a specification panel's column is verified in the capacity of that column, which is the row's own `columnCode` (written with its label as it was). The column is
     // required on the row, not nullable like the opening's seat, which is new and has no backfill: the check below accepts either.

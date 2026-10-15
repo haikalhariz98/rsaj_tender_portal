@@ -61,6 +61,7 @@ export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
   "src/lib/opening/read.ts": "a tab's reader (the opening, its schedule), called by the exercise page after its guard",
   "src/lib/portal/repo.ts": "the public pages: a restricted exercise is never public (`isPublicOpportunity`), and nobody is signed in to be named",
   "src/lib/scope/read.ts": "a tab's reader, called by the exercise page after its guard",
+  "src/lib/sealing/store.ts": "SR-13 step 8: the key ceremony's rows, read and written only inside an act that runs under `withLockedExerciseScope` (which refuses a hidden exercise) or by `windowData` for an exercise already loaded under a guard; it reads only whether the exercise's key fingerprint is frozen",
   // Changed for the ruling of 2026-10-08 on log line 1736: `src/lib/scope/estimate-access.ts` now asks `exerciseAccessFacts` itself (who the evaluation is open to), so it has a guard of its own and is
   // no longer named here. The Secretariat and Internal Audit reader (ruling on line 1735) reads each exercise's unit to tell which department's holder reads it.
   "src/lib/auth/evaluation-readers-store.ts": "reads only the unit of exercises whose ids the caller already judged (`sulitGates`, `estimateAccessFor` and the document gates ask `exerciseAccessFacts` for the same ids), to tell which department's holder of an office reads them, and returns no exercise",

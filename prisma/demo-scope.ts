@@ -73,7 +73,7 @@ const DEMO_POLICY_ID = `${P}scp1`;
 export async function loadScopeExercises(db: Db, organisationId: string): Promise<string[]> {
   await db.sourcingExercise.create({
     data: {
-      id: `${P}sx15`, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", reference: "DEMO/SX/0015/2026", requisitionId: `${P}rq14`, title: "FRP tank repair by its manufacturer", estimatedValue: "18000.00",
+      id: `${P}sx15`, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", submissionChannel: "PAPER", reference: "DEMO/SX/0015/2026", requisitionId: `${P}rq14`, title: "FRP tank repair by its manufacturer", estimatedValue: "18000.00",
       sourcingMethodCode: "specialist", contractBasisCode: "bq", createdAt: day("2026-09-24"),
       methodReason: "The sectional tank's maker alone holds its panel moulds and repair warranty.",
       justificationReasonCode: "continuity", justificationText: "Repairs by anyone else void the tank's warranty; the maker inspected and scoped the repair on site on 22 September 2026.",

@@ -25,6 +25,10 @@ import { FormReader } from "@/lib/validate";
 import { chooseFaults } from "@/lib/evaluation/pin";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, notes } from "./shared";
+import { channelWords } from "@/lib/sealing/channel-words";
+import { SHARE_WITHOUT_PEPPER_WORDS } from "@/lib/sealing/share";
+import { sealedSqlState } from "@/lib/sealing/store";
+import { TAKE_CHANNEL_WORDS, takeChannelFaults, type TakeChannelFault } from "@/lib/sealing/switch";
 import { physicalItemsApply, saleModeWords, takeSaleModeFaults } from "@/lib/window/sale-mode";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
@@ -100,6 +104,24 @@ export async function takeSaleMode(_prev: FormState, data: FormData): Promise<Fo
     if (faults.length) return refuse(faults);
     await tx.sourcingExercise.update({ where: { id: exerciseId, organisationId: actor.organisationId }, data: { saleMode: d.sale.saleMode } });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, label(l, "How the documents are sold"), "UPDATE", diffFields({ howDocumentsAreSold: saleModeWords(l.ex.saleMode) }, { howDocumentsAreSold: saleModeWords(d.sale.saleMode) }), "Took the organisation's setting");
+    return { ok: true };
+  });
+}
+
+/**
+ * SR-13 (ruling 20z, 12e): an exercise made while the organisation had not said how bids are submitted takes the organisation's setting, once, while it is not published. It copies
+ * what Configuration says now and is not a free choice; a pin that is set never changes. One audited act, with the exercise locked and the setting read under the lock.
+ */
+export async function takeSubmissionChannel(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const exerciseId = exerciseIdOf(data);
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
+    const faults = takeChannelFaults({ status: l.ex.status, published: isPublished(l.ex.status) || !!d.window?.publishedAt, pin: l.ex.submissionChannel, setting: d.channelSetting });
+    if (faults.length) return { ok: false, message: `Nothing was saved: ${faults.map((f) => TAKE_CHANNEL_WORDS[f.code as TakeChannelFault]).join(" ")}` };
+    await tx.sourcingExercise.update({ where: { id: exerciseId, organisationId: actor.organisationId }, data: { submissionChannel: d.channelSetting } });
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, label(l, "How bids are submitted"), "UPDATE", diffFields({ howBidsAreSubmitted: channelWords(l.ex.submissionChannel) }, { howBidsAreSubmitted: channelWords(d.channelSetting) }), "Took the organisation's setting");
     return { ok: true };
   });
 }
@@ -318,6 +340,22 @@ export async function publishWindow(_prev: FormState, data: FormData): Promise<F
     const pinned = await tx.sourcingExercise.updateMany({ where: { id: exerciseId, evaluationModelId: m.id, evaluationModelPinnedAt: null }, data: { evaluationModelSnapshot: m.contentSnapshot as Prisma.InputJsonValue, evaluationModelPinnedAt: now } });
     if (pinned.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ evaluationModelPinned: null }, { evaluationModelPinned: `${m.nameEn}, version ${m.version}` }));
+    // SR-13 (ADR 0036 D1, D3, D7): an online exercise freezes its mode, its upload rules and its key's fingerprint here, BEFORE the move below: from ADVERTISED or INVITED on,
+    // trigger 11 refuses any change of the rules, and the fingerprint is then changed only by a recorded key change. The channel is already pinned and is frozen by the same status.
+    if (l.ex.submissionChannel === "ONLINE") {
+      const live = await tx.exerciseSealingKey.findFirst({ where: { exerciseId, organisationId: actor.organisationId, retiredAt: null }, select: { fingerprint: true } });
+      if (!live || !d.sealing.mode || !d.sealing.rules) throw new Refusal(CHANGED);
+      try {
+        await tx.sourcingExercise.update({
+          where: { id: exerciseId, organisationId: actor.organisationId },
+          data: { onlineSubmissionMode: d.sealing.mode, onlineBidRules: { v: 1, frozenAt: now.toISOString(), parts: d.sealing.rules } as unknown as Prisma.InputJsonValue, publishedKeyFingerprint: live.fingerprint },
+        });
+      } catch (e) {
+        if (sealedSqlState(e) === "PA019") throw new Refusal({ ok: false, message: `Not published: ${SHARE_WITHOUT_PEPPER_WORDS}` });
+        throw e;
+      }
+      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, label(l, "How bids are submitted"), "UPDATE", diffFields({ onlineMode: null, uploadRulesFrozen: null, keyFingerprint: null }, { onlineMode: d.sealing.mode === "LIVE" ? "Live" : "Demonstration", uploadRulesFrozen: `${d.sealing.rules.filter((r) => r.returnedByBidder).length} returned parts`, keyFingerprint: live.fingerprint }));
+    }
     if (j.path === "ADVERTISED") {
       const t = d.templates.notice!;
       await tx.exerciseWindow.update({ where: { id: w.id, organisationId: actor.organisationId }, data: { advertisementDay: dayToDate(day), publishedAt: now, policySnapshot: snapshot as unknown as Prisma.InputJsonValue, noticeText: j.notice!.text, noticeTemplateCode: t.code, noticeTemplateBodyVersion: t.bodyVersion } });

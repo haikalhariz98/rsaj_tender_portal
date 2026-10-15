@@ -35,6 +35,8 @@ import { inviteeEditFault, inviteeListFault, regKey } from "./invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "./judge";
 import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
 import { gatewayReading, SIMULATED_LABEL } from "@/lib/integration/payment-gateway";
+import { channelWords } from "@/lib/sealing/channel-words";
+import { TAKE_CHANNEL_WORDS, takeChannelFaults, type TakeChannelFault } from "@/lib/sealing/switch";
 import { physicalItemsApply, saleModeWords, takeSaleModeFaults } from "./sale-mode";
 import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, RULE_LABEL, advertisedOnlyNote, bidNouns, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
 import { closingHistory, isPublished, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
@@ -218,6 +220,16 @@ export async function windowTab(organisationId: string, exerciseId: string, hidd
       onlinePayment: gatewayReading(d.sale.online, simulatorAllowedByDeployment()).available,
       take: allowed(takeSaleModeFaults({ status: ex.status, published: isPublished(ex.status) || !!w?.publishedAt, pin: ex.saleMode, setting: d.sale.saleMode, releaseOnline: d.sale.releaseOnline })[0]),
     },
+    // SR-13 (ruling 20z, 12e): how bids are submitted on this exercise (pinned), what the organisation's setting is now, and whether the exercise may take it. One rule, `takeChannelFaults`.
+    channel: (() => {
+      const fault = takeChannelFaults({ status: ex.status, published: isPublished(ex.status) || !!w?.publishedAt, pin: ex.submissionChannel, setting: d.channelSetting })[0];
+      return {
+        mode: ex.submissionChannel,
+        words: channelWords(ex.submissionChannel),
+        setting: channelWords(d.channelSetting),
+        take: fault ? { allowed: false as const, reason: TAKE_CHANNEL_WORDS[fault.code as TakeChannelFault] } : { allowed: true as const },
+      };
+    })(),
     actions: {
       save: allowed(editFault),
       publish: firstBlock(j.result.findings) ? { allowed: false as const, reason: windowFindingText(firstBlock(j.result.findings)!) } : { allowed: true as const },

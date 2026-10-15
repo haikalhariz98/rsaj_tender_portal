@@ -19,6 +19,8 @@ const records = [
   { channelId: WEBSITE.id, publishedOn: "2026-11-03" },
 ];
 const ok: PublishInput = {
+  // SR-13: a paper exercise has no sealing refusals; the online ones are `publishSealingFaults`'s own, in ceremony.test.ts.
+  sealing: [],
   status: "APPROVED_FOR_TENDERING",
   packKind: "TENDER",
   methodPath: "ADVERTISED",

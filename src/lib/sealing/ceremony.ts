@@ -82,6 +82,9 @@ export function publishSealingFaults(i: { channel: SubmissionChannel | null; onl
   return out;
 }
 
+/// The codes `publishSealingFaults` can return, for a reader that must tell them from the window's own.
+export const SEALING_CODES: ReadonlySet<string> = new Set<PublishSealingFault>(["CHANNEL_NOT_SET", "ONLINE_NOT_SET", "ONLINE_NOT_ALLOWED", "KEY_NOT_SET", "KEY_STALE", "RULES_NOT_SET", "PART_TYPES_NOT_SET", "PART_SIZE_NOT_SET", "ALTERNATIVES_NOT_STATED", "PEPPER_NOT_SET"]);
+
 /// Publication's sealing refusals in words. Never a code.
 export function publishSealingWords(fnd: Finding): string {
   const label = String(fnd.data?.label ?? "a returned part");
@@ -95,6 +98,7 @@ export function publishSealingWords(fnd: Finding): string {
       return "This copy of the system does not allow online bids in the organisation's mode, so an online exercise cannot be published.";
     case "KEY_NOT_SET": {
       const n = Number(fnd.data?.missing ?? 0);
+      if (n === 0) return "The key has not been made yet: it is made when at least two opening officers are named and each has set their share. Name the officers and have each set a share under Opening officers on Scope and estimate.";
       return `The opening officers have not all set their shares of the key, so bids could not be sealed. ${n === 1 ? "One officer has" : `${n} officers have`} still to set one. Every named officer is needed to open the bids.`;
     }
     case "KEY_STALE":

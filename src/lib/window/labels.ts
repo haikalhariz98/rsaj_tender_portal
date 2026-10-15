@@ -15,6 +15,7 @@ import type { ChangeRouteState } from "./change";
 import type { NotifiedState } from "./addendum";
 import { CONFIG_UNWORDED, configFaultText } from "./config";
 import { evaluationFindingText } from "@/lib/evaluation/labels";
+import { publishSealingWords, SEALING_CODES } from "@/lib/sealing/ceremony";
 
 /// 6.8 (E-2): the codes of the evaluation model's pin, judged with the publication (`pinFaults`).
 const PIN_CODES: ReadonlySet<string> = new Set(["EVALUATION_MODEL_NOT_SET", "EVALUATION_MODEL_NOT_ISSUED", "EVALUATION_MODEL_RETIRED", "EVALUATION_ROUTE_NOT_SET", "EVALUATION_ROUTE_MISMATCH", "EVALUATION_MODEL_PINNED", "EVALUATION_MODEL_FROZEN", "CONTRACT_BASIS_NOT_SET"]);
@@ -452,6 +453,8 @@ export function windowFindingText(f: Finding): string {
     case "PUBLISH_NOT_READY":
       return "The invitation is not ready to publish: see what Publishing on Tender documents says blocks it.";
     default: {
+      // SR-13: the sealing refusals have their words beside the rule (`publishSealingWords`).
+      if (SEALING_CODES.has(f.code)) return publishSealingWords(f);
       // 6.8 (E-2): the evaluation model's pin is judged with the publication; its words are evaluation's.
       if (PIN_CODES.has(f.code)) return evaluationFindingText(f);
       // Configuration's own refusals (config.ts) have their words there.

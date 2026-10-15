@@ -35,6 +35,8 @@ export type Field =
       hint?: string;
       placeholder?: string;
       mono?: boolean;
+      /// A secret typed here (an unseal passphrase): shown as dots, never filled in again by the browser or the form, and never echoed back.
+      secret?: boolean;
     }
   | { kind: "textarea"; name: string; label: string; required?: boolean; hint?: string; placeholder?: string }
   | {
@@ -644,13 +646,15 @@ function FieldInput({
       ) : (
         <Input
           id={id}
-          type={field.kind === "date" ? "date" : "text"}
+          type={field.kind === "date" ? "date" : field.kind === "text" && field.secret ? "password" : "text"}
+          autoComplete={field.kind === "text" && field.secret ? "new-password" : undefined}
+          spellCheck={field.kind === "text" && field.secret ? false : undefined}
           name={field.name}
           mono={field.kind === "text" && field.mono}
           numeric={field.kind === "number"}
           inputMode={field.kind === "number" ? "numeric" : undefined}
           placeholder={"placeholder" in field ? field.placeholder : undefined}
-          defaultValue={(value as string) ?? ""}
+          defaultValue={field.kind === "text" && field.secret ? "" : ((value as string) ?? "")}
           aria-invalid={error ? true : undefined}
         />
       )}

@@ -235,8 +235,10 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // Wave 3b (SR-13, ADR 0036 D3, D4, D10, D11): the named officer's act of setting their share (SHARE_SET), a recorded change of a published exercise key (REKEY), and the
   // sealed lodgement of the company estimate (LODGE_SEALED_ESTIMATE). Setting a share asks the password again (D4); steps 8 and 16 wire each act through `beginAct` with its
   // entry point and its kind of act, and until then each is on `act-wiring-scan.test.ts`'s NOT_BUILT list.
-  slot("OfficerExerciseKey", "person", "Share set by"),
-  slot("PublishedKeyChange", "by", "Key changed by"),
+  // Wave 3b step 8 (ADR 0036 D4, ruling 20n): both ask the sign-in password again, so both are signature-class; neither is recorded from paper, and an administrator account
+  // does neither (an unsealing: the officer's own key, with the officer's own passphrase).
+  slot("OfficerExerciseKey", "person", "Share set by", { signatureClass: true, holder: "UNSEAL", entryPoints: ["src/app/sourcing/[id]/scope/key-actions.ts#setOfficerShare"] }),
+  slot("PublishedKeyChange", "by", "Key changed by", { signatureClass: true, holder: "UNSEAL", entryPoints: ["src/app/sourcing/[id]/scope/key-actions.ts#rekeyExercise"] }),
   slot("SealedEstimateLodgement", "lodgedBy", "Lodged by"),
 
   // ---- evaluation

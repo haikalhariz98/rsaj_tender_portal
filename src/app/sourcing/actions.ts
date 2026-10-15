@@ -32,7 +32,7 @@ import { PACK_KIND_LABEL } from "@/lib/tender-docs/labels";
 import { loadScopePolicy } from "@/lib/scope/repo";
 import { pinFrom, switchWords } from "@/lib/scope/switches";
 import { pinSaleMode, saleModeWords } from "@/lib/window/sale-mode";
-import { loadSaleSettings } from "@/lib/window/repo";
+import { loadChannelSetting, loadSaleSettings } from "@/lib/window/repo";
 import { voidLivePacks } from "@/lib/tender-docs/store";
 import { behaviourProfile } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalRecordOf, proposalReopen, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
@@ -332,6 +332,8 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
       const pin = pinFrom(await loadScopePolicy(l.org.id, tx));
       // SR-10 (ruling 16, G1): likewise how the documents are sold, from the window policy's setting, set or not.
       const saleMode = pinSaleMode((await loadSaleSettings(l.org.id, tx)).saleMode);
+      // SR-13 (ruling 12e): likewise how bids are submitted, from the window policy's setting, set or not. Publication refuses in words while it reads "not set".
+      const submissionChannel = await loadChannelSetting(l.org.id, tx);
       const row = await tx.sourcingExercise.create({
         data: {
           organisationId: l.org.id,
@@ -345,6 +347,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
           proposalState: proposalStateFor(m.requiresProposal, null, true),
           ...pin,
           saleMode,
+          submissionChannel,
           ...determinationColumns(ev, issue, methodNameOf(cfg.config), on),
           ...methodColumns(v, ev),
         },

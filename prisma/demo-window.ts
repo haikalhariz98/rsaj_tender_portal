@@ -547,7 +547,7 @@ async function createExercises(db: Db, organisationId: string, ns: number[], cre
   for (const n of ns) {
     const x = EXERCISES[n];
     await db.sourcingExercise.create({
-      data: { id: `${P}sx${n}`, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", reference: SX(n), requisitionId: `${P}rq${x.rq}`, title: x.title, estimatedValue: x.value, sourcingMethodCode: x.method, methodReason: x.methodReason ?? "", status: "DRAFT", contractBasisCode: "ds", createdAt, replacesExerciseId: replaces },
+      data: { id: `${P}sx${n}`, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", submissionChannel: "PAPER", reference: SX(n), requisitionId: `${P}rq${x.rq}`, title: x.title, estimatedValue: x.value, sourcingMethodCode: x.method, methodReason: x.methodReason ?? "", status: "DRAFT", contractBasisCode: "ds", createdAt, replacesExerciseId: replaces },
     });
     await db.exerciseScopePart.create({ data: { id: `${P}sx${n}p1`, exerciseId: `${P}sx${n}`, deliverableKind: "MEASURED_CONSTRUCTION", amount: x.value, description: x.title, sortOrder: 1 } });
   }

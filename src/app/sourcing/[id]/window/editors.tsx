@@ -6,7 +6,7 @@ import { Callout } from "@/components/ui/feedback";
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { Facts } from "../documents/editors";
 
-import { chooseEvaluationModel, recordLetterDelivery, proposeInvitee, publishWindow, recordPublication, removeFeeLine, removeInvitee, removePublication, saveFeeLine, saveWindow, takeSaleMode } from "./actions";
+import { chooseEvaluationModel, recordLetterDelivery, proposeInvitee, publishWindow, recordPublication, removeFeeLine, removeInvitee, removePublication, saveFeeLine, saveWindow, takeSaleMode, takeSubmissionChannel } from "./actions";
 import { requestCancellation, requestClosingChange, recordNoticeDelivery, recordWindowChangeDecision } from "./change-actions";
 import { cancelEvent, issueAddendum, markEventHeld, recordAddendumDelivery, recordAttendance, recordPurchaseReceipt, recordReceipt, recordSale, saveAddendum, scheduleEvent, setEventMandatory, voidAddendum, voidSale } from "./register-actions";
 
@@ -52,6 +52,23 @@ export function TakeSaleModeDrawer({ exerciseId, take, setting }: { exerciseId: 
       action={takeSaleMode}
       submitLabel="Take the setting"
       trigger={{ label: "Take the organisation's setting", className: primary }}
+      size="md"
+    />
+  );
+}
+
+/// SR-13 (ruling 20z, 12e): take the organisation's setting for how bids are submitted. Disabled with the reason where the organisation has not set it either.
+export function TakeSubmissionChannelDrawer({ exerciseId, take, setting }: { exerciseId: string; take: Allowed; setting: string }) {
+  if (!take.allowed) return <Blocked label="Take how bids are submitted" reason={take.reason} primary />;
+  return (
+    <RecordEditor
+      title="Take how bids are submitted"
+      description={`This exercise was made while the organisation had not said how bids are submitted. It takes what Configuration says now, once: ${setting}. From publication it is frozen, so a later change to the setting never changes how this exercise takes bids.`}
+      fields={[hidden("exerciseId")]}
+      values={{ exerciseId }}
+      action={takeSubmissionChannel}
+      submitLabel="Take the setting"
+      trigger={{ label: "Take how bids are submitted", className: primary }}
       size="md"
     />
   );

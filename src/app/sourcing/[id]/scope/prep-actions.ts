@@ -9,10 +9,11 @@ import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { personIsAdministrator } from "@/lib/auth/administration-guard";
 import { namingOthersRefusal, namingRefusal, type Reader } from "@/lib/auth/sulit-store";
-import type { AuditActor } from "@/lib/auth/types";
+import type { AuditActor, StaffActor } from "@/lib/auth/types";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { loadOpeningRoster } from "@/lib/opening/roster-store";
+import { rekeyAfterRosterChange } from "@/lib/sealing/store";
 import { addOfficerFaults, controlledChangeFaults, rosterChange, type RosterOfficer } from "@/lib/opening/roster";
 import { incomingRefusal, rosterChangeText } from "@/lib/opening/roster-labels";
 import { openingFindingText } from "@/lib/opening/labels";
@@ -100,6 +101,21 @@ export async function saveKeyDates(_prev: FormState, data: FormData): Promise<Fo
 
 const NOT_PINNED: FormState = { ok: false, message: "This exercise was made before opening officers were named on it: its panel is still picked when the opening starts." };
 
+/**
+ * Wave 3b step 8 (ADR 0036 D3, D11). The exercise key is split across the named officers, so the roster and the key move together. Once an online exercise is published its
+ * key is frozen with it and an officer cannot be named, taken off or replaced here: that is a controlled change (step 17), refused in words. Before publication a roster
+ * change retires the key and shreds every share of it in the same transaction, and the key is made again at once when every remaining officer already has a share.
+ */
+const ONLINE_PUBLISHED: FormState = { ok: false, message: "This exercise is published and takes bids online, so its opening officers are fixed together with its key. Changing them is a controlled change that is not built yet." };
+const onlinePublished = (ex: { submissionChannel: string | null; publishedKeyFingerprint: string | null }) => ex.submissionChannel === "ONLINE" && ex.publishedKeyFingerprint !== null;
+
+async function keyAfterRosterChange(tx: Tx, actor: StaffActor, l: LockedExercise, reason: string) {
+  if (l.ex.submissionChannel !== "ONLINE") return;
+  const r = await rekeyAfterRosterChange(tx, l.org.id, l.ex.id, reason || "The opening officers changed", new Date(), actor.personId);
+  if (!r.retiredKey && !r.made) return;
+  await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, labelOf(l, "Exercise key"), "UPDATE", diffFields({ exerciseKey: r.retiredKey ? "In place" : "Not made" }, { exerciseKey: r.made ? `Made again (${r.made.fingerprint})` : "Retired: the officers set their shares again" }), reason);
+}
+
 /// The officer's facts as the roster rules read them, for a person on record in this organisation. Null: not on record.
 async function officerFacts(tx: Tx, organisationId: string, personId: string): Promise<(RosterOfficer & { id: string }) | null> {
   const p = await tx.person.findFirst({ where: { id: personId, organisationId }, select: { id: true, name: true, isActive: true, orgUnitCode: true } });
@@ -118,6 +134,7 @@ export async function nameOpeningOfficer(_prev: FormState, data: FormData): Prom
   return inExercise(actor, exerciseIdOf(data), async (tx, l) => {
     const ex = l.ex;
     if (!ex.openingRosterRequired) return NOT_PINNED;
+    if (onlinePublished(ex)) return ONLINE_PUBLISHED;
     const change = rosterChange({ status: ex.status, closing: ex.closingAt, now: new Date(), openingStarted: (await tx.opening.count({ where: { exerciseId: ex.id } })) > 0 });
     if (change.fault) return { ok: false, message: openingFindingText({ code: change.fault, level: "block" }) };
     if (change.change !== "FREE") return { ok: false, message: "The documents are already submitted, so the officers are replaced by a controlled change with its authority and reason, not added to." };
@@ -134,6 +151,7 @@ export async function nameOpeningOfficer(_prev: FormState, data: FormData): Prom
       data: { organisationId: l.org.id, exerciseId: ex.id, personId: officer.id, committeeMemberId: seat.committeeMemberId || null, seatLabelSnapshot: seat.seatLabel, namedAt: new Date(), namedByPersonId: actor.personId },
     });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseOpeningOfficer", row.id, labelOf(l, `Opening officer · ${officer.name}`), "CREATE", diffFields(null, { officer: officer.name, seat: seat.seatLabel, committee: roster.committee?.nameEn ?? null }));
+    await keyAfterRosterChange(tx, actor, l, "An opening officer was named");
     return { ok: true };
   });
 }
@@ -150,6 +168,7 @@ export async function removeOpeningOfficer(_prev: FormState, data: FormData): Pr
   return inExercise(actor, exerciseIdOf(data), async (tx, l) => {
     const ex = l.ex;
     if (!ex.openingRosterRequired) return NOT_PINNED;
+    if (onlinePublished(ex)) return ONLINE_PUBLISHED;
     const change = rosterChange({ status: ex.status, closing: ex.closingAt, now: new Date(), openingStarted: (await tx.opening.count({ where: { exerciseId: ex.id } })) > 0 });
     if (change.fault) return { ok: false, message: openingFindingText({ code: change.fault, level: "block" }) };
     if (change.change !== "FREE") return { ok: false, message: "The documents are already submitted. An officer is replaced, with the authority and reason, not taken off." };
@@ -160,6 +179,7 @@ export async function removeOpeningOfficer(_prev: FormState, data: FormData): Pr
     if (!row) return { ok: false, message: "That officer is no longer named." };
     await tx.exerciseOpeningOfficer.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { endedAt: new Date(), endedByPersonId: actor.personId, endedReason: reason } });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseOpeningOfficer", row.id, labelOf(l, `Opening officer · ${row.person.name}`), "DELETE", snapshotFields({ officer: row.person.name, seat: row.seatLabelSnapshot }), reason);
+    await keyAfterRosterChange(tx, actor, l, `An opening officer was taken off: ${reason}`);
     return { ok: true };
   });
 }
@@ -183,6 +203,7 @@ export async function substituteOpeningOfficer(_prev: FormState, data: FormData)
   return inExercise(actor, exerciseIdOf(data), async (tx, l) => {
     const ex = l.ex;
     if (!ex.openingRosterRequired) return NOT_PINNED;
+    if (onlinePublished(ex)) return ONLINE_PUBLISHED;
     const change = rosterChange({ status: ex.status, closing: ex.closingAt, now: new Date(), openingStarted: (await tx.opening.count({ where: { exerciseId: ex.id } })) > 0 });
     if (change.fault) return { ok: false, message: openingFindingText({ code: change.fault, level: "block" }) };
     if (change.change === "CONTROLLED") {
@@ -208,6 +229,7 @@ export async function substituteOpeningOfficer(_prev: FormState, data: FormData)
     });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseOpeningOfficer", departing.id, labelOf(l, `Opening officer · ${departing.person.name}`), "DELETE", snapshotFields({ officer: departing.person.name, seat: departing.seatLabelSnapshot, replacedBy: officer.name, authority: authority || null }), reason);
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseOpeningOfficer", row.id, labelOf(l, `Opening officer · ${officer.name}`), "CREATE", diffFields(null, { officer: officer.name, seat: seat.seatLabel, replaces: departing.person.name, authority: authority || null }), reason);
+    await keyAfterRosterChange(tx, actor, l, `An opening officer was replaced: ${reason}`);
     return { ok: true };
   });
 }

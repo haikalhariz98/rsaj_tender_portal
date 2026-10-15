@@ -15,6 +15,10 @@ import { nameRoutesOf } from "@/lib/method/approval";
 import { loadRequirements, loadTenderPolicy } from "@/lib/tender-docs/repo";
 
 import { feeBasisTotal } from "./fee";
+import { sealingPepper } from "@/lib/integration/sealing-deployment";
+import { keyState } from "@/lib/sealing/ceremony";
+import { loadCeremony } from "@/lib/sealing/store";
+import { bidRulesFrom } from "@/lib/tender-docs/bid-part-rules";
 import { windowGate, type WindowGate } from "./gate";
 import type { TemplateFacts } from "./fields";
 import type { CalendarFacts, ChannelFacts, EventFacts, FeeFloorFacts, WindowPolicyFacts } from "./types";
@@ -123,6 +127,28 @@ export async function loadSaleSettings(organisationId: string, client: Tx = db):
   return { saleMode: row?.documentSaleMode ?? null, releaseOnline: row?.electronicDocumentRelease ?? null, online: { simulatorOn: row?.paymentSimulatorOn ?? null, methods: row?.simulatedPaymentMethods ?? [] } };
 }
 
+/// SR-13 (ruling 12e): how the organisation says bids are submitted (`WindowPolicy.submissionChannel`), for an exercise to pin when it is made and to take while unset. Null: not set.
+export async function loadChannelSetting(organisationId: string, client: Tx = db): Promise<import("@/lib/bids/online/types").SubmissionChannel | null> {
+  const row = await client.windowPolicy.findUnique({ where: { organisationId }, select: { submissionChannel: true } });
+  return row?.submissionChannel ?? null;
+}
+
+/**
+ * SR-13: what publication judges for sealing, read beside the window rules. Only an ONLINE exercise reads the key and the rules; a paper one reads none.
+ * `rules` are built from the approved pack's parts and the configured upload rules (`bidRulesFrom`), as they would be frozen.
+ */
+export async function loadSealingFacts(organisationId: string, ex: { id: string; submissionChannel: import("@/lib/bids/online/types").SubmissionChannel | null; packKindSnapshot: import("@/lib/method/types").PackKind | null; contractBasisCode?: string | null }, client: Tx = db) {
+  const policy = await client.bidSealingPolicy.findUnique({ where: { organisationId }, select: { onlineSubmission: true } });
+  const mode = policy?.onlineSubmission ?? null;
+  const pepper = sealingPepper().status;
+  if (ex.submissionChannel !== "ONLINE") return { mode, pepper, key: keyState({ liveOfficerRowIds: [], officersWithKey: [], liveKey: null }), rules: [] as import("@/lib/bids/online/types").BidPartRule[] | null };
+  const ceremony = await loadCeremony(client, organisationId, ex.id);
+  const pack = await client.tenderPack.findFirst({ where: { exerciseId: ex.id, status: "APPROVED" }, orderBy: { versionNo: "desc" }, select: { parts: { select: { id: true, partCode: true, labelSnapshot: true, sortOrder: true, mandatory: true, returnedByBidder: true } } } });
+  const configs = pack && ex.packKindSnapshot ? await client.tenderDocumentPart.findMany({ where: { organisationId, packKind: ex.packKindSnapshot, code: { in: pack.parts.map((p) => p.partCode) } }, select: { code: true, contractBasisCode: true, bidAcceptedMediaTypes: true, bidMaxBytes: true, openingCheck: true } }) : [];
+  const rules = pack ? bidRulesFrom(pack.parts.map((p) => ({ id: p.id, partCode: p.partCode, label: p.labelSnapshot, sortOrder: p.sortOrder, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder })), configs, ex.contractBasisCode ?? null) : [];
+  return { mode, pepper, key: ceremony.state, rules };
+}
+
 /// A window's events as the rules read them.
 export function eventFactsOf(w: Pick<WindowRow, "events">): EventFacts[] {
   return w.events.map((e) => ({
@@ -173,6 +199,8 @@ export interface ExerciseForWindow {
   openingRosterRequired: boolean;
   /// SR-10 (G1): how the documents are sold, pinned when the exercise was made. Null: not set.
   saleMode: import("./sale-mode").SaleMode | null;
+  /// SR-13 (12e): how bids are submitted, pinned when the exercise was made. Null: not set, and publication refuses in words.
+  submissionChannel: import("@/lib/bids/online/types").SubmissionChannel | null;
   estimatedValue: { toString(): string };
   approvalInstances: readonly { id: string; domain: string; awardId: string | null; status: string; openedAt: Date; createdAt: Date; cond: string | null }[];
   /// 6.8 (E-2): the evaluation model chosen, its pinned snapshot, and the contract basis its route is read from. Absent: none.
@@ -201,6 +229,8 @@ export async function windowData(organisationId: string, ex: ExerciseForWindow, 
   const org = await client.organisation.findUniqueOrThrow({ where: { id: organisationId }, select: { name: true } });
   // SR-10: how documents are sold (the organisation's setting, for a pin to be taken from) and the online payment switched on (what a notice may say about paying).
   const sale = await loadSaleSettings(organisationId, client);
+  const channelSetting = await loadChannelSetting(organisationId, client);
+  const sealing = await loadSealingFacts(organisationId, ex, client);
   const notice = await loadTemplate(policy.noticeTemplateId, client);
   const invitation = await loadTemplate(policy.invitationTemplateId, client);
   const addendum = await loadTemplate(policy.addendumTemplateId, client);
@@ -211,7 +241,7 @@ export async function windowData(organisationId: string, ex: ExerciseForWindow, 
   const basis = ex.contractBasisCode ? await client.contractBasis.findFirst({ where: { organisationId, code: ex.contractBasisCode }, select: { nameEn: true, evaluationRoute: true } }) : null;
   const models = await client.evaluationModel.findMany({ where: { organisationId, status: "ISSUED" }, orderBy: [{ nameEn: "asc" }, { version: "desc" }], select: { id: true, code: true, version: true, nameEn: true, route: true } });
   const suggested = ex.sourcingMethodCode ? ((await client.sourcingMethod.findFirst({ where: { organisationId, code: ex.sourcingMethodCode }, select: { defaultEvaluationModelCode: true } }))?.defaultEvaluationModelCode ?? null) : null;
-  return { policy, calendar, channels, floors, window, parties, tender, approved, method, sale, organisationName: org.name, templates: { notice, invitation, addendum }, invitees, evaluation: { model: evaluationModel, basis, models, suggested } };
+  return { policy, calendar, channels, floors, window, parties, tender, approved, method, sale, channelSetting, sealing, organisationName: org.name, templates: { notice, invitation, addendum }, invitees, evaluation: { model: evaluationModel, basis, models, suggested } };
 }
 
 export type WindowData = Awaited<ReturnType<typeof windowData>>;

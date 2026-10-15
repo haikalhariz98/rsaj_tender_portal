@@ -6,6 +6,7 @@
  * Nothing ships set: an empty list and an empty size are "not set", and publication of an online exercise refuses them, naming the part.
  */
 
+import type { BidPartRule as BidPartRuleOut } from "@/lib/bids/online/types";
 import { SUPPLIER_MEDIA_TYPES } from "@/lib/documents/media";
 
 export const BID_PART_MEDIA_TYPES: readonly string[] = SUPPLIER_MEDIA_TYPES;
@@ -34,3 +35,25 @@ export const bytesFromMegabytes = (mb: number | null): bigint | null => (mb === 
 
 /// The size as typed: bytes back to whole megabytes, or null where it is not a whole number of them.
 export const megabytesFromBytes = (bytes: bigint | null): number | null => (bytes === null || bytes % BigInt(BYTES_PER_MEGABYTE) !== BigInt(0) ? null : Number(bytes / BigInt(BYTES_PER_MEGABYTE)));
+
+export interface PackPartFacts { id: string; partCode: string; label: string; sortOrder: number; mandatory: boolean | null; returnedByBidder: boolean | null }
+export interface PartConfigFacts { code: string; contractBasisCode: string | null; bidAcceptedMediaTypes: readonly string[]; bidMaxBytes: bigint | null; openingCheck: boolean | null }
+
+/**
+ * The rules an online exercise freezes at publication (ADR 0036 D7), one per part of its approved pack, in the pack's order. Pure.
+ *  - A part is returned by the bidder only where the pack part says so (`returnedByBidder` true): unset is not returned. The declaration is typed into the submission, not uploaded.
+ *  - The configuration is the basis-specific row where there is one, else the any-basis row (as the pack resolved it).
+ *  - `null`: a returned part's opening check is not set, so its rule cannot be written (the rule holds a yes or a no).
+ * A returned part with no accepted types or no size is kept in the list, empty, so publication names it.
+ */
+export function bidRulesFrom(parts: readonly PackPartFacts[], configs: readonly PartConfigFacts[], basisCode: string | null): BidPartRuleOut[] | null {
+  const out: BidPartRuleOut[] = [];
+  for (const p of [...parts].sort((a, b) => a.sortOrder - b.sortOrder)) {
+    const matches = configs.filter((c) => c.code === p.partCode);
+    const c = matches.find((x) => x.contractBasisCode !== null && x.contractBasisCode === basisCode) ?? matches.find((x) => x.contractBasisCode === null) ?? null;
+    const returned = p.returnedByBidder === true;
+    if (returned && (c === null || c.openingCheck === null)) return null;
+    out.push({ packPartId: p.id, label: p.label, mandatory: p.mandatory === true, returnedByBidder: returned, acceptedMediaTypes: [...(c?.bidAcceptedMediaTypes ?? [])], maxBytes: c?.bidMaxBytes != null ? c.bidMaxBytes.toString() : "", openingCheck: c?.openingCheck === true });
+  }
+  return out;
+}

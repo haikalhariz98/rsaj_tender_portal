@@ -31,6 +31,7 @@ import {
   ChooseEvaluationModelDrawer,
   EditWindowDrawer,
   TakeSaleModeDrawer,
+  TakeSubmissionChannelDrawer,
   FeeLineDrawer,
   LetterDeliveryDrawer,
   NoticeDeliveryDrawer,
@@ -323,6 +324,7 @@ export function WindowItemsCard({ d, c }: { d: WindowTab; c: WindowContext }) {
         subtitle={d.actions.save.allowed ? "What the notice states, and what a set of the documents costs and why." : d.actions.save.reason}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {d.channel.mode == null && <TakeSubmissionChannelDrawer exerciseId={c.exerciseId} take={d.channel.take} setting={d.channel.setting} />}
             {d.sale.mode == null && <TakeSaleModeDrawer exerciseId={c.exerciseId} take={d.sale.take} setting={d.sale.setting} />}
             <EditWindowDrawer exerciseId={c.exerciseId} items={d.items} allowed={d.actions.save} first={!d.hasWindow} online={!d.sale.physical} />
           </div>
@@ -335,6 +337,7 @@ export function WindowItemsCard({ d, c }: { d: WindowTab; c: WindowContext }) {
           <KeyValues
             columns={2}
             items={[
+              { label: "How bids are submitted", value: d.channel.mode == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">{`The organisation's setting is: ${d.channel.setting}. Take it above; publication is refused until this is set.`}</span></span> : d.channel.words },
               { label: "How the documents are sold", value: d.sale.mode == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">{`The organisation's setting is: ${d.sale.setting}. Take it above; publication is refused until this is set.`}</span></span> : d.sale.words },
               // SR-10 (ruling 16): the places, the hours and how the fee is paid describe a sale at a counter. An exercise sold online does not show them (the columns stay).
               ...(d.sale.physical

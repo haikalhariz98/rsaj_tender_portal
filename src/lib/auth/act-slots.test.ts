@@ -95,7 +95,7 @@ describe("every Person relation is an act slot or is accounted for", () => {
     // FR-APR-009 and FR-EST-005 (Phase 3d, "conflict declarations are signed" and "panel verifications are signed"): the declaration and the verification are the signer's own sign-in,
     // never recorded for them from paper (the signed paper form of the panel stays attached and required; an open item for the product owner).
     // Phase 4b (CPD, 2026-10-07): the check of a supplier's bank details joins them. It is the officer's own sign-in, with the statement open in front of them, and is not recorded for them from paper.
-    const NOT_FROM_PAPER = ["ApprovalStep.declaredBy", "AuthorityMatrix.issuedByPerson", "BackdateConfirmation.confirmedBy", "ConfigurationChange.decidedBy", "EvaluationModel.issuedBy", "CreditorProfile.verifiedBy", "OpeningAuthorisation.person", "SpecPanelVerification.person"];
+    const NOT_FROM_PAPER = ["ApprovalStep.declaredBy", "AuthorityMatrix.issuedByPerson", "BackdateConfirmation.confirmedBy", "ConfigurationChange.decidedBy", "EvaluationModel.issuedBy", "CreditorProfile.verifiedBy", "OpeningAuthorisation.person", "SpecPanelVerification.person", "OfficerExerciseKey.person", "PublishedKeyChange.by"];
     for (const s of SIGNATURE_SLOTS) {
       const key = slotKey(s.entity, s.field);
       expect(s.onBehalf, key).toBe(!NOT_FROM_PAPER.includes(key));
@@ -169,8 +169,11 @@ describe("the signature-class acts", () => {
         // Phase 5a: issuing an evaluation model, by someone who did not make the draft (the matrix's act again).
         "EvaluationModel.issuedBy",
         "NonCompletion.person",
+        // Wave 3b step 8 (ADR 0036 D4, ruling 20n): setting a share and changing a published key ask the sign-in password again.
+        "OfficerExerciseKey.person",
         "OpeningAuthorisation.person",
         "OpeningSignature.person",
+        "PublishedKeyChange.by",
         "ReconciliationAmendment.officer",
         "SpecPanelVerification.person",
         "Variation.soDecidedBy",
