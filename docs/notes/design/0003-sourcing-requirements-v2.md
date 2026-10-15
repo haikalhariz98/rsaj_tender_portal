@@ -1602,3 +1602,139 @@ in 20ac, on the same terms as 20p, 20q and 20x.
     - **Deployment notes** (`docs/notes/sealed-bids-deployment.md`, the pepper section): the third bullet reads as 20y, with the two cases,
       the one-pepper replacement and the screen's list.
     - **Accepted for building** once these land. No ruling here reverses a default.
+
+20ad. **Stage B's open points (product owner, for the founder, 2026-10-15). Administrators and the LIVE attestations: refused, confirmed.
+    The product does not require the attester to hold a named office.** (Step 7 item 2, fix round item 13.)
+    - **Why refused.** ADR 0036 D10: administrators are refused at every sealed entry point. The fix round found that two administrator
+      accounts could otherwise propose and apply LIVE, with its two attestations, without any office holder touching it. The refusal of the
+      Bid sealing policy editor and of the tender-part online rules editor (`administratorMay: false`) is confirmed on the same ground. The
+      NFR-SEC-004 sweep stays at its four acts.
+    - **Why no named office.** Which office must attest a deployment fact is a customer policy choice (AGENTS.md). The specification and SR-13
+      and SR-14 are silent, and a hard-coded office would be one customer's answer. Today the attester is the proposer, a non-administrator
+      person, shown with who and when, as "attested, not checked by the portal" (20o, 20v). The second person decides.
+    - **Reversible.** If the customer names an office, it becomes a configuration on `BidSealingPolicy` (an attesting office, shipped unset,
+      the screen saying it is not set), never a literal. Recorded as a question for the customer before LIVE.
+    - **Code:** none.
+
+20ae. **Excel and Word as accepted types for a returned bid part: not offered in wave 3b.** (Step 7 item 6.)
+    - **Why.** Ruling 12a, amendment 3, keeps the Office types staff-only: the supplier routes judge a file by its opening bytes, where a
+      workbook is only a ZIP, and the archive checks of `inspectArchive` (macros, encryption, active content, external templates) do not
+      run on the supplier path. A sealed file cannot be looked at by anyone until the opening, so a refusal the portal cannot make at the
+      door is a risk carried to the officers' machines. SR-09's Excel is the officer's bill of quantities template under Tender documents.
+      SR-14's three mandatory documents are forms. Figures come only from the declared fields (rulings 20 and 24).
+    - **What would change it.** The supplier bid path running the shared `inspectArchive` on the whole file (it already holds the whole file
+      in memory) with the same refusals as staff, a configured scanner, and the types offered from a bid-only list (never added to
+      `SUPPLIER_MEDIA_TYPES`, which would widen registration uploads), shipped unset per part. Put to the founder: should bidders return a
+      priced bill of quantities as a workbook?
+    - **Code:** none in steps 11 to 14.
+
+20af. **Who may change an exercise's key: a named opening officer only. Confirmed.** (Step 8 item 7.)
+    - **Why.** ADR 0036 D11 names no other actor. A re-key discards suppliers' drafts and changes the published fingerprint. The key is the
+      named officers' n-of-n (20k), and the procurement officer and the person in charge hold no share. If a customer wants another office
+      to start a re-key, that is a proposal, not a default.
+    - **Code:** none.
+
+20ag. **A published officer who sets their share again: a recorded key change naming the share that caused it. Confirmed.** (Fix round
+    item 5.)
+    - **Why.** `setOfficerShare` on a published exercise goes through the same `rekeyKey` store as `rekeyExercise`, under the same faults
+      (no submission, before the closing): the retired key's shares shredded, its drafts discarded, the new key made, the append-only
+      `PublishedKeyChange` written and the fingerprint re-frozen, in one transaction (D11, 20g). One step-up signs one act, so the change row
+      names the officer and, through `viaOfficerKeyId`, the signed share. Forcing it through `rekeyExercise` would add a second act and
+      nothing a regulator could not already trace.
+    - **Code:** none.
+
+20ah. **The part upload's exercise and part ids in the query, the form's copies required to agree: confirmed.** (Step 9 item 1.)
+    - **Why.** The guards, the part's size limit and the supplier's place must be judged before the body is read, and a multipart body cannot
+      be read before then. The registration upload takes its kind the same way. Plan section 1's contract is amended by the architect.
+    - **Code:** none.
+
+20ai. **The proxy's buffering and the edge's read timeout: the matcher is confirmed, and must-have 5's attested words widen.** (Step 9
+    follow-up item 3, fix round item 11.)
+    - **Why the matcher.** Next buffers a proxied body whole and cuts it at 10 MB before a route runs. Leaving the four supplier multipart
+      routes out of `src/proxy.ts`, with their own portal-surface, Origin, form-token and session guards first, is the narrowest fix, and
+      `proxy.test.ts` pins it with Next's own matcher compiler. `proxyClientMaxBodySize` is not raised: that would widen the memory taken
+      before authentication.
+    - **Why widen must-have 5.** The route's deadline and minimum rate judge the body as it is handed on. The wire speed of a slow client is
+      the edge's to bound, and the deployment notes already require it. A LIVE switch should not be issuable without the person who attests
+      the deployment saying so. So must-have 5's attested words become: core dumps and swap off, HTTPS, no body logging, **and an edge header
+      and body read timeout, with a maximum body size no larger than the largest part rule**. Still "attested, not checked by the portal".
+    - **No attestation is overstated.** None is recorded in the founder's database (checked 2026-10-15). Any attestation recorded under the
+      older words does not count for the wider one and is asked for again.
+    - **Code:** words only, on Configuration › Bid sealing (the must-have 5 label and its help) and the schema's field comment. Step 12.
+
+20aj. **The staff document upload cut at 10 MB by the proxy: the route's limit is the smaller of the two, and its words say so.** (Second
+    pass item 6.)
+    - **Why.** Honesty first: an honest staff upload between the proxy's 10 MB and `DOCUMENT_MAX_BYTES` is refused with words that blame
+      the file. Excluding `/api/documents` from the proxy would drop the staff copy's cookie gate for a POST, and raising the buffer widens
+      the memory taken before authentication. Neither belongs in a sealed-bid ruling.
+    - **The rule.** The proxy's body ceiling becomes a product constant beside the other limits, pinned by a test against `next.config.ts`.
+      The documents route's effective ceiling is the smaller of it and `DOCUMENT_MAX_BYTES` (a pure function, tested). A declared
+      `Content-Length` above it is refused before the body is read, in words naming the real ceiling, and the upload screens show that
+      ceiling. The route stays behind the proxy. Reversible: raising the setting later raises the effective ceiling with it.
+    - **Code:** yes, outside the sealed surface and not a stage C gate. Its own commit, by the step 14 builder after step 14.
+
+20ak. **A withdrawal is a signature-class act with its own attribution slot.** (Step 10 item 9.)
+    - **Why.** Not open: ADR 0036 D7 says "Withdraw and replace are signed acts". A replace is attributed by the new row's `submittedBy`. A
+      withdrawal today asks the password again and is audited, but names nobody on the row.
+    - **The rule.** A new migration adds the supplier account that withdrew to `OnlineBid` (nullable, `onDelete: Restrict`), on the pattern
+      of `submittedBy`. It is set only from the stepped-up session, never from the body. A trigger (a new function with
+      `SET search_path = pg_catalog, public, pg_temp` and schema-qualified tables) requires it in the same transaction that moves a row to
+      WITHDRAWN and refuses it otherwise. A trigger on the move, not a CHECK, so no row needs a backfill (the founder's database holds no
+      online bid). Each linked alternative withdrawn in the same act carries the same slot. Any registry or slot list that pins the
+      signature-class acts gains it, citing this ruling.
+    - **Code:** yes. A step 11 prerequisite, its own commit before My Bids' Withdraw, on the step 10 route.
+
+20al. **Two files for one returned part in one submission: refused at the door, with a database backstop.** (Step 10 item 10.)
+    - **Why.** The SR-14 matrix is a row per opening-check part and a column per bid (plan section 3), so a cell is one file. Two files under
+      one part make Pass or Reject ambiguous and the receipt unclear. Refusing is the reversible reading: lifting it later strands nothing,
+      while refusing later what was taken would. It is not FR-BID-007's missing part, which is still warned about, never refused.
+    - **The rule.** A pure rule in `src/lib/bids/online` refuses a submission naming two files for one pack part, with a new fault in words in
+      both languages (20ab), judged before the stamp and the password. A trigger in a new migration holds it at the commit. The plan's fault
+      union (section 1.2) gains the fault, citing this ruling.
+    - **Code:** yes. With 20ak, a step 11 prerequisite (the submit page shows the words), and in any case before step 13.
+
+20am. **An alternative where alternatives are not permitted: recorded NOT_CONSIDERED at the unseal, as planned. Confirmed.** (Step 10
+    item 11.)
+    - **Why.** ADR 0036 D7 and 20h: it is accepted, the supplier is told before submitting (step 11), and the unseal records
+      `alternativeStatus` (step 13). Nothing new to decide.
+    - **Code:** in steps 11 and 13 as planned.
+
+20an. **The receipt carries the supplier's own submission number, never the exercise-wide sequence. This amends 20u.** (Fix round item 10,
+    second pass item 2.)
+    - **Why.** The exercise-wide sequence counts every rival's envelopes, paper and online. On a receipt before the opening it tells a
+      supplier how many submissions, replacements and withdrawals others have made, the leak 20u closed for staff. 20u's line that the
+      supplier's own receipt and My Bids keep showing its own sequence rested on the premise that the sequence was the supplier's own, and
+      it is not. They show `submissionNumber`, derived by `submissionNumbers(rows)` from the supplier's own rows, and the receipt digest
+      (version 2) hashes it. The sequence appears from the opening's start, as 20u intends, in Received and the opening roll.
+    - **Code:** none beyond what is built. ADR 0036 lines 196 and 257 go to the architect (20aq).
+
+20ao. **A full `publishWindow` database test of the ONLINE path is owed.** (Fix round item 2.)
+    - **Why.** The freeze is tested through `freezeOnlineSealing`, and its order before the move by a source-order test, but no test runs a
+      whole publication. The next builder who edits `publishWindow`, or whose fixture reaches a publication through it (step 13's end to
+      end), writes it. It is in place before the wave is accepted (step 21). Never faked by setting rows that the real path would refuse.
+    - **Code:** a test, by step 13 if its fixture gets there, at the latest before step 21.
+
+20ap. **The text-snapshot baseline and the real-server run: never by a session in the founder's database.** (Fix round item 3, second
+    pass item 8.)
+    - **Why.** No builder may write to `perolehan` outside migrations, and a session is a write. Two `next dev` servers cannot run in one
+      checkout (Next 16's lockfile), and the running dev server is never stopped.
+    - **Allowed.** A builder may run `next build` and then `next start` on another port, with the database pointed at
+      `perolehan_native_check` and, for supplier screens, as the public copy. The session is created there, and the snapshot script is run
+      with that server's base URL. Next 16 builds into `.next` and dev into `.next/dev`, so this does not touch the running server. The
+      same server serves the real-server checks: an administrator, another supplier and a not-named officer refused.
+    - **Where that cannot be done,** step 11's "a text snapshot is taken" is recorded as a carried gap for the founder, in the log and the
+      report, never claimed. The source-level content guard (`screen-content.test.ts`) gains each stage C screen meanwhile. Until a real
+      server is run, the handler and database tiers cover the authorisation failures and the concurrency case for every stage C entry point.
+    - **Code:** tests in steps 11 to 14, and the snapshot in step 11.
+
+20aq. **What ADR 0036, the build plan, the threat model and the deployment notes must change to match 20ad–20ap.** These rulings edit none
+    of them. The solution-architect makes the changes.
+    - **ADR 0036:** the receipt line (196) and the Received line (257) read "submission number" for the supplier's own (20an). D7 names the
+      withdrawal's attribution slot (20ak) and one file per returned part (20al). D10 records that the administrator refusal covers the
+      policy and part-rule editors (20ad).
+    - **Build plan:** section 1's upload contract takes the ids from the query (20ah). Section 1.2 gains the one-file-per-part fault (20al).
+      Step 11 gains the two prerequisites (20ak, 20al) and the snapshot path (20ap). Step 12 gains the must-have 5 words (20ai). Step 13
+      gains the `publishWindow` test (20ao). Step 14's builder takes the documents ceiling (20aj).
+    - **Threat model §G:** must-have 5 reads as 20ai.
+    - **Deployment notes:** the edge read timeout line says it is part of the must-have 5 attestation (20ai).
+    - **Accepted for building** once these land. No ruling here reverses a default.
