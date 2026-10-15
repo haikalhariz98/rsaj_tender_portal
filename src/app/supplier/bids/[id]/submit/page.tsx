@@ -19,7 +19,7 @@ import { DEMONSTRATION_WORDS } from "@/lib/sealing/switch";
 import { requireSupplier } from "../../../../_auth/supplier";
 import { BidForm } from "./bid-form";
 
-export const metadata: Metadata = { title: "Submit your bid" };
+export const metadata: Metadata = { title: `${SCREEN_WORDS.submitTitle.en} · ${SCREEN_WORDS.submitTitle.ms}` };
 export const dynamic = "force-dynamic";
 
 /**

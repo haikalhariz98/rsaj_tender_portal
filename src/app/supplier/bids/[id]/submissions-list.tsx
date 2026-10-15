@@ -17,7 +17,7 @@ const both = (x: Words) => `${x.en} · ${x.ms}`;
  * Under a row: what stands at the opening from its start (`myBidOpenedWords`, in its states), the receipt, and Withdraw. A client component because a row's act opens a dialog. Nothing is
  * computed here: every figure, state and sentence arrives from `submissionViews`.
  */
-export function SubmissionsList({ reference, title, supplierName, demonstration, alternativesPermitted, token, views }: { reference: string; title: string; supplierName: string; demonstration: boolean; alternativesPermitted: boolean | null; token: string | null; views: SubmissionView[] }) {
+export function SubmissionsList({ reference, title, supplierName, demonstration, token, views }: { reference: string; title: string; supplierName: string; demonstration: boolean; token: string | null; views: SubmissionView[] }) {
   const byId = new Map(views.map((v) => [v.id, v]));
   const rows: Row[] = views.map((v) => ({
     id: v.id,
@@ -52,7 +52,7 @@ export function SubmissionsList({ reference, title, supplierName, demonstration,
         const v = byId.get(id)!;
         const data: ReceiptData = {
           reference, title, supplierName, number: v.number, kind: v.kind, stampText: v.stampText, late: v.late, fingerprint: v.keyFingerprint, digest: v.receiptDigest,
-          demonstration, notConsidered: v.kind === "ALTERNATIVE" && alternativesPermitted === false,
+          demonstration, notConsidered: v.notConsidered,
         };
         return (
           <div className="flex w-full flex-col gap-3 text-left">

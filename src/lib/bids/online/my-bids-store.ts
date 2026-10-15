@@ -73,6 +73,7 @@ export async function loadBidScreen(client: Tx, actor: Pick<SupplierActor, "supp
     timeZone: ctx.org.timeZone,
     closing: ctx.ex.closingAt,
     cancelled: door.cancelled,
+    alternativesPermitted: window?.alternativesPermitted ?? null,
     now,
   });
   const choices = standingChoices(submissions);

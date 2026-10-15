@@ -16,7 +16,7 @@ const row = (o: Partial<OwnBidRow> & { id: string; sequence: number }): OwnBidRo
   kind: "BID", status: "SUBMITTED", parentOnlineBidId: null, receiptDigest: String(o.sequence % 10).repeat(64), keyFingerprint: "ab".repeat(8), receivedAt: new Date("2026-11-02T03:00:00Z"), late: false, ...o,
 });
 const view = (rows: OwnBidRow[], over: Partial<Parameters<typeof submissionViews>[0]> = {}) =>
-  submissionViews({ rows, opening: { started: false, unsealed: false, roll: null }, organisationName: "Perbadanan Contoh", timeZone: "Asia/Kuala_Lumpur", closing: CLOSING, cancelled: false, now: BEFORE, ...over });
+  submissionViews({ rows, opening: { started: false, unsealed: false, roll: null }, organisationName: "Perbadanan Contoh", timeZone: "Asia/Kuala_Lumpur", closing: CLOSING, cancelled: false, alternativesPermitted: true, now: BEFORE, ...over });
 
 describe("a submission's own number (20an)", () => {
   it("counts the supplier's own rows by the order accepted, whatever the exercise-wide sequence was", () => {
@@ -31,6 +31,15 @@ describe("a submission's own number (20an)", () => {
     const bid = v.find((x) => x.id === "bid")!;
     expect(bid.linked).toEqual([{ id: "alt1", number: 2 }]);
     expect(v.find((x) => x.id === "alt1")!.parentNumber).toBe(1);
+  });
+});
+
+describe("an alternative where alternatives are not permitted (20am)", () => {
+  it("is marked not considered, and only an alternative, and only where the exercise says no", () => {
+    const rows = [row({ id: "bid", sequence: 1 }), row({ id: "alt", sequence: 2, kind: "ALTERNATIVE", parentOnlineBidId: "bid" })];
+    expect(view(rows, { alternativesPermitted: false }).map((v) => [v.id, v.notConsidered]).sort()).toEqual([["alt", true], ["bid", false]]);
+    expect(view(rows, { alternativesPermitted: true }).some((v) => v.notConsidered)).toBe(false);
+    expect(view(rows, { alternativesPermitted: null }).some((v) => v.notConsidered)).toBe(false);
   });
 });
 

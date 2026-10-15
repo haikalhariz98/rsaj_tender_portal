@@ -59,7 +59,6 @@ export function BidPanel({ screen, supplierName }: { screen: BidScreen; supplier
           title={screen.exercise.title}
           supplierName={supplierName}
           demonstration={screen.demonstration}
-          alternativesPermitted={screen.alternativesPermitted}
           token={token}
           views={screen.submissions}
         />

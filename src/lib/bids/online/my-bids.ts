@@ -85,6 +85,8 @@ export interface SubmissionView {
   status: OnlineBidStatus;
   stampText: string;
   late: boolean;
+  /// An alternative where the exercise does not permit alternatives: taken and recorded, marked not considered at the unseal (20am).
+  notConsidered: boolean;
   receiptDigest: string;
   keyFingerprint: string;
   /// The bid this alternative is tied to, where it is tied to one, and that bid's number.
@@ -100,7 +102,7 @@ export interface SubmissionView {
 }
 
 /// The supplier's own submissions, newest first, each in the words the screen shows.
-export function submissionViews(i: { rows: readonly OwnBidRow[]; opening: OpeningFacts; organisationName: string; timeZone: string | null; closing: Date | null; cancelled: boolean; now: Date }): SubmissionView[] {
+export function submissionViews(i: { rows: readonly OwnBidRow[]; opening: OpeningFacts; organisationName: string; timeZone: string | null; closing: Date | null; cancelled: boolean; alternativesPermitted: boolean | null; now: Date }): SubmissionView[] {
   const numbers = submissionNumbers(i.rows.map((r) => ({ id: r.id, sequence: r.sequence })));
   const numberOf = (id: string) => numbers.get(id) ?? 0;
   return [...i.rows]
@@ -120,6 +122,7 @@ export function submissionViews(i: { rows: readonly OwnBidRow[]; opening: Openin
         status: row.status,
         stampText: stampText(row.receivedAt, i.timeZone),
         late: row.late,
+        notConsidered: row.kind === "ALTERNATIVE" && i.alternativesPermitted === false,
         receiptDigest: row.receiptDigest,
         keyFingerprint: row.keyFingerprint,
         parentId: row.parentOnlineBidId,
