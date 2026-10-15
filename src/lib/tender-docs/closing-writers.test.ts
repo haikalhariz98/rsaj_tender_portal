@@ -119,6 +119,8 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "src/app/supplier/bids/[id]/page.tsx": "passes the closing to the rule that says whether the exercise is open, closed or awarded; writes nothing",
   // Wave 3b step 7: the bid sealing screen lists the online exercises still taking bids, with their closing.
   "src/app/configuration/bid-sealing/page.tsx": "selects the closing of the published online exercises still taking bids, to state it; writes nothing",
+  // Wave 3b step 11: the supplier's screens for an online bid shape the exercise's closing for the page (and whether it has passed), from what `loadBidContext` already read.
+  "src/lib/bids/online/my-bids-store.ts": "carries the exercise's closing, as `loadBidContext` read it, into the view a supplier's screens show, and says whether it has passed; writes nothing",
   // Phase 4d review: the Outcome tab asks the public-opportunity rule (the one Results applies) whether the award is published, so it names the closing as that rule's input.
   "src/lib/portal/bids/workspace-store.ts": "passes the exercise's closing to the public-opportunity rule to say whether the award is published under Results; writes nothing",
 };

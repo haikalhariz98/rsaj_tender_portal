@@ -59,7 +59,8 @@ describe("issuing LIVE (20o, 20v)", () => {
     expect(LIVE_ISSUE_WORDS.AMENDMENT_NOT_RECORDED).toMatch(/the organisation's bid procedure/);
     expect(LIVE_ISSUE_WORDS.HARDENING_NOT_ATTESTED).toMatch(/attested, not checked by the portal/);
     for (const w of Object.values(ONLINE_SUBMISSION_WORDS)) expect(w).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
-    expect(DEMONSTRATION_WORDS).toBe("Demonstration — not for real tenders");
+    // Step 11 (ruling 20ab): the banner is `Words`, in both languages; a staff screen reads `.en`.
+    expect(DEMONSTRATION_WORDS).toEqual({ en: "Demonstration — not for real tenders", ms: "Tunjuk cara — bukan untuk tender sebenar" });
   });
 });
 

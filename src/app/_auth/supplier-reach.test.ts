@@ -332,8 +332,8 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
   });
 
   it("every page asks who is signed in first, and reads its supplier from the actor", () => {
-    // Wave 3a (SR-10) adds the payment page of an online purchase, so 5.
-    expect(BIDS_PAGES.length).toBe(5);
+    // Wave 3a (SR-10) adds the payment page of an online purchase, so 5. Wave 3b (SR-13, build plan step 11) adds the page an online bid is submitted on, so 6.
+    expect(BIDS_PAGES.length).toBe(6);
     for (const f of BIDS_PAGES) {
       expect(f.src, f.file).toMatch(/const actor = await requireSupplier\(\);/);
       // The id in the address is an exercise's; it is never taken for a supplier's.

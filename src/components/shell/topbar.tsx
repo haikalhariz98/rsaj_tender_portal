@@ -64,6 +64,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   "table-document": "Tender Table Document",
   // Wave 3a (SR-10): the payment page of a document purchase, under one exercise of My Bids.
   pay: "Payment",
+  // Wave 3b (SR-13, step 11): the page an online bid is submitted on, under one exercise of My Bids. The crumb reads in the language its siblings read.
+  submit: "Submit a bid",
 };
 
 /// What a record under a section is called, for its breadcrumb.

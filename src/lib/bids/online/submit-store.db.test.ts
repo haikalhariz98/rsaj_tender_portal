@@ -31,6 +31,10 @@ import { ensureAdministrator, facts, makeSupplierAccount, randomId, setPolicy, S
 import { voidSaleFault, voidRefusalNote } from "@/lib/window/sale";
 import { windowFindingText } from "@/lib/window/labels";
 
+import { KEY_CHANGE_ORDER, loadKeyHistory } from "@/lib/sealing/key-history";
+import { rekeyKey } from "@/lib/sealing/store";
+
+import { loadBidScreen } from "./my-bids-store";
 import { receiptDigest, submissionNumbers } from "./receipt";
 import { submitBid, takeStamp, withdrawBid, type SubmitInput } from "./submit-store";
 import type { BidPartRule, OnlineBidKind } from "./types";
@@ -661,5 +665,72 @@ describe("the void register answers identically for every buyer before the openi
       const src = readFileSync(path.join(process.cwd(), file), "utf8");
       expect(src, file).not.toMatch(/onlineBid|OnlineBid/);
     }
+  });
+});
+
+describe("what the supplier's screens read (build plan step 11)", () => {
+  it("numbers a supplier's own submissions from its own rows only, and shows another supplier's none of them", async () => {
+    const ex = await exercise();
+    const [a, b] = [await bidder(ex), await bidder(ex)];
+    const first = must(await submit(a, ex));
+    must(await submit(b, ex));
+    const second = must(await submit(a, ex, { replacesOnlineBidId: first.onlineBidId }));
+    const screen = (await loadBidScreen(db, a.actor, ex.id))!;
+    expect(screen.online).toBe(true);
+    expect(screen.demonstration).toBe(true);
+    expect(screen.submissions.map((v) => [v.id, v.number, v.status])).toEqual([[second.onlineBidId, 2, "SUBMITTED"], [first.onlineBidId, 1, "REPLACED"]]);
+    expect(screen.submissions[0].receiptDigest).toBe(second.receipt.receiptDigest);
+    expect(screen.submissions[0].withdraw).toEqual({ allowed: true });
+    expect(screen.replaceable.map((r) => r.id)).toEqual([second.onlineBidId]);
+    expect(screen.bidStands).toBe(true);
+    const theirs = (await loadBidScreen(db, b.actor, ex.id))!;
+    expect(theirs.submissions.map((v) => v.number)).toEqual([1]);
+    expect(JSON.stringify(screen)).not.toContain(theirs.submissions[0].id);
+    // An exercise the supplier may not see reads as nothing at all.
+    expect(await loadBidScreen(db, a.actor, "nothing_here_99")).toBeNull();
+  });
+
+  it("re-keying an exercise with a supplier's draft waiting: the page's data carries the notice for that supplier only, naming both fingerprints, and not a draft it discarded itself", async () => {
+    const ex = await exercise();
+    const [a, b] = [await bidder(ex), await bidder(ex)];
+    const kept = await upload(a, ex);
+    const own = await upload(a, ex);
+    expect(own).not.toBe(kept);
+    const { discardPart } = await import("./upload-store");
+    expect((await discardPart(a.actor, { exerciseId: ex.id, fileId: own })).ok).toBe(true);
+    expect((await loadBidScreen(db, a.actor, ex.id))!.parts[0].draft?.fileId).toBe(kept);
+
+    const made = await db.$transaction((tx) => rekeyKey(tx, { organisationId: org, exerciseId: ex.id, reason: "A test re-key", now: new Date(), byPersonId: issuer }));
+    expect(made).not.toBeNull();
+
+    const mine = (await loadBidScreen(db, a.actor, ex.id))!;
+    expect(mine.discarded).toEqual([{ sealedTo: ex.fingerprint, now: made!.made.fingerprint, files: 1 }]);
+    expect(mine.liveFingerprint).toBe(made!.made.fingerprint);
+    expect(mine.parts[0].draft).toBeNull();
+    expect((await loadBidScreen(db, b.actor, ex.id))!.discarded).toEqual([]);
+  });
+
+  it("a supplier reads the fingerprint history of an exercise it may see, without the reason or the officer, in the order the staff card reads, and not another organisation's or a restricted exercise's", async () => {
+    const ex = await exercise();
+    const [a, b] = [await bidder(ex), await bidder(ex)];
+    const first = await db.$transaction((tx) => rekeyKey(tx, { organisationId: org, exerciseId: ex.id, reason: "The first re-key, a secret reason", now: new Date(), byPersonId: issuer }));
+    const second = await db.$transaction((tx) => rekeyKey(tx, { organisationId: org, exerciseId: ex.id, reason: "The second re-key", now: new Date(Date.now() + 1000), byPersonId: issuer }));
+    const seen = (await loadKeyHistory(db, a.actor, ex.id))!;
+    expect(seen.fingerprint).toBe(second!.made.fingerprint);
+    expect(seen.changes.map((c) => [c.fromFingerprint, c.toFingerprint])).toEqual([[first!.made.fingerprint, second!.made.fingerprint], [ex.fingerprint, first!.made.fingerprint]]);
+    expect(Object.keys(seen.changes[0]).sort()).toEqual(["at", "fromFingerprint", "id", "toFingerprint"]);
+    expect(JSON.stringify(seen)).not.toContain("secret reason");
+    // The staff card reads the same rows in the same order (the one order constant).
+    const staff = await db.publishedKeyChange.findMany({ where: { exerciseId: ex.id, organisationId: org }, orderBy: [...KEY_CHANGE_ORDER], select: { id: true } });
+    expect(seen.changes.map((c) => c.id)).toEqual(staff.map((c) => c.id));
+    expect((await loadKeyHistory(db, b.actor, ex.id))!.changes).toHaveLength(2);
+
+    // Another organisation's supplier, and an exercise restricted to people the supplier is not among: nothing.
+    const elsewhere = await db.organisation.create({ data: { code: `SUB_O_${randomId()}`, name: "Another", timeZone: "Asia/Kuala_Lumpur" } });
+    expect(await loadKeyHistory(db, { ...a.actor, organisationId: elsewhere.id }, ex.id)).toBeNull();
+    const hidden = await exercise();
+    await db.sourcingExercise.update({ where: { id: hidden.id }, data: { restricted: true } });
+    expect(await loadKeyHistory(db, a.actor, hidden.id)).toBeNull();
+    expect(await loadBidScreen(db, a.actor, hidden.id)).toBeNull();
   });
 });

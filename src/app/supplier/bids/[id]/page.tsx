@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { CalendarIcon, CheckIcon, ClipboardIcon, FileIcon, InboxIcon } from "@/components/icons";
+import { CalendarIcon, CheckIcon, ClipboardIcon, FileIcon, InboxIcon, ShieldIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -9,12 +9,15 @@ import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { issueFormToken } from "@/lib/auth/form-secret";
 import { db } from "@/lib/db";
+import { loadBidScreen } from "@/lib/bids/online/my-bids-store";
+import { SCREEN_WORDS } from "@/lib/bids/online/screen-words";
 import { loadBidContext } from "@/lib/portal/bids/context-store";
 import { isBidTab, type BidTab } from "@/lib/portal/bids/types";
 import { OPPORTUNITY_STATE } from "@/lib/portal/labels";
 import { isIssuedAward, opportunityState } from "@/lib/portal/public";
 
 import { requireSupplier } from "../../../_auth/supplier";
+import { BidPanel } from "./bid-panel";
 import { AddendaPanel, BriefingsPanel, DocumentsPanel, OutcomePanel, OverviewPanel } from "./panels";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +33,9 @@ export default async function BidExercisePage({ params, searchParams }: { params
   const { tab: asked } = await searchParams;
   const ctx = await loadBidContext(db, actor, id);
   if (!ctx) notFound();
-  const tab: BidTab = isBidTab(asked) ? asked : "overview";
+  // Where bids are taken online, a Your bid tab (SR-13, step 11). Where they are handed in on paper there is none, and its address reads as the overview.
+  const online = await loadBidScreen(db, actor, id);
+  const tab: BidTab = isBidTab(asked) && (asked !== "bid" || online?.online) ? asked : "overview";
   const token = tab === "briefings" || tab === "addenda" || tab === "documents" ? issueFormToken("bids") : null;
   const awarded = (await db.award.findMany({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId }, select: { status: true } })).some((a) => isIssuedAward(a.status));
   const state = OPPORTUNITY_STATE[opportunityState({ status: ctx.ex.status as Parameters<typeof opportunityState>[0]["status"], closingAt: ctx.ex.closingAt }, awarded, ctx.now)];
@@ -40,6 +45,7 @@ export default async function BidExercisePage({ params, searchParams }: { params
     { id: "briefings", label: "Briefings and visits", icon: <CalendarIcon size={15} />, lazy: true, panel: tab === "briefings" ? <BriefingsPanel actor={actor} ctx={ctx} token={token} /> : null },
     { id: "addenda", label: "Addenda", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "addenda" ? <AddendaPanel actor={actor} ctx={ctx} token={token} /> : null },
     { id: "documents", label: "Documents", icon: <FileIcon size={15} />, lazy: true, panel: tab === "documents" ? <DocumentsPanel actor={actor} ctx={ctx} token={token} /> : null },
+    ...(online?.online ? [{ id: "bid", label: `${SCREEN_WORDS.tab.en} · ${SCREEN_WORDS.tab.ms}`, icon: <ShieldIcon size={15} />, lazy: true, panel: tab === "bid" ? <BidPanel screen={online} supplierName={actor.supplierName} /> : null }] : []),
     { id: "outcome", label: "Outcome", icon: <CheckIcon size={15} />, lazy: true, panel: tab === "outcome" ? <OutcomePanel actor={actor} ctx={ctx} /> : null },
   ];
 

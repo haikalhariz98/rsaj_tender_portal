@@ -58,6 +58,10 @@ describe("the public copy", () => {
     // The payment page of an online purchase (SR-10) is a page like any other: it logs nothing when asked about.
     expect(get("/supplier/bids/ex1/pay")).toBe(true);
     expect(publicAllows({ method: "HEAD", pathname: "/supplier/bids/ex1/pay", hasServerAction: false })).toBe(true);
+    // The page an online bid is submitted on (SR-13, step 11) is a page like any other, and a path under it is not one.
+    expect(get("/supplier/bids/ex1/submit")).toBe(true);
+    expect(publicAllows({ method: "HEAD", pathname: "/supplier/bids/ex1/submit", hasServerAction: false })).toBe(true);
+    expect(get("/supplier/bids/ex1/submit/extra")).toBe(false);
     // The other pages of the workspace answer a HEAD as any page does.
     expect(publicAllows({ method: "HEAD", pathname: "/supplier/bids/ex1", hasServerAction: false })).toBe(true);
   });

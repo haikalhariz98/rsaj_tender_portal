@@ -9,6 +9,7 @@
  * live, as the payment simulator's is), and a LIVE exercise keeps its pin when the LIVE flag is later cleared (20i, G1): that flag gates issuing and publishing only.
  */
 
+import { w, type Words } from "@/lib/contract/labels";
 import type { OnlineSubmissionMode, SubmissionChannel } from "@/lib/bids/online/types";
 import type { ExerciseStatus } from "@/lib/method/types";
 import type { Finding } from "@/lib/window/types";
@@ -64,8 +65,8 @@ export const ONLINE_SUBMISSION_WORDS: Readonly<Record<OnlineSubmissionFault, str
   ONLINE_NOT_ALLOWED: "This copy of the system does not allow online bids in this mode.",
 };
 
-/// What every supplier screen, receipt and Received says under DEMONSTRATION (D1).
-export const DEMONSTRATION_WORDS = "Demonstration — not for real tenders";
+/// What every supplier screen, receipt and Received says under DEMONSTRATION (D1). In English and Malay (ruling 20ab); a staff screen reads `.en`.
+export const DEMONSTRATION_WORDS: Words = w("Demonstration — not for real tenders", "Tunjuk cara — bukan untuk tender sebenar");
 
 export type TakeChannelFault = "EXERCISE_CANCELLED" | "ALREADY_PUBLISHED" | "NOTHING_TO_TAKE" | "SETTING_NOT_SET";
 

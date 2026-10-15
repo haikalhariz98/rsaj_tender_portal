@@ -8,6 +8,7 @@ import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { sealingPepper } from "@/lib/integration/sealing-deployment";
+import { KEY_CHANGE_ORDER } from "@/lib/sealing/key-history";
 import { formatOrgDateTime } from "@/lib/format";
 import type { ExerciseRow, ExerciseOrg } from "@/lib/method/repo";
 import { publishSealingWords } from "@/lib/sealing/ceremony";
@@ -26,7 +27,7 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
   const facts = await loadCeremony(db, org.id, ex.id);
   const policy = await loadSecurityPolicy(db, org.id);
   const minLength = policy?.sealingPassphraseMinLength ?? null;
-  const changes = await db.publishedKeyChange.findMany({ where: { exerciseId: ex.id, organisationId: org.id }, orderBy: { at: "desc" }, include: { by: { select: { name: true } } } });
+  const changes = await db.publishedKeyChange.findMany({ where: { exerciseId: ex.id, organisationId: org.id }, orderBy: [...KEY_CHANGE_ORDER], include: { by: { select: { name: true } } } });
   const now = new Date();
   const mine = facts.roster.find((r) => r.personId === actor.personId) ?? null;
   // Under LIVE, a share wrapped under a pepper this copy no longer holds could not be opened at the unseal: said here as well as at publication.

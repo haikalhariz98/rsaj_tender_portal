@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { lex } from "@/lib/scan/source";
+
 /**
  * A content guard for the screens of wave 3b that the prototype does not have (Sourcing Requirements v2, SR-13), so `scripts/compare-screen.mjs` has nothing to diff them against.
  * A restyle must not drop a label that says where a fact comes from, a "not set" state, or the words that a record is attested and not checked. It reads the sources, because no
@@ -45,5 +47,58 @@ describe("the Security screen", () => {
     const page = src("src/app/configuration/security/page.tsx");
     expect(page).toContain("sealingPassphraseMinLength");
     expect(page).toContain("no opening officer can set a share");
+  });
+});
+
+/**
+ * Wave 3b stage C, step 11 (build plan; ruling 20ap): the supplier's screens for an online bid. No prototype screen exists for them and no signed-in session can be assumed, so the sources are
+ * read. Every sentence on them is `Words` in both languages (20ab), the receipt carries the supplier's own number and never the exercise-wide sequence (20an), and the fingerprint history is
+ * read in the staff card's order.
+ */
+describe("the supplier's screens for an online bid", () => {
+  const FILES = [
+    "src/app/supplier/bids/[id]/submit/page.tsx",
+    "src/app/supplier/bids/[id]/submit/bid-form.tsx",
+    "src/app/supplier/bids/[id]/bid-panel.tsx",
+    "src/app/supplier/bids/[id]/submissions-list.tsx",
+    "src/app/supplier/bids/[id]/withdraw-control.tsx",
+    "src/app/supplier/bids/[id]/receipt-card.tsx",
+    "src/app/supplier/bids/[id]/print-button.tsx",
+    "src/app/supplier/opportunities/[id]/your-key.tsx",
+  ];
+
+  it("hold no sentence of their own: JSX text and string attributes are words from SCREEN_WORDS, in both languages", () => {
+    for (const f of FILES) {
+      const text = src(f);
+      // JSX text of two or more words that is not an expression: a sentence typed into a component.
+      const typed = [...text.matchAll(/>\s*([A-Z][A-Za-z']+(?:\s+[A-Za-z']+)+[^<>{}]*)\s*</g)].map((m) => m[1]);
+      expect(typed, f).toEqual([]);
+    }
+  });
+
+  it("the submit page keeps the parts, the declared fields, the password, the browser hash, the receipt with Print and the DEMONSTRATION banner", () => {
+    const form = src("src/app/supplier/bids/[id]/submit/bid-form.tsx");
+    for (const token of ["partsTitle", "SCREEN_WORDS.price", "SCREEN_WORDS.period", "SCREEN_WORDS.password", "sha256HexOf", "contentSha256", "ReceiptCard", "DEMONSTRATION_WORDS", "replaceNote", "alternativesNotConsidered"]) expect(form, token).toContain(token);
+    expect(src("src/app/supplier/bids/[id]/receipt-card.tsx")).toContain("PrintButton");
+    const page = src("src/app/supplier/bids/[id]/submit/page.tsx");
+    for (const token of ["discardedTitle", "limitsTitle", "pastClosingTitle", "paperOnlyTitle"]) expect(page, token).toContain(token);
+  });
+
+  it("Your bid keeps the number, the stamp, the status, the digest in full, Withdraw with its tick boxes, and the opening's words", () => {
+    const list = src("src/app/supplier/bids/[id]/submissions-list.tsx");
+    for (const token of ["colNumber", "colStamp", "colStatus", "colDigest", "receiptDigest", "v.opening", "WithdrawControl", "showReceipt"]) expect(list, token).toContain(token);
+    const withdraw = src("src/app/supplier/bids/[id]/withdraw-control.tsx");
+    for (const token of ["Checkbox", "alsoWithdraw", "withdrawAlternativesNote", "password"]) expect(withdraw, token).toContain(token);
+  });
+
+  it("show the supplier's own number and never the exercise-wide sequence (20an)", () => {
+    for (const f of FILES) expect(src(f), f).not.toMatch(/\bsequence\b/i);
+  });
+
+  it("the opportunity page lists the key's history beside the fingerprint, and the staff card reads the same rows in the same order", () => {
+    expect(src("src/app/supplier/opportunities/[id]/page.tsx")).toContain("YourKey");
+    expect(src("src/app/supplier/opportunities/[id]/your-key.tsx")).toContain("loadKeyHistory");
+    expect(src("src/app/sourcing/[id]/scope/key-section.tsx")).toContain("KEY_CHANGE_ORDER");
+    expect(lex(src("src/lib/sealing/key-history.ts"), { only: "comments" })).not.toMatch(/reason|byPersonId|viaOfficerKeyId/);
   });
 });

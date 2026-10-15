@@ -5,7 +5,7 @@ import type { Finding } from "@/lib/window/types";
  * `acknowledge.ts`, `checks.ts`, `release.ts`, `standing.ts`, `notices.ts` and `non-award.ts`). Nothing names a supplier: the supplier is the signed-in session's, and the stores read only its rows.
  */
 
-export const BID_TABS = ["overview", "briefings", "addenda", "documents", "outcome"] as const;
+export const BID_TABS = ["overview", "briefings", "addenda", "documents", "bid", "outcome"] as const;
 export type BidTab = (typeof BID_TABS)[number];
 export const isBidTab = (s: string | undefined): s is BidTab => (BID_TABS as readonly string[]).includes(s ?? "");
 

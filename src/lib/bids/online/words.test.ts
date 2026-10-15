@@ -8,12 +8,13 @@ import { lex } from "@/lib/scan/source";
 import { publishSealingWords } from "@/lib/sealing/ceremony";
 import { DOWNLOAD_WORDS } from "@/lib/sealing/grants";
 import { PEPPER_NOT_HELD_WORDS } from "@/lib/sealing/kdf";
-import { LIVE_ISSUE_WORDS, ONLINE_SUBMISSION_WORDS } from "@/lib/sealing/switch";
+import { DEMONSTRATION_WORDS, LIVE_ISSUE_WORDS, ONLINE_SUBMISSION_WORDS } from "@/lib/sealing/switch";
 
 import { MASKED_ACTOR_WORDS } from "./audit-mask";
 import { RECEIPT_WORDS } from "./receipt";
 import { RECEIVED_WORDS } from "./received";
 import { myBidOpenedWords } from "./roll";
+import { BID_KIND_WORDS, BID_STATUS_WORDS, SCREEN_WORDS, typesWords, UNIT_WORDS } from "./screen-words";
 import { ACT_ROUTE_WORDS, PART_UPLOAD_FAULT_WORDS, submissionWarningWords, PART_ROUTE_WORDS, SUBMIT_FAULT_WORDS, UPLOAD_BUSY_WORDS, WITHDRAW_FAULT_WORDS } from "./words";
 
 /**
@@ -38,6 +39,13 @@ describe("no words call a receipt or a bid signed, proof or verified, in either 
     const values: string[] = [
       ...Object.values(RECEIPT_WORDS),
       ...Object.values(RECEIVED_WORDS),
+      // Step 11: every word on the supplier's screens for an online bid, and the lists built from them.
+      ...Object.values(SCREEN_WORDS),
+      ...Object.values(BID_STATUS_WORDS),
+      ...Object.values(BID_KIND_WORDS),
+      ...Object.values(UNIT_WORDS),
+      typesWords(["application/pdf", "image/png", "image/jpeg", "image/tiff", "text/csv", "application/x-unknown"]),
+      DEMONSTRATION_WORDS,
       ...Object.values(SUBMIT_FAULT_WORDS),
       ...Object.values(WITHDRAW_FAULT_WORDS),
       ...Object.values(PART_UPLOAD_FAULT_WORDS),
