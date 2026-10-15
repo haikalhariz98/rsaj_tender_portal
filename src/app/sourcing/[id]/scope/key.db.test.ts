@@ -17,7 +17,7 @@ import { publishSealingFaults, publishSealingWords } from "@/lib/sealing/ceremon
 import { onlineSubmissionAllowed } from "@/lib/sealing/switch";
 import { rekeyAfterRosterChange } from "@/lib/sealing/store";
 import { loadSealingFacts } from "@/lib/window/repo";
-import { facts, makeAccount, randomId, setPolicy, SETTINGS } from "@/lib/test-db/auth-fixtures";
+import { facts, makeAccount, makeSupplierAccount, randomId, setPolicy, SETTINGS } from "@/lib/test-db/auth-fixtures";
 
 /**
  * Wave 3b step 8 against the scratch database, through the real actions and the real triggers: each named officer sets their own share with a passphrase, the exercise key is
@@ -363,14 +363,16 @@ describe("taking the organisation's channel (20z)", () => {
   });
 });
 
+async function judgedFor(exerciseId: string) {
+  const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId } });
+  const window = await db.exerciseWindow.findUnique({ where: { exerciseId } });
+  const sealing = await loadSealingFacts(organisationId, ex);
+  const found = publishSealingFaults({ channel: ex.submissionChannel, online: onlineSubmissionAllowed(sealing.mode, { demoAllowed: true, liveAllowed: false }, "PUBLISH"), key: sealing.key, rules: sealing.rules, alternativesPermitted: window?.alternativesPermitted ?? null, pepperRequired: sealing.mode === "LIVE", pepperConfigured: sealing.pepper === "SET" });
+  return found.map((f) => ({ code: f.code, words: publishSealingWords(f) }));
+}
+
 describe("publication judged on the real rows (D3, D7)", () => {
-  async function judged(exerciseId: string) {
-    const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId } });
-    const window = await db.exerciseWindow.findUnique({ where: { exerciseId } });
-    const sealing = await loadSealingFacts(organisationId, ex);
-    const found = publishSealingFaults({ channel: ex.submissionChannel, online: onlineSubmissionAllowed(sealing.mode, { demoAllowed: true, liveAllowed: false }, "PUBLISH"), key: sealing.key, rules: sealing.rules, alternativesPermitted: window?.alternativesPermitted ?? null, pepperRequired: sealing.mode === "LIVE", pepperConfigured: sealing.pepper === "SET" });
-    return found.map((f) => ({ code: f.code, words: publishSealingWords(f) }));
-  }
+  const judged = judgedFor;
 
   it("refuses an exercise with no key, then with a stale key, in words; a returned part with no types or size is named; and alternatives stay unstated until said", async () => {
     const ex = await exerciseWith(2);
@@ -407,4 +409,60 @@ describe("publication judged on the real rows (D3, D7)", () => {
     const paper = await db.sourcingExercise.create({ data: { organisationId, reference: `KC/PP/${randomId()}`, requisitionId, title: "Paper", estimatedValue: "1000.00", sourcingMethodCode: "M", status: "DOCUMENTS_IN_PREPARATION", submissionChannel: "PAPER" } });
     expect(await judged(paper.id)).toEqual([]);
   });
+});
+
+describe("the cases only the rows can make", () => {
+  it("an unset organisation mode is refused at publication in words", async () => {
+    const ex = await exerciseWith(2);
+    await db.bidSealingPolicy.update({ where: { organisationId }, data: { onlineSubmission: null } });
+    try {
+      const refused = await judgedFor(ex.id);
+      expect(refused.find((f) => f.code === "ONLINE_NOT_SET")?.words).toMatch(/not set for the organisation/);
+    } finally {
+      await db.bidSealingPolicy.update({ where: { organisationId }, data: { onlineSubmission: "DEMONSTRATION" } });
+    }
+  });
+
+  it("a key that no longer matches the officers is stale, said in words at publication, and cannot be changed by a re-key", async () => {
+    const ex = await exerciseWith(2);
+    for (const o of ex.officers) await share(ex.id, o);
+    const old = await db.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null } });
+    // The owner ends a roster row and does not touch the key (a defect or a hand edit): the key now names someone who is gone.
+    await db.exerciseOpeningOfficer.update({ where: { id: ex.officers[1].rosterId }, data: { endedAt: new Date(), endedByPersonId: ex.officers[0].person.id, endedReason: "test" } });
+    expect((await judgedFor(ex.id)).find((f) => f.code === "KEY_STALE")?.words).toMatch(/no longer matches/);
+    await db.sourcingExercise.update({ where: { id: ex.id }, data: { onlineSubmissionMode: "DEMONSTRATION", onlineBidRules: { v: 1, frozenAt: new Date().toISOString(), parts: [] }, publishedKeyFingerprint: old.fingerprint } });
+    const [a] = ex.officers;
+    who.actor = a.actor;
+    const out = await rekeyExercise({ ok: false }, form({ exerciseId: ex.id, reason: "Try", [actFieldNames("personId").password]: a.password }));
+    expect(out).toMatchObject({ ok: false });
+    expect(await db.publishedKeyChange.count({ where: { exerciseId: ex.id } })).toBe(0);
+  }, 90_000);
+
+  it("a re-key with a submission already taken is refused in words and writes nothing", async () => {
+    const ex = await exerciseWith(2);
+    for (const o of ex.officers) await share(ex.id, o);
+    const key = await db.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null } });
+    await db.sourcingExercise.update({ where: { id: ex.id }, data: { onlineSubmissionMode: "DEMONSTRATION", onlineBidRules: { v: 1, frozenAt: new Date().toISOString(), parts: [] }, publishedKeyFingerprint: key.fingerprint, status: "ADVERTISED" } });
+    const s = await makeSupplierAccount(organisationId);
+    const hex = (n: number) => randomBytes(n).toString("hex");
+    await db.$transaction(async (tx) => {
+      const envelopeId = `env_${randomId()}${randomId()}`;
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "BidEnvelope" ("id","organisationId","exerciseId","sequence","kind","channel","receivedAt","receivedSource","markings","late","recordedAfterClosing")
+         VALUES ($1,$2,$3,1,'BID','ONLINE',date_trunc('second', "sealed_clock"()),'PORTAL','',false,false)`,
+        envelopeId, organisationId, ex.id,
+      );
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "OnlineBid" ("id","organisationId","exerciseId","keyId","envelopeId","supplierId","submittedBySupplierAccountId","kind","sealedManifest","manifestDek","manifestCipherSha256","sealedDeclaration","declarationDek","declarationCipherSha256","receiptDigest")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'BID',decode($8,'hex'),decode($9,'hex'),$10,decode($11,'hex'),decode($12,'hex'),$13,$14)`,
+        `bid_${randomId()}${randomId()}`, organisationId, ex.id, key.id, envelopeId, s.supplier.id, s.account!.id, hex(200), hex(80), hex(32), hex(60), hex(80), hex(32), hex(32),
+      );
+    });
+    const [a] = ex.officers;
+    who.actor = a.actor;
+    const out = await rekeyExercise({ ok: false }, form({ exerciseId: ex.id, reason: "Too late", [actFieldNames("personId").password]: a.password }));
+    expect(out).toMatchObject({ ok: false, message: expect.stringContaining("A bid has been submitted") });
+    expect((await db.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null } })).id).toBe(key.id);
+    expect(await db.publishedKeyChange.count({ where: { exerciseId: ex.id } })).toBe(0);
+  }, 90_000);
 });

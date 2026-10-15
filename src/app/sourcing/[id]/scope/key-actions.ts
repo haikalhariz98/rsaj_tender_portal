@@ -55,6 +55,7 @@ async function inExercise(scope: Reader, exerciseId: string, fn: (tx: Tx, l: Loc
   try {
     result = await withLockedExerciseScope(scope, exerciseId, fn);
   } catch (e) {
+    if (e instanceof RolledBack) return e.state;
     const attribution = attributionRefusalState(e);
     if (attribution) return attribution;
     if (transactionTimedOut(e)) return { ok: false, message: "That took too long and nothing was saved. Try again." };
@@ -67,6 +68,13 @@ async function inExercise(scope: Reader, exerciseId: string, fn: (tx: Tx, l: Loc
     revalidatePath("/sourcing");
   }
   return result ?? GONE;
+}
+
+/// Thrown after rows are written to roll the whole act back with the words the officer should read (a returned state would commit what was written).
+class RolledBack extends Error {
+  constructor(readonly state: FormState) {
+    super(state.message ?? "Rolled back");
+  }
 }
 
 const labelOf = (l: LockedExercise, what: string) => `${l.ex.reference} · ${what}`;
@@ -144,7 +152,7 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
     if (facts.published) {
       // A published exercise: a new share is a recorded key change (the old key is retired with its shares shredded, the drafts under it discarded, the new key made).
       const changed = await rekeyKey(tx, { organisationId: l.org.id, exerciseId, reason: "An opening officer set a new passphrase", now, byPersonId: actor.personId });
-      if (!changed) return { ok: false, message: `Nothing was saved: ${REKEY_WORDS.KEY_STALE}` };
+      if (!changed) throw new RolledBack({ ok: false, message: `Nothing was saved: ${REKEY_WORDS.KEY_STALE}` });
       madeFingerprint = changed.made.fingerprint;
       await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, labelOf(l, "Key change"), "UPDATE", diffFields({ keyFingerprint: changed.from.fingerprint, draftsDiscarded: null }, { keyFingerprint: changed.made.fingerprint, draftsDiscarded: changed.discarded }), "An opening officer set a new passphrase");
     } else {
@@ -182,7 +190,7 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
 /**
  * Change the key of a published exercise (rulings 20g, 20p), by a named opening officer, with a reason: allowed only before the closing and while no bid exists. One
  * transaction retires the key and shreds its shares, discards the drafts under it, makes the new key across the officers' current keys, writes the append-only change and
- * freezes the new fingerprint. A lodged estimate sealed under the old key reads as not lodged from the key it names (the lodging officer lodges it again).
+ * freezes the new fingerprint. A company estimate lodged under the old key must be lodged again: step 16's lodgement reader must judge a lodgement's key against the live key.
  */
 export async function rekeyExercise(_prev: FormState, data: FormData): Promise<FormState> {
   const guard = await staffForAct("UNSEAL");
@@ -204,7 +212,7 @@ export async function rekeyExercise(_prev: FormState, data: FormData): Promise<F
     const refused = rekeyRefusals({ channel: l.ex.submissionChannel, status: l.ex.status, published: facts.published, namedOfficer: !!mine, reason, hasLiveKey: !!facts.liveKey, officers: facts.roster.length, stale: facts.state.stale, submissions: facts.submissions, now, closing: l.ex.closingAt });
     if (refused.length) return { ok: false, message: `Nothing was saved: ${refused.map((f) => REKEY_WORDS[f]).join(" ")}` };
     const changed = await rekeyKey(tx, { organisationId: l.org.id, exerciseId, reason, now, byPersonId: actor.personId });
-    if (!changed || !changed.changeId) return { ok: false, message: `Nothing was saved: ${REKEY_WORDS.KEY_STALE}` };
+    if (!changed || !changed.changeId) throw new RolledBack({ ok: false, message: `Nothing was saved: ${REKEY_WORDS.KEY_STALE}` });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseSealingKey", changed.made.keyId, labelOf(l, "Exercise key"), "CREATE", diffFields(null, { keyFingerprint: changed.made.fingerprint, officersHoldingShares: changed.made.officerCount, replacesFingerprint: changed.from.fingerprint, draftsDiscarded: changed.discarded }), reason);
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, labelOf(l, "Key change"), "UPDATE", diffFields({ publishedKeyFingerprint: changed.from.fingerprint }, { publishedKeyFingerprint: changed.made.fingerprint }), reason);
     await act.write(tx, changed.changeId, { document: { entity: "SourcingExercise", id: exerciseId }, roleCode: mine!.seatLabel });
