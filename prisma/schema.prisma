@@ -7333,6 +7333,7 @@ model OfficerExerciseKey {
   releasesFrom      ShareRelease[]         @relation("ShareReleaseFrom")
   releasesTo        ShareRelease[]         @relation("ShareReleaseTo")
   dekGrants         OfficerDekGrant[]
+  keyChangesCaused  PublishedKeyChange[]   @relation("PublishedKeyChangeVia")
 
   @@index([exerciseId])
   @@index([openingOfficerId])
@@ -7386,6 +7387,10 @@ model PublishedKeyChange {
   reason          String
   byPersonId      String
   by              Person             @relation("PublishedKeyChangeBy", fields: [byPersonId], references: [id], onDelete: Restrict)
+  /// Set when the change was made by an officer setting their share again (`setOfficerShare`): that act's one password entry signs the share (`OfficerExerciseKey.person`), and this
+  /// names it, so the change is read back to a signed act. Null for a change made through `rekeyExercise`, which is signed as `PublishedKeyChange.by` itself.
+  viaOfficerKeyId String?
+  viaOfficerKey   OfficerExerciseKey? @relation("PublishedKeyChangeVia", fields: [viaOfficerKeyId], references: [id], onDelete: Restrict)
   at              DateTime
   /// The transaction that inserted it, set by trigger (security audit 2, migration 20261103200000).
   insertedXact    Unsupported("xid8")?

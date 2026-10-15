@@ -206,7 +206,7 @@ describe("a submission", () => {
     const file = await upload(s, ex);
     const stamp = await takeStamp();
     const out = must(await submit(s, ex, { files: [file], stamp }));
-    expect(out.receipt).toMatchObject({ exerciseId: ex.id, sequence: 1, late: false, keyFingerprint: ex.fingerprint, demonstration: true, alternativeNotConsidered: false });
+    expect(out.receipt).toMatchObject({ exerciseId: ex.id, submissionNumber: 1, late: false, keyFingerprint: ex.fingerprint, demonstration: true, alternativeNotConsidered: false });
     expect(out.receipt.receivedAt).toBe(stamp.toISOString());
 
     const bid = await bidRow(out.onlineBidId);
@@ -220,7 +220,7 @@ describe("a submission", () => {
 
     // The receipt digest is the SHA-256 over what the portal stored: it recomputes from the rows.
     expect(
-      receiptDigest({ exerciseId: ex.id, sequence: 1, receivedAt: stamp, keyFingerprint: ex.fingerprint, manifestCipherSha256: bid.manifestCipherSha256, declarationCipherSha256: bid.declarationCipherSha256, fileCipherSha256s: [fileRow.cipherSha256] }),
+      receiptDigest({ exerciseId: ex.id, submissionNumber: 1, receivedAt: stamp, keyFingerprint: ex.fingerprint, manifestCipherSha256: bid.manifestCipherSha256, declarationCipherSha256: bid.declarationCipherSha256, fileCipherSha256s: [fileRow.cipherSha256] }),
     ).toBe(bid.receiptDigest);
     expect(out.receipt.receiptDigest).toBe(bid.receiptDigest);
 
@@ -229,6 +229,22 @@ describe("a submission", () => {
     expect(attribution).not.toBeNull();
     // One access event, granted.
     expect((await events(ex.id)).filter((e) => e.kind === "SUBMIT")).toMatchObject([{ outcome: "GRANTED", recordId: bid.id, supplierAccountId: s.actor.accountId }]);
+  });
+
+  it("a receipt carries nothing derived from a rival's submissions: the second supplier's number is its own, not the exercise-wide sequence (security audit, 20u)", async () => {
+    const ex = await exercise();
+    const first = await bidder(ex);
+    const second = await bidder(ex);
+    const one = must(await submit(first, ex));
+    must(await submit(first, ex, { replacesOnlineBidId: one.onlineBidId }));
+    const mine = must(await submit(second, ex));
+    // The exercise-wide sequence has moved on, and the receipt shows none of it.
+    expect((await bidRow(mine.onlineBidId)).envelope.sequence).toBeGreaterThan(1);
+    expect(mine.receipt.submissionNumber).toBe(1);
+    expect(Object.keys(mine.receipt)).not.toContain("sequence");
+    const bid = await bidRow(mine.onlineBidId);
+    const fileRow = await db.onlineBidFile.findFirstOrThrow({ where: { supplierId: second.actor.supplierId, exerciseId: ex.id } });
+    expect(receiptDigest({ exerciseId: ex.id, submissionNumber: 1, receivedAt: new Date(mine.receipt.receivedAt), keyFingerprint: ex.fingerprint, manifestCipherSha256: bid.manifestCipherSha256, declarationCipherSha256: bid.declarationCipherSha256, fileCipherSha256s: [fileRow.cipherSha256] })).toBe(mine.receipt.receiptDigest);
   });
 
   it("writes an audit row that holds no declaration, filename or plain hash", async () => {
@@ -422,6 +438,23 @@ describe("two acts on one record", () => {
     expect(await db.onlineBid.count({ where: { exerciseId: ex.id, supplierId: who.supplierId, kind: "BID", status: "SUBMITTED" } })).toBe(1);
   });
 
+  it("two submits from ONE session, the password confirmed twice: one is taken and the other is refused in words (NOT_TAKEN), never thrown", async () => {
+    const ex = await exercise();
+    const s = await bidder(ex);
+    const [f1, f2] = [await upload(s, ex), await upload(s, ex)];
+    const stamp = await takeStamp();
+    const first = await confirmSupplierPassword(s.actor, s.identity.password, facts());
+    const second = await confirmSupplierPassword(s.actor, s.identity.password, facts());
+    if (!first.ok || !second.ok) throw new Error("password refused");
+    // The first request's entry is now stale: the second overwrote the session's.
+    const input = (fileId: string, at: Date): SubmitInput => ({ exerciseId: ex.id, kind: "BID", parentOnlineBidId: null, replacesOnlineBidId: null, fileIds: [fileId], declaration: DECLARATION, stamp, stepUpAt: at });
+    const results = await Promise.all([submitBid(s.actor, input(f1, first.at)), submitBid(s.actor, input(f2, second.at))]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(faultsOf(results.find((r) => !r.ok)!)).toEqual(["NOT_TAKEN"]);
+    expect(await db.onlineBid.count({ where: { exerciseId: ex.id, supplierId: s.actor.supplierId, status: "SUBMITTED" } })).toBe(1);
+    expect((await events(ex.id)).filter((e) => e.kind === "SUBMIT" && e.outcome === "REFUSED")).toMatchObject([{ reasonCode: "NOT_TAKEN" }]);
+  });
+
   it("a second standing bid that gets past the door is refused at the commit as LIVE_BID_HELD, in words, not thrown, and nothing of the act remains", async () => {
     // A rival cannot commit on another connection while the act holds the exercise's lock: its foreign keys wait on it. So the rival that bypassed the lock is written inside the act's
     // own transaction, after the door has passed, which the one-standing-bid trigger reads at the commit just the same.
@@ -545,7 +578,7 @@ describe("through the route, against the real stores", () => {
     expect(await db.onlineBid.count({ where: { exerciseId: ex.id } })).toBe(0);
     const right = await submitRoute(post({ ...body, password: s.identity.password }));
     const answer = await right.json();
-    expect([right.status, answer.ok, answer.receipt.sequence]).toEqual([201, true, 1]);
+    expect([right.status, answer.ok, answer.receipt.submissionNumber]).toEqual([201, true, 1]);
     expect((await db.supplierAccount.findUniqueOrThrow({ where: { id: s.actor.accountId } })).failedAttempts).toBe(0);
   });
 

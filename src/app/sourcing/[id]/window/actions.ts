@@ -26,8 +26,7 @@ import { chooseFaults } from "@/lib/evaluation/pin";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, notes } from "./shared";
 import { channelWords } from "@/lib/sealing/channel-words";
-import { SHARE_WITHOUT_PEPPER_WORDS } from "@/lib/sealing/share";
-import { sealedSqlState } from "@/lib/sealing/store";
+import { FreezeRefused, freezeOnlineSealing } from "@/lib/sealing/freeze-store";
 import { TAKE_CHANNEL_WORDS, takeChannelFaults, type TakeChannelFault } from "@/lib/sealing/switch";
 import { physicalItemsApply, saleModeWords, takeSaleModeFaults } from "@/lib/window/sale-mode";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
@@ -343,18 +342,13 @@ export async function publishWindow(_prev: FormState, data: FormData): Promise<F
     // SR-13 (ADR 0036 D1, D3, D7): an online exercise freezes its mode, its upload rules and its key's fingerprint here, BEFORE the move below: from ADVERTISED or INVITED on,
     // trigger 11 refuses any change of the rules, and the fingerprint is then changed only by a recorded key change. The channel is already pinned and is frozen by the same status.
     if (l.ex.submissionChannel === "ONLINE") {
-      const live = await tx.exerciseSealingKey.findFirst({ where: { exerciseId, organisationId: actor.organisationId, retiredAt: null }, select: { fingerprint: true } });
-      if (!live || !d.sealing.mode || !d.sealing.rules) throw new Refusal(CHANGED);
+      if (!d.sealing.mode || !d.sealing.rules) throw new Refusal(CHANGED);
       try {
-        await tx.sourcingExercise.update({
-          where: { id: exerciseId, organisationId: actor.organisationId },
-          data: { onlineSubmissionMode: d.sealing.mode, onlineBidRules: { v: 1, frozenAt: now.toISOString(), parts: d.sealing.rules } as unknown as Prisma.InputJsonValue, publishedKeyFingerprint: live.fingerprint },
-        });
+        await freezeOnlineSealing(tx, { organisationId: actor.organisationId, exerciseId, mode: d.sealing.mode, rules: d.sealing.rules, now, actor: toAuditActor(actor), entityLabel: label(l, "How bids are submitted") });
       } catch (e) {
-        if (sealedSqlState(e) === "PA019") throw new Refusal({ ok: false, message: `Not published: ${SHARE_WITHOUT_PEPPER_WORDS}` });
+        if (e instanceof FreezeRefused) throw new Refusal(e.changed ? CHANGED : { ok: false, message: e.message });
         throw e;
       }
-      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, label(l, "How bids are submitted"), "UPDATE", diffFields({ onlineMode: null, uploadRulesFrozen: null, keyFingerprint: null }, { onlineMode: d.sealing.mode === "LIVE" ? "Live" : "Demonstration", uploadRulesFrozen: `${d.sealing.rules.filter((r) => r.returnedByBidder).length} returned parts`, keyFingerprint: live.fingerprint }));
     }
     if (j.path === "ADVERTISED") {
       const t = d.templates.notice!;

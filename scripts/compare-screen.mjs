@@ -32,6 +32,19 @@ if (!section || !ourPath) {
   process.exit(2);
 }
 
+// Screens the sample does not have (Sourcing Requirements v2). There is nothing to diff them against, so the comparison says so and stops rather than failing on a
+// section it cannot click. What each must hold is pinned instead by the source-level content guards named here, which fail when a label or a "not set" state is dropped.
+const NO_PROTOTYPE_COUNTERPART = [
+  { screen: /\/configuration\/bid-sealing/, guard: "src/app/configuration/bid-sealing/screen-content.test.ts", why: "SR-13: online sealed bids have no screen in the sample" },
+  { screen: /\/configuration\/security/, guard: "src/app/configuration/bid-sealing/screen-content.test.ts", why: "SR-13: the unseal passphrase minimum is a v2 setting; the sample's security screen predates it" },
+  { screen: /\/configuration\/tender-documents/, guard: "src/app/configuration/bid-sealing/screen-content.test.ts", why: "SR-13: per-part online upload rules are v2; the tender-documents screen has no sample counterpart" },
+];
+const noCounterpart = NO_PROTOTYPE_COUNTERPART.find((n) => n.screen.test(ourPath));
+if (noCounterpart) {
+  console.log(`No prototype counterpart for ${ourPath} (${noCounterpart.why}). Its content is pinned by ${noCounterpart.guard}; text-snapshot.mjs records its text.`);
+  process.exit(0);
+}
+
 const BASE = process.env.APP_URL ?? "http://localhost:3000";
 
 // Git Bash rewrites a leading-slash argument into a Windows path before node sees it.

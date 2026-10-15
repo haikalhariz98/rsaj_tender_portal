@@ -50,7 +50,8 @@ export type PublishSealingFault =
   | "PART_TYPES_NOT_SET"
   | "PART_SIZE_NOT_SET"
   | "ALTERNATIVES_NOT_STATED"
-  | "PEPPER_NOT_SET";
+  | "PEPPER_NOT_SET"
+  | "PEPPER_CHANGED";
 
 const positiveInteger = (s: string) => /^[1-9][0-9]*$/.test(s);
 
@@ -60,7 +61,7 @@ const positiveInteger = (s: string) => /^[1-9][0-9]*$/.test(s);
  * check cannot be written into a rule, whose `openingCheck` is a yes or a no). A rule with no accepted types, or no size, is named by its part's label.
  * `pepperRequired`: the mode being frozen is LIVE.
  */
-export function publishSealingFaults(i: { channel: SubmissionChannel | null; online: ReturnType<typeof onlineSubmissionAllowed>; key: ReturnType<typeof keyState>; rules: BidPartRule[] | null; alternativesPermitted: boolean | null; pepperRequired: boolean; pepperConfigured: boolean }): Finding[] {
+export function publishSealingFaults(i: { channel: SubmissionChannel | null; online: ReturnType<typeof onlineSubmissionAllowed>; key: ReturnType<typeof keyState>; rules: BidPartRule[] | null; alternativesPermitted: boolean | null; pepperRequired: boolean; pepperConfigured: boolean; /** Officers whose live share was wrapped under a pepper this copy no longer holds (names). Judged only when a pepper is required. */ pepperChangedFor?: readonly string[] }): Finding[] {
   const out: Finding<PublishSealingFault>[] = [];
   const f = (code: PublishSealingFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (i.channel === null) {
@@ -79,11 +80,13 @@ export function publishSealingFaults(i: { channel: SubmissionChannel | null; onl
     }
   if (i.alternativesPermitted === null) f("ALTERNATIVES_NOT_STATED");
   if (i.pepperRequired && !i.pepperConfigured) f("PEPPER_NOT_SET");
+  // A share wrapped under another pepper than the one held now could never be opened at the unseal, and once a bid exists the key cannot be re-made: refused here, while it can still be mended.
+  else if (i.pepperRequired && (i.pepperChangedFor?.length ?? 0) > 0) f("PEPPER_CHANGED", { label: i.pepperChangedFor!.join(", ") });
   return out;
 }
 
 /// The codes `publishSealingFaults` can return, for a reader that must tell them from the window's own.
-export const SEALING_CODES: ReadonlySet<string> = new Set<PublishSealingFault>(["CHANNEL_NOT_SET", "ONLINE_NOT_SET", "ONLINE_NOT_ALLOWED", "KEY_NOT_SET", "KEY_STALE", "RULES_NOT_SET", "PART_TYPES_NOT_SET", "PART_SIZE_NOT_SET", "ALTERNATIVES_NOT_STATED", "PEPPER_NOT_SET"]);
+export const SEALING_CODES: ReadonlySet<string> = new Set<PublishSealingFault>(["CHANNEL_NOT_SET", "ONLINE_NOT_SET", "ONLINE_NOT_ALLOWED", "KEY_NOT_SET", "KEY_STALE", "RULES_NOT_SET", "PART_TYPES_NOT_SET", "PART_SIZE_NOT_SET", "ALTERNATIVES_NOT_STATED", "PEPPER_NOT_SET", "PEPPER_CHANGED"]);
 
 /// Publication's sealing refusals in words. Never a code.
 export function publishSealingWords(fnd: Finding): string {
@@ -113,6 +116,8 @@ export function publishSealingWords(fnd: Finding): string {
       return "Whether alternative bids are permitted is not stated, so suppliers could not be told whether an alternative will be considered.";
     case "PEPPER_NOT_SET":
       return "The deployment's sealing pepper is not configured, and a live exercise cannot be sealed without it.";
+    case "PEPPER_CHANGED":
+      return `The sealing pepper this copy holds is not the one ${label} used when setting their share, so the bids could not be opened. ${label.includes(",") ? "Each of them must" : "They must"} set their share again.`;
     default:
       return "Publication is refused for sealing.";
   }

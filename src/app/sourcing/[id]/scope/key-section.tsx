@@ -7,8 +7,10 @@ import { KeyValues } from "@/components/ui/stat";
 import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
+import { sealingPepper } from "@/lib/integration/sealing-deployment";
 import { formatOrgDateTime } from "@/lib/format";
 import type { ExerciseRow, ExerciseOrg } from "@/lib/method/repo";
+import { publishSealingWords } from "@/lib/sealing/ceremony";
 import { REKEY_WORDS, rekeyRefusals, SHARE_WORDS, shareFaults } from "@/lib/sealing/share";
 import { loadCeremony } from "@/lib/sealing/store";
 
@@ -27,6 +29,10 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
   const changes = await db.publishedKeyChange.findMany({ where: { exerciseId: ex.id, organisationId: org.id }, orderBy: { at: "desc" }, include: { by: { select: { name: true } } } });
   const now = new Date();
   const mine = facts.roster.find((r) => r.personId === actor.personId) ?? null;
+  // Under LIVE, a share wrapped under a pepper this copy no longer holds could not be opened at the unseal: said here as well as at publication.
+  const sealingMode = (await db.bidSealingPolicy.findUnique({ where: { organisationId: org.id }, select: { onlineSubmission: true } }))?.onlineSubmission ?? null;
+  const reading = sealingPepper();
+  const pepperChangedFor = sealingMode === "LIVE" && reading.status === "SET" ? facts.officerKeys.filter((k) => k.pepperId !== reading.pepper.id).map((k) => facts.roster.find((r) => r.id === k.openingOfficerId)?.name ?? "an officer") : [];
   const hasShare = !!mine && facts.shareHolderRowIds.includes(mine.id);
 
   const share = shareFaults({ channel: ex.submissionChannel, status: ex.status, namedOfficer: !!mine, now, closing: ex.closingAt, published: facts.published, hasLiveShare: hasShare, submissions: facts.submissions });
@@ -72,6 +78,11 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
         <Callout tone="info" title="Every named officer is needed">
           The bids can be opened only when every named officer takes part with their own passphrase. A forgotten passphrase cannot be recovered by anyone. Before any bid is submitted the key is made again; once a bid has been submitted, the exercise is re-tendered.
         </Callout>
+        {pepperChangedFor.length > 0 && (
+          <Callout tone="warn" title="A share was set under another sealing pepper">
+            {publishSealingWords({ code: "PEPPER_CHANGED", level: "block", data: { label: pepperChangedFor.join(", ") } })}
+          </Callout>
+        )}
         {facts.roster.length > 0 && (
           <div className="overflow-hidden rounded-2xl border border-line">
             <DataList

@@ -503,15 +503,19 @@ describe("security audit 2: written in this transaction is the trigger's own rec
     const a = await fresh();
     // Two alternatives of one supplier: the second names the first as the one it replaces, but the first is not moved in that act.
     const target = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE" }));
-    // Trigger 14 (build plan step 10, PA028) now refuses this decoy at the commit, so the fixture is written with that one trigger off, by the owner, in a transaction of its own between the two ALTERs.
-    // The assertions below are unchanged: they are about the status move, which trigger 14 does not touch.
-    await db.$executeRawUnsafe(`ALTER TABLE "OnlineBid" DISABLE TRIGGER "OnlineBid_replacement_moved"`);
-    let decoy: { bidId: string; envelopeId: string };
-    try {
-      decoy = await asApp((tx) => submit(tx, ex, a, { kind: "ALTERNATIVE", replaces: target.bidId }));
-    } finally {
-      await db.$executeRawUnsafe(`ALTER TABLE "OnlineBid" ENABLE ALWAYS TRIGGER "OnlineBid_replacement_moved"`);
-    }
+    // Trigger 14 (build plan step 10, PA028) now refuses this decoy at the commit, so the fixture is written with that one trigger off. The ALTERs and the write are ONE transaction (DDL
+    // is transactional): the trigger is switched off and back on inside it, nothing is committed with it off, and a process that dies mid-way leaves it on. The assertions below are
+    // unchanged: they are about the status move, which trigger 14 does not touch.
+    const decoy = await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`ALTER TABLE "OnlineBid" DISABLE TRIGGER "OnlineBid_replacement_moved"`);
+      await tx.$executeRawUnsafe(`SET LOCAL ROLE ${TEST_ROLE}`);
+      const made = await submit(tx, ex, a, { kind: "ALTERNATIVE", replaces: target.bidId });
+      // Deferred triggers fire now (a table with pending trigger events cannot be altered); the one that is off does not.
+      await tx.$executeRawUnsafe(`SET CONSTRAINTS ALL IMMEDIATE`);
+      await tx.$executeRawUnsafe(`RESET ROLE`);
+      await tx.$executeRawUnsafe(`ALTER TABLE "OnlineBid" ENABLE ALWAYS TRIGGER "OnlineBid_replacement_moved"`);
+      return made;
+    });
     await setClosing(ex.id, -5);
     const markReplaced = (tx: Tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'REPLACED', "statusAt" = (SELECT "receivedAt" FROM "BidEnvelope" WHERE "id" = $2) WHERE "id" = $1`, target.bidId, decoy.envelopeId);
     expect(await refusal(asApp(markReplaced))).toBe("PA012");

@@ -148,9 +148,10 @@ export async function logPartAccess(
 
 /// A refusal outside any transaction. Written only where the exercise is the organisation's (a probe of an id that is not leaves no row).
 export async function logPartRefusal(actor: SupplierActor, exerciseId: string, kind: "PART_UPLOAD" | "PART_DISCARD" | "SUBMIT" | "WITHDRAW", reasonCode: string): Promise<void> {
-  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: actor.organisationId }, select: { id: true } });
-  if (!ex) return;
-  await logPartAccess(db, actor, { exerciseId: ex.id, kind, outcome: "REFUSED", reasonCode });
+  // Only where this supplier may see the exercise: naming one it cannot see (restricted, confidential, or not its own to bid on) leaves nothing in that exercise's sealed log.
+  const ctx = await loadBidContext(db, actor, exerciseId, new Date());
+  if (!ctx) return;
+  await logPartAccess(db, actor, { exerciseId: ctx.ex.id, kind, outcome: "REFUSED", reasonCode });
 }
 
 export interface StoreInput {
@@ -252,7 +253,15 @@ export async function discardPart(actor: SupplierActor, i: { exerciseId: string;
       await logPartAccess(tx, actor, { exerciseId: ctx.ex.id, kind: "PART_DISCARD", outcome: "REFUSED", reasonCode: "FILE_NOT_DRAFT", recordId: file.id }, now);
       return { ok: false, reason: "FILE_NOT_DRAFT" } as const;
     }
-    await tx.onlineBidFile.update({ where: { id: file.id }, data: { state: "DISCARDED" } });
+    // Guarded on the state again: a submission that row-locked this draft first and committed leaves the update to re-read a SUBMITTED row, which the file trigger (PA012) would
+    // refuse as an error. Zero rows changed is the answer in words instead.
+    const moved = await tx.onlineBidFile.updateMany({ where: { id: file.id, state: "DRAFT" }, data: { state: "DISCARDED" } });
+    if (moved.count !== 1) {
+      const now2 = await tx.onlineBidFile.findUnique({ where: { id: file.id }, select: { state: true } });
+      if (now2?.state === "DISCARDED") return { ok: true, changed: false } as const;
+      await logPartAccess(tx, actor, { exerciseId: ctx.ex.id, kind: "PART_DISCARD", outcome: "REFUSED", reasonCode: "FILE_NOT_DRAFT", recordId: file.id }, now);
+      return { ok: false, reason: "FILE_NOT_DRAFT" } as const;
+    }
     await writeAudit(
       tx,
       { actor: auditActorOf(actor), organisationId: actor.organisationId, entity: "OnlineBidFile", entityId: file.id, entityLabel: `${ctx.ex.reference} · bid part discarded` },

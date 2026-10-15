@@ -203,7 +203,7 @@ export const PART_ROUTE_WORDS: Readonly<Record<PartRouteNotice, Words>> = {
 /// again. The password's answers say nothing of the account beyond what the portal's sign-in already says. Rate refusals say that only the stamp decides lateness (20e).
 export type ActRouteNotice =
   | "SUBMIT_RATE_LIMITED" | "WITHDRAW_RATE_LIMITED" | "UNREADABLE" | "NOT_FOUND"
-  | "PASSWORD_REQUIRED" | "WRONG_PASSWORD" | "LOCKED" | "THROTTLED" | "ACT_CLOSED";
+  | "WRONG_PASSWORD" | "LOCKED" | "THROTTLED" | "ACT_CLOSED";
 export const ACT_ROUTE_WORDS: Readonly<Record<ActRouteNotice, Words>> = {
   SUBMIT_RATE_LIMITED: w(
     "You have tried to submit a great many times in the last minute, so this one was not taken. Wait a minute and try again. The time stamped when your submission is accepted decides whether it is late.",
@@ -215,7 +215,6 @@ export const ACT_ROUTE_WORDS: Readonly<Record<ActRouteNotice, Words>> = {
   ),
   UNREADABLE: w("That request could not be read. Nothing was done. Reload the page and try again.", "Permintaan itu tidak dapat dibaca. Tiada apa yang dilakukan. Muat semula halaman dan cuba lagi."),
   NOT_FOUND: w("That is not something you can open.", "Itu bukan sesuatu yang boleh anda buka."),
-  PASSWORD_REQUIRED: w("Enter your password to go on.", "Masukkan kata laluan anda untuk meneruskan."),
   WRONG_PASSWORD: w("That password is not right. Nothing was done.", "Kata laluan itu tidak betul. Tiada apa yang dilakukan."),
   LOCKED: w("This account is locked after too many wrong passwords. Try again later.", "Akaun ini dikunci selepas terlalu banyak kata laluan yang salah. Cuba lagi kemudian."),
   THROTTLED: w("Too many attempts just now. Wait a few minutes and try again.", "Terlalu banyak percubaan sebentar tadi. Tunggu beberapa minit dan cuba lagi."),

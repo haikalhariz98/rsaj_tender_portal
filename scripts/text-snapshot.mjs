@@ -52,6 +52,10 @@ const ROUTES = [
   "/configuration/awards",
   "/configuration/scope",
   "/configuration/audit",
+  // SR-13 (online sealed bids): no counterpart in the prototype, so compare-screen.mjs cannot diff them; their text is recorded here.
+  "/configuration/bid-sealing",
+  "/configuration/security",
+  "/configuration/tender-documents",
   "/configuration/accounts",
   ...["people", "roles", "permissions", "delegation", "lines"].map((t) => `/configuration/users?tab=${t}`),
   ...["codes", "periods", "allocations", "availability", "controls", "finance"].map(

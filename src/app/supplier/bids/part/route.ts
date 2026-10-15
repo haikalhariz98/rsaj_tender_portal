@@ -58,12 +58,12 @@ async function upload(actor: SupplierActor, request: Request) {
 
   const facts = await loadUploadFacts(db, actor, { exerciseId, packPartId });
   if (!facts) return notice("NOT_FOUND", 404);
-  const refuse = async (faults: readonly PartUploadFault[]) => {
+  const refuse = async (faults: readonly PartUploadFault[], status?: number) => {
     await logPartRefusal(actor, exerciseId, "PART_UPLOAD", faults[0]);
     const first = PART_UPLOAD_FAULT_WORDS[faults[0]];
     return reply(
       { ok: false, code: faults[0], message: first.en, messageMs: first.ms, faults: faults.map((f) => ({ message: PART_UPLOAD_FAULT_WORDS[f].en, messageMs: PART_UPLOAD_FAULT_WORDS[f].ms })) },
-      STATUS[faults[0]] ?? 422,
+      status ?? STATUS[faults[0]] ?? 422,
     );
   };
   if (facts.gate.length > 0) return refuse(facts.gate);
@@ -127,7 +127,7 @@ async function upload(actor: SupplierActor, request: Request) {
     const stored = await storePart(actor, { facts, packPartId, plain: bytes, filename, mediaType: recognised.type ?? "application/octet-stream", scan, scannerConfigured: scanner.configured });
     return reply({ ok: true, fileId: stored.fileId, packPartId: stored.packPartId, plainSha256: stored.plainSha256, plainBytes: stored.plainBytes, scan: stored.scan }, 201);
   } catch (e) {
-    if (e instanceof PartRefused) return await refuse(e.faults);
+    if (e instanceof PartRefused) return await refuse(e.faults, e.status);
     throw e;
   } finally {
     bytes.fill(0);

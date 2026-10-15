@@ -41,3 +41,15 @@ export function proxy(request: NextRequest) {
       return new NextResponse("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
   }
 }
+
+/**
+ * Next copies a proxied request's body into memory so that the proxy and the route can both read it, waits for the whole body to arrive before the route runs, and past
+ * `proxyClientMaxBodySize` (10 MB) keeps only the first part. For a multipart upload that undoes the route's own guards (they answer "before a byte of the body is read", cap the
+ * time and the rate of the read, and refuse an upload by its length) and would cut an honest file between 10 MB and the part's own limit short, refused as unreadable. So the uploads
+ * are left out of the proxy. Each is a route handler that asks the same questions itself and first (`supplierUploadPost`: this copy serves the portal, the Origin, the form token,
+ * and a supplier signed in). A staff cookie on the public copy, which the boundary turns away, is ignored by those handlers (a supplier module never reads the staff cookie: supplier-reach.test.ts). The list is spelled out because Next reads this export statically; `proxy.test.ts` pins that every route
+ * that takes a multipart upload is on it, and that nothing else is.
+ */
+export const config = {
+  matcher: ["/((?!supplier/bids/part$|supplier/company/bank$|supplier/company/document$|supplier/registration/upload$).*)"],
+};

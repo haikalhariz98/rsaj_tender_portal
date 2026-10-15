@@ -51,7 +51,7 @@ function post(path: "submit" | "withdraw", body: unknown, o: { token?: string | 
   const text = typeof body === "string" ? body : JSON.stringify({ ...(body as object), ...(t ? { [FORM_TOKEN_FIELD]: t } : {}) });
   return new Request(`http://portal.example/supplier/bids/${path}`, { method: "POST", body: text, headers: { "content-length": String(Buffer.byteLength(text)), ...SAME_ORIGIN, ...o.headers } });
 }
-const RECEIPT = { exerciseId: EX, sequence: 3, receivedAt: STAMP.toISOString(), late: false, keyFingerprint: "f".repeat(64), receiptDigest: "d".repeat(64), demonstration: false, alternativeNotConsidered: false };
+const RECEIPT = { exerciseId: EX, submissionNumber: 3, receivedAt: STAMP.toISOString(), late: false, keyFingerprint: "f".repeat(64), receiptDigest: "d".repeat(64), demonstration: false, alternativeNotConsidered: false };
 
 beforeEach(() => {
   vi.unstubAllEnvs();
@@ -108,7 +108,7 @@ describe("the submit route", () => {
   it("takes the stamp after the body is read and before the password is checked, then submits with them both", async () => {
     const res = await submit(post("submit", { ...GOOD, replacesOnlineBidId: "replaced_0001" }));
     const body = await res.json();
-    expect([res.status, body.ok, body.receipt.sequence, body.receipt.receiptDigest]).toEqual([201, true, 3, "d".repeat(64)]);
+    expect([res.status, body.ok, body.receipt.submissionNumber, body.receipt.receiptDigest]).toEqual([201, true, 3, "d".repeat(64)]);
     expect(h.order).toEqual(["stamp", "password", "store"]);
     const input = h.submit.mock.calls[0][1];
     expect(input).toMatchObject({ exerciseId: EX, kind: "BID", replacesOnlineBidId: "replaced_0001", parentOnlineBidId: null, fileIds: ["file_0000001"], stamp: STAMP, stepUpAt: new Date("2026-10-15T04:00:02.000Z") });

@@ -16,6 +16,7 @@ import { combineShares } from "@/lib/sealing/split";
 import { publishSealingFaults, publishSealingWords } from "@/lib/sealing/ceremony";
 import { onlineSubmissionAllowed } from "@/lib/sealing/switch";
 import { rekeyAfterRosterChange } from "@/lib/sealing/store";
+import { FreezeRefused, freezeOnlineSealing } from "@/lib/sealing/freeze-store";
 import { loadSealingFacts } from "@/lib/window/repo";
 import { facts, makeAccount, makeSupplierAccount, randomId, setPolicy, SETTINGS } from "@/lib/test-db/auth-fixtures";
 
@@ -148,6 +149,11 @@ describe("setting a share", () => {
     expect(await share(ex.id, a, { [actFieldNames("personId").password]: "not the password" })).toMatchObject({ ok: false });
     expect(await db.officerExerciseKey.count({ where: { exerciseId: ex.id } })).toBe(0);
     expect(await db.exerciseSealingKey.count({ where: { exerciseId: ex.id } })).toBe(0);
+    // Every refusal by a signed-in actor leaves one sealed-access row (ADR 0036), and none is a grant.
+    const refusedRows = await db.sealedAccessEvent.findMany({ where: { exerciseId: ex.id }, select: { kind: true, outcome: true, reasonCode: true, staffPersonId: true } });
+    expect(refusedRows.filter((r) => r.staffPersonId === admin.person.id)).toEqual([{ kind: "SHARE_SET", outcome: "REFUSED", reasonCode: "ADMINISTRATOR", staffPersonId: admin.person.id }]);
+    expect(refusedRows.filter((r) => r.staffPersonId === stranger.person.id)).toEqual([{ kind: "SHARE_SET", outcome: "REFUSED", reasonCode: "NOT_NAMED_OFFICER", staffPersonId: stranger.person.id }]);
+    expect(refusedRows.every((r) => r.outcome === "REFUSED")).toBe(true);
   });
 
   it("the last officer's setting makes the key; the shares recombine to its private key, and nothing secret is in an audit row", async () => {
@@ -270,13 +276,41 @@ describe("a roster change before publication", () => {
 });
 
 describe("a published exercise", () => {
-  /// What publication writes for sealing (`publishWindow`), written by hand: the window's own gates are not under test here.
-  async function publish(ex: { id: string }) {
+  const RULES = [{ packPartId: "part-1", label: "Bill of quantities", mandatory: true, returnedByBidder: true, acceptedMediaTypes: ["application/pdf"], maxBytes: "1000000", openingCheck: false }];
+  const freeze = (id: string, now = new Date()) =>
+    db.$transaction((tx) => freezeOnlineSealing(tx, { organisationId, exerciseId: id, mode: "DEMONSTRATION", rules: RULES, now, actor: { kind: "SYSTEM", label: "key.db.test" }, entityLabel: "KC · How bids are submitted" }));
+
+  /// What publication writes for sealing: the real freeze (`freezeOnlineSealing`, the one `publishWindow` calls, before the move), then the move.
+  async function publish(ex: { id: string }, status: "ADVERTISED" | "INVITED" = "ADVERTISED") {
     const live = await db.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null } });
-    await db.sourcingExercise.update({ where: { id: ex.id }, data: { onlineSubmissionMode: "DEMONSTRATION", onlineBidRules: { v: 1, frozenAt: new Date().toISOString(), parts: [] }, publishedKeyFingerprint: live.fingerprint } });
-    await db.sourcingExercise.update({ where: { id: ex.id }, data: { status: "ADVERTISED" } });
+    await freeze(ex.id);
+    await db.sourcingExercise.update({ where: { id: ex.id }, data: { status } });
     return live;
   }
+
+  it.each(["ADVERTISED", "INVITED"] as const)("the publication freeze (%s path) sets the mode, the rules and the fingerprint together, then the exercise moves and a re-key is recorded", async (status) => {
+    const ex = await exerciseWith(2);
+    for (const o of ex.officers) await share(ex.id, o);
+    const live = await publish(ex, status);
+    const row = await db.sourcingExercise.findUniqueOrThrow({ where: { id: ex.id } });
+    expect(row).toMatchObject({ status, onlineSubmissionMode: "DEMONSTRATION", publishedKeyFingerprint: live.fingerprint });
+    expect(row.onlineBidRules).toMatchObject({ v: 1, parts: [{ packPartId: "part-1", returnedByBidder: true }] });
+    expect(await db.auditEntry.count({ where: { entity: "SourcingExercise", entityId: ex.id, entityLabel: { contains: "How bids are submitted" } } })).toBe(1);
+    const [a] = ex.officers;
+    who.actor = a.actor;
+    expect(await rekeyExercise({ ok: false }, form({ exerciseId: ex.id, reason: "After the freeze", [actFieldNames("personId").password]: a.password }))).toMatchObject({ ok: true });
+    const change = await db.publishedKeyChange.findFirstOrThrow({ where: { exerciseId: ex.id } });
+    expect(change.fromFingerprint).toBe(live.fingerprint);
+  }, 90_000);
+
+  it("a freeze after the move is refused by the database and said in words, not thrown; one with no live key is out of date", async () => {
+    const ex = await exerciseWith(2);
+    for (const o of ex.officers) await share(ex.id, o);
+    await db.sourcingExercise.update({ where: { id: ex.id }, data: { status: "ADVERTISED" } });
+    await expect(freeze(ex.id)).rejects.toMatchObject({ constructor: FreezeRefused, changed: false, message: expect.stringContaining("Not published") });
+    const bare = await exerciseWith(2);
+    await expect(freeze(bare.id)).rejects.toMatchObject({ changed: true });
+  }, 90_000);
 
   it("re-keys before any bid: the old shares read NULL, the change row exists, the fingerprint is re-frozen, and only a named officer, with a reason, may", async () => {
     const ex = await exerciseWith(2);
@@ -311,6 +345,11 @@ describe("a published exercise", () => {
     a.passphrase = `a replacement passphrase ${randomId()}`;
     expect(await share(ex.id, a)).toMatchObject({ ok: true });
     expect(await db.publishedKeyChange.count({ where: { exerciseId: ex.id, fromKeyId: old.id } })).toBe(1);
+    // The change row carries no second signature (one password entry signs one act): it names the signed share that caused it (review of stage B).
+    const change = await db.publishedKeyChange.findFirstOrThrow({ where: { exerciseId: ex.id, fromKeyId: old.id } });
+    expect(change.viaOfficerKeyId).not.toBeNull();
+    expect(await db.actAttribution.count({ where: { organisationId, entity: "OfficerExerciseKey", entityId: change.viaOfficerKeyId!, slot: "person" } })).toBe(1);
+    expect(await db.publishedKeyChange.count({ where: { exerciseId: ex.id, viaOfficerKeyId: null } })).toBe(0);
     const late = await signedIn();
     const row = await db.exerciseOpeningOfficer.create({ data: { organisationId, exerciseId: ex.id, personId: late.person.id, seatLabelSnapshot: "Late", namedAt: new Date(), namedByPersonId: late.person.id } });
     expect(await share(ex.id, { ...late, rosterId: row.id, passphrase: "a late officer passphrase" })).toMatchObject({ ok: false, message: expect.stringContaining("named after the exercise was published") });

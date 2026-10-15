@@ -216,6 +216,20 @@ describe("discarding a part", () => {
     // A discarded draft frees its place.
     expect((await factsFor(actor)).draftFiles).toBe(0);
   });
+  it("a discard that meets a submission taking the same draft is refused in words (FILE_NOT_DRAFT), not thrown as the database's refusal", async () => {
+    const { actor } = await supplier();
+    const { fileId } = await upload(actor);
+    let discarding: ReturnType<typeof discardPart> | null = null;
+    // The submission row-locks the draft and holds it while the discard reads it as a draft and tries to move it.
+    await db.$transaction(async (tx) => {
+      await tx.onlineBidFile.update({ where: { id: fileId }, data: { state: "SUBMITTED" } });
+      discarding = discardPart(actor, { exerciseId, fileId });
+      await new Promise((r) => setTimeout(r, 1500));
+    });
+    expect(await discarding!).toEqual({ ok: false, reason: "FILE_NOT_DRAFT" });
+    expect((await db.onlineBidFile.findUniqueOrThrow({ where: { id: fileId } })).state).toBe("SUBMITTED");
+    expect(await db.sealedAccessEvent.count({ where: { exerciseId, recordId: fileId, kind: "PART_DISCARD", outcome: "REFUSED", reasonCode: "FILE_NOT_DRAFT" } })).toBe(1);
+  });
   it("another supplier's file, and a file that does not exist, are not found, and nothing changes", async () => {
     const mine = await supplier();
     const theirs = await supplier();

@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
-import { staffForAct, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, staffForAct, toAuditActor } from "@/app/_auth/actor";
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
@@ -18,7 +18,7 @@ import { sealingPepper } from "@/lib/integration/sealing-deployment";
 import { passphraseFaults, PASSPHRASE_WORDS } from "@/lib/sealing/ceremony";
 import { makeOfficerKey } from "@/lib/sealing/ceremony-seal";
 import { pepperForWrapFault, PEPPER_WRAP_WORDS, REKEY_WORDS, rekeyRefusals, SHARE_WORDS, shareFaults } from "@/lib/sealing/share";
-import { loadCeremony, logCeremonyEvent, makeKeyIfComplete, rekeyKey, retireExerciseKey, retireOfficerKey, sealedSqlState } from "@/lib/sealing/store";
+import { loadCeremony, logCeremonyEvent, logCeremonyRefusal, makeKeyIfComplete, rekeyKey, retireExerciseKey, retireOfficerKey, sealedSqlState } from "@/lib/sealing/store";
 import { withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 
@@ -86,7 +86,11 @@ const labelOf = (l: LockedExercise, what: string) => `${l.ex.reference} · ${wha
  */
 export async function setOfficerShare(_prev: FormState, data: FormData): Promise<FormState> {
   const guard = await staffForAct("UNSEAL");
-  if (!guard.ok) return guard.state;
+  if (!guard.ok) {
+    const who = await requireStaff();
+    await logCeremonyRefusal(db, { organisationId: who.organisationId, exerciseId: exerciseIdOf(data), kind: "SHARE_SET", staffPersonId: who.personId, reasonCode: "ADMINISTRATOR" });
+    return guard.state;
+  }
   const actor = guard.actor;
   const exerciseId = exerciseIdOf(data);
   const passphrase = text(data, "passphrase");
@@ -94,7 +98,11 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
   const signInPassword = text(data, actFieldNames("personId").password);
 
   const row = await db.exerciseOpeningOfficer.findFirst({ where: { exerciseId, organisationId: actor.organisationId, personId: actor.personId, endedAt: null }, select: { id: true } });
-  if (!row) return { ok: false, message: SHARE_WORDS.NOT_NAMED_OFFICER };
+  const refuse = (kind: "SHARE_SET" | "KEY_RETIRED", reasonCode: string) => logCeremonyRefusal(db, { organisationId: actor.organisationId, exerciseId, kind, staffPersonId: actor.personId, reasonCode });
+  if (!row) {
+    await refuse("SHARE_SET", "NOT_NAMED_OFFICER");
+    return { ok: false, message: SHARE_WORDS.NOT_NAMED_OFFICER };
+  }
 
   if (passphrase.length > MAX_PASSPHRASE_CHARACTERS) return { ok: false, errors: { passphrase: "That passphrase is too long." } };
   const policy = await loadSecurityPolicy(db, actor.organisationId);
@@ -119,13 +127,17 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
   const officerKeyId = randomUUID();
   const wrapped = await makeOfficerKey({ organisationId: actor.organisationId, exerciseId, officerKeyId, rosterRowId: row.id, passphrase, pepper });
 
-  return inExercise(actor, exerciseId, async (tx, l) => {
+  const refusal = { code: null as string | null };
+  const out = await inExercise(actor, exerciseId, async (tx, l) => {
     const now = new Date();
     const facts = await loadCeremony(tx, l.org.id, exerciseId);
     const mine = facts.roster.find((r) => r.id === row.id);
     const own = facts.officerKeys.find((k) => k.openingOfficerId === row.id) ?? null;
     const refused = shareFaults({ channel: l.ex.submissionChannel, status: l.ex.status, namedOfficer: !!mine && mine.personId === actor.personId, now, closing: l.ex.closingAt, published: facts.published, hasLiveShare: facts.shareHolderRowIds.includes(row.id), submissions: facts.submissions });
-    if (refused.length) return { ok: false, message: `Nothing was saved: ${refused.map((f) => SHARE_WORDS[f]).join(" ")}` };
+    if (refused.length) {
+      refusal.code = refused[0];
+      return { ok: false, message: `Nothing was saved: ${refused.map((f) => SHARE_WORDS[f]).join(" ")}` };
+    }
 
     const reason = own ? "The officer set a new passphrase" : "";
     if (own) await retireOfficerKey(tx, l.org.id, own.id, reason, now);
@@ -151,7 +163,7 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
     let madeFingerprint: string | null = null;
     if (facts.published) {
       // A published exercise: a new share is a recorded key change (the old key is retired with its shares shredded, the drafts under it discarded, the new key made).
-      const changed = await rekeyKey(tx, { organisationId: l.org.id, exerciseId, reason: "An opening officer set a new passphrase", now, byPersonId: actor.personId });
+      const changed = await rekeyKey(tx, { organisationId: l.org.id, exerciseId, reason: "An opening officer set a new passphrase", now, byPersonId: actor.personId, viaOfficerKeyId: officerKeyId });
       if (!changed) throw new RolledBack({ ok: false, message: `Nothing was saved: ${REKEY_WORDS.KEY_STALE}` });
       madeFingerprint = changed.made.fingerprint;
       await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, labelOf(l, "Key change"), "UPDATE", diffFields({ keyFingerprint: changed.from.fingerprint, draftsDiscarded: null }, { keyFingerprint: changed.made.fingerprint, draftsDiscarded: changed.discarded }), "An opening officer set a new passphrase");
@@ -185,6 +197,8 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
     const n = after.state.missing.length;
     return { ok: true, message: `Your share is set. ${n === 0 ? "At least two opening officers must be named before the key can be made." : n === 1 ? "One officer has still to set theirs." : `${n} officers have still to set theirs.`} Every named officer is needed to open the bids, and a forgotten passphrase cannot be recovered.` };
   });
+  if (refusal.code) await refuse("SHARE_SET", refusal.code);
+  return out;
 }
 
 /**
@@ -194,7 +208,11 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
  */
 export async function rekeyExercise(_prev: FormState, data: FormData): Promise<FormState> {
   const guard = await staffForAct("UNSEAL");
-  if (!guard.ok) return guard.state;
+  if (!guard.ok) {
+    const who = await requireStaff();
+    await logCeremonyRefusal(db, { organisationId: who.organisationId, exerciseId: exerciseIdOf(data), kind: "KEY_RETIRED", staffPersonId: who.personId, reasonCode: "ADMINISTRATOR" });
+    return guard.state;
+  }
   const actor = guard.actor;
   const exerciseId = exerciseIdOf(data);
   const reason = text(data, "reason").trim();
@@ -205,17 +223,23 @@ export async function rekeyExercise(_prev: FormState, data: FormData): Promise<F
   if (!begun.ok) return begun.state;
   const act = begun.act;
 
-  return inExercise(actor, exerciseId, async (tx, l) => {
+  const refusal = { code: null as string | null };
+  const out = await inExercise(actor, exerciseId, async (tx, l) => {
     const now = new Date();
     const facts = await loadCeremony(tx, l.org.id, exerciseId);
     const mine = facts.roster.find((r) => r.personId === actor.personId) ?? null;
     const refused = rekeyRefusals({ channel: l.ex.submissionChannel, status: l.ex.status, published: facts.published, namedOfficer: !!mine, reason, hasLiveKey: !!facts.liveKey, officers: facts.roster.length, stale: facts.state.stale, submissions: facts.submissions, now, closing: l.ex.closingAt });
-    if (refused.length) return { ok: false, message: `Nothing was saved: ${refused.map((f) => REKEY_WORDS[f]).join(" ")}` };
+    if (refused.length) {
+      refusal.code = refused[0];
+      return { ok: false, message: `Nothing was saved: ${refused.map((f) => REKEY_WORDS[f]).join(" ")}` };
+    }
     const changed = await rekeyKey(tx, { organisationId: l.org.id, exerciseId, reason, now, byPersonId: actor.personId });
     if (!changed || !changed.changeId) throw new RolledBack({ ok: false, message: `Nothing was saved: ${REKEY_WORDS.KEY_STALE}` });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseSealingKey", changed.made.keyId, labelOf(l, "Exercise key"), "CREATE", diffFields(null, { keyFingerprint: changed.made.fingerprint, officersHoldingShares: changed.made.officerCount, replacesFingerprint: changed.from.fingerprint, draftsDiscarded: changed.discarded }), reason);
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, labelOf(l, "Key change"), "UPDATE", diffFields({ publishedKeyFingerprint: changed.from.fingerprint }, { publishedKeyFingerprint: changed.made.fingerprint }), reason);
     await act.write(tx, changed.changeId, { document: { entity: "SourcingExercise", id: exerciseId }, roleCode: mine!.seatLabel });
-    return { ok: true, message: `The key is changed. ${changed.discarded === 0 ? "No supplier had a part waiting." : `${changed.discarded} part${changed.discarded === 1 ? "" : "s"} suppliers had uploaded under the old key ${changed.discarded === 1 ? "was" : "were"} discarded, and the supplier is told so on the submit page.`} A company estimate lodged under the old key must be lodged again.` };
+    return { ok: true, message: `The key is changed. ${changed.discarded === 0 ? "No supplier had a part waiting." : `${changed.discarded} part${changed.discarded === 1 ? "" : "s"} suppliers had uploaded under the old key ${changed.discarded === 1 ? "was" : "were"} discarded and recorded.`} A company estimate lodged under the old key must be lodged again.` };
   });
+  if (refusal.code) await logCeremonyRefusal(db, { organisationId: actor.organisationId, exerciseId, kind: "KEY_RETIRED", staffPersonId: actor.personId, reasonCode: refusal.code });
+  return out;
 }

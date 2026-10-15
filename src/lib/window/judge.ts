@@ -150,7 +150,7 @@ export function judgePublish(d: WindowData, ex: ExerciseForWindow, org: { timeZo
     // 6.8 (E-2): the model chosen, judged against the basis's route; pinned by the publication.
     evaluationModel: evaluationPin(d, ex),
     // SR-13: how bids are submitted, and for an online exercise the key, the rules, the switch and the pepper (one rule, `publishSealingFaults`).
-    sealing: publishSealingFaults({ channel: ex.submissionChannel, online: onlineSubmissionAllowed(d.sealing.mode, sealingDeployment(), "PUBLISH"), key: d.sealing.key, rules: d.sealing.rules, alternativesPermitted: w?.alternativesPermitted ?? null, pepperRequired: d.sealing.mode === "LIVE", pepperConfigured: d.sealing.pepper === "SET" }),
+    sealing: publishSealingFaults({ channel: ex.submissionChannel, online: onlineSubmissionAllowed(d.sealing.mode, sealingDeployment(), "PUBLISH"), key: d.sealing.key, rules: d.sealing.rules, alternativesPermitted: w?.alternativesPermitted ?? null, pepperRequired: d.sealing.mode === "LIVE", pepperConfigured: d.sealing.pepper === "SET", pepperChangedFor: d.sealing.pepperChangedFor }),
   };
   const ok = { state: "OK" as const, missing: [], unknown: [], stampMissing: false };
   const first = publishFaults({ ...base, template: ok });

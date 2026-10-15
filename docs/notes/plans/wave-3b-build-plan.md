@@ -794,7 +794,10 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - Submit or Replace, saying that a replace re-uploads every part;
   - a note before an alternative is submitted where it will not be considered;
   - the receipt with Print, in the 20j words;
-  - the DEMONSTRATION banner, and the D13 claims.
+  - the DEMONSTRATION banner, and the D13 claims;
+  - **(moved here from step 8, review of stage B, 2026-10-15) the discarded drafts:** when drafts were discarded because the key was changed, the submit page says so in `Words`,
+    reading the `PublishedKeyChange` rows of the exercise, and names the fingerprint the draft was sealed to and the one now live. Done when a DB or handler test re-keys an
+    exercise with a supplier's draft waiting and the page's data carries that notice for that supplier only.
 - **My Bids:**
   - each submission's sequence, stamp, status and receipt digest;
   - Withdraw, listing the linked alternatives with tick boxes;
@@ -806,6 +809,9 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - `check-ui` passes;
   - a text snapshot is taken;
   - no arithmetic runs in a component;
+  - **(moved here from step 8) the opportunity shows the fingerprint's history:** the supplier's opportunity page lists the exercise's `PublishedKeyChange` rows (when, from and to
+    fingerprint; never the reason or the officer) beside the fingerprint on every receipt. Done when a supplier-side read test shows a supplier sees the history of an exercise it
+    may see and not another's, and the staff `KeySection` and the supplier list agree on the rows;
   - **every supplier-facing string on these screens is `Words`, in both languages (20ab).** That includes the DEMONSTRATION banner:
     `DEMONSTRATION_WORDS` (`src/lib/sealing/switch.ts`) is an English string today and becomes `Words` here, with its callers on staff
     screens reading `.en`. The `STAMP_STALE` and `NOT_TAKEN` words show where the handler returns them.
@@ -865,6 +871,9 @@ Each step leaves `npm test`, `npm run typecheck` and `npm run lint` green.
   - writes `OfficerDekGrant` for each named officer: OPENING_CHECK for opening-check files; FINALISE for the other files of opened bids,
     each declaration and the estimate;
   - shreds the releases and zeroes *k*.
+- **(moved here from step 8, §1.5a) `checkUnlock`:** a named officer may test their passphrase against their own wrapped key before the opening, without releasing a share. It is
+  counted toward the passphrase lockout, never toward the sign-in lockout, writes an `UNLOCK_CHECK` event, and a pepper this copy does not hold is `PEPPER_NOT_HELD` and does not
+  count (20v). Done when a DB test shows a right passphrase, a wrong one counted, the lock, and an unheld pepper not counted.
 - **Lapsing** shreds the releases (C-2).
 - **A supplementary opening** follows the same pattern for its one admitted late bid.
 - **Done when** the DB tests show:

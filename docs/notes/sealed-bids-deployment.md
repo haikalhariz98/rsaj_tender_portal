@@ -75,3 +75,11 @@ The product's sealed access log records every attempt by a signed-in person; whe
 product does not write it to that log: an anonymous flood could otherwise fill it.
 
 Such anonymous refusals are left to the edge access log, if the deployment keeps one: the method, path and status of each request, and never a body.
+
+## The upload routes and the proxy
+
+The multipart upload routes (`/supplier/bids/part`, the registration upload and the two company uploads) are left out of Next's proxy by the matcher in `src/proxy.ts`. Next buffers
+a proxied body whole in memory before the route runs and cuts it at 10 MB (`proxyClientMaxBodySize`), which would defeat the route's own guards (answered before a byte of the body
+is read, a deadline, a minimum rate) and refuse an honest part between 10 MB and the part's own limit. Those routes now run their own guards first. The product's read deadline and
+minimum rate apply to the body as it arrives, but they cannot see a connection that sends nothing at all: **the reverse proxy in front of the public copy must enforce its own
+header and body read timeout** (and a maximum body size no larger than the largest part rule), so a stalled connection is cut at the edge. This is the deployment's, not the product's.

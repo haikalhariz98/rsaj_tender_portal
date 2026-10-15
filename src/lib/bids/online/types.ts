@@ -29,7 +29,7 @@ export interface Manifest {
 export interface FileMeta { v: 1; filename: string; mediaType: string; plainSha256: string; plainBytes: string }
 
 /// "Your receipt. It records what the portal told you." Never "signed" or "proof" (20j).
-export interface Receipt { exerciseId: string; sequence: number; receivedAt: string; late: boolean; keyFingerprint: string; receiptDigest: string; demonstration: boolean; alternativeNotConsidered: boolean }
+export interface Receipt { exerciseId: string; /** The supplier's own count of its submissions on this exercise. Never the exercise-wide envelope sequence (a rival count). */ submissionNumber: number; receivedAt: string; late: boolean; keyFingerprint: string; receiptDigest: string; demonstration: boolean; alternativeNotConsidered: boolean }
 
 export type SubmitFault =
   | "CHANNEL_NOT_ONLINE" | "ONLINE_NOT_SET" | "ONLINE_NOT_ALLOWED" | "NOT_PUBLISHED" | "CANCELLED" | "KEY_NOT_LIVE"

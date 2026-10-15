@@ -69,6 +69,13 @@ describe("publication's sealing refusals (D1, D3, D7, 20h, 20o, 20v)", () => {
     expect(words.size).toBe(10);
   });
 
+  it("refuses a LIVE publication when an officer's share was set under a pepper this copy no longer holds, naming them, and only under LIVE (security audit of stage B)", () => {
+    expect(codes({ pepperChangedFor: ["Aminah"] })).toEqual(["PEPPER_CHANGED"]);
+    expect(codes({ pepperRequired: false, pepperChangedFor: ["Aminah"] })).toEqual([]);
+    expect(codes({ pepperChangedFor: [] })).toEqual([]);
+    expect(publishSealingWords({ code: "PEPPER_CHANGED", level: "block", data: { label: "Aminah, Bakar" } })).toContain("Aminah, Bakar");
+  });
+
   // Ruling 20z: the channel unset says why and where, as the sale mode's words do, so the refusal is never a dead end (ruling 13).
   it("the channel not set says why, and where to take it or set it", () => {
     const text = publishSealingWords({ code: "CHANNEL_NOT_SET", level: "block" });

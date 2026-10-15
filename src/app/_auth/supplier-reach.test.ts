@@ -297,7 +297,9 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
     const code = lex(f.src, { only: "comments" });
     expect(code).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId|uploadedAt)["']\s*\)/);
     const store = lex(read("lib/bids/online/upload-store.ts"), { only: "comments" });
-    expect(store).not.toMatch(/(?:fields|body|params|searchParams|form)\??\.\s*(?:supplierId|organisationId|accountId)b/);
+    expect(store).not.toMatch(/(?:fields|body|params|searchParams|form)\??\.\s*(?:supplierId|organisationId|accountId)\b/);
+    // The pattern can fail: it matches a store that does read the id from the request (a fixture, so the assertion above is shown not to be a no-op).
+    expect("const s = form.supplierId;").toMatch(/(?:fields|body|params|searchParams|form)\??\.\s*(?:supplierId|organisationId|accountId)\b/);
     expect(read("lib/bids/online/upload-store.ts")).toMatch(/actor\.supplierId/);
   });
 

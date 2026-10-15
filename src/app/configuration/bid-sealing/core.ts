@@ -6,6 +6,7 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import type { OnlineSubmissionMode } from "@/lib/bids/online/types";
+import { dayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { malwareScanner } from "@/lib/documents/store";
 import {
@@ -31,7 +32,10 @@ import { FormReader } from "@/lib/validate";
 const PATH = "/configuration/bid-sealing";
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const NOT_SET = "Not set";
-const dateWords = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+const PROVENANCE_WORDS: Record<(typeof PROVENANCE)[number], string> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
+const prov = (p: string | null | undefined) => (p ? (PROVENANCE_WORDS[p as (typeof PROVENANCE)[number]] ?? NOT_SET) : NOT_SET);
+/// The day as the organisation reads it (its own zone), never the UTC day: a reference recorded before 08:00 in Malaysia is still that morning's date.
+const dayWords = (d: Date | null, timeZone: string | null) => (d ? dayIn(d, timeZone) : null);
 
 export async function saveBidSealingPolicy(
   _prev: FormState,
@@ -108,6 +112,13 @@ export async function saveBidSealingPolicy(
       })
     : null;
   if (hardeningAct && !hardeningAct.ok) return hardeningAct.state;
+  // An attestation is the proposer's own (security review of stage B): the form's hidden field names the person, and a name other than the signed-in person's is refused here, so a
+  // must-have condition of LIVE never reads as attested by someone who did not touch the form.
+  for (const act of [publicAct, hardeningAct]) {
+    if (act?.ok && act.act.subjectPersonId !== actor.personId) {
+      return { ok: false, message: "An attestation is made by the person who records it. Sign in as the person who can state this, and record it yourself." };
+    }
+  }
   const publicBy = publicAct?.ok
     ? publicAct.act.subjectPersonId
     : actor.personId;
@@ -219,26 +230,27 @@ export async function saveBidSealingPolicy(
           })
         ).map((p) => [p.id, p.name]),
       );
+      const zone = (await tx.organisation.findUnique({ where: { id: actor.organisationId }, select: { timeZone: true } }))?.timeZone ?? null;
       const words = (p: typeof row | NonNullable<typeof before> | null) =>
         p
           ? {
               onlineSubmission: sealingModeWords(p.onlineSubmission),
               cryptoReview: p.cryptoReviewReference
-                ? `${p.cryptoReviewReference} (recorded ${dateWords(p.cryptoReviewRecordedAt)})`
+                ? `${p.cryptoReviewReference} (recorded ${dayWords(p.cryptoReviewRecordedAt, zone)})`
                 : NOT_SET,
               procedureAmendment: p.procedureAmendmentReference
-                ? `${p.procedureAmendmentReference} (recorded ${dateWords(p.procedureAmendmentRecordedAt)})`
+                ? `${p.procedureAmendmentReference} (recorded ${dayWords(p.procedureAmendmentRecordedAt, zone)})`
                 : NOT_SET,
               customerAcceptance: p.customerAcceptanceReference
-                ? `${p.customerAcceptanceReference} (recorded ${dateWords(p.customerAcceptanceRecordedAt)})`
+                ? `${p.customerAcceptanceReference} (recorded ${dayWords(p.customerAcceptanceRecordedAt, zone)})`
                 : NOT_SET,
               publicCopyRole: p.publicRoleAttestation
-                ? `Attested, not checked by the portal: ${p.publicRoleAttestation} (${names.get(p.publicRoleAttestedByPersonId ?? "") ?? "a person"}, ${dateWords(p.publicRoleAttestedAt)})`
+                ? `Attested, not checked by the portal: ${p.publicRoleAttestation} (${names.get(p.publicRoleAttestedByPersonId ?? "") ?? "a person"}, ${dayWords(p.publicRoleAttestedAt, zone)})`
                 : NOT_SET,
               hardening: p.hardeningAttestation
-                ? `Attested, not checked by the portal: ${p.hardeningAttestation} (${names.get(p.hardeningAttestedByPersonId ?? "") ?? "a person"}, ${dateWords(p.hardeningAttestedAt)})`
+                ? `Attested, not checked by the portal: ${p.hardeningAttestation} (${names.get(p.hardeningAttestedByPersonId ?? "") ?? "a person"}, ${dayWords(p.hardeningAttestedAt, zone)})`
                 : NOT_SET,
-              whereItComesFrom: p.provenance ?? NOT_SET,
+              whereItComesFrom: prov(p.provenance),
               notes: p.notes || null,
             }
           : null;

@@ -50,6 +50,14 @@ export async function logCeremonyEvent(tx: Tx, i: { organisationId: string; exer
   await tx.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, outcome: "GRANTED", reasonCode: i.reasonCode ?? "", staffPersonId: i.staffPersonId, recordId: i.recordId, at: i.at } });
 }
 
+/// A refused attempt at the ceremony (ADR 0036: every attempt by a signed-in actor leaves a row, a refusal too), outside the refused transaction. Written only where the exercise is
+/// the organisation's: naming one that is not leaves nothing. `reasonCode` is the rule that refused, never a secret.
+export async function logCeremonyRefusal(client: Pick<Tx, "sourcingExercise" | "sealedAccessEvent">, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_RETIRED"; staffPersonId: string; reasonCode: string }): Promise<void> {
+  const ex = await client.sourcingExercise.findFirst({ where: { id: i.exerciseId, organisationId: i.organisationId }, select: { id: true } });
+  if (!ex) return;
+  await client.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: ex.id, kind: i.kind, outcome: "REFUSED", reasonCode: i.reasonCode, staffPersonId: i.staffPersonId, at: new Date() } });
+}
+
 /// Retires an exercise key and shreds every share of it, in the same transaction (rulings 20g, D11). The shares are ended with the reason; their sealed column becomes NULL.
 export async function retireExerciseKey(tx: Tx, organisationId: string, keyId: string, reason: string, now: Date): Promise<void> {
   await tx.exerciseSealingKey.update({ where: { id: keyId, organisationId }, data: { retiredAt: now, retiredReason: reason } });
@@ -126,7 +134,7 @@ export function sealedSqlState(e: unknown): string | null {
  *  4. after publication, the append-only `PublishedKeyChange` is written, and only then the published fingerprint is re-frozen.
  * The caller has judged `rekeyFaults`; the closing and the one-live-key rules are the database's again. Returns null when the new key could not be made (an officer lacks a key).
  */
-export async function rekeyKey(tx: Tx, i: { organisationId: string; exerciseId: string; reason: string; now: Date; byPersonId: string }): Promise<{ from: LiveExerciseKey; made: MadeKey; discarded: number; published: boolean; changeId: string | null } | null> {
+export async function rekeyKey(tx: Tx, i: { organisationId: string; exerciseId: string; reason: string; now: Date; byPersonId: string; /** The officer key whose signed setting caused this change (`setOfficerShare`); absent for `rekeyExercise`, which signs the change row itself. */ viaOfficerKeyId?: string }): Promise<{ from: LiveExerciseKey; made: MadeKey; discarded: number; published: boolean; changeId: string | null } | null> {
   const before = await loadCeremony(tx, i.organisationId, i.exerciseId);
   if (!before.liveKey) return null;
   const old = before.liveKey;
@@ -136,7 +144,7 @@ export async function rekeyKey(tx: Tx, i: { organisationId: string; exerciseId: 
   if (!made) return null;
   let changeId: string | null = null;
   if (before.published) {
-    const change = await tx.publishedKeyChange.create({ data: { organisationId: i.organisationId, exerciseId: i.exerciseId, fromKeyId: old.id, toKeyId: made.keyId, fromFingerprint: old.fingerprint, toFingerprint: made.fingerprint, reason: i.reason, byPersonId: i.byPersonId, at: i.now } });
+    const change = await tx.publishedKeyChange.create({ data: { organisationId: i.organisationId, exerciseId: i.exerciseId, fromKeyId: old.id, toKeyId: made.keyId, fromFingerprint: old.fingerprint, toFingerprint: made.fingerprint, reason: i.reason, ...(i.viaOfficerKeyId ? { viaOfficerKeyId: i.viaOfficerKeyId } : {}), byPersonId: i.byPersonId, at: i.now } });
     changeId = change.id;
     await tx.sourcingExercise.update({ where: { id: i.exerciseId, organisationId: i.organisationId }, data: { publishedKeyFingerprint: made.fingerprint } });
   }

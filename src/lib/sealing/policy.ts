@@ -7,6 +7,8 @@
 
 import { liveIssueFaults, type LiveIssueFault } from "./switch";
 import type { OnlineSubmissionMode } from "@/lib/bids/online/types";
+import type { ExerciseStatus } from "@/lib/method/types";
+import { isPublished } from "@/lib/window/phase";
 
 /// The stamp a recorded text takes when it is saved: unchanged keeps its stamp, cleared loses it, changed takes `now`. Spaces only is cleared.
 export function stampFor(before: { text: string; at: Date | null }, afterText: string, now: Date): Date | null {
@@ -39,7 +41,6 @@ export const sealingModeWords = (m: OnlineSubmissionMode | null): string => SEAL
 
 /// What a withdrawn LIVE leaves running (ADR 0036 D1, ruling 20i): the published ONLINE exercises that still take bids. A late bid is taken until the main opening
 /// starts (20b), so an exercise past its closing still counts until then. A cancelled exercise takes none.
-const PUBLISHED = new Set(["ADVERTISED", "INVITED", "OPENING_IN_PROGRESS", "OPENED", "UNDER_EVALUATION", "EVALUATED"]);
 export function exercisesStillTakingBids<T extends { status: string; channel: string | null; mainOpeningStarted: boolean }>(rows: readonly T[]): T[] {
-  return rows.filter((r) => r.channel === "ONLINE" && PUBLISHED.has(r.status) && !r.mainOpeningStarted);
+  return rows.filter((r) => r.channel === "ONLINE" && isPublished(r.status as ExerciseStatus) && !r.mainOpeningStarted);
 }

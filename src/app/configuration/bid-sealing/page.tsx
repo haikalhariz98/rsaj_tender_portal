@@ -1,3 +1,5 @@
+import { EXERCISE_STATUSES } from "@/lib/method/types";
+import { isPublished } from "@/lib/window/phase";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -23,7 +25,8 @@ import { EditBidSealingPolicy } from "./editors";
 
 export const dynamic = "force-dynamic";
 
-const PUBLISHED = ["ADVERTISED", "INVITED", "OPENING_IN_PROGRESS", "OPENED", "UNDER_EVALUATION", "EVALUATED"] as const;
+/// The published statuses, from the one rule (`isPublished`), not restated.
+const PUBLISHED = EXERCISE_STATUSES.filter(isPublished);
 
 function Recorded({ text, at, by }: { text: string; at: Date | null; by?: string | null }) {
   if (!text) return <Badge tone="warn">Not recorded</Badge>;
@@ -43,7 +46,7 @@ export default async function BidSealingPage() {
   const [row, exercises] = await Promise.all([
     db.bidSealingPolicy.findUnique({ where: { organisationId: org }, include: { publicRoleAttestedBy: { select: { name: true } }, hardeningAttestedBy: { select: { name: true } } } }),
     db.sourcingExercise.findMany({
-      where: { organisationId: org, submissionChannel: "ONLINE", status: { in: [...PUBLISHED] }, ...(hidden.length ? { id: { notIn: hidden } } : {}) },
+      where: { organisationId: org, submissionChannel: "ONLINE", status: { in: PUBLISHED }, ...(hidden.length ? { id: { notIn: hidden } } : {}) },
       orderBy: { reference: "asc" },
       select: { id: true, reference: true, title: true, status: true, closingAt: true, onlineSubmissionMode: true, submissionChannel: true },
     }),

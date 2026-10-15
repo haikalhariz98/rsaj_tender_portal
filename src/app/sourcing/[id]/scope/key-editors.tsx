@@ -44,7 +44,7 @@ export function ChangeKeyDrawer({ exerciseId, allowed }: { exerciseId: string; a
   return (
     <RecordEditor
       title="Change the exercise key"
-      description="A new key is made across the officers' current shares. The old key and every share of it are destroyed, and any file a supplier has uploaded but not yet submitted is discarded (the supplier is told why). The change is recorded with its reason and shown on the opportunity. It is refused once a bid exists or the closing has passed."
+      description="A new key is made across the officers' current shares. The old key and every share of it are destroyed, and any file a supplier has uploaded but not yet submitted is discarded and recorded (the supplier is not yet told why on its own page: that comes with the supplier screens). The change is recorded with its reason and listed here. It is refused once a bid exists or the closing has passed."
       fields={[hidden("exerciseId"), { kind: "textarea", name: "reason", label: "Why the key is changed", required: true }, actorField("PublishedKeyChange.by", { name: "personId" })]}
       values={{ exerciseId }}
       action={rekeyExercise}

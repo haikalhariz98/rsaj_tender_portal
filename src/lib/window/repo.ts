@@ -140,13 +140,16 @@ export async function loadChannelSetting(organisationId: string, client: Tx = db
 export async function loadSealingFacts(organisationId: string, ex: { id: string; submissionChannel: import("@/lib/bids/online/types").SubmissionChannel | null; packKindSnapshot: import("@/lib/method/types").PackKind | null; contractBasisCode?: string | null }, client: Tx = db) {
   const policy = await client.bidSealingPolicy.findUnique({ where: { organisationId }, select: { onlineSubmission: true } });
   const mode = policy?.onlineSubmission ?? null;
-  const pepper = sealingPepper().status;
-  if (ex.submissionChannel !== "ONLINE") return { mode, pepper, key: keyState({ liveOfficerRowIds: [], officersWithKey: [], liveKey: null }), rules: [] as import("@/lib/bids/online/types").BidPartRule[] | null };
+  const reading = sealingPepper();
+  const pepper = reading.status;
+  if (ex.submissionChannel !== "ONLINE") return { mode, pepper, pepperChangedFor: [] as string[], key: keyState({ liveOfficerRowIds: [], officersWithKey: [], liveKey: null }), rules: [] as import("@/lib/bids/online/types").BidPartRule[] | null };
   const ceremony = await loadCeremony(client, organisationId, ex.id);
   const pack = await client.tenderPack.findFirst({ where: { exerciseId: ex.id, status: "APPROVED" }, orderBy: { versionNo: "desc" }, select: { parts: { select: { id: true, partCode: true, labelSnapshot: true, sortOrder: true, mandatory: true, returnedByBidder: true } } } });
   const configs = pack && ex.packKindSnapshot ? await client.tenderDocumentPart.findMany({ where: { organisationId, packKind: ex.packKindSnapshot, code: { in: pack.parts.map((p) => p.partCode) } }, select: { code: true, contractBasisCode: true, bidAcceptedMediaTypes: true, bidMaxBytes: true, openingCheck: true } }) : [];
   const rules = pack ? bidRulesFrom(pack.parts.map((p) => ({ id: p.id, partCode: p.partCode, label: p.labelSnapshot, sortOrder: p.sortOrder, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder })), configs, ex.contractBasisCode ?? null) : [];
-  return { mode, pepper, key: ceremony.state, rules };
+  // Under LIVE: each officer whose live share was wrapped under a pepper other than the one held now (no pepper at all is a different refusal, PA019 and PEPPER_NOT_SET).
+  const pepperChangedFor = mode === "LIVE" && reading.status === "SET" ? ceremony.officerKeys.filter((k) => k.pepperId !== reading.pepper.id).map((k) => ceremony.roster.find((r) => r.id === k.openingOfficerId)?.name ?? "an officer") : [];
+  return { mode, pepper, pepperChangedFor, key: ceremony.state, rules };
 }
 
 /// A window's events as the rules read them.

@@ -42,12 +42,10 @@ export function rateVerdict(action: RatedAction, count: number, now: Date): Rate
 /// A counter row older than this is of no use to the throttle and is removed by the next count.
 export const RATE_ROW_KEEP_SECONDS = 24 * 60 * 60;
 
-export const RATE_LIMITED_WORDS: Readonly<Record<RatedAction, string>> = {
+/// The bid actions' rate words are bilingual (`PART_ROUTE_WORDS`, `ACT_ROUTE_WORDS` in `lib/bids/online/words.ts`); only the actions without a Malay screen are here.
+export const RATE_LIMITED_WORDS: Readonly<Record<Exclude<RatedAction, "bid-part-upload" | "bid-submit" | "bid-withdraw">, string>> = {
   "document-download": "You have asked for a great many files in the last minute, so this one was not sent. Nothing was logged. Wait a minute and try again.",
   "payment-attempt": "You have tried to pay too many times in the last minute. Nothing was recorded. Wait a minute and try again.",
-  "bid-part-upload": "You have uploaded a great many files in the last minute, so this one was not taken. Wait a minute and try again. Only the time your bid is submitted decides whether it is late, not the time of an upload.",
-  "bid-submit": "You have tried to submit a great many times in the last minute, so this one was not taken. Wait a minute and try again. The time stamped when your submission is accepted decides whether it is late.",
-  "bid-withdraw": "You have tried to withdraw a great many times in the last minute, so this one was not taken. Wait a minute and try again. The time stamped when your withdrawal is accepted decides whether it is in time.",
 };
 
 /// Failed tries to pay on one purchase, after which no further try is taken.

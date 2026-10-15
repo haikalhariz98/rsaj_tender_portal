@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
+import { AttributionRefused } from "@/lib/auth/attribution-store";
 import { attributeSupplierAct } from "@/lib/auth/supplier-attribution-store";
 import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
@@ -10,6 +11,7 @@ import { lockEnvelopeRows } from "@/lib/bids/lock";
 import { lockExerciseSide } from "@/lib/portal/bids/lock";
 import { auditActorOf } from "@/lib/portal/bids/signup-store";
 import { sealSubmission } from "@/lib/sealing/bid-seal";
+import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { sealedSqlState } from "@/lib/sealing/store";
 
 import { submitFaultOfRefusal, withdrawFaultOfRefusal, type SubmitStep, type WithdrawStep } from "./act-refusal";
@@ -133,7 +135,7 @@ export async function submitBid(actor: SupplierActor, i: SubmitInput, hooks: Act
         },
       });
       const digest = receiptDigest({
-        exerciseId, sequence, receivedAt: i.stamp, keyFingerprint: key.fingerprint,
+        exerciseId, submissionNumber: mine.length + 1, receivedAt: i.stamp, keyFingerprint: key.fingerprint,
         manifestCipherSha256: sealed.manifestCipherSha256, declarationCipherSha256: sealed.declarationCipherSha256, fileCipherSha256s: ordered.map((f) => f.cipherSha256),
       });
 
@@ -216,7 +218,7 @@ export async function submitBid(actor: SupplierActor, i: SubmitInput, hooks: Act
         exerciseId,
         warnings: judged.warnings,
         receipt: {
-          exerciseId, sequence, receivedAt: envelope.receivedAt.toISOString(), late: envelope.late, keyFingerprint: key.fingerprint, receiptDigest: digest,
+          exerciseId, submissionNumber: mine.length + 1, receivedAt: envelope.receivedAt.toISOString(), late: envelope.late, keyFingerprint: key.fingerprint, receiptDigest: digest,
           demonstration: door.online.demonstration, alternativeNotConsidered: judged.alternativeNotConsidered,
         } satisfies Receipt,
       };
@@ -236,6 +238,12 @@ export async function submitBid(actor: SupplierActor, i: SubmitInput, hooks: Act
       console.error(`online submit refused by the database: ${state} at ${at.step}`);
       await logPartRefusal(actor, i.exerciseId, "SUBMIT", fault);
       return { ok: false, reason: "REFUSED", faults: [fault] };
+    }
+    // A stale password entry (a second tab confirmed again) or a transaction that ran out of time rolled back whole: said as "not taken, try again", never thrown.
+    if (e instanceof AttributionRefused || transactionTimedOut(e)) {
+      console.error(`online submit not taken: ${e instanceof AttributionRefused ? "attribution refused" : "transaction timed out"} at ${at.step}`);
+      await logPartRefusal(actor, i.exerciseId, "SUBMIT", "NOT_TAKEN");
+      return { ok: false, reason: "REFUSED", faults: ["NOT_TAKEN"] };
     }
     throw e;
   }
@@ -330,6 +338,11 @@ export async function withdrawBid(actor: SupplierActor, i: WithdrawInput, hooks:
       console.error(`online withdrawal refused by the database: ${state} at ${at.step}`);
       await logPartRefusal(actor, exerciseId, "WITHDRAW", fault);
       return { ok: false, reason: "REFUSED", faults: [fault] };
+    }
+    if (e instanceof AttributionRefused || transactionTimedOut(e)) {
+      console.error(`online withdrawal not taken: ${e instanceof AttributionRefused ? "attribution refused" : "transaction timed out"} at ${at.step}`);
+      await logPartRefusal(actor, exerciseId, "WITHDRAW", "NOT_TAKEN");
+      return { ok: false, reason: "REFUSED", faults: ["NOT_TAKEN"] };
     }
     throw e;
   }

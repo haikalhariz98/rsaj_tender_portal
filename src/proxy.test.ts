@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { STAFF_COOKIE, SUPPLIER_COOKIE } from "@/lib/auth/routes";
 
-import { proxy } from "./proxy";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+
+import { config, proxy } from "./proxy";
 
 const call = (url: string, init?: ConstructorParameters<typeof NextRequest>[1]) => proxy(new NextRequest(`http://portal.example${url}`, init));
 const passes = (res: Response) => res.headers.get("x-middleware-next") === "1";
@@ -127,5 +130,31 @@ describe("staff sign-in is not on the public copy (Phase 1a)", () => {
     expect(call("/supplier/register/submit", { method: "POST", headers: cookie }).status).toBe(404);
     expect(call("/", { headers: cookie }).status).toBe(404);
     expect(passes(call("/supplier"))).toBe(true);
+  });
+});
+
+describe("the proxy's matcher (a proxied body is buffered whole and cut at 10 MB before the route's guards run)", () => {
+  // Next compiles the matcher to a path pattern; for this shape it is the regex anchored at both ends.
+  const pattern = new RegExp(`^${config.matcher[0]}$`);
+  const runs = (path: string) => pattern.test(path);
+
+  it("leaves out every route that takes a multipart upload, and nothing else", () => {
+    const root = join(process.cwd(), "src", "app");
+    const uploads: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (name === "route.ts" && readFileSync(full, "utf8").includes("supplierUploadPost")) uploads.push("/" + relative(root, dir).split(sep).join("/"));
+      }
+    };
+    walk(root);
+    expect(uploads.length).toBeGreaterThanOrEqual(4);
+    for (const path of uploads) expect(runs(path), path).toBe(false);
+    expect(config.matcher[0].split("|").length).toBe(uploads.length);
+  });
+
+  it("still runs on the pages, the other posts, the API and the platform's files", () => {
+    for (const path of ["/", "/supplier", "/supplier/bids/submit", "/supplier/bids/part/discard", "/supplier/company/document/x", "/api/documents", "/_next/static/a.js", "/sourcing/abc"]) expect(runs(path), path).toBe(true);
   });
 });

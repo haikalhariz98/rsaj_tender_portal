@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { RECEIPT_DIGEST_VERSION, RECEIPT_WORDS, receiptDigest } from "./receipt";
 
 const h = (c: string) => c.repeat(64);
-const base = { exerciseId: "cmex0001", sequence: 7, receivedAt: new Date("2026-11-04T03:59:58Z"), keyFingerprint: h("f"), manifestCipherSha256: h("1"), declarationCipherSha256: h("2"), fileCipherSha256s: [h("a"), h("b")] };
+const base = { exerciseId: "cmex0001", submissionNumber: 7, receivedAt: new Date("2026-11-04T03:59:58Z"), keyFingerprint: h("f"), manifestCipherSha256: h("1"), declarationCipherSha256: h("2"), fileCipherSha256s: [h("a"), h("b")] };
 
 describe("the receipt digest (D5, H2)", () => {
   it("is SHA-256, 64 lower-case hex digits, over one versioned encoding a supplier can recompute", () => {
@@ -21,14 +21,14 @@ describe("the receipt digest (D5, H2)", () => {
 
   it("changes with every field", () => {
     const d = receiptDigest(base);
-    for (const over of [{ exerciseId: "cmex0002" }, { sequence: 8 }, { receivedAt: new Date("2026-11-04T03:59:59Z") }, { keyFingerprint: h("e") }, { manifestCipherSha256: h("3") }, { declarationCipherSha256: h("4") }, { fileCipherSha256s: [h("a")] }, { fileCipherSha256s: [h("a"), h("b"), h("c")] }]) {
+    for (const over of [{ exerciseId: "cmex0002" }, { submissionNumber: 8 }, { receivedAt: new Date("2026-11-04T03:59:59Z") }, { keyFingerprint: h("e") }, { manifestCipherSha256: h("3") }, { declarationCipherSha256: h("4") }, { fileCipherSha256s: [h("a")] }, { fileCipherSha256s: [h("a"), h("b"), h("c")] }]) {
       expect(receiptDigest({ ...base, ...over }), JSON.stringify(over)).not.toBe(d);
     }
   });
 
-  it("refuses a stamp that is not a whole second, a sequence below 1, and a digest that is not SHA-256 hex", () => {
+  it("refuses a stamp that is not a whole second, a submission number below 1, and a digest that is not SHA-256 hex", () => {
     expect(() => receiptDigest({ ...base, receivedAt: new Date("2026-11-04T03:59:58.500Z") })).toThrow(/whole second/);
-    expect(() => receiptDigest({ ...base, sequence: 0 })).toThrow(/sequence/);
+    expect(() => receiptDigest({ ...base, submissionNumber: 0 })).toThrow(/submission number/);
     expect(() => receiptDigest({ ...base, keyFingerprint: "F".repeat(64) })).toThrow(/hex/);
     expect(() => receiptDigest({ ...base, fileCipherSha256s: ["abc"] })).toThrow(/hex/);
   });

@@ -251,7 +251,7 @@ describe("each refusal says so in both languages and stores nothing", () => {
   });
   it("a key re-made between the read and the write is said as the rule, with nothing stored", async () => {
     h.loadFacts.mockResolvedValue(facts({ key: { id: "key_0000000", publicKey: pair.publicKey, fingerprint: "f".repeat(64) } }));
-    await refused(await upload(await sized()), 422, "KEY_NOT_LIVE");
+    await refused(await upload(await sized()), 409, "KEY_NOT_LIVE"); // 409, as PartRefused says (review of stage B): a conflict, not a malformed part
   });
 });
 
