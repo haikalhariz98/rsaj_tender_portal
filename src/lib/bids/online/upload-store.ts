@@ -8,7 +8,7 @@ import { blobStore, sha256Hex, type ScanResult } from "@/lib/documents/store";
 import { sealingDeployment } from "@/lib/integration/sealing-deployment";
 import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
 import type { ExerciseStatus } from "@/lib/method/types";
-import { loadBidContext } from "@/lib/portal/bids/context-store";
+import { loadBidContext, type BidContext } from "@/lib/portal/bids/context-store";
 import { MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE } from "@/lib/portal/bids/limits";
 import { auditActorOf } from "@/lib/portal/bids/signup-store";
 import { saleStands } from "@/lib/sales/standing";
@@ -52,9 +52,26 @@ function rulesOf(json: unknown): BidPartRule[] | null {
   return r && typeof r === "object" && r.v === 1 && Array.isArray(r.parts) ? r.parts : null;
 }
 
-/// The exercise's facts for one upload, or null where the supplier may not see it (another supplier's, another organisation's, not there): the route answers 404 and writes nothing.
-export async function loadUploadFacts(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, i: { exerciseId: string; packPartId: string }, now: Date = new Date()): Promise<UploadFacts | null> {
-  const ctx = await loadBidContext(tx, actor, i.exerciseId, now);
+/// What the doors of an online bid read of an exercise, for the supplier who may see it (step 9 for the part upload, step 10 for the submit). The sale is `saleStands`'s answer (17c, 20m).
+export interface DoorFacts {
+  ctx: BidContext;
+  channel: SubmissionChannel | null;
+  mode: OnlineSubmissionMode | null;
+  online: ReturnType<typeof onlineSubmissionAllowed>;
+  published: boolean;
+  cancelled: boolean;
+  key: { id: string; publicKey: Uint8Array; fingerprint: string } | null;
+  fingerprintMatches: boolean;
+  saleStands: boolean;
+  invitedPath: boolean;
+  onInviteeList: boolean;
+  mainOpeningStartedAt: Date | null;
+  rules: BidPartRule[] | null;
+}
+
+/// The exercise as the signed-in supplier may see it, or null where it may not (another supplier's, another organisation's, not there). Reads the live key and the main opening's start as they are in `tx`.
+export async function loadDoorFacts(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, exerciseId: string, now: Date = new Date()): Promise<DoorFacts | null> {
+  const ctx = await loadBidContext(tx, actor, exerciseId, now);
   if (!ctx) return null;
   const ex = await tx.sourcingExercise.findFirst({
     where: { id: ctx.ex.id, organisationId: actor.organisationId },
@@ -63,37 +80,56 @@ export async function loadUploadFacts(tx: Tx, actor: Pick<SupplierActor, "suppli
   if (!ex) return null;
   const status = ctx.ex.status as ExerciseStatus;
   const partyIds = ctx.parties.map((p) => p.id);
-  const [key, sales, opening, drafts] = await Promise.all([
+  const [key, sales, opening] = await Promise.all([
     tx.exerciseSealingKey.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, retiredAt: null }, select: { id: true, publicKey: true, fingerprint: true } }),
     ctx.ex.window && partyIds.length ? tx.documentSale.findMany({ where: { windowId: ctx.ex.window.id, organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { voidedAt: true, paymentChannel: true } }) : Promise.resolve([]),
     tx.opening.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, kind: "MAIN" }, select: { startedAt: true } }),
-    tx.onlineBidFile.count({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, supplierId: actor.supplierId, state: "DRAFT" } }),
   ]);
   const simulator = simulatorAllowedByDeployment();
-  const online = onlineSubmissionAllowed(ex.onlineSubmissionMode, sealingDeployment(), "SUBMIT");
-  const rules = rulesOf(ex.onlineBidRules);
-  const gate = uploadGateFaults({
+  return {
+    ctx,
     channel: ex.submissionChannel,
-    online,
+    mode: ex.onlineSubmissionMode,
+    online: onlineSubmissionAllowed(ex.onlineSubmissionMode, sealingDeployment(), "SUBMIT"),
     published: isPublished(status),
     cancelled: status === "CANCELLED",
-    keyLive: key != null,
+    key: key ? { id: key.id, publicKey: new Uint8Array(key.publicKey), fingerprint: key.fingerprint } : null,
     fingerprintMatches: key != null && ex.publishedKeyFingerprint != null && key.fingerprint === ex.publishedKeyFingerprint,
     saleStands: sales.some((s) => saleStands({ voidedAt: s.voidedAt, paymentChannel: s.paymentChannel }, simulator)),
     invitedPath: ctx.path === "INVITED",
     onInviteeList: ctx.parties.some((p) => p.hasLetter),
     mainOpeningStartedAt: opening?.startedAt ?? null,
+    rules: rulesOf(ex.onlineBidRules),
+  };
+}
+
+/// The exercise's facts for one upload, or null where the supplier may not see it (another supplier's, another organisation's, not there): the route answers 404 and writes nothing.
+export async function loadUploadFacts(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, i: { exerciseId: string; packPartId: string }, now: Date = new Date()): Promise<UploadFacts | null> {
+  const door = await loadDoorFacts(tx, actor, i.exerciseId, now);
+  if (!door) return null;
+  const drafts = await tx.onlineBidFile.count({ where: { exerciseId: door.ctx.ex.id, organisationId: actor.organisationId, supplierId: actor.supplierId, state: "DRAFT" } });
+  const gate = uploadGateFaults({
+    channel: door.channel,
+    online: door.online,
+    published: door.published,
+    cancelled: door.cancelled,
+    keyLive: door.key != null,
+    fingerprintMatches: door.fingerprintMatches,
+    saleStands: door.saleStands,
+    invitedPath: door.invitedPath,
+    onInviteeList: door.onInviteeList,
+    mainOpeningStartedAt: door.mainOpeningStartedAt,
   });
   return {
     organisationId: actor.organisationId,
-    exerciseId: ctx.ex.id,
-    reference: ctx.ex.reference,
-    channel: ex.submissionChannel,
-    mode: ex.onlineSubmissionMode,
-    demonstration: online.demonstration,
+    exerciseId: door.ctx.ex.id,
+    reference: door.ctx.ex.reference,
+    channel: door.channel,
+    mode: door.mode,
+    demonstration: door.online.demonstration,
     gate,
-    key: key ? { id: key.id, publicKey: new Uint8Array(key.publicKey), fingerprint: key.fingerprint } : null,
-    rule: rules?.find((r) => r.packPartId === i.packPartId) ?? null,
+    key: door.key,
+    rule: door.rules?.find((r) => r.packPartId === i.packPartId) ?? null,
     draftFiles: drafts,
   };
 }
@@ -102,7 +138,7 @@ export async function loadUploadFacts(tx: Tx, actor: Pick<SupplierActor, "suppli
 export async function logPartAccess(
   tx: Pick<Tx, "sealedAccessEvent">,
   actor: Pick<SupplierActor, "organisationId" | "accountId" | "sessionId" | "sourceAddress">,
-  i: { exerciseId: string; kind: "PART_UPLOAD" | "PART_DISCARD"; outcome: "GRANTED" | "REFUSED"; reasonCode?: string; recordId?: string | null },
+  i: { exerciseId: string; kind: "PART_UPLOAD" | "PART_DISCARD" | "SUBMIT" | "WITHDRAW"; outcome: "GRANTED" | "REFUSED"; reasonCode?: string; recordId?: string | null },
   now: Date = new Date(),
 ): Promise<void> {
   await tx.sealedAccessEvent.create({
@@ -111,7 +147,7 @@ export async function logPartAccess(
 }
 
 /// A refusal outside any transaction. Written only where the exercise is the organisation's (a probe of an id that is not leaves no row).
-export async function logPartRefusal(actor: SupplierActor, exerciseId: string, kind: "PART_UPLOAD" | "PART_DISCARD", reasonCode: string): Promise<void> {
+export async function logPartRefusal(actor: SupplierActor, exerciseId: string, kind: "PART_UPLOAD" | "PART_DISCARD" | "SUBMIT" | "WITHDRAW", reasonCode: string): Promise<void> {
   const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: actor.organisationId }, select: { id: true } });
   if (!ex) return;
   await logPartAccess(db, actor, { exerciseId: ex.id, kind, outcome: "REFUSED", reasonCode });

@@ -10,13 +10,17 @@
  * If a customer ever needs these to differ, that is a decision to propose, not to infer.
  */
 
-export type RatedAction = "document-download" | "payment-attempt" | "bid-part-upload";
+export type RatedAction = "document-download" | "payment-attempt" | "bid-part-upload" | "bid-submit" | "bid-withdraw";
 
 export const RATE_LIMITS: Readonly<Record<RatedAction, { limit: number; windowSeconds: number }>> = {
   "document-download": { limit: 60, windowSeconds: 60 },
   "payment-attempt": { limit: 10, windowSeconds: 60 },
   // Wave 3b step 9 (20e, 20w): a pack returns perhaps ten to twenty parts and a supplier may upload one again; 30 a minute is far above a person and far below a script.
   "bid-part-upload": { limit: 30, windowSeconds: 60 },
+  // Wave 3b step 10 (20e, 20w): a supplier submits a bid and a few alternatives, and replaces each a few times before the closing, and each try asks the password again. 10 a minute is far above a
+  // person and far below a script. A refused try counts, so a script cannot probe the password or the doors faster than this.
+  "bid-submit": { limit: 10, windowSeconds: 60 },
+  "bid-withdraw": { limit: 10, windowSeconds: 60 },
 };
 
 /// The start of the fixed window a moment falls in: counting is by fixed window, so a counter row is one per account, action and window.
@@ -42,6 +46,8 @@ export const RATE_LIMITED_WORDS: Readonly<Record<RatedAction, string>> = {
   "document-download": "You have asked for a great many files in the last minute, so this one was not sent. Nothing was logged. Wait a minute and try again.",
   "payment-attempt": "You have tried to pay too many times in the last minute. Nothing was recorded. Wait a minute and try again.",
   "bid-part-upload": "You have uploaded a great many files in the last minute, so this one was not taken. Wait a minute and try again. Only the time your bid is submitted decides whether it is late, not the time of an upload.",
+  "bid-submit": "You have tried to submit a great many times in the last minute, so this one was not taken. Wait a minute and try again. The time stamped when your submission is accepted decides whether it is late.",
+  "bid-withdraw": "You have tried to withdraw a great many times in the last minute, so this one was not taken. Wait a minute and try again. The time stamped when your withdrawal is accepted decides whether it is in time.",
 };
 
 /// Failed tries to pay on one purchase, after which no further try is taken.
@@ -78,6 +84,10 @@ export const MAX_STAMP_SKEW_SECONDS = 30;
  */
 export const MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE = 20;
 export const MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE = 40;
+
+/// The submit's JSON body, in bytes (plan section 1.5: at most 16 KB). A submission names an exercise, at most 40 file ids, a declaration and a password, which is under 4 KB; 16 KB leaves room and
+/// still bounds what is read before the stamp. PRODUCT BEHAVIOUR (20e).
+export const SUBMIT_BODY_LIMIT = 16 * 1024;
 
 // src/lib/portal/bids/limits.ts (20w): only the first rate refusal per account per window writes a SealedAccessEvent
 /// The count is this request's place in the window, itself included (`rateVerdict`): the first refusal is the one just over the limit. Every later refusal in the same

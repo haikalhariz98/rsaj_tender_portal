@@ -265,9 +265,9 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
   const HTTP = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
   const methods = (src: string) => [...src.matchAll(HTTP)].map((m) => m[1]);
 
-  it("are exactly the five literal paths the public copy lists (plan section 1.5 adds the part upload and its discard), and the list page is there", () => {
+  it("are exactly the seven literal paths the public copy lists (plan section 1.5 adds the part upload and its discard, and step 10 the submit and the withdraw), and the list page is there", () => {
     expect(BIDS_ALL_POSTS.map(FILE).sort()).toEqual([...SUPPLIER_BIDS_POST_PATHS].sort());
-    expect(Object.values(SUPPLIER_BIDS_POSTS)).toHaveLength(5);
+    expect(Object.values(SUPPLIER_BIDS_POSTS)).toHaveLength(7);
     expect(PORTAL.map((f) => `/${f.file.replace(/^app\//, "").replace(/\/page\.tsx$/, "")}`)).toContain(SUPPLIER_BIDS_PAGE);
   });
 
@@ -276,7 +276,9 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
       expect(methods(f.src), f.file).toEqual(["POST"]);
       const body = postBody(f.src);
       expect(body.slice(body.search(/\bawait\b/)).startsWith("await supplierPost(request, "), f.file).toBe(true);
-      expect(f.src, f.file).toMatch(/await supplierPost\(request, "bids", \{ maxBytes: BIDS_BODY_LIMIT \}\)/);
+      // Plan section 1.5: the submit's JSON may be 16 KB (SUBMIT_BODY_LIMIT), every other bids post 4 KB (BIDS_BODY_LIMIT).
+      const limit = f.file === "app/supplier/bids/submit/route.ts" ? "SUBMIT_BODY_LIMIT" : "BIDS_BODY_LIMIT";
+      expect(f.src, f.file).toMatch(new RegExp(`await supplierPost\\(request, "bids", \\{ maxBytes: ${limit} \\}\\)`));
       expect(body, f.file).toMatch(/^\{\s*const guard =/);
       expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
       // Nothing is parsed before the guard: the first thing read from the body is `post.fields`, after it.

@@ -143,8 +143,10 @@ export type SubmitFault =
   | "LATE_CLOSED"                // late submission ends when the main opening is started (20b)
   | "PRICE_INVALID" | "PERIOD_INVALID" | "UNIT_NOT_SET"
   | "FILE_NOT_YOURS" | "FILE_NOT_DRAFT" | "PART_UNKNOWN" | "NO_FILES"
-  | "TOO_MANY_SUBMISSIONS";      // per supplier per exercise (20e)
-export type WithdrawFault = "NOT_YOURS" | "NOT_LIVE" | "AFTER_CLOSING" | "CANCELLED" | "ALTERNATIVE_NOT_LINKED";
+  | "TOO_MANY_SUBMISSIONS"       // per supplier per exercise (20e)
+  | "STAMP_STALE"                // 20aa: the database refused the act's stamp as older than the skew, because the act waited on the locks (step 10)
+  | "NOT_TAKEN";                 // any other refusal at the write or the commit that the door had already passed: nothing was recorded (step 10)
+export type WithdrawFault = "NOT_YOURS" | "NOT_LIVE" | "AFTER_CLOSING" | "CANCELLED" | "ALTERNATIVE_NOT_LINKED" | "STAMP_STALE" | "NOT_TAKEN";
 export type PartUploadFault =
   | "CHANNEL_NOT_ONLINE" | "ONLINE_NOT_ALLOWED" | "NOT_PUBLISHED" | "KEY_NOT_LIVE" | "FINGERPRINT_MISMATCH" | "NO_LIVE_SALE" | "NOT_ON_INVITEE_LIST" | "LATE_CLOSED"
   | "PART_UNKNOWN" | "PART_NOT_RETURNED" | "TYPES_NOT_SET" | "TYPE_NOT_ACCEPTED" | "OFFICE_REFUSED" | "SIZE_NOT_SET" | "TOO_LARGE" | "EMPTY"
@@ -456,6 +458,12 @@ The public posts join `SUPPLIER_BIDS_POSTS`. The submit page joins `BID_PAGE`, f
 - `src/lib/tender-docs/bid-part-rules.ts`: `bidRulesFrom`, the rules publication freezes. `src/lib/window/repo.ts`: `loadSealingFacts`, `loadChannelSetting`. `PublishInput` gains `sealing`.
 - Server actions in `src/app/sourcing/[id]/scope/key-actions.ts`: `setOfficerShare`, `rekeyExercise` (signature-class slots `OfficerExerciseKey.person` and `PublishedKeyChange.by`). `takeSubmissionChannel` is in `window/actions.ts`. `checkUnlock` moves to step 13.
 
+### 1.5c What step 10 added beyond §1.3 (built 2026-10-15)
+
+- Pure: `src/lib/sealing/bid-seal.ts` (`sealSubmission`, and `manifestAad`, `manifestDekAad`, `declarationAad`, `declarationDekAad`, recordId = the OnlineBid id, so step 13's unseal rebuilds them identically), `src/lib/bids/online/submit-parse.ts` (`parseSubmitBody`, `parseWithdrawBody`), `act-refusal.ts` (`submitFaultOfRefusal`, `withdrawFaultOfRefusal`: the SQLSTATE and the statement it came from, to a fault).
+- `src/lib/bids/online/submit-store.ts`: `takeStamp`, `submitBid`, `withdrawBid`. `upload-store.ts` gains `loadDoorFacts`, shared with the part upload. Words: `ACT_ROUTE_WORDS`. Limits: `SUBMIT_BODY_LIMIT` (16 KB), the rated actions `bid-submit` and `bid-withdraw`.
+- Routes: `POST /supplier/bids/submit` and `POST /supplier/bids/withdraw`; migration 20261105000000 (trigger 14, PA028).
+
 ### 1.5b What step 9 added beyond §1.3 (built 2026-10-14)
 
 - `src/lib/sealing/file-seal.ts` (pure): `sealFile`, and `fileBodyAad`, `fileMetaAad`, `fileDekAad` (recordId = the file's id, partKey = the returned part's id), so step 13's unseal rebuilds them identically. Stored body is `ct || tag` with the IV in `bodyIv`.
@@ -477,7 +485,7 @@ export function takeChannelFaults(i: { status: ExerciseStatus; published: boolea
 /// Staff words. SETTING_NOT_SET names where it is set (Configuration, the window policy) and that two people set it.
 export const TAKE_CHANNEL_WORDS: Readonly<Record<TakeChannelFault, string>>;
 
-// src/lib/bids/online/types.ts §1.2 — step 10 opens with this amendment (20aa: the stale-stamp and commit refusals in words)
+// src/lib/bids/online/types.ts §1.2 — step 10 opens with this amendment (20aa: the stale-stamp and commit refusals in words). BUILT in step 10 (2026-10-15), as written here; §1.2 holds it.
 //   SubmitFault   gains | "STAMP_STALE" | "NOT_TAKEN"
 //   WithdrawFault gains | "STAMP_STALE" | "NOT_TAKEN"
 // STAMP_STALE: the database refused the act's stamp as older than MAX_STAMP_SKEW_SECONDS at the moment of the write, because the act waited on
