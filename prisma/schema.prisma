@@ -1464,6 +1464,7 @@ model DocumentClass {
   documents Document[]
   /// Phase 4b: the supplier policy that names this class for a supplier's uploaded certificates, or for its bank statement.
   supplierUploadPolicies        SupplierPolicy[] @relation("SupplierUploadClass")
+  onlineBidFilePolicies         DocumentStorePolicy[] @relation("OnlineBidFileClass")
   supplierBankStatementPolicies SupplierPolicy[] @relation("SupplierBankStatementClass")
 
   @@unique([organisationId, code])
@@ -4529,6 +4530,8 @@ enum AttachmentPurpose {
   SUPPLIER_DRAFT_DOCUMENT
   /// 6.15 Phase 4b (FR-VND-005): the bank statement a supplier uploaded with its creditor profile, on the profile. SULIT from upload.
   SUPPLIER_BANK_STATEMENT
+  /// Wave 3b (SR-13, ADR 0036 D10): an online bid file moved into the document store once its opening is finalised, on the file it came from. SULIT.
+  ONLINE_BID_FILE
 }
 
 enum DocumentAccessKind {
@@ -4550,6 +4553,9 @@ model DocumentStorePolicy {
   allowedMediaTypes String[]
   /// Largest file accepted, in bytes. Null: not set, and nothing is accepted.
   maxBytes          BigInt?
+  /// Wave 3b step 15: the class a moved online bid file takes (it must be SULIT). Null: not set, and an online opening cannot be finalised, naming the setting.
+  onlineBidFileClassId String?
+  onlineBidFileClass   DocumentClass? @relation("OnlineBidFileClass", fields: [onlineBidFileClassId], references: [id], onDelete: Restrict)
 
   provenance Provenance @default(ASSUMED)
   notes      String     @default("")
@@ -4726,6 +4732,9 @@ model DocumentAttachment {
   /// 6.15 Phase 4b (FR-VND-005): a creditor profile (the bank statement). SULIT.
   creditorProfileId           String?
   creditorProfile             CreditorProfile?           @relation(fields: [creditorProfileId], references: [id], onDelete: Restrict)
+  /// Wave 3b step 15 (ADR 0036 D10): an online bid file the mover filed after its opening was finalised. Unique: a file is stored once.
+  onlineBidFileId             String?                    @unique
+  onlineBidFile               OnlineBidFile?             @relation(fields: [onlineBidFileId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -7487,6 +7496,8 @@ model OnlineBidFile {
   uploadedAt   DateTime
 
   part OnlineBidPart?
+  /// The document link the mover writes (step 15): present once the file is in the document store.
+  attachment DocumentAttachment?
 
   @@index([exerciseId, supplierId])
   @@index([keyId])

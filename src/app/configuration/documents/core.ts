@@ -145,17 +145,23 @@ export async function saveStorePolicy(_prev: FormState, data: FormData): Promise
   for (const f of policyFaults({ allowedMediaTypes, maxBytes: maxBytes?.toString() ?? null })) r.reject(f.code === "SIZE_INVALID" ? "maxMegabytes" : "allowedMediaTypes", documentFaultText(f));
   const provenance = r.choice("provenance", "Provenance", PROVENANCE, { required: true });
   const notes = r.text("notes", "Notes", { max: 2000 });
+  // Step 15: the class a filed online bid file takes. Left empty it is not set, and an online opening cannot be finalised. It must be a SULIT class of this organisation: a bid file was sealed until its opening.
+  const classChoice = r.optionalText("onlineBidFileClassId") ?? "";
+  const bidClass = classChoice ? await db.documentClass.findFirst({ where: { id: classChoice, organisationId: orgId }, select: { id: true, nameEn: true, classification: true } }) : null;
+  if (classChoice && !bidClass) r.reject("onlineBidFileClassId", "Choose one of this organisation's document classes.");
+  else if (bidClass && bidClass.classification !== "SULIT") r.reject("onlineBidFileClassId", "A bid file was sealed until the opening, so its class must be classified SULIT. Choose a SULIT class, or set that class's classification first.");
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
+  const onlineBidFileClassId = bidClass?.id ?? null;
   const reason = String(data.get("reason") ?? "");
   await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
-    const before = await tx.documentStorePolicy.findUnique({ where: { organisationId: orgId } });
+    const before = await tx.documentStorePolicy.findUnique({ where: { organisationId: orgId }, include: { onlineBidFileClass: { select: { nameEn: true } } } });
     const row = await tx.documentStorePolicy.upsert({
       where: { organisationId: orgId },
-      create: { organisationId: orgId, allowedMediaTypes, maxBytes, provenance, notes },
-      update: { allowedMediaTypes, maxBytes, provenance, notes },
+      create: { organisationId: orgId, allowedMediaTypes, maxBytes, onlineBidFileClassId, provenance, notes },
+      update: { allowedMediaTypes, maxBytes, onlineBidFileClassId, provenance, notes },
     });
-    const changes = diffFields(policyView(before), policyView(row));
+    const changes = diffFields(policyView(before, before?.onlineBidFileClass?.nameEn ?? null), policyView(row, bidClass?.nameEn ?? null));
     if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "DocumentStorePolicy", entityId: row.id, entityLabel: "Upload rules", reason }, before ? "UPDATE" : "CREATE", changes);
   });
   revalidatePath(PATH);

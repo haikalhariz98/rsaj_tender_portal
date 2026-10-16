@@ -253,6 +253,9 @@ describe("a document is attached only by someone who may already open it (OD-2, 
         "src/app/documents/actions.ts",
         "src/app/sourcing/[id]/documents/actions.ts",
         "src/app/sourcing/[id]/scope/actions.ts",
+        // Wave 3b step 15 (ADR 0036 D10): the mover attaches the file it has just stored, in that store's own transaction, to the online bid file it came from. No officer attaches: the owner is
+        // the sealed file the opening finalised, and the document is SULIT, judged by the exercise it hangs on (`hidden.ts`, `owner-scope.ts`).
+        "src/lib/sealing/online-file-mover.ts",
         // Changed for Phase 4b: a signed-in supplier attaches the file its own upload just stored (to its draft, or as its bank statement) in the upload's transaction, and sending the registration moves
         // those same versions onto the supplier's documents. Both are the supplier's own files: no officer attaches, and the documents' bytes are judged by the records they then hang on.
         "src/lib/portal/registration/submit-store.ts",

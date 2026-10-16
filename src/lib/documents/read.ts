@@ -126,6 +126,7 @@ export async function readOwner(organisationId: string, ref: OwnerRef): Promise<
     // Phase 4b: the supplier's own uploads are not attached to from the staff's shared panel.
     case "registrationDraftDocument":
     case "creditorProfile":
+    case "onlineBidFile":
       return null;
   }
 }
@@ -476,6 +477,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     // Phase 4b: nothing is attached to the supplier's own uploads from the staff's shared choice.
     case "registrationDraftDocument":
     case "creditorProfile":
+    case "onlineBidFile":
       return { records: [], total: 0 };
   }
 }

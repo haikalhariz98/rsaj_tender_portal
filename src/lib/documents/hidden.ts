@@ -27,6 +27,7 @@ export function attachmentUnder(exerciseIds: readonly string[]): Prisma.Document
       { evaluation: { exerciseId: ids } },
       { evaluationMeeting: { evaluation: { exerciseId: ids } } },
       { evaluationBidder: { evaluation: { exerciseId: ids } } },
+      { onlineBidFile: { exerciseId: ids } },
     ],
   };
 }
@@ -44,6 +45,7 @@ const PATH_SELECT = {
   evaluation: { select: { exerciseId: true } },
   evaluationMeeting: { select: { evaluation: { select: { exerciseId: true } } } },
   evaluationBidder: { select: { evaluation: { select: { exerciseId: true } } } },
+  onlineBidFile: { select: { exerciseId: true } },
 } as const;
 
 /// The hidden exercise a version hangs on (live or past attachment), or null: the first found, to name in the refusal's log.
@@ -58,9 +60,9 @@ export async function hiddenExerciseOfDocument(documentId: string, hidden: reado
   return firstHidden(await client.documentAttachment.findMany({ where: { version: { documentId }, ...attachmentUnder(hidden) }, select: PATH_SELECT }), hidden);
 }
 
-function firstHidden(rows: readonly { exerciseId: string | null; award: { exerciseId: string } | null; specificationPanel: { exerciseId: string } | null; bqVersion: { exerciseId: string } | null; tenderPackPart: { pack: { exerciseId: string } } | null; addendum: { window: { exerciseId: string } } | null; bidWithdrawal: { exerciseId: string } | null; validityExtension: { exerciseId: string } | null; opening: { exerciseId: string } | null; evaluation: { exerciseId: string } | null; evaluationMeeting: { evaluation: { exerciseId: string } } | null; evaluationBidder: { evaluation: { exerciseId: string } } | null }[], hidden: readonly string[]): string | null {
+function firstHidden(rows: readonly { exerciseId: string | null; award: { exerciseId: string } | null; specificationPanel: { exerciseId: string } | null; bqVersion: { exerciseId: string } | null; tenderPackPart: { pack: { exerciseId: string } } | null; addendum: { window: { exerciseId: string } } | null; bidWithdrawal: { exerciseId: string } | null; validityExtension: { exerciseId: string } | null; opening: { exerciseId: string } | null; evaluation: { exerciseId: string } | null; evaluationMeeting: { evaluation: { exerciseId: string } } | null; evaluationBidder: { evaluation: { exerciseId: string } } | null; onlineBidFile: { exerciseId: string } | null }[], hidden: readonly string[]): string | null {
   for (const r of rows) {
-    const id = [r.exerciseId, r.award?.exerciseId, r.specificationPanel?.exerciseId, r.bqVersion?.exerciseId, r.tenderPackPart?.pack.exerciseId, r.addendum?.window.exerciseId, r.bidWithdrawal?.exerciseId, r.validityExtension?.exerciseId, r.opening?.exerciseId, r.evaluation?.exerciseId, r.evaluationMeeting?.evaluation.exerciseId, r.evaluationBidder?.evaluation.exerciseId].find((x): x is string => !!x && hidden.includes(x));
+    const id = [r.exerciseId, r.award?.exerciseId, r.specificationPanel?.exerciseId, r.bqVersion?.exerciseId, r.tenderPackPart?.pack.exerciseId, r.addendum?.window.exerciseId, r.bidWithdrawal?.exerciseId, r.validityExtension?.exerciseId, r.opening?.exerciseId, r.evaluation?.exerciseId, r.evaluationMeeting?.evaluation.exerciseId, r.evaluationBidder?.evaluation.exerciseId, r.onlineBidFile?.exerciseId].find((x): x is string => !!x && hidden.includes(x));
     if (id) return id;
   }
   return null;
@@ -93,6 +95,8 @@ export async function exerciseOfOwner(kind: string, id: string, client: Tx | typ
       return (await client.evaluationMeeting.findUnique({ where: { id }, select: { evaluation: { select: { exerciseId: true } } } }))?.evaluation.exerciseId ?? null;
     case "evaluationBidder":
       return (await client.evaluationBidder.findUnique({ where: { id }, select: { evaluation: { select: { exerciseId: true } } } }))?.evaluation.exerciseId ?? null;
+    case "onlineBidFile":
+      return (await client.onlineBidFile.findUnique({ where: { id }, select: { exerciseId: true } }))?.exerciseId ?? null;
     default:
       return null;
   }

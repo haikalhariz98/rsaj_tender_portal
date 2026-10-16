@@ -4,8 +4,10 @@
  * Every query is scoped to the organisation and the exercise. Nothing is written here; the access log is written by `logSealedRefusal` and `logSealedGranted`.
  */
 
-import type { OnlineBidStatus } from "@/lib/bids/online/types";
+import type { OnlineBidRules, OnlineBidStatus } from "@/lib/bids/online/types";
 import { db } from "@/lib/db";
+
+import { grantPlan } from "./online-unseal";
 
 export interface OpeningFacts { id: string; exerciseId: string; unsealedAt: Date | null; finalisedAt: Date | null }
 
@@ -59,4 +61,31 @@ export async function loadFileFacts(i: { organisationId: string; exerciseId: str
     file: { id: f.id, keyId: f.keyId, packPartId: f.packPartId, cipherSha256: f.cipherSha256, bodyIv: new Uint8Array(f.bodyIv), sealedMeta: new Uint8Array(f.sealedMeta), bidStatus: bid.status, openedHere },
     grant: grant ? { use: grant.use, sealedDek: new Uint8Array(grant.sealedDek) } : null,
   };
+}
+
+export interface CheckFileOffer { listingNo: number; bidder: string; files: { fileId: string; partLabel: string }[] }
+
+/**
+ * The files an officer may download at the opening check, per opened offer (ruling 20at): only those of parts the frozen bid rules mark as checked at the opening (SR-14), through `grantPlan`, the one
+ * place that decides it. Only the file's id and its part's label are read, never a filename, a size or a hash: those are sealed. Called only for a named officer, between the unseal and finalising.
+ */
+export async function loadOpeningCheckFiles(i: { organisationId: string; exerciseId: string; openingId: string; rules: OnlineBidRules | null }): Promise<CheckFileOffer[]> {
+  const opened = await db.openedBid.findMany({ where: { openingId: i.openingId, organisationId: i.organisationId }, orderBy: { listingNo: "asc" }, select: { listingNo: true, bidderNameAsRead: true, envelopeId: true } });
+  if (opened.length === 0) return [];
+  const bids = await db.onlineBid.findMany({
+    where: { organisationId: i.organisationId, exerciseId: i.exerciseId, status: "OPENED", envelopeId: { in: opened.map((o) => o.envelopeId) } },
+    select: { id: true, envelopeId: true, parts: { select: { file: { select: { id: true, packPartId: true } } } } },
+  });
+  const rules = i.rules?.parts ?? [];
+  const out: CheckFileOffer[] = [];
+  for (const o of opened) {
+    const bid = bids.find((b) => b.envelopeId === o.envelopeId);
+    if (!bid) continue;
+    const plan = grantPlan({ files: bid.parts.map((p) => ({ fileId: p.file.id, packPartId: p.file.packPartId })), declarationBidId: bid.id, rules });
+    const files = plan
+      .filter((p) => p.subject === "FILE" && p.use === "OPENING_CHECK")
+      .map((p) => ({ fileId: p.recordId, partLabel: rules.find((r) => r.packPartId === bid.parts.find((x) => x.file.id === p.recordId)?.file.packPartId)?.label ?? "A file" }));
+    if (files.length > 0) out.push({ listingNo: o.listingNo, bidder: o.bidderNameAsRead, files });
+  }
+  return out;
 }

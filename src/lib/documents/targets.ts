@@ -42,6 +42,7 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   eotClaim: "Extension-of-time claim",
   registrationDraftDocument: "Certificate in a supplier's registration",
   creditorProfile: "Supplier's creditor profile",
+  onlineBidFile: "File of an online bid",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
@@ -100,6 +101,9 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
       return exerciseId ? `/suppliers/${exerciseId}?tab=documents` : "/suppliers";
     case "creditorProfile":
       return exerciseId ? `/suppliers/${exerciseId}?tab=creditor` : "/suppliers";
+    // Wave 3b step 15: a moved bid file is on its exercise's Bids tab.
+    case "onlineBidFile":
+      return exerciseId ? `/sourcing/${exerciseId}?tab=bids` : "/sourcing";
   }
 }
 

@@ -19,7 +19,7 @@ import { passphraseFaults, PASSPHRASE_WORDS } from "@/lib/sealing/ceremony";
 import { makeOfficerKey } from "@/lib/sealing/ceremony-seal";
 import { pepperForWrapFault, PEPPER_WRAP_WORDS, REKEY_WORDS, rekeyRefusals, SHARE_WORDS, shareFaults } from "@/lib/sealing/share";
 import { loadCeremony, logCeremonyEvent, logCeremonyRefusal, makeKeyIfComplete, rekeyKey, retireExerciseKey, retireOfficerKey, sealedSqlState } from "@/lib/sealing/store";
-import { logAdministratorRefusal, logSealedGranted, logSealedRefusal, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
+import { logAdministratorRefusal, logSealedGranted, logSealedRefusal, officerActRate, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
 import { exerciseIsHidden } from "@/app/_auth/sulit";
 import { zero } from "@/lib/sealing/types";
 import { withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
@@ -261,6 +261,9 @@ export async function checkUnlock(_prev: FormState, data: FormData): Promise<For
   }
   const actor = guard.actor;
   const exerciseId = exerciseIdOf(data);
+  // 20bb: the account's rate is counted before anything is looked up or tried.
+  const limited = await officerActRate({ organisationId: actor.organisationId, accountId: actor.accountId, exerciseId, kind: "UNLOCK_CHECK", staffPersonId: actor.personId });
+  if (limited) return { ok: false, message: limited };
   const passphrase = text(data, "passphrase");
   if (passphrase.length === 0) return { ok: false, errors: { passphrase: "Enter your unseal passphrase." } };
   if (passphrase.length > MAX_PASSPHRASE_CHARACTERS) return { ok: false, errors: { passphrase: "That passphrase is too long." } };

@@ -37,7 +37,8 @@ describe("the readings frozen at the start (R-4)", () => {
   });
   it("finalising reads the frozen reading and words, and the start freezes them", () => {
     const actions = readFileSync("src/app/sourcing/[id]/opening/actions.ts", "utf8");
-    const finalise = actions.slice(actions.indexOf("export async function finaliseOpening"), actions.indexOf("export async function recordCopyExplanation"));
+    // Step 15: the finalising transaction lives in finalise-transaction.ts (shared by the paper and the online finalise), its body unchanged.
+    const finalise = readFileSync("src/app/sourcing/[id]/opening/finalise-transaction.ts", "utf8");
     expect(finalise).not.toMatch(/c\.openingPolicy/);
     expect(finalise).toMatch(/invitedReading: snap\.invited\.reading/);
     expect(finalise).toMatch(/invited: \{ reading: snap\.invited\.reading/);
@@ -48,8 +49,8 @@ describe("the readings frozen at the start (R-4)", () => {
     expect(start).toMatch(/invitedReading: c\.openingPolicy\?\.invitedCountReading \?\? null/);
   });
   it("the unpurchased rule written at finalising is audited in the same transaction, and only where an offer needs it", () => {
-    const actions = readFileSync("src/app/sourcing/[id]/opening/actions.ts", "utf8");
-    const finalise = actions.slice(actions.indexOf("export async function finaliseOpening"), actions.indexOf("export async function recordCopyExplanation"));
+    // Step 15: the finalising transaction lives in finalise-transaction.ts (shared by the paper and the online finalise), its body unchanged.
+    const finalise = readFileSync("src/app/sourcing/[id]/opening/finalise-transaction.ts", "utf8");
     expect(finalise).toMatch(/const recordRule = unpurchased\.record && o\.bids\.some\(\(b\) => b\.saleFinding !== "LIVE_SALE"\)/);
     expect(finalise).toMatch(/if \(recordRule\) \{\s*const a = unpurchasedRecordAudit\(/);
   });

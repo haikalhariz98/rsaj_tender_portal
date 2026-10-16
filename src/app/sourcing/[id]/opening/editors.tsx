@@ -3,6 +3,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 import { authoriseOnlineUnseal } from "./unseal-actions";
+import { finaliseOnline, signOnlineFinalise } from "./online-finalise-actions";
 import type { Allowed } from "@/lib/opening/read";
 
 import {
@@ -377,6 +378,38 @@ export function SignatureDrawer({ exerciseId, openingId, person, allowed }: { ex
       size="sm"
     />
   );
+}
+
+/// ONLINE (ADR 0036 D10, ruling 20t): a named officer signs the schedule in their own sign-in with the password asked again. Never for another, and never from paper.
+export function OnlineSignatureDrawer({ exerciseId, openingId, name, allowed }: { exerciseId: string; openingId: string; name: string; allowed: Allowed }) {
+  return blockedOr(allowed, "Sign", () => (
+    <RecordEditor
+      title={`${name} signs the schedule`}
+      description="Signed by you, with your own sign-in password, and dated today. Every named officer signs in their own sign-in: nobody signs for another. When all have signed, any one of them finalises the opening with their own unseal passphrase."
+      fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningSignature.person", { name: "personId" })]}
+      values={{ exerciseId, openingId }}
+      action={signOnlineFinalise}
+      submitLabel="Sign the schedule"
+      trigger={{ label: "Sign the schedule", className: secondary, ariaLabel: `Record ${name}'s signature on the schedule` }}
+      size="sm"
+    />
+  ));
+}
+
+/// ONLINE: any one named officer finalises, with the sign-in password and their own unseal passphrase, once every named officer has signed (ruling 20t). Both are asked every time.
+export function OnlineFinaliseDrawer({ exerciseId, openingId, title, allowed }: { exerciseId: string; openingId: string; title: string; allowed: Allowed }) {
+  return blockedOr(allowed, "Finalise", () => (
+    <RecordEditor
+      title={`Finalise the ${title.toLowerCase()}`}
+      description="Nothing on it changes after this. Each bid's declared price and completion period are unsealed and written in this step, and the schedule and its Grand Summary are frozen from them; every file is checked before anything is saved, and a file that does not open whole stops the finalise. The files are then filed in the document store. Your unseal passphrase cannot be reset or recovered. The signed schedule's scan is attached afterwards, on the Schedule section."
+      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "text", name: "passphrase", label: "Unseal passphrase", required: true, secret: true }, actorField("EstimateEvent.person", { name: "personId" })]}
+      values={{ exerciseId, openingId }}
+      action={finaliseOnline}
+      submitLabel="Finalise"
+      trigger={{ label: "Finalise", className: primary }}
+      size="md"
+    />
+  ), { primary: true });
 }
 
 export function ScheduleDetailsDrawer({ exerciseId, openingId, pages, minutes, allowed }: { exerciseId: string; openingId: string; pages: number | null; minutes: string; allowed: Allowed }) {

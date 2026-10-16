@@ -94,11 +94,13 @@ export function holdReleased(i: { reason: string; releasedBy: string }): FieldCh
   return diffFields({ legalHold: "standing" }, { legalHold: "released", releasedBecause: i.reason, releasedBy: `${i.releasedBy}` });
 }
 
-export function policyView(p: { allowedMediaTypes: readonly string[]; maxBytes: bigint | null; provenance: string; notes: string } | null): Record<string, unknown> {
-  if (!p) return { allowedTypes: "Not set", largestFile: "Not set", provenance: null, notes: null };
+/// `onlineBidFileClass`: the name of the class a filed online bid file takes (step 15), or null where none is set.
+export function policyView(p: { allowedMediaTypes: readonly string[]; maxBytes: bigint | null; provenance: string; notes: string } | null, onlineBidFileClass: string | null = null): Record<string, unknown> {
+  if (!p) return { allowedTypes: "Not set", largestFile: "Not set", onlineBidFileClass: "Not set", provenance: null, notes: null };
   return {
     allowedTypes: p.allowedMediaTypes.length ? p.allowedMediaTypes.map(mediaLabel).join(", ") : "Not set",
     largestFile: p.maxBytes != null ? formatBytes(p.maxBytes) : "Not set",
+    onlineBidFileClass: onlineBidFileClass ?? "Not set",
     provenance: p.provenance,
     notes: p.notes || null,
   };

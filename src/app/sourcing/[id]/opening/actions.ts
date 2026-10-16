@@ -5,7 +5,6 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import type { Tx } from "@/lib/audit/record";
 import { BID_ENTITY, envelopeFields, statusField } from "@/lib/bids/audit-view";
-import { unopenedInTime } from "@/lib/bids/envelope-status";
 import { ENVELOPE_KIND_LABEL } from "@/lib/bids/labels";
 import { dayIn, dayToDate, isDay, storedDay } from "@/lib/dates";
 import { moveExercise } from "@/lib/method/move";
@@ -14,19 +13,14 @@ import { lockedAtOrAfterClosing } from "@/lib/bids/box";
 import { estimateEventAudit, ENTITY as SCOPE_ENTITY } from "@/lib/scope/audit-view";
 import { leadTime } from "@/lib/scope/estimate";
 import { FormReader } from "@/lib/validate";
-import { lockEvaluationRows } from "@/lib/evaluation/lock";
-import { ceilingOf } from "@/lib/evaluation/repo";
-import { openNewVersion } from "@/lib/evaluation/versions";
 import { splitValues } from "@/lib/ui/select-logic";
-import { answerFields, asReadFields, authorisationFields, finaliseFields, initialFields, openedBidFields, OPENING_ENTITY, openingStartFields, signatureFields, sittingFields, verdictFields, withdrawalMatchFields } from "@/lib/opening/audit-view";
+import { answerFields, asReadFields, authorisationFields, initialFields, openedBidFields, OPENING_ENTITY, openingStartFields, signatureFields, sittingFields, verdictFields, withdrawalMatchFields } from "@/lib/opening/audit-view";
 import { boxEnvelopeJudgement, lockGap, registerBoxFaults } from "@/lib/opening/box";
-import { answerFaults, checklistFromSnapshot, openingChecklist, unansweredItems } from "@/lib/opening/checklist";
-import { DisclosureRefused, discloseAtFinalising } from "@/lib/opening/estimate";
-import { explanationFaults, refuseIfCancelled, type PaperCopy } from "@/lib/opening/estimate-copy";
-import { finaliseFaults, markFaults, recordFaults } from "@/lib/opening/finalise";
+import { answerFaults, checklistFromSnapshot, openingChecklist } from "@/lib/opening/checklist";
+import { explanationFaults, refuseIfCancelled } from "@/lib/opening/estimate-copy";
+import { markFaults, recordFaults } from "@/lib/opening/finalise";
 import { liveSaleOf, restrictionFinding, saleFinding } from "@/lib/opening/findings";
-import { grandSummary } from "@/lib/opening/grand-summary";
-import { freshInitials, initialStale } from "@/lib/opening/initials";
+import { initialStale } from "@/lib/opening/initials";
 import { openingFindingText, restrictionLabel } from "@/lib/opening/labels";
 import { isRestrictionReading, restrictionReadingWords } from "@/lib/suppliers/restriction-register";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "@/lib/opening/open";
@@ -34,9 +28,8 @@ import { panelFaults, supplementaryPanel } from "@/lib/opening/panel";
 import { loadOpeningRoster } from "@/lib/opening/roster-store";
 import { rosterFaults } from "@/lib/opening/roster";
 import { actFaults } from "@/lib/opening/state";
-import { invitedCounts, openingPolicyFrozen, panelOf, panelSnapshot, policyOf, presentOf, stateOf, summaryLabelsOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
-import { unpurchasedRecordAudit, unpurchasedRule, type LiveUnpurchased } from "@/lib/opening/unpurchased";
-import { jadualTawaran, lateCount, type ScheduleRowInput } from "@/lib/opening/schedule";
+import { openingPolicyFrozen, panelOf, panelSnapshot, policyOf, stateOf, type OpeningContext, type OpeningPolicySnapshot } from "@/lib/opening/repo";
+import { unpurchasedRecordAudit, unpurchasedRule } from "@/lib/opening/unpurchased";
 import { estimateLeadFaults, frozenRuleFaults, onlineStartFaults, startFaults, supplementaryFaults } from "@/lib/opening/start";
 import { blocking, CHECKLIST_ANSWERS, PERIOD_UNITS, type Finding, type OpeningVerdict, type PeriodUnit } from "@/lib/opening/types";
 import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, unsealState } from "@/lib/opening/unseal";
@@ -44,14 +37,13 @@ import { databaseClock, freezeReceiptRoll, shredReleases } from "@/lib/opening/u
 import { loadCeremony } from "@/lib/sealing/store";
 import { MAX_STAMP_SKEW_SECONDS } from "@/lib/portal/bids/limits";
 import { judgeBid, verdictFaults, verdictRecord } from "@/lib/opening/verdict";
-import { verdictDrift } from "@/lib/opening/verdict-drift";
 import { consequenceFor, ineligibleOf } from "@/lib/suppliers/opening-hook";
 import { eligibilityAtOpening } from "@/lib/suppliers/standing-repo";
 import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals";
 
 import { registerRestrictionOf } from "@/lib/opening/restriction-read";
 import { frozenRuleOf, readingJson, retakeRestriction } from "./restriction";
-import { activePerson, audit, exerciseIdOf, label, Refusal, type LockedWindow } from "../window/shared";
+import { activePerson, audit, exerciseIdOf, label, Refusal } from "../window/shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct, type PreparedAct } from "@/app/_auth/act";
 import { loadRecorders, recorderKey } from "@/lib/auth/attribution-recorders";
@@ -71,9 +63,9 @@ import { priceRead } from "@/lib/opening/price";
  */
 
 import { ENVELOPE_CHANGED, GONE_BID, GONE_OPENING, inOpening, refuse, stampNow, warnings } from "./in-opening";
+import { finaliseInTransaction, liveUnpurchased, openingLabel, openingOf } from "./finalise-transaction";
 import { ONLINE_AUTHORISE_ELSEWHERE, ONLINE_ENVELOPE_OPENED_BY_UNSEAL } from "./online-words";
 
-const openingOf = (c: OpeningContext, id: string) => c.openings.find((o) => o.id === id) ?? null;
 const bidOf = (c: OpeningContext, id: string) => {
   for (const o of c.openings) {
     const b = o.bids.find((x) => x.id === id);
@@ -81,7 +73,6 @@ const bidOf = (c: OpeningContext, id: string) => {
   }
   return null;
 };
-const openingLabel = (l: LockedWindow, o: Pick<OpeningRow, "kind" | "sequenceNo">) => label(l, o.kind === "MAIN" ? "Opening" : `Supplementary opening ${o.sequenceNo - 1}`);
 const nameOf = (tx: Tx, orgId: string, personId: string | null) => activePerson(tx, orgId, personId);
 
 /// The panel as posted: each picked person, and whether present (the `present` choices, or a checkbox `present:<id>`). The shared multi-select posts its choices newline-joined.
@@ -744,8 +735,6 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
   });
 }
 
-/// The method's unpurchased-bid rule as it stands now (OD-4), for an opening that froze it unset.
-const liveUnpurchased = (c: OpeningContext): LiveUnpurchased => ({ consequence: c.method?.unpurchasedBidConsequence ?? null, provenance: (c.method?.unpurchasedProvenance as OpeningPolicySnapshot["unpurchased"]["provenance"]) ?? null });
 
 /// FR-OPN-008, 009, R12, OD-4: the verdict on one offer, on the grounds the rules make eliminatory only.
 export async function recordVerdict(_prev: FormState, data: FormData): Promise<FormState> {
@@ -903,117 +892,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
   const personId = act.subjectPersonId;
   const paperChoice = String(data.get("paperCopy") ?? "");
   const paperRaw = String(data.get("paperFigure") ?? "");
-  const paperAnswered = paperChoice === "notInBox" || (paperChoice === "figure" && paperRaw.trim() !== "");
-  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
-    const o = openingOf(c, openingId);
-    if (!o) return GONE_OPENING;
-    const person = await nameOf(tx, l.org.id, personId);
-    const state = stateOf(o, l.ex.status);
-    const snap = policyOf(o.policySnapshot);
-    const checklist = checklistFromSnapshot(o.checklistSnapshot);
-    const unpurchased = unpurchasedRule(snap, liveUnpurchased(c), now, person?.name ?? "");
-    const ineligible = consequenceFor(o.policySnapshot, c.supplierPolicy?.ineligibleBidConsequence ?? null);
-    const anyIneligible = o.bids.some((b) => ineligibleOf(b.eligibilityFinding));
-    // 6.15a fix R-6, residual 5: each recorded verdict judged again under the rules about to be frozen (one function, shared with the screen).
-    const drift = verdictDrift(o.bids, { checklist, completenessEliminates: snap.completeness.eliminates, unpurchased: unpurchased.consequence, ineligible });
-    const estimate = { required: snap.estimate.requires === true, lodged: o.kind === "MAIN" && c.estimate?.state === "LODGED", paperAnswered };
-    const unopened = unopenedInTime(c.envelopes);
-    const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
-    const fs = finaliseFaults({
-      state,
-      bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: freshInitials(b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
-      present: presentOf(o),
-      signed: o.signatures.map((s) => s.personId),
-      pages: o.schedulePages,
-      checklist,
-      withdrawals: o.kind === "MAIN" ? c.withdrawals.map((w) => ({ id: w.id, envelopeId: w.envelopeId, unmatchedFinding: w.unmatchedFinding })) : [],
-      unopened,
-      admittedOpened: admitted?.status === "OPENED",
-      completenessEliminates: snap.completeness.eliminates,
-      unpurchased: unpurchased.consequence,
-      // 6.15a (OD-6 A): unset blocks only where a linked bidder was found not eligible.
-      ineligible: { consequence: ineligible, anyFound: anyIneligible, disagreements: drift.setting },
-      noLongerStands: drift.noLongerStands,
-      // R-4: the reading frozen at the start, never today's configuration.
-      invitedReading: snap.invited.reading,
-      estimate,
-      personActive: !!person,
-    });
-    if (blocking(fs).length) return refuse(fs);
-    // Every other check passed: only now is the paper's figure read.
-    let paper: PaperCopy | null = null;
-    if (estimate.lodged && paperAnswered) {
-      if (paperChoice === "notInBox") paper = { notInBox: true };
-      else {
-        const r = new FormReader(data);
-        const figure = r.money("paperFigure", "The figure on the paper copy", { required: true });
-        if (!figure) return { ok: false, errors: r.errors };
-        paper = { figure: parseSen(figure) };
-      }
-    }
-    let disclosed: Awaited<ReturnType<typeof discloseAtFinalising>> | null = null;
-    if (o.kind === "MAIN" && c.estimateFacts && c.estimate?.state === "LODGED") {
-      try {
-        disclosed = await discloseAtFinalising(tx, toAuditActor(actor), { organisationId: l.org.id, reference: l.ex.reference, facts: c.estimateFacts, at: now, person: person!, act, paper, benchmarkLabelEn: c.scopePolicy.benchmarkLabelEn });
-      } catch (e) {
-        // R-1: thrown as a Refusal, so anything written in this transaction rolls back with it.
-        if (e instanceof DisclosureRefused) throw new Refusal({ ok: false, message: "Nothing was saved: the company estimate could not be disclosed as it stands. Check its state on the Scope and estimate tab." });
-        throw e;
-      }
-    }
-    // The schedule: every offer read up to this opening, in opening order (OD-5 versions).
-    const rows: ScheduleRowInput[] = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: parseSen(priceRead(b).toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
-    const mainSchedule = o.kind === "SUPPLEMENTARY" ? c.main?.scheduleSnapshot : null;
-    const priorBenchmark = mainSchedule && typeof mainSchedule === "object" && !Array.isArray(mainSchedule) ? ((mainSchedule as Record<string, unknown>).benchmark as { sealed: false; label: string | null; companyEstimate: string } | { notRequired: true } | undefined) : undefined;
-    const benchmark = disclosed?.benchmark ? { sealed: false as const, label: disclosed.benchmark.label, value: disclosed.benchmark.value } : priorBenchmark && "companyEstimate" in priorBenchmark ? { sealed: false as const, label: priorBenchmark.label, value: parseSen(priorBenchmark.companyEstimate) } : { notRequired: true as const };
-    const gap = c.main?.lockGapSeconds != null && o.kind === "MAIN" && c.main.boxLockedAt && l.ex.closingAt ? lockGap(l.ex.closingAt, c.main.boxLockedAt) : null;
-    const { schedule } = jadualTawaran({ version: o.sequenceNo, title: l.ex.title, reference: l.ex.reference, startDay: l.ex.tenderingStartOn ? storedDay(l.ex.tenderingStartOn) : null, closing: l.ex.closingAt, invited: { reading: snap.invited.reading, ...invitedCounts(c) }, lateCount: lateCount(c.envelopes), pages: o.schedulePages, rows, benchmark, lockGap: gap });
-    const verdicts = new Map(c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => [b.id, b.verdict] as const)));
-    const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(priceRead(b).toString()), verdict: verdicts.get(b.id) ?? null }))), labels: summaryLabelsOf(snap) });
-    // After the disclosure's writes: thrown, so they roll back (R-1, R-7).
-    if (!("summary" in summary)) throw new Refusal(refuse([summary.fault]));
-    const lodged = disclosed?.lodged ?? null;
-    // R-4: the unpurchased rule is recorded at finalising only where an offer needs it, audited with it.
-    const recordRule = unpurchased.record && o.bids.some((b) => b.saleFinding !== "LIVE_SALE") ? unpurchased.record : null;
-    // 6.15a (OD-6 A): the register's consequence is frozen on the opening at finalising, where a bid needed it.
-    const base = (recordRule ?? o.policySnapshot) as Record<string, unknown> | null;
-    const frozenSnapshot = anyIneligible && base ? { ...base, ineligible: { consequence: ineligible, provenance: c.supplierPolicy?.ineligibleProvenance ?? null, recordedAt: now.toISOString(), recordedBy: person!.name } } : recordRule;
-    await tx.opening.update({
-      where: { id: o.id, organisationId: actor.organisationId },
-      data: {
-        finalisedAt: now,
-        scheduleSnapshot: { ...schedule, invitedReadingProvenance: snap.invited.provenance } as unknown as Prisma.InputJsonValue,
-        grandSummarySnapshot: summary.summary as unknown as Prisma.InputJsonValue,
-        faultsSnapshot: fs.filter((f) => f.level !== "block") as unknown as Prisma.InputJsonValue,
-        ...(frozenSnapshot ? { policySnapshot: frozenSnapshot as unknown as Prisma.InputJsonValue } : {}),
-        estimatePaperAmount: disclosed?.paper != null ? senToDecimalString(disclosed.paper) : null,
-        estimateLodgedAmount: disclosed && disclosed.check ? senToDecimalString(lodged!) : null,
-        estimateCopyCheck: disclosed?.check ?? null,
-      },
-    });
-    if (recordRule) {
-      const a = unpurchasedRecordAudit(unpurchased.consequence!, now, person!.name, l.org.timeZone);
-      await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields(a.before, a.after));
-    }
-    if (anyIneligible) {
-      await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ ineligibleBidder: null }, { ineligibleBidder: ineligible === "ELIMINATE" ? "Eliminated at the opening (the supplier register's policy, frozen at finalising)" : "Reported to the committee (the supplier register's policy, frozen at finalising)" }));
-    }
-    await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ finalised: null }, finaliseFields({ at: now, by: person!.name, pages: o.schedulePages!, rows: schedule.rows.length, copy: disclosed?.check ?? null, paper: disclosed?.paper ?? null, lodged, disclosed: !!disclosed }, l.org.timeZone)));
-    if (o.kind === "MAIN") {
-      await moveExercise(tx, l.ex, "OPENED", { today: l.org.today, via: "OPENING_FINALISED", finaliseFaults: 0 });
-      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "OPENED" }));
-    }
-    // 6.8 E-7: a supplementary opening finalised once an evaluation version exists opens version n+1 in
-    // this transaction, superseding the one in force; the evaluations are locked after the opened bids.
-    let reopened: number | null = null;
-    if (o.kind === "SUPPLEMENTARY") {
-      await lockEvaluationRows(tx, l.ex.id);
-      reopened = await openNewVersion(tx, toAuditActor(actor), { organisationId: l.org.id, exercise: { id: l.ex.id, reference: l.ex.reference, title: l.ex.title, status: l.ex.status }, ceiling: ceilingOf(l.ex), today: l.org.today, timeZone: l.org.timeZone, now }, { trigger: "SUPPLEMENTARY_OPENING", openingId: o.id, personId: person!.id, act });
-    }
-    const again = reopened ? ` Evaluation version ${reopened} is opened with the late ${o.bids.length === 1 ? "offer" : "offers"}; every stage is submitted again.` : "";
-    const copy = disclosed?.check === "MISMATCH" || disclosed?.check === "NOT_IN_BOX" ? " The estimate's paper copy is recorded as a finding to explain on the Schedule section." : "";
-    return { ok: true, message: `Finalised. Attach the signed schedule's scan on the Schedule section.${copy}${again}` };
-  }, { estimate: true });
+  return inOpening(actor, exerciseIdOf(data), now, (tx, l, c) => finaliseInTransaction(tx, l, c, { actor, act, now, openingId, personId, paperChoice, paperRaw, data, online: null }), { estimate: true });
 }
 
 /// C-1: the explanation of a MISMATCH or NOT_IN_BOX copy finding, once, never edited.

@@ -64,6 +64,7 @@ const ENTITY_OF: Readonly<Record<OwnerKind, string>> = {
   eotClaim: "EotClaim",
   registrationDraftDocument: "RegistrationDraftDocument",
   creditorProfile: "CreditorProfile",
+  onlineBidFile: "OnlineBidFile",
 };
 
 /// The record an owner of documents is judged as (read without a lock).

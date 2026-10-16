@@ -686,6 +686,74 @@ describe("trigger 5: a released data key", () => {
   });
 });
 
+describe("trigger 5's replaced function (review N3, wave 3b step 15)", () => {
+  /// A file whose bid was opened and whose opening was finalised, with its key released in that transaction, as the online finalise does it.
+  async function releasedFile() {
+    const ex = await onlineExercise();
+    const files = await asApp(async (tx) => [await draftFile(tx, ex, s1)]);
+    const mine = await asApp((tx) => submit(tx, ex, s1, { files }));
+    await setClosing(ex.id, -60);
+    const openingId = await mainOpening(ex.id);
+    const partyId = (await db.exerciseParty.create({ data: { organisationId: org, exerciseId: ex.id, source: "BIDDER_AT_OPENING", name: "Bidder", registrationNo: randomId() } })).id;
+    await asApp(async (tx) => {
+      await tx.$executeRawUnsafe(`UPDATE "Opening" SET "unsealedAt" = "sealed_clock"() WHERE "id" = $1`, openingId);
+      await tx.$executeRawUnsafe(`UPDATE "OnlineBid" SET "status" = 'OPENED' WHERE "id" = $1`, mine.bidId);
+      await tx.$executeRawUnsafe(`UPDATE "BidEnvelope" SET "status" = 'OPENED', "partyId" = $2 WHERE "id" = $1`, mine.envelopeId, partyId);
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "OpenedBid" ("id","organisationId","exerciseId","openingId","envelopeId","listingNo","partyId","openedAt","bidderNameAsRead","priceAsRead","saleFinding","restrictionFinding")
+         VALUES ($1,$2,$3,$4,$5,1,$6,"sealed_clock"(),'Bidder',NULL,'LIVE_SALE','NOT_RESTRICTED')`,
+        newId("ob"), org, ex.id, openingId, mine.envelopeId, partyId,
+      );
+    });
+    await asApp(async (tx) => {
+      await tx.$executeRawUnsafe(`UPDATE "OpenedBid" SET "priceAsRead" = 100.00 WHERE "envelopeId" = $1`, mine.envelopeId);
+      await tx.$executeRawUnsafe(`UPDATE "Opening" SET "finalisedAt" = "sealed_clock"() WHERE "id" = $1`, openingId);
+      await tx.$executeRawUnsafe(`UPDATE "OnlineBidFile" SET "releasedDek" = decode($2,'hex') WHERE "id" = $1`, files[0], hex(32));
+    });
+    return files[0];
+  }
+  /// The document link the mover writes: a document, its version and the attachment naming the file. Written as the owner (this is not the trigger under test).
+  async function link(fileId: string) {
+    const cls = await db.documentClass.create({ data: { organisationId: org, code: `BIDF_${randomId()}`, nameEn: "Bid files", classification: "SULIT" } });
+    const bytes = randomBytes(16);
+    const digest = sha256(bytes);
+    await db.blobContent.upsert({ where: { organisationId_sha256: { organisationId: org, sha256: digest } }, create: { organisationId: org, sha256: digest, byteSize: BigInt(bytes.length), bytes }, update: {} });
+    const doc = await db.document.create({ data: { organisationId: org, title: "tender.pdf", documentClassId: cls.id, classificationSnapshot: "SULIT", retentionSnapshot: {} } });
+    const version = await db.documentVersion.create({ data: { organisationId: org, documentId: doc.id, versionNo: 1, sha256: digest, byteSize: BigInt(bytes.length), mediaType: "application/pdf", originalFilename: "tender.pdf", recordedBySupplierAccountId: s1.accountId } });
+    await db.documentAttachment.create({ data: { organisationId: org, purpose: "ONLINE_BID_FILE", versionId: version.id, onlineBidFileId: fileId } });
+  }
+  const shred = (fileId: string) => asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBidFile" SET "releasedDek" = NULL WHERE "id" = $1`, fileId));
+
+  it("a shred before the file's document link exists is refused, and set to another value is refused whether or not the link exists", async () => {
+    const file = await releasedFile();
+    expect(await refusal(shred(file))).toBe("PA015");
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBidFile" SET "releasedDek" = decode($2,'hex') WHERE "id" = $1`, file, hex(32))))).toBe("PA015");
+    await link(file);
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBidFile" SET "releasedDek" = decode($2,'hex') WHERE "id" = $1`, file, hex(32))))).toBe("PA015");
+  });
+
+  it("a shred after the link exists is allowed, as the app role, and the key can never be written again outside a finalise", async () => {
+    const file = await releasedFile();
+    await link(file);
+    expect(await refusal(shred(file))).toBeNull();
+    expect((await db.onlineBidFile.findUniqueOrThrow({ where: { id: file } })).releasedDek).toBeNull();
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OnlineBidFile" SET "releasedDek" = decode($2,'hex') WHERE "id" = $1`, file, hex(32))))).toBe("PA015");
+  });
+
+  it("the link is one per file: a second attachment naming the same file is refused by its unique key", async () => {
+    const file = await releasedFile();
+    await link(file);
+    await expect(link(file)).rejects.toThrow();
+  });
+
+  it("the replaced function keeps its search_path and its identity", async () => {
+    const fn = await one<{ source: string; config: string[] | null }>(`SELECT p.prosrc AS source, p.proconfig AS config FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'sealed_online_bid_file_change'`);
+    expect(fn.config).toContain("search_path=pg_catalog, public, pg_temp");
+    expect(fn.source).toMatch(/"finalisedXact" = pg_current_xact_id()/);
+    expect(fn.source).toMatch(/"DocumentAttachment"/);
+  });
+});
+
 describe("trigger 7: the exercise key and the published fingerprint", () => {
   it("publication freezes the live key's fingerprint, and nothing else", async () => {
     const ex = await onlineExercise();

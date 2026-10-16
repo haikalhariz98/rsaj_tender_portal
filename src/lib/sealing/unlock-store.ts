@@ -21,6 +21,7 @@ import { wrappedKeyOf } from "./unseal-seal";
 import { afterSuccess } from "@/lib/auth/lockout";
 import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import { db } from "@/lib/db";
+import { RATE_LIMITS, rateRefusalLogged } from "@/lib/portal/bids/limits";
 import { countAndJudgeCounted } from "@/lib/portal/bids/rate-store";
 import { sealingPepper } from "@/lib/integration/sealing-deployment";
 
@@ -39,13 +40,13 @@ export const SEALED_RECORD_ID = /^[A-Za-z0-9_-]{1,64}$/;
 export const recordIdOrNull = (v: string | null | undefined): string | null => (v != null && SEALED_RECORD_ID.test(v) ? v : null);
 
 /// An administrator account refused at a sealed door (S19, 20w): the first refusal for the account in each hour is written, the rest are counted and not written, so a script cannot fill the log.
-export async function logAdministratorRefusal(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK"; staffPersonId: string; recordId?: string | null }): Promise<void> {
+export async function logAdministratorRefusal(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "FINALISE"; staffPersonId: string; recordId?: string | null }): Promise<void> {
   const seen = await countAndJudgeCounted(db, { organisationId: i.organisationId, accountId: i.accountId, action: "officer-sealed-refusal" }, new Date());
   if (seen.count !== 1) return;
   await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, staffPersonId: i.staffPersonId, reasonCode: "ADMINISTRATOR", recordId: recordIdOrNull(i.recordId) });
 }
 
-export async function logSealedGranted(i: { organisationId: string; exerciseId: string; kind: "UNLOCK_CHECK" | "DOWNLOAD"; staffPersonId: string; recordId: string; at: Date }): Promise<void> {
+export async function logSealedGranted(i: { organisationId: string; exerciseId: string; kind: "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE"; staffPersonId: string; recordId: string; at: Date }): Promise<void> {
   await db.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, outcome: "GRANTED", staffPersonId: i.staffPersonId, recordId: i.recordId, at: i.at } });
 }
 
@@ -81,7 +82,7 @@ async function refundAttempt(organisationId: string, officerKeyId: string, r: Ex
   });
 }
 
-export async function unlockOwnKey(i: { organisationId: string; exerciseId: string; personId: string; passphrase: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD"; now: Date; recordId?: string | null }): Promise<Unlocked> {
+export async function unlockOwnKey(i: { organisationId: string; exerciseId: string; personId: string; passphrase: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE"; now: Date; recordId?: string | null }): Promise<Unlocked> {
   const refuse = async (reason: UnlockRefusal, extra: { nowLocked?: boolean } = {}): Promise<Unlocked> => {
     await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, staffPersonId: i.personId, reasonCode: reason, recordId: i.recordId });
     return { ok: false, reason, ...extra };
@@ -141,3 +142,21 @@ export function unlockRefusalWords(r: Exclude<Unlocked, { ok: true }>): string {
   }
 }
 
+
+/**
+ * The per-account rate on the officer's passphrase acts (20bb): the unseal authorisation, the passphrase check, signing the online finalise and finalising it. Counted FIRST, before anything is looked up
+ * or tried, so a flood of refusals writes at most one row a window and password or passphrase guessing is bounded. A refused try counts. Only the first refusal in a window is written (20w), as a
+ * REFUSED row with the reason RATE_LIMITED, after the session was checked by the caller. Returns the words to show, or null when the act may go on.
+ */
+export async function officerActRate(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "FINALISE"; staffPersonId: string; recordId?: string | null; now?: Date }): Promise<string | null> {
+  const now = i.now ?? new Date();
+  const rate = await countAndJudgeCounted(db, { organisationId: i.organisationId, accountId: i.accountId, action: "officer-passphrase-act" }, now);
+  if (!rate.limited) return null;
+  if (rateRefusalLogged(rate.count, RATE_LIMITS["officer-passphrase-act"].limit)) {
+    await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, staffPersonId: i.staffPersonId, reasonCode: "RATE_LIMITED", recordId: i.recordId });
+  }
+  return OFFICER_ACT_RATE_WORDS(rate.retryAfterSeconds);
+}
+
+export const OFFICER_ACT_RATE_WORDS = (retryAfterSeconds: number): string =>
+  `You have tried too many times in the last minute, so this was not tried. Nothing was recorded. Wait ${retryAfterSeconds} second${retryAfterSeconds === 1 ? "" : "s"} and try again. The first refused try in each minute is logged.`;

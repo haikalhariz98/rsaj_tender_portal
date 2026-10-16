@@ -163,7 +163,7 @@ export function EditDocumentClass({ row, offices }: { row: DocumentClass; office
 }
 
 /// The organisation's upload rules (OD-3). Either may be left unset; uploads are then refused, naming it.
-export function EditStorePolicy({ policy }: { policy: { allowedMediaTypes: readonly string[]; maxBytes: string | null; provenance: string | null; notes: string } }) {
+export function EditStorePolicy({ policy, sulitClasses }: { policy: { allowedMediaTypes: readonly string[]; maxBytes: string | null; onlineBidFileClassId: string | null; provenance: string | null; notes: string }; sulitClasses: { value: string; label: string }[] }) {
   return (
     <RecordEditor
       title="Upload rules"
@@ -184,6 +184,7 @@ export function EditStorePolicy({ policy }: { policy: { allowedMediaTypes: reado
           placeholder: "e.g. 20",
           hint: "1 MB here is 1,048,576 bytes. Leave it empty and uploads are refused until it is set. The deployment may hold a lower limit of its own.",
         },
+        { kind: "select", name: "onlineBidFileClassId", label: "Class of a filed online bid file", placeholder: "Not set", options: sulitClasses, hint: "An online bid's files are filed in the document store when its opening is finalised, under this class. It must be classified SULIT. Leave it empty and an online opening cannot be finalised until it is set." },
         { kind: "select", name: "provenance", label: "Where this came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
@@ -193,6 +194,7 @@ export function EditStorePolicy({ policy }: { policy: { allowedMediaTypes: reado
       values={{
         allowedMediaTypes: policy.allowedMediaTypes.join("\n"),
         maxMegabytes: policy.maxBytes ? bytesToMegabytes(BigInt(policy.maxBytes)) : null,
+        onlineBidFileClassId: policy.onlineBidFileClassId,
         provenance: policy.provenance,
         notes: policy.notes,
       }}

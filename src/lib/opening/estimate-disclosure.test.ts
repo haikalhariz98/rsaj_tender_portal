@@ -33,7 +33,8 @@ describe("the order of the writes", () => {
     for (const w of ["companyEstimate.update(", "estimateEvent.create(", "writeAudit("]) expect(body.indexOf(w), w).toBeGreaterThan(judged);
   });
   it("finaliseOpening throws a Refusal on DisclosureRefused (the transaction rolls back), never returns after writes", () => {
-    const actions = readFileSync("src/app/sourcing/[id]/opening/actions.ts", "utf8");
+    // Step 15: the finalising transaction moved to finalise-transaction.ts (shared by the paper and the online finalise), its body unchanged.
+    const actions = readFileSync("src/app/sourcing/[id]/opening/finalise-transaction.ts", "utf8");
     expect(actions).toMatch(/if \(e instanceof DisclosureRefused\) throw new Refusal\(/);
     expect(actions).not.toMatch(/if \(e instanceof DisclosureRefused\) return/);
   });

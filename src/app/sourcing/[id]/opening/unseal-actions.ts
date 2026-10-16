@@ -26,7 +26,7 @@ import type { OnlineBidRules } from "@/lib/bids/online/types";
 import { releasePlan } from "@/lib/sealing/release";
 import { logCeremonyEvent } from "@/lib/sealing/store";
 import { zero } from "@/lib/sealing/types";
-import { logAdministratorRefusal, logSealedRefusal, recordIdOrNull, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
+import { logAdministratorRefusal, logSealedRefusal, officerActRate, recordIdOrNull, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
 
 import { audit, exerciseIdOf, label, Refusal } from "../window/shared";
 import { GONE_OPENING, inOpening, refuse, stampNow } from "./in-opening";
@@ -59,6 +59,9 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
   const openingId = text(data, "openingId");
   const passphrase = text(data, "passphrase");
 
+  // 20bb: the account's rate is counted before anything is looked up or tried.
+  const limited = await officerActRate({ organisationId: actor.organisationId, accountId: actor.accountId, exerciseId, kind: "AUTHORISE", staffPersonId: actor.personId, recordId: recordIdOrNull(openingId) });
+  if (limited) return { ok: false, message: limited };
   if (passphrase.length === 0) return { ok: false, errors: { passphrase: ONLINE_PASSPHRASE_REQUIRED } };
   if (passphrase.length > MAX_PASSPHRASE_CHARACTERS) return { ok: false, errors: { passphrase: ONLINE_PASSPHRASE_TOO_LONG } };
 

@@ -503,6 +503,15 @@ The public posts join `SUPPLIER_BIDS_POSTS`. The submit page joins `BID_PAGE`, f
 - **Shares:** `shredExerciseReleases` lapses every outstanding UNSEAL release on cancellation and on a `KEY_OFFICERS_MISMATCH` refusal.
 - **Screen:** `CheckUnlockDrawer` on the Sealing key card.
 
+### 1.5i What step 15 added beyond §1.3 (built 2026-10-16)
+
+- **Pure:** `src/lib/sealing/pepper.ts` (`pepperStillNeeded` exactly as §1.6 declares it, `wrappedUnderHeld` (the full `name#check` id), `pepperListState`, `PEPPER_LIST_WORDS`); `src/lib/opening/online-finalise.ts` (`onlineFinaliseDoorFaults`, `materialFinding`, `declaredWrite`, `parseEstimateFigure`, `filesToRelease`); `finaliseFaults` takes `online`; `audit-mask.ts` `openingFactsFor` (20ax).
+- **Stores:** `online-finalise-store.ts` (`gatherFinaliseMaterial`: the one reader of FINALISE grants, every file verified one at a time, the declarations and the sealed estimate opened), `src/lib/sealing/online-file-mover.ts` (`moveReleasedFiles`, `ensureFileMoved`), `src/lib/sealing/pepper-store.ts` (`loadPepperList`), `sealed-file-store.ts` `loadOpeningCheckFiles`, `unlock-store.ts` `officerActRate` (20bb).
+- **Actions** (`opening/online-finalise-actions.ts`): `signOnlineFinalise`, `finaliseOnline`. The transaction's body is `opening/finalise-transaction.ts` `finaliseInTransaction`, shared with the paper finalise. Order asked: session, rate, password, exercise visible, doors, passphrase, then outside the transaction every file verified, then one transaction (faults, declared figures, context read again, estimate, snapshots, `finalisedAt`, keys released), then the mover after the commit.
+- **Migrations:** 20261107000000 (`AttachmentPurpose` gains ONLINE_BID_FILE), 20261107000100 (`DocumentAttachment.onlineBidFileId` unique with both X-6 CHECKs rebuilt, `DocumentStorePolicy.onlineBidFileClassId`, trigger 5's function replaced).
+- **Screens:** the Opening tab (sign, finalise online, the files to check with the shared `SealedFileDownload`), Configuration > Bid sealing (the pepper list), Configuration > Documents (the class a filed bid takes).
+- **Carried:** the 20ao `publishWindow` test, the ui-guidelines-reviewer pass and the rendered check are step 19's (20bi, 20bj).
+
 ### 1.5b What step 9 added beyond §1.3 (built 2026-10-14)
 
 - `src/lib/sealing/file-seal.ts` (pure): `sealFile`, and `fileBodyAad`, `fileMetaAad`, `fileDekAad` (recordId = the file's id, partKey = the returned part's id), so step 13's unseal rebuilds them identically. Stored body is `ct || tag` with the IV in `bodyIv`.

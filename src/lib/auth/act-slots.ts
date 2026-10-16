@@ -230,7 +230,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // Phase 3d). It is never recorded from paper for a member, so it is not paper-capable and the opening's page offers it to the member signed in alone.
   slot("OpeningAuthorisation", "person", "Authorised by", { signatureClass: true, holder: "UNSEAL", entryPoints: ["src/app/sourcing/[id]/opening/actions.ts#recordAuthorisation"] }),
   paper("OpenedBidInitial", "person", "Initialled by"),
-  signed("OpeningSignature", "person", "Signed by", "SIGNATURE", ["src/app/sourcing/[id]/opening/actions.ts#recordSignature"]),
+  signed("OpeningSignature", "person", "Signed by", "SIGNATURE", ["src/app/sourcing/[id]/opening/actions.ts#recordSignature", "src/app/sourcing/[id]/opening/online-finalise-actions.ts#signOnlineFinalise"]),
   slot("EstimateCopyExplanation", "recordedBy", "Recorded by"),
   // Wave 3b (SR-13, ADR 0036 D3, D4, D10, D11): the named officer's act of setting their share (SHARE_SET), a recorded change of a published exercise key (REKEY), and the
   // sealed lodgement of the company estimate (LODGE_SEALED_ESTIMATE). Setting a share asks the password again (D4); steps 8 and 16 wire each act through `beginAct` with its

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { MASKED_ACTOR_WORDS, maskSealedAuditRows, SEALED_AUDIT_ENTITIES, sealedAuditMask, type SealedAuditFacts } from "./audit-mask";
+import { MASKED_ACTOR_WORDS, maskSealedAuditRows, openingFactsFor, SEALED_AUDIT_ENTITIES, sealedAuditMask, type SealedAuditFacts } from "./audit-mask";
 
 describe("the audit mask on online bids (D9, 20c)", () => {
   it.each(SEALED_AUDIT_ENTITIES)("%s: hidden from everyone before the unseal", (entity) => {
@@ -86,5 +86,28 @@ describe("the offers an unseal names on an online exercise (20c: only the named 
   });
   it("a paper exercise's opened offers and envelopes are not masked: the names are read out at the table", () => {
     for (const r of [offer, envelope]) expect(maskSealedAuditRows([r], () => facts({ online: false }), null)[0]).toBe(r);
+  });
+});
+
+describe("each late online bid is judged by its own opening (ruling 20ax)", () => {
+  const main = { unsealed: true, finalised: true };
+  it("an in-time bid is judged by the main opening, a late one never by it", () => {
+    expect(openingFactsFor({ main, late: false, supplementary: null })).toEqual(main);
+    expect(openingFactsFor({ main: null, late: false, supplementary: { unsealed: true, finalised: true } })).toEqual({ unsealed: false, finalised: false });
+    expect(openingFactsFor({ main, late: true, supplementary: null })).toEqual({ unsealed: false, finalised: false });
+  });
+  it("a late bid is named to the named officers once its supplementary opening is unsealed, and to everyone once it is finalised", () => {
+    const unsealed = openingFactsFor({ main, late: true, supplementary: { unsealed: true, finalised: false } });
+    expect(unsealed).toEqual({ unsealed: true, finalised: false });
+    expect(sealedAuditMask({ entity: "OnlineBid", viewer: "NAMED_OFFICER", ...unsealed })).toEqual({ hideActor: false, hideSupplier: false });
+    expect(sealedAuditMask({ entity: "OnlineBid", viewer: "OTHER", ...unsealed })).toEqual({ hideActor: true, hideSupplier: true });
+    const finalised = openingFactsFor({ main, late: true, supplementary: { unsealed: true, finalised: true } });
+    expect(sealedAuditMask({ entity: "OnlineBid", viewer: "OTHER", ...finalised })).toEqual({ hideActor: false, hideSupplier: false });
+  });
+  it("a late bid not admitted, or admitted and not yet opened, stays unnamed to everyone, even with the main opening finalised", () => {
+    const none = openingFactsFor({ main, late: true, supplementary: null });
+    for (const viewer of ["NAMED_OFFICER", "OTHER"] as const) expect(sealedAuditMask({ entity: "OnlineBid", viewer, ...none })).toEqual({ hideActor: true, hideSupplier: true });
+    const started = openingFactsFor({ main, late: true, supplementary: { unsealed: false, finalised: false } });
+    expect(sealedAuditMask({ entity: "OnlineBidFile", viewer: "NAMED_OFFICER", ...started })).toEqual({ hideActor: true, hideSupplier: true });
   });
 });

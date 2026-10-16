@@ -27,6 +27,8 @@ import type { Reader } from "@/lib/auth/sulit-store";
 import { lockGapFinding } from "./box";
 import { checklistFromSnapshot, openingChecklist, unansweredItems } from "./checklist";
 import { COPY_NOT_COMPARED_LABEL, COPY_NOT_COMPARED_TEXT, copyFindingFault, copyReading, estimateCardText } from "./estimate-copy";
+import { loadOpeningCheckFiles } from "./sealed-file-store";
+import type { OnlineBidRules } from "@/lib/bids/online/types";
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./finalise";
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
 import { freshInitials } from "./initials";
@@ -148,7 +150,13 @@ export async function openingSection(organisationId: string, exerciseId: string,
   // 20c: on an online exercise, between the unseal and finalising only the named opening officers see who bid. Judged here, on the server, so a name never rides in the page for anyone else.
   const namedOfficers = l.ex.submissionChannel === "ONLINE" ? await db.exerciseOpeningOfficer.findMany({ where: { exerciseId, organisationId, endedAt: null }, select: { personId: true } }) : [];
   const viewerIsNamed = viewerPersonId != null && namedOfficers.some((n) => n.personId === viewerPersonId);
-  const openings = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy, prices, hideNames: l.ex.submissionChannel === "ONLINE" && !viewerIsNamed }));
+  const views = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy, prices, hideNames: l.ex.submissionChannel === "ONLINE" && !viewerIsNamed }));
+  // 20at: between the unseal and finalising, a named officer is offered each opened offer's opening-check files to download. Never for anyone else, and never after finalising (the files are documents then).
+  const openings = await Promise.all(views.map(async (v, i) => {
+    const o = c.openings[i];
+    const offer = viewerIsNamed && l.ex.submissionChannel === "ONLINE" && o.unsealedAt != null && o.finalisedAt == null;
+    return { ...v, checkFiles: offer ? await loadOpeningCheckFiles({ organisationId, exerciseId, openingId: o.id, rules: (l.ex.onlineBidRules as OnlineBidRules | null) ?? null }) : null };
+  }));
 
   return {
     exerciseId: l.ex.id,
@@ -283,10 +291,13 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
   const unopened = unopenedInTime(c.envelopes);
   const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
   const drift = verdictDrift(o.bids, { checklist, completenessEliminates: snap.completeness.eliminates, unpurchased, ineligible: ineligibleConsequence });
+  // ONLINE (step 15): the finalise judges the roster the key was split across, not who is marked present: every named officer signs.
+  const onlineOpening = o.exercise.submissionChannel === "ONLINE";
+  const signers = onlineOpening ? o.panel.map((p) => ({ personId: p.personId, name: p.person.name })) : present;
   const ff = finaliseFaults({
     state,
     bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: freshInitials(b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
-    present,
+    present: signers,
     signed: o.signatures.map((s) => s.personId),
     pages: o.schedulePages,
     checklist,
@@ -301,6 +312,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     invitedReading: snap.invited.reading,
     estimate: { required: snap.estimate.requires === true, lodged: estimateLodged, paperAnswered: true },
     personActive: true,
+    online: onlineOpening,
   });
   const startDay = tz ? dayIn(o.startedAt, tz) : null;
 
@@ -359,7 +371,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       { label: "Alternatives", value: snap.alternativesPermitted == null ? "Not stated on the window" : snap.alternativesPermitted ? "Permitted" : "Not permitted: recorded, never considered" },
     ],
     signatures: o.signatures.map((s) => `${s.person.name}, ${seatWords(s.panelMember?.seatLabelSnapshot)}, signed on ${formatDate(storedDay(s.signedOn))}`),
-    signFor: present.filter((p) => !o.signatures.some((s) => s.personId === p.personId)).map((p) => ({ personId: p.personId, name: p.name, allowed: allowedOf(markFaults({ state, panel, personId: p.personId, already: false, sameOpening: true })) })),
+    signFor: signers.filter((p) => !o.signatures.some((s) => s.personId === p.personId)).map((p) => ({ personId: p.personId, name: p.name, allowed: allowedOf(markFaults({ state, panel, personId: p.personId, already: false, sameOpening: true })) })),
     startDay,
     pages: o.schedulePages,
     minutes: o.minutes,
@@ -367,7 +379,9 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     finalise: {
       allowed: allowedOf(ff),
       outstanding: [...new Set(blocking(ff).map(openingFindingText))],
-      paper: estimateLodged ? { required: snap.estimate.requires === true } : null,
+      paper: estimateLodged && !onlineOpening ? { required: snap.estimate.requires === true } : null,
+      /// ONLINE: how many named officers have signed, of how many, so the screen says who is still to sign before one of them finalises.
+      online: onlineOpening ? { signed: o.signatures.length, of: o.panel.length, signedIds: o.signatures.map((x) => x.personId) } : null,
     },
   };
 }

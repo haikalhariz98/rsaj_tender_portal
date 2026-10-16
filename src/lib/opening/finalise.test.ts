@@ -18,6 +18,32 @@ describe("an online opening (review, stage C)", () => {
   });
 });
 
+describe("the online finalise judges an online opening by the same faults (step 15)", () => {
+  const online = { ...base, state: open({ online: true, required: 2 }), online: true };
+  it("is not refused as elsewhere, and everything ready is clear", () => expect(finaliseFaults(online).map((x) => x.code)).toEqual([]));
+  it("needs every named officer's signature, by name", () => {
+    expect(finaliseFaults({ ...online, signed: ["p1"] })).toEqual([{ code: "SIGNATURE_MISSING", level: "block", data: { person: "Bala" } }]);
+    expect(finaliseFaults({ ...online, signed: [] }).map((x) => x.code)).toEqual(["SIGNATURE_MISSING", "SIGNATURE_MISSING"]);
+  });
+  it("keeps the paper's other faults: a checklist item unanswered, a verdict unset, the pages", () => {
+    expect(finaliseFaults({ ...online, bids: [bid(1, { unanswered: 1 }), bid(2, { verdict: null })], pages: null }).map((x) => x.code)).toEqual(["CHECKLIST_UNANSWERED", "VERDICT_UNSET", "PAGES_NOT_SET"]);
+  });
+  it("an estimate lodged but no sealed copy read says so in its own words, and a copy read clears it", () => {
+    const f = finaliseFaults({ ...online, estimate: { required: true, lodged: true, paperAnswered: false } });
+    expect(f.map((x) => x.code)).toEqual(["ESTIMATE_COPY_NOT_ANSWERED"]);
+    expect(openingFindingText(f[0])).toMatch(/sealed copy/);
+    expect(openingFindingText(f[0])).not.toMatch(/paper copy from the box/);
+    expect(finaliseFaults({ ...online, estimate: { required: true, lodged: true, paperAnswered: true } })).toEqual([]);
+  });
+  it("is refused for a paper opening, and the paper finalise still refuses an online one", () => {
+    expect(finaliseFaults({ ...base, online: true }).map((x) => x.code)).toEqual(["NOT_ONLINE"]);
+    expect(finaliseFaults({ ...base, state: open({ online: true, required: 2 }) }).map((x) => x.code)).toEqual(["ONLINE_FINALISE_ELSEWHERE"]);
+  });
+  it("the paper refusal names the online finalise's screen", () => {
+    expect(openingFindingText({ code: "ONLINE_FINALISE_ELSEWHERE", level: "block" })).toMatch(/Finalising section of this exercise's Opening tab/);
+  });
+});
+
 const codes = (x: Partial<typeof base>) => finaliseFaults({ ...base, ...x }).map((f) => f.code);
 
 describe("finalising", () => {

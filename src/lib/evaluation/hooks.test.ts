@@ -21,8 +21,9 @@ const body = (text: string, name: string) => {
 };
 
 describe("E-7: a supplementary opening finalised reopens the evaluation (6.7 finaliseOpening)", () => {
-  const opening = read("src", "app", "sourcing", "[id]", "opening", "actions.ts");
-  const fin = body(opening, "finaliseOpening");
+  // Wave 3b step 15: the finalising transaction lives in finalise-transaction.ts (shared by the paper and the online finalise), its body unchanged.
+  const opening = read("src", "app", "sourcing", "[id]", "opening", "finalise-transaction.ts");
+  const fin = body(opening, "finaliseInTransaction");
   it("only a supplementary opening opens a version, after the opening's own finalising writes", () => {
     const hook = fin.indexOf('if (o.kind === "SUPPLEMENTARY") {\n      await lockEvaluationRows');
     expect(hook).toBeGreaterThan(fin.indexOf("await tx.opening.update("));

@@ -166,7 +166,7 @@ export default async function DocumentsConfigPage() {
         <CardHeader
           title="Upload rules"
           subtitle="Which files the portal accepts and how large. Where either is not set, uploads are refused."
-          actions={policy ? <EditStorePolicy policy={{ allowedMediaTypes: policy.allowedMediaTypes, maxBytes: policy.maxBytes?.toString() ?? null, provenance: policy.provenance, notes: policy.notes }} /> : undefined}
+          actions={policy ? <EditStorePolicy policy={{ allowedMediaTypes: policy.allowedMediaTypes, maxBytes: policy.maxBytes?.toString() ?? null, onlineBidFileClassId: policy.onlineBidFileClassId, provenance: policy.provenance, notes: policy.notes }} sulitClasses={classes.filter((c) => c.classification === "SULIT").map((c) => ({ value: c.id, label: c.nameEn }))} /> : undefined}
           divided
         />
         <CardBody className="flex flex-col gap-5">
@@ -215,6 +215,10 @@ export default async function DocumentsConfigPage() {
               {
                 label: "Limit in force",
                 value: upload?.cap ? `${formatBytes(upload.cap.bytes)}, from ${upload.cap.from === "CEILING" ? "the deployment's limit" : "the largest file above"}` : NOT_SET,
+              },
+              {
+                label: "Class of a filed online bid file",
+                value: policy?.onlineBidFileClassId ? (classes.find((c) => c.id === policy.onlineBidFileClassId)?.nameEn ?? NOT_SET) : <Badge tone="warn">Not set, an online opening cannot be finalised</Badge>,
               },
               { label: "Where this came from", value: policy?.provenance ? <ProvenanceChip value={policy.provenance} /> : NOT_SET },
               { label: "Megabytes", value: "1 MB is 1,048,576 bytes" },

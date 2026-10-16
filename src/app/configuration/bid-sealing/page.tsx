@@ -18,6 +18,8 @@ import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { malwareScanner } from "@/lib/documents/store";
 import { demonstrationAllowedByDeployment, liveAllowedByDeployment, pepperConfigured } from "@/lib/integration/sealing-deployment";
+import { PEPPER_LIST_WORDS, pepperListState } from "@/lib/sealing/pepper";
+import { loadPepperList } from "@/lib/sealing/pepper-store";
 import { exercisesStillTakingBids, sealingModeWords } from "@/lib/sealing/policy";
 import { LIVE_ISSUE_WORDS, liveIssueFaults } from "@/lib/sealing/switch";
 
@@ -53,6 +55,12 @@ export default async function BidSealingPage() {
   ]);
   const started = new Set((await db.opening.findMany({ where: { organisationId: org, kind: "MAIN", exerciseId: { in: exercises.map((e) => e.id) } }, select: { exerciseId: true } })).map((o) => o.exerciseId));
   const taking = exercisesStillTakingBids(exercises.map((e) => ({ ...e, channel: e.submissionChannel, mainOpeningStarted: started.has(e.id) })));
+
+  // Read only (20y). A restricted exercise the reader may not see is not listed, as above.
+  const pepperList = await loadPepperList(org);
+  const pepperRows = pepperList.rows.filter((r) => !hidden.includes(r.id));
+  // Judged on the rows this reader may see, with a fixed sentence (no number) that a restricted exercise is listed only to those named on it.
+  const pepperState = pepperListState(pepperList.held, pepperRows.length);
 
   const scanner = malwareScanner().configured;
   const pepper = pepperConfigured();
@@ -149,6 +157,42 @@ export default async function BidSealingPage() {
               </ul>
             )}
           </CardBody>
+        </Card>
+
+        <Card id="pepper" className="scroll-mt-24 overflow-hidden">
+          <CardHeader title="Exercises that still need the sealing pepper" subtitle="Read only. The pepper is kept unchanged until none is listed." divided={pepperState !== "SOME"} />
+          <CardBody className="flex flex-col gap-2">
+            <p className="text-[13px] text-ink-2">{PEPPER_LIST_WORDS.scope}</p>
+            <p className="text-[13px] text-ink-2">{PEPPER_LIST_WORDS.restricted}</p>
+          </CardBody>
+          {pepperState === "NOT_HELD" && <CardBody><Callout tone="warn" title="No pepper is held">{PEPPER_LIST_WORDS.notHeld}</Callout></CardBody>}
+          {pepperState === "INVALID" && <CardBody><Callout tone="warn" title="The pepper held is not usable">{PEPPER_LIST_WORDS.invalid}</Callout></CardBody>}
+          {pepperState === "NONE" && <EmptyState title="None">{PEPPER_LIST_WORDS.none}</EmptyState>}
+          {pepperState === "SOME" && (
+            <>
+              <CardBody>
+                <p className="text-[13px] text-ink-2">{PEPPER_LIST_WORDS.some}</p>
+              </CardBody>
+              <Table minWidth={460}>
+                <THead>
+                  <Tr>
+                    <Th>Exercise</Th>
+                    <ActionsCol />
+                  </Tr>
+                </THead>
+                <tbody>
+                  {pepperRows.map((e) => (
+                    <Tr key={e.id}>
+                      <Td>{`${e.reference} · ${e.title}`}</Td>
+                      <RowActions>
+                        <Link href={`/sourcing/${e.id}`}>Open</Link>
+                      </RowActions>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            </>
+          )}
         </Card>
 
         {mode !== "LIVE" && (

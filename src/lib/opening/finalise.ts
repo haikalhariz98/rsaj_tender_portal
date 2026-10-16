@@ -22,6 +22,7 @@ import type { Finding, InvitedCountReading, OpeningVerdict, UnpurchasedConsequen
 export type FinaliseFault =
   | ActFault
   | "ONLINE_FINALISE_ELSEWHERE"
+  | "NOT_ONLINE"
   | "ENVELOPE_UNOPENED"
   | "ADMITTED_NOT_OPENED"
   | "INITIAL_MISSING"
@@ -74,9 +75,12 @@ export function finaliseFaults(i: {
   /// Where the method requires an estimate and one is lodged: whether the paper's figure (or "not in the box") was answered.
   estimate: { required: boolean; lodged: boolean; paperAnswered: boolean };
   personActive: boolean;
+  /// Set by the online finalise alone (step 15), which judges an online opening by the same faults: `present` is then every named officer, `signed` their signatures, and `estimate.paperAnswered` whether the sealed lodgement was read.
+  online?: boolean;
 }): Finding<FinaliseFault>[] {
   // Review (stage C): an online opening has no price read until its own finalise (ADR 0036 D10), so the paper finalise refuses it in words before any price is looked for, rather than throwing on a price not read.
-  if (i.state.online && !i.state.cancelled && !i.state.finalised) return [{ code: "ONLINE_FINALISE_ELSEWHERE", level: "block" }];
+  if (i.state.online && !i.online && !i.state.cancelled && !i.state.finalised) return [{ code: "ONLINE_FINALISE_ELSEWHERE", level: "block" }];
+  if (i.online && !i.state.online) return [{ code: "NOT_ONLINE", level: "block" }];
   const out: Finding<FinaliseFault>[] = [...actFaults(i.state)];
   const f = (code: FinaliseFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (i.state.kind === "MAIN" && i.unopened > 0) f("ENVELOPE_UNOPENED", { count: i.unopened });
@@ -101,7 +105,7 @@ export function finaliseFaults(i: {
   // residual 5: a verdict that no longer stands for another reason says so, naming what changed.
   for (const x of i.noLongerStands ?? []) f("VERDICT_NO_LONGER_STANDS", { listingNo: x.listingNo, verdict: x.verdict, added: x.added.join(","), removed: x.removed.join(",") });
   if (i.invitedReading == null) f("READING_NOT_SET");
-  if (i.estimate.required && i.estimate.lodged && !i.estimate.paperAnswered) f("ESTIMATE_COPY_NOT_ANSWERED");
+  if (i.estimate.required && i.estimate.lodged && !i.estimate.paperAnswered) f("ESTIMATE_COPY_NOT_ANSWERED", i.online ? { online: 1 } : undefined);
   if (!i.personActive) f("PERSON_REQUIRED");
   return out;
 }

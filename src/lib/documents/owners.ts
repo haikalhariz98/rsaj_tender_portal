@@ -456,12 +456,14 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
     // these owners from the shared choice (`OWNER_ACT_PURPOSES`), so there is no staff lock to take.
     case "registrationDraftDocument":
     case "creditorProfile":
+    // Wave 3b step 15: the mover files a bid file and its link in one transaction of its own, so staff never attach to this owner.
+    case "onlineBidFile":
       return null;
   }
 }
 
 /// Which owner an attachment belongs to.
-export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null; evaluationId?: string | null; evaluationMeetingId?: string | null; evaluationBidderId?: string | null; supplierDocumentId?: string | null; supplierApplicationId?: string | null; contractId?: string | null; variationInstructionId?: string | null; standingEventId?: string | null; delayNoticeId?: string | null; eotClaimId?: string | null; registrationDraftDocumentId?: string | null; creditorProfileId?: string | null }): OwnerRef | null {
+export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null; evaluationId?: string | null; evaluationMeetingId?: string | null; evaluationBidderId?: string | null; supplierDocumentId?: string | null; supplierApplicationId?: string | null; contractId?: string | null; variationInstructionId?: string | null; standingEventId?: string | null; delayNoticeId?: string | null; eotClaimId?: string | null; registrationDraftDocumentId?: string | null; creditorProfileId?: string | null; onlineBidFileId?: string | null }): OwnerRef | null {
   if (a.meetingId) return { kind: "meeting", id: a.meetingId };
   if (a.exerciseId) return { kind: "exercise", id: a.exerciseId };
   if (a.awardId) return { kind: "award", id: a.awardId };
@@ -485,5 +487,6 @@ export function ownerOf(a: { meetingId: string | null; exerciseId: string | null
   if (a.eotClaimId) return { kind: "eotClaim", id: a.eotClaimId };
   if (a.registrationDraftDocumentId) return { kind: "registrationDraftDocument", id: a.registrationDraftDocumentId };
   if (a.creditorProfileId) return { kind: "creditorProfile", id: a.creditorProfileId };
+  if (a.onlineBidFileId) return { kind: "onlineBidFile", id: a.onlineBidFileId };
   return null;
 }

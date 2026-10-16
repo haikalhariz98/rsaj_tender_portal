@@ -165,7 +165,21 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   NOT_CLOSED: () => "The invitation window has not closed yet: the opening starts once it has.",
   BOX_NOT_LOCKED: () => "The tender box is not recorded as locked at or after the closing. Record the box locked on the Received section first.",
   KEY_NOT_LIVE: () => "This online exercise has no live sealing key, so its bids cannot be opened.",
-  ONLINE_FINALISE_ELSEWHERE: () => "This exercise takes bids online, so its prices are not read here: each price is read, and the schedule finalised, only by the online finalise. Nothing was finalised.",
+  ONLINE_FINALISE_ELSEWHERE: () => "This exercise takes bids online, so its prices are not read here: each price is read, and the schedule finalised, only by the online finalise. Use the Finalising section of this exercise's Opening tab: each named officer signs, then one of them finalises with their own unseal passphrase. Nothing was finalised.",
+  // ---- the online finalise (step 15)
+  ONLINE_FILE_CLASS_NOT_SET: () => `The class that an online bid's files take when they are filed is not set, so there is nowhere to file them and nothing was finalised. Set it under Configuration › Documents, in the upload rules.`,
+  ONLINE_BID_NOT_FOUND: (f) => `Offer ${n(f, "listingNo")}'s sealed submission could not be found. Nothing was finalised.`,
+  ONLINE_GRANT_MISSING: (f) => `Your key does not open offer ${n(f, "listingNo")}: nothing was sealed to you for it at the unseal. Nothing was finalised.`,
+  ONLINE_GRANT_UNREADABLE: (f) => `What was sealed to you for offer ${n(f, "listingNo")} could not be opened. Nothing was finalised.`,
+  ONLINE_BYTES_MISSING: (f) => `A file of offer ${n(f, "listingNo")} is not in the store. Nothing was finalised.`,
+  ONLINE_FILE_UNREADABLE: (f) => `A file of offer ${n(f, "listingNo")} did not open whole, so it cannot be relied on. Nothing was finalised.`,
+  ONLINE_DIGEST_MISMATCH: (f) => `A file of offer ${n(f, "listingNo")} no longer matches the digest it was stored under. Nothing was finalised.`,
+  ONLINE_DECLARATION_UNREADABLE: (f) => `The declaration of offer ${n(f, "listingNo")} did not open whole, so its price cannot be read. Nothing was finalised.`,
+  ONLINE_ESTIMATE_UNREADABLE: () => "The estimate lodged sealed did not open whole. Nothing was finalised.",
+  ONLINE_STATE_CHANGED: () => "The opening changed while its files were being checked. Nothing was finalised; try again.",
+  ONLINE_NOT_ALL_SIGNED: () => "Every named officer signs first. Nothing was finalised.",
+  ALREADY_FINALISED: () => "This opening is already finalised.",
+  ADMINISTRATOR: () => "An administrator account does not open, sign for or finalise bids.",
   KEY_OFFICERS_MISMATCH: (f) => (n(f, "keyOfficers") === n(f, "officers")
     ? `The officers named now are not the officers the exercise key was split across: the roster has changed since the key was made, though ${n(f, "officers")} are named in both. Every officer must set their share again before the opening can start.`
     : `The exercise key was split across ${n(f, "keyOfficers")} officers, and ${n(f, "officers")} are named now. Every officer must set their share again before the opening can start.`),
@@ -287,7 +301,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   NOTHING_TO_EXPLAIN: () => "The paper copy matched: there is nothing to explain.",
   ALREADY_EXPLAINED: () => "The explanation is already recorded; it is never edited.",
   EXPLANATION_REQUIRED: () => "Give the explanation.",
-  ESTIMATE_COPY_NOT_ANSWERED: () => "Enter the figure on the estimate's paper copy from the box, or record that it was not in the box. It is compared only once everything else is in order, when the estimate is disclosed.",
+  ESTIMATE_COPY_NOT_ANSWERED: (f) => f.data?.online ? "The company estimate is lodged, but no sealed copy of it was lodged for the opening officers. Nothing can be compared, and a copy cannot be lodged after the closing." : "Enter the figure on the estimate's paper copy from the box, or record that it was not in the box. It is compared only once everything else is in order, when the estimate is disclosed.",
   // ---- the schedule and finalising
   READING_NOT_SET: () => `How the schedule counts the tenderers invited is not set. Set it under ${SETTING_AT.openingPolicy}.`,
   ENVELOPE_UNOPENED: (f) => `${plural(n(f, "count"), "envelope in time is", "envelopes in time are")} neither opened nor withdrawn.`,

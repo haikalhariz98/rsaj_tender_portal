@@ -21,6 +21,16 @@ export function sealedAuditMask(i: { entity: string; viewer: "NAMED_OFFICER" | "
   return { hideActor: !shown, hideSupplier: !shown };
 }
 
+/**
+ * Which opening judges a bid's rows (ruling 20ax). An in-time bid is opened at the main opening, so the main opening's unseal and finalise decide. A LATE online bid is not opened there: it
+ * is named to the named officers once the supplementary opening that opens it is unsealed, and to everyone once that opening is finalised. A late bid with no such opening (never tabled, not admitted,
+ * or admitted and not yet opened) stays unnamed, whatever the main opening has done.
+ */
+export function openingFactsFor(i: { main: { unsealed: boolean; finalised: boolean } | null; late: boolean; supplementary: { unsealed: boolean; finalised: boolean } | null }): { unsealed: boolean; finalised: boolean } {
+  if (i.late) return i.supplementary ?? { unsealed: false, finalised: false };
+  return i.main ?? { unsealed: false, finalised: false };
+}
+
 /// What a masked actor reads as. It names nobody and says why.
 export const MASKED_ACTOR_WORDS = "Withheld until the opening: online bids name no bidder before it";
 

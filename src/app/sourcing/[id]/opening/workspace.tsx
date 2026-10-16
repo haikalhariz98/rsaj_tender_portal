@@ -15,7 +15,8 @@ import { openingSection, scheduleSection, type OpeningSectionView, type OpeningV
 import { FLOW_LABEL } from "@/lib/method/flow";
 import { kelasText, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import { EXERCISE_NOTE_ID } from "../../editors";
-import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
+import { SealedFileDownload } from "@/components/sealed-file-download";
+import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, OnlineFinaliseDrawer, OnlineSignatureDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
 import { EnvelopesToOpen, OffersRead } from "./lists";
 import type { StaffActor } from "@/lib/auth/types";
 import { sulitExerciseGate } from "@/app/_auth/sulit";
@@ -203,6 +204,26 @@ function OpeningCard({ d, o, viewerPersonId }: { d: OpeningSectionView; o: Openi
         <OffersRead exerciseId={ex} o={o} />
       </div>
 
+      {o.checkFiles && o.checkFiles.length > 0 && (
+        <CardBody className="flex flex-col gap-3 border-t border-line">
+          <h3 className="text-[13.5px] font-semibold text-ink">Files to check</h3>
+          <p className="text-[12.5px] text-ink-3">The documents checked at the opening, which only the named officers open. Each download asks your sign-in password and your unseal passphrase, every time, and is logged. The other files of a bid stay sealed until the opening is finalised.</p>
+          <ul className="divide-y divide-line/70 rounded-xl border border-line">
+            {o.checkFiles.map((offer) =>
+              offer.files.map((f) => (
+                <li key={f.fileId} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13.5px] font-semibold break-words text-ink">{`Offer ${offer.listingNo} · ${f.partLabel}`}</span>
+                    <span className="block text-[12px] break-words text-ink-3">{offer.bidder}</span>
+                  </span>
+                  <SealedFileDownload openingId={o.id} fileId={f.fileId} label={`Offer ${offer.listingNo}, ${f.partLabel}`} />
+                </li>
+              )),
+            )}
+          </ul>
+        </CardBody>
+      )}
+
       <CardBody className="flex flex-col gap-3 border-t border-line">
         <h3 className="text-[13.5px] font-semibold text-ink">Checked against each bid</h3>
         {o.checklist.items.length === 0 ? <p className="text-[13px] text-ink-3">Nothing is on the checklist.</p> : <ol className="flex list-decimal flex-col gap-1 pl-5 text-[13.5px] text-ink-2">{o.checklist.items.map((i) => <li key={i} className="break-words">{i}</li>)}</ol>}
@@ -223,7 +244,12 @@ function OpeningCard({ d, o, viewerPersonId }: { d: OpeningSectionView; o: Openi
             ...(o.minutes ? [{ label: "Minutes", value: <span className="whitespace-pre-line">{o.minutes}</span> }] : []),
           ]}
         />
-        {!o.finalised && o.signFor.length > 0 && (
+        {!o.finalised && o.online && o.signFor.some((p) => p.personId === viewerPersonId) && (
+          <span className="flex flex-wrap gap-1">
+            {o.signFor.filter((p) => p.personId === viewerPersonId).map((p) => <OnlineSignatureDrawer key={p.personId} exerciseId={ex} openingId={o.id} name={p.name} allowed={p.allowed} />)}
+          </span>
+        )}
+        {!o.finalised && !o.online && o.signFor.length > 0 && (
           <span className="flex flex-wrap gap-1">
             {o.signFor.map((p) => <SignatureDrawer key={p.personId} exerciseId={ex} openingId={o.id} person={{ id: p.personId, name: p.name }} allowed={p.allowed} />)}
           </span>
@@ -234,10 +260,14 @@ function OpeningCard({ d, o, viewerPersonId }: { d: OpeningSectionView; o: Openi
         <CardBody className="flex flex-col gap-3 border-t border-line">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[13.5px] font-semibold text-ink">Finalising</h3>
-            {o.finalise.allowed.allowed && <FinaliseDrawer exerciseId={ex} openingId={o.id} title={o.title} allowed={o.finalise.allowed} people={d.people} paper={o.finalise.paper} />}
+            {o.finalise.allowed.allowed && !o.online && <FinaliseDrawer exerciseId={ex} openingId={o.id} title={o.title} allowed={o.finalise.allowed} people={d.people} paper={o.finalise.paper} />}
+            {o.finalise.allowed.allowed && o.online && o.panel.some((p) => p.personId === viewerPersonId) && <OnlineFinaliseDrawer exerciseId={ex} openingId={o.id} title={o.title} allowed={o.finalise.allowed} />}
           </div>
+          {o.online && o.finalise.online && (
+            <p className="text-[13px] text-ink-2">{`${o.finalise.online.signed} of the ${o.finalise.online.of} named officers have signed the schedule. Each signs in their own sign-in; when all have, any one of them finalises with their own unseal passphrase. Finalising unseals each bid's price and period, so none is read before it.`}</p>
+          )}
           {o.finalise.outstanding.length === 0 ? (
-            <p className="text-[13px] text-ink-2">Everything the paper schedule carries is on the record.{o.finalise.paper ? " Finalising asks for the figure on the estimate's paper copy." : ""}</p>
+            <p className="text-[13px] text-ink-2">{o.online ? "Everything the schedule carries is on the record." : "Everything the paper schedule carries is on the record."}{o.finalise.paper ? " Finalising asks for the figure on the estimate's paper copy." : ""}</p>
           ) : (
             <Callout tone="warn" title="Before it can be finalised">
               <ul className="flex list-disc flex-col gap-1 pl-5">

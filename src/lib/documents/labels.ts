@@ -111,6 +111,7 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   EOT_CALCULATION: "How the proposed period was calculated",
   SUPPLIER_DRAFT_DOCUMENT: "Certificate uploaded by the supplier",
   SUPPLIER_BANK_STATEMENT: "Bank statement uploaded by the supplier",
+  ONLINE_BID_FILE: "File of an online bid",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",

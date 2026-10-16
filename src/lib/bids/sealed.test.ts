@@ -246,11 +246,16 @@ const MAY_SELECT_IDENTITY: Readonly<Record<string, string>> = {
   "src/lib/bids/online/upload-store.ts": "step 10: the part upload writes the supplier and its account on the file, and reads the supplier's own files",
   "src/lib/bids/online/my-bids-store.ts": "step 11: the supplier's own screens read its own submissions, by the session's supplier and no other",
   "src/lib/opening/unseal-store.ts": "step 13 (plan 1.5e, 1.5f): the last authorisation of the unseal lists each opened bid under its supplier's party on the exercise, and reads no other",
+  "src/lib/sealing/online-file-mover.ts": "step 15 (ADR 0036 D10): the mover files a finalised bid file as a document recorded by the supplier account that uploaded it, and reads no other identity",
 };
 const SELECTS_NO_IDENTITY: Readonly<Record<string, string>> = {
   "src/lib/bids/online/audit-scope-store.ts": "step 12: reads an id and an exercise from the online tables to find which exercise an audit row belongs to",
   "src/lib/sealing/store.ts": "the key ceremony: logs staff acts on the access-event table and reads the keys, never a bid",
   "src/lib/opening/sealed-file-store.ts": "step 14: the officer's download reads a file's ciphertext address and its bid's status by the file's id at an opening, through the grant sealed to the officer's own key, and names no supplier, account or submitter",
+  "src/lib/opening/online-finalise-store.ts": "step 15: before the finalise commits, reads each opened bid's sealed declaration and files by the opened offer's envelope, through the grants sealed to the finaliser, and names no supplier, account or submitter",
+  "src/app/sourcing/[id]/opening/finalise-transaction.ts": "step 15: the finalising transaction reads the opened bids' file ids by envelope to release each data key, and names no supplier, account or submitter",
+  "src/lib/sealing/pepper-store.ts": "step 15 (20y): reads each late online bid's status by its envelope and the roll's sequence, to judge whether the pepper is still needed, and names no supplier, account or submitter",
+  "src/lib/documents/hidden.ts": "step 15: finds the exercise a moved bid file hangs on, to judge who may read its document, and names no supplier, account or submitter",
   "src/lib/sealing/unlock-store.ts": "step 13: logs an officer's attempts at their own key on the access-event table, by the staff person, and reads the officer's key, never a bid",
 };
 

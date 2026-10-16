@@ -41,8 +41,9 @@ guess passphrases offline. LIVE requires it.
   name, a demonstration exercise included; an exercise wrapped with no pepper is not affected.
 - **One pepper at a time.** The deployment holds one `SEALING_PEPPER`, so a new pepper (a new name and new bytes) replaces the old one. It may replace it only once
   no exercise wrapped under the old one can still be opened, by the rule above. An exercise with no submission can be re-keyed under a new pepper: that is the
-  remedy if a pepper is lost early, not a reason to rotate early. The bid sealing screen will list, read only, the exercises that still need the pepper this
-  deployment holds (build plan step 15), so the rule can be checked before a rotation; until then it is checked by hand against the rule above.
+  remedy if a pepper is lost early, not a reason to rotate early. The bid sealing screen lists, read only, the exercises that still need the pepper this
+  deployment holds, so the rule can be checked before a rotation. The list covers one organisation, so a deployment serving several organisations checks each one's list
+  before a rotation. Where this copy holds no pepper, or one that is not usable, the list says so and cannot say that nothing needs it: check the copy that holds the pepper.
 - **The name binds the bytes.** The product stores, in each wrap, the pepper's name and a short check value derived from its bytes. A copy that holds the right name with
   the wrong bytes (a restore from the wrong backup, a slip in typing) is told so: the act is refused because this copy does not hold that exercise's pepper, and the
   officer's passphrase is never counted as wrong for it.

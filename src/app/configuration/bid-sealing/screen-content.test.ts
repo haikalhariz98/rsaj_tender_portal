@@ -25,8 +25,45 @@ describe("the Bid sealing screen", () => {
     expect(editors).toContain("an edge header and body read timeout, with a maximum body size no larger than the largest part rule");
     expect(editors).toContain("Attested, not checked by the portal");
   });
+  it("lists, read only, the exercises that still need the sealing pepper, with its organisation-only and not-held words (20y)", () => {
+    expect(page).toContain("Exercises that still need the sealing pepper");
+    expect(page).toContain("PEPPER_LIST_WORDS.scope");
+    expect(page).toContain("PEPPER_LIST_WORDS.notHeld");
+    expect(page).toContain("PEPPER_LIST_WORDS.invalid");
+    // A restricted exercise is left out of the list by the reader's visibility, so the sentence that says so is always shown, with no number, and "none" is judged on what the reader can see.
+    expect(page).toContain("PEPPER_LIST_WORDS.restricted");
+    expect(page).toContain("pepperListState(pepperList.held, pepperRows.length)");
+    const words = src("src/lib/sealing/pepper.ts");
+    expect(words).toContain("covers this organisation only");
+    expect(words).toContain("checks each one's list before the pepper is changed");
+    expect(words).toContain("This is not the same as no exercise needing it");
+    expect(words).toContain("listed only to them");
+    expect(words).toContain("No exercise that you can see still needs");
+  });
   it("names the three references the switch needs", () => {
     for (const label of ["The outside cryptography review", "The amendment of the bid procedure", "The organisation's written acceptance of the limits"]) expect(page).toContain(label);
+  });
+});
+
+describe("the online finalise and the download of a file to check (20at, 20au)", () => {
+  it("the download is one shared control that asks both secrets together and keeps neither", () => {
+    const c = src("src/components/sealed-file-download.tsx");
+    expect(c).toContain('autoComplete="current-password"');
+    expect(c).toContain('autoComplete="off"');
+    expect(c).toContain("/api/opening/sealed-file");
+    expect(c).toContain('setPassword("")');
+    expect(c).toContain('setPassphrase("")');
+    expect(c).not.toMatch(/localStorage|sessionStorage/);
+    const ws = src("src/app/sourcing/[id]/opening/workspace.tsx");
+    expect(ws).toContain("SealedFileDownload");
+    expect(ws).toContain("Files to check");
+  });
+  it("the online finalise's drawers ask the passphrase and name who still has to sign", () => {
+    const ed = src("src/app/sourcing/[id]/opening/editors.tsx");
+    expect(ed).toContain("OnlineFinaliseDrawer");
+    expect(ed).toContain("OnlineSignatureDrawer");
+    expect(ed).toContain("Your unseal passphrase cannot be reset or recovered");
+    expect(src("src/app/sourcing/[id]/opening/workspace.tsx")).toContain("named officers have signed the schedule");
   });
 });
 

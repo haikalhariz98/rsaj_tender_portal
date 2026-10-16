@@ -39,10 +39,10 @@ export async function documentOrg(organisationId: string, client: Tx = db): Prom
   return org ? { id: org.id, code: org.code, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) } : null;
 }
 
-export async function loadStorePolicy(organisationId: string, client: Tx = db): Promise<StorePolicy & { provenance: string | null; notes: string; id: string | null }> {
+export async function loadStorePolicy(organisationId: string, client: Tx = db): Promise<StorePolicy & { provenance: string | null; notes: string; id: string | null; onlineBidFileClassId: string | null }> {
   const p = await client.documentStorePolicy.findUnique({ where: { organisationId } });
-  if (!p) return { id: null, allowedMediaTypes: [], maxBytes: null, provenance: null, notes: "" };
-  return { id: p.id, allowedMediaTypes: p.allowedMediaTypes, maxBytes: p.maxBytes, provenance: p.provenance, notes: p.notes };
+  if (!p) return { id: null, allowedMediaTypes: [], maxBytes: null, provenance: null, notes: "", onlineBidFileClassId: null };
+  return { id: p.id, allowedMediaTypes: p.allowedMediaTypes, maxBytes: p.maxBytes, provenance: p.provenance, notes: p.notes, onlineBidFileClassId: p.onlineBidFileClassId };
 }
 
 /// A signed-in supplier opening or being refused its own registration's file (Phase 4b): the actor is the supplier's account, never a person.

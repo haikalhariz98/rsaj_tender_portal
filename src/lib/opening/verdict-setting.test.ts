@@ -72,11 +72,13 @@ describe("one judgement, shared (residual 5, source)", () => {
   it("the finalise act and the opening screen both call verdictDrift; neither restates it", () => {
     const act = readFileSync("src/app/sourcing/[id]/opening/actions.ts", "utf8");
     const read = readFileSync("src/lib/opening/read.ts", "utf8");
-    const body = act.slice(act.indexOf("export async function finaliseOpening"));
+    // Step 15: the finalising transaction lives in finalise-transaction.ts (shared by the paper and the online finalise), its body unchanged.
+    const core = readFileSync("src/app/sourcing/[id]/opening/finalise-transaction.ts", "utf8");
+    const body = core;
     expect(body).toMatch(/const drift = verdictDrift\(o\.bids, /);
     expect(body.indexOf("if (blocking(fs).length) return refuse(fs);")).toBeGreaterThan(body.indexOf("verdictDrift("));
     expect(body.indexOf("tx.opening.update(")).toBeGreaterThan(body.indexOf("if (blocking(fs).length) return refuse(fs);"));
     expect(read).toMatch(/const drift = verdictDrift\(o\.bids, /);
-    for (const t of [act, read]) expect(t).not.toMatch(/verdictUnderOtherSetting|recordedTreatment\(/);
+    for (const t of [act, core, read]) expect(t).not.toMatch(/verdictUnderOtherSetting|recordedTreatment\(/);
   });
 });

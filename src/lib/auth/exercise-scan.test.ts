@@ -50,6 +50,7 @@ export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
   "src/lib/method/prep-read.ts": "SR-05: the reads of Scope and estimate's Details and Key dates sections, called by the exercise page after its guard",
   "src/app/sourcing/[id]/scope/workspace.tsx": "rendered only by the exercise page, which refuses a hidden exercise first",
   "src/app/suppliers/[id]/standing-panels.tsx": "reads the exercises left after the supplier loader removed the hidden ones (`l.hidden`, from `loadSupplier`)",
+  "src/lib/sealing/pepper-store.ts": "step 15 (20y): the bid sealing page's read-only list of the exercises still needing the pepper, called by that page, which takes `hiddenExercises` and leaves a restricted exercise out of the rows it shows",
   "src/lib/bids/read.ts": "a tab's reader, called by the exercise page after its guard",
   "src/lib/bids/repo.ts": "the bids module's own loaders, called by the exercise page and by acts that run under `withLockedRequisitionForSourcing`",
   "src/lib/documents/hidden.ts": "the document guard itself: it finds the exercise a record of documents hangs on, to be asked about",
