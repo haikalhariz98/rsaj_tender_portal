@@ -1875,3 +1875,23 @@ The stage C questions (steps 11 to 14 and the stage C fix round, decisions log 2
     `perolehan_native_check`, never a session in `perolehan`. Where it cannot be done, it stays a carried gap for the founder, in the log and
     the report, never claimed.
     - **Code:** step 19 (checks and the committed snapshot, no product code).
+
+20bk. **20bc made precise: a roster change shreds the outstanding UNSEAL releases only, never the share a substitution transfers.**
+    - **Why.** `ShareReleasePurpose` has UNSEAL and SUBSTITUTION. Under ADR D11 a substitution is itself a release, sealed to the incoming
+      officer, and a correct substitution leaves the key matching the roster, so 20bc's reason (a stale key) does not apply to it. Shredding
+      it would make step 17's "substitutes and then unseals" unreachable. The existing `shredExerciseReleases` already lapses UNSEAL
+      releases only; 20bc calls it from every roster-changing act.
+    - **Code:** step 17, as 20bc.
+
+20bl. **My Bids' opened digest is the roll entry's, as built: confirmed.** (Step 11 carried gap (2).)
+    - **Why.** 20s state 2 asks for the opened receipt digest. The unseal opens only bids in the frozen roll and recomputes each opened bid's
+      receipt digest from its decrypted manifest (`BID_RECEIPT_DIGEST` in `online-unseal.ts`), refusing the unseal on a mismatch, so the
+      digest of an opened bid is its roll entry, checked against the bid itself. No separate opened value exists to hand over. The supplier
+      still compares it with the receipt it kept (S11), never trusts a server sentence.
+    - **Code:** none.
+
+20bm. **20bi amends 20ao's deadline:** the ONLINE `publishWindow` test is due before step 20 starts, not only before step 21. **And 20av's
+    sentence is on screens only:** the audit CSV is not given a note line, because its format is rows under a header and a line of another
+    kind would break every reader of it. Product-owner question for the founder: should the exported file itself carry that note, and in
+    what form (a column, a companion file)?
+    - **Code:** none beyond 20av and 20bi.
