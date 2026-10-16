@@ -29,7 +29,7 @@ import {
 import { CHECKLIST_ANSWERS, type ChecklistAnswer } from "./types";
 
 /**
- * SR-14's matrix (wave 3c plan §3.1; rulings 22, 23, 24; 20cn, 20co, 20cp, 20cs, 20cv). Pure.
+ * SR-14's matrix (wave 3c plan §1.1 and §3.1; rulings 22, 23, 24; 20cn, 20co, 20cp, 20cv). Pure.
  *
  * Worked example, readable by hand. The frozen checklist has three items: the Form of Tender (FOT), the Summary and Rates (SAR) and Addendum 1. The frozen
  * rules mark only the Form of Tender as opened at the opening. Bid 1 sent one file for the Form of Tender and none for the Summary and Rates, and its
@@ -37,9 +37,13 @@ import { CHECKLIST_ANSWERS, type ChecklistAnswer } from "./types";
  *   Form of Tender   → the officers open the file (CHECK_FILES)
  *   Summary and Rates → no file was received (NOT_RECEIVED): Present is refused, Absent or Not applicable is the officers' call
  *   Addendum 1       → "Acknowledged on the portal on 13 Nov 2026"
- * Answered Present, Absent, Present, the column reads "2 of 3 present · 1 absent". An officer records the decision; it stands only when both named
- * officers, Aminah and Badrul, have confirmed this column as it now reads (revision 3 after three changes). Aminah confirmed at revision 2, before the
- * decision was recorded, so she is asked to confirm again; once she has, at revision 3, the column is CONFIRMED.
+ * The column starts at revision 0, and every answer changed and every decision recorded raises it by one (plan §1.3, §4.1). Step by step:
+ *   1. The officers answer Present, Absent, Present (revisions 1, 2, 3). The column reads "2 of 3 present · 1 absent".
+ *      Nobody may confirm yet: no decision is recorded.
+ *   2. An officer records Reject (revision 4). Aminah confirms at revision 4.
+ *   3. On a second look the officers record Pass instead (revision 5). Badrul confirms at revision 5.
+ *   4. Aminah's confirmation was taken at revision 4, before the change, so it no longer counts: she is listed "confirm again" and the column awaits.
+ *   5. Aminah confirms again at revision 5. Both named officers now confirm the column as it reads, so the decision, Pass, stands: CONFIRMED.
  */
 
 const FOT: ChecklistItem = { key: "FOT", label: "Form of Tender", source: "PART" };
@@ -76,13 +80,21 @@ describe("the worked example (a finance reader can follow it by hand)", () => {
     const answers = new Map<string, ChecklistAnswer>([["FOT", "PRESENT"], ["SAR", "ABSENT"], ["addendum:1", "PRESENT"]]);
     const tally = columnTally([FOT, SAR, ADD1], answers);
     expect(tallyText(tally)).toBe("2 of 3 present · 1 absent");
-
+    // Step 1: answered, revision 3, no decision yet, so a confirmation is refused.
+    expect(confirmFaults({ tally, verdict: null }).map((f) => f.code)).toEqual(["DECISION_NOT_RECORDED"]);
     const officers = [{ personId: "aminah", name: "Aminah" }, { personId: "badrul", name: "Badrul" }];
-    const bid = { asReadCorrections: 0, columnRevision: 3 };
-    const before = columnStatus({ online: true, tally, verdict: "PASS", bid, officers, confirmations: [{ personId: "aminah", correctionNo: 0, columnRevision: 2 }, { personId: "badrul", correctionNo: 0, columnRevision: 3 }] });
-    expect(before).toEqual({ status: "AWAITING_CONFIRMATION", confirmed: [{ personId: "badrul", name: "Badrul" }], awaiting: [], stale: [{ personId: "aminah", name: "Aminah" }] });
-    const after = columnStatus({ online: true, tally, verdict: "PASS", bid, officers, confirmations: [{ personId: "aminah", correctionNo: 0, columnRevision: 3 }, { personId: "badrul", correctionNo: 0, columnRevision: 3 }] });
-    expect(after.status).toBe("CONFIRMED");
+    const confirmation = (personId: string, columnRevision: number) => ({ personId, correctionNo: 0, columnRevision });
+    // Step 2: Reject recorded, revision 4; Aminah confirms at 4.
+    expect(confirmFaults({ tally, verdict: "REJECT" })).toEqual([]);
+    const step2 = columnStatus({ online: true, tally, verdict: "REJECT", bid: { asReadCorrections: 0, columnRevision: 4 }, officers, confirmations: [confirmation("aminah", 4)] });
+    expect(step2).toEqual({ status: "AWAITING_CONFIRMATION", confirmed: [{ personId: "aminah", name: "Aminah" }], awaiting: [{ personId: "badrul", name: "Badrul" }], stale: [] });
+    // Steps 3 and 4: Pass recorded instead, revision 5; Badrul confirms at 5; Aminah's confirmation at 4 is stale.
+    const bid = { asReadCorrections: 0, columnRevision: 5 };
+    const step4 = columnStatus({ online: true, tally, verdict: "PASS", bid, officers, confirmations: [confirmation("aminah", 4), confirmation("badrul", 5)] });
+    expect(step4).toEqual({ status: "AWAITING_CONFIRMATION", confirmed: [{ personId: "badrul", name: "Badrul" }], awaiting: [], stale: [{ personId: "aminah", name: "Aminah" }] });
+    // Step 5: Aminah confirms again at 5. The decision stands.
+    const step5 = columnStatus({ online: true, tally, verdict: "PASS", bid, officers, confirmations: [confirmation("aminah", 4), confirmation("badrul", 5), confirmation("aminah", 5)] });
+    expect(step5.status).toBe("CONFIRMED");
   });
 });
 
@@ -201,7 +213,7 @@ describe("columnTally and tallyText", () => {
   });
 });
 
-describe("the overclaim scan: no tally or cell word says Pass, Fail or Lulus (20cs)", () => {
+describe("the overclaim scan: no tally or cell word says Pass, Fail or Lulus (plan §1.1, step 2)", () => {
   const forbidden = [/\bpass/i, /\bfail/i, /lulus/i, /gagal/i];
   it("tallyText, over every tally of up to five items", () => {
     for (let total = 0; total <= 5; total++)

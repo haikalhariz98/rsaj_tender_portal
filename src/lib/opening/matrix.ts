@@ -12,7 +12,7 @@
  * - A decision stands only once every named officer has confirmed the column as it now reads. A confirmation counts on the current reading (the as-read
  *   correction counter, `initials.ts`) and the current column revision, on both channels (ruling 22, 20cp, plan §1.3): every answer changed and every
  *   decision recorded or cleared raises the revision, so a confirmation taken before the change asks to be given again.
- * - The words never say "Pass" or "Fail" of a tally or a cell: Pass is the decision, and only the decision row says it (20cs).
+ * - The words never say "Pass" or "Fail" of a tally or a cell: Pass is the decision, and only the decision row says it (plan §1.1, the "Checklist result" row).
  */
 
 import { formatDate } from "@/lib/format";
