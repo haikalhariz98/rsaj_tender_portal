@@ -142,6 +142,10 @@ export const ACT_PREFIX: Readonly<Record<string, string>> = {
   AwardDistribution: "ldt",
   AwardDocument: "ldc",
   AwardReturn: "lrn",
+  // The online sealed-bid demonstration (wave 3b step 18, prisma/demo-online.ts): the exercise the create act opens.
+  SourcingExercise: "lsx",
+  ExerciseScopePart: "lxp",
+  ExerciseTaxonomyValue: "ltv",
 };
 /// Numbered ranges claimed in the plan (6.13 Part A: routes 131–159, sittings 20–29, matters 60–79).
 const NUMBERED: Readonly<Record<string, { prefix: string; from: number; to: number }>> = {

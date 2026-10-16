@@ -33,6 +33,7 @@ import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from ".
 import { attributeSeededRows } from "./demo-attribution";
 import { inboxDemoMissing, loadInboxDemo } from "./demo-inbox";
 import { checkResultsDemo, loadResultsDemo, resultsDemoState } from "./demo-results";
+import { loadOnlineDemo, onlineDemoUnsetWords } from "./demo-online";
 import { DEMO_PREFIX, DEMO_SWITCHES_RETIRED, DEMO_WIPE_RETIRED, demoIsLoaded, demoStarted } from "./demo-sign-in";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -124,6 +125,12 @@ async function load() {
     console.log(
       "Demo data is already present, loaded wholly or in part: nothing was written. This loader runs once per database and does not finish a part-made load; nothing removes it (the trail is permanent). For a fresh demo, use a new database.",
     );
+    // Ruling 12c, 20z: no configuration is written on a loaded database. The settings the online demonstration stands on that are not set are named, in words, for whoever sets them through Configuration.
+    const unsetOnline = await onlineDemoUnsetWords(db, org.id);
+    if (unsetOnline.length) {
+      console.log("These settings are not set on this database (set them through Configuration, by two people; nothing was written here):");
+      for (const line of unsetOnline) console.log(`  ${line}`);
+    }
     return;
   }
 
@@ -812,6 +819,9 @@ async function load() {
   await loadMyBidsDemo(db, organisationId);
   // Phase 4e: the contractor's My Projects workspace and the announcements board (prisma/demo-my-projects.ts).
   await loadMyProjectsDemo(db, organisationId);
+  // Wave 3b step 18 (rulings 12c, 12d, 20z): the online sealed-bid demonstration, after every authored exercise is pinned on paper and before the Results fixture (which stays the last of the
+  // demo's own data, and is written on paper whatever the channel). Only here, on a fresh database.
+  await loadOnlineDemo(db, organisationId);
   // Ruling 4 (2026-10-06): one advertised quotation taken to an issued award, so the public Results page has a row;
   // last, on everything above (prisma/demo-results.ts). `npm run demo:results` applies it alone to a loaded database.
   await loadResultsDemo(db, organisationId, { determine: determineExercises });

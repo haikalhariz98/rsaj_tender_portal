@@ -111,6 +111,18 @@ scripts/               Tooling to render a prototype and diff this app's DOM aga
 | `npm run demo:load` / `demo:results` | Load the invented demonstration once; add its Results fixture. Additive: nothing is ever written twice |
 | `npm run demo:wipe` | Retired: refuses and explains. The trail is permanent, so a demo database is replaced, never emptied |
 
+## The online sealed-bid demonstration
+
+`npm run demo:load` on a fresh database also makes one online exercise (wave 3b step 18), so the screens for sealed bids have something to show. It is invented, a demonstration and not for real tenders, and it is made **only inside `demo:load` on a fresh database**: on one that already holds the demonstration the loader writes nothing and says which settings are not set.
+
+- **It needs the deployment to allow demonstration bids.** Set `SEALED_BIDS_DEMONSTRATION_ALLOWED=true` in `.env` before loading (see `.env.example`). Without it the load still completes, but the organisation's channel is set to paper, no online exercise is made, and the load prints in words that the flag is what is missing.
+- **What it makes.** The organisation's channel set to online and its bid sealing mode to demonstration (both audited as the demo loader); every exercise the earlier demos authored pinned to paper; one open tender made by the product's own create act, with two opening officers named, their shares set and the exercise key made, the company estimate lodged sealed, and the window published. Two suppliers then bid in time (one replaces its bid) and a third bid is received late, so **Received shows two standing and one late**. The window permits alternatives, so one can be lodged from the supplier portal.
+- **Waiting.** The exercise closes a few minutes after its bids are made, so the load pauses for about four minutes while the database's own clock passes the closing; that is what makes the last bid late. It is the only pause.
+- **Signing in.** `DEMO_ACCOUNT_PASSWORD=... npm run demo:accounts` gives the demonstration's people accounts, the two opening officers among them, and the suppliers' accounts (`demo.supplier6`, `demo.supplier7` and `demo.ctr13` bid; each waits for activation). The load prints the officers' names and their **unseal passphrases**, which are invented and are these, in the order the officers are named: `demo unseal passphrase one, 2026` and `demo unseal passphrase two, 2026`. An officer needs the sign-in password and their own passphrase together to unseal, and the passphrase must never be the sign-in password.
+- **If the deployment holds a sealing pepper** (`SEALING_PEPPER`), the officers' keys are wrapped with it, as they would be live, and the exercise is in the pepper list's scope: keep the pepper while it stands.
+- **What is not signed.** The officers' shares and the suppliers' submissions are written by the loader, in the order the product writes them and with its own sealing code, and are attributed to the demo loader on the person's or the supplier's behalf, never as a signature: nobody entered a password for them. The keys are real, and the passphrases above open them.
+- **Proof.** `src/lib/demo/demo-additive.db.test.ts` loads two throwaway databases (flag set, flag unset), then runs the officers' unseal and one officer's finalise on the first (`scripts/online-demo-harness.ts`, through `vitest.demo-harness.config.mts`). Neither ever touches `DATABASE_URL`.
+
 ## Design fidelity tooling
 
 `scripts/` can run an HTML prototype in jsdom, print its rendered structure, and diff

@@ -556,7 +556,7 @@ async function createExercises(db: Db, organisationId: string, ns: number[], cre
 // ------------------------------------------------------------------ 6.2: the panel and the estimate
 
 /// The panel verified on its signed form and the estimate lodged, as 6.2's acts leave them; each judged by its rule.
-export async function scopeReady(db: Db, organisationId: string, tz: string, exerciseId: string, ref: string, sx: number, on: string, T: (d: string, t: string) => Date, nextDoc: () => string, docs: (ds: DemoDoc[]) => Promise<void>, entry: Add, value: string = EXERCISES[sx].value) {
+export async function scopeReady(db: Db, organisationId: string, tz: string, exerciseId: string, ref: string, sx: number, on: string, T: (d: string, t: string) => Date, nextDoc: () => string, docs: (ds: DemoDoc[]) => Promise<void>, entry: Add, value: string = EXERCISES[sx].value, estimateState: "LODGED" | "DRAFT" = "LODGED") {
   const repo = await import("../src/lib/scope/repo");
   const { panelFaults, panelState } = await import("../src/lib/scope/panel");
   const { versionFaults } = await import("../src/lib/scope/estimate");
@@ -606,7 +606,7 @@ export async function scopeReady(db: Db, organisationId: string, tz: string, exe
   const prepared = T(on, "08:40");
   fail(`estimate ${estId}`, versionFaults({ value: parseSen(value) - parseSen("7500.00"), personId: preparer.id, reason: "" }, null, { closingAt: null, timeZone: tz, exerciseStatus: ex.status, now: prepared }));
   const lodged = T(on, "08:50");
-  await db.companyEstimate.create({ data: { id: estId, organisationId, exerciseId, preparerPersonId: preparer.id, classification: "SULIT", state: "LODGED", currentVersionNo: 1, createdAt: prepared, lodgedAt: lodged, retainedPlace: "Contract & Procurement strong room, cabinet 2" } });
+  await db.companyEstimate.create({ data: { id: estId, organisationId, exerciseId, preparerPersonId: preparer.id, classification: "SULIT", state: estimateState, currentVersionNo: 1, createdAt: prepared, ...(estimateState === "LODGED" ? { lodgedAt: lodged, retainedPlace: "Contract & Procurement strong room, cabinet 2" } : {}) } });
   entry(SCOPE_ENTITY.estimate, estId, `${ref} · Company estimate`, "CREATE", prepared, estimateCreatedAudit({ preparerName: preparer.name, classification: "SULIT" }));
   await db.companyEstimateVersion.create({ data: { id: `${estId}v1`, organisationId, estimateId: estId, versionNo: 1, value: senToDecimalString(parseSen(value) - parseSen("7500.00")), preparedOn: dayToDate(on), preparerPersonId: preparer.id, bqVersionId: null, createdAt: prepared } });
   entry(SCOPE_ENTITY.estimateVersion, `${estId}v1`, `${ref} · Company estimate · version 1`, "CREATE", prepared, estimateVersionAudit({ versionNo: 1, preparerName: preparer.name, preparedOn: on }));
@@ -615,9 +615,10 @@ export async function scopeReady(db: Db, organisationId: string, tz: string, exe
     [`${estId}e2`, "LODGED", lodged, custodian, "Custodian, Head of Contract & Procurement", 1, ""],
     [`${estId}e3`, "RETAINED", T(on, "08:55"), custodian, "Custodian, Head of Contract & Procurement", 2, "Contract & Procurement strong room, cabinet 2"],
   ];
-  entry(SCOPE_ENTITY.estimate, estId, `${ref} · Company estimate`, "UPDATE", lodged, estimateStateAudit("Being prepared", "Lodged"));
+  if (estimateState === "LODGED") entry(SCOPE_ENTITY.estimate, estId, `${ref} · Company estimate`, "UPDATE", lodged, estimateStateAudit("Being prepared", "Lodged"));
   const { estimateEventLabel } = await import("../src/lib/audit/entity-labels");
-  for (const [id, kind, when, person, capacity, copyNo, note] of events) {
+  // An online exercise's estimate is lodged later, sealed to its key (prisma/demo-online.ts, beneath lodgeEstimate): only the preparation is written here.
+  for (const [id, kind, when, person, capacity, copyNo, note] of estimateState === "LODGED" ? events : events.slice(0, 1)) {
     await db.estimateEvent.create({ data: { id, organisationId, estimateId: estId, kind, personId: person.id, capacity, note, versionNo: 1, copyNo: kind === "PREPARED" ? null : copyNo, at: when } });
     entry(SCOPE_ENTITY.estimateEvent, id, `${ref} · ${estimateEventLabel(kind)}`, "CREATE", when, estimateEventAudit({ kind, personName: person.name, capacity, versionNo: 1, copyNo: kind === "PREPARED" ? undefined : copyNo, place: kind === "RETAINED" ? note : undefined }));
   }
