@@ -2,10 +2,9 @@
 
 import { sulitCell } from "@/components/sulit-cell";
 import { DataList, type Row } from "@/components/data-list";
-import { SealedFileDownload } from "@/components/sealed-file-download";
-import type { OpeningSectionView, OpeningView } from "@/lib/opening/read";
+import type { OpeningView } from "@/lib/opening/read";
 
-import { AlternativeInsideDrawer, ChecklistDrawer, CorrectAsReadDrawer, InitialDrawer, OpenEnvelopeDrawer, VerdictDrawer } from "./editors";
+import { AlternativeInsideDrawer, CorrectAsReadDrawer, InitialDrawer, OpenEnvelopeDrawer } from "./editors";
 
 /**
  * The opening's two lists, on the shared DataList: the envelopes it opens, and the offers read from
@@ -117,46 +116,12 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
         const bid = { id: b.id, listingNo: b.listingNo };
         return (
           <span className="flex flex-wrap items-center justify-end gap-1">
-            {b.initialFor.map((p) => <InitialDrawer key={p.personId} exerciseId={exerciseId} bid={bid} person={{ id: p.personId, name: p.name }} allowed={p.allowed} />)}
-            <ChecklistDrawer exerciseId={exerciseId} bid={bid} items={b.checklist} allowed={b.record} />
-            <VerdictDrawer exerciseId={exerciseId} bid={bid} options={b.verdictOptions} grounds={b.grounds} reported={b.reported} allowed={b.verdictAllowed} />
+            {/* SR-14: the checklist, the decision and the confirmations are the matrix's. A paper initial may still be recorded on behalf of a present member (3c-Q3); an online one may not. */}
+            {!o.online && b.initialFor.map((p) => <InitialDrawer key={p.personId} exerciseId={exerciseId} bid={bid} person={{ id: p.personId, name: p.name }} allowed={p.allowed} />)}
             <CorrectAsReadDrawer exerciseId={exerciseId} bid={bid} values={b.correctValues} allowed={b.record} />
             {b.alternativeInside?.allowed && <AlternativeInsideDrawer exerciseId={exerciseId} bid={bid} allowed={b.alternativeInside} />}
           </span>
         );
-      }}
-    />
-  );
-}
-
-type CheckFiles = NonNullable<OpeningSectionView["openings"][number]["checkFiles"]>;
-
-/// The opening-check files an online opening's named officers may download, on the shared DataList: one row per file, the download as the row's action.
-export function FilesToCheck({ openingId, offers }: { openingId: string; offers: CheckFiles }) {
-  const rows: Row[] = offers.flatMap((offer) =>
-    offer.files.map((f) => ({
-      id: f.fileId,
-      search: `${offer.listingNo} ${f.partLabel} ${offer.bidder}`,
-      sortKeys: { file: offer.listingNo },
-      cells: { file: { kind: "stack" as const, title: `Offer ${offer.listingNo} · ${f.partLabel}`, sub: offer.bidder } },
-    })),
-  );
-  const byId = new Map(offers.flatMap((offer) => offer.files.map((f) => [f.fileId, { listingNo: offer.listingNo, partLabel: f.partLabel }] as const)));
-  return (
-    <DataList
-      flat
-      selectable={false}
-      searchable={false}
-      toolbar={false}
-      exportName="files-to-check"
-      emptyTitle="No file to check"
-      emptyBody="No document is marked as checked at the opening."
-      actionsPlacement="below"
-      columns={[{ key: "file", label: "File", sortable: true, mobile: "primary" }]}
-      rows={rows}
-      actions={(id) => {
-        const f = byId.get(id)!;
-        return <SealedFileDownload openingId={openingId} fileId={id} label={`Offer ${f.listingNo}, ${f.partLabel}`} />;
       }}
     />
   );

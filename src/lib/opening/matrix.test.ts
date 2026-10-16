@@ -357,3 +357,11 @@ describe("words: no code reaches a screen", () => {
     }
   });
 });
+
+describe("COLUMN_STATUS_TEXT (step 5)", () => {
+  it("has words for every status and never says passed or approved", async () => {
+    const { COLUMN_STATUS_TEXT } = await import("./matrix");
+    expect(Object.keys(COLUMN_STATUS_TEXT).sort()).toEqual(["ANSWERING", "AWAITING_CONFIRMATION", "AWAITING_DECISION", "CONFIRMED"]);
+    for (const t of Object.values(COLUMN_STATUS_TEXT)) expect(t).not.toMatch(/\b(?:pass(?:ed)?|approved|signed)\b/i);
+  });
+});

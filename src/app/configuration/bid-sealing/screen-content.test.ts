@@ -55,10 +55,10 @@ describe("the online finalise and the download of a file to check (20at, 20au)",
     expect(c).toContain('setPassphrase("")');
     expect(c).not.toMatch(/localStorage|sessionStorage/);
     const ws = src("src/app/sourcing/[id]/opening/workspace.tsx");
-    // The list moved onto the shared DataList (AGENTS.md: DataList is the only list), in lists.tsx, which holds the download as the row's action.
-    expect(ws).toContain("FilesToCheck");
-    expect(src("src/app/sourcing/[id]/opening/lists.tsx")).toContain("SealedFileDownload");
-    expect(ws).toContain("Files to check");
+    // SR-14 (wave 3c step 5): the Files to check list became the checklist matrix. The same shared SealedFileDownload is each opening-check cell's download, in matrix.tsx, and the workspace renders the matrix.
+    expect(ws).toContain("OpeningMatrix");
+    expect(src("src/app/sourcing/[id]/opening/matrix.tsx")).toContain("SealedFileDownload");
+    expect(ws).not.toContain("FilesToCheck");
   });
   it("the online finalise's drawers ask the passphrase and name who still has to sign", () => {
     const ed = src("src/app/sourcing/[id]/opening/editors.tsx");

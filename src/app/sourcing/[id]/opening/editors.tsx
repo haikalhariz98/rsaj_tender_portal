@@ -279,17 +279,17 @@ export function AlternativeInsideDrawer({ exerciseId, bid, allowed }: { exercise
 
 // ------------------------------------------------------------------ initials, checklist, verdicts, corrections
 
-export function InitialDrawer({ exerciseId, bid, person, allowed }: { exerciseId: string; bid: { id: string; listingNo: number }; person: { id: string; name: string }; allowed: Allowed }) {
+export function InitialDrawer({ exerciseId, bid, person, allowed, own = false }: { exerciseId: string; bid: { id: string; listingNo: number }; person: { id: string; name: string }; allowed: Allowed; /** The matrix's "Confirm this column": the signed-in officer's own confirmation (SR-14). */ own?: boolean }) {
   if (!allowed.allowed) return null;
   return (
     <RecordEditor
-      title={`${person.name} initials No. ${bid.listingNo}`}
-      description="The member's initial on the offer as read out: made by the member signed in, or recorded from their paper for them, and not signed. After a correction it is taken again."
+      title={own ? `Confirm No. ${bid.listingNo}` : `${person.name} initials No. ${bid.listingNo}`}
+      description={own ? "Your initial confirms this column as it stands, with its answers and its decision. A later change to either asks for it again." : "The member's initial on the offer as read out: made by the member signed in, or recorded from their paper for them, and not signed. After a correction it is taken again."}
       fields={[hidden("exerciseId"), hidden("openedBidId"), actorField("OpenedBidInitial.person", { name: "personId", forPerson: { id: person.id, name: person.name } })]}
       values={{ exerciseId, openedBidId: bid.id }}
       action={recordInitial}
       submitLabel="Record the initial"
-      trigger={{ label: `Initial: ${person.name}`, className: ghost, ariaLabel: `Record ${person.name}'s initial on No. ${bid.listingNo}` }}
+      trigger={own ? { label: "Confirm this column", className: secondary, ariaLabel: `Confirm the column of No. ${bid.listingNo}` } : { label: `Initial: ${person.name}`, className: ghost, ariaLabel: `Record ${person.name}'s initial on No. ${bid.listingNo}` }}
       size="sm"
     />
   );

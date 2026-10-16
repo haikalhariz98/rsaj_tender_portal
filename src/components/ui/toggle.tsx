@@ -9,7 +9,14 @@ const PRESSED = {
   brand: "bg-brand-600 text-white",
 } as const;
 
-export type ToggleOption<V extends string> = { value: V; label: string; tone?: keyof typeof PRESSED };
+export type ToggleOption<V extends string> = {
+  value: V;
+  label: string;
+  tone?: keyof typeof PRESSED;
+  /// This choice alone is unavailable, with the reason on hover (SR-14: Present on a part no file was received for).
+  disabled?: boolean;
+  reason?: string;
+};
 
 /// Two or three choices side by side in one pill, one pressed: a vote, an attendance. Acting on
 /// a press is the caller's (`onChange`); the pill only shows which is pressed.
@@ -42,7 +49,8 @@ export function Toggle<V extends string>({
               pressed ? PRESSED[o.tone ?? "brand"] : "text-ink-2 enabled:hover:bg-ink/5 enabled:hover:text-ink disabled:opacity-45",
             )}
             aria-pressed={pressed}
-            disabled={disabled}
+            disabled={disabled || o.disabled}
+            title={o.disabled ? o.reason : undefined}
             onClick={() => onChange(o.value)}
           >
             {o.label}

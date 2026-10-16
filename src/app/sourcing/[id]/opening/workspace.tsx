@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
 
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
-import { DataList, type Row } from "@/components/data-list";
-import { sulitText } from "@/components/sulit-cell";
 import { InboxIcon, FileIcon, UsersIcon } from "@/components/icons";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -10,13 +8,15 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import { OPENING_STATEMENT } from "@/lib/opening/labels";
+import { db } from "@/lib/db";
 import { openingSection, scheduleSection, type OpeningSectionView, type OpeningView, type ScheduleSectionView } from "@/lib/opening/read";
 
-import { FLOW_LABEL } from "@/lib/method/flow";
-import { classAsReadText, kelasText, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, FileSealedBidsDrawer, OnlineFinaliseDrawer, OnlineSignatureDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
-import { EnvelopesToOpen, FilesToCheck, OffersRead } from "./lists";
+import { EnvelopesToOpen, OffersRead } from "./lists";
+import { OpeningMatrix, type VerdictAids } from "./matrix";
+import { GrandSummaryList, ScheduleDownloads, ScheduleList } from "./schedule-tables";
+import { openingMatrix, type MatrixView } from "@/lib/opening/matrix-read";
 import type { StaffActor } from "@/lib/auth/types";
 import { sulitExerciseGate } from "@/app/_auth/sulit";
 
@@ -74,15 +74,21 @@ export async function loadOpening(actor: StaffActor, exerciseId: string): Promis
   if (!d.applies) {
     return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement />{NOT_HERE(exerciseId, "Bids are opened here for an exercise published through its invitation window with tender or quotation documents. This one was not, so its opening is recorded outside the portal.")}</div> };
   }
+  // SR-14: each opening's matrix, read for this viewer. Only this section reads it.
+  const matrices = new Map<string, MatrixView>();
+  for (const o of d.openings) {
+    const m = await openingMatrix(actor.organisationId, exerciseId, o.id, { personId: actor.personId, administrator: actor.isAdministrator });
+    if (m) matrices.set(o.id, m);
+  }
   const notes: [string, string][] = d.startNeeded && !d.start.allowed.allowed ? [["Start the opening", d.start.allowed.reason]] : [];
   return {
     notes,
     actions: d.startNeeded ? <StartOpeningDrawer exerciseId={exerciseId} allowed={d.start.allowed} seats={d.start.seats} roster={d.start.roster} people={d.people} panelSize={d.start.panelSize} independence={d.start.independence} estimateLate={d.start.estimateLate} noteId={EXERCISE_NOTE_ID} /> : null,
-    panel: <OpeningPanel d={d} viewerPersonId={actor.personId} />,
+    panel: <OpeningPanel d={d} viewerPersonId={actor.personId} matrices={matrices} viewer={{ personId: actor.personId, name: actor.personName }} />,
   };
 }
 
-function OpeningPanel({ d, viewerPersonId }: { d: OpeningSectionView; viewerPersonId: string }) {
+function OpeningPanel({ d, viewerPersonId, matrices, viewer }: { d: OpeningSectionView; viewerPersonId: string; matrices: Map<string, MatrixView>; viewer: { personId: string; name: string } }) {
   return (
     <div className="flex flex-col gap-6">
       <Statement />
@@ -105,7 +111,7 @@ function OpeningPanel({ d, viewerPersonId }: { d: OpeningSectionView; viewerPers
         </Card>
       )}
       {d.openings.map((o) => (
-        <OpeningCard key={o.id} d={d} o={o} viewerPersonId={viewerPersonId} />
+        <OpeningCard key={o.id} d={d} o={o} viewerPersonId={viewerPersonId} matrices={matrices} viewer={viewer} />
       ))}
       <LateCard d={d} />
       <Card>
@@ -118,10 +124,32 @@ function OpeningPanel({ d, viewerPersonId }: { d: OpeningSectionView; viewerPers
   );
 }
 
+/// The SR-14 checklist matrix of one opening. An opening with no offer read has no columns, and says so.
+function MatrixSection({ d, o, matrix, viewer }: { d: OpeningSectionView; o: OpeningView; matrix: MatrixView | null; viewer: { personId: string; name: string } }) {
+  const aids: Record<string, VerdictAids> = Object.fromEntries(o.offers.map((b) => [b.id, { options: b.verdictOptions, grounds: b.grounds, reported: b.reported }]));
+  return (
+    <CardBody className="flex min-w-0 flex-col gap-3 border-t border-line">
+      <div>
+        <h3 className="text-[13.5px] font-semibold text-ink">Checked against each bid</h3>
+        <p className="text-[12.5px] text-ink-3">{matrix?.online ? "One answer for each item and offer. The files the opening checks are opened here by the named officers only; each download asks your sign-in password and your unseal passphrase, every time, and is logged. A column is decided once, and stands once every named officer has confirmed it." : "One answer for each item and offer. A column is decided once, and stands once every present panel member has confirmed it."}</p>
+      </div>
+      {o.checklist.notJudged.length > 0 && <Callout tone="warn">{`Whether a bidder returns ${o.checklist.notJudged.join(", ")} is not set, so completeness is not judged against it and the opening cannot be finalised.`}</Callout>}
+      {o.checklist.notReturned.length > 0 && <p className="text-[12.5px] break-words text-ink-3">{`Not returned by a bidder, so not checked: ${o.checklist.notReturned.join(", ")}.`}</p>}
+      {!matrix || matrix.columns.length === 0 ? (
+        <EmptyState size="sm" title="No offer to check yet">{o.online ? "The checklist is answered once the bids are unsealed and each offer is listed." : "Each offer read is checked here, one column for each."}</EmptyState>
+      ) : matrix.rows.length === 0 ? (
+        <EmptyState size="sm" title="Nothing is on the checklist">The checklist for this opening holds no item, so there is nothing to answer here.</EmptyState>
+      ) : (
+        <OpeningMatrix exerciseId={d.exerciseId} openingId={o.id} view={matrix} viewer={viewer} verdicts={aids} />
+      )}
+    </CardBody>
+  );
+}
+
 /// A disabled act whose only reason is what holds the whole record back is not repeated: that reason is said once, at the top.
 const shown = (o: OpeningView, a: { allowed: boolean; reason?: string } | null) => !!a && (a.allowed || a.reason !== o.held);
 
-function OpeningCard({ d, o, viewerPersonId }: { d: OpeningSectionView; o: OpeningView; viewerPersonId: string }) {
+function OpeningCard({ d, o, viewerPersonId, matrices, viewer }: { d: OpeningSectionView; o: OpeningView; viewerPersonId: string; matrices: Map<string, MatrixView>; viewer: { personId: string; name: string } }) {
   const ex = d.exerciseId;
   return (
     <Card className="overflow-hidden">
@@ -203,13 +231,7 @@ function OpeningCard({ d, o, viewerPersonId }: { d: OpeningSectionView; o: Openi
         <OffersRead exerciseId={ex} o={o} />
       </div>
 
-      {o.checkFiles && o.checkFiles.length > 0 && (
-        <CardBody className="flex flex-col gap-3 border-t border-line">
-          <h3 className="text-[13.5px] font-semibold text-ink">Files to check</h3>
-          <p className="text-[12.5px] text-ink-3">The documents checked at the opening, which only the named officers open. Each download asks your sign-in password and your unseal passphrase, every time, and is logged. The other files of a bid stay sealed until the opening is finalised.</p>
-          <FilesToCheck openingId={o.id} offers={o.checkFiles} />
-        </CardBody>
-      )}
+      <MatrixSection d={d} o={o} matrix={matrices.get(o.id) ?? null} viewer={viewer} />
 
       {o.filesToFile != null && o.filesToFile > 0 && (
         <CardBody className="flex flex-col gap-3 border-t border-line">
@@ -217,13 +239,6 @@ function OpeningCard({ d, o, viewerPersonId }: { d: OpeningSectionView; o: Openi
           <FileSealedBidsDrawer exerciseId={ex} openingId={o.id} waiting={o.filesToFile} />
         </CardBody>
       )}
-
-      <CardBody className="flex flex-col gap-3 border-t border-line">
-        <h3 className="text-[13.5px] font-semibold text-ink">Checked against each bid</h3>
-        {o.checklist.items.length === 0 ? <p className="text-[13px] text-ink-3">Nothing is on the checklist.</p> : <ol className="flex list-decimal flex-col gap-1 pl-5 text-[13.5px] text-ink-2">{o.checklist.items.map((i) => <li key={i} className="break-words">{i}</li>)}</ol>}
-        {o.checklist.notJudged.length > 0 && <Callout tone="warn">{`Whether a bidder returns ${o.checklist.notJudged.join(", ")} is not set, so completeness is not judged against it and the opening cannot be finalised.`}</Callout>}
-        {o.checklist.notReturned.length > 0 && <p className="text-[12.5px] break-words text-ink-3">{`Not returned by a bidder, so not checked: ${o.checklist.notReturned.join(", ")}.`}</p>}
-      </CardBody>
 
       <CardBody className="flex flex-col gap-3 border-t border-line">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -317,34 +332,6 @@ function SchedulePanel({ d }: { d: ScheduleSectionView }) {
 }
 
 function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView["openings"][number] }) {
-  const rows: Row[] = o.rows.map((r) => ({
-    id: String(r.listingNo),
-    search: `${r.listingNo} ${r.bidderName}`,
-    sortKeys: { listing: r.listingNo },
-    cells: {
-      listing: { kind: "text", text: `No. ${r.listingNo}` },
-      bidder: { kind: "stack", title: r.bidderName, sub: r.alternative || undefined },
-      kelas: { kind: "text", text: kelasText(r.registerClass) },
-      classAsRead: { kind: "text", text: classAsReadText(r.registrationClass, o.online) },
-      status: { kind: "text", text: readText(r.registrationStatus) },
-      openingPrice: sulitText(r.openingPrice),
-      period: { kind: "text", text: r.period },
-    },
-  }));
-  // SR-15: the Grand Summary's Kelas and Tempoh Kerja are the schedule row's of the same Bil.
-  const scheduleRow = new Map(o.rows.map((r) => [r.listingNo, r] as const));
-  const summary: Row[] = (o.summary?.rows ?? []).map((r) => ({
-    id: `s${r.listingNo}`,
-    search: `${r.listingNo} ${r.bidderName}`,
-    cells: {
-      listing: { kind: "text", text: `No. ${r.listingNo}` },
-      bidder: { kind: "text", text: r.bidderName },
-      kelas: { kind: "text", text: kelasText(scheduleRow.get(r.listingNo)?.registerClass ?? null) },
-      period: { kind: "text", text: scheduleRow.get(r.listingNo)?.period ?? "" },
-      openingPrice: sulitText(r.openingPrice),
-      label: { kind: "badge", text: r.label, tone: r.lowest ? "brand" : r.qualified ? "ok" : undefined },
-    },
-  }));
   return (
     <Card className="overflow-hidden">
       <CardHeader
@@ -353,12 +340,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
         subtitle={o.finalised ? "Frozen when the opening was finalised; it never changes." : "Built from the record as it stands. It is frozen when the opening is finalised."}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {o.finalised && (
-              <>
-                <ButtonLink href={`/sourcing/${d.exerciseId}/opening/download/schedule?opening=${o.id}`} variant="secondary" size="sm">Download {FLOW_LABEL.JADUAL} (CSV)</ButtonLink>
-                <ButtonLink href={`/sourcing/${d.exerciseId}/opening/download/summary?opening=${o.id}`} variant="secondary" size="sm">Download Grand Summary (CSV)</ButtonLink>
-              </>
-            )}
+            <ScheduleDownloads exerciseId={d.exerciseId} o={o} />
             <ButtonLink href={`/sourcing/${d.exerciseId}/opening/print?opening=${o.id}`} variant="secondary" size="sm">Print</ButtonLink>
           </div>
         }
@@ -367,25 +349,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
         <KeyValues columns={2} items={o.header} />
       </CardBody>
       <div className="border-t border-line">
-        <DataList
-          flat
-          selectable={false}
-          searchable={false}
-          toolbar={false}
-          exportName="schedule-of-tenders"
-          emptyTitle="No offer read yet"
-          emptyBody="Each offer opened is listed in opening order."
-          columns={[
-            { key: "listing", label: SCHEDULE_COLUMNS.listing, width: "90px", sortable: true, mobile: "primary" },
-            { key: "bidder", label: SCHEDULE_COLUMNS.bidder, mobile: "meta" },
-            { key: "kelas", label: SCHEDULE_COLUMNS.kelas, width: "170px", mobile: "meta" },
-            { key: "classAsRead", label: SCHEDULE_COLUMNS.classAsRead, width: "140px", mobile: "meta" },
-            { key: "status", label: SCHEDULE_COLUMNS.status, width: "120px", mobile: "meta" },
-            { key: "openingPrice", label: SCHEDULE_COLUMNS.price, width: "170px", sulit: true, mobile: "meta" },
-            { key: "period", label: SCHEDULE_COLUMNS.period, width: "150px", mobile: "meta" },
-          ]}
-          rows={rows}
-        />
+        <ScheduleList o={o} />
       </div>
       {o.benchmark && (
         <CardBody className="border-t border-line">
@@ -399,29 +363,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
           </Callout>
         </CardBody>
       )}
-      {o.summary && (
-        <div className="border-t border-line">
-          <h3 className="px-5 pt-4 text-[13.5px] font-semibold text-ink sm:px-6">Grand Summary</h3>
-          <DataList
-            flat
-            selectable={false}
-            searchable={false}
-            toolbar={false}
-            exportName="grand-summary"
-            emptyTitle="No offer"
-            emptyBody="No offer was read."
-            columns={[
-              { key: "listing", label: SUMMARY_COLUMNS.listing, width: "90px", mobile: "primary" },
-              { key: "bidder", label: SUMMARY_COLUMNS.bidder, mobile: "meta" },
-              { key: "kelas", label: SUMMARY_COLUMNS.kelas, width: "190px", mobile: "meta" },
-              { key: "openingPrice", label: SUMMARY_COLUMNS.price, width: "170px", sulit: true, mobile: "meta" },
-              { key: "period", label: SUMMARY_COLUMNS.period, width: "150px", mobile: "meta" },
-              { key: "label", label: SUMMARY_COLUMNS.label, width: "200px", mobile: "meta" },
-            ]}
-            rows={summary}
-          />
-        </div>
-      )}
+      <GrandSummaryList o={o} />
       <CardBody className="flex flex-col gap-3 border-t border-line">
         {o.finalised ? (
           <OwnerAttachments owner={{ kind: "opening", id: o.id }} only={["SIGNED_SCHEDULE"]} title="The signed schedule" subtitle="The scan of the paper the panel signed. Evaluation and the award wait for it." collapseWhenEmpty={false} />
@@ -430,5 +372,36 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
         )}
       </CardBody>
     </Card>
+  );
+}
+
+// ------------------------------------------------------------------ Received: the SR-15 tables once finalised (ruling 20ct)
+
+/// Once an opening is finalised, the Received section shows its SR-15 tables: the schedule's own components, from the same `scheduleSection` read, never a copy (SR-15 "Where: Received", 20ct).
+/// Before any opening is finalised nothing is read here at all (the read logs the estimate's access and gates the prices), and Received shows none of it.
+export async function loadReceivedSchedule(scope: StaffActor, exerciseId: string): Promise<ReactNode> {
+  const finalised = await db.opening.count({ where: { organisationId: scope.organisationId, exerciseId, finalisedAt: { not: null } } });
+  if (finalised === 0) return null;
+  const prices = await sulitExerciseGate(scope, exerciseId, "exercise", PRICE_FIELDS);
+  const d = await scheduleSection(scope, exerciseId, prices);
+  const done = d?.openings.filter((o) => o.finalised) ?? [];
+  if (!d || done.length === 0) return null;
+  return (
+    <>
+      {done.map((o) => (
+        <Card key={o.id} className="overflow-hidden">
+          <CardHeader
+            icon={<FileIcon size={17} />}
+            title={<span className="inline-flex flex-wrap items-center gap-2">{`Schedule of tenders · ${o.title}`}<Badge tone="ok" dot>{`Finalised ${o.finalisedAt}`}</Badge></span>}
+            subtitle="Frozen when the opening was finalised; the same table as on the Schedule section."
+            actions={<div className="flex flex-wrap items-center gap-2"><ScheduleDownloads exerciseId={d.exerciseId} o={o} /></div>}
+          />
+          <div className="border-t border-line">
+            <ScheduleList o={o} />
+          </div>
+          <GrandSummaryList o={o} />
+        </Card>
+      ))}
+    </>
   );
 }

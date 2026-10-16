@@ -55,6 +55,8 @@ export interface MatrixView {
     answer: Allowed;
   }[];
   viewerIsNamedOfficer: boolean;
+  /// Step 5: the bidder's name and the acknowledgement day are held from this reader until finalising (20c, 20cm). Computed once here, so the screen says "held" and never "not acknowledged" for a day it was not given.
+  namesHeld: boolean;
 }
 
 const digestsOf = (raw: unknown): Map<number, string> => {
@@ -151,5 +153,6 @@ export async function openingMatrix(organisationId: string, exerciseId: string, 
     rows: checklist.items.map((it) => ({ key: it.key, label: it.label, opened: online && it.source === "PART" && openedCodes.has(it.key) })),
     columns,
     viewerIsNamedOfficer,
+    namesHeld: held,
   };
 }

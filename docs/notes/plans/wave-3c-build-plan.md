@@ -339,6 +339,8 @@ export interface MatrixView {
     answer: Allowed;                         // may this viewer record answers in this column
   }[];
   viewerIsNamedOfficer: boolean;
+  /// Step 5: the names (and acknowledgement days) are held from this reader. Computed once, so the screen says "held" and never "not acknowledged" for a day it was not given.
+  namesHeld: boolean;
 }
 ```
 
@@ -511,6 +513,8 @@ the same read, with the two download buttons. No copy of the table or its read i
 
 **Comparators (G4).** `scripts/compare-screen.mjs` records the matrix, the removed `FilesToCheck` and the moved drawers, citing SR-14, and
 Received's SR-15 table after finalising, citing SR-15 and 20ct.
+
+**Built in step 5 (2026-10-17):** `ui/matrix.tsx`; `opening/matrix.tsx` (`OpeningMatrix`); `opening/schedule-tables.tsx` (`ScheduleList`, `GrandSummaryList`, `ScheduleDownloads`, the one copy of the SR-15 tables, used by Schedule and Received); `loadReceivedSchedule` (reads nothing until an opening is finalised); `Toggle` gains a per-option `disabled` and `reason`; `InitialDrawer` gains `own` ("Confirm this column"); `MatrixView.namesHeld`; `COLUMN_STATUS_TEXT`. The paper `OffersRead` keeps its on-behalf `InitialDrawer` (3c-Q3). `read.ts` still loads `checkFiles` (pinned by `online-finalise.db.test.ts`) though no screen shows it now.
 
 **Done when:**
 - `npm run check` passes, including `check-ui`;

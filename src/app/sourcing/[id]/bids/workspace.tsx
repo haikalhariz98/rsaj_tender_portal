@@ -15,6 +15,7 @@ import { FromBadge, GONE, SETTINGS_HREF } from "../window/common";
 
 import { ApplyExtensionDrawer, BidAnswersDrawer, ExtensionDrawer, LockBoxDrawer, ReceiveLaterDrawer, ReceiveNowDrawer, TableLateDrawer, WithdrawalDrawer } from "./editors";
 import { EnvelopeList } from "./envelope-list";
+import { loadReceivedSchedule } from "../opening/workspace";
 import type { StaffActor } from "@/lib/auth/types";
 import { sulitExerciseGate } from "@/app/_auth/sulit";
 
@@ -77,7 +78,7 @@ export async function loadBids(scope: StaffActor, exerciseId: string, status: st
         <LockBoxDrawer exerciseId={exerciseId} allowed={d.acts.lock} people={d.people} noteId={EXERCISE_NOTE_ID} />
       </>
     ),
-    panel: <BidsPanel d={d} />,
+    panel: <BidsPanel d={d} schedule={await loadReceivedSchedule(scope, exerciseId)} />,
   };
 }
 
@@ -96,7 +97,7 @@ function Statement() {
   );
 }
 
-function BidsPanel({ d }: { d: BidsTab }) {
+function BidsPanel({ d, schedule }: { d: BidsTab; schedule: ReactNode }) {
   const register = d.rows.filter((r) => !r.isEstimate);
   return (
     <div className="flex flex-col gap-6">
@@ -154,6 +155,7 @@ function BidsPanel({ d }: { d: BidsTab }) {
         </Card>
       </div>
 
+      {schedule}
       <LateCard d={d} />
       <WithdrawalsCard d={d} />
       <ValidityCard d={d} />

@@ -189,3 +189,11 @@ export const addendumCellText = (acknowledgedOn: string | null): string => (ackn
 
 /// The addendum cell's line for a reader from whom the day is held until finalising (20c, 20cm): the day could be matched against the acknowledgement register to name the column.
 export const ADDENDUM_DAY_HELD_TEXT = "The acknowledgement day is shown to the named opening officers until the opening is finalised";
+
+/// Step 5: the confirmations row's status, in staff words. Never "approved" or "passed": a confirmation is each officer's initial on the column as it stands (ruling 22).
+export const COLUMN_STATUS_TEXT: Readonly<Record<ColumnStatus, string>> = {
+  ANSWERING: "Being answered",
+  AWAITING_DECISION: "Answered, awaiting a decision",
+  AWAITING_CONFIRMATION: "Awaiting confirmation",
+  CONFIRMED: "Confirmed by every officer",
+};

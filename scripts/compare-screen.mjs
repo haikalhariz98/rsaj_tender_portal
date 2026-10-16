@@ -345,6 +345,12 @@ const ALLOWED_EXTRA = [
   /^Lodge (a document|the document)$/,
   /^Send for decision$/,
   /^Request a resubmission$/,
+  // Wave 3c step 5 (SR-14, rulings 22, 23, 20c, 20cl, 20cm): the opening checklist is a matrix, one row for each item and one column for each offer read, under which the checklist result, the decision and
+  // the officers' confirmations sit, with the file download of an opening-check part in its cell (named officers before finalising, the filed copy after). The sample has no matrix.
+  /^(Checked at the opening|Checklist result|Decision|Confirmations|Confirm this column|Pass|Reject|Download|Opened at the opening)$/,
+  // Wave 3c step 5 (SR-15 "Where: Received", ruling 20ct): once an opening is finalised, Received shows the schedule of tenders (Jadual Tawaran) and the Grand Summary with their two downloads, through the
+  // same components and the same read as the Schedule section. Before finalising it shows none of it.
+  /^(Schedule of tenders.*|Grand Summary|Download .* \(CSV\))$/,
 ];
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));
@@ -457,6 +463,12 @@ const DECIDED_ABSENT = [
     screen: /^\/$/,
     match: /aged over/i,
     why: "14 days was a hard-coded threshold (AGENTS.md rule 1); waiting days are shown as a count with no judgement until FR-APR-018's configured targets exist (deferred to 6.17)",
+  },
+  // Wave 3c step 5 (SR-14): the matrix replaced these. Neither is in the sample; listed so the removal stays visible.
+  {
+    screen: /^[/]sourcing[/][^/]+$/,
+    match: /^(Files to check|Answer the checklist|Record the verdict)$/,
+    why: "SR-14 (wave 3c step 5): the Files to check list became the matrix's cell downloads, and the Checklist and Verdict drawers became the matrix's answer controls, Pass and Reject. An online initial is the matrix's Confirm this column; a paper initial may still be recorded for a present panel member",
   },
 ];
 

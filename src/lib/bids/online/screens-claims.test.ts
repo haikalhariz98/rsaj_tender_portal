@@ -59,6 +59,8 @@ const supplierScreens = files(join(root, "src", "app", "supplier"))
 
 const OFFICER_SCREENS = [
   "src/app/sourcing/[id]/opening/workspace.tsx",
+  "src/app/sourcing/[id]/opening/matrix.tsx",
+  "src/app/sourcing/[id]/opening/schedule-tables.tsx",
   "src/app/sourcing/[id]/opening/online-words.ts",
   "src/app/sourcing/[id]/scope/key-section.tsx",
   "src/components/sealed-file-download.tsx",
