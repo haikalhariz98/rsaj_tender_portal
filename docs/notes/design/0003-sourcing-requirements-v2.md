@@ -1756,3 +1756,122 @@ in 20ac, on the same terms as 20p, 20q and 20x.
     (10 MB) or the configured value where one is set. `Content-Length` is the size of the whole multipart body and `DOCUMENT_MAX_BYTES` the
     size of a file, so the comparison allows for the multipart overhead, and the words name the largest file that will arrive.
     - **Code:** as 20aj.
+
+The stage C questions (steps 11 to 14 and the stage C fix round, decisions log 2026-10-15 and 2026-10-16), ruled 2026-10-16 for stage D.
+
+20at. **The officer's download gets its screen in step 15, as one shared control that wave 3c's matrix reuses.** (Step 14 question; the
+    carried "the download has no screen".)
+    - **Why.** Plan section 3 gives the cell download to wave 3c's SR-14 matrix, so a per-offer list built now would be a second design that
+      3c replaces. But step 15's online finalise keeps the paper finalise's faults (every checklist item answered, every verdict recorded),
+      and step 18's Done-when has a demo officer finalise. Without a way to open the opening-check files on screen, the officers would record
+      checklist answers on files nobody could open, a record a regulator would not accept. The route exists (step 14). ADR D3 lists the
+      officer's download as a moment of its own.
+    - **The rule.** On the Opening tab of an ONLINE opening, between the unseal and finalising, a named opening officer (never an
+      administrator) sees, for each opened bid, its opening-check files with a Download action that posts to `POST /api/opening/sealed-file`.
+      It is one component built from the shared pieces in `src/components/ui`, written so that wave 3c's matrix cell uses the same
+      component, not a copy. Files outside OPENING_CHECK grants are not listed as downloadable. The refusal words are
+      `downloadRefusalWords`, never restated. Labels, never codes.
+    - **Code:** step 15.
+
+20au. **The download asks the sign-in password and the unseal passphrase together, in one form, on every download.** (Step 14 question.)
+    - **Why.** The route takes both in one request (`SEALED_FILE_FIELDS`), and every download asks both (ADR D4, 20n). One form is one act.
+    - **The rule.** Both fields every time. Neither is remembered between downloads, pre-filled, or held in client state after the request.
+      The password field is the sign-in's `current-password`, and the passphrase field asks the browser not to fill it. A refusal clears both.
+    - **Code:** step 15, with 20at.
+
+20av. **Online-bid audit rows before the opening starts stay withheld from everyone, the named opening officers included (the withhold
+    reading of the fix round confirmed). Where a screen says rows are withheld, it says so on every ONLINE exercise whose opening has not
+    started, never only where such rows exist.** (Step 12 question (a), and the fix round question on the named officers.)
+    - **Why.** 20u hides the sequence, its gaps and the withdrawn count from staff before the start, and Received gives the named officers
+      only the ordinal and the standing count before it. A History row of a replacement or withdrawal would show them what 20u hides, so they
+      get no more than Received. Masking fields would still show how many rows there were and when. The rows are in the database and the
+      trail is complete. Only the reading waits for the start. A sentence shown only when a row exists would itself say a bid exists, the
+      same reason the findings carry `online: 1` and never the count.
+    - **The rule.** The exercise History (on an ONLINE exercise) and the Configuration > Audit export screen (always) carry one fixed
+      sentence, with no number, saying that records of online submissions are not shown or exported until the opening starts. The export's
+      held-back figure keeps leaving dropped rows out of its count, as built.
+    - **Code:** step 19 (the words, and a test that the sentence carries no figure and does not depend on rows existing).
+
+20aw. **A late online envelope's stored labels carry no sequence.** (Step 12 question (b).)
+    - **Why.** `tableLateMatter` writes `lateMatterSubject(title, env.sequence)` and its audit label when the matter is tabled, and
+      `lateMatterFault` does not require the opening to have started, so the true sequence can be written before the start, where 20u allows
+      only the ordinal. A label is fixed when written, so the fix is at write time. An ordinal would go stale as other bids move.
+    - **The rule.** For an ONLINE envelope the matter's subject and the tabling's audit label name the exercise and say "a late online
+      submission", with no number. Two such matters in one sitting are told apart by the sitting's own matter number. Paper labels are
+      unchanged. No backfill: no online late matter exists in any database yet.
+    - **Code:** step 19 (the label and a test).
+
+20ax. **The audit mask judges each late online bid by its own opening.** (Step 12 question (c).)
+    - **Why.** D9 names a supplier at the unseal of the opening that opens its bid. The main opening's finalise does not open a late bid, so
+      judging by the main opening alone would name a late bidder whose bid is still sealed, or is never opened.
+    - **The rule.** A late online bid's rows are named to the named officers once its supplementary opening is unsealed, and to everyone once
+      that opening is finalised. A late bid not admitted, or admitted and not yet opened, stays unnamed. The pre-start withholding (20av)
+      applies to it as to every online bid.
+    - **Code:** step 15 (it builds the online finalise, the supplementary's included).
+
+20ay. **No absent officer on an online opening.** (Step 13 question.)
+    - **Why.** ADR 0036 (D10, "A supplementary opening stays n-of-n", and the Consequences) and 20k: the exercise key is split n-of-n, so
+      every share is needed. No switch is built because an absent officer is not a policy column. It needs a different cryptographic
+      construction (k-of-m), which 20k referred to the founder with the outside review. The screen keeps saying every named officer is needed.
+    - **Code:** none.
+
+20az. **A supplementary opening needs every named officer, as the main one does.** (Step 13 question.)
+    - **Why.** As 20ay: ADR 0036 D10 and its Consequences say so in terms, and fewer officers is k-of-m, referred with the outside review.
+    - **Code:** none.
+
+20ba. **A named officer's passphrase check on a restricted exercise: confirmed as built.** (Step 13 question.)
+    - **Why.** The step 13 log line is stale. The fix round added the hidden-exercise check to `checkUnlock` before any passphrase is derived
+      or counted, as the unseal and the download have. A named opening officer is named on the record (`OPENING_OFFICER` in
+      `sulit-access.ts`), so cannot be hidden from the exercise and stranded at the unseal. Step 13's "no screen for checkUnlock" is
+      resolved by `CheckUnlockDrawer`.
+    - **Code:** none.
+
+20bb. **The officer's passphrase acts take a per-account rate limit, as the download does.** (Fix round question.)
+    - **Why.** The reservation bounds guesses at the key, but every signed-in attempt writes a `SealedAccessEvent`, and a locked key still
+      writes a REFUSED row each time, so without a limit one account can fill the table (20w, S19). The download route already counts first.
+    - **The rule.** `authoriseOnlineUnseal`, `checkUnlock`, `signOnlineFinalise` and `finaliseOnline` count one per-account rate before
+      anything is looked up, a product constant with its reason in `limits.ts` (20e), and only the first refusal in each window writes a row
+      (20w). Where the access log is described, the words follow 20w.
+    - **Code:** step 15 (it adds the last two acts, and puts the limit on all four).
+
+20bc. **A change to the opening roster shreds the outstanding share releases at once, in the same transaction.** (Fix round question.)
+    - **Why.** C-2: a release is shredded once used or lapsed, and a release sealed to the old roster is lapsed the moment the roster no
+      longer matches the key (the key is stale, and `KEY_OFFICERS_MISMATCH` will refuse it). Waiting for the next unseal attempt leaves an
+      openable release in the database, and in every backup taken meanwhile, for nothing.
+    - **The rule.** Every act that changes the roster (naming, taking off, substitution, deactivation of a named officer) calls the same
+      shred as cancellation.
+    - **Code:** step 17.
+
+20bd. **Alternatives withdrawn in one act share the one attribution.** (Step 11 prerequisite question, 20ak.)
+    - **Why.** One password entry signs one act (ActAttribution is unique on the session and the step-up stamp), and loosening that index
+      would weaken a rule that holds for every signed act. The act is traceable: one attribution on the withdrawn submission, and each
+      alternative carries the withdrawing account in its own column, which the trigger requires (PA031), with its own audit row.
+    - **Code:** none.
+
+20be. **My Bids does not count the supplier's waiting files against the cap in wave 3b.** (Step 11 question (a).)
+    - **Why.** Less scope over guessed scope: the cap refuses in words and the supplier can discard. Backlog, not a gap.
+    - **Code:** none.
+
+20bf. **The Malay of `SCREEN_WORDS` is on the NFR-LNG-001 review list,** with the receipt and Received words (20ab). (Step 11 question (b).)
+    - **Code:** none. Step 21's existing NFR-LNG-001 row names it.
+
+20bg. **The fix round's reading of 20c is accepted: the actor of the OpenedBid and envelope rows, and the opening's count of bids opened,
+    are not masked.** (Fix round deviation.)
+    - **Why.** D9 hides the bidder. The actor is a named officer, and the count is what the opening announces to its officers. The bidder's
+      name, registration and the restriction reading stay masked.
+    - **Code:** none.
+
+20bh. **The timing residual after the start (S9) is accepted for building and DEMONSTRATION,** for a reader who already holds History
+    access, and is on step 20's walk of threat model section G. It is not called met for LIVE until that walk rules on it.
+    - **Code:** none.
+
+20bi. **The 20ao `publishWindow` database test of the ONLINE path is written in step 19,** through the real publication, never by setting
+    rows the real path would refuse. Step 18's demo publishes its online exercise through `publishWindow` too. Step 20 does not start
+    without it. (Carried from stage C.)
+    - **Code:** step 19.
+
+20bj. **Step 11's carried checks (the ui-guidelines-reviewer pass, a rendered check of the stage C screens, the text-snapshot baseline)
+    are done in step 19 by the 20ap path,** with stage D's new screens: `next build` then `next start` on another port against
+    `perolehan_native_check`, never a session in `perolehan`. Where it cannot be done, it stays a carried gap for the founder, in the log and
+    the report, never claimed.
+    - **Code:** step 19 (checks and the committed snapshot, no product code).
