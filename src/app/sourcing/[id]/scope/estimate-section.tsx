@@ -52,7 +52,7 @@ export function EstimateSection({ d }: { d: Data }) {
 
       {d.voided.length > 0 && (
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Voided estimates" subtitle="Kept on record. Their versions stay sealed." />
+          <CardHeader icon={<ClockIcon size={17} />} title="Voided estimates" subtitle="Kept on record. Their figures stay withheld from view." />
           <CardBody>
             <ul className="divide-y divide-line/70 rounded-2xl border border-line">
               {d.voided.map((v) => (
@@ -132,7 +132,7 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
 
           <section aria-labelledby="estimate-versions" className="flex flex-col gap-2">
             <h3 id="estimate-versions" className="text-[13.5px] font-semibold text-ink">Versions</h3>
-            <p className="text-[12.5px] text-ink-3">Each is kept, sealed. A version made after the first needs a reason, sealed with its figure.</p>
+            <p className="text-[12.5px] text-ink-3">Each is kept, with its figure withheld from view. A version made after the first needs a reason, withheld in the same way. They are held unencrypted in the database.</p>
             <div className="overflow-hidden rounded-2xl border border-line">
               <DataList
                 flat

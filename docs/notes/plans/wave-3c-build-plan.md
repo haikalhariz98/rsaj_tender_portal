@@ -1,6 +1,6 @@
 # Wave 3c — the SR-14 opening checklist, and what SR-15 still needs online: build plan
 
-**Status (2026-10-17):** Proposed by the solution architect. NOT BUILT. SR-14 (matrix, every-officer Pass or Reject) and SR-15 online: not started. Only the interim guards of commit 3c928710 exist. The precondition is met, S9 is ruled and 3c-Q1 to 3c-Q9 are answered: rulings 20cm to 20cx in design note 0003 §6 (product owner, 2026-10-17). Step 1 may start. 20cm, 20cp, 20ct and 20cw amend this plan where marked.
+**Status (2026-10-17, after step 7):** Steps 1 to 7 are built (see the decisions log for what step 7 did not run: the online demonstration could not load on a Saturday, so the online matrix states were not rendered). Original status: Proposed by the solution architect. NOT BUILT. SR-14 (matrix, every-officer Pass or Reject) and SR-15 online: not started. Only the interim guards of commit 3c928710 exist. The precondition is met, S9 is ruled and 3c-Q1 to 3c-Q9 are answered: rulings 20cm to 20cx in design note 0003 §6 (product owner, 2026-10-17). Step 1 may start. 20cm, 20cp, 20ct and 20cw amend this plan where marked.
 
 **Sources.**
 - **Requirement:** SR-14 and SR-15 in `docs/requirements/sourcing-v2-media/Sourcing_Requirements_v2.txt`, with figures 13 and 14

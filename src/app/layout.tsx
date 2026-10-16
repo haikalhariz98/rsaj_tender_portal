@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 
+import { DialogFocus } from "@/components/ui/dialog-focus-mount";
 import { ActorProvider } from "@/components/auth/actor-context";
 import { AppShell } from "@/components/shell/app-shell";
 import { loadShell } from "@/lib/shell";
@@ -41,6 +42,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={jakarta.variable} style={{ colorScheme: "light" }}>
       <body>
+        <DialogFocus />
         <ActorProvider name={actor?.personName ?? null} personId={actor?.personId ?? null}>
           <AppShell
             organisation={shell.organisation}

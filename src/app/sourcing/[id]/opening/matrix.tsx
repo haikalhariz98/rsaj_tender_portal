@@ -175,7 +175,8 @@ function Confirmations({ exerciseId, col, viewer }: { exerciseId: string; col: C
   );
 }
 
-function Decision({ exerciseId, col, aids }: { exerciseId: string; col: Col; aids: VerdictAids | undefined }) {
+/// A refusal that every column gives in the same words is said once under the matrix, and each button points at it (the 3c-7 rendered check: the same long reason in every cell of a narrow column).
+function Decision({ exerciseId, col, aids, notes }: { exerciseId: string; col: Col; aids: VerdictAids | undefined; notes: ReadonlyMap<string, string> }) {
   const bid = { id: col.openedBidId, listingNo: col.listingNo };
   const d = col.decision;
   return (
@@ -194,12 +195,12 @@ function Decision({ exerciseId, col, aids }: { exerciseId: string; col: Col; aid
             size="sm"
           />
         ) : (
-          <Blocked label="Pass" reason={col.pass.reason} ariaLabel={`Carry No. ${col.listingNo} to evaluation`} />
+          <Blocked label="Pass" reason={col.pass.reason} noteId={notes.get(col.pass.reason)} ariaLabel={`Carry No. ${col.listingNo} to evaluation`} />
         )}
         {col.reject.allowed && aids ? (
           <VerdictDrawer exerciseId={exerciseId} bid={bid} options={aids.options.filter((o) => o.value === "REJECT")} grounds={aids.grounds} reported={aids.reported} allowed={col.reject} />
         ) : (
-          <Blocked label="Reject" reason={col.reject.allowed ? "The grounds for this offer are not available." : col.reject.reason} ariaLabel={`Do not carry No. ${col.listingNo}`} />
+          <Blocked label="Reject" reason={col.reject.allowed ? "The grounds for this offer are not available." : col.reject.reason} noteId={notes.get(col.reject.allowed ? "The grounds for this offer are not available." : col.reject.reason)} ariaLabel={`Do not carry No. ${col.listingNo}`} />
         )}
       </div>
     </div>
@@ -218,6 +219,8 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
       </div>
     ),
   }));
+  const refusals = view.columns.flatMap((c) => [c.pass, c.reject]).flatMap((a) => (a.allowed ? [] : [a.reason]));
+  const sharedNotes = new Map([...new Set(refusals)].filter((r) => refusals.filter((x) => x === r).length > 1).map((r, i) => [r, `matrix-refusal-${openingId}-${i}`] as const));
   const answerNotes = new Map(view.columns.map((c) => [c.openedBidId, c.answer] as const));
   const rows: MatrixRowSpec[] = [
     ...view.rows.map((r) => ({
@@ -254,12 +257,13 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
         ]),
       ),
     },
-    { key: "~decision", summary: true, head: "Decision", cells: Object.fromEntries(view.columns.map((c) => [c.openedBidId, <Decision key="d" exerciseId={exerciseId} col={c} aids={verdicts[c.openedBidId]} />])) },
+    { key: "~decision", summary: true, head: "Decision", cells: Object.fromEntries(view.columns.map((c) => [c.openedBidId, <Decision key="d" exerciseId={exerciseId} col={c} aids={verdicts[c.openedBidId]} notes={sharedNotes} />])) },
     { key: "~confirm", summary: true, head: "Confirmations", cells: Object.fromEntries(view.columns.map((c) => [c.openedBidId, <Confirmations key="c" exerciseId={exerciseId} col={c} viewer={viewer} />])) },
   ];
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {view.online && view.phase === "CHECKING" && !view.viewerIsNamedOfficer && <Callout tone="info">The answers and decisions are shown to you. The files, the bidders&apos; names and the acknowledgement days stay with the named opening officers until the opening is finalised.</Callout>}
+      {[...sharedNotes].map(([reason, id]) => <p key={id} id={id} className="text-[12.5px] text-ink-3">{reason}</p>)}
       <Matrix caption="Opening checklist: one row for each item, one column for each offer read" corner="Checked at the opening" columns={columns} rows={rows} />
     </div>
   );

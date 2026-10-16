@@ -69,4 +69,11 @@ describe("the SR-14 matrix on screen", () => {
     expect(html).toContain("Completeness is not judged.");
     expect(html).toContain("Checklist result");
   });
+
+  it("a refusal every column gives in the same words is said once, and each button points at it (3c-7 rendered check)", () => {
+    const no = { allowed: false as const, reason: "Only the named officers decide." };
+    const html = render(view([column([], { openedBidId: "a", pass: no, reject: no }), column([], { openedBidId: "b", listingNo: 2, pass: no, reject: no })], { rows: [] }));
+    expect(html.split(">Only the named officers decide.<").length - 1).toBe(1);
+    expect(html.split("aria-describedby=\"matrix-refusal-op1-0\"").length - 1).toBe(4);
+  });
 });

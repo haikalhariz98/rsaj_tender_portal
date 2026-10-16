@@ -140,3 +140,18 @@ describe("the sealing screens and the acts' messages never overclaim (S15, F10)"
     expect(overclaims("<p>The live copy is destroyed. A database backup taken before now still holds it.</p>")).toEqual([]);
   });
 });
+
+/// Ruling 20cw (b): the estimate tab says what is true of a version. The figure is withheld from view and held unencrypted (F10), so "sealed" is said only of a copy sealed
+/// under the exercise key, and then the sentence names the key.
+describe("the estimate tab does not call a version sealed (20cw (b))", () => {
+  const path = "src/app/sourcing/[id]/scope/estimate-section.tsx";
+  it("says sealed only beside the exercise key, the sealed set, or the sealed key", () => {
+    const hits: string[] = [];
+    lex(readFileSync(join(root, path), "utf8"), { only: "comments" })
+      .split("\n")
+      .forEach((line, i) => {
+        if (/\bsealed\b/i.test(line) && !/under (?:its|the exercise's)? ?key|sealed copy|sealedKeyReady|sealed set|was sealed under/i.test(line)) hits.push(`line ${i + 1}: ${line.trim().slice(0, 100)}`);
+      });
+    expect(hits).toEqual([]);
+  });
+});
