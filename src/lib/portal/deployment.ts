@@ -26,5 +26,5 @@ export async function deploymentOrganisation(client: Tx = db): Promise<Deploymen
 /// The frame of a public page: the deployment's organisation, and no counts (they are the staff's to see).
 export async function loadPublicShell() {
   const organisation = await deploymentOrganisation().catch(() => null);
-  return loadShell({ organisationId: organisation?.id ?? null, counts: false });
+  return loadShell({ organisationId: organisation?.id ?? null });
 }

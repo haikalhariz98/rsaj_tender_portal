@@ -294,6 +294,8 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
     throw e;
   }
   for (const p of result.paths ?? []) revalidatePath(p);
+  // GN-04 / AC-13: the step moved to other people, so the side-menu badges are drawn again.
+  if (result.ok) revalidatePath("/", "layout");
   return { ok: result.ok, message: result.message, errors: result.errors, info: result.info };
 }
 

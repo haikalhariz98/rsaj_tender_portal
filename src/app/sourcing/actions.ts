@@ -86,6 +86,8 @@ const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in forc
 
 
 function refresh(id?: string, requisitionId?: string) {
+  // GN-04 / AC-13: a step may have moved, so the side-menu badges are drawn again.
+  revalidatePath("/", "layout");
   revalidatePath("/sourcing");
   if (id) revalidatePath(`/sourcing/${id}`);
   if (requisitionId) revalidatePath(`/requisitions/${requisitionId}`);

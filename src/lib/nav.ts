@@ -138,7 +138,7 @@ export type ConfigGroup =
 
 /// Pinned above the groups, with no header (founder, 2026-10-08): Organisation, which everything else hangs from and where Configuration
 /// opens, and the changes waiting on a second person. The second one is shown to everyone; its page says who may decide. Its count is the
-/// viewer's own "waiting for you" number and never an organisation-wide one, so it arrives with the actor in `loadShell`, not here.
+/// viewer's own "waiting for you" number and never an organisation-wide one, so it arrives with the actor in `staffCounts`, not here.
 export const CONFIG_PINNED: ConfigItem[] = [
   { href: "/configuration/organisation", label: "Organisation", icon: "building", built: true },
   { href: "/configuration/changes", label: "Changes awaiting a second person", icon: "clipboard", built: true },

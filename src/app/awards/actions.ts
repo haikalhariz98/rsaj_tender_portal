@@ -93,6 +93,8 @@ const GONE: FormState = { ok: false, message: "That award no longer exists." };
 const refuse = (fs: readonly Finding[], lead: string): FormState => ({ ok: false, message: `${lead} ${fs.map((f) => awardFindingTextFor(f, false)).join(" ")}` });
 
 function refresh(id?: string, exerciseId?: string) {
+  // GN-04 / AC-13: a step may have moved, so the side-menu badges are drawn again.
+  revalidatePath("/", "layout");
   revalidatePath("/awards");
   revalidatePath("/securities");
   if (id) revalidatePath(`/awards/${id}`);

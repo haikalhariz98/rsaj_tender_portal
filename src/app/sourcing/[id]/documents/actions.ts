@@ -115,6 +115,7 @@ async function inPacks(scope: Reader, exerciseId: string, fn: (tx: Tx, l: Locked
     revalidatePath(`/sourcing/${exerciseId}`);
     revalidatePath("/sourcing");
     revalidatePath("/approvals");
+    revalidatePath("/", "layout"); // GN-04 / AC-13
   }
   return result ?? GONE;
 }

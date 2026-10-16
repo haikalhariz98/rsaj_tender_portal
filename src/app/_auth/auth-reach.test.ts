@@ -149,8 +149,9 @@ describe("every page asks who is signed in first", () => {
     expect(loaders.map((f) => f.file).sort()).toEqual(["configuration/layout.tsx", "layout.tsx"]);
     const root = loaders.find((f) => f.file === "layout.tsx")!;
     expect(root.src).toMatch(/const actor = await currentStaffOrNull\(\);/);
-    // Phase 1c (ADR 0034 D10): the shell is now told whose organisation to name; the counts are still loaded only for someone signed in.
-    expect(root.src).toMatch(/loadShell\(\{ organisationId, counts: actor != null && !portalOnly \}\)/);
+    // Phase 1c (ADR 0034 D10): the shell is now told whose organisation to name; AC-13 (GN-04): `loadShell` no longer counts anything (the Dashboard badge is gone); the counts are the person's own and loaded only for someone signed in.
+    expect(root.src).toMatch(/loadShell\(\{ organisationId \}\)/);
+    expect(root.src).toMatch(/actor != null && !portalOnly \? await staffCounts\(actor\) : \{\}/);
     const configuration = loaders.find((f) => f.file === "configuration/layout.tsx")!;
     expect(configuration.src.indexOf("await requireStaff()")).toBeGreaterThan(-1);
     expect(configuration.src.indexOf("await requireStaff()")).toBeLessThan(configuration.src.indexOf("db.configurationChange.count"));

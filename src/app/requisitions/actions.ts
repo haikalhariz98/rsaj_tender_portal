@@ -108,6 +108,8 @@ const GONE: FormState = { ok: false, message: "That requisition no longer exists
 const TIERS = ["COMPANY", "DIVISION", "DEPARTMENT", "SECTION"] as const;
 
 function refresh(id?: string) {
+  // GN-04 / AC-13: a step may have moved, so the side-menu badges are drawn again.
+  revalidatePath("/", "layout");
   revalidatePath("/requisitions");
   if (id) revalidatePath(`/requisitions/${id}`);
 }

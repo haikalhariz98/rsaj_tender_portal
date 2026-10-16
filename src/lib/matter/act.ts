@@ -78,6 +78,7 @@ export function afterAct(id: string, result: FormState | null, alsoRevalidate: r
     revalidatePath("/projects");
     revalidatePath(`/projects/${id}`);
     revalidatePath("/approvals");
+    revalidatePath("/", "layout"); // GN-04 / AC-13: a step may have moved, so the side-menu badges are drawn again.
     for (const p of alsoRevalidate) revalidatePath(p);
   }
   return result ?? GONE;

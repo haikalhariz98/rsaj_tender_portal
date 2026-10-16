@@ -63,6 +63,7 @@ async function inCertificate(scope: OrgScope, actor: AuditActor, certId: string,
   }
   if (result?.ok && contractId) {
     revalidatePath(`/projects/${contractId}`);
+    revalidatePath("/", "layout"); // GN-04 / AC-13
     revalidatePath(`/projects/${contractId}/certificates/${certId}`);
   }
   return result ?? GONE;

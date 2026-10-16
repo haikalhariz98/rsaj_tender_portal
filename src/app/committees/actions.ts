@@ -115,7 +115,10 @@ function refresh(meetingId?: string, also: readonly string[] = []) {
   revalidatePath("/committees");
   if (meetingId) revalidatePath(`/committees/${meetingId}`);
   // Founder, 2026-10-05: an outcome linked to a record's approval moves that record and the worklist too.
-  if (also.length) revalidatePath("/approvals");
+  if (also.length) {
+    revalidatePath("/approvals");
+    revalidatePath("/", "layout"); // GN-04 / AC-13: the linked step was discharged or refused.
+  }
   for (const p of also) revalidatePath(p);
 }
 

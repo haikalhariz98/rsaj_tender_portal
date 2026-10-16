@@ -95,6 +95,7 @@ async function inContract(scope: OrgScope, actor: AuditActor, id: string, now: D
   if (result?.ok) {
     revalidatePath("/projects");
     revalidatePath(`/projects/${id}`);
+    revalidatePath("/", "layout"); // GN-04 / AC-13
   }
   return result ?? GONE;
 }
