@@ -80,10 +80,15 @@ The Opening section shows **one matrix per opening** once that opening has opene
 **Cells.** Each cell has an answer control with three states (Present, Absent, Not applicable), shown as the current answer or "Not
 answered". It also has the cell's file affordance (§1.2).
 
-**Paper.** Paper keeps its frozen checklist, its acts and its order of work (G3).
+**Paper.** Paper keeps its frozen checklist and its as-read acts. Ruling 22's "Only the SR-07 officers act" and "Pass or Reject needs
+both named officers" are sentences of their own, not limited to online, and SR-07's Done-when names no channel, so §1.3 applies to paper
+too. G3 governs where old acts are offered; it does not exempt them from new rules. Paper is also not only legacy: a new exercise can
+still pin PAPER (the demo's paper fallback).
 - Paper cells have no file affordance: the paper is in the envelope.
-- The matrix replaces only the Checklist and Verdict drawers of `OffersRead`.
-- `OffersRead` keeps the as-read columns and the paper acts: open, correct, initial, alternative.
+- The matrix replaces the Checklist and Verdict drawers of `OffersRead`, and holds the confirmations.
+- `OffersRead` keeps the as-read columns and the paper acts: open, correct, alternative.
+- A paper initial may still be **recorded on behalf** of a present panel member (Phase 2b), because a paper initial is a physical mark on
+  the schedule (question Q3). An online one may not.
 
 ### 1.2 What a cell offers (online)
 
@@ -106,19 +111,23 @@ judgement, and the completeness switch decides what an Absent does (`verdict.ts`
 it as missing" (`bids/online/words.ts:167`), so dropping unflagged parts would break that promise. This is the conservative reading, logged
 as question Q1.
 
-### 1.3 Who may act, and when (online)
+### 1.3 Who may act, and when (both channels)
 
-The rules below apply to online openings; paper is unchanged (G3, question Q3).
 - **Answers, decisions and confirmations** belong only to a **named opening officer** of the opening, meaning a present panel member
-  seated from the SR-07 roster. Each is that officer's **own act**: no record on behalf of another, and never by an administrator.
-  Refusals come in words, before anything is written.
+  seated from the SR-07 roster (online: every named officer, 20ay). Never an administrator. Refusals come in words, before anything is
+  written.
+- Answers and decisions are the officer's **own act** on both channels. A confirmation is the officer's own act online; on paper it may
+  be recorded on behalf of a present panel member, as today (Q3).
 - **Pass or Reject needs every named officer.** An officer's initial is their confirmation of the column (ruling 22). It counts only
   for the column's current revision.
   - Every answer change, every recorded decision and every decision cleared raises `OpenedBid.columnRevision` in the same transaction.
   - An initial records the revision it confirmed.
   - A confirmation is refused while any item is unanswered or no decision is recorded (`COLUMN_NOT_ANSWERED`,
     `DECISION_NOT_RECORDED`). An officer confirms a complete column.
-  - The online finalise counts only confirmations on the current revision. `INITIAL_MISSING` then names the officer still to confirm.
+  - Both finalises (paper and online) count only confirmations on the current reading and the current revision. `INITIAL_MISSING`
+    then names the officer still to confirm.
+  - On paper this changes the order of work: the initial now comes after the decision. Paper openings already in progress keep their
+    rows; their initials stand at revision 0 until the column next changes.
 - Recording a decision stays one officer's act, as it is today. The decision stands only once every named officer has confirmed. The
   column reads "Awaiting confirmation" until then, and finalising is refused.
 
@@ -207,7 +216,7 @@ export function tallyText(t: ColumnTally): string;
 export interface ColumnFacts { asReadCorrections: number; columnRevision: number }
 export interface ConfirmationFacts { personId: string; correctionNo: number; columnRevision: number }
 
-/// Paper: `initialStale` as built (the reading only). Online: also the column revision it was taken on.
+/// Both channels: taken on the current reading (`initialStale` as built) AND on the current column revision.
 export function confirmationStands(online: boolean, bid: ColumnFacts, c: Pick<ConfirmationFacts, "correctionNo" | "columnRevision">): boolean;
 export const standingConfirmations: <C extends Pick<ConfirmationFacts, "correctionNo" | "columnRevision">>(online: boolean, bid: ColumnFacts, cs: readonly C[]) => C[];
 
@@ -222,12 +231,13 @@ export function columnStatus(i: {
 }): { status: ColumnStatus; confirmed: { personId: string; name: string }[]; awaiting: { personId: string; name: string }[]; stale: { personId: string; name: string }[] };
 
 export type MatrixActorFault = "ADMINISTRATOR" | "NOT_A_NAMED_OFFICER" | "NOT_OWN_ACT";
-/// Online: the actor is not an administrator, is a present panel member of this opening, and acts for themselves (subject = actor). Paper: none (G3).
-export function matrixActorFaults(i: { online: boolean; administrator: boolean; actorPersonId: string; subjectPersonId: string | null; officers: readonly string[] }): Finding<MatrixActorFault>[];
+/// Both channels: the actor is not an administrator, and the subject is a present panel member of this opening. NOT_OWN_ACT where the subject is not the actor,
+/// except a paper confirmation (`act: "CONFIRM"`, not online), which may be recorded on behalf of a present panel member (Q3).
+export function matrixActorFaults(i: { online: boolean; act: "ANSWER" | "DECIDE" | "CONFIRM"; administrator: boolean; actorPersonId: string; subjectPersonId: string; officers: readonly string[] }): Finding<MatrixActorFault>[];
 
 export type ConfirmFault = "COLUMN_NOT_ANSWERED" | "DECISION_NOT_RECORDED";
-/// Online only: a confirmation needs every item answered and a decision recorded. Paper: none.
-export function confirmFaults(i: { online: boolean; tally: ColumnTally; verdict: OpeningVerdict | null }): Finding<ConfirmFault>[];
+/// Both channels: a confirmation needs every item answered and a decision recorded.
+export function confirmFaults(i: { tally: ColumnTally; verdict: OpeningVerdict | null }): Finding<ConfirmFault>[];
 
 export const MATRIX_FAULT_TEXT: Readonly<Record<CellAnswerFault | MatrixActorFault | ConfirmFault, string>>;
 export const CELL_WORDS: Readonly<Record<CellKind, string>>; // staff-facing English; no code reaches a screen
@@ -237,7 +247,8 @@ export const CELL_WORDS: Readonly<Record<CellKind, string>>; // staff-facing Eng
 
 - **`src/lib/opening/download.ts`.** Add `classAsReadText(value: string, online: boolean): string`. Online returns "Not typed: an online
   bid", and paper returns `readText(value)`. The screen, `opening/print/page.tsx` and `openingCsv` all use it, so the three cannot drift.
-  `DownloadOpening` gains `online: boolean`.
+  `DownloadOpening` gains `online?: boolean` (optional, read as false, so step 2 changes no caller). Step 4 wires it from the
+  exercise's pinned channel.
 - **`src/lib/opening/filed-file.ts`.** Add `filedFileFaults(i: { administrator: boolean; finalised: boolean; fileOnOpening: boolean;
   checked: boolean }): Finding<"ADMINISTRATOR" | "NOT_FINALISED" | "NOT_ON_THIS_OPENING" | "NOT_AN_OPENING_CHECK_FILE">[]`. Add
   `FILED_FILE_WORDS`: one sentence per fault, and one per `MoveResult` FAILED code (`CLASS_NOT_SET`, `STORE_NOT_BUILT` and the rest).
@@ -252,23 +263,23 @@ export const CELL_WORDS: Readonly<Record<CellKind, string>>; // staff-facing Eng
 All of the following lives in the actions' existing transactions. Each refusal comes in words through `MATRIX_FAULT_TEXT`.
 
 - **`recordChecklistAnswer`.**
-  - Online, it runs `matrixActorFaults` (subject = actor) and `cellAnswerFaults` (the cell from `cellFacts`) before anything is
-    written.
+  - It runs `matrixActorFaults` (act ANSWER, subject = actor) on both channels, and online `cellAnswerFaults` (the cell from
+    `cellFacts`), before anything is written.
   - When the answer changes, it raises `columnRevision` by 1, on both channels.
   - An existing decision is cleared as today. That clearing is the same change, so the revision is not raised a second time.
 - **`recordVerdict`.**
-  - Online, it runs `matrixActorFaults`.
+  - It runs `matrixActorFaults` (act DECIDE, subject = actor) on both channels.
   - It raises `columnRevision` by 1, on both channels.
   - The audit row is unchanged.
 - **`recordInitial`.**
-  - Online, it runs `matrixActorFaults` (subject = `act.subjectPersonId`, which must equal the actor) and `confirmFaults`.
+  - It runs `matrixActorFaults` (act CONFIRM, subject = `act.subjectPersonId`) and `confirmFaults` on both channels.
   - It stamps `columnRevision` on create and on renewal.
-  - "Already" is judged by `confirmationStands`. On paper, `initialStale` is unchanged.
+  - "Already" is judged by `confirmationStands`, which replaces `initialStale` here.
 - **`finalise-transaction.ts:86` and `read.ts:229/307`.** Replace `freshInitials` with `standingConfirmations(online, …)`.
 - **Unchanged:**
   - the online signature door (`signOnlineFinalise`);
   - the price acts, which are already refused online;
-  - every paper path.
+  - the paper as-read acts (open, correct, alternative), the paper signature and the paper finalise's other faults.
 
 ### 4.2 `POST /api/opening/filed-file`, the cell download after finalising (20cl)
 
@@ -285,8 +296,10 @@ All of the following lives in the actions' existing transactions. Each refusal c
   - success is **303** to `/api/documents/versions/{versionId}`, which applies the SULIT entitlement and logs the download as today;
   - a mover failure is 409 with the `FILED_FILE_WORDS` sentence for its code.
 - **Other methods.** `HEAD` is 405 (SEC-4), and nothing else is exported.
-- **Scans.** The route joins the table in `src/lib/sealing/admin-refused.db.test.ts`. `sealed-doors.test.ts` pins every caller of
-  `ensureFileMoved`: the mover itself, the "File them now" action, and this route.
+- **Scans.** The route joins the table in `src/lib/sealing/admin-refused.db.test.ts`. `sealed-doors.test.ts` pins the callers as they
+  stand on 2026-10-17 plus this route: `ensureFileMoved` is called only from `src/lib/sealing/online-file-mover.ts` and
+  `src/app/api/opening/filed-file/route.ts`; `moveReleasedFiles` only from `src/app/sourcing/[id]/opening/online-finalise-actions.ts`
+  (the post-commit move and "File them now").
 - No page render calls `ensureFileMoved`, because a read must not write during render.
 
 ### 4.3 The read model, `src/lib/opening/matrix-read.ts`
@@ -372,7 +385,7 @@ Each step has these gates before its commit:
 - the tally words for each mix, plus a scan that `tallyText` and `CELL_WORDS` hold no "Pass", "Fail" or "Lulus";
 - `confirmationStands` on paper (reading only) and online (reading and revision);
 - `columnStatus` through all four states, with a stale confirmation;
-- `matrixActorFaults`: administrator, not named, on behalf, and paper giving none;
+- `matrixActorFaults`: administrator, not named, on behalf (refused online and for answers and decisions on paper; allowed for a paper confirmation);
 - `confirmFaults`.
 
 **Done when:**
@@ -410,9 +423,10 @@ one bidder also submit an alternative.
    nothing is written.
 2. Present on a part with no file is refused.
 3. A confirmation before the column is complete is refused.
-4. A changed answer after both confirmations leaves both confirmations needed again, and `finaliseOnline` refuses with
-   `INITIAL_MISSING` until both are renewed.
-5. Paper: answers, verdict and initials in today's order still finalise (G3).
+4. A changed answer after both confirmations clears the decision and leaves both confirmations needed again: `finaliseOnline` refuses
+   with `VERDICT_UNSET` and `INITIAL_MISSING`, and the way through is decide again, then confirm again.
+5. Paper: answers by a present panel member, then the verdict, then the initials (one recorded on behalf) finalise. An answer or verdict
+   by a person not on the panel is refused. A paper opening whose rows predate the migration (revision 0 throughout) still finalises.
 6. An alternative goes through the matrix to finalise and is carried to evaluation only if it passes.
 7. `filed-file`:
    - before finalising, it is refused;
@@ -425,10 +439,18 @@ one bidder also submit an alternative.
    estimate row last. The summary labels follow the decisions, and the CSV rows equal `scheduleSection`'s rows. Before finalising, the
    route returns 409.
 
+**Tests updated to match ruling 22, each change citing it.** Only the order of work changes; no assertion is weakened.
+- `src/app/sourcing/[id]/opening/online-finalise.db.test.ts` (`prepare`, through the fixture);
+- `src/app/sourcing/[id]/opening/restriction-retake.db.test.ts` (its initials, lines 195-230, come after the verdict);
+- `scripts/online-demo-harness.ts` (lines 115-129: answers, verdict, then initials);
+- the source scans `src/lib/opening/restriction-online.test.ts` and `src/lib/opening/cancelled.test.ts`, which slice `actions.ts` by
+  function markers: keep the markers they slice on;
+- any other caller found by `grep -rn "recordInitial(\|recordVerdict(\|recordChecklistAnswer(" src scripts prisma`.
+
 **Done when:**
 - the database tests above pass;
-- `online-finalise.db.test.ts`, `unseal.db.test.ts`, `src/app/api/opening/sealed-file/route.db.test.ts` and the paper opening tests pass
-  unchanged, apart from the ruling-22 order change in `prepare`;
+- `unseal.db.test.ts` and `src/app/api/opening/sealed-file/route.db.test.ts` pass unchanged, and the tests listed above pass with only the
+  order change;
 - `admin-refused.db.test.ts`, `sealed-doors.test.ts` and `matrix-no-price.test.ts` pass.
 
 ### Step 5 — the matrix on screen (frontend-engineer)
@@ -498,7 +520,7 @@ closes, and focus returns to the opener. Add a component test.
 
 **The throwaway database.** Create a new database, `perolehan_ui_3c`, with the setup script and then `demo:load`.
 - Never use `perolehan` or `perolehan_native_check`.
-- Run a **second** dev server against it on another port. The running one is never stopped.
+- Serve it with a second app on another port. Next 16 holds a lockfile against two `next dev` instances in one project, so use `next build` then `next start -p 3100`, with `DATABASE_URL` set explicitly for the setup, `demo:load`, the build and the start (read `node_modules/next/dist/docs/01-app/02-guides/upgrading/version-16.md`, "Concurrent dev and build", first). The running dev server is never stopped.
 - Leave the database in place and report its name.
 
 **The rendered check, at desktop widths 1280 and 1440:**
@@ -529,14 +551,14 @@ closes, and focus returns to the opener. Add a component test.
   from the receipt record without opening. The alternative reading of ruling 23 shows only the flagged parts. That would drop
   FR-OPN-008's record, and break the supplier's "the opening will record it as missing".
 - **Q2.** An addendum row online is answered against the portal acknowledgement, which the cell shows. No file is opened.
-- **Q3.** Column-revision confirmations, the named-officer door and own acts apply to **online** openings only. Paper keeps today's acts
-  (G3): paper exercises exist only pinned to the old mode. The revision is still raised on paper, so the record is truthful if paper is
-  later brought in.
+- **Q3.** Ruling 22 is applied to both channels: the named-officer door, and a decision that stands only on every present officer's
+  confirmation of the current column. The narrower question left: a **paper** confirmation may still be recorded on behalf of a present
+  panel member, as Phase 2b allows, because a paper initial is a physical mark. Online it is the officer's own act.
 - **Q4.** An online confirmation is a TRANSACTION-class own act with no password. The password-attributed act stays
   `signOnlineFinalise` (20j, 20t).
 - **Q5.** Plain hashes are shown per file only after finalising, from the filed version. Before then they are sealed in `FileMeta`, and
-  no new decryption door is opened to show them. This amends wave 3b §3's "each column shows the plain hashes". The receipt digest is
-  shown from the unseal.
+  no new decryption door is opened to show them. This amends wave 3b §3's "each column shows the plain hashes" and ADR 0036's
+  opening-roll sentence, which carries an amendment note citing this plan. The receipt digest is shown from the unseal.
 - **Q6.** The row figure 13 calls "Committee decision" is labelled "Decision", recorded by the named officers. Ruling 24 says the
   officers decide, and 0003 §4 (line 610) leaves "who is the committee at an online opening" open.
 - **Q7.** SR-15's tables stay on Schedule (wave 3a). Received gets a pointer with the two downloads. The difference from "Where:
