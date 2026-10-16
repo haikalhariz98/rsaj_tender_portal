@@ -1,6 +1,6 @@
 # Online sealed bids: deployment notes
 
-**For:** whoever runs a copy of the product that takes bids online (SR-13, ADR 0036). **Status:** wave 3b, build plan step 6.
+**For:** whoever runs a copy of the product that takes bids online (SR-13, ADR 0036). **Status:** wave 3b built, 2026-10-16 (build plan steps 6 and 15 to 21). Not live.
 
 Online sealed bids protect bids at rest and from people, not from the running server (ADR 0036 D13). These notes are what the deployment must do so that the
 protection holds. The portal cannot check most of them. Two of them, the public copy's database role (threat model §G must-have 4) and the hardening below
@@ -68,6 +68,12 @@ Each bid part is scanned before it is sealed (ruling 12a), so the scanner reads 
 - **Its temporary directory is a tmpfs**, held in memory, so nothing it reads is written to disk.
 - **There is no quarantine and no copy**: a file found to be a threat is refused and discarded, never kept by the scanner.
 - Under LIVE a scanner is required, and a file it cannot scan is refused. Only a demonstration without a scanner stores files as not scanned.
+
+## Filing the sealed files after the opening is finalised
+
+When an online opening is finalised, the product releases each bid file's key and moves the file into the ordinary file store (the mover). Until the mover has run for a file, that file's key is held in the clear. Nothing runs the mover on a timer. It runs when a named opening officer presses "File them now" on the Opening tab, which shows how many files are still to be filed, or when the file reader of a later wave next needs the file. It needs no passphrase and is safe to run again.
+
+**After each finalise, a named officer opens the Opening tab and presses "File them now" until the count is zero.** A deployment that wants this done sooner must schedule it itself. The product does not.
 
 ## What is logged, and what is left to the edge
 

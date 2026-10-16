@@ -233,7 +233,7 @@ Without email, an administrator password reset is the recovery path, and it is a
 - **When:** added 2026-10-12 as the design for SR-13 (rulings 20 and 21). Revised the same day after the product owner's rulings 20a–20q
   and the wave 3b security review. Revised on 2026-10-14 after the stage A review and security audit, and rulings 20y–20ac.
 - **What this is:** a review of a design. Stage A (the schema, the triggers, the crypto module, the pure rules and the deployment
-  reader; build plan steps 1–6) is built. The acts, routes and screens are not.
+  reader; build plan steps 1–6) is built. The acts, routes and screens are built (steps 7 to 19, 2026-10-16), and the review fixes are applied. Where a line below says "until then", read it as: the screen exists and the condition is still the customer's to meet.
 - **Numbering:** S1–S20 keep their numbers, because the rulings cite them. New threats start at S21.
 
 ### Assets

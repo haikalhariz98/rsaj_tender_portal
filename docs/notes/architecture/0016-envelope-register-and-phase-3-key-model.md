@@ -1,6 +1,6 @@
 # 0016 — "Sealed" in Phase 2 is an envelope register with no content; the electronic box's key model is decided with Phase 3
 
-**Status:** Accepted (product owner, 2026-10-02, with 6.6 at 306cc68; proposed with 6.6 (2026-10-02), under ruling OD-1 A and the 6.6 conditions (`docs/notes/plans/phase2-rulings.md`
+**Status:** Accepted for paper exercises. **Superseded for exercises pinned ONLINE by 0036** (2026-10-16). Paper exercises stay on this ADR. Original status: accepted (product owner, 2026-10-02, with 6.6 at 306cc68; proposed with 6.6 (2026-10-02), under ruling OD-1 A and the 6.6 conditions (`docs/notes/plans/phase2-rulings.md`
 §6.6, X-3, X-6, X-11; decisions log "· 6.6 ·" entries). Plan: `docs/notes/plans/6.6-bid-receipt.md`.) The Phase 3 key model here is a starting design only, pending external crypto review (OD-1 A).
 
 ## Context

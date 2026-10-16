@@ -1,6 +1,15 @@
 # 0036 — Online sealed bids: an exercise key split across the named opening officers
 
-**Status:** Accepted for building (product owner, for the founder, 2026-10-13, ruling 20x), with the 20x change list applied. Revised after:
+**Status:** Built (2026-10-16): wave 3b stages A to D, build plan steps 1 to 21. **Not live.** DEMONSTRATION works. LIVE cannot be issued until the go-live conditions in `docs/notes/backlog.md` ("Online sealed bids", 2026-10-16) are met. Q1 to Q18 are ruled (20a to 20w), and the stage A review points are ruled (20y to 20ac).
+
+**Summary for the founder (2026-10-16).**
+1. A supplier can now submit, replace and withdraw a sealed bid online. The files are encrypted on the server as they arrive. Nobody can read them, administrators included, until the opening.
+2. The exercise key is split across the named opening officers. Every one of them must enter a passphrase at the opening. If one passphrase or share is lost after bids are in, the exercise is re-tendered. There is no back door.
+3. Paper exercises are unchanged and stay on ADR 0016. This ADR replaces 0016 only for exercises pinned ONLINE.
+4. Honest limits remain. Who bid is plain in the database (FR-BID-001's identity clause is not met against someone who can query it). The running server sees a bid while it handles it. One named officer with a database copy, the pepper and their own passphrase can read opened bids before finalising. The customer must accept these in writing before LIVE.
+5. Before LIVE: an outside cryptography review, CPD's SK002/SK003 amendment, a real malware scanner, the pepper, the `SEALED_BIDS_LIVE_ALLOWED` setting, two attested host facts, the customer's written acceptance, and a Malay review by RSAJ. Seven build points are open as product-owner questions in the decisions log (2026-10-16, "NOT FIXED").
+
+**Earlier status line.** Accepted for building (product owner, for the founder, 2026-10-13, ruling 20x), with the 20x change list applied. Revised after:
 - the product owner's rulings 20a–20q (2026-10-12) and 20r–20x (2026-10-13), in `docs/notes/design/0003-sourcing-requirements-v2.md` §6,
   "Wave 3b: ADR 0036 open questions";
 - the wave 3b security review (H1–H3, M1–M6, Low);

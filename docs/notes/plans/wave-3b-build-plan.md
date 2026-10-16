@@ -2,8 +2,7 @@
 
 **Status:** Accepted for building with ADR 0036 (20x, 2026-10-13). Revised to match the ADR, rulings 20a–20ac and the wave 3b security
 review. **Stage A (steps 1–6) is built and fixed** (commits `cf672762`..`b374b89e`). Its review and security audit led to rulings 20y–20ac,
-applied here on 2026-10-14. The solution-architect reviewed the amended contracts the same day (step 3). **Stage B (step 7 on) is not
-started.**
+applied here on 2026-10-14. The solution-architect reviewed the amended contracts the same day (step 3). **Stages B, C and D (steps 7 to 21) are built and reviewed** (2026-10-16; the review fixes are `3045303d`). **Wave 3b is built. It is not live:** see the go-live conditions in `docs/notes/backlog.md`. Plain-language summary: the top of ADR 0036.
 
 - **Design:** ADR 0036 (`docs/notes/architecture/0036-online-sealed-bids.md`).
 - **Threats:** `docs/notes/plans/signin-threat-model.md` §G.
