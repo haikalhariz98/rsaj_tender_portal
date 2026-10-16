@@ -1,6 +1,6 @@
 # Wave 3c — the SR-14 opening checklist, and what SR-15 still needs online: build plan
 
-**Status:** Proposed by the solution architect, 2026-10-17. Not built.
+**Status (2026-10-17):** Proposed by the solution architect. NOT BUILT. SR-14 (matrix, every-officer Pass or Reject) and SR-15 online: not started. Only the interim guards of commit 3c928710 exist. Waiting on the precondition below, S9, and 3c-Q1 to 3c-Q9.
 
 **Sources.**
 - **Requirement:** SR-14 and SR-15 in `docs/requirements/sourcing-v2-media/Sourcing_Requirements_v2.txt`, with figures 13 and 14

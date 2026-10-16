@@ -31,6 +31,9 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 | Paper opening's literal two in `opensTheBox` | Product owner (for the founder), 2026-10-12, ruling 20k (noted, not ruled). `src/lib/opening/unseal.ts` counts to two in four places (`opensTheBox` `=== 2`, `SITTING_AUTHORISED`, `unsealState`, `lapsedByAdjourning`). Wave 3b passes the roster's n for ONLINE openings only; paper keeps the literal. Whether paper should read `Committee.panelSize` (FR-OPN-002) is a separate change (AGENTS.md rule 1). | design 0003 ruling 20k; wave 3b plan step 13 |
 | Source scan pinning the plain identity columns of online bids | Product owner (for the founder), 2026-10-12, ruling 20a. FR-BID-001's identity clause is not met against a privileged query; the plain identity columns (`OnlineBid.supplierId`, `submittedBySupplierAccountId`, `OnlineBidFile.supplierId`, `uploadedBySupplierAccountId`, `SealedAccessEvent.supplierAccountId`) are pinned by a scan so the list cannot grow unnoticed. Built in wave 3b (plan steps 12 and 19); listed here so the scan is not dropped. | design 0003 ruling 20a; ADR 0036 D9 |
 
+| Wave 3c not built: SR-14 matrix and SR-15 online | Recorded 2026-10-17. Needs the 20bv security walk, the ruling of S9 and answers to 3c-Q1..Q9 first. Interim: only a present panel member answers, decides or corrects; an online initial cannot be recorded for another officer (3c928710). | `plans/wave-3c-build-plan.md` |
+| Accounts disable drawer: exposure lines | Ruling 20ci(a). The refusal states its reason today; per-exposure lines are not shown. | decisions log, 20ci |
+
 ## Part B items moved here when a run overran
 
 (none yet)

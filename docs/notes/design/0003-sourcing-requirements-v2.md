@@ -1,7 +1,40 @@
 # 0003 — Sourcing Requirements v2 (SR-01..SR-15) mapped against the code
 
-Status: a read-only map, written 2026-10-09 for planning. No decision is taken here: the gaps in
-section 4 are open for the product owner. Nothing in this note is built.
+Status: a map written 2026-10-09 for planning. The gaps in section 4 were open then and are ruled in section 6.
+The per-SR text below is the 2026-10-09 baseline, not today's state. Today's state is the summary that follows (2026-10-17).
+
+## Sourcing round 1: what is done, what remains before go-live
+
+Written 2026-10-17. Plain language, for the founder.
+
+**Done and reviewed**
+- SR-01 (the five steps; the 16 states still need two people to load), SR-02, SR-03, SR-04 and SR-12: wave 1.
+- SR-05 to SR-09 and SR-11: waves 2a and 2b.
+- SR-10, buying documents online: wave 3a. It pays on a demonstration payment simulator only.
+- SR-13, online sealed bids: wave 3b. It works as a demonstration. It is not live.
+
+**Not built: SR-14 and SR-15 online (wave 3c)**
+- SR-14, the opening checklist with a column per bidder, a row per document, and Pass or Reject only once every named officer has initialled: not built.
+  Paper openings have the old per-bid screens, and they keep working.
+- SR-15 for online bids: not built. The two downloads (Jadual Tawaran and Grand Summary) exist after finalising, for paper and online. The online price and completion period columns are not yet filled from the bidder's declared fields.
+- Wave 3c is planned (`docs/notes/plans/wave-3c-build-plan.md`) but waits on three things:
+  - the security walk of threat model section G (ruling 20bv);
+  - the ruling on S9;
+  - the product owner's answers to 3c-Q1 to 3c-Q9.
+- Until then, as a stopgap (commit 3c928710), only a present panel member can answer a checklist row, record a verdict or correct a figure. An online initial cannot be recorded for another officer.
+
+**Remains before go-live (all in `docs/notes/backlog.md`)**
+- Online sealed bids stay in demonstration until these are met:
+  - the outside cryptography review;
+  - CPD's amendment of SK002 and SK003;
+  - the customer's written acceptance of the limits;
+  - a real malware scanner;
+  - the scrypt pepper and the live switch;
+  - the two host attestations (database role, hardened host).
+- Online selling needs a controlled reversal (17b) and the payment simulator switched off.
+- The database wall around the sealed company estimate (F10).
+- The file mover has no scheduler.
+- Suppliers' Malay on screen and a supplier's right to export their data.
 
 Source (binding): `docs/requirements/Sourcing_Requirements_v2.docx`, "Sourcing Requirements:
 Prototype Review Changes, Round 1". Its text is in `docs/requirements/sourcing-v2-media/Sourcing_Requirements_v2.txt`
