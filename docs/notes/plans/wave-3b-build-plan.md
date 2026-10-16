@@ -480,6 +480,29 @@ The public posts join `SUPPLIER_BIDS_POSTS`. The submit page joins `BID_PAGE`, f
 - **Read model:** `bidsTab` rows carry `sequence` (the displayed number), `numberIsOrdinal`, `label` and `replaced`, and the tab an `online` block (`receivedView`'s counts and the ordinal's words). The start of an online exercise's opening is its Opening row.
 - **Scan:** `sealed.test.ts` pins which files read the online tables and which of those may select the D9 identity columns. Step 13's unseal file joins the second list.
 
+### 1.5f What step 13 added beyond §1.3 (built 2026-10-16)
+
+- **Pure, in `src/lib/opening/`:** `online-unseal.ts` (the unseal's rules: which bids open, the opening order, the plan's shape), `state.ts` `requiredAuthorisations(channel, panelSize)` (the roster's n online, never fewer than two; two on paper) and `OpeningState.required`, `unseal.ts` (`authorisationFaults` takes `online` and `required`; `lapsedByAdjourning` and `opensTheBox` take `required`), `start.ts` `onlineStartFaults` (`KEY_NOT_LIVE`, `KEY_OFFICERS_MISMATCH`, `CLOSING_NOT_SET`, `SKEW_NOT_ELAPSED`, `OFFICERS_FEWER_THAN_TWO`) and `skewElapsed`, judged on the database clock read after the locks. In `src/lib/sealing/`: `passphrase.ts` (`passphraseGate`, `afterWrongPassphrase`, the words) and `unseal-seal.ts` (the release payload, `wrappedKeyOf`).
+- **Stores:** `src/lib/opening/unseal-store.ts` (`loadUnsealKeys`, `gatherHeldShares`, `forwardShares`, `shredReleases`, `prepareUnseal`, `commitUnseal`, `rollDigestOf`) and `src/lib/sealing/unlock-store.ts` (`unlockOwnKey`, the one place the passphrase is tried; `logSealedRefusal`, `logSealedGranted`). `src/app/sourcing/[id]/opening/in-opening.ts` holds `inOpening` (moved out of `actions.ts`), `refuse`, `stampNow` and `GONE_OPENING`.
+- **Actions:** `authoriseOnlineUnseal` (`unseal-actions.ts`) and `checkUnlock` (`scope/key-actions.ts`). Order asked: the session, the exercise visible, the step-up password, the pepper (`PEPPER_NOT_HELD` never counted), the key's lockout with the attempt reserved, the unwrap. Every refusal after the session is a REFUSED `SealedAccessEvent`.
+- **Fault codes (opening):** `SKEW_NOT_ELAPSED`, `KEY_NOT_LIVE`, `KEY_OFFICERS_MISMATCH`, `OFFICERS_FEWER_THAN_TWO`, `NOT_ON_PANEL_ONLINE`, `OFFICER_KEY_CHANGED`, `SHARES_MISMATCH`, `BID_MANIFEST_BINDING`, `NOT_ONLINE`.
+
+### 1.5g What step 14 added beyond §1.3 (built 2026-10-16)
+
+- **Pure, in `src/lib/sealing/`:** `sealed-file.ts` (`parseSealedFileRequest`, `SEALED_FILE_WORDS`, `downloadRefusalWords`, `MAX_SEALED_FILE_REQUEST_BYTES`) and `file-seal.ts` `openFile` (verifies the body and metadata GCM tags and the plain digest and size before returning a byte; the grant's use is the literal `OPENING_CHECK`).
+- **Store:** `src/lib/opening/sealed-file-store.ts` (`findOpening`, `loadFileFacts`).
+- **Route:** `POST /api/opening/sealed-file` on the internal copy only. Refusal order: guard, parse, rate counted (`officer-sealed-download`, 20 a minute, `RATE_LIMITS` in `portal/bids/limits.ts`), opening and hidden-exercise check, administrator, named officer, file facts, password, passphrase, verify, send. Headers: attachment, nosniff, no-store and the sandbox CSP.
+
+### 1.5h What the stage C fix round changed (2026-10-16)
+
+- **Words:** `RECEIVED_WORDS.sequenceLabel` is "Portal order of receipt" and the ordinal note no longer says receipt number (20ar); must-have 5's attested words are widened (20ai).
+- **Lockout:** `unlock-store.ts` `reserveAttempt` / `refundAttempt`: the gate is judged and the attempt counted in one row-locked transaction before the unwrap; a right passphrase clears the count. `logAdministratorRefusal` and `recordIdOrNull` (S19): the first administrator refusal per account per hour is written, and the record id is stored only if it matches `^[A-Za-z0-9_-]{1,64}$`; the `officer-sealed-refusal` rate action counts them.
+- **20c (names):** `audit-mask.ts` gains `NAMED_AT_UNSEAL_ENTITIES` (OpenedBid and BidEnvelope on an online exercise) and `SealedAuditFacts.started` / `.online`; online-bid rows are withheld altogether before the opening starts (the History query leaves them out of rows and total too), and the grouping fields (`replaces`, `replacedBy`, `parent`, `cipherBytes`) are masked with the supplier's. `openingSection(organisationId, exerciseId, prices, viewerPersonId)` and `scheduleSection` show no bidder, registration or purchaser list to a reader who is not a named officer between the unseal and finalising. The sales register's `ENVELOPE_HELD` counts paper envelopes only.
+- **Trail of the unseal:** the last authorisation writes the envelope RECEIVED to OPENED row paper writes (bidder named, masked as above), an OnlineBid Standing to Opened row, and `grantsMade` on the opening's row.
+- **State:** `OpeningState.online`; the findings carry `online: 1` so the words follow the channel, never the count. `finaliseFaults` returns `ONLINE_FINALISE_ELSEWHERE` for an online opening, before any price is read (step 15 replaces it with the online finalise).
+- **Shares:** `shredExerciseReleases` lapses every outstanding UNSEAL release on cancellation and on a `KEY_OFFICERS_MISMATCH` refusal.
+- **Screen:** `CheckUnlockDrawer` on the Sealing key card.
+
 ### 1.5b What step 9 added beyond §1.3 (built 2026-10-14)
 
 - `src/lib/sealing/file-seal.ts` (pure): `sealFile`, and `fileBodyAad`, `fileMetaAad`, `fileDekAad` (recordId = the file's id, partKey = the returned part's id), so step 13's unseal rebuilds them identically. Stored body is `ct || tag` with the IV in `bodyIv`.
