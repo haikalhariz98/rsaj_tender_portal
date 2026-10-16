@@ -1895,3 +1895,201 @@ The stage C questions (steps 11 to 14 and the stage C fix round, decisions log 2
     kind would break every reader of it. Product-owner question for the founder: should the exported file itself carry that note, and in
     what form (a column, a companion file)?
     - **Code:** none beyond 20av and 20bi.
+
+**ADR 0036 close-out (product owner, for the founder, 2026-10-17).** Rulings 20bn to 20ck answer every product-owner question the wave 3b
+builders left in the decisions log (steps 15 to 21 and the review fix round, including its seven open build points). Each says whether
+code is owed and whether it belongs to wave 3c or the backlog. Questions already referred to the founder stay with him (20ck).
+
+20bn. **The demonstration's shares, submissions and sealed estimate copy stay the loader's own rows, written beneath the signed acts:
+    accepted. This amends plan section 1.5j ("never by a direct insert") and step 18's "through the product's own acts".** (Step 18
+    question; review fix round point 2.)
+    - **Why.** Each of those acts is signature-class and needs a person's session and password. Driving them from the loader would
+      either forge a signature nobody made (the `SIGNED === 0` pin) or need a loader-acts-as-person path that the threat model says not
+      to build. A forged signature is worse than a demonstration that says honestly who wrote its rows (AGENTS.md: do not fake a second
+      approval; rule 2). The rows are the demo loader's, audited as such and attributed RECORDED_ON_BEHALF with the demonstration's
+      reason. The keys are real, and the child harness proves the printed passphrases open them through the real unseal and finalise.
+    - **Condition.** The loader must call the product's own judges (`shareFaults`, the submission and part faults,
+      `sealedLodgementFaults`) and sealing code, never a restatement. A source scan pins this so the two cannot drift.
+    - **Code:** wave 3c, the scan only, with 20bp's demo change. Plan sections 1.5j and step 18 are amended by this ruling.
+
+20bo. **No actor-less row is written to the sealed access log for the loader. The History tolerates the missing access-log half on a
+    demonstration exercise.** (Step 18 follow-up question.)
+    - **Why.** The sealed access log answers "which person or supplier touched sealed material" (S19, 20w). A row with neither actor has
+      no defined meaning and would read as an unexplained access. The custody event and the audit rows already say the demo loader did
+      it, so the History shows what happened without inventing an actor.
+    - **Code:** wave 3c, with 20bp: the demo guide (README) says the demonstration's setup rows were written by the loader and carry no
+      access-log rows. Backlog: check whether any writer leaves both actors empty, and if none does, add a database CHECK that every
+      `SealedAccessEvent` names an actor.
+
+20bp. **Received keeps counting every standing online envelope, an alternative included. The demo loads the planned alternative. Step
+    18's Done-when is amended to "3 standing in time, one of them an alternative, plus 1 late".** (Step 18 question; review fix round
+    point 3.)
+    - **Why.** An alternative is an offer received. Leaving it out of Received's count would understate what the box holds, and a
+      product rule is never bent to fit a demonstration's acceptance line. The plan asked for an alternative, and wave 3c's SR-14 matrix
+      has a column per opened bid, so the founder needs to see how an alternative's column reads.
+    - **Code:** wave 3c, in `prisma/demo-online.ts`, fresh databases only (12c). The window already permits alternatives.
+
+20bq. **`kdf.ts`'s `unwrapKey` stays the one named exception to "only `open.ts` decrypts". The plan's step 19 line is amended to name
+    it.** (Step 19 question; review fix round point 4.)
+    - **Why.** The rule exists so that every decryption of bid material passes one door that the tests can watch. `unwrapKey` opens an
+      officer's own private key under their passphrase-derived key. It is key custody, not bid material. Routing it through `open.ts`
+      would make the spies filter by purpose, which weakens the door they watch. `sealed-doors.test.ts` already pins the exception to the
+      one function.
+    - **Condition.** `unwrapKey` is called only from `unlock-store.ts` (`unlockOwnKey`, which logs the access).
+    - **Code:** wave 3c, that one pin, in the sealed-doors scan.
+
+20br. **The calendar-dependent skip does not satisfy 20bi. A deterministic test of `publishWindow`'s ONLINE branch is owed, and it runs
+    on every day. This amends 20bi and 20bm.** (Step 19 follow-up question; review fix round point 5.)
+    - **Why.** The founder does not accept a skipped test as a gate. On a weekend or a holiday nothing checks the online publication.
+    - **How.** The test's own organisation is given the configuration that the editors could set (a calendar on which the test's
+      closing day is a working day, the notice template, the channels, the evaluation model, the window policy). It then publishes
+      through the real `publishWindow`, never by setting rows the real path would refuse.
+    - **What it asserts.** What the demo test asserts: the freeze, the key fingerprint, the order before ADVERTISED, and trigger 11's
+      refusal.
+    - **The demo test.** It may keep its day guard as a check of the demonstration. It is no longer the 20bi gate.
+    - **Code:** wave 3c, its first build step. Wave 3c's own database tests of the online checklist need the same fixture (an online
+      exercise published and opened on any day), so it is built once for both.
+
+20bs. **The online sale reversal (17b, S21) stays in the backlog, as its own LIVE condition, and is not wave 3c.** (Review fix round
+    point 6.)
+    - **Why.** SR-14 and SR-15 do not touch sales. 17b already says a controlled reversal is needed before any organisation sells online
+      for real. The sale's words say truthfully that it cannot yet be reversed in the portal.
+    - **Conditions carried.** 20r's conditions go to whoever builds the reversal: its screen never says whether the buyer has bid, and it
+      joins the S21 test.
+    - **Code:** backlog. The "seven build points" row already names it, and the next documents pass gives it a row of its own.
+
+20bt. **The carried UI checks are done in wave 3c's closing UI pass, which also covers the wave 3b screens. The dialog focus trap is
+    fixed once, in the shared drawer.** (Review fix round point 7; step 19's focus-trap note.)
+    - **The pass.** It is done by the 20ap path. The text-snapshot baseline is taken against a new throwaway database built by
+      the setup script and then the demo load. It is never taken against `perolehan` or `perolehan_native_check`, whose test rows are no
+      baseline. Where the ui-guidelines-reviewer agent or a browser cannot be used, the check is done by hand and recorded as not
+      claimed (20bj).
+    - **The focus trap.** It is a shared defect of the CONFIRM_SCRIM dialogs. Wave 3c's checklist cell reuses
+      `sealed-file-download.tsx`, so the fix belongs in `src/components/ui/drawer.tsx`, for every dialog at once (AGENTS.md: extend the
+      shared component).
+    - **Code:** wave 3c.
+
+20bu. **The online finalise's own signature-class attribution, when no estimate is lodged, goes to the backlog, for both channels at
+    once. It is not wave 3c.** (Review fix round point 1.)
+    - **Why.** The act is traceable today:
+      - every named officer has signed through their own `OpeningSignature` (20t);
+      - the granted FINALISE access event names the finalising officer (`staffPersonId`);
+      - the audit rows name the actor.
+    - **What is missing.** A signature-class slot for the act itself, which paper lacks too. Adding it means a new Person slot on
+      `Opening` and a change to the paper finalise. That change is done once and deliberately, not inside a wave whose screens read the
+      finalise's output.
+    - **Code:** backlog: the `Opening` finaliser slot, for both channels. Openings finalised earlier read "not recorded" and are never
+      back-filled.
+
+20bv. **Step 20's record is owed, and wave 3b is not called closed until it exists.** (Found at close-out: the decisions log has no step
+    20 entry. The review's fixes are commit 3045303d, but plan step 20's Done-when says "the log entry exists, and every NOT MET item is
+    in the backlog".)
+    - **What it is.** A security-auditor walk of threat model section G against the tree. It names each item MET or NOT MET, rules S9
+      (20bh), and puts every NOT MET item in the backlog.
+    - **Code:** none, documents only. It is the first act of wave 3c, before its build begins.
+
+20bw. **An online opening keeps the paper pages count and the signed schedule scan, as built.** (Step 15 question.)
+    - **Why.** A portal act is attributed by password and is never called a signature (20j). The schedule the panel signs is still the
+      signed record, and ruling 24 keeps "the existing print page for the signed copy" for both channels.
+    - **The switch.** Whether a customer may waive the paper signature for online openings is a customer policy choice. Backlog: a switch
+      on the method, where unset means required.
+    - **Code:** backlog.
+
+20bx. **The class a filed online bid file takes stays a configured setting (`DocumentStorePolicy.onlineBidFileClassId`), refused unless
+    SULIT: confirmed.** (Step 15 question.)
+    - **Why.** A class fixed by the product would be a hard-coded policy (AGENTS.md rule 1). The supplier-upload class need not be SULIT.
+    - **Code:** none.
+
+20by. **No scheduler for the file mover in wave 3c. It stays a LIVE condition in the backlog.** (Step 15 question; step 21's judgement.)
+    - **Why.** No job queue exists to hang a scheduler on, and building one is infrastructure, not SR-14. Nothing in wave 3c reads a filed
+      bid file:
+      - the SR-14 cell download reads the sealed store between the unseal and finalising;
+      - the SR-15 downloads are CSV built from the frozen snapshots (ruling 24).
+    - **What files them.** "File them now" stays the trigger. Any later reader of a finalised online bid file calls `ensureFileMoved`
+      first.
+    - **LIVE.** The window in which a released data key stays plain is a LIVE question (backlog row "the mover has no scheduler").
+    - **Code:** none in wave 3c.
+
+20bz. **The pepper list does not show an administrator every restricted exercise: confirmed as built.** (Step 15 question.)
+    - **Why.** Administrators are refused at every sealed entry point, and a restricted exercise is listed only to those named on it
+      (FR-MTD-007). The fixed sentence already says a rotation is checked by someone who can see every exercise.
+    - **Code:** none.
+
+20ca. **An online exercise's register carries no company-estimate line: confirmed.** (Step 16 question.)
+    - **Why.** There is no box online. The finalise reads the estimate from the sealed copy, and the History reads the lodgement from
+      the custody event (plan 1.5j).
+    - **Code:** none.
+
+20cb. **If the lodging officer has left, the way out is a new version, as built. No second officer may re-lodge another officer's
+    version.** (Step 16 question.)
+    - **Why.** Re-lodging is the lodging officer's own act (20g). An override would let one person seal a figure under another's
+      lodgement. A new version is a fresh, audited lodgement.
+    - **Code:** backlog, words only. Where the refusal does not already say so, it names the new version as the way out.
+
+20cc. **One substitution waits at a time, as built: confirmed.** (Step 17 question.) No stored pairing between rows is added. Several
+    waiting substitutions would need one, and nothing in the specification asks for them.
+    - **Code:** none.
+
+20cd. **20bb extends to `releaseShareForSubstitution` (kind SUBSTITUTION_RELEASE): confirmed.** (Step 17 question.) It is a passphrase
+    act with the same exposure to a flood of refusals.
+    - **Code:** none.
+
+20ce. **Deactivation.** (Step 17 questions.)
+    - **(a) The case is listed.** A named officer of a finalised main opening is listed while a late bid still waits for its
+      supplementary opening, because that opening needs every named officer (20az). Leaving it out would hide that the late bid becomes
+      unopenable.
+    - **(b) The second approver is the existing two-person path, unchanged.** Any second person who holds the permission, distinct from
+      the first. Who holds that permission is the customer's configuration, and the product invents no role.
+    - **Code:** (a) wave 3c, as a carried wave 3b fix to `loadHolderExposures` and `exposureOf` and their words, with a test. (b) None.
+
+20cf. **The receipt-time audit rows that print `Envelope <n>` are enough as they are: confirmed.** (Step 19 question.)
+    - **Why.** Before the opening starts, 20av withholds them from everyone. From the start, the envelope's sequence is shown anyway (20u),
+      so the number reveals nothing more.
+    - **Code:** none.
+
+20cg. **The online finalise writes the prices under `prices: actor`, so the SULIT price-write check applies to the finalising officer:
+    confirmed.** (Review fix round question.)
+    - **Why.** The person who releases the prices must be cleared to read them. Treating the declaration as the writer would let an
+      officer without SULIT clearance put prices on record.
+    - **Code:** none.
+
+20ch. **F10: the planned wall is the answer, not an attestation.** (Review fix round question.)
+    - **What the wall is.** REVOKE SELECT on `CompanyEstimateVersion.value` from the app role, a logged SECURITY DEFINER read, and
+      `db:roles` and the runtime-role check updated to match.
+    - **Why.** An attestation is a promise, and the wall is a control. Until the wall is built, LIVE is not issued without the acceptance
+      naming F10, as built.
+    - **Code:** backlog, as a LIVE condition. It is not wave 3c.
+
+20ci. **Accounts.** (Review fix round questions.)
+    - **(a) The exposure lines in the Accounts disable drawer go to the backlog.** The Users drawer already lists them, and the
+      refusal states its reason in words today.
+    - **(b) Disabling an account is not made a staged two-person operation.** One administrator must be able to disable a compromised
+      account at once. Inside the S14 window it is already refused and sent to the two-person leaver path.
+    - **Code:** (a) backlog. (b) None.
+
+20cj. **No consolidated digest of the wave 3b build decisions.** (Step 21 question.)
+    - **Why.** The decisions log is the record. ADR 0036's summary for the founder, together with this close-out, is the digest, and a
+      second copy would drift from both.
+    - **Code:** none.
+
+20ck. **These stay referred to the founder and are not ruled here:**
+    - the audit CSV's note line (20bm);
+    - k-of-m and a smaller supplementary panel (20ay, 20az);
+    - re-key-and-resubmit (20f);
+    - the blinded supplier link (20a).
+    - **What wave 3c receives from this close-out:**
+      - 20bv first;
+      - then 20br;
+      - 20bn's scan, and 20bo and 20bp in the demo;
+      - 20bq's pin;
+      - 20bt;
+      - 20ce (a).
+    - **What the backlog receives:**
+      - 20bo's CHECK;
+      - 20bs;
+      - 20bu;
+      - 20bw;
+      - 20cb's words;
+      - 20ch;
+      - 20ci (a);
+      - the mover's scheduler (20by).
