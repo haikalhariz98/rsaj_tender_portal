@@ -1,6 +1,6 @@
 # Wave 3c — the SR-14 opening checklist, and what SR-15 still needs online: build plan
 
-**Status (2026-10-17, after step 7):** Steps 1 to 7 are built (see the decisions log for what step 7 did not run: the online demonstration could not load on a Saturday, so the online matrix states were not rendered). Original status: Proposed by the solution architect. NOT BUILT. SR-14 (matrix, every-officer Pass or Reject) and SR-15 online: not started. Only the interim guards of commit 3c928710 exist. The precondition is met, S9 is ruled and 3c-Q1 to 3c-Q9 are answered: rulings 20cm to 20cx in design note 0003 §6 (product owner, 2026-10-17). Step 1 may start. 20cm, 20cp, 20ct and 20cw amend this plan where marked.
+**Status (2026-10-17, after the review fixes, commits c316e387 and eace6ae1):** Steps 1 to 7 are built and reviewed once. SR-14 (matrix, both channels): built. SR-15 online and its Received table: built. Not done and not claimed (20bj): the rendered look of the online matrix states, the CSV-against-screen comparison on an online demonstration, and the ui-guidelines-reviewer pass. The online demonstration branch did run end to end on a scratch database. Open for the product owner: whether 20cu also covers Status as read. Original status (before the build): Proposed by the solution architect. NOT BUILT. SR-14 (matrix, every-officer Pass or Reject) and SR-15 online: not started. Only the interim guards of commit 3c928710 exist. The precondition is met, S9 is ruled and 3c-Q1 to 3c-Q9 are answered: rulings 20cm to 20cx in design note 0003 §6 (product owner, 2026-10-17). Step 1 may start. 20cm, 20cp, 20ct and 20cw amend this plan where marked.
 
 **Sources.**
 - **Requirement:** SR-14 and SR-15 in `docs/requirements/sourcing-v2-media/Sourcing_Requirements_v2.txt`, with figures 13 and 14
@@ -42,7 +42,7 @@ backlog row, including the two the record left owed (20cw (a) and (b)).
 | Matrix layout: a column per bid, a row per item | **build** | today `OffersRead` (`opening/lists.tsx`) has one row per offer, with Checklist, Verdict and Initial drawers |
 | SR-15 CSVs (Jadual Tawaran and Grand Summary), after finalising only, both channels | exists | `src/lib/opening/download.ts`, `opening/download/[kind]/route.ts`, the buttons on the **Schedule** section |
 | SR-15 online figures: declared price and period written at finalising | exists | `finaliseOnline`, `declaredWrite`. `online-finalise.db.test.ts:383` checks the snapshot only |
-| SR-15 end-to-end online (the CSV matches the screen, the alternative's row, the estimate row, Kelas) | **test** | no test yet |
+| SR-15 end-to-end online (the CSV matches the screen, the alternative's row, the estimate row, Kelas) | **built, 2026-10-17** | step 4 test; rendered comparison not done |
 | "Class as read" on an online row | **build (words)** | `unseal-store.ts:319` writes `""`, which renders "—" |
 | Ruling 25: My Bids says "Opened; the result follows the evaluation" and never shows the verdict | exists, pin only | `src/lib/bids/online/roll.ts:74`, `src/lib/portal/bids/standing.ts` |
 | Online alternative gets `alternativeStatus` at the unseal | exists | `unseal-store.ts:314` (`alternativeOf`), so `ALTERNATIVES_NOT_STATED` cannot deadlock it. Step 4 proves it end to end |

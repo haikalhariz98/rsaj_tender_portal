@@ -13,15 +13,26 @@ Written 2026-10-17. Plain language, for the founder.
 - SR-10, buying documents online: wave 3a. It pays on a demonstration payment simulator only.
 - SR-13, online sealed bids: wave 3b. It works as a demonstration. It is not live.
 
-**Not built: SR-14 and SR-15 online (wave 3c)**
-- SR-14, the opening checklist with a column per bidder, a row per document, and Pass or Reject only once every named officer has initialled: not built.
-  Paper openings have the old per-bid screens, and they keep working.
-- SR-15 for online bids: not built. The two downloads (Jadual Tawaran and Grand Summary) exist after finalising, for paper and online. The online price and completion period columns are not yet filled from the bidder's declared fields.
-- Wave 3c is planned (`docs/notes/plans/wave-3c-build-plan.md`) but waits on three things:
-  - the security walk of threat model section G (ruling 20bv);
-  - the ruling on S9;
-  - the product owner's answers to 3c-Q1 to 3c-Q9.
-- Until then, as a stopgap (commit 3c928710), only a present panel member can answer a checklist row, record a verdict or correct a figure. An online initial cannot be recorded for another officer.
+**Built, reviewed once, not fully looked at: SR-14 and SR-15 online (wave 3c, 2026-10-17)**
+- SR-14, the opening checklist: built for paper and online openings. It is a matrix, a column per bidder and a row per document.
+  - Pass or Reject is offered only once every named officer has confirmed that column.
+  - A confirmation counts only for the column as it was read. If an answer or a decision changes afterwards, the column's revision rises and each officer confirms again.
+  - Only a present panel member answers, decides or corrects. Online, an initial is never recorded for another officer. Paper keeps its on-behalf initial (3c-Q3).
+  - The database refuses a decision or a confirmation that does not move or match the revision (migration `20261109000000`).
+- SR-15 online: built. The online price and completion period come from the bidder's declared fields at finalising.
+  - The Received tab shows the same SR-15 table as Schedule, one copy of the code, once an opening is finalised (ruling 20ct).
+  - The two downloads and the filed cell files work after finalising, for paper and online.
+- The precondition (the 20bv security walk), S9 and 3c-Q1 to 3c-Q9 are all done: rulings 20cm to 20cx.
+- Gates: typecheck and lint pass. The Linux suite passed (14223 tests). The database suite ran 1004 tests on a scratch database: 1001 passed and 3 failed, the known `holding-edit.db.test.ts` ones.
+- The demonstration loads an online alternative too, and its online branch ran end to end on a scratch database.
+
+**Not done in wave 3c, and not claimed**
+- The rendered look. The online matrix in its states was never opened in a browser: a named officer checking, a reader whose names are held, a finalised exercise with a filed file, a class not set. Nor was the comparison of the three CSVs against the screen on an online demonstration. The paper demonstration was looked at, at 1280 and 1440.
+- The ui-guidelines-reviewer pass was not run.
+- At 1440 the fourth column of a four-bidder matrix is cut and the matrix scrolls sideways. Fixing it means changing the shared Matrix width, a design-system change.
+- A question for the product owner: does ruling 20cu (Class as read, "Confirmed") also cover Status as read? Online rows show a dash there until it is answered.
+- One words-only leftover: the history's "Sealed (version N)" label overclaims, as the estimate tab did before.
+- The 17b reversal and SR-15's other online items stay as in the list below. Wave 3c adds no go-live condition of its own.
 
 **Remains before go-live (all in `docs/notes/backlog.md`)**
 - Online sealed bids stay in demonstration until these are met:
@@ -452,6 +463,8 @@ migration in 20261101000000–20261101999999.
 
 ### SR-14 — Two-officer opening checklist, Pass / Reject
 
+**Status, 2026-10-17: built in wave 3c (matrix, both channels). Rendered look of the online states not done. See the summary at the top.** The text below is the 2026-10-09 baseline.
+
 - **(1) Where.**
   - The opening workspace is `src/app/sourcing/[id]/opening/{workspace,lists,editors,actions}.tsx`.
   - Already built, on paper:
@@ -489,6 +502,8 @@ migration in 20261101000000–20261101999999.
   - The decision record stays `OpenedBid.verdict`, with no new decision table.
 
 ### SR-15 — Grand Summary and Jadual Tawaran download
+
+**Status, 2026-10-17: built. Paper in wave 3a, online and the Received table in wave 3c. CSVs not yet compared with the screen on an online demonstration.** The text below is the 2026-10-09 baseline.
 
 - **(1) Where.**
   - The Jadual Tawaran is already the opening schedule, `src/lib/opening/schedule.ts` (FR-OPN-005..007). It is frozen at
