@@ -16,13 +16,13 @@ import { OpeningMatrix } from "./matrix";
 const allowed = { allowed: true } as const;
 const cell = (itemKey: string, kind: MatrixView["columns"][number]["cells"][number]["kind"], extra: Partial<MatrixView["columns"][number]["cells"][number]> = {}) => ({ itemKey, kind, fileIds: [], acknowledgedOn: null, answer: null, filed: [], ...extra });
 const column = (cells: MatrixView["columns"][number]["cells"], extra: Partial<MatrixView["columns"][number]> = {}): MatrixView["columns"][number] => ({
-  openedBidId: "ob1", listingNo: 1, of: 1, bidder: "Bidder One", alternativeOf: null, receiptDigest: null, cells,
+  openedBidId: "ob1", listingNo: 1, of: 1, bidder: "Bidder One", alternativeOf: null, receiptDigest: null, columnRevision: 3, asReadCorrections: 0, cells,
   tally: { present: 0, absent: 0, notApplicable: 0, unanswered: cells.length, total: cells.length }, tallyText: `${cells.length} not answered`,
   decision: null, pass: allowed, reject: allowed, confirmation: { status: "ANSWERING", confirmed: [], awaiting: ["Officer A"], stale: [], mine: allowed }, answer: allowed, ...extra,
 });
 const view = (cols: MatrixView["columns"], extra: Partial<MatrixView> = {}): MatrixView => ({
   online: true, phase: "CHECKING", rows: [{ key: "form", label: "Form of tender", opened: true }, { key: "addendum:1", label: "Addendum 1", opened: false }, { key: "boq", label: "Bill of quantities", opened: false }],
-  columns: cols, viewerIsNamedOfficer: true, namesHeld: false, ...extra,
+  columns: cols, viewerIsNamedOfficer: true, namesHeld: false, filingBlocked: null, ...extra,
 });
 const render = (v: MatrixView) => renderToStaticMarkup(h(OpeningMatrix, { exerciseId: "ex1", openingId: "op1", view: v, viewer: { personId: "p1", name: "Officer A" }, verdicts: { ob1: { options: [{ value: "PASS", label: "Carried" }, { value: "REJECT", label: "Not carried" }], grounds: [], reported: [] } } }));
 
@@ -51,12 +51,31 @@ describe("the SR-14 matrix on screen", () => {
     expect(html).not.toContain("Confirm this column");
   });
 
-  it("after finalising a check file posts to the filed-file route with exactly its three fields, and shows the plain hash", () => {
+  it("after finalising a check file is a button that asks the filed-file route in the page (never a form post to it), and shows the plain hash", () => {
     const html = render(view([column([cell("form", "CHECK_FILES", { fileIds: ["f1"], filed: [{ fileId: "f1", versionId: "v1", plainSha256: "ab".repeat(32) }] }), cell("addendum:1", "ADDENDUM"), cell("boq", "RECEIVED_NOT_CHECKED", { fileIds: ["f2"], filed: [{ fileId: "f2", versionId: "v2", plainSha256: null }] })])], { phase: "FINALISED" }));
-    expect(html).toContain('action="/api/opening/filed-file"');
-    for (const f of ["exerciseId", "openingId", "fileId"]) expect(html).toContain(`name="${f}"`);
+    // 20cl: a form post would land the officer on the route's raw refusal, with its code. The control is a button, and a refusal is shown beside it in words.
+    expect(html).not.toContain('action="/api/opening/filed-file"');
+    expect(html).not.toContain("<form");
+    expect(html).toContain("Download Offer 1, Form of tender");
     expect(html).toContain("ab".repeat(32));
     expect(html).toContain('href="/api/documents/versions/v2"');
+  });
+
+  it("after finalising, a check file that cannot be filed (the class is not set) shows the words in place of a control that would only be refused", () => {
+    const words = "The class that filed bid files take is not set, so this file cannot be filed yet.";
+    const html = render(view([column([cell("form", "CHECK_FILES", { fileIds: ["f1"], filed: [{ fileId: "f1", versionId: null, plainSha256: null }] })])], { phase: "FINALISED", filingBlocked: words, rows: [{ key: "form", label: "Form of tender", opened: true }] }));
+    expect(html).toContain(words);
+    expect(html).toMatch(/disabled=""[^>]*>Download/);
+    // Filed already: the control stands whatever the class says now.
+    const filed = render(view([column([cell("form", "CHECK_FILES", { fileIds: ["f1"], filed: [{ fileId: "f1", versionId: "v1", plainSha256: null }] })])], { phase: "FINALISED", filingBlocked: words, rows: [{ key: "form", label: "Form of tender", opened: true }] }));
+    expect(filed).not.toContain(words);
+  });
+
+  it("a held reader's column head says the receipt digest is held, and the decision row says when a decision stands", () => {
+    const held = render(view([column(cells, { bidder: "Held" })], { namesHeld: true }));
+    expect(held).toContain("Held until the opening is finalised");
+    expect(held).not.toContain("No receipt digest on the roll");
+    expect(held).toContain("Stands when every named officer has confirmed this column");
   });
 
   it("a received part not yet filed says so instead of a dead control", () => {

@@ -20,6 +20,4 @@ export interface InitialFacts {
 
 /// Whether an initial was taken on an earlier reading than the one that stands.
 export const initialStale = (bid: ReadingFacts, initial: Pick<InitialFacts, "correctionNo">) => initial.correctionNo !== bid.asReadCorrections;
-
-/// The initials that stand on the offer as it reads now.
-export const freshInitials = <I extends Pick<InitialFacts, "correctionNo">>(bid: ReadingFacts, initials: readonly I[]): I[] => initials.filter((i) => !initialStale(bid, i));
+/// The confirmations that stand on a column as it reads now are `standingConfirmations` (matrix.ts, ruling 22): the reading AND the column revision. There is no reading-only rule to call.

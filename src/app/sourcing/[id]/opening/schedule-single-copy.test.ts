@@ -13,7 +13,7 @@ import { lex } from "@/lib/scan/source";
 const root = join(process.cwd(), "src", "app", "sourcing", "[id]");
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]));
 const OWN = /schedule-tables\.tsx$/;
-const COPY = /\b(?:SCHEDULE_COLUMNS|SUMMARY_COLUMNS|classAsReadText|kelasText)\b/;
+const COPY = /\b(?:SCHEDULE_COLUMNS|SUMMARY_COLUMNS|classAsReadText|statusAsReadText|kelasText)\b/;
 /// The print page is the same schedule as a document to print, not a screen: it takes its headings from the same lists (ruling 24), and was there before Received showed the table.
 const PRINT = /opening[\\/]print[\\/]page\.tsx$/;
 

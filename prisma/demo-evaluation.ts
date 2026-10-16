@@ -925,10 +925,10 @@ async function loadQuotation(db: Db, organisationId: string, tz: string, W: (k: 
     const at = T(day, `15:${String(13 + i * 4).padStart(2, "0")}`);
     const bid = `${P}ob${6 + i}`;
     await op.open(sx, op4, { id: bid, envelopeId: env, bidder: { partyId: party }, price, months, validityDays: 90, cls: "Grade D2", status: "Active", at });
-    await op.initial(sx, bid, Q_CHAIR, sec(at, 60));
-    await op.initial(sx, bid, Q_MEMBER, sec(at, 75));
     await op.answers(sx, bid, [], sec(at, 120));
     await op.verdict(sx, bid, "PASS", "", Q_CHAIR, sec(at, 150));
+    await op.initial(sx, bid, Q_CHAIR, sec(at, 160));
+    await op.initial(sx, bid, Q_MEMBER, sec(at, 175));
   }
   await op.signature(sx, op4, Q_CHAIR, day, T(day, "15:35"));
   await op.signature(sx, op4, Q_MEMBER, day, sec(T(day, "15:35"), 30));

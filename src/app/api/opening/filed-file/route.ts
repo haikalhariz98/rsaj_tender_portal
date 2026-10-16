@@ -2,10 +2,13 @@ import type { NextRequest } from "next/server";
 
 import { staffRoute } from "@/app/_auth/route";
 import { exerciseIsHidden } from "@/app/_auth/sulit";
+import { db } from "@/lib/db";
 import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { FILED_FILE_STATUS, FILED_FILE_WORDS, filedFileFaults, NOT_FILED_YET_WORDS, parseFiledFileRequest } from "@/lib/opening/filed-file";
 import { filedVersionOf, loadFiledFileFacts } from "@/lib/opening/filed-file-store";
+import { countAndJudgeCounted } from "@/lib/portal/bids/rate-store";
 import { ensureFileMoved } from "@/lib/sealing/online-file-mover";
+import { logSealedRefusal, recordIdOrNull } from "@/lib/sealing/unlock-store";
 
 export const dynamic = "force-dynamic";
 
@@ -36,22 +39,42 @@ export async function POST(req: NextRequest) {
   const parsed = parseFiledFileRequest(form);
   if (!parsed.ok) return refusal("VALIDATION", "The request is not valid.", 400, parsed.fields);
   const { exerciseId, openingId, fileId } = parsed.value;
+  // A refusal after the exercise is known to be this actor's to see is written down, as the sealed-file route does, with the reason and the file (an unknown or hidden exercise is not: it reads as absent).
+  // The first refusal in each window for the account is written and the rest are counted (the same limiter the sealed doors use for refusals), so a script cannot fill the table.
+  const logRefusal = async (reasonCode: string) => {
+    const seen = await countAndJudgeCounted(db, { organisationId: actor.organisationId, accountId: actor.accountId, action: "officer-sealed-refusal" }, new Date());
+    if (seen.count === 1) await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "DOWNLOAD", staffPersonId: actor.personId, reasonCode, recordId: recordIdOrNull(fileId) });
+  };
 
-  if (actor.isAdministrator) return refusal("ADMINISTRATOR", FILED_FILE_WORDS.ADMINISTRATOR, FILED_FILE_STATUS.ADMINISTRATOR);
+  if (actor.isAdministrator) {
+    await logRefusal("ADMINISTRATOR");
+    return refusal("ADMINISTRATOR", FILED_FILE_WORDS.ADMINISTRATOR, FILED_FILE_STATUS.ADMINISTRATOR);
+  }
   if (await exerciseIsHidden(actor, exerciseId)) return refusal("NOT_FOUND", "Not found", 404);
   const facts = await loadFiledFileFacts({ organisationId: actor.organisationId, exerciseId, openingId, fileId });
   if (!facts) return refusal("NOT_FOUND", "Not found", 404);
   const faults = filedFileFaults({ administrator: false, finalised: facts.finalised, fileOnOpening: facts.fileOnOpening, checked: facts.checked });
   if (faults.length > 0) {
     const code = faults[0].code as keyof typeof FILED_FILE_STATUS;
-    return refusal(code, faults.map((f) => FILED_FILE_WORDS[f.code as keyof typeof FILED_FILE_WORDS]).join(" "), FILED_FILE_STATUS[code]);
+    await logRefusal(code);
+    // The first fault's words only: a caller holding a file id learns no more about the file than one reason.
+    return refusal(code, FILED_FILE_WORDS[code], FILED_FILE_STATUS[code]);
   }
 
   const moved = await ensureFileMoved(actor.organisationId, fileId);
-  if (moved.status === "FAILED") return refusal(moved.code, FILED_FILE_WORDS[moved.code], 409);
+  if (moved.status === "FAILED") {
+    await logRefusal(moved.code);
+    return refusal(moved.code, FILED_FILE_WORDS[moved.code], 409);
+  }
   const filed = await filedVersionOf(actor.organisationId, fileId);
-  if (!filed) return refusal("NOT_FILED_YET", NOT_FILED_YET_WORDS, 409);
-  return new Response(null, { status: 303, headers: { Location: `/api/documents/versions/${filed.versionId}`, "Cache-Control": "no-store" } });
+  if (!filed) {
+    await logRefusal("NOT_FILED_YET");
+    return refusal("NOT_FILED_YET", NOT_FILED_YET_WORDS, 409);
+  }
+  const location = `/api/documents/versions/${filed.versionId}`;
+  // The matrix asks in JSON (a fetch cannot read a redirect's address); a plain form post is still answered with the 303.
+  if ((req.headers.get("accept") ?? "").includes("application/json")) return Response.json({ ok: true, location }, { headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+  return new Response(null, { status: 303, headers: { Location: location, "Cache-Control": "no-store" } });
 }
 
 /// HEAD is refused outright, as on every download route (SEC-4): it must not file a document or reach the version route.

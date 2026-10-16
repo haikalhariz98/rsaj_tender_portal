@@ -395,7 +395,7 @@ describe("the unseal, n = 2 (D10)", () => {
 
     // Between the unseal and the finalise the page draws, every online price reads as not read, in words, and a correction is refused in words (review S6).
     const granted = sulitGranted(true as const, "ORGANISATION_PERMISSION");
-    const section = await openingSection(org, ex.id, granted, null);
+    const section = await openingSection(org, ex.id, granted, null, false);
     expect(section).not.toBeNull();
     const schedule = await scheduleSection(who.actor as StaffActor & { organisationTimeZone: string | null }, ex.id, granted);
     const priced = schedule!.openings.flatMap((x) => x.rows.map((r) => r.openingPrice));
@@ -450,12 +450,12 @@ describe("the unseal, n = 2 (D10)", () => {
     }
     expect(JSON.stringify(maskSealedAuditRows(trail, trailFacts, o1.person.id))).toContain(names[0]);
     for (const viewer of [stranger.person.id, admin.person.id]) {
-      const tab = JSON.stringify(await openingSection(org, ex.id, sulitGranted(true as const, "ORGANISATION_PERMISSION"), viewer));
+      const tab = JSON.stringify(await openingSection(org, ex.id, sulitGranted(true as const, "ORGANISATION_PERMISSION"), viewer, false));
       for (const name of names) expect(tab).not.toContain(name);
       const draft = JSON.stringify(await scheduleSection({ ...(stranger.actor as StaffActor), personId: viewer } as StaffActor & { organisationTimeZone: string | null }, ex.id, sulitGranted(true as const, "ORGANISATION_PERMISSION")));
       for (const name of names) expect(draft).not.toContain(name);
     }
-    expect(JSON.stringify(await openingSection(org, ex.id, sulitGranted(true as const, "ORGANISATION_PERMISSION"), o1.person.id))).toContain(names[0]);
+    expect(JSON.stringify(await openingSection(org, ex.id, sulitGranted(true as const, "ORGANISATION_PERMISSION"), o1.person.id, false))).toContain(names[0]);
 
     // The access events: the attempts, refused and granted, with no secret.
     const log = await events(ex.id);

@@ -61,6 +61,7 @@ import { checklistFromSnapshot } from "@/lib/opening/checklist";
 import { DEMO_UNSEAL_PASSPHRASES } from "@/lib/demo/online-demo";
 
 import { recordChecklistAnswer, recordInitial, recordScheduleDetails, recordVerdict, startOpening } from "@/app/sourcing/[id]/opening/actions";
+import { columnSeen } from "@/lib/test-db/column-seen";
 import { finaliseOnline, signOnlineFinalise } from "@/app/sourcing/[id]/opening/online-finalise-actions";
 import { authoriseOnlineUnseal } from "@/app/sourcing/[id]/opening/unseal-actions";
 
@@ -121,12 +122,12 @@ describe.skipIf(!ONLINE_REFERENCE || !PASSWORD)("the demonstration's online exer
         expect(r.ok, message(r)).toBe(true);
       }
       who.actor = o1.actor;
-      const v = await recordVerdict({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id, verdict: "PASS" }));
+      const v = await recordVerdict({ ok: false }, form({ ...(await columnSeen(offer.id)), exerciseId: ex.id, openedBidId: offer.id, verdict: "PASS" }));
       expect(v.ok, message(v)).toBe(true);
       // Ruling 22 (wave 3c): each officer confirms the column after the answers and the decision, not before them.
       for (const o of officers) {
         who.actor = o.actor;
-        const r = await recordInitial({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id }));
+        const r = await recordInitial({ ok: false }, form({ ...(await columnSeen(offer.id)), exerciseId: ex.id, openedBidId: offer.id }));
         expect(r.ok, message(r)).toBe(true);
       }
     }

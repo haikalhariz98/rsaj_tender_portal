@@ -35,14 +35,16 @@ export const readText = (s: string): string => s.trim() || "—";
 export const ONLINE_CLASS_AS_READ = "Not typed: an online bid";
 /// The "Class as read" cell, once for the screen, the print page and the CSV, so the three cannot drift (20cu). Paper: what the officer recorded, or a dash.
 export const classAsReadText = (value: string, online: boolean): string => (online ? ONLINE_CLASS_AS_READ : readText(value));
+/// "Status as read" is nothing typed from an online envelope either, so it reads the same words as "Class as read", not a dash (20cu, read as covering the neighbouring column; decisions-log 2026-10-17).
+export const statusAsReadText = (value: string, online: boolean): string => (online ? ONLINE_CLASS_AS_READ : readText(value));
 
 /// The part of the schedule section's view that a download reads.
 export interface DownloadOpening {
   title: string;
   finalised: boolean;
   finalisedAt: string | null;
-  /// The exercise's pinned channel is ONLINE (20cu). Optional, read as false (paper), until every caller passes it.
-  online?: boolean;
+  /// The exercise's pinned channel is ONLINE (20cu). Required, so a new caller cannot silently print paper words on an online row.
+  online: boolean;
   header: readonly { label: string; value: string }[];
   rows: readonly { listingNo: number; bidderName: string; registrationClass: string; /// The class the register held, frozen when the offer was read. Null: the register gave none.
  registerClass: string | null; registrationStatus: string; openingPrice: Sulit<string>; period: string; alternative: string | null }[];
@@ -66,7 +68,7 @@ export function openingCsv(kind: OpeningDownloadKind, o: DownloadOpening): { csv
   if (kind === "schedule") {
     const c = SCHEDULE_COLUMNS;
     out.push(line([c.listing, c.bidder, c.kelas, c.classAsRead, c.status, c.price, c.period]));
-    for (const r of o.rows) out.push(line([String(r.listingNo), r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName, kelasText(r.registerClass), classAsReadText(r.registrationClass, o.online ?? false), readText(r.registrationStatus), priceText(r.openingPrice), r.period]));
+    for (const r of o.rows) out.push(line([String(r.listingNo), r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName, kelasText(r.registerClass), classAsReadText(r.registrationClass, o.online), statusAsReadText(r.registrationStatus, o.online), priceText(r.openingPrice), r.period]));
     if (o.benchmark) out.push(line(["—", o.benchmark.sealed ? "Company estimate" : o.benchmark.label, "—", "—", "—", o.benchmark.sealed ? o.benchmark.text : priceText(o.benchmark.companyEstimate), "—"]));
     return { csv: out.join("\r\n") };
   }

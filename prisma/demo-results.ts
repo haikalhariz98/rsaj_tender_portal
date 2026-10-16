@@ -237,10 +237,10 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
   for (const [i, b] of BIDDERS.entries()) {
     const x = T(closingDay, `15:${String(13 + i * 4).padStart(2, "0")}`);
     await op.open(sx, OPENING, { id: b.bid, envelopeId: b.envelope, bidder: { partyId: b.party }, price: b.price, months: b.months, validityDays: 90, cls: "Grade D2", status: "Active", at: x });
-    await op.initial(sx, b.bid, Q_CHAIR, sec(x, 60));
-    await op.initial(sx, b.bid, Q_MEMBER, sec(x, 75));
     await op.answers(sx, b.bid, [], sec(x, 120));
     await op.verdict(sx, b.bid, "PASS", "", Q_CHAIR, sec(x, 150));
+    await op.initial(sx, b.bid, Q_CHAIR, sec(x, 160));
+    await op.initial(sx, b.bid, Q_MEMBER, sec(x, 175));
   }
   await op.signature(sx, OPENING, Q_CHAIR, closingDay, T(closingDay, "15:35"));
   await op.signature(sx, OPENING, Q_MEMBER, closingDay, sec(T(closingDay, "15:35"), 30));

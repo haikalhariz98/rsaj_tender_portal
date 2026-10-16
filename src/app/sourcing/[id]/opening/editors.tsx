@@ -4,6 +4,7 @@ import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 import { authoriseOnlineUnseal } from "./unseal-actions";
 import { fileSealedBidFiles, finaliseOnline, signOnlineFinalise } from "./online-finalise-actions";
+import type { ColumnSeen } from "@/lib/opening/matrix";
 import type { Allowed } from "@/lib/opening/read";
 
 import {
@@ -279,14 +280,14 @@ export function AlternativeInsideDrawer({ exerciseId, bid, allowed }: { exercise
 
 // ------------------------------------------------------------------ initials, checklist, verdicts, corrections
 
-export function InitialDrawer({ exerciseId, bid, person, allowed, own = false }: { exerciseId: string; bid: { id: string; listingNo: number }; person: { id: string; name: string }; allowed: Allowed; /** The matrix's "Confirm this column": the signed-in officer's own confirmation (SR-14). */ own?: boolean }) {
+export function InitialDrawer({ exerciseId, bid, column, person, allowed, own = false }: { exerciseId: string; bid: { id: string; listingNo: number }; /** The column as this screen showed it: posted back, so a confirmation lands on that column or on none. */ column: ColumnSeen; person: { id: string; name: string }; allowed: Allowed; /** The matrix's "Confirm this column": the signed-in officer's own confirmation (SR-14). */ own?: boolean }) {
   if (!allowed.allowed) return null;
   return (
     <RecordEditor
       title={own ? `Confirm No. ${bid.listingNo}` : `${person.name} initials No. ${bid.listingNo}`}
       description={own ? "Your initial confirms this column as it stands, with its answers and its decision. A later change to either asks for it again." : "The member's initial on the offer as read out: made by the member signed in, or recorded from their paper for them, and not signed. After a correction it is taken again."}
-      fields={[hidden("exerciseId"), hidden("openedBidId"), actorField("OpenedBidInitial.person", { name: "personId", forPerson: { id: person.id, name: person.name } })]}
-      values={{ exerciseId, openedBidId: bid.id }}
+      fields={[hidden("exerciseId"), hidden("openedBidId"), hidden("columnRevision"), hidden("asReadCorrections"), actorField("OpenedBidInitial.person", { name: "personId", forPerson: { id: person.id, name: person.name } })]}
+      values={{ exerciseId, openedBidId: bid.id, columnRevision: String(column.columnRevision), asReadCorrections: String(column.asReadCorrections) }}
       action={recordInitial}
       submitLabel="Record the initial"
       trigger={own ? { label: "Confirm this column", className: secondary, ariaLabel: `Confirm the column of No. ${bid.listingNo}` } : { label: `Initial: ${person.name}`, className: ghost, ariaLabel: `Record ${person.name}'s initial on No. ${bid.listingNo}` }}
@@ -316,7 +317,7 @@ export function ChecklistDrawer({ exerciseId, bid, items, allowed }: { exerciseI
   ));
 }
 
-export function VerdictDrawer({ exerciseId, bid, options, grounds, reported, allowed }: { exerciseId: string; bid: { id: string; listingNo: number }; options: { value: string; label: string; disabled?: boolean }[]; grounds: string[]; reported: string[]; allowed: Allowed }) {
+export function VerdictDrawer({ exerciseId, bid, column, options, grounds, reported, allowed }: { exerciseId: string; bid: { id: string; listingNo: number }; column: ColumnSeen; options: { value: string; label: string; disabled?: boolean }[]; grounds: string[]; reported: string[]; allowed: Allowed }) {
   return blockedOr(allowed, "Record the verdict", () => (
     <RecordEditor
       title={`Verdict on No. ${bid.listingNo}`}
@@ -324,11 +325,13 @@ export function VerdictDrawer({ exerciseId, bid, options, grounds, reported, all
       fields={[
         hidden("exerciseId"),
         hidden("openedBidId"),
+        hidden("columnRevision"),
+        hidden("asReadCorrections"),
         { kind: "select", name: "verdict", label: "Verdict", required: true, placeholder: "Choose", options },
         { kind: "textarea", name: "verdictReason", label: "Why it is not carried", hint: "In words, for the committee." },
       ]}
       showWhen={{ verdictReason: { name: "verdict", in: ["REJECT"] } }}
-      values={{ exerciseId, openedBidId: bid.id }}
+      values={{ exerciseId, openedBidId: bid.id, columnRevision: String(column.columnRevision), asReadCorrections: String(column.asReadCorrections) }}
       action={recordVerdict}
       submitLabel="Record the verdict"
       trigger={{ label: "Record the verdict", className: ghost, ariaLabel: `Record the verdict on No. ${bid.listingNo}` }}

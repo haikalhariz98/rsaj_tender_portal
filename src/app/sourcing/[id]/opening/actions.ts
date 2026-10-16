@@ -14,7 +14,7 @@ import { estimateEventAudit, ENTITY as SCOPE_ENTITY } from "@/lib/scope/audit-vi
 import { leadTime } from "@/lib/scope/estimate";
 import { FormReader } from "@/lib/validate";
 import { splitValues } from "@/lib/ui/select-logic";
-import { answerFields, asReadFields, authorisationFields, initialFields, openedBidFields, OPENING_ENTITY, openingStartFields, signatureFields, sittingFields, verdictFields, withdrawalMatchFields } from "@/lib/opening/audit-view";
+import { answerFields, asReadFields, authorisationFields, initialFields, openedBidFields, OPENING_ENTITY, openingStartFields, renewedBefore, signatureFields, sittingFields, verdictFields, withdrawalMatchFields } from "@/lib/opening/audit-view";
 import { boxEnvelopeJudgement, lockGap, registerBoxFaults } from "@/lib/opening/box";
 import { answerFaults, checklistFromSnapshot, openingChecklist } from "@/lib/opening/checklist";
 import { explanationFaults, refuseIfCancelled } from "@/lib/opening/estimate-copy";
@@ -28,7 +28,7 @@ import { loadOpeningRoster } from "@/lib/opening/roster-store";
 import { rosterFaults } from "@/lib/opening/roster";
 import { actFaults } from "@/lib/opening/state";
 import { panelActorFault } from "@/lib/opening/actor";
-import { cellAnswerFaults, columnTally, confirmationStands, confirmFaults, matrixActorFaults } from "@/lib/opening/matrix";
+import { cellAnswerFaults, columnBindingFaults, columnTally, confirmationStands, confirmFaults, matrixActorFaults, parseColumnBinding } from "@/lib/opening/matrix";
 import { loadCellFacts } from "@/lib/opening/matrix-store";
 import { openingPolicyFrozen, panelOf, panelSnapshot, policyOf, stateOf, type OpeningContext, type OpeningPolicySnapshot } from "@/lib/opening/repo";
 import { unpurchasedRecordAudit, unpurchasedRule } from "@/lib/opening/unpurchased";
@@ -685,6 +685,9 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
   if (!begun.ok) return begun.state;
   const act = begun.act;
   const personId = act.subjectPersonId;
+  // The column as the officer's screen showed it (security audit): read once, here, and judged against the locked row below.
+  const seen = parseColumnBinding((n) => data.getAll(n));
+  if (!seen.ok) return { ok: false, errors: seen.fields };
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
@@ -694,6 +697,9 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
     const who = matrixActorFaults({ online, act: "CONFIRM", administrator: actor.isAdministrator, actorPersonId: actor.personId, subjectPersonId: personId, officers: panelOf(o).filter((p) => p.present).map((p) => p.personId) });
     if (blocking(who).length) return refuse(who);
+    // A confirmation lands on the column the officer read, or on none: refused in words, before anything is written.
+    const moved = columnBindingFaults({ seen: seen.value, current: bid });
+    if (blocking(moved).length) return refuse(moved);
     const existing = bid.initials.find((i) => i.personId === personId) ?? null;
     // "Already" is judged on the current reading and the current column revision (plan §1.3).
     const standing = !!existing && confirmationStands(online, bid, existing);
@@ -703,12 +709,13 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
     await retakeRestriction(tx, actor, l, c, o, bid, now);
     const name = o.panel.find((p) => p.personId === personId)!.person.name;
     if (existing) {
+      const renewed = initialFields({ person: name, listingNo: bid.listingNo, at: now, revision: bid.columnRevision, decision: bid.verdict }, l.org.timeZone);
       await tx.openedBidInitial.update({ where: { id: existing.id, organisationId: actor.organisationId }, data: { recordedAt: now, correctionNo: bid.asReadCorrections, columnRevision: bid.columnRevision } });
-      await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.initial, existing.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields({ initialled: "Before the correction" }, { initialled: initialFields({ person: name, listingNo: bid.listingNo, at: now }, l.org.timeZone).at }));
+      await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.initial, existing.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields({ initialled: renewedBefore(existing, bid), columnRevision: String(existing.columnRevision) }, { initialled: renewed.at, columnRevision: renewed.columnRevision, decision: renewed.decision }));
       await act.write(tx, existing.id);
     } else {
       const row = await tx.openedBidInitial.create({ data: { organisationId: l.org.id, openedBidId: bid.id, personId, recordedAt: now, correctionNo: bid.asReadCorrections, columnRevision: bid.columnRevision } });
-      await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.initial, row.id, label(l, `Offer ${bid.listingNo}`), "CREATE", diffFields(null, initialFields({ person: name, listingNo: bid.listingNo, at: now }, l.org.timeZone)));
+      await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.initial, row.id, label(l, `Offer ${bid.listingNo}`), "CREATE", diffFields(null, initialFields({ person: name, listingNo: bid.listingNo, at: now, revision: bid.columnRevision, decision: bid.verdict }, l.org.timeZone)));
       await act.write(tx, row.id);
     }
     return { ok: true };
@@ -748,13 +755,13 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
     const before = bid.answers.find((a) => a.itemKey === itemKey) ?? null;
     if (before?.answer === answer) return { ok: true };
     const row = await tx.openingChecklistAnswer.upsert({ where: { openedBidId_itemKey: { openedBidId: bid.id, itemKey } }, create: { organisationId: l.org.id, openedBidId: bid.id, itemKey, itemLabelSnapshot: item.label, answer: answer!, recordedAt: now }, update: { answer: answer!, recordedAt: now } });
-    await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.answer, row.id, label(l, `Offer ${bid.listingNo}`), before ? "UPDATE" : "CREATE", diffFields(before ? answerFields({ item: item.label, answer: before.answer }) : null, answerFields({ item: item.label, answer: answer! })));
+    await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.answer, row.id, label(l, `Offer ${bid.listingNo}`), before ? "UPDATE" : "CREATE", diffFields(before ? { ...answerFields({ item: item.label, answer: before.answer }), columnRevision: String(bid.columnRevision) } : null, { ...answerFields({ item: item.label, answer: answer! }), columnRevision: String(bid.columnRevision + 1) }));
     // Ruling 22: a changed answer raises the column's revision, once, whether or not it also clears the decision, so a confirmation taken before it is asked for again.
     if (!(before && bid.verdict)) await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { columnRevision: { increment: 1 } } });
     if (before && bid.verdict) {
       // R-7: the verdict's completeness record is cleared with it (database null), not left as it was.
       await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { verdict: null, verdictReason: "", verdictAt: null, completeness: Prisma.DbNull, columnRevision: { increment: 1 } } });
-      await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields(verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), { verdict: "Cleared: a checklist answer changed; record it again", reason: null }));
+      await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields({ ...verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), columnRevision: String(bid.columnRevision) }, { verdict: "Cleared: a checklist answer changed; record it again", reason: null, columnRevision: String(bid.columnRevision + 1) }));
       return { ok: true, message: "Recorded. The answer changed, so the offer's verdict is cleared: record it again." };
     }
     return { ok: true };
@@ -773,6 +780,9 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
   const verdict = r.choice("verdict", "Verdict", ["PASS", "REJECT"] as const, { required: true }) as OpeningVerdict | null;
   const reason = r.text("verdictReason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  // The column as the officer's screen showed it (security audit): judged against the locked row below.
+  const seen = parseColumnBinding((n) => data.getAll(n));
+  if (!seen.ok) return { ok: false, errors: seen.fields };
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
@@ -780,6 +790,9 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     // Ruling 22: a decision is a named, present officer's own act on both channels, never an administrator's.
     const who = matrixActorFaults({ online: l.ex.submissionChannel === "ONLINE", act: "DECIDE", administrator: actor.isAdministrator, actorPersonId: actor.personId, subjectPersonId: actor.personId, officers: panelOf(o).filter((p) => p.present).map((p) => p.personId) });
     if (blocking(who).length) return refuse(who);
+    // A decision is recorded on the column the officer read, or on none: refused in words, before anything is read again or written.
+    const moved = columnBindingFaults({ seen: seen.value, current: bid });
+    if (blocking(moved).length) return refuse(moved);
     // S-3: who records the verdict is named, so a rule recorded with it says by whom: the signed-in officer (Phase 2b).
     const person = { name: actor.personName };
     const snap = policyOf(o.policySnapshot);
@@ -807,7 +820,7 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     }
     await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { verdict, verdictReason: verdict === "REJECT" ? reason.trim() : "", verdictAt: now, completeness: verdictRecord(j) as unknown as Prisma.InputJsonValue, columnRevision: { increment: 1 } } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE",
-      diffFields(bid.verdict ? { ...verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), recordedBy: null } : { verdict: null, recordedBy: null }, { ...verdictFields({ verdict, reason: verdict === "REJECT" ? reason.trim() : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) }), recordedBy: person.name }),
+      diffFields(bid.verdict ? { ...verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), recordedBy: null, columnRevision: String(bid.columnRevision) } : { verdict: null, recordedBy: null, columnRevision: String(bid.columnRevision) }, { ...verdictFields({ verdict, reason: verdict === "REJECT" ? reason.trim() : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) }), recordedBy: person.name, columnRevision: String(bid.columnRevision + 1) }),
       verdict === "REJECT" ? reason.trim() : "");
     return { ok: true };
   });

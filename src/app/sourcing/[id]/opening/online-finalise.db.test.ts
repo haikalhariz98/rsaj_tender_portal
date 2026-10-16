@@ -65,9 +65,11 @@ vi.mock("@/lib/sealing/open", async (orig) => {
   };
 });
 
-import { ctx, ago, bidder, exercise, estimateFor, filesOf, finalise, form, lodgeAs, message, openingOf, PASSWORD_FIELD, PLAIN, prepare, setClosing, setFileClass, sign, signedIn, start, submit, unsealed, who, fixtureSetup, fixtureTeardown, FIGURE_TEXT, PEPPER_ENV, type Officer } from "./online-opening.fixture";
+import { ctx, ago, bidder, exercise, estimateFor, finalise, form, lodgeAs, message, openingOf, PASSWORD_FIELD, PLAIN, prepare, setClosing, setFileClass, sign, signedIn, start, submit, unsealed, who, fixtureSetup, fixtureTeardown, FIGURE_TEXT, PEPPER_ENV, type Officer } from "./online-opening.fixture";
 import { actFieldNames } from "@/lib/auth/act-field-names";
+import { dayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { columnSeen } from "@/lib/test-db/column-seen";
 import { RATE_LIMITS } from "@/lib/portal/bids/limits";
 import type { BidPartRule } from "@/lib/bids/online/types";
 import { facts } from "@/lib/test-db/auth-fixtures";
@@ -81,10 +83,14 @@ import { ensureFileMoved, moveReleasedFiles } from "@/lib/sealing/online-file-mo
 import { MATRIX_FAULT_TEXT } from "@/lib/opening/matrix";
 import { checklistFromSnapshot } from "@/lib/opening/checklist";
 import { sulitGranted } from "@/lib/auth/sulit-access";
+import { openingMatrix } from "@/lib/opening/matrix-read";
 import { openingSection } from "@/lib/opening/read";
 import { loadOpeningCheckFiles } from "@/lib/opening/sealed-file-store";
 import { loadPepperList } from "@/lib/sealing/pepper-store";
 import { finaliseOpening, recordChecklistAnswer, recordInitial, recordSignature, recordVerdict } from "./actions";
+
+/// The bid files of an exercise, read here and not in the fixture (a fixture that read the sealed tables would need the identity scan's carve-out, 20cm).
+const filesOf = (exerciseId: string) => db.onlineBidFile.findMany({ where: { exerciseId, state: "SUBMITTED" }, include: { attachment: true } });
 
 let org = "";
 let bidFileClassId = "";
@@ -281,12 +287,13 @@ describe("the officer's screen of the online finalise and the files to check (20
     expect(list).toHaveLength(1);
     expect(list[0].files.map((f) => f.partLabel)).toEqual(["Form of Tender"]);
 
-    const named = await openingSection(org, ex.id, granted, ex.officers[0].person.id);
-    expect(named!.openings[0].checkFiles?.[0].files).toHaveLength(1);
+    // The matrix is the one reader of these files now (the Files to check list is gone): a named officer is given the checked part's file in each offer's cell, no other reader any file.
+    const filesIn = async (viewer: { personId: string | null; administrator: boolean }) => (await openingMatrix(org, ex.id, opening.id, viewer))!.columns.flatMap((c) => c.cells.filter((x) => x.kind === "CHECK_FILES").flatMap((x) => x.fileIds));
+    const named = await openingSection(org, ex.id, granted, ex.officers[0].person.id, false);
+    expect(await filesIn({ personId: ex.officers[0].person.id, administrator: false })).toHaveLength(1);
     const stranger = await signedIn();
-    const other = await openingSection(org, ex.id, granted, stranger.person.id);
-    expect(other!.openings[0].checkFiles).toBeNull();
-    expect((await openingSection(org, ex.id, granted, null))!.openings[0].checkFiles).toBeNull();
+    expect(await filesIn({ personId: stranger.person.id, administrator: false })).toEqual([]);
+    expect(await filesIn({ personId: null, administrator: false })).toEqual([]);
 
     // The finalise is not offered as the paper one: it names who is still to sign, and the paper refusal is no outstanding item.
     const view = named!.openings[0];
@@ -296,12 +303,14 @@ describe("the officer's screen of the online finalise and the files to check (20
 
     await prepare(ex, opening.id, offers);
     for (const o of ex.officers) expect((await sign(ex, opening.id, o)).ok).toBe(true);
-    const ready = (await openingSection(org, ex.id, granted, ex.officers[0].person.id))!.openings[0];
+    const ready = (await openingSection(org, ex.id, granted, ex.officers[0].person.id, false))!.openings[0];
     expect(ready.finalise.online).toMatchObject({ signed: 2, of: 2 });
     expect(ready.finalise.outstanding).toEqual([]);
     expect(ready.finalise.allowed.allowed).toBe(true);
     expect((await finalise(ex, opening.id, ex.officers[1])).ok).toBe(true);
-    expect((await openingSection(org, ex.id, granted, ex.officers[0].person.id))!.openings[0].checkFiles).toBeNull();
+    // After finalising the sealed download is closed: the matrix gives the filed copies (the document route), never the sealed route's.
+    const after = (await openingMatrix(org, ex.id, opening.id, { personId: ex.officers[0].person.id, administrator: false }))!;
+    expect(after.phase).toBe("FINALISED");
   }, 300_000);
 });
 
@@ -480,7 +489,7 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
 
     // ESTIMATE_NOT_LODGED reads the online channel: the copy under the retired key no longer counts, though the estimate's state still says lodged.
     const notLodged = /none is lodged/;
-    const gateAfterRekey = (await openingSection(org, ex.id, granted, null))!.start.allowed;
+    const gateAfterRekey = (await openingSection(org, ex.id, granted, null, false))!.start.allowed;
     expect(gateAfterRekey.allowed).toBe(false);
     expect(JSON.stringify(gateAfterRekey)).toMatch(notLodged);
 
@@ -503,7 +512,7 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
     expect(old.supersededReason).toBe("The key was changed");
     // The same version: no new version row, and the start no longer reads the estimate as not lodged.
     expect(await db.companyEstimateVersion.count({ where: { estimateId } })).toBe(1);
-    expect(JSON.stringify((await openingSection(org, ex.id, granted, null))!.start.allowed)).not.toMatch(notLodged);
+    expect(JSON.stringify((await openingSection(org, ex.id, granted, null, false))!.start.allowed)).not.toMatch(notLodged);
     const trail = await db.auditEntry.findMany({ where: { organisationId: org, entityId: now[0].id } });
     expect(trail.map((t) => t.reason)).toContain("The key was changed");
     expect(JSON.stringify(trail)).not.toMatch(/55000/);
@@ -533,7 +542,7 @@ describe("review of wave 3b: the doors that were open", () => {
     const { ex, opening } = await unsealed(2, 1);
     const [o1, o2] = ex.officers;
     who.actor = o1.actor;
-    const own = await recordSignature({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, personId: o1.person.id, signedOn: new Date().toISOString().slice(0, 10), [PASSWORD_FIELD]: o1.password }));
+    const own = await recordSignature({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, personId: o1.person.id, signedOn: dayIn(new Date(), "Asia/Kuala_Lumpur"), [PASSWORD_FIELD]: o1.password }));
     expect(own.ok).toBe(false);
     expect(message(own)).toMatch(/takes bids online/);
     const other = await recordSignature({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, personId: o2.person.id, signedOn: "2020-01-01", [PASSWORD_FIELD]: o1.password, [actFieldNames("personId").onBehalf]: "on", [actFieldNames("personId").paperReference]: "paper 1", [actFieldNames("personId").reason]: "signed on paper" }));
@@ -592,8 +601,8 @@ describe("review of wave 3b: the doors that were open", () => {
       mover.skip = false;
     }
     const granted = sulitGranted(true as const, "ORGANISATION_PERMISSION");
-    expect((await openingSection(org, ex.id, granted, ex.officers[0].person.id))!.openings[0].filesToFile).toBe(2);
-    expect((await openingSection(org, ex.id, granted, null))!.openings[0].filesToFile).toBeNull();
+    expect((await openingSection(org, ex.id, granted, ex.officers[0].person.id, false))!.openings[0].filesToFile).toBe(2);
+    expect((await openingSection(org, ex.id, granted, null, false))!.openings[0].filesToFile).toBeNull();
     const stranger = await signedIn();
     who.actor = stranger.actor;
     const refused = await fileSealedBidFiles({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id }));
@@ -603,7 +612,7 @@ describe("review of wave 3b: the doors that were open", () => {
     const done = await fileSealedBidFiles({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id }));
     expect(done.ok, message(done)).toBe(true);
     expect((await filesOf(ex.id)).every((f) => f.releasedDek === null && f.attachment !== null)).toBe(true);
-    expect((await openingSection(org, ex.id, granted, ex.officers[0].person.id))!.openings[0].filesToFile).toBe(0);
+    expect((await openingSection(org, ex.id, granted, ex.officers[0].person.id, false))!.openings[0].filesToFile).toBe(0);
   }, 300_000);
 
   it("security audit: staff who are not on the panel cannot answer, decide or correct, and no one initials an online offer for another officer", async () => {
@@ -613,7 +622,7 @@ describe("review of wave 3b: the doors that were open", () => {
     who.actor = stranger.actor;
     for (const r of [
       await recordChecklistAnswer({ ok: false }, form({ exerciseId: ex.id, openedBidId: offers[0].id, itemKey: item.key, answer: "ABSENT" })),
-      await recordVerdict({ ok: false }, form({ exerciseId: ex.id, openedBidId: offers[0].id, verdict: "REJECT", verdictReason: "No." })),
+      await recordVerdict({ ok: false }, form({ ...(await columnSeen(offers[0].id)), exerciseId: ex.id, openedBidId: offers[0].id, verdict: "REJECT", verdictReason: "No." })),
     ]) {
       expect(r.ok).toBe(false);
       // Wave 3c, plan §4.1 and 20cp: the refusal is the matrix's words (a person who is not a named officer), not the interim panel sentence it replaces.
@@ -624,7 +633,7 @@ describe("review of wave 3b: the doors that were open", () => {
     // An officer cannot initial for another on an online opening, even with a paper reference.
     who.actor = ex.officers[1].actor;
     const names = actFieldNames("personId");
-    const other = await recordInitial({ ok: false }, form({ exerciseId: ex.id, openedBidId: offers[0].id, personId: ex.officers[0].person.id, [names.onBehalf]: "on", [names.paperReference]: "paper 1", [names.reason]: "initialled on paper" }));
+    const other = await recordInitial({ ok: false }, form({ ...(await columnSeen(offers[0].id)), exerciseId: ex.id, openedBidId: offers[0].id, personId: ex.officers[0].person.id, [names.onBehalf]: "on", [names.paperReference]: "paper 1", [names.reason]: "initialled on paper" }));
     expect(other.ok).toBe(false);
     expect(await db.openedBidInitial.count({ where: { openedBidId: offers[0].id, personId: ex.officers[0].person.id } })).toBe(0);
   }, 300_000);

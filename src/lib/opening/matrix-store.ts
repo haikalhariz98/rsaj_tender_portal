@@ -23,18 +23,22 @@ export async function loadCellFacts(tx: Tx, i: { organisationId: string; exercis
   const rules = (i.rules as OnlineBidRules | null)?.parts ?? [];
   const bids = await tx.onlineBid.findMany({
     where: { organisationId: i.organisationId, exerciseId: i.exerciseId, status: "OPENED", envelopeId: { in: [...i.envelopeIds] } },
-    select: { envelopeId: true, supplierId: true, parts: { orderBy: [{ file: { uploadedAt: "asc" } }, { fileId: "asc" }], select: { file: { select: { id: true, packPartId: true } } } } },
+    select: { envelopeId: true, parts: { orderBy: [{ file: { uploadedAt: "asc" } }, { fileId: "asc" }], select: { file: { select: { id: true, packPartId: true } } } } },
   });
+  // The bidder's supplier is found through the opened bid's party on the exercise, which the opening linked to the register (unseal-store), so no identity column of the sealed tables is read here (20cm).
+  const opened = await tx.openedBid.findMany({ where: { organisationId: i.organisationId, exerciseId: i.exerciseId, envelopeId: { in: [...i.envelopeIds] } }, select: { envelopeId: true, party: { select: { vendorId: true } } } });
+  const vendorOf = new Map(opened.map((o) => [o.envelopeId, o.party.vendorId] as const));
   const partIds = [...new Set([...rules.map((r) => r.packPartId), ...bids.flatMap((b) => b.parts.map((p) => p.file.packPartId))])];
   const packParts = partIds.length === 0 ? [] : await tx.tenderPackPart.findMany({ where: { organisationId: i.organisationId, id: { in: partIds } }, select: { id: true, partCode: true } });
   const acks = await tx.addendumAcknowledgement.findMany({
-    where: { organisationId: i.organisationId, supplierId: { in: [...new Set(bids.map((b) => b.supplierId))] }, addendum: { status: "ISSUED", number: { not: null }, window: { exerciseId: i.exerciseId } } },
-    select: { supplierId: true, acknowledgedOn: true, addendum: { select: { number: true } } },
+    where: { organisationId: i.organisationId, supplier: { id: { in: [...new Set([...vendorOf.values()].flatMap((v) => (v ? [v] : [])))] } }, addendum: { status: "ISSUED", number: { not: null }, window: { exerciseId: i.exerciseId } } },
+    select: { supplier: { select: { id: true } }, acknowledgedOn: true, addendum: { select: { number: true } } },
   });
   for (const envelopeId of i.envelopeIds) {
     const bid = bids.find((b) => b.envelopeId === envelopeId) ?? null;
     const acknowledgements = new Map<number, string>();
-    for (const a of acks) if (bid && a.supplierId === bid.supplierId && a.addendum.number != null) acknowledgements.set(a.addendum.number, storedDay(a.acknowledgedOn));
+    const vendor = vendorOf.get(envelopeId) ?? null;
+    for (const a of acks) if (vendor && a.supplier.id === vendor && a.addendum.number != null) acknowledgements.set(a.addendum.number, storedDay(a.acknowledgedOn));
     out.set(envelopeId, cellFacts({ online: true, items: i.items, packParts, rules, files: (bid?.parts ?? []).map((p) => ({ fileId: p.file.id, packPartId: p.file.packPartId })), acknowledgements }));
   }
   return out;

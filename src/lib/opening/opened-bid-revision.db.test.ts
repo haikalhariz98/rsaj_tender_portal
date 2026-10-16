@@ -117,14 +117,73 @@ describe("OpenedBid.columnRevision moves forward by exactly one (SR-14, ruling 2
     expect(await revisionOf()).toBe(before);
   });
 
-  it("leaves an update that does not name the column alone", async () => {
+  it("leaves an update that neither names the column nor changes the decision alone", async () => {
     const before = await revisionOf();
-    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OpenedBid" SET "verdictReason" = 'Read again' WHERE "id" = $1`, openedBidId)))).toBeNull();
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OpenedBid" SET "bidderNameAsRead" = 'Bidder read again' WHERE "id" = $1`, openedBidId)))).toBeNull();
+    // Writing the decision's own value again is no change of decision (security audit, migration 20261109000000).
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OpenedBid" SET "verdictReason" = "verdictReason" WHERE "id" = $1`, openedBidId)))).toBeNull();
     expect(await revisionOf()).toBe(before);
   });
 
   it("is ENABLE ALWAYS, so a replica session does not skip it", async () => {
     const rows = await db.$queryRawUnsafe<{ enabled: string }[]>(`SELECT tgenabled::text AS enabled FROM pg_trigger WHERE tgname = 'OpenedBid_column_revision_forward' AND NOT tgisinternal`);
+    expect(rows).toEqual([{ enabled: "A" }]);
+  });
+});
+
+describe("a changed decision moves the revision in the same write (security audit, ruling 22, PA033)", () => {
+  const decide = (extra: string, ...args: unknown[]) => asApp((tx) => tx.$executeRawUnsafe(`UPDATE "OpenedBid" SET ${extra} WHERE "id" = $1`, openedBidId, ...args));
+
+  it("refuses a change of the verdict or its reason that leaves the revision where it was, or moves it by other than one, as the app's login and as the owner", async () => {
+    const before = await revisionOf();
+    expect(await refusal(decide(`"verdictReason" = 'Read again, differently'`))).toBe("PA033");
+    expect(await refusal(decide(`"verdict" = 'PASS'`))).toBe("PA033");
+    expect(await refusal(decide(`"verdict" = 'PASS', "columnRevision" = "columnRevision" + 2`))).toBe("PA032");
+    expect(await refusal(db.$executeRawUnsafe(`UPDATE "OpenedBid" SET "verdict" = 'PASS' WHERE "id" = $1`, openedBidId))).toBe("PA033");
+    expect(await revisionOf()).toBe(before);
+    expect((await db.openedBid.findUniqueOrThrow({ where: { id: openedBidId } })).verdict).toBeNull();
+  });
+
+  it("passes a change of the decision that raises the revision by one in the same write, and a clearing of it", async () => {
+    const before = await revisionOf();
+    expect(await refusal(decide(`"verdict" = 'PASS', "verdictAt" = now(), "columnRevision" = "columnRevision" + 1`))).toBeNull();
+    expect(await revisionOf()).toBe(before + 1);
+    expect(await refusal(decide(`"verdict" = NULL, "verdictAt" = NULL, "columnRevision" = "columnRevision" + 1`))).toBeNull();
+    expect(await revisionOf()).toBe(before + 2);
+  });
+
+  it("is ENABLE ALWAYS", async () => {
+    const rows = await db.$queryRawUnsafe<{ enabled: string }[]>(`SELECT tgenabled::text AS enabled FROM pg_trigger WHERE tgname = 'OpenedBid_decision_moves_revision' AND NOT tgisinternal`);
+    expect(rows).toEqual([{ enabled: "A" }]);
+  });
+});
+
+describe("a confirmation is written at the offer's current revision (security audit, ruling 22, PA034)", () => {
+  it("refuses a confirmation written at any other revision, as the app's login and as the owner", async () => {
+    const now = await revisionOf();
+    const other = await db.person.create({ data: { organisationId, name: `Second ${randomId()}` } });
+    expect(await refusal(db.openedBidInitial.create({ data: { organisationId, openedBidId, personId: other.id, recordedAt: new Date(), columnRevision: now - 1 } }))).toBe("PA034");
+    expect(await refusal(db.openedBidInitial.create({ data: { organisationId, openedBidId, personId: other.id, recordedAt: new Date(), columnRevision: now + 1 } }))).toBe("PA034");
+    expect(await db.openedBidInitial.count({ where: { openedBidId, personId: other.id } })).toBe(0);
+    expect(await refusal(db.openedBidInitial.create({ data: { organisationId, openedBidId, personId: other.id, recordedAt: new Date(), columnRevision: now } }))).toBeNull();
+  });
+
+  it("refuses an update that sets a stale confirmation to a revision other than the offer's now, and passes the renewal that sets it to the offer's revision", async () => {
+    const now = await revisionOf();
+    const row = await db.openedBidInitial.findFirstOrThrow({ where: { openedBidId, personId } });
+    // The first confirmation was taken at revision 0, and the offer has moved on since: it is stale, and nothing may make it stand but a renewal at the revision the offer reads.
+    expect(row.columnRevision).toBeLessThan(now);
+    expect(await refusal(db.$executeRawUnsafe(`UPDATE "OpenedBidInitial" SET "columnRevision" = $2 WHERE "id" = $1`, row.id, now - 1))).toBe("PA034");
+    expect(await refusal(db.$executeRawUnsafe(`UPDATE "OpenedBidInitial" SET "columnRevision" = $2 WHERE "id" = $1`, row.id, now + 3))).toBe("PA034");
+    expect((await db.openedBidInitial.findUniqueOrThrow({ where: { id: row.id } })).columnRevision).toBe(row.columnRevision);
+    expect(await refusal(db.$executeRawUnsafe(`UPDATE "OpenedBidInitial" SET "columnRevision" = $2 WHERE "id" = $1`, row.id, now))).toBeNull();
+    expect((await db.openedBidInitial.findUniqueOrThrow({ where: { id: row.id } })).columnRevision).toBe(now);
+  });
+
+  it("leaves an update that touches neither the revision nor the offer alone, and is ENABLE ALWAYS", async () => {
+    const row = await db.openedBidInitial.findFirstOrThrow({ where: { openedBidId, personId } });
+    expect(await refusal(db.$executeRawUnsafe(`UPDATE "OpenedBidInitial" SET "recordedAt" = now() WHERE "id" = $1`, row.id))).toBeNull();
+    const rows = await db.$queryRawUnsafe<{ enabled: string }[]>(`SELECT tgenabled::text AS enabled FROM pg_trigger WHERE tgname = 'OpenedBidInitial_at_current_revision' AND NOT tgisinternal`);
     expect(rows).toEqual([{ enabled: "A" }]);
   });
 });

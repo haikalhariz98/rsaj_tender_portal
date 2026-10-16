@@ -6,13 +6,7 @@
  */
 
 export const NOT_ON_PANEL = "Only a panel member present at this opening can record this. Nothing was saved.";
-export const ONLINE_INITIAL_OWN = "This exercise takes bids online. Each named opening officer initials in their own sign-in, and nobody initials for another.";
 
 export function panelActorFault(panel: readonly { personId: string; present: boolean }[], actorPersonId: string): string | null {
   return panel.some((p) => p.personId === actorPersonId && p.present) ? null : NOT_ON_PANEL;
-}
-
-/// An online initial is the officer's own act: refused when it is recorded for another person.
-export function onlineInitialFault(channel: string | null, subjectPersonId: string, actorPersonId: string): string | null {
-  return channel === "ONLINE" && subjectPersonId !== actorPersonId ? ONLINE_INITIAL_OWN : null;
 }

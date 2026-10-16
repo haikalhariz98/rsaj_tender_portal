@@ -15,6 +15,7 @@ import {
   cellFacts,
   type CellFacts,
   type CellKind,
+  columnBindingFaults,
   columnStatus,
   columnTally,
   type ColumnTally,
@@ -23,6 +24,7 @@ import {
   EMPTY_TALLY_TEXT,
   MATRIX_FAULT_TEXT,
   matrixActorFaults,
+  parseColumnBinding,
   standingConfirmations,
   tallyText,
 } from "./matrix";
@@ -363,5 +365,22 @@ describe("COLUMN_STATUS_TEXT (step 5)", () => {
     const { COLUMN_STATUS_TEXT } = await import("./matrix");
     expect(Object.keys(COLUMN_STATUS_TEXT).sort()).toEqual(["ANSWERING", "AWAITING_CONFIRMATION", "AWAITING_DECISION", "CONFIRMED"]);
     for (const t of Object.values(COLUMN_STATUS_TEXT)) expect(t).not.toMatch(/\b(?:pass(?:ed)?|approved|signed)\b/i);
+  });
+});
+
+describe("the column a confirmation or a decision is bound to (security audit, ruling 22)", () => {
+  const get = (o: Record<string, unknown[]>) => (n: string) => o[n] ?? [];
+  it("parses each field once as a whole number, and says which is missing or wrong", () => {
+    expect(parseColumnBinding(get({ columnRevision: ["3"], asReadCorrections: ["0"] }))).toEqual({ ok: true, value: { columnRevision: 3, asReadCorrections: 0 } });
+    expect(parseColumnBinding(get({}))).toMatchObject({ ok: false, fields: { columnRevision: expect.any(String), asReadCorrections: expect.any(String) } });
+    expect(parseColumnBinding(get({ columnRevision: ["3", "4"], asReadCorrections: ["-1"] }))).toMatchObject({ ok: false, fields: { columnRevision: "Send this field once.", asReadCorrections: "Not a valid number." } });
+    expect(parseColumnBinding(get({ columnRevision: ["03"], asReadCorrections: [3] }))).toMatchObject({ ok: false });
+  });
+  it("is a fault when either the revision or the as-read corrections differ from the column now, and none when both match", () => {
+    const now = { columnRevision: 5, asReadCorrections: 1 };
+    expect(columnBindingFaults({ seen: now, current: now })).toEqual([]);
+    expect(columnBindingFaults({ seen: { ...now, columnRevision: 4 }, current: now }).map((f) => f.code)).toEqual(["COLUMN_CHANGED"]);
+    expect(columnBindingFaults({ seen: { ...now, asReadCorrections: 0 }, current: now }).map((f) => f.code)).toEqual(["COLUMN_CHANGED"]);
+    expect(MATRIX_FAULT_TEXT.COLUMN_CHANGED).toMatch(/Nothing was saved/);
   });
 });

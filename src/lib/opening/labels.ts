@@ -335,6 +335,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   NO_FILE_RECEIVED: () => MATRIX_FAULT_TEXT.NO_FILE_RECEIVED,
   NOT_A_NAMED_OFFICER: () => MATRIX_FAULT_TEXT.NOT_A_NAMED_OFFICER,
   NOT_OWN_ACT: () => MATRIX_FAULT_TEXT.NOT_OWN_ACT,
+  COLUMN_CHANGED: () => MATRIX_FAULT_TEXT.COLUMN_CHANGED,
   COLUMN_NOT_ANSWERED: () => MATRIX_FAULT_TEXT.COLUMN_NOT_ANSWERED,
   DECISION_NOT_RECORDED: () => MATRIX_FAULT_TEXT.DECISION_NOT_RECORDED,
   // ---- the filed download after finalising (20cl): the words live once, in filed-file.ts. ADMINISTRATOR and NOT_FINALISED keep their words above.

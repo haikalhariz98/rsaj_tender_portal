@@ -16,7 +16,7 @@ import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, 
 import { EnvelopesToOpen, OffersRead } from "./lists";
 import { OpeningMatrix, type VerdictAids } from "./matrix";
 import { GrandSummaryList, ScheduleDownloads, ScheduleList } from "./schedule-tables";
-import { openingMatrix, type MatrixView } from "@/lib/opening/matrix-read";
+import { openingMatrices, type MatrixView } from "@/lib/opening/matrix-read";
 import type { StaffActor } from "@/lib/auth/types";
 import { sulitExerciseGate } from "@/app/_auth/sulit";
 
@@ -69,17 +69,13 @@ const NOT_HERE = (exerciseId: string, what: string) => (
 export async function loadOpening(actor: StaffActor, exerciseId: string): Promise<OpeningTabView> {
   // The prices read at the opening are SULIT (NFR-SEC-002): one answer for the exercise, logged, and every price is held to it.
   const prices = await sulitExerciseGate(actor, exerciseId, "exercise", PRICE_FIELDS);
-  const d = await openingSection(actor.organisationId, exerciseId, prices, actor.personId);
+  const d = await openingSection(actor.organisationId, exerciseId, prices, actor.personId, actor.isAdministrator);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   if (!d.applies) {
     return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement />{NOT_HERE(exerciseId, "Bids are opened here for an exercise published through its invitation window with tender or quotation documents. This one was not, so its opening is recorded outside the portal.")}</div> };
   }
   // SR-14: each opening's matrix, read for this viewer. Only this section reads it.
-  const matrices = new Map<string, MatrixView>();
-  for (const o of d.openings) {
-    const m = await openingMatrix(actor.organisationId, exerciseId, o.id, { personId: actor.personId, administrator: actor.isAdministrator });
-    if (m) matrices.set(o.id, m);
-  }
+  const matrices = await openingMatrices(actor.organisationId, exerciseId, d.openings.map((o) => o.id), { personId: actor.personId, administrator: actor.isAdministrator });
   const notes: [string, string][] = d.startNeeded && !d.start.allowed.allowed ? [["Start the opening", d.start.allowed.reason]] : [];
   return {
     notes,
@@ -140,7 +136,7 @@ function MatrixSection({ d, o, matrix, viewer }: { d: OpeningSectionView; o: Ope
       ) : matrix.rows.length === 0 ? (
         <EmptyState size="sm" title="Nothing is on the checklist">The checklist for this opening holds no item, so there is nothing to answer here.</EmptyState>
       ) : (
-        <OpeningMatrix exerciseId={d.exerciseId} openingId={o.id} view={matrix} viewer={viewer} verdicts={aids} />
+        <OpeningMatrix exerciseId={d.exerciseId} openingId={o.id} view={matrix} viewer={viewer} verdicts={matrix.namesHeld ? {} : aids} />
       )}
     </CardBody>
   );

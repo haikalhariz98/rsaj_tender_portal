@@ -56,6 +56,7 @@ describe("M3: the schedule's columns are one list for the screen, the print and 
     title: "Opening 1",
     finalised: true,
     finalisedAt: "12 Oct 2026",
+    online: false,
     header: [],
     rows: [{ listingNo: 1, bidderName: "Maju Jaya", registrationClass: "G5", registerClass: "G7", registrationStatus: "Valid", openingPrice: { state: "GRANTED", value: "RM 100.00" } as never, period: "90 days", alternative: null }],
     benchmark: null,

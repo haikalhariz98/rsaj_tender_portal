@@ -16,6 +16,7 @@ import { createStaffSession, readStaffSession } from "@/lib/auth/session-store";
 import { hashToken } from "@/lib/auth/token";
 import type { StaffActor, SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
+import { columnSeen } from "@/lib/test-db/column-seen";
 import { submitBid, takeStamp } from "@/lib/bids/online/submit-store";
 import { loadUploadFacts, storePart } from "@/lib/bids/online/upload-store";
 import { SEALED_BIDS_DEMONSTRATION_ENV } from "@/lib/integration/sealing-deployment";
@@ -195,11 +196,11 @@ export async function prepare(ex: Ex, openingId: string, offers: { id: string }[
       expect(r.ok, message(r)).toBe(true);
     }
     who.actor = ex.officers[0].actor;
-    const v = await recordVerdict({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id, verdict: "PASS" }));
+    const v = await recordVerdict({ ok: false }, form({ ...(await columnSeen(offer.id)), exerciseId: ex.id, openedBidId: offer.id, verdict: "PASS" }));
     expect(v.ok, message(v)).toBe(true);
     for (const o of ex.officers) {
       who.actor = o.actor;
-      const r = await recordInitial({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id }));
+      const r = await recordInitial({ ok: false }, form({ ...(await columnSeen(offer.id)), exerciseId: ex.id, openedBidId: offer.id }));
       expect(r.ok, message(r)).toBe(true);
     }
   }
@@ -216,7 +217,6 @@ export const finalise = (ex: Ex, openingId: string, o: Officer, over: Record<str
   who.actor = o.actor;
   return finaliseOnline({ ok: false }, form({ exerciseId: ex.id, openingId, passphrase: o.passphrase, [PASSWORD_FIELD]: o.password, ...over }));
 };
-export const filesOf = (exerciseId: string) => db.onlineBidFile.findMany({ where: { exerciseId, state: "SUBMITTED" }, include: { attachment: true } });
 export const FIGURE_TEXT = "55000.00";
 export async function estimateFor(ex: Ex) {
   const preparer = ex.officers[0].person.id;

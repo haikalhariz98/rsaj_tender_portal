@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { NOT_ON_PANEL, ONLINE_INITIAL_OWN, onlineInitialFault, panelActorFault } from "./actor";
+import { NOT_ON_PANEL, panelActorFault } from "./actor";
+import { matrixActorFaults } from "./matrix";
 
 const panel = [{ personId: "a", present: true }, { personId: "b", present: false }];
 
@@ -12,8 +13,10 @@ describe("who may write at an opening", () => {
     expect(panelActorFault([], "a")).toBe(NOT_ON_PANEL);
   });
   it("an online initial is the officer's own; paper may be recorded for another", () => {
-    expect(onlineInitialFault("ONLINE", "a", "a")).toBeNull();
-    expect(onlineInitialFault("ONLINE", "a", "z")).toBe(ONLINE_INITIAL_OWN);
-    expect(onlineInitialFault("PAPER", "a", "z")).toBeNull();
+    // Ruling 22, 20cp: the rule is `matrixActorFaults` now (the old per-channel check is gone).
+    const own = (online: boolean, subject: string, actor: string) => matrixActorFaults({ online, act: "CONFIRM", administrator: false, actorPersonId: actor, subjectPersonId: subject, officers: ["a", "z"] }).map((f) => f.code);
+    expect(own(true, "a", "a")).toEqual([]);
+    expect(own(true, "a", "z")).toEqual(["NOT_OWN_ACT"]);
+    expect(own(false, "a", "z")).toEqual([]);
   });
 });

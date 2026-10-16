@@ -52,6 +52,9 @@ export const FILED_FILE_WORDS: Readonly<Record<FiledFileFault | MoveFailure, str
 /// The words when the mover found nothing to move and no filed document stands for the file: the finalise did not release it. Staff-facing English.
 export const NOT_FILED_YET_WORDS = "This file has not been filed as a document yet, so it cannot be downloaded. Report it to whoever runs the portal.";
 
+/// The words when the route could not be reached or answered with something that is not ours (a proxy's page). Staff-facing English.
+export const FILED_FILE_FALLBACK_WORDS = "The file could not be downloaded. Try again, or report it to whoever runs the portal.";
+
 export const FILED_FILE_FIELDS = ["exerciseId", "openingId", "fileId"] as const;
 export type FiledFileRequest = { exerciseId: string; openingId: string; fileId: string };
 export type FiledFileParse = { ok: true; value: FiledFileRequest } | { ok: false; fields: Record<string, string> };

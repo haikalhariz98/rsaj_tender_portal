@@ -14,19 +14,17 @@ import type { OnlineBidRules } from "@/lib/bids/online/types";
 
 import { checklistFromSnapshot } from "./checklist";
 import { markFaults } from "./finalise";
-import { filedVersionOf } from "./filed-file-store";
+import { filedVersionsOf, filingBlockedBy } from "./filed-file-store";
+import { FILED_FILE_WORDS } from "./filed-file";
 import { NAMES_AT_FINALISING, VERDICT_LABEL } from "./labels";
-import { columnStatus, columnTally, confirmationStands, confirmFaults, matrixActorFaults, tallyText, type CellFacts, type ColumnStatus, type ColumnTally } from "./matrix";
+import { columnStatus, columnTally, REASON_HELD_TEXT, confirmationStands, confirmFaults, matrixActorFaults, tallyText, type CellFacts, type ColumnStatus, type ColumnTally } from "./matrix";
 import { loadCellFacts } from "./matrix-store";
 import { allowedOf, namesAreHeld, type Allowed } from "./read";
-import { openingContext, panelOf, policyOf, presentOf, stateOf } from "./repo";
+import { openingContext, panelOf, policyOf, presentOf, stateOf, type OpeningRow } from "./repo";
 import { actFaults } from "./state";
 import type { ChecklistAnswer, OpeningVerdict } from "./types";
 import { verdictFaults } from "./verdict";
 import { consequenceFor, ineligibleOf } from "@/lib/suppliers/opening-hook";
-
-/// An online column whose bid has no digest on the roll frozen at the start says so, never a blank.
-export const NO_RECEIPT_DIGEST_TEXT = "No receipt digest on the roll";
 
 export interface MatrixCell extends CellFacts {
   answer: ChecklistAnswer | null;
@@ -45,6 +43,9 @@ export interface MatrixView {
     bidder: string;
     alternativeOf: number | null;
     receiptDigest: string | null;
+    /// What a confirmation or a decision posted from this screen is bound to (security audit): the column's revision and its as-read corrections when the reader was given the column.
+    columnRevision: number;
+    asReadCorrections: number;
     cells: MatrixCell[];
     tally: ColumnTally;
     tallyText: string;
@@ -57,6 +58,8 @@ export interface MatrixView {
   viewerIsNamedOfficer: boolean;
   /// Step 5: the bidder's name and the acknowledgement day are held from this reader until finalising (20c, 20cm). Computed once here, so the screen says "held" and never "not acknowledged" for a day it was not given.
   namesHeld: boolean;
+  /// After finalising, the words that stop every file of this opening being filed (the class is not set, or not SULIT), read without opening a file. Null: nothing known stops it.
+  filingBlocked: string | null;
 }
 
 const digestsOf = (raw: unknown): Map<number, string> => {
@@ -70,19 +73,36 @@ const digestsOf = (raw: unknown): Map<number, string> => {
 };
 
 /// Null: no such opening on this exercise (or the exercise is not one of this organisation's).
-export async function openingMatrix(organisationId: string, exerciseId: string, openingId: string, viewer: { personId: string | null; administrator: boolean }): Promise<MatrixView | null> {
+export async function openingMatrix(organisationId: string, exerciseId: string, openingId: string, viewer: Viewer): Promise<MatrixView | null> {
+  return (await openingMatrices(organisationId, exerciseId, [openingId], viewer)).get(openingId) ?? null;
+}
+
+type Viewer = { personId: string | null; administrator: boolean };
+
+/// The matrix of each named opening, from ONE read of the exercise and its openings (the screen shows every opening of the exercise, so it asks once). An opening that is not on the exercise is absent from the map.
+export async function openingMatrices(organisationId: string, exerciseId: string, openingIds: readonly string[], viewer: Viewer): Promise<Map<string, MatrixView>> {
+  const out = new Map<string, MatrixView>();
   const l = await loadExercise(organisationId, exerciseId);
-  if (!l) return null;
+  if (!l) return out;
   const c = await openingContext({ org: l.org, ex: l.ex }, db, toSecond(new Date()));
-  const o = c.openings.find((x) => x.id === openingId);
-  if (!o) return null;
+  const roster = l.ex.submissionChannel === "ONLINE" ? await db.exerciseOpeningOfficer.findMany({ where: { exerciseId, organisationId, endedAt: null }, select: { personId: true } }) : [];
+  const filingBlocked = l.ex.submissionChannel === "ONLINE" && c.openings.some((x) => openingIds.includes(x.id) && x.finalisedAt != null) ? await filingBlockedBy(organisationId) : null;
+  for (const id of openingIds) {
+    const o = c.openings.find((x) => x.id === id);
+    if (o) out.set(id, await matrixOf({ organisationId, exerciseId, l, c, o, roster, filingBlocked, viewer }));
+  }
+  return out;
+}
+
+async function matrixOf(i: { organisationId: string; exerciseId: string; l: NonNullable<Awaited<ReturnType<typeof loadExercise>>>; c: Awaited<ReturnType<typeof openingContext>>; o: OpeningRow; roster: { personId: string }[]; filingBlocked: "CLASS_NOT_SET" | "CLASS_NOT_SULIT" | null; viewer: Viewer }): Promise<MatrixView> {
+  const { organisationId, exerciseId, l, c, o, roster, viewer } = i;
   const online = l.ex.submissionChannel === "ONLINE";
   const finalised = o.finalisedAt != null;
   const state = stateOf(o, l.ex.status);
   const panel = panelOf(o);
   const officers = presentOf(o).map((p) => ({ personId: p.personId, name: p.name }));
-  // Who counts as a named officer: online, the exercise's roster; on paper, a present member of this opening's panel.
-  const roster = online ? await db.exerciseOpeningOfficer.findMany({ where: { exerciseId, organisationId, endedAt: null }, select: { personId: true } }) : [];
+  // Who counts as a named officer: online, the exercise's roster; on paper, a present member of this opening's panel. The roster is what the sealed-file door reads, so a file is offered exactly where that door opens;
+  // the acts below judge this opening's present panel (the people the key was split across). They agree unless the roster changes during an opening, and then the roster only narrows what is shown (decisions-log 2026-10-17).
   const viewerIsNamedOfficer = !viewer.administrator && viewer.personId != null && (online ? roster.some((r) => r.personId === viewer.personId) : officers.some((p) => p.personId === viewer.personId));
   const hideNames = online && !(viewer.personId != null && roster.some((r) => r.personId === viewer.personId));
   const held = namesAreHeld(hideNames, o);
@@ -99,6 +119,9 @@ export async function openingMatrix(organisationId: string, exerciseId: string, 
   const digests = digestsOf(o.receiptRoll);
   // A file is offered to a reader who may act on it: before finalising only a named officer; after, anyone but an administrator (the version route then applies the SULIT entitlement).
   const mayHaveFiles = !viewer.administrator && (finalised || viewerIsNamedOfficer);
+
+  // After finalising, each file's filed document in one read, not one query for each file.
+  const filedByFile = finalised && mayHaveFiles ? await filedVersionsOf(organisationId, [...cells.values()].flatMap((cs) => cs.flatMap((x) => x.fileIds))) : new Map<string, { versionId: string; sha256: string }>();
 
   const columns = await Promise.all(
     o.bids.map(async (b) => {
@@ -119,16 +142,16 @@ export async function openingMatrix(organisationId: string, exerciseId: string, 
               ...markFaults({ state, panel, personId: viewer.personId, already: b.initials.some((i) => i.personId === viewer.personId && confirmationStands(online, b, i)), sameOpening: true }),
               ...confirmFaults({ tally, verdict: b.verdict }),
             ]);
-      const filedByFile = new Map<string, { versionId: string; sha256: string } | null>();
       const mine0 = cells.get(b.envelopeId) ?? [];
-      if (finalised && mayHaveFiles) for (const f of mine0.flatMap((x) => x.fileIds)) filedByFile.set(f, await filedVersionOf(organisationId, f));
       return {
         openedBidId: b.id,
         listingNo: b.listingNo,
         of: o.bids.length,
         bidder: held ? NAMES_AT_FINALISING : b.bidderNameAsRead,
         alternativeOf: b.isAlternative ? (b.parentOpenedBid?.listingNo ?? null) : null,
-        receiptDigest: online ? (digests.get(b.envelope.sequence) ?? null) : null,
+        receiptDigest: online && !held ? (digests.get(b.envelope.sequence) ?? null) : null,
+        columnRevision: b.columnRevision,
+        asReadCorrections: b.asReadCorrections,
         cells: mine0.map((x): MatrixCell => ({
           ...x,
           fileIds: mayHaveFiles ? x.fileIds : [],
@@ -138,7 +161,7 @@ export async function openingMatrix(organisationId: string, exerciseId: string, 
         })),
         tally,
         tallyText: tallyText(tally),
-        decision: b.verdict ? { verdict: b.verdict, label: VERDICT_LABEL[b.verdict], reason: b.verdictReason } : null,
+        decision: b.verdict ? { verdict: b.verdict, label: VERDICT_LABEL[b.verdict], reason: held && b.verdictReason ? REASON_HELD_TEXT : b.verdictReason } : null,
         pass: decide("PASS"),
         reject: decide("REJECT"),
         confirmation: { status: status.status, confirmed: status.confirmed.map((x) => x.name), awaiting: status.awaiting.map((x) => x.name), stale: status.stale.map((x) => x.name), mine },
@@ -148,6 +171,7 @@ export async function openingMatrix(organisationId: string, exerciseId: string, 
   );
 
   return {
+    filingBlocked: finalised && mayHaveFiles && i.filingBlocked ? FILED_FILE_WORDS[i.filingBlocked] : null,
     online,
     phase: finalised ? "FINALISED" : "CHECKING",
     rows: checklist.items.map((it) => ({ key: it.key, label: it.label, opened: online && it.source === "PART" && openedCodes.has(it.key) })),

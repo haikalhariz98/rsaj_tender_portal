@@ -67,13 +67,14 @@ import { actFieldNames } from "@/lib/auth/act-field-names";
 import type { StaffActor } from "@/lib/auth/types";
 import { sulitGranted } from "@/lib/auth/sulit-access";
 import { db } from "@/lib/db";
+import { columnSeen } from "@/lib/test-db/column-seen";
 import { randomId } from "@/lib/test-db/auth-fixtures";
 import { checklistFromSnapshot } from "@/lib/opening/checklist";
 import { evaluationSet } from "@/lib/opening/carry";
 import { classAsReadText, kelasText, ONLINE_CLASS_AS_READ, openingCsv } from "@/lib/opening/download";
 import { FILED_FILE_WORDS } from "@/lib/opening/filed-file";
 import { NAMES_AT_FINALISING, openingFindingText } from "@/lib/opening/labels";
-import { MATRIX_FAULT_TEXT } from "@/lib/opening/matrix";
+import { MATRIX_FAULT_TEXT, REASON_HELD_TEXT } from "@/lib/opening/matrix";
 import { openingMatrix } from "@/lib/opening/matrix-read";
 import { scheduleSection } from "@/lib/opening/read";
 import { loadOpenings } from "@/lib/opening/repo";
@@ -99,14 +100,24 @@ const answer = (ex: Ex, o: { actor: unknown }, bidId: string, itemKey: string, a
   who.actor = o.actor;
   return recordChecklistAnswer({ ok: false }, form({ exerciseId: ex.id, openedBidId: bidId, itemKey, answer: a }));
 };
-const decide = (ex: Ex, o: { actor: unknown }, bidId: string, verdict: "PASS" | "REJECT", reason = "") => {
+const decide = async (ex: Ex, o: { actor: unknown }, bidId: string, verdict: "PASS" | "REJECT", reason = "", seen?: Record<string, string>) => {
   who.actor = o.actor;
-  return recordVerdict({ ok: false }, form({ exerciseId: ex.id, openedBidId: bidId, verdict, verdictReason: reason }));
+  return recordVerdict({ ok: false }, form({ ...(seen ?? (await columnSeen(bidId))), exerciseId: ex.id, openedBidId: bidId, verdict, verdictReason: reason }));
 };
-const confirm = (ex: Ex, o: { actor: unknown }, bidId: string, over: Record<string, string> = {}) => {
+const confirm = async (ex: Ex, o: { actor: unknown }, bidId: string, over: Record<string, string> = {}) => {
   who.actor = o.actor;
-  return recordInitial({ ok: false }, form({ exerciseId: ex.id, openedBidId: bidId, ...over }));
+  return recordInitial({ ok: false }, form({ ...(await columnSeen(bidId)), exerciseId: ex.id, openedBidId: bidId, ...over }));
 };
+/// A decision written the way the rows of an opening made before the revision existed were: with the revision left at 0. The decision trigger (migration 20261109000000) refuses that now, for every writer,
+/// so the fixture stands the trigger down for this one write and puts it back, as the owner of a scratch database.
+async function writtenBeforeTheRule<T>(write: () => Promise<T>): Promise<T> {
+  await db.$executeRawUnsafe(`ALTER TABLE public."OpenedBid" DISABLE TRIGGER "OpenedBid_decision_moves_revision"`);
+  try {
+    return await write();
+  } finally {
+    await db.$executeRawUnsafe(`ALTER TABLE public."OpenedBid" ENABLE ALWAYS TRIGGER "OpenedBid_decision_moves_revision"`);
+  }
+}
 const bidRow = (id: string) => db.openedBid.findUniqueOrThrow({ where: { id } });
 const itemsOf = async (openingId: string) => checklistFromSnapshot((await db.opening.findUniqueOrThrow({ where: { id: openingId } })).checklistSnapshot).items;
 
@@ -121,20 +132,69 @@ describe("who may answer, decide and confirm (ruling 22, 20cp)", () => {
     for (const actor of [admin, stranger]) {
       for (const r of [await answer(ex, actor, bid, item.key, "ABSENT"), await decide(ex, actor, bid, "REJECT", "No."), await confirm(ex, actor, bid)]) {
         expect(r.ok).toBe(false);
-        // An administrator is stopped at the door of the act, a person not named by the matrix's words.
+        // An administrator is stopped at the door of the act, a person not named by the matrix's words. Both are told why.
         if (actor === stranger) refusedWith(r, "NOT_A_NAMED_OFFICER");
+        else expect(message(r).length).toBeGreaterThan(0);
       }
     }
-    // An officer cannot confirm for another officer on an online opening, even with a paper reference.
-    const names = actFieldNames("personId");
-    const onBehalfActor = { ...ex.officers[1].actor, permissions: new Set([...ex.officers[1].actor.permissions, "acts.recordOnBehalf" as const]) } as StaffActor;
-    const other = await confirm(ex, { actor: onBehalfActor }, bid, { personId: ex.officers[0].person.id, [names.onBehalf]: "on", [names.paperReference]: "paper 1", [names.reason]: "confirmed on paper" });
-    expect(other.ok).toBe(false);
     expect(await db.openingChecklistAnswer.count({ where: { openedBidId: bid } })).toBe(0);
     expect(await db.openedBidInitial.count({ where: { openedBidId: bid } })).toBe(0);
     const after = await bidRow(bid);
     expect(after.verdict).toBeNull();
     expect(after.columnRevision).toBe(before.columnRevision);
+  }, 300_000);
+
+  it("an online confirmation is never recorded for another officer, even with a paper reference: refused for that reason alone, on a column that is answered and decided", async () => {
+    const { ex, opening, offers } = await unsealed(2, 1);
+    const bid = offers[0].id;
+    // The column is complete and decided, so the only thing that can refuse the confirmation is that it is on behalf of another (NOT_OWN_ACT).
+    for (const item of await itemsOf(opening.id)) expect((await answer(ex, ex.officers[0], bid, item.key, "PRESENT")).ok).toBe(true);
+    expect((await decide(ex, ex.officers[0], bid, "PASS")).ok).toBe(true);
+    const names = actFieldNames("personId");
+    const onBehalfActor = { ...ex.officers[1].actor, permissions: new Set([...ex.officers[1].actor.permissions, "acts.recordOnBehalf" as const]) } as StaffActor;
+    const other = await confirm(ex, { actor: onBehalfActor }, bid, { personId: ex.officers[0].person.id, [names.onBehalf]: "on", [names.paperReference]: "paper 1", [names.reason]: "confirmed on paper" });
+    refusedWith(other, "NOT_OWN_ACT");
+    expect(await db.openedBidInitial.count({ where: { openedBidId: bid, personId: ex.officers[0].person.id } })).toBe(0);
+    // The officer's own confirmation of the same column goes through.
+    expect((await confirm(ex, ex.officers[1], bid)).ok).toBe(true);
+  }, 300_000);
+
+  it("a confirmation or a decision posted from a screen that read an earlier column is refused with nothing written, and the trail names the revision (security audit)", async () => {
+    const { ex, opening, offers } = await unsealed(2, 1);
+    const bid = offers[0].id;
+    const items = await itemsOf(opening.id);
+    for (const item of items) expect((await answer(ex, ex.officers[0], bid, item.key, "PRESENT")).ok).toBe(true);
+    expect((await decide(ex, ex.officers[0], bid, "PASS")).ok).toBe(true);
+    // Officer 1 opened the column here.
+    const read = await columnSeen(bid);
+    // Then officer 0 changes an answer (which clears the decision) and records a different one.
+    expect((await answer(ex, ex.officers[0], bid, items[0].key, "ABSENT")).ok).toBe(true);
+    expect((await decide(ex, ex.officers[0], bid, "REJECT", "Form of tender absent.")).ok).toBe(true);
+    const moved = await bidRow(bid);
+    const stale = await confirm(ex, ex.officers[1], bid, read);
+    refusedWith(stale, "COLUMN_CHANGED");
+    expect(await db.openedBidInitial.count({ where: { openedBidId: bid } })).toBe(0);
+    const stalePass = await decide(ex, ex.officers[0], bid, "PASS", "", read);
+    refusedWith(stalePass, "COLUMN_CHANGED");
+    const unchanged = await bidRow(bid);
+    expect([unchanged.verdict, unchanged.columnRevision]).toEqual([moved.verdict, moved.columnRevision]);
+    // A post that carries no column at all is refused too, in the field's words.
+    const bare = await recordInitial({ ok: false }, form({ exerciseId: ex.id, openedBidId: bid }));
+    expect(bare).toMatchObject({ ok: false });
+    // Read again, it goes through, and the trail says which revision and which decision was confirmed.
+    expect((await confirm(ex, ex.officers[1], bid)).ok).toBe(true);
+    const row = await db.openedBidInitial.findFirstOrThrow({ where: { openedBidId: bid, personId: ex.officers[1].person.id } });
+    expect(row.columnRevision).toBe(moved.columnRevision);
+    const created = await db.auditEntry.findFirstOrThrow({ where: { entity: "OpenedBidInitial", entityId: row.id, action: "CREATE" } });
+    expect(JSON.stringify(created.changes)).toContain(String(moved.columnRevision));
+    expect(JSON.stringify(created.changes)).toContain("Not carried");
+    // A renewal names its cause: here the column changed again, no as-read correction was made.
+    expect((await answer(ex, ex.officers[0], bid, items[1].key, "ABSENT")).ok).toBe(true);
+    expect((await decide(ex, ex.officers[0], bid, "REJECT", "Priced bill absent.")).ok).toBe(true);
+    expect((await confirm(ex, ex.officers[1], bid)).ok).toBe(true);
+    const renewed = await db.auditEntry.findFirstOrThrow({ where: { entity: "OpenedBidInitial", entityId: row.id, action: "UPDATE" } });
+    expect(JSON.stringify(renewed.changes)).toContain("Before a change of answers or decision");
+    expect(JSON.stringify(renewed.changes)).not.toContain("Before the correction");
   }, 300_000);
 
   it("Present on a part no file was received for is refused, and Absent is the officers' judgement", async () => {
@@ -298,7 +358,7 @@ describe("a paper opening through the matrix's rules (ruling 22, 20cp)", () => {
     // Written directly, as the rows of an opening made before the revision existed: every column reads revision 0.
     for (const id of bids) {
       for (const k of ["T1", "T2"]) await db.openingChecklistAnswer.create({ data: { organisationId: org, openedBidId: id, itemKey: k, itemLabelSnapshot: k, answer: "PRESENT", recordedAt: new Date() } });
-      await db.openedBid.update({ where: { id }, data: { verdict: "PASS", verdictAt: new Date(), completeness: { missing: [] } } });
+      await writtenBeforeTheRule(() => db.openedBid.update({ where: { id }, data: { verdict: "PASS", verdictAt: new Date(), completeness: { missing: [] } } }));
       for (const p of [a, b]) await db.openedBidInitial.create({ data: { organisationId: org, openedBidId: id, personId: p.person.id, recordedAt: new Date(), correctionNo: 0 } });
       expect((await bidRow(id)).columnRevision).toBe(0);
     }
@@ -363,6 +423,10 @@ describe("POST /api/opening/filed-file (20cl)", () => {
     expect(second.headers.get("location")).toBe(first.headers.get("location"));
     expect(await db.document.count({ where: { organisationId: org } })).toBe(documents);
     expect(await db.documentAttachment.count({ where: { onlineBidFileId: check.id } })).toBe(1);
+    // The matrix asks in JSON (a fetch cannot read a redirect's address): the same answer, as the document's address.
+    const asked = await callFiled(u.ex.officers[0].actor, req, { accept: "application/json" });
+    expect(asked.status).toBe(200);
+    expect((await jsonOf(asked)) as unknown).toEqual({ ok: true, location: first.headers.get("location") });
   }, 300_000);
 
   it("refuses an administrator (403), a request another site started (nothing is filed), a part the officers do not open, a file of no bid here, and an invalid form", async () => {
@@ -372,6 +436,8 @@ describe("POST /api/opening/filed-file (20cl)", () => {
     const denied = await callFiled(admin.actor, req);
     expect(denied.status).toBe(403);
     expect((await jsonOf(denied)).message).toBe(FILED_FILE_WORDS.ADMINISTRATOR);
+    // The refusal is written to the sealed access log, with its reason and the file.
+    expect(await db.sealedAccessEvent.count({ where: { exerciseId: u.ex.id, kind: "DOWNLOAD", outcome: "REFUSED", reasonCode: "ADMINISTRATOR", recordId: u.check } })).toBe(1);
     const cross = await callFiled(u.ex.officers[0].actor, req, { "sec-fetch-site": "cross-site" });
     expect(cross.status).toBe(403);
     // Nothing was filed by either.
@@ -508,6 +574,23 @@ describe("names are held from a reader who is not a named officer (20c, 20cm)", 
     const asAdmin = (await openingMatrix(org, ex.id, opening.id, { personId: admin.person.id, administrator: true }))!;
     expect(asAdmin.columns[0].bidder).toBe(NAMES_AT_FINALISING);
     expect(asAdmin.columns[0].answer).toMatchObject({ allowed: false });
+
+    // Plan 1.4, 20cm: the receipt digest (a supplier holds the same one on its receipt) and an officer's free-text reason are held from this reader as well, and given to the named officer.
+    expect(held.columns[0].receiptDigest).toBeNull();
+    const items = await itemsOf(opening.id);
+    for (const [i, item] of items.entries()) expect((await answer(ex, named, offers[0].id, item.key, i === 0 ? "ABSENT" : "PRESENT")).ok).toBe(true);
+    const rejected = await decide(ex, named, offers[0].id, "REJECT", `${name} did not return the form.`);
+    expect(rejected.ok, message(rejected)).toBe(true);
+    const heldAfter = (await openingMatrix(org, ex.id, opening.id, { personId: stranger.person.id, administrator: false }))!;
+    expect(heldAfter.columns[0].decision).toMatchObject({ label: expect.any(String), reason: REASON_HELD_TEXT });
+    expect(JSON.stringify(heldAfter)).not.toContain(name);
+    const adminAfter = (await openingMatrix(org, ex.id, opening.id, { personId: admin.person.id, administrator: true }))!;
+    expect(adminAfter.columns[0].decision?.reason).toBe(REASON_HELD_TEXT);
+    expect(adminAfter.columns[0].receiptDigest).toBeNull();
+    const namedAfter = (await openingMatrix(org, ex.id, opening.id, { personId: named.person.id, administrator: false }))!;
+    expect(namedAfter.columns[0].decision?.reason).toBe(`${name} did not return the form.`);
+    // The column carries what a confirmation or a decision posted from it is bound to.
+    expect(namedAfter.columns[0].columnRevision).toBe((await bidRow(offers[0].id)).columnRevision);
 
     await prepare(ex, opening.id, offers);
     for (const o of ex.officers) expect((await sign(ex, opening.id, o)).ok).toBe(true);

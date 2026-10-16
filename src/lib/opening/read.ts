@@ -27,11 +27,10 @@ import type { Reader } from "@/lib/auth/sulit-store";
 import { lockGapFinding } from "./box";
 import { checklistFromSnapshot, openingChecklist, unansweredItems } from "./checklist";
 import { COPY_NOT_COMPARED_LABEL, COPY_NOT_COMPARED_TEXT, copyFindingFault, copyReading, estimateCardText } from "./estimate-copy";
-import { countFilesToFile, loadOpeningCheckFiles } from "./sealed-file-store";
-import type { OnlineBidRules } from "@/lib/bids/online/types";
+import { countFilesToFile } from "./sealed-file-store";
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./finalise";
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
-import { standingConfirmations } from "./matrix";
+import { columnTally, confirmFaults, matrixActorFaults, standingConfirmations } from "./matrix";
 import { consequenceFor, eligibilityFindingOf, ineligibleOf, registerClassOf } from "@/lib/suppliers/opening-hook";
 import { isRestrictionReading, restrictionReadingWords } from "@/lib/suppliers/restriction-register";
 import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, restrictionLabel, SALE_FINDING_LABEL, NAMES_AT_FINALISING, SEALED_UNTIL_FINALISED, seatWords, VERDICT_LABEL, VERDICT_TONE } from "./labels";
@@ -84,7 +83,7 @@ function admissionOf(c: OpeningContext, envelopeId: string) {
 // ------------------------------------------------------------------ the Opening section
 
 /// The caller's one answer, asked and logged, for the exercise's opening prices (`openingPrice`, `correctedPrice`): every price this read returns is held to it.
-export async function openingSection(organisationId: string, exerciseId: string, prices: Sulit<true>, viewerPersonId: string | null) {
+export async function openingSection(organisationId: string, exerciseId: string, prices: Sulit<true>, viewerPersonId: string | null, viewerAdministrator: boolean) {
   const r = await load(organisationId, exerciseId);
   if (!r) return null;
   const { l, c, now, people } = r;
@@ -159,15 +158,11 @@ export async function openingSection(organisationId: string, exerciseId: string,
   // 20c: on an online exercise, between the unseal and finalising only the named opening officers see who bid. Judged here, on the server, so a name never rides in the page for anyone else.
   const namedOfficers = l.ex.submissionChannel === "ONLINE" ? await db.exerciseOpeningOfficer.findMany({ where: { exerciseId, organisationId, endedAt: null }, select: { personId: true } }) : [];
   const viewerIsNamed = viewerPersonId != null && namedOfficers.some((n) => n.personId === viewerPersonId);
-  const views = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy, prices, hideNames: l.ex.submissionChannel === "ONLINE" && !viewerIsNamed }));
+  const views = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy, prices, hideNames: l.ex.submissionChannel === "ONLINE" && !viewerIsNamed, viewer: { personId: viewerPersonId, administrator: viewerAdministrator } }));
   // Review of wave 3b: a finalised online opening whose files are not all in the document store yet says how many wait, to the named officers, who can run the filing again.
   const filesWaiting = l.ex.submissionChannel === "ONLINE" && viewerIsNamed ? await countFilesToFile(organisationId, exerciseId) : 0;
-  // 20at: between the unseal and finalising, a named officer is offered each opened offer's opening-check files to download. Never for anyone else, and never after finalising (the files are documents then).
-  const openings = await Promise.all(views.map(async (v, i) => {
-    const o = c.openings[i];
-    const offer = viewerIsNamed && l.ex.submissionChannel === "ONLINE" && o.unsealedAt != null && o.finalisedAt == null;
-    return { ...v, checkFiles: offer ? await loadOpeningCheckFiles({ organisationId, exerciseId, openingId: o.id, rules: (l.ex.onlineBidRules as OnlineBidRules | null) ?? null }) : null, filesToFile: l.ex.submissionChannel === "ONLINE" && viewerIsNamed && o.finalisedAt != null ? filesWaiting : null };
-  }));
+  // 20at: the opening-check files are offered in the matrix's cells (`openingMatrix`), the one reader of them; this section reads none.
+  const openings = views.map((v, i) => ({ ...v, filesToFile: l.ex.submissionChannel === "ONLINE" && viewerIsNamed && c.openings[i].finalisedAt != null ? filesWaiting : null }));
 
   return {
     exerciseId: l.ex.id,
@@ -190,7 +185,7 @@ export async function openingSection(organisationId: string, exerciseId: string,
   };
 }
 
-function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[]; startedBy: AttributionIndex; authorisedBy: AttributionIndex; prices: Sulit<true>; hideNames: boolean }) {
+function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[]; startedBy: AttributionIndex; authorisedBy: AttributionIndex; prices: Sulit<true>; hideNames: boolean; viewer: { personId: string | null; administrator: boolean } }) {
   const { prices } = x;
   // 20c: names are withheld from a reader who is not a named officer while the opening is unsealed and not finalised (they are the schedule's from finalising).
   const namesHeld = namesAreHeld(x.hideNames, o);
@@ -258,9 +253,23 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
         return f ? { text: `Supplier register: ${f.verdict === "ELIGIBLE" ? "eligible" : f.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}`, tone: (f.verdict === "ELIGIBLE" ? "ok" : f.verdict === "NOT_ELIGIBLE" ? "err" : "warn") as "ok" | "err" | "warn" } : null;
       })(),
       corrected: b.asReadCorrectedAt ? `Corrected ${time(b.asReadCorrectedAt, tz)}` : null,
+      columnRevision: b.columnRevision,
+      asReadCorrections: b.asReadCorrections,
       initialled: fresh.map((i) => i.person.name),
       initialMissing: present.filter((p) => !fresh.some((i) => i.personId === p.personId)).map((p) => p.name),
-      initialFor: present.map((p) => ({ personId: p.personId, name: p.name, allowed: allowedOf(markFaults({ state, panel, personId: p.personId, already: fresh.some((i) => i.personId === p.personId), sameOpening: true })) })),
+      // The same three judgements `recordInitial` runs (who may act, whether a mark may be taken, and whether the column is answered and decided), so a control offered is one the act accepts.
+      // The viewer's own confirmation is the matrix's "Confirm this column", not repeated here.
+      initialFor: present
+        .filter((p) => p.personId !== x.viewer.personId)
+        .map((p) => ({
+          personId: p.personId,
+          name: p.name,
+          allowed: allowedOf([
+            ...matrixActorFaults({ online: c.ex.submissionChannel === "ONLINE", act: "CONFIRM", administrator: x.viewer.administrator, actorPersonId: x.viewer.personId ?? "", subjectPersonId: p.personId, officers: present.map((q) => q.personId) }),
+            ...markFaults({ state, panel, personId: p.personId, already: fresh.some((i) => i.personId === p.personId), sameOpening: true }),
+            ...confirmFaults({ tally: columnTally(checklist.items, answers), verdict: b.verdict }),
+          ]),
+        })),
       checklist: checklist.items.map((it) => ({ key: it.key, label: it.label, answer: answers.get(it.key) ?? null, answerLabel: answers.has(it.key) ? CHECKLIST_ANSWER_LABEL[answers.get(it.key)!] : "Not answered" })),
       unanswered: unansweredItems(checklist.items, answers).length,
       verdict: b.verdict ? { label: VERDICT_LABEL[b.verdict], tone: VERDICT_TONE[b.verdict], reason: b.verdictReason || null } : null,

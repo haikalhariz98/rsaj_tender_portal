@@ -160,10 +160,10 @@ export async function loadOpeningDemo(db: Db, organisationId: string) {
     const at = T(day16, o.at);
     const bid = `${P}ob${i + 1}`;
     await acts.open(sx16, op1, { id: bid, envelopeId: o.env, bidder: o.bidder, price: o.price, months: o.months, validityDays: 120, cls: o.cls, status: o.status, at });
-    await acts.initial(sx16, bid, CHAIR, sec(at, 60));
-    await acts.initial(sx16, bid, MEMBER, sec(at, 75));
     await acts.answers(sx16, bid, o.absent ?? [], sec(at, 120));
     await acts.verdict(sx16, bid, o.verdict, "", CHAIR, sec(at, 150));
+    await acts.initial(sx16, bid, CHAIR, sec(at, 160));
+    await acts.initial(sx16, bid, MEMBER, sec(at, 175));
   }
   await acts.signature(sx16, op1, CHAIR, day16, T(day16, "15:40"));
   await acts.signature(sx16, op1, MEMBER, day16, sec(T(day16, "15:40"), 30));
@@ -181,10 +181,10 @@ export async function loadOpeningDemo(db: Db, organisationId: string) {
     const at = T(day16, "16:33");
     const bid = `${P}ob5`;
     await acts.open(sx16, op2, { id: bid, envelopeId: `${P}env4`, bidder: { id: `${P}pty14`, name: FIRMS.paip.name, registrationNo: FIRMS.paip.registrationNo }, price: "629900.00", months: 12, validityDays: 120, cls: "Grade D4", status: "Active", at });
-    await acts.initial(sx16, bid, CHAIR, sec(at, 60));
-    await acts.initial(sx16, bid, MEMBER, sec(at, 70));
     await acts.answers(sx16, bid, [], sec(at, 120));
     await acts.verdict(sx16, bid, "PASS", "", CHAIR, sec(at, 150));
+    await acts.initial(sx16, bid, CHAIR, sec(at, 160));
+    await acts.initial(sx16, bid, MEMBER, sec(at, 175));
   }
   await acts.signature(sx16, op2, CHAIR, day16, T(day16, "16:45"));
   await acts.signature(sx16, op2, MEMBER, day16, sec(T(day16, "16:45"), 20));
@@ -445,8 +445,8 @@ export class OpeningActs {
     const { l, o, b } = await this.bid(exerciseId, bidId, at);
     refuse(`${person.name}'s initial on ${bidId}`, markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId: person.id, already: b.initials.some((x) => x.personId === person.id), sameOpening: true }));
     const id = `${bidId}i_${person.id.slice(P.length)}`;
-    await this.db.openedBidInitial.create({ data: { id, organisationId: this.org, openedBidId: bidId, personId: person.id, recordedAt: at } });
-    this.entry(OPENING_ENTITY.initial, id, this.label(l.ex.reference, `Offer ${b.listingNo}`), "CREATE", at, diffFields(null, initialFields({ person: person.name, listingNo: b.listingNo, at }, this.tz)));
+    await this.db.openedBidInitial.create({ data: { id, organisationId: this.org, openedBidId: bidId, personId: person.id, recordedAt: at, correctionNo: b.asReadCorrections, columnRevision: b.columnRevision } });
+    this.entry(OPENING_ENTITY.initial, id, this.label(l.ex.reference, `Offer ${b.listingNo}`), "CREATE", at, diffFields(null, initialFields({ person: person.name, listingNo: b.listingNo, at, revision: b.columnRevision, decision: b.verdict }, this.tz)));
   }
 
   /// recordChecklistAnswer, for every item: PRESENT but the parts named (by role) ABSENT.
@@ -485,7 +485,7 @@ export class OpeningActs {
     const facts = { saleFinding: b.saleFinding, restrictionFinding: b.restrictionFinding, isAlternative: b.isAlternative, alternativeStatus: b.alternativeStatus };
     refuse(`the verdict on ${bidId}`, verdictFaults({ state: stateOf(o, l.ex.status), sameOpening: true, bid: facts, checklist, answers, policy, verdict, reason }));
     const j = judgeBid(facts, checklist, answers, policy);
-    await this.db.openedBid.update({ where: { id: bidId }, data: { verdict, verdictReason: verdict === "REJECT" ? reason : "", verdictAt: at, completeness: verdictRecord(j) as never } });
+    await this.db.openedBid.update({ where: { id: bidId }, data: { verdict, verdictReason: verdict === "REJECT" ? reason : "", verdictAt: at, completeness: verdictRecord(j) as never, columnRevision: { increment: 1 } } });
     this.entry(OPENING_ENTITY.bid, bidId, this.label(l.ex.reference, `Offer ${b.listingNo}`), "UPDATE", at, diffFields({ verdict: null, recordedBy: null }, { ...verdictFields({ verdict, reason: verdict === "REJECT" ? reason : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) }), recordedBy: `${by.name} (recorded on their behalf, not signed)` }), verdict === "REJECT" ? reason : "");
   }
 
@@ -518,7 +518,7 @@ export class OpeningActs {
     const { finaliseFaults } = await import("../src/lib/opening/finalise");
     const { discloseAtFinalising } = await import("../src/lib/opening/estimate");
     const { grandSummary } = await import("../src/lib/opening/grand-summary");
-    const { freshInitials } = await import("../src/lib/opening/initials");
+    const { standingConfirmations } = await import("../src/lib/opening/matrix");
     const { invitedCounts, policyOf, presentOf, stateOf, summaryLabelsOf } = await import("../src/lib/opening/repo");
     const { jadualTawaran, lateCount } = await import("../src/lib/opening/schedule");
     const { lockGap } = await import("../src/lib/opening/box");
@@ -532,7 +532,7 @@ export class OpeningActs {
     const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
     refuse(`finalising ${openingId}`, finaliseFaults({
       state,
-      bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: freshInitials(b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
+      bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: standingConfirmations(false, b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
       present: presentOf(o),
       signed: o.signatures.map((s) => s.personId),
       pages: o.schedulePages,
@@ -628,13 +628,13 @@ export async function checkOpeningDemo(db: Db) {
   const lowest = main.summary!.rows.filter((r) => r.lowest);
   if (lowest.length !== 1 || lowest[0].listingNo !== 1) fail("sx16's lowest qualified offer is not No. 1.");
   // OD-4 (REPORT): the offers with no live purchase are carried, and reported.
-  const o16 = (await openingSection(await demoOrgId(), `${P}sx16`, await loaderGate(), null)) ?? fail("sx16's opening did not load.");
+  const o16 = (await openingSection(await demoOrgId(), `${P}sx16`, await loaderGate(), null, false)) ?? fail("sx16's opening did not load.");
   const reported = o16.openings[0].offers.filter((b) => b.reported.length > 0).map((b) => b.listingNo);
   if (reported.join() !== "2,3,4") fail(`sx16's reported offers are ${reported.join()}, not 2, 3 and 4.`);
   const supp = s16.openings.find((o) => o.title !== "Opening") ?? fail("sx16 has no supplementary opening.");
   if (!supp.finalised || supp.rows.length !== 5) fail("sx16's supplementary schedule is not version 2 with five offers.");
   // sx20: adjourned, with a lapsed authorisation and the box's envelope registered by the lock.
-  const o20 = (await openingSection(await demoOrgId(), `${P}sx20`, await loaderGate(), null)) ?? fail("sx20's opening did not load.");
+  const o20 = (await openingSection(await demoOrgId(), `${P}sx20`, await loaderGate(), null, false)) ?? fail("sx20's opening did not load.");
   const op3 = o20.openings[0] ?? fail("sx20 has no opening.");
   if (op3.phase !== "Adjourned" || !op3.resume?.allowed) fail("sx20's opening is not adjourned, ready to resume.");
   if (!op3.authorisations.some((a) => a.includes("lapsed"))) fail("sx20's unpaired authorisation did not lapse.");

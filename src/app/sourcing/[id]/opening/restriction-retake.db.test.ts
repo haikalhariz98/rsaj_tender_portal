@@ -6,6 +6,7 @@ import type { StaffActor, SupplierActor } from "@/lib/auth/types";
 import { createStaffSession, readStaffSession } from "@/lib/auth/session-store";
 import { hashToken } from "@/lib/auth/token";
 import { db } from "@/lib/db";
+import { columnSeen } from "@/lib/test-db/column-seen";
 import { PAYMENT_SIMULATOR_ENV } from "@/lib/integration/payment-deployment";
 import { settlePayment, startPurchase } from "@/lib/portal/bids/purchase-store";
 import { facts, makeAccount, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS } from "@/lib/test-db/auth-fixtures";
@@ -184,7 +185,7 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
     expect(bid.restrictionReading).toMatchObject({ supplierId: buyer.supplierId, evidenceTypeId: typeId, closingDayCounts: true, closingTime: closingAt.toISOString(), reason: "RENEWAL_NOT_VERIFIED" });
 
     // A verdict now, while the renewal waits, is refused in words and says the reading was taken again.
-    const waiting = await recordVerdict({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));
+    const waiting = await recordVerdict({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));
     expect(waiting).toMatchObject({ ok: false });
     expect(waiting.message).toMatch(/not assessed/i);
     expect(waiting.message).toMatch(/read again from the supplier register and the new reading is saved/);
@@ -198,22 +199,22 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
     await db.supplierDocument.update({ where: { id: renewal.id }, data: { verification: "VERIFIED", verifiedByPersonId: a.person.id, verifiedOn: D(new Date()), verifiedAt: new Date() } });
 
     // A verdict refused for want of a reason after the reading was taken again keeps the reading and says so (finding 2).
-    const noReason = await recordVerdict({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id, verdict: "REJECT", verdictReason: "" }));
+    const noReason = await recordVerdict({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id, verdict: "REJECT", verdictReason: "" }));
     expect(noReason).toMatchObject({ ok: false });
     const retaken = await db.openedBid.findUniqueOrThrow({ where: { id: bid.id } });
     expect(retaken.restrictionFinding).toBe("EVIDENCED");
     expect(retaken.restrictionReading).toMatchObject({ reason: "COVERS_CLOSING_DAY", supplierId: buyer.supplierId, evidenceTypeId: typeId, document: { reference: "STA-NEW" } });
     expect(noReason.message ?? "").toMatch(/read again from the supplier register and the new reading is saved/);
 
-    const verdict = await recordVerdict({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));
+    const verdict = await recordVerdict({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));
     expect(verdict, JSON.stringify(verdict)).toMatchObject({ ok: true });
     expect((await db.openedBid.findUniqueOrThrow({ where: { id: bid.id } })).verdict).toBe("PASS");
 
     // Ruling 22 (wave 3c): an officer's initial is their confirmation of a complete, decided column, so each initials after the decision, not before it.
     who.actor = b.actor;
-    expect(await recordInitial({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: true });
+    expect(await recordInitial({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: true });
     who.actor = a.actor;
-    expect(await recordInitial({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: true });
+    expect(await recordInitial({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: true });
 
     expect(await recordScheduleDetails({ ok: false }, form({ exerciseId: e.ex.id, openingId: opening.id, schedulePages: "2", minutes: "" }))).toMatchObject({ ok: true });
     const done = await finaliseOpening({ ok: false }, form({ exerciseId: e.ex.id, openingId: opening.id, paperCopy: "notInBox" }));
@@ -227,7 +228,7 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
 
     // Nothing is retaken once the opening is finalised (finding 2): a retake on it writes nothing and reports the finding as it stands.
     const before = (await auditsOf(bid.id)).length;
-    expect(await recordInitial({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: false });
+    expect(await recordInitial({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: false });
     expect((await auditsOf(bid.id)).length).toBe(before);
     process.env[PAYMENT_SIMULATOR_ENV] = "true";
   });
@@ -251,7 +252,7 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
     void _gone;
     await db.openedBid.update({ where: { id: bid.id }, data: { restrictionReading: rest as never } });
     process.env[PAYMENT_SIMULATOR_ENV] = "false";
-    const verdict = await recordVerdict({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id, verdict: "REJECT", verdictReason: "Restriction not evidenced." }));
+    const verdict = await recordVerdict({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id, verdict: "REJECT", verdictReason: "Restriction not evidenced." }));
     process.env[PAYMENT_SIMULATOR_ENV] = "true";
     expect(verdict, JSON.stringify(verdict)).toMatchObject({ ok: true });
     const after = await db.openedBid.findUniqueOrThrow({ where: { id: bid.id } });
@@ -274,7 +275,7 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
     const bid = await db.openedBid.findFirstOrThrow({ where: { openingId: opening.id } });
     await db.opening.update({ where: { id: opening.id }, data: { finalisedAt: new Date() } });
     const before = (await auditsOf(bid.id)).length;
-    const out = await recordVerdict({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));
+    const out = await recordVerdict({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));
     expect(out).toMatchObject({ ok: false });
     expect(out.message).toMatch(/Nothing was saved/);
     expect((await auditsOf(bid.id)).length).toBe(before);

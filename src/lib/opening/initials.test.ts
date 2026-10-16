@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import { at, S } from "./fixture";
-import { freshInitials, initialStale } from "./initials";
+import { initialStale } from "./initials";
+import { standingConfirmations } from "./matrix";
 
 /**
  * Review M-2: an initial stands only on the reading it was taken on, by the correction counter, not
  * by comparing stamps. The stamps below are deliberately unhelpful: equal, or reversed.
  */
 
-const initial = (personId: string, correctionNo: number, recordedAt: Date) => ({ personId, correctionNo, recordedAt });
+const initial = (personId: string, correctionNo: number, recordedAt: Date) => ({ personId, correctionNo, columnRevision: 0, recordedAt });
+/// Ruling 22 replaced the reading-only rule with `standingConfirmations`; these columns never changed revision, so what these cases judge is the reading alone.
+const freshInitials = (bid: { asReadCorrections: number }, initials: ReturnType<typeof initial>[]) => standingConfirmations(false, { ...bid, columnRevision: 0 }, initials);
 
 describe("initials and corrections (FR-OPN-006, OD-10)", () => {
   it("before any correction, every initial stands", () => {

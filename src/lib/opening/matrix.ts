@@ -166,7 +166,33 @@ export function confirmFaults(i: { tally: ColumnTally; verdict: OpeningVerdict |
   return out;
 }
 
-export const MATRIX_FAULT_TEXT: Readonly<Record<CellAnswerFault | MatrixActorFault | ConfirmFault, string>> = {
+/// The column as the officer's screen showed it. A confirmation or a decision posted from that screen carries it, so it lands on the column the officer read and on no later one (security audit, ruling 22).
+export const COLUMN_BINDING_FIELDS = ["columnRevision", "asReadCorrections"] as const;
+export type ColumnSeen = { columnRevision: number; asReadCorrections: number };
+export type ColumnBindingParse = { ok: true; value: ColumnSeen } | { ok: false; fields: Record<string, string> };
+const WHOLE = /^(?:0|[1-9][0-9]{0,8})$/;
+/// The one place the posted column revision is read: each field once, a whole number. Pure; the caller hands it the form's values.
+export function parseColumnBinding(get: (name: string) => unknown[]): ColumnBindingParse {
+  const fields: Record<string, string> = {};
+  const value: Partial<ColumnSeen> = {};
+  for (const k of COLUMN_BINDING_FIELDS) {
+    const all = get(k);
+    if (all.length === 0) fields[k] = "Required: read the column again.";
+    else if (all.length > 1) fields[k] = "Send this field once.";
+    else if (typeof all[0] !== "string" || !WHOLE.test(all[0])) fields[k] = "Not a valid number.";
+    else value[k] = Number(all[0]);
+  }
+  return Object.keys(fields).length > 0 ? { ok: false, fields } : { ok: true, value: value as ColumnSeen };
+}
+
+export type ColumnBindingFault = "COLUMN_CHANGED";
+/// The column moved since the officer opened it: its revision or its as-read corrections differ from what the screen showed.
+export function columnBindingFaults(i: { seen: ColumnSeen; current: ColumnFacts }): Finding<ColumnBindingFault>[] {
+  return i.seen.columnRevision === i.current.columnRevision && i.seen.asReadCorrections === i.current.asReadCorrections ? [] : [{ code: "COLUMN_CHANGED", level: "block" }];
+}
+
+export const MATRIX_FAULT_TEXT: Readonly<Record<CellAnswerFault | MatrixActorFault | ConfirmFault | ColumnBindingFault, string>> = {
+  COLUMN_CHANGED: "The column changed after you opened it. Nothing was saved: reload the page to read the column again, then confirm or decide.",
   NO_FILE_RECEIVED: "No file was received for this part, so it cannot be recorded as present. Record it as absent or not applicable.",
   ADMINISTRATOR: "An administrator account does not answer, decide or confirm anything at an opening.",
   NOT_A_NAMED_OFFICER: "Only the named opening officers present at this opening record its answers, decisions and confirmations, and only for an officer present at it.",
@@ -189,6 +215,15 @@ export const addendumCellText = (acknowledgedOn: string | null): string => (ackn
 
 /// The addendum cell's line for a reader from whom the day is held until finalising (20c, 20cm): the day could be matched against the acknowledgement register to name the column.
 export const ADDENDUM_DAY_HELD_TEXT = "The acknowledgement day is shown to the named opening officers until the opening is finalised";
+
+/// An online column whose bid has no digest on the roll frozen at the start says so, never a blank.
+export const NO_RECEIPT_DIGEST_TEXT = "No receipt digest on the roll";
+/// Before finalising, a reader who is not a named officer is given neither the receipt digest (a supplier holds the same digest on its receipt, so it would name the column) nor the officer's free-text reason (plan §1.4, 20c, 20cm).
+export const RECEIPT_DIGEST_HELD_TEXT = "Held until the opening is finalised";
+export const REASON_HELD_TEXT = "The reason is held until the opening is finalised";
+
+/// The Decision row's sub-line (plan §1.1): the decision is not final until every named officer has confirmed the column.
+export const DECISION_STANDS_WORDS = "Stands when every named officer has confirmed this column";
 
 /// Step 5: the confirmations row's status, in staff words. Never "approved" or "passed": a confirmation is each officer's initial on the column as it stands (ruling 22).
 export const COLUMN_STATUS_TEXT: Readonly<Record<ColumnStatus, string>> = {

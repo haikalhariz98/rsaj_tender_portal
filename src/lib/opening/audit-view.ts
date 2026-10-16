@@ -129,7 +129,12 @@ export const verdictFields = (v: { verdict: OpeningVerdict | null; reason: strin
   missing: v.missing.length ? v.missing.join(", ") : null,
 });
 
-export const initialFields = (i: { person: string; listingNo: number; at: Date }, tz: string | null) => ({ initialledBy: i.person, offer: `No. ${i.listingNo}`, at: stamp(i.at, tz) });
+/// A confirmation names the column revision and the decision it was given on (ruling 22), so a dispute over what an officer confirmed can be settled from the trail.
+export const initialFields = (i: { person: string; listingNo: number; at: Date; revision: number; decision: OpeningVerdict | null }, tz: string | null) => ({ initialledBy: i.person, offer: `No. ${i.listingNo}`, at: stamp(i.at, tz), columnRevision: String(i.revision), decision: i.decision ? VERDICT_LABEL[i.decision] : null });
+
+/// What a renewed confirmation replaces, by the cause: an as-read correction since it was taken, or a change of answers or decision (the column's revision moved).
+export const renewedBefore = (was: { correctionNo: number; columnRevision: number }, column: { asReadCorrections: number; columnRevision: number }): string =>
+  was.correctionNo !== column.asReadCorrections ? "Before the correction" : `Before a change of answers or decision (revision ${was.columnRevision}, now ${column.columnRevision})`;
 export const signatureFields = (s: { person: string; signedOn: string; seat?: string | null }) => ({ signedBy: s.person, ...(s.seat !== undefined ? { inTheSeatOf: s.seat } : {}), signedOn: formatDate(s.signedOn) });
 
 export function finaliseFields(f: { at: Date; by: string; pages: number; rows: number; copy: CopyCheck | null; paper: Sen | null; lodged: Sen | null; disclosed: boolean }, tz: string | null) {

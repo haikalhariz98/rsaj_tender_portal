@@ -117,7 +117,7 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
         return (
           <span className="flex flex-wrap items-center justify-end gap-1">
             {/* SR-14: the checklist, the decision and the confirmations are the matrix's. A paper initial may still be recorded on behalf of a present member (3c-Q3); an online one may not. */}
-            {!o.online && b.initialFor.map((p) => <InitialDrawer key={p.personId} exerciseId={exerciseId} bid={bid} person={{ id: p.personId, name: p.name }} allowed={p.allowed} />)}
+            {!o.online && b.initialFor.map((p) => <InitialDrawer key={p.personId} exerciseId={exerciseId} bid={bid} column={b} person={{ id: p.personId, name: p.name }} allowed={p.allowed} />)}
             <CorrectAsReadDrawer exerciseId={exerciseId} bid={bid} values={b.correctValues} allowed={b.record} />
             {b.alternativeInside?.allowed && <AlternativeInsideDrawer exerciseId={exerciseId} bid={bid} allowed={b.alternativeInside} />}
           </span>

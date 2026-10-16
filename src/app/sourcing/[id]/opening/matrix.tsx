@@ -10,8 +10,8 @@ import { Toggle } from "@/components/ui/toggle";
 import { RecordEditor, EMPTY_FORM_STATE } from "@/components/record-editor";
 import { Blocked } from "@/components/ui/blocked";
 import { buttonClass } from "@/components/ui/button";
-import { ADDENDUM_DAY_HELD_TEXT, addendumCellText, CELL_WORDS, cellAnswerFaults, COLUMN_STATUS_TEXT, EMPTY_TALLY_TEXT, MATRIX_FAULT_TEXT } from "@/lib/opening/matrix";
-import { FILED_FILE_FIELDS, NOT_FILED_YET_WORDS } from "@/lib/opening/filed-file";
+import { ADDENDUM_DAY_HELD_TEXT, addendumCellText, CELL_WORDS, cellAnswerFaults, COLUMN_STATUS_TEXT, DECISION_STANDS_WORDS, EMPTY_TALLY_TEXT, MATRIX_FAULT_TEXT, NO_RECEIPT_DIGEST_TEXT, RECEIPT_DIGEST_HELD_TEXT } from "@/lib/opening/matrix";
+import { FILED_FILE_FALLBACK_WORDS, FILED_FILE_FIELDS, NOT_FILED_YET_WORDS } from "@/lib/opening/filed-file";
 import type { MatrixCell, MatrixView } from "@/lib/opening/matrix-read";
 import { blocking, type ChecklistAnswer } from "@/lib/opening/types";
 
@@ -79,19 +79,41 @@ function AnswerControl({ exerciseId, col, cell, label, rowLabel, disabled }: { e
   );
 }
 
-/// The filed copy of an opening-check file, after finalising: a plain form post, so the browser follows the route's redirect to the document version (and its SULIT entitlement).
-function FiledFileForm({ exerciseId, openingId, fileId, label, sha }: { exerciseId: string; openingId: string; fileId: string; label: string; sha: string | null }) {
-  const values: Record<(typeof FILED_FILE_FIELDS)[number], string> = { exerciseId, openingId, fileId };
+/// The filed copy of an opening-check file, after finalising. The route files the file if the post-commit move has not yet, and answers a request that accepts JSON with the document's address (a form
+/// post would land the officer on the route's raw refusal). A refusal is shown here in the route's words, beside the control, and the officer is sent to the document only when there is one.
+function FiledFileDownload({ exerciseId, openingId, fileId, label, sha }: { exerciseId: string; openingId: string; fileId: string; label: string; sha: string | null }) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const go = async () => {
+    if (busy) return;
+    setBusy(true);
+    setProblem(null);
+    const body = new FormData();
+    const values: Record<(typeof FILED_FILE_FIELDS)[number], string> = { exerciseId, openingId, fileId };
+    for (const k of FILED_FILE_FIELDS) body.set(k, values[k]);
+    try {
+      const res = await fetch("/api/opening/filed-file", { method: "POST", headers: { accept: "application/json" }, body, credentials: "same-origin", cache: "no-store" });
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; location?: unknown; message?: unknown } | null;
+      if (res.ok && json?.ok && typeof json.location === "string" && json.location.startsWith("/api/documents/versions/")) window.location.assign(json.location);
+      else setProblem(typeof json?.message === "string" && json.message ? json.message : FILED_FILE_FALLBACK_WORDS);
+    } catch {
+      setProblem(FILED_FILE_FALLBACK_WORDS);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <form method="post" action="/api/opening/filed-file" className="flex flex-col items-start gap-1">
-      {FILED_FILE_FIELDS.map((k) => (
-        <input key={k} type="hidden" name={k} value={values[k]} />
-      ))}
-      <button type="submit" className={buttonClass("ghost", "sm")} aria-label={`Download ${label}`}>
+    <div className="flex flex-col items-start gap-1">
+      <button type="button" className={buttonClass("ghost", "sm")} aria-label={`Download ${label}`} disabled={busy} onClick={go}>
         Download
       </button>
       {sha && <span className="font-mono text-[11px] break-all text-ink-3">{`SHA-256 ${sha}`}</span>}
-    </form>
+      {problem && (
+        <span role="alert" className="text-[12px] font-semibold text-rose-700">
+          {problem}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -116,7 +138,10 @@ function CellBody({ exerciseId, openingId, view, col, cell, rowLabel }: { exerci
             {cell.fileIds.map((fileId, i) => {
               const filed = cell.filed.find((f) => f.fileId === fileId);
               const fileLabel = cell.fileIds.length > 1 ? `${label}, file ${i + 1}` : label;
-              return finalised ? <FiledFileForm key={fileId} exerciseId={exerciseId} openingId={openingId} fileId={fileId} label={fileLabel} sha={filed?.plainSha256 ?? null} /> : <SealedFileDownload key={fileId} openingId={openingId} fileId={fileId} label={fileLabel} />;
+              if (!finalised) return <SealedFileDownload key={fileId} openingId={openingId} fileId={fileId} label={fileLabel} />;
+              // A file that cannot be filed says why, in place of a control that would only be refused (20cl).
+              if (!filed?.versionId && view.filingBlocked) return <Blocked key={fileId} label="Download" reason={view.filingBlocked} ariaLabel={`Download ${fileLabel}`} />;
+              return <FiledFileDownload key={fileId} exerciseId={exerciseId} openingId={openingId} fileId={fileId} label={fileLabel} sha={filed?.plainSha256 ?? null} />;
             })}
           </div>
         );
@@ -148,7 +173,7 @@ function CellBody({ exerciseId, openingId, view, col, cell, rowLabel }: { exerci
 }
 
 const DOT_FOR: Record<"confirmed" | "awaiting" | "stale", Tone> = { confirmed: "ok", awaiting: "neutral", stale: "warn" };
-const DOT_WORDS: Record<"confirmed" | "awaiting" | "stale", string> = { confirmed: "confirmed", awaiting: "to confirm", stale: "must confirm again" };
+const DOT_WORDS: Record<"confirmed" | "awaiting" | "stale", string> = { confirmed: "confirmed", awaiting: "to confirm", stale: "confirmed before a change: confirm again" };
 
 function Confirmations({ exerciseId, col, viewer }: { exerciseId: string; col: Col; viewer: { personId: string; name: string } }) {
   const c = col.confirmation;
@@ -170,7 +195,7 @@ function Confirmations({ exerciseId, col, viewer }: { exerciseId: string; col: C
           </li>
         ))}
       </ul>
-      {c.mine && (c.mine.allowed ? <InitialDrawer exerciseId={exerciseId} bid={{ id: col.openedBidId, listingNo: col.listingNo }} person={{ id: viewer.personId, name: viewer.name }} allowed={c.mine} own /> : <Blocked label="Confirm this column" reason={c.mine.reason} ariaLabel={`Confirm the column of No. ${col.listingNo}`} />)}
+      {c.mine && (c.mine.allowed ? <InitialDrawer exerciseId={exerciseId} bid={{ id: col.openedBidId, listingNo: col.listingNo }} column={col} person={{ id: viewer.personId, name: viewer.name }} allowed={c.mine} own /> : <Blocked label="Confirm this column" reason={c.mine.reason} ariaLabel={`Confirm the column of No. ${col.listingNo}`} />)}
     </div>
   );
 }
@@ -187,8 +212,8 @@ function Decision({ exerciseId, col, aids, notes }: { exerciseId: string; col: C
         {col.pass.allowed ? (
           <RecordEditor
             title={`Carry No. ${col.listingNo} to evaluation`}
-            fields={[{ kind: "hidden", name: "exerciseId" }, { kind: "hidden", name: "openedBidId" }, { kind: "hidden", name: "verdict" }]}
-            values={{ exerciseId, openedBidId: col.openedBidId, verdict: "PASS" }}
+            fields={[{ kind: "hidden", name: "exerciseId" }, { kind: "hidden", name: "openedBidId" }, { kind: "hidden", name: "verdict" }, { kind: "hidden", name: "columnRevision" }, { kind: "hidden", name: "asReadCorrections" }]}
+            values={{ exerciseId, openedBidId: col.openedBidId, verdict: "PASS", columnRevision: String(col.columnRevision), asReadCorrections: String(col.asReadCorrections) }}
             action={recordVerdict}
             submitLabel="Carry to evaluation"
             trigger={{ label: "Pass", className: buttonClass("secondary", "sm"), ariaLabel: `Carry No. ${col.listingNo} to evaluation` }}
@@ -198,7 +223,7 @@ function Decision({ exerciseId, col, aids, notes }: { exerciseId: string; col: C
           <Blocked label="Pass" reason={col.pass.reason} noteId={notes.get(col.pass.reason)} ariaLabel={`Carry No. ${col.listingNo} to evaluation`} />
         )}
         {col.reject.allowed && aids ? (
-          <VerdictDrawer exerciseId={exerciseId} bid={bid} options={aids.options.filter((o) => o.value === "REJECT")} grounds={aids.grounds} reported={aids.reported} allowed={col.reject} />
+          <VerdictDrawer exerciseId={exerciseId} bid={bid} column={col} options={aids.options.filter((o) => o.value === "REJECT")} grounds={aids.grounds} reported={aids.reported} allowed={col.reject} />
         ) : (
           <Blocked label="Reject" reason={col.reject.allowed ? "The grounds for this offer are not available." : col.reject.reason} noteId={notes.get(col.reject.allowed ? "The grounds for this offer are not available." : col.reject.reason)} ariaLabel={`Do not carry No. ${col.listingNo}`} />
         )}
@@ -215,7 +240,7 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
         <span className="text-[13.5px] font-semibold break-words text-ink">{`No. ${c.listingNo} of ${c.of}`}</span>
         <span className="text-[12.5px] font-normal break-words text-ink-2">{c.bidder}</span>
         {c.alternativeOf != null && <span className="text-[12px] font-normal text-ink-3">{`Alternative to No. ${c.alternativeOf}`}</span>}
-        {view.online && <span className="font-mono text-[11px] font-normal break-all text-ink-3">{c.receiptDigest ?? "No receipt digest on the roll"}</span>}
+        {view.online && <span className="font-mono text-[11px] font-normal break-all text-ink-3">{view.namesHeld ? RECEIPT_DIGEST_HELD_TEXT : (c.receiptDigest ?? NO_RECEIPT_DIGEST_TEXT)}</span>}
       </div>
     ),
   }));
@@ -257,7 +282,7 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
         ]),
       ),
     },
-    { key: "~decision", summary: true, head: "Decision", cells: Object.fromEntries(view.columns.map((c) => [c.openedBidId, <Decision key="d" exerciseId={exerciseId} col={c} aids={verdicts[c.openedBidId]} notes={sharedNotes} />])) },
+    { key: "~decision", summary: true, head: <span className="flex flex-col items-start gap-1"><span>Decision</span><span className="text-[12px] font-normal normal-case text-ink-3">{DECISION_STANDS_WORDS}</span></span>, cells: Object.fromEntries(view.columns.map((c) => [c.openedBidId, <Decision key="d" exerciseId={exerciseId} col={c} aids={verdicts[c.openedBidId]} notes={sharedNotes} />])) },
     { key: "~confirm", summary: true, head: "Confirmations", cells: Object.fromEntries(view.columns.map((c) => [c.openedBidId, <Confirmations key="c" exerciseId={exerciseId} col={c} viewer={viewer} />])) },
   ];
   return (
