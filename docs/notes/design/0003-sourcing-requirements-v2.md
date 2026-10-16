@@ -2093,3 +2093,21 @@ code is owed and whether it belongs to wave 3c or the backlog. Questions already
       - 20ch;
       - 20ci (a);
       - the mover's scheduler (20by).
+
+20cl. **20br, 20by, 20bv and 20ck made precise.** (Close-out review, 2026-10-17.)
+    - **20br: the demo's 20bi test stops skipping.** On a day the load falls back to paper, it asserts what the load did: the channel
+      reads PAPER, no `OnlineBid` exists, and the fallback reason was given in words. That is a real assertion, a strengthening and not
+      a weakening. It overlaps its sibling's, which is acceptable. A day guard that skips is not kept as "a check of the demonstration",
+      because the founder approves no skipped test.
+    - **20br: the deterministic test's calendar.** Weekend days are configuration (`weekendDays`, shipped empty), so the fixture's
+      calendar can make the test day a working day without setting any row the editor could not.
+    - **20br: its reason.** 20br stands on the skipped-test rule alone. Wave 3c's checklist tests may reuse
+      `online-finalise.db.test.ts`'s `unsealed` helper rather than this fixture.
+    - **20by, corrected.** After finalising, the sealed route refuses a cell download (`downloadFaults`: `FINALISED_USE_DOCUMENTS`).
+      Wave 3c's SR-14 matrix stays on screen after finalising, so each cell there downloads the filed document, and that reader calls
+      `ensureFileMoved` first. That is the reader step 15 built it for. A file that cannot be filed yet shows words saying so, never a dead
+      or missing control. The scheduler decision is unchanged.
+    - **20bv.** No step 20 report was found under `docs/notes` (the only review file, `cloud-build/local-review.md`, is not it), so the
+      walk itself is owed, not only its log line.
+    - **20ck.** The referral of k-of-m to the founder is 20k's, in plan section 4. 20ay and 20az reaffirm it.
+    - **Code:** wave 3c (the demo test's fallback assertion, and the post-finalise cell's `ensureFileMoved`). The rest are documents only.
