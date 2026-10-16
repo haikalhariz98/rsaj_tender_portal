@@ -97,7 +97,8 @@ describe("the scan finds what it should", () => {
     // and a supplier whose purchase is released downloads its files and texts from a portal route (asks the portal's guard first), so 36.
     // Changed for wave 3b step 9 (SR-13, plan section 1.5): a bid part is uploaded and discarded through two portal route handlers (each asks the portal's guard first), so 38.
     // Changed for wave 3b step 10 (SR-13, plan section 1.5): a sealed bid is submitted and withdrawn through two more portal route handlers (each asks the portal's guard first), so 40.
-    expect(ROUTE_FILES.length).toBe(40);
+    // Changed for wave 3b step 14 (SR-14, ADR 0036 D10): the officer's download of a sealed file at the opening check is a staff route handler (it asks who is signed in first), so 41.
+    expect(ROUTE_FILES.length).toBe(41);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });

@@ -49,7 +49,7 @@ async function countWrong(organisationId: string, officerKeyId: string, now: Dat
   });
 }
 
-export async function unlockOwnKey(i: { organisationId: string; exerciseId: string; personId: string; passphrase: string; kind: "AUTHORISE" | "UNLOCK_CHECK"; now: Date; recordId?: string | null }): Promise<Unlocked> {
+export async function unlockOwnKey(i: { organisationId: string; exerciseId: string; personId: string; passphrase: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD"; now: Date; recordId?: string | null }): Promise<Unlocked> {
   const refuse = async (reason: UnlockRefusal, extra: { nowLocked?: boolean } = {}): Promise<Unlocked> => {
     await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, staffPersonId: i.personId, reasonCode: reason, recordId: i.recordId });
     return { ok: false, reason, ...extra };

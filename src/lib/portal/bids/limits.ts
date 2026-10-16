@@ -10,7 +10,7 @@
  * If a customer ever needs these to differ, that is a decision to propose, not to infer.
  */
 
-export type RatedAction = "document-download" | "payment-attempt" | "bid-part-upload" | "bid-submit" | "bid-withdraw";
+export type RatedAction = "document-download" | "payment-attempt" | "bid-part-upload" | "bid-submit" | "bid-withdraw" | "officer-sealed-download";
 
 export const RATE_LIMITS: Readonly<Record<RatedAction, { limit: number; windowSeconds: number }>> = {
   "document-download": { limit: 60, windowSeconds: 60 },
@@ -21,6 +21,10 @@ export const RATE_LIMITS: Readonly<Record<RatedAction, { limit: number; windowSe
   // person and far below a script. A refused try counts, so a script cannot probe the password or the doors faster than this.
   "bid-submit": { limit: 10, windowSeconds: 60 },
   "bid-withdraw": { limit: 10, windowSeconds: 60 },
+  // Wave 3b step 14 (20e, 20w): an officer downloads the opening-check files of each bid (three or so a bidder), each time typing the sign-in password and the passphrase, so a person
+  // manages a few a minute. 20 a minute is far above that and far below a script; the count is taken before any password or passphrase is tried, so it also bounds guessing. A refused try counts.
+  // The counter is keyed by the staff account, which is the throttle's "account" for this action.
+  "officer-sealed-download": { limit: 20, windowSeconds: 60 },
 };
 
 /// The start of the fixed window a moment falls in: counting is by fixed window, so a counter row is one per account, action and window.
@@ -43,7 +47,7 @@ export function rateVerdict(action: RatedAction, count: number, now: Date): Rate
 export const RATE_ROW_KEEP_SECONDS = 24 * 60 * 60;
 
 /// The bid actions' rate words are bilingual (`PART_ROUTE_WORDS`, `ACT_ROUTE_WORDS` in `lib/bids/online/words.ts`); only the actions without a Malay screen are here.
-export const RATE_LIMITED_WORDS: Readonly<Record<Exclude<RatedAction, "bid-part-upload" | "bid-submit" | "bid-withdraw">, string>> = {
+export const RATE_LIMITED_WORDS: Readonly<Record<Exclude<RatedAction, "bid-part-upload" | "bid-submit" | "bid-withdraw" | "officer-sealed-download">, string>> = {
   "document-download": "You have asked for a great many files in the last minute, so this one was not sent. Nothing was logged. Wait a minute and try again.",
   "payment-attempt": "You have tried to pay too many times in the last minute. Nothing was recorded. Wait a minute and try again.",
 };

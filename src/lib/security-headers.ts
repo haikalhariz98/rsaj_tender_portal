@@ -25,6 +25,7 @@ export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
 export function headerRules(): { source: string; headers: { key: string; value: string }[] }[] {
   return [
     { source: "/:path*", headers: SECURITY_HEADERS.map((h) => ({ ...h })) },
+    { source: "/api/opening/sealed-file", headers: [{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }] },
     { source: "/api/documents/versions/:path*", headers: [{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }] },
   ];
 }

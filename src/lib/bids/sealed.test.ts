@@ -250,6 +250,7 @@ const MAY_SELECT_IDENTITY: Readonly<Record<string, string>> = {
 const SELECTS_NO_IDENTITY: Readonly<Record<string, string>> = {
   "src/lib/bids/online/audit-scope-store.ts": "step 12: reads an id and an exercise from the online tables to find which exercise an audit row belongs to",
   "src/lib/sealing/store.ts": "the key ceremony: logs staff acts on the access-event table and reads the keys, never a bid",
+  "src/lib/opening/sealed-file-store.ts": "step 14: the officer's download reads a file's ciphertext address and its bid's status by the file's id at an opening, through the grant sealed to the officer's own key, and names no supplier, account or submitter",
   "src/lib/sealing/unlock-store.ts": "step 13: logs an officer's attempts at their own key on the access-event table, by the staff person, and reads the officer's key, never a bid",
 };
 

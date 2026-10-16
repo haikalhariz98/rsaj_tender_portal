@@ -35,4 +35,8 @@ describe("the rules handed to Next", () => {
     expect(DOWNLOAD_POLICY).toMatch(/\bsandbox\b/);
     expect(DOWNLOAD_POLICY).toMatch(/frame-ancestors 'self'/);
   });
+  it("give the officer's sealed-file download the same strict policy (wave 3b step 14)", () => {
+    const rule = headerRules().find((r) => r.source === "/api/opening/sealed-file");
+    expect(rule?.headers).toEqual([{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }]);
+  });
 });

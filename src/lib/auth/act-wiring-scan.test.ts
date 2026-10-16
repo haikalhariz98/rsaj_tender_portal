@@ -76,6 +76,11 @@ function wiredSlots(): Map<string, string[]> {
 const WIRED = wiredSlots();
 const KEYS = ACT_SLOTS.map((s) => slotKey(s.entity, s.field));
 
+/// Entry points that begin an act only to have the sign-in password asked again, and write no attribution (nothing is signed). Each says why, and the scan below holds them to never calling `write`.
+const PASSWORD_CHECK_ONLY: Readonly<Record<string, string>> = {
+  "src/app/api/opening/sealed-file/route.ts": "wave 3b step 14 (ADR 0036 D4, ruling 20n): the officer's download asks the sign-in password every time, as checkUnlock does, and signs nothing; its record is the sealed access log",
+};
+
 describe("every person slot of an act is written through beginAct, or is on the list of what is not", () => {
   it("each slot is wired, or has no act yet", () => {
     const accounted = new Set([...WIRED.keys(), ...Object.keys(NOT_BUILT)]);
@@ -103,6 +108,11 @@ describe("every person slot of an act is written through beginAct, or is on the 
     for (const [key, files] of WIRED) {
       for (const file of new Set(files)) {
         const text = FILES.find((f) => f.file === file)!.text;
+        if (file in PASSWORD_CHECK_ONLY) {
+          expect(PASSWORD_CHECK_ONLY[file].length, file).toBeGreaterThan(40);
+          expect(/\bact\.write(?:Also)?\(/.test(text), `${file} writes an attribution`).toBe(false);
+          continue;
+        }
         const writesItself = /\.(?:write|writeAlso)\(\s*(?:\w+\.)?(?:tx|t|trx)\b/.test(text);
         const handsItOn = /[,{(]\s*act\s*[,})]|\bact:\s*\w+|\bact,/.test(text.replace(/const act = begun\.act;/g, ""));
         if (!writesItself && !handsItOn) wrong.push(`${key}: ${file} neither writes the attribution in a transaction nor hands the act to a writer`);
