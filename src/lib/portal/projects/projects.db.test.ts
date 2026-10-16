@@ -7,7 +7,8 @@ import type { SupplierActor } from "@/lib/auth/types";
 import type { CertificateKind } from "@/lib/certificate/types";
 import { db } from "@/lib/db";
 import { facts, makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
-import { dayPlus, todayIn } from "@/lib/dates";
+import { contractDocumentFacts } from "@/lib/certificate/register";
+import { dayPlus, dayToDate, todayIn } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 
 import { loadBoard } from "./announcement-store";
@@ -513,6 +514,35 @@ describe("the review queue's counts are the whole register's (4e review fix)", (
     const q = await loadReviewQueue(db, organisationId, today);
     expect(q.waiting.total).toBe(after.waiting);
     expect(q.overdue).toBe(after.overdue);
+  });
+});
+
+describe("the queue's scope (AC-16, FR-MTD-007)", () => {
+  it("a contract's tab reads only its own submissions, and a restricted exercise's are left out of the organisation-wide view", async () => {
+    const h = await supplier();
+    const mine = await contract({ vendorId: h.supplierId });
+    const restricted = await contract({ vendorId: h.supplierId });
+    const mk = (contractId: string) => db.contractorSubmission.create({ data: { organisationId, contractId, supplierId: h.supplierId, kind: "WORK_PROGRAMME", title: "x", body: "x", submittedBySupplierAccountId: h.accountId, submittedAt: new Date(), submittedOn: dayToDate(today), serviceLevelDays: 1, dueOn: dayToDate(dayPlus(today, -1)) } });
+    await mk(mine.id);
+    await mk(restricted.id);
+    const own = await loadReviewQueue(db, organisationId, today, {}, { contractId: mine.id });
+    expect(own.waiting.rows.map((r) => r.contractId)).toEqual([mine.id]);
+    expect(own.overdue).toBe(1);
+    expect((await reviewCounts(db, organisationId, today, { contractId: mine.id })).waiting).toBe(1);
+    const all = await loadReviewQueue(db, organisationId, today, { waiting: "999999" });
+    const hidden = await loadReviewQueue(db, organisationId, today, { waiting: "999999" }, { hidden: [restricted.exerciseId] });
+    expect(all.waiting.total - hidden.waiting.total).toBe(1);
+    expect(hidden.waiting.rows.some((r) => r.contractId === restricted.id)).toBe(false);
+    expect((await reviewCounts(db, organisationId, today, { hidden: [restricted.exerciseId] })).waiting).toBe(hidden.waiting.total);
+  });
+});
+
+describe("a contract's Documents tab counts (AC-16)", () => {
+  it("a contract with no certificate has no copy unsent and no sheet open, and the tab links to nothing; a zone not set judges no sheet late", async () => {
+    const c = await contract({ vendorId: null });
+    const facts = await contractDocumentFacts(organisationId, c.id, today);
+    expect(facts).toEqual({ notSent: 0, firstUnsentCertificateId: null, sheetsOpen: 0, overTarget: 0, firstOpenCertificateId: null });
+    expect((await contractDocumentFacts(organisationId, c.id, null)).overTarget).toBeNull();
   });
 });
 

@@ -248,7 +248,6 @@ export async function saveSubmissionServiceLevel(_prev: FormState, data: FormDat
       if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "ContractorSubmissionSetting", entityId: row.id, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
     }
     revalidatePath(PATH);
-    revalidatePath("/documents");
     return { ok: true };
   });
 }

@@ -197,8 +197,8 @@ const sheetSelect = {
  * Every open sheet on a contract not cancelled, drawn and judged over the whole set, in the register's order (code
  * review S-1, residual): the counts every tab's header and warning read, and the list the Routing sheets tab pages.
  */
-export async function openSheetsJudged(organisationId: string, today: string) {
-  const certs = await db.certificate.findMany({ where: openSheetsWhere(organisationId, false), select: sheetSelect });
+export async function openSheetsJudged(organisationId: string, today: string, contractId?: string) {
+  const certs = await db.certificate.findMany({ where: { ...openSheetsWhere(organisationId, false), ...(contractId ? { contractId } : {}) }, select: sheetSelect });
   const sheets = certs
     .map((c) => ({ c, sheet: sheetOf(c, today) }))
     .filter((x): x is { c: (typeof certs)[number]; sheet: NonNullable<ReturnType<typeof sheetOf>> } => x.sheet != null)
@@ -211,4 +211,25 @@ export function routingSheetsPage(judged: Awaited<ReturnType<typeof openSheetsJu
   const { sheets, counts } = judged;
   const page = pageOf(askedPage, sheets.length, SHEETS_PAGE);
   return { rows: sheets.slice(page * SHEETS_PAGE, (page + 1) * SHEETS_PAGE), total: sheets.length, page, counts };
+}
+
+/// One contract's Documents tab header (AC-16): the copies still not sent and the routing sheets still open, each with the first certificate to go to. The sheets are judged against
+/// the target only where the day is known (`today` null: the time zone is not set, so overTarget is null and nothing is called late).
+export async function contractDocumentFacts(organisationId: string, contractId: string, today: string | null) {
+  // The register's own "issued, on a contract not cancelled" reading (`issuedCopiesWhere`), narrowed to the contract.
+  const unsent = { organisationId, certificate: { status: "ISSUED" as const, contractId, contract: { status: { not: "CANCELLED" as const } } }, recalledOn: null, despatchedOn: null };
+  const [notSent, firstUnsent, judged, open, firstOpen] = await Promise.all([
+    db.issuedCopy.count({ where: unsent }),
+    db.issuedCopy.findFirst({ where: unsent, orderBy: [{ certificate: { issuedAt: "asc" } }, { copyNo: "asc" }], select: { certificateId: true } }),
+    today ? openSheetsJudged(organisationId, today, contractId) : Promise.resolve(null),
+    db.certificate.count({ where: { ...openSheetsWhere(organisationId, false), contractId } }),
+    db.certificate.findFirst({ where: { ...openSheetsWhere(organisationId, false), contractId }, orderBy: [{ routingReceivedOn: "asc" }, { id: "asc" }], select: { id: true } }),
+  ]);
+  return {
+    notSent,
+    firstUnsentCertificateId: firstUnsent?.certificateId ?? null,
+    sheetsOpen: judged ? judged.counts.open : open,
+    overTarget: judged ? judged.counts.overTarget : null,
+    firstOpenCertificateId: judged?.sheets[0]?.c.id ?? firstOpen?.id ?? null,
+  };
 }

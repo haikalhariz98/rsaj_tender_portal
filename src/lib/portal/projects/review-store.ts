@@ -8,7 +8,7 @@ import { serviceState, type ServiceState } from "./submission";
 import type { SubmissionKind, SubmissionOutcome } from "./types";
 
 /**
- * The review queue of contractors' submissions, as the officers read it on the Documents register (6.14 OD-6, BD-614-31; Phase 4e): every submission of the organisation, the ones
+ * The review queue of contractors' submissions, as the officers read it on the Contracts list's "Submissions waiting" view and each contract's Submissions tab (AC-16; first the Documents register, 6.14 OD-6, BD-614-31; Phase 4e): every submission of the organisation, the ones
  * waiting (the longest waiting at the top) and the ones answered, each list paged in the database, each against its service level. Reads only, in the caller's client, for one organisation. The amount claimed is the contractor's own
  * figure on its own claim, shown to the officers who answer it; nothing here is a SULIT estimate.
  */
@@ -40,13 +40,26 @@ export const REVIEW_PAGE = 50;
 
 const KINDS: SubmissionKind[] = ["WORK_PROGRAMME", "INTERIM_CLAIM", "MATERIALS_ON_SITE", "DELAY_NOTICE", "DEFECTS_RECTIFIED", "STATUTORY_DECLARATION"];
 
+/// Which submissions a read covers (AC-16): one contract's, and/or not those of a restricted exercise the reader is not named on (FR-MTD-007; `hidden` is `hiddenExercises`' answer).
+export interface ReviewScope {
+  contractId?: string;
+  hidden?: readonly string[];
+}
+
+const scopeWhere = (organisationId: string, scope: ReviewScope) => ({
+  organisationId,
+  ...(scope.contractId ? { contractId: scope.contractId } : {}),
+  ...(scope.hidden?.length ? { contract: { award: { exerciseId: { notIn: [...scope.hidden] } } } } : {}),
+});
+
 /// The queue's counts, from the whole register by count queries (never from a page): waiting, and overdue (waiting past its due day, as `serviceState` reads it: due on the day is not
 /// overdue). No day (the time zone not set): nothing is judged overdue.
-export async function reviewCounts(client: Tx, organisationId: string, today: string | null): Promise<{ waiting: number; overdue: number; answered: number }> {
+export async function reviewCounts(client: Tx, organisationId: string, today: string | null, scope: ReviewScope = {}): Promise<{ waiting: number; overdue: number; answered: number }> {
+  const base = scopeWhere(organisationId, scope);
   const [waiting, overdue, answered] = await Promise.all([
-    client.contractorSubmission.count({ where: { organisationId, outcome: null } }),
-    today ? client.contractorSubmission.count({ where: { organisationId, outcome: null, dueOn: { lt: dayToDate(today) } } }) : Promise.resolve(0),
-    client.contractorSubmission.count({ where: { organisationId, outcome: { not: null } } }),
+    client.contractorSubmission.count({ where: { ...base, outcome: null } }),
+    today ? client.contractorSubmission.count({ where: { ...base, outcome: null, dueOn: { lt: dayToDate(today) } } }) : Promise.resolve(0),
+    client.contractorSubmission.count({ where: { ...base, outcome: { not: null } } }),
   ]);
   return { waiting, overdue, answered };
 }
@@ -61,14 +74,15 @@ export interface ReviewQueue {
 }
 
 /// The queue as the officers read it: each list paged in the database (4e review fix: it was one capped read, and the counts came from the cap).
-export async function loadReviewQueue(client: Tx, organisationId: string, today: string | null, pages: { waiting?: string; answered?: string } = {}): Promise<ReviewQueue> {
-  const [counts, settings] = await Promise.all([reviewCounts(client, organisationId, today), client.contractorSubmissionSetting.findMany({ where: { organisationId }, select: { kind: true, serviceLevelDays: true } })]);
+export async function loadReviewQueue(client: Tx, organisationId: string, today: string | null, pages: { waiting?: string; answered?: string } = {}, scope: ReviewScope = {}): Promise<ReviewQueue> {
+  const [counts, settings] = await Promise.all([reviewCounts(client, organisationId, today, scope), client.contractorSubmissionSetting.findMany({ where: { organisationId }, select: { kind: true, serviceLevelDays: true } })]);
   const waitingPage = pageOf(pages.waiting, counts.waiting, REVIEW_PAGE);
   const answeredPage = pageOf(pages.answered, counts.answered, REVIEW_PAGE);
+  const base = scopeWhere(organisationId, scope);
   const include = { contract: { select: { number: true, award: { select: { awardeeName: true } } } }, decidedBy: { select: { name: true } }, lines: { orderBy: { sortOrder: "asc" as const } } };
   const [waitingRows, answeredRows] = await Promise.all([
-    client.contractorSubmission.findMany({ where: { organisationId, outcome: null }, orderBy: [{ submittedAt: "asc" }, { id: "asc" }], skip: waitingPage * REVIEW_PAGE, take: REVIEW_PAGE, include }),
-    client.contractorSubmission.findMany({ where: { organisationId, outcome: { not: null } }, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], skip: answeredPage * REVIEW_PAGE, take: REVIEW_PAGE, include }),
+    client.contractorSubmission.findMany({ where: { ...base, outcome: null }, orderBy: [{ submittedAt: "asc" }, { id: "asc" }], skip: waitingPage * REVIEW_PAGE, take: REVIEW_PAGE, include }),
+    client.contractorSubmission.findMany({ where: { ...base, outcome: { not: null } }, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], skip: answeredPage * REVIEW_PAGE, take: REVIEW_PAGE, include }),
   ]);
   const set = new Set(settings.filter((s) => s.serviceLevelDays != null).map((s) => s.kind as SubmissionKind));
   const view = (r: (typeof waitingRows)[number]): ReviewRow => {

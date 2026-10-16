@@ -21,7 +21,7 @@ const ROUTES = [
   "/sourcing",
   "/projects",
   "/suppliers",
-  "/documents",
+  // "/documents" is a permanent redirect to /projects (MN-02, AC-16): no screen of its own.
   "/supplier",
   "/supplier/opportunities",
   "/supplier/bids",

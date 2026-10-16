@@ -137,7 +137,7 @@ export async function sendSubmission(actor: SupplierActor, i: SendSubmissionInpu
       }),
     );
     const recipients = so ? [...so.office.holderIds, ...so.office.actingIds] : [];
-    await writeNotices(tx, actor.organisationId, null, contractorSubmissionNotices({ submissionId: row.id, contractLabel: label, kindLabel, contractorName: actor.supplierName, dueLabel: dueOn ? `It is due to be answered by ${formatDate(dueOn)}.` : "No service level is set for this kind, so it has no due day.", recipients }));
+    await writeNotices(tx, actor.organisationId, null, contractorSubmissionNotices({ submissionId: row.id, contractId: l.contract.id, contractLabel: label, kindLabel, contractorName: actor.supplierName, dueLabel: dueOn ? `It is due to be answered by ${formatDate(dueOn)}.` : "No service level is set for this kind, so it has no due day.", recipients }));
     return { submissionId: row.id, routedTo: so?.office.roleLabel ?? null, dueOn };
   });
 }

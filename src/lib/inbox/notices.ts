@@ -170,7 +170,7 @@ export function delegationReceivedNotice(i: {
 
 /// Phase 4e (6.14 OD-6, BD-614-31): a contractor sent a submission from its portal account; the holders of the contract's S.O. office (and those acting in it) are told, once each. Nobody
 /// did the act on the staff side, so nobody is left out. The notice carries the kind and the contract, never the amount claimed.
-export function contractorSubmissionNotices(i: { submissionId: string; contractLabel: string; kindLabel: string; contractorName: string; dueLabel: string; recipients: readonly string[] }): NoticeDraft[] {
+export function contractorSubmissionNotices(i: { submissionId: string; contractId: string; contractLabel: string; kindLabel: string; contractorName: string; dueLabel: string; recipients: readonly string[] }): NoticeDraft[] {
   return recipientsOf(i.recipients, null).map((r) => ({
     recipientPersonId: r,
     kind: "CONTRACTOR_SUBMISSION",
@@ -179,8 +179,9 @@ export function contractorSubmissionNotices(i: { submissionId: string; contractL
     occurrence: "",
     exerciseId: null,
     title: `${i.kindLabel} from ${i.contractorName}`,
-    body: `${i.contractLabel}: the contractor sent a ${i.kindLabel.toLowerCase()} from its portal account. ${i.dueLabel} It is answered from the Documents register's review queue.`,
-    href: "/documents?tab=review",
+    body: `${i.contractLabel}: the contractor sent a ${i.kindLabel.toLowerCase()} from its portal account. ${i.dueLabel} It is answered from the contract's Submissions tab.`,
+    // AC-16: new rows open the contract's own tab; rows written before the Documents menu went keep /documents?tab=review, which redirects permanently.
+    href: `/projects/${i.contractId}?tab=submissions`,
   }));
 }
 

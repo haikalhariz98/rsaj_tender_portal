@@ -7,7 +7,7 @@ import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_EN
 import { notFound } from "next/navigation";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
-import { AwardIcon, BuildingIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, ScaleIcon, ShieldIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
+import { AwardIcon, BuildingIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, InboxIcon, ScaleIcon, ShieldIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -37,12 +37,15 @@ import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { fieldsOfScope, ROUTED_MATTER_VALUE_FIELD } from "@/lib/sulit-fields";
-import { sulitGate, sulitGates } from "@/app/_auth/sulit";
+import { hiddenExercises, sulitGate, sulitGates } from "@/app/_auth/sulit";
+import { contractDocumentFacts } from "@/lib/certificate/register";
+import { reviewCounts } from "@/lib/portal/projects/review-store";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import { through, type Sulit } from "@/lib/auth/sulit-access";
 
 import { BaselinePanel } from "./baseline-panel";
 import { DocumentsPanel } from "./documents-panel";
+import { SubmissionsTab } from "./submissions-tab";
 import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
 import { FormationPanel, FORMATION_SECTIONS, type FormationSection } from "./formation-panels";
 import { PAYMENT_SECTIONS, PaymentsPanel, PaymentSummaryCard, paymentView, type PaymentSection, type PaymentView } from "./payment-panels";
@@ -68,7 +71,7 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
  */
 export default async function ContractPage(props: PageProps<"/projects/[id]">) {
   const actor = await requireStaff();
-  const [{ id }, { tab, section, page }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string; page?: string }>]);
+  const [{ id }, { tab, section, page, waiting, answered }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string; page?: string; waiting?: string; answered?: string }>]);
   const l = await loadContract(actor.organisationId, id);
   if (!l) notFound();
   const c = l.contract;
@@ -77,7 +80,8 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
   const sulit = await sulitGate(actor, { scope: "contract", entity: "Contract", id: c.id, label: c.number }, fieldsOfScope("contract"));
   const status = c.status as ContractStatus;
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
-  const [people, history, facts, certificates, supervision] = await Promise.all([
+  const restricted = (await hiddenExercises(actor)).includes(l.award.exerciseId);
+  const [people, history, facts, certificates, supervision, submissionCount, documentFacts] = await Promise.all([
     db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     contractHistory(l),
     today ? signingFacts(l, null, today) : Promise.resolve(null),
@@ -85,6 +89,10 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
     db.certificate.count({ where: { contractId: c.id } }),
     // 6.13 Part A: the contract's supervision, read once for the Overview, Team and Site tabs.
     supervisionView(l, today),
+    // AC-16: the submissions waiting on this contract, counted for the Submissions tab (none for a restricted exercise's contract the reader is not named on).
+    restricted ? Promise.resolve(null) : reviewCounts(db, l.org.id, today, { contractId: c.id }),
+    // AC-16: the copies not sent and the routing sheets open, for the Documents tab.
+    contractDocumentFacts(l.org.id, c.id, today),
   ]);
   // The people who decide a contract matter's route read that matter's amount, and nothing else of the contract (ruling of 2026-10-08, the amendment of the ruling on log line 1526): the
   // trail's rows of a matter that name its routed value are judged by the matter's own gate where the contract's is withheld. Asked (and logged) only where a row carries one.
@@ -149,7 +157,9 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
     },
     { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, lazy: true, panel: tab === "securities" ? <SecuritiesPanel l={l} people={peopleOptions} today={today} /> : null },
     // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.
-    { id: "documents", label: "Documents", icon: <FilesIcon size={15} />, count: certificates, lazy: true, panel: tab === "documents" ? <DocumentsPanel contractId={c.id} page={pageNo} /> : null },
+    { id: "documents", label: "Documents", icon: <FilesIcon size={15} />, count: certificates, lazy: true, panel: tab === "documents" ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null },
+    // AC-16 (MN-02): the bridge for the Documents menu's review queue; while Part 2 is held this tab may be permanent.
+    { id: "submissions", label: "Submissions", icon: <InboxIcon size={15} />, count: submissionCount?.waiting, lazy: true, panel: tab === "submissions" ? <SubmissionsTab organisationId={l.org.id} contractId={c.id} status={status} today={today} restricted={restricted} waiting={waiting} answered={answered} /> : null },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel sulit={sulit} matterGates={matterGates} entries={history.entries} total={history.total} timeZone={l.org.timeZone} /> },
   ];
 

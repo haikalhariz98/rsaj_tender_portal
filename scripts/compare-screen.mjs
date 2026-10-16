@@ -486,6 +486,11 @@ const DECIDED_ABSENT = [
     match: /^Documents awaiting my review$/,
     why: "GN-03 (AC-11): removed from On the way, because Part 2 (document review) is held and nothing should look finished that is not",
   },
+  {
+    screen: /^[/]documents$/,
+    match: /^(Documents|Library|Distribution|Routing sheets|Review queue|Search|Clear)$/,
+    why: "MN-02 (AC-16): the Documents menu is removed and /documents redirects permanently. The organisation-wide Library search is dropped (AC-4, AC-16; FR-CRT-011 is an S, logged as partly met); copies not sent and routing sheets open are counted on each contract's Documents tab; the Review queue is each contract's Submissions tab and the Contracts list's Submissions waiting view",
+  },
 ];
 
 /**

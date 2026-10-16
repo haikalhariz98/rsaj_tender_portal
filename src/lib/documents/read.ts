@@ -247,7 +247,7 @@ export async function documentDrawer(organisationId: string, documentId: string,
       : a.standingEventId && a.standingEvent ? ownerHref("standingEvent", a.standingEventId, a.standingEvent.supplierId)
       : a.delayNoticeId && a.delayNotice ? ownerHref("delayNotice", a.delayNoticeId, a.delayNotice.contractId)
       : a.eotClaimId && a.eotClaim ? ownerHref("eotClaim", a.eotClaimId, a.eotClaim.contractId)
-      : "/documents";
+      : "/configuration/documents";
   return {
     id: d.id,
     title: d.title,

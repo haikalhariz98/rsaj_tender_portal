@@ -82,7 +82,7 @@ export async function answerContractorSubmission(_prev: FormState, data: FormDat
     throw e;
   }
   if (result?.ok) {
-    revalidatePath("/documents");
+    revalidatePath("/projects");
     revalidatePath(`/projects/${found.contractId}`);
   }
   return result ?? GONE;

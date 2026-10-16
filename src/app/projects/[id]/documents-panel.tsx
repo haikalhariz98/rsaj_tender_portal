@@ -1,9 +1,12 @@
+import Link from "next/link";
+
 import { DataList } from "@/components/data-list";
 import { FilesIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { distributionState } from "@/lib/certificate/distribution";
 import { CERT_WORDS, KIND_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
+import { contractDocumentFacts } from "@/lib/certificate/register";
 import { CERTIFICATES_PAGE, certificatesOfContract } from "@/lib/certificate/repo";
 import { CERTIFICATE_STATUSES } from "@/lib/certificate/types";
 import { storedDay } from "@/lib/dates";
@@ -18,12 +21,18 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
  * under Payments; a variation's application, instruction and order, and the adjustments of the contract sum, under
  * Variations), and the tab says what raises them; none is raised from here.
  */
-export async function DocumentsPanel({ contractId, page }: { contractId: string; page: number }) {
+export async function DocumentsPanel({ contractId, page, facts }: { contractId: string; page: number; facts: Awaited<ReturnType<typeof contractDocumentFacts>> }) {
   const { rows, total } = await certificatesOfContract(contractId, page);
   const pages = Math.ceil(total / CERTIFICATES_PAGE);
+  const sheetsText = `${facts.sheetsOpen} ${facts.sheetsOpen === 1 ? "routing sheet" : "routing sheets"} open${facts.overTarget == null ? " (past target not judged: the time zone is not set)" : ` (${facts.overTarget} past target)`}`;
+  const copiesText = `${facts.notSent} ${facts.notSent === 1 ? "copy" : "copies"} not sent`;
   return (
     <Card className="overflow-hidden">
       <CardHeader icon={<FilesIcon size={17} />} title="Certificates" subtitle="Every certificate of this contract, newest first; each is signed, numbered and distributed on its own page. A delegation to a representative raises its letters under Team; the advance payment, the interim payment certificates, the warning letter and the Certificate of Non-Completion are raised under Payments; a variation's application, the S.O.'s instruction, the Variation Order Certificate and the adjustments of the contract sum under Variations." divided={false} />
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 pb-4 text-[13.5px] text-ink-2 sm:px-6">
+        {facts.firstUnsentCertificateId ? <Link href={`/projects/${contractId}/certificates/${facts.firstUnsentCertificateId}?tab=distribution`} className="font-semibold hover:underline">{copiesText}</Link> : <span>{copiesText}</span>}
+        {facts.firstOpenCertificateId ? <Link href={`/projects/${contractId}/certificates/${facts.firstOpenCertificateId}?tab=routing`} className="font-semibold hover:underline">{sheetsText}</Link> : <span>{sheetsText}</span>}
+      </div>
       <DataList
         flat
         selectable={false}

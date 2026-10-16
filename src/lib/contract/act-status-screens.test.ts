@@ -245,6 +245,8 @@ const SECTION_FAMILIES: Readonly<Record<string, readonly ContractAct[]>> = {
   AdjustmentsSection: ["SUM_ADJUSTMENT"],
   OverviewPanel: ["FORMATION"],
   SecuritiesPanel: ["FORMATION"],
+  // AC-16: answering a contractor's submission is an act of the contract's supervision (answerContractorSubmission).
+  SubmissionsTab: ["SUPERVISION"],
 };
 
 /// Components that offer no act of their own, each with why.

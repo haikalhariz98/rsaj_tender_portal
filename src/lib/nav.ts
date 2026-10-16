@@ -68,8 +68,7 @@ export const STAFF_NAV: NavGroup[] = [
     items: [
       // 6.15a: the staff-side register (ADR 0019). The supplier's own workspace (bids, projects, company) waits for sign-in (6.15b); the public pages do not.
       { href: "/suppliers", label: "Suppliers", icon: "building", built: true },
-      // 6.14 increment 2: the documents register (Library, Distribution, Routing sheets; the review queue waits for sign-in).
-      { href: "/documents", label: "Documents", icon: "files", built: true },
+      // MN-02 (AC-16): the Documents menu is gone; /documents redirects. Each contract holds its certificates, copies and submissions.
     ],
   },
   {

@@ -101,7 +101,7 @@ export async function loadMyProjectsDemo(db: Db, organisationId: string): Promis
     });
     entry("ContractorSubmission", `${P}mps1`, `${label} · Interim claim: Interim claim 4, to the end of last month`, "CREATE", T(day, "11:20"), diffFields(null, { kind: "Interim claim", amountClaimed: "RM 61,500.00", sentOn: day, routedTo: routed.routedToRoleLabel ?? "Nobody: no Superintending Officer is assigned to the contract", dueOn: "No due day: the service level is not set", madeBy: "the supplier's own portal account" }));
     if (recipients.length) {
-      await db.staffNotice.createMany({ data: contractorSubmissionNotices({ submissionId: `${P}mps1`, contractLabel: label, kindLabel: "Interim claim", contractorName: supplier.registeredName, dueLabel: "No service level is set for this kind, so it has no due day.", recipients }).map((d) => ({ organisationId, raisedByPersonId: null, raisedAt: T(day, "11:20"), ...d })), skipDuplicates: true });
+      await db.staffNotice.createMany({ data: contractorSubmissionNotices({ submissionId: `${P}mps1`, contractId: CON, contractLabel: label, kindLabel: "Interim claim", contractorName: supplier.registeredName, dueLabel: "No service level is set for this kind, so it has no due day.", recipients }).map((d) => ({ organisationId, raisedByPersonId: null, raisedAt: T(day, "11:20"), ...d })), skipDuplicates: true });
     }
     notes.push("an interim claim from the contractor's portal account, two days ago, waiting on the review queue");
   }
