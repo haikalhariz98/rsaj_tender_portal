@@ -89,3 +89,8 @@ export async function loadOpeningCheckFiles(i: { organisationId: string; exercis
   }
   return out;
 }
+
+/// How many of an exercise's sealed bid files still have their released data key beside no document (the mover has not filed them). A count only: no key, no name.
+export async function countFilesToFile(organisationId: string, exerciseId: string): Promise<number> {
+  return db.onlineBidFile.count({ where: { organisationId, exerciseId, releasedDek: { not: null } } });
+}

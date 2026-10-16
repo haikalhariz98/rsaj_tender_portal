@@ -81,14 +81,15 @@ import { ensureAdministrator, facts, makeAccount, makeSupplierAccount, randomId,
 import { lodgeEstimate } from "../scope/actions";
 import { checkUnlock, rekeyExercise, setOfficerShare } from "../scope/key-actions";
 import { authoriseOnlineUnseal } from "./unseal-actions";
-import { finaliseOnline, signOnlineFinalise } from "./online-finalise-actions";
+import { fileSealedBidFiles, finaliseOnline, signOnlineFinalise } from "./online-finalise-actions";
+import { disableAccount } from "@/lib/auth/administration";
 import { ensureFileMoved, moveReleasedFiles } from "@/lib/sealing/online-file-mover";
 import { checklistFromSnapshot } from "@/lib/opening/checklist";
 import { sulitGranted } from "@/lib/auth/sulit-access";
 import { openingSection } from "@/lib/opening/read";
 import { loadOpeningCheckFiles } from "@/lib/opening/sealed-file-store";
 import { loadPepperList } from "@/lib/sealing/pepper-store";
-import { finaliseOpening, recordChecklistAnswer, recordInitial, recordScheduleDetails, recordVerdict, startOpening } from "./actions";
+import { finaliseOpening, recordChecklistAnswer, recordInitial, recordScheduleDetails, recordSignature, recordVerdict, startOpening } from "./actions";
 
 const DAY = 24 * 60 * 60 * 1000;
 const D = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000Z`);
@@ -345,7 +346,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     // Nobody has signed: refused by name, and nothing was written.
     const none = await finalise(ex, opening.id, o1);
     expect(none.ok).toBe(false);
-    expect(message(none)).toMatch(/signature on the schedule is not recorded/);
+    expect(message(none)).toMatch(/Every named officer signs first/);
     expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).finalisedAt).toBeNull();
     expect((await db.openedBid.findMany({ where: { openingId: opening.id } })).every((o) => o.priceAsRead === null)).toBe(true);
 
@@ -355,7 +356,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     expect(message(s1)).toMatch(/1 named officer has still to sign/);
     const one = await finalise(ex, opening.id, o2);
     expect(one.ok).toBe(false);
-    expect(message(one)).toMatch(/signature on the schedule is not recorded/);
+    expect(message(one)).toMatch(/Every named officer signs first/);
     // A signature is the officer's own, once.
     expect((await sign(ex, opening.id, o1)).ok).toBe(false);
     const s2 = await sign(ex, opening.id, o2);
@@ -745,5 +746,92 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
     expect(refused.ok).toBe(false);
     expect((await events(ex.id)).some((e) => e.kind === "ESTIMATE_LODGED" && e.reasonCode === "ADMINISTRATOR")).toBe(true);
     expect(await standing(ex.id)).toHaveLength(0);
+  }, 300_000);
+});
+
+describe("review of wave 3b: the doors that were open", () => {
+  it("the paper signature act is refused on an online opening, for the officer's own and for another's, and writes nothing", async () => {
+    const { ex, opening } = await unsealed(2, 1);
+    const [o1, o2] = ex.officers;
+    who.actor = o1.actor;
+    const own = await recordSignature({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, personId: o1.person.id, signedOn: new Date().toISOString().slice(0, 10), [PASSWORD_FIELD]: o1.password }));
+    expect(own.ok).toBe(false);
+    expect(message(own)).toMatch(/takes bids online/);
+    const other = await recordSignature({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, personId: o2.person.id, signedOn: "2020-01-01", [PASSWORD_FIELD]: o1.password, [actFieldNames("personId").onBehalf]: "on", [actFieldNames("personId").paperReference]: "paper 1", [actFieldNames("personId").reason]: "signed on paper" }));
+    expect(other.ok).toBe(false);
+    expect(await db.openingSignature.count({ where: { openingId: opening.id } })).toBe(0);
+  }, 300_000);
+
+  it("a finalise before every officer has signed is refused before any passphrase is tried and before any grant is opened", async () => {
+    const { ex, opening, offers } = await unsealed(2, 1);
+    await prepare(ex, opening.id, offers);
+    expect((await sign(ex, opening.id, ex.officers[0])).ok).toBe(true);
+    const early = await finalise(ex, opening.id, ex.officers[0], { passphrase: "a wrong passphrase, never tried" });
+    expect(early.ok).toBe(false);
+    expect(message(early)).toMatch(/Every named officer signs first/);
+    expect((await db.officerExerciseKey.findFirstOrThrow({ where: { exerciseId: ex.id, personId: ex.officers[0].person.id, retiredAt: null } })).failedAttempts).toBe(0);
+    expect((await events(ex.id)).filter((e) => e.kind === "FINALISE" && e.reasonCode === "ONLINE_NOT_ALL_SIGNED")).toHaveLength(1);
+    expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).finalisedAt).toBeNull();
+  }, 300_000);
+
+  it("a file class that is no longer SULIT stops the finalise in words, and the mover refuses to file under it", async () => {
+    const { ex, opening, offers } = await unsealed(2, 1);
+    await prepare(ex, opening.id, offers);
+    for (const o of ex.officers) expect((await sign(ex, opening.id, o)).ok).toBe(true);
+    await db.documentClass.update({ where: { id: bidFileClassId }, data: { classification: "INTERNAL" } });
+    try {
+      const r = await finalise(ex, opening.id, ex.officers[0]);
+      expect(r.ok).toBe(false);
+      expect(message(r)).toMatch(/no longer classified as the most restricted level/);
+      expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).finalisedAt).toBeNull();
+    } finally {
+      await db.documentClass.update({ where: { id: bidFileClassId }, data: { classification: "SULIT" } });
+    }
+    mover.skip = true;
+    try {
+      expect((await finalise(ex, opening.id, ex.officers[0])).ok).toBe(true);
+    } finally {
+      mover.skip = false;
+    }
+    const file = (await filesOf(ex.id))[0];
+    await db.documentClass.update({ where: { id: bidFileClassId }, data: { classification: "INTERNAL" } });
+    try {
+      expect(await ensureFileMoved(org, file.id)).toMatchObject({ status: "FAILED", code: "CLASS_NOT_SULIT" });
+    } finally {
+      await db.documentClass.update({ where: { id: bidFileClassId }, data: { classification: "SULIT" } });
+    }
+  }, 300_000);
+
+  it("a named officer files what the mover left, again; someone not named cannot; and the count is on the opening until it is done", async () => {
+    const { ex, opening, offers } = await unsealed(2, 1);
+    await prepare(ex, opening.id, offers);
+    for (const o of ex.officers) expect((await sign(ex, opening.id, o)).ok).toBe(true);
+    mover.skip = true;
+    try {
+      expect((await finalise(ex, opening.id, ex.officers[0])).ok).toBe(true);
+    } finally {
+      mover.skip = false;
+    }
+    const granted = sulitGranted(true as const, "ORGANISATION_PERMISSION");
+    expect((await openingSection(org, ex.id, granted, ex.officers[0].person.id))!.openings[0].filesToFile).toBe(2);
+    expect((await openingSection(org, ex.id, granted, null))!.openings[0].filesToFile).toBeNull();
+    const stranger = await signedIn();
+    who.actor = stranger.actor;
+    const refused = await fileSealedBidFiles({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id }));
+    expect(refused.ok).toBe(false);
+    expect((await filesOf(ex.id)).every((f) => f.releasedDek !== null)).toBe(true);
+    who.actor = ex.officers[1].actor;
+    const done = await fileSealedBidFiles({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id }));
+    expect(done.ok, message(done)).toBe(true);
+    expect((await filesOf(ex.id)).every((f) => f.releasedDek === null && f.attachment !== null)).toBe(true);
+    expect((await openingSection(org, ex.id, granted, ex.officers[0].person.id))!.openings[0].filesToFile).toBe(0);
+  }, 300_000);
+
+  it("one administrator cannot switch off the sign-in account of an opening officer between the unseal and finalising", async () => {
+    const { ex } = await unsealed(2, 1);
+    const admin = await signedIn(true);
+    const refused = await disableAccount(admin.actor, { accountId: ex.officers[0].account.id, reason: "test" }, facts());
+    expect(refused).toMatchObject({ ok: false, kind: "FAULTS", faults: [{ code: "OPENING_OFFICER_NEEDS_SECOND_PERSON" }] });
+    expect((await db.staffAccount.findUniqueOrThrow({ where: { id: ex.officers[0].account.id } })).status).not.toBe("DISABLED");
   }, 300_000);
 });

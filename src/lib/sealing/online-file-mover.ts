@@ -30,7 +30,7 @@ export const MOVE_MAX_PER_CALL = 200;
 export type MoveResult =
   | { status: "MOVED"; documentId: string }
   | { status: "NOTHING_TO_MOVE" }
-  | { status: "FAILED"; code: "FILE_NOT_FOUND" | "CLASS_NOT_SET" | "ORGANISATION_NOT_FOUND" | "STORE_NOT_BUILT" | "BYTES_MISSING" | "DIGEST_MISMATCH" | "FILE_UNREADABLE" | "REFUSED"; detail?: string };
+  | { status: "FAILED"; code: "FILE_NOT_FOUND" | "CLASS_NOT_SET" | "CLASS_NOT_SULIT" | "ORGANISATION_NOT_FOUND" | "STORE_NOT_BUILT" | "BYTES_MISSING" | "DIGEST_MISMATCH" | "FILE_UNREADABLE" | "REFUSED"; detail?: string };
 
 class AlreadyMoved extends Error {
   constructor(readonly linkedWithKeyHeld = false) {
@@ -48,7 +48,7 @@ export async function ensureFileMoved(organisationId: string, fileId: string, op
 async function moveOneFile(organisationId: string, fileId: string, options: MoveOptions): Promise<MoveResult> {
   const file = await db.onlineBidFile.findFirst({
     where: { id: fileId, organisationId },
-    select: { id: true, exerciseId: true, keyId: true, packPartId: true, cipherSha256: true, bodyIv: true, sealedMeta: true, releasedDek: true, uploadedBySupplierAccountId: true, exercise: { select: { reference: true } }, attachment: { select: { id: true } } },
+    select: { id: true, exerciseId: true, keyId: true, packPartId: true, cipherSha256: true, bodyIv: true, sealedMeta: true, releasedDek: true, scan: true, uploadedBySupplierAccountId: true, exercise: { select: { reference: true } }, attachment: { select: { id: true } } },
   });
   if (!file) return { status: "FAILED", code: "FILE_NOT_FOUND" };
   // Released and not linked is the only state that has work to do; a key still set beside a link is shredded by the hook below.
@@ -58,6 +58,9 @@ async function moveOneFile(organisationId: string, fileId: string, options: Move
   if (!org) return { status: "FAILED", code: "ORGANISATION_NOT_FOUND" };
   const policy = await loadStorePolicy(organisationId);
   if (!policy.onlineBidFileClassId) return { status: "FAILED", code: "CLASS_NOT_SET" };
+  // The class is judged again here: its classification may have been edited since the policy was saved, and a sealed bid is never filed under a class below SULIT.
+  const fileClass = await db.documentClass.findFirst({ where: { id: policy.onlineBidFileClassId, organisationId }, select: { classification: true } });
+  if (fileClass?.classification !== "SULIT") return { status: "FAILED", code: "CLASS_NOT_SULIT" };
   const store = blobStore();
   if ("fault" in store) return { status: "FAILED", code: "STORE_NOT_BUILT", detail: store.fault };
 
@@ -85,13 +88,15 @@ async function moveOneFile(organisationId: string, fileId: string, options: Move
         sha256: sha256Hex(plain),
         mediaType: opened.meta.mediaType,
         originalFilename: opened.meta.filename,
-        title: opened.meta.filename,
+        // A blank name never makes a file unmovable: the title falls back to a words-only default.
+        title: opened.meta.filename.trim() === "" ? "Online bid file" : opened.meta.filename.trim(),
         documentClassId: policy.onlineBidFileClassId,
         documentId: null,
         recordedByPersonId: null,
         recordedBySupplierAccountId: file.uploadedBySupplierAccountId,
         receivedOn: null,
-        note: "Filed from the sealed online bid once its opening was finalised.",
+        // The scan state travels with the filed version, so a download from the store reads as the sealed-file download did.
+        note: `Filed from the sealed online bid once its opening was finalised.${file.scan === "NOT_SCANNED" ? " Not scanned." : ""}`,
         hooks: {
           before: async (tx) => {
             // One mover per file at a time. The lock is held to the end of this transaction, so a second mover waits and then finds the link.
@@ -137,7 +142,10 @@ async function shredLinked(organisationId: string, fileId: string): Promise<void
   await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`online-bid-file:${fileId}`}, 0))`;
     const now = await tx.onlineBidFile.findFirst({ where: { id: fileId, organisationId }, select: { releasedDek: true, attachment: { select: { id: true } } } });
-    if (now?.releasedDek && now.attachment) await tx.onlineBidFile.update({ where: { id: fileId, organisationId }, data: { releasedDek: null } });
+    if (now?.releasedDek && now.attachment) {
+      await tx.onlineBidFile.update({ where: { id: fileId, organisationId }, data: { releasedDek: null } });
+      await writeAudit(tx, { actor: { kind: "SYSTEM", label: MOVER_SYSTEM_LABEL }, organisationId, entity: "OnlineBidFile", entityId: fileId, entityLabel: "Online bid file" }, "UPDATE", diffFields({ fileKeyHeldForTheStore: "Held" }, { fileKeyHeldForTheStore: "Shredded: the file is already in the document store" }));
+    }
   });
 }
 

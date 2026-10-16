@@ -5,7 +5,7 @@ import { declaredWrite, doorReason, filesToRelease, materialFinding, onlineFinal
 
 /** The online finalise's rules (ADR 0036 D10, ruling 20t; build plan step 15). */
 
-const ready: Parameters<typeof onlineFinaliseDoorFaults>[0] = { channel: "ONLINE", actorIsAdministrator: false, actorIsNamedOfficer: true, unsealed: true, finalised: false, cancelled: false, fileClassSet: true, officers: 2 };
+const ready: Parameters<typeof onlineFinaliseDoorFaults>[0] = { channel: "ONLINE", actorIsAdministrator: false, actorIsNamedOfficer: true, unsealed: true, finalised: false, cancelled: false, fileClassSet: true, fileClassSulit: true, allSigned: true, officers: 2 };
 const codes = (over: Partial<typeof ready>) => onlineFinaliseDoorFaults({ ...ready, ...over }).map((f) => f.code);
 
 describe("the doors of the online finalise", () => {
@@ -22,9 +22,11 @@ describe("the doors of the online finalise", () => {
     expect(codes({ unsealed: false })).toEqual(["NOT_UNSEALED"]);
     expect(codes({ finalised: true })).toEqual(["ALREADY_FINALISED"]);
     expect(codes({ fileClassSet: false })).toEqual(["ONLINE_FILE_CLASS_NOT_SET"]);
+    expect(codes({ fileClassSulit: false })).toEqual(["ONLINE_FILE_CLASS_NOT_SULIT"]);
+    expect(codes({ allSigned: false })).toEqual(["ONLINE_NOT_ALL_SIGNED"]);
   });
   it("every refusal has words, and an unsealed opening says every named officer must authorise first, not the paper's box", () => {
-    for (const over of [{ actorIsAdministrator: true }, { actorIsNamedOfficer: false }, { channel: "PAPER" }, { cancelled: true }, { unsealed: false }, { finalised: true }, { fileClassSet: false }]) {
+    for (const over of [{ actorIsAdministrator: true }, { actorIsNamedOfficer: false }, { channel: "PAPER" }, { cancelled: true }, { unsealed: false }, { finalised: true }, { fileClassSet: false }, { fileClassSulit: false }, { allSigned: false }]) {
       for (const f of onlineFinaliseDoorFaults({ ...ready, ...over })) expect(openingFindingText(f), f.code).not.toMatch(/\b[A-Z]{3,}_[A-Z_]+\b|cannot be recorded as it stands/);
     }
     const early = onlineFinaliseDoorFaults({ ...ready, unsealed: false })[0];

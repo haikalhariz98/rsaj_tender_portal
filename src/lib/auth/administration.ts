@@ -6,9 +6,12 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { lockOrganisation } from "@/lib/authority/locks";
 import { db } from "@/lib/db";
 import { formatOrgDateTime } from "@/lib/format";
+import { currentAmbient } from "@/lib/ambient/ambient-tx";
+import { deactivationGate } from "@/lib/sealing/deactivation";
+import { loadHolderExposures } from "@/lib/sealing/substitution-store";
 
 import { auditActorOfStaff } from "./audit-actor";
-import { ADMINISTRATOR_NEEDS_SECOND_PERSON, createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, OFFICE_HOLDER_NEEDS_SECOND_PERSON, officeHolderNotice, unlockFaults } from "./administration-rules";
+import { ADMINISTRATOR_NEEDS_SECOND_PERSON, createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, OFFICE_HOLDER_NEEDS_SECOND_PERSON, officeHolderNotice, OPENING_OFFICER_NEEDS_SECOND_PERSON, unlockFaults } from "./administration-rules";
 import { codeExpiry, formatCode, generateCode, hashCode } from "./codes";
 import { recordSignInEvent } from "./events";
 import { hashPool } from "./hash-pool";
@@ -95,6 +98,9 @@ export async function disableAccount(actor: StaffActor, input: { accountId: stri
     const activeAdministrators = await tx.staffAccount.count({ where: { organisationId: actor.organisationId, isAdministrator: true, status: AccountStatus.ACTIVE } });
     const faults = disableFaults({ isAdministrator: actor.isAdministrator, actorAccountId: actor.accountId, target, activeAdministrators, reason: input.reason });
     if (faults.length > 0) return refuse(faults);
+    // 20t, S14: an opening officer between the unseal and finalising is not switched off by one administrator, which would stall the finalise without the second approver Person deactivation needs.
+    const exposures = (await loadHolderExposures(tx, actor.organisationId, now, [target!.personId])).get(target!.personId) ?? [];
+    if (!deactivationGate({ exposures, mode: currentAmbient()?.mode ?? null }).allowed) return refuse([OPENING_OFFICER_NEEDS_SECOND_PERSON]);
 
     const sessionsEnded = await disableTarget(tx, target!, { reason: input.reason.trim(), why: `Disabled by an administrator: ${input.reason.trim()}`, audit: auditActorOfStaff(actor), organisationId: actor.organisationId, request, now });
     return { ok: true, sessionsEnded };

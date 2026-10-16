@@ -80,6 +80,8 @@ export async function releaseShareForSubstitution(_prev: FormState, data: FormDa
   // 20bb: the account's rate is counted before anything is looked up or tried.
   const limited = await officerActRate({ organisationId: actor.organisationId, accountId: actor.accountId, exerciseId, kind: "SUBSTITUTION_RELEASE", staffPersonId: actor.personId });
   if (limited) return { ok: false, message: limited };
+  // A restricted exercise the officer may not see reads as one that is not there, before anything about it is looked up (FR-MTD-007).
+  if (await exerciseIsHidden(actor, exerciseId)) return { ok: false, message: "That exercise was not found." };
   const refuse = async (reasonCode: string, message: string): Promise<FormState> => {
     await logCeremonyRefusal(db, { organisationId: actor.organisationId, exerciseId, kind: "SUBSTITUTION_RELEASE", staffPersonId: actor.personId, reasonCode });
     return { ok: false, message };
@@ -104,9 +106,6 @@ export async function releaseShareForSubstitution(_prev: FormState, data: FormDa
     return begun.state;
   }
   const act = begun.act;
-  // A restricted exercise the officer may not see reads as one that is not there, before any passphrase is derived or counted (FR-MTD-007).
-  if (await exerciseIsHidden(actor, exerciseId)) return { ok: false, message: "That exercise was not found." };
-
   // The slow part, outside the transaction: the officer's own key, unlocked with their own passphrase (a wrong one is counted on the key's own lockout).
   const unlocked = await unlockOwnKey({ organisationId: actor.organisationId, exerciseId, personId: actor.personId, passphrase, kind: "SUBSTITUTION_RELEASE", now: new Date(), rosterRowId: pending.departing.rosterRowId });
   if (!unlocked.ok) return { ok: false, message: unlockRefusalWords(unlocked) };
@@ -133,12 +132,12 @@ export async function releaseShareForSubstitution(_prev: FormState, data: FormDa
       const label = (what: string) => `${l.ex.reference} · ${what}`;
       const who = toAuditActor(actor);
       await audit(tx, who, l.org.id, "ShareRelease", moved.releaseId, label(`Share released · ${p.departing.name} to ${p.incoming.name}`), "CREATE", diffFields(null, { from: p.departing.name, to: p.incoming.name, purpose: "Substitution", sharesMoved: 1 }));
-      await audit(tx, who, l.org.id, "ExerciseKeyShare", moved.oldShareId, label(`Share · ${p.departing.name}`), "UPDATE", diffFields({ share: `Held by ${p.departing.name}` }, { share: `Released to ${p.incoming.name} and destroyed` }));
+      await audit(tx, who, l.org.id, "ExerciseKeyShare", moved.oldShareId, label(`Share · ${p.departing.name}`), "UPDATE", diffFields({ share: `Held by ${p.departing.name}` }, { share: `Released to ${p.incoming.name}, live copy destroyed (a backup taken before now still holds it)` }));
       await audit(tx, who, l.org.id, "OfficerExerciseKey", moved.departingOfficerKeyId, label(`Key · ${p.departing.name}`), "UPDATE", diffFields({ key: "In force" }, { key: "Retired: the officer released their share" }));
       await audit(tx, who, l.org.id, "SourcingExercise", exerciseId, label("Exercise key"), "UPDATE", diffFields({ keyHeldBy: p.departing.name }, { keyHeldBy: p.incoming.name }), "A substitution was completed");
       await logCeremonyEvent(tx, { organisationId: l.org.id, exerciseId, kind: "SUBSTITUTION_RELEASE", staffPersonId: actor.personId, recordId: moved.releaseId, at: now });
       await act.write(tx, moved.releaseId, { document: { entity: "ExerciseOpeningOfficer", id: p.departing.rosterRowId }, roleCode: roster.seatLabelSnapshot });
-      return { ok: true, message: `Your share is released to ${p.incoming.name}, and your own copy is destroyed. They now hold it, and every named officer is again needed to open the bids.` };
+      return { ok: true, message: `Your share is released to ${p.incoming.name}, and the live copy of yours is destroyed. A database backup taken before now still holds it, and could be opened with your passphrase together with every other officer's. They now hold it, and every named officer is again needed to open the bids.` };
     });
     if (!out.ok && refusedCode) await logCeremonyRefusal(db, { organisationId: actor.organisationId, exerciseId, kind: "SUBSTITUTION_RELEASE", staffPersonId: actor.personId, reasonCode: refusedCode });
     return out;

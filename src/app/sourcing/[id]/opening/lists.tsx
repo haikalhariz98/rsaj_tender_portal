@@ -2,7 +2,8 @@
 
 import { sulitCell } from "@/components/sulit-cell";
 import { DataList, type Row } from "@/components/data-list";
-import type { OpeningView } from "@/lib/opening/read";
+import { SealedFileDownload } from "@/components/sealed-file-download";
+import type { OpeningSectionView, OpeningView } from "@/lib/opening/read";
 
 import { AlternativeInsideDrawer, ChecklistDrawer, CorrectAsReadDrawer, InitialDrawer, OpenEnvelopeDrawer, VerdictDrawer } from "./editors";
 
@@ -123,6 +124,39 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
             {b.alternativeInside?.allowed && <AlternativeInsideDrawer exerciseId={exerciseId} bid={bid} allowed={b.alternativeInside} />}
           </span>
         );
+      }}
+    />
+  );
+}
+
+type CheckFiles = NonNullable<OpeningSectionView["openings"][number]["checkFiles"]>;
+
+/// The opening-check files an online opening's named officers may download, on the shared DataList: one row per file, the download as the row's action.
+export function FilesToCheck({ openingId, offers }: { openingId: string; offers: CheckFiles }) {
+  const rows: Row[] = offers.flatMap((offer) =>
+    offer.files.map((f) => ({
+      id: f.fileId,
+      search: `${offer.listingNo} ${f.partLabel} ${offer.bidder}`,
+      sortKeys: { file: offer.listingNo },
+      cells: { file: { kind: "stack" as const, title: `Offer ${offer.listingNo} · ${f.partLabel}`, sub: offer.bidder } },
+    })),
+  );
+  const byId = new Map(offers.flatMap((offer) => offer.files.map((f) => [f.fileId, { listingNo: offer.listingNo, partLabel: f.partLabel }] as const)));
+  return (
+    <DataList
+      flat
+      selectable={false}
+      searchable={false}
+      toolbar={false}
+      exportName="files-to-check"
+      emptyTitle="No file to check"
+      emptyBody="No document is marked as checked at the opening."
+      actionsPlacement="below"
+      columns={[{ key: "file", label: "File", sortable: true, mobile: "primary" }]}
+      rows={rows}
+      actions={(id) => {
+        const f = byId.get(id)!;
+        return <SealedFileDownload openingId={openingId} fileId={id} label={`Offer ${f.listingNo}, ${f.partLabel}`} />;
       }}
     />
   );

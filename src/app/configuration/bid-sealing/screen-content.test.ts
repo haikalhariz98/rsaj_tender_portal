@@ -55,7 +55,9 @@ describe("the online finalise and the download of a file to check (20at, 20au)",
     expect(c).toContain('setPassphrase("")');
     expect(c).not.toMatch(/localStorage|sessionStorage/);
     const ws = src("src/app/sourcing/[id]/opening/workspace.tsx");
-    expect(ws).toContain("SealedFileDownload");
+    // The list moved onto the shared DataList (AGENTS.md: DataList is the only list), in lists.tsx, which holds the download as the row's action.
+    expect(ws).toContain("FilesToCheck");
+    expect(src("src/app/sourcing/[id]/opening/lists.tsx")).toContain("SealedFileDownload");
     expect(ws).toContain("Files to check");
   });
   it("the online finalise's drawers ask the passphrase and name who still has to sign", () => {

@@ -27,7 +27,7 @@ import type { Reader } from "@/lib/auth/sulit-store";
 import { lockGapFinding } from "./box";
 import { checklistFromSnapshot, openingChecklist, unansweredItems } from "./checklist";
 import { COPY_NOT_COMPARED_LABEL, COPY_NOT_COMPARED_TEXT, copyFindingFault, copyReading, estimateCardText } from "./estimate-copy";
-import { loadOpeningCheckFiles } from "./sealed-file-store";
+import { countFilesToFile, loadOpeningCheckFiles } from "./sealed-file-store";
 import type { OnlineBidRules } from "@/lib/bids/online/types";
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./finalise";
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
@@ -157,11 +157,13 @@ export async function openingSection(organisationId: string, exerciseId: string,
   const namedOfficers = l.ex.submissionChannel === "ONLINE" ? await db.exerciseOpeningOfficer.findMany({ where: { exerciseId, organisationId, endedAt: null }, select: { personId: true } }) : [];
   const viewerIsNamed = viewerPersonId != null && namedOfficers.some((n) => n.personId === viewerPersonId);
   const views = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy, prices, hideNames: l.ex.submissionChannel === "ONLINE" && !viewerIsNamed }));
+  // Review of wave 3b: a finalised online opening whose files are not all in the document store yet says how many wait, to the named officers, who can run the filing again.
+  const filesWaiting = l.ex.submissionChannel === "ONLINE" && viewerIsNamed ? await countFilesToFile(organisationId, exerciseId) : 0;
   // 20at: between the unseal and finalising, a named officer is offered each opened offer's opening-check files to download. Never for anyone else, and never after finalising (the files are documents then).
   const openings = await Promise.all(views.map(async (v, i) => {
     const o = c.openings[i];
     const offer = viewerIsNamed && l.ex.submissionChannel === "ONLINE" && o.unsealedAt != null && o.finalisedAt == null;
-    return { ...v, checkFiles: offer ? await loadOpeningCheckFiles({ organisationId, exerciseId, openingId: o.id, rules: (l.ex.onlineBidRules as OnlineBidRules | null) ?? null }) : null };
+    return { ...v, checkFiles: offer ? await loadOpeningCheckFiles({ organisationId, exerciseId, openingId: o.id, rules: (l.ex.onlineBidRules as OnlineBidRules | null) ?? null }) : null, filesToFile: l.ex.submissionChannel === "ONLINE" && viewerIsNamed && o.finalisedAt != null ? filesWaiting : null };
   }));
 
   return {

@@ -110,6 +110,7 @@ export async function finaliseInTransaction(
     if (online) {
       const offers = new Map(o.bids.map((x) => [x.envelopeId, x.listingNo] as const));
       const same = offers.size === online.material.offers.size && [...offers.keys()].every((k) => online.material.offers.has(k) && online.material.declared.has(k));
+      if (!same) online.onFault?.("ONLINE_STATE_CHANGED");
       if (!same) return { ok: false, message: `Nothing was finalised: ${openingFindingText({ code: "ONLINE_STATE_CHANGED", level: "block" })}` };
       for (const bid of o.bids) {
         const d = online.material.declared.get(bid.envelopeId)!;
@@ -119,7 +120,11 @@ export async function finaliseInTransaction(
       }
       c = await openingContext(l, tx, now);
       o = openingOf(c, openingId);
-      if (!o) return GONE_OPENING;
+      // Thrown, never returned: the declared prices were written above and a return would commit them with no finalisedAt.
+      if (!o) {
+        online.onFault?.("NOT_FOUND");
+        throw new Refusal(GONE_OPENING);
+      }
     }
     // Every other check passed: only now is the paper's figure read.
     let paper: PaperCopy | null = null;
@@ -140,6 +145,7 @@ export async function finaliseInTransaction(
         disclosed = await discloseAtFinalising(tx, toAuditActor(actor), { organisationId: l.org.id, reference: l.ex.reference, facts: c.estimateFacts, at: now, person: person!, act, paper, benchmarkLabelEn: c.scopePolicy.benchmarkLabelEn });
       } catch (e) {
         // R-1: thrown as a Refusal, so anything written in this transaction rolls back with it.
+        if (e instanceof DisclosureRefused) online?.onFault?.("ESTIMATE_DISCLOSURE_REFUSED");
         if (e instanceof DisclosureRefused) throw new Refusal({ ok: false, message: "Nothing was saved: the company estimate could not be disclosed as it stands. Check its state on the Scope and estimate tab." });
         throw e;
       }
@@ -154,6 +160,7 @@ export async function finaliseInTransaction(
     const verdicts = new Map(c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => [b.id, b.verdict] as const)));
     const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(priceRead(b).toString()), verdict: verdicts.get(b.id) ?? null }))), labels: summaryLabelsOf(snap) });
     // After the disclosure's writes: thrown, so they roll back (R-1, R-7).
+    if (!("summary" in summary)) online?.onFault?.(summary.fault.code);
     if (!("summary" in summary)) throw new Refusal(refuse([summary.fault]));
     const lodged = disclosed?.lodged ?? null;
     // R-4: the unpurchased rule is recorded at finalising only where an offer needs it, audited with it.
@@ -191,6 +198,7 @@ export async function finaliseInTransaction(
       const ids = filesToRelease([{ fileIds: files.map((f) => f.id) }]);
       for (const id of ids) {
         const dek = online.material.deks.get(id);
+        if (!dek) online.onFault?.("ONLINE_STATE_CHANGED");
         if (!dek) throw new Refusal({ ok: false, message: `Nothing was finalised: ${openingFindingText({ code: "ONLINE_STATE_CHANGED", level: "block" })}` });
         await tx.onlineBidFile.update({ where: { id, organisationId: l.org.id }, data: { releasedDek: new Uint8Array(dek) } });
         released++;

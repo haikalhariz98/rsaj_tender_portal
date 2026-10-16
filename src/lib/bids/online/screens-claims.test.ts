@@ -96,3 +96,45 @@ describe("no screen calls a bid, a receipt or a submission signed, proof or veri
     expect(claims("<p>Your bid is signed</p>", allowed)).toHaveLength(1);
   });
 });
+
+/**
+ * Review of wave 3b (S15, F10): the sealing screens and the acts' returned messages and audit values must not say more than the design does. A share or a key "destroyed" is true of the live
+ * copy only, and a database backup taken earlier still holds it; an estimate version is not "sealed" while its figure is plain in the database. So in the files below a line that says destroyed
+ * must also say it is the live copy or that a backup holds it, nothing says a copy "cannot be recovered", and the estimate version is never said to be sealed as the lodged copy.
+ */
+const SEALING_WORDS = [
+  "src/app/sourcing/[id]/scope/key-editors.tsx",
+  "src/app/sourcing/[id]/scope/key-actions.ts",
+  "src/app/sourcing/[id]/scope/substitution-actions.ts",
+  "src/app/sourcing/[id]/scope/editors.tsx",
+  "src/app/sourcing/[id]/scope/estimate-section.tsx",
+  "src/app/sourcing/[id]/opening/online-finalise-actions.ts",
+  "src/app/sourcing/[id]/opening/online-words.ts",
+];
+
+export function overclaims(text: string): string[] {
+  const hits: string[] = [];
+  lex(text, { only: "comments" })
+    .split("\n")
+    .forEach((line, i) => {
+      const bad =
+        (/\bdestroyed\b/i.test(line) && !/\b(?:live copy|backup)\b/i.test(line)) ||
+        /\b(?:copy|share|key)\b[^.]*cannot be recovered/i.test(line) ||
+        /\bis sealed under the exercise's key as the lodged copy\b/i.test(line);
+      if (bad) hits.push(`line ${i + 1}: ${line.trim().slice(0, 100)}`);
+    });
+  return hits;
+}
+
+describe("the sealing screens and the acts' messages never overclaim (S15, F10)", () => {
+  it.each(SEALING_WORDS)("%s", (path) => {
+    expect(overclaims(readFileSync(join(root, path), "utf8"))).toEqual([]);
+  });
+
+  it("reads a returned message and an audit value, and passes the honest wording", () => {
+    expect(overclaims('return { ok: true, message: "your own copy is destroyed" };')).toHaveLength(1);
+    expect(overclaims("<p>Your own copy is then destroyed and cannot be recovered.</p>")).toHaveLength(1);
+    expect(overclaims("{ share: `Released to X and destroyed` }")).toHaveLength(1);
+    expect(overclaims("<p>The live copy is destroyed. A database backup taken before now still holds it.</p>")).toEqual([]);
+  });
+});

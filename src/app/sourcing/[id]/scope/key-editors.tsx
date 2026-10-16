@@ -61,7 +61,7 @@ export function ChangeKeyDrawer({ exerciseId, allowed }: { exerciseId: string; a
   return (
     <RecordEditor
       title="Change the exercise key"
-      description="A new key is made across the officers' current shares. The old key and every share of it are destroyed, and any file a supplier has uploaded but not yet submitted is discarded and recorded (the supplier is not yet told why on its own page: that comes with the supplier screens). The change is recorded with its reason and listed here. It is refused once a bid exists or the closing has passed."
+      description="A new key is made across the officers' current shares. The live copy of the old key and of every share of it is destroyed. A database backup taken before now still holds them, and could be opened with the officers' passphrases. Any file a supplier has uploaded but not yet submitted is discarded and recorded (the supplier is not yet told why on its own page: that comes with the supplier screens). The change is recorded with its reason and listed here. It is refused once a bid exists or the closing has passed."
       fields={[hidden("exerciseId"), { kind: "textarea", name: "reason", label: "Why the key is changed", required: true }, actorField("PublishedKeyChange.by", { name: "personId" })]}
       values={{ exerciseId }}
       action={rekeyExercise}
@@ -78,7 +78,7 @@ export function ReleaseShareDrawer({ exerciseId, to, allowed }: { exerciseId: st
   return (
     <RecordEditor
       title={`Release your share to ${to}`}
-      description={`You were replaced as an opening officer of this exercise. Your share of its key is still yours until you release it. Type your unseal passphrase to hand it to ${to}, who has set their own. Your own copy is then destroyed and cannot be recovered. Nobody else can do this for you. If it is not done before the closing, the bids cannot be opened and the exercise must be re-tendered.`}
+      description={`You were replaced as an opening officer of this exercise. Your share of its key is still yours until you release it. Type your unseal passphrase to hand it to ${to}, who has set their own. The live copy of yours is then destroyed. A database backup taken before now still holds it, and could be opened with your passphrase together with every other officer's. Nobody else can do this for you. If it is not done before the closing, the bids cannot be opened and the exercise must be re-tendered.`}
       fields={[hidden("exerciseId"), { kind: "text", name: "passphrase", label: "Unseal passphrase", required: true, secret: true }, actorField("ShareRelease.releasedBy", { name: "personId" })]}
       values={{ exerciseId }}
       action={releaseShareForSubstitution}

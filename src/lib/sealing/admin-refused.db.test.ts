@@ -41,7 +41,7 @@ import { lodgeEstimate } from "../../app/sourcing/[id]/scope/actions";
 import { checkUnlock, rekeyExercise, setOfficerShare } from "../../app/sourcing/[id]/scope/key-actions";
 import { releaseShareForSubstitution } from "../../app/sourcing/[id]/scope/substitution-actions";
 import { authoriseOnlineUnseal } from "../../app/sourcing/[id]/opening/unseal-actions";
-import { finaliseOnline, signOnlineFinalise } from "../../app/sourcing/[id]/opening/online-finalise-actions";
+import { fileSealedBidFiles, finaliseOnline, signOnlineFinalise } from "../../app/sourcing/[id]/opening/online-finalise-actions";
 
 type Door = (prev: { ok: boolean }, data: FormData) => Promise<{ ok: boolean; message?: string; errors?: Record<string, string> }>;
 
@@ -54,6 +54,7 @@ const DOORS: { name: string; file: string; door: Door; loggedBy: string }[] = [
   { name: "authoriseOnlineUnseal", file: "src/app/sourcing/[id]/opening/unseal-actions.ts", door: authoriseOnlineUnseal as Door, loggedBy: "src/app/sourcing/[id]/opening/unseal.db.test.ts" },
   { name: "signOnlineFinalise", file: "src/app/sourcing/[id]/opening/online-finalise-actions.ts", door: signOnlineFinalise as Door, loggedBy: "src/app/sourcing/[id]/opening/online-finalise.db.test.ts" },
   { name: "finaliseOnline", file: "src/app/sourcing/[id]/opening/online-finalise-actions.ts", door: finaliseOnline as Door, loggedBy: "src/app/sourcing/[id]/opening/online-finalise.db.test.ts" },
+  { name: "fileSealedBidFiles", file: "src/app/sourcing/[id]/opening/online-finalise-actions.ts", door: fileSealedBidFiles as Door, loggedBy: "src/app/sourcing/[id]/opening/online-finalise.db.test.ts" },
   { name: "lodgeEstimate", file: "src/app/sourcing/[id]/scope/actions.ts", door: lodgeEstimate as Door, loggedBy: "src/lib/sealing/estimate-lodgement.db.test.ts" },
 ];
 

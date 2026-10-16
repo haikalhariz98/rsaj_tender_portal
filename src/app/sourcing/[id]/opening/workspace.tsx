@@ -15,9 +15,8 @@ import { openingSection, scheduleSection, type OpeningSectionView, type OpeningV
 import { FLOW_LABEL } from "@/lib/method/flow";
 import { kelasText, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import { EXERCISE_NOTE_ID } from "../../editors";
-import { SealedFileDownload } from "@/components/sealed-file-download";
-import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, OnlineFinaliseDrawer, OnlineSignatureDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
-import { EnvelopesToOpen, OffersRead } from "./lists";
+import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, FileSealedBidsDrawer, OnlineFinaliseDrawer, OnlineSignatureDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
+import { EnvelopesToOpen, FilesToCheck, OffersRead } from "./lists";
 import type { StaffActor } from "@/lib/auth/types";
 import { sulitExerciseGate } from "@/app/_auth/sulit";
 
@@ -208,19 +207,14 @@ function OpeningCard({ d, o, viewerPersonId }: { d: OpeningSectionView; o: Openi
         <CardBody className="flex flex-col gap-3 border-t border-line">
           <h3 className="text-[13.5px] font-semibold text-ink">Files to check</h3>
           <p className="text-[12.5px] text-ink-3">The documents checked at the opening, which only the named officers open. Each download asks your sign-in password and your unseal passphrase, every time, and is logged. The other files of a bid stay sealed until the opening is finalised.</p>
-          <ul className="divide-y divide-line/70 rounded-xl border border-line">
-            {o.checkFiles.map((offer) =>
-              offer.files.map((f) => (
-                <li key={f.fileId} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5">
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[13.5px] font-semibold break-words text-ink">{`Offer ${offer.listingNo} · ${f.partLabel}`}</span>
-                    <span className="block text-[12px] break-words text-ink-3">{offer.bidder}</span>
-                  </span>
-                  <SealedFileDownload openingId={o.id} fileId={f.fileId} label={`Offer ${offer.listingNo}, ${f.partLabel}`} />
-                </li>
-              )),
-            )}
-          </ul>
+          <FilesToCheck openingId={o.id} offers={o.checkFiles} />
+        </CardBody>
+      )}
+
+      {o.filesToFile != null && o.filesToFile > 0 && (
+        <CardBody className="flex flex-col gap-3 border-t border-line">
+          <Callout tone="warn">{`${o.filesToFile} sealed bid file${o.filesToFile === 1 ? " is" : "s are"} still to be filed in the document store. Until each is filed its data key stays readable in the database.`}</Callout>
+          <FileSealedBidsDrawer exerciseId={ex} openingId={o.id} waiting={o.filesToFile} />
         </CardBody>
       )}
 

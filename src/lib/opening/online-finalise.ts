@@ -18,7 +18,9 @@ export type OnlineFinaliseDoorFault =
   | "NOT_UNSEALED"
   | "ALREADY_FINALISED"
   | "CANCELLED"
-  | "ONLINE_FILE_CLASS_NOT_SET";
+  | "ONLINE_FILE_CLASS_NOT_SET"
+  | "ONLINE_FILE_CLASS_NOT_SULIT"
+  | "ONLINE_NOT_ALL_SIGNED";
 
 /// What is judged before any password or passphrase is tried (the officer, the opening, the setting the mover will need), so a refusal here costs the officer nothing.
 export function onlineFinaliseDoorFaults(i: {
@@ -30,6 +32,10 @@ export function onlineFinaliseDoorFaults(i: {
   cancelled: boolean;
   /// `DocumentStorePolicy.onlineBidFileClassId` is set (the class a moved file takes). The mover has nowhere to put a file without it, so a key is never released for one.
   fileClassSet: boolean;
+  /// The class is classified SULIT: a sealed bid file is never filed under a class readable by people who may not read SULIT (the attach rule's own requirement for this purpose).
+  fileClassSulit: boolean;
+  /// Every named officer has signed (20t). Judged before the passphrase, so no grant is opened and no figure is read until all have.
+  allSigned: boolean;
   /// How many officers are named: the words for an opening not yet unsealed say each must authorise first.
   officers: number;
 }): Finding<OnlineFinaliseDoorFault>[] {
@@ -42,6 +48,8 @@ export function onlineFinaliseDoorFaults(i: {
   if (!i.unsealed) f("NOT_UNSEALED", { online: 1, required: i.officers });
   if (i.finalised) f("ALREADY_FINALISED");
   if (!i.fileClassSet) f("ONLINE_FILE_CLASS_NOT_SET");
+  else if (!i.fileClassSulit) f("ONLINE_FILE_CLASS_NOT_SULIT");
+  if (!i.allSigned) f("ONLINE_NOT_ALL_SIGNED");
   return out;
 }
 
@@ -57,7 +65,8 @@ export type MaterialFault =
   | "ONLINE_FILE_UNREADABLE"
   | "ONLINE_DIGEST_MISMATCH"
   | "ONLINE_DECLARATION_UNREADABLE"
-  | "ONLINE_ESTIMATE_UNREADABLE";
+  | "ONLINE_ESTIMATE_UNREADABLE"
+  | "ONLINE_STORE_UNAVAILABLE";
 
 export const materialFinding = (fault: MaterialFault, listingNo: number | null): Finding => ({ code: fault, level: "block", ...(listingNo != null ? { data: { listingNo } } : {}) });
 

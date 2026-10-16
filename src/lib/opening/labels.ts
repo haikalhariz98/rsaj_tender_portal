@@ -168,6 +168,8 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   ONLINE_FINALISE_ELSEWHERE: () => "This exercise takes bids online, so its prices are not read here: each price is read, and the schedule finalised, only by the online finalise. Use the Finalising section of this exercise's Opening tab: each named officer signs, then one of them finalises with their own unseal passphrase. Nothing was finalised.",
   // ---- the online finalise (step 15)
   ONLINE_FILE_CLASS_NOT_SET: () => `The class that an online bid's files take when they are filed is not set, so there is nowhere to file them and nothing was finalised. Set it under Configuration › Documents, in the upload rules.`,
+  ONLINE_FILE_CLASS_NOT_SULIT: () => `The class that an online bid's files take when they are filed is no longer classified as the most restricted level, so a sealed bid would be filed where people who may not read it could. Nothing was finalised. Correct the class under Configuration › Documents.`,
+  ONLINE_STORE_UNAVAILABLE: () => `The sealed files could not be read from the document store just now. Nothing was finalised; try again.`,
   ONLINE_BID_NOT_FOUND: (f) => `Offer ${n(f, "listingNo")}'s sealed submission could not be found. Nothing was finalised.`,
   ONLINE_GRANT_MISSING: (f) => `Your key does not open offer ${n(f, "listingNo")}: nothing was sealed to you for it at the unseal. Nothing was finalised.`,
   ONLINE_GRANT_UNREADABLE: (f) => `What was sealed to you for offer ${n(f, "listingNo")} could not be opened. Nothing was finalised.`,

@@ -93,7 +93,7 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
             </Callout>
           )}
           {e.online && !lodged && !e.sealedKeyReady && (
-            <Callout tone="info">This exercise takes bids online, so the estimate is sealed under its key when it is lodged. The key does not exist yet: every named opening officer sets their own share first, under Scope and estimate, Opening officers.</Callout>
+            <Callout tone="info">This exercise takes bids online, so a sealed copy of the estimate is lodged under its key. The estimate itself is still held unencrypted in the database. The key does not exist yet: every named opening officer sets their own share first, under Scope and estimate, Opening officers.</Callout>
           )}
           {(e.lead.badge.tone === "err" || e.lead.badge.tone === "warn") && !closed && <Callout tone={e.lead.badge.tone}>{e.lead.text}</Callout>}
           <KeyValues

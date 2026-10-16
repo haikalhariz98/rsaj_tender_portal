@@ -135,9 +135,14 @@ export async function finaliseOnline(_prev: FormState, data: FormData): Promise<
   const named = await db.exerciseOpeningOfficer.findFirst({ where: { exerciseId, organisationId: actor.organisationId, personId: actor.personId, endedAt: null }, select: { id: true } });
   const officers = await db.exerciseOpeningOfficer.count({ where: { exerciseId, organisationId: actor.organisationId, endedAt: null } });
   const policy = await loadStorePolicy(actor.organisationId);
+  const fileClass = policy.onlineBidFileClassId ? await db.documentClass.findFirst({ where: { id: policy.onlineBidFileClassId, organisationId: actor.organisationId }, select: { classification: true } }) : null;
+  // Ruling 20t: every named officer has signed before anything is tried or opened. Read before the passphrase, so no grant is opened until all have.
+  const roster = await db.openingPanelMember.findMany({ where: { openingId, organisationId: actor.organisationId }, select: { personId: true } });
+  const signedBy = new Set((await db.openingSignature.findMany({ where: { openingId, organisationId: actor.organisationId }, select: { personId: true } })).map((s) => s.personId));
   const doors = onlineFinaliseDoorFaults({
     channel: exercise?.submissionChannel ?? null, actorIsAdministrator: actor.isAdministrator, actorIsNamedOfficer: !!named, unsealed: opening.unsealedAt != null, finalised: opening.finalisedAt != null,
-    cancelled: exercise?.status === "CANCELLED", fileClassSet: policy.onlineBidFileClassId != null, officers,
+    cancelled: exercise?.status === "CANCELLED", fileClassSet: policy.onlineBidFileClassId != null, fileClassSulit: fileClass?.classification === "SULIT",
+    allSigned: roster.length > 0 && roster.every((p) => signedBy.has(p.personId)), officers,
   });
   if (doors.length > 0) {
     await refused(doorReason(doors));
@@ -191,7 +196,8 @@ export async function finaliseOnline(_prev: FormState, data: FormData): Promise<
         if (!result.ok && !refusal.code) refusal.code = "REFUSED";
         return result;
       },
-      { estimate: true },
+      // The declared prices are written here, so the SULIT price-write check applies as it does to every paper price write (a writer the prices are closed to is refused and logged).
+      { estimate: true, prices: actor },
     );
     if (!out.ok) {
       if (refusal.code) await refused(refusal.code);
@@ -212,4 +218,33 @@ export async function finaliseOnline(_prev: FormState, data: FormData): Promise<
     zero(unlocked.privateKey);
     zeroMaterial(material);
   }
+}
+
+/**
+ * Files the sealed bid files of a finalised online exercise that the post-commit mover left (a store outage, a file past one call's bound). A named opening officer, no passphrase: the data keys
+ * were released at the finalise and the mover works from them. Idempotent and bounded (`moveReleasedFiles`); every file it moves writes its own audit rows.
+ */
+export async function fileSealedBidFiles(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForAct("UNSEAL");
+  if (!guard.ok) {
+    const who = await requireStaff();
+    await logAdministratorRefusal({ organisationId: who.organisationId, accountId: who.accountId, exerciseId: exerciseIdOf(data), kind: "FINALISE", staffPersonId: who.personId, recordId: text(data, "openingId") });
+    return guard.state;
+  }
+  const actor = guard.actor;
+  const exerciseId = exerciseIdOf(data);
+  if (await exerciseIsHidden(actor, exerciseId)) return GONE_OPENING;
+  const named = await db.exerciseOpeningOfficer.findFirst({ where: { exerciseId, organisationId: actor.organisationId, personId: actor.personId, endedAt: null }, select: { id: true } });
+  const exercise = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: actor.organisationId }, select: { submissionChannel: true } });
+  if (!exercise || exercise.submissionChannel !== "ONLINE") return GONE_OPENING;
+  if (!named) return { ok: false, message: "Only an opening officer named on this exercise files its sealed bid files." };
+  let moved: Awaited<ReturnType<typeof moveReleasedFiles>>;
+  try {
+    moved = await moveReleasedFiles({ organisationId: actor.organisationId, exerciseId });
+  } catch {
+    return { ok: false, message: "The files could not be filed just now. Nothing was lost: try again." };
+  }
+  revalidatePath(`/sourcing/${exerciseId}`);
+  if (moved.remaining > 0) return { ok: false, message: `${moved.moved} file${moved.moved === 1 ? "" : "s"} filed. ${moved.remaining} still cannot be filed: check the class under Configuration › Documents and the document store, then try again.` };
+  return { ok: true, message: moved.moved > 0 ? `${moved.moved} file${moved.moved === 1 ? "" : "s"} filed in the document store.` : "Every file is already in the document store." };
 }

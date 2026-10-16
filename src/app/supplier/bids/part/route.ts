@@ -123,7 +123,8 @@ async function upload(actor: SupplierActor, request: Request) {
       draftFilesBySupplier: facts.draftFiles,
     });
     if (faults.length > 0) return await refuse(faults);
-    const filename = Array.from(file.name).slice(0, 255).join("");
+    // A blank or whitespace name is replaced, so a file can never be sealed that the document store would later refuse for want of a title.
+    const filename = Array.from(file.name).slice(0, 255).join("").trim() || "file";
     const stored = await storePart(actor, { facts, packPartId, plain: bytes, filename, mediaType: recognised.type ?? "application/octet-stream", scan, scannerConfigured: scanner.configured });
     return reply({ ok: true, fileId: stored.fileId, packPartId: stored.packPartId, plainSha256: stored.plainSha256, plainBytes: stored.plainBytes, scan: stored.scan }, 201);
   } catch (e) {

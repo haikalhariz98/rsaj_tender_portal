@@ -410,7 +410,7 @@ export function LodgeEstimateDrawer({ exerciseId, estimateId, versionNo, allowed
         relodge
           ? "The key this version was sealed under has changed, so the sealed copy can no longer be opened. You lodge the same version again, sealed under the new key. Only the officer who lodged it can."
           : online
-            ? "The version is sealed under the exercise's key as the lodged copy. Lodging is a custody event, recorded as yours."
+            ? "A sealed copy of this version is lodged under the exercise's key. The version itself is still held unencrypted in the database. Lodging is a custody event, recorded as yours."
             : "The version goes into the sealed set as the lodged copy. Lodging is a custody event, recorded as yours."
       }
       fields={[

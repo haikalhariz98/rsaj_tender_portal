@@ -52,7 +52,7 @@ export function channelSettingFaults(channel: SubmissionChannel | null, online: 
 export const LIVE_ISSUE_WORDS: Readonly<Record<LiveIssueFault, string>> = {
   REVIEW_NOT_RECORDED: "The outside cryptography review is not recorded.",
   AMENDMENT_NOT_RECORDED: "The amendment of the organisation's bid procedure is not recorded.",
-  ACCEPTANCE_NOT_RECORDED: "The organisation's written acceptance of the limits of online sealing is not recorded.",
+  ACCEPTANCE_NOT_RECORDED: "The organisation's written acceptance of the limits of online sealing is not recorded. It must name that the company estimate's figure is held unencrypted in the database and its backups until the opening, and that encrypted backups with recorded custody are the organisation's own control.",
   SCANNER_NOT_CONFIGURED: "No malware scanner is configured for this copy of the system.",
   LIVE_NOT_ALLOWED_BY_DEPLOYMENT: "This copy of the system has not been told it may take live online bids. Whoever runs the system must allow it in the deployment settings first (the file .env.example says how).",
   PEPPER_NOT_SET: "The deployment's sealing pepper is not configured.",

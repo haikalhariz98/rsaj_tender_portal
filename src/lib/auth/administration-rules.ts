@@ -169,6 +169,13 @@ export const OFFICE_HOLDER_NEEDS_SECOND_PERSON = fault(
   "Orang ini memegang, atau pernah memegang, jawatan, kerusi jawatankuasa atau perwakilan, jadi kod untuk akaunnya memerlukan orang kedua. Cadangkannya di bawah Perubahan yang menunggu orang kedua: seorang pentadbir mencadangkannya, dan pentadbir lain mengeluarkannya serta ditunjukkan kod itu.",
 );
 
+/// Refused by `disableAccount`: between the unseal and finalising, an opening officer's sign-in is not switched off by one administrator (20t, S14). The same two-person route as marking them as having left.
+export const OPENING_OFFICER_NEEDS_SECOND_PERSON = fault(
+  "OPENING_OFFICER_NEEDS_SECOND_PERSON",
+  "This person is a named opening officer of an exercise whose bids are opened and not yet finalised. Without their signature it can never be finalised, so one administrator cannot switch their account off alone. Mark them as having left under Users, where a second approver decides it.",
+  "Orang ini ialah pegawai pembukaan yang dinamakan bagi satu pelawaan yang bidnya sudah dibuka dan belum dimuktamadkan. Tanpa tandatangannya ia tidak dapat dimuktamadkan, jadi seorang pentadbir tidak boleh menutup akaunnya seorang diri. Tandakan beliau sebagai telah meninggalkan jawatan di bawah Pengguna, tempat pelulus kedua memutuskannya.",
+);
+
 /// Refused by `issueCode`: nobody resets an administrator's account alone, or one administrator could sign in as another and make every two-person rule one person's.
 export const ADMINISTRATOR_NEEDS_SECOND_PERSON = fault(
   "ADMINISTRATOR_NEEDS_SECOND_PERSON",

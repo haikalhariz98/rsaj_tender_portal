@@ -59,6 +59,13 @@ import { act, seedActIds } from "./demo-acts";
 import type { Add } from "./demo-tender-docs";
 import { BIG } from "./demo-window";
 
+/// Minutes between the load and the exercise's closing. The load must make its two in-time bids inside it, so a slow machine raises it (DEMO_ONLINE_CLOSING_MINUTES, 2 to 20). It is judged for the closing calendar
+/// before any online write, and it is the one number both the check and the closing use.
+const CLOSING_MARGIN_MINUTES = (() => {
+  const n = Number(process.env.DEMO_ONLINE_CLOSING_MINUTES);
+  return Number.isInteger(n) && n >= 2 && n <= 20 ? n : 4;
+})();
+
 type Db = PrismaClient;
 const P = "demo_";
 
@@ -151,7 +158,7 @@ export async function loadOnlineDemo(db: Db, organisationId: string): Promise<On
   // the closing as it would be and for one twenty-five minutes on (the steps in between take minutes, and a load near midnight must not publish on the wrong side of it). Never restated here.
   const windowPolicy = await loadWindowPolicy(organisationId, db as never);
   const calendar = await loadCalendar(windowPolicy.calendarId, db as never);
-  const closingDayFaults = [4, 25].flatMap((minutes) => {
+  const closingDayFaults = [CLOSING_MARGIN_MINUTES, CLOSING_MARGIN_MINUTES + 21].flatMap((minutes) => {
     const closingAt = closingAfter(new Date(), minutes, tz).instant;
     return closingFaults({ closingAt, advertisementDay: W(12), closingTimeReason: "Demonstration", timeZone: tz, policy: windowPolicy, calendar, today: null, purchaseCloseDay: W(3) })
       .filter((f) => f.level === "block" && ["CLOSING_ON_WEEKEND", "PUBLIC_HOLIDAY", "CALENDAR_NOT_MAINTAINED", "CALENDAR_NOT_SET", "WEEKEND_NOT_SET"].includes(f.code))
@@ -336,7 +343,7 @@ export async function loadOnlineDemo(db: Db, organisationId: string): Promise<On
   if (roster.length > DEMO_UNSEAL_PASSPHRASES.length) fail(`${ref} has ${roster.length} opening officers: the demonstration holds ${DEMO_UNSEAL_PASSPHRASES.length} passphrases`);
   const shares = await writeShares(db, organisationId, sx, ref, roster, T(W(14), "09:00"), entry);
 
-  // ---- 6.2: the panel verified; the estimate prepared and then lodged sealed, by lodgeEstimate, now that the key exists
+  // ---- 6.2: the panel verified; the estimate prepared and then lodged sealed, now that the key exists. Written beneath lodgeEstimate by lodgeEstimateSealed, which restates that act's sealing and its order (a direct write, recorded as a product-owner question, not the act itself)
   const scopeOn = W(14);
   await scopeReady(db, organisationId, tz, sx, ref, SX_NO, scopeOn, T, nextDoc, docs as never, entry, VALUE, "DRAFT");
   await moveIntoPreparation(db, organisationId, sx, scopeOn, { report: "works" }, entry);
@@ -362,7 +369,7 @@ export async function loadOnlineDemo(db: Db, organisationId: string): Promise<On
   await markAllReady(db, organisationId, PACK, ref, T(packOn, "10:00"), entry);
   const advertised = W(12);
   // The closing: a few minutes after now, to the minute, in the organisation's zone. The bids and the wait for it happen in this one run.
-  const closing = closingAfter(new Date(), 4, tz);
+  const closing = closingAfter(new Date(), CLOSING_MARGIN_MINUTES, tz);
   const dates = { startOn: advertised, closingDay: closing.day };
   await submit(db, organisationId, { packId: PACK, routeId: TENDERING_ROUTE, at: T(packOn, "11:00"), startOn: dates.startOn, closingDay: dates.closingDay, closingTime: closing.time }, entry);
   await decide(db, organisationId, { packId: PACK, decision: "DONE", personId: HOD_CP.id, decidedOn: advertised, at: T(advertised, "09:00"), reason: "", dates: { ...dates, closingTime: closing.time } }, entry);

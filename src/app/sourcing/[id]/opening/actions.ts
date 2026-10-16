@@ -67,7 +67,7 @@ import { priceRead } from "@/lib/opening/price";
 
 import { ENVELOPE_CHANGED, GONE_BID, GONE_OPENING, inOpening, refuse, stampNow, warnings } from "./in-opening";
 import { finaliseInTransaction, liveUnpurchased, openingLabel, openingOf } from "./finalise-transaction";
-import { ONLINE_AUTHORISE_ELSEWHERE, ONLINE_ENVELOPE_OPENED_BY_UNSEAL } from "./online-words";
+import { ONLINE_AUTHORISE_ELSEWHERE, ONLINE_ENVELOPE_OPENED_BY_UNSEAL, ONLINE_SIGN_ELSEWHERE } from "./online-words";
 
 const bidOf = (c: OpeningContext, id: string) => {
   for (const o of c.openings) {
@@ -843,6 +843,8 @@ export async function recordSignature(_prev: FormState, data: FormData): Promise
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
+    // Ruling 20t: an online opening is signed by each named officer in their own sign-in (signOnlineFinalise), never recorded for another and never from paper.
+    if (l.ex.submissionChannel === "ONLINE") return { ok: false, message: ONLINE_SIGN_ELSEWHERE };
     const startDay = l.org.timeZone ? dayIn(o.startedAt, l.org.timeZone) : null;
     const fs = markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId, already: o.signatures.some((s) => s.personId === personId), sameOpening: true, signedOn: { day: isDay(signedOn) ? signedOn : null, today: l.org.today, startDay } });
     if (blocking(fs).length) return refuse(fs);

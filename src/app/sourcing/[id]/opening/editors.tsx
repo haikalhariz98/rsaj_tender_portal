@@ -3,7 +3,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 import { authoriseOnlineUnseal } from "./unseal-actions";
-import { finaliseOnline, signOnlineFinalise } from "./online-finalise-actions";
+import { fileSealedBidFiles, finaliseOnline, signOnlineFinalise } from "./online-finalise-actions";
 import type { Allowed } from "@/lib/opening/read";
 
 import {
@@ -464,6 +464,22 @@ export function CopyExplanationDrawer({ exerciseId, openingId, people }: { exerc
       submitLabel="Record the explanation"
       trigger={{ label: "Record the explanation", className: secondary }}
       size="md"
+    />
+  );
+}
+
+/// ONLINE: files, again, the sealed bid files the filing after the finalise did not reach. No passphrase: the keys were released at the finalise.
+export function FileSealedBidsDrawer({ exerciseId, openingId, waiting }: { exerciseId: string; openingId: string; waiting: number }) {
+  return (
+    <RecordEditor
+      title="File the sealed bid files"
+      description={`${waiting} file${waiting === 1 ? " is" : "s are"} still to be filed in the document store. Filing is safe to repeat and moves only what is left.`}
+      fields={[hidden("exerciseId"), hidden("openingId")]}
+      values={{ exerciseId, openingId }}
+      action={fileSealedBidFiles}
+      submitLabel="File them now"
+      trigger={{ label: "File them now", className: secondary }}
+      size="sm"
     />
   );
 }

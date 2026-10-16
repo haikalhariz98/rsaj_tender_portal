@@ -139,8 +139,8 @@ export async function gatherFinaliseMaterial(i: { organisationId: string; exerci
       }
     }
     return { ok: true, material };
-  } catch (e) {
-    zeroMaterial(material);
-    throw e;
+  } catch {
+    // A store or database failure while gathering is a refusal in words, never an error screen: nothing was written, and the caller logs the reason.
+    return fail("ONLINE_STORE_UNAVAILABLE", null);
   }
 }
