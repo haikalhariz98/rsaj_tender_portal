@@ -1,6 +1,6 @@
 # Wave 3c — the SR-14 opening checklist, and what SR-15 still needs online: build plan
 
-**Status (2026-10-17):** Proposed by the solution architect. NOT BUILT. SR-14 (matrix, every-officer Pass or Reject) and SR-15 online: not started. Only the interim guards of commit 3c928710 exist. Waiting on the precondition below, S9, and 3c-Q1 to 3c-Q9.
+**Status (2026-10-17):** Proposed by the solution architect. NOT BUILT. SR-14 (matrix, every-officer Pass or Reject) and SR-15 online: not started. Only the interim guards of commit 3c928710 exist. The precondition is met, S9 is ruled and 3c-Q1 to 3c-Q9 are answered: rulings 20cm to 20cx in design note 0003 §6 (product owner, 2026-10-17). Step 1 may start. 20cm, 20cp, 20ct and 20cw amend this plan where marked.
 
 **Sources.**
 - **Requirement:** SR-14 and SR-15 in `docs/requirements/sourcing-v2-media/Sourcing_Requirements_v2.txt`, with figures 13 and 14
@@ -18,6 +18,9 @@ security-auditor walk of `signin-threat-model.md` §G against the tree:
 
 Writing it is not a step of this plan, because the security-auditor is not a build agent. Step 1 checks that it exists and stops if it
 does not (20cl: no step 20 report exists today).
+
+**Met (20cx, 2026-10-17).** The record is in the decisions log (3e3714a1, 6f314116), S9 is ruled (20cm), and every NOT MET item has a
+backlog row, including the two the record left owed (20cw (a) and (b)).
 
 ## 0. What exists today, clause by clause
 
@@ -138,7 +141,7 @@ The phases below are those of one opening. 20ax applies to a supplementary openi
 | Viewer | Before the unseal | Unseal → finalise | After finalising |
 | --- | --- | --- | --- |
 | Named opening officer | no matrix (no `OpenedBid`). Received rules (18, 20u) | the matrix with names, answers, decision and confirmations, and the downloads of `CHECK_FILES`. **No price, no period, no declared figure** | the matrix read-only, with the filed downloads |
-| Other staff on the exercise | no matrix | the matrix as `OffersRead` shows it today (names, answers, decisions), with no file control | the matrix read-only. Filed downloads are gated by the version route's SULIT entitlement |
+| Other staff on the exercise | no matrix | the matrix with answers and decisions, and no file control. **Online, no bidder's name and no addendum acknowledgement day** until finalising: the column shows its listing number and alternative link only (20c, 20cm), the rule `OffersRead` keeps today (`namesHeld`, `read.ts:192`). Paper as `OffersRead` shows it today | the matrix read-only. Filed downloads are gated by the version route's SULIT entitlement |
 | Administrator | no matrix | as other staff. Every act and download is refused | refused at `filed-file` |
 
 ### 1.5 SR-15 online
@@ -146,8 +149,9 @@ The phases below are those of one opening. 20ax applies to a supplementary openi
 - The two CSVs and the Schedule section's tables stay the frozen snapshots (ruling 24).
 - Online, the "Class as read" cell reads "Not typed: an online bid", through one pure function used by the screen, the print page and
   the CSV. The register Kelas column is unchanged.
-- The Received section gets a pointer once the opening is finalised (SR-15 "Where: Received"). It is a callout with the same two
-  download buttons and "Open the schedule". The tables stay on Schedule, as wave 3a built them (question 3c-Q7).
+- Once the opening is finalised, the Received section shows the SR-15 table itself (SR-15 "Where: Received", ruling 20ct): the table
+  Schedule shows, through the same component and the same read, never a copy, with the same two download buttons. Schedule is
+  unchanged. Before finalising, Received shows none of it.
 
 ## 2. Data model (one migration, step 3)
 
@@ -231,8 +235,8 @@ export function columnStatus(i: {
 }): { status: ColumnStatus; confirmed: { personId: string; name: string }[]; awaiting: { personId: string; name: string }[]; stale: { personId: string; name: string }[] };
 
 export type MatrixActorFault = "ADMINISTRATOR" | "NOT_A_NAMED_OFFICER" | "NOT_OWN_ACT";
-/// Both channels: the actor is not an administrator, and the subject is a present panel member of this opening. NOT_OWN_ACT where the subject is not the actor,
-/// except a paper confirmation (`act: "CONFIRM"`, not online), which may be recorded on behalf of a present panel member (3c-Q3).
+/// Both channels: the actor is not an administrator, and the actor and the subject are each a present panel member of this opening (20cp). NOT_OWN_ACT where the subject is not the actor,
+/// except a paper confirmation (`act: "CONFIRM"`, not online), which one present panel member may record on behalf of another (3c-Q3, 20cp); the record names both.
 export function matrixActorFaults(i: { online: boolean; act: "ANSWER" | "DECIDE" | "CONFIRM"; administrator: boolean; actorPersonId: string; subjectPersonId: string; officers: readonly string[] }): Finding<MatrixActorFault>[];
 
 export type ConfirmFault = "COLUMN_NOT_ANSWERED" | "DECISION_NOT_RECORDED";
@@ -326,6 +330,10 @@ export interface MatrixView {
 }
 ```
 
+**Names held (20c, 20cm).** For an online opening before finalising, a viewer who is not a named officer gets each column's `bidder` as
+the words for a withheld name (the same words `OffersRead` uses) and every `acknowledgedOn` as null with the cell's words saying it is
+shown to the named officers. `namesHeld` is computed once, as in `read.ts`, not restated.
+
 The view holds **no price, period or declared field**. Step 4 adds a source scan, `matrix-no-price.test.ts`: neither `matrix-read.ts` nor
 the matrix components select or name `priceAsRead`, `completionPeriod`, `completionUnit`, `openingPrice` or a declaration (wave 3b
 §3).
@@ -341,7 +349,9 @@ Each step has these gates before its commit:
 
 ### Step 1 — the close-out pins (test-engineer)
 
-**Gate.** `docs/notes/decisions-log.md` holds the step 20 security record (20bv). If it does not, stop and report.
+**Gate.** `docs/notes/decisions-log.md` holds the step 20 security record (20bv), design note 0003 holds ruling 20cx (S9 ruled as
+20cm), and `docs/notes/backlog.md` holds 20cw's two rows (`db:roles` on every LIVE database, and the estimate tab's "sealed"). The
+record alone is not the gate (20cx). If any is missing, stop and report.
 
 **Builds:**
 - **20br.** A new `src/lib/window/publish-online.db.test.ts`, with its fixture in `src/lib/window/online-publish.fixture.ts`.
@@ -385,7 +395,7 @@ Each step has these gates before its commit:
 - the tally words for each mix, plus a scan that `tallyText` and `CELL_WORDS` hold no "Pass", "Fail" or "Lulus";
 - `confirmationStands` on paper (reading only) and online (reading and revision);
 - `columnStatus` through all four states, with a stale confirmation;
-- `matrixActorFaults`: administrator, not named, on behalf (refused online and for answers and decisions on paper; allowed for a paper confirmation);
+- `matrixActorFaults`: administrator, not named, on behalf (refused online and for answers and decisions on paper; allowed for a paper confirmation recorded by a present panel member, refused when the recorder is not one, 20cp);
 - `confirmFaults`.
 
 **Done when:**
@@ -404,6 +414,7 @@ Each step has these gates before its commit:
 **Tests:** a database test, `opened-bid-revision.db.test.ts`. A +1 update passes; 0, −1 and +2 are refused by the trigger.
 
 **Done when:**
+- `src/lib/bids/sealed.test.ts` passes unchanged: no plain identity column is added (20cm);
 - both databases carry the migration;
 - the diff is empty;
 - `npm run test:db` is green apart from the known `holding-edit.db.test.ts` failure;
@@ -438,6 +449,9 @@ one bidder also submit an alternative.
    and carry the declared price and period, the register Kelas (or "No class on the register"), "Not typed: an online bid", and the
    estimate row last. The summary labels follow the decisions, and the CSV rows equal `scheduleSection`'s rows. Before finalising, the
    route returns 409.
+9. **Names held (20c, 20cm).** On an online opening between the unseal and finalising, `openingMatrix` for a staff reader who is not a
+   named officer returns no bidder's name and no acknowledgement day in any column; for a named officer it returns both; after finalising,
+   both return them.
 
 **Tests updated to match ruling 22, each change citing it.** Only the order of work changes; no assertion is weakened.
 - `src/app/sourcing/[id]/opening/online-finalise.db.test.ts` (`prepare`, through the fixture);
@@ -480,7 +494,8 @@ one bidder also submit an alternative.
 - `OffersRead` loses its Checklist and Verdict drawers, on both channels, and its Initial drawer online;
 - `OffersRead` keeps the as-read columns and the paper acts.
 
-**Received.** Once the opening is finalised, Received shows the SR-15 pointer callout from §1.5.
+**Received (20ct).** Once the opening is finalised, Received shows the SR-15 table from §1.5, rendered by the component Schedule uses, from
+the same read, with the two download buttons. No copy of the table or its read is made.
 
 **Comparators (G4).** `scripts/compare-screen.mjs` records the matrix, the removed `FilesToCheck` and the moved drawers, citing SR-14.
 
@@ -488,8 +503,9 @@ one bidder also submit an alternative.
 - `npm run check` passes, including `check-ui`;
 - `npx vitest run src/components src/app/sourcing` passes;
 - the overclaim scans stay green in English and Malay;
-- a quick rendered look at 1280 and 1440 on the scratch data shows a paper opening and an online opening, before and after finalising.
-  This is not the step 7 check.
+- a quick rendered look at 1280 and 1440 on the scratch data shows a paper opening and an online opening, before and after finalising,
+  and Received's SR-15 table after finalising (20ct). This is not the step 7 check;
+- no file under `src/app/sourcing/[id]` holds a second copy of the SR-15 table's rows or columns (20ct).
 
 ### Step 6 — the demonstration, on a fresh database only (data-migration-engineer)
 
@@ -518,6 +534,10 @@ Everything is inside `demo:load` on a fresh database (12c, 20z), with no write t
 **20bt, the focus trap.** Fix it once in `src/components/ui/drawer.tsx` for every `CONFIRM_SCRIM` dialog: Tab cycles inside, Escape
 closes, and focus returns to the opener. Add a component test.
 
+**20cw (b), the estimate tab's words.** `scope/estimate-section.tsx:55,135` stop calling a version "sealed". The words say what is true:
+the figure is withheld from view and held unencrypted, as the lodge drawer says (`scope/editors.tsx:413`). "Sealed" stays only for a
+copy sealed under the exercise key. Words only, with the overclaim scans covering the file.
+
 **The throwaway database.** Create a new database, `perolehan_ui_3c`, with the setup script and then `demo:load`.
 - Never use `perolehan` or `perolehan_native_check`.
 - Serve it with a second app on another port. Next 16 holds a lockfile against two `next dev` instances in one project, so use `next build` then `next start -p 3100`, with `DATABASE_URL` set explicitly for the setup, `demo:load`, the build and the start (read `node_modules/next/dist/docs/01-app/02-guides/upgrading/version-16.md`, "Concurrent dev and build", first). The running dev server is never stopped.
@@ -527,7 +547,7 @@ closes, and focus returns to the opener. Add a component test.
 - drive the online demo through the real start and unseal with the printed passphrases;
 - capture the matrix before any answer, part answered, awaiting confirmation, after finalising (with filed downloads), and the paper
   demo's matrix;
-- capture Received's SR-15 callout and Schedule;
+- capture Received's SR-15 table and Schedule, and check that they show the same rows (20ct);
 - download both CSVs and check them against the screen.
 
 **The UI checks:**
@@ -538,30 +558,38 @@ closes, and focus returns to the opener. Add a component test.
 **The records:**
 - decisions-log lines ("- 2026-10-17 · …") for each judgement;
 - §6's questions carried into the log;
-- this plan's status updated.
+- this plan's status updated;
+- the docs-writer's three stale lines (20cw (c)): threat model S12's and S25's Left columns, and ADR 0036's 3c-Q5 note, citing 20cr.
 
 **Done when:**
 - the full Linux suite (`scripts/test-linux.ps1`) passes;
 - the screenshots and the snapshot exist under the scratchpad and are listed in the log;
+- the estimate tab no longer says "sealed" of a version, and the backlog row for it is marked done (20cw (b));
+- the three stale lines of 20cw (c) are corrected;
 - the report says whether the running dev server needs a restart. It does after step 3's client change.
 
-## 6. Questions for the product owner (taken conservatively and built as stated; none blocks)
+## 6. Questions for the product owner: ruled 2026-10-17 (design note 0003, 20cm to 20cx)
 
-- **3c-Q1.** An online column keeps every mandatory returned part, including parts not marked as opening-check, which the officers answer
+Each question keeps its text. Its ruling is named after the number. Where a ruling changed the plan, the plan above is amended.
+
+- **S9 (20bh, 20bv). Ruled 20cm: RESIDUAL, accepted for building and DEMONSTRATION, NOT MET for LIVE (FR-BID-001's identity clause,
+  deferred under 20a).** Plan changes: §1.4's "Other staff" row, §4.3's names-held paragraph, step 3's Done-when and step 4's test 9.
+
+- **3c-Q1. Ruled 20cn: confirmed.** An online column keeps every mandatory returned part, including parts not marked as opening-check, which the officers answer
   from the receipt record without opening. The alternative reading of ruling 23 shows only the flagged parts. That would drop
   FR-OPN-008's record, and break the supplier's "the opening will record it as missing".
-- **3c-Q2.** An addendum row online is answered against the portal acknowledgement, which the cell shows. No file is opened.
-- **3c-Q3.** Ruling 22 is applied to both channels: the named-officer door, and a decision that stands only on every present officer's
+- **3c-Q2. Ruled 20co: confirmed, with 20cm's limit (the day shown before finalising to named officers only).** An addendum row online is answered against the portal acknowledgement, which the cell shows. No file is opened.
+- **3c-Q3. Ruled 20cp: confirmed, tightened (the recorder of a paper confirmation is a present panel member too; §3.1 and step 2 amended).** Ruling 22 is applied to both channels: the named-officer door, and a decision that stands only on every present officer's
   confirmation of the current column. The narrower question left: a **paper** confirmation may still be recorded on behalf of a present
   panel member, as Phase 2b allows, because a paper initial is a physical mark. Online it is the officer's own act.
-- **3c-Q4.** An online confirmation is a TRANSACTION-class own act with no password. The password-attributed act stays
+- **3c-Q4. Ruled 20cq: confirmed.** An online confirmation is a TRANSACTION-class own act with no password. The password-attributed act stays
   `signOnlineFinalise` (20j, 20t).
-- **3c-Q5.** Plain hashes are shown per file only after finalising, from the filed version. Before then they are sealed in `FileMeta`, and
+- **3c-Q5. Ruled 20cr: confirmed (ADR 0036's note is updated under 20cw (c)).** Plain hashes are shown per file only after finalising, from the filed version. Before then they are sealed in `FileMeta`, and
   no new decryption door is opened to show them. This amends wave 3b §3's "each column shows the plain hashes" and ADR 0036's
   opening-roll sentence, which carries an amendment note citing this plan. The receipt digest is shown from the unseal.
-- **3c-Q6.** The row figure 13 calls "Committee decision" is labelled "Decision", recorded by the named officers. Ruling 24 says the
+- **3c-Q6. Ruled 20cs: confirmed.** The row figure 13 calls "Committee decision" is labelled "Decision", recorded by the named officers. Ruling 24 says the
   officers decide, and 0003 §4 (line 610) leaves "who is the committee at an online opening" open.
-- **3c-Q7.** SR-15's tables stay on Schedule (wave 3a). Received gets a pointer with the two downloads. The difference from "Where:
+- **3c-Q7. Ruled 20ct: changed. Received shows the SR-15 table itself, through Schedule's component (§1.5, steps 5 and 7 amended).** SR-15's tables stay on Schedule (wave 3a). Received gets a pointer with the two downloads. The difference from "Where:
   Received" was not recorded before.
-- **3c-Q8.** "Class as read" on an online row reads "Not typed: an online bid", rather than a dash or a removed column.
-- **3c-Q9.** Present is refused on a part with no file received. Absent and Not applicable stay the officers' choice everywhere.
+- **3c-Q8. Ruled 20cu: confirmed.** "Class as read" on an online row reads "Not typed: an online bid", rather than a dash or a removed column.
+- **3c-Q9. Ruled 20cv: confirmed.** Present is refused on a part with no file received. Absent and Not applicable stay the officers' choice everywhere.

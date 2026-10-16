@@ -2144,3 +2144,103 @@ code is owed and whether it belongs to wave 3c or the backlog. Questions already
       walk itself is owed, not only its log line.
     - **20ck.** The referral of k-of-m to the founder is 20k's, in plan section 4. 20ay and 20az reaffirm it.
     - **Code:** wave 3c (the demo test's fallback assertion, and the post-finalise cell's `ensureFileMoved`). The rest are documents only.
+
+### Wave 3c: S9, the plan's questions and the 20bv precondition (product owner, for the founder, 2026-10-17)
+
+These rule on S9 (left to the product owner by 20bh and by the step 20 security record in the decisions log, 2026-10-17), on questions
+3c-Q1 to 3c-Q9 of `docs/notes/plans/wave-3c-build-plan.md` §6, and on what the record left owed. Where a ruling changes the plan, the plan
+is amended in the same commit.
+
+20cm. **S9 (who bid is learnt before the opening): RESIDUAL, accepted for building and DEMONSTRATION. For LIVE it stays NOT MET against
+    FR-BID-001's identity clause, a Must, recorded as deferred under 20a.** It does not block wave 3c.
+    - **Plain identity in the database (20a).** `OnlineBid.supplierId`, the account links, the audit actor, `ActAttribution` and
+      `SealedAccessEvent` stay plain, for the audit trail's sake (20a's reason is unchanged). The `bids/sealed.test.ts` pin of the plain
+      identity columns stays exactly as it is. Wave 3c adds no column that names a bidder on a sealed table: `columnRevision` and the
+      confirmation's revision name no bidder.
+    - **Names between the unseal and finalising (20c).** Only the named officers see them. The matrix keeps the rule `OffersRead` keeps
+      today (`namesHeld`, `src/lib/opening/read.ts:192`): for any other reader of an online opening before finalising, the column shows
+      its listing number and alternative link, not the bidder's name, and not the addendum acknowledgement day, which could be matched
+      against the acknowledgement register to name the column. This corrects plan §1.4, whose "Other staff" row read as if it gave names.
+    - **The timing exposure after the start (20bh).** Accepted for DEMONSTRATION as 20bh says. For LIVE it is accepted only through the
+      customer's written acceptance (must-have 6), which must now name it beside FR-BID-001's identity clause. The backlog row of that
+      acceptance is amended to say so.
+    - **The blinded supplier link** is not ruled here. It stays referred to the founder on the outside review's answer (20ck).
+    - **Code:** wave 3c step 4 (the matrix read honours `namesHeld`, with a database test). Step 3 leaves `bids/sealed.test.ts` unchanged.
+
+20cn. **3c-Q1: an online column keeps every mandatory returned part. Confirmed.**
+    - **Why.** Ruling 23 decides which documents the officers open, not which ones the opening records. FR-OPN-008 requires every
+      mandatory returned document to be recorded, and the supplier is told "the opening will record it as missing". The configured
+      opening-check parts are the rows with a download, so SR-14's Done-when (a column per bidder with the three documents) still holds
+      wherever the customer flags three parts.
+    - **Code:** none beyond the plan.
+
+20co. **3c-Q2: an online addendum row is answered against the portal acknowledgement shown in the cell. No file is opened. Confirmed,**
+    with 20cm's limit: before finalising, only the named officers see the acknowledgement day.
+    - **Code:** none beyond the plan and 20cm.
+
+20cp. **3c-Q3: ruling 22 on both channels, and a paper confirmation may be recorded on behalf. Confirmed, tightened.**
+    - **Why.** The founder's answer 5 ("both must confirm") and SR-07's Done-when ("only these two officers can do the opening check")
+      name no channel. A paper initial is a physical mark on the schedule, so Phase 2b's recording on behalf stays for paper. Online it is
+      the officer's own act, as commit 3c928710 already enforces.
+    - **The tightening.** On paper, the person who records a confirmation on behalf must also be a present panel member of the opening,
+      never any other staff member, and the record names both: the officer whose confirmation it is, and who recorded it. The plan's
+      §3.1 comment on `matrixActorFaults` checked only the subject.
+    - **Code:** wave 3c step 2 (`matrixActorFaults` also checks the actor for a paper confirmation, with a test).
+
+20cq. **3c-Q4: an online confirmation is a TRANSACTION-class own act, with no password asked. Confirmed.**
+    - **Why.** The password-attributed act is each named officer's signature of the schedule, `signOnlineFinalise` (20t), which every
+      named officer must give before finalising. A confirmation is the officer's own act in their own sign-in. Under 20j, no screen calls
+      a confirmation a signature.
+    - **Code:** none beyond the plan.
+
+20cr. **3c-Q5: plain hashes per file only after finalising, from the filed version. The receipt digest from the unseal. Confirmed.**
+    - **Why.** Before finalising the hashes are sealed in `FileMeta`. Showing them earlier would need a new decryption door, and every
+      door is more to defend (ruling 20, S13). The receipt digest already lets an officer check a bid against the supplier's receipt.
+    - **The amendment** of wave 3b §3 and of ADR 0036's opening-roll sentence stands. The ADR's note still says "not yet ruled by the
+      product owner"; it is changed to cite this ruling (20cw).
+    - **Code:** none beyond the plan.
+
+20cs. **3c-Q6: the matrix row is labelled "Decision", recorded by the named officers. Confirmed.**
+    - **Why.** Ruling 24 says the two officers decide. Who the committee is at an online opening is still open (0003 §4), so the matrix
+      does not use the word "committee". The frozen schedule and Grand Summary keep their own labels (ruling 24 and wave 3a). A customer
+      word for the row, if one is wanted, is a configured label later, not a literal now.
+    - **Code:** none beyond the plan.
+
+20ct. **3c-Q7: Received shows the SR-15 table itself, not only a pointer. This changes the plan.**
+    - **Why.** SR-15 is explicit: "Where: Bids and opening > Received, after the opening is finalised", "Show the Grand Summary table",
+      and "the downloaded Jadual Tawaran matches the table on screen". Wave 3a put the tables on Schedule, but no ruling decided against
+      Received; the architect's question records that the difference was never ruled. Where the founder's text is explicit, it governs.
+    - **What is built.** Once the opening is finalised, Received shows the SR-15 table Schedule shows (ruling 24's columns, from the frozen
+      snapshots), through the **same component and the same read** as Schedule, never a copy, with the two download buttons. Schedule is
+      unchanged. Before finalising, Received shows none of it.
+    - **Code:** wave 3c step 5 (and step 7's capture).
+
+20cu. **3c-Q8: "Class as read" on an online row reads "Not typed: an online bid". Confirmed.**
+    - **Why.** A dash reads as a blank that someone forgot, and removing the column would make the two channels' schedules differ. The
+      words say what is true. One pure function serves the screen, the print page and the CSV. The register's Kelas column is unchanged.
+    - **Code:** none beyond the plan.
+
+20cv. **3c-Q9: Present is refused on a part with no file received (`NO_FILE_RECEIVED`, online). Absent and Not applicable stay the
+    officers' judgement. Confirmed.**
+    - **Why.** An officer cannot certify a document that never arrived (gaps stay honest). What an Absent does is still the method's
+      completeness switch (`verdict.ts`, FR-BID-007).
+    - **Code:** none beyond the plan.
+
+20cw. **What the step 20 record left owed.**
+    - **(a) `db:roles` on every LIVE database (S25).** A backlog row now says it: run on every LIVE database and after every restore,
+      recorded with attestations 4 and 5 (who and when). Whether the LIVE issue should refuse while the runtime role check reports
+      TEMPORARY is the candidate control, not built.
+    - **(b) The estimate tab's "sealed" (`scope/estimate-section.tsx:55,135`).** It is an overclaim on screen, since the version's figure
+      is held unencrypted (F10), as the lodge drawer already says (`scope/editors.tsx:413`). It gets its own backlog row and is fixed in
+      wave 3c step 7, words only, under the overclaim scans: the words say the figure is withheld from view and held unencrypted, and
+      "sealed" is kept only for a copy that really is sealed under the exercise key.
+    - **(c) Stale text, owed to the docs-writer, not blocking:** threat model S12's Left column (PA028 has landed), S25's Left column (the
+      runtime check reports TEMPORARY, as a warning), and ADR 0036's 3c-Q5 note ("not yet ruled", now 20cr). Done before wave 3c is
+      called closed (plan step 7).
+    - **Code:** (b) wave 3c step 7. (a) and (c) none.
+
+20cx. **The wave 3c precondition (20bv) is met.**
+    - The record is in the decisions log (commits 3e3714a1 and 6f314116). S9 is ruled (20cm). Every NOT MET item it names has a backlog
+      row: the rows it cited were checked present, and 20cw adds the two it left owed.
+    - Wave 3c step 1 may start. Its gate checks the record, this ruling and the two rows, not the record alone.
+    - **Code:** none.
