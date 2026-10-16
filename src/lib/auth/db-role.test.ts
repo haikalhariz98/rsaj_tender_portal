@@ -88,7 +88,7 @@ describe("the role's name", () => {
 });
 
 describe("who the running app is", () => {
-  const app = { name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [] as string[] };
+  const app = { name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [] as string[], temporaryHeld: false };
   it("the separate role is safe", () => {
     expect(runtimeRoleVerdict(app, true)).toEqual({ safe: true });
     expect(runtimeRoleVerdict(app, false)).toEqual({ safe: true });
@@ -121,6 +121,20 @@ describe("who the running app is", () => {
     expect(`It runs as ${RUNTIME_ROLE_WORDS.SUPERUSER}.`).toBe(
       "It runs as the database superuser, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log.",
     );
+  });
+  it("a login that can still make temporary tables is a warning, never a refusal, even in production (step 19)", () => {
+    const temp = { ...app, temporaryHeld: true };
+    expect(runtimeRoleVerdict(temp, true)).toEqual({ safe: false, reason: "TEMPORARY_HELD", name: "perolehan_app", refuseSignIn: false, tables: [] });
+    expect(runtimeRoleVerdict(temp, false)).toMatchObject({ safe: false, reason: "TEMPORARY_HELD", refuseSignIn: false });
+  });
+  it("the warning comes after the superuser, owner and grants reasons", () => {
+    expect(runtimeRoleVerdict({ ...app, temporaryHeld: true, isSuperuser: true }, true)).toMatchObject({ reason: "SUPERUSER", refuseSignIn: true });
+    expect(runtimeRoleVerdict({ ...app, temporaryHeld: true, ownsSchemaObjects: true }, true)).toMatchObject({ reason: "OWNER", refuseSignIn: true });
+    expect(runtimeRoleVerdict({ ...app, temporaryHeld: true, withheldHeld: ["AuditEntry"] }, true)).toMatchObject({ reason: "TRAIL_WRITABLE", refuseSignIn: true });
+  });
+  it("its words say the role setup has not run since the hardening, and name no code", () => {
+    expect(RUNTIME_ROLE_WORDS.TEMPORARY_HELD).toMatch(/temporary tables/);
+    expect(RUNTIME_ROLE_WORDS.TEMPORARY_HELD).toMatch(/db:roles/);
   });
   it("every reason has words for the screen, and none of them is a code", () => {
     for (const words of Object.values(RUNTIME_ROLE_WORDS)) expect(words).not.toMatch(/[A-Z]{2,}_|[a-z]+[A-Z][a-z]+[A-Z]|_prisma/);

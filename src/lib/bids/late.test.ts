@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { envelope } from "./fixture";
-import { admission, lateAdmissionFault, lateMatterFault, type LateMatter } from "./late";
+import { admission, lateAdmissionFault, lateMatterEnvelopeLabel, lateMatterFault, lateMatterSubject, type LateMatter } from "./late";
 
 const late1 = envelope({ late: true });
 const late2 = envelope({ late: true });
@@ -55,5 +58,34 @@ describe("tabling a late envelope's admission (FR-CTE-008)", () => {
   it("never a withdrawn envelope or the estimate", () => {
     expect(codes({ envelope: envelope({ late: true, status: "WITHDRAWN" }) })).toEqual(["WITHDRAWN"]);
     expect(codes({ envelope: envelope({ kind: "COMPANY_ESTIMATE" }) })).toEqual(["NOT_A_BID"]);
+  });
+});
+
+describe("a late online envelope's stored labels carry no sequence (ruling 20aw)", () => {
+  it("an online envelope's matter subject names the exercise and says a late online submission, with no number", () => {
+    for (const sequence of [1, 7, 42]) {
+      const subject = lateMatterSubject("Road works", sequence, "ONLINE");
+      expect(subject).toBe("Admission of a late online submission: Road works");
+      expect(subject).not.toMatch(/\d/);
+    }
+  });
+
+  it("the audit's envelope label carries no number either", () => {
+    for (const sequence of [1, 7, 42]) expect(lateMatterEnvelopeLabel(sequence, "ONLINE")).toBe("A late online submission");
+  });
+
+  it("paper labels are unchanged", () => {
+    expect(lateMatterSubject("Road works", 3, "BOX")).toBe("Admission of late envelope 3: Road works");
+    expect(lateMatterSubject("Road works", 3)).toBe("Admission of late envelope 3: Road works");
+    expect(lateMatterSubject("Road works", 3, null)).toBe("Admission of late envelope 3: Road works");
+    expect(lateMatterEnvelopeLabel(3, "BOX")).toBe("Envelope 3");
+    expect(lateMatterEnvelopeLabel(3)).toBe("Envelope 3");
+  });
+
+  it("the tabling act passes the envelope's channel to both labels, so an online envelope is never labelled by its sequence", () => {
+    const src = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/bids/actions.ts"), "utf8");
+    expect(src).toContain("lateMatterSubject(l.ex.title, env.sequence, env.channel)");
+    expect(src).toContain("lateMatterEnvelopeLabel(env.sequence, env.channel)");
+    expect(src).not.toMatch(/envelope: `Envelope \$\{env\.sequence\}`, sitting/);
   });
 });

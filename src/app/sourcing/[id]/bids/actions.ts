@@ -11,7 +11,7 @@ import { lockFaults } from "@/lib/bids/box";
 import { correctionFaults, type CorrectionChange } from "@/lib/bids/correction";
 import { applyFaults, extensionFaults } from "@/lib/bids/extension";
 import { bidFindingText } from "@/lib/bids/labels";
-import { LATE_DOMAIN, lateMatterFault, lateMatterSubject } from "@/lib/bids/late";
+import { LATE_DOMAIN, lateMatterEnvelopeLabel, lateMatterFault, lateMatterSubject } from "@/lib/bids/late";
 import { lockBoxRows, lockEnvelopeRows, lockExtensionRows, lockWithdrawalRows } from "@/lib/bids/lock";
 import { toSecond } from "@/lib/bids/lateness";
 import { judgeReceipt, receiptFaults } from "@/lib/bids/receipt";
@@ -315,13 +315,13 @@ export async function tableLateMatter(_prev: FormState, data: FormData): Promise
         ? { ok: false, errors: { tabledByPersonId: TABLING_FAULT_MESSAGE[tabling.fault] } }
         : { ok: false, message: `Nothing was saved: ${TABLING_FAULT_MESSAGE[tabling.fault]}` };
     }
-    const subject = lateMatterSubject(l.ex.title, env.sequence);
+    const subject = lateMatterSubject(l.ex.title, env.sequence, env.channel);
     const tabledAt = dayToDate(s.today!);
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     // The committee decides admission itself: its decision is the act (BD-66-6).
     const row = await tx.committeeDecision.create({ data: { meetingId: s.meeting.id, subject, domain: LATE_DOMAIN, matterKind: "LATE_TENDER", matterRef: l.ex.reference, bidEnvelopeId: env.id, act: "A", tabledByPersonId, tabledAt, sequence } });
     await audit(tx, toAuditActor(actor), l.org.id, "CommitteeDecision", row.id, label(l, subject), "CREATE",
-      diffFields(null, { matter: subject, envelope: `Envelope ${env.sequence}`, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!) }));
+      diffFields(null, { matter: subject, envelope: lateMatterEnvelopeLabel(env.sequence, env.channel), sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!) }));
     await act.write(tx, row.id);
     return { ok: true, message: `Tabled at ${s.meeting.reference}. It is decided there, at the sitting.` };
   });

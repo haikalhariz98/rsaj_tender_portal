@@ -104,4 +104,10 @@ export function lateMatterFault(i: {
 }
 
 /// A late-admission matter's subject: the exercise and the envelope, never a bidder (none is named before opening).
-export const lateMatterSubject = (exerciseTitle: string, sequence: number) => `Admission of late envelope ${sequence}: ${exerciseTitle}`;
+/// Ruling 20aw: an ONLINE envelope's stored labels carry no sequence, because a label is fixed when written and a true sequence may not be shown before the opening starts (20u). Two such
+/// matters in one sitting are told apart by the sitting's own matter number. Paper is unchanged.
+export const lateMatterSubject = (exerciseTitle: string, sequence: number, channel?: string | null) =>
+  channel === "ONLINE" ? `Admission of a late online submission: ${exerciseTitle}` : `Admission of late envelope ${sequence}: ${exerciseTitle}`;
+
+/// How the audit trail names the envelope a late matter is about (20aw): the register's number for paper, no number for an online submission.
+export const lateMatterEnvelopeLabel = (sequence: number, channel?: string | null) => (channel === "ONLINE" ? "A late online submission" : `Envelope ${sequence}`);

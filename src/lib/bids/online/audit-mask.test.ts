@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { MASKED_ACTOR_WORDS, maskSealedAuditRows, openingFactsFor, SEALED_AUDIT_ENTITIES, sealedAuditMask, type SealedAuditFacts } from "./audit-mask";
+import { historyOnlineNote, MASKED_ACTOR_WORDS, maskSealedAuditRows, ONLINE_RECORDS_NOT_SHOWN_WORDS, openingFactsFor, SEALED_AUDIT_ENTITIES, sealedAuditMask, type SealedAuditFacts } from "./audit-mask";
 
 describe("the audit mask on online bids (D9, 20c)", () => {
   it.each(SEALED_AUDIT_ENTITIES)("%s: hidden from everyone before the unseal", (entity) => {
@@ -109,5 +112,38 @@ describe("each late online bid is judged by its own opening (ruling 20ax)", () =
     for (const viewer of ["NAMED_OFFICER", "OTHER"] as const) expect(sealedAuditMask({ entity: "OnlineBid", viewer, ...none })).toEqual({ hideActor: true, hideSupplier: true });
     const started = openingFactsFor({ main, late: true, supplementary: { unsealed: false, finalised: false } });
     expect(sealedAuditMask({ entity: "OnlineBidFile", viewer: "NAMED_OFFICER", ...started })).toEqual({ hideActor: true, hideSupplier: true });
+  });
+});
+
+describe("the fixed sentence on the History and the audit export screen (ruling 20av, 20bm)", () => {
+  it("carries no figure, so it says nothing about how many records exist", () => {
+    expect(ONLINE_RECORDS_NOT_SHOWN_WORDS).not.toMatch(/\d/);
+    expect(ONLINE_RECORDS_NOT_SHOWN_WORDS).toMatch(/online submissions are not shown or exported until the opening starts/);
+  });
+
+  it("is shown on an online exercise whose opening has not started, however the facts are read, and on nothing else", () => {
+    expect(historyOnlineNote({ online: true, started: false })).toBe(ONLINE_RECORDS_NOT_SHOWN_WORDS);
+    expect(historyOnlineNote({ online: true, started: true })).toBeNull();
+    expect(historyOnlineNote({ online: false, started: false })).toBeNull();
+    expect(historyOnlineNote({ online: false, started: true })).toBeNull();
+  });
+
+  it("takes no row or count as input, so it cannot depend on whether such rows exist", () => {
+    expect(historyOnlineNote.length).toBe(1);
+    expect(Object.keys({ online: true, started: false })).toEqual(["online", "started"]);
+  });
+
+  it("the audit export screen carries it unconditionally, and the audit file itself carries no note line (20bm)", () => {
+    const page = readFileSync(join(process.cwd(), "src/app/configuration/audit/page.tsx"), "utf8");
+    expect(page).toContain("{ONLINE_RECORDS_NOT_SHOWN_WORDS}");
+    const before = page.slice(0, page.indexOf("{ONLINE_RECORDS_NOT_SHOWN_WORDS}"));
+    expect(before.slice(before.lastIndexOf("\n", before.lastIndexOf("<Callout")) + 1)).not.toMatch(/\{\s*(?:rows|count|total|online\w*)\b[^}]*&&/);
+    const exporter = readFileSync(join(process.cwd(), "src/lib/audit/export.ts"), "utf8");
+    expect(exporter).not.toContain("ONLINE_RECORDS_NOT_SHOWN_WORDS");
+  });
+
+  it("the exercise History shows it from the facts of the exercise alone", () => {
+    const page = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/page.tsx"), "utf8");
+    expect(page).toContain("historyOnlineNote(await exerciseOnlineFacts(org.id, ex.id))");
   });
 });

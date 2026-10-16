@@ -32,6 +32,14 @@ export function openingFactsFor(i: { main: { unsealed: boolean; finalised: boole
 }
 
 /// What a masked actor reads as. It names nobody and says why.
+/// Ruling 20av (Option B, 20bm): the one fixed sentence the exercise History (on an ONLINE exercise whose opening has not started) and the Configuration > Audit export screen (always)
+/// carry. It carries no number and does not depend on whether any such row exists: a sentence shown only where a row exists would itself say that a bid exists. The audit file itself
+/// is given no note line (20bm).
+export const ONLINE_RECORDS_NOT_SHOWN_WORDS = "Records of online submissions are not shown or exported until the opening starts.";
+
+/// The History's sentence: only on an exercise that takes bids online and whose opening has not started, whether or not any record of one exists.
+export const historyOnlineNote = (i: { online: boolean; started: boolean }): string | null => (i.online && !i.started ? ONLINE_RECORDS_NOT_SHOWN_WORDS : null);
+
 export const MASKED_ACTOR_WORDS = "Withheld until the opening: online bids name no bidder before it";
 
 /// What the mask is judged on for one exercise: whether its opening is unsealed and finalised, and who its named opening officers are.

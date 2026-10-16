@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ButtonLink } from "@/components/ui/button";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { slotOf } from "@/lib/auth/act-slots";
+import { ONLINE_RECORDS_NOT_SHOWN_WORDS } from "@/lib/bids/online/audit-mask";
 import { storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
@@ -69,6 +70,10 @@ export default async function AuditTrailPage({ searchParams }: { searchParams: P
       <div className="flex flex-col gap-6">
         <Callout tone="info" title="What the digest proves, and what it does not">
           Each export is a CSV file with a SHA-256 digest of its exact bytes, and the export is itself recorded on the trail. A SULIT value (a price as read, the company estimate, the figure on its paper copy, a withdrawal letter&rsquo;s quote) is not in the file: the change is listed with its values withheld. The digest proves that a file is the one the portal produced on that day. It does not prove the database was never altered: no screen or action edits or deletes an entry, but the database does not yet refuse one itself — that waits for sign-in.
+        </Callout>
+        {/* Ruling 20av: always shown, whether or not any record of an online submission exists, and with no number. */}
+        <Callout tone="info" title="Online submissions">
+          {ONLINE_RECORDS_NOT_SHOWN_WORDS}
         </Callout>
         <Card>
           <CardHeader icon={<FileIcon size={17} />} title="Export" subtitle="Every entry recorded on the organisation's days chosen, oldest first." />

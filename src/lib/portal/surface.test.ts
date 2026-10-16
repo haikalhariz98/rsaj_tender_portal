@@ -175,3 +175,49 @@ describe("the registration wizard (Phase 4b)", () => {
     }
   });
 });
+
+describe("the sealed-bid routes on the public copy (wave 3b step 19, ADR 0036 D12)", () => {
+  const SEALED_POSTS = ["/supplier/bids/part", "/supplier/bids/part/discard", "/supplier/bids/submit", "/supplier/bids/withdraw"];
+
+  it("takes the four sealed posts at their literal paths, as route handlers only, and no other method", () => {
+    for (const p of SEALED_POSTS) {
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: false }), p).toBe(true);
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: true }), `${p} as an action`).toBe(false);
+      for (const m of ["PUT", "PATCH", "DELETE", "OPTIONS"]) expect(publicAllows({ method: m, pathname: p, hasServerAction: false }), `${m} ${p}`).toBe(false);
+    }
+    // A GET at these paths reads as an exercise page with that id (My Bids' page of one exercise), which answers not found for an id that is no exercise: it runs no write.
+  });
+
+  it("takes no sealed post at a look-alike path: a deeper one, a different case, an id, a traversal", () => {
+    for (const p of ["/supplier/bids/part/discard/x", "/supplier/bids/part/x", "/supplier/bids/Submit", "/supplier/bids/submit/x", "/supplier/bids/withdraws", "/supplier/bids/ex1/submit", "/supplier/bids/part/../submit", "/supplier/bids/part//discard"]) {
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: false }), p).toBe(false);
+    }
+  });
+
+  it("answers the officer's sealed-file download 404 on the public copy, with a supplier's cookie or none, and for a staff cookie", () => {
+    for (const method of ["GET", "POST", "HEAD"]) {
+      const pathname = "/api/opening/sealed-file";
+      expect(publicAllows({ method, pathname, hasServerAction: false }), method).toBe(false);
+      expect(ask({ surface: "public", pathname, method }), `${method} no cookie`).toBe("notFound");
+      expect(ask({ surface: "public", pathname, method, supplierCookie: true }), `${method} supplier`).toBe("notFound");
+      expect(ask({ surface: "public", pathname, method, staffCookie: true }), `${method} staff`).toBe("notFound");
+    }
+    // The staff copy answers it only to a staff session; the route itself then judges who the officer is.
+    expect(ask({ pathname: "/api/opening/sealed-file", staffCookie: true })).toBe("next");
+    expect(ask({ pathname: "/api/opening/sealed-file" })).toBe("unauthorised");
+    expect(ask({ pathname: "/api/opening/sealed-file", supplierCookie: true })).toBe("notFound");
+  });
+
+  it("serves the submit page to a read only: it takes no write at its own path, and a path under it is not a page", () => {
+    expect(get("/supplier/bids/ex1/submit")).toBe(true);
+    for (const m of ["POST", "PUT", "PATCH", "DELETE"]) expect(publicAllows({ method: m, pathname: "/supplier/bids/ex1/submit", hasServerAction: false }), m).toBe(false);
+    expect(get("/supplier/bids/ex1/submit/part")).toBe(false);
+  });
+
+  it("a staff cookie is not found at any sealed post on the public copy, and a supplier's cookie is let through to the handler, which asks who is signed in", () => {
+    for (const pathname of SEALED_POSTS) {
+      expect(ask({ surface: "public", pathname, method: "POST", staffCookie: true }), pathname).toBe("notFound");
+      expect(ask({ surface: "public", pathname, method: "POST", supplierCookie: true }), pathname).toBe("next");
+    }
+  });
+});

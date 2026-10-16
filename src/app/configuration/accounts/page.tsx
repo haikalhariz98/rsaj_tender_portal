@@ -65,7 +65,13 @@ export default async function AccountsPage() {
         }
       />
 
-      {role && !role.safe && (
+      {role && !role.safe && role.reason === "TEMPORARY_HELD" && (
+        <Callout tone="warn" title="This copy's database login can still make temporary tables" className="mb-5">
+          It runs as {RUNTIME_ROLE_WORDS[role.reason]}. Sign-in is not refused. The operator runs the role setup again as the README describes (Running in production), then restarts the app.
+        </Callout>
+      )}
+
+      {role && !role.safe && role.reason !== "TEMPORARY_HELD" && (
         <Callout tone="warn" title="This copy is connected to its database with too much authority" className="mb-5">
           It runs as {RUNTIME_ROLE_WORDS[role.reason]}.{" "}
           {role.refuseSignIn

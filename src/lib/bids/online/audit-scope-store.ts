@@ -52,3 +52,13 @@ export async function sealedAuditFactsFor(
     return { started: o != null, online: exercises.find((x) => x.id === exerciseId)?.submissionChannel === "ONLINE", unsealed: judged.unsealed, finalised: judged.finalised, namedOfficerPersonIds: officers.filter((x) => x.exerciseId === exerciseId).map((x) => x.personId) };
   };
 }
+
+/// What the History's fixed sentence (20av) is judged on: whether the exercise takes bids online and whether its main opening has started. Asked the same way for every reader and whatever
+/// records exist, so the answer says nothing about any bid.
+export async function exerciseOnlineFacts(organisationId: string, exerciseId: string, client: Pick<Tx, "opening" | "sourcingExercise"> = db): Promise<{ online: boolean; started: boolean }> {
+  const [ex, main] = await Promise.all([
+    client.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId }, select: { submissionChannel: true } }),
+    client.opening.count({ where: { exerciseId, organisationId, kind: "MAIN" } }),
+  ]);
+  return { online: ex?.submissionChannel === "ONLINE", started: main > 0 };
+}

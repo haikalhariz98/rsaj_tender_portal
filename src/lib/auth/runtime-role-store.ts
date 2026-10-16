@@ -33,7 +33,13 @@ export async function readRuntimeRole(client: Client = db): Promise<RuntimeRoleF
        AND EXISTS (SELECT 1 FROM pg_roles m
                     WHERE pg_has_role(current_user, m.oid, 'MEMBER')
                       AND has_table_privilege(m.oid, to_regclass(format('%I.%I', current_schema(), w.t)), w.r))`;
-  return { ...row, withheldHeld: held?.tables ?? [] };
+  // TEMPORARY on this database (build plan step 19): held by the login, by a role it is a member of, or by PUBLIC (every role is a member of PUBLIC, and PUBLIC holds it by default).
+  const [temp] = await client.$queryRaw<{ held: boolean }[]>`
+    SELECT (EXISTS (SELECT 1 FROM pg_roles m
+                     WHERE pg_has_role(current_user, m.oid, 'MEMBER')
+                       AND has_database_privilege(m.oid, current_database(), 'TEMPORARY'))
+            OR has_database_privilege('public', current_database(), 'TEMPORARY')) AS "held"`;
+  return { ...row, withheldHeld: held?.tables ?? [], temporaryHeld: temp?.held ?? false };
 }
 
 const kept = globalThis as unknown as { perolehanRuntimeRole?: Promise<RuntimeRoleVerdict> };
@@ -55,6 +61,10 @@ export async function reportRuntimeRole(): Promise<void> {
     const verdict = await runtimeRoleCheck();
     if (verdict.safe) return;
     const tables = verdict.reason === "TRAIL_WRITABLE" ? ` It holds rights it should not on: ${verdict.tables.join(", ")}.` : "";
+    if (verdict.reason === "TEMPORARY_HELD") {
+      console.warn(`[perolehan] The app is connected to the database as "${verdict.name}", ${RUNTIME_ROLE_WORDS[verdict.reason]}. Sign-in is not refused. Run npm run db:roles, then restart the app.`);
+      return;
+    }
     console.warn(
       `[perolehan] The app is connected to the database as "${verdict.name}", ${RUNTIME_ROLE_WORDS[verdict.reason]}.${tables} ` +
         (verdict.refuseSignIn ? "Sign-in is refused until DATABASE_URL names the app role with the grants npm run db:roles gives it, and the app is restarted." : "Allowed in development only. See the README, Running in production."),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { DownloadIcon } from "@/components/icons";
 import { buttonClass, Button } from "@/components/ui/button";
@@ -40,13 +40,23 @@ export function SealedFileDownload({ openingId, fileId, label }: { openingId: st
   const [passphrase, setPassphrase] = useState("");
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [missing, setMissing] = useState<{ password?: string; passphrase?: string }>({});
   const id = useId();
+  const opener = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+
+  // Focus returns to the control that opened the dialog when it closes, as the product's other dialogs do.
+  useEffect(() => {
+    if (wasOpen.current && !open) opener.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
 
   const close = () => {
     // Nothing typed outlives the dialog.
     setPassword("");
     setPassphrase("");
     setRefusal(null);
+    setMissing({});
     setOpen(false);
   };
 
@@ -67,6 +77,13 @@ export function SealedFileDownload({ openingId, fileId, label }: { openingId: st
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
+    // Validated after the press, inline beside the field, so an incomplete form can be sent and told what is missing.
+    const absent = { ...(password.trim() === "" ? { password: "Enter your sign-in password." } : {}), ...(passphrase === "" ? { passphrase: "Enter your unseal passphrase." } : {}) };
+    setMissing(absent);
+    if (Object.keys(absent).length > 0) {
+      document.getElementById(`${id}-${absent.password ? "password" : "passphrase"}`)?.focus();
+      return;
+    }
     const body = JSON.stringify({ openingId, fileId, password, passphrase });
     // Cleared the moment the request is built: neither is held in state while it is in flight, whatever the answer.
     setPassword("");
@@ -106,21 +123,21 @@ export function SealedFileDownload({ openingId, fileId, label }: { openingId: st
 
   return (
     <>
-      <button type="button" className={buttonClass("ghost", "sm")} onClick={() => setOpen(true)} aria-label={`Download ${label}`}>
+      <button ref={opener} type="button" className={buttonClass("ghost", "sm")} onClick={() => setOpen(true)} aria-label={`Download ${label}`}>
         <DownloadIcon size={15} />
         Download
       </button>
       {open && (
         <div className={CONFIRM_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && close()}>
-          <form role="dialog" aria-modal="true" aria-label={`Download ${label}`} className={confirmPanelClass()} onSubmit={submit} autoComplete="off">
+          <form role="dialog" aria-modal="true" aria-label={`Download ${label}`} className={confirmPanelClass()} onSubmit={submit} autoComplete="off" noValidate>
             <DrawerHeader title="Download for the opening check" subtitle={label} onClose={() => !busy && close()} />
             <div className="flex flex-col gap-4 overflow-y-auto px-6 py-5">
               <p className="text-[13px] text-ink-2">Asked every time: your sign-in password and the unseal passphrase you chose for this exercise. Neither is kept. The file is opened for you alone and every attempt is logged.</p>
               {refusal && <Callout tone="warn">{refusal}</Callout>}
-              <Field label="Sign-in password" htmlFor={`${id}-password`} required>
+              <Field label="Sign-in password" htmlFor={`${id}-password`} required error={missing.password}>
                 <Input autoFocus id={`${id}-password`} type="password" name="signInPassword" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </Field>
-              <Field label="Unseal passphrase" htmlFor={`${id}-passphrase`} required>
+              <Field label="Unseal passphrase" htmlFor={`${id}-passphrase`} required error={missing.passphrase}>
                 <Input id={`${id}-passphrase`} type="password" name="unsealPassphrase" autoComplete="off" spellCheck={false} autoCapitalize="off" autoCorrect="off" data-lpignore="true" data-1p-ignore="true" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} required />
               </Field>
             </div>
@@ -128,7 +145,7 @@ export function SealedFileDownload({ openingId, fileId, label }: { openingId: st
               <Button type="button" variant="secondary" onClick={close} disabled={busy}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" disabled={busy || password === "" || passphrase === ""}>
+              <Button type="submit" variant="primary" disabled={busy}>
                 {busy ? "Opening…" : "Download"}
               </Button>
             </footer>

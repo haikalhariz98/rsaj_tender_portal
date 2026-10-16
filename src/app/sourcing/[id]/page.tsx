@@ -139,8 +139,8 @@ import { exerciseIsHidden, sulitExerciseValue, sulitExerciseGate } from "@/app/_
 import { fieldIsFor, sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import { isBlindMasked, maskAllRows } from "@/lib/evaluation/blind-audit";
-import { maskSealedAuditRows } from "@/lib/bids/online/audit-mask";
-import { sealedAuditFactsFor } from "@/lib/bids/online/audit-scope-store";
+import { historyOnlineNote, maskSealedAuditRows } from "@/lib/bids/online/audit-mask";
+import { exerciseOnlineFacts, sealedAuditFactsFor } from "@/lib/bids/online/audit-scope-store";
 import { blindScopesFor } from "@/lib/evaluation/blind-audit-store";
 import { estimateCustodyForHistory } from "@/lib/opening/read";
 import { namingOthersRefusal } from "@/lib/auth/sulit-store";
@@ -183,6 +183,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // Every row of this History is this exercise's, so every row is masked (a route's or a step's row is found by its id and its label may not carry the reference).
   const blindHistory = blindScopes.length ? { ...historyRead, entries: maskAllRows(historyRead.entries, blindScopes[0]) } : historyRead;
   // Wave 3b step 12 (ADR 0036 D9, 20c): the rows of an online bid name no bidder before the opening, whoever reads them.
+  // Ruling 20av: one fixed sentence on an ONLINE exercise whose opening has not started, with no number and whether or not any such record exists.
+  const onlineNote = asked === "history" ? historyOnlineNote(await exerciseOnlineFacts(org.id, ex.id)) : null;
   const history = asked === "history" ? { ...blindHistory, entries: maskSealedAuditRows(blindHistory.entries, await sealedAuditFactsFor(org.id, blindHistory.entries), actor.personId) } : blindHistory;
   // FR-EST-008: finalising an opening writes the disclosed company estimate (and the paper copy's figure) into the trail, under this exercise's reference, so
   // they are in this History. They are judged by the estimate's custody exactly as the opening's schedule judges them, and the access is logged; nothing is asked
@@ -696,6 +698,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           trailGates={trailGates}
           custody={custody}
           entries={history.entries}
+          onlineNote={onlineNote}
           total={history.total}
           timeZone={org.timeZone}
           personName={personName}
@@ -1181,6 +1184,7 @@ function HistoryPanel({
   trailGates,
   custody,
   entries,
+  onlineNote,
   total,
   timeZone,
   personName,
@@ -1198,6 +1202,8 @@ function HistoryPanel({
   /// The reader's standing with the disclosed company estimate (FR-EST-008), judged as the opening's schedule judges it. Null where no row carries the figure.
   custody: Sulit<string> | null;
   entries: Awaited<ReturnType<typeof exerciseHistory>>["entries"];
+  /// Ruling 20av: the fixed sentence that records of online submissions are not shown until the opening starts, or null where it does not apply.
+  onlineNote: string | null;
   total: number;
   timeZone: string | null;
   personName: (id: string | null) => string | null;
@@ -1277,6 +1283,13 @@ function HistoryPanel({
         subtitle={total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. Each change names who made it; any from before sign-in is not attributed.` : "Every change to this exercise and what is under it. Each change names who made it; any from before sign-in is not attributed."}
         divided={entries.length === 0}
       />
+      {onlineNote && (
+        <div className="px-5 pb-3 sm:px-6">
+          <Callout tone="info" title="Online submissions">
+            {onlineNote}
+          </Callout>
+        </div>
+      )}
       {entries.length === 0 ? (
         <EmptyState size="sm" title="No recorded changes">
           Changes made through the portal appear here. Records loaded directly have no trail.

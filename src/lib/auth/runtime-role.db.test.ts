@@ -6,7 +6,7 @@ import { ensureAdministrator, facts, makeAccount, setPolicy, SETTINGS, testOrgan
 import { applyAppRole } from "../../../scripts/db-role-apply";
 import { redeemOneTimeCode } from "./account-store";
 import { authenticateStaff } from "./identity";
-import { runtimeRoleVerdict } from "./db-role";
+import { RUNTIME_ROLE_WORDS, runtimeRoleVerdict } from "./db-role";
 import { readRuntimeRole } from "./runtime-role-store";
 
 /**
@@ -137,6 +137,50 @@ describe("a separate login that can still change the trail reads as unsafe (Phas
       await db.$executeRawUnsafe(`REVOKE ${HOLDER} FROM ${APP}`).catch(() => undefined);
       await db.$executeRawUnsafe(`DROP OWNED BY ${HOLDER}`).catch(() => undefined);
       await db.$executeRawUnsafe(`DROP ROLE IF EXISTS ${HOLDER}`);
+    }
+  });
+});
+
+describe("a login that can still make temporary tables is a warning (build plan step 19, security audit 1)", () => {
+  const asApp = () =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL ROLE ${APP}`);
+      return readRuntimeRole(tx);
+    });
+  const database = async () => (await db.$queryRaw<{ name: string }[]>`SELECT current_database()::text AS "name"`)[0].name;
+
+  it("reads false after db:roles, and true where TEMPORARY is granted back, to the login, to PUBLIC or to a role it is a member of, with the verdict's words", async () => {
+    const db_ = await database();
+    const HOLDER = `perolehan_temp_test_${Date.now().toString(36)}`;
+    try {
+      const clean = await asApp();
+      expect(clean.temporaryHeld).toBe(false);
+      expect(runtimeRoleVerdict(clean, true)).toEqual({ safe: true });
+
+      for (const grant of [`GRANT TEMPORARY ON DATABASE "${db_}" TO ${APP}`, `GRANT TEMPORARY ON DATABASE "${db_}" TO PUBLIC`]) {
+        await db.$executeRawUnsafe(grant);
+        const held = await asApp();
+        expect(held.temporaryHeld, grant).toBe(true);
+        const verdict = runtimeRoleVerdict(held, true);
+        expect(verdict, grant).toMatchObject({ safe: false, reason: "TEMPORARY_HELD", refuseSignIn: false });
+        expect(RUNTIME_ROLE_WORDS.TEMPORARY_HELD).toMatch(/temporary tables/);
+        await db.$executeRawUnsafe(`REVOKE TEMPORARY ON DATABASE "${db_}" FROM ${APP}`);
+        await db.$executeRawUnsafe(`REVOKE TEMPORARY ON DATABASE "${db_}" FROM PUBLIC`);
+        expect((await asApp()).temporaryHeld, `${grant} taken back`).toBe(false);
+      }
+
+      // A member role: the login is NOINHERIT, so only a check through membership finds it.
+      await db.$executeRawUnsafe(`CREATE ROLE ${HOLDER} NOLOGIN`);
+      await db.$executeRawUnsafe(`GRANT TEMPORARY ON DATABASE "${db_}" TO ${HOLDER}`);
+      expect((await asApp()).temporaryHeld).toBe(false);
+      await db.$executeRawUnsafe(`GRANT ${HOLDER} TO ${APP}`);
+      expect((await asApp()).temporaryHeld).toBe(true);
+    } finally {
+      await db.$executeRawUnsafe(`REVOKE ${HOLDER} FROM ${APP}`).catch(() => undefined);
+      await db.$executeRawUnsafe(`REVOKE TEMPORARY ON DATABASE "${db_}" FROM ${APP}`).catch(() => undefined);
+      await db.$executeRawUnsafe(`REVOKE TEMPORARY ON DATABASE "${db_}" FROM PUBLIC`).catch(() => undefined);
+      await db.$executeRawUnsafe(`DROP OWNED BY ${HOLDER}`).catch(() => undefined);
+      await db.$executeRawUnsafe(`DROP ROLE IF EXISTS ${HOLDER}`).catch(() => undefined);
     }
   });
 });

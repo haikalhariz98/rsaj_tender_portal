@@ -113,9 +113,11 @@ export interface RuntimeRoleFacts {
   /// when the grants are as `db:roles` leaves them. A role made by hand with broad grants, or a table added since `db:roles` last ran,
   /// shows here.
   withheldHeld: string[];
+  /// The login (or a role it is a member of, or PUBLIC) still holds TEMPORARY on the database: it can make temporary tables. `db:roles` takes it away (wave 3b security audit 1, build plan step 19).
+  temporaryHeld: boolean;
 }
 
-export type RuntimeRoleReason = "SUPERUSER" | "OWNER" | "TRAIL_WRITABLE";
+export type RuntimeRoleReason = "SUPERUSER" | "OWNER" | "TRAIL_WRITABLE" | "TEMPORARY_HELD";
 
 export type RuntimeRoleVerdict =
   | { safe: true }
@@ -133,6 +135,8 @@ export function runtimeRoleVerdict(facts: RuntimeRoleFacts, production: boolean)
   if (facts.isSuperuser) return unsafe("SUPERUSER");
   if (facts.ownsSchemaObjects) return unsafe("OWNER");
   if (facts.withheldHeld.length > 0) return unsafe("TRAIL_WRITABLE");
+  // A warning, never a refusal (step 19): TEMPORARY is the second wall behind the pinned search_path every sealed trigger function carries. The refusal is kept for a wall that stands alone.
+  if (facts.temporaryHeld) return { safe: false, reason: "TEMPORARY_HELD", name: facts.name, refuseSignIn: false, tables: [] };
   return { safe: true };
 }
 
@@ -141,4 +145,5 @@ export const RUNTIME_ROLE_WORDS: Record<RuntimeRoleReason, string> = {
   SUPERUSER: "the database superuser, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
   OWNER: "the owner of the tables, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
   TRAIL_WRITABLE: "a login that can still change or remove records the app should only add to (the audit trail, the sign-in log, document access history or stored document content), remove sealed bid records, or reach the migration history",
+  TEMPORARY_HELD: "a login that can still make temporary tables, so npm run db:roles has not run on this database since the sealed-bid hardening, which takes that right away",
 };

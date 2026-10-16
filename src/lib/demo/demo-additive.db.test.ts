@@ -184,6 +184,44 @@ describe("the demo loader is additive (Phase 1d)", () => {
     expect(demoLoadOutput.first).toMatch(/demo unseal passphrase one/);
   });
 
+  // Ruling 20ao and 20bi (build plan step 19): the ONLINE path of `publishWindow` run whole. The demonstration publishes its online exercise through the product's own act (`prisma/demo-online.ts`
+  // calls `publishWindow`), never by setting rows the act would refuse, so what it left is what the act writes: the mode, the rules and the key's fingerprint frozen together, before the move, with
+  // their audit row; the window's publication stamp; and a database that now refuses a change of the rules or the channel.
+  it("the online exercise was published through publishWindow: mode, rules and key fingerprint frozen together before the move, audited, and the rules then refuse a change", { timeout: 300_000 }, async () => {
+    if (!expectOnline) return;
+    const c = client!;
+    const ex = await c.sourcingExercise.findFirstOrThrow({ where: { submissionChannel: "ONLINE" }, select: { id: true, status: true, onlineSubmissionMode: true, onlineBidRules: true, publishedKeyFingerprint: true } });
+    const live = await c.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null }, select: { fingerprint: true } });
+    expect(ex).toMatchObject({ status: "ADVERTISED", onlineSubmissionMode: "DEMONSTRATION", publishedKeyFingerprint: live.fingerprint });
+    const rules = ex.onlineBidRules as { v: number; parts: { packPartId: string }[] } | null;
+    expect(rules?.v).toBe(1);
+    expect(rules!.parts.length).toBeGreaterThan(0);
+    // The window carries the act's stamp and its snapshot, and no key change was recorded: the first fingerprint is the published one.
+    const window = await c.exerciseWindow.findFirstOrThrow({ where: { exerciseId: ex.id }, select: { publishedAt: true, advertisementDay: true, policySnapshot: true } });
+    expect(window.publishedAt).not.toBeNull();
+    expect(window.advertisementDay).not.toBeNull();
+    expect(window.policySnapshot).not.toBeNull();
+    expect(await c.publishedKeyChange.count({ where: { exerciseId: ex.id } })).toBe(0);
+    // The freeze is audited under the act's own label, once, and before the move to ADVERTISED is audited: the order the act holds.
+    const freezeRows = await c.auditEntry.findMany({ where: { entity: "SourcingExercise", entityId: ex.id, entityLabel: { contains: "How bids are submitted" } }, orderBy: { at: "asc" }, select: { at: true } });
+    expect(freezeRows).toHaveLength(1);
+    const moved = await c.auditEntry.findMany({ where: { entity: "SourcingExercise", entityId: ex.id, action: "UPDATE" }, orderBy: { at: "asc" }, select: { at: true, changes: true } });
+    const toAdvertised = moved.find((r) => JSON.stringify(r.changes).includes("ADVERTISED"));
+    expect(toAdvertised).toBeDefined();
+    expect(freezeRows[0].at.getTime()).toBeLessThanOrEqual(toAdvertised!.at.getTime());
+    // From the move on the database refuses a change of the channel or the rules (trigger 11, PA025), for the owner as well.
+    const refusal = async (sql: string) => {
+      try {
+        await c.$executeRawUnsafe(sql, ex.id);
+        return "allowed";
+      } catch (e) {
+        return JSON.stringify(e).includes("PA025") || String(e).includes("PA025") ? "PA025" : String(e).slice(0, 200);
+      }
+    };
+    expect(await refusal(`UPDATE "SourcingExercise" SET "submissionChannel" = 'PAPER' WHERE "id" = $1`)).toBe("PA025");
+    expect(await refusal(`UPDATE "SourcingExercise" SET "onlineBidRules" = '{"v":1,"frozenAt":"x","parts":[]}'::jsonb WHERE "id" = $1`)).toBe("PA025");
+  });
+
   it("leaves no demo row without its attribution (Phase 2b): the acts it ran are the demo loader's own, and the rows it wrote directly are attributed to it", { timeout: 300_000 }, async () => {
     const columns = slotColumns(readFileSync(path.join(ROOT, "prisma", "schema.prisma"), "utf8"));
     const lacking: string[] = [];
