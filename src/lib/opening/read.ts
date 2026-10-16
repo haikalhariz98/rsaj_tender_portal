@@ -31,7 +31,7 @@ import { countFilesToFile, loadOpeningCheckFiles } from "./sealed-file-store";
 import type { OnlineBidRules } from "@/lib/bids/online/types";
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./finalise";
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
-import { freshInitials } from "./initials";
+import { standingConfirmations } from "./matrix";
 import { consequenceFor, eligibilityFindingOf, ineligibleOf, registerClassOf } from "@/lib/suppliers/opening-hook";
 import { isRestrictionReading, restrictionReadingWords } from "@/lib/suppliers/restriction-register";
 import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, restrictionLabel, SALE_FINDING_LABEL, NAMES_AT_FINALISING, SEALED_UNTIL_FINALISED, seatWords, VERDICT_LABEL, VERDICT_TONE } from "./labels";
@@ -61,6 +61,9 @@ const time = (d: Date | null | undefined, tz: string | null) => (d ? receiptTime
 const PROVENANCE_WORD: Record<string, string> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
 const titleOf = (o: Pick<OpeningRow, "kind" | "sequenceNo">) => (o.kind === "MAIN" ? OPENING_KIND_LABEL.MAIN : `${OPENING_KIND_LABEL.SUPPLEMENTARY} ${o.sequenceNo - 1}`);
 const money = (v: { toString(): string }) => formatMoney(parseSen(v.toString()));
+
+/// 20c, 20cm: whether an opening's bidder names (and the acknowledgement days that could name a column) are withheld from this reader. The one place it is decided, for the offers and for the matrix.
+export const namesAreHeld = (hideNames: boolean, o: { unsealedAt: Date | null; finalisedAt: Date | null }) => hideNames && o.unsealedAt != null && o.finalisedAt == null;
 
 async function load(organisationId: string, exerciseId: string) {
   const l = await loadExercise(organisationId, exerciseId);
@@ -190,7 +193,7 @@ export async function openingSection(organisationId: string, exerciseId: string,
 function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[]; startedBy: AttributionIndex; authorisedBy: AttributionIndex; prices: Sulit<true>; hideNames: boolean }) {
   const { prices } = x;
   // 20c: names are withheld from a reader who is not a named officer while the opening is unsealed and not finalised (they are the schedule's from finalising).
-  const namesHeld = x.hideNames && o.unsealedAt != null && o.finalisedAt == null;
+  const namesHeld = namesAreHeld(x.hideNames, o);
   const { tz, closing } = x;
   const state = stateOf(o, c.ex.status);
   const phase = openingPhase(state);
@@ -226,7 +229,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
 
   // ---- the offers as read.
   const offers = o.bids.map((b) => {
-    const fresh = freshInitials(b, b.initials);
+    const fresh = standingConfirmations(c.ex.submissionChannel === "ONLINE", b, b.initials);
     const answers = new Map(b.answers.map((a) => [a.itemKey, a.answer]));
     const j = judgeBid({ saleFinding: b.saleFinding, restrictionFinding: b.restrictionFinding, isAlternative: b.isAlternative, alternativeStatus: b.alternativeStatus, ineligible: ineligibleOf(b.eligibilityFinding) }, checklist, answers, { completenessEliminates: snap.completeness.eliminates, unpurchased, ineligible: ineligibleConsequence });
     const period = b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null;
@@ -304,7 +307,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
   const signers = onlineOpening ? o.panel.map((p) => ({ personId: p.personId, name: p.person.name })) : present;
   const ff = finaliseFaults({
     state,
-    bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: freshInitials(b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
+    bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: standingConfirmations(onlineOpening, b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
     present: signers,
     signed: o.signatures.map((s) => s.personId),
     pages: o.schedulePages,
@@ -463,6 +466,8 @@ export async function scheduleSection(reader: Reader & { organisationTimeZone: s
       id: o.id,
       title: titleOf(o),
       finalised: o.finalisedAt != null,
+      /// 20cu: the exercise's pinned channel, so "Class as read" reads the same on the screen, the print page and the CSV (`classAsReadText`).
+      online: l.ex.submissionChannel === "ONLINE",
       finalisedAt: o.finalisedAt ? time(o.finalisedAt, tz) : null,
       header: [
         { label: "Title", value: s.header.title },

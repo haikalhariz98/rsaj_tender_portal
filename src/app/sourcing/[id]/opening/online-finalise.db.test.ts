@@ -8,11 +8,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
  * in the document store without duplicates. Only the request is stood in for: who is signed in, the cookies and the cache.
  */
 
-const who = vi.hoisted(() => ({ actor: null as unknown }));
 const opened = vi.hoisted(() => ({ calls: [] as { fn: string; purpose: string; recordId: string }[] }));
 const mover = vi.hoisted(() => ({ skip: false }));
 
 vi.mock("@/app/_auth/actor", async () => {
+  const { who } = await import("@/lib/test-support/acting");
   const { actorModule } = await import("@/lib/test-support/staff");
   const { administrationConflict } = await import("@/lib/auth/administration-conflict");
   const { confirmStaffPassword } = await import("@/lib/auth/identity");
@@ -65,251 +65,40 @@ vi.mock("@/lib/sealing/open", async (orig) => {
   };
 });
 
+import { ctx, ago, bidder, exercise, estimateFor, filesOf, finalise, form, lodgeAs, message, openingOf, PASSWORD_FIELD, PLAIN, prepare, setClosing, setFileClass, sign, signedIn, start, submit, unsealed, who, fixtureSetup, fixtureTeardown, FIGURE_TEXT, PEPPER_ENV, type Officer } from "./online-opening.fixture";
 import { actFieldNames } from "@/lib/auth/act-field-names";
-import { authenticateSupplier, confirmSupplierPassword } from "@/lib/auth/supplier-identity";
-import { createStaffSession, readStaffSession } from "@/lib/auth/session-store";
-import { hashToken } from "@/lib/auth/token";
-import type { StaffActor, SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
-import { submitBid, takeStamp } from "@/lib/bids/online/submit-store";
-import { loadUploadFacts, storePart } from "@/lib/bids/online/upload-store";
 import { RATE_LIMITS } from "@/lib/portal/bids/limits";
-import { SEALED_BIDS_DEMONSTRATION_ENV } from "@/lib/integration/sealing-deployment";
 import type { BidPartRule } from "@/lib/bids/online/types";
-import { ensureAdministrator, facts, makeAccount, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
+import { facts } from "@/lib/test-db/auth-fixtures";
 
 import { lodgeEstimate } from "../scope/actions";
-import { checkUnlock, rekeyExercise, setOfficerShare } from "../scope/key-actions";
+import { checkUnlock, rekeyExercise } from "../scope/key-actions";
 import { authoriseOnlineUnseal } from "./unseal-actions";
 import { fileSealedBidFiles, finaliseOnline, signOnlineFinalise } from "./online-finalise-actions";
 import { disableAccount } from "@/lib/auth/administration";
 import { ensureFileMoved, moveReleasedFiles } from "@/lib/sealing/online-file-mover";
-import { NOT_ON_PANEL } from "@/lib/opening/actor";
+import { MATRIX_FAULT_TEXT } from "@/lib/opening/matrix";
 import { checklistFromSnapshot } from "@/lib/opening/checklist";
 import { sulitGranted } from "@/lib/auth/sulit-access";
 import { openingSection } from "@/lib/opening/read";
 import { loadOpeningCheckFiles } from "@/lib/opening/sealed-file-store";
 import { loadPepperList } from "@/lib/sealing/pepper-store";
-import { finaliseOpening, recordChecklistAnswer, recordInitial, recordScheduleDetails, recordSignature, recordVerdict, startOpening } from "./actions";
-
-const DAY = 24 * 60 * 60 * 1000;
-const D = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000Z`);
-const PLAIN = Buffer.from("%PDF-1.7\nTHE-PLAIN-MARKER-FOR-THE-UNSEAL-TEST\n");
-const DECLARATION = { price: "123456.78", completionPeriod: 9, completionUnit: "MONTHS" as const };
-const ENV_BEFORE = process.env[SEALED_BIDS_DEMONSTRATION_ENV];
-const PEPPER_ENV = ["SEALING_PEPPER", "SEALING_PEPPER_ID"] as const;
-const SAVED = Object.fromEntries(PEPPER_ENV.map((k) => [k, process.env[k]]));
-const PASSWORD_FIELD = actFieldNames("personId").password;
+import { finaliseOpening, recordChecklistAnswer, recordInitial, recordSignature, recordVerdict } from "./actions";
 
 let org = "";
-let namer = "";
-
-const form = (fields: Record<string, string>) => {
-  const f = new FormData();
-  for (const [k, v] of Object.entries(fields)) f.set(k, v);
-  return f;
-};
-const ago = (seconds: number) => new Date(Date.now() - seconds * 1000);
-const setClosing = (exerciseId: string, closing: Date) => db.$executeRawUnsafe(`UPDATE "SourcingExercise" SET "closingAt" = $2 WHERE "id" = $1`, exerciseId, closing);
-
-type Officer = { person: { id: string }; account: { id: string }; password: string; actor: StaffActor; rosterId: string; passphrase: string };
-interface Ex { id: string; reference: string; windowId: string; partA: string; partB: string; officers: Officer[]; keyId: string; fingerprint: string }
-interface Session { actor: SupplierActor; supplierId: string; password: string }
-
-async function signedIn(admin = false): Promise<Omit<Officer, "rosterId" | "passphrase">> {
-  const made = await makeAccount(org, { admin });
-  const token = randomBytes(32).toString("base64url");
-  await createStaffSession(db, { organisationId: org, accountId: made.account.id, tokenHash: hashToken(token), absoluteMinutes: 480, request: facts(), now: new Date() });
-  const read = await readStaffSession(token, { sourceAddress: null });
-  if (!read.ok) throw new Error(`read failed: ${read.reason}`);
-  return { person: made.person, account: made.account, password: made.password, actor: read.actor as StaffActor };
-}
-
-const rulesOf = (a: string, b: string): { v: 1; frozenAt: string; parts: BidPartRule[] } => ({
-  v: 1,
-  frozenAt: new Date().toISOString(),
-  parts: [
-    { packPartId: a, label: "Form of Tender", mandatory: true, returnedByBidder: true, acceptedMediaTypes: ["application/pdf"], maxBytes: "1000000", openingCheck: true },
-    { packPartId: b, label: "Priced Bill", mandatory: true, returnedByBidder: true, acceptedMediaTypes: ["application/pdf"], maxBytes: "1000000", openingCheck: false },
-  ],
-});
-
-/// A published ONLINE exercise in DEMONSTRATION mode with `n` named officers who have each set a real share (so the exercise key is real and split n-of-n), a committee of n whose
-/// seats they hold, two returned parts, and a closing a day away.
-async function exercise(n: number, o: { requiresEstimate?: boolean } = {}): Promise<Ex> {
-  const reference = `UNS/EX/${randomId()}`;
-  const requisitionId = (
-    await db.requisition.create({
-      data: { organisationId: org, reference: `UNS/REQ/${randomId()}`, requestingUnitCode: "D", requestingPersonId: namer, title: "R", justification: "t", needStatement: "t", costCentreCode: "C", accountCode: "A", placeOfDelivery: "x", dateRequired: new Date("2027-01-01"), estimatedValue: "1000.00", raisedOn: new Date("2026-10-01") },
-    })
-  ).id;
-  const committee = await db.committee.create({ data: { organisationId: org, code: `UNS_C_${randomId()}`, nameEn: "Opening committee", mandate: "Opens bids", governingSource: "Test", panelSize: n, panelSizeProvenance: "ASSUMED", panelExclusionRule: false, panelExclusionProvenance: "ASSUMED" } });
-  const methodCode = `UNS_M_${randomId()}`;
-  await db.sourcingMethod.create({ data: { organisationId: org, code: methodCode, nameEn: "Online tender", openingCommitteeCode: committee.code, openingCommitteeProvenance: "ASSUMED", requiresCompanyEstimate: o.requiresEstimate ?? false, requiresCompanyEstimateProvenance: "ASSUMED" } });
-  const ex = await db.sourcingExercise.create({
-    data: { organisationId: org, reference, requisitionId, title: "Unseal test", estimatedValue: "1000.00", sourcingMethodCode: methodCode, status: "DOCUMENTS_IN_PREPARATION", closingAt: new Date(Date.now() + DAY), submissionChannel: "ONLINE", onlineSubmissionMode: "DEMONSTRATION", openingRosterRequired: true, packKindSnapshot: "TENDER", restrictedTender: false },
-  });
-  const window = await db.exerciseWindow.create({
-    data: {
-      organisationId: org, exerciseId: ex.id, path: "ADVERTISED", publishedAt: new Date(Date.now() - 2 * DAY), advertisementDay: D(new Date(Date.now() - 2 * DAY)),
-      policySnapshot: { attendance: { mandatoryPermitted: true }, bidRules: { lateAdmissionCommitteeCode: committee.code, lateAdmissionProvenance: "ASSUMED", minimumBids: null, completenessEliminates: true, completenessProvenance: "ASSUMED" } },
-      purchaseFromDay: D(new Date(Date.now() - DAY)), purchaseCloseDay: D(new Date(Date.now() + 10 * DAY)), feeAmount: "50.00", alternativesPermitted: true,
-    },
-  });
-  const pack = await db.tenderPack.create({ data: { organisationId: org, exerciseId: ex.id, versionNo: 1, packKind: "TENDER", status: "APPROVED", approvedStartOn: D(new Date(Date.now() - DAY)), approvedClosingAt: new Date(Date.now() + DAY), approvedAt: new Date(Date.now() - DAY), frozenAt: new Date(), submittedAt: new Date(), contractBasisCode: "X", compositionSnapshot: {} } });
-  const partA = (await db.tenderPackPart.create({ data: { organisationId: org, packId: pack.id, partCode: "FORM", printedNumber: "1", sortOrder: 1, labelSnapshot: "Form of Tender", role: "FORM_OF_TENDER", content: "STANDARD", source: "TEMPLATE", returnedByBidder: true, mandatory: true } })).id;
-  const partB = (await db.tenderPackPart.create({ data: { organisationId: org, packId: pack.id, partCode: "BQ", printedNumber: "2", sortOrder: 2, labelSnapshot: "Priced Bill", role: "BILL_OF_QUANTITIES", content: "STANDARD", source: "TEMPLATE", returnedByBidder: true, mandatory: true } })).id;
-
-  const officers: Officer[] = [];
-  for (let i = 0; i < n; i++) {
-    const o = await signedIn();
-    const row = await db.exerciseOpeningOfficer.create({ data: { organisationId: org, exerciseId: ex.id, personId: o.person.id, seatLabelSnapshot: `Member ${i + 1}`, namedAt: new Date(), namedByPersonId: namer } });
-    await db.committeeMember.create({ data: { committeeId: committee.id, personId: o.person.id, seatLabel: `Member ${i + 1}`, position: "MEMBER", effectiveFrom: new Date("2026-01-01") } });
-    officers.push({ ...o, rosterId: row.id, passphrase: `unseal passphrase number ${i + 1} ${randomId()}` });
-  }
-  for (const o of officers) {
-    who.actor = o.actor;
-    const r = await setOfficerShare({ ok: false }, form({ exerciseId: ex.id, passphrase: o.passphrase, repeat: o.passphrase, [PASSWORD_FIELD]: o.password }));
-    if (!r.ok) throw new Error(`share not set: ${JSON.stringify(r)}`);
-  }
-  const key = await db.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null } });
-  await db.sourcingExercise.update({ where: { id: ex.id }, data: { onlineBidRules: rulesOf(partA, partB) as never, publishedKeyFingerprint: key.fingerprint } });
-  await db.sourcingExercise.update({ where: { id: ex.id }, data: { status: "ADVERTISED" } });
-  return { id: ex.id, reference, windowId: window.id, partA, partB, officers, keyId: key.id, fingerprint: key.fingerprint };
-}
-
-async function bidder(ex: Ex): Promise<Session> {
-  const made = await makeSupplierAccount(org);
-  await db.supplier.update({ where: { id: made.supplier.id }, data: { status: "REGISTERED", registeredOn: D(new Date(Date.now() - 100 * DAY)) } });
-  const party = await db.exerciseParty.create({ data: { organisationId: org, exerciseId: ex.id, source: "PURCHASER", name: `Bidder ${randomId()}`, registrationNo: `RN-${randomId()}`, vendorId: made.supplier.id } });
-  await db.documentSale.create({ data: { organisationId: org, windowId: ex.windowId, partyId: party.id, soldOn: D(new Date()), collectedBy: "A collector", authoritySighted: true, amount: "50.00", paymentMethod: "Cash", issuedByPersonId: namer, annotation: { v: 1, purchaser: party.name } } });
-  const out = await authenticateSupplier({ loginName: made.loginName, password: made.password }, facts(), null);
-  if (!out.ok) throw new Error(`sign-in failed: ${JSON.stringify(out)}`);
-  const real = await vi.importActual<typeof import("@/lib/auth/supplier-session-store")>("@/lib/auth/supplier-session-store");
-  const read = await real.readSupplierSession(out.token, { sourceAddress: "203.0.113.9" });
-  if (!read.ok) throw new Error("session read failed");
-  return { actor: read.actor, supplierId: made.supplier.id, password: made.password };
-}
-
-async function upload(s: Session, ex: Ex, packPartId: string): Promise<string> {
-  const f = await loadUploadFacts(db, s.actor, { exerciseId: ex.id, packPartId });
-  if (!f) throw new Error("the supplier cannot see the exercise");
-  return (await storePart(s.actor, { facts: f, packPartId, plain: new Uint8Array(PLAIN), filename: "tender.pdf", mediaType: "application/pdf", scan: "NOT_SCANNED", scannerConfigured: false })).fileId;
-}
-
-async function submit(s: Session, ex: Ex, o: { kind?: "BID" | "ALTERNATIVE"; parent?: string | null; replaces?: string | null } = {}) {
-  const fileIds = [await upload(s, ex, ex.partA), await upload(s, ex, ex.partB)];
-  const stamp = await takeStamp();
-  const asked = await confirmSupplierPassword(s.actor, s.password, facts());
-  if (!asked.ok) throw new Error("password refused");
-  const r = await submitBid(s.actor, { exerciseId: ex.id, kind: o.kind ?? "BID", parentOnlineBidId: o.parent ?? null, replacesOnlineBidId: o.replaces ?? null, fileIds, declaration: DECLARATION, stamp, stepUpAt: asked.at });
-  if (!r.ok) throw new Error(`submit refused: ${JSON.stringify(r)}`);
-  return r.onlineBidId;
-}
-
-const start = async (ex: Ex, by: Officer = ex.officers[0]) => {
-  who.actor = by.actor;
-  return startOpening({ ok: false }, form({ exerciseId: ex.id }));
-};
-const authorise = async (ex: Ex, openingId: string, o: Officer, over: Record<string, string> = {}) => {
-  who.actor = o.actor;
-  return authoriseOnlineUnseal({ ok: false }, form({ exerciseId: ex.id, openingId, passphrase: o.passphrase, [PASSWORD_FIELD]: o.password, ...over }));
-};
-const openingOf = (ex: Ex) => db.opening.findFirstOrThrow({ where: { exerciseId: ex.id, kind: "MAIN" } });
-const events = (exerciseId: string) => db.sealedAccessEvent.findMany({ where: { exerciseId }, orderBy: { at: "asc" } });
-const message = (r: { message?: string; errors?: Record<string, string> }) => r.message ?? JSON.stringify(r.errors);
+let bidFileClassId = "";
 
 beforeAll(async () => {
-  process.env[SEALED_BIDS_DEMONSTRATION_ENV] = "true";
-  for (const k of PEPPER_ENV) delete process.env[k];
-  // The suppliers' sign-in finds its organisation by ORGANISATION_CODE, read once when the module loads: the shared test organisation, as the other sealed tests use. Its policy is set here.
-  org = (await testOrganisation()).id;
-  await setPolicy(org, { ...SUPPLIER_SETTINGS, sealingPassphraseMinLength: 12 });
-  await ensureAdministrator(org);
-  await db.bidSealingPolicy.upsert({ where: { organisationId: org }, create: { organisationId: org, onlineSubmission: "DEMONSTRATION" }, update: { onlineSubmission: "DEMONSTRATION" } });
-  await db.openingPolicy.upsert({ where: { organisationId: org }, create: { organisationId: org, invitedCountReading: "PURCHASERS", invitedCountProvenance: "ASSUMED" }, update: { invitedCountReading: "PURCHASERS", invitedCountProvenance: "ASSUMED" } });
-  namer = (await db.person.create({ data: { organisationId: org, name: `Namer ${randomId()}` } })).id;
+  ({ org } = await fixtureSetup());
+  bidFileClassId = ctx.bidFileClassId;
 });
+afterAll(fixtureTeardown);
+const events = (exerciseId: string) => db.sealedAccessEvent.findMany({ where: { exerciseId }, orderBy: { at: "asc" } });
 
-afterAll(async () => {
-  for (const k of PEPPER_ENV) {
-    if (SAVED[k] === undefined) delete process.env[k];
-    else process.env[k] = SAVED[k];
-  }
-  if (ENV_BEFORE === undefined) delete process.env[SEALED_BIDS_DEMONSTRATION_ENV];
-  else process.env[SEALED_BIDS_DEMONSTRATION_ENV] = ENV_BEFORE;
-  await db.$disconnect();
-});
 
-let bidFileClassId = "";
 const sha256Of = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
-/// The class a filed bid takes, set once for the scratch organisation (the setting the finalise needs and the mover reads).
-async function setFileClass(id: string | null) {
-  await db.documentStorePolicy.upsert({ where: { organisationId: org }, create: { organisationId: org, allowedMediaTypes: [], maxBytes: null, onlineBidFileClassId: id, provenance: "ASSUMED" }, update: { onlineBidFileClassId: id } });
-}
-
-beforeAll(async () => {
-  bidFileClassId = (await db.documentClass.create({ data: { organisationId: org, code: `BIDF_${randomId()}`, nameEn: "Online bid files", classification: "SULIT" } })).id;
-  await setFileClass(bidFileClassId);
-});
-
-/// An unsealed online opening with `bids` bidders, each with a bid of two files, every named officer having authorised. Ready for the checklist, the verdicts and the signatures.
-async function unsealed(n: number, bids: number, beforeStart?: (ex: Ex) => Promise<void>) {
-  const ex = await exercise(n);
-  const sessions: Session[] = [];
-  for (let i = 0; i < bids; i++) {
-    const s = await bidder(ex);
-    sessions.push(s);
-    await submit(s, ex);
-  }
-  if (beforeStart) await beforeStart(ex);
-  await setClosing(ex.id, ago(40));
-  const started = await start(ex);
-  expect(started.ok, message(started)).toBe(true);
-  const opening = await openingOf(ex);
-  for (const o of ex.officers) {
-    const r = await authorise(ex, opening.id, o);
-    expect(r.ok, message(r)).toBe(true);
-  }
-  const offers = await db.openedBid.findMany({ where: { openingId: opening.id }, orderBy: { listingNo: "asc" } });
-  expect(offers).toHaveLength(bids);
-  return { ex, opening, offers };
-}
-
-/// What the paper finalise's faults need before any finalise: every checklist item answered, every officer's initial, a verdict on each offer, and the pages.
-async function prepare(ex: Ex, openingId: string, offers: { id: string }[]) {
-  const opening = await db.opening.findUniqueOrThrow({ where: { id: openingId } });
-  const items = checklistFromSnapshot(opening.checklistSnapshot).items;
-  for (const offer of offers) {
-    who.actor = ex.officers[0].actor;
-    for (const item of items) {
-      const r = await recordChecklistAnswer({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id, itemKey: item.key, answer: "PRESENT" }));
-      expect(r.ok, message(r)).toBe(true);
-    }
-    for (const o of ex.officers) {
-      who.actor = o.actor;
-      const r = await recordInitial({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id }));
-      expect(r.ok, message(r)).toBe(true);
-    }
-    who.actor = ex.officers[0].actor;
-    const v = await recordVerdict({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id, verdict: "PASS" }));
-    expect(v.ok, message(v)).toBe(true);
-  }
-  who.actor = ex.officers[0].actor;
-  const p = await recordScheduleDetails({ ok: false }, form({ exerciseId: ex.id, openingId, schedulePages: "3", minutes: "" }));
-  expect(p.ok, message(p)).toBe(true);
-}
-
-const sign = (ex: Ex, openingId: string, o: Officer, over: Record<string, string> = {}) => {
-  who.actor = o.actor;
-  return signOnlineFinalise({ ok: false }, form({ exerciseId: ex.id, openingId, [PASSWORD_FIELD]: o.password, ...over }));
-};
-const finalise = (ex: Ex, openingId: string, o: Officer, over: Record<string, string> = {}) => {
-  who.actor = o.actor;
-  return finaliseOnline({ ok: false }, form({ exerciseId: ex.id, openingId, passphrase: o.passphrase, [PASSWORD_FIELD]: o.password, ...over }));
-};
-const filesOf = (exerciseId: string) => db.onlineBidFile.findMany({ where: { exerciseId, state: "SUBMITTED" }, include: { attachment: true } });
 
 /// Tampers with a stored ciphertext as someone with the owner's login could: the immutability triggers are switched off for the one transaction and put back as they were.
 async function tamperCipher(fileId: string, keepDigest: boolean) {
@@ -639,17 +428,6 @@ describe("the exercises that still need the pepper (20y), read from the database
   }, 300_000);
 });
 
-const FIGURE_TEXT = "55000.00";
-async function estimateFor(ex: Ex) {
-  const preparer = ex.officers[0].person.id;
-  const est = await db.companyEstimate.create({ data: { organisationId: org, exerciseId: ex.id, preparerPersonId: preparer, currentVersionNo: 1, state: "DRAFT" } });
-  await db.companyEstimateVersion.create({ data: { organisationId: org, estimateId: est.id, versionNo: 1, value: FIGURE_TEXT, preparedOn: new Date("2026-09-01"), preparerPersonId: preparer } });
-  return est.id;
-}
-const lodgeAs = (ex: Ex, o: Officer, estimateId: string, over: Record<string, string> = {}) => {
-  who.actor = o.actor;
-  return lodgeEstimate({ ok: false }, form({ exerciseId: ex.id, estimateId, capacity: "Head of department", [PASSWORD_FIELD]: o.password, ...over }));
-};
 const granted = sulitGranted(true as const, "ORGANISATION_PERMISSION");
 const standing = (exerciseId: string) => db.sealedEstimateLodgement.findMany({ where: { exerciseId, supersededAt: null } });
 
@@ -838,7 +616,8 @@ describe("review of wave 3b: the doors that were open", () => {
       await recordVerdict({ ok: false }, form({ exerciseId: ex.id, openedBidId: offers[0].id, verdict: "REJECT", verdictReason: "No." })),
     ]) {
       expect(r.ok).toBe(false);
-      expect(message(r)).toBe(NOT_ON_PANEL);
+      // Wave 3c, plan §4.1 and 20cp: the refusal is the matrix's words (a person who is not a named officer), not the interim panel sentence it replaces.
+      expect(message(r)).toBe(`Nothing was saved: ${MATRIX_FAULT_TEXT.NOT_A_NAMED_OFFICER}`);
     }
     expect(await db.openingChecklistAnswer.count({ where: { openedBidId: offers[0].id } })).toBe(0);
     expect((await db.openedBid.findUniqueOrThrow({ where: { id: offers[0].id } })).verdict).toBeNull();

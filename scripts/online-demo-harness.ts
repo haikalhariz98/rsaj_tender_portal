@@ -112,7 +112,7 @@ describe.skipIf(!ONLINE_REFERENCE || !PASSWORD)("the demonstration's online exer
     expect(offers).toHaveLength(2);
     for (const o of offers) expect(o.priceAsRead).toBeNull();
 
-    // What a finalise needs: every checklist item answered, every officer's initial, a verdict on each offer, and the pages.
+    // What a finalise needs: every checklist item answered, a verdict on each offer, every officer's confirmation of it, and the pages.
     const items = checklistFromSnapshot((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).checklistSnapshot).items;
     for (const offer of offers) {
       who.actor = o1.actor;
@@ -120,14 +120,15 @@ describe.skipIf(!ONLINE_REFERENCE || !PASSWORD)("the demonstration's online exer
         const r = await recordChecklistAnswer({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id, itemKey: item.key, answer: "PRESENT" }));
         expect(r.ok, message(r)).toBe(true);
       }
+      who.actor = o1.actor;
+      const v = await recordVerdict({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id, verdict: "PASS" }));
+      expect(v.ok, message(v)).toBe(true);
+      // Ruling 22 (wave 3c): each officer confirms the column after the answers and the decision, not before them.
       for (const o of officers) {
         who.actor = o.actor;
         const r = await recordInitial({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id }));
         expect(r.ok, message(r)).toBe(true);
       }
-      who.actor = o1.actor;
-      const v = await recordVerdict({ ok: false }, form({ exerciseId: ex.id, openedBidId: offer.id, verdict: "PASS" }));
-      expect(v.ok, message(v)).toBe(true);
     }
     who.actor = o1.actor;
     const pages = await recordScheduleDetails({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, schedulePages: "3", minutes: "" }));

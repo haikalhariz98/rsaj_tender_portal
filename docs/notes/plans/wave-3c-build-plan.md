@@ -264,9 +264,8 @@ export const ADDENDUM_DAY_HELD_TEXT: string;
   checked: boolean }): Finding<"ADMINISTRATOR" | "NOT_FINALISED" | "NOT_ON_THIS_OPENING" | "NOT_AN_OPENING_CHECK_FILE">[]`. Add
   `FILED_FILE_WORDS`: one sentence per fault, and one per `MoveResult` FAILED code (`CLASS_NOT_SET`, `STORE_NOT_BUILT` and the rest).
   Step 2 names the fault union `FiledFileFault` and the mover's codes `MoveFailure` (taken from `MoveResult`'s type, so a new mover code
-  without words fails the typecheck). **Open for step 4:** §1.2 offers a `RECEIVED_NOT_CHECKED` file a download after finalising, but
-  `NOT_AN_OPENING_CHECK_FILE` refuses it at this route. Step 2 builds the contract as written; step 4 settles which (a direct link to the
-  filed version once the post-commit move has filed it, or `checked` dropped from this route), and writes it back here.
+  without words fails the typecheck). **Settled in step 4:** `checked` stays at this route, so `NOT_AN_OPENING_CHECK_FILE` still refuses a `RECEIVED_NOT_CHECKED` file here.
+  The read model gives such a cell a direct link to the filed version (`filed[].versionId`) only once the post-commit move has filed it, and nothing is filed during a render. Step 4 adds to `filed-file.ts`: `parseFiledFileRequest` (the one place the form is read), `FILED_FILE_STATUS`, `NOT_FILED_YET_WORDS` and the field list.
 - **20ce (a), built in the review fixes of 2026-10-17.** The pure `exposureOf`, its words (`EXPOSURE_WORDS`) and `deactivationGate` live in `src/lib/sealing/deactivation.ts`, tested in `deactivation.test.ts`; only the loader `loadHolderExposures` is in `src/lib/sealing/substitution-store.ts`. They list a named officer of a
   finalised main opening while a late bid admitted to it still waits for its supplementary opening, which needs every named officer
   (20az). Add the words for it, and a test.
@@ -318,6 +317,8 @@ All of the following lives in the actions' existing transactions. Each refusal c
 - No page render calls `ensureFileMoved`, because a read must not write during render.
 
 ### 4.3 The read model, `src/lib/opening/matrix-read.ts`
+
+**Built in step 4.** It reads through `openingContext` (the read every screen and act shares) and picks; it adds `NO_RECEIPT_DIGEST_TEXT`. An administrator is given no file and no act (deviation: §1.4 says "as other staff", but every download is refused them). The inputs of `cellFacts` are loaded once, by `matrix-store.ts` `loadCellFacts`, for the acts and for the read.
 
 `openingMatrix(organisationId, exerciseId, openingId, viewer: { personId: string | null; administrator: boolean }): Promise<MatrixView | null>`
 returns:

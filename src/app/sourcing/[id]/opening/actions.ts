@@ -20,7 +20,6 @@ import { answerFaults, checklistFromSnapshot, openingChecklist } from "@/lib/ope
 import { explanationFaults, refuseIfCancelled } from "@/lib/opening/estimate-copy";
 import { markFaults, recordFaults } from "@/lib/opening/finalise";
 import { liveSaleOf, restrictionFinding, saleFinding } from "@/lib/opening/findings";
-import { initialStale } from "@/lib/opening/initials";
 import { openingFindingText, restrictionLabel } from "@/lib/opening/labels";
 import { isRestrictionReading, restrictionReadingWords } from "@/lib/suppliers/restriction-register";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "@/lib/opening/open";
@@ -28,7 +27,9 @@ import { panelFaults, supplementaryPanel } from "@/lib/opening/panel";
 import { loadOpeningRoster } from "@/lib/opening/roster-store";
 import { rosterFaults } from "@/lib/opening/roster";
 import { actFaults } from "@/lib/opening/state";
-import { onlineInitialFault, panelActorFault } from "@/lib/opening/actor";
+import { panelActorFault } from "@/lib/opening/actor";
+import { cellAnswerFaults, columnTally, confirmationStands, confirmFaults, matrixActorFaults } from "@/lib/opening/matrix";
+import { loadCellFacts } from "@/lib/opening/matrix-store";
 import { openingPolicyFrozen, panelOf, panelSnapshot, policyOf, stateOf, type OpeningContext, type OpeningPolicySnapshot } from "@/lib/opening/repo";
 import { unpurchasedRecordAudit, unpurchasedRule } from "@/lib/opening/unpurchased";
 import { estimateStateForStart } from "@/lib/sealing/estimate-lodgement";
@@ -688,22 +689,25 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
-    // Security audit: an online initial is the officer's own act, never recorded for another.
-    const notOwn = onlineInitialFault(l.ex.submissionChannel, personId, actor.personId);
-    if (notOwn) return { ok: false, message: notOwn };
+    const online = l.ex.submissionChannel === "ONLINE";
+    // Ruling 22, 20cp: a confirmation is a named, present officer's own act (online always; on paper it may be recorded for another officer present), never an administrator's, and only of a column that is complete and decided.
+    const checklist = checklistFromSnapshot(o.checklistSnapshot);
+    const who = matrixActorFaults({ online, act: "CONFIRM", administrator: actor.isAdministrator, actorPersonId: actor.personId, subjectPersonId: personId, officers: panelOf(o).filter((p) => p.present).map((p) => p.personId) });
+    if (blocking(who).length) return refuse(who);
     const existing = bid.initials.find((i) => i.personId === personId) ?? null;
-    const stale = !!existing && initialStale(bid, existing);
-    const fs = markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId, already: !!existing && !stale, sameOpening: true });
+    // "Already" is judged on the current reading and the current column revision (plan §1.3).
+    const standing = !!existing && confirmationStands(online, bid, existing);
+    const fs = [...markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId, already: standing, sameOpening: true }), ...confirmFaults({ tally: columnTally(checklist.items, new Map(bid.answers.map((a) => [a.itemKey, a.answer]))), verdict: bid.verdict })];
     if (blocking(fs).length) return refuse(fs);
     // Ruling 17a: a restriction not yet assessed is read again each time the officer acts on the offer.
     await retakeRestriction(tx, actor, l, c, o, bid, now);
     const name = o.panel.find((p) => p.personId === personId)!.person.name;
     if (existing) {
-      await tx.openedBidInitial.update({ where: { id: existing.id, organisationId: actor.organisationId }, data: { recordedAt: now, correctionNo: bid.asReadCorrections } });
+      await tx.openedBidInitial.update({ where: { id: existing.id, organisationId: actor.organisationId }, data: { recordedAt: now, correctionNo: bid.asReadCorrections, columnRevision: bid.columnRevision } });
       await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.initial, existing.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields({ initialled: "Before the correction" }, { initialled: initialFields({ person: name, listingNo: bid.listingNo, at: now }, l.org.timeZone).at }));
       await act.write(tx, existing.id);
     } else {
-      const row = await tx.openedBidInitial.create({ data: { organisationId: l.org.id, openedBidId: bid.id, personId, recordedAt: now, correctionNo: bid.asReadCorrections } });
+      const row = await tx.openedBidInitial.create({ data: { organisationId: l.org.id, openedBidId: bid.id, personId, recordedAt: now, correctionNo: bid.asReadCorrections, columnRevision: bid.columnRevision } });
       await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.initial, row.id, label(l, `Offer ${bid.listingNo}`), "CREATE", diffFields(null, initialFields({ person: name, listingNo: bid.listingNo, at: now }, l.org.timeZone)));
       await act.write(tx, row.id);
     }
@@ -726,10 +730,17 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
-    const notPanel = panelActorFault(panelOf(o), actor.personId);
-    if (notPanel) return { ok: false, message: notPanel };
+    const online = l.ex.submissionChannel === "ONLINE";
+    // Ruling 22: an answer is a named, present officer's own act on both channels, never an administrator's. Refused in words, before anything is read again or written.
+    const who = matrixActorFaults({ online, act: "ANSWER", administrator: actor.isAdministrator, actorPersonId: actor.personId, subjectPersonId: actor.personId, officers: panelOf(o).filter((p) => p.present).map((p) => p.personId) });
+    if (blocking(who).length) return refuse(who);
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
-    const fs = [...actFaults(stateOf(o, l.ex.status)), ...answerFaults(checklist.items, itemKey, answer)];
+    const fs: Finding[] = [...actFaults(stateOf(o, l.ex.status)), ...answerFaults(checklist.items, itemKey, answer)];
+    // Online, Present is refused on a part no file was received for (20cv): the cell is read from the frozen rules, as the screen reads it.
+    if (online && !blocking(fs).length) {
+      const cell = (await loadCellFacts(tx, { organisationId: l.org.id, exerciseId: l.ex.id, online, items: checklist.items, rules: l.ex.onlineBidRules, envelopeIds: [bid.envelopeId] })).get(bid.envelopeId)?.find((x) => x.itemKey === itemKey);
+      if (cell) fs.push(...cellAnswerFaults(cell, answer!));
+    }
     if (blocking(fs).length) return refuse(fs);
     // Ruling 17a: a restriction not yet assessed is read again each time the officer acts on the offer.
     await retakeRestriction(tx, actor, l, c, o, bid, now);
@@ -738,9 +749,11 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
     if (before?.answer === answer) return { ok: true };
     const row = await tx.openingChecklistAnswer.upsert({ where: { openedBidId_itemKey: { openedBidId: bid.id, itemKey } }, create: { organisationId: l.org.id, openedBidId: bid.id, itemKey, itemLabelSnapshot: item.label, answer: answer!, recordedAt: now }, update: { answer: answer!, recordedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.answer, row.id, label(l, `Offer ${bid.listingNo}`), before ? "UPDATE" : "CREATE", diffFields(before ? answerFields({ item: item.label, answer: before.answer }) : null, answerFields({ item: item.label, answer: answer! })));
+    // Ruling 22: a changed answer raises the column's revision, once, whether or not it also clears the decision, so a confirmation taken before it is asked for again.
+    if (!(before && bid.verdict)) await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { columnRevision: { increment: 1 } } });
     if (before && bid.verdict) {
       // R-7: the verdict's completeness record is cleared with it (database null), not left as it was.
-      await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { verdict: null, verdictReason: "", verdictAt: null, completeness: Prisma.DbNull } });
+      await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { verdict: null, verdictReason: "", verdictAt: null, completeness: Prisma.DbNull, columnRevision: { increment: 1 } } });
       await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields(verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), { verdict: "Cleared: a checklist answer changed; record it again", reason: null }));
       return { ok: true, message: "Recorded. The answer changed, so the offer's verdict is cleared: record it again." };
     }
@@ -764,8 +777,9 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
-    const notPanel = panelActorFault(panelOf(o), actor.personId);
-    if (notPanel) return { ok: false, message: notPanel };
+    // Ruling 22: a decision is a named, present officer's own act on both channels, never an administrator's.
+    const who = matrixActorFaults({ online: l.ex.submissionChannel === "ONLINE", act: "DECIDE", administrator: actor.isAdministrator, actorPersonId: actor.personId, subjectPersonId: actor.personId, officers: panelOf(o).filter((p) => p.present).map((p) => p.personId) });
+    if (blocking(who).length) return refuse(who);
     // S-3: who records the verdict is named, so a rule recorded with it says by whom: the signed-in officer (Phase 2b).
     const person = { name: actor.personName };
     const snap = policyOf(o.policySnapshot);
@@ -791,7 +805,7 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
       const a = unpurchasedRecordAudit(unpurchased.consequence!, now, person.name, l.org.timeZone);
       await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields(a.before, a.after));
     }
-    await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { verdict, verdictReason: verdict === "REJECT" ? reason.trim() : "", verdictAt: now, completeness: verdictRecord(j) as unknown as Prisma.InputJsonValue } });
+    await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { verdict, verdictReason: verdict === "REJECT" ? reason.trim() : "", verdictAt: now, completeness: verdictRecord(j) as unknown as Prisma.InputJsonValue, columnRevision: { increment: 1 } } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE",
       diffFields(bid.verdict ? { ...verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), recordedBy: null } : { verdict: null, recordedBy: null }, { ...verdictFields({ verdict, reason: verdict === "REJECT" ? reason.trim() : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) }), recordedBy: person.name }),
       verdict === "REJECT" ? reason.trim() : "");

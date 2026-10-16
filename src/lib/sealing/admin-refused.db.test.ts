@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
  * (a session read back from the database) and must refuse in words and write no key, share, grant, release, lodgement or authorisation. The table is held to the code: every exported
  * action in the sealed action modules is a row, so a door added later and left out fails here. The refusal is judged before anything about the exercise is looked up, so the doors are
  * called with an exercise that does not exist; what each door logs for an administrator on a real exercise is covered by its own database test, named beside the row. The officer's
- * sealed-file download is a route that looks the opening up before it judges the actor, and has its own test in `src/app/api/opening/sealed-file/route.db.test.ts`.
+ * sealed-file download is a route that looks the opening up before it judges the actor, and has its own test in `src/app/api/opening/sealed-file/route.db.test.ts`; the filed-file download after finalising refuses an administrator with a 403 before any file is looked up, tested in `src/app/sourcing/[id]/opening/matrix.db.test.ts`.
  */
 
 const who = vi.hoisted(() => ({ actor: null as unknown }));

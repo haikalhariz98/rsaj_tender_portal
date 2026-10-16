@@ -67,6 +67,20 @@ describe("every decryption goes through open.ts (ADR 0036 D12)", () => {
   });
 });
 
+describe("a sealed file is filed by the mover's callers only (20cl, wave 3c plan §4.2)", () => {
+  it("ensureFileMoved is called from the filed-file route only, and moveReleasedFiles from the finalise's actions only (the post-commit move and \"File them now\")", () => {
+    expect(callers("ensureFileMoved").filter((p) => p !== "src/lib/sealing/online-file-mover.ts")).toEqual(["src/app/api/opening/filed-file/route.ts"]);
+    expect(callers("moveReleasedFiles").filter((p) => p !== "src/lib/sealing/online-file-mover.ts")).toEqual(["src/app/sourcing/[id]/opening/online-finalise-actions.ts"]);
+  });
+
+  it("no page and no read calls either: a read must not write during render", () => {
+    for (const name of ["ensureFileMoved", "moveReleasedFiles"]) {
+      const from = callers(name).filter((p) => /\/page\.tsx$|\/read\.ts$|-read\.ts$|-store\.ts$/.test(p) && p !== "src/lib/sealing/online-file-mover.ts");
+      expect(from, name).toEqual([]);
+    }
+  });
+});
+
 describe("a FINALISE grant is read only by the finalise (ADR 0036 D10, H3, M5)", () => {
   const readers = sources
     .filter((s) => /(?<![\w])officerDekGrant\.(?:find\w*|count|aggregate|groupBy)\(/.test(lex(s.text)) || /(?:FROM|JOIN)\s+"OfficerDekGrant"/.test(lex(s.text, { only: "comments" })))

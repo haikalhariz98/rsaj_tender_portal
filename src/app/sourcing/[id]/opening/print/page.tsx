@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { kelasText, OPENING_DOWNLOAD_TITLE, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
+import { classAsReadText, kelasText, OPENING_DOWNLOAD_TITLE, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import { scheduleSection } from "@/lib/opening/read";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
@@ -101,7 +101,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
                 <Td label={SCHEDULE_COLUMNS.listing}>{r.listingNo}</Td>
                 <Td label={SCHEDULE_COLUMNS.bidder}>{r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName}</Td>
                 <Td label={SCHEDULE_COLUMNS.kelas}>{kelasText(r.registerClass)}</Td>
-                <Td label={SCHEDULE_COLUMNS.classAsRead}>{readText(r.registrationClass)}</Td>
+                <Td label={SCHEDULE_COLUMNS.classAsRead}>{classAsReadText(r.registrationClass, o.online)}</Td>
                 <Td label={SCHEDULE_COLUMNS.status}>{readText(r.registrationStatus)}</Td>
                 <Td numeric label={SCHEDULE_COLUMNS.price}><SulitValue of={r.openingPrice} /></Td>
                 <Td label={SCHEDULE_COLUMNS.period}>{r.period}</Td>

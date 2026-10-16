@@ -13,7 +13,7 @@ import { OPENING_STATEMENT } from "@/lib/opening/labels";
 import { openingSection, scheduleSection, type OpeningSectionView, type OpeningView, type ScheduleSectionView } from "@/lib/opening/read";
 
 import { FLOW_LABEL } from "@/lib/method/flow";
-import { kelasText, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
+import { classAsReadText, kelasText, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, FileSealedBidsDrawer, OnlineFinaliseDrawer, OnlineSignatureDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
 import { EnvelopesToOpen, FilesToCheck, OffersRead } from "./lists";
@@ -325,7 +325,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
       listing: { kind: "text", text: `No. ${r.listingNo}` },
       bidder: { kind: "stack", title: r.bidderName, sub: r.alternative || undefined },
       kelas: { kind: "text", text: kelasText(r.registerClass) },
-      classAsRead: { kind: "text", text: readText(r.registrationClass) },
+      classAsRead: { kind: "text", text: classAsReadText(r.registrationClass, o.online) },
       status: { kind: "text", text: readText(r.registrationStatus) },
       openingPrice: sulitText(r.openingPrice),
       period: { kind: "text", text: r.period },

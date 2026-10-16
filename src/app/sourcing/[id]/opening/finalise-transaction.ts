@@ -18,7 +18,7 @@ import { DisclosureRefused, discloseAtFinalising } from "@/lib/opening/estimate"
 import { type PaperCopy } from "@/lib/opening/estimate-copy";
 import { finaliseFaults } from "@/lib/opening/finalise";
 import { grandSummary } from "@/lib/opening/grand-summary";
-import { freshInitials } from "@/lib/opening/initials";
+import { standingConfirmations } from "@/lib/opening/matrix";
 import { openingFindingText } from "@/lib/opening/labels";
 import { invitedCounts, policyOf, presentOf, stateOf, summaryLabelsOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
 import { unpurchasedRecordAudit, unpurchasedRule, type LiveUnpurchased } from "@/lib/opening/unpurchased";
@@ -83,7 +83,7 @@ export async function finaliseInTransaction(
     const admitted = admissionId ? c.envelopes.find((e) => e.id === admissionId) : null;
     const fs = finaliseFaults({
       state,
-      bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: freshInitials(b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
+      bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: standingConfirmations(l.ex.submissionChannel === "ONLINE", b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
       // Online, every named officer is the panel: all of them sign (20t), and none is absent from a roster the key was split across.
       present: online ? o.panel.map((p) => ({ personId: p.personId, name: p.person.name })) : presentOf(o),
       signed: o.signatures.map((s) => s.personId),

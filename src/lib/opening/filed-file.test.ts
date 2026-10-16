@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { FILED_FILE_WORDS, filedFileFaults, type MoveFailure } from "./filed-file";
+import { FILED_FILE_WORDS, filedFileFaults, parseFiledFileRequest, type MoveFailure } from "./filed-file";
 import { openingFindingText } from "./labels";
 
 /**
@@ -59,5 +59,18 @@ describe("FILED_FILE_WORDS: a sentence per refusal and per failure of the move",
   it("the opening's words read the two new refusal codes from here", () => {
     expect(openingFindingText({ code: "NOT_ON_THIS_OPENING", level: "block" })).toBe(FILED_FILE_WORDS.NOT_ON_THIS_OPENING);
     expect(openingFindingText({ code: "NOT_AN_OPENING_CHECK_FILE", level: "block" })).toBe(FILED_FILE_WORDS.NOT_AN_OPENING_CHECK_FILE);
+  });
+});
+
+describe("parseFiledFileRequest (wave 3c step 4, plan §4.2)", () => {
+  const form = (pairs: [string, string][]) => { const f = new FormData(); for (const [k, v] of pairs) f.append(k, v); return f; };
+  it("takes exactly exerciseId, openingId and fileId, each once and an identifier", () => {
+    expect(parseFiledFileRequest(form([["exerciseId", "ex_1"], ["openingId", "op-2"], ["fileId", "f3"]]))).toEqual({ ok: true, value: { exerciseId: "ex_1", openingId: "op-2", fileId: "f3" } });
+  });
+  it("refuses an unknown field by name, a missing field, a repeated field and a value that is not an identifier", () => {
+    expect(parseFiledFileRequest(form([["exerciseId", "a"], ["openingId", "b"], ["fileId", "c"], ["extra", "x"]]))).toEqual({ ok: false, fields: { extra: "This field is not accepted." } });
+    expect(parseFiledFileRequest(form([["exerciseId", "a"]]))).toEqual({ ok: false, fields: { openingId: "Required.", fileId: "Required." } });
+    expect(parseFiledFileRequest(form([["exerciseId", "a"], ["exerciseId", "b"], ["openingId", "b"], ["fileId", "c"]]))).toEqual({ ok: false, fields: { exerciseId: "Send this field once." } });
+    expect(parseFiledFileRequest(form([["exerciseId", "a b"], ["openingId", "b"], ["fileId", "../c"]]))).toEqual({ ok: false, fields: { exerciseId: "Not a valid identifier.", fileId: "Not a valid identifier." } });
   });
 });

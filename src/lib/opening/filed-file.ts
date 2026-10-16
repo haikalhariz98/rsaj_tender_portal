@@ -48,3 +48,30 @@ export const FILED_FILE_WORDS: Readonly<Record<FiledFileFault | MoveFailure, str
   FILE_UNREADABLE: "The sealed file could not be opened to be filed, so it was not filed. Report it to whoever runs the portal.",
   REFUSED: "The document store refused to file this file, so it was not filed. Report it to whoever runs the portal.",
 };
+
+/// The words when the mover found nothing to move and no filed document stands for the file: the finalise did not release it. Staff-facing English.
+export const NOT_FILED_YET_WORDS = "This file has not been filed as a document yet, so it cannot be downloaded. Report it to whoever runs the portal.";
+
+export const FILED_FILE_FIELDS = ["exerciseId", "openingId", "fileId"] as const;
+export type FiledFileRequest = { exerciseId: string; openingId: string; fileId: string };
+export type FiledFileParse = { ok: true; value: FiledFileRequest } | { ok: false; fields: Record<string, string> };
+
+const ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/// The one place the form is read (plan §4.2): exactly `exerciseId`, `openingId` and `fileId`, each once and an identifier. Unknown fields are refused by name.
+export function parseFiledFileRequest(form: { keys(): Iterable<string>; getAll(name: string): unknown[] }): FiledFileParse {
+  const fields: Record<string, string> = {};
+  for (const k of new Set(form.keys())) if (!(FILED_FILE_FIELDS as readonly string[]).includes(k)) fields[k] = "This field is not accepted.";
+  const value: Partial<FiledFileRequest> = {};
+  for (const k of FILED_FILE_FIELDS) {
+    const all = form.getAll(k);
+    if (all.length === 0) fields[k] = "Required.";
+    else if (all.length > 1) fields[k] = "Send this field once.";
+    else if (typeof all[0] !== "string" || !ID.test(all[0])) fields[k] = "Not a valid identifier.";
+    else value[k] = all[0];
+  }
+  return Object.keys(fields).length > 0 ? { ok: false, fields } : { ok: true, value: value as FiledFileRequest };
+}
+
+/// How each refusal answers. A mover failure is a 409 whatever its code (plan §4.2).
+export const FILED_FILE_STATUS: Readonly<Record<FiledFileFault, number>> = { ADMINISTRATOR: 403, NOT_FINALISED: 409, NOT_ON_THIS_OPENING: 404, NOT_AN_OPENING_CHECK_FILE: 409 };

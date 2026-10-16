@@ -190,12 +190,6 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
     expect(waiting.message).toMatch(/read again from the supplier register and the new reading is saved/);
     expect(waiting.message).not.toMatch(/Nothing was saved/);
 
-    // The officer's own initial reads it again too (nothing changed: still not assessed), and is audited.
-    who.actor = b.actor;
-    expect(await recordInitial({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: true });
-    who.actor = a.actor;
-    expect(await recordInitial({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: true });
-
     // The configuration changes meanwhile (finding 3): the evidence type is cleared and the closing-day rule flipped. This opening goes on under the rule it started with.
     await policy({ type: null, closingDayCounts: false });
     // The deployment stops allowing the simulator (finding 1): the sale the buyer paid on it no longer reads as live, so the supplier can no longer be found through the sale.
@@ -214,6 +208,12 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
     const verdict = await recordVerdict({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));
     expect(verdict, JSON.stringify(verdict)).toMatchObject({ ok: true });
     expect((await db.openedBid.findUniqueOrThrow({ where: { id: bid.id } })).verdict).toBe("PASS");
+
+    // Ruling 22 (wave 3c): an officer's initial is their confirmation of a complete, decided column, so each initials after the decision, not before it.
+    who.actor = b.actor;
+    expect(await recordInitial({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: true });
+    who.actor = a.actor;
+    expect(await recordInitial({ ok: false }, form({ exerciseId: e.ex.id, openedBidId: bid.id }))).toMatchObject({ ok: true });
 
     expect(await recordScheduleDetails({ ok: false }, form({ exerciseId: e.ex.id, openingId: opening.id, schedulePages: "2", minutes: "" }))).toMatchObject({ ok: true });
     const done = await finaliseOpening({ ok: false }, form({ exerciseId: e.ex.id, openingId: opening.id, paperCopy: "notInBox" }));
