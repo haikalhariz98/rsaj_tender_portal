@@ -647,6 +647,20 @@ describe("checking that a passphrase still unlocks (D4, 20v)", () => {
     expect(JSON.stringify(log)).not.toContain(o.passphrase);
   }, 180_000);
 
+  it("parallel wrong passphrases cannot get past the lockout: at most the limit are derived, however many arrive together (review: reserve the attempt before the unwrap)", async () => {
+    const ex = await exercise(2);
+    const o = ex.officers[0];
+    const burst = await Promise.all(Array.from({ length: 12 }, (_, i) => check(ex, o, { passphrase: `a parallel wrong passphrase ${i}` })));
+    expect(burst.every((r) => !r.ok)).toBe(true);
+    const log = await events(ex.id);
+    const tried = log.filter((e) => e.kind === "UNLOCK_CHECK" && e.reasonCode === "WRONG_PASSPHRASE").length;
+    expect(tried).toBe(5);
+    expect(log.filter((e) => e.kind === "UNLOCK_CHECK" && e.reasonCode === "LOCKED")).toHaveLength(7);
+    const k = await key(ex, o);
+    expect(k.failedAttempts).toBe(5);
+    expect(k.lockedUntil).not.toBeNull();
+  }, 240_000);
+
   it("a pepper this copy does not hold is its own refusal, is checked before any unwrap, and is never counted", async () => {
     process.env.SEALING_PEPPER = randomBytes(40).toString("base64");
     process.env.SEALING_PEPPER_ID = "unseal-test";

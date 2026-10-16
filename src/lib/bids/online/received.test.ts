@@ -53,15 +53,19 @@ describe("Received before and after the opening's start", () => {
     expect(receivedView(same, true).standing.map((r) => r.sequence)).toEqual([1, 4]);
   });
 
-  it("the words carry 20u's: the order of the bids now standing, not the receipt number, which can change and is shown once the opening starts", () => {
+  it("the words carry 20u's, as 20ar amended them: the order of the bids now standing, which can change, and the portal's order of receipt once the opening starts, never 'receipt number'", () => {
     // Ruling 20ab: the words are `Words`, English and Malay; the Malay says the same things.
     expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/order of the bids now standing/);
-    expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/not the receipt number/);
     expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/can change before the closing/);
-    expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/receipt number is shown once the opening starts/);
-    expect(RECEIVED_WORDS.ordinalNote.ms).toMatch(/bukan nombor resit/);
+    expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/order of receipt for the exercise is shown once the opening starts/);
     expect(RECEIVED_WORDS.ordinalNote.ms).toMatch(/boleh berubah sebelum tarikh tutup/);
-    expect(RECEIVED_WORDS.sequenceLabel).toEqual({ en: "Receipt number", ms: "Nombor resit" });
+    expect(RECEIVED_WORDS.ordinalNote.ms).toMatch(/susunan penerimaan portal/i);
+    expect(RECEIVED_WORDS.sequenceLabel).toEqual({ en: "Portal order of receipt", ms: "Susunan penerimaan portal" });
+    // 20ar: since 20an a supplier's receipt carries its own submission number, so neither language may call the sequence a receipt number.
+    for (const x of Object.values(RECEIVED_WORDS)) {
+      expect(x.en).not.toMatch(/receipt number/i);
+      expect(x.ms).not.toMatch(/nombor resit/i);
+    }
     expect(RECEIVED_WORDS.ordinalLabel.en.length).toBeGreaterThan(2);
     expect(RECEIVED_WORDS.ordinalLabel.ms.length).toBeGreaterThan(2);
   });

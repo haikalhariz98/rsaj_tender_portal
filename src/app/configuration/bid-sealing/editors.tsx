@@ -31,7 +31,7 @@ export function EditBidSealingPolicy({ values }: { values: Record<string, string
         { kind: "text", name: "procedureAmendmentReference", label: "The amendment of the bid procedure (reference)", hint: "The amendment that allows bids to be received online." },
         { kind: "text", name: "customerAcceptanceReference", label: "The organisation's written acceptance of the limits (reference)", hint: "Naming that who bid is not hidden from a person who can query the database." },
         { kind: "textarea", name: "publicRoleAttestation", label: "The public copy's database role, attested", hint: "Attested, not checked by the portal. State what was checked and by whom. You are recorded as the person who attests." },
-        { kind: "textarea", name: "hardeningAttestation", label: "The deployment's hardening, attested", hint: "Attested, not checked by the portal: no core dumps or swap, HTTPS only, no logging of request bodies. You are recorded as the person who attests." },
+        { kind: "textarea", name: "hardeningAttestation", label: "The deployment's hardening, attested", hint: "Attested, not checked by the portal: no core dumps or swap, HTTPS only, no logging of request bodies, and an edge header and body read timeout, with a maximum body size no larger than the largest part rule. You are recorded as the person who attests." },
         {
           kind: "select",
           name: "provenance",

@@ -25,20 +25,20 @@ export function receivedView(rows: { sequence: number; receivedAt: Date; late: b
   return { count: standing.length, inTime: standing.length - late, late, standing };
 }
 
-/// What number each standing bid carries on Received: its ordinal before the opening starts, its receipt number (sequence) from the start (20u). A bid not standing has none.
+/// What number each standing bid carries on Received: its ordinal before the opening starts, its portal order of receipt (the sequence) from the start (20u, 20ar). A bid not standing has none.
 /// Built on the same ordering as `receivedView`, so the register and its counts cannot disagree.
 export function registerNumbers(rows: readonly { id: string; sequence: number; receivedAt: Date; status: OnlineBidStatus }[], openingStarted: boolean): Map<string, { number: number; isOrdinal: boolean }> {
   return new Map(standingInOrder(rows).map((r, i) => [r.id, openingStarted ? { number: r.sequence, isOrdinal: false } : { number: i + 1, isOrdinal: true }]));
 }
 
-/// 20u: the ordinal column's label and note ("the order of the bids now standing, not the receipt number; it can change before the closing;
-/// the receipt number is shown once the opening starts"), and the sequence column's label from the start. One constant; no component restates it.
+/// 20u: the ordinal column's label and note ("the order of the bids now standing; it can change before the closing; the portal's order of receipt is shown once the
+/// opening starts"; ruling 20ar: never "the receipt number", since a supplier's receipt carries its own submission number), and the sequence column's label from the start. One constant; no component restates it.
 /// Ruling 20ab: in both languages, though Received is a staff screen; it renders the language its siblings render until the NFR-LNG-001 programme.
 export const RECEIVED_WORDS: { ordinalLabel: Words; ordinalNote: Words; sequenceLabel: Words } = {
   ordinalLabel: w("Order", "Susunan"),
   ordinalNote: w(
-    "The order of the bids now standing, not the receipt number. It can change before the closing. The receipt number is shown once the opening starts.",
-    "Susunan bida yang masih berkuat kuasa sekarang, bukan nombor resit. Ia boleh berubah sebelum tarikh tutup. Nombor resit ditunjukkan sebaik sahaja pembukaan bermula.",
+    "The order of the bids now standing. It can change before the closing. The portal's order of receipt for the exercise is shown once the opening starts.",
+    "Susunan bida yang masih berkuat kuasa sekarang. Ia boleh berubah sebelum tarikh tutup. Susunan penerimaan portal bagi pelawaan ini ditunjukkan sebaik sahaja pembukaan bermula.",
   ),
-  sequenceLabel: w("Receipt number", "Nombor resit"),
+  sequenceLabel: w("Portal order of receipt", "Susunan penerimaan portal"),
 };

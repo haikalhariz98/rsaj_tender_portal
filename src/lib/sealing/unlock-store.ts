@@ -4,9 +4,10 @@
  *
  *   1. the named officer's live key for the exercise (nobody's but the signed-in person's);
  *   2. the pepper: a wrap made under a pepper this copy does not hold is refused as PEPPER_NOT_HELD before any unwrap, and is never counted (20v);
- *   3. the lockout gate on the key's own counter, from the sign-in lockout settings (unset refuses);
- *   4. the unwrap, outside any transaction (the derivation is slow and runs in the KDF queue). A wrong passphrase is counted in a small transaction of its own, because a refusal inside the
- *      act's transaction would roll the count back with it.
+ *   3. the lockout gate on the key's own counter, from the sign-in lockout settings (unset refuses), judged and the attempt reserved in one locked transaction, so parallel requests cannot all pass
+ *      the same unlocked counter;
+ *   4. the unwrap, outside any transaction (the derivation is slow and runs in the KDF queue). The attempt was already counted at 3, in a transaction of its own (a refusal inside the act's
+ *      transaction would roll the count back with it); a right passphrase clears the count.
  *
  * Every refusal is written as a REFUSED `SealedAccessEvent` (outside the act's transaction), after the session was checked by the caller. The passphrase, the derived key and the private key are
  * never logged, audited or returned in a message; the private key is returned to the caller, which zeroes it.
@@ -36,16 +37,35 @@ export async function logSealedGranted(i: { organisationId: string; exerciseId: 
   await db.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, outcome: "GRANTED", staffPersonId: i.staffPersonId, recordId: i.recordId, at: i.at } });
 }
 
-/// Counts one wrong passphrase on the key, under a row lock so two wrong entries at once both count. Returns whether the key is now locked.
-async function countWrong(organisationId: string, officerKeyId: string, now: Date): Promise<boolean> {
+type Reservation = { ok: true; before: { failedAttempts: number; lockedUntil: Date | null }; after: { failedAttempts: number; lockedUntil: Date | null }; nowLocked: boolean } | { ok: false; gate: PassphraseGate };
+
+/// Reserves one attempt on the key before the passphrase is derived (review: parallel guesses must not all pass the gate against the same counter). Under a row lock the gate is judged on the
+/// counter as it stands and, if the passphrase may be tried, the attempt is counted at once, as if it were wrong; a right passphrase clears the count afterwards. Requests in flight therefore each
+/// see the others' reservations, so no more derivations than `maxFailedAttempts` can be started in a window, however many arrive together.
+async function reserveAttempt(organisationId: string, officerKeyId: string, now: Date): Promise<Reservation> {
   const policy = await loadSecurityPolicy(db, organisationId);
+  const limits = { maxFailedAttempts: policy?.maxFailedAttempts ?? null, lockoutMinutes: policy?.lockoutMinutes ?? null };
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "OfficerExerciseKey" WHERE id = ${officerKeyId} FOR UPDATE`;
     const k = await tx.officerExerciseKey.findFirst({ where: { id: officerKeyId, organisationId }, select: { failedAttempts: true, lockedUntil: true } });
-    if (!k || !policy) return false;
-    const next = afterWrongPassphrase(k, policy, now);
+    if (!k) return { ok: false as const, gate: "LOCKED" as const };
+    const gate = passphraseGate(k, limits, now);
+    if (gate) return { ok: false as const, gate };
+    const next = afterWrongPassphrase(k, limits, now);
     await tx.officerExerciseKey.update({ where: { id: officerKeyId }, data: { failedAttempts: next.failedAttempts, lockedUntil: next.lockedUntil } });
-    return next.lockedUntil !== null && next.lockedUntil.getTime() > now.getTime();
+    return { ok: true as const, before: k, after: next, nowLocked: next.lockedUntil !== null && next.lockedUntil.getTime() > now.getTime() };
+  });
+}
+
+/// Gives a reserved attempt back when the derivation failed for a reason that is not a wrong passphrase (an unreadable key): one fewer, and the lock this reservation set lifted if it no longer applies.
+async function refundAttempt(organisationId: string, officerKeyId: string, r: Extract<Reservation, { ok: true }>): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "OfficerExerciseKey" WHERE id = ${officerKeyId} FOR UPDATE`;
+    const k = await tx.officerExerciseKey.findFirst({ where: { id: officerKeyId, organisationId }, select: { failedAttempts: true, lockedUntil: true } });
+    if (!k) return;
+    const failedAttempts = Math.max(0, k.failedAttempts - 1);
+    const liftLock = r.nowLocked && k.lockedUntil !== null && r.after.lockedUntil !== null && k.lockedUntil.getTime() === r.after.lockedUntil.getTime();
+    await tx.officerExerciseKey.update({ where: { id: officerKeyId }, data: { failedAttempts, lockedUntil: liftLock ? r.before.lockedUntil : k.lockedUntil } });
   });
 }
 
@@ -66,25 +86,25 @@ export async function unlockOwnKey(i: { organisationId: string; exerciseId: stri
   // 20v: before any unwrap, and never counted.
   if (pepperFault(wrapped, held) === "PEPPER_NOT_HELD") return refuse("PEPPER_NOT_HELD");
 
-  const policy = await loadSecurityPolicy(db, i.organisationId);
-  const gate = passphraseGate({ failedAttempts: key.failedAttempts, lockedUntil: key.lockedUntil }, { maxFailedAttempts: policy?.maxFailedAttempts ?? null, lockoutMinutes: policy?.lockoutMinutes ?? null }, i.now);
-  if (gate) return refuse(gate);
+  const reserved = await reserveAttempt(i.organisationId, key.id, i.now);
+  if (!reserved.ok) return refuse(reserved.gate);
 
   let privateKey: Bytes | null;
   try {
     privateKey = await unwrapKey(wrapped, i.passphrase, wrapped.pepperId === null ? null : held, officerKeyAad({ organisationId: i.organisationId, exerciseId: i.exerciseId, officerKeyId: key.id, rosterRowId: row.id }));
   } catch (e) {
-    if (e instanceof SealError) return refuse("KEY_UNREADABLE");
+    if (e instanceof SealError) {
+      await refundAttempt(i.organisationId, key.id, reserved);
+      return refuse("KEY_UNREADABLE");
+    }
+    // Not a verdict on the passphrase: give the attempt back, then fail as before.
+    await refundAttempt(i.organisationId, key.id, reserved);
     throw e;
   }
-  if (!privateKey) {
-    const nowLocked = await countWrong(i.organisationId, key.id, i.now);
-    return refuse("WRONG_PASSPHRASE", { nowLocked });
-  }
-  if (key.failedAttempts > 0 || key.lockedUntil !== null) {
-    const clear = afterSuccess();
-    await db.officerExerciseKey.update({ where: { id: key.id }, data: { failedAttempts: clear.failedAttempts, lockedUntil: clear.lockedUntil } });
-  }
+  // A wrong passphrase is already counted by the reservation.
+  if (!privateKey) return refuse("WRONG_PASSPHRASE", { nowLocked: reserved.nowLocked });
+  const clear = afterSuccess();
+  await db.officerExerciseKey.update({ where: { id: key.id }, data: { failedAttempts: clear.failedAttempts, lockedUntil: clear.lockedUntil } });
   return { ok: true, officerKeyId: key.id, rosterRowId: row.id, publicKey: new Uint8Array(key.publicKey), privateKey };
 }
 

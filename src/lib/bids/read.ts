@@ -130,7 +130,7 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
     const back = returnState(f);
     return {
       id: e.id,
-      /// The number the register shows: the receipt number, or for a standing online bid before the opening starts its ordinal (20u). Never both.
+      /// The number the register shows: the envelope sequence (the portal's order of receipt, 20ar), or for a standing online bid before the opening starts its ordinal (20u). Never both.
       sequence: shown.number,
       numberIsOrdinal: shown.isOrdinal,
       label: labelOf(e),

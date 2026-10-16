@@ -20,6 +20,11 @@ describe("the Bid sealing screen", () => {
     expect(page).toContain("Where this comes from");
     expect(page).toContain("independent review pending");
   });
+  it("keeps must-have 5's widened attested words (ruling 20ai)", () => {
+    const editors = src("src/app/configuration/bid-sealing/editors.tsx");
+    expect(editors).toContain("an edge header and body read timeout, with a maximum body size no larger than the largest part rule");
+    expect(editors).toContain("Attested, not checked by the portal");
+  });
   it("names the three references the switch needs", () => {
     for (const label of ["The outside cryptography review", "The amendment of the bid procedure", "The organisation's written acceptance of the limits"]) expect(page).toContain(label);
   });
