@@ -3,7 +3,7 @@ import { Blocked } from "@/components/ui/blocked";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 
-import { rekeyExercise, setOfficerShare } from "./key-actions";
+import { checkUnlock, rekeyExercise, setOfficerShare } from "./key-actions";
 
 /**
  * The drawers of the key ceremony (ADR 0036 D3, D4, D11; build plan step 8). Fields are data; every rule sits in the actions and the pure checks behind them
@@ -33,6 +33,22 @@ export function SetShareDrawer({ exerciseId, allowed, minLength, again }: { exer
       action={setOfficerShare}
       submitLabel="Set my share"
       trigger={{ label, className: again ? secondary : primary }}
+      size="md"
+    />
+  );
+}
+
+/// A named officer checks, before the opening, that their passphrase still unlocks their key (ADR 0036 D4). Nothing is opened and no share is released; a wrong entry is counted on the key's own lockout.
+export function CheckUnlockDrawer({ exerciseId }: { exerciseId: string }) {
+  return (
+    <RecordEditor
+      title="Check that I can still unlock my key"
+      description="Type your unseal passphrase to test it now. Nothing is opened and no share is released. A wrong entry is counted, and too many lock your key for a while, so check once rather than guess. If you have forgotten it, say so now: it cannot be recovered, and the key must then be made again."
+      fields={[hidden("exerciseId"), { kind: "text", name: "passphrase", label: "Unseal passphrase", required: true, secret: true }, actorField("OfficerExerciseKey.person", { name: "personId" })]}
+      values={{ exerciseId }}
+      action={checkUnlock}
+      submitLabel="Check my passphrase"
+      trigger={{ label: "Check I can still unlock", className: secondary }}
       size="md"
     />
   );

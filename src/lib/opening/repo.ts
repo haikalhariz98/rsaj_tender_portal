@@ -78,7 +78,7 @@ export type OpenedBidRow = OpeningRow["bids"][number];
 
 /// The rules' view of an opening row, on its exercise's status (a cancelled exercise records nothing more, review M-1).
 export const stateOf = (o: OpeningRow, exerciseStatus: string): OpeningState =>
-  openingState({ ...o, exerciseStatus }, o.sittings, o.authorisations, o.panel.map((p) => ({ personId: p.personId, present: p.present })), authorisationsRequired(o));
+  openingState({ ...o, exerciseStatus, online: o.exercise.submissionChannel === "ONLINE" }, o.sittings, o.authorisations, o.panel.map((p) => ({ personId: p.personId, present: p.present })), authorisationsRequired(o));
 /// Two on paper; online, the panel's size (the roster the exercise key was split across).
 export const authorisationsRequired = (o: Pick<OpeningRow, "exercise" | "panel">): number => requiredAuthorisations(o.exercise.submissionChannel, o.panel.length);
 export const panelOf = (o: OpeningRow) => o.panel.map((p) => ({ personId: p.personId, present: p.present }));

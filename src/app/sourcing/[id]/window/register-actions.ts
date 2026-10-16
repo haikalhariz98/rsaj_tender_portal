@@ -236,8 +236,9 @@ export async function voidSale(_prev: FormState, data: FormData): Promise<FormSt
     if (!w || !s) return { ok: false, message: "That sale is not on this exercise." };
     await lockSaleRows(tx, w.id);
     // 65-C2: on the locked register, the purchaser must not hold a bid envelope.
+    // 20c: only a paper envelope holds a sale here (an online one names its party at the unseal, and the closed window already refuses the void).
     await lockEnvelopeRows(tx, l.ex.id);
-    const holds = (await tx.bidEnvelope.count({ where: { exerciseId: l.ex.id, partyId: s.partyId, status: { not: "WITHDRAWN" }, kind: { not: "COMPANY_ESTIMATE" } } })) > 0;
+    const holds = (await tx.bidEnvelope.count({ where: { exerciseId: l.ex.id, partyId: s.partyId, status: { not: "WITHDRAWN" }, kind: { not: "COMPANY_ESTIMATE" }, channel: { not: "ONLINE" } } })) > 0;
     const f = voidSaleFault(s, phaseOf(l.ex, w, new Date(), l.org.timeZone).phase, reason, holds);
     if (f) return f.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: windowFindingText(f) } } : refuse([f], "Not voided:");
     const moved = await tx.documentSale.updateMany({ where: { id: s.id, voidedAt: null }, data: { voidedAt: new Date(), voidReason: reason } });

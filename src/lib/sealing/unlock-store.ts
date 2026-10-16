@@ -21,6 +21,7 @@ import { wrappedKeyOf } from "./unseal-seal";
 import { afterSuccess } from "@/lib/auth/lockout";
 import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import { db } from "@/lib/db";
+import { countAndJudgeCounted } from "@/lib/portal/bids/rate-store";
 import { sealingPepper } from "@/lib/integration/sealing-deployment";
 
 export type UnlockRefusal = "NOT_NAMED_OFFICER" | "NO_KEY" | "PEPPER_NOT_HELD" | "PEPPER_INVALID" | PassphraseGate | "WRONG_PASSPHRASE" | "KEY_UNREADABLE";
@@ -30,7 +31,18 @@ export type Unlocked = { ok: true; officerKeyId: string; rosterRowId: string; pu
 export async function logSealedRefusal(i: { organisationId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE"; staffPersonId: string; reasonCode: string; recordId?: string | null }): Promise<void> {
   const ex = await db.sourcingExercise.findFirst({ where: { id: i.exerciseId, organisationId: i.organisationId }, select: { id: true } });
   if (!ex) return;
-  await db.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: ex.id, kind: i.kind, outcome: "REFUSED", reasonCode: i.reasonCode, staffPersonId: i.staffPersonId, recordId: i.recordId ?? null, at: new Date() } });
+  await db.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: ex.id, kind: i.kind, outcome: "REFUSED", reasonCode: i.reasonCode, staffPersonId: i.staffPersonId, recordId: recordIdOrNull(i.recordId), at: new Date() } });
+}
+
+/// The shape of a record id the sealed doors accept. Anything else is not an id of ours and is logged as none, so a client cannot size the row.
+export const SEALED_RECORD_ID = /^[A-Za-z0-9_-]{1,64}$/;
+export const recordIdOrNull = (v: string | null | undefined): string | null => (v != null && SEALED_RECORD_ID.test(v) ? v : null);
+
+/// An administrator account refused at a sealed door (S19, 20w): the first refusal for the account in each hour is written, the rest are counted and not written, so a script cannot fill the log.
+export async function logAdministratorRefusal(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK"; staffPersonId: string; recordId?: string | null }): Promise<void> {
+  const seen = await countAndJudgeCounted(db, { organisationId: i.organisationId, accountId: i.accountId, action: "officer-sealed-refusal" }, new Date());
+  if (seen.count !== 1) return;
+  await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, staffPersonId: i.staffPersonId, reasonCode: "ADMINISTRATOR", recordId: recordIdOrNull(i.recordId) });
 }
 
 export async function logSealedGranted(i: { organisationId: string; exerciseId: string; kind: "UNLOCK_CHECK" | "DOWNLOAD"; staffPersonId: string; recordId: string; at: Date }): Promise<void> {

@@ -15,7 +15,7 @@ import { publishSealingWords } from "@/lib/sealing/ceremony";
 import { REKEY_WORDS, rekeyRefusals, SHARE_WORDS, shareFaults } from "@/lib/sealing/share";
 import { loadCeremony } from "@/lib/sealing/store";
 
-import { ChangeKeyDrawer, SetShareDrawer } from "./key-editors";
+import { ChangeKeyDrawer, CheckUnlockDrawer, SetShareDrawer } from "./key-editors";
 
 /**
  * The sealing key of an online exercise, under Opening officers on Scope and estimate (ADR 0036 D3, D4, D11): who has set their share, whether the key is made, the
@@ -62,6 +62,7 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
           <span className="flex flex-wrap items-center gap-2">
             <Badge tone={tone}>{facts.liveKey && !facts.state.stale ? "Key made" : "Key not ready"}</Badge>
             {mine && <SetShareDrawer exerciseId={ex.id} allowed={shareAllowed} minLength={minLength} again={hasOwnKey.has(mine.id)} />}
+            {mine && hasOwnKey.has(mine.id) && <CheckUnlockDrawer exerciseId={ex.id} />}
             {facts.published && <ChangeKeyDrawer exerciseId={ex.id} allowed={rekeyAllowed} />}
           </span>
         }

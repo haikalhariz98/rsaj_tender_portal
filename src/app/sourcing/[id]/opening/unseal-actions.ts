@@ -2,11 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 import { requireStaff, staffForAct, toAuditActor } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
+import { BID_ENTITY, statusField } from "@/lib/bids/audit-view";
 import { loadRecorders, recorderKey } from "@/lib/auth/attribution-recorders";
 import { lockedAtOrAfterClosing } from "@/lib/bids/box";
 import { moveExercise } from "@/lib/method/move";
@@ -16,7 +18,7 @@ import { registerRestrictionOf } from "@/lib/opening/restriction-read";
 import { authorisationsRequired, panelOf, policyOf, stateOf } from "@/lib/opening/repo";
 import { blocking, type Finding } from "@/lib/opening/types";
 import { authorisationFaults, unsealState } from "@/lib/opening/unseal";
-import { commitUnseal, forwardShares, gatherHeldShares, loadUnsealKeys, prepareUnseal, rollDigestOf, shredReleases, type OpenedFindings } from "@/lib/opening/unseal-store";
+import { commitUnseal, forwardShares, gatherHeldShares, loadUnsealKeys, prepareUnseal, rollDigestOf, shredExerciseReleases, shredReleases, type OpenedFindings } from "@/lib/opening/unseal-store";
 import { eligibilityAtOpening } from "@/lib/suppliers/standing-repo";
 import { isRestrictionReading, restrictionReadingWords } from "@/lib/suppliers/restriction-register";
 import { restrictionLabel } from "@/lib/opening/labels";
@@ -24,7 +26,7 @@ import type { OnlineBidRules } from "@/lib/bids/online/types";
 import { releasePlan } from "@/lib/sealing/release";
 import { logCeremonyEvent } from "@/lib/sealing/store";
 import { zero } from "@/lib/sealing/types";
-import { logSealedRefusal, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
+import { logAdministratorRefusal, logSealedRefusal, recordIdOrNull, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
 
 import { audit, exerciseIdOf, label, Refusal } from "../window/shared";
 import { GONE_OPENING, inOpening, refuse, stampNow } from "./in-opening";
@@ -49,7 +51,7 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
   if (!guard.ok) {
     // An administrator account does not open bids; the refusal is logged once the session is known (a refusal before it is the edge's to log).
     const who = await requireStaff();
-    await logSealedRefusal({ organisationId: who.organisationId, exerciseId: exerciseIdOf(data), kind: "AUTHORISE", staffPersonId: who.personId, reasonCode: "ADMINISTRATOR", recordId: text(data, "openingId") || null });
+    await logAdministratorRefusal({ organisationId: who.organisationId, accountId: who.accountId, exerciseId: exerciseIdOf(data), kind: "AUTHORISE", staffPersonId: who.personId, recordId: text(data, "openingId") });
     return guard.state;
   }
   const actor = guard.actor;
@@ -63,13 +65,15 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
   // The sign-in password, asked again. A wrong one counts towards the sign-in lockout and is written on its own.
   const begun = await beginAct(actor, data, "OpeningAuthorisation.person", { personField: "personId", onBehalf: false, document: { entity: "Opening", id: openingId } });
   if (!begun.ok) {
-    await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "AUTHORISE", staffPersonId: actor.personId, reasonCode: "STEP_UP_REFUSED", recordId: openingId || null });
+    await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "AUTHORISE", staffPersonId: actor.personId, reasonCode: "STEP_UP_REFUSED", recordId: recordIdOrNull(openingId) });
     return begun.state;
   }
   const act = begun.act;
   const now = stampNow();
 
-  const unlocked = await unlockOwnKey({ organisationId: actor.organisationId, exerciseId, personId: actor.personId, passphrase, kind: "AUTHORISE", now, recordId: openingId || null });
+  // A restricted exercise the officer may not see reads as one that is not there, before any passphrase is derived or counted (FR-MTD-007).
+  if (await exerciseIsHidden(actor, exerciseId)) return GONE_OPENING;
+  const unlocked = await unlockOwnKey({ organisationId: actor.organisationId, exerciseId, personId: actor.personId, passphrase, kind: "AUTHORISE", now, recordId: recordIdOrNull(openingId) });
   if (!unlocked.ok) return { ok: false, message: unlockRefusalWords(unlocked) };
   const refusal = { code: null as string | null };
   try {
@@ -79,11 +83,18 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
         return refuse(fs);
       };
       const o = c.openings.find((x) => x.id === openingId) ?? null;
-      if (!o) return GONE_OPENING;
+      if (!o) {
+        refusal.code = "NOT_FOUND";
+        return GONE_OPENING;
+      }
       if (l.ex.submissionChannel !== "ONLINE") return stop([{ code: "NOT_ONLINE", level: "block" }], "NOT_ONLINE");
       const state = stateOf(o, l.ex.status);
       const keysRead = await loadUnsealKeys(tx, l.org.id, l.ex.id);
-      if (!keysRead.ok) return stop([{ code: keysRead.fault, level: "block" }], keysRead.fault);
+      if (!keysRead.ok) {
+        // The split can no longer be used (the officers changed since the key was made): the shares already forwarded are shredded with the refusal.
+        if (keysRead.fault === "KEY_OFFICERS_MISMATCH") await shredExerciseReleases(tx, { organisationId: l.org.id, exerciseId: l.ex.id, now });
+        return stop([{ code: keysRead.fault, level: "block" }], keysRead.fault);
+      }
       const keys = keysRead.keys;
       const me = keys.officers.find((x) => x.personId === actor.personId);
       if (!me) return stop([{ code: "NOT_NAMED_OFFICER", level: "block" }], "NOT_NAMED_OFFICER");
@@ -145,9 +156,15 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
           const sale = saleFinding(partyId, c.sales, snap.path, c.invitedPartyIds);
           const liveSale = liveSaleOf(partyId, c.sales);
           const fromRegister = snap.restrictedTender === true && liveSale?.purchaseSupplierId ? await registerRestrictionOf(tx, l.org, { day: c.closingDay, at: l.ex.closingAt }, liveSale.purchaseSupplierId, now, frozenRuleOf(o.bids)) : null;
-          if (fromRegister && "fault" in fromRegister) throw new Refusal(refuse([fromRegister.fault]));
+          if (fromRegister && "fault" in fromRegister) {
+            refusal.code = "RESTRICTION_FAULT";
+            throw new Refusal(refuse([fromRegister.fault]));
+          }
           const restriction = fromRegister ?? restrictionFinding(snap.restrictedTender, liveSale, c.closingDay);
-          if ("fault" in restriction) throw new Refusal(refuse([restriction.fault]));
+          if ("fault" in restriction) {
+            refusal.code = "RESTRICTION_FAULT";
+            throw new Refusal(refuse([restriction.fault]));
+          }
           const eligibility = party.vendorId ? await eligibilityAtOpening(tx, l.org, party.vendorId, l.ex.id) : null;
           return {
             saleFinding: sale, restrictionFinding: restriction.finding,
@@ -158,9 +175,13 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
         const records = await commitUnseal(tx, { organisationId: l.org.id, exerciseId: l.ex.id, openingId: o.id, plan: prepared.plan, now, existingListingNos: c.openings.flatMap((x) => x.bids.map((b) => b.listingNo)), alternativesPermitted: snap.alternativesPermitted, findingsFor });
         await shredReleases(tx, { organisationId: l.org.id, openingId: o.id, as: "used", now });
 
-        await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, label(l, o.kind === "MAIN" ? "Opening" : `Supplementary opening ${o.sequenceNo - 1}`), "UPDATE", diffFields({ unsealed: null, bidsOpened: null, bidsWaiting: null, listDigest: null }, { unsealed: authorisationFields({ person: person.name, at: now, sittingNo: state.sittingNo, opensTheBox: true }, l.org.timeZone).at, bidsOpened: records.length, bidsWaiting: prepared.plan.waiting, listDigest: rollDigestOf(roll) }));
+        await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, label(l, o.kind === "MAIN" ? "Opening" : `Supplementary opening ${o.sequenceNo - 1}`), "UPDATE", diffFields({ unsealed: null, bidsOpened: null, bidsWaiting: null, listDigest: null, grantsMade: null }, { unsealed: authorisationFields({ person: person.name, at: now, sittingNo: state.sittingNo, opensTheBox: true }, l.org.timeZone).at, bidsOpened: records.length, bidsWaiting: prepared.plan.waiting, listDigest: rollDigestOf(roll), grantsMade: grantsWords(prepared.plan, keys.officers.length) }));
         for (const r of records) {
-          const env = c.envelopes.find((e) => e.id === prepared.plan.open.find((b) => b.onlineBidId === r.onlineBidId)!.envelopeId)!;
+          const planned = prepared.plan.open.find((b) => b.onlineBidId === r.onlineBidId)!;
+          const env = c.envelopes.find((e) => e.id === planned.envelopeId)!;
+          // The same trail paper writes for the same change: the envelope RECEIVED to OPENED with its bidder (masked for anyone but the named officers until finalising, 20c), and the submission's own move.
+          await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE", diffFields({ ...statusField("RECEIVED"), bidder: null }, { ...statusField("OPENED"), bidder: r.partyName }));
+          await audit(tx, toAuditActor(actor), l.org.id, "OnlineBid", r.onlineBidId, label(l, "online submission opened"), "UPDATE", diffFields({ status: "Standing" }, { status: "Opened" }));
           await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, r.openedBidId, label(l, `Offer ${r.listingNo}`), "CREATE",
             diffFields(null, { ...onlineOpenedBidFields({ listingNo: r.listingNo, envelope: `Envelope ${env.sequence}`, bidder: r.partyName, alternative: r.alternativeStatus, parentListingNo: r.parentListingNo, sale: r.findings.saleFinding, restriction: r.findings.restrictionFinding, at: now }, l.org.timeZone), ...(isRestrictionReading(r.findings.restrictionReading) ? { restriction: restrictionLabel(r.findings.restrictionFinding, r.findings.restrictionReading), restrictionReading: restrictionReadingWords(r.findings.restrictionReading) } : {}) }));
         }
@@ -177,9 +198,15 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
     if (out.ok) {
       revalidatePath(`/sourcing/${exerciseId}`);
       revalidatePath("/sourcing");
-    } else if (refusal.code) await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "AUTHORISE", staffPersonId: actor.personId, reasonCode: refusal.code, recordId: openingId });
+    } else if (refusal.code) await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "AUTHORISE", staffPersonId: actor.personId, reasonCode: refusal.code, recordId: recordIdOrNull(openingId) });
     return out;
   } finally {
     zero(unlocked.privateKey);
   }
+}
+
+/// The grants the unseal sealed to each officer, in words for the opening's audit row: a count, never a key or a record id.
+function grantsWords(plan: { open: { grants: unknown[] }[]; estimateGrants: unknown[] }, officers: number): string {
+  const total = plan.open.reduce((n, b) => n + b.grants.length, 0) + plan.estimateGrants.length;
+  return officers > 0 ? `${total / officers} for each of ${officers} officers (${total} in all)` : `${total} in all`;
 }

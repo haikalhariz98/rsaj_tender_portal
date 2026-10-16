@@ -23,7 +23,7 @@ describe("the audit mask on online bids (D9, 20c)", () => {
 
 describe("the rows a reader is shown (step 12: Configuration › Audit's export and History)", () => {
   const row = (entity: string) => ({ entity, entityId: "r1", actorName: "A supplier's portal account", changes: [{ field: "Status", before: "Submitted", after: "Withdrawn" }, { field: "Supplier", before: null, after: "Acme Sdn Bhd" }, { field: "Withdrawn by", before: null, after: "an account" }] });
-  const facts = (f: Partial<SealedAuditFacts> = {}): SealedAuditFacts => ({ unsealed: false, finalised: false, namedOfficerPersonIds: ["p-officer"], ...f });
+  const facts = (f: Partial<SealedAuditFacts> = {}): SealedAuditFacts => ({ started: true, online: true, unsealed: false, finalised: false, namedOfficerPersonIds: ["p-officer"], ...f });
   const shown = (entity: string, f: SealedAuditFacts | null, viewer: string | null) => maskSealedAuditRows([row(entity)], () => f, viewer)[0];
 
   it.each(SEALED_AUDIT_ENTITIES)("%s: before the unseal, withheld from the named officer and from everyone else", (entity) => {
@@ -45,8 +45,8 @@ describe("the rows a reader is shown (step 12: Configuration › Audit's export 
     expect(shown("OnlineBid", facts({ unsealed: true, namedOfficerPersonIds: [] }), "p-officer").actorName).toBe(MASKED_ACTOR_WORDS);
   });
 
-  it("a record whose exercise cannot be found is withheld (the mask fails closed)", () => {
-    expect(shown("OnlineBid", null, "p-officer").actorName).toBe(MASKED_ACTOR_WORDS);
+  it("a record whose exercise cannot be found is withheld (the mask fails closed; since the security audit's 20u fix the row is not shown at all)", () => {
+    expect(shown("OnlineBid", null, "p-officer")).toBeUndefined();
   });
 
   it("other records pass through untouched, and a History row with no actor gets none added", () => {
@@ -54,5 +54,37 @@ describe("the rows a reader is shown (step 12: Configuration › Audit's export 
     expect(maskSealedAuditRows([other], () => null, null)[0]).toBe(other);
     const noActor = { entity: "OnlineBid", entityId: "r1", changes: row("OnlineBid").changes };
     expect("actorName" in maskSealedAuditRows([noActor], () => facts(), null)[0]).toBe(false);
+  });
+
+  // Security audit 2 (20u): before the opening starts the rows of an online bid are not shown to anyone, so the sequence, replacements, withdrawals, uploads and their times stay unread.
+  it.each(SEALED_AUDIT_ENTITIES)("%s: before the opening starts the row is withheld from the named officer and from everyone else", (entity) => {
+    for (const viewer of ["p-officer", "p-other", null]) expect(maskSealedAuditRows([row(entity)], () => facts({ started: false }), viewer)).toEqual([]);
+  });
+
+  it("a row whose exercise cannot be found is withheld altogether (fails closed)", () => {
+    expect(maskSealedAuditRows([row("OnlineBid")], () => null, "p-officer")).toEqual([]);
+  });
+
+  it("the fields that group one bidder's submissions or size its files are withheld with the supplier's", () => {
+    const grouped = { entity: "OnlineBid", entityId: "r1", actorName: "x", changes: [{ field: "Replaces", before: null, after: "b1" }, { field: "Replaced by", before: null, after: "b2" }, { field: "Parent", before: null, after: "b0" }, { field: "Cipher bytes", before: null, after: "9000" }, { field: "Status", before: "a", after: "b" }] };
+    expect(maskSealedAuditRows([grouped], () => facts({ unsealed: true }), "p-other")[0].changes).toEqual([{ field: "Status", before: "a", after: "b" }]);
+  });
+});
+
+describe("the offers an unseal names on an online exercise (20c: only the named officers see who bid until finalising)", () => {
+  const offer = { entity: "OpenedBid", entityId: "o1", actorName: "An officer", changes: [{ field: "Bidder", before: null, after: "Acme Sdn Bhd" }, { field: "Listing no", before: null, after: "1" }] };
+  const envelope = { entity: "BidEnvelope", entityId: "e1", actorName: "An officer", changes: [{ field: "Status", before: "Received", after: "Opened" }, { field: "Bidder", before: null, after: "Acme Sdn Bhd" }] };
+  const facts = (f: Partial<SealedAuditFacts> = {}): SealedAuditFacts => ({ started: true, online: true, unsealed: true, finalised: false, namedOfficerPersonIds: ["p-officer"], ...f });
+  it.each([offer, envelope])("$entity: the bidder's name is withheld from anyone not a named officer, whoever they are, until finalising; the actor stays", (r) => {
+    for (const viewer of ["p-other", null]) {
+      const [out] = maskSealedAuditRows([r], () => facts(), viewer);
+      expect(JSON.stringify(out)).not.toContain("Acme");
+      expect(out.actorName).toBe("An officer");
+    }
+    expect(maskSealedAuditRows([r], () => facts(), "p-officer")[0]).toEqual(r);
+    expect(maskSealedAuditRows([r], () => facts({ finalised: true }), "p-other")[0]).toEqual(r);
+  });
+  it("a paper exercise's opened offers and envelopes are not masked: the names are read out at the table", () => {
+    for (const r of [offer, envelope]) expect(maskSealedAuditRows([r], () => facts({ online: false }), null)[0]).toBe(r);
   });
 });

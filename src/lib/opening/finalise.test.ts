@@ -2,12 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault, type BidForFinalise } from "./finalise";
 import { CHECKLIST, PANEL, open } from "./fixture";
+import { openingFindingText } from "./labels";
 
 /** FR-OPN-005, 006, 011, C-5: everything the paper carries is on the record before finalising. */
 
 const bid = (listingNo: number, over: Partial<BidForFinalise> = {}): BidForFinalise => ({ listingNo, initials: ["p1", "p2"], unanswered: 0, verdict: "PASS", unpurchased: false, ...over });
 const present = [{ personId: "p1", name: "Aminah" }, { personId: "p2", name: "Bala" }];
 const base: Parameters<typeof finaliseFaults>[0] = { state: open(), bids: [bid(1), bid(2), bid(3)], present, signed: ["p1", "p2"], pages: 2, checklist: CHECKLIST, withdrawals: [], unopened: 0, admittedOpened: true, completenessEliminates: false, unpurchased: "REPORT", invitedReading: "PURCHASERS", estimate: { required: true, lodged: true, paperAnswered: true }, personActive: true };
+describe("an online opening (review, stage C)", () => {
+  it("the paper finalise refuses it in words, whatever else is ready, before any price is read", () => {
+    const f = finaliseFaults({ ...base, state: open({ online: true, required: 3 }) });
+    expect(f.map((x) => x.code)).toEqual(["ONLINE_FINALISE_ELSEWHERE"]);
+    expect(openingFindingText(f[0])).toMatch(/bids online/);
+    expect(finaliseFaults({ ...base, state: open({ online: true, finalised: true }) }).map((x) => x.code)).toEqual(["FINALISED"]);
+  });
+});
+
 const codes = (x: Partial<typeof base>) => finaliseFaults({ ...base, ...x }).map((f) => f.code);
 
 describe("finalising", () => {

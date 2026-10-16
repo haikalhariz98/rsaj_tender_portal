@@ -54,6 +54,10 @@ export function myBidOpenedWords(i: { state: MyBidOpeningState; digest: string |
   const name = i.organisationName.trim();
   const org = w(name || "the procurement office", name || "pejabat perolehan");
   const shown = i.digest ? w(`Its receipt digest is ${i.digest}.`, `Cincangan resitnya ialah ${i.digest}.`) : w("No receipt digest is recorded for it.", "Tiada cincangan resit direkodkan baginya.");
+  // NOT_IN_ROLL: the digest is the one recorded when the supplier submitted it (the opening's list holds none for it), which is what it needs to complain with (S11).
+  const notListed = i.digest
+    ? w(`The receipt digest recorded when you submitted it is ${i.digest}. The opening's list holds none for it.`, `Cincangan resit yang direkodkan semasa anda menyerahkannya ialah ${i.digest}. Senarai pembukaan tidak mempunyai cincangan baginya.`)
+    : w("The opening's list holds no digest for it.", "Senarai pembukaan tidak mempunyai cincangan baginya.");
   const compare = w("Compare it with the receipt you printed or saved when you submitted.", "Bandingkan dengan resit yang anda cetak atau simpan semasa anda menyerahkan.");
   const out = (headline: Words, detail: Words) => ({ headline, detail, digest: i.digest });
   switch (i.state) {
@@ -85,8 +89,8 @@ export function myBidOpenedWords(i: { state: MyBidOpeningState; digest: string |
       return out(
         w("This submission is not in the opening's list", "Penyerahan ini tiada dalam senarai pembukaan"),
         w(
-          `This submission is not in the list frozen when the opening started. Contact ${org.en} now, quoting the receipt you kept. ${shown.en}`,
-          `Penyerahan ini tiada dalam senarai yang dibekukan semasa pembukaan bermula. Hubungi ${org.ms} sekarang, dengan menyebut resit yang anda simpan. ${shown.ms}`,
+          `This submission is not in the list frozen when the opening started. Contact ${org.en} now, quoting the receipt you kept. ${notListed.en}`,
+          `Penyerahan ini tiada dalam senarai yang dibekukan semasa pembukaan bermula. Hubungi ${org.ms} sekarang, dengan menyebut resit yang anda simpan. ${notListed.ms}`,
         ),
       );
     case "REPLACED_OR_WITHDRAWN":

@@ -32,7 +32,7 @@ import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
 import { freshInitials } from "./initials";
 import { consequenceFor, eligibilityFindingOf, ineligibleOf, registerClassOf } from "@/lib/suppliers/opening-hook";
 import { isRestrictionReading, restrictionReadingWords } from "@/lib/suppliers/restriction-register";
-import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, restrictionLabel, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, seatWords, VERDICT_LABEL, VERDICT_TONE } from "./labels";
+import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, restrictionLabel, SALE_FINDING_LABEL, NAMES_AT_FINALISING, SEALED_UNTIL_FINALISED, seatWords, VERDICT_LABEL, VERDICT_TONE } from "./labels";
 import { unpurchasedRuleText } from "./unpurchased";
 import { alternativeInsideFaults, openFaults } from "./open";
 import { supplementaryPanel } from "./panel";
@@ -77,7 +77,7 @@ function admissionOf(c: OpeningContext, envelopeId: string) {
 // ------------------------------------------------------------------ the Opening section
 
 /// The caller's one answer, asked and logged, for the exercise's opening prices (`openingPrice`, `correctedPrice`): every price this read returns is held to it.
-export async function openingSection(organisationId: string, exerciseId: string, prices: Sulit<true>) {
+export async function openingSection(organisationId: string, exerciseId: string, prices: Sulit<true>, viewerPersonId: string | null) {
   const r = await load(organisationId, exerciseId);
   if (!r) return null;
   const { l, c, now, people } = r;
@@ -127,7 +127,8 @@ export async function openingSection(organisationId: string, exerciseId: string,
       const canStart = a?.outcome === "CARRIED" && !opening;
       return {
         id: e.id,
-        sequence: e.sequence,
+        // 20u: before the opening starts an online envelope's sequence would show how many submissions there have been, so the late list names it by what it is.
+        sequence: e.channel === "ONLINE" && !c.main ? null : e.sequence,
         received: time(e.receivedAt, tz),
         markings: e.markings,
         state,
@@ -144,7 +145,10 @@ export async function openingSection(organisationId: string, exerciseId: string,
   // Who started each opening, signed or recorded from paper, is read from its attribution (Phase 2b).
   const startedBy = await loadAttributions(db, organisationId, [{ entity: "Opening", slot: "startedBy", ids: c.openings.map((o) => o.id) }]);
   const authorisedBy = await loadAttributions(db, organisationId, [{ entity: "OpeningAuthorisation", slot: "person", ids: c.openings.flatMap((o) => o.authorisations.map((a) => a.id)) }]);
-  const openings = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy, prices }));
+  // 20c: on an online exercise, between the unseal and finalising only the named opening officers see who bid. Judged here, on the server, so a name never rides in the page for anyone else.
+  const namedOfficers = l.ex.submissionChannel === "ONLINE" ? await db.exerciseOpeningOfficer.findMany({ where: { exerciseId, organisationId, endedAt: null }, select: { personId: true } }) : [];
+  const viewerIsNamed = viewerPersonId != null && namedOfficers.some((n) => n.personId === viewerPersonId);
+  const openings = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy, prices, hideNames: l.ex.submissionChannel === "ONLINE" && !viewerIsNamed }));
 
   return {
     exerciseId: l.ex.id,
@@ -167,8 +171,10 @@ export async function openingSection(organisationId: string, exerciseId: string,
   };
 }
 
-function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[]; startedBy: AttributionIndex; authorisedBy: AttributionIndex; prices: Sulit<true> }) {
+function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[]; startedBy: AttributionIndex; authorisedBy: AttributionIndex; prices: Sulit<true>; hideNames: boolean }) {
   const { prices } = x;
+  // 20c: names are withheld from a reader who is not a named officer while the opening is unsealed and not finalised (they are the schedule's from finalising).
+  const namesHeld = x.hideNames && o.unsealedAt != null && o.finalisedAt == null;
   const { tz, closing } = x;
   const state = stateOf(o, c.ex.status);
   const phase = openingPhase(state);
@@ -213,8 +219,8 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       id: b.id,
       listingNo: b.listingNo,
       envelope: `Envelope ${b.envelope.sequence}`,
-      bidder: b.bidderNameAsRead,
-      registration: [b.party.registrationNo, b.registrationClassAsRead, b.registrationStatusAsRead].filter(Boolean).join(" · "),
+      bidder: namesHeld ? NAMES_AT_FINALISING : b.bidderNameAsRead,
+      registration: namesHeld ? NAMES_AT_FINALISING : [b.party.registrationNo, b.registrationClassAsRead, b.registrationStatusAsRead].filter(Boolean).join(" · "),
       /// SULIT (C-4): held to the reader's answer, so a refused reader is sent no figure.
       // Wave 3b (ADR 0036 D10, ruling 20): an online bid's price is not read until the finalise.
       openingPrice: through(prices, () => priceOrWords(b.priceAsRead, money)),
@@ -226,7 +232,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       restriction: b.restrictionFinding === "NOT_RESTRICTED" ? null : restrictionLabel(b.restrictionFinding, b.restrictionReading),
       restrictionTone: (b.restrictionFinding === "NOT_EVIDENCED" ? "err" : b.restrictionFinding === "NOT_ASSESSED" ? "warn" : "ok") as "ok" | "warn" | "err",
       /// Ruling 17a: for a sale from an online purchase, what the supplier register said and when, in words.
-      restrictionWhy: isRestrictionReading(b.restrictionReading) ? restrictionReadingWords(b.restrictionReading) : null,
+      restrictionWhy: !namesHeld && isRestrictionReading(b.restrictionReading) ? restrictionReadingWords(b.restrictionReading) : null,
       /// 6.15a: the supplier register's finding, frozen when the envelope was opened. Null: the bidder was not linked.
       eligibility: (() => {
         const f = eligibilityFindingOf(b.eligibilityFinding);
@@ -248,7 +254,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       ],
       record: allowedOf(actFaults(state)),
       verdictAllowed: allowedOf(verdictBlock),
-      correctValues: { bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, periodValue: b.completionPeriod == null ? "" : String(b.completionPeriod), periodUnit: b.completionUnit ?? "", validityDays: b.validityDaysStated == null ? "" : String(b.validityDaysStated) },
+      correctValues: { bidderName: namesHeld ? "" : b.bidderNameAsRead, registrationClass: namesHeld ? "" : b.registrationClassAsRead, registrationStatus: namesHeld ? "" : b.registrationStatusAsRead, periodValue: b.completionPeriod == null ? "" : String(b.completionPeriod), periodUnit: b.completionUnit ?? "", validityDays: b.validityDaysStated == null ? "" : String(b.validityDaysStated) },
       alternativeInside: b.isAlternative ? null : allowedOf(alternativeInsideFaults({ state, main: { openingMatches: true, isAlternative: false }, alternativesPermitted: snap.alternativesPermitted, price: 1n as Sen, period: { value: null, unit: null } })),
     };
   });
@@ -337,8 +343,9 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     held: !state.finalised && !act.allowed ? act.reason : null,
     envelopes,
     offers,
-    parentOptions: allBids.filter((b) => !b.isAlternative).map((b) => ({ value: b.id, label: `No. ${b.listingNo}, ${b.bidderNameAsRead}` })),
-    parties: c.parties.map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` })),
+    parentOptions: allBids.filter((b) => !b.isAlternative).map((b) => ({ value: b.id, label: namesHeld && b.openingId === o.id ? `No. ${b.listingNo}` : `No. ${b.listingNo}, ${b.bidderNameAsRead}` })),
+    // 20c: the purchasers a paper offer is recorded against are not listed to a reader who may not see who bid, and an online opening records none.
+    parties: namesHeld ? [] : c.parties.map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` })),
     alternativesPermitted: snap.alternativesPermitted,
     /// Who may be named as recording an act (the verdict's recorder, S-3).
     people: x.people,
@@ -395,6 +402,9 @@ export async function scheduleSection(reader: Reader & { organisationTimeZone: s
   const tz = l.org.timeZone;
   const counts = invitedCounts(c);
   // SR-15 (ruling 24): the class the register held, frozen on each offer when it was read.
+  // 20c: the draft schedule of an unsealed, unfinalised ONLINE opening names no bidder to a reader who is not a named opening officer.
+  const namedHere = l.ex.submissionChannel === "ONLINE" ? await db.exerciseOpeningOfficer.findMany({ where: { exerciseId, organisationId: reader.organisationId, endedAt: null }, select: { personId: true } }) : [];
+  const readerIsNamed = !!reader.personId && namedHere.some((n) => n.personId === reader.personId);
   const registerClassByListing = new Map(c.openings.flatMap((x) => x.bids.map((b) => [b.listingNo, registerClassOf(b.eligibilityFinding)] as const)));
   const openings = c.openings.map((o) => {
     const frozen = scheduleFromSnapshot(o.scheduleSnapshot) as (ScheduleSnapshot & { invitedReadingProvenance?: string | null }) | null;
@@ -403,7 +413,7 @@ export async function scheduleSection(reader: Reader & { organisationTimeZone: s
     const summary: GrandSummary | null = o.finalisedAt ? summaryFromSnapshot(o.grandSummarySnapshot) : null;
     let schedule: ScheduleSnapshot | null = frozen;
     if (!frozen) {
-      const rows = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: b.priceAsRead == null ? null : parseSen(b.priceAsRead.toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
+      const rows = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => { const held = l.ex.submissionChannel === "ONLINE" && !readerIsNamed && x.unsealedAt != null && x.finalisedAt == null; return { listingNo: b.listingNo, bidderName: held ? NAMES_AT_FINALISING : b.bidderNameAsRead, registrationClass: held ? "" : b.registrationClassAsRead, registrationStatus: held ? "" : b.registrationStatusAsRead, price: b.priceAsRead == null ? null : parseSen(b.priceAsRead.toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo }; }));
       const estimateHeld = c.estimate && c.estimate.state !== "VOID";
       schedule = jadualTawaran({
         version: o.sequenceNo,

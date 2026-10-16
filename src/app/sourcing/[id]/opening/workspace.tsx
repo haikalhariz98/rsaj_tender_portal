@@ -69,7 +69,7 @@ const NOT_HERE = (exerciseId: string, what: string) => (
 export async function loadOpening(actor: StaffActor, exerciseId: string): Promise<OpeningTabView> {
   // The prices read at the opening are SULIT (NFR-SEC-002): one answer for the exercise, logged, and every price is held to it.
   const prices = await sulitExerciseGate(actor, exerciseId, "exercise", PRICE_FIELDS);
-  const d = await openingSection(actor.organisationId, exerciseId, prices);
+  const d = await openingSection(actor.organisationId, exerciseId, prices, actor.personId);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   if (!d.applies) {
     return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement />{NOT_HERE(exerciseId, "Bids are opened here for an exercise published through its invitation window with tender or quotation documents. This one was not, so its opening is recorded outside the portal.")}</div> };
@@ -260,11 +260,11 @@ function LateCard({ d }: { d: OpeningSectionView }) {
         {d.late.map((e) => (
           <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 sm:px-6">
             <span className="min-w-0 flex-1">
-              <span className="block text-[13.5px] font-semibold text-ink">{`Envelope ${e.sequence}`}</span>
+              <span className="block text-[13.5px] font-semibold text-ink">{e.sequence == null ? "Online bid received after the closing" : `Envelope ${e.sequence}`}</span>
               <span className="block text-[12px] break-words text-ink-3">{`Received ${e.received} · ${e.markings}`}</span>
             </span>
             <Chip tone={e.tone === "neutral" ? undefined : e.tone}>{e.state}</Chip>
-            {e.decisionId && e.startSupplementary && <StartSupplementaryDrawer exerciseId={d.exerciseId} decisionId={e.decisionId} sequence={e.sequence} allowed={e.startSupplementary} seats={d.supplementary.seats} roster={d.supplementary.roster} people={d.people} panelSize={d.supplementary.panelSize} />}
+            {e.decisionId && e.startSupplementary && e.sequence != null && <StartSupplementaryDrawer exerciseId={d.exerciseId} decisionId={e.decisionId} sequence={e.sequence} allowed={e.startSupplementary} seats={d.supplementary.seats} roster={d.supplementary.roster} people={d.people} panelSize={d.supplementary.panelSize} />}
           </li>
         ))}
       </ul>

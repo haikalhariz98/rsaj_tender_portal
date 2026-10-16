@@ -39,7 +39,7 @@ import { LATE_DOMAIN } from "@/lib/bids/late";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { openingGateFaults } from "@/lib/opening/award-gate";
 import { sealedAuditFactsFor } from "./audit-scope-store";
-import { maskSealedAuditRows, MASKED_ACTOR_WORDS } from "./audit-mask";
+import { maskSealedAuditRows } from "./audit-mask";
 
 import { loadBidScreen } from "./my-bids-store";
 import { receiptDigest, submissionNumbers } from "./receipt";
@@ -789,7 +789,7 @@ describe("an online late envelope reaches the committee and the award gate (step
 });
 
 describe("the audit mask on a real bid's rows (step 12, D9, 20c)", () => {
-  it("names the exercise's open named officers, and withholds the actor from them and from everyone before the unseal", async () => {
+  it("names the exercise's open named officers, and withholds the rows from them and from everyone before the opening starts", async () => {
     const ex = await exercise();
     const s = await bidder(ex);
     const out = must(await submit(s, ex));
@@ -798,8 +798,9 @@ describe("the audit mask on a real bid's rows (step 12, D9, 20c)", () => {
     expect(rows.every((r) => r.actorKind === "SUPPLIER")).toBe(true);
     const factsOf = await sealedAuditFactsFor(org, rows);
     const officers = (await db.exerciseOpeningOfficer.findMany({ where: { exerciseId: ex.id, endedAt: null } })).map((o) => o.personId);
-    expect(factsOf(rows[0])).toEqual({ unsealed: false, finalised: false, namedOfficerPersonIds: expect.arrayContaining(officers) });
-    for (const viewer of [officers[0], issuer, null]) expect(maskSealedAuditRows(rows, factsOf, viewer).every((r) => r.actorName === MASKED_ACTOR_WORDS)).toBe(true);
+    expect(factsOf(rows[0])).toEqual({ started: false, online: true, unsealed: false, finalised: false, namedOfficerPersonIds: expect.arrayContaining(officers) });
+    // Stage C fixes (20u, security audit 2): before the opening starts the rows are not shown at all, to the named officers or anyone else.
+    for (const viewer of [officers[0], issuer, null]) expect(maskSealedAuditRows(rows, factsOf, viewer)).toEqual([]);
     // An officer taken off is no longer named.
     await db.exerciseOpeningOfficer.updateMany({ where: { exerciseId: ex.id, personId: officers[0] }, data: { endedAt: new Date(), endedByPersonId: issuer, endedAuthority: "Test" } });
     expect((await sealedAuditFactsFor(org, rows))(rows[0])?.namedOfficerPersonIds).not.toContain(officers[0]);

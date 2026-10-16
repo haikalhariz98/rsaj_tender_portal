@@ -79,8 +79,14 @@ import { checkUnlock, setOfficerShare } from "../scope/key-actions";
 import { sulitGranted } from "@/lib/auth/sulit-access";
 import { PRICE_NOT_READ_WORDS } from "@/lib/opening/price";
 import { openingSection, scheduleSection } from "@/lib/opening/read";
+import { maskSealedAuditRows, SEALED_AUDIT_ENTITIES } from "@/lib/bids/online/audit-mask";
+import { sealedAuditFactsFor } from "@/lib/bids/online/audit-scope-store";
+import { exerciseHistory, loadExercise } from "@/lib/method/repo";
+import { shredExerciseReleases } from "@/lib/opening/unseal-store";
+import { openingGateFaults } from "@/lib/opening/award-gate";
+import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { authoriseOnlineUnseal } from "./unseal-actions";
-import { adjournOpening, correctAsRead, resumeOpening, startOpening, startSupplementaryOpening } from "./actions";
+import { adjournOpening, correctAsRead, finaliseOpening, resumeOpening, startOpening, startSupplementaryOpening } from "./actions";
 
 const DAY = 24 * 60 * 60 * 1000;
 const D = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000Z`);
@@ -313,6 +319,10 @@ describe("the unseal, n = 2 (D10)", () => {
     await setClosing(ex.id, ago(5));
     const late = await submit(s4, ex);
     await setClosing(ex.id, ago(40));
+    // Before the opening starts the History holds no row of any online bid, whoever reads it: not the submissions, replacements, withdrawals or uploads, nor their count (security audit 2, 20u).
+    const historyBefore = await exerciseHistory((await loadExercise(org, ex.id))!);
+    expect(historyBefore.entries.filter((e) => SEALED_AUDIT_ENTITIES.includes(e.entity))).toEqual([]);
+    expect(historyBefore.total).toBe(historyBefore.entries.length);
     const started = await start(ex);
     expect(started.ok, message(started)).toBe(true);
     const opening = await openingOf(ex);
@@ -385,7 +395,7 @@ describe("the unseal, n = 2 (D10)", () => {
 
     // Between the unseal and the finalise the page draws, every online price reads as not read, in words, and a correction is refused in words (review S6).
     const granted = sulitGranted(true as const, "ORGANISATION_PERMISSION");
-    const section = await openingSection(org, ex.id, granted);
+    const section = await openingSection(org, ex.id, granted, null);
     expect(section).not.toBeNull();
     const schedule = await scheduleSection(who.actor as StaffActor & { organisationTimeZone: string | null }, ex.id, granted);
     const priced = schedule!.openings.flatMap((x) => x.rows.map((r) => r.openingPrice));
@@ -394,6 +404,11 @@ describe("the unseal, n = 2 (D10)", () => {
     const corrected = await correctAsRead({ ok: false }, form({ exerciseId: ex.id, openedBidId: offers[0].id, bidderName: "X", price: "10.00", reason: "Check", [PASSWORD_FIELD]: ex.officers[0].password }));
     expect(corrected.ok).toBe(false);
     expect(message(corrected)).toMatch(/price is not read yet/);
+    // The paper finalise on an unsealed online opening refuses in words (it used to throw on a price not read).
+    who.actor = ex.officers[0].actor;
+    const paperFinalise = await finaliseOpening({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, [PASSWORD_FIELD]: ex.officers[0].password }));
+    expect(paperFinalise.ok).toBe(false);
+    expect(message(paperFinalise)).toMatch(/takes bids online/);
 
     // The releases are shredded, the shares kept for a supplementary opening, the exercise is in progress.
     expect((await db.shareRelease.findMany({ where: { openingId: opening.id } })).every((r) => r.sealedShares === null && r.usedAt !== null)).toBe(true);
@@ -404,6 +419,43 @@ describe("the unseal, n = 2 (D10)", () => {
     const audits = await db.auditEntry.findMany({ where: { organisationId: org, entityId: { in: offers.map((o) => o.id) } } });
     expect(audits).toHaveLength(3);
     expect(JSON.stringify(audits)).not.toMatch(/123456|123,456/);
+
+    // The trail of the unseal (review): each envelope moves RECEIVED to OPENED with its bidder, each submission to Opened, and the opening's row counts the grants made.
+    const envelopeIds = offers.map((o) => o.envelopeId);
+    const envelopeRows = await db.auditEntry.findMany({ where: { organisationId: org, entity: "BidEnvelope", action: "UPDATE", entityId: { in: envelopeIds } } });
+    expect(envelopeRows).toHaveLength(3);
+    const openedSubmissions = await db.onlineBid.findMany({ where: { exerciseId: ex.id, status: "OPENED" }, select: { id: true } });
+    const bidRows = await db.auditEntry.findMany({ where: { organisationId: org, entity: "OnlineBid", action: "UPDATE", entityLabel: { endsWith: "online submission opened" }, entityId: { in: openedSubmissions.map((b) => b.id) } } });
+    expect(bidRows).toHaveLength(3);
+    const openingRow = await db.auditEntry.findFirstOrThrow({ where: { organisationId: org, entity: "Opening", entityId: opening.id, action: "UPDATE" }, orderBy: { at: "desc" } });
+    expect(JSON.stringify(openingRow.changes)).toMatch(/for each of 2 officers/);
+
+    // Ruling 20c: between the unseal and finalising only the named officers see who bid. A staff reader who is not a named officer, and an administrator, read the trail, the Opening tab and the
+    // draft schedule, and none shows a bidder's name; a named officer sees it.
+    // Every string that would name a bidder: its name, registration number, and the supplier register's reference for the linked supplier (so the eligibility finding is not null).
+    const parties = await db.exerciseParty.findMany({ where: { exerciseId: ex.id, id: { in: offers.map((o) => o.partyId) } } });
+    const suppliers = await db.supplier.findMany({ where: { id: { in: parties.map((p) => p.vendorId).filter((v): v is string => !!v) } } });
+    expect(offers.every((o) => o.eligibilityFinding !== null)).toBe(true);
+    const names = [...offers.map((o) => o.bidderNameAsRead), ...parties.map((p) => p.registrationNo), ...suppliers.map((x) => x.reference)];
+    expect(parties.length).toBeGreaterThan(0);
+    expect(suppliers).toHaveLength(parties.length);
+    const offerRows = await db.auditEntry.findMany({ where: { organisationId: org, entity: "OpenedBid", entityId: { in: offers.map((o) => o.id) } } });
+    const trail = [...offerRows, ...envelopeRows, ...bidRows].map((r) => ({ entity: r.entity, entityId: r.entityId, actorName: "An officer", changes: r.changes }));
+    const trailFacts = await sealedAuditFactsFor(org, trail);
+    const stranger = await signedIn(false);
+    const admin = await signedIn(true);
+    for (const viewer of [stranger.person.id, admin.person.id, null]) {
+      const seen = JSON.stringify(maskSealedAuditRows(trail, trailFacts, viewer));
+      for (const name of names) expect(seen).not.toContain(name);
+    }
+    expect(JSON.stringify(maskSealedAuditRows(trail, trailFacts, o1.person.id))).toContain(names[0]);
+    for (const viewer of [stranger.person.id, admin.person.id]) {
+      const tab = JSON.stringify(await openingSection(org, ex.id, sulitGranted(true as const, "ORGANISATION_PERMISSION"), viewer));
+      for (const name of names) expect(tab).not.toContain(name);
+      const draft = JSON.stringify(await scheduleSection({ ...(stranger.actor as StaffActor), personId: viewer } as StaffActor & { organisationTimeZone: string | null }, ex.id, sulitGranted(true as const, "ORGANISATION_PERMISSION")));
+      for (const name of names) expect(draft).not.toContain(name);
+    }
+    expect(JSON.stringify(await openingSection(org, ex.id, sulitGranted(true as const, "ORGANISATION_PERMISSION"), o1.person.id))).toContain(names[0]);
 
     // The access events: the attempts, refused and granted, with no secret.
     const log = await events(ex.id);
@@ -423,6 +475,12 @@ describe("the unseal, n = 2 (D10)", () => {
     expect(r.ok).toBe(false);
     expect((await events(ex.id)).filter((e) => e.kind === "AUTHORISE" && e.reasonCode === "ADMINISTRATOR")).toHaveLength(1);
     expect(await db.openingAuthorisation.count({ where: { openingId: opening.id } })).toBe(0);
+    // S19: only the first refusal for the account in the hour is written, and a record id that is not one of ours is logged as none.
+    await authoriseOnlineUnseal({ ok: false }, form({ exerciseId: ex.id, openingId: "x".repeat(5000), passphrase: "whatever passphrase here", [PASSWORD_FIELD]: admin.password }));
+    await authoriseOnlineUnseal({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, passphrase: "whatever passphrase here", [PASSWORD_FIELD]: admin.password }));
+    const refusals = (await events(ex.id)).filter((e) => e.kind === "AUTHORISE" && e.reasonCode === "ADMINISTRATOR");
+    expect(refusals).toHaveLength(1);
+    expect(refusals.every((e) => e.recordId === null || e.recordId.length <= 64)).toBe(true);
   }, 120_000);
 
   it("refuses the closing second itself: the opening does not authorise while the closing is not past", async () => {
@@ -505,6 +563,23 @@ describe("the unseal, n = 3 (D10, 20k)", () => {
     expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).unsealedAt).not.toBeNull();
     expect(await db.openedBid.count({ where: { openingId: opening.id } })).toBe(1);
   }, 300_000);
+
+  it("shreds every forwarded share of the exercise, marked lapsed, when the exercise ends mid-sitting (security audit: cancellation)", async () => {
+    const ex = await exercise(3);
+    const s = await bidder(ex);
+    await submit(s, ex);
+    await setClosing(ex.id, ago(40));
+    expect((await start(ex)).ok).toBe(true);
+    const opening = await openingOf(ex);
+    expect((await authorise(ex, opening.id, ex.officers[0])).ok).toBe(true);
+    const held = await db.shareRelease.count({ where: { openingId: opening.id, sealedShares: { not: null } } });
+    expect(held).toBeGreaterThan(0);
+    const shredded = await db.$transaction((tx) => shredExerciseReleases(tx, { organisationId: org, exerciseId: ex.id, now: new Date() }));
+    expect(shredded).toBe(held);
+    const after = await db.shareRelease.findMany({ where: { openingId: opening.id } });
+    expect(after.every((r) => r.sealedShares === null)).toBe(true);
+    expect(after.some((r) => r.lapsedAt !== null)).toBe(true);
+  }, 240_000);
 });
 
 describe("a tampered bid blocks the unseal", () => {
@@ -589,6 +664,10 @@ describe("a late bid admitted by the committee opens at a supplementary opening 
     const meeting = await db.meeting.create({ data: { committeeId: committee.id, reference: `UNS/LATE/${randomId()}`, meetingDate: D(new Date()) } });
     const decision = await db.committeeDecision.create({ data: { meetingId: meeting.id, subject: "Admission of a late envelope", domain: LATE_DOMAIN, matterKind: "LATE_TENDER", bidEnvelopeId: envelopeId, act: "A", tabledAt: D(new Date()), outcome: "CARRIED", decisionDate: D(new Date()) } });
 
+    // The 20y dependency: the award gate refuses ADMITTED_UNOPENED from the moment the committee carries the admission until the supplementary opening is finalised.
+    const gateCodes = async () => openingGateFaults(await loadOpeningGate(ex.id)).map((f) => f.code);
+    expect(await gateCodes()).toContain("ADMITTED_UNOPENED");
+
     who.actor = ex.officers[0].actor;
     const started = await startSupplementaryOpening({ ok: false }, form({ exerciseId: ex.id, decisionId: decision.id }));
     expect(started.ok, message(started)).toBe(true);
@@ -607,6 +686,11 @@ describe("a late bid admitted by the committee opens at a supplementary opening 
     expect(opened.calls.filter((c) => c.purpose === "MANIFEST").map((c) => c.recordId)).toEqual([late]);
     expect(await db.officerDekGrant.count({ where: { openingId: supp.id } })).toBe(2 * 3);
     expect(await db.exerciseKeyShare.count({ where: { keyId: ex.keyId, sealedShare: { not: null } } })).toBe(2);
+    // Unsealed is not finalised: the gate still refuses. Finalised (by direct write, price first), it no longer lists the admitted envelope as unopened.
+    expect(await gateCodes()).toContain("ADMITTED_UNOPENED");
+    await db.openedBid.updateMany({ where: { openingId: supp.id }, data: { priceAsRead: "90.00", completionPeriod: 9, completionUnit: "MONTHS" } });
+    await db.opening.update({ where: { id: supp.id }, data: { finalisedAt: new Date() } });
+    expect(await gateCodes()).not.toContain("ADMITTED_UNOPENED");
   }, 240_000);
 });
 

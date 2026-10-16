@@ -42,7 +42,7 @@ export function authorisationFaults(i: {
   else if (!member.present) f("ABSENT");
   const done = sittingAuthorisers(i.state.sittingNo, i.auths, i.panel);
   if (i.auths.some((a) => a.sittingNo === i.state.sittingNo && a.personId === i.personId && a.lapsedAt == null)) f("ALREADY_AUTHORISED");
-  else if (done.length >= (i.required ?? PAPER_AUTHORISATIONS)) f("SITTING_AUTHORISED", { required: i.required ?? PAPER_AUTHORISATIONS });
+  else if (done.length >= (i.required ?? PAPER_AUTHORISATIONS)) f("SITTING_AUTHORISED", { required: i.required ?? PAPER_AUTHORISATIONS, ...(i.online ? { online: 1 } : {}) });
   // Two people authorise: two distinct humans act. The member's authorisation keyed by an officer is that officer's hand as well as the member's, so no officer is a
   // hand of both (they cannot record one authorisation and give the other, nor record both), whoever the authorisations are attributed to.
   const mine = new Set([i.personId, ...(i.recorderId ? [i.recorderId] : [])]);

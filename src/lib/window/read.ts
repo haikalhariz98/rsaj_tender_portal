@@ -323,7 +323,8 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
   const requests = w ? await requestsOfWindow(db, org.id, w.id, org.timeZone) : [];
   // SR-10: online purchases still awaiting payment. An officer may record the finance receipt for one (where online payment is not switched on, or the buyer paid at the counter).
   const awaiting = w ? await db.documentPurchase.findMany({ where: { windowId: w.id, organisationId: org.id, state: "AWAITING_PAYMENT" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, amount: true, createdAt: true, supplier: { select: { reference: true, registeredName: true } }, buyer: { select: { contact: { select: { name: true } } } }, _count: { select: { attempts: true } } } }) : [];
-  const holders = new Set((await db.bidEnvelope.findMany({ where: { exerciseId, partyId: { not: null }, status: { not: "WITHDRAWN" }, kind: { not: "COMPANY_ESTIMATE" } }, select: { partyId: true } })).map((e) => e.partyId));
+  // 20c: an ONLINE envelope names its party from the unseal, and the sale must not tell staff who bid before finalising, so only a paper envelope holds a sale (the closed window refuses the void for an online buyer in any case).
+  const holders = new Set((await db.bidEnvelope.findMany({ where: { exerciseId, partyId: { not: null }, status: { not: "WITHDRAWN" }, kind: { not: "COMPANY_ESTIMATE" }, channel: { not: "ONLINE" } }, select: { partyId: true } })).map((e) => e.partyId));
   return {
     voidAll: sales.some((s) => !s.voidedAt) && registerVoid && voidRefusalIsRegisterWide(registerVoid) ? windowFindingText(registerVoid) : null,
     pathKey: pathOf(d).path,

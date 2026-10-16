@@ -1,5 +1,6 @@
 "use server";
 
+import { shredExerciseReleases } from "@/lib/opening/unseal-store";
 import { namedAfterChangingPersonInCharge, namedAfterRemovingParticipant } from "@/lib/auth/sulit-access";
 import { exerciseAccessFacts, namingRefusal } from "@/lib/auth/sulit-store";
 import type { StaffActor } from "@/lib/auth/types";
@@ -954,6 +955,8 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
     if (live) return { ok: false, message: `Not cancelled: award ${live.reference} stands on this exercise. Cancel the award first, from its own record.` };
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: ex.status }, data: { status: "CANCELLED", cancelReason: reason } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
+    // Stage C security audit: an officer's forwarded shares are not kept for an exercise that has ended.
+    await shredExerciseReleases(tx, { organisationId: l.org.id, exerciseId: id, now: new Date() });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), reason);
     // 6.4: a draft pack, or one with approval, is voided with the exercise; an approved one stays as history.
     await voidLivePacks(tx, toAuditActor(actor), l, reason);

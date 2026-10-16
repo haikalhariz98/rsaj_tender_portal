@@ -114,6 +114,13 @@ export async function shredReleases(tx: Tx, i: { organisationId: string; opening
   return r.count;
 }
 
+/// Lapses every share release still holding other officers' shares on any opening of the exercise (security audit, stage C): called where the exercise ends or the split can no longer be used, so
+/// a copy of the database holds no officer's share beyond the sitting that made it. Returns how many were shredded.
+export async function shredExerciseReleases(tx: Tx, i: { organisationId: string; exerciseId: string; now: Date }): Promise<number> {
+  const r = await tx.shareRelease.updateMany({ where: { organisationId: i.organisationId, purpose: "UNSEAL", sealedShares: { not: null }, opening: { exerciseId: i.exerciseId } }, data: { sealedShares: null, lapsedAt: i.now } });
+  return r.count;
+}
+
 // ------------------------------------------------------------------ the unseal itself
 
 export interface BidToOpen {

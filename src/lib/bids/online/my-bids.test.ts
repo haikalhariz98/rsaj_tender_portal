@@ -77,7 +77,11 @@ describe("from the opening's start, the four states and the digest in full (20s)
     expect(out.gone.headline.en).toMatch(/not in the opening's list/);
     expect(out.gone.detail.en).toContain("Perbadanan Contoh");
     expect(out.gone.detail.ms).toContain("Perbadanan Contoh");
-    expect(out.gone.digest).toBeNull();
+    // Stage C security audit nit: the list holds no digest for it, but the supplier's own recorded one is shown with words that say so (S11).
+    expect(out.gone.digest).toBe("2".repeat(64));
+    expect(out.gone.detail.en).toContain("The receipt digest recorded when you submitted it is");
+    expect(out.gone.detail.en).toContain("The opening's list holds none for it");
+    expect(out.gone.detail.ms).toContain("Senarai pembukaan tidak mempunyai cincangan baginya");
     expect(out.opened.headline.en).toBe("Opened; the result follows the evaluation");
     expect(out.old.headline.en).toBe("Not opened, as expected");
   });

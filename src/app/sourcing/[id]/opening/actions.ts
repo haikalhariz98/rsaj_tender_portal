@@ -430,7 +430,7 @@ async function sittingAct(scope: StaffActor, data: FormData, resume: boolean): P
       const row = await tx.openingSitting.create({ data: { organisationId: l.org.id, openingId: o.id, sittingNo: state.sittingNo + 1, startedAt: now, resumeReason: reason, recordedByPersonId: person!.id } });
       await audit(tx, actor, l.org.id, OPENING_ENTITY.sitting, row.id, openingLabel(l, o), "CREATE", diffFields(null, sittingFields({ sittingNo: state.sittingNo + 1, at: now, by: person!.name, adjourned: false, reason }, l.org.timeZone)), reason);
       await act.write(tx, row.id);
-      return { ok: true, message: state.required > 2 ? `Resumed. Each of the ${state.required} named opening officers now authorises the new sitting.` : "Resumed. Two panel members present now each authorise the new sitting." };
+      return { ok: true, message: state.online ? `Resumed. Each of the ${state.required} named opening officers now authorises the new sitting.` : "Resumed. Two panel members present now each authorise the new sitting." };
     }
     const sitting = o.sittings.find((s) => s.sittingNo === state.sittingNo)!;
     await tx.openingSitting.update({ where: { id: sitting.id, organisationId: scope.organisationId }, data: { adjournedAt: now, adjournReason: reason } });
@@ -442,7 +442,7 @@ async function sittingAct(scope: StaffActor, data: FormData, resume: boolean): P
     }
     // C-2, ADR 0036 D10: the shares an unpaired online authorisation forwarded are shredded with it (kept, their sealed column set to NULL), so the next sitting starts from the officers' own shares.
     if (lapsing.length && l.ex.submissionChannel === "ONLINE") await shredReleases(tx, { organisationId: l.org.id, openingId: o.id, authorisationIds: lapsing, as: "lapsed", now });
-    return { ok: true, message: state.required > 2 ? `Adjourned. Nothing recorded is lost; resuming needs ${state.required} fresh authorisations, one from each named officer.` : "Adjourned. Nothing recorded is lost; resuming needs two fresh authorisations." };
+    return { ok: true, message: state.online ? `Adjourned. Nothing recorded is lost; resuming needs ${state.required} fresh authorisations, one from each named officer.` : "Adjourned. Nothing recorded is lost; resuming needs two fresh authorisations." };
   });
 }
 

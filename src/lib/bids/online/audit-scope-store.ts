@@ -11,25 +11,29 @@ import type { SealedAuditFacts } from "./audit-mask";
 export async function sealedAuditFactsFor(
   organisationId: string,
   rows: readonly { entity: string; entityId: string }[],
-  client: Pick<Tx, "onlineBid" | "onlineBidFile" | "opening" | "exerciseOpeningOfficer"> = db,
+  client: Pick<Tx, "onlineBid" | "onlineBidFile" | "opening" | "exerciseOpeningOfficer" | "openedBid" | "bidEnvelope" | "sourcingExercise"> = db,
 ): Promise<(row: { entity: string; entityId: string }) => SealedAuditFacts | null> {
   const ids = (entity: string) => [...new Set(rows.filter((r) => r.entity === entity).map((r) => r.entityId))];
   const bids = ids("OnlineBid").length ? await client.onlineBid.findMany({ where: { organisationId, id: { in: ids("OnlineBid") } }, select: { id: true, exerciseId: true } }) : [];
   const files = ids("OnlineBidFile").length ? await client.onlineBidFile.findMany({ where: { organisationId, id: { in: ids("OnlineBidFile") } }, select: { id: true, exerciseId: true } }) : [];
   // OnlineBidPart rows are keyed by the bid.
   const partBids = ids("OnlineBidPart").length ? await client.onlineBid.findMany({ where: { organisationId, id: { in: ids("OnlineBidPart") } }, select: { id: true, exerciseId: true } }) : [];
-  const exerciseOf = new Map<string, string>([...bids.map((b) => [`OnlineBid:${b.id}`, b.exerciseId] as const), ...files.map((f) => [`OnlineBidFile:${f.id}`, f.exerciseId] as const), ...partBids.map((b) => [`OnlineBidPart:${b.id}`, b.exerciseId] as const)]);
+  // 20c: the opened offers and envelopes of an online exercise name a bidder from the unseal.
+  const openedBids = ids("OpenedBid").length ? await client.openedBid.findMany({ where: { organisationId, id: { in: ids("OpenedBid") } }, select: { id: true, exerciseId: true } }) : [];
+  const envelopes = ids("BidEnvelope").length ? await client.bidEnvelope.findMany({ where: { organisationId, id: { in: ids("BidEnvelope") } }, select: { id: true, exerciseId: true } }) : [];
+  const exerciseOf = new Map<string, string>([...openedBids.map((b) => [`OpenedBid:${b.id}`, b.exerciseId] as const), ...envelopes.map((e) => [`BidEnvelope:${e.id}`, e.exerciseId] as const), ...bids.map((b) => [`OnlineBid:${b.id}`, b.exerciseId] as const), ...files.map((f) => [`OnlineBidFile:${f.id}`, f.exerciseId] as const), ...partBids.map((b) => [`OnlineBidPart:${b.id}`, b.exerciseId] as const)]);
   const exerciseIds = [...new Set(exerciseOf.values())];
-  const [openings, officers] = exerciseIds.length
+  const [openings, officers, exercises] = exerciseIds.length
     ? await Promise.all([
         client.opening.findMany({ where: { exerciseId: { in: exerciseIds }, kind: "MAIN" }, select: { exerciseId: true, unsealedAt: true, finalisedAt: true } }),
         client.exerciseOpeningOfficer.findMany({ where: { organisationId, exerciseId: { in: exerciseIds }, endedAt: null }, select: { exerciseId: true, personId: true } }),
+        client.sourcingExercise.findMany({ where: { organisationId, id: { in: exerciseIds } }, select: { id: true, submissionChannel: true } }),
       ])
-    : [[], []];
+    : [[], [], []];
   return (row) => {
     const exerciseId = exerciseOf.get(`${row.entity}:${row.entityId}`);
     if (!exerciseId) return null;
     const o = openings.find((x) => x.exerciseId === exerciseId);
-    return { unsealed: o?.unsealedAt != null, finalised: o?.finalisedAt != null, namedOfficerPersonIds: officers.filter((x) => x.exerciseId === exerciseId).map((x) => x.personId) };
+    return { started: o != null, online: exercises.find((x) => x.id === exerciseId)?.submissionChannel === "ONLINE", unsealed: o?.unsealedAt != null, finalised: o?.finalisedAt != null, namedOfficerPersonIds: officers.filter((x) => x.exerciseId === exerciseId).map((x) => x.personId) };
   };
 }

@@ -63,9 +63,11 @@ export interface OpeningState {
   sittingNo: number;
   /// How many authorisations the sitting needs: two, or the roster's n online.
   required: number;
+  /// The exercise takes bids online. The words are chosen by this, never by `required` (an online roster of two is still every named officer, with no box).
+  online: boolean;
 }
 
-export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; finalisedAt: Date | null; exerciseStatus?: string }, sittings: readonly SittingFacts[], auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[], required: number = PAPER_AUTHORISATIONS): OpeningState {
+export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; finalisedAt: Date | null; exerciseStatus?: string; online?: boolean }, sittings: readonly SittingFacts[], auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[], required: number = PAPER_AUTHORISATIONS): OpeningState {
   const s = currentSitting(sittings);
   const sittingNo = s?.sittingNo ?? 1;
   return {
@@ -77,6 +79,7 @@ export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; fi
     sittingAuthorised: sittingAuthorisers(sittingNo, auths, panel).length >= required,
     sittingNo,
     required,
+    online: o.online === true,
   };
 }
 
@@ -100,8 +103,8 @@ export function actFaults(s: OpeningState): Finding<ActFault>[] {
   if (s.finalised) return [{ code: "FINALISED", level: "block" }];
   if (s.adjourned) return [{ code: "ADJOURNED", level: "block" }];
   // Paper's findings carry what they always did; an online sitting also names how many officers it needs, for the words.
-  const paper = s.required === PAPER_AUTHORISATIONS;
-  if (!s.unsealed) return [paper ? { code: "NOT_UNSEALED", level: "block" } : { code: "NOT_UNSEALED", level: "block", data: { required: s.required } }];
-  if (!s.sittingAuthorised) return [{ code: "SITTING_NOT_AUTHORISED", level: "block", data: paper ? { sitting: s.sittingNo } : { sitting: s.sittingNo, required: s.required } }];
+  // The channel decides the words (review: an online roster of two is not a box with two panel members).
+  if (!s.unsealed) return [s.online ? { code: "NOT_UNSEALED", level: "block", data: { required: s.required, online: 1 } } : { code: "NOT_UNSEALED", level: "block" }];
+  if (!s.sittingAuthorised) return [{ code: "SITTING_NOT_AUTHORISED", level: "block", data: s.online ? { sitting: s.sittingNo, required: s.required, online: 1 } : { sitting: s.sittingNo } }];
   return [];
 }

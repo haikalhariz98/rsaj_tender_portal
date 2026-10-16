@@ -21,6 +21,7 @@ import type { Finding, InvitedCountReading, OpeningVerdict, UnpurchasedConsequen
 
 export type FinaliseFault =
   | ActFault
+  | "ONLINE_FINALISE_ELSEWHERE"
   | "ENVELOPE_UNOPENED"
   | "ADMITTED_NOT_OPENED"
   | "INITIAL_MISSING"
@@ -74,6 +75,8 @@ export function finaliseFaults(i: {
   estimate: { required: boolean; lodged: boolean; paperAnswered: boolean };
   personActive: boolean;
 }): Finding<FinaliseFault>[] {
+  // Review (stage C): an online opening has no price read until its own finalise (ADR 0036 D10), so the paper finalise refuses it in words before any price is looked for, rather than throwing on a price not read.
+  if (i.state.online && !i.state.cancelled && !i.state.finalised) return [{ code: "ONLINE_FINALISE_ELSEWHERE", level: "block" }];
   const out: Finding<FinaliseFault>[] = [...actFaults(i.state)];
   const f = (code: FinaliseFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (i.state.kind === "MAIN" && i.unopened > 0) f("ENVELOPE_UNOPENED", { count: i.unopened });

@@ -80,7 +80,8 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
   const onlineView = receivedView(online, onlineStarted);
   const numbers = registerNumbers(online, onlineStarted);
   const shownOf = (e: { id: string; sequence: number }) => numbers.get(e.id) ?? { number: e.sequence, isOrdinal: false };
-  const labelOf = (e: { id: string; sequence: number }) => (shownOf(e).isOrdinal ? `Online bid, ${RECEIVED_WORDS.ordinalLabel.en.toLowerCase()} ${shownOf(e).number}` : `Envelope ${shownOf(e).number}`);
+  // 20ar: from the start an online bid's sequence is the portal's order of receipt for the exercise, said so, never a receipt number; a paper envelope is "Envelope N".
+  const labelOf = (e: { id: string; sequence: number }) => (shownOf(e).isOrdinal ? `Online bid, ${RECEIVED_WORDS.ordinalLabel.en.toLowerCase()} ${shownOf(e).number}` : numbers.has(e.id) ? `Online bid, ${RECEIVED_WORDS.sequenceLabel.en.toLowerCase()} ${shownOf(e).number}` : `Envelope ${shownOf(e).number}`);
   const cancelled = ex.status === "CANCELLED";
   const time = (d: Date | null) => receiptTime(d, timeZone);
 

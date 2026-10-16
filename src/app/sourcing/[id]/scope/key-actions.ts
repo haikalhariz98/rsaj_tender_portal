@@ -19,7 +19,8 @@ import { passphraseFaults, PASSPHRASE_WORDS } from "@/lib/sealing/ceremony";
 import { makeOfficerKey } from "@/lib/sealing/ceremony-seal";
 import { pepperForWrapFault, PEPPER_WRAP_WORDS, REKEY_WORDS, rekeyRefusals, SHARE_WORDS, shareFaults } from "@/lib/sealing/share";
 import { loadCeremony, logCeremonyEvent, logCeremonyRefusal, makeKeyIfComplete, rekeyKey, retireExerciseKey, retireOfficerKey, sealedSqlState } from "@/lib/sealing/store";
-import { logSealedGranted, logSealedRefusal, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
+import { logAdministratorRefusal, logSealedGranted, logSealedRefusal, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 import { zero } from "@/lib/sealing/types";
 import { withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
@@ -255,7 +256,7 @@ export async function checkUnlock(_prev: FormState, data: FormData): Promise<For
   const guard = await staffForAct("UNSEAL");
   if (!guard.ok) {
     const who = await requireStaff();
-    await logSealedRefusal({ organisationId: who.organisationId, exerciseId: exerciseIdOf(data), kind: "UNLOCK_CHECK", staffPersonId: who.personId, reasonCode: "ADMINISTRATOR" });
+    await logAdministratorRefusal({ organisationId: who.organisationId, accountId: who.accountId, exerciseId: exerciseIdOf(data), kind: "UNLOCK_CHECK", staffPersonId: who.personId });
     return guard.state;
   }
   const actor = guard.actor;
@@ -269,6 +270,8 @@ export async function checkUnlock(_prev: FormState, data: FormData): Promise<For
     await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "UNLOCK_CHECK", staffPersonId: actor.personId, reasonCode: "STEP_UP_REFUSED" });
     return begun.state;
   }
+  // A restricted exercise the officer may not see reads as one that is not there, before any passphrase is derived or counted (FR-MTD-007).
+  if (await exerciseIsHidden(actor, exerciseId)) return { ok: false, message: "That exercise was not found." };
   const unlocked = await unlockOwnKey({ organisationId: actor.organisationId, exerciseId, personId: actor.personId, passphrase, kind: "UNLOCK_CHECK", now: new Date() });
   if (!unlocked.ok) return { ok: false, message: unlockRefusalWords(unlocked) };
   zero(unlocked.privateKey);

@@ -5,6 +5,7 @@
  * own transaction, so a sibling-sum check and the write it guards see the same data.
  */
 
+import { SEALED_AUDIT_ENTITIES } from "@/lib/bids/online/audit-mask";
 import { exerciseNotHidden, refuseHiddenExercise, type Reader } from "@/lib/auth/sulit-store";
 import { routedValue } from "@/lib/approvals/routed-value";
 import { exerciseEvidence, NO_EVIDENCE } from "@/lib/documents/evidence";
@@ -298,7 +299,10 @@ export async function exerciseHistory(l: LoadedExercise, withEntries = true) {
     ...ex.participants.map((x) => x.id),
     ...ex.approvalInstances.flatMap((i) => [i.id, ...i.steps.map((s) => s.id)]),
   ];
-  const where = { organisationId: l.org.id, OR: [{ entityId: { in: ids } }, { entityLabel: { startsWith: `${ex.reference} ·` } }] };
+  // Wave 3b (security audit 2, 20u): until the main opening has started, the rows of the online bids (their number, kinds and times are the counts, replacements and withdrawals Received hides) are
+  // not in the History at all, so neither its rows nor its total show them. The same rule is held by `maskSealedAuditRows` for the export.
+  const started = (await db.opening.count({ where: { exerciseId: ex.id, kind: "MAIN" } })) > 0;
+  const where = { organisationId: l.org.id, OR: [{ entityId: { in: ids } }, { entityLabel: { startsWith: `${ex.reference} ·` } }], ...(started ? {} : { NOT: { entity: { in: [...SEALED_AUDIT_ENTITIES] } } }) };
   const [rows, total] = await Promise.all([withEntries ? db.auditEntry.findMany({ where, orderBy: { at: "desc" }, take: HISTORY_PAGE }) : Promise.resolve([]), db.auditEntry.count({ where })]);
   return {
     total,

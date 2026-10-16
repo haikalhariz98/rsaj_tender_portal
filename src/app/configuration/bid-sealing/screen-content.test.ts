@@ -107,3 +107,28 @@ describe("the supplier's screens for an online bid", () => {
     expect(lex(src("src/lib/sealing/key-history.ts"), { only: "comments" })).not.toMatch(/reason|byPersonId|viaOfficerKeyId/);
   });
 });
+
+/**
+ * Wave 3b stage C (ruling 20ap, review): the staff screens that carry the online opening. Content only: a restyle must keep the passphrase field and the n-of-n words of the authorise drawer,
+ * the check-my-passphrase drawer on the Sealing key card, Received's online counts and order note, and the names-at-finalising words. The officer's download has no screen yet (the route is
+ * its only surface), so there is nothing of it to guard here.
+ */
+describe("the staff screens of the online opening", () => {
+  it("the online authorise drawer asks for the passphrase and says every named officer is needed and that a passphrase cannot be recovered", () => {
+    const drawer = src("src/app/sourcing/[id]/opening/editors.tsx");
+    for (const token of ["AuthoriseOnlineDrawer", "Unseal passphrase", "secret: true", "authoriseOnlineUnseal", "named officers authorises in their own sign-in", "A passphrase cannot be reset or recovered", "OpeningAuthorisation.person"]) expect(drawer, token).toContain(token);
+  });
+  it("the Sealing key card offers the check of one's own passphrase and says nothing is opened by it", () => {
+    expect(src("src/app/sourcing/[id]/scope/key-section.tsx")).toContain("CheckUnlockDrawer");
+    const editors = src("src/app/sourcing/[id]/scope/key-editors.tsx");
+    for (const token of ["Check that I can still unlock my key", "Unseal passphrase", "Nothing is opened and no share is released", "checkUnlock", "OfficerExerciseKey.person"]) expect(editors, token).toContain(token);
+  });
+  it("Received keeps the online counts and the order note (the words themselves are pinned in received.test.ts, 20ar)", () => {
+    const work = src("src/app/sourcing/[id]/bids/workspace.tsx");
+    for (const token of ["d.online.count", "d.online.inTime", "d.online.late", "d.online.ordinalNote"]) expect(work, token).toContain(token);
+  });
+  it("the Opening tab keeps the words that stand for a name between the unseal and finalising (20c)", () => {
+    expect(src("src/lib/opening/labels.ts")).toContain("NAMES_AT_FINALISING");
+    expect(src("src/lib/opening/read.ts")).toContain("namesHeld");
+  });
+});

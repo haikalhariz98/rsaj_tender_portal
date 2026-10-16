@@ -204,11 +204,11 @@ export function BidForm(p: BidFormProps) {
                         id={inputId}
                         ref={(el) => { inputs.current[part.packPartId] = el; }}
                         type="file"
-                        className="sr-only"
+                        className="peer sr-only"
                         disabled={!part.uploadable || !p.token || !!state || busy}
                         onChange={(e) => void choose(part, e.target.files?.[0])}
                       />
-                      <label htmlFor={inputId} className={part.uploadable && p.token && !state && !busy ? "cursor-pointer" : "cursor-not-allowed opacity-60"}>
+                      <label htmlFor={inputId} className={`${part.uploadable && p.token && !state && !busy ? "cursor-pointer" : "cursor-not-allowed opacity-60"} peer-focus-visible:[&>span]:outline-2 peer-focus-visible:[&>span]:outline-offset-2 peer-focus-visible:[&>span]:outline-brand-500`}>
                         <span className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-line bg-surface px-3.5 text-[13.5px] font-semibold text-ink hover:border-brand-300">
                           <UploadIcon size={15} />
                           <Bi words={file ? SCREEN_WORDS.partChooseAnother : SCREEN_WORDS.partChoose} inline />
@@ -256,7 +256,7 @@ export function BidForm(p: BidFormProps) {
               ["REPLACE", SCREEN_WORDS.kindReplace, p.replaceable.length === 0],
             ] as const).map(([value, words, off]) => (
               <label key={value} className={`flex items-center gap-2.5 text-[14px] ${off ? "cursor-not-allowed text-ink-3" : "cursor-pointer text-ink"}`}>
-                <input type="radio" name={`${ids}-mode`} value={value} checked={mode === value} disabled={off || busy} onChange={() => setMode(value)} />
+                <input type="radio" className="size-4 accent-brand-600" name={`${ids}-mode`} value={value} checked={mode === value} disabled={off || busy} onChange={() => setMode(value)} />
                 <Bi words={words} inline />
               </label>
             ))}

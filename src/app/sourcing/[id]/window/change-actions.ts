@@ -1,5 +1,6 @@
 "use server";
 
+import { shredExerciseReleases } from "@/lib/opening/unseal-store";
 import type { FormState } from "@/components/record-editor";
 import { Prisma } from "@/generated/prisma/client";
 import { closeRejected } from "@/lib/approvals/rejection-store";
@@ -290,6 +291,8 @@ async function applyCancellation(tx: Tx, actor: AuditActor, l: LockedWindow, d: 
     return `Approved, but the exercise was not cancelled: ${why}`;
   }
   await moveExercise(tx, l.ex, "CANCELLED", { today: l.org.today, via: "WINDOW_CANCELLATION", reason: c.reason }, { cancelReason: c.reason });
+  // Stage C security audit: an officer's forwarded shares are not kept for an exercise that has ended.
+  await shredExerciseReleases(tx, { organisationId: l.org.id, exerciseId: l.ex.id, now });
   await audit(tx, actor, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "CANCELLED" }), c.reason);
   // 6.8 (E-10, flagged): the evaluation in force is closed as cancelled, its records kept; locked after the openings.
   await lockEvaluationRows(tx, l.ex.id);

@@ -52,6 +52,12 @@ describe("how many authorise (ADR 0036 D10, ruling 20k): two on paper, the roste
     expect(authorisationFaults({ ...paper, auths: [auth("p1"), auth("p2")] }).map((f) => f.code)).toEqual(["SITTING_AUTHORISED"]);
   });
 
+  it("online: the closing second itself is refused, and the next second is not (review nit)", () => {
+    const base = { state: open({ unsealed: false, sittingAuthorised: false, required: 3 }), panel: panel3, auths: [], personId: "p1", recorderId: null, closing: CLOSING, boxLocked: false, online: true, required: 3 };
+    expect(authorisationFaults({ ...base, now: CLOSING }).map((f) => f.code)).toEqual(["AT_OR_BEFORE_CLOSING"]);
+    expect(authorisationFaults({ ...base, now: new Date(CLOSING.getTime() + S) }).map((f) => f.code)).toEqual([]);
+  });
+
   it("an online main opening does not ask the box's lock; paper does", () => {
     const base = { state: open({ unsealed: false, sittingAuthorised: false }), panel: PANEL, auths: [], personId: "p1", recorderId: null, now: at(S), closing: CLOSING, boxLocked: false };
     expect(authorisationFaults(base).map((f) => f.code)).toEqual(["BOX_NOT_LOCKED"]);
@@ -65,14 +71,22 @@ describe("how many authorise (ADR 0036 D10, ruling 20k): two on paper, the roste
   });
 
   it("the state counts to n: two of three is not a sitting authorised, and the phase and the faults say so in words", () => {
-    const o = { kind: "MAIN" as const, unsealedAt: at(S), finalisedAt: null };
+    // Review: the words follow the channel, not the count, so an online state names itself.
+    const o = { kind: "MAIN" as const, unsealedAt: at(S), finalisedAt: null, online: true };
     const two = openingState(o, [{ sittingNo: 1, adjournedAt: null }], [auth("p1"), auth("p2")], panel3, 3);
     expect(two.sittingAuthorised).toBe(false);
     expect(openingPhase(two)).toBe("AWAITING_REAUTHORISATION");
     expect(openingFindingText(actFaults(two)[0])).toMatch(/each of the 3 named opening officers/);
     const three = openingState(o, [{ sittingNo: 1, adjournedAt: null }], [auth("p1"), auth("p2"), auth("p3")], panel3, 3);
     expect(three.sittingAuthorised).toBe(true);
-    expect(openingFindingText(actFaults(openingState({ ...o, unsealedAt: null }, [{ sittingNo: 1, adjournedAt: null }], [], PANEL))[0])).toMatch(/two panel members/);
+    // An online roster of two is still every named officer, with no box (review): the words follow the channel, never the count.
+    const panel2 = [{ personId: "p1", present: true }, { personId: "p2", present: true }];
+    const noneYet = openingState({ ...o, unsealedAt: null }, [{ sittingNo: 1, adjournedAt: null }], [], panel2, 2);
+    expect(openingFindingText(actFaults(noneYet)[0])).toMatch(/each of the 2 named opening officers/);
+    expect(openingFindingText(actFaults(noneYet)[0])).not.toMatch(/box|panel members present/);
+    const resting = openingState(o, [{ sittingNo: 1, adjournedAt: null }], [auth("p1")], panel2, 2);
+    expect(openingFindingText(actFaults(resting)[0])).toMatch(/each of the 2 named opening officers/);
+    expect(openingFindingText(actFaults(openingState({ ...o, online: false, unsealedAt: null }, [{ sittingNo: 1, adjournedAt: null }], [], PANEL))[0])).toMatch(/two panel members/);
   });
 });
 
@@ -91,6 +105,10 @@ describe("starting an online opening (20aa, H2)", () => {
     expect(f.map((x) => x.code)).toEqual(["SKEW_NOT_ELAPSED"]);
     const words = openingFindingText(f[0]);
     expect(words).toMatch(/Try again in 21 seconds/);
+  });
+  it("KEY_OFFICERS_MISMATCH says the officers changed when the counts are the same, and gives the counts when they differ (review)", () => {
+    expect(openingFindingText({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: 2, keyOfficers: 2 } })).toMatch(/roster has changed since the key was made/);
+    expect(openingFindingText({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: 3, keyOfficers: 2 } })).toMatch(/split across 2 officers, and 3 are named now/);
   });
   it("refuses no live key, a key split across other officers, a roster of one, and an unset closing", () => {
     expect(onlineStartFaults({ ...ok, key: null }).map((f) => f.code)).toEqual(["KEY_NOT_LIVE"]);

@@ -112,7 +112,7 @@ export function submissionViews(i: { rows: readonly OwnBidRow[]; opening: Openin
       const listMissing = i.opening.started && i.opening.roll === null && row.status !== "REPLACED" && row.status !== "WITHDRAWN" && row.status !== "OPENED";
       const state = listMissing ? null : myBidOpeningState({ status: row.status, openingStarted: i.opening.started, unsealed: i.opening.unsealed, rollEntry, opened: row.status === "OPENED" });
       // The digest shown is the one the roll listed. Where the roll holds none (a replaced, withdrawn or opened one), the supplier's own receipt digest is shown, which it is asked to compare with the receipt it kept.
-      const digest = state === null ? null : state === "NOT_IN_ROLL" ? null : (rollEntry?.receiptDigest ?? row.receiptDigest);
+      const digest = state === null ? null : (rollEntry?.receiptDigest ?? row.receiptDigest);
       const faults = withdrawFaults({ mine: true, status: row.status, stamp: i.now, closing: i.closing ?? new Date(0), cancelled: i.cancelled, alsoWithdraw: [] });
       const linked = i.rows.filter((r) => r.parentOnlineBidId === row.id && r.status === "SUBMITTED" && r.kind === "ALTERNATIVE").map((r) => ({ id: r.id, number: numberOf(r.id) }));
       return {

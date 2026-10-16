@@ -68,7 +68,9 @@ export async function exportAuditTrail(_prev: ExportResult, data: FormData): Pro
       // Wave 3b step 12 (ADR 0036 D9, 20c): an online bid's rows name no bidder before the opening. The actor is named here, then withheld where the mask says so.
       const named = blind.map((r) => ({ ...r, actorName: actorDisplayName(r) }));
       const picked = maskSealedAuditRows(named, await sealedAuditFactsFor(org.id, named, tx), actor.personId);
-      const masked = picked.filter((r, i) => blind[i] !== days[i] || r !== named[i]).length;
+      // Rows the sealed mask dropped are not counted (the count itself would say how many online-bid rows there were); rows it changed are.
+      const asNamed = new Set<unknown>(named);
+      const masked = blind.filter((r, i) => r !== days[i]).length + picked.filter((r) => !asNamed.has(r)).length;
       const file = auditCsv(picked, zone);
       const sha256 = sha256Hex(file);
       const fileName = exportFileName(fromDay!, toDay!);

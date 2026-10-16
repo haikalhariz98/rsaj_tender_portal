@@ -110,6 +110,8 @@ export const OPENING_STATEMENT = {
 
 /// The benchmark row before disclosure (OD-2 A).
 export const SEALED_UNTIL_FINALISED = "Sealed until the schedule is finalised";
+/// 20c: what stands where a bidder's name would be, for a reader who is not a named opening officer, between the unseal and finalising of an online opening.
+export const NAMES_AT_FINALISING = "Shown when the schedule is finalised: until then only the named opening officers see who bid";
 
 const d = (f: Finding, k: string) => String(f.data?.[k] ?? "");
 const n = (f: Finding, k: string) => Number(f.data?.[k] ?? 0);
@@ -122,8 +124,8 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   // ---- every act on the opened record
   FINALISED: () => "The opening is finalised: nothing on it changes. A late tender admitted afterwards is opened at a supplementary opening.",
   ADJOURNED: () => "The opening is adjourned. Resume it, and have two panel members present authorise the new sitting, before anything more is recorded.",
-  NOT_UNSEALED: (f) => (n(f, "required") > 2 ? `The bids are not unsealed yet: each of the ${n(f, "required")} named opening officers must authorise the opening first.` : "The box is not opened yet: two panel members present must each authorise the opening first."),
-  SITTING_NOT_AUTHORISED: (f) => (n(f, "required") > 2 ? `This sitting is not authorised yet: each of the ${n(f, "required")} named opening officers must authorise it before anything is recorded.` : "This sitting is not authorised yet: two panel members present must each authorise it before anything is recorded."),
+  NOT_UNSEALED: (f) => (n(f, "online") === 1 ? `The bids are not unsealed yet: each of the ${n(f, "required")} named opening officers must authorise the opening first.` : "The box is not opened yet: two panel members present must each authorise the opening first."),
+  SITTING_NOT_AUTHORISED: (f) => (n(f, "online") === 1 ? `This sitting is not authorised yet: each of the ${n(f, "required")} named opening officers must authorise it before anything is recorded.` : "This sitting is not authorised yet: two panel members present must each authorise it before anything is recorded."),
   NOT_THIS_OPENING: () => "That offer was read at another opening of this exercise.",
   PERSON_REQUIRED: () => "Name the officer recording it (an active person).",
   REASON_REQUIRED: () => "Give the reason.",
@@ -163,7 +165,10 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   NOT_CLOSED: () => "The invitation window has not closed yet: the opening starts once it has.",
   BOX_NOT_LOCKED: () => "The tender box is not recorded as locked at or after the closing. Record the box locked on the Received section first.",
   KEY_NOT_LIVE: () => "This online exercise has no live sealing key, so its bids cannot be opened.",
-  KEY_OFFICERS_MISMATCH: (f) => `The exercise key was split across ${n(f, "keyOfficers")} officers, and ${n(f, "officers")} are named now. Every officer must set their share again before the opening can start.`,
+  ONLINE_FINALISE_ELSEWHERE: () => "This exercise takes bids online, so its prices are not read here: each price is read, and the schedule finalised, only by the online finalise. Nothing was finalised.",
+  KEY_OFFICERS_MISMATCH: (f) => (n(f, "keyOfficers") === n(f, "officers")
+    ? `The officers named now are not the officers the exercise key was split across: the roster has changed since the key was made, though ${n(f, "officers")} are named in both. Every officer must set their share again before the opening can start.`
+    : `The exercise key was split across ${n(f, "keyOfficers")} officers, and ${n(f, "officers")} are named now. Every officer must set their share again before the opening can start.`),
   OFFICERS_FEWER_THAN_TWO: () => "An online opening needs at least two named opening officers.",
   SKEW_NOT_ELAPSED: (f) => `The closing has only just passed. The opening starts a few seconds after it, so that no bid sent in time can still be arriving. Try again in ${plural(n(f, "seconds"), "second", "seconds")}.`,
   CHANGE_PENDING: () => "A change to the invitation window is with approval: the opening waits for its decision.",
@@ -203,7 +208,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   LATE_ENVELOPE_NOT_SEALED: () => "That envelope is not a late envelope still sealed on the register.",
   // ---- authorisations (C-2, OD-11)
   ALREADY_AUTHORISED: () => "That member has already authorised this sitting. The second authorisation must be another member's.",
-  SITTING_AUTHORISED: (f) => (n(f, "required") > 2 ? `All ${n(f, "required")} named officers have already authorised this sitting.` : "Two members have already authorised this sitting."),
+  SITTING_AUTHORISED: (f) => (n(f, "online") === 1 ? `All ${n(f, "required")} named officers have already authorised this sitting.` : "Two members have already authorised this sitting."),
   SAME_HAND: () => "The two authorisations must come from two different people acting. This one would be keyed by, or keyed for, the person behind the other authorisation of this sitting.",
   NOT_ON_PANEL: () => "That person is not on this opening's panel.",
   ABSENT: () => "That member is recorded as absent from the opening.",

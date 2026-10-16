@@ -192,12 +192,12 @@ export async function submitBid(actor: SupplierActor, i: SubmitInput, hooks: Act
       at.step = "RECORD";
       await writeAudit(
         tx,
-        { actor: auditActorOf(actor), organisationId: actor.organisationId, entity: "OnlineBid", entityId: onlineBidId, entityLabel: `${reference} · online submission ${sequence} (sealed)` },
+        { actor: auditActorOf(actor), organisationId: actor.organisationId, entity: "OnlineBid", entityId: onlineBidId, entityLabel: `${reference} · online submission (sealed)` },
         "CREATE",
         diffFields(null, {
           exercise: exerciseId,
           kind: KIND_WORDS[i.kind],
-          submissionNumber: sequence,
+          portalOrderOfReceipt: sequence,
           received: formatOrgDateTime(envelope.receivedAt, actor.organisationTimeZone ?? null),
           lateness: envelope.late ? "Received after the closing" : "Received in time",
           keyId: key.id,
