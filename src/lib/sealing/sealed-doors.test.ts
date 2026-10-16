@@ -49,8 +49,8 @@ describe("every decryption goes through open.ts (ADR 0036 D12)", () => {
     expect(gcm).toContain("src/lib/sealing/open.ts");
     const kdf = code.find((s) => s.path === "src/lib/sealing/kdf.ts")!;
     const sp = spans(kdf.code);
-    const at = kdf.code.indexOf("gcmOpenWithin(");
-    expect(enclosingFn(sp, at)).toBe("unwrapKey");
+    const calls = [...kdf.code.matchAll(/(?<![\w.])gcmOpenWithin\s*\(/g)].map((m) => enclosingFn(sp, m.index!));
+    expect(calls).toEqual(["unwrapKey"]);
   });
 
   it("the scan reads calls in code only, never a name in a comment or a string", () => {

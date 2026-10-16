@@ -163,7 +163,8 @@ describe("a login that can still make temporary tables is a warning (build plan 
         expect(held.temporaryHeld, grant).toBe(true);
         const verdict = runtimeRoleVerdict(held, true);
         expect(verdict, grant).toMatchObject({ safe: false, reason: "TEMPORARY_HELD", refuseSignIn: false });
-        expect(RUNTIME_ROLE_WORDS.TEMPORARY_HELD).toMatch(/temporary tables/);
+        // The words the verdict itself points to, not the constant by name.
+        expect(RUNTIME_ROLE_WORDS[(verdict as { reason: keyof typeof RUNTIME_ROLE_WORDS }).reason], grant).toMatch(/temporary tables.*db:roles|db:roles.*temporary tables/);
         await db.$executeRawUnsafe(`REVOKE TEMPORARY ON DATABASE "${db_}" FROM ${APP}`);
         await db.$executeRawUnsafe(`REVOKE TEMPORARY ON DATABASE "${db_}" FROM PUBLIC`);
         expect((await asApp()).temporaryHeld, `${grant} taken back`).toBe(false);

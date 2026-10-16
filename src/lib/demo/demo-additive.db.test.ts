@@ -187,8 +187,9 @@ describe("the demo loader is additive (Phase 1d)", () => {
   // Ruling 20ao and 20bi (build plan step 19): the ONLINE path of `publishWindow` run whole. The demonstration publishes its online exercise through the product's own act (`prisma/demo-online.ts`
   // calls `publishWindow`), never by setting rows the act would refuse, so what it left is what the act writes: the mode, the rules and the key's fingerprint frozen together, before the move, with
   // their audit row; the window's publication stamp; and a database that now refuses a change of the rules or the channel.
-  it("the online exercise was published through publishWindow: mode, rules and key fingerprint frozen together before the move, audited, and the rules then refuse a change", { timeout: 300_000 }, async () => {
-    if (!expectOnline) return;
+  it("the online exercise was published through publishWindow: mode, rules and key fingerprint frozen together before the move, audited, and the rules then refuse a change", { timeout: 300_000 }, async (ctx) => {
+    // Skipped, never passed, where the load fell back to paper on a day the calendar will not close on: a pass would say the online publication was checked.
+    if (!expectOnline) ctx.skip();
     const c = client!;
     const ex = await c.sourcingExercise.findFirstOrThrow({ where: { submissionChannel: "ONLINE" }, select: { id: true, status: true, onlineSubmissionMode: true, onlineBidRules: true, publishedKeyFingerprint: true } });
     const live = await c.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null }, select: { fingerprint: true } });
