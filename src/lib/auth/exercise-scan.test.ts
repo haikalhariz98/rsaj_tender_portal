@@ -54,6 +54,7 @@ export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
   "src/lib/bids/repo.ts": "the bids module's own loaders, called by the exercise page and by acts that run under `withLockedRequisitionForSourcing`",
   "src/lib/documents/hidden.ts": "the document guard itself: it finds the exercise a record of documents hangs on, to be asked about",
   "src/app/sourcing/[id]/opening/workspace.tsx": "rendered only by the exercise page, which refuses a hidden exercise before it renders a tab",
+  "src/lib/sealing/unlock-store.ts": "selects only the exercise id, to attach an access-event row to the exercise whose roster already names the officer; reached from the unseal (inside inWindow, which refuses a hidden exercise) and from checkUnlock, which only a named opening officer can pass",
   "src/lib/documents/read.ts": "the owner and drawer readers, called through `src/app/documents/actions.ts`, which refuses an owner or a document under a hidden exercise first",
   "src/lib/evaluation/gate-read.ts": "the award gate's facts about an exercise already loaded under a guard",
   "src/lib/evaluation/read.ts": "a tab's reader, called by the exercise page after its guard",

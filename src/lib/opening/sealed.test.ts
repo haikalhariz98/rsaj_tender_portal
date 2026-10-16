@@ -51,7 +51,8 @@ function calls(text: string, re: RegExp): { text: string; fn: string }[] {
 describe("the offer is written only by the opening's acts (ADR 0017)", () => {
   it("only openEnvelope and recordAlternative create an offer, only correctAsRead changes what was read", () => {
     const creates = sources.flatMap((s) => calls(s.text, /openedBid\.(create|createMany|upsert)\(/g).map((c) => `${s.path}#${c.fn}`));
-    expect(creates.sort()).toEqual([`${ACTIONS}#openEnvelope`, `${ACTIONS}#recordAlternative`].sort());
+    // Wave 3b step 13 (plan 1.5f): the online unseal is the one other writer, in `commitUnseal`, and it writes the offer with its price NULL (ruling 20).
+    expect(creates.sort()).toEqual([`${ACTIONS}#openEnvelope`, `${ACTIONS}#recordAlternative`, join("src", "lib", "opening", "unseal-store.ts#commitUnseal")].sort());
     const priced = sources.flatMap((s) => calls(s.text, /openedBid\.(update|updateMany)\(/g).filter((c) => /priceAsRead|completionPeriod|bidderNameAsRead/.test(c.text)).map((c) => `${s.path}#${c.fn}`));
     expect(priced).toEqual([`${ACTIONS}#correctAsRead`]);
   });

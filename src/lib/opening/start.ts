@@ -40,6 +40,8 @@ export function startFaults(i: {
   changePending: boolean;
   mainExists: boolean;
   personActive: boolean;
+  /// ONLINE (ADR 0036 D10): there is no box, so the box's lock is not asked. Absent or PAPER: it is.
+  channel?: string | null;
 }): Finding<StartFault>[] {
   if (i.status === "CANCELLED") return [{ code: "CANCELLED", level: "block" }];
   const out: Finding<StartFault>[] = [];
@@ -48,10 +50,40 @@ export function startFaults(i: {
   if (!i.publishedThroughWindow) f("NOT_PUBLISHED");
   if (!i.timeZone) f("TIME_ZONE_NOT_SET");
   if (i.phase !== "CLOSED") f("NOT_CLOSED");
-  if (!i.boxLocked) f("BOX_NOT_LOCKED");
+  if (!i.boxLocked && i.channel !== "ONLINE") f("BOX_NOT_LOCKED");
   if (i.changePending) f("CHANGE_PENDING");
   if (i.mainExists) f("MAIN_EXISTS");
   if (!i.personActive) f("PERSON_REQUIRED");
+  return out;
+}
+
+export type OnlineStartFault = "KEY_NOT_LIVE" | "KEY_OFFICERS_MISMATCH" | "CLOSING_NOT_SET" | "SKEW_NOT_ELAPSED" | "OFFICERS_FEWER_THAN_TWO";
+
+/**
+ * Whether the stamps still in flight can have settled (ADR 0036 D10, H2, rulings 20aa, 20b). The triggers accept an act stamped up to `skewSeconds` before the database clock, so an in-time bid can still
+ * commit until the clock is `skewSeconds` past the closing. The roll the start freezes equals the in-time state at the closing only after that, so the start waits: strictly past, because at exactly
+ * closing + skew an act stamped at the closing second is still accepted. `clock` is the database's `clock_timestamp()`, never the application server's.
+ */
+export function skewElapsed(clock: Date, closing: Date, skewSeconds: number): boolean {
+  return clock.getTime() > closing.getTime() + skewSeconds * 1000;
+}
+
+/// The seconds still to wait (rounded up, and one more so that the answer given is a time that will have passed): for the words.
+export const skewWaitSeconds = (clock: Date, closing: Date, skewSeconds: number): number => Math.max(1, Math.ceil((closing.getTime() + skewSeconds * 1000 - clock.getTime()) / 1000) + 1);
+
+/**
+ * What an ONLINE opening is started on: a live exercise key split across exactly the officers named (the panel is the roster, and n is read from the key, never assumed), at least two of them,
+ * and the database's clock past the closing by the skew.
+ */
+export function onlineStartFaults(i: { closing: Date | null; clock: Date; skewSeconds: number; rosterOfficers: number; key: { officerCount: number; shareHolders: number } | null; /** A supplementary opening starts long after the main one froze the roll: no skew is waited for. Default true. */ waitForSkew?: boolean }): Finding<OnlineStartFault>[] {
+  const out: Finding<OnlineStartFault>[] = [];
+  const f = (code: OnlineStartFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
+  if (!i.key) f("KEY_NOT_LIVE");
+  else if (i.key.officerCount !== i.rosterOfficers || i.key.shareHolders !== i.rosterOfficers) f("KEY_OFFICERS_MISMATCH", { officers: i.rosterOfficers, keyOfficers: i.key.officerCount });
+  if (i.rosterOfficers < 2) f("OFFICERS_FEWER_THAN_TWO");
+  if (i.waitForSkew === false) return out;
+  if (!i.closing) f("CLOSING_NOT_SET");
+  else if (!skewElapsed(i.clock, i.closing, i.skewSeconds)) f("SKEW_NOT_ELAPSED", { seconds: skewWaitSeconds(i.clock, i.closing, i.skewSeconds) });
   return out;
 }
 

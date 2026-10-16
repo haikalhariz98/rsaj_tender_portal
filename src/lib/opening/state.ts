@@ -41,6 +41,15 @@ export function sittingAuthorisers(sittingNo: number, auths: readonly Authorisat
   return [...new Set(auths.filter((a) => a.sittingNo === sittingNo && a.lapsedAt == null && present.has(a.personId)).map((a) => a.personId))];
 }
 
+/// Paper: two panel members present authorise (C-2). An ONLINE opening is n-of-n across the exercise's named officers (ADR 0036 D10, ruling 20k): the count is the roster's size, never a literal.
+export const PAPER_AUTHORISATIONS = 2;
+
+/// How many authorisations open a sitting. ONLINE: every officer of the panel, which is the roster the exercise key was split across, and never fewer than two (a panel of one could never open
+/// anything: n-of-n needs two). Paper: two.
+export function requiredAuthorisations(channel: string | null | undefined, panelSize: number): number {
+  return channel === "ONLINE" ? Math.max(PAPER_AUTHORISATIONS, panelSize) : PAPER_AUTHORISATIONS;
+}
+
 export interface OpeningState {
   kind: OpeningKind;
   /// The exercise is cancelled (6.5 FR-ADV-016, 6.7 C-9): nothing more is recorded at any of its openings (review M-1).
@@ -49,12 +58,14 @@ export interface OpeningState {
   unsealed: boolean;
   /// The current sitting is adjourned.
   adjourned: boolean;
-  /// The current sitting has its two authorisations (C-2).
+  /// The current sitting has all its authorisations (C-2: two on paper, every named officer online).
   sittingAuthorised: boolean;
   sittingNo: number;
+  /// How many authorisations the sitting needs: two, or the roster's n online.
+  required: number;
 }
 
-export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; finalisedAt: Date | null; exerciseStatus?: string }, sittings: readonly SittingFacts[], auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[]): OpeningState {
+export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; finalisedAt: Date | null; exerciseStatus?: string }, sittings: readonly SittingFacts[], auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[], required: number = PAPER_AUTHORISATIONS): OpeningState {
   const s = currentSitting(sittings);
   const sittingNo = s?.sittingNo ?? 1;
   return {
@@ -63,8 +74,9 @@ export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; fi
     finalised: o.finalisedAt != null,
     unsealed: o.unsealedAt != null,
     adjourned: s?.adjournedAt != null,
-    sittingAuthorised: sittingAuthorisers(sittingNo, auths, panel).length >= 2,
+    sittingAuthorised: sittingAuthorisers(sittingNo, auths, panel).length >= required,
     sittingNo,
+    required,
   };
 }
 
@@ -87,7 +99,9 @@ export function actFaults(s: OpeningState): Finding<ActFault>[] {
   if (s.cancelled) return [{ code: "CANCELLED", level: "block" }];
   if (s.finalised) return [{ code: "FINALISED", level: "block" }];
   if (s.adjourned) return [{ code: "ADJOURNED", level: "block" }];
-  if (!s.unsealed) return [{ code: "NOT_UNSEALED", level: "block" }];
-  if (!s.sittingAuthorised) return [{ code: "SITTING_NOT_AUTHORISED", level: "block", data: { sitting: s.sittingNo } }];
+  // Paper's findings carry what they always did; an online sitting also names how many officers it needs, for the words.
+  const paper = s.required === PAPER_AUTHORISATIONS;
+  if (!s.unsealed) return [paper ? { code: "NOT_UNSEALED", level: "block" } : { code: "NOT_UNSEALED", level: "block", data: { required: s.required } }];
+  if (!s.sittingAuthorised) return [{ code: "SITTING_NOT_AUTHORISED", level: "block", data: paper ? { sitting: s.sittingNo } : { sitting: s.sittingNo, required: s.required } }];
   return [];
 }

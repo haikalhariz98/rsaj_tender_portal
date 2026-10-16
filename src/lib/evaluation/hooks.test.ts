@@ -30,7 +30,9 @@ describe("E-7: a supplementary opening finalised reopens the evaluation (6.7 fin
     expect(fin.slice(hook)).toMatch(/openNewVersion\(tx, [\s\S]*\{ trigger: "SUPPLEMENTARY_OPENING", openingId: o\.id, personId: person!\.id, act \}\)/);
   });
   it("the evaluations are locked after the opened bids: inOpening takes those first", () => {
-    const inOpening = opening.slice(opening.indexOf("async function inOpening("), opening.indexOf("const openingOf"));
+    // inOpening moved to in-opening.ts (shared with the online unseal, wave 3b step 13); the lock order is unchanged.
+    const frame = read("src", "app", "sourcing", "[id]", "opening", "in-opening.ts");
+    const inOpening = frame.slice(frame.indexOf("async function inOpening("));
     expect(inOpening.indexOf("lockOpenedBidRows")).toBeGreaterThan(inOpening.indexOf("lockOpeningRows"));
     expect(fin.indexOf("lockEvaluationRows")).toBeLessThan(fin.indexOf("openNewVersion("));
   });

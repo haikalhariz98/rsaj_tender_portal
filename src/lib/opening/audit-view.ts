@@ -95,6 +95,20 @@ export function openedBidFields(b: { listingNo: number; envelope: string; bidder
   };
 }
 
+/// An online offer as opened by the unseal (ADR 0036 D10): the listing, the envelope, the bidder, the findings, and no figure, because none is read until the opening is finalised (ruling 20).
+export function onlineOpenedBidFields(b: { listingNo: number; envelope: string; bidder: string; alternative: AlternativeConsideration | null; parentListingNo: number | null; sale: SaleFinding; restriction: RestrictionFinding; at: Date }, tz: string | null) {
+  return {
+    listing: `No. ${b.listingNo}`,
+    envelope: b.envelope,
+    bidder: b.bidder,
+    priceRead: "Not read yet: sealed until the opening is finalised",
+    alternative: b.alternative ? `${ALTERNATIVE_LABEL[b.alternative]}${b.parentListingNo != null ? ` to No. ${b.parentListingNo}` : ""}` : null,
+    purchase: SALE_FINDING_LABEL[b.sale],
+    restriction: RESTRICTION_FINDING_LABEL[b.restriction],
+    opened: stamp(b.at, tz),
+  };
+}
+
 /// A correction's before or after: only what a correction touches (OD-10).
 export const asReadFields = (b: { bidder: string; registrationClass: string; registrationStatus: string; price: Sen; period: { value: number; unit: PeriodUnit } | null; validityDays: number | null }) => ({
   bidder: b.bidder,

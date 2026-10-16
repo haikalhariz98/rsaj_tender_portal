@@ -165,7 +165,7 @@ function OpeningCard({ d, o, viewerPersonId }: { d: OpeningSectionView; o: Openi
                 </span>
                 <Chip tone={p.present ? "ok" : undefined}>{p.present ? "Present" : "Absent"}</Chip>
                 {p.authorised && <Chip tone="brand">{`Authorised sitting ${o.sittingNo}`}</Chip>}
-                {shown(o, p.authorise) && !p.authorised && !o.finalised && p.authorise && (p.personId === viewerPersonId ? <AuthoriseDrawer exerciseId={ex} openingId={o.id} name={p.name} allowed={p.authorise} /> : <span className="text-[12.5px] text-ink-3">Authorises signed in as themselves</span>)}
+                {shown(o, p.authorise) && !p.authorised && !o.finalised && p.authorise && (p.personId === viewerPersonId ? <AuthoriseDrawer exerciseId={ex} openingId={o.id} name={p.name} allowed={p.authorise} online={o.online ? o.authorisationsRequired : null} /> : <span className="text-[12.5px] text-ink-3">Authorises signed in as themselves</span>)}
               </li>
             ))}
           </ul>

@@ -19,6 +19,8 @@ import { passphraseFaults, PASSPHRASE_WORDS } from "@/lib/sealing/ceremony";
 import { makeOfficerKey } from "@/lib/sealing/ceremony-seal";
 import { pepperForWrapFault, PEPPER_WRAP_WORDS, REKEY_WORDS, rekeyRefusals, SHARE_WORDS, shareFaults } from "@/lib/sealing/share";
 import { loadCeremony, logCeremonyEvent, logCeremonyRefusal, makeKeyIfComplete, rekeyKey, retireExerciseKey, retireOfficerKey, sealedSqlState } from "@/lib/sealing/store";
+import { logSealedGranted, logSealedRefusal, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
+import { zero } from "@/lib/sealing/types";
 import { withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 
@@ -242,4 +244,34 @@ export async function rekeyExercise(_prev: FormState, data: FormData): Promise<F
   });
   if (refusal.code) await logCeremonyRefusal(db, { organisationId: actor.organisationId, exerciseId, kind: "KEY_RETIRED", staffPersonId: actor.personId, reasonCode: refusal.code });
   return out;
+}
+
+/**
+ * "Check I can still unlock" (ADR 0036 D4, build plan step 13): a named officer tests their passphrase against their own wrapped key before the opening, without releasing a share. The
+ * sign-in password is asked again (step-up). A wrong passphrase is counted on the key's own lockout and never on the sign-in's; a pepper this copy does not hold is its own refusal and is
+ * not counted (20v). Every attempt, granted or refused, is written as an `UNLOCK_CHECK` access event, after the session was checked. Nothing is changed but that counter.
+ */
+export async function checkUnlock(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForAct("UNSEAL");
+  if (!guard.ok) {
+    const who = await requireStaff();
+    await logSealedRefusal({ organisationId: who.organisationId, exerciseId: exerciseIdOf(data), kind: "UNLOCK_CHECK", staffPersonId: who.personId, reasonCode: "ADMINISTRATOR" });
+    return guard.state;
+  }
+  const actor = guard.actor;
+  const exerciseId = exerciseIdOf(data);
+  const passphrase = text(data, "passphrase");
+  if (passphrase.length === 0) return { ok: false, errors: { passphrase: "Enter your unseal passphrase." } };
+  if (passphrase.length > MAX_PASSPHRASE_CHARACTERS) return { ok: false, errors: { passphrase: "That passphrase is too long." } };
+  // The sign-in password, asked as every act asks it. Nothing is signed: the attribution is never written, only the password checked.
+  const begun = await beginAct(actor, data, "OfficerExerciseKey.person", { personField: "personId", onBehalf: false, document: { entity: "SourcingExercise", id: exerciseId } });
+  if (!begun.ok) {
+    await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "UNLOCK_CHECK", staffPersonId: actor.personId, reasonCode: "STEP_UP_REFUSED" });
+    return begun.state;
+  }
+  const unlocked = await unlockOwnKey({ organisationId: actor.organisationId, exerciseId, personId: actor.personId, passphrase, kind: "UNLOCK_CHECK", now: new Date() });
+  if (!unlocked.ok) return { ok: false, message: unlockRefusalWords(unlocked) };
+  zero(unlocked.privateKey);
+  await logSealedGranted({ organisationId: actor.organisationId, exerciseId, kind: "UNLOCK_CHECK", staffPersonId: actor.personId, recordId: unlocked.officerKeyId, at: new Date() });
+  return { ok: true, message: "Your passphrase unlocks your key for this exercise. Nothing was opened and no share was released." };
 }

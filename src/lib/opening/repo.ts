@@ -31,13 +31,15 @@ import { estimateFactsOf, loadEstimates, loadScopePolicy } from "@/lib/scope/rep
 import { windowGate } from "@/lib/window/gate";
 
 import type { OpeningPolicySnapshot } from "./policy";
-import { openingState, type OpeningState } from "./state";
+import { openingState, requiredAuthorisations, type OpeningState } from "./state";
 import type { SeatHolder } from "./panel";
 import type { SaleFacts } from "./findings";
 import type { InvitedCountReading } from "./types";
 
 export const OPENING_INCLUDE = {
   committee: { select: { id: true, code: true, nameEn: true } },
+  /// Wave 3b: an ONLINE opening is authorised by every officer of its panel, not by two (`requiredAuthorisations`).
+  exercise: { select: { submissionChannel: true } },
   startedBy: { select: { id: true, name: true } },
   panelOverrideBy: { select: { id: true, name: true } },
   admissionDecision: { select: { id: true, bidEnvelopeId: true, meeting: { select: { reference: true } } } },
@@ -76,7 +78,9 @@ export type OpenedBidRow = OpeningRow["bids"][number];
 
 /// The rules' view of an opening row, on its exercise's status (a cancelled exercise records nothing more, review M-1).
 export const stateOf = (o: OpeningRow, exerciseStatus: string): OpeningState =>
-  openingState({ ...o, exerciseStatus }, o.sittings, o.authorisations, o.panel.map((p) => ({ personId: p.personId, present: p.present })));
+  openingState({ ...o, exerciseStatus }, o.sittings, o.authorisations, o.panel.map((p) => ({ personId: p.personId, present: p.present })), authorisationsRequired(o));
+/// Two on paper; online, the panel's size (the roster the exercise key was split across).
+export const authorisationsRequired = (o: Pick<OpeningRow, "exercise" | "panel">): number => requiredAuthorisations(o.exercise.submissionChannel, o.panel.length);
 export const panelOf = (o: OpeningRow) => o.panel.map((p) => ({ personId: p.personId, present: p.present }));
 export const presentOf = (o: OpeningRow) => o.panel.filter((p) => p.present).map((p) => ({ personId: p.personId, name: p.person.name }));
 export const liveScans = (o: Pick<OpeningRow, "attachments">) => o.attachments.filter(isLive).length;

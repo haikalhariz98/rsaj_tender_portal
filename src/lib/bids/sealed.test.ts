@@ -96,12 +96,14 @@ const within = (text: string, at: number) =>
 describe("no bidder is named before opening (OD-2)", () => {
   // 6.7 C-10 (ruled, flagged): the scan becomes "only openEnvelope writes an envelope's party" — the
   // one act that names a bidder, at its opening. Every other envelope write still names none.
-  it("only 6.7's openEnvelope sets an envelope's party; no other write in the app or the lib does", () => {
+  // Wave 3b step 13 (ADR 0036 D9: "its party is named at the unseal"; plan 1.5f): the online unseal's `commitUnseal` is the one other act that names a bidder, in the transaction that opens its
+  // submission, from the sealed record the officers opened together. Every other envelope write still names none.
+  it("only 6.7's openEnvelope and the online unseal's commitUnseal set an envelope's party; no other write in the app or the lib does", () => {
     // Each occurrence is attributed where it is (6.7 review R-7: two identical writes in two functions are two writes).
     const writes = sources.flatMap((s) => envelopeWrites(s.text).map(({ w, at }) => ({ path: s.path, w, fn: within(s.text, at) })));
     expect(writes.length).toBeGreaterThan(0);
     const naming = writes.filter((x) => /\bpartyId\b|\bparty\s*:/.test(x.w));
-    expect(naming.map((x) => `${x.path}#${x.fn}`)).toEqual([join("src", "app", "sourcing", "[id]", "opening", "actions.ts") + "#openEnvelope"]);
+    expect(naming.map((x) => `${x.path}#${x.fn}`)).toEqual([join("src", "app", "sourcing", "[id]", "opening", "actions.ts") + "#openEnvelope", join("src", "lib", "opening", "unseal-store.ts") + "#commitUnseal"]);
   });
 });
 
@@ -243,10 +245,12 @@ const MAY_SELECT_IDENTITY: Readonly<Record<string, string>> = {
   "src/lib/bids/online/submit-store.ts": "step 10: the submit and the withdraw write the supplier and its account on the bid, and read the supplier's own rows",
   "src/lib/bids/online/upload-store.ts": "step 10: the part upload writes the supplier and its account on the file, and reads the supplier's own files",
   "src/lib/bids/online/my-bids-store.ts": "step 11: the supplier's own screens read its own submissions, by the session's supplier and no other",
+  "src/lib/opening/unseal-store.ts": "step 13 (plan 1.5e, 1.5f): the last authorisation of the unseal lists each opened bid under its supplier's party on the exercise, and reads no other",
 };
 const SELECTS_NO_IDENTITY: Readonly<Record<string, string>> = {
   "src/lib/bids/online/audit-scope-store.ts": "step 12: reads an id and an exercise from the online tables to find which exercise an audit row belongs to",
   "src/lib/sealing/store.ts": "the key ceremony: logs staff acts on the access-event table and reads the keys, never a bid",
+  "src/lib/sealing/unlock-store.ts": "step 13: logs an officer's attempts at their own key on the access-event table, by the staff person, and reads the officer's key, never a bid",
 };
 
 describe("only the step 10 stores read the D9 identity columns (20a, step 12)", () => {

@@ -201,8 +201,8 @@ describe("a slot written beside an act can be recorded the way the act is", () =
 describe("a refused attribution is a message, never a crash", () => {
   it("every action file that writes an attribution catches the refusal the writer can raise in the act's transaction", () => {
     // The writer throws `AttributionRefused` to roll the act back (a race the pre-flight could not see). The file's own frame turns it into the form's message: its own
-    // catch, `thrownState`, or one of the frames that catch it (`inWindow` and `inEvaluation` of the sourcing exercise, `inSupplier` of the register).
-    const bare = ACT_SOURCES.filter((f) => f.file.startsWith("src/app/") && !f.file.startsWith("src/app/_auth/") && /\b(?:act|act0)\.(?:write|writeAlso)\(|\.write\(\s*(?:\w+\.)?tx\b/.test(f.text) && !/attributionRefusalState|AttributionRefused|thrownState/.test(f.text) && !/\b(?:inWindow|inEvaluation|inSupplier)\(/.test(f.text));
+    // catch, `thrownState`, or one of the frames that catch it (`inWindow` and `inEvaluation` of the sourcing exercise, `inOpening` (in-opening.ts, a frame over `inWindow`, shared by the paper acts and the online unseal), `inSupplier` of the register).
+    const bare = ACT_SOURCES.filter((f) => f.file.startsWith("src/app/") && !f.file.startsWith("src/app/_auth/") && /\b(?:act|act0)\.(?:write|writeAlso)\(|\.write\(\s*(?:\w+\.)?tx\b/.test(f.text) && !/attributionRefusalState|AttributionRefused|thrownState/.test(f.text) && !/\b(?:inWindow|inOpening|inEvaluation|inSupplier)\(/.test(f.text));
     expect(bare.map((f) => f.file)).toEqual([]);
   });
 });

@@ -12,7 +12,7 @@ export const S = 1000;
 export const at = (ms: number) => new Date(CLOSING.getTime() + ms);
 
 /// An opening whose box is open and whose sitting is authorised.
-export const open = (over: Partial<OpeningState> = {}): OpeningState => ({ kind: "MAIN", cancelled: false, finalised: false, unsealed: true, adjourned: false, sittingAuthorised: true, sittingNo: 1, ...over });
+export const open = (over: Partial<OpeningState> = {}): OpeningState => ({ kind: "MAIN", cancelled: false, finalised: false, unsealed: true, adjourned: false, sittingAuthorised: true, sittingNo: 1, required: 2, ...over });
 
 export const PANEL = [
   { personId: "p1", present: true },

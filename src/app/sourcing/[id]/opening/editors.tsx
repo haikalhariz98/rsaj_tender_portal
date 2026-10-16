@@ -2,6 +2,7 @@ import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
+import { authoriseOnlineUnseal } from "./unseal-actions";
 import type { Allowed } from "@/lib/opening/read";
 
 import {
@@ -122,7 +123,8 @@ export function StartSupplementaryDrawer({ exerciseId, decisionId, sequence, all
 // ------------------------------------------------------------------ authorising, adjourning
 
 /// A panel member authorises their own seat, signed in as themselves (FR-OPN-003, Phase 3d): the page offers this only on the row of the member who is signed in.
-export function AuthoriseDrawer({ exerciseId, openingId, name, allowed }: { exerciseId: string; openingId: string; name: string; allowed: Allowed }) {
+export function AuthoriseDrawer({ exerciseId, openingId, name, allowed, online = null }: { exerciseId: string; openingId: string; name: string; allowed: Allowed; /** ONLINE: how many named officers must authorise. Null when the bids are not taken online. */ online?: number | null }) {
+  if (online !== null) return <AuthoriseOnlineDrawer exerciseId={exerciseId} openingId={openingId} name={name} allowed={allowed} required={online} />;
   return blockedOr(allowed, "Authorise", () => (
     <RecordEditor
       title={`${name} authorises the opening`}
@@ -130,6 +132,22 @@ export function AuthoriseDrawer({ exerciseId, openingId, name, allowed }: { exer
       fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningAuthorisation.person", { name: "personId" })]}
       values={{ exerciseId, openingId }}
       action={recordAuthorisation}
+      submitLabel="Record the authorisation"
+      trigger={{ label: "Authorise", className: secondary, ariaLabel: `Record ${name}'s authorisation` }}
+      size="sm"
+    />
+  ));
+}
+
+/// ONLINE: a named officer authorises with the sign-in password and their own unseal passphrase (ADR 0036 D3, D10). Every named officer is needed; the last one's authorisation opens the bids.
+export function AuthoriseOnlineDrawer({ exerciseId, openingId, name, allowed, required }: { exerciseId: string; openingId: string; name: string; allowed: Allowed; required: number }) {
+  return blockedOr(allowed, "Authorise", () => (
+    <RecordEditor
+      title={`${name} authorises the opening`}
+      description={`Signed by you, with your own sign-in password, and with the unseal passphrase you chose for this exercise. Every one of the ${required} named officers authorises in their own sign-in: nobody authorises for another, and the bids are unsealed when the last has. A passphrase cannot be reset or recovered.`}
+      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "text", name: "passphrase", label: "Unseal passphrase", required: true, secret: true }, actorField("OpeningAuthorisation.person", { name: "personId" })]}
+      values={{ exerciseId, openingId }}
+      action={authoriseOnlineUnseal}
       submitLabel="Record the authorisation"
       trigger={{ label: "Authorise", className: secondary, ariaLabel: `Record ${name}'s authorisation` }}
       size="sm"

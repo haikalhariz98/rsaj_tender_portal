@@ -1,14 +1,11 @@
 "use server";
 
-import { sulitWriteRefusal, type Reader } from "@/lib/auth/sulit-store";
 import { Prisma } from "@/generated/prisma/client";
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import type { Tx } from "@/lib/audit/record";
 import { BID_ENTITY, envelopeFields, statusField } from "@/lib/bids/audit-view";
 import { unopenedInTime } from "@/lib/bids/envelope-status";
-import { lockBoxRows, lockEnvelopeRows, lockWithdrawalRows } from "@/lib/bids/lock";
-import { toSecond } from "@/lib/bids/lateness";
 import { ENVELOPE_KIND_LABEL } from "@/lib/bids/labels";
 import { dayIn, dayToDate, isDay, storedDay } from "@/lib/dates";
 import { moveExercise } from "@/lib/method/move";
@@ -16,7 +13,6 @@ import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
 import { lockedAtOrAfterClosing } from "@/lib/bids/box";
 import { estimateEventAudit, ENTITY as SCOPE_ENTITY } from "@/lib/scope/audit-view";
 import { leadTime } from "@/lib/scope/estimate";
-import { lockLiveEstimateRows } from "@/lib/scope/lock";
 import { FormReader } from "@/lib/validate";
 import { lockEvaluationRows } from "@/lib/evaluation/lock";
 import { ceilingOf } from "@/lib/evaluation/repo";
@@ -33,18 +29,20 @@ import { grandSummary } from "@/lib/opening/grand-summary";
 import { freshInitials, initialStale } from "@/lib/opening/initials";
 import { openingFindingText, restrictionLabel } from "@/lib/opening/labels";
 import { isRestrictionReading, restrictionReadingWords } from "@/lib/suppliers/restriction-register";
-import { lockOpenedBidRows, lockOpeningRows } from "@/lib/opening/lock";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "@/lib/opening/open";
 import { panelFaults, supplementaryPanel } from "@/lib/opening/panel";
 import { loadOpeningRoster } from "@/lib/opening/roster-store";
 import { rosterFaults } from "@/lib/opening/roster";
 import { actFaults } from "@/lib/opening/state";
-import { invitedCounts, openingContext, openingPolicyFrozen, panelOf, panelSnapshot, policyOf, presentOf, stateOf, summaryLabelsOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
+import { invitedCounts, openingPolicyFrozen, panelOf, panelSnapshot, policyOf, presentOf, stateOf, summaryLabelsOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
 import { unpurchasedRecordAudit, unpurchasedRule, type LiveUnpurchased } from "@/lib/opening/unpurchased";
 import { jadualTawaran, lateCount, type ScheduleRowInput } from "@/lib/opening/schedule";
-import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults } from "@/lib/opening/start";
+import { estimateLeadFaults, frozenRuleFaults, onlineStartFaults, startFaults, supplementaryFaults } from "@/lib/opening/start";
 import { blocking, CHECKLIST_ANSWERS, PERIOD_UNITS, type Finding, type OpeningVerdict, type PeriodUnit } from "@/lib/opening/types";
 import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, unsealState } from "@/lib/opening/unseal";
+import { databaseClock, freezeReceiptRoll, shredReleases } from "@/lib/opening/unseal-store";
+import { loadCeremony } from "@/lib/sealing/store";
+import { MAX_STAMP_SKEW_SECONDS } from "@/lib/portal/bids/limits";
 import { judgeBid, verdictFaults, verdictRecord } from "@/lib/opening/verdict";
 import { verdictDrift } from "@/lib/opening/verdict-drift";
 import { consequenceFor, ineligibleOf } from "@/lib/suppliers/opening-hook";
@@ -53,7 +51,7 @@ import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals
 
 import { registerRestrictionOf } from "@/lib/opening/restriction-read";
 import { frozenRuleOf, readingJson, retakeRestriction } from "./restriction";
-import { activePerson, audit, exerciseIdOf, inWindow, label, Refusal, type LockedWindow } from "../window/shared";
+import { activePerson, audit, exerciseIdOf, label, Refusal, type LockedWindow } from "../window/shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct, type PreparedAct } from "@/app/_auth/act";
 import { loadRecorders, recorderKey } from "@/lib/auth/attribution-recorders";
@@ -72,31 +70,8 @@ import { priceRead } from "@/lib/opening/price";
  * 0017). Codes go back, never figures: no refusal names a price or the estimate.
  */
 
-const stampNow = () => toSecond(new Date());
-
-const refuse = (fs: readonly Finding[], lead = "Nothing was saved:"): FormState => ({ ok: false, message: `${lead} ${blocking(fs).map(openingFindingText).join(" ")}` });
-const warnings = (fs: readonly Finding[]) => fs.filter((f) => f.level !== "block").map(openingFindingText).join(" ");
-const GONE_OPENING: FormState = { ok: false, message: "That opening is not on this exercise." };
-const GONE_BID: FormState = { ok: false, message: "That offer is not on this exercise." };
-const ENVELOPE_CHANGED: FormState = { ok: false, message: "The envelope changed while this was being saved. Nothing was saved. Reload and try again." };
-
-/// Run an opening write with every lock its order asks for, and the context read under them.
-async function inOpening(scope: Reader, exerciseId: string, now: Date, fn: (tx: Tx, l: LockedWindow, c: OpeningContext) => Promise<FormState>, opts: { estimate?: boolean; prices?: StaffActor } = {}): Promise<FormState> {
-  return inWindow(scope, exerciseId, async (tx, l) => {
-    // Phase 3b: an act that writes a price as read is done by someone the prices are open to; what they may not read they may not change, and are told why. Logged in this transaction.
-    if (opts.prices) {
-      const refusal = await sulitWriteRefusal(tx, opts.prices, { scope: "exercise", exerciseId: l.ex.id }, ["openingPrice", "correctedPrice"]);
-      if (refusal) return { ok: false, message: `Nothing was saved: the prices read at the opening are SULIT and are closed to you. ${refusal}` };
-    }
-    await lockOpeningRows(tx, l.ex.id);
-    if (opts.estimate) await lockLiveEstimateRows(tx, l.ex.id);
-    await lockEnvelopeRows(tx, l.ex.id);
-    await lockWithdrawalRows(tx, l.ex.id);
-    await lockBoxRows(tx, l.ex.id);
-    await lockOpenedBidRows(tx, l.ex.id);
-    return fn(tx, l, await openingContext(l, tx, now));
-  });
-}
+import { ENVELOPE_CHANGED, GONE_BID, GONE_OPENING, inOpening, refuse, stampNow, warnings } from "./in-opening";
+import { ONLINE_AUTHORISE_ELSEWHERE, ONLINE_ENVELOPE_OPENED_BY_UNSEAL } from "./online-words";
 
 const openingOf = (c: OpeningContext, id: string) => c.openings.find((o) => o.id === id) ?? null;
 const bidOf = (c: OpeningContext, id: string) => {
@@ -127,11 +102,12 @@ function readPresent(data: FormData): Set<string> {
  * officer has since come to hold an administrator account. Seats, size and independence are judged by the panel's own rules below. Where it
  * does not (made before officers were named on the exercise), the panel is the pick posted, as it always was.
  */
-async function startingPicks(tx: Tx, l: { ex: { id: string; sourcingMethodCode: string; openingRosterRequired: boolean }; org: { id: string; code: string; today: string | null } }, data: FormData): Promise<{ picks: { personId: string; present: boolean }[]; faults: Finding[] }> {
+async function startingPicks(tx: Tx, l: { ex: { id: string; sourcingMethodCode: string; openingRosterRequired: boolean; submissionChannel: string | null }; org: { id: string; code: string; today: string | null } }, data: FormData): Promise<{ picks: { personId: string; present: boolean }[]; faults: Finding[] }> {
   if (!l.ex.openingRosterRequired) return { picks: readPanel(data), faults: [] };
   const roster = await loadOpeningRoster(l.ex, l.org, tx);
   const present = readPresent(data);
-  return { picks: roster.rows.map((r) => ({ personId: r.personId, present: present.has(r.personId) })), faults: rosterFaults(roster.input).filter((f) => f.code === "OFFICER_IS_ADMINISTRATOR") };
+  // ONLINE (ADR 0036 D10): every named officer is on the panel and authorises in their own sign-in, so presence is not asked: authorising is the presence.
+  return { picks: roster.rows.map((r) => ({ personId: r.personId, present: l.ex.submissionChannel === "ONLINE" || present.has(r.personId) })), faults: rosterFaults(roster.input).filter((f) => f.code === "OFFICER_IS_ADMINISTRATOR") };
 }
 
 async function pickedPeople(tx: Tx, orgId: string, picks: readonly { personId: string; present: boolean }[]) {
@@ -177,8 +153,23 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
     const person = await nameOf(tx, l.org.id, startedByPersonId);
     const { picks, faults: rosterBlocks } = await startingPicks(tx, l, data);
     if (blocking(rosterBlocks).length) return refuse(rosterBlocks);
-    const sf = startFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, publishedThroughWindow: c.window?.publishedAt != null, timeZone: l.org.timeZone, phase: c.gate.phase, boxLocked: c.boxLocked, changePending: c.gate.changePending, mainExists: c.main != null, personActive: !!person });
+    const online = l.ex.submissionChannel === "ONLINE";
+    const sf = startFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, publishedThroughWindow: c.window?.publishedAt != null, timeZone: l.org.timeZone, phase: c.gate.phase, boxLocked: c.boxLocked, changePending: c.gate.changePending, mainExists: c.main != null, personActive: !!person, channel: l.ex.submissionChannel });
     if (blocking(sf).length) return refuse(sf);
+    // ADR 0036 D10, H2, 20aa: an online opening starts on a live key split across exactly the officers named, and only once the DATABASE clock (read here, after the locks, the clock the triggers read)
+    // is past the closing by the skew, so that no bid sent in time can still be committing when the roll is frozen below.
+    let receiptRoll: Awaited<ReturnType<typeof freezeReceiptRoll>> | null = null;
+    let sealedEstimate = false;
+    if (online) {
+      const ceremony = await loadCeremony(tx, l.org.id, l.ex.id);
+      const clock = await databaseClock(tx);
+      const of = onlineStartFaults({ closing: l.ex.closingAt, clock, skewSeconds: MAX_STAMP_SKEW_SECONDS, rosterOfficers: ceremony.roster.length, key: ceremony.liveKey ? { officerCount: ceremony.liveKey.officerCount, shareHolders: ceremony.shareHolderRowIds.length } : null });
+      const sameOfficers = picks.length === ceremony.roster.length && picks.every((p) => ceremony.roster.some((r) => r.personId === p.personId));
+      if (!sameOfficers && !of.some((f) => f.code === "KEY_OFFICERS_MISMATCH")) of.push({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: ceremony.roster.length, keyOfficers: ceremony.liveKey?.officerCount ?? 0 } });
+      if (blocking(of).length) return refuse(of);
+      receiptRoll = await freezeReceiptRoll(tx, l.org.id, l.ex.id);
+      sealedEstimate = !!ceremony.liveKey && (await tx.sealedEstimateLodgement.count({ where: { exerciseId: l.ex.id, organisationId: l.org.id, keyId: ceremony.liveKey.id, supersededAt: null } })) > 0;
+    }
     // Review M-4: a rule frozen unset that would make finalising impossible refuses the start, naming it.
     const checklist = openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda });
     const rf = frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, checklist, invitedReading: c.openingPolicy?.invitedCountReading ?? null });
@@ -202,7 +193,8 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
     const overrider = lateOverridePersonId ? await nameOf(tx, l.org.id, lateOverridePersonId) : null;
     const est = estimateLeadFaults({
       requires: c.method?.requiresCompanyEstimate ?? null,
-      estimateState: c.estimate?.state ?? null,
+      // ONLINE reads the sealed lodgement, not the paper copy in the box (ADR 0036 D10): no sealed lodgement under the live key is none lodged.
+      estimateState: online ? (sealedEstimate ? (c.estimate?.state ?? null) : null) : (c.estimate?.state ?? null),
       lead,
       override: lateOverridePersonId || lateOverrideReason.trim() ? { personId: overrider?.id ?? null, holdsOverrideRole: !!overrider && c.holdsOffice(overrider.id, c.scopePolicy.estimateOverrideRoleCode), reason: lateOverrideReason } : null,
       overrideRoleCode: c.scopePolicy.estimateOverrideRoleCode,
@@ -241,6 +233,7 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
         panelOverrideReason: panelOverride?.reason ?? "",
         panelOverrideByPersonId: panelOverride?.by.id ?? null,
         estimateLead: estimateLead as Prisma.InputJsonValue,
+        ...(receiptRoll ? { receiptRoll: receiptRoll as unknown as Prisma.InputJsonValue } : {}),
         checklistSnapshot: checklist as unknown as Prisma.InputJsonValue,
         policySnapshot: policy as unknown as Prisma.InputJsonValue,
       },
@@ -263,7 +256,8 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
       await audit(tx, toAuditActor(actor), l.org.id, SCOPE_ENTITY.estimateEvent, ev.id, label(l, "Company estimate · late, overridden"), "CREATE", estimateEventAudit({ kind: "LATE_OVERRIDE", personName: overrider!.name, capacity: "At the opening", versionNo: c.estimate.currentVersionNo, reason: lateOverrideReason }), lateOverrideReason);
     }
     const said = warnings([...pf, ...(est.ok ? est.warnings : [])]);
-    return { ok: true, message: `Opening started. Two panel members present now each authorise it.${said ? ` ${said}` : ""}` };
+    const who = online ? `Each of the ${picked.length} named opening officers now authorises it with their own unseal passphrase.` : "Two panel members present now each authorise it.";
+    return { ok: true, message: `Opening started. ${who}${said ? ` ${said}` : ""}` };
   });
 }
 
@@ -294,6 +288,14 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
     const envelope = decision?.bidEnvelopeId ? (c.envelopes.find((e) => e.id === decision.bidEnvelopeId) ?? null) : null;
     const sf = supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: decision && !decision.withdrawnAt ? { matterKind: decision.matterKind ?? "", outcome: decision.outcome, bidEnvelopeId: decision.bidEnvelopeId } : null, alreadyOpened: c.openings.some((o) => o.admissionDecisionId === decisionId), envelope: envelope ? { status: envelope.status, late: envelope.late } : null, personActive: !!person, timeZone: l.org.timeZone });
     if (blocking(sf).length) return refuse(sf);
+    const online = l.ex.submissionChannel === "ONLINE";
+    if (online) {
+      // The same key, split across the same officers, as the main unseal needs (ADR 0036 D10): an admitted late bid is opened n-of-n again. No skew is waited for: the roll was frozen at the main start.
+      const ceremony = await loadCeremony(tx, l.org.id, l.ex.id);
+      const of = onlineStartFaults({ closing: l.ex.closingAt, clock: new Date(), skewSeconds: MAX_STAMP_SKEW_SECONDS, waitForSkew: false, rosterOfficers: ceremony.roster.length, key: ceremony.liveKey ? { officerCount: ceremony.liveKey.officerCount, shareHolders: ceremony.shareHolderRowIds.length } : null });
+      if (!(picks.length === ceremony.roster.length && picks.every((p) => ceremony.roster.some((r) => r.personId === p.personId)))) of.push({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: ceremony.roster.length, keyOfficers: ceremony.liveKey?.officerCount ?? 0 } });
+      if (blocking(of).length) return refuse(of);
+    }
     const picked = await pickedPeople(tx, l.org.id, picks);
     const wantsOverride = !!(overrideAuthority.trim() || overrideReason.trim() || overridePersonId);
     const overrideBy = wantsOverride ? await nameOf(tx, l.org.id, overridePersonId) : null;
@@ -338,7 +340,8 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, opening.id, label(l, `Supplementary opening ${sequenceNo - 1}`), "CREATE",
       diffFields(null, { ...openingStartFields({ kind: "SUPPLEMENTARY", committee: committee!.nameEn, panel: picked, startedAt: now, startedBy: person!.name, panelOverride: panelOverride ? { authority: panelOverride.authority, reason: panelOverride.reason, by: panelOverride.by.name } : null, independence: pf.some((f) => f.code === "EXCLUSION_RULE_NOT_SET") ? "Independence rule not set; panel not checked" : "As the committee's rule", estimateLead: "Not judged: the estimate was disclosed at the main opening", boxLockedAt: null, lockGap: null }, l.org.timeZone), admittedBy: decision!.meeting.reference, envelope: envelope ? `Envelope ${envelope.sequence}` : null }),
       panelOverride?.reason ?? "");
-    return { ok: true, message: `Supplementary opening started. Two panel members present now each authorise it.${warnings(pf) ? ` ${warnings(pf)}` : ""}` };
+    const who = online ? `Each of the ${picked.length} named opening officers now authorises it with their own unseal passphrase.` : "Two panel members present now each authorise it.";
+    return { ok: true, message: `Supplementary opening started. ${who}${warnings(pf) ? ` ${warnings(pf)}` : ""}` };
   });
 }
 
@@ -359,6 +362,8 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
+    // ADR 0036 D10: an online opening is unsealed by the officers' own passphrases, each forwarding the shares it holds, and by nothing else.
+    if (l.ex.submissionChannel === "ONLINE") return { ok: false, message: ONLINE_AUTHORISE_ELSEWHERE };
     const state = stateOf(o, l.ex.status);
     const person = await nameOf(tx, l.org.id, personId);
     // Authorisations recorded before Phase 3d could be keyed from a member's paper, and whoever keyed one is a hand behind it as well: two people act, never one (Phase 2b
@@ -425,16 +430,19 @@ async function sittingAct(scope: StaffActor, data: FormData, resume: boolean): P
       const row = await tx.openingSitting.create({ data: { organisationId: l.org.id, openingId: o.id, sittingNo: state.sittingNo + 1, startedAt: now, resumeReason: reason, recordedByPersonId: person!.id } });
       await audit(tx, actor, l.org.id, OPENING_ENTITY.sitting, row.id, openingLabel(l, o), "CREATE", diffFields(null, sittingFields({ sittingNo: state.sittingNo + 1, at: now, by: person!.name, adjourned: false, reason }, l.org.timeZone)), reason);
       await act.write(tx, row.id);
-      return { ok: true, message: "Resumed. Two panel members present now each authorise the new sitting." };
+      return { ok: true, message: state.required > 2 ? `Resumed. Each of the ${state.required} named opening officers now authorises the new sitting.` : "Resumed. Two panel members present now each authorise the new sitting." };
     }
     const sitting = o.sittings.find((s) => s.sittingNo === state.sittingNo)!;
     await tx.openingSitting.update({ where: { id: sitting.id, organisationId: scope.organisationId }, data: { adjournedAt: now, adjournReason: reason } });
     await audit(tx, actor, l.org.id, OPENING_ENTITY.sitting, sitting.id, openingLabel(l, o), "UPDATE", diffFields({ adjourned: null }, sittingFields({ sittingNo: state.sittingNo, at: now, by: person!.name, adjourned: true, reason }, l.org.timeZone)), reason);
-    for (const id of lapsedByAdjourning(state.sittingNo, o.authorisations, panelOf(o))) {
+    const lapsing = lapsedByAdjourning(state.sittingNo, o.authorisations, panelOf(o), state.required);
+    for (const id of lapsing) {
       await tx.openingAuthorisation.update({ where: { id, organisationId: scope.organisationId }, data: { lapsedAt: now } });
       await audit(tx, actor, l.org.id, OPENING_ENTITY.authorisation, id, openingLabel(l, o), "UPDATE", diffFields({ lapsed: null }, { lapsed: "Unpaired when the sitting was adjourned: kept, does not count again" }));
     }
-    return { ok: true, message: "Adjourned. Nothing recorded is lost; resuming needs two fresh authorisations." };
+    // C-2, ADR 0036 D10: the shares an unpaired online authorisation forwarded are shredded with it (kept, their sealed column set to NULL), so the next sitting starts from the officers' own shares.
+    if (lapsing.length && l.ex.submissionChannel === "ONLINE") await shredReleases(tx, { organisationId: l.org.id, openingId: o.id, authorisationIds: lapsing, as: "lapsed", now });
+    return { ok: true, message: state.required > 2 ? `Adjourned. Nothing recorded is lost; resuming needs ${state.required} fresh authorisations, one from each named officer.` : "Adjourned. Nothing recorded is lost; resuming needs two fresh authorisations." };
   });
 }
 
@@ -567,6 +575,8 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
     if (!o) return GONE_OPENING;
     const state = stateOf(o, l.ex.status);
     const e = c.envelopes.find((x) => x.id === envelopeId) ?? null;
+    // ADR 0036 D10: an online envelope is opened by the unseal, from its own sealed record, and never typed in.
+    if (e?.channel === "ONLINE") return { ok: false, message: ONLINE_ENVELOPE_OPENED_BY_UNSEAL };
     const party = partyId ? (c.parties.find((p) => p.id === partyId) ?? null) : null;
     if (partyId && !party) return { ok: false, errors: { partyId: "That bidder is not on this exercise." } };
     const parent = parentOpenedBidId ? (c.openings.flatMap((x) => x.bids).find((b) => b.id === parentOpenedBidId) ?? null) : null;

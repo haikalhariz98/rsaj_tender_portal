@@ -86,7 +86,7 @@ export async function openingSection(organisationId: string, exerciseId: string,
   const applies = c.window?.publishedAt != null && (l.ex.packKindSnapshot === "TENDER" || l.ex.packKindSnapshot === "QUOTATION");
 
   // ---- starting the main opening: everything but the panel picked and who records it.
-  const sf = startFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, publishedThroughWindow: c.window?.publishedAt != null, timeZone: tz, phase: c.gate.phase, boxLocked: c.boxLocked, changePending: c.gate.changePending, mainExists: c.main != null, personActive: true });
+  const sf = startFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, publishedThroughWindow: c.window?.publishedAt != null, timeZone: tz, phase: c.gate.phase, boxLocked: c.boxLocked, changePending: c.gate.changePending, mainExists: c.main != null, personActive: true, channel: l.ex.submissionChannel });
   const config: Finding[] = [];
   if (!c.method?.openingCommitteeCode) config.push({ code: "COMMITTEE_NOT_SET", level: "block" });
   else if (!c.committee) config.push({ code: "COMMITTEE_NOT_FOUND", level: "block" });
@@ -314,6 +314,9 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       no: s.sittingNo,
       text: [`Sitting ${s.sittingNo}: from ${time(s.startedAt, tz)}`, s.resumeReason ? `resumed: ${s.resumeReason}` : null, s.adjournedAt ? `adjourned ${time(s.adjournedAt, tz)}: ${s.adjournReason}` : null, `recorded by ${s.recordedBy.name}`].filter(Boolean).join(" · "),
     })),
+    /// ONLINE (ADR 0036 D10): each named officer authorises with their own passphrase, and all of them are needed.
+    online: o.exercise.submissionChannel === "ONLINE",
+    authorisationsRequired: state.required,
     panelSize: o.panelSizeRequired,
     panelOverride: o.panelOverrideAuthority ? `A panel of ${o.panel.length}, not ${o.panelSizeRequired}, under ${o.panelOverrideAuthority}: ${o.panelOverrideReason}${o.panelOverrideBy ? ` (recorded by ${o.panelOverrideBy.name})` : ""}` : null,
     independence: snap.panel.exclusionRule == null ? openingFindingText({ code: "EXCLUSION_RULE_NOT_SET", level: "warn" }) : snap.panel.exclusionRule ? `Checked against the committee's independence rule (${PROVENANCE_WORD[snap.panel.exclusionProvenance ?? ""] ?? "provenance not recorded"}).` : "The committee excludes no unit from its panel.",
@@ -323,7 +326,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       seat: p.seatLabelSnapshot,
       present: p.present,
       authorised: authorisers.includes(p.personId),
-      authorise: p.present ? allowedOf(authorisationFaults({ state, panel, auths: o.authorisations, personId: p.personId, recorderId: null, now: x.now, closing, boxLocked })) : null,
+      authorise: p.present ? allowedOf(authorisationFaults({ state, panel, auths: o.authorisations, personId: p.personId, recorderId: null, now: x.now, closing, boxLocked, online: o.exercise.submissionChannel === "ONLINE", required: state.required })) : null,
     })),
     authorisations: o.authorisations.map((a) => `Sitting ${a.sittingNo}: ${x.authorisedBy.read({ entity: "OpeningAuthorisation", id: a.id, slot: "person" }, a.person.name).en}, ${seatWords(a.panelMember?.seatLabelSnapshot)}, ${time(a.recordedAt, tz)}${a.lapsedAt ? " · lapsed when the sitting was adjourned" : ""}`),
     adjourn: state.adjourned || state.finalised ? null : allowedOf(adjournFaults({ state, reason: "-", personActive: true, resume: false })),

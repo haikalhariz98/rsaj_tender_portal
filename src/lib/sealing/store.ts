@@ -46,13 +46,13 @@ export async function loadCeremony(tx: Tx, organisationId: string, exerciseId: s
 }
 
 /// A sealed-access event for a granted ceremony act. The row holds ids only.
-export async function logCeremonyEvent(tx: Tx, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_CREATED" | "KEY_RETIRED"; staffPersonId: string; recordId: string; reasonCode?: string; at: Date }): Promise<void> {
+export async function logCeremonyEvent(tx: Tx, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_CREATED" | "KEY_RETIRED" | "AUTHORISE" | "UNLOCK_CHECK"; staffPersonId: string; recordId: string; reasonCode?: string; at: Date }): Promise<void> {
   await tx.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, outcome: "GRANTED", reasonCode: i.reasonCode ?? "", staffPersonId: i.staffPersonId, recordId: i.recordId, at: i.at } });
 }
 
 /// A refused attempt at the ceremony (ADR 0036: every attempt by a signed-in actor leaves a row, a refusal too), outside the refused transaction. Written only where the exercise is
 /// the organisation's: naming one that is not leaves nothing. `reasonCode` is the rule that refused, never a secret.
-export async function logCeremonyRefusal(client: Pick<Tx, "sourcingExercise" | "sealedAccessEvent">, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_RETIRED"; staffPersonId: string; reasonCode: string }): Promise<void> {
+export async function logCeremonyRefusal(client: Pick<Tx, "sourcingExercise" | "sealedAccessEvent">, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_RETIRED" | "AUTHORISE" | "UNLOCK_CHECK"; staffPersonId: string; reasonCode: string }): Promise<void> {
   const ex = await client.sourcingExercise.findFirst({ where: { id: i.exerciseId, organisationId: i.organisationId }, select: { id: true } });
   if (!ex) return;
   await client.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: ex.id, kind: i.kind, outcome: "REFUSED", reasonCode: i.reasonCode, staffPersonId: i.staffPersonId, at: new Date() } });
