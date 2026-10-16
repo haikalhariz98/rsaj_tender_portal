@@ -32,7 +32,7 @@ import { calendarOf } from "../../../prisma/demo-window";
  * would run db:roles too), and only a database whose name carries this file's prefix is ever dropped.
  *
  * Wave 3b step 18 (rulings 12c, 12d, 20z): the demonstration's online sealed-bid exercise. With the deployment's demonstration flag set (named explicitly in the child's
- * environment, so a .env cannot decide it) the load makes one online exercise, pins every authored exercise PAPER and shows Received with two standing and one late, and the
+ * environment, so a .env cannot decide it) the load makes one online exercise, pins every authored exercise PAPER and shows Received with 3 standing in time (one an alternative) plus 1 late, and the
  * demonstration's officers then unseal it and one of them finalises it (`scripts/online-demo-harness.ts`, a child run on this same throwaway database, after the tests that count
  * what a load wrote). With the flag unset, on a second throwaway database, the load completes, the channel reads PAPER, no online bid exists, and the words name the flag. A
  * re-run writes nothing and names the settings that are not set.
@@ -155,7 +155,7 @@ describe("the demo loader is additive (Phase 1d)", () => {
   });
 
   // Wave 3b step 18 (12c, 12d, 20z): with the deployment allowing demonstration bids, the load made one online exercise by the product's own create act.
-  it("with the flag set: the channel is ONLINE, every authored exercise is PAPER and none is unset, and Received shows two standing and one late", { timeout: 300_000 }, async () => {
+  it("with the flag set: the channel is ONLINE, every authored exercise is PAPER and none is unset, and Received shows 3 standing in time, one of them an alternative, plus 1 late", { timeout: 300_000 }, async () => {
     const c = client!;
     const policy = await c.windowPolicy.findFirstOrThrow({ select: { submissionChannel: true } });
     if (!expectOnline) {
@@ -181,9 +181,14 @@ describe("the demo loader is additive (Phase 1d)", () => {
     const envelopes = await c.bidEnvelope.findMany({ where: { exerciseId: ex.id, channel: "ONLINE", NOT: { kind: "COMPANY_ESTIMATE" } }, select: { sequence: true, receivedAt: true, late: true, status: true } });
     const view = receivedView(envelopes.map((e) => ({ sequence: e.sequence, receivedAt: e.receivedAt, late: e.late, status: ONLINE_STATUS_OF[e.status] })), false);
     const bids = await c.onlineBid.findMany({ where: { exerciseId: ex.id }, select: { status: true, kind: true } });
-    expect({ count: view.count, inTime: view.inTime, late: view.late }).toEqual({ count: 3, inTime: 2, late: 1 });
+    expect({ count: view.count, inTime: view.inTime, late: view.late }).toEqual({ count: 4, inTime: 3, late: 1 });
     // One of the two in time replaced its bid, and nothing is open: no opening, no price.
     expect(bids.filter((b) => b.status === "REPLACED")).toHaveLength(1);
+    // 20bp: exactly one standing alternative, whose parent is its own supplier's standing bid.
+    const alts = await c.onlineBid.findMany({ where: { exerciseId: ex.id, kind: "ALTERNATIVE" }, select: { status: true, supplierId: true, parent: { select: { supplierId: true, status: true, kind: true } } } });
+    expect(alts).toHaveLength(1);
+    expect(alts[0].status).toBe("SUBMITTED");
+    expect(alts[0].parent).toMatchObject({ kind: "BID", status: "SUBMITTED", supplierId: alts[0].supplierId });
     expect(await c.opening.count({ where: { exerciseId: ex.id } })).toBe(0);
     // Every share is held under the live key, and the estimate is lodged sealed.
     expect(await c.exerciseKeyShare.count({ where: { sealedShare: { not: null }, key: { exerciseId: ex.id, retiredAt: null } } })).toBeGreaterThanOrEqual(2);

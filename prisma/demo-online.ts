@@ -95,7 +95,7 @@ const BAND = BIG;
 /// The three bidders (two in time, one late) and what they declare. Their portal accounts are the demonstration's own (`npm run demo:accounts` gives them the demonstration password).
 export const ONLINE_BIDDERS = [
   { key: "paip", supplierId: `${P}vnd2`, party: `${P}pty40`, sale: `${P}sale40`, receiptNo: "FR/26/004601", main: { price: "371500.00", period: 9 }, replacement: { price: "368900.00", period: 9 } },
-  { key: "contoh", supplierId: `${P}vnd1`, party: `${P}pty41`, sale: `${P}sale41`, receiptNo: "FR/26/004602", main: { price: "376400.00", period: 8 } },
+  { key: "contoh", supplierId: `${P}vnd1`, party: `${P}pty41`, sale: `${P}sale41`, receiptNo: "FR/26/004602", main: { price: "376400.00", period: 8 }, alternative: { price: "365200.00", period: 7 } },
   { key: "contractor", supplierId: `${P}ctr13`, party: `${P}pty42`, sale: `${P}sale42`, receiptNo: "FR/26/004603", main: { price: "379200.00", period: 8 } },
 ] as const;
 
@@ -405,7 +405,9 @@ export async function loadOnlineDemo(db: Db, organisationId: string): Promise<On
   const first = await bids.submit(paip.supplierId, "BID", { price: paip.main.price, completionPeriod: paip.main.period, completionUnit: "MONTHS" });
   const replaced = await bids.submit(paip.supplierId, "BID", { price: paip.replacement.price, completionPeriod: paip.replacement.period, completionUnit: "MONTHS" }, { replaces: first });
   const contoh = ONLINE_BIDDERS[1];
-  await bids.submit(contoh.supplierId, "BID", { price: contoh.main.price, completionPeriod: contoh.main.period, completionUnit: "MONTHS" });
+  const contohMain = await bids.submit(contoh.supplierId, "BID", { price: contoh.main.price, completionPeriod: contoh.main.period, completionUnit: "MONTHS" });
+  // 20bp: the same in-time supplier also lodges an alternative to its bid, through the same submit and the same judges (`submitFaults`: the window permits alternatives, the parent is its own standing bid).
+  await bids.submit(contoh.supplierId, "ALTERNATIVE", { price: contoh.alternative.price, completionPeriod: contoh.alternative.period, completionUnit: "MONTHS" }, { parent: contohMain });
   void replaced;
 
   // ---- the closing passes by the database's own clock; the third supplier's bid is received late (taken until the main opening starts, 20b)
@@ -415,11 +417,11 @@ export async function loadOnlineDemo(db: Db, organisationId: string): Promise<On
   await flush();
   // Read back as the database judged them: two standing in time and one late, never the other way round (a load too slow to make the first two before the closing stops here).
   const standing = (await db.onlineBid.findMany({ where: { exerciseId: sx, status: "SUBMITTED" }, select: { envelope: { select: { late: true } } } })).map((b) => b.envelope);
-  if (standing.length !== 3 || standing.filter((e) => e.late).length !== 1) fail(`${ref} reads ${standing.length} standing bids and ${standing.filter((e) => e.late).length} late, not 3 and 1: the load was too slow for the closing`);
+  if (standing.length !== 4 || standing.filter((e) => e.late).length !== 1) fail(`${ref} reads ${standing.length} standing bids and ${standing.filter((e) => e.late).length} late, not 4 (one an alternative) and 1: the load was too slow for the closing`);
   if (trail.some((x) => x.at > new Date())) fail("an act is dated after now (X-10 a)");
 
   const words = [
-    `Online sealed bids: ${ref} is the demonstration's online exercise (a demonstration, not for real tenders). Two suppliers bid in time (one replaced its bid) and one bid is received late, so Received shows two standing and one late. The window permits alternatives: one can be lodged from the supplier portal.`,
+    `Online sealed bids: ${ref} is the demonstration's online exercise (a demonstration, not for real tenders). Two suppliers bid in time (one replaced its bid), one of them also lodges an alternative, and one bid is received late, so Received shows 3 standing in time, one of them an alternative, plus 1 late.`,
     `The opening officers' unseal passphrases (invented): ${roster.map((r, i) => `${r.person.name}: "${DEMO_UNSEAL_PASSPHRASES[i]}"`).join("; ")}. Sign in as each officer (npm run demo:accounts) and use the passphrase with the sign-in password.`,
   ];
   for (const x of words) console.log(x);

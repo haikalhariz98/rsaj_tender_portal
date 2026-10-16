@@ -107,9 +107,9 @@ describe.skipIf(!ONLINE_REFERENCE || !PASSWORD)("the demonstration's online exer
       const r = await authoriseOnlineUnseal({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, passphrase: o.passphrase, [PASSWORD_FIELD]: PASSWORD }));
       expect(r.ok, message(r)).toBe(true);
     }
-    // The two bids standing in time are opened; the late one waits for its own opening.
+    // The three bids standing in time (one an alternative) are opened; the late one waits for its own opening.
     const offers = await db.openedBid.findMany({ where: { openingId: opening.id }, orderBy: { listingNo: "asc" } });
-    expect(offers).toHaveLength(2);
+    expect(offers).toHaveLength(3);
     for (const o of offers) expect(o.priceAsRead).toBeNull();
 
     // What a finalise needs: every checklist item answered, a verdict on each offer, every officer's confirmation of it, and the pages.
@@ -146,6 +146,6 @@ describe.skipIf(!ONLINE_REFERENCE || !PASSWORD)("the demonstration's online exer
     expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).finalisedAt).not.toBeNull();
     expect((await db.sourcingExercise.findUniqueOrThrow({ where: { id: ex.id } })).status).toBe("OPENED");
     const priced = await db.openedBid.findMany({ where: { openingId: opening.id } });
-    expect(priced.map((p) => p.priceAsRead?.toString()).sort()).toEqual(["368900", "376400"].map((p) => `${p}`).sort());
+    expect(priced.map((p) => p.priceAsRead?.toString()).sort()).toEqual(["365200", "368900", "376400"].map((p) => `${p}`).sort());
   }, 900_000);
 });
