@@ -164,12 +164,7 @@ describe("the queues and matters of a hidden exercise are left out", () => {
     expect(named!.queue.some((q) => q.decisionId === scopeMatter)).toBe(true);
     expect(JSON.stringify(named!.activity)).toContain(ref);
 
-    // Carried, its amount is committed for the reader who may see it and not for the one who may not.
-    await db.committeeDecision.update({ where: { id: scopeMatter }, data: { outcome: "CARRIED", domain: "appointment" } });
-    // The scratch organisation keeps the matters of earlier runs, hidden from this reader too: only this exercise is let back in.
-    const hiddenFromOutsider = await hiddenExerciseIds(db, reader(who.outsider));
-    const [a, b] = await Promise.all([loadDashboard(organisationId, hiddenFromOutsider), loadDashboard(organisationId, hiddenFromOutsider.filter((id) => id !== exerciseId))]);
-    expect(b!.committedSen - a!.committedSen).toBe(500000n);
+    // The "Value approved" total is gone from the dashboard (GN-03, AC-9c), so its restricted-amount assertion goes with it; the pipeline counts are proved in dashboard.db.test.ts.
   });
   it("tabling by a typed reference finds a hidden exercise as it finds none, for a live one, a cancelled one and an unknown one alike, and logs the attempt (FR-MTD-007)", async () => {
     const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { reference: true } });

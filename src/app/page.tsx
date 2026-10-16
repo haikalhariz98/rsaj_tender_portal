@@ -1,12 +1,10 @@
-import { hiddenExercises, sulitGate, sulitGates, sulitMatterAmounts } from "@/app/_auth/sulit";
+import { hiddenExercises, sulitGates, sulitMatterAmounts } from "@/app/_auth/sulit";
 import { sulitCell } from "@/components/sulit-cell";
-import { formatMoney } from "@/lib/money";
 import {
   AwardIcon,
   CalendarIcon,
   ClockIcon,
   FilesIcon,
-  GavelIcon,
   GlobeIcon,
   PlusIcon,
   SparkleIcon,
@@ -15,7 +13,7 @@ import {
   UsersIcon,
 } from "@/components/icons";
 import { DataList } from "@/components/data-list";
-import { Badge, Dot, SulitValue } from "@/components/ui/badge";
+import { Badge, Dot } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
@@ -86,9 +84,11 @@ export default async function Dashboard() {
 
   // The figures on this page are SULIT (founder, item 26): a matter's amount by what kind of matter it is, a requisition's estimate, and the total of what was approved. Each is
   // judged for the reader and logged; a figure the reader may not read is "SULIT · withheld" with the reason, in the list, the sort and the total.
-  const matterGates = await sulitMatterAmounts(actor, data.queue.map((q) => ({ id: q.decisionId, label: q.subject, kind: q.matterKind, hasAmount: q.amount != null })));
-  const requisitionGates = await sulitGates(actor, data.requisitions.map((q) => ({ scope: "requisition" as const, entity: "Requisition", id: q.id, label: q.reference })), ["estimatedValue"]);
-  const totalGate = await sulitGate(actor, { scope: "requisition", entity: "Dashboard", id: "value-approved", label: "Value approved" }, ["matterAmount"]);
+  // The two gates read independently and run together; the "Value approved" total, and its gate, are gone (GN-03, AC-9c).
+  const [matterGates, requisitionGates] = await Promise.all([
+    sulitMatterAmounts(actor, data.queue.map((q) => ({ id: q.decisionId, label: q.subject, kind: q.matterKind, hasAmount: q.amount != null }))),
+    sulitGates(actor, data.requisitions.map((q) => ({ scope: "requisition" as const, entity: "Requisition", id: q.id, label: q.reference })), ["estimatedValue"]),
+  ]);
   const now = new Date();
   // Greet by the name of whoever is signed in, from their session. Nobody signed in: the greeting alone.
   const firstName = actor.personName.split(/\s+/)[0];
@@ -144,33 +144,19 @@ export default async function Dashboard() {
         />
         <Stat
           label="Sourcing exercises"
-          value={data.exercises.open}
+          value={data.pipeline.sourcing.total}
           tone="brand"
           icon={<GlobeIcon size={17} />}
           href="/sourcing"
           hint={
-            data.exercises.total === 0 ? (
-              "none started yet"
+            data.pipeline.sourcing.total === 0 ? (
+              "none in the pipeline"
             ) : (
-              <span title={statusBreakdown(data.exercises.openByStatus, data.exercises.cancelled)}>
-                {phaseSummary(data.exercises.openByStatus) || "none open"}
+              <span title={statusBreakdown(data.pipeline.sourcing.phases, 0)}>
+                {phaseSummary(data.pipeline.sourcing.phases)}
               </span>
             )
           }
-        />
-        <Stat
-          label="Value approved"
-          value={totalGate.state === "GRANTED" ? formatMoney(data.committedSen) : <SulitValue of={totalGate} />}
-          tone="info"
-          icon={<GavelIcon size={17} />}
-          hint={`across ${data.decidedCount} decided matters${data.committedWithoutAmount ? ` · ${data.committedWithoutAmount} stated no amount` : ""}`}
-        />
-        <Stat
-          label="Votes outstanding"
-          value={data.votesOutstanding}
-          tone="ok"
-          icon={<UsersIcon size={17} />}
-          hint="members yet to record a position"
         />
       </div>
 

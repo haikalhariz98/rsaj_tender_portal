@@ -1,9 +1,10 @@
-import { committedSen, exerciseTally } from "@/lib/dashboard-sums";
 import { ACTIVITY_ENTITIES, activityFeed, type ActivityEntry, type ActivityOwner } from "@/lib/dashboard/activity";
 import { openStepOf, oldestWaitingDays } from "@/lib/approvals/queue";
 import { todayIn } from "@/lib/dates";
 import { EXERCISE_STATUS_ORDER } from "@/lib/method/labels";
 import type { ExerciseStatus } from "@/lib/method/types";
+import type { RequisitionStatus } from "@/lib/requisition/types";
+import { CASE_PIPELINE, REQUISITION_PIPELINE, SOURCING_PIPELINE_WHERE, casePipelineWhere, requisitionPipelineSplit, type RequisitionPipelineSplit } from "@/lib/dashboard/pipeline";
 import { exerciseNotHidden } from "@/lib/auth/sulit-store";
 import type { MatterKind } from "@/lib/committee/labels";
 import { hiddenDecisionIds } from "@/lib/committee/hidden";
@@ -50,41 +51,66 @@ export interface RequisitionWaiting {
   waitingDays: number | null;
 }
 
-/**
- * What the dashboard can honestly report today.
- *
- * Only the committee layer is built, so the figures here are drawn from sittings and
- * votes. The sourcing pipeline, contract ledger and document queue arrive with their
- * modules; until then those cards say so rather than showing a zero that looks like
- * a quiet week.
- */
-/// `hidden`: the restricted exercises the reader may not see (FR-MTD-007). Their matters, their counts and their lines in the feed are left out.
+/// The three pipeline cards' figures (GN-03; AC-12), from database count and groupBy queries only. `hidden` is the restricted exercises the reader may not
+/// see (FR-MTD-007): left out of Sourcing, and of Contracts before issue (AC-18, `casePipelineWhere`). Requisitions carry no exercise.
+export interface PipelineCounts {
+  requisitions: RequisitionPipelineSplit;
+  sourcing: { total: number; phases: { status: ExerciseStatus; count: number }[] };
+  contracts: { total: number; awarding: number; signing: number; onSite: number };
+}
+
+export async function pipelineCounts(organisationId: string, hidden: readonly string[]): Promise<PipelineCounts> {
+  const [reqRows, sourcingRows, awarding, signing, onSite] = await Promise.all([
+    db.requisition.groupBy({ by: ["status"], where: { organisationId, status: { in: [...REQUISITION_PIPELINE] } }, _count: { _all: true } }),
+    db.sourcingExercise.groupBy({ by: ["status"], where: { organisationId, ...exerciseNotHidden(hidden), ...SOURCING_PIPELINE_WHERE }, _count: { _all: true } }),
+    ...CASE_PIPELINE.map((stage) => db.award.count({ where: { organisationId, ...casePipelineWhere(stage, hidden) } })),
+  ]);
+  const byStatus = new Map(sourcingRows.map((r) => [r.status as ExerciseStatus, r._count._all]));
+  const phases = EXERCISE_STATUS_ORDER.map((status) => ({ status, count: byStatus.get(status) ?? 0 })).filter((b) => b.count > 0);
+  return {
+    requisitions: requisitionPipelineSplit(reqRows.map((r) => ({ status: r.status as RequisitionStatus, count: r._count._all }))),
+    sourcing: { total: phases.reduce((n, b) => n + b.count, 0), phases },
+    contracts: { total: awarding + signing + onSite, awarding, signing, onSite },
+  };
+}
+
+/// What the dashboard reports. `hidden`: the restricted exercises the reader may not see (FR-MTD-007). Their matters, their counts and their lines in the feed are left out.
+/// The reads are independent and run together; the time zone is read once (AC-9b).
 export async function loadDashboard(organisationId: string, hidden: readonly string[], asOf: Date = new Date()) {
-  const org = await db.organisation.findUnique({
-    where: { id: organisationId },
-    select: { id: true },
-  });
+  const timeZoneRead = organisationTimeZone(organisationId);
+  const [org, pendingDecisions, activity, meetings, upcoming, pendingRequisitions, committees, withoutQuorum, pipeline, timeZone] = await Promise.all([
+    db.organisation.findUnique({ where: { id: organisationId }, select: { id: true } }),
+    // Only the matters still waiting: no decided matter, and no vote, is read for a count the screen no longer shows.
+    db.committeeDecision.findMany({
+      where: { meeting: { committee: { organisationId } }, outcome: "PENDING", withdrawnAt: null },
+      include: {
+        _count: { select: { votes: true } },
+        meeting: { include: { committee: { include: { members: { where: { effectiveTo: null }, select: { personId: true } } } } } },
+      },
+    }),
+    timeZoneRead.then((tz) => recentActivity(organisationId, tz, hidden)),
+    db.meeting.count({ where: { committee: { organisationId } } }),
+    db.meeting.findMany({ where: { committee: { organisationId }, meetingDate: { gte: asOf } }, include: { committee: true }, orderBy: { meetingDate: "asc" }, take: 5 }),
+    db.approvalInstance.findMany({
+      where: { organisationId, status: "PENDING", requisition: { status: "PENDING_APPROVAL" } },
+      include: {
+        requisition: { select: { id: true, reference: true, title: true, estimatedValue: true } },
+        steps: { orderBy: { sequence: "asc" } },
+      },
+    }),
+    db.committee.count({ where: { organisationId } }),
+    db.committee.count({ where: { organisationId, quorum: null } }),
+    pipelineCounts(organisationId, hidden),
+    timeZoneRead,
+  ]);
   if (!org) return null;
 
-  const everyDecision = await db.committeeDecision.findMany({
-    where: { meeting: { committee: { organisationId: org.id } } },
-    include: {
-      votes: { include: { person: true }, orderBy: { votedAt: "desc" } },
-      meeting: {
-        include: {
-          committee: { include: { members: { where: { effectiveTo: null } } } },
-        },
-      },
-    },
-    orderBy: { meeting: { meetingDate: "desc" } },
-  });
   // A matter names its exercise in one of four ways (itself, its bill of quantities version, its envelope, its evaluation bidder), and `hiddenDecisionIds` follows
   // all four. Filtered after the read rather than in the `where`: a negated test on a nullable pointer drops the rows that point nowhere (FR-MTD-007).
-  const hiddenMatters = await hiddenDecisionIds(everyDecision.map((d) => d.id), hidden);
-  const decisions = hiddenMatters.size ? everyDecision.filter((d) => !hiddenMatters.has(d.id)) : everyDecision;
+  const hiddenMatters = await hiddenDecisionIds(pendingDecisions.map((d) => d.id), hidden);
+  const decisions = hiddenMatters.size ? pendingDecisions.filter((d) => !hiddenMatters.has(d.id)) : pendingDecisions;
 
   const queue: QueueItem[] = decisions
-    .filter((d) => d.outcome === "PENDING" && !d.withdrawnAt)
     .map((d) => ({
       decisionId: d.id,
       committeeCode: d.meeting.committee.code,
@@ -98,36 +124,12 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
       meetingReference: d.meeting.reference,
       meetingDate: d.meeting.meetingDate,
       waitingDays: Math.max(0, Math.floor((asOf.getTime() - d.meeting.meetingDate.getTime()) / DAY)),
-      votesCast: d.votes.length,
+      votesCast: d._count.votes,
       entitled: d.meeting.committee.members.filter((m) => m.personId).length,
     }))
     .sort((a, b) => b.waitingDays - a.waitingDays);
 
-  const decided = decisions.filter((d) => d.outcome === "CARRIED");
-  // Summed in sen, never through a float (ruling C6).
-  const committed = committedSen(decisions);
-
-  const activity = await recentActivity(org.id, await organisationTimeZone(org.id), hidden);
-
-  const meetings = await db.meeting.count({
-    where: { committee: { organisationId: org.id } },
-  });
-  const upcoming = await db.meeting.findMany({
-    where: { committee: { organisationId: org.id }, meetingDate: { gte: asOf } },
-    include: { committee: true },
-    orderBy: { meetingDate: "asc" },
-    take: 5,
-  });
-
-  const timeZone = await organisationTimeZone(org.id);
   const today = todayIn(asOf, timeZone);
-  const pendingRequisitions = await db.approvalInstance.findMany({
-    where: { organisationId: org.id, status: "PENDING", requisition: { status: "PENDING_APPROVAL" } },
-    include: {
-      requisition: { select: { id: true, reference: true, title: true, estimatedValue: true } },
-      steps: { orderBy: { sequence: "asc" } },
-    },
-  });
   // The step each route waits on, who acts for it and how long it has waited: one
   // reading, shared with the worklist. Oldest first; a wait that is not counted last.
   const requisitions: RequisitionWaiting[] = pendingRequisitions
@@ -148,25 +150,12 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
     .sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1) || a.reference.localeCompare(b.reference));
   const oldestWaiting = oldestWaitingDays([...requisitions.map((r) => r.waitingDays), ...queue.map((q) => q.waitingDays)]);
 
-  const exercises = exerciseTally(
-    (await db.sourcingExercise.findMany({ where: { organisationId: org.id, ...exerciseNotHidden(hidden) }, select: { status: true } })).map((e) => e.status as ExerciseStatus),
-    EXERCISE_STATUS_ORDER,
-  );
-
-  const committees = await db.committee.count({ where: { organisationId: org.id } });
-  const withoutQuorum = await db.committee.count({
-    where: { organisationId: org.id, quorum: null },
-  });
-
   return {
     queue,
     requisitions,
-    exercises,
+    pipeline,
     oldestWaiting,
     activity,
-    committedSen: committed.total,
-    committedWithoutAmount: committed.withoutAmount,
-    decidedCount: decided.length,
     meetings,
     committees,
     withoutQuorum,
@@ -178,7 +167,6 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
       meetingDate: m.meetingDate,
       daysAway: Math.ceil((m.meetingDate.getTime() - asOf.getTime()) / DAY),
     })),
-    votesOutstanding: queue.reduce((n, q) => n + Math.max(0, q.entitled - q.votesCast), 0),
   };
 }
 
