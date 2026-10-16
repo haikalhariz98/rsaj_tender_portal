@@ -7219,6 +7219,8 @@ model OpenedBid {
   /// How many times what was read has been corrected (OD-10). An initial counts only if it was
   /// recorded on the latest reading: its correctionNo equals this (6.7 review M-2, never stamp order).
   asReadCorrections  Int       @default(0)
+  /// SR-14 (ruling 22): raised by every checklist answer that changes, every decision recorded and every decision cleared on this offer, in the same transaction. A confirmation, on either channel, counts only on the revision it was taken on (ruling 22, 20cp, §1.3).
+  columnRevision     Int       @default(0)
 
   initials OpenedBidInitial[]
   answers  OpeningChecklistAnswer[]
@@ -7654,6 +7656,8 @@ model OpenedBidInitial {
   recordedAt     DateTime
   /// The bid's asReadCorrections when this initial was recorded: it initials that reading (review M-2).
   correctionNo   Int          @default(0)
+  /// SR-14 (ruling 22): the offer's `columnRevision` when this confirmation was recorded or renewed.
+  columnRevision Int          @default(0)
 
   @@unique([openedBidId, personId])
 }
