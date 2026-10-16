@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { FormState } from "@/components/record-editor";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
+const nav = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => nav }));
 
 import { AuthForm } from "./auth-form";
 import { withoutError } from "./form-errors";
@@ -19,6 +20,8 @@ const FIELDS = [
 
 let root: Root | null = null;
 afterEach(() => {
+  nav.replace.mockClear();
+  nav.refresh.mockClear();
   act(() => root?.unmount());
   root = null;
   document.body.innerHTML = "";
@@ -196,5 +199,26 @@ describe("withoutError", () => {
     expect(withoutError(s, "z")).toBe(s);
     const none: FormState = { ok: false, message: "Failed." };
     expect(withoutError(none, "a")).toBe(none);
+  });
+});
+
+describe("one navigation per success (AC-9a)", () => {
+  it("replaces to the action's href once and does not refresh", async () => {
+    const { input, submit } = mount(() => ({ ok: true, href: "/" }));
+    act(() => {
+      input("loginName").value = "a";
+      input("password").value = "b";
+    });
+    await submit();
+    expect(nav.replace).toHaveBeenCalledTimes(1);
+    expect(nav.replace).toHaveBeenCalledWith("/");
+    expect(nav.refresh).not.toHaveBeenCalled();
+  });
+
+  it("does not navigate on a refusal", async () => {
+    const { submit } = mount(refuseEmpty);
+    await submit();
+    expect(nav.replace).not.toHaveBeenCalled();
+    expect(nav.refresh).not.toHaveBeenCalled();
   });
 });

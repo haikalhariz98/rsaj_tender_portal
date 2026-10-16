@@ -95,8 +95,8 @@ export function AuthForm({
       // A password is never left in a field after an answer, right or wrong.
       for (const f of fields) if (f.type === "password") form.current?.querySelectorAll<HTMLInputElement>(`input[name="${f.name}"]`).forEach((input) => (input.value = ""));
       if (result.ok && result.href) {
+        // One navigation (AC-9a): the action's cookie write already drops the client router cache, so a refresh would fetch the page twice.
         router.replace(result.href);
-        router.refresh();
       } else if (result.ok) {
         form.current?.reset();
       }
