@@ -192,7 +192,7 @@ export function columnBindingFaults(i: { seen: ColumnSeen; current: ColumnFacts 
 }
 
 export const MATRIX_FAULT_TEXT: Readonly<Record<CellAnswerFault | MatrixActorFault | ConfirmFault | ColumnBindingFault, string>> = {
-  COLUMN_CHANGED: "The column changed after you opened it. Nothing was saved: reload the page to read the column again, then confirm or decide.",
+  COLUMN_CHANGED: "The column changed after you opened it. Reload the page to read the column again, then confirm or decide.",
   NO_FILE_RECEIVED: "No file was received for this part, so it cannot be recorded as present. Record it as absent or not applicable.",
   ADMINISTRATOR: "An administrator account does not answer, decide or confirm anything at an opening.",
   NOT_A_NAMED_OFFICER: "Only the named opening officers present at this opening record its answers, decisions and confirmations, and only for an officer present at it.",

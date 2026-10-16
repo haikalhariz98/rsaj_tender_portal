@@ -381,6 +381,8 @@ describe("the column a confirmation or a decision is bound to (security audit, r
     expect(columnBindingFaults({ seen: now, current: now })).toEqual([]);
     expect(columnBindingFaults({ seen: { ...now, columnRevision: 4 }, current: now }).map((f) => f.code)).toEqual(["COLUMN_CHANGED"]);
     expect(columnBindingFaults({ seen: { ...now, asReadCorrections: 0 }, current: now }).map((f) => f.code)).toEqual(["COLUMN_CHANGED"]);
-    expect(MATRIX_FAULT_TEXT.COLUMN_CHANGED).toMatch(/Nothing was saved/);
+    // The refusal opens with "Nothing was saved:" itself, so the sentence does not say it again.
+    expect(MATRIX_FAULT_TEXT.COLUMN_CHANGED).not.toMatch(/Nothing was saved/);
+    expect(MATRIX_FAULT_TEXT.COLUMN_CHANGED).toMatch(/Reload the page/);
   });
 });
