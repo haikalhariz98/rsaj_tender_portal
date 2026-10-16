@@ -36,6 +36,40 @@ describe("the demo's online exercise goes through the product's judges and seali
     expect(/\bWn\.publishWindow\b/.test(code)).toBe(true);
   });
 
+  // The estimate's sealed lodging is reached through dynamic destructured imports, which the static matcher above does not see.
+  const LATE: Readonly<Record<string, string>> = {
+    sealedLodgementFaults: "../src/lib/sealing/estimate-lodgement",
+    writeSealedLodgement: "../src/lib/scope/estimate-store",
+  };
+  const dynamicImport = (src: string, name: string, from: string) =>
+    new RegExp(String.raw`const\s*\{[^}]*\b${name}\b[^}]*\}\s*=\s*await\s+import\("${from.replace(/[./]/g, "\\$&")}"\)`).test(src);
+  it.each(Object.entries(LATE))("%s is imported from %s (dynamically) and called in code", (name, from) => {
+    expect(dynamicImport(source, name, from), `${name} import`).toBe(true);
+    expect(new RegExp(String.raw`(?<![\w.])${name}\s*\(`).test(code), `${name} call`).toBe(true);
+  });
+
+  it("the dynamic matcher fails a sample that imports from the wrong module", () => {
+    expect(dynamicImport('const { writeSealedLodgement } = await import("../src/lib/scope/estimate-store");', "writeSealedLodgement", LATE.writeSealedLodgement)).toBe(true);
+    expect(dynamicImport('const { writeSealedLodgement } = await import("../src/lib/other");', "writeSealedLodgement", LATE.writeSealedLodgement)).toBe(false);
+  });
+
+  // The loader makes no cipher or key-agreement call of its own: all sealing goes through the product's functions above.
+  const SEALING_PRIMITIVES = /["']\.\.\/src\/lib\/sealing\/(hpke|aead|x25519|kdf|open)["']/;
+  const cryptoImports = (src: string) => [...src.matchAll(/import\s*\{([^}]*)\}\s*from\s*"(?:node:)?crypto"/g)].flatMap((m) => m[1].split(",").map((x) => x.trim()).filter(Boolean));
+  it("imports nothing from node:crypto but randomUUID, and no sealing primitive module", () => {
+    expect(cryptoImports(source)).toEqual(["randomUUID"]);
+    expect(/(?:from|import\()\s*"(?:node:)?crypto/.test(source.replace(/import\s*\{[^}]*\}\s*from\s*"(?:node:)?crypto"/g, ""))).toBe(false);
+    expect(SEALING_PRIMITIVES.test(source)).toBe(false);
+    expect(/(?<![\w.])(createCipheriv|createDecipheriv|createECDH|randomBytes|hkdf|scrypt|pbkdf2)\w*\s*\(/.test(code)).toBe(false);
+    expect(/\b(subtle|webcrypto)\b/.test(code)).toBe(false);
+  });
+
+  it("the crypto matchers fail bad samples", () => {
+    expect(cryptoImports('import { randomUUID, createCipheriv } from "node:crypto";')).toEqual(["randomUUID", "createCipheriv"]);
+    expect(SEALING_PRIMITIVES.test('import { hpkeSeal } from "../src/lib/sealing/hpke";')).toBe(true);
+    expect(/\b(subtle|webcrypto)\b/.test(lex("crypto.subtle.encrypt(a)"))).toBe(true);
+  });
+
   it("the scan reads code only: a name in a comment does not count", () => {
     expect(/(?<![\w.])submitFaults\s*\(/.test(lex("// submitFaults(x)\nconst a = 1;"))).toBe(false);
   });
