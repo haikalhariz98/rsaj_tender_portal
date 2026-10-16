@@ -25,6 +25,8 @@ import type { ActivityKind } from "@/lib/dashboard/activity";
 import { WAITING_RULE_TEXT } from "@/lib/approvals/queue";
 import { phaseSummary, statusBreakdown } from "@/lib/method/phase";
 import { loadDashboard } from "@/lib/dashboard";
+import { requestWorklist } from "@/app/_auth/worklist";
+import { myStepsOf, waitingForCount } from "@/lib/approvals/queue";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
 import { greetingAt } from "@/lib/dates";
@@ -59,17 +61,13 @@ const COMING = [
     title: "Project health",
     body: "Progress, certified value and time remaining will report here once contract administration lands.",
   },
-  {
-    icon: <FilesIcon size={17} />,
-    title: "Documents awaiting my review",
-    body: "Submissions routed to you will land here for review against a service level.",
-  },
 ];
 
 export default async function Dashboard() {
   const actor = await requireStaff();
   const accountView = await loadAccountView(actor);
-  const [data, timeZone] = await Promise.all([loadDashboard(actor.organisationId, await hiddenExercises(actor)), organisationTimeZone(actor.organisationId)]);
+  // "Awaiting my decision" is the My approvals badge's own reading: `requestWorklist` is request-cached, so the layout and this page share one load (GN-03, AC-11).
+  const [data, timeZone, worklist] = await Promise.all([loadDashboard(actor.organisationId, await hiddenExercises(actor)), organisationTimeZone(actor.organisationId), requestWorklist(actor)]);
 
   if (!data) {
     return (
@@ -92,7 +90,8 @@ export default async function Dashboard() {
   const now = new Date();
   // Greet by the name of whoever is signed in, from their session. Nobody signed in: the greeting alone.
   const firstName = actor.personName.split(/\s+/)[0];
-  const waiting = data.queue.length + data.requisitions.length;
+  const awaitingMe = worklist ? waitingForCount(myStepsOf(worklist.groups, actor.personId)) : 0;
+  const { requisitions: reqPipe, sourcing: srcPipe, contracts: conPipe } = data.pipeline;
   // Waiting days are shown as a count, with no judgement: there is no configured
   // target to call one "aged" against until FR-APR-018's targets exist (ruling R5).
 
@@ -100,11 +99,6 @@ export default async function Dashboard() {
     <>
       <PageHeader
         title={firstName ? `${greetingAt(now, timeZone)}, ${firstName}` : greetingAt(now, timeZone)}
-        subtitle={
-          waiting === 0
-            ? "No items are awaiting a decision."
-            : `${waiting} ${waiting === 1 ? "item is" : "items are"} awaiting a decision.`
-        }
         meta={[
           actor.jobTitle && (
             <>
@@ -130,33 +124,42 @@ export default async function Dashboard() {
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
-          label="Awaiting a decision"
-          value={waiting}
+          label="Awaiting my decision"
+          value={awaitingMe}
           tone="warn"
           icon={<ClockIcon size={17} />}
-          hint={
-            waiting > 0
-              ? data.oldestWaiting == null
-                ? "waiting time not counted"
-                : `oldest ${data.oldestWaiting} ${data.oldestWaiting === 1 ? "day" : "days"}`
-              : "queue is clear"
-          }
+          href="/approvals?tab=mine"
+          hint={awaitingMe > 0 ? "steps waiting for you" : "nothing is waiting for you"}
         />
         <Stat
-          label="Sourcing exercises"
-          value={data.pipeline.sourcing.total}
+          label="Requisitions"
+          value={reqPipe.total}
+          tone="brand"
+          icon={<FilesIcon size={17} />}
+          href="/requisitions"
+          hint={reqPipe.total === 0 ? "none in the pipeline" : `${reqPipe.approvedWaiting} approved, waiting for sourcing · ${reqPipe.backWithRequester} back with the requester`}
+        />
+        <Stat
+          label="Sourcing"
+          value={srcPipe.total}
           tone="brand"
           icon={<GlobeIcon size={17} />}
           href="/sourcing"
           hint={
-            data.pipeline.sourcing.total === 0 ? (
+            srcPipe.total === 0 ? (
               "none in the pipeline"
             ) : (
-              <span title={statusBreakdown(data.pipeline.sourcing.phases, 0)}>
-                {phaseSummary(data.pipeline.sourcing.phases)}
-              </span>
+              <span title={statusBreakdown(srcPipe.phases, 0)}>{phaseSummary(srcPipe.phases)}</span>
             )
           }
+        />
+        <Stat
+          label="Contracts"
+          value={conPipe.total}
+          tone="brand"
+          icon={<AwardIcon size={17} />}
+          href="/projects"
+          hint={conPipe.total === 0 ? "none in the pipeline" : `${conPipe.awarding} awarding · ${conPipe.signing} signing · ${conPipe.onSite} on site`}
         />
       </div>
 

@@ -470,6 +470,22 @@ const DECIDED_ABSENT = [
     match: /^(Files to check|Answer the checklist|Record the verdict)$/,
     why: "SR-14 (wave 3c step 5): the Files to check list became the matrix's cell downloads, and the Checklist and Verdict drawers became the matrix's answer controls, Pass and Reject. An online initial is the matrix's Confirm this column; a paper initial may still be recorded for a present panel member",
   },
+  // Award and Contract Requirements v2, GN-03 (AC-11, AC-12): the dashboard's cards. Listed so each removal stays visible.
+  {
+    screen: /^[/]$/,
+    match: /^Awaiting a decision$/,
+    why: "GN-03 (AC-11): the organisation-wide card became the personal 'Awaiting my decision', the My approvals badge's own number, opening My approvals",
+  },
+  {
+    screen: /^[/]$/,
+    match: /^(Value approved|Votes outstanding)$/,
+    why: "GN-03 (AC-11): the two cards, their SULIT gate and their sums are removed; no Must requires them. The pipeline cards (Requisitions, Sourcing, Contracts) replace them (AC-12)",
+  },
+  {
+    screen: /^[/]$/,
+    match: /^Documents awaiting my review$/,
+    why: "GN-03 (AC-11): removed from On the way, because Part 2 (document review) is held and nothing should look finished that is not",
+  },
 ];
 
 /**
