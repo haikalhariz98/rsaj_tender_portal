@@ -2185,6 +2185,9 @@ is amended in the same commit.
     - **The tightening.** On paper, the person who records a confirmation on behalf must also be a present panel member of the opening,
       never any other staff member, and the record names both: the officer whose confirmation it is, and who recorded it. The plan's
       §3.1 comment on `matrixActorFaults` checked only the subject.
+    - **Where both are named.** `OpenedBidInitial.personId` names the officer whose confirmation it is, and the act's audit row names
+      who recorded it. No recorder column is added, and step 3's migration does not change. No existing caller records a paper initial
+      from off the panel (`restriction-retake.db.test.ts` records each officer's own), so no test changes for this ruling.
     - **Code:** wave 3c step 2 (`matrixActorFaults` also checks the actor for a paper confirmation, with a test).
 
 20cq. **3c-Q4: an online confirmation is a TRANSACTION-class own act, with no password asked. Confirmed.**
@@ -2235,8 +2238,9 @@ is amended in the same commit.
       wave 3c step 7, words only, under the overclaim scans: the words say the figure is withheld from view and held unencrypted, and
       "sealed" is kept only for a copy that really is sealed under the exercise key.
     - **(c) Stale text, owed to the docs-writer, not blocking:** threat model S12's Left column (PA028 has landed), S25's Left column (the
-      runtime check reports TEMPORARY, as a warning), and ADR 0036's 3c-Q5 note ("not yet ruled", now 20cr). Done before wave 3c is
-      called closed (plan step 7).
+      runtime check reports TEMPORARY, as a warning), ADR 0036's 3c-Q5 note ("not yet ruled", now 20cr), and S9's Left column with
+      must-have 6, which must name the timing exposure after the start (20bh, 20cm), since that is the text the customer accepts. Done
+      before wave 3c is called closed (plan step 7).
     - **Code:** (b) wave 3c step 7. (a) and (c) none.
 
 20cx. **The wave 3c precondition (20bv) is met.**

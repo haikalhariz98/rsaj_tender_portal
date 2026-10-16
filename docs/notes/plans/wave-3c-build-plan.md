@@ -395,7 +395,7 @@ record alone is not the gate (20cx). If any is missing, stop and report.
 - the tally words for each mix, plus a scan that `tallyText` and `CELL_WORDS` hold no "Pass", "Fail" or "Lulus";
 - `confirmationStands` on paper (reading only) and online (reading and revision);
 - `columnStatus` through all four states, with a stale confirmation;
-- `matrixActorFaults`: administrator, not named, on behalf (refused online and for answers and decisions on paper; allowed for a paper confirmation recorded by a present panel member, refused when the recorder is not one, 20cp);
+- `matrixActorFaults`: administrator, not named, on behalf (refused online and for answers and decisions on paper; allowed for a paper confirmation recorded by a present panel member, refused when the recorder is not one, 20cp; the recorder is named by the act's audit row, with no new column);
 - `confirmFaults`.
 
 **Done when:**
@@ -497,7 +497,8 @@ one bidder also submit an alternative.
 **Received (20ct).** Once the opening is finalised, Received shows the SR-15 table from §1.5, rendered by the component Schedule uses, from
 the same read, with the two download buttons. No copy of the table or its read is made.
 
-**Comparators (G4).** `scripts/compare-screen.mjs` records the matrix, the removed `FilesToCheck` and the moved drawers, citing SR-14.
+**Comparators (G4).** `scripts/compare-screen.mjs` records the matrix, the removed `FilesToCheck` and the moved drawers, citing SR-14, and
+Received's SR-15 table after finalising, citing SR-15 and 20ct.
 
 **Done when:**
 - `npm run check` passes, including `check-ui`;
@@ -559,13 +560,14 @@ copy sealed under the exercise key. Words only, with the overclaim scans coverin
 - decisions-log lines ("- 2026-10-17 · …") for each judgement;
 - §6's questions carried into the log;
 - this plan's status updated;
-- the docs-writer's three stale lines (20cw (c)): threat model S12's and S25's Left columns, and ADR 0036's 3c-Q5 note, citing 20cr.
+- the docs-writer's stale lines (20cw (c)): threat model S12's and S25's Left columns, ADR 0036's 3c-Q5 note citing 20cr, and S9's Left
+  column with must-have 6 naming the timing exposure after the start (20bh, 20cm).
 
 **Done when:**
 - the full Linux suite (`scripts/test-linux.ps1`) passes;
 - the screenshots and the snapshot exist under the scratchpad and are listed in the log;
 - the estimate tab no longer says "sealed" of a version, and the backlog row for it is marked done (20cw (b));
-- the three stale lines of 20cw (c) are corrected;
+- the stale lines of 20cw (c) are corrected;
 - the report says whether the running dev server needs a restart. It does after step 3's client change.
 
 ## 6. Questions for the product owner: ruled 2026-10-17 (design note 0003, 20cm to 20cx)
