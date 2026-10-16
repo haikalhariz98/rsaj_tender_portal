@@ -63,6 +63,11 @@ const demoLoadOutput = { first: "" };
 /// (and the loader falls back to paper in words rather than stop). So whether a load makes the exercise depends on the day it is made, by the demonstration's own calendar; a load
 /// within twenty-five minutes of midnight in the organisation's zone falls back too. The expectation is read before the load, from the same calendar.
 const DEMO_ZONE = "Asia/Kuala_Lumpur";
+/// 20br / 20cl (1): the demonstration's weekend is set to two days other than the run day, so the online branch runs on every day of the week (a public holiday of the demo's calendar and a
+/// load within minutes of midnight still fall back, and are asserted as such rather than skipped).
+const isoWeekdayOf = (day: string) => ((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7) + 1;
+const WEEKEND_FOR_RUN = [1, 2, 3, 4, 5, 6, 7].filter((n) => n !== isoWeekdayOf(dayIn(new Date(), DEMO_ZONE))).slice(-2).join(",");
+process.env.DEMO_WEEKEND_DAYS = WEEKEND_FOR_RUN;
 function onlineExpectedNow(): boolean {
   const now = new Date();
   const today = dayIn(now, DEMO_ZONE);
@@ -78,7 +83,7 @@ type Env = Record<string, string>;
 function run(args: string[], timeout: number, target: string = url, extra: Env = {}) {
   const child = spawnSync(process.execPath, args, {
     cwd: ROOT,
-    env: { ...process.env, DATABASE_URL: target, MIGRATE_DATABASE_URL: target, TEST_DATABASE_URL: target, ORGANISATION_CODE: ORG_CODE, ...extra },
+    env: { ...process.env, DATABASE_URL: target, MIGRATE_DATABASE_URL: target, TEST_DATABASE_URL: target, ORGANISATION_CODE: ORG_CODE, DEMO_WEEKEND_DAYS: WEEKEND_FOR_RUN, ...extra },
     encoding: "utf8",
     timeout,
   });
@@ -125,10 +130,17 @@ describe("the demo loader is additive (Phase 1d)", () => {
   it("the first load into an empty database writes the demo; a second writes nothing: every table holds what it held after the first", { timeout: 3_000_000 }, async () => {
     expect(await counts()).toMatchObject({ OrgUnit: 0, AuditEntry: 0 });
 
-    expectOnline = onlineExpectedNow();
+    const loadStart = new Date();
+    const expectedBefore = onlineExpectedNow();
     const first = demo("load");
     demoLoadOutput.first = first.out;
     expect(first.status, first.out).toBe(0);
+    // The load takes minutes, and the loader judges the clock at its own moment, somewhere between the two instants read here. If the closing margin crossed midnight at either, the loader may
+    // rightly have fallen back; otherwise the outcome must be what the calendar said before the load.
+    const straddled = [loadStart, new Date()].some((t) => closingAfter(t, 25, DEMO_ZONE).day !== dayIn(t, DEMO_ZONE));
+    const fellBack = first.out.includes(NEEDS_WORKING_DAY_WORDS);
+    expectOnline = !fellBack;
+    if (!straddled) expect(fellBack, "the load's online outcome follows the demo calendar").toBe(!expectedBefore);
     expect(first.out).not.toMatch(/already present/);
     // SR-07 (ruling 11): the demo names the opening officers, and the exercise still being prepared would pass the product's own submit gate (the load stops otherwise).
     expect(first.out).toMatch(/Opening officers named: [1-9]/);
@@ -187,9 +199,15 @@ describe("the demo loader is additive (Phase 1d)", () => {
   // Ruling 20ao and 20bi (build plan step 19): the ONLINE path of `publishWindow` run whole. The demonstration publishes its online exercise through the product's own act (`prisma/demo-online.ts`
   // calls `publishWindow`), never by setting rows the act would refuse, so what it left is what the act writes: the mode, the rules and the key's fingerprint frozen together, before the move, with
   // their audit row; the window's publication stamp; and a database that now refuses a change of the rules or the channel.
-  it("the online exercise was published through publishWindow: mode, rules and key fingerprint frozen together before the move, audited, and the rules then refuse a change", { timeout: 300_000 }, async (ctx) => {
-    // Skipped, never passed, where the load fell back to paper on a day the calendar will not close on: a pass would say the online publication was checked.
-    if (!expectOnline) ctx.skip();
+  it("the online exercise was published through publishWindow: mode, rules and key fingerprint frozen together before the move, audited, and the rules then refuse a change", { timeout: 300_000 }, async () => {
+    // 20cl (1): a day the load fell back to paper is asserted, never skipped: a skipped test is no gate.
+    if (!expectOnline) {
+      expect(demoLoadOutput.first).toContain(NEEDS_WORKING_DAY_WORDS);
+      expect(await client!.onlineBid.count()).toBe(0);
+      expect(await client!.sourcingExercise.count({ where: { submissionChannel: "ONLINE" } })).toBe(0);
+      expect((await client!.windowPolicy.findFirstOrThrow({ select: { submissionChannel: true } })).submissionChannel).toBe("PAPER");
+      return;
+    }
     const c = client!;
     const ex = await c.sourcingExercise.findFirstOrThrow({ where: { submissionChannel: "ONLINE" }, select: { id: true, status: true, onlineSubmissionMode: true, onlineBidRules: true, publishedKeyFingerprint: true } });
     const live = await c.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null }, select: { fingerprint: true } });
@@ -272,8 +290,15 @@ describe("the demo loader is additive (Phase 1d)", () => {
   });
 
   // Last in this database: the officers' acts below are signed (the SIGNED test above has counted), and they write what a real opening writes.
-  it("the demonstration's opening officers unseal the online exercise with the printed passphrases, and one of them finalises it", { timeout: 2_000_000 }, async (ctx) => {
-    if (!expectOnline) ctx.skip();
+  it("the demonstration's opening officers unseal the online exercise with the printed passphrases, and one of them finalises it", { timeout: 2_000_000 }, async () => {
+    // 20cl (1): a day the load fell back to paper is asserted, never skipped: a skipped test is no gate.
+    if (!expectOnline) {
+      expect(demoLoadOutput.first).toContain(NEEDS_WORKING_DAY_WORDS);
+      expect(await client!.onlineBid.count()).toBe(0);
+      expect(await client!.sourcingExercise.count({ where: { submissionChannel: "ONLINE" } })).toBe(0);
+      expect((await client!.windowPolicy.findFirstOrThrow({ select: { submissionChannel: true } })).submissionChannel).toBe("PAPER");
+      return;
+    }
     const accounts = run([TSX, "scripts/demo-accounts.ts"], 600_000, url, { DEMO_ACCOUNT_PASSWORD: ACCOUNT_PASSWORD });
     expect(accounts.status, accounts.out).toBe(0);
     const reference = (await client!.sourcingExercise.findFirstOrThrow({ where: { submissionChannel: "ONLINE" }, select: { reference: true } })).reference;

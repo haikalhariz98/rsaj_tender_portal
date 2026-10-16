@@ -4,7 +4,7 @@ import { finaliseFaults } from "@/lib/opening/finalise";
 import { withdrawalsResolved } from "@/lib/opening/withdrawals";
 
 import { bidCount } from "./count";
-import { admittedEnvelopeIdsOf, ONLINE_STATUS_OF, openingStateOf, outOfPlay, returnable, shownInRegister, standing, unopenedInTime } from "./envelope-status";
+import { admittedEnvelopeIdsOf, lateBidWaitingOf, ONLINE_STATUS_OF, openingStateOf, outOfPlay, returnable, shownInRegister, standing, unopenedInTime } from "./envelope-status";
 import { envelope, exercise } from "./fixture";
 import { bidFindingText } from "./labels";
 import { admission, lateAdmissionFault, lateMatterFault, needsAdmission, type LateMatter } from "./late";
@@ -136,6 +136,19 @@ describe("admittedEnvelopeIds (20y)", () => {
     expect(admittedEnvelopeIdsOf(all, [matter(late.id, "DEFERRED"), matter(late.id, null)])).toEqual([]);
     expect(admittedEnvelopeIdsOf(all, [matter(late.id, "CARRIED", true)])).toEqual([]);
     expect(admittedEnvelopeIdsOf(all, [matter(late.id, "CARRIED")])).toEqual([late.id]);
+  });
+  it("20ce (a): a late bid waits while it is unopened and not turned away (undecided, deferred, admitted)", () => {
+    const late = envelope({ late: true, channel: "ONLINE", status: "RECEIVED" });
+    expect(lateBidWaitingOf([late], [])).toBe(true);
+    expect(lateBidWaitingOf([late], [matter(late.id, "DEFERRED")])).toBe(true);
+    expect(lateBidWaitingOf([late], [matter(late.id, "CARRIED")])).toBe(true);
+    expect(lateBidWaitingOf([late], [matter(late.id, "NOT_CARRIED")])).toBe(false);
+    expect(lateBidWaitingOf([late], [matter(late.id, "NOT_CARRIED", true)])).toBe(true);
+  });
+  it("20ce (a): an opened, withdrawn, replaced, in-time or estimate envelope is not waited for", () => {
+    for (const status of ["OPENED", "WITHDRAWN", "SUPERSEDED"] as const) expect(lateBidWaitingOf([envelope({ late: true, channel: "ONLINE", status })], [])).toBe(false);
+    expect(lateBidWaitingOf([envelope({ channel: "ONLINE" })], [])).toBe(false);
+    expect(lateBidWaitingOf([envelope({ late: true, kind: "COMPANY_ESTIMATE" })], [])).toBe(false);
   });
 });
 

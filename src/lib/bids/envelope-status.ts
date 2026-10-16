@@ -47,3 +47,11 @@ export function admittedEnvelopeIdsOf(
     .filter((e) => matters.some((m) => m.bidEnvelopeId === e.id && !m.withdrawn && m.outcome === "CARRIED"))
     .map((e) => e.id);
 }
+
+/// 20ce (a): whether a late envelope still waits for a supplementary opening: not opened, withdrawn or replaced, and not turned away by its committee (a decision that is withdrawn counts for nothing). Undecided, deferred and admitted ones all wait.
+export function lateBidWaitingOf(
+  envelopes: readonly (Status & Pick<EnvelopeFacts, "id" | "kind" | "late">)[],
+  matters: readonly { bidEnvelopeId: string | null; withdrawn: boolean; outcome: "CARRIED" | "NOT_CARRIED" | "DEFERRED" | null }[],
+): boolean {
+  return envelopes.some((e) => e.late && e.kind !== "COMPANY_ESTIMATE" && e.status === "RECEIVED" && !matters.some((m) => m.bidEnvelopeId === e.id && !m.withdrawn && m.outcome === "NOT_CARRIED"));
+}

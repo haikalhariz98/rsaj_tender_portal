@@ -84,6 +84,7 @@ import { authoriseOnlineUnseal } from "./unseal-actions";
 import { fileSealedBidFiles, finaliseOnline, signOnlineFinalise } from "./online-finalise-actions";
 import { disableAccount } from "@/lib/auth/administration";
 import { ensureFileMoved, moveReleasedFiles } from "@/lib/sealing/online-file-mover";
+import { NOT_ON_PANEL } from "@/lib/opening/actor";
 import { checklistFromSnapshot } from "@/lib/opening/checklist";
 import { sulitGranted } from "@/lib/auth/sulit-access";
 import { openingSection } from "@/lib/opening/read";
@@ -825,6 +826,28 @@ describe("review of wave 3b: the doors that were open", () => {
     expect(done.ok, message(done)).toBe(true);
     expect((await filesOf(ex.id)).every((f) => f.releasedDek === null && f.attachment !== null)).toBe(true);
     expect((await openingSection(org, ex.id, granted, ex.officers[0].person.id))!.openings[0].filesToFile).toBe(0);
+  }, 300_000);
+
+  it("security audit: staff who are not on the panel cannot answer, decide or correct, and no one initials an online offer for another officer", async () => {
+    const { ex, opening, offers } = await unsealed(2, 1);
+    const item = checklistFromSnapshot(opening.checklistSnapshot).items[0];
+    const stranger = await signedIn();
+    who.actor = stranger.actor;
+    for (const r of [
+      await recordChecklistAnswer({ ok: false }, form({ exerciseId: ex.id, openedBidId: offers[0].id, itemKey: item.key, answer: "ABSENT" })),
+      await recordVerdict({ ok: false }, form({ exerciseId: ex.id, openedBidId: offers[0].id, verdict: "REJECT", verdictReason: "No." })),
+    ]) {
+      expect(r.ok).toBe(false);
+      expect(message(r)).toBe(NOT_ON_PANEL);
+    }
+    expect(await db.openingChecklistAnswer.count({ where: { openedBidId: offers[0].id } })).toBe(0);
+    expect((await db.openedBid.findUniqueOrThrow({ where: { id: offers[0].id } })).verdict).toBeNull();
+    // An officer cannot initial for another on an online opening, even with a paper reference.
+    who.actor = ex.officers[1].actor;
+    const names = actFieldNames("personId");
+    const other = await recordInitial({ ok: false }, form({ exerciseId: ex.id, openedBidId: offers[0].id, personId: ex.officers[0].person.id, [names.onBehalf]: "on", [names.paperReference]: "paper 1", [names.reason]: "initialled on paper" }));
+    expect(other.ok).toBe(false);
+    expect(await db.openedBidInitial.count({ where: { openedBidId: offers[0].id, personId: ex.officers[0].person.id } })).toBe(0);
   }, 300_000);
 
   it("one administrator cannot switch off the sign-in account of an opening officer between the unseal and finalising", async () => {

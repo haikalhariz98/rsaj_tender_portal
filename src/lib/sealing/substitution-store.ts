@@ -10,6 +10,8 @@
 import { randomUUID } from "node:crypto";
 
 import type { Tx } from "@/lib/audit/record";
+import { lateBidWaitingOf } from "@/lib/bids/envelope-status";
+import { loadLateMatters } from "@/lib/bids/repo";
 import { shredExerciseReleases } from "@/lib/opening/unseal-store";
 
 import { zero } from "./aead";
@@ -101,9 +103,14 @@ export async function loadHolderExposures(tx: Tx, organisationId: string, now: D
     select: { personId: true, exercise: { include: { openings: { select: { kind: true, unsealedAt: true, finalisedAt: true } } } } },
   });
   const byPerson = new Map<string, ReturnType<typeof exposuresOf>>();
+  const waiting = new Map<string, boolean>();
   for (const r of rows) {
     const e = r.exercise;
-    const found = exposuresOf([{ exerciseId: e.id, reference: e.reference, title: e.title, closing: e.closingAt, openings: e.openings.map((o) => ({ kind: o.kind, unsealed: o.unsealedAt !== null, finalised: o.finalisedAt !== null })) }], now);
+    if (!waiting.has(e.id)) {
+      const late = await tx.bidEnvelope.findMany({ where: { exerciseId: e.id, late: true, kind: { not: "COMPANY_ESTIMATE" } }, select: { id: true, kind: true, late: true, status: true } });
+      waiting.set(e.id, late.length > 0 && lateBidWaitingOf(late, await loadLateMatters(e.id, tx)));
+    }
+    const found = exposuresOf([{ exerciseId: e.id, reference: e.reference, title: e.title, closing: e.closingAt, openings: e.openings.map((o) => ({ kind: o.kind, unsealed: o.unsealedAt !== null, finalised: o.finalisedAt !== null })), lateBidWaiting: waiting.get(e.id) === true }], now);
     if (found.length) byPerson.set(r.personId, [...(byPerson.get(r.personId) ?? []), ...found]);
   }
   return byPerson;

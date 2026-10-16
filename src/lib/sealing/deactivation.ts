@@ -14,21 +14,23 @@ export type ExposureKind =
   | "UNFINALISABLE"
   /// The closing has passed and the bids are not opened: without this officer they can never be opened.
   | "UNOPENABLE"
+  /// The main opening is finalised but a late bid still waits for its supplementary opening (20ce a), which needs every named officer: without this officer it can never be opened.
+  | "LATE_BID_WAITING"
   /// The closing has not passed: the officer can still be replaced, share and all, before it. After it, the exercise must be re-tendered.
   | "SUBSTITUTE_BEFORE_CLOSING";
 
 export interface HeldOpening { unsealed: boolean; finalised: boolean; kind: "MAIN" | "SUPPLEMENTARY" }
-export interface HeldExercise { exerciseId: string; reference: string; title: string; closing: Date | null; openings: readonly HeldOpening[] }
+export interface HeldExercise { exerciseId: string; reference: string; title: string; closing: Date | null; openings: readonly HeldOpening[]; /** A late bid not yet opened and not turned away: a supplementary opening is still owed. */ lateBidWaiting: boolean }
 export interface HolderExposure { exerciseId: string; reference: string; title: string; kind: ExposureKind }
 
 /**
- * The exposure of one named officer on one exercise, or null where leaving changes nothing: the main opening is finalised and no sitting is part-way. A finalised main opening with a late bid
- * still to open is not listed, a reading that favours silence over the officer's own screen, and is a question for the product owner (decisions log, 2026-10-16).
+ * The exposure of one named officer on one exercise, or null where leaving changes nothing: the main opening is finalised, no sitting is part-way and no late bid waits for a supplementary opening. A finalised main opening
+ * with a late bid still to open is exposed (20ce a): the supplementary opening needs every named officer.
  */
 export function exposureOf(e: HeldExercise, now: Date): HolderExposure | null {
   const base = { exerciseId: e.exerciseId, reference: e.reference, title: e.title };
   if (e.openings.some((o) => o.unsealed && !o.finalised)) return { ...base, kind: "UNFINALISABLE" };
-  if (e.openings.some((o) => o.kind === "MAIN" && o.finalised)) return null;
+  if (e.openings.some((o) => o.kind === "MAIN" && o.finalised)) return e.lateBidWaiting ? { ...base, kind: "LATE_BID_WAITING" } : null;
   if (e.closing !== null && e.closing.getTime() <= now.getTime()) return { ...base, kind: "UNOPENABLE" };
   return { ...base, kind: "SUBSTITUTE_BEFORE_CLOSING" };
 }
@@ -42,6 +44,8 @@ export const EXPOSURE_WORDS: Readonly<Record<ExposureKind, (e: { reference: stri
     `${e.reference} (${e.title}): the bids are already opened and not yet finalised. Without this officer's signature it can never be finalised, and nobody can take their place now, so it must be re-tendered. The way out is to cancel it, with its authority.`,
   UNOPENABLE: (e) =>
     `${e.reference} (${e.title}): the closing has passed and the bids are not opened. Every named officer is needed to open them and nobody can take this officer's place now, so it must be re-tendered. The way out is to cancel it, with its authority.`,
+  LATE_BID_WAITING: (e) =>
+    `${e.reference} (${e.title}): the main opening is finalised, but a late bid is still waiting for its supplementary opening. Every named officer is needed to open it and nobody can take this officer's place now, so without them it can never be opened and the exercise must be re-tendered. The way out is to cancel it, with its authority.`,
   SUBSTITUTE_BEFORE_CLOSING: (e) =>
     `${e.reference} (${e.title}): this officer can still be replaced, with their share handed over, until the closing. If they are not replaced first, the bids can never be opened and the exercise must be re-tendered.`,
 };
@@ -50,14 +54,14 @@ export const EXPOSURE_WORDS: Readonly<Record<ExposureKind, (e: { reference: stri
 export const exposureLines = (xs: readonly HolderExposure[]): string[] => xs.map((x) => EXPOSURE_WORDS[x.kind](x));
 
 export const SECOND_APPROVER_WORDS =
-  "This person is a named opening officer of an exercise whose bids are opened and not yet finalised. Marking them as left needs a second approver: it is proposed, and a different person decides it. It cannot be done by one person alone.";
+  "This person is a named opening officer of an exercise whose bids are opened and not yet finalised, or whose late bid still waits to be opened. Marking them as left needs a second approver: it is proposed, and a different person decides it. It cannot be done by one person alone.";
 
 /**
  * Whether the act may run now. `mode` is how the two-person machinery is running it: a proposal's rehearsal, a second person's decision (the change is applied), or null for a run that is neither.
- * An exposure of kind UNFINALISABLE (the window between the unseal and finalising, 20t) is allowed only in the first two.
+ * An exposure of kind UNFINALISABLE (the window between the unseal and finalising, 20t) or LATE_BID_WAITING (20ce a, a supplementary opening owed) is allowed only in the first two.
  */
 export function deactivationGate(i: { exposures: readonly HolderExposure[]; mode: "REHEARSAL" | "APPLY" | null }): { allowed: true } | { allowed: false; message: string } {
-  if (i.mode === null && i.exposures.some((x) => x.kind === "UNFINALISABLE")) return { allowed: false, message: SECOND_APPROVER_WORDS };
+  if (i.mode === null && i.exposures.some((x) => x.kind === "UNFINALISABLE" || x.kind === "LATE_BID_WAITING")) return { allowed: false, message: SECOND_APPROVER_WORDS };
   return { allowed: true };
 }
 

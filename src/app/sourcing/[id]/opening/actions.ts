@@ -28,6 +28,7 @@ import { panelFaults, supplementaryPanel } from "@/lib/opening/panel";
 import { loadOpeningRoster } from "@/lib/opening/roster-store";
 import { rosterFaults } from "@/lib/opening/roster";
 import { actFaults } from "@/lib/opening/state";
+import { onlineInitialFault, panelActorFault } from "@/lib/opening/actor";
 import { openingPolicyFrozen, panelOf, panelSnapshot, policyOf, stateOf, type OpeningContext, type OpeningPolicySnapshot } from "@/lib/opening/repo";
 import { unpurchasedRecordAudit, unpurchasedRule } from "@/lib/opening/unpurchased";
 import { estimateStateForStart } from "@/lib/sealing/estimate-lodgement";
@@ -687,6 +688,9 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
+    // Security audit: an online initial is the officer's own act, never recorded for another.
+    const notOwn = onlineInitialFault(l.ex.submissionChannel, personId, actor.personId);
+    if (notOwn) return { ok: false, message: notOwn };
     const existing = bid.initials.find((i) => i.personId === personId) ?? null;
     const stale = !!existing && initialStale(bid, existing);
     const fs = markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId, already: !!existing && !stale, sameOpening: true });
@@ -722,6 +726,8 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
+    const notPanel = panelActorFault(panelOf(o), actor.personId);
+    if (notPanel) return { ok: false, message: notPanel };
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
     const fs = [...actFaults(stateOf(o, l.ex.status)), ...answerFaults(checklist.items, itemKey, answer)];
     if (blocking(fs).length) return refuse(fs);
@@ -758,6 +764,8 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
+    const notPanel = panelActorFault(panelOf(o), actor.personId);
+    if (notPanel) return { ok: false, message: notPanel };
     // S-3: who records the verdict is named, so a rule recorded with it says by whom: the signed-in officer (Phase 2b).
     const person = { name: actor.personName };
     const snap = policyOf(o.policySnapshot);
@@ -809,6 +817,8 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
+    const notPanel = panelActorFault(panelOf(o), actor.personId);
+    if (notPanel) return { ok: false, message: notPanel };
     // Review S6: an online bid's price is not read before its finalising. Refused in words, before anything reads the price (which would throw).
     if (bid.priceAsRead == null) return refuse(correctionFaults({ state: stateOf(o, l.ex.status), sameOpening: !o.finalisedAt, reason, changed: true, price: offer.price, period: offer.period, priceRead: false }));
     const period = periodOf(offer.period);

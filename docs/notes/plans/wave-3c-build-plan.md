@@ -73,7 +73,7 @@ The Opening section shows **one matrix per opening** once that opening has opene
   1. **Checklist result.** "3 of 3 present", "2 of 3 present · 1 absent", "1 not answered". It never says "Pass", because Pass is the
      decision.
   2. **Decision.** Pass or Reject, recorded by a named officer. The Reject reason shows under the decision. The row's sub-line says
-     "Stands when every named officer has confirmed this column". The word "committee" is not used (see question Q6).
+     "Stands when every named officer has confirmed this column". The word "committee" is not used (see question 3c-Q6).
   3. **Confirmations.** For each named officer: confirmed, awaiting, or "confirmed before a change: confirm again". There is a "Confirm
      this column" action for the signed-in officer.
 
@@ -88,7 +88,7 @@ still pin PAPER (the demo's paper fallback).
 - The matrix replaces the Checklist and Verdict drawers of `OffersRead`, and holds the confirmations.
 - `OffersRead` keeps the as-read columns and the paper acts: open, correct, alternative.
 - A paper initial may still be **recorded on behalf** of a present panel member (Phase 2b), because a paper initial is a physical mark on
-  the schedule (question Q3). An online one may not.
+  the schedule (question 3c-Q3). An online one may not.
 
 ### 1.2 What a cell offers (online)
 
@@ -109,7 +109,7 @@ judgement, and the completeness switch decides what an Absent does (`verdict.ts`
 **Why rows are not cut down to the flagged parts (ruling 23 against FR-OPN-008).** Ruling 23 decides which documents the officers
 **open**. FR-OPN-008 still requires the opening to record every mandatory returned document. The supplier is told "the opening will record
 it as missing" (`bids/online/words.ts:167`), so dropping unflagged parts would break that promise. This is the conservative reading, logged
-as question Q1.
+as question 3c-Q1.
 
 ### 1.3 Who may act, and when (both channels)
 
@@ -117,7 +117,7 @@ as question Q1.
   seated from the SR-07 roster (online: every named officer, 20ay). Never an administrator. Refusals come in words, before anything is
   written.
 - Answers and decisions are the officer's **own act** on both channels. A confirmation is the officer's own act online; on paper it may
-  be recorded on behalf of a present panel member, as today (Q3).
+  be recorded on behalf of a present panel member, as today (3c-Q3).
 - **Pass or Reject needs every named officer.** An officer's initial is their confirmation of the column (ruling 22). It counts only
   for the column's current revision.
   - Every answer change, every recorded decision and every decision cleared raises `OpenedBid.columnRevision` in the same transaction.
@@ -147,7 +147,7 @@ The phases below are those of one opening. 20ax applies to a supplementary openi
 - Online, the "Class as read" cell reads "Not typed: an online bid", through one pure function used by the screen, the print page and
   the CSV. The register Kelas column is unchanged.
 - The Received section gets a pointer once the opening is finalised (SR-15 "Where: Received"). It is a callout with the same two
-  download buttons and "Open the schedule". The tables stay on Schedule, as wave 3a built them (question Q7).
+  download buttons and "Open the schedule". The tables stay on Schedule, as wave 3a built them (question 3c-Q7).
 
 ## 2. Data model (one migration, step 3)
 
@@ -232,7 +232,7 @@ export function columnStatus(i: {
 
 export type MatrixActorFault = "ADMINISTRATOR" | "NOT_A_NAMED_OFFICER" | "NOT_OWN_ACT";
 /// Both channels: the actor is not an administrator, and the subject is a present panel member of this opening. NOT_OWN_ACT where the subject is not the actor,
-/// except a paper confirmation (`act: "CONFIRM"`, not online), which may be recorded on behalf of a present panel member (Q3).
+/// except a paper confirmation (`act: "CONFIRM"`, not online), which may be recorded on behalf of a present panel member (3c-Q3).
 export function matrixActorFaults(i: { online: boolean; act: "ANSWER" | "DECIDE" | "CONFIRM"; administrator: boolean; actorPersonId: string; subjectPersonId: string; officers: readonly string[] }): Finding<MatrixActorFault>[];
 
 export type ConfirmFault = "COLUMN_NOT_ANSWERED" | "DECISION_NOT_RECORDED";
@@ -252,7 +252,7 @@ export const CELL_WORDS: Readonly<Record<CellKind, string>>; // staff-facing Eng
 - **`src/lib/opening/filed-file.ts`.** Add `filedFileFaults(i: { administrator: boolean; finalised: boolean; fileOnOpening: boolean;
   checked: boolean }): Finding<"ADMINISTRATOR" | "NOT_FINALISED" | "NOT_ON_THIS_OPENING" | "NOT_AN_OPENING_CHECK_FILE">[]`. Add
   `FILED_FILE_WORDS`: one sentence per fault, and one per `MoveResult` FAILED code (`CLASS_NOT_SET`, `STORE_NOT_BUILT` and the rest).
-- **20ce (a), in `src/lib/sealing/substitution-store.ts`.** `loadHolderExposures` and its pure `exposureOf` list a named officer of a
+- **20ce (a), built in the review fixes of 2026-10-17.** The pure `exposureOf`, its words (`EXPOSURE_WORDS`) and `deactivationGate` live in `src/lib/sealing/deactivation.ts`, tested in `deactivation.test.ts`; only the loader `loadHolderExposures` is in `src/lib/sealing/substitution-store.ts`. They list a named officer of a
   finalised main opening while a late bid admitted to it still waits for its supplementary opening, which needs every named officer
   (20az). Add the words for it, and a test.
 
@@ -373,7 +373,7 @@ Each step has these gates before its commit:
 - `src/lib/opening/matrix.ts` with `matrix.test.ts`, exactly as §3.1;
 - `classAsReadText` in `download.ts`;
 - `src/lib/opening/filed-file.ts` with its test;
-- 20ce (a) in `substitution-store.ts`, with its pure test.
+- 20ce (a): done (pure rule in `deactivation.ts`, loader in `substitution-store.ts`).
 
 **Tests cover:**
 - every `CellKind`;
@@ -547,21 +547,21 @@ closes, and focus returns to the opener. Add a component test.
 
 ## 6. Questions for the product owner (taken conservatively and built as stated; none blocks)
 
-- **Q1.** An online column keeps every mandatory returned part, including parts not marked as opening-check, which the officers answer
+- **3c-Q1.** An online column keeps every mandatory returned part, including parts not marked as opening-check, which the officers answer
   from the receipt record without opening. The alternative reading of ruling 23 shows only the flagged parts. That would drop
   FR-OPN-008's record, and break the supplier's "the opening will record it as missing".
-- **Q2.** An addendum row online is answered against the portal acknowledgement, which the cell shows. No file is opened.
-- **Q3.** Ruling 22 is applied to both channels: the named-officer door, and a decision that stands only on every present officer's
+- **3c-Q2.** An addendum row online is answered against the portal acknowledgement, which the cell shows. No file is opened.
+- **3c-Q3.** Ruling 22 is applied to both channels: the named-officer door, and a decision that stands only on every present officer's
   confirmation of the current column. The narrower question left: a **paper** confirmation may still be recorded on behalf of a present
   panel member, as Phase 2b allows, because a paper initial is a physical mark. Online it is the officer's own act.
-- **Q4.** An online confirmation is a TRANSACTION-class own act with no password. The password-attributed act stays
+- **3c-Q4.** An online confirmation is a TRANSACTION-class own act with no password. The password-attributed act stays
   `signOnlineFinalise` (20j, 20t).
-- **Q5.** Plain hashes are shown per file only after finalising, from the filed version. Before then they are sealed in `FileMeta`, and
+- **3c-Q5.** Plain hashes are shown per file only after finalising, from the filed version. Before then they are sealed in `FileMeta`, and
   no new decryption door is opened to show them. This amends wave 3b §3's "each column shows the plain hashes" and ADR 0036's
   opening-roll sentence, which carries an amendment note citing this plan. The receipt digest is shown from the unseal.
-- **Q6.** The row figure 13 calls "Committee decision" is labelled "Decision", recorded by the named officers. Ruling 24 says the
+- **3c-Q6.** The row figure 13 calls "Committee decision" is labelled "Decision", recorded by the named officers. Ruling 24 says the
   officers decide, and 0003 §4 (line 610) leaves "who is the committee at an online opening" open.
-- **Q7.** SR-15's tables stay on Schedule (wave 3a). Received gets a pointer with the two downloads. The difference from "Where:
+- **3c-Q7.** SR-15's tables stay on Schedule (wave 3a). Received gets a pointer with the two downloads. The difference from "Where:
   Received" was not recorded before.
-- **Q8.** "Class as read" on an online row reads "Not typed: an online bid", rather than a dash or a removed column.
-- **Q9.** Present is refused on a part with no file received. Absent and Not applicable stay the officers' choice everywhere.
+- **3c-Q8.** "Class as read" on an online row reads "Not typed: an online bid", rather than a dash or a removed column.
+- **3c-Q9.** Present is refused on a part with no file received. Absent and Not applicable stay the officers' choice everywhere.

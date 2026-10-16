@@ -103,14 +103,20 @@ const HOLIDAYS: readonly [string, string][] = [
   ["08-21", "Demo Foundation Day"],
   ["12-25", "Demo Year-End Holiday"],
 ];
-const WEEKEND = [6, 7];
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+/// The demonstration's weekend (ISO weekdays, 1 Monday to 7 Sunday): Saturday and Sunday unless DEMO_WEEKEND_DAYS names two other distinct days, for the harness that must be able to run on any day of
+/// the week (the online exercise closes minutes after the load, and the product refuses a closing on a weekend). Read at each use, so a test sets it for one load.
+const weekend = (): number[] => {
+  const named = (process.env.DEMO_WEEKEND_DAYS ?? "").split(",").map((x) => Number(x.trim()));
+  return named.length > 0 && named.every((n) => Number.isInteger(n) && n >= 1 && n <= 7) && new Set(named).size === named.length ? named : [6, 7];
+};
 
 // ------------------------------------------------------------------ the calendar the demo runs on
 
 /// The load day in the organisation's zone, and its working days either side.
 export function calendarOf(today: string) {
   const isHoliday = (d: string) => HOLIDAYS.some(([md]) => d.slice(5) === md);
-  const working = (d: string) => !WEEKEND.includes(isoWeekday(d)) && !isHoliday(d);
+  const working = (d: string) => !weekend().includes(isoWeekday(d)) && !isHoliday(d);
   const step = (d: string, n: number) => {
     const t = dayToDate(d);
     t.setUTCDate(t.getUTCDate() + n);
@@ -402,8 +408,8 @@ async function loadConfiguration(db: Db, organisationId: string, at: Date, today
 
   // The calendar: every year the demo's dates touch, maintained in full; the year after, not.
   const cal = { id: `${P}hol1`, code: "demo_state", name: "Demo state calendar" };
-  await db.holidayCalendar.create({ data: { ...cal, organisationId, weekendDays: WEEKEND, weekendProvenance: "ASSUMED", governingSource: SOURCE, provenance: "ASSUMED", notes: "Invented demo calendar.", sortOrder: 1 } });
-  entry("HolidayCalendar", cal.id, `Holiday calendar · ${cal.name}`, "CREATE", after(at, 2), diffFields(null, { name: cal.name, weekend: "Saturday, Sunday", weekendFrom: "Assumed", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
+  await db.holidayCalendar.create({ data: { ...cal, organisationId, weekendDays: weekend(), weekendProvenance: "ASSUMED", governingSource: SOURCE, provenance: "ASSUMED", notes: "Invented demo calendar.", sortOrder: 1 } });
+  entry("HolidayCalendar", cal.id, `Holiday calendar · ${cal.name}`, "CREATE", after(at, 2), diffFields(null, { name: cal.name, weekend: weekend().map((n) => DAY_NAMES[n - 1]).join(", "), weekendFrom: "Assumed", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
   const first = Number(W(30).slice(0, 4));
   const last = Number(W(-30).slice(0, 4));
   let h = 0;

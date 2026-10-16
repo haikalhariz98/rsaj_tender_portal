@@ -5,7 +5,7 @@ import { deactivationGate, EXPOSURE_WORDS, exposureLines, exposureOf, exposuresO
 const NOW = new Date("2026-11-02T10:00:00Z");
 const BEFORE = new Date("2026-11-03T10:00:00Z");
 const AFTER = new Date("2026-11-01T10:00:00Z");
-const ex = (over: Partial<HeldExercise>): HeldExercise => ({ exerciseId: "e1", reference: "TND/0001", title: "Road works", closing: BEFORE, openings: [], ...over });
+const ex = (over: Partial<HeldExercise>): HeldExercise => ({ exerciseId: "e1", reference: "TND/0001", title: "Road works", closing: BEFORE, openings: [], lateBidWaiting: false, ...over });
 
 describe("who is left stranded when a share-holder leaves (D11, 20t)", () => {
   it("before the closing the officer can still be replaced, and the line says so and says what follows if not", () => {
@@ -14,6 +14,17 @@ describe("who is left stranded when a share-holder leaves (D11, 20t)", () => {
     expect(EXPOSURE_WORDS[x.kind](x)).toMatch(/can still be replaced/);
     expect(EXPOSURE_WORDS[x.kind](x)).toMatch(/re-tendered/);
     expect(exposureOf(ex({ closing: null }), NOW)!.kind).toBe("SUBSTITUTE_BEFORE_CLOSING");
+  });
+
+  it("20ce (a): a finalised main opening with a late bid waiting is exposed, and needs the second approver; with none waiting it is not", () => {
+    const main = [{ kind: "MAIN" as const, unsealed: true, finalised: true }];
+    const x = exposureOf(ex({ closing: AFTER, openings: main, lateBidWaiting: true }), NOW)!;
+    expect(x.kind).toBe("LATE_BID_WAITING");
+    expect(EXPOSURE_WORDS[x.kind](x)).toMatch(/supplementary opening/);
+    expect(EXPOSURE_WORDS[x.kind](x)).toMatch(/re-tendered/);
+    expect(exposureOf(ex({ closing: AFTER, openings: main, lateBidWaiting: false }), NOW)).toBeNull();
+    expect(deactivationGate({ exposures: [x], mode: null }).allowed).toBe(false);
+    expect(deactivationGate({ exposures: [x], mode: "APPLY" }).allowed).toBe(true);
   });
 
   it("after the closing and before the unseal the bids can never be opened: re-tender, with cancellation the way out", () => {

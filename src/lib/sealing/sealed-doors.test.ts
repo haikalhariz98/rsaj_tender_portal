@@ -53,6 +53,13 @@ describe("every decryption goes through open.ts (ADR 0036 D12)", () => {
     expect(calls).toEqual(["unwrapKey"]);
   });
 
+  it("20bq: unwrapKey is called from unlock-store.ts only, and named nowhere else but its definition and the barrel", () => {
+    expect(callers("unwrapKey").filter((p) => p !== "src/lib/sealing/kdf.ts")).toEqual(["src/lib/sealing/unlock-store.ts"]);
+    // A reference by property (`sealing.unwrapKey(...)`) or by alias escapes the call scan, so every mention in code is pinned.
+    const named = code.filter((s) => /\bunwrapKey\b/.test(s.code)).map((s) => s.path).sort();
+    expect(named).toEqual(["src/lib/sealing/kdf.ts", "src/lib/sealing/types.ts", "src/lib/sealing/unlock-store.ts"]);
+  });
+
   it("the scan reads calls in code only, never a name in a comment or a string", () => {
     const text = lex('// hpkeOpen(x)\nconst a = "gcmOpen(y)";\nfoo.gcmOpen(z);\nhpkeOpen(k);');
     expect(/(?<![\w.])hpkeOpen\s*\(/.test(text)).toBe(true);
