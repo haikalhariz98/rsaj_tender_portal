@@ -40,16 +40,15 @@ export const REVIEW_PAGE = 50;
 
 const KINDS: SubmissionKind[] = ["WORK_PROGRAMME", "INTERIM_CLAIM", "MATERIALS_ON_SITE", "DELAY_NOTICE", "DEFECTS_RECTIFIED", "STATUTORY_DECLARATION"];
 
-/// Which submissions a read covers (AC-16): one contract's, and/or not those of a restricted exercise the reader is not named on (FR-MTD-007; `hidden` is `hiddenExercises`' answer).
+/// Which submissions a read covers (AC-16): one contract's, or the whole organisation's. There is no restricted-exercise filter: a submission is on an issued contract, contract stages stay
+/// visible after issue (AC-18, AC-19), and the Superintending Officer who must answer it (FR-SUP-006, 009) is often not named on the exercise (FR-MTD-007 hides the exercise, not its contract).
 export interface ReviewScope {
   contractId?: string;
-  hidden?: readonly string[];
 }
 
 const scopeWhere = (organisationId: string, scope: ReviewScope) => ({
   organisationId,
   ...(scope.contractId ? { contractId: scope.contractId } : {}),
-  ...(scope.hidden?.length ? { contract: { award: { exerciseId: { notIn: [...scope.hidden] } } } } : {}),
 });
 
 /// The queue's counts, from the whole register by count queries (never from a page): waiting, and overdue (waiting past its due day, as `serviceState` reads it: due on the day is not

@@ -1,5 +1,5 @@
 import { ACTIVITY_ENTITIES, activityFeed, type ActivityEntry, type ActivityOwner } from "@/lib/dashboard/activity";
-import { openStepOf, oldestWaitingDays } from "@/lib/approvals/queue";
+import { openStepOf } from "@/lib/approvals/queue";
 import { todayIn } from "@/lib/dates";
 import { EXERCISE_STATUS_ORDER } from "@/lib/method/labels";
 import type { ExerciseStatus } from "@/lib/method/types";
@@ -148,13 +148,11 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
       };
     })
     .sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1) || a.reference.localeCompare(b.reference));
-  const oldestWaiting = oldestWaitingDays([...requisitions.map((r) => r.waitingDays), ...queue.map((q) => q.waitingDays)]);
 
   return {
     queue,
     requisitions,
     pipeline,
-    oldestWaiting,
     activity,
     meetings,
     committees,

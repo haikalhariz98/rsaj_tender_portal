@@ -222,7 +222,8 @@ export async function siblingAmountsWithheld(actor: StaffActor, siblings: readon
 }
 
 /// The ids of the restricted exercises the actor may not see, for a list, a count, a feed or a search to leave out.
-export const hiddenExercises = (actor: Reader): Promise<string[]> => hiddenExerciseIds(db, actor);
+/// Read once per request (React `cache()`, by the actor object the request's `currentStaffOrNull` hands out): the layout's counts, the worklist and the page share one read.
+export const hiddenExercises = cache((actor: Reader): Promise<string[]> => hiddenExerciseIds(db, actor));
 
 /**
  * Whether a tabled matter belongs to an exercise the actor may not see (the committee's votes and outcomes on it, read by its id). True: answer as for a

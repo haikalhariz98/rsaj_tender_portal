@@ -65,9 +65,9 @@ const COMING = [
 
 export default async function Dashboard() {
   const actor = await requireStaff();
-  const accountView = await loadAccountView(actor);
-  // "Awaiting my decision" is the My approvals badge's own reading: `requestWorklist` is request-cached, so the layout and this page share one load (GN-03, AC-11).
-  const [data, timeZone, worklist] = await Promise.all([loadDashboard(actor.organisationId, await hiddenExercises(actor)), organisationTimeZone(actor.organisationId), requestWorklist(actor)]);
+  // "Awaiting my decision" is the My approvals badge's own reading: `requestWorklist` is request-cached, so the layout and this page share one load (GN-03, AC-11). Every read starts
+  // together (AC-9b); `hiddenExercises` and the time zone are request-cached, so the layout, the worklist and the loader share one read each.
+  const [accountView, data, timeZone, worklist] = await Promise.all([loadAccountView(actor), hiddenExercises(actor).then((hidden) => loadDashboard(actor.organisationId, hidden)), organisationTimeZone(actor.organisationId), requestWorklist(actor)]);
 
   if (!data) {
     return (
@@ -159,7 +159,7 @@ export default async function Dashboard() {
           tone="brand"
           icon={<AwardIcon size={17} />}
           href="/projects"
-          hint={conPipe.total === 0 ? "none in the pipeline" : `${conPipe.awarding} awarding · ${conPipe.signing} signing · ${conPipe.onSite} on site`}
+          hint={conPipe.total === 0 ? "none in the pipeline" : `${conPipe.awarding} awarding (on Awards, until a contract is formed) · ${conPipe.signing} signing · ${conPipe.onSite} on site`}
         />
       </div>
 

@@ -47,6 +47,7 @@ const ROUTES = [
   "/approvals",
   "/inbox",
   "/projects?view=securities",
+  "/projects?view=submissions",
   "/committees",
   "/configuration/requisitions",
   "/configuration/awards",

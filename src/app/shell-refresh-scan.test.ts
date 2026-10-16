@@ -41,6 +41,8 @@ const ENTRIES: Entry[] = [
   { file: `${P}/certificates/[certId]/actions.ts`, actions: ["sendCertificateForRouting", "sendCertificateToSigning", "sendCertificateForApproval", "decideCertificateRouteStep"], via: /\binCertificate\(/, carriers: [{ file: `${P}/certificates/[certId]/actions.ts`, fn: "inCertificate" }] },
   { file: "src/app/sourcing/actions.ts", actions: ["recallNameApproval", "recordNameDecision", "citeNameDecision"], via: /\binExercise\(|\brefresh\(/, carriers: [{ file: "src/app/sourcing/actions.ts", fn: "refresh" }] },
   { file: "src/app/sourcing/[id]/documents/actions.ts", actions: ["submitPack", "recordTenderingDecision"], via: /\binPacks\(/, carriers: [{ file: "src/app/sourcing/[id]/documents/actions.ts", fn: "inPacks" }] },
+  // Who holds a step is set here (AC-13 names delegates): a person's availability, a delegation, a reporting line, an office, an assignment each redraw the layout themselves.
+  { file: "src/app/configuration/users/core.ts", actions: ["savePerson", "setPersonActive", "saveDelegation", "saveReportingLine", "saveOffice", "saveAssignment", "endAssignment"], via: /(?!)/, carriers: [] },
   { file: "src/app/committees/actions.ts", actions: ["recordOutcome"], via: /\binSitting\w*\(|\brefresh\(/, carriers: [{ file: "src/app/committees/actions.ts", fn: "refresh" }] },
 ];
 

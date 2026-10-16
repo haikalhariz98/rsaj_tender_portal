@@ -20,7 +20,7 @@ import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import { KIND_WORDS } from "./labels";
-import { DISTRIBUTION_PAGE, issuedCopiesWhere, LIBRARY_PAGE, likePatterns, openSheetsWhere, outstandingCopiesWhere, pageOf, sheetCounts, sheetOrder, SHEETS_PAGE } from "./library";
+import { issuedCopiesWhere, LIBRARY_PAGE, likePatterns, openSheetsWhere, pageOf, sheetCounts, sheetOrder } from "./library";
 import { sheetOf } from "./pin-context";
 import { termOf } from "./repo";
 import { searchVariants } from "./terms";
@@ -68,7 +68,7 @@ function entries(organisationId: string, variants: readonly string[], hidden: re
 }
 
 /// How many entries the Library holds for a search (none: the whole register), counted in the database.
-export async function libraryCount(organisationId: string, variants: readonly string[] = [], hidden: readonly string[] = []): Promise<number> {
+export async function libraryCount(organisationId: string, variants: readonly string[], hidden: readonly string[]): Promise<number> {
   const list = entries(organisationId, variants, hidden);
   const r = await db.$queryRaw<{ n: number }[]>`WITH entries AS (${list}) SELECT count(*)::int AS n FROM entries`;
   return r[0]?.n ?? 0;
@@ -143,42 +143,6 @@ export async function libraryPage(organisationId: string, query: string, askedPa
   return { rows, total, page, variants };
 }
 
-/// The outstanding copies' counts, on contracts not cancelled, and the cancelled contracts' outstanding copies apart.
-export async function distributionCounts(organisationId: string) {
-  const live = outstandingCopiesWhere(organisationId, false);
-  // The issued copies on contracts not cancelled, for the counts that name "not sent" and "awaited" each.
-  const base = issuedCopiesWhere(organisationId, false);
-  const [total, notSent, notSentMandatory, ackAwaited, onCancelled] = await Promise.all([
-    db.issuedCopy.count({ where: live }),
-    db.issuedCopy.count({ where: { ...base, despatchedOn: null } }),
-    db.issuedCopy.count({ where: { ...base, despatchedOn: null, mandatory: true } }),
-    db.issuedCopy.count({ where: { ...base, despatchedOn: { not: null }, ackRequired: true, acknowledgedOn: null } }),
-    db.issuedCopy.count({ where: outstandingCopiesWhere(organisationId, true) }),
-  ]);
-  return { total, notSent, notSentMandatory, ackAwaited, onCancelled };
-}
-
-export async function distributionPage(organisationId: string, askedPage: string | undefined) {
-  const counts = await distributionCounts(organisationId);
-  const page = pageOf(askedPage, counts.total, DISTRIBUTION_PAGE);
-  const rows = await db.issuedCopy.findMany({
-    where: outstandingCopiesWhere(organisationId, false),
-    orderBy: [{ certificate: { issuedAt: "asc" } }, { certificateId: "asc" }, { copyNo: "asc" }],
-    skip: page * DISTRIBUTION_PAGE,
-    take: DISTRIBUTION_PAGE,
-    select: { id: true, copyNo: true, recipientName: true, addressedTo: true, mandatory: true, ackRequired: true, isOriginal: true, despatchedOn: true, acknowledgedOn: true, certificate: { select: { id: true, kind: true, number: true, sequence: true, issueSnapshot: true, contract: { select: { id: true, number: true } } } } },
-  });
-  // Each copy with its certificate read flat (the outstanding filter means it always has one).
-  const flat = rows.map((r) => ({ id: r.id, copyNo: r.copyNo, recipientName: r.recipientName, addressedTo: r.addressedTo, mandatory: !!r.mandatory, ackRequired: !!r.ackRequired, isOriginal: !!r.isOriginal, despatchedOn: r.despatchedOn ? storedDay(r.despatchedOn) : null, acknowledgedOn: r.acknowledgedOn ? storedDay(r.acknowledgedOn) : null, certId: r.certificate?.id ?? "", kind: r.certificate?.kind ?? "INTERIM_PAYMENT", number: r.certificate?.number ?? null, sequence: r.certificate?.sequence ?? null, issuedOn: (r.certificate?.issueSnapshot as { issuedOn?: string } | null)?.issuedOn ?? null, contractId: r.certificate?.contract.id ?? "", contractNumber: r.certificate?.contract.number ?? "" }));
-  return { rows: flat, total: counts.total, page, counts };
-}
-
-/// The open sheets' counts the database can give without drawing them: open, and on cancelled contracts.
-export async function sheetsCounted(organisationId: string) {
-  const [open, onCancelled] = await Promise.all([db.certificate.count({ where: openSheetsWhere(organisationId, false) }), db.certificate.count({ where: openSheetsWhere(organisationId, true) })]);
-  return { open, onCancelled };
-}
-
 /// Code review S-1 (residual): only the columns a routing sheet is drawn from (pin-context.ts `SheetSource`), and the
 /// list's own, never the certificate page's whole include.
 const sheetSelect = {
@@ -206,30 +170,29 @@ export async function openSheetsJudged(organisationId: string, today: string, co
   return { sheets, counts: sheetCounts(sheets.map((x) => x.sheet)) };
 }
 
-/// One page of the open sheets, from the set judged whole.
-export function routingSheetsPage(judged: Awaited<ReturnType<typeof openSheetsJudged>>, askedPage: string | undefined) {
-  const { sheets, counts } = judged;
-  const page = pageOf(askedPage, sheets.length, SHEETS_PAGE);
-  return { rows: sheets.slice(page * SHEETS_PAGE, (page + 1) * SHEETS_PAGE), total: sheets.length, page, counts };
-}
-
 /// One contract's Documents tab header (AC-16): the copies still not sent and the routing sheets still open, each with the first certificate to go to. The sheets are judged against
-/// the target only where the day is known (`today` null: the time zone is not set, so overTarget is null and nothing is called late).
+/// the target only where the day is known (`today` null: the time zone is not set, so overTarget is null and nothing is called late, and the open count is the database's own).
 export async function contractDocumentFacts(organisationId: string, contractId: string, today: string | null) {
-  // The register's own "issued, on a contract not cancelled" reading (`issuedCopiesWhere`), narrowed to the contract.
-  const unsent = { organisationId, certificate: { status: "ISSUED" as const, contractId, contract: { status: { not: "CANCELLED" as const } } }, recalledOn: null, despatchedOn: null };
-  const [notSent, firstUnsent, judged, open, firstOpen] = await Promise.all([
+  // The register's own "issued, on a contract not cancelled" reading (`issuedCopiesWhere`), narrowed to the contract and to the copies not sent.
+  const base = issuedCopiesWhere(organisationId, false);
+  const unsent = { ...base, certificate: { ...base.certificate, contractId }, despatchedOn: null };
+  const [notSent, firstUnsent, judged] = await Promise.all([
     db.issuedCopy.count({ where: unsent }),
     db.issuedCopy.findFirst({ where: unsent, orderBy: [{ certificate: { issuedAt: "asc" } }, { copyNo: "asc" }], select: { certificateId: true } }),
     today ? openSheetsJudged(organisationId, today, contractId) : Promise.resolve(null),
-    db.certificate.count({ where: { ...openSheetsWhere(organisationId, false), contractId } }),
-    db.certificate.findFirst({ where: { ...openSheetsWhere(organisationId, false), contractId }, orderBy: [{ routingReceivedOn: "asc" }, { id: "asc" }], select: { id: true } }),
   ]);
+  // Without a day nothing is judged, so the open sheets are counted by the database alone (no whole-set read).
+  const [open, firstOpen] = judged
+    ? [judged.counts.open, judged.sheets[0]?.c.id ?? null]
+    : await Promise.all([
+        db.certificate.count({ where: { ...openSheetsWhere(organisationId, false), contractId } }),
+        db.certificate.findFirst({ where: { ...openSheetsWhere(organisationId, false), contractId }, orderBy: [{ routingReceivedOn: "asc" }, { id: "asc" }], select: { id: true } }).then((x) => x?.id ?? null),
+      ]);
   return {
     notSent,
     firstUnsentCertificateId: firstUnsent?.certificateId ?? null,
-    sheetsOpen: judged ? judged.counts.open : open,
+    sheetsOpen: open,
     overTarget: judged ? judged.counts.overTarget : null,
-    firstOpenCertificateId: judged?.sheets[0]?.c.id ?? firstOpen?.id ?? null,
+    firstOpenCertificateId: firstOpen,
   };
 }

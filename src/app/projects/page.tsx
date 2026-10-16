@@ -17,6 +17,9 @@ import { DELAY_BASIS } from "@/lib/supervision/labels";
 import { inDelayContractIds } from "@/lib/supervision/load";
 import { commencedPendingAll } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
+import { hiddenExercises } from "@/app/_auth/sulit";
+import { listRegister } from "@/lib/award/repo";
+import { db } from "@/lib/db";
 
 import { SecuritiesView } from "./securities-view";
 import { SubmissionsView } from "./submissions-view";
@@ -54,6 +57,13 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const commencedView = view === "commenced";
   const commenced = org0 ? await commencedPendingAll(org0.id) : [];
   const exposure = commenced.reduce((a, v) => a + senFromDecimal(v.estimate), 0n);
+  const hidden = await hiddenExercises(actor);
+  // The two organisation-wide views' buttons carry their counts, as the others do (AC-15, AC-16); the same readings as the views, by count queries alone. The securities view
+  // leaves out restricted exercises the reader is not named on (FR-MTD-007); the submissions view does not (AC-18, AC-19).
+  const [securitiesCount, submissionsWaiting] = await Promise.all([
+    listRegister(actor.organisationId, 0, "attention", hidden, true).then((r) => r.counts.attention),
+    db.contractorSubmission.count({ where: { organisationId: actor.organisationId, outcome: null } }),
+  ]);
   const data = await listContracts(actor.organisationId, page, delayView ? delayIds : null);
   const derived: Map<string, ContractPhase> = data.org ? await endorsedPhases(data.org.id, DERIVE_CAP) : new Map();
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
@@ -131,8 +141,8 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
             <span className="flex flex-wrap gap-2">
               {delayView ? <ButtonLink href="/projects" size="sm" variant="secondary">All contracts</ButtonLink> : <ButtonLink href="/projects?view=delay" size="sm" variant="secondary">{`In Delay (${delayIds.length})`}</ButtonLink>}
               <ButtonLink href="/projects?view=commenced" size="sm" variant="secondary">{`Commenced pending approval (${commenced.length})`}</ButtonLink>
-              <ButtonLink href="/projects?view=securities" size="sm" variant="secondary">Securities expiring or not verified</ButtonLink>
-              <ButtonLink href="/projects?view=submissions" size="sm" variant="secondary">Submissions waiting</ButtonLink>
+              <ButtonLink href="/projects?view=securities" size="sm" variant="secondary">{`Securities expiring or not verified (${securitiesCount})`}</ButtonLink>
+              <ButtonLink href="/projects?view=submissions" size="sm" variant="secondary">{`Submissions waiting (${submissionsWaiting})`}</ButtonLink>
             </span>
           }
           divided={false}

@@ -1,5 +1,4 @@
 import { ActGate } from "@/components/act-gate";
-import { Callout } from "@/components/ui/feedback";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { db } from "@/lib/db";
@@ -9,10 +8,9 @@ import { SubmissionsPanel } from "../submissions-panel";
 
 /**
  * The contract's Submissions tab (FR-SUP-006, 009; AC-16): this contract's submissions from the contractor's portal account, waiting and answered, answered here with the same drawer as the
- * Contracts list's "Submissions waiting" view. A contract of a restricted exercise the reader is not named on shows none (FR-MTD-007; `restricted` is judged by the page from `hiddenExercises`).
+ * Contracts list's "Submissions waiting" view. Not hidden for a restricted exercise (AC-18, AC-19): the contract's supervising officer answers it whether or not named on the exercise.
  */
-export async function SubmissionsTab({ organisationId, contractId, status, today, restricted, waiting, answered }: { organisationId: string; contractId: string; status: ContractStatus; today: string | null; restricted: boolean; waiting: string | undefined; answered: string | undefined }) {
-  if (restricted) return <Callout tone="info" title="Restricted exercise">The exercise this contract was formed from is restricted, and you are not named on it, so its submissions are not shown to you.</Callout>;
+export async function SubmissionsTab({ organisationId, contractId, status, today, waiting, answered }: { organisationId: string; contractId: string; status: ContractStatus; today: string | null; waiting: string | undefined; answered: string | undefined }) {
   const review = await loadReviewQueue(db, organisationId, today, { waiting, answered }, { contractId });
   const href = (w: number, a: number) => {
     const q = new URLSearchParams({ tab: "submissions", ...(w ? { waiting: String(w) } : {}), ...(a ? { answered: String(a) } : {}) });

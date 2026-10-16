@@ -487,6 +487,16 @@ const DECIDED_ABSENT = [
     why: "GN-03 (AC-11): removed from On the way, because Part 2 (document review) is held and nothing should look finished that is not",
   },
   {
+    screen: /^[/]inbox$/,
+    match: /^(Delivery|Open my steps)$/,
+    why: "GN-05 (AC-14): the Delivery box and the Open my steps button are removed from the Inbox; the shell's My approvals item opens the same list",
+  },
+  {
+    screen: /^[/]securities$/,
+    match: /^(Securities|The register|Search by contract, awardee or issuer|Shown here, not sent)$/,
+    why: "MN-01 (AC-15): the Securities menu and its screen are removed and /securities redirects to the Contracts list's 'Securities expiring or not verified' view, which holds the same register",
+  },
+  {
     screen: /^[/]documents$/,
     match: /^(Documents|Library|Distribution|Routing sheets|Review queue|Search|Clear)$/,
     why: "MN-02 (AC-16): the Documents menu is removed and /documents redirects permanently. The organisation-wide Library search is dropped (AC-4, AC-16; FR-CRT-011 is an S, logged as partly met); copies not sent and routing sheets open are counted on each contract's Documents tab; the Review queue is each contract's Submissions tab and the Contracts list's Submissions waiting view",

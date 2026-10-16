@@ -532,7 +532,7 @@ export type RegisterView = "all" | "expiring" | "unverified" | "attention";
  * first within each (`registerRank`). The views and the header's counts are the same
  * database conditions, so a view always holds what its count says.
  */
-export async function listRegister(organisationId: string, page = 0, view: RegisterView = "all", hidden: readonly string[] = []) {
+export async function listRegister(organisationId: string, page = 0, view: RegisterView = "all", hidden: readonly string[] = [], countsOnly = false) {
   const org = await exerciseOrg(organisationId);
   const empty = { org: null, securities: [], policies: [], order: [] as { kind: "S" | "P"; id: string }[], config: null, total: 0, page: 0, counts: { all: 0, unverified: 0, expiring: 0, attention: 0 } };
   if (!org) return empty;
@@ -568,6 +568,8 @@ export async function listRegister(organisationId: string, page = 0, view: Regis
   };
   const [all, unverified, expiring, attention] = await Promise.all([count("all"), count("unverified"), count("expiring"), count("attention")]);
   const total = { all, unverified, expiring, attention }[view];
+  // The Contracts list's buttons want the counts alone (AC-15): no page is drawn.
+  if (countsOnly) return { ...empty, org, config, total, counts: { all, unverified, expiring, attention } };
   const last = Math.max(0, Math.ceil(total / REGISTER_PAGE) - 1);
   const p = Math.min(Math.max(0, page), last);
   const order = await db.$queryRaw<{ kind: "S" | "P"; id: string }[]>`

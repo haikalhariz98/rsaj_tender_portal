@@ -517,8 +517,8 @@ describe("the review queue's counts are the whole register's (4e review fix)", (
   });
 });
 
-describe("the queue's scope (AC-16, FR-MTD-007)", () => {
-  it("a contract's tab reads only its own submissions, and a restricted exercise's are left out of the organisation-wide view", async () => {
+describe("the queue's scope (AC-16, AC-18, AC-19)", () => {
+  it("a contract's tab reads only its own submissions, and a restricted exercise's contract submissions stay in the organisation-wide view for the officer who answers them", async () => {
     const h = await supplier();
     const mine = await contract({ vendorId: h.supplierId });
     const restricted = await contract({ vendorId: h.supplierId });
@@ -529,11 +529,12 @@ describe("the queue's scope (AC-16, FR-MTD-007)", () => {
     expect(own.waiting.rows.map((r) => r.contractId)).toEqual([mine.id]);
     expect(own.overdue).toBe(1);
     expect((await reviewCounts(db, organisationId, today, { contractId: mine.id })).waiting).toBe(1);
+    // AC-18: contract stages stay visible after issue, so the view carries the restricted exercise's contract too, and its own tab counts it.
     const all = await loadReviewQueue(db, organisationId, today, { waiting: "999999" });
-    const hidden = await loadReviewQueue(db, organisationId, today, { waiting: "999999" }, { hidden: [restricted.exerciseId] });
-    expect(all.waiting.total - hidden.waiting.total).toBe(1);
-    expect(hidden.waiting.rows.some((r) => r.contractId === restricted.id)).toBe(false);
-    expect((await reviewCounts(db, organisationId, today, { hidden: [restricted.exerciseId] })).waiting).toBe(hidden.waiting.total);
+    expect(all.waiting.rows.some((r) => r.contractId === restricted.id)).toBe(true);
+    expect((await reviewCounts(db, organisationId, today, { contractId: restricted.id })).waiting).toBe(1);
+    const tab = await loadReviewQueue(db, organisationId, today, {}, { contractId: restricted.id });
+    expect(tab.waiting.rows.map((r) => r.contractId)).toEqual([restricted.id]);
   });
 });
 

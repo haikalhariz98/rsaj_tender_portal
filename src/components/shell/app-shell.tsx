@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { shellCountsAction } from "@/app/_auth/shell-counts";
 import { isSignInPath } from "@/lib/auth/routes";
 
 import type { ShellOrganisation, ShellUser } from "@/lib/shell";
@@ -15,7 +16,7 @@ import { Topbar } from "./topbar";
 export function AppShell({
   organisation,
   strapline,
-  counts,
+  counts: served,
   user,
   portalOnly = false,
   signOut,
@@ -35,6 +36,28 @@ export function AppShell({
   // by the scrim, and by Escape.
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+
+  // The layout is not rendered again on navigation, so its counts can be behind the page (a step moved to this person by someone else's act). After each navigation the counts are
+  // read afresh; a count read here is used only while the layout's own have not changed since (a new render of the layout supersedes it). Derived, not synchronised.
+  const [fresh, setFresh] = useState<{ base: Record<string, number>; value: Record<string, number> } | null>(null);
+  const first = useRef(true);
+  const staffSide = !portalOnly && user?.kind === "staff";
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (!staffSide) return;
+    let current = true;
+    shellCountsAction()
+      .then((value) => current && setFresh({ base: served, value }))
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- asked after a navigation only; `served` is the base it supersedes
+  }, [pathname]);
+  const counts = fresh && fresh.base === served ? fresh.value : served;
 
   useEffect(() => {
     if (!open) return;

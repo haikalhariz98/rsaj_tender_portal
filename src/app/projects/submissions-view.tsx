@@ -1,7 +1,6 @@
 import { ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { hiddenExercises } from "@/app/_auth/sulit";
 import type { StaffActor } from "@/lib/auth/types";
 import { dayOf } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -11,13 +10,12 @@ import { SubmissionsPanel } from "./submissions-panel";
 
 /**
  * "Submissions waiting" (FR-SUP-006, 009; AC-16): contractors' submissions across the organisation, as a view of the Contracts list. The bridge for the old Documents menu's review
- * queue, and so for the notices that still link to it. Submissions on a restricted exercise's contract the reader is not named on are left out of the lists and counts (FR-MTD-007).
+ * queue, and so for the notices that still link to it. Not filtered by restricted exercise (AC-18, AC-19): the officer who answers is often not named on the exercise.
  */
 export async function SubmissionsView({ actor, waiting, answered }: { actor: StaffActor; waiting: string | undefined; answered: string | undefined }) {
   const org = await db.organisation.findUnique({ where: { id: actor.organisationId }, select: { timeZone: true } });
   const today = org?.timeZone ? dayOf(new Date(), org.timeZone) : null;
-  const scope = { hidden: await hiddenExercises(actor) };
-  const [review, counts] = await Promise.all([loadReviewQueue(db, actor.organisationId, today, { waiting, answered }, scope), reviewCounts(db, actor.organisationId, today, scope)]);
+  const [review, counts] = await Promise.all([loadReviewQueue(db, actor.organisationId, today, { waiting, answered }), reviewCounts(db, actor.organisationId, today)]);
   const href = (w: number, a: number) => {
     const q = new URLSearchParams({ view: "submissions", ...(w ? { waiting: String(w) } : {}), ...(a ? { answered: String(a) } : {}) });
     return `/projects?${q.toString()}`;

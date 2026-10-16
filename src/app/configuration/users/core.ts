@@ -145,6 +145,8 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
   }
 
   revalidatePath(PATH);
+  // GN-04, AC-13: who holds a step changes, so the shell's badges are drawn again.
+  revalidatePath("/", "layout");
   revalidatePath("/approvals");
   return { ok: true };
 }
@@ -246,6 +248,8 @@ export async function setPersonActive(_prev: FormState, data: FormData): Promise
   }
 
   revalidatePath(PATH);
+  // GN-04, AC-13: who holds a step changes, so the shell's badges are drawn again.
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -309,6 +313,8 @@ export async function setGrant(
   }
 
   revalidatePath(PATH);
+  // GN-04, AC-13: who holds a step changes, so the shell's badges are drawn again.
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -643,6 +649,8 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   }
 
   revalidatePath(PATH);
+  // GN-04, AC-13: who holds a step changes, so the shell's badges are drawn again.
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -717,6 +725,8 @@ export async function saveReportingLine(_prev: FormState, data: FormData): Promi
     throw e;
   }
   revalidatePath(PATH);
+  // GN-04, AC-13: who holds a step changes, so the shell's badges are drawn again.
+  revalidatePath("/", "layout");
   revalidatePath("/approvals");
   return { ok: true };
 }
@@ -797,6 +807,8 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
   }
 
   revalidatePath(PATH);
+  // GN-04, AC-13: who holds a step changes, so the shell's badges are drawn again.
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -909,6 +921,8 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
   }
 
   revalidatePath(PATH);
+  // GN-04, AC-13: who holds a step changes, so the shell's badges are drawn again.
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -974,6 +988,8 @@ export async function endAssignment(_prev: FormState, data: FormData): Promise<F
   }
 
   revalidatePath(PATH);
+  // GN-04, AC-13: who holds a step changes, so the shell's badges are drawn again.
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
