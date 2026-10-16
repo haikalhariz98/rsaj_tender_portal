@@ -35,7 +35,8 @@ export function caseVisibility(i: CaseVisibilityInput): CaseVisibility {
  * The same rule as a filter on the Award table, for lists and counts: it leaves out exactly the HIDDEN cases. `hidden` is
  * `hiddenExerciseIds`' answer for the reader, the restricted exercises they may not see; a case of one of those is kept
  * once its contract exists (CONTRACT_STAGES_ONLY: listed, with only the contract's columns). `Award.exerciseId` is
- * required, so its `notIn` has no SQL NULL to trip on.
+ * required, so its `notIn` has no SQL NULL to trip on. It carries a top-level OR: join it to another filter with
+ * `AND: [...]`, never by spreading, or one OR overwrites the other (`casePipelineWhere` is the worked example).
  */
 export function caseVisibilityWhere(hidden: readonly string[]): Prisma.AwardWhereInput {
   return hidden.length ? { OR: [{ exerciseId: { notIn: [...hidden] } }, { contract: { isNot: null } }] } : {};

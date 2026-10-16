@@ -22,7 +22,8 @@
  * `CASE_STAGE_WHERE` is the same rule as a database filter on the Award table, for lists and counts. Every fragment is
  * written positively (`in`, `is: null`, `is: { … }`), never as a NOT over a nullable relation, whose SQL NULL would drop
  * rows. `case-stage.test.ts` proves the two agree on every combination of award status, contract status, instrument and
- * commencement; the database proof is G4's.
+ * commencement; the database proof is G4's. Fragments carry a top-level OR or AND: join one to another filter with
+ * `AND: [...]`, never by spreading.
  */
 
 import type { Prisma } from "@/generated/prisma/client";

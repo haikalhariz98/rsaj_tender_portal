@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { AWARD_STATUSES, type AwardStatus } from "@/lib/award/types";
-import { CASE_STAGES, caseStage } from "@/lib/contract/case-stage";
+import { AWARD_STATUSES, type AwardStatus, type InstrumentKind } from "@/lib/award/types";
+import { CASE_STAGES, caseStage, caseStageKey } from "@/lib/contract/case-stage";
+import { caseVisibility } from "@/lib/contract/case-visibility";
 import { EXERCISE_STATUSES } from "@/lib/method/types";
 import { STATUS_ORDER } from "@/lib/requisition/labels";
 import type { RequisitionStatus } from "@/lib/requisition/types";
 import { whereMatches } from "@/lib/test-support/where-match";
 
-import { CASE_PIPELINE, CASE_PIPELINE_WHERE, REQUISITION_PIPELINE, SOURCING_PIPELINE_WHERE, caseInPipeline, requisitionPipelineSplit, sourcingInPipeline } from "./pipeline";
+import { CASE_PIPELINE, CASE_PIPELINE_WHERE, REQUISITION_PIPELINE, casePipelineWhere, SOURCING_PIPELINE_WHERE, caseInPipeline, requisitionPipelineSplit, sourcingInPipeline } from "./pipeline";
 
 // ------------------------------------------------------------------ requisitions
 
@@ -106,7 +107,7 @@ describe("sourcingInPipeline (AC-12)", () => {
 describe("the Contracts card (AC-12)", () => {
   it("counts Awarding, Signing and On site; Completed and Closed are left out", () => {
     expect(CASE_PIPELINE).toEqual(["AWARDING", "SIGNING", "ON_SITE"]);
-    expect(CASE_STAGES.filter((s) => !CASE_PIPELINE.includes(s))).toEqual(["COMPLETED", "CLOSED"]);
+    expect(CASE_STAGES.filter((s) => !(CASE_PIPELINE as readonly string[]).includes(s))).toEqual(["COMPLETED", "CLOSED"]);
     expect(Object.keys(CASE_PIPELINE_WHERE)).toEqual([...CASE_PIPELINE]);
   });
   it("caseInPipeline follows the shared caseStage", () => {
@@ -119,5 +120,39 @@ describe("the Contracts card (AC-12)", () => {
     expect(on("ACCEPTED", { status: "CLOSED" })).toBe(false);
     expect(on("CANCELLED", null)).toBe(false);
     expect(on("ACCEPTED", { status: "TERMINATED" })).toBe(false);
+  });
+});
+
+describe("casePipelineWhere joins the stage and the visibility rule (AC-12, AC-18)", () => {
+  // One case per stage the card counts, on a hidden exercise and on an open one, before and after issue where the stage allows.
+  const cases = [
+    { stage: "AWARDING", award: "APPROVED", contract: null },
+    { stage: "AWARDING", award: "ISSUED", contract: { status: "IN_PREPARATION" } },
+    { stage: "SIGNING", award: "ACCEPTED", contract: { status: "STAMPED" } },
+    { stage: "ON_SITE", award: "ACCEPTED", contract: { status: "ACTIVE" } },
+    { stage: "ON_SITE", award: "ISSUED", contract: null, indent: true },
+  ] as const;
+  const hidden = ["ex-hidden"];
+  for (const c of cases)
+    for (const exerciseId of ["ex-hidden", "ex-open"]) {
+      const row = { exerciseId, status: c.award, instrumentKind: ("indent" in c ? "WORK_INDENT" : "LETTER_OF_ACCEPTANCE") as InstrumentKind, commencedOn: "indent" in c ? "2026-09-01" : null, contract: c.contract };
+      const pureStage = caseStageKey(caseStage({ award: { status: row.status, instrumentKind: row.instrumentKind }, contract: c.contract, commencement: { commencedOn: row.commencedOn } }));
+      const seen = caseVisibility({ restricted: exerciseId === "ex-hidden", actorNamed: false, system: false, issued: c.contract !== null }) !== "HIDDEN";
+      it(`${c.stage}: ${c.award} with ${c.contract?.status ?? "no contract"} on ${exerciseId} is counted ${seen}`, () => {
+        expect(pureStage).toBe(c.stage);
+        for (const stage of CASE_PIPELINE) expect(whereMatches(row, casePipelineWhere(stage, hidden) as Record<string, unknown>)).toBe(stage === c.stage && seen);
+      });
+    }
+  it("a hidden exercise's case before issue is left out of every stage, and kept once its contract exists", () => {
+    const before = { exerciseId: "ex-hidden", status: "APPROVED", instrumentKind: "LETTER_OF_ACCEPTANCE", commencedOn: null, contract: null };
+    const after = { ...before, status: "ACCEPTED", contract: { status: "STAMPED" } };
+    for (const stage of CASE_PIPELINE) expect(whereMatches(before, casePipelineWhere(stage, hidden) as Record<string, unknown>)).toBe(false);
+    expect(whereMatches(after, casePipelineWhere("SIGNING", hidden) as Record<string, unknown>)).toBe(true);
+  });
+  it("spreading the stage beside the visibility rule would lose the rule: the reason casePipelineWhere joins them with AND", () => {
+    const spread = { ...(casePipelineWhere("ON_SITE", hidden).AND as object[])[0], ...CASE_PIPELINE_WHERE.ON_SITE } as Record<string, unknown>;
+    const leaked = { exerciseId: "ex-hidden", status: "ISSUED", instrumentKind: "WORK_INDENT", commencedOn: "2026-09-01", contract: null };
+    expect(whereMatches(leaked, spread)).toBe(true);
+    expect(whereMatches(leaked, casePipelineWhere("ON_SITE", hidden) as Record<string, unknown>)).toBe(false);
   });
 });
