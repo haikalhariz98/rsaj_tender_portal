@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { sulitGranted, sulitWithheld } from "@/lib/auth/sulit-access";
 import { registerClassOf } from "@/lib/suppliers/opening-hook";
 
-import { DOWNLOAD_REFUSAL_TEXT, NO_CLASS_ON_REGISTER, openingCsv, openingDownloadName, type DownloadOpening } from "./download";
+import { classAsReadText, DOWNLOAD_REFUSAL_TEXT, NO_CLASS_ON_REGISTER, ONLINE_CLASS_AS_READ, openingCsv, openingDownloadName, type DownloadOpening } from "./download";
 
 const opening = (over: Partial<DownloadOpening> = {}): DownloadOpening => ({
   title: "Main opening",
@@ -74,5 +74,35 @@ describe("registerClassOf (SR-15: Kelas is the register's frozen reading)", () =
   it("gives nothing where the bidder was not linked or the register named no grade", () => {
     expect(registerClassOf(null)).toBeNull();
     expect(registerClassOf(finding([{ kind: "CATEGORY" }]))).toBeNull();
+  });
+});
+
+describe("Class as read on an online row (SR-15, 20cu)", () => {
+  it("classAsReadText: online says it was not typed, paper keeps what was recorded or a dash", () => {
+    expect(classAsReadText("G5", true)).toBe("Not typed: an online bid");
+    expect(classAsReadText("", true)).toBe(ONLINE_CLASS_AS_READ);
+    expect(classAsReadText("G5", false)).toBe("G5");
+    expect(classAsReadText("  ", false)).toBe("—");
+  });
+  const body = (o: DownloadOpening) => {
+    const r = openingCsv("schedule", o);
+    if ("refusal" in r) throw new Error("refused");
+    const lines = r.csv.split("\r\n");
+    return lines.slice(lines.findIndex((l) => l.startsWith('"Bil."')) + 1);
+  };
+  it("the CSV's online rows read the words in the Class as read cell, and the register's Kelas beside it is unchanged", () => {
+    const rows = body(opening({ online: true }));
+    expect(rows[0]).toBe('"1","Acme Sdn Bhd","G6","Not typed: an online bid","Active","RM 1,000.00","12 months"');
+    expect(rows[1]).toContain(`"${NO_CLASS_ON_REGISTER}","Not typed: an online bid"`);
+    // The estimate row has no class at all, online or not.
+    expect(rows[2]).not.toContain(ONLINE_CLASS_AS_READ);
+  });
+  it("paper, and a caller that does not say (read as paper), keep what the officer recorded", () => {
+    for (const o of [opening({ online: false }), opening()]) {
+      const rows = body(o);
+      expect(rows[0]).toBe('"1","Acme Sdn Bhd","G6","G5","Active","RM 1,000.00","12 months"');
+      expect(rows[1]).toContain(`"${NO_CLASS_ON_REGISTER}","—"`);
+      expect(rows.join("\n")).not.toContain(ONLINE_CLASS_AS_READ);
+    }
   });
 });

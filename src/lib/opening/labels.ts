@@ -7,6 +7,8 @@
 import { formatDate } from "@/lib/format";
 import { CLOSING_FAULT_WORDS, isRestrictionReading } from "@/lib/suppliers/restriction-register";
 
+import { FILED_FILE_WORDS } from "./filed-file";
+import { MATRIX_FAULT_TEXT } from "./matrix";
 import type { Ground, Reported } from "./verdict";
 import type { AlternativeConsideration, ChecklistAnswer, CopyCheck, Finding, InvitedCountReading, OpeningKind, OpeningPhase, OpeningVerdict, PeriodUnit, RestrictionFinding, SaleFinding, UnpurchasedConsequence } from "./types";
 
@@ -329,6 +331,15 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   ADMITTED_UNOPENED: (f) => `${plural(n(f, "count"), "admitted late tender is", "admitted late tenders are")} not opened yet: each is opened at a supplementary opening before the award.`,
   AWARDEE_NOT_NAMED: () => "The award does not name the bidder from the exercise's bidders carried to evaluation.",
   AWARDEE_NOT_CARRIED: () => "The bidder the award names was not carried to evaluation at the opening.",
+  // ---- the SR-14 matrix (wave 3c, ruling 22, 20cp, 20cv): the words live once, in matrix.ts. ADMINISTRATOR keeps its words above.
+  NO_FILE_RECEIVED: () => MATRIX_FAULT_TEXT.NO_FILE_RECEIVED,
+  NOT_A_NAMED_OFFICER: () => MATRIX_FAULT_TEXT.NOT_A_NAMED_OFFICER,
+  NOT_OWN_ACT: () => MATRIX_FAULT_TEXT.NOT_OWN_ACT,
+  COLUMN_NOT_ANSWERED: () => MATRIX_FAULT_TEXT.COLUMN_NOT_ANSWERED,
+  DECISION_NOT_RECORDED: () => MATRIX_FAULT_TEXT.DECISION_NOT_RECORDED,
+  // ---- the filed download after finalising (20cl): the words live once, in filed-file.ts. ADMINISTRATOR and NOT_FINALISED keep their words above.
+  NOT_ON_THIS_OPENING: () => FILED_FILE_WORDS.NOT_ON_THIS_OPENING,
+  NOT_AN_OPENING_CHECK_FILE: () => FILED_FILE_WORDS.NOT_AN_OPENING_CHECK_FILE,
 };
 
 export function openingFindingText(f: Finding): string {

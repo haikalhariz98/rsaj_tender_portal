@@ -158,7 +158,7 @@ The phases below are those of one opening. 20ax applies to a supplementary openi
 ```prisma
 model OpenedBid {
   // …existing…
-  /// SR-14 (ruling 22): raised by every checklist answer that changes, every decision recorded and every decision cleared on this offer, in the same transaction. An online confirmation counts only on the revision it was taken on.
+  /// SR-14 (ruling 22): raised by every checklist answer that changes, every decision recorded and every decision cleared on this offer, in the same transaction. A confirmation, on either channel, counts only on the revision it was taken on (ruling 22, 20cp, §1.3).
   columnRevision Int @default(0)
 }
 
@@ -216,6 +216,8 @@ export interface ColumnTally { present: number; absent: number; notApplicable: n
 export function columnTally(items: readonly ChecklistItem[], answers: ReadonlyMap<string, ChecklistAnswer>): ColumnTally;
 /// "3 of 3 present", "2 of 3 present · 1 absent", "1 of 3 not applicable", "1 not answered". Never "Pass" or "Fail" (the overclaim scans hold this).
 export function tallyText(t: ColumnTally): string;
+/// Step 2: a column with no checklist items reads this, never a blank or a zero count.
+export const EMPTY_TALLY_TEXT: string;
 
 export interface ColumnFacts { asReadCorrections: number; columnRevision: number }
 export interface ConfirmationFacts { personId: string; correctionNo: number; columnRevision: number }
@@ -245,6 +247,10 @@ export function confirmFaults(i: { tally: ColumnTally; verdict: OpeningVerdict |
 
 export const MATRIX_FAULT_TEXT: Readonly<Record<CellAnswerFault | MatrixActorFault | ConfirmFault, string>>;
 export const CELL_WORDS: Readonly<Record<CellKind, string>>; // staff-facing English; no code reaches a screen
+/// Step 2: the dated addendum line does not fit a static record, so it is a function. "Acknowledged on the portal on 13 Nov 2026" or "Not acknowledged on the portal".
+export const addendumCellText: (acknowledgedOn: string | null) => string;
+/// Step 2: the addendum cell's words for a reader from whom the day is held until finalising (20c, 20cm), for §4.3.
+export const ADDENDUM_DAY_HELD_TEXT: string;
 ```
 
 ### 3.2 Smaller pure changes
@@ -252,10 +258,15 @@ export const CELL_WORDS: Readonly<Record<CellKind, string>>; // staff-facing Eng
 - **`src/lib/opening/download.ts`.** Add `classAsReadText(value: string, online: boolean): string`. Online returns "Not typed: an online
   bid", and paper returns `readText(value)`. The screen, `opening/print/page.tsx` and `openingCsv` all use it, so the three cannot drift.
   `DownloadOpening` gains `online?: boolean` (optional, read as false, so step 2 changes no caller). Step 4 wires it from the
-  exercise's pinned channel.
+  exercise's pinned channel. Step 2 also exports the words as `ONLINE_CLASS_AS_READ`, and `openingCsv` already calls `classAsReadText`;
+  the screen and the print page move to it in step 4.
 - **`src/lib/opening/filed-file.ts`.** Add `filedFileFaults(i: { administrator: boolean; finalised: boolean; fileOnOpening: boolean;
   checked: boolean }): Finding<"ADMINISTRATOR" | "NOT_FINALISED" | "NOT_ON_THIS_OPENING" | "NOT_AN_OPENING_CHECK_FILE">[]`. Add
   `FILED_FILE_WORDS`: one sentence per fault, and one per `MoveResult` FAILED code (`CLASS_NOT_SET`, `STORE_NOT_BUILT` and the rest).
+  Step 2 names the fault union `FiledFileFault` and the mover's codes `MoveFailure` (taken from `MoveResult`'s type, so a new mover code
+  without words fails the typecheck). **Open for step 4:** §1.2 offers a `RECEIVED_NOT_CHECKED` file a download after finalising, but
+  `NOT_AN_OPENING_CHECK_FILE` refuses it at this route. Step 2 builds the contract as written; step 4 settles which (a direct link to the
+  filed version once the post-commit move has filed it, or `checked` dropped from this route), and writes it back here.
 - **20ce (a), built in the review fixes of 2026-10-17.** The pure `exposureOf`, its words (`EXPOSURE_WORDS`) and `deactivationGate` live in `src/lib/sealing/deactivation.ts`, tested in `deactivation.test.ts`; only the loader `loadHolderExposures` is in `src/lib/sealing/substitution-store.ts`. They list a named officer of a
   finalised main opening while a late bid admitted to it still waits for its supplementary opening, which needs every named officer
   (20az). Add the words for it, and a test.
@@ -393,7 +404,7 @@ record alone is not the gate (20cx). If any is missing, stop and report.
 - addenda acknowledged and not acknowledged;
 - `NO_FILE_RECEIVED` online only;
 - the tally words for each mix, plus a scan that `tallyText` and `CELL_WORDS` hold no "Pass", "Fail" or "Lulus";
-- `confirmationStands` on paper (reading only) and online (reading and revision);
+- `confirmationStands` on paper and online, each on the reading and the revision (§1.3, 20cp; step 2 corrected "paper (reading only)", which §1.3, §3.1's contract and 20cp contradict);
 - `columnStatus` through all four states, with a stale confirmation;
 - `matrixActorFaults`: administrator, not named, on behalf (refused online and for answers and decisions on paper; allowed for a paper confirmation recorded by a present panel member, refused when the recorder is not one, 20cp; the recorder is named by the act's audit row, with no new column);
 - `confirmFaults`.
