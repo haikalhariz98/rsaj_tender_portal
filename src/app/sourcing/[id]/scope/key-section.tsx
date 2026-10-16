@@ -14,8 +14,11 @@ import type { ExerciseRow, ExerciseOrg } from "@/lib/method/repo";
 import { publishSealingWords } from "@/lib/sealing/ceremony";
 import { REKEY_WORDS, rekeyRefusals, SHARE_WORDS, shareFaults } from "@/lib/sealing/share";
 import { loadCeremony } from "@/lib/sealing/store";
+import { AMBIGUOUS_SUBSTITUTION_WORDS, pendingSubstitutionWords, SUBSTITUTION_WORDS } from "@/lib/sealing/substitution";
+import { loadPendingSubstitution } from "@/lib/sealing/substitution-store";
+import { rosterChange } from "@/lib/opening/roster";
 
-import { ChangeKeyDrawer, CheckUnlockDrawer, SetShareDrawer } from "./key-editors";
+import { ChangeKeyDrawer, CheckUnlockDrawer, ReleaseShareDrawer, SetShareDrawer } from "./key-editors";
 
 /**
  * The sealing key of an online exercise, under Opening officers on Scope and estimate (ADR 0036 D3, D4, D11): who has set their share, whether the key is made, the
@@ -36,12 +39,19 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
   const pepperChangedFor = sealingMode === "LIVE" && reading.status === "SET" ? facts.officerKeys.filter((k) => k.pepperId !== reading.pepper.id).map((k) => facts.roster.find((r) => r.id === k.openingOfficerId)?.name ?? "an officer") : [];
   const hasShare = !!mine && facts.shareHolderRowIds.includes(mine.id);
 
-  const share = shareFaults({ channel: ex.submissionChannel, status: ex.status, namedOfficer: !!mine, now, closing: ex.closingAt, published: facts.published, hasLiveShare: hasShare, submissions: facts.submissions });
+  // A substitution waiting (step 17): the incoming officer may set their share, the departing officer releases theirs, and past the closing the screen says re-tender.
+  const { pending } = facts.published ? await loadPendingSubstitution(db, org.id, ex.id) : { pending: { state: "NONE" as const } };
+  const incomingOfSubstitution = pending.state === "PENDING" && !!mine && pending.incoming.rosterRowId === mine.id;
+  const departingIsMe = pending.state === "PENDING" && pending.departing.personId === actor.personId;
+  const afterClosing = rosterChange({ status: ex.status, closing: ex.closingAt, now, openingStarted: (await db.opening.count({ where: { exerciseId: ex.id } })) > 0 });
+  const share = shareFaults({ channel: ex.submissionChannel, status: ex.status, namedOfficer: !!mine, now, closing: ex.closingAt, published: facts.published, hasLiveShare: hasShare, submissions: facts.submissions, substitutionIncoming: incomingOfSubstitution });
   const shareAllowed = share.length ? { allowed: false as const, reason: SHARE_WORDS[share[0]] } : { allowed: true as const };
   const rekey = rekeyRefusals({ channel: ex.submissionChannel, status: ex.status, published: facts.published, namedOfficer: !!mine, reason: "x", hasLiveKey: !!facts.liveKey, officers: facts.roster.length, stale: facts.state.stale, submissions: facts.submissions, now, closing: ex.closingAt });
   const rekeyAllowed = rekey.length ? { allowed: false as const, reason: REKEY_WORDS[rekey[0]] } : { allowed: true as const };
 
-  const keyWords = !facts.liveKey
+  const keyWords = pending.state === "PENDING"
+    ? "Moving to another officer: the substitution is not complete"
+    : !facts.liveKey
     ? facts.roster.length < 2
       ? "Not made: at least two opening officers must be named"
       : `Not made: ${facts.state.missing.length === 1 ? "one officer has" : `${facts.state.missing.length} officers have`} still to set their share`
@@ -64,6 +74,9 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
             {mine && <SetShareDrawer exerciseId={ex.id} allowed={shareAllowed} minLength={minLength} again={hasOwnKey.has(mine.id)} />}
             {mine && hasOwnKey.has(mine.id) && <CheckUnlockDrawer exerciseId={ex.id} />}
             {facts.published && <ChangeKeyDrawer exerciseId={ex.id} allowed={rekeyAllowed} />}
+            {departingIsMe && pending.state === "PENDING" && (
+              <ReleaseShareDrawer exerciseId={ex.id} to={pending.incoming.name} allowed={afterClosing.change === "REFUSED" ? { allowed: false, reason: SUBSTITUTION_WORDS.AFTER_CLOSING_RETENDER } : pending.incoming.hasKey ? { allowed: true } : { allowed: false, reason: SUBSTITUTION_WORDS.INCOMING_KEY_NOT_SET }} />
+            )}
           </span>
         }
       />
@@ -80,6 +93,17 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
         <Callout tone="info" title="Every named officer is needed">
           The bids can be opened only when every named officer takes part with their own passphrase. A forgotten passphrase cannot be recovered by anyone. Before any bid is submitted the key is made again; once a bid has been submitted, the exercise is re-tendered.
         </Callout>
+        {pending.state === "PENDING" && (
+          <Callout tone="warn" title="A substitution is waiting">
+            {pendingSubstitutionWords(pending)}
+            {afterClosing.change === "REFUSED" ? ` ${SUBSTITUTION_WORDS.AFTER_CLOSING_RETENDER}` : ""}
+          </Callout>
+        )}
+        {pending.state === "AMBIGUOUS" && (
+          <Callout tone="err" title="Substitutions cannot be told apart">
+            {AMBIGUOUS_SUBSTITUTION_WORDS}
+          </Callout>
+        )}
         {pepperChangedFor.length > 0 && (
           <Callout tone="warn" title="A share was set under another sealing pepper">
             {publishSealingWords({ code: "PEPPER_CHANGED", level: "block", data: { label: pepperChangedFor.join(", ") } })}

@@ -239,6 +239,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // does neither (an unsealing: the officer's own key, with the officer's own passphrase).
   slot("OfficerExerciseKey", "person", "Share set by", { signatureClass: true, holder: "UNSEAL", entryPoints: ["src/app/sourcing/[id]/scope/key-actions.ts#setOfficerShare"] }),
   slot("PublishedKeyChange", "by", "Key changed by", { signatureClass: true, holder: "UNSEAL", entryPoints: ["src/app/sourcing/[id]/scope/key-actions.ts#rekeyExercise"] }),
+  // Wave 3b step 17 (ADR 0036 D11, ruling 11): the departing officer releases their share to the incoming officer, asking the sign-in password again.
+  slot("ShareRelease", "releasedBy", "Released by", { signatureClass: true, holder: "UNSEAL", entryPoints: ["src/app/sourcing/[id]/scope/substitution-actions.ts#releaseShareForSubstitution"] }),
   slot("SealedEstimateLodgement", "lodgedBy", "Lodged by"),
 
   // ---- evaluation

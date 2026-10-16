@@ -11,6 +11,8 @@ import { UsersTabs } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireStaff } from "@/app/_auth/actor";
 import { hiddenExercises } from "@/app/_auth/sulit";
+import { EXPOSURE_WORDS, HIDDEN_EXPOSURE_LINE } from "@/lib/sealing/deactivation";
+import { loadHolderExposures } from "@/lib/sealing/substitution-store";
 import { loadWorklist } from "@/lib/approvals/load";
 import { absenceVerdict, stayText } from "@/lib/approvals/absence-move";
 import { loadReportingLines } from "@/lib/people/reporting-line-store";
@@ -52,6 +54,11 @@ export default async function UsersPage({
     // The steps waiting on an office nobody is able to act in: the page says why each stays (the sweep's own reasons), and the matter is named only where the reader may see it.
     hiddenExercises(actor).then((hidden) => loadWorklist(actor, hidden)),
   ]);
+
+  // ADR 0036 D11, 20t: what marking each person as left would leave unopenable or unfinalisable, in words, beside the act. An exercise the reader may not see is not named.
+  const hidden = new Set(await hiddenExercises(actor));
+  const leaverExposure: Record<string, string[]> = {};
+  for (const [personId, xs] of await loadHolderExposures(db, actor.organisationId, on)) leaverExposure[personId] = xs.map((x) => (hidden.has(x.exerciseId) ? HIDDEN_EXPOSURE_LINE : EXPOSURE_WORDS[x.kind](x)));
 
   const holdings = holdingsOn(roster, on).map((h) => ({
     personId: h.person.id,
@@ -98,6 +105,7 @@ export default async function UsersPage({
         lines={lines.map((l) => ({ id: l.id, personId: l.personId, superiorPersonId: l.superiorPersonId, effectiveFrom: l.effectiveFrom, effectiveTo: l.effectiveTo, provenance: l.provenance, note: l.note }))}
         stuck={stuck}
         mayMarkAway={actor.permissions.has("configuration.draft")}
+        leaverExposure={leaverExposure}
         upload={uploadView(upload ?? EMPTY_UPLOAD)}
         units={units}
         product={{

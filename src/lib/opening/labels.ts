@@ -180,7 +180,9 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   ONLINE_NOT_ALL_SIGNED: () => "Every named officer signs first. Nothing was finalised.",
   ALREADY_FINALISED: () => "This opening is already finalised.",
   ADMINISTRATOR: () => "An administrator account does not open, sign for or finalise bids.",
-  KEY_OFFICERS_MISMATCH: (f) => (n(f, "keyOfficers") === n(f, "officers")
+  KEY_OFFICERS_MISMATCH: (f) => (n(f, "waiting") === 1
+    ? "A substitution of an opening officer was started and not completed: the officer who was replaced still holds their share, and it has not been handed to the officer named in their place. Once the closing has passed it can no longer be handed over, and the exercise must be re-tendered."
+    : n(f, "keyOfficers") === n(f, "officers")
     ? `The officers named now are not the officers the exercise key was split across: the roster has changed since the key was made, though ${n(f, "officers")} are named in both. Every officer must set their share again before the opening can start.`
     : `The exercise key was split across ${n(f, "keyOfficers")} officers, and ${n(f, "officers")} are named now. Every officer must set their share again before the opening can start.`),
   OFFICERS_FEWER_THAN_TWO: () => "An online opening needs at least two named opening officers.",

@@ -23,6 +23,8 @@ export interface CeremonyFacts {
   liveKey: LiveExerciseKey | null;
   /// Roster rows that hold a live share of the live key, sealed to that row's own live officer key.
   shareHolderRowIds: string[];
+  /// How many of the NAMED officers hold a live share: the start's gate reads this, not the length above, which also counts an officer replaced at a substitution who has not yet released theirs (step 17).
+  rosterShareHolders: number;
   state: ReturnType<typeof keyState>;
   published: boolean;
   /// Every submission of the exercise, of any status. A re-key is refused once one exists.
@@ -42,17 +44,17 @@ export async function loadCeremony(tx: Tx, organisationId: string, exerciseId: s
   const rosterIds = roster.map((r) => r.id);
   const state = keyState({ liveOfficerRowIds: rosterIds, officersWithKey: rosterIds.filter((id) => keyOf.has(id)), liveKey: liveKey ? { shareHolderRowIds } : null });
   const submissions = await tx.onlineBid.count({ where: { exerciseId, organisationId } });
-  return { roster, officerKeys, liveKey, shareHolderRowIds, state, published: ex.publishedKeyFingerprint !== null, submissions };
+  return { roster, officerKeys, liveKey, shareHolderRowIds, rosterShareHolders: shareHolderRowIds.filter((id) => rosterIds.includes(id)).length, state, published: ex.publishedKeyFingerprint !== null, submissions };
 }
 
 /// A sealed-access event for a granted ceremony act. The row holds ids only.
-export async function logCeremonyEvent(tx: Tx, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_CREATED" | "KEY_RETIRED" | "AUTHORISE" | "UNLOCK_CHECK" | "ESTIMATE_LODGED"; staffPersonId: string; recordId: string; reasonCode?: string; at: Date }): Promise<void> {
+export async function logCeremonyEvent(tx: Tx, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_CREATED" | "KEY_RETIRED" | "AUTHORISE" | "UNLOCK_CHECK" | "ESTIMATE_LODGED" | "SUBSTITUTION_RELEASE"; staffPersonId: string; recordId: string; reasonCode?: string; at: Date }): Promise<void> {
   await tx.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, outcome: "GRANTED", reasonCode: i.reasonCode ?? "", staffPersonId: i.staffPersonId, recordId: i.recordId, at: i.at } });
 }
 
 /// A refused attempt at the ceremony (ADR 0036: every attempt by a signed-in actor leaves a row, a refusal too), outside the refused transaction. Written only where the exercise is
 /// the organisation's: naming one that is not leaves nothing. `reasonCode` is the rule that refused, never a secret.
-export async function logCeremonyRefusal(client: Pick<Tx, "sourcingExercise" | "sealedAccessEvent">, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_RETIRED" | "AUTHORISE" | "UNLOCK_CHECK"; staffPersonId: string; reasonCode: string }): Promise<void> {
+export async function logCeremonyRefusal(client: Pick<Tx, "sourcingExercise" | "sealedAccessEvent">, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_RETIRED" | "AUTHORISE" | "UNLOCK_CHECK" | "SUBSTITUTION_RELEASE"; staffPersonId: string; reasonCode: string }): Promise<void> {
   const ex = await client.sourcingExercise.findFirst({ where: { id: i.exerciseId, organisationId: i.organisationId }, select: { id: true } });
   if (!ex) return;
   await client.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: ex.id, kind: i.kind, outcome: "REFUSED", reasonCode: i.reasonCode, staffPersonId: i.staffPersonId, at: new Date() } });

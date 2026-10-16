@@ -29,7 +29,7 @@ export type UnlockRefusal = "NOT_NAMED_OFFICER" | "NO_KEY" | "PEPPER_NOT_HELD" |
 
 export type Unlocked = { ok: true; officerKeyId: string; rosterRowId: string; publicKey: Bytes; privateKey: Bytes } | { ok: false; reason: UnlockRefusal; nowLocked?: boolean };
 
-export async function logSealedRefusal(i: { organisationId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE" | "ESTIMATE_LODGED"; staffPersonId: string; reasonCode: string; recordId?: string | null }): Promise<void> {
+export async function logSealedRefusal(i: { organisationId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE" | "ESTIMATE_LODGED" | "SUBSTITUTION_RELEASE"; staffPersonId: string; reasonCode: string; recordId?: string | null }): Promise<void> {
   const ex = await db.sourcingExercise.findFirst({ where: { id: i.exerciseId, organisationId: i.organisationId }, select: { id: true } });
   if (!ex) return;
   await db.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: ex.id, kind: i.kind, outcome: "REFUSED", reasonCode: i.reasonCode, staffPersonId: i.staffPersonId, recordId: recordIdOrNull(i.recordId), at: new Date() } });
@@ -40,7 +40,7 @@ export const SEALED_RECORD_ID = /^[A-Za-z0-9_-]{1,64}$/;
 export const recordIdOrNull = (v: string | null | undefined): string | null => (v != null && SEALED_RECORD_ID.test(v) ? v : null);
 
 /// An administrator account refused at a sealed door (S19, 20w): the first refusal for the account in each hour is written, the rest are counted and not written, so a script cannot fill the log.
-export async function logAdministratorRefusal(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "FINALISE" | "ESTIMATE_LODGED"; staffPersonId: string; recordId?: string | null }): Promise<void> {
+export async function logAdministratorRefusal(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "FINALISE" | "ESTIMATE_LODGED" | "SUBSTITUTION_RELEASE"; staffPersonId: string; recordId?: string | null }): Promise<void> {
   const seen = await countAndJudgeCounted(db, { organisationId: i.organisationId, accountId: i.accountId, action: "officer-sealed-refusal" }, new Date());
   if (seen.count !== 1) return;
   await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, staffPersonId: i.staffPersonId, reasonCode: "ADMINISTRATOR", recordId: recordIdOrNull(i.recordId) });
@@ -56,7 +56,7 @@ export async function logEstimateRefusal(i: { organisationId: string; accountId:
   await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: "ESTIMATE_LODGED", staffPersonId: i.staffPersonId, reasonCode: i.reasonCode });
 }
 
-export async function logSealedGranted(i: { organisationId: string; exerciseId: string; kind: "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE"; staffPersonId: string; recordId: string; at: Date }): Promise<void> {
+export async function logSealedGranted(i: { organisationId: string; exerciseId: string; kind: "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE" | "SUBSTITUTION_RELEASE"; staffPersonId: string; recordId: string; at: Date }): Promise<void> {
   await db.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, outcome: "GRANTED", staffPersonId: i.staffPersonId, recordId: i.recordId, at: i.at } });
 }
 
@@ -92,12 +92,14 @@ async function refundAttempt(organisationId: string, officerKeyId: string, r: Ex
   });
 }
 
-export async function unlockOwnKey(i: { organisationId: string; exerciseId: string; personId: string; passphrase: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE"; now: Date; recordId?: string | null }): Promise<Unlocked> {
+/// `rosterRowId`: the officer's own roster row, ended or not. Given, the officer is found by that row instead of by being named now: the departing officer of a substitution (step 17) is no longer named,
+/// and still holds the key they must release. Their person must be the row's, so nobody opens another officer's key by naming their row.
+export async function unlockOwnKey(i: { organisationId: string; exerciseId: string; personId: string; passphrase: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE" | "SUBSTITUTION_RELEASE"; now: Date; recordId?: string | null; rosterRowId?: string }): Promise<Unlocked> {
   const refuse = async (reason: UnlockRefusal, extra: { nowLocked?: boolean } = {}): Promise<Unlocked> => {
     await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, staffPersonId: i.personId, reasonCode: reason, recordId: i.recordId });
     return { ok: false, reason, ...extra };
   };
-  const row = await db.exerciseOpeningOfficer.findFirst({ where: { exerciseId: i.exerciseId, organisationId: i.organisationId, personId: i.personId, endedAt: null }, select: { id: true } });
+  const row = await db.exerciseOpeningOfficer.findFirst({ where: { exerciseId: i.exerciseId, organisationId: i.organisationId, personId: i.personId, ...(i.rosterRowId ? { id: i.rosterRowId } : { endedAt: null }) }, select: { id: true } });
   if (!row) return refuse("NOT_NAMED_OFFICER");
   const key = await db.officerExerciseKey.findFirst({ where: { exerciseId: i.exerciseId, organisationId: i.organisationId, openingOfficerId: row.id, retiredAt: null } });
   if (!key) return refuse("NO_KEY");
@@ -154,11 +156,11 @@ export function unlockRefusalWords(r: Exclude<Unlocked, { ok: true }>): string {
 
 
 /**
- * The per-account rate on the officer's passphrase acts (20bb): the unseal authorisation, the passphrase check, signing the online finalise and finalising it. Counted FIRST, before anything is looked up
+ * The per-account rate on the officer's passphrase acts (20bb): the unseal authorisation, the passphrase check, signing the online finalise, finalising it, and the release of a share at a substitution (step 17; the same exposure to a flood of refusals). Counted FIRST, before anything is looked up
  * or tried, so a flood of refusals writes at most one row a window and password or passphrase guessing is bounded. A refused try counts. Only the first refusal in a window is written (20w), as a
  * REFUSED row with the reason RATE_LIMITED, after the session was checked by the caller. Returns the words to show, or null when the act may go on.
  */
-export async function officerActRate(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "FINALISE"; staffPersonId: string; recordId?: string | null; now?: Date }): Promise<string | null> {
+export async function officerActRate(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "FINALISE" | "SUBSTITUTION_RELEASE"; staffPersonId: string; recordId?: string | null; now?: Date }): Promise<string | null> {
   const now = i.now ?? new Date();
   const rate = await countAndJudgeCounted(db, { organisationId: i.organisationId, accountId: i.accountId, action: "officer-passphrase-act" }, now);
   if (!rate.limited) return null;

@@ -22,6 +22,7 @@ import { loadCeremony, logCeremonyEvent, logCeremonyRefusal, makeKeyIfComplete, 
 import { logAdministratorRefusal, logSealedGranted, logSealedRefusal, officerActRate, unlockOwnKey, unlockRefusalWords } from "@/lib/sealing/unlock-store";
 import { exerciseIsHidden } from "@/app/_auth/sulit";
 import { zero } from "@/lib/sealing/types";
+import { loadPendingSubstitution } from "@/lib/sealing/substitution-store";
 import { withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 
@@ -136,7 +137,10 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
     const facts = await loadCeremony(tx, l.org.id, exerciseId);
     const mine = facts.roster.find((r) => r.id === row.id);
     const own = facts.officerKeys.find((k) => k.openingOfficerId === row.id) ?? null;
-    const refused = shareFaults({ channel: l.ex.submissionChannel, status: l.ex.status, namedOfficer: !!mine && mine.personId === actor.personId, now, closing: l.ex.closingAt, published: facts.published, hasLiveShare: facts.shareHolderRowIds.includes(row.id), submissions: facts.submissions });
+    // Step 17 (D11): after publication a newly named officer sets their share only as the incoming officer of a substitution that is waiting for them.
+    const waiting = facts.published ? (await loadPendingSubstitution(tx, l.org.id, exerciseId)).pending : null;
+    const incomingOfSubstitution = waiting?.state === "PENDING" && waiting.incoming.rosterRowId === row.id;
+    const refused = shareFaults({ channel: l.ex.submissionChannel, status: l.ex.status, namedOfficer: !!mine && mine.personId === actor.personId, now, closing: l.ex.closingAt, published: facts.published, hasLiveShare: facts.shareHolderRowIds.includes(row.id), submissions: facts.submissions, substitutionIncoming: incomingOfSubstitution });
     if (refused.length) {
       refusal.code = refused[0];
       return { ok: false, message: `Nothing was saved: ${refused.map((f) => SHARE_WORDS[f]).join(" ")}` };
@@ -162,6 +166,13 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
       },
     });
     await logCeremonyEvent(tx, { organisationId: l.org.id, exerciseId, kind: "SHARE_SET", staffPersonId: actor.personId, recordId: officerKeyId, at: now });
+
+    if (incomingOfSubstitution && waiting?.state === "PENDING") {
+      // Not a re-key: the key and every bid sealed to it stay as they are. The departing officer now releases their share to this key.
+      await audit(tx, toAuditActor(actor), l.org.id, "OfficerExerciseKey", officerKeyId, labelOf(l, `Share · ${mine!.name}`), "CREATE", diffFields(null, { officer: mine!.name, seat: mine!.seatLabel, replacedEarlierShare: own ? "yes" : "no", wrappedWithPepper: wrapped.pepperId ? "yes" : "no", forSubstitutionOf: waiting.departing.name }), reason);
+      await act.write(tx, officerKeyId, { document: { entity: "ExerciseOpeningOfficer", id: row.id }, roleCode: mine!.seatLabel });
+      return { ok: true, message: `Your share is set. ${waiting.departing.name} has now to release their share to you, with their own passphrase. Until they do, the opening cannot start. Every named officer is needed to open the bids, and a forgotten passphrase cannot be recovered.` };
+    }
 
     let madeFingerprint: string | null = null;
     if (facts.published) {

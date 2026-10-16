@@ -623,6 +623,7 @@ model Person {
   // Wave 3b (SR-13, ADR 0036 D3, D11, D10): an opening officer's per-exercise key, a recorded re-key, a sealed estimate lodged, and the sealed access log.
   officerExerciseKeys          OfficerExerciseKey[]      @relation("OfficerKeyPerson")
   publishedKeyChangesMade      PublishedKeyChange[]      @relation("PublishedKeyChangeBy")
+  shareReleasesMade            ShareRelease[]            @relation("ShareReleaseBy")
   sealedEstimatesLodged        SealedEstimateLodgement[] @relation("SealedEstimateLodgedBy")
   sealedAccessEvents           SealedAccessEvent[]       @relation("SealedAccessStaff")
 
@@ -7445,6 +7446,10 @@ model ShareRelease {
   authorisation         OpeningAuthorisation?   @relation(fields: [authorisationId], references: [id], onDelete: Restrict)
   substitutionOfficerId String?
   substitutionOfficer   ExerciseOpeningOfficer? @relation(fields: [substitutionOfficerId], references: [id], onDelete: Restrict)
+  /// The departing officer who made a SUBSTITUTION release, with their password asked again (the act's attribution slot, `ShareRelease.releasedBy`). Null for an UNSEAL release, which is signed as
+  /// an `OpeningAuthorisation`. Always written by the one action that makes a SUBSTITUTION release (wave 3b step 17).
+  releasedByPersonId    String?
+  releasedBy            Person?                 @relation("ShareReleaseBy", fields: [releasedByPersonId], references: [id], onDelete: Restrict)
   fromOfficerKeyId      String
   fromOfficerKey        OfficerExerciseKey      @relation("ShareReleaseFrom", fields: [fromOfficerKeyId], references: [id], onDelete: Restrict)
   toOfficerKeyId        String

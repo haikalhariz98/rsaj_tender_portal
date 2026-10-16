@@ -290,14 +290,14 @@ const DELEGATION_STATUS: Record<ReturnType<typeof statusOf>, { label: string; to
  * it stops every assignment they hold from resolving. A reason is required because
  * nobody is signed in, so it is the only account of why.
  */
-export function LeaverToggle({ person }: { person: Person }) {
+export function LeaverToggle({ person, exposure = [] }: { person: Person; exposure?: string[] }) {
   const leaving = person.isActive;
   return (
     <RecordEditor
       title={leaving ? `Mark ${person.name} as left` : `Reinstate ${person.name}`}
       description={
         leaving
-          ? "They stay on record, and decisions they signed keep resolving to their name. No new role can be assigned to them; roles they still hold are flagged on the Roles tab until each assignment is ended."
+          ? `They stay on record, and decisions they signed keep resolving to their name. No new role can be assigned to them; roles they still hold are flagged on the Roles tab until each assignment is ended.${exposure.length ? ` They are a named opening officer of ${exposure.length === 1 ? "an online exercise" : `${exposure.length} online exercises`}, and leaving affects ${exposure.length === 1 ? "it" : "them"}: ${exposure.join(" ")}` : ""}`
           : "They can hold a role again. Nothing that happened while they were marked as left is altered."
       }
       fields={[

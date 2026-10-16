@@ -69,3 +69,13 @@ describe("changing the key of a published exercise (20g, 20p)", () => {
     expect(rekeyRefusals({ ...ok, namedOfficer: false })).toEqual(["NOT_NAMED_OFFICER"]);
   });
 });
+
+describe("an incoming officer of a substitution (step 17)", () => {
+  it("may set their share after publication, whatever submissions exist, only while a substitution waits for them", () => {
+    const base = { channel: "ONLINE" as const, status: "ADVERTISED" as const, namedOfficer: true, now: new Date("2026-11-01T09:00:00Z"), closing: new Date("2026-11-01T10:00:00Z"), published: true, hasLiveShare: false, submissions: 3 };
+    expect(shareFaults(base)).toEqual(["NEW_OFFICER_AFTER_PUBLICATION"]);
+    expect(shareFaults({ ...base, substitutionIncoming: true })).toEqual([]);
+    expect(shareFaults({ ...base, substitutionIncoming: true, now: new Date("2026-11-01T10:00:01Z") })).toEqual(["AFTER_CLOSING"]);
+    expect(SHARE_WORDS.NEW_OFFICER_AFTER_PUBLICATION).not.toMatch(/not built/);
+  });
+});

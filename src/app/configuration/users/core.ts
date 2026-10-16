@@ -30,6 +30,10 @@ import { OPENING_CONFIG_FAULT_TEXT, personUnitFault } from "@/lib/opening/config
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { issuedInForce } from "@/lib/authority/issue";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
+import { currentAmbient } from "@/lib/ambient/ambient-tx";
+import { deactivationGate, exposureLines } from "@/lib/sealing/deactivation";
+import { loadHolderExposures } from "@/lib/sealing/substitution-store";
+import { shredExerciseReleases } from "@/lib/opening/unseal-store";
 import { splitValues } from "@/lib/ui/select-logic";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
@@ -212,6 +216,12 @@ export async function setPersonActive(_prev: FormState, data: FormData): Promise
   });
   if (sitting) return { ok: false, message: sitting };
 
+  // An opening officer of an online exercise holds a share nobody can stand in for after the closing (ADR 0036 D11, 20t). Between the unseal and finalising the act needs a second approver, so it is
+  // refused where it is not running as a proposal or a second person's decision; the exercises it leaves unopenable or unfinalisable are listed on the screen and recorded below.
+  const exposures = isActive ? [] : ((await loadHolderExposures(db, orgId, new Date(), [id])).get(id) ?? []);
+  const gate = deactivationGate({ exposures, mode: currentAmbient()?.mode ?? null });
+  if (!gate.allowed) return { ok: false, message: gate.message };
+
   try {
     await auditedUpdate(
       { actor: toAuditActor(actor), organisationId: orgId, entity: "Person", entityId: id, entityLabel: before.name, reason },
@@ -221,6 +231,12 @@ export async function setPersonActive(_prev: FormState, data: FormData): Promise
         const row = await tx.person.update({ where: { id, organisationId: actor.organisationId }, data: { isActive } });
         // Phase 1b: a leaver's sign-in account is disabled, and its sessions end, in this same transaction (every request re-checks the person as well; this makes it a recorded fact).
         if (!isActive) await disableAccountOfLeaver(tx, { personId: id, organisationId: orgId, actor: toAuditActor(actor), by: { isAdministrator: actor.isAdministrator, accountId: actor.accountId }, reason });
+        // 20bc: leaving changes who can take part in an opening, so the exercises' outstanding unseal releases are shredded at once. One audit row per exercise says what was left and why.
+        const lines = exposureLines(exposures);
+        for (const [n, x] of exposures.entries()) {
+          await shredExerciseReleases(tx, { organisationId: orgId, exerciseId: x.exerciseId, now: new Date() });
+          await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "SourcingExercise", entityId: x.exerciseId, entityLabel: `${x.reference} · Opening officer · ${before.name}`, reason }, "UPDATE", diffFields({ openingOfficer: "Named, able to take part" }, { openingOfficer: lines[n] }));
+        }
         return row;
       },
     );

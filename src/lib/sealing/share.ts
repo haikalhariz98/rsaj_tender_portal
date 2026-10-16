@@ -12,15 +12,16 @@ export type ShareFault = "NOT_ONLINE" | "EXERCISE_CANCELLED" | "NOT_NAMED_OFFICE
 /**
  * Whether the signed-in person may set their share now. Only a named, live opening officer of an ONLINE exercise, not cancelled, before the closing. After publication only an
  * officer who already has a share may set a new one (a re-key under their new passphrase, judged as `rekeyFaults` judges it: no submission); an officer named after
- * publication is a controlled change (wave 3b step 17), refused here.
+ * publication sets their share only as the incoming officer of a substitution that is waiting (`substitutionIncoming`), and is refused here otherwise.
  */
-export function shareFaults(i: { channel: SubmissionChannel | null; status: ExerciseStatus; namedOfficer: boolean; now: Date; closing: Date | null; published: boolean; hasLiveShare: boolean; submissions: number }): ShareFault[] {
+export function shareFaults(i: { channel: SubmissionChannel | null; status: ExerciseStatus; namedOfficer: boolean; now: Date; closing: Date | null; published: boolean; hasLiveShare: boolean; submissions: number; /** The officer was named in place of another and that officer's share has still to be released to them (a substitution waiting). */ substitutionIncoming?: boolean }): ShareFault[] {
   if (i.channel !== "ONLINE") return ["NOT_ONLINE"];
   if (i.status === "CANCELLED") return ["EXERCISE_CANCELLED"];
   if (!i.namedOfficer) return ["NOT_NAMED_OFFICER"];
   if (i.closing !== null && Math.floor(i.now.getTime() / 1000) * 1000 > i.closing.getTime()) return ["AFTER_CLOSING"];
   if (!i.published) return [];
-  if (!i.hasLiveShare) return ["NEW_OFFICER_AFTER_PUBLICATION"];
+  // A substitution waiting (wave 3b step 17, ADR 0036 D11): the incoming officer sets their own key. That is not a re-key, so bids already submitted stay openable.
+  if (!i.hasLiveShare) return i.substitutionIncoming ? [] : ["NEW_OFFICER_AFTER_PUBLICATION"];
   return i.submissions > 0 ? ["SUBMISSIONS_EXIST"] : [];
 }
 
@@ -29,7 +30,7 @@ export const SHARE_WORDS: Readonly<Record<ShareFault, string>> = {
   EXERCISE_CANCELLED: "This exercise is cancelled, so no share can be set.",
   NOT_NAMED_OFFICER: "Only an opening officer named on this exercise sets their own share. Nobody sets it for them.",
   AFTER_CLOSING: "The closing has passed, so no share can be set. After the closing a lost share means the exercise is re-tendered.",
-  NEW_OFFICER_AFTER_PUBLICATION: "This officer was named after the exercise was published. Changing the officers of a published online exercise is a controlled change that is not built yet, so their share cannot be set here.",
+  NEW_OFFICER_AFTER_PUBLICATION: "This officer was named after the exercise was published, and no substitution is waiting for them. An officer of a published online exercise is replaced by a controlled change that names the officer to be replaced, and only then does the incoming officer set their share.",
   SUBMISSIONS_EXIST: "Bids have already been submitted under the published key, so a new share would make them unopenable. After a bid is submitted a forgotten passphrase means the exercise is re-tendered.",
 };
 

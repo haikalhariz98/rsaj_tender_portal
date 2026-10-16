@@ -4,6 +4,7 @@ import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 
 import { checkUnlock, rekeyExercise, setOfficerShare } from "./key-actions";
+import { releaseShareForSubstitution } from "./substitution-actions";
 
 /**
  * The drawers of the key ceremony (ADR 0036 D3, D4, D11; build plan step 8). Fields are data; every rule sits in the actions and the pure checks behind them
@@ -66,6 +67,23 @@ export function ChangeKeyDrawer({ exerciseId, allowed }: { exerciseId: string; a
       action={rekeyExercise}
       submitLabel="Change the key"
       trigger={{ label: "Change the key", className: secondary }}
+      size="md"
+    />
+  );
+}
+
+/// The departing officer of a substitution releases their share to the incoming officer (ADR 0036 D11, ruling 11). Both the sign-in password and the unseal passphrase are asked, and nothing is remembered.
+export function ReleaseShareDrawer({ exerciseId, to, allowed }: { exerciseId: string; to: string; allowed: Allowed }) {
+  if (!allowed.allowed) return <Blocked label="Release my share" reason={allowed.reason} />;
+  return (
+    <RecordEditor
+      title={`Release your share to ${to}`}
+      description={`You were replaced as an opening officer of this exercise. Your share of its key is still yours until you release it. Type your unseal passphrase to hand it to ${to}, who has set their own. Your own copy is then destroyed and cannot be recovered. Nobody else can do this for you. If it is not done before the closing, the bids cannot be opened and the exercise must be re-tendered.`}
+      fields={[hidden("exerciseId"), { kind: "text", name: "passphrase", label: "Unseal passphrase", required: true, secret: true }, actorField("ShareRelease.releasedBy", { name: "personId" })]}
+      values={{ exerciseId }}
+      action={releaseShareForSubstitution}
+      submitLabel="Release my share"
+      trigger={{ label: "Release my share", className: primary }}
       size="md"
     />
   );

@@ -92,6 +92,8 @@ export interface UsersData {
   stuck: { stepId: string; matter: string; office: string; why: string }[];
   /// The viewer may record a person as away (`configuration.draft`, ruling on log line 1770).
   mayMarkAway: boolean;
+  /// By person: what marking them as left would leave unopenable or unfinalisable (ADR 0036 D11, 20t), in words. Absent: nothing.
+  leaverExposure: Record<string, string[]>;
 }
 
 export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }) {
@@ -111,7 +113,7 @@ export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }
 
 // ------------------------------------------------------------------------ People
 
-function PeoplePanel({ people, offices, holdings, capabilities, grants, delegations, units, mayMarkAway }: UsersData) {
+function PeoplePanel({ people, offices, holdings, capabilities, grants, delegations, units, mayMarkAway, leaverExposure }: UsersData) {
   const officeName = (code: string | null) =>
     code ? (offices.find((o) => o.code === code)?.nameEn ?? code) : "";
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "Not on record";
@@ -193,7 +195,7 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
                 units={units}
                 mayMarkAway={mayMarkAway}
               />
-              <LeaverToggle person={person} />
+              <LeaverToggle person={person} exposure={leaverExposure[person.id] ?? []} />
             </>
           );
         }}

@@ -37,6 +37,7 @@ import { blocking, CHECKLIST_ANSWERS, PERIOD_UNITS, type Finding, type OpeningVe
 import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, unsealState } from "@/lib/opening/unseal";
 import { databaseClock, freezeReceiptRoll, shredReleases } from "@/lib/opening/unseal-store";
 import { loadCeremony } from "@/lib/sealing/store";
+import { loadPendingSubstitution } from "@/lib/sealing/substitution-store";
 import { MAX_STAMP_SKEW_SECONDS } from "@/lib/portal/bids/limits";
 import { judgeBid, verdictFaults, verdictRecord } from "@/lib/opening/verdict";
 import { consequenceFor, ineligibleOf } from "@/lib/suppliers/opening-hook";
@@ -157,9 +158,11 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
     if (online) {
       const ceremony = await loadCeremony(tx, l.org.id, l.ex.id);
       const clock = await databaseClock(tx);
-      const of = onlineStartFaults({ closing: l.ex.closingAt, clock, skewSeconds: MAX_STAMP_SKEW_SECONDS, rosterOfficers: ceremony.roster.length, key: ceremony.liveKey ? { officerCount: ceremony.liveKey.officerCount, shareHolders: ceremony.shareHolderRowIds.length } : null });
+      const of = onlineStartFaults({ closing: l.ex.closingAt, clock, skewSeconds: MAX_STAMP_SKEW_SECONDS, rosterOfficers: ceremony.roster.length, key: ceremony.liveKey ? { officerCount: ceremony.liveKey.officerCount, shareHolders: ceremony.rosterShareHolders } : null });
       const sameOfficers = picks.length === ceremony.roster.length && picks.every((p) => ceremony.roster.some((r) => r.personId === p.personId));
       if (!sameOfficers && !of.some((f) => f.code === "KEY_OFFICERS_MISMATCH")) of.push({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: ceremony.roster.length, keyOfficers: ceremony.liveKey?.officerCount ?? 0 } });
+      // Step 17: a substitution not completed is not a key to make again. The officer replaced still holds their share, and past the closing it can no longer be handed over.
+      if (of.some((f) => f.code === "KEY_OFFICERS_MISMATCH") && (await loadPendingSubstitution(tx, l.org.id, l.ex.id)).pending.state === "PENDING") for (const f of of) if (f.code === "KEY_OFFICERS_MISMATCH") f.data = { ...f.data, waiting: 1 };
       if (blocking(of).length) return refuse(of);
       receiptRoll = await freezeReceiptRoll(tx, l.org.id, l.ex.id);
       standingCopy = await standingLodgement(tx, l.org.id, l.ex.id);
@@ -287,7 +290,7 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
     if (online) {
       // The same key, split across the same officers, as the main unseal needs (ADR 0036 D10): an admitted late bid is opened n-of-n again. No skew is waited for: the roll was frozen at the main start.
       const ceremony = await loadCeremony(tx, l.org.id, l.ex.id);
-      const of = onlineStartFaults({ closing: l.ex.closingAt, clock: new Date(), skewSeconds: MAX_STAMP_SKEW_SECONDS, waitForSkew: false, rosterOfficers: ceremony.roster.length, key: ceremony.liveKey ? { officerCount: ceremony.liveKey.officerCount, shareHolders: ceremony.shareHolderRowIds.length } : null });
+      const of = onlineStartFaults({ closing: l.ex.closingAt, clock: new Date(), skewSeconds: MAX_STAMP_SKEW_SECONDS, waitForSkew: false, rosterOfficers: ceremony.roster.length, key: ceremony.liveKey ? { officerCount: ceremony.liveKey.officerCount, shareHolders: ceremony.rosterShareHolders } : null });
       if (!(picks.length === ceremony.roster.length && picks.every((p) => ceremony.roster.some((r) => r.personId === p.personId)))) of.push({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: ceremony.roster.length, keyOfficers: ceremony.liveKey?.officerCount ?? 0 } });
       if (blocking(of).length) return refuse(of);
     }
