@@ -61,6 +61,7 @@ export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
   "src/lib/evaluation/gate-read.ts": "the award gate's facts about an exercise already loaded under a guard",
   "src/lib/evaluation/read.ts": "a tab's reader, called by the exercise page after its guard",
   "src/lib/opening/gate-read.ts": "the award gate's facts about an exercise already loaded under a guard",
+  "src/lib/opening/matrix-read.ts": "wave 3c step 4: the matrix's reader, called by the opening workspace after the exercise page's guard",
   "src/lib/opening/read.ts": "a tab's reader (the opening, its schedule), called by the exercise page after its guard",
   "src/lib/portal/repo.ts": "the public pages: a restricted exercise is never public (`isPublicOpportunity`), and nobody is signed in to be named",
   "src/lib/scope/read.ts": "a tab's reader, called by the exercise page after its guard",

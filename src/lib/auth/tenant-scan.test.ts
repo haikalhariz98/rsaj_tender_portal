@@ -254,7 +254,8 @@ export function unfilteredById(file: string, src: string): TenantFinding[] {
 
 describe("every load and write by id in an action or route handler names the organisation (ADR 0034 D10)", () => {
   const appFiles = walk(APP)
-    .filter((f) => /\.ts$/.test(f) && !/\.test\.ts$/.test(f))
+    // The one test helper under src/app (wave 3c step 4): it stands the opening up by id, in the tests' own organisation, and only the database tests import it.
+    .filter((f) => /\.ts$/.test(f) && !/\.test\.ts$/.test(f) && !f.endsWith("online-opening.fixture.ts"))
     .map((f) => ({ file: rel(f), src: readFileSync(f, "utf8") }));
   const findings = appFiles.flatMap((f) => unfilteredById(f.file, f.src));
 

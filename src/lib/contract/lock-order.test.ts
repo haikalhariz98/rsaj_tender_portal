@@ -13,6 +13,8 @@ import { closing, enclosingFn, isServerModule, lex, rawCallText, rawCalls, spans
  * last. Source scans, so a new act cannot quietly take another order.
  */
 
+/// A test helper, not product code: it writes the closing, a supplier and the exercise through raw SQL to stand a scenario up, and only the database tests import it (wave 3c step 4).
+const TEST_ONLY_FIXTURE = "online-opening.fixture.ts";
 const ROOT = path.join(__dirname, "../../..");
 const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
 const ACTIONS = "src/app/projects/[id]/actions.ts";
@@ -35,7 +37,7 @@ function actions(src: string): Map<string, string> {
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [rel] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [rel] : [];
   });
 }
 

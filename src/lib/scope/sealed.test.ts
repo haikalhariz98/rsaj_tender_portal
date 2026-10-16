@@ -28,7 +28,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const files = [...walk("src"), ...walk("prisma")].map((f) => relative(root, join(root, f)));
-const isTest = (f: string) => /\.test\.tsx?$/.test(f);
+const isTest = (f: string) => /\.test\.tsx?$/.test(f) || f.endsWith("/online-opening.fixture.ts"); // the fixture is a test helper that stands a scenario up through raw SQL (wave 3c step 4)
 
 /// Each raw call that names the versions table, or cannot be read, as "file · method · why" (read through rawCalls).
 function rawReadsOfVersions(sources: readonly { file: string; src: string }[]): string[] {

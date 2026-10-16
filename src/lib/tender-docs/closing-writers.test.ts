@@ -20,12 +20,14 @@ import { describe, expect, it } from "vitest";
  * the key fails here until it is listed, by name, with its reason.
  */
 
+/// A test helper, not product code: it writes the closing, a supplier and the exercise through raw SQL to stand a scenario up, and only the database tests import it (wave 3c step 4).
+const TEST_ONLY_FIXTURE = "online-opening.fixture.ts";
 const ROOT = process.cwd();
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => {
     const p = join(dir, f);
     if (statSync(p).isDirectory()) return f === "generated" ? [] : walk(p);
-    return /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) ? [p] : [];
+    return /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [p] : [];
   });
 const FILES = walk(join(ROOT, "src"));
 /// The demo loader's own files (never its migrations: the column's DDL is not a write).

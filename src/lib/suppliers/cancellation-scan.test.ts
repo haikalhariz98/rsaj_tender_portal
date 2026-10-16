@@ -20,13 +20,15 @@ import { closing, enclosingFn, lex, rawCallText, rawCalls, spans } from "@/lib/s
  * Sources are lexed (comments, strings, templates blanked) and each write is credited to its enclosing function.
  */
 
+/// A test helper, not product code: it writes the closing, a supplier and the exercise through raw SQL to stand a scenario up, and only the database tests import it (wave 3c step 4).
+const TEST_ONLY_FIXTURE = "online-opening.fixture.ts";
 const ROOT = path.join(__dirname, "../../..");
 const ACTS = path.normalize("src/app/suppliers/standing-actions.ts");
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
     if (rel === path.normalize("src/generated")) return [];
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [rel] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [rel] : [];
   });
 }
 const SOURCES = [...files("src/app"), ...files("src/lib"), ...files("prisma")].map((file) => ({ file, src: readFileSync(path.join(ROOT, file), "utf8") }));
