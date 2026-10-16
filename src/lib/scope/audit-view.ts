@@ -28,6 +28,8 @@ export const ENTITY = {
   estimate: "CompanyEstimate",
   estimateVersion: "CompanyEstimateVersion",
   estimateEvent: "EstimateEvent",
+  /// Wave 3b step 16: the estimate's sealed copy in an online box.
+  sealedLodgement: "SealedEstimateLodgement",
   /// Increment 2: a bill exported as CSV (no row of its own: the trail is the record of it).
   bqExport: "BqCsvExport",
 } as const;
@@ -42,6 +44,7 @@ export const SCOPE_ENTITY_LABEL: Readonly<Record<string, string>> = {
   [ENTITY.estimate]: "Company estimate",
   [ENTITY.estimateVersion]: "Company estimate version",
   [ENTITY.estimateEvent]: "Company estimate custody",
+  [ENTITY.sealedLodgement]: "Company estimate sealed copy",
   [ENTITY.bqExport]: "Bill exported",
   CommitteeDecision: "Committee matter",
   RateSchedule: "Schedule of rates",
@@ -85,6 +88,11 @@ export function estimateEventAudit(i: { kind: EstimateEventKind; personName: str
     ...(i.place ? { keptAt: i.place } : {}),
     ...(i.reason ? { reason: i.reason } : {}),
   });
+}
+
+/// The estimate's sealed copy lodged in an online box: the version, who lodged it and how many standing copies it replaced. Never the figure, the key or any byte of the copy.
+export function sealedLodgementAudit(i: { versionNo: number; lodgedByName: string; superseded: number }): FieldChange[] {
+  return diffFields(null, { version: i.versionNo, copy: "Sealed under the exercise key", lodgedBy: named(i.lodgedByName), ...(i.superseded > 0 ? { replacedCopies: i.superseded } : {}) });
 }
 
 export function estimateStateAudit(before: string, after: string): FieldChange[] {

@@ -13,10 +13,14 @@ import { diffFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
-import { ENTITY, bqExportAudit, bqFinalisedAudit, listValueLabel, panelAudit, type PanelAuditFacts, bqImportAudit, rateFromText, scopeTabledAudit, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
+import { ENTITY, bqExportAudit, bqFinalisedAudit, listValueLabel, panelAudit, type PanelAuditFacts, bqImportAudit, rateFromText, scopeTabledAudit, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, sealedLodgementAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
 import { bqTotals, draftEditFaults, finaliseFaults, holdingOn, isQuantity, itemAmount, lineSizeFaults, qualificationSnapshot, reviseFaults, startBqFaults, totalsSnapshot } from "@/lib/scope/bq";
 import { actionResult, lodgeFaults, retainFaults, startFault, versionContext, versionFaults, voidFault } from "@/lib/scope/estimate";
-import { writeEstimateVersion } from "@/lib/scope/estimate-store";
+import { writeEstimateVersion, writeSealedLodgement } from "@/lib/scope/estimate-store";
+import { needsRelodgement, SEALED_LODGEMENT_WORDS, sealedLodgementFaults, type SealedLodgementFault } from "@/lib/sealing/estimate-lodgement";
+import { lodgingOfficerOf, standingLodgement } from "@/lib/sealing/estimate-lodgement-store";
+import { logCeremonyEvent, sealedSqlState } from "@/lib/sealing/store";
+import { logEstimateAdministratorRefusal, logSealedRefusal } from "@/lib/sealing/unlock-store";
 import { csvFaultText, ESTIMATE_STATE_LABEL, keyedMismatchText, PANEL_STATE_LABEL, scopeFaultText, type ScopeCode } from "@/lib/scope/labels";
 import { lockBqRows, lockEstimateRow, lockLiveEstimateRows, lockPanelRow, withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
 import { columnsInForce, editClearsVerifications, panelEditFault, panelFaults, panelState, standingVerifications, verifyFaults, verifyPanelFault } from "@/lib/scope/panel";
@@ -46,7 +50,7 @@ import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { FormReader } from "@/lib/validate";
 import { bidFindingText } from "@/lib/bids/labels";
 import { recordEstimateLodgement } from "@/lib/bids/lodgement";
-import { staffForAct, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, staffForAct, toAuditActor } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
@@ -696,34 +700,77 @@ export async function amendEstimate(_prev: FormState, data: FormData): Promise<F
   });
 }
 
-/// Lodge the current version into the sealed set (FR-EST-010): copy 1, with who lodged it.
+/**
+ * Lodge the current version into the sealed set (FR-EST-010): copy 1, with who lodged it. On a paper exercise it goes into the box and is recorded on the envelope register. On an ONLINE
+ * one (ADR 0036 D10, D11; ruling 20g) its figure is sealed under the exercise's LIVE key in this same transaction, and no box envelope is written (there is no box). A lodgement whose key was
+ * retired is lodged again, the same version, by the officer who lodged it, with a reason: the server never does it from the retained copy. Judged after the closing, it is refused.
+ */
 export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
-  if (!txGuard.ok) return txGuard.state;
+  if (!txGuard.ok) {
+    const who = await requireStaff();
+    await logEstimateAdministratorRefusal({ organisationId: who.organisationId, accountId: who.accountId, exerciseId: exerciseIdOf(data), staffPersonId: who.personId });
+    return txGuard.state;
+  }
   const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const estimateId = String(data.get("estimateId") ?? "");
   const capacity = String(data.get("capacity") ?? "").trim().slice(0, 200);
+  const reason = String(data.get("reason") ?? "").trim();
+  if (reason.length > 1000) return { ok: false, errors: { reason: "Keep the reason to 1000 characters." } };
   const begun = await beginAct(actor, data, "EstimateEvent.person", { personField: "personId", onBehalf: false });
   if (!begun.ok) return begun.state;
   const act = begun.act;
   const personId = act.subjectPersonId;
-  return inExercise(actor, exerciseId, async (tx, l) => {
+  // The refused row is written after the transaction: its foreign key to the exercise would wait on the lock this act holds.
+  const refusedAs = { code: null as string | null };
+  const out = await inExercise(actor, exerciseId, async (tx, l) => {
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
-    const result = actionResult(lodgeFaults(facts, { personId: person?.id ?? null }, l.ex.status));
+    const now = new Date();
+    const online = l.ex.submissionChannel === "ONLINE";
+    // The online channel's own facts, read under the exercise's lock: the live key and the sealed copy that stands.
+    const liveKey = online ? await tx.exerciseSealingKey.findFirst({ where: { exerciseId, organisationId: l.org.id, retiredAt: null }, select: { id: true, publicKey: true } }) : null;
+    const standing = online ? await standingLodgement(tx, l.org.id, exerciseId) : null;
+    const channel = online ? "ONLINE" : "PAPER";
+    const sameVersionAgain = needsRelodgement({ channel, state: facts.state, liveKeyId: liveKey?.id ?? null, standing }) && facts.lodgedVersionNo === facts.currentVersionNo;
+    const result = actionResult(lodgeFaults(facts, { personId: person?.id ?? null }, l.ex.status, sameVersionAgain));
     if (!result.ok) return refuseCodes(result.codes);
-    await tx.companyEstimate.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { state: "LODGED", lodgedAt: new Date() } });
+    if (online) {
+      const lodgingOfficerId = sameVersionAgain ? await lodgingOfficerOf(tx, l.org.id, row.id, facts.currentVersionNo) : null;
+      const sealedFaults = blocking(sealedLodgementFaults({ liveKeyId: liveKey?.id ?? null, again: sameVersionAgain, reason, personId: person?.id ?? null, lodgingOfficerId, closing: l.ex.closingAt, now }));
+      if (sealedFaults.length) {
+        refusedAs.code = sealedFaults[0].code;
+        return { ok: false, message: `Nothing was saved: ${sealedFaults.map((f) => SEALED_LODGEMENT_WORDS[f.code as SealedLodgementFault]).join(" ")}` };
+      }
+    }
+    await tx.companyEstimate.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { state: "LODGED", lodgedAt: now } });
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "LODGED", personId: person!.id, capacity, versionNo: facts.currentVersionNo, copyNo: 1 } });
     if (facts.state !== "LODGED") await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimate, row.id, label(l, "Company estimate"), "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[facts.state], ESTIMATE_STATE_LABEL.LODGED));
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · lodged"), "CREATE", estimateEventAudit({ kind: "LODGED", personName: person!.name, capacity, versionNo: facts.currentVersionNo, copyNo: 1 }));
     await act.write(tx, ev.id);
+    if (online) {
+      let sealed: Awaited<ReturnType<typeof writeSealedLodgement>>;
+      try {
+        sealed = await writeSealedLodgement(tx, { organisationId: l.org.id, exerciseId, estimateId: row.id, versionNo: facts.currentVersionNo, key: { id: liveKey!.id, publicKey: new Uint8Array(liveKey!.publicKey) }, lodgedByPersonId: person!.id, supersededReason: sameVersionAgain ? reason : `Version ${facts.currentVersionNo} was lodged`, now });
+      } catch (e) {
+        // The database's own wall: the closing passed, or the key stopped being the live one, between the read and the write.
+        if (sealedSqlState(e) === "PA018") throw new Refusal({ ok: false, message: `Nothing was saved: ${SEALED_LODGEMENT_WORDS.LODGEMENT_CLOSED} If the closing has not passed, the exercise's key changed while this was being lodged: try again.` });
+        throw e;
+      }
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.sealedLodgement, sealed.lodgementId, label(l, "Company estimate · sealed copy"), "CREATE", sealedLodgementAudit({ versionNo: facts.currentVersionNo, lodgedByName: person!.name, superseded: sealed.superseded }), sameVersionAgain ? reason : "");
+      await logCeremonyEvent(tx, { organisationId: l.org.id, exerciseId, kind: "ESTIMATE_LODGED", staffPersonId: actor.personId, recordId: sealed.lodgementId, at: now });
+      await act.writeAlso(tx, "SealedEstimateLodgement.lodgedBy", sealed.lodgementId);
+      return { ok: true };
+    }
     // 6.6 (flagged hook): copy 1 goes into the box, recorded on the envelope register in this transaction, under these locks.
     const box = await recordEstimateLodgement(tx, toAuditActor(actor), l, { personId: person!.id, personName: person!.name, versionNo: facts.currentVersionNo, now: new Date(), act });
     if (!box.ok) throw new Refusal({ ok: false, message: `Nothing was saved: ${box.faults.map(bidFindingText).join(" ")}` });
     return { ok: true };
   });
+  if (refusedAs.code) await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "ESTIMATE_LODGED", staffPersonId: actor.personId, reasonCode: refusedAs.code });
+  return out;
 }
 
 /// Record the second copy, retained, and where it is kept (FR-EST-007).

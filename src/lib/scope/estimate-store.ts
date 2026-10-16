@@ -9,8 +9,11 @@
  * before 6.7 discloses an estimate at opening.
  */
 
+import { randomUUID } from "node:crypto";
+
 import type { Tx } from "@/lib/audit/record";
 import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
+import { sealEstimateFigure } from "@/lib/sealing/estimate-seal";
 
 import { sealFigures, type SealedFigures } from "./estimate";
 
@@ -47,4 +50,46 @@ export async function writeEstimateVersion(
     },
     select: { id: true, versionNo: true },
   });
+}
+
+/**
+ * Lodge one version's figure sealed under the exercise's live key (ADR 0036 D10, D11; ruling 20g; wave 3b step 16). This is the one place the figure leaves the version table
+ * for the online box, and only as ciphertext: the plain bytes are made, sealed and zeroed inside `sealEstimateFigure`, and only the lodgement's id and the number of copies it
+ * superseded come back. Any unsuperseded copy of the exercise is superseded first, with the reason (a re-lodgement of the same version, or a later version), so exactly one stands.
+ * Called inside the lodge act's locked transaction, after the faults passed on the locked rows. The database refuses it after the closing (LODGEMENT_CLOSED) and under a key that
+ * is not the live one.
+ */
+export async function writeSealedLodgement(
+  tx: Tx,
+  i: { organisationId: string; exerciseId: string; estimateId: string; versionNo: number; key: { id: string; publicKey: Uint8Array }; lodgedByPersonId: string; supersededReason: string; now: Date },
+): Promise<{ lodgementId: string; versionId: string; superseded: number }> {
+  const version = await tx.companyEstimateVersion.findFirstOrThrow({
+    where: { estimateId: i.estimateId, versionNo: i.versionNo, organisationId: i.organisationId },
+    omit: { value: false, reason: true },
+  });
+  const lodgementId = randomUUID();
+  const sealed = sealEstimateFigure({
+    context: { organisationId: i.organisationId, exerciseId: i.exerciseId, keyId: i.key.id, lodgementId },
+    exercisePublicKey: i.key.publicKey,
+    figure: parseSen(version.value.toString()),
+  });
+  const old = await tx.sealedEstimateLodgement.updateMany({
+    where: { exerciseId: i.exerciseId, organisationId: i.organisationId, supersededAt: null },
+    data: { supersededAt: i.now, supersededReason: i.supersededReason },
+  });
+  await tx.sealedEstimateLodgement.create({
+    data: {
+      id: lodgementId,
+      organisationId: i.organisationId,
+      exerciseId: i.exerciseId,
+      keyId: i.key.id,
+      estimateVersionId: version.id,
+      sealedEstimate: sealed.sealedEstimate as Uint8Array<ArrayBuffer>,
+      estimateDek: sealed.estimateDek as Uint8Array<ArrayBuffer>,
+      cipherSha256: sealed.cipherSha256,
+      lodgedAt: i.now,
+      lodgedByPersonId: i.lodgedByPersonId,
+    },
+  });
+  return { lodgementId, versionId: version.id, superseded: old.count };
 }

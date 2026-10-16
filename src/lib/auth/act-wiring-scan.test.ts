@@ -28,7 +28,6 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "LadWaiver.person": { why: "Waiving liquidated damages is a later 6.13 Part B increment: no act writes it.", writer: /\.ladWaiver\.(?:create|update|upsert)/ },
   "LossExpenseClaim.valuedBy": { why: "Valuing a loss-and-expense claim is a later 6.13 Part B increment: no act writes the valuation.", writer: /valuedByPersonId/ },
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
-  "SealedEstimateLodgement.lodgedBy": { why: "Lodging the company estimate sealed is wave 3b step 16, which is not built yet.", writer: /.sealedEstimateLodgement.(?:create|update|upsert)/ },
 };
 
 function walk(dir: string, out: string[] = []): string[] {

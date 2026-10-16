@@ -46,7 +46,7 @@ export async function loadCeremony(tx: Tx, organisationId: string, exerciseId: s
 }
 
 /// A sealed-access event for a granted ceremony act. The row holds ids only.
-export async function logCeremonyEvent(tx: Tx, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_CREATED" | "KEY_RETIRED" | "AUTHORISE" | "UNLOCK_CHECK"; staffPersonId: string; recordId: string; reasonCode?: string; at: Date }): Promise<void> {
+export async function logCeremonyEvent(tx: Tx, i: { organisationId: string; exerciseId: string; kind: "SHARE_SET" | "KEY_CREATED" | "KEY_RETIRED" | "AUTHORISE" | "UNLOCK_CHECK" | "ESTIMATE_LODGED"; staffPersonId: string; recordId: string; reasonCode?: string; at: Date }): Promise<void> {
   await tx.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, outcome: "GRANTED", reasonCode: i.reasonCode ?? "", staffPersonId: i.staffPersonId, recordId: i.recordId, at: i.at } });
 }
 

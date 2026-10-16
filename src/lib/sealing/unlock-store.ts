@@ -29,7 +29,7 @@ export type UnlockRefusal = "NOT_NAMED_OFFICER" | "NO_KEY" | "PEPPER_NOT_HELD" |
 
 export type Unlocked = { ok: true; officerKeyId: string; rosterRowId: string; publicKey: Bytes; privateKey: Bytes } | { ok: false; reason: UnlockRefusal; nowLocked?: boolean };
 
-export async function logSealedRefusal(i: { organisationId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE"; staffPersonId: string; reasonCode: string; recordId?: string | null }): Promise<void> {
+export async function logSealedRefusal(i: { organisationId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE" | "ESTIMATE_LODGED"; staffPersonId: string; reasonCode: string; recordId?: string | null }): Promise<void> {
   const ex = await db.sourcingExercise.findFirst({ where: { id: i.exerciseId, organisationId: i.organisationId }, select: { id: true } });
   if (!ex) return;
   await db.sealedAccessEvent.create({ data: { organisationId: i.organisationId, exerciseId: ex.id, kind: i.kind, outcome: "REFUSED", reasonCode: i.reasonCode, staffPersonId: i.staffPersonId, recordId: recordIdOrNull(i.recordId), at: new Date() } });
@@ -40,10 +40,17 @@ export const SEALED_RECORD_ID = /^[A-Za-z0-9_-]{1,64}$/;
 export const recordIdOrNull = (v: string | null | undefined): string | null => (v != null && SEALED_RECORD_ID.test(v) ? v : null);
 
 /// An administrator account refused at a sealed door (S19, 20w): the first refusal for the account in each hour is written, the rest are counted and not written, so a script cannot fill the log.
-export async function logAdministratorRefusal(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "FINALISE"; staffPersonId: string; recordId?: string | null }): Promise<void> {
+export async function logAdministratorRefusal(i: { organisationId: string; accountId: string; exerciseId: string; kind: "AUTHORISE" | "UNLOCK_CHECK" | "FINALISE" | "ESTIMATE_LODGED"; staffPersonId: string; recordId?: string | null }): Promise<void> {
   const seen = await countAndJudgeCounted(db, { organisationId: i.organisationId, accountId: i.accountId, action: "officer-sealed-refusal" }, new Date());
   if (seen.count !== 1) return;
   await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, staffPersonId: i.staffPersonId, reasonCode: "ADMINISTRATOR", recordId: recordIdOrNull(i.recordId) });
+}
+
+/// An administrator refused at the sealed estimate's door (S19, 20w). Only an ONLINE exercise has one: a paper exercise's estimate goes into a box, and nothing is written for it.
+export async function logEstimateAdministratorRefusal(i: { organisationId: string; accountId: string; exerciseId: string; staffPersonId: string }): Promise<void> {
+  const ex = await db.sourcingExercise.findFirst({ where: { id: i.exerciseId, organisationId: i.organisationId }, select: { submissionChannel: true } });
+  if (ex?.submissionChannel !== "ONLINE") return;
+  await logAdministratorRefusal({ ...i, kind: "ESTIMATE_LODGED" });
 }
 
 export async function logSealedGranted(i: { organisationId: string; exerciseId: string; kind: "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE"; staffPersonId: string; recordId: string; at: Date }): Promise<void> {

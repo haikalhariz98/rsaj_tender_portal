@@ -42,6 +42,8 @@ import { rosterFaults } from "./roster";
 import { loadOpeningRoster } from "./roster-store";
 import { invitedCounts, liveScans, openingContext, panelOf, policyOf, presentOf, stateOf, type OpeningContext, type OpeningRow } from "./repo";
 import { INVITED_READING_TEXT, jadualTawaran, lateCount, scheduleFromSnapshot, type ScheduleSnapshot } from "./schedule";
+import { estimateLodgedOn } from "@/lib/sealing/estimate-lodgement";
+import { standingLodgement } from "@/lib/sealing/estimate-lodgement-store";
 import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults } from "./start";
 import { actFaults, openingPhase, sittingAuthorisers } from "./state";
 import { blocking, type Finding } from "./types";
@@ -96,7 +98,12 @@ export async function openingSection(organisationId: string, exerciseId: string,
   else if (c.committee.panelExclusionRule === true && !c.committee.panelExcludesUnitCode) config.push({ code: "EXCLUDED_UNIT_NOT_SET", level: "block" });
   const current = c.estimate?.versions.find((v) => v.versionNo === c.estimate!.currentVersionNo) ?? null;
   const lead = leadTime(current ? storedDay(current.preparedOn) : null, closing, c.scopePolicy, tz);
-  const est = estimateLeadFaults({ requires: c.method?.requiresCompanyEstimate ?? null, estimateState: c.estimate?.state ?? null, lead, override: null, overrideRoleCode: c.scopePolicy.estimateOverrideRoleCode });
+  // ADR 0036 D11, 20g: ONLINE, the estimate counts as lodged only while a sealed copy stands under the live key (the start reads it the same way).
+  const onlineBox = l.ex.submissionChannel === "ONLINE";
+  const liveKeyId = onlineBox ? ((await db.exerciseSealingKey.findFirst({ where: { exerciseId: l.ex.id, organisationId: l.org.id, retiredAt: null }, select: { id: true } }))?.id ?? null) : null;
+  const standingCopy = onlineBox ? await standingLodgement(db, l.org.id, l.ex.id) : null;
+  const estimateLodged = estimateLodgedOn({ channel: onlineBox ? "ONLINE" : "PAPER", state: c.estimate?.state ?? null, liveKeyId, standing: standingCopy });
+  const est = estimateLeadFaults({ requires: c.method?.requiresCompanyEstimate ?? null, estimateState: c.estimate?.state === "LODGED" && !estimateLodged ? null : (c.estimate?.state ?? null), lead, override: null, overrideRoleCode: c.scopePolicy.estimateOverrideRoleCode });
   // A late estimate is not a refusal here: the drawer asks for 6.2's override.
   const estimateLate = !est.ok && est.faults.length === 1 && est.faults[0].code === "ESTIMATE_LATE";
   // Review M-4: what the start would freeze unset, making finalising impossible.

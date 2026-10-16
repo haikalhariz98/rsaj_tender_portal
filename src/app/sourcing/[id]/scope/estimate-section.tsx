@@ -87,6 +87,14 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
           {e.lodgementBehind && (
             <Callout tone="warn">The estimate was amended after version {e.lodgedVersionNo} was lodged. The lodged copy is behind: lodge the current version.</Callout>
           )}
+          {e.relodge && (
+            <Callout tone="warn">
+              The key this estimate was sealed under has changed, so version {e.lodgedVersionNo} no longer counts as lodged and an opening cannot start. The officer who lodged it lodges the same version again, with a reason. Nothing is done for them.
+            </Callout>
+          )}
+          {e.online && !lodged && !e.sealedKeyReady && (
+            <Callout tone="info">This exercise takes bids online, so the estimate is sealed under its key when it is lodged. The key does not exist yet: every named opening officer sets their own share first, under Scope and estimate, Opening officers.</Callout>
+          )}
           {(e.lead.badge.tone === "err" || e.lead.badge.tone === "warn") && !closed && <Callout tone={e.lead.badge.tone}>{e.lead.text}</Callout>}
           <KeyValues
             columns={3}
@@ -102,7 +110,7 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
           {!closed && (
             <div className="flex flex-wrap items-start gap-3 border-t border-line pt-5">
               <AmendEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} versionNo={e.currentVersionNo} lodged={lodged} allowed={e.actions.amend} />
-              {(!lodged || e.lodgementBehind) && <LodgeEstimateDrawer exerciseId={exerciseId} estimateId={e.id} versionNo={e.currentVersionNo} allowed={e.actions.lodge} again={e.lodgementBehind} />}
+              {(!lodged || e.lodgementBehind || e.relodge) && <LodgeEstimateDrawer exerciseId={exerciseId} estimateId={e.id} versionNo={e.currentVersionNo} allowed={e.actions.lodge} again={e.lodgementBehind} relodge={e.relodge} online={e.online} />}
               {e.retainedCopyDue && <RetainCopyDrawer exerciseId={exerciseId} estimateId={e.id} allowed={e.actions.retain} versionNo={e.lodgedVersionNo} />}
               <VoidEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} allowed={e.actions.void} />
             </div>

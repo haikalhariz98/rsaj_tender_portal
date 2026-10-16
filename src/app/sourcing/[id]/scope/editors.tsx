@@ -400,22 +400,30 @@ export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, vers
   );
 }
 
-export function LodgeEstimateDrawer({ exerciseId, estimateId, versionNo, allowed, again }: { exerciseId: string; estimateId: string; versionNo: number; allowed: Allowed; again: boolean }) {
-  if (!allowed.allowed) return <Blocked label={again ? "Lodge the new version" : "Lodge the estimate"} reason={allowed.reason} />;
+export function LodgeEstimateDrawer({ exerciseId, estimateId, versionNo, allowed, again, relodge = false, online = false }: { exerciseId: string; estimateId: string; versionNo: number; allowed: Allowed; again: boolean; relodge?: boolean; online?: boolean }) {
+  const label = relodge ? "Lodge it again" : again ? "Lodge the new version" : "Lodge the estimate";
+  if (!allowed.allowed) return <Blocked label={label} reason={allowed.reason} />;
   return (
     <RecordEditor
-      title={`Lodge version ${versionNo}`}
-      description="The version goes into the sealed set as the lodged copy. Lodging is a custody event, recorded as yours."
+      title={relodge ? `Lodge version ${versionNo} again` : `Lodge version ${versionNo}`}
+      description={
+        relodge
+          ? "The key this version was sealed under has changed, so the sealed copy can no longer be opened. You lodge the same version again, sealed under the new key. Only the officer who lodged it can."
+          : online
+            ? "The version is sealed under the exercise's key as the lodged copy. Lodging is a custody event, recorded as yours."
+            : "The version goes into the sealed set as the lodged copy. Lodging is a custody event, recorded as yours."
+      }
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),
         actorField("EstimateEvent.person", { name: "personId", label: "Lodged by", paper: false }),
         { kind: "text", name: "capacity", label: "Capacity", placeholder: "e.g. head of department" },
+        ...(relodge ? [{ kind: "text" as const, name: "reason", label: "Why it is lodged again", required: true, placeholder: "e.g. the key was changed" }] : []),
       ]}
       values={{ exerciseId, estimateId }}
       action={lodgeEstimate}
-      submitLabel="Lodge the estimate"
-      trigger={{ label: again ? "Lodge the new version" : "Lodge the estimate", className: buttonClass("primary", "sm") }}
+      submitLabel={relodge ? "Lodge it again" : "Lodge the estimate"}
+      trigger={{ label, className: buttonClass("primary", "sm") }}
       size="md"
     />
   );

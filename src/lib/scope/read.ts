@@ -21,6 +21,8 @@ import { exerciseOrg } from "@/lib/method/repo";
 import type { ScopeSectionFacts } from "./sections";
 import { bqTotals, currentBq, draftEditFaults, finaliseFaults, reviseFaults, startBqFaults } from "./bq";
 import { estimateFactsOf as factsOf, loadBqVersions, loadEstimates, loadRateIssues, loadScopeMatters, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules, linesOf, lineOf } from "./repo";
+import { needsRelodgement } from "@/lib/sealing/estimate-lodgement";
+import { standingLodgement } from "@/lib/sealing/estimate-lodgement-store";
 import { leadTime, lodgeFaults, lodgementBehind, retainedCopyDue, retainFaults, startFault, versionFaults, voidFault } from "./estimate";
 import {
   BQ_READABLE_STATEMENT,
@@ -82,7 +84,7 @@ const yesNo = (b: boolean | null) => (b == null ? NOT_SET : b ? "Yes" : "No");
 async function loadAll(organisationId: string, exerciseId: string) {
   const org = await exerciseOrg(organisationId);
   if (!org) return null;
-  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, contractBasisCode: true, closingAt: true, specPanelUsed: true, onScreenBillUsed: true } });
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, contractBasisCode: true, closingAt: true, specPanelUsed: true, onScreenBillUsed: true, submissionChannel: true } });
   if (!ex) return null;
   const [policy, versions, panel, estimates, rules, scopeMatters] = await Promise.all([
     loadScopePolicy(org.id),
@@ -443,8 +445,13 @@ export async function estimateTab(organisationId: string, exerciseId: string) {
   ]);
   // X-1: the closing the approval for tendering recorded (6.4), null until then.
   const closingAt: Date | null = ex.closingAt;
+  // ADR 0036 D11, 20g: ONLINE, a lodged estimate whose sealed copy no longer stands under the live key is lodged again by its lodging officer.
+  const onlineBox = ex.submissionChannel === "ONLINE";
+  const liveKeyId = onlineBox ? ((await db.exerciseSealingKey.findFirst({ where: { exerciseId: ex.id, organisationId: org.id, retiredAt: null }, select: { id: true } }))?.id ?? null) : null;
+  const standingCopy = onlineBox ? await standingLodgement(db, org.id, ex.id) : null;
   const view = (e: (typeof estimates)[number]) => {
     const facts = factsOf(e);
+    const relodge = needsRelodgement({ channel: onlineBox ? "ONLINE" : "PAPER", state: e.state, liveKeyId, standing: standingCopy }) && facts.lodgedVersionNo === facts.currentVersionNo;
     const last = e.versions[e.versions.length - 1];
     const lead = leadTime(last ? storedDay(last.preparedOn) : null, closingAt, policy, org.timeZone);
     const asked = (fs: readonly Finding[]) => judged(fs.filter((f) => f.code !== "NOT_POSITIVE" && f.code !== "REASON_REQUIRED" && f.code !== "PERSON_REQUIRED"));
@@ -460,6 +467,9 @@ export async function estimateTab(organisationId: string, exerciseId: string) {
       currentVersionNo: e.currentVersionNo,
       lodgedVersionNo: facts.lodgedVersionNo,
       lodgementBehind: lodgementBehind(facts),
+      online: onlineBox,
+      sealedKeyReady: liveKeyId != null,
+      relodge,
       retainedVersionNo: facts.retainedVersionNo,
       retainedPlace: e.retainedPlace || null,
       retainedCopyDue: retainedCopyDue(facts),
@@ -469,7 +479,7 @@ export async function estimateTab(organisationId: string, exerciseId: string) {
       lead: { badge: LEAD_STATE_BADGE[lead.state], text: leadTimeText(lead), configured: leadConfiguredText(policy.estimateLeadDays), reading: LEAD_READING },
       actions: {
         amend: asked(versionFaults({ value: 1n, personId: e.preparerPersonId, reason: "given" }, facts, { closingAt, timeZone: org.timeZone, exerciseStatus: ex.status, now })),
-        lodge: judged(lodgeFaults(facts, { personId: "given" }, ex.status)),
+        lodge: judged(lodgeFaults(facts, { personId: "given" }, ex.status, relodge)),
         retain: judged(retainFaults(facts, { personId: "given", place: "given" })),
         void: judged(voidFault(facts, "given")),
       },

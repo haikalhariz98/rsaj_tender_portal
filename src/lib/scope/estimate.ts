@@ -154,13 +154,16 @@ export function voidFault(est: Pick<EstimateFacts, "state">, reason: string): Fi
 
 export type LodgeFault = "VOID" | "DISCLOSED" | "ALREADY_LODGED" | "PERSON_REQUIRED" | "EXERCISE_CANCELLED";
 
-/// Lodging the current version into the sealed set. A version amended after lodgement is lodged again.
-export function lodgeFaults(est: EstimateFacts, i: { personId: string | null }, exerciseStatus: ExerciseStatus): Finding<LodgeFault>[] {
+/**
+ * Lodging the current version into the sealed set. A version amended after lodgement is lodged again. `sealedCopyMissing` is the online channel's own fact (ADR 0036 D11, ruling
+ * 20g): the version stands lodged but no sealed copy of it stands under the exercise's live key, so lodging the same version again is open. Paper passes nothing.
+ */
+export function lodgeFaults(est: EstimateFacts, i: { personId: string | null }, exerciseStatus: ExerciseStatus, sealedCopyMissing = false): Finding<LodgeFault>[] {
   const out: Finding<LodgeFault>[] = [];
   if (exerciseAllowsEstimate(exerciseStatus) !== "OPEN") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
   if (est.state === "VOID") out.push({ code: "VOID", level: "block" });
   if (est.state === "DISCLOSED") out.push({ code: "DISCLOSED", level: "block" });
-  if (est.state === "LODGED" && est.lodgedVersionNo === est.currentVersionNo) out.push({ code: "ALREADY_LODGED", level: "block", data: { versionNo: est.currentVersionNo } });
+  if (est.state === "LODGED" && est.lodgedVersionNo === est.currentVersionNo && !sealedCopyMissing) out.push({ code: "ALREADY_LODGED", level: "block", data: { versionNo: est.currentVersionNo } });
   if (!i.personId) out.push({ code: "PERSON_REQUIRED", level: "block" });
   return out;
 }

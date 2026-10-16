@@ -78,7 +78,8 @@ import { SEALED_BIDS_DEMONSTRATION_ENV } from "@/lib/integration/sealing-deploym
 import type { BidPartRule } from "@/lib/bids/online/types";
 import { ensureAdministrator, facts, makeAccount, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
-import { checkUnlock, setOfficerShare } from "../scope/key-actions";
+import { lodgeEstimate } from "../scope/actions";
+import { checkUnlock, rekeyExercise, setOfficerShare } from "../scope/key-actions";
 import { authoriseOnlineUnseal } from "./unseal-actions";
 import { finaliseOnline, signOnlineFinalise } from "./online-finalise-actions";
 import { ensureFileMoved, moveReleasedFiles } from "@/lib/sealing/online-file-mover";
@@ -252,7 +253,7 @@ beforeAll(async () => {
 });
 
 /// An unsealed online opening with `bids` bidders, each with a bid of two files, every named officer having authorised. Ready for the checklist, the verdicts and the signatures.
-async function unsealed(n: number, bids: number) {
+async function unsealed(n: number, bids: number, beforeStart?: (ex: Ex) => Promise<void>) {
   const ex = await exercise(n);
   const sessions: Session[] = [];
   for (let i = 0; i < bids; i++) {
@@ -260,6 +261,7 @@ async function unsealed(n: number, bids: number) {
     sessions.push(s);
     await submit(s, ex);
   }
+  if (beforeStart) await beforeStart(ex);
   await setClosing(ex.id, ago(40));
   const started = await start(ex);
   expect(started.ok, message(started)).toBe(true);
@@ -632,5 +634,108 @@ describe("the exercises that still need the pepper (20y), read from the database
     } finally {
       for (const k of PEPPER_ENV) delete process.env[k];
     }
+  }, 300_000);
+});
+
+const FIGURE_TEXT = "55000.00";
+async function estimateFor(ex: Ex) {
+  const preparer = ex.officers[0].person.id;
+  const est = await db.companyEstimate.create({ data: { organisationId: org, exerciseId: ex.id, preparerPersonId: preparer, currentVersionNo: 1, state: "DRAFT" } });
+  await db.companyEstimateVersion.create({ data: { organisationId: org, estimateId: est.id, versionNo: 1, value: FIGURE_TEXT, preparedOn: new Date("2026-09-01"), preparerPersonId: preparer } });
+  return est.id;
+}
+const lodgeAs = (ex: Ex, o: Officer, estimateId: string, over: Record<string, string> = {}) => {
+  who.actor = o.actor;
+  return lodgeEstimate({ ok: false }, form({ exerciseId: ex.id, estimateId, capacity: "Head of department", [PASSWORD_FIELD]: o.password, ...over }));
+};
+const standing = (exerciseId: string) => db.sealedEstimateLodgement.findMany({ where: { exerciseId, supersededAt: null } });
+
+describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
+  it("seals the figure under the live key through the real lodge act, is lodged once, and the figure reaches the opening only at the finalise", async () => {
+    const lodged = { estimateId: "" };
+    const { ex, opening, offers } = await unsealed(2, 1, async (e) => {
+      lodged.estimateId = await estimateFor(e);
+      const r = await lodgeAs(e, e.officers[0], lodged.estimateId);
+      expect(r.ok, message(r)).toBe(true);
+      // Lodged under this key already: lodging it again is refused as before.
+      const dup = await lodgeAs(e, e.officers[0], lodged.estimateId);
+      expect(dup.ok).toBe(false);
+      expect(message(dup)).toMatch(/lodged/i);
+      // No plain figure is stored in the lodgement, the trail or the access log.
+      const [row] = await standing(e.id);
+      expect(Buffer.concat([row.sealedEstimate, row.estimateDek]).includes(Buffer.from("55000"))).toBe(false);
+      expect(row.keyId).toBe(e.keyId);
+      const trail = await db.auditEntry.findMany({ where: { organisationId: org, entityId: row.id } });
+      expect(trail).toHaveLength(1);
+      expect(JSON.stringify(trail)).not.toMatch(/55000/);
+      expect(JSON.stringify(await events(e.id))).not.toMatch(/55000/);
+      expect((await events(e.id)).filter((x) => x.kind === "ESTIMATE_LODGED" && x.outcome === "GRANTED")).toHaveLength(1);
+      // No paper-box envelope is made online.
+      expect(await db.bidEnvelope.count({ where: { exerciseId: e.id, kind: "COMPANY_ESTIMATE" } })).toBe(0);
+    });
+    // Before the finalise no figure of the estimate is on the opening.
+    const before = await db.opening.findUniqueOrThrow({ where: { id: opening.id } });
+    expect(before.estimateLodgedAmount).toBeNull();
+    await prepare(ex, opening.id, offers);
+    for (const o of ex.officers) expect((await sign(ex, opening.id, o)).ok).toBe(true);
+    const done = await finalise(ex, opening.id, ex.officers[1]);
+    expect(done.ok, message(done)).toBe(true);
+    const after = await db.opening.findUniqueOrThrow({ where: { id: opening.id } });
+    expect(after.estimateLodgedAmount?.toFixed(2)).toBe(FIGURE_TEXT);
+  }, 300_000);
+
+  it("after a re-key the lodging officer lodges the same version again with a reason, nobody else does,", async () => {
+    const ex = await exercise(2);
+    const estimateId = await estimateFor(ex);
+    const [o1, o2] = ex.officers;
+    expect((await lodgeAs(ex, o1, estimateId)).ok).toBe(true);
+    const first = (await standing(ex.id))[0];
+
+    who.actor = o1.actor;
+    const rekey = await rekeyExercise({ ok: false }, form({ exerciseId: ex.id, reason: "A passphrase was shared", [PASSWORD_FIELD]: o1.password }));
+    expect(rekey.ok, message(rekey)).toBe(true);
+    const liveKey = await db.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null } });
+    expect(liveKey.id).not.toBe(first.keyId);
+
+    // Without a reason, and by another officer, it is refused and nothing changes.
+    const noReason = await lodgeAs(ex, o1, estimateId);
+    expect(noReason.ok).toBe(false);
+    expect(message(noReason)).toMatch(/Say why/);
+    const other = await lodgeAs(ex, o2, estimateId, { reason: "Because the key changed" });
+    expect(other.ok).toBe(false);
+    expect(message(other)).toMatch(/same officer/);
+    expect((await standing(ex.id)).map((r) => r.id)).toEqual([first.id]);
+    expect((await events(ex.id)).filter((e) => e.kind === "ESTIMATE_LODGED" && e.outcome === "REFUSED").length).toBe(2);
+
+    const again = await lodgeAs(ex, o1, estimateId, { reason: "The key was changed" });
+    expect(again.ok, message(again)).toBe(true);
+    const now = await standing(ex.id);
+    expect(now).toHaveLength(1);
+    expect(now[0]).toMatchObject({ keyId: liveKey.id });
+    const old = await db.sealedEstimateLodgement.findUniqueOrThrow({ where: { id: first.id } });
+    expect(old.supersededReason).toBe("The key was changed");
+    // The same version: no new version row.
+    expect(await db.companyEstimateVersion.count({ where: { estimateId } })).toBe(1);
+    const trail = await db.auditEntry.findMany({ where: { organisationId: org, entityId: now[0].id } });
+    expect(trail.map((t) => t.reason)).toContain("The key was changed");
+    expect(JSON.stringify(trail)).not.toMatch(/55000/);
+  }, 300_000);
+
+  it("is refused after the closing, and refused for an administrator, each in words", async () => {
+    const ex = await exercise(2);
+    const estimateId = await estimateFor(ex);
+    await setClosing(ex.id, ago(5));
+    const late = await lodgeAs(ex, ex.officers[0], estimateId);
+    expect(late.ok).toBe(false);
+    expect(message(late)).toMatch(/closing has passed/);
+    expect(await standing(ex.id)).toHaveLength(0);
+    expect((await events(ex.id)).some((e) => e.kind === "ESTIMATE_LODGED" && e.outcome === "REFUSED" && e.reasonCode === "LODGEMENT_CLOSED")).toBe(true);
+
+    const admin = await signedIn(true);
+    who.actor = admin.actor;
+    const refused = await lodgeEstimate({ ok: false }, form({ exerciseId: ex.id, estimateId, [PASSWORD_FIELD]: admin.password }));
+    expect(refused.ok).toBe(false);
+    expect((await events(ex.id)).some((e) => e.kind === "ESTIMATE_LODGED" && e.reasonCode === "ADMINISTRATOR")).toBe(true);
+    expect(await standing(ex.id)).toHaveLength(0);
   }, 300_000);
 });
