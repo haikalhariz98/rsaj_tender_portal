@@ -318,7 +318,7 @@ It rests on rulings 11, 12a, 17c and 18–25.
   - the officer screens say every named officer is needed (20k).
 - **The opening roll (H2).** `startOpening` freezes `Opening.receiptRoll`: every standing submission's sequence, receipt digest and late
   flag. There is no scheduler. Because moves stamped after the closing are refused, and an ONLINE opening cannot start until the database clock (`clock_timestamp()`, 20aa) reads `MAX_STAMP_SKEW_SECONDS` after the closing (so no in-time act is still committing), the roll taken at the start equals the in-time state at
-  the closing. Each opened bid shows its receipt digest and plain hashes.
+  the closing. Each opened bid shows its receipt digest and plain hashes. *Amended 2026-10-17 (wave 3c plan, `docs/notes/plans/wave-3c-build-plan.md` Q5):* the receipt digest is shown from the unseal. The plain hashes are sealed in `FileMeta` until finalising, so they are shown per file only after it, from the filed version. No decryption door is added to show them earlier.
 - **My Bids (20s).** From the opening's start, My Bids **shows the opened receipt digest itself, in full, and asks the supplier to compare
   it with the receipt it printed or saved when it submitted.** A server sentence "your receipt was the one opened" would compare two server
   rows, which a writer who fabricated or swapped a bid could make agree (S11). The words come from one pure function, tested for each state:
