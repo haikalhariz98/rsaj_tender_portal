@@ -30,6 +30,8 @@ import { rosterFaults } from "@/lib/opening/roster";
 import { actFaults } from "@/lib/opening/state";
 import { openingPolicyFrozen, panelOf, panelSnapshot, policyOf, stateOf, type OpeningContext, type OpeningPolicySnapshot } from "@/lib/opening/repo";
 import { unpurchasedRecordAudit, unpurchasedRule } from "@/lib/opening/unpurchased";
+import { estimateStateForStart } from "@/lib/sealing/estimate-lodgement";
+import { standingLodgement } from "@/lib/sealing/estimate-lodgement-store";
 import { estimateLeadFaults, frozenRuleFaults, onlineStartFaults, startFaults, supplementaryFaults } from "@/lib/opening/start";
 import { blocking, CHECKLIST_ANSWERS, PERIOD_UNITS, type Finding, type OpeningVerdict, type PeriodUnit } from "@/lib/opening/types";
 import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, unsealState } from "@/lib/opening/unseal";
@@ -150,7 +152,8 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
     // ADR 0036 D10, H2, 20aa: an online opening starts on a live key split across exactly the officers named, and only once the DATABASE clock (read here, after the locks, the clock the triggers read)
     // is past the closing by the skew, so that no bid sent in time can still be committing when the roll is frozen below.
     let receiptRoll: Awaited<ReturnType<typeof freezeReceiptRoll>> | null = null;
-    let sealedEstimate = false;
+    let liveKeyId: string | null = null;
+    let standingCopy: Awaited<ReturnType<typeof standingLodgement>> = null;
     if (online) {
       const ceremony = await loadCeremony(tx, l.org.id, l.ex.id);
       const clock = await databaseClock(tx);
@@ -159,7 +162,8 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
       if (!sameOfficers && !of.some((f) => f.code === "KEY_OFFICERS_MISMATCH")) of.push({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: ceremony.roster.length, keyOfficers: ceremony.liveKey?.officerCount ?? 0 } });
       if (blocking(of).length) return refuse(of);
       receiptRoll = await freezeReceiptRoll(tx, l.org.id, l.ex.id);
-      sealedEstimate = !!ceremony.liveKey && (await tx.sealedEstimateLodgement.count({ where: { exerciseId: l.ex.id, organisationId: l.org.id, keyId: ceremony.liveKey.id, supersededAt: null } })) > 0;
+      standingCopy = await standingLodgement(tx, l.org.id, l.ex.id);
+      liveKeyId = ceremony.liveKey?.id ?? null;
     }
     // Review M-4: a rule frozen unset that would make finalising impossible refuses the start, naming it.
     const checklist = openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda });
@@ -185,7 +189,7 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
     const est = estimateLeadFaults({
       requires: c.method?.requiresCompanyEstimate ?? null,
       // ONLINE reads the sealed lodgement, not the paper copy in the box (ADR 0036 D10): no sealed lodgement under the live key is none lodged.
-      estimateState: online ? (sealedEstimate ? (c.estimate?.state ?? null) : null) : (c.estimate?.state ?? null),
+      estimateState: estimateStateForStart({ channel: online ? "ONLINE" : "PAPER", state: c.estimate?.state ?? null, liveKeyId, standing: standingCopy }),
       lead,
       override: lateOverridePersonId || lateOverrideReason.trim() ? { personId: overrider?.id ?? null, holdsOverrideRole: !!overrider && c.holdsOffice(overrider.id, c.scopePolicy.estimateOverrideRoleCode), reason: lateOverrideReason } : null,
       overrideRoleCode: c.scopePolicy.estimateOverrideRoleCode,

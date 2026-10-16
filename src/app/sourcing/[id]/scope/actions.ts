@@ -20,7 +20,7 @@ import { writeEstimateVersion, writeSealedLodgement } from "@/lib/scope/estimate
 import { needsRelodgement, SEALED_LODGEMENT_WORDS, sealedLodgementFaults, type SealedLodgementFault } from "@/lib/sealing/estimate-lodgement";
 import { lodgingOfficerOf, standingLodgement } from "@/lib/sealing/estimate-lodgement-store";
 import { logCeremonyEvent, sealedSqlState } from "@/lib/sealing/store";
-import { logEstimateAdministratorRefusal, logSealedRefusal } from "@/lib/sealing/unlock-store";
+import { logEstimateRefusal } from "@/lib/sealing/unlock-store";
 import { csvFaultText, ESTIMATE_STATE_LABEL, keyedMismatchText, PANEL_STATE_LABEL, scopeFaultText, type ScopeCode } from "@/lib/scope/labels";
 import { lockBqRows, lockEstimateRow, lockLiveEstimateRows, lockPanelRow, withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
 import { columnsInForce, editClearsVerifications, panelEditFault, panelFaults, panelState, standingVerifications, verifyFaults, verifyPanelFault } from "@/lib/scope/panel";
@@ -709,7 +709,7 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) {
     const who = await requireStaff();
-    await logEstimateAdministratorRefusal({ organisationId: who.organisationId, accountId: who.accountId, exerciseId: exerciseIdOf(data), staffPersonId: who.personId });
+    await logEstimateRefusal({ organisationId: who.organisationId, accountId: who.accountId, exerciseId: exerciseIdOf(data), staffPersonId: who.personId, reasonCode: "ADMINISTRATOR" });
     return txGuard.state;
   }
   const actor = txGuard.actor;
@@ -719,7 +719,10 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
   const reason = String(data.get("reason") ?? "").trim();
   if (reason.length > 1000) return { ok: false, errors: { reason: "Keep the reason to 1000 characters." } };
   const begun = await beginAct(actor, data, "EstimateEvent.person", { personField: "personId", onBehalf: false });
-  if (!begun.ok) return begun.state;
+  if (!begun.ok) {
+    await logEstimateRefusal({ organisationId: actor.organisationId, accountId: actor.accountId, exerciseId, staffPersonId: actor.personId, reasonCode: "STEP_UP_REFUSED" });
+    return begun.state;
+  }
   const act = begun.act;
   const personId = act.subjectPersonId;
   // The refused row is written after the transaction: its foreign key to the exercise would wait on the lock this act holds.
@@ -736,7 +739,10 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
     const channel = online ? "ONLINE" : "PAPER";
     const sameVersionAgain = needsRelodgement({ channel, state: facts.state, liveKeyId: liveKey?.id ?? null, standing }) && facts.lodgedVersionNo === facts.currentVersionNo;
     const result = actionResult(lodgeFaults(facts, { personId: person?.id ?? null }, l.ex.status, sameVersionAgain));
-    if (!result.ok) return refuseCodes(result.codes);
+    if (!result.ok) {
+      refusedAs.code = result.codes[0];
+      return refuseCodes(result.codes);
+    }
     if (online) {
       const lodgingOfficerId = sameVersionAgain ? await lodgingOfficerOf(tx, l.org.id, row.id, facts.currentVersionNo) : null;
       const sealedFaults = blocking(sealedLodgementFaults({ liveKeyId: liveKey?.id ?? null, again: sameVersionAgain, reason, personId: person?.id ?? null, lodgingOfficerId, closing: l.ex.closingAt, now }));
@@ -756,7 +762,10 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
         sealed = await writeSealedLodgement(tx, { organisationId: l.org.id, exerciseId, estimateId: row.id, versionNo: facts.currentVersionNo, key: { id: liveKey!.id, publicKey: new Uint8Array(liveKey!.publicKey) }, lodgedByPersonId: person!.id, supersededReason: sameVersionAgain ? reason : `Version ${facts.currentVersionNo} was lodged`, now });
       } catch (e) {
         // The database's own wall: the closing passed, or the key stopped being the live one, between the read and the write.
-        if (sealedSqlState(e) === "PA018") throw new Refusal({ ok: false, message: `Nothing was saved: ${SEALED_LODGEMENT_WORDS.LODGEMENT_CLOSED} If the closing has not passed, the exercise's key changed while this was being lodged: try again.` });
+        if (sealedSqlState(e) === "PA018") {
+          refusedAs.code = "LODGEMENT_REFUSED_BY_DATABASE";
+          throw new Refusal({ ok: false, message: `Nothing was saved: ${SEALED_LODGEMENT_WORDS.LODGEMENT_CLOSED} If the closing has not passed, the exercise's key changed while this was being lodged: try again.` });
+        }
         throw e;
       }
       await audit(tx, toAuditActor(actor), l.org.id, ENTITY.sealedLodgement, sealed.lodgementId, label(l, "Company estimate · sealed copy"), "CREATE", sealedLodgementAudit({ versionNo: facts.currentVersionNo, lodgedByName: person!.name, superseded: sealed.superseded }), sameVersionAgain ? reason : "");
@@ -769,7 +778,7 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
     if (!box.ok) throw new Refusal({ ok: false, message: `Nothing was saved: ${box.faults.map(bidFindingText).join(" ")}` });
     return { ok: true };
   });
-  if (refusedAs.code) await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "ESTIMATE_LODGED", staffPersonId: actor.personId, reasonCode: refusedAs.code });
+  if (refusedAs.code) await logEstimateRefusal({ organisationId: actor.organisationId, accountId: actor.accountId, exerciseId, staffPersonId: actor.personId, reasonCode: refusedAs.code });
   return out;
 }
 

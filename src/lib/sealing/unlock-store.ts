@@ -46,11 +46,14 @@ export async function logAdministratorRefusal(i: { organisationId: string; accou
   await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: i.kind, staffPersonId: i.staffPersonId, reasonCode: "ADMINISTRATOR", recordId: recordIdOrNull(i.recordId) });
 }
 
-/// An administrator refused at the sealed estimate's door (S19, 20w). Only an ONLINE exercise has one: a paper exercise's estimate goes into a box, and nothing is written for it.
-export async function logEstimateAdministratorRefusal(i: { organisationId: string; accountId: string; exerciseId: string; staffPersonId: string }): Promise<void> {
+/// A refused lodgement of the company estimate on an ONLINE exercise, an administrator's included (S19, 20w, 20bb). Only an ONLINE exercise has a sealed door: a paper exercise's estimate goes into a
+/// box, and nothing is written for it. Written after the session was checked, outside the refused transaction, and only the first in each hour for the account, so a script cannot fill the log.
+export async function logEstimateRefusal(i: { organisationId: string; accountId: string; exerciseId: string; staffPersonId: string; reasonCode: string }): Promise<void> {
   const ex = await db.sourcingExercise.findFirst({ where: { id: i.exerciseId, organisationId: i.organisationId }, select: { submissionChannel: true } });
   if (ex?.submissionChannel !== "ONLINE") return;
-  await logAdministratorRefusal({ ...i, kind: "ESTIMATE_LODGED" });
+  const seen = await countAndJudgeCounted(db, { organisationId: i.organisationId, accountId: i.accountId, action: "officer-sealed-refusal" }, new Date());
+  if (seen.count !== 1) return;
+  await logSealedRefusal({ organisationId: i.organisationId, exerciseId: i.exerciseId, kind: "ESTIMATE_LODGED", staffPersonId: i.staffPersonId, reasonCode: i.reasonCode });
 }
 
 export async function logSealedGranted(i: { organisationId: string; exerciseId: string; kind: "UNLOCK_CHECK" | "DOWNLOAD" | "FINALISE"; staffPersonId: string; recordId: string; at: Date }): Promise<void> {

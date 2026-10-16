@@ -18,6 +18,10 @@ export interface StandingLodgement { keyId: string; versionNo: number; lodgedByP
 export const estimateLodgedOn = (i: { channel: Channel; state: string | null; liveKeyId: string | null; standing: StandingLodgement | null }): boolean =>
   i.state === "LODGED" && (i.channel !== "ONLINE" || (i.liveKeyId != null && i.standing != null && i.standing.keyId === i.liveKeyId));
 
+/// The estimate's state as the start judges it: a lodged state whose sealed copy does not stand under the live key reads as none, on every path that starts or pre-checks an opening.
+export const estimateStateForStart = <S extends string>(i: { channel: Channel; state: S | null; liveKeyId: string | null; standing: StandingLodgement | null }): S | null =>
+  i.state === "LODGED" && !estimateLodgedOn(i) ? null : i.state;
+
 /// Whether a lodged estimate's sealed copy is missing under the live key, so that lodging the same version again is open. False on paper, and when nothing is lodged.
 export const needsRelodgement = (i: { channel: Channel; state: string | null; liveKeyId: string | null; standing: StandingLodgement | null }): boolean =>
   i.channel === "ONLINE" && i.state === "LODGED" && !estimateLodgedOn(i);

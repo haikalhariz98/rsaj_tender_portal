@@ -512,6 +512,16 @@ The public posts join `SUPPLIER_BIDS_POSTS`. The submit page joins `BID_PAGE`, f
 - **Screens:** the Opening tab (sign, finalise online, the files to check with the shared `SealedFileDownload`), Configuration > Bid sealing (the pepper list), Configuration > Documents (the class a filed bid takes).
 - **Carried:** the 20ao `publishWindow` test, the ui-guidelines-reviewer pass and the rendered check are step 19's (20bi, 20bj).
 
+### 1.5j What step 16 added beyond §1.3 (built 2026-10-16)
+
+- **No separate `lodgeSealedEstimate` action.** `lodgeEstimate` (`scope/actions.ts`) branches on the exercise's channel in place, so the one custody event, state change and audit rows are written once. The act stays the lodging officer's own `EstimateEvent.person` act (`TRANSACTION`, `onBehalf: false`); the sealed copy's `SealedEstimateLodgement.lodgedBy` slot is written beside it with `writeAlso`, and leaves the `NOT_BUILT` list of `act-wiring-scan.test.ts`. The slot carries no signature class or holder of its own: it is not a key act.
+- **Pure:** `src/lib/sealing/estimate-seal.ts` (`sealEstimateFigure`: a fresh data key, AES-GCM under `estimateAad`, the key HPKE-sealed under `estimateDekAad`; the lodgement id is the record id, so it is made before the row), `src/lib/sealing/estimate-lodgement.ts` (`estimateLodgedOn`, `needsRelodgement`, `estimateStateForStart`, `sealedLodgementFaults`, `SEALED_LODGEMENT_WORDS`). `lodgeFaults` takes a fourth argument, `sealedCopyMissing`, which lifts `ALREADY_LODGED` for the same version.
+- **Stores:** `scope/estimate-store.ts` `writeSealedLodgement` (the only place the figure leaves the version table for the box; supersedes the standing copy, then inserts), `sealing/estimate-lodgement-store.ts` (`standingLodgement`, `lodgingOfficerOf`: ids and numbers only), `unlock-store.ts` `logEstimateRefusal` (ONLINE only, first refusal per account per hour, S19).
+- **"Lodged" online** means a sealed copy stands under the LIVE key. The start (`opening/actions.ts`), the opening screen's pre-check (`opening/read.ts`) and the estimate tab all read it through `estimateStateForStart` / `needsRelodgement`. `scope/pack.ts` is unchanged: approval for tendering can come before the key exists.
+- **Online writes no `COMPANY_ESTIMATE` box envelope.** Paper still calls `recordEstimateLodgement`. A step that needs the register's estimate line for an online exercise (step 18's demo, step 19's History) reads the custody event and the access log instead.
+- **Re-lodging** is the same version by the officer on the last `LODGED` event, with a reason, before the closing. Step 18's demo lodges the estimate through `lodgeEstimate` once the key exists, never by a direct insert.
+- **Carried:** the estimate tab's new callouts and the re-lodge drawer are not yet compared with their sibling screens: step 19's UI pass (20bj).
+
 ### 1.5b What step 9 added beyond §1.3 (built 2026-10-14)
 
 - `src/lib/sealing/file-seal.ts` (pure): `sealFile`, and `fileBodyAad`, `fileMetaAad`, `fileDekAad` (recordId = the file's id, partKey = the returned part's id), so step 13's unseal rebuilds them identically. Stored body is `ct || tag` with the IV in `bodyIv`.

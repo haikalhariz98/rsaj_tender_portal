@@ -134,7 +134,7 @@ const rulesOf = (a: string, b: string): { v: 1; frozenAt: string; parts: BidPart
 
 /// A published ONLINE exercise in DEMONSTRATION mode with `n` named officers who have each set a real share (so the exercise key is real and split n-of-n), a committee of n whose
 /// seats they hold, two returned parts, and a closing a day away.
-async function exercise(n: number): Promise<Ex> {
+async function exercise(n: number, o: { requiresEstimate?: boolean } = {}): Promise<Ex> {
   const reference = `UNS/EX/${randomId()}`;
   const requisitionId = (
     await db.requisition.create({
@@ -143,7 +143,7 @@ async function exercise(n: number): Promise<Ex> {
   ).id;
   const committee = await db.committee.create({ data: { organisationId: org, code: `UNS_C_${randomId()}`, nameEn: "Opening committee", mandate: "Opens bids", governingSource: "Test", panelSize: n, panelSizeProvenance: "ASSUMED", panelExclusionRule: false, panelExclusionProvenance: "ASSUMED" } });
   const methodCode = `UNS_M_${randomId()}`;
-  await db.sourcingMethod.create({ data: { organisationId: org, code: methodCode, nameEn: "Online tender", openingCommitteeCode: committee.code, openingCommitteeProvenance: "ASSUMED", requiresCompanyEstimate: false, requiresCompanyEstimateProvenance: "ASSUMED" } });
+  await db.sourcingMethod.create({ data: { organisationId: org, code: methodCode, nameEn: "Online tender", openingCommitteeCode: committee.code, openingCommitteeProvenance: "ASSUMED", requiresCompanyEstimate: o.requiresEstimate ?? false, requiresCompanyEstimateProvenance: "ASSUMED" } });
   const ex = await db.sourcingExercise.create({
     data: { organisationId: org, reference, requisitionId, title: "Unseal test", estimatedValue: "1000.00", sourcingMethodCode: methodCode, status: "DOCUMENTS_IN_PREPARATION", closingAt: new Date(Date.now() + DAY), submissionChannel: "ONLINE", onlineSubmissionMode: "DEMONSTRATION", openingRosterRequired: true, packKindSnapshot: "TENDER", restrictedTender: false },
   });
@@ -648,6 +648,7 @@ const lodgeAs = (ex: Ex, o: Officer, estimateId: string, over: Record<string, st
   who.actor = o.actor;
   return lodgeEstimate({ ok: false }, form({ exerciseId: ex.id, estimateId, capacity: "Head of department", [PASSWORD_FIELD]: o.password, ...over }));
 };
+const granted = sulitGranted(true as const, "ORGANISATION_PERMISSION");
 const standing = (exerciseId: string) => db.sealedEstimateLodgement.findMany({ where: { exerciseId, supersededAt: null } });
 
 describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
@@ -684,8 +685,8 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
     expect(after.estimateLodgedAmount?.toFixed(2)).toBe(FIGURE_TEXT);
   }, 300_000);
 
-  it("after a re-key the lodging officer lodges the same version again with a reason, nobody else does,", async () => {
-    const ex = await exercise(2);
+  it("after a re-key the lodging officer lodges the same version again with a reason, nobody else does, and the start reads it as not lodged until then", async () => {
+    const ex = await exercise(2, { requiresEstimate: true });
     const estimateId = await estimateFor(ex);
     const [o1, o2] = ex.officers;
     expect((await lodgeAs(ex, o1, estimateId)).ok).toBe(true);
@@ -696,6 +697,12 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
     expect(rekey.ok, message(rekey)).toBe(true);
     const liveKey = await db.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null } });
     expect(liveKey.id).not.toBe(first.keyId);
+
+    // ESTIMATE_NOT_LODGED reads the online channel: the copy under the retired key no longer counts, though the estimate's state still says lodged.
+    const notLodged = /none is lodged/;
+    const gateAfterRekey = (await openingSection(org, ex.id, granted, null))!.start.allowed;
+    expect(gateAfterRekey.allowed).toBe(false);
+    expect(JSON.stringify(gateAfterRekey)).toMatch(notLodged);
 
     // Without a reason, and by another officer, it is refused and nothing changes.
     const noReason = await lodgeAs(ex, o1, estimateId);
@@ -714,8 +721,9 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
     expect(now[0]).toMatchObject({ keyId: liveKey.id });
     const old = await db.sealedEstimateLodgement.findUniqueOrThrow({ where: { id: first.id } });
     expect(old.supersededReason).toBe("The key was changed");
-    // The same version: no new version row.
+    // The same version: no new version row, and the start no longer reads the estimate as not lodged.
     expect(await db.companyEstimateVersion.count({ where: { estimateId } })).toBe(1);
+    expect(JSON.stringify((await openingSection(org, ex.id, granted, null))!.start.allowed)).not.toMatch(notLodged);
     const trail = await db.auditEntry.findMany({ where: { organisationId: org, entityId: now[0].id } });
     expect(trail.map((t) => t.reason)).toContain("The key was changed");
     expect(JSON.stringify(trail)).not.toMatch(/55000/);
