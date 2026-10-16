@@ -2,17 +2,19 @@ import { describe, expect, it } from "vitest";
 
 import { channelSettingFaults, onlineSubmissionAllowed } from "@/lib/sealing/switch";
 
-import { closingAfter, DEMO_UNSEAL_PASSPHRASES, NEEDS_FLAG_WORDS, NEEDS_PEPPER_WORDS, NEEDS_STORE_WORDS, onlineDemoDecision, unsetOnlineSettings } from "./online-demo";
+import { closingAfter, DEMO_UNSEAL_PASSPHRASES, NEEDS_FLAG_WORDS, NEEDS_MODE_WORDS, NEEDS_PASSPHRASE_WORDS, NEEDS_PEPPER_WORDS, NEEDS_STORE_WORDS, NEEDS_WORKING_DAY_WORDS, onlineDemoDecision, unsetOnlineSettings, type OnlineDemoFacts } from "./online-demo";
+
+const ready: OnlineDemoFacts = { channelFaults: [], blobStoreReady: true, pepperFault: null, closingDayFaults: [], existingMode: null, passphraseMinLength: null };
 
 describe("whether the demonstration can be made online (wave 3b step 18, ruling 20z)", () => {
   it("is online only when the product's own channel rule allows it and the pieces it stands on are there", () => {
-    expect(onlineDemoDecision({ channelFaults: [], blobStoreReady: true, pepperFault: null })).toEqual({ online: true });
+    expect(onlineDemoDecision(ready)).toEqual({ online: true });
   });
 
   it("falls back, naming the flag, where the deployment does not allow demonstration bids", () => {
     const faults = channelSettingFaults("ONLINE", onlineSubmissionAllowed("DEMONSTRATION", { demoAllowed: false, liveAllowed: true }, "PUBLISH"));
     expect(faults.length).toBeGreaterThan(0);
-    const d = onlineDemoDecision({ channelFaults: faults, blobStoreReady: true, pepperFault: null });
+    const d = onlineDemoDecision({ ...ready, channelFaults: faults });
     expect(d).toEqual({ online: false, reasons: [NEEDS_FLAG_WORDS] });
     expect(NEEDS_FLAG_WORDS).toContain("SEALED_BIDS_DEMONSTRATION_ALLOWED");
   });
@@ -22,9 +24,21 @@ describe("whether the demonstration can be made online (wave 3b step 18, ruling 
   });
 
   it("lists every reason it cannot, and a missing store or a wrong pepper is a reason on its own", () => {
-    expect(onlineDemoDecision({ channelFaults: [], blobStoreReady: false, pepperFault: null })).toEqual({ online: false, reasons: [NEEDS_STORE_WORDS] });
-    expect(onlineDemoDecision({ channelFaults: [], blobStoreReady: true, pepperFault: "PEPPER_INVALID" })).toEqual({ online: false, reasons: [NEEDS_PEPPER_WORDS] });
-    expect(onlineDemoDecision({ channelFaults: ["ONLINE_NOT_ALLOWED"], blobStoreReady: false, pepperFault: "PEPPER_INVALID" })).toEqual({ online: false, reasons: [NEEDS_FLAG_WORDS, NEEDS_STORE_WORDS, NEEDS_PEPPER_WORDS] });
+    expect(onlineDemoDecision({ ...ready, blobStoreReady: false })).toEqual({ online: false, reasons: [NEEDS_STORE_WORDS] });
+    expect(onlineDemoDecision({ ...ready, pepperFault: "PEPPER_INVALID" })).toEqual({ online: false, reasons: [NEEDS_PEPPER_WORDS] });
+    expect(onlineDemoDecision({ ...ready, channelFaults: ["ONLINE_NOT_ALLOWED"], blobStoreReady: false, pepperFault: "PEPPER_INVALID" })).toEqual({ online: false, reasons: [NEEDS_FLAG_WORDS, NEEDS_STORE_WORDS, NEEDS_PEPPER_WORDS] });
+  });
+
+  it("falls back on a day the calendar will not close on, and says which rule, so a weekend load completes instead of stopping at the publication", () => {
+    const d = onlineDemoDecision({ ...ready, closingDayFaults: ["A closing cannot fall on a Saturday."] });
+    expect(d).toEqual({ online: false, reasons: [`${NEEDS_WORKING_DAY_WORDS} A closing cannot fall on a Saturday.`] });
+  });
+
+  it("never changes a setting that is already set: a live mode, or a longer passphrase minimum than the demonstration's, is a reason to fall back", () => {
+    expect(onlineDemoDecision({ ...ready, existingMode: "DEMONSTRATION" })).toEqual({ online: true });
+    expect(onlineDemoDecision({ ...ready, existingMode: "LIVE" })).toEqual({ online: false, reasons: [NEEDS_MODE_WORDS] });
+    expect(onlineDemoDecision({ ...ready, passphraseMinLength: 12 })).toEqual({ online: true });
+    expect(onlineDemoDecision({ ...ready, passphraseMinLength: 64 })).toEqual({ online: false, reasons: [NEEDS_PASSPHRASE_WORDS] });
   });
 });
 

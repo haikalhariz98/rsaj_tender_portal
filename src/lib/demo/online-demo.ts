@@ -14,12 +14,22 @@ export interface OnlineDemoFacts {
   blobStoreReady: boolean;
   /// `pepperForWrapFault(...)`: the deployment's pepper is configured wrongly.
   pepperFault: string | null;
+  /// What the product's own closing rule (`closingFaults`) blocks about the day the closing would fall on, in words: the closing is minutes after the load, on the load day, so a
+  /// weekend, a public holiday or a year the calendar does not maintain cannot publish it. Empty: the day is allowed.
+  closingDayFaults: readonly string[];
+  /// The organisation's online mode where one is already set (a database that was set up before the load): the demonstration never changes a mode that is set.
+  existingMode: "DEMONSTRATION" | "LIVE" | null;
+  /// The shortest unseal passphrase the organisation already requires, where it is set: the demonstration's passphrases must meet it.
+  passphraseMinLength: number | null;
 }
 
 export type OnlineDemoDecision = { online: true } | { online: false; reasons: string[] };
 
 export const NEEDS_FLAG_WORDS = "The online demonstration needs the deployment to allow demonstration bids: set SEALED_BIDS_DEMONSTRATION_ALLOWED to true in the deployment settings (the file .env.example says how), then load the demonstration into a new database.";
 export const NEEDS_STORE_WORDS = "The online demonstration needs the document store to be set up, because sealed bid files are kept in it.";
+export const NEEDS_WORKING_DAY_WORDS = "The online demonstration closes a few minutes after the load, on the load day, and the organisation's calendar does not allow a closing then. Load the demonstration on a working day, not near midnight.";
+export const NEEDS_MODE_WORDS = "The organisation's online bid mode is already set to live, and the demonstration never changes a mode that is set.";
+export const NEEDS_PASSPHRASE_WORDS = "The organisation already requires a longer unseal passphrase than the demonstration's invented ones, and the demonstration never changes a setting that is set.";
 export const NEEDS_PEPPER_WORDS = "The online demonstration needs the deployment's sealing pepper to be configured correctly, or left unset: it is set wrongly.";
 
 /// Whether the demonstration can be made online. Every reason it cannot is listed.
@@ -28,6 +38,9 @@ export function onlineDemoDecision(f: OnlineDemoFacts): OnlineDemoDecision {
   if (f.channelFaults.length > 0) reasons.push(NEEDS_FLAG_WORDS);
   if (!f.blobStoreReady) reasons.push(NEEDS_STORE_WORDS);
   if (f.pepperFault) reasons.push(NEEDS_PEPPER_WORDS);
+  if (f.closingDayFaults.length > 0) reasons.push(`${NEEDS_WORKING_DAY_WORDS} ${f.closingDayFaults.join(" ")}`.trim());
+  if (f.existingMode === "LIVE") reasons.push(NEEDS_MODE_WORDS);
+  if (f.passphraseMinLength !== null && f.passphraseMinLength > Math.min(...DEMO_UNSEAL_PASSPHRASES.map((x) => x.length))) reasons.push(NEEDS_PASSPHRASE_WORDS);
   return reasons.length === 0 ? { online: true } : { online: false, reasons };
 }
 

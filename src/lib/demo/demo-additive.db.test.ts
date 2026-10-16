@@ -9,9 +9,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@/generated/prisma/client";
 import { ACT_SLOTS } from "@/lib/auth/act-slots";
 import { slotColumns } from "@/lib/auth/slot-columns";
+import { ONLINE_STATUS_OF } from "@/lib/bids/envelope-status";
 import { receivedView } from "@/lib/bids/online/received";
+import { dayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { NEEDS_FLAG_WORDS } from "@/lib/demo/online-demo";
+import { closingAfter, NEEDS_FLAG_WORDS, NEEDS_WORKING_DAY_WORDS } from "@/lib/demo/online-demo";
+
+import { calendarOf } from "../../../prisma/demo-window";
 
 /**
  * Phase 1d (ADR 0034 D11): the demo loader is additive. Loaded into an empty database, it writes the demo; run again, every table holds
@@ -55,6 +59,16 @@ const unsetUrl = urlFor(unsetName);
 const made: string[] = [];
 /// What the first load printed, kept for the assertions on its words.
 const demoLoadOutput = { first: "" };
+/// The online exercise closes minutes after the load, on the load day, and the product's own closing rule refuses a weekend, a public holiday or a day the calendar does not maintain
+/// (and the loader falls back to paper in words rather than stop). So whether a load makes the exercise depends on the day it is made, by the demonstration's own calendar; a load
+/// within twenty-five minutes of midnight in the organisation's zone falls back too. The expectation is read before the load, from the same calendar.
+const DEMO_ZONE = "Asia/Kuala_Lumpur";
+function onlineExpectedNow(): boolean {
+  const now = new Date();
+  const today = dayIn(now, DEMO_ZONE);
+  return calendarOf(today).working(today) && closingAfter(now, 4, DEMO_ZONE).day === today && closingAfter(now, 25, DEMO_ZONE).day === today;
+}
+let expectOnline = true;
 let client: PrismaClient | null = null;
 let unsetClient: PrismaClient | null = null;
 /// The demonstration password the harness's accounts are made with: random, held in memory, never written to a file.
@@ -111,6 +125,7 @@ describe("the demo loader is additive (Phase 1d)", () => {
   it("the first load into an empty database writes the demo; a second writes nothing: every table holds what it held after the first", { timeout: 3_000_000 }, async () => {
     expect(await counts()).toMatchObject({ OrgUnit: 0, AuditEntry: 0 });
 
+    expectOnline = onlineExpectedNow();
     const first = demo("load");
     demoLoadOutput.first = first.out;
     expect(first.status, first.out).toBe(0);
@@ -131,6 +146,14 @@ describe("the demo loader is additive (Phase 1d)", () => {
   it("with the flag set: the channel is ONLINE, every authored exercise is PAPER and none is unset, and Received shows two standing and one late", { timeout: 300_000 }, async () => {
     const c = client!;
     const policy = await c.windowPolicy.findFirstOrThrow({ select: { submissionChannel: true } });
+    if (!expectOnline) {
+      // Loaded on a day the calendar will not close on: the load completed on paper and said why (the exercise cannot close minutes after the load there).
+      expect(policy.submissionChannel).toBe("PAPER");
+      expect(demoLoadOutput.first).toContain(NEEDS_WORKING_DAY_WORDS);
+      expect(await c.onlineBid.count()).toBe(0);
+      expect((await c.sourcingExercise.groupBy({ by: ["submissionChannel"], _count: { _all: true } })).map((g) => g.submissionChannel)).toEqual(["PAPER"]);
+      return;
+    }
     expect(policy.submissionChannel).toBe("ONLINE");
     expect((await c.bidSealingPolicy.findFirstOrThrow({ select: { onlineSubmission: true } })).onlineSubmission).toBe("DEMONSTRATION");
     expect((await c.securityPolicy.findFirstOrThrow({ select: { sealingPassphraseMinLength: true } })).sealingPassphraseMinLength).toBe(12);
@@ -142,9 +165,10 @@ describe("the demo loader is additive (Phase 1d)", () => {
     const ex = await c.sourcingExercise.findFirstOrThrow({ where: { submissionChannel: "ONLINE" }, select: { id: true, status: true, onlineSubmissionMode: true, publishedKeyFingerprint: true } });
     expect(ex).toMatchObject({ status: "ADVERTISED", onlineSubmissionMode: "DEMONSTRATION" });
     expect(ex.publishedKeyFingerprint).toBeTruthy();
-    // Received, as the screen's own reader counts the standing bids and the late ones.
-    const bids = await c.onlineBid.findMany({ where: { exerciseId: ex.id }, select: { status: true, kind: true, envelope: { select: { sequence: true, receivedAt: true, late: true } } } });
-    const view = receivedView(bids.map((b) => ({ sequence: b.envelope.sequence, receivedAt: b.envelope.receivedAt, late: b.envelope.late, status: b.status })), false);
+    // Received, as the Bids tab builds it: the exercise's online envelopes (not the estimate's), their status read as an online bid's, through the one reader that counts the standing bids and the late ones.
+    const envelopes = await c.bidEnvelope.findMany({ where: { exerciseId: ex.id, channel: "ONLINE", NOT: { kind: "COMPANY_ESTIMATE" } }, select: { sequence: true, receivedAt: true, late: true, status: true } });
+    const view = receivedView(envelopes.map((e) => ({ sequence: e.sequence, receivedAt: e.receivedAt, late: e.late, status: ONLINE_STATUS_OF[e.status] })), false);
+    const bids = await c.onlineBid.findMany({ where: { exerciseId: ex.id }, select: { status: true, kind: true } });
     expect({ count: view.count, inTime: view.inTime, late: view.late }).toEqual({ count: 3, inTime: 2, late: 1 });
     // One of the two in time replaced its bid, and nothing is open: no opening, no price.
     expect(bids.filter((b) => b.status === "REPLACED")).toHaveLength(1);
@@ -209,7 +233,8 @@ describe("the demo loader is additive (Phase 1d)", () => {
   });
 
   // Last in this database: the officers' acts below are signed (the SIGNED test above has counted), and they write what a real opening writes.
-  it("the demonstration's opening officers unseal the online exercise with the printed passphrases, and one of them finalises it", { timeout: 2_000_000 }, async () => {
+  it("the demonstration's opening officers unseal the online exercise with the printed passphrases, and one of them finalises it", { timeout: 2_000_000 }, async (ctx) => {
+    if (!expectOnline) ctx.skip();
     const accounts = run([TSX, "scripts/demo-accounts.ts"], 600_000, url, { DEMO_ACCOUNT_PASSWORD: ACCOUNT_PASSWORD });
     expect(accounts.status, accounts.out).toBe(0);
     const reference = (await client!.sourcingExercise.findFirstOrThrow({ where: { submissionChannel: "ONLINE" }, select: { reference: true } })).reference;

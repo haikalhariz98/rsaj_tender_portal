@@ -49,6 +49,9 @@ import { pepperForWrapFault, shareFaults } from "../src/lib/sealing/share";
 import { loadCeremony, makeKeyIfComplete } from "../src/lib/sealing/store";
 import { channelSettingFaults, onlineSubmissionAllowed } from "../src/lib/sealing/switch";
 import { closingAfter, DEMO_UNSEAL_PASSPHRASES, onlineDemoDecision, unsetOnlineSettings, type OnlineSettingsFacts } from "../src/lib/demo/online-demo";
+import { closingFaults } from "../src/lib/window/dates";
+import { windowFindingText } from "../src/lib/window/labels";
+import { loadCalendar, loadWindowPolicy } from "../src/lib/window/repo";
 
 import { DEMO_ATTRIBUTION_REASON } from "./demo-attribution";
 import { DEMO_ACTOR } from "./demo-actor";
@@ -144,10 +147,25 @@ export async function loadOnlineDemo(db: Db, organisationId: string): Promise<On
   // ---- can it be made online? Every reason it cannot is listed, and nothing online is begun.
   const store = blobStore();
   const pepper = sealingPepper();
+  // The closing is minutes after the load, on the load day: the product's own closing rule must allow that day (no weekend, no public holiday, a year the calendar maintains), judged now for
+  // the closing as it would be and for one twenty-five minutes on (the steps in between take minutes, and a load near midnight must not publish on the wrong side of it). Never restated here.
+  const windowPolicy = await loadWindowPolicy(organisationId, db as never);
+  const calendar = await loadCalendar(windowPolicy.calendarId, db as never);
+  const closingDayFaults = [4, 25].flatMap((minutes) => {
+    const closingAt = closingAfter(new Date(), minutes, tz).instant;
+    return closingFaults({ closingAt, advertisementDay: W(12), closingTimeReason: "Demonstration", timeZone: tz, policy: windowPolicy, calendar, today: null, purchaseCloseDay: W(3) })
+      .filter((f) => f.level === "block" && ["CLOSING_ON_WEEKEND", "PUBLIC_HOLIDAY", "CALENDAR_NOT_MAINTAINED", "CALENDAR_NOT_SET", "WEEKEND_NOT_SET"].includes(f.code))
+      .map((f) => windowFindingText(f));
+  });
+  const heldMode = (await db.bidSealingPolicy.findUnique({ where: { organisationId }, select: { onlineSubmission: true } }))?.onlineSubmission ?? null;
+  const heldMinimum = (await db.securityPolicy.findUnique({ where: { organisationId }, select: { sealingPassphraseMinLength: true } }))?.sealingPassphraseMinLength ?? null;
   const decision = onlineDemoDecision({
     channelFaults: channelSettingFaults("ONLINE", onlineSubmissionAllowed("DEMONSTRATION", sealingDeployment(), "PUBLISH")),
     blobStoreReady: !("fault" in store),
     pepperFault: pepperForWrapFault("DEMONSTRATION", pepper.status),
+    closingDayFaults: [...new Set(closingDayFaults)],
+    existingMode: heldMode,
+    passphraseMinLength: heldMinimum,
   });
 
   const now0 = new Date();
@@ -181,31 +199,44 @@ export async function loadOnlineDemo(db: Db, organisationId: string): Promise<On
 
   // ---- configuration, written directly by the demonstration (ruling 12c), audited as the loader
   const cfgAt = T(W(17), "08:00");
-  const existing = await db.bidSealingPolicy.findUnique({ where: { organisationId }, select: { id: true } });
-  if (!existing) {
+  const existing = await db.bidSealingPolicy.findUnique({ where: { organisationId }, select: { id: true, onlineSubmission: true } });
+  if (existing && existing.onlineSubmission === null) {
+    await db.bidSealingPolicy.update({ where: { id: existing.id }, data: { onlineSubmission: "DEMONSTRATION", provenance: "ASSUMED" } });
+    entry("BidSealingPolicy", existing.id, "Bid sealing policy", "UPDATE", cfgAt, diffFields({ onlineSubmission: "Not set" }, { onlineSubmission: "Demonstration: bids taken online are for trying the system, not for real tenders" }), "Demonstration mode for the demonstration database.");
+  } else if (!existing) {
     const created = await db.bidSealingPolicy.create({ data: { id: `${P}bsp1`, organisationId, onlineSubmission: "DEMONSTRATION", provenance: "ASSUMED", notes: "Demonstration mode for the demonstration database. Invented, not a recommendation." } });
     entry("BidSealingPolicy", created.id, "Bid sealing policy", "CREATE", cfgAt, diffFields(null, { onlineSubmission: "Demonstration: bids taken online are for trying the system, not for real tenders", whereItComesFrom: "Assumed" }));
   }
-  if (!(await db.securityPolicy.findUnique({ where: { organisationId }, select: { id: true } }))) {
+  const security = await db.securityPolicy.findUnique({ where: { organisationId }, select: { id: true, sealingPassphraseMinLength: true } });
+  if (security) {
+    // A row made before the load (the administrator's bootstrap asks for the sign-in settings): the minimum is filled only where it is not set, as `demo:accounts` fills the others.
+    if (security.sealingPassphraseMinLength === null) {
+      await db.securityPolicy.update({ where: { id: security.id }, data: { sealingPassphraseMinLength: PASSPHRASE_MIN } });
+      entry("SecurityPolicy", security.id, "Security settings", "UPDATE", cfgAt, diffFields({ sealingPassphraseMinLength: null }, { sealingPassphraseMinLength: PASSPHRASE_MIN }), "A sample for the demonstration, filled where it was not set.");
+    }
+  } else {
     const created = await db.securityPolicy.create({ data: { id: `${P}secpol1`, organisationId, sealingPassphraseMinLength: PASSPHRASE_MIN } });
     entry("SecurityPolicy", created.id, "Security settings", "CREATE", cfgAt, diffFields(null, { sealingPassphraseMinLength: PASSPHRASE_MIN }), "A sample for the demonstration. The sign-in settings are filled by npm run demo:accounts where they are unset.");
-  } else {
-    fail("a security policy exists before the demonstration's own: it is not fresh");
   }
   // The rules each returned tender part is uploaded under; the three opening-check parts of ruling 23 are the form of tender, the summary and rates and the bidder's declaration.
   const OPENING_CHECK = new Set(["FORM_OF_TENDER", "SUMMARY_AND_RATES", "DECLARATION"]);
-  const parts = await db.tenderDocumentPart.findMany({ where: { organisationId, returnedByBidder: true, retiredOn: null }, select: { id: true, labelEn: true, role: true, packKind: true } });
+  const parts = await db.tenderDocumentPart.findMany({ where: { organisationId, returnedByBidder: true, retiredOn: null }, select: { id: true, labelEn: true, role: true, packKind: true, bidAcceptedMediaTypes: true, bidMaxBytes: true, openingCheck: true } });
   for (const p of parts) {
+    // Rules that are already set are left as they are.
+    if (p.bidAcceptedMediaTypes.length > 0 || p.bidMaxBytes !== null || p.openingCheck !== null) continue;
     const check = OPENING_CHECK.has(p.role);
     await db.tenderDocumentPart.update({ where: { id: p.id }, data: { bidAcceptedMediaTypes: ["application/pdf"], bidMaxBytes: BigInt(MAX_BYTES), openingCheck: check, openingCheckProvenance: "ASSUMED" } });
     entry("TenderDocumentPart", p.id, `Tender document part · ${p.labelEn}`, "UPDATE", cfgAt, diffFields({ uploadedAs: null, largestFile: null, checkedAtTheOpening: "Not set" }, { uploadedAs: "PDF", largestFile: "10 MB", checkedAtTheOpening: check ? "Yes" : "No" }), "Demonstration upload rules and opening check (invented, ruling 23).");
   }
-  const cls = await db.documentClass.create({ data: { id: BID_FILE_CLASS, organisationId, code: "demo_online_bid_files", nameEn: "Online bid files", nameMs: "Fail bid dalam talian", classification: "SULIT" } });
-  entry("DocumentClass", cls.id, "Document class · Online bid files", "CREATE", cfgAt, diffFields(null, { nameEn: "Online bid files", classification: "SULIT" }));
-  const dsp = await db.documentStorePolicy.findUnique({ where: { organisationId }, select: { id: true } });
+  const dsp = await db.documentStorePolicy.findUnique({ where: { organisationId }, select: { id: true, onlineBidFileClassId: true } });
   if (!dsp) return fail("the document store's upload rules are not loaded");
-  await db.documentStorePolicy.update({ where: { id: dsp!.id }, data: { onlineBidFileClassId: cls.id } });
-  entry("DocumentStorePolicy", dsp!.id, "Upload rules", "UPDATE", cfgAt, diffFields({ onlineBidFilesFiledUnder: null }, { onlineBidFilesFiledUnder: "Online bid files" }));
+  // The class a finalised online bid is filed under: set only where it is not set already.
+  if (dsp.onlineBidFileClassId === null) {
+    const cls = await db.documentClass.create({ data: { id: BID_FILE_CLASS, organisationId, code: "demo_online_bid_files", nameEn: "Online bid files", nameMs: "Fail bid dalam talian", classification: "SULIT" } });
+    entry("DocumentClass", cls.id, "Document class · Online bid files", "CREATE", cfgAt, diffFields(null, { nameEn: "Online bid files", classification: "SULIT" }));
+    await db.documentStorePolicy.update({ where: { id: dsp.id }, data: { onlineBidFileClassId: cls.id } });
+    entry("DocumentStorePolicy", dsp.id, "Upload rules", "UPDATE", cfgAt, diffFields({ onlineBidFilesFiledUnder: null }, { onlineBidFilesFiledUnder: "Online bid files" }));
+  }
   // The channel, last: the product's own rule has judged it above (the deployment allows demonstration bids), and the authored exercises are already pinned.
   await setChannel("ONLINE", "The organisation's channel for the online demonstration, set as the editor sets it: judged by channelSettingFaults (ruling 13).");
   await flush();
@@ -338,7 +369,7 @@ export async function loadOnlineDemo(db: Db, organisationId: string): Promise<On
 
   // ---- 6.5: the window, the publications, and the publication itself, by the product's own act (it freezes the mode, the rules and the key)
   const acts = new Acts(db, organisationId, tz, entry);
-  const windowInput = { ...tenderWindow(advertised, W(3)), closingTimeReason: "The demonstration closes a few minutes after its bids are made, so that a late bid can be shown." };
+  const windowInput = { ...tenderWindow(advertised, W(3)), submissionPlace: "Online, sealed, through the supplier portal (a demonstration, not for real tenders)", closingTimeReason: "The demonstration closes a few minutes after its bids are made, so that a late bid can be shown." };
   await acts.saveWindow(sx, WINDOW, windowInput, T(advertised, "09:30"));
   await acts.feeLines(sx, SX_NO, TENDER_FEE_BASIS, T(advertised, "09:40"));
   await answers(db, organisationId, entry, sx, ref, { days: 90, provenance: "ASSUMED", alternativesPermitted: true, reason: "" }, T(advertised, "09:45"));
