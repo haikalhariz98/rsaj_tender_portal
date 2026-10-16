@@ -18,6 +18,8 @@ import { inDelayContractIds } from "@/lib/supervision/load";
 import { commencedPendingAll } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
 
+import { SecuritiesView } from "./securities-view";
+
 export const dynamic = "force-dynamic";
 
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
@@ -34,7 +36,9 @@ const DERIVE_CAP = 200;
  */
 export default async function ProjectsPage(props: PageProps<"/projects">) {
   const actor = await requireStaff();
-  const { page: p, view } = (await props.searchParams) as { page?: string; view?: string };
+  const { page: p, view, sv } = (await props.searchParams) as { page?: string; view?: string; sv?: string };
+  // AC-15: the organisation-wide securities view (the old Securities menu) stands alone, so no other view's data is read.
+  if (view === "securities") return <SecuritiesView actor={actor} sv={sv} pageParam={p} />;
   const page = Math.max(0, Number.parseInt(p ?? "0", 10) || 0);
   // 6.13 Part A review 14: In Delay is a view over the whole set, judged across every possessed contract, then paged.
   const org0 = await exerciseOrg(actor.organisationId);
@@ -124,6 +128,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
             <span className="flex flex-wrap gap-2">
               {delayView ? <ButtonLink href="/projects" size="sm" variant="secondary">All contracts</ButtonLink> : <ButtonLink href="/projects?view=delay" size="sm" variant="secondary">{`In Delay (${delayIds.length})`}</ButtonLink>}
               <ButtonLink href="/projects?view=commenced" size="sm" variant="secondary">{`Commenced pending approval (${commenced.length})`}</ButtonLink>
+              <ButtonLink href="/projects?view=securities" size="sm" variant="secondary">Securities expiring or not verified</ButtonLink>
             </span>
           }
           divided={false}

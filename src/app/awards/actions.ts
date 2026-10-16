@@ -96,7 +96,6 @@ function refresh(id?: string, exerciseId?: string) {
   // GN-04 / AC-13: a step may have moved, so the side-menu badges are drawn again.
   revalidatePath("/", "layout");
   revalidatePath("/awards");
-  revalidatePath("/securities");
   if (id) revalidatePath(`/awards/${id}`);
   if (exerciseId) revalidatePath(`/sourcing/${exerciseId}`);
 }

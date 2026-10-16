@@ -18,6 +18,8 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { INSURANCE_KIND_LABEL, REGISTER_STATUS_LABEL, REGISTER_STATUS_TONE, SECURITY_KIND_LABEL, WC_BASIS_LABEL } from "@/lib/award/labels";
+import { loadExpiryOffsets } from "@/lib/award/repo";
+import { expiryAlert, expiryChip, remindersText } from "@/lib/securities/expiry";
 import { contractFaultText } from "@/lib/contract/fault-text";
 import { arithmeticVariance } from "@/lib/contract/formation";
 import { signingFacts } from "@/lib/contract/judge";
@@ -145,7 +147,7 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
       lazy: true,
       panel: tab === "variations" ? <VariationsPanel l={l} v={variations} people={peopleOptions} today={today} section={variationSection} page={pageNo} hidden={hiddenActs} /> : null,
     },
-    { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, panel: <SecuritiesPanel l={l} people={peopleOptions} today={today} /> },
+    { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, lazy: true, panel: tab === "securities" ? <SecuritiesPanel l={l} people={peopleOptions} today={today} /> : null },
     // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.
     { id: "documents", label: "Documents", icon: <FilesIcon size={15} />, count: certificates, lazy: true, panel: tab === "documents" ? <DocumentsPanel contractId={c.id} page={pageNo} /> : null },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel sulit={sulit} matterGates={matterGates} entries={history.entries} total={history.total} timeZone={l.org.timeZone} /> },
@@ -286,8 +288,14 @@ async function OverviewPanel({ sulit, l, facts, today, supervision, payments, va
 
 // ------------------------------------------------------------------ securities
 
-function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people: Option[]; today: string | null }) {
+async function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people: Option[]; today: string | null }) {
   const c = l.contract;
+  // AC-15: the same chips as the award's tab (one wording, `expiryChip`) and the configured reminder intervals, which with none set say so.
+  const offsets = await loadExpiryOffsets(l.org.id);
+  const alert = (d: Date | null) => {
+    const chip = today ? expiryChip(expiryAlert(day(d), offsets, today)) : null;
+    return chip ? <Chip tone={chip.tone}>{chip.text}</Chip> : null;
+  };
   // Review S1: the wages check's own act (FORMATION's row, then "executed" by isExecuted), never a list of its own.
   const status = c.status as ContractStatus;
   const shut = actStatusBlocker("FORMATION", status);
@@ -295,7 +303,7 @@ function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people: Opti
   const wcOnWages = l.award.wcBasis === "UNCOVERED_WAGES";
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ShieldIcon size={17} />} title="Securities and insurances" subtitle="The award's register for this contract. They are lodged and checked on the award." actions={<ButtonLink href={`/awards/${l.award.id}?tab=securities`} size="sm" variant="secondary">Open on the award</ButtonLink>} divided={c.securities.length + c.policies.length === 0} />
+      <CardHeader icon={<ShieldIcon size={17} />} title="Securities and insurances" subtitle={`The award's register for this contract. They are lodged and checked on the award. ${remindersText(offsets)}, shown and not sent.`} actions={<ButtonLink href={`/awards/${l.award.id}?tab=securities`} size="sm" variant="secondary">Open on the award</ButtonLink>} divided={c.securities.length + c.policies.length === 0} />
       {c.securities.length + c.policies.length === 0 ? (
         <EmptyState size="sm" title="Nothing lodged">Lodge them on the award&apos;s Securities tab.</EmptyState>
       ) : (
@@ -307,7 +315,10 @@ function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people: Opti
                 <span className="block text-[13.5px] font-semibold break-words text-ink">{`${SECURITY_KIND_LABEL[s.kind]} · ${formatMoney(senFromDecimal(s.value))}`}</span>
                 <span className="block text-[12.5px] break-words text-ink-3">{[s.issuer?.name ?? s.issuerNameAsWritten, s.instrumentRef || null, s.expiresOn ? `expires ${formatDate(s.expiresOn)}` : null].filter(Boolean).join(" · ")}</span>
               </span>
-              <Chip tone={REGISTER_STATUS_TONE[s.status]}>{REGISTER_STATUS_LABEL[s.status]}</Chip>
+              <span className="flex shrink-0 flex-wrap items-center gap-2">
+                {s.status !== "REJECTED" && alert(s.expiresOn)}
+                <Chip tone={REGISTER_STATUS_TONE[s.status]}>{REGISTER_STATUS_LABEL[s.status]}</Chip>
+              </span>
             </li>
           ))}
           {c.policies.map((p) => {
@@ -326,6 +337,7 @@ function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people: Opti
                   )}
                 </span>
                 <span className="flex shrink-0 flex-wrap items-center gap-2">
+                  {p.status !== "REJECTED" && alert(p.periodEnd)}
                   <Chip tone={REGISTER_STATUS_TONE[p.status]}>{REGISTER_STATUS_LABEL[p.status]}</Chip>
                   {wc && !p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label="Record the wages check" reason="Verify the policy on the award first." />)}
                 </span>

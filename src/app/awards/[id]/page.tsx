@@ -92,7 +92,7 @@ import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/
 import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { derivedAnnualValue } from "@/lib/securities/bond";
-import { expiryAlert } from "@/lib/securities/expiry";
+import { expiryAlert, expiryChip } from "@/lib/securities/expiry";
 import { awardReadiness, awardSumsOf } from "@/lib/award/gate-read";
 import { appendixMinimum, governingSum, INSURED_KINDS, type Governing, type InsuredKind } from "@/lib/award/insurance-terms";
 import { AWARD_TERM_WORDS, type AwardTerm } from "@/lib/contract/award-correction";
@@ -1221,8 +1221,8 @@ function SecuritiesPanel({
   const offsets = f.config.expiryOffsets;
   const alert = (d: Date | null) => {
     if (!today) return null;
-    const a = expiryAlert(day(d), offsets, today);
-    return a.state === "EXPIRED" ? <Chip tone="err">{`Expired ${a.daysAgo} days ago`}</Chip> : a.state === "DUE" ? <Chip tone="warn">{`Expires in ${a.daysLeft} days`}</Chip> : a.state === "NO_EXPIRY" ? <Chip tone="warn">No expiry recorded</Chip> : null;
+    const c = expiryChip(expiryAlert(day(d), offsets, today));
+    return c ? <Chip tone={c.tone}>{c.text}</Chip> : null;
   };
   return (
     <div className="flex flex-col gap-6">

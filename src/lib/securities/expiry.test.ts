@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { expiryAlert, alertingUpTo, longExpiredBefore, registerRank } from "./expiry";
+import { expiryAlert, expiryChip, remindersText, alertingUpTo, longExpiredBefore, registerRank } from "./expiry";
 
 describe("expiry alerts from the notification rule's offsets", () => {
   it("offsets 30 and 7 with seven days left give the seven-day alert", () => {
@@ -39,5 +39,19 @@ describe("the register's order", () => {
     expect(registerRank({ status: "VERIFIED", expiresOn: "2026-08-01" }, cutoff)).toBe(1);
     expect(registerRank({ status: "REJECTED", expiresOn: "2027-01-01" }, cutoff)).toBe(2);
     expect(longExpiredBefore([], "2026-10-01")).toBe("2026-10-01");
+  });
+});
+
+describe("expiryChip and remindersText (AC-15)", () => {
+  it("words each alert once, and nothing when not due", () => {
+    expect(expiryChip(null)).toBeNull();
+    expect(expiryChip({ state: "NONE", daysLeft: 90 })).toBeNull();
+    expect(expiryChip({ state: "EXPIRED", daysAgo: 3 })).toEqual({ text: "Expired 3 days ago", tone: "err" });
+    expect(expiryChip({ state: "DUE", offset: 30, daysLeft: 12 })).toEqual({ text: "Expires in 12 days", tone: "warn" });
+    expect(expiryChip({ state: "NO_EXPIRY" })).toEqual({ text: "No expiry recorded", tone: "warn" });
+  });
+  it("says the reminders are not set rather than 0 days", () => {
+    expect(remindersText([])).toBe("Expiry reminders are not set");
+    expect(remindersText([60, 30])).toBe("Reminders at 60, 30 days");
   });
 });

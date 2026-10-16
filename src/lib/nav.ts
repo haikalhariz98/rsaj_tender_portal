@@ -53,7 +53,6 @@ export const STAFF_NAV: NavGroup[] = [
     items: [
       // 6.12 (OD-6 A): the contracts after award, formed, signed and on their baseline.
       { href: "/projects", label: "Contracts", icon: "tools", built: true },
-      { href: "/securities", label: "Securities", icon: "shield", built: true },
     ],
   },
   {

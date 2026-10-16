@@ -40,3 +40,21 @@ export function registerRank(row: { status: string; expiresOn: Day | null }, cut
   if (row.status === "REJECTED") return 2;
   return row.expiresOn != null && row.expiresOn < cutoff ? 1 : 0;
 }
+
+/**
+ * The chip a security or policy carries for its expiry alert (FR-AWD-012; AC-15): the one wording, so the award's
+ * Securities tab, the contract's and the Contracts list's view show the same chip for the same instrument. Null when
+ * the alert is not due.
+ */
+export function expiryChip(a: ExpiryAlert | null): { text: string; tone: "err" | "warn" } | null {
+  if (!a) return null;
+  if (a.state === "EXPIRED") return { text: `Expired ${a.daysAgo} days ago`, tone: "err" };
+  if (a.state === "DUE") return { text: `Expires in ${a.daysLeft} days`, tone: "warn" };
+  if (a.state === "NO_EXPIRY") return { text: "No expiry recorded", tone: "warn" };
+  return null;
+}
+
+/// The configured reminder intervals in words. With none configured it says so; it is never "0 days" (AC-15).
+export function remindersText(offsets: readonly number[]): string {
+  return offsets.length ? `Reminders at ${offsets.join(", ")} days` : "Expiry reminders are not set";
+}
