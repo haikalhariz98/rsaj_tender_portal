@@ -326,7 +326,7 @@ const ALLOWED_EXTRA = [
   /^Inbox$/,
   /^Notices$/,
   /^Mark all as read$/,
-  /^Open my steps$/,
+  // "Open my steps" was removed from /inbox (AC-14, GN-05); no entry needed any more.
   /^Reporting lines\d*$/,
   /^Record reporting line$/,
   /^Recall( name approval)?$/,

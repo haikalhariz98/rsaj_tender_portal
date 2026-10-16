@@ -1,5 +1,5 @@
 import { DataList, type Column, type Row } from "@/components/data-list";
-import { LogOutIcon, LockIcon, ShieldIcon } from "@/components/icons";
+import { BackIcon, LogOutIcon, LockIcon, ShieldIcon } from "@/components/icons";
 import { AuthForm } from "@/components/auth/auth-form";
 import { LastSignIn } from "@/components/auth/last-sign-in";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -47,6 +47,11 @@ export default async function AccountPage() {
         title="Your account"
         subtitle="Your sign-in, your password and where you are signed in."
         meta={[actor.personName, view.loginName]}
+        actions={
+          <ButtonLink href="/" variant="secondary" size="sm" icon={<BackIcon size={15} />}>
+            Back to the dashboard
+          </ButtonLink>
+        }
       />
 
       <div className="flex flex-col gap-5">
@@ -114,12 +119,6 @@ export default async function AccountPage() {
             />
           </CardBody>
         </Card>
-
-        <div>
-          <ButtonLink href="/" variant="ghost">
-            Back to the dashboard
-          </ButtonLink>
-        </div>
       </div>
     </>
   );

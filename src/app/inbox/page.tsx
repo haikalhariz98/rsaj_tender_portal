@@ -3,13 +3,13 @@ import { requireStaff } from "@/app/_auth/actor";
 import { DataList, type Row } from "@/components/data-list";
 import { InboxIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { EmptyState } from "@/components/ui/feedback";
 import { Card, CardHeader } from "@/components/ui/card";
 import { LeadWithMore } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { db } from "@/lib/db";
 import { formatOrgDateTime } from "@/lib/format";
-import { NOTICE_DELIVERY_STATEMENT, STAFF_NOTICE_KIND_LABEL, type StaffNoticeKind } from "@/lib/inbox/kinds";
+import { STAFF_NOTICE_KIND_LABEL, type StaffNoticeKind } from "@/lib/inbox/kinds";
 import { decodeCursor, encodeCursor } from "@/lib/inbox/paging";
 import { inboxTotals, loadInboxPage } from "@/lib/inbox/store";
 
@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * The staff inbox (FR-APR-018, Phase 3c): the notices raised for the person signed in, and nobody else's. Email is not connected (INT-09), so this is where a
- * step moved to your office, a recall, a delegation to you or a not-approved memo is told, and every screen of it says so. A notice about a restricted exercise
+ * step moved to your office, a recall, a delegation to you or a not-approved memo is told. AC-14 (GN-05): the page no longer carries "Open my steps" or the
+ * Delivery box; the fact that notices are not emailed stays as one clause of the subtitle. A notice about a restricted exercise
  * is left out for anyone not named on it. What is waiting for you to decide is on My approvals, not here.
  */
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ before?: string }> }) {
@@ -48,13 +49,9 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader
         title="Inbox"
-        subtitle={<LeadWithMore lead="What has been told to you in the portal." more="A step that arrived, was moved or was withdrawn, a delegation given to you, and a memo that a matter was not approved. What is waiting for you to decide is on My approvals." />}
+        subtitle={<LeadWithMore lead="What has been told to you in the portal. Notices appear here only; they are not emailed." more="A step that arrived, was moved or was withdrawn, a delegation given to you, and a memo that a matter was not approved. What is waiting for you to decide is on My approvals." />}
         meta={[`${totals.unread} unread`, `${totals.total} ${totals.total === 1 ? "notice" : "notices"}`]}
-        actions={<ButtonLink href="/approvals?tab=mine" size="sm">Open my steps</ButtonLink>}
       />
-      <Callout tone="neutral" className="mb-6" title="Delivery">
-        {NOTICE_DELIVERY_STATEMENT}
-      </Callout>
       <Card className="overflow-hidden">
         <CardHeader
           icon={<InboxIcon size={17} />}
