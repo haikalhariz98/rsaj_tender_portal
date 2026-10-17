@@ -174,8 +174,7 @@ export async function openSheetsJudged(organisationId: string, today: string, co
 /// the target only where the day is known (`today` null: the time zone is not set, so overTarget is null and nothing is called late, and the open count is the database's own).
 export async function contractDocumentFacts(organisationId: string, contractId: string, today: string | null) {
   // The register's own "issued, on a contract not cancelled" reading (`issuedCopiesWhere`), narrowed to the contract and to the copies not sent.
-  const base = issuedCopiesWhere(organisationId, false);
-  const unsent = { ...base, certificate: { ...base.certificate, contractId }, despatchedOn: null };
+  const unsent = { ...issuedCopiesWhere(organisationId, false, contractId), despatchedOn: null };
   const [notSent, firstUnsent, judged] = await Promise.all([
     db.issuedCopy.count({ where: unsent }),
     db.issuedCopy.findFirst({ where: unsent, orderBy: [{ certificate: { issuedAt: "asc" } }, { copyNo: "asc" }], select: { certificateId: true } }),

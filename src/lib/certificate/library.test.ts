@@ -54,6 +54,7 @@ describe("M-2: a cancelled contract's copies and sheets are kept apart, never ch
     const src = readFileSync("src/lib/certificate/register.ts", "utf8");
     expect(src).not.toMatch(/certificate: \{ status: "ISSUED" \}/);
     expect(src).not.toMatch(/status: "IN_ROUTING" \}/);
-    expect(src.match(/outstandingCopiesWhere\(organisationId, (false|true)\)/g)?.length).toBeGreaterThanOrEqual(3);
+    // MN-02 (AC-16): the Distribution and Routing sheets tabs are gone, so their three outstandingCopiesWhere uses went with them; what remains is a contract's copies not sent, composed from the shared reading.
+    expect(src.match(/issuedCopiesWhere\(organisationId, false, contractId\)/g)?.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -13,8 +13,9 @@ import type { Sheet } from "./routing-sheet";
  * out of the outstanding lists and counts, and counted apart. The where-clauses the register reads with (one rule
  * for the lists and their counts).
  */
-export function issuedCopiesWhere(organisationId: string, onCancelled: boolean) {
-  return { organisationId, certificate: { status: "ISSUED" as const, contract: onCancelled ? { status: "CANCELLED" as const } : { status: { not: "CANCELLED" as const } } }, recalledOn: null };
+export function issuedCopiesWhere(organisationId: string, onCancelled: boolean, contractId?: string) {
+  // `contractId` narrows the same reading to one contract's copies (the contract's Documents tab, AC-16); absent, the whole register's.
+  return { organisationId, certificate: { status: "ISSUED" as const, ...(contractId ? { contractId } : {}), contract: onCancelled ? { status: "CANCELLED" as const } : { status: { not: "CANCELLED" as const } } }, recalledOn: null };
 }
 
 /// The copies still to go out or to be acknowledged: not sent, or sent and its acknowledgement awaited.
