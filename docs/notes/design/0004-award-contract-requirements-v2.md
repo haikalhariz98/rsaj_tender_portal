@@ -1,7 +1,7 @@
 # 0004 — Award and Contract Requirements v2 (GN, MN, C, P, V) mapped and planned
 
 Status: build design, written 2026-10-15 by the solution architect. It is built from the product owner's rulings AC-0 to AC-35 (§4,
-verbatim). Nothing in this note is built yet. Wave G and wave C may start once sealed online bids (Sourcing waves 3b and 3c) are committed.
+verbatim). Wave G code is built (see "Wave G status, 2026-10-17" below). The rest is not built yet. Wave G and wave C may start once sealed online bids (Sourcing waves 3b and 3c) are committed.
 Wave P is **held** (AC-7) and wave V follows it (AC-35).
 
 **Sources:**
@@ -16,6 +16,45 @@ Wave P is **held** (AC-7) and wave V follows it (AC-35).
 
 **Order of authority** (AC-0): the document, then the spec, then earlier rulings, then the honest default. The document supersedes only
 what it names. A spec Must that it does not name stays binding.
+
+## Wave G status, 2026-10-17
+
+Code committed on branch `build-all-modules`, commits `8fc9529f` (G2) to `8a4e4575` (review fixes). **Wave G stays open.** The AC-8
+measurement and every browser check were not run (see "Sign-in times" below). Status words: **Built** means code and automated tests are
+committed. **Unconfirmed** means the "Done when" browser check is still owed.
+
+| Item | Status | What is still owed |
+| --- | --- | --- |
+| GN-01 Faster sign-in (AC-8, AC-9) | Built (a) one navigation (`8fc9529f`), (b) parallel dashboard reads, (c) parallel SULIT gates, (d) slim shell count with an equality test. Unconfirmed. | The before and after times. The one-request count. |
+| GN-02 Back to the dashboard (AC-10) | Built (`d4510357`). Unconfirmed. | /account no-scroll check in a browser. |
+| GN-03 Dashboard cards (AC-11, AC-12) | Built (`59f3cff4`). Unconfirmed. | Card equals badge, click opens My approvals, `/` snapshot diff. |
+| GN-04 Side-menu counts (AC-13) | Built (`26f27e95`, badges re-read after each navigation in `721327d2`). Unconfirmed. | Both badges update after a decision and after reading a notice. |
+| GN-05 Simplify the Inbox (AC-14) | Built (`d4510357`). Unconfirmed. | /inbox snapshot check. |
+| MN-01 Securities menu removed (AC-15) | Built (`3f4f3348`). Unconfirmed. | Menu absent, old URL lands on the view, view and tab at 1280 and 1600. |
+| MN-02 Documents menu removed, submissions bridge (AC-16) | Built (`4d22a535`, `721327d2`, `8a4e4575`). Unconfirmed. | Old notice, new notice and answering from the Submissions tab, in a browser. |
+
+### Sign-in times (AC-8)
+
+| | Median | p95 | Requests after the action |
+| --- | --- | --- | --- |
+| Before (G1 baseline) | not measured | not measured | not measured |
+| After (G10) | not measured | not measured | not measured |
+
+Target: 2.0 s median and 3.0 s p95. **No number exists, so nothing here claims the target is met.** The reasons, from the decisions log
+(G1, G10, 2026-10-17):
+- the scratch database `perolehan_native_check` has no demo organisation and no officer with a worklist;
+- the demo data is only in `perolehan`, and signing in there writes sessions, which is forbidden;
+- no browser or network driver is installed to time press-to-painted or count `?_rsc=` requests.
+
+To close: either authorise a scratch copy of the demo organisation and a browser driver, or run the 20-run set (one discarded warm-up) on
+`next build && next start` and record the numbers in the decisions log. The baseline needs the commit before `8fc9529f`.
+
+### Differences from this design, as built
+
+- Contract submissions are shown to the S.O. even for a restricted exercise (AC-18, AC-19). The first G9 build hid them. Fixed in `721327d2`.
+- The organisation-wide securities view still leaves out restricted exercises the reader is not named on (FR-MTD-007), while the contract's own
+  Securities tab shows them. Open product-owner question, in the backlog.
+- The Contracts card hint reads "n awarding (on Awards, until a contract is formed)" until wave C. Logged as interim.
 
 ## 0. Who answered section 5
 
