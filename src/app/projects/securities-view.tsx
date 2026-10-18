@@ -10,13 +10,12 @@ import { issuerStanding } from "@/lib/securities/bond";
 import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { expiryAlert, expiryChip, remindersText } from "@/lib/securities/expiry";
-import { hiddenExercises } from "@/app/_auth/sulit";
 import type { StaffActor } from "@/lib/auth/types";
 
 /**
  * "Securities expiring or not verified" (FR-AWD-012, 013; AC-15): the securities and insurance policies lodged on contracts,
  * across the organisation, as a view of the Contracts list. Expiry alerts come from the notification rule's offsets and are
- * shown, not sent. Instruments of a restricted exercise the reader is not named on are left out (FR-MTD-007).
+ * shown, not sent. Every instrument is listed for every reader once its contract exists (AC-45): a reader not named on a restricted exercise sees the contract's register cells and nothing of the tender.
  */
 const VIEWS: { id: RegisterView; label: string }[] = [
   { id: "attention", label: "Expiring or not verified" },
@@ -28,7 +27,7 @@ const VIEWS: { id: RegisterView; label: string }[] = [
 export async function SecuritiesView({ actor, sv, pageParam }: { actor: StaffActor; sv: string | undefined; pageParam: string | undefined }) {
   const view = (VIEWS.find((v) => v.id === sv)?.id ?? "attention") as RegisterView;
   const requested = Math.max(0, Number.parseInt(pageParam ?? "0", 10) || 0);
-  const { org, securities, policies, order, config, total, page, counts } = await listRegister(actor.organisationId, requested, view, await hiddenExercises(actor));
+  const { org, securities, policies, order, config, total, page, counts } = await listRegister(actor.organisationId, requested, view);
   const pages = Math.max(1, Math.ceil(total / REGISTER_PAGE));
   const href = (v: RegisterView, p = 0) => `/projects?${new URLSearchParams({ view: "securities", ...(v !== "attention" ? { sv: v } : {}), ...(p ? { page: String(p) } : {}) }).toString()}`;
   const today = org?.today ?? null;

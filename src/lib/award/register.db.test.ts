@@ -7,7 +7,7 @@ import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
 /**
  * The Contracts list's "Securities expiring or not verified" view (MN-01; AC-15) against the scratch database: its rows and its counts
- * agree, and an instrument on a contract from a restricted exercise is left out for a reader not named on it (FR-MTD-007).
+ * agree, and an instrument on a contract from a restricted exercise is listed for every reader, with nothing of the tender (AC-45, superseding FR-MTD-007 here).
  */
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
 let organisationId = "";
@@ -43,24 +43,26 @@ beforeAll(async () => {
 
 describe("listRegister: the securities view (AC-15)", () => {
   it("holds what its count says, and the attention view is the union of not verified and expiring", async () => {
-    const r = await listRegister(organisationId, 0, "attention", []);
+    const r = await listRegister(organisationId, 0, "attention");
     expect(r.total).toBe(2);
     expect(r.securities.map((s) => s.id).sort()).toEqual([ids.open, ids.restricted].sort());
     expect(r.counts).toEqual({ all: 3, unverified: 2, expiring: 0, attention: 2 });
   });
 
-  it("leaves out the instrument of a restricted exercise for a reader not named on it, in rows and counts", async () => {
+  // Changed for AC-45 (it pinned AC-15's FR-MTD-007 absence): a security on a contract whose contract stages the reader sees is listed and counted, whoever is named on the exercise.
+  it("lists the instrument of a restricted exercise for a reader not named on it, in rows and counts, with nothing of the tender", async () => {
     const hidden = await hiddenExerciseIds(db, reader(outsider));
     expect(hidden.length).toBe(1);
-    const r = await listRegister(organisationId, 0, "attention", hidden);
-    expect(r.securities.map((s) => s.id)).toEqual([ids.open]);
-    expect(r.counts).toEqual({ all: 2, unverified: 1, expiring: 0, attention: 1 });
+    const r = await listRegister(organisationId, 0, "attention");
+    expect(r.securities.map((s) => s.id).sort()).toEqual([ids.open, ids.restricted].sort());
+    expect(r.counts).toEqual({ all: 3, unverified: 2, expiring: 0, attention: 2 });
+    // Only the contract's own cells are read: the award contributes its awardee's name and nothing else (no reference, no exercise).
+    expect(Object.keys(r.securities[0].contract.award)).toEqual(["awardeeName"]);
   });
 
-  it("shows it to a reader named on the exercise", async () => {
-    const hidden = await hiddenExerciseIds(db, reader(named));
-    expect(hidden).toEqual([]);
-    const r = await listRegister(organisationId, 0, "attention", hidden);
+  it("lists it the same for a reader named on the exercise", async () => {
+    expect(await hiddenExerciseIds(db, reader(named))).toEqual([]);
+    const r = await listRegister(organisationId, 0, "attention");
     expect(r.securities.map((s) => s.id)).toContain(ids.restricted);
   });
 });

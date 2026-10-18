@@ -2,7 +2,7 @@ import { DataList, type Row } from "@/components/data-list";
 import { sulitText } from "@/components/sulit-cell";
 import { ButtonLink } from "@/components/ui/button";
 import { FLOW_LABEL } from "@/lib/method/flow";
-import { classAsReadText, kelasText, readText, SCHEDULE_COLUMNS, statusAsReadText, SUMMARY_COLUMNS } from "@/lib/opening/download";
+import { classAsReadText, kelasText, SCHEDULE_COLUMNS, statusAsReadText, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import type { ScheduleSectionView } from "@/lib/opening/read";
 
 /**

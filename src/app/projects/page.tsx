@@ -73,10 +73,10 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const commenced = org0 ? await commencedPendingAll(org0.id) : [];
   const exposure = commenced.reduce((a, v) => a + senFromDecimal(v.estimate), 0n);
   const hidden = await hiddenExercises(actor);
-  // The two organisation-wide views' buttons carry their counts, as the others do (AC-15, AC-16); the same readings as the views, by count queries alone. The securities view
-  // leaves out restricted exercises the reader is not named on (FR-MTD-007); the submissions view does not (AC-18, AC-19).
+  // The two organisation-wide views' buttons carry their counts, as the others do (AC-15, AC-16); the same readings as the views, by count queries alone. Neither leaves out a contract's
+  // rows for a restricted exercise (AC-45, AC-18, AC-19): a security is listed with the contract's own cells and nothing of the tender.
   const [securitiesCount, submissionsWaiting] = await Promise.all([
-    listRegister(actor.organisationId, 0, "attention", hidden, true).then((r) => r.counts.attention),
+    listRegister(actor.organisationId, 0, "attention", true).then((r) => r.counts.attention),
     db.contractorSubmission.count({ where: { organisationId: actor.organisationId, outcome: null } }),
   ]);
   // "commenced" is the variations' exposure report above, not a view over cases; every other view is one `listCases` pages.

@@ -539,7 +539,7 @@ export type RegisterView = "all" | "expiring" | "unverified" | "attention";
  * first within each (`registerRank`). The views and the header's counts are the same
  * database conditions, so a view always holds what its count says.
  */
-export async function listRegister(organisationId: string, page = 0, view: RegisterView = "all", hidden: readonly string[] = [], countsOnly = false) {
+export async function listRegister(organisationId: string, page = 0, view: RegisterView = "all", countsOnly = false) {
   const org = await exerciseOrg(organisationId);
   const empty = { org: null, securities: [], policies: [], order: [] as { kind: "S" | "P"; id: string }[], config: null, total: 0, page: 0, counts: { all: 0, unverified: 0, expiring: 0, attention: 0 } };
   if (!org) return empty;
@@ -556,21 +556,20 @@ export async function listRegister(organisationId: string, page = 0, view: Regis
   const polOf = (v: RegisterView) => (v === "unverified" ? Prisma.sql`AND p.status = 'LODGED'` : v === "expiring" ? Prisma.sql`AND ${expPol}` : v === "attention" ? Prisma.sql`AND (p.status = 'LODGED' OR ${expPol})` : Prisma.empty);
   const secView = secOf(view);
   const polView = polOf(view);
-  // FR-MTD-007: an instrument on a contract whose award came from a restricted exercise the reader is not named on is left
-  // out of the rows and of every count (AC-15; hidden is `hiddenExercises`' answer). Always joined, so both read alike.
-  const notHidden = hidden.length ? Prisma.sql`AND a."exerciseId" NOT IN (${Prisma.join([...hidden])})` : Prisma.empty;
+  // AC-45 (replacing AC-15's FR-MTD-007 filter here): every instrument belongs to a contract, and a contract is visible to every reader after issue (AC-18), so none is left out of the
+  // rows or the counts. What a reader not named on a restricted exercise sees of it is the contract's own register: nothing of the tender is read below (no exercise, no award reference).
   const rows = Prisma.sql`
     SELECT 'S' AS kind, s.id, CASE WHEN s.status = 'REJECTED' THEN 2 WHEN s."expiresOn" IS NOT NULL AND s."expiresOn" < ${cutoff} THEN 1 ELSE 0 END AS rank, s."expiresOn" AS ends
-      FROM "SecurityInstrument" s JOIN "Contract" c ON c.id = s."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${notHidden} ${secView}
+      FROM "SecurityInstrument" s JOIN "Contract" c ON c.id = s."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${secView}
     UNION ALL
     SELECT 'P' AS kind, p.id, CASE WHEN p.status = 'REJECTED' THEN 2 WHEN p."periodEnd" < ${cutoff} THEN 1 ELSE 0 END AS rank, p."periodEnd" AS ends
-      FROM "InsurancePolicy" p JOIN "Contract" c ON c.id = p."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${notHidden} ${polView}`;
+      FROM "InsurancePolicy" p JOIN "Contract" c ON c.id = p."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${polView}`;
   const count = async (v: RegisterView) => {
     const sv = secOf(v);
     const pv = polOf(v);
     const r = await db.$queryRaw<{ n: bigint }[]>`
-      SELECT (SELECT count(*) FROM "SecurityInstrument" s JOIN "Contract" c ON c.id = s."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${notHidden} ${sv})
-           + (SELECT count(*) FROM "InsurancePolicy" p JOIN "Contract" c ON c.id = p."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${notHidden} ${pv}) AS n`;
+      SELECT (SELECT count(*) FROM "SecurityInstrument" s JOIN "Contract" c ON c.id = s."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${sv})
+           + (SELECT count(*) FROM "InsurancePolicy" p JOIN "Contract" c ON c.id = p."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${pv}) AS n`;
     return Number(r[0]?.n ?? 0);
   };
   const [all, unverified, expiring, attention] = await Promise.all([count("all"), count("unverified"), count("expiring"), count("attention")]);
@@ -581,7 +580,7 @@ export async function listRegister(organisationId: string, page = 0, view: Regis
   const p = Math.min(Math.max(0, page), last);
   const order = await db.$queryRaw<{ kind: "S" | "P"; id: string }[]>`
     SELECT kind, id FROM (${rows}) r ORDER BY rank, ends ASC NULLS FIRST, id LIMIT ${REGISTER_PAGE} OFFSET ${p * REGISTER_PAGE}`;
-  const include = { issuer: { select: { name: true, retiredOn: true } }, contract: { select: { id: true, number: true, status: true, award: { select: { id: true, reference: true, awardeeName: true } } } } } as const;
+  const include = { issuer: { select: { name: true, retiredOn: true } }, contract: { select: { id: true, number: true, status: true, award: { select: { awardeeName: true } } } } } as const;
   const [securities, policies] = await Promise.all([
     db.securityInstrument.findMany({ where: { id: { in: order.filter((o) => o.kind === "S").map((o) => o.id) } }, include }),
     db.insurancePolicy.findMany({ where: { id: { in: order.filter((o) => o.kind === "P").map((o) => o.id) } }, include }),

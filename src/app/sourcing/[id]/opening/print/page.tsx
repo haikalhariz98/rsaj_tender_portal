@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { classAsReadText, kelasText, OPENING_DOWNLOAD_TITLE, readText, SCHEDULE_COLUMNS, statusAsReadText, SUMMARY_COLUMNS } from "@/lib/opening/download";
+import { classAsReadText, kelasText, OPENING_DOWNLOAD_TITLE, SCHEDULE_COLUMNS, statusAsReadText, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import { scheduleSection } from "@/lib/opening/read";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
