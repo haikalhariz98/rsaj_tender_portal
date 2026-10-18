@@ -282,7 +282,7 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
         ]),
       ),
     },
-    { key: "~decision", summary: true, head: <span className="flex flex-col items-start gap-1"><span>Decision</span><span className="text-[12px] font-normal normal-case text-ink-3">{DECISION_STANDS_WORDS}</span></span>, cells: Object.fromEntries(view.columns.map((c) => [c.openedBidId, <Decision key="d" exerciseId={exerciseId} col={c} aids={verdicts[c.openedBidId]} notes={sharedNotes} />])) },
+    { key: "~decision", summary: true, head: "Decision", cells: Object.fromEntries(view.columns.map((c) => [c.openedBidId, <Decision key="d" exerciseId={exerciseId} col={c} aids={verdicts[c.openedBidId]} notes={sharedNotes} />])) },
     { key: "~confirm", summary: true, head: "Confirmations", cells: Object.fromEntries(view.columns.map((c) => [c.openedBidId, <Confirmations key="c" exerciseId={exerciseId} col={c} viewer={viewer} />])) },
   ];
   return (
@@ -290,6 +290,7 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
       {view.online && view.phase === "CHECKING" && !view.viewerIsNamedOfficer && <Callout tone="info">The answers and decisions are shown to you. The files, the bidders&apos; names and the acknowledgement days stay with the named opening officers until the opening is finalised.</Callout>}
       {[...sharedNotes].map(([reason, id]) => <p key={id} id={id} className="text-[12.5px] text-ink-3">{reason}</p>)}
       <Matrix caption="Opening checklist: one row for each item, one column for each offer read" corner="Checked at the opening" columns={columns} rows={rows} />
+      <p className="text-[12.5px] text-ink-3">{`Decision: ${DECISION_STANDS_WORDS}.`}</p>
     </div>
   );
 }

@@ -12,8 +12,8 @@ import { Table, THead, Th, Tr, Td } from "./table";
  * no narrow-screen form of a matrix, by decision (desktop-only product).
  */
 
-export const HEAD_WIDTH = 220;
-export const COLUMN_MIN = 200;
+export const HEAD_WIDTH = 168;
+export const COLUMN_MIN = 176;
 
 export interface MatrixColumnSpec {
   key: string;
