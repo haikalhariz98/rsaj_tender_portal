@@ -47,8 +47,8 @@ whole interface in the selected language and loses no entered data."
    test lists every such word in the registered catalogues.
 2. `StaffAccount.uiLanguage`: nullable. Null means never chosen. It reads as English, as today, and the user menu says "English, the
    default: not chosen".
-3. A switch (English / Bahasa Malaysia) in the top bar **and in the shared drawer's header** (because a drawer is modal, see §5 Q3). It
-   posts to a Server Action that saves the choice with its audit row and calls `refresh()`. No redirect, and nothing is keyed on the
+3. A switch (English / Bahasa Malaysia) in the top bar **and in the shared `DrawerHeader`** (because a drawer is modal, see §5 Q3). It
+   calls a Server Action that saves the choice with its audit row and calls `refresh()`. No redirect, and nothing is keyed on the
    language, so a half-filled drawer keeps its values.
 4. Converted: the shell, the shared components' own words, the Dashboard, the Inbox, and the Contracts list and case page (header,
    step bar, tabs, panel headings, and the refusals the page renders).
@@ -136,6 +136,11 @@ It creates the type and adds a nullable column. No backfill, and no existing row
   Server components call `currentLanguage()`; client components call `useLanguage()`.
 - `src/components/shell/language-switch.tsx`: two pressed-state buttons from the shared `Button` (or `Toggle`), each named in its own
   language. It is rendered only where `canSwitch` (a staff session, not `portalOnly`).
+  - **The buttons are `type="button"` and call `setLanguageAction` inside `startTransition`.** They are never a submit button, a
+    `formAction`, or a `<form>` of their own.
+  - The reason: `RecordEditor` (`src/components/record-editor.tsx`) draws the drawer's header **inside its `<form>`**. A submit button
+    there would submit the drawer's form. A nested `<form>` is invalid HTML. And React 19 resets a form's uncontrolled fields after a
+    successful form action. Any of the three would lose the entered values.
 
 ## 4. Steps
 
@@ -145,7 +150,8 @@ It creates the type and adds a nullable column. No backfill, and no existing row
   `SCREEN_COVERAGE = { "/": "CONVERTED", "/inbox": "PARTLY", "/projects": "CONVERTED", "/projects/[id]": "PARTLY" }` and
   `NOT_YET_CONVERTED` = every other staff route. Also the `dates` catalogue and the `lang` parameter in `src/lib/format.ts`.
 - **Docs, in the same commit:**
-  - File ADR 0040 `docs/notes/architecture/0040-staff-screen-language-layer.md` from §2–§3 of this plan, status Accepted under AC-63 N1.
+  - File ADR 0040 `docs/notes/architecture/0040-staff-screen-language-layer.md` from §2–§3 of this plan, status "Accepted for the AC-63 N1 scope.
+    Q1–Q7 open, defaults taken".
   - Log §5's questions in `docs/notes/decisions-log.md` as product-owner questions, each with its conservative default.
 - **Tests:**
   - `say` falls back on a blank or whitespace `ms` and never returns "".
@@ -193,7 +199,8 @@ It creates the type and adds a nullable column. No backfill, and no existing row
   - `sidebar.tsx`, `topbar.tsx`, `user-menu.tsx` and `record-crumb.tsx` render through `useSay()`.
   - Update `config-nav.test.ts` and `crumbs.test.ts` to read `.en`, citing AC-63 N1. No assertion is dropped.
 - **The switch.**
-  - `LanguageSwitch` goes in `topbar.tsx`, and in the shared drawer's header (`src/components/ui/drawer.tsx`) when `canSwitch`.
+  - `LanguageSwitch` goes in `topbar.tsx`, and in the shared `DrawerHeader` (`src/components/ui/drawer.tsx`; every drawer on
+    `DRAWER_SCRIM` uses it) when `canSwitch`.
   - The user menu shows the current language. When `choice` is null it shows "English, the default: not chosen", from the catalogue.
   - The job title line uses `Person.jobTitleMs` when Malay is chosen and one is recorded, else `jobTitle`.
 - **Shared components' own words.** Every string a shared component writes itself goes through the `components` catalogue: empty states,
@@ -203,14 +210,20 @@ It creates the type and adds a nullable column. No backfill, and no existing row
   `coverageOf(usePathname())` is not CONVERTED, render `Callout` with `Bi`, using `NOT_CONVERTED_NOTICE` or `PARTLY_NOTICE`.
 - **Tests:**
   - **The acceptance test, `src/components/i18n/language-switch-keeps-input.test.ts` (jsdom):**
-    - Mount `LanguageProvider language="en"` around the shared `Drawer` holding a `RecordEditor` with a text field, a select and a textarea.
-    - Type values, then `root.render` the same tree with `language="ms"`.
-    - Assert every value is unchanged, the drawer is still open, and the drawer's own words are now Malay.
+    - Mount `LanguageProvider language="en"` around a real `RecordEditor` with a text field, a select and a textarea, and open it.
+    - Type values, then **click the `LanguageSwitch` rendered in the drawer's `DrawerHeader`**.
+    - `setLanguageAction` is mocked to resolve `{ ok: true }`. The mocked refresh re-renders the same tree with `language="ms"`, which
+      is what `refresh()` does in place.
+    - Assert every value is unchanged, the drawer is still open, the drawer's form was not submitted, and the drawer's own words are
+      now Malay.
   - A source scan: no `key={` expression in `src/app` or `src/components` mentions the language.
   - The callout appears for `/requisitions` with `ms`, not with `en`, and not on `/`.
   - The user menu shows the "not chosen" words for a null choice.
-- **Done when:** the tests pass; `npm run check` passes (including `scripts/check-ui.mjs`); `npx vitest run src/components src/lib/i18n
-  src/app/_auth` passes; the ui-guidelines-reviewer compares the top bar and a drawer with their siblings and reports no Must or Should.
+- **Done when:**
+  - the tests pass, the acceptance test by clicking the switch inside the drawer, not only by a re-render;
+  - `LanguageSwitch` has no submit button, no `formAction` and no `<form>`;
+  - `npm run check` passes (including `scripts/check-ui.mjs`);
+  - `npx vitest run src/components src/lib/i18n src/app/_auth` passes; the ui-guidelines-reviewer compares the top bar and a drawer with their siblings and reports no Must or Should.
 
 ### Step 4. The Dashboard, the Inbox and the Contracts screens (frontend-engineer)
 
@@ -264,7 +277,7 @@ It creates the type and adds a nullable column. No backfill, and no existing row
   - Malay notices need a Malay copy stored at write time, which is a later slice. Old notices are never rewritten.
 - **Q3. The switch inside a drawer.** Drawers are modal (ruling 20bt), so the top bar cannot be reached mid-form, and pressing the scrim
   closes the drawer.
-  - Default: the same switch also sits in the shared drawer's header.
+  - Default: the same switch also sits in the shared `DrawerHeader`, as `type="button"` controls (§3).
   - This is the only reading under which "switching mid-task loses no entered data" can be met.
 - **Q4. Dates are words.** Month names and "(time zone not set)" are interface words, not data.
   - Default: Malay on converted screens, through `format.ts`'s optional `lang`, drafted and unreviewed.
