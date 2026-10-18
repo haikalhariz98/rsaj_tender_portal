@@ -8,6 +8,7 @@ import {
   DownloadIcon,
   SearchIcon,
 } from "@/components/icons";
+import { useLanguage, useSay } from "@/components/i18n/language-context";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, SulitLock, SulitWithheld } from "@/components/ui/badge";
 import { SULIT_COLUMN_WORDS } from "@/lib/sulit-fields";
@@ -17,6 +18,8 @@ import { EmptyState, Meter } from "@/components/ui/feedback";
 import { provenanceLabel, ProvenanceBadge } from "@/components/ui/provenance";
 import { Select } from "@/components/ui/select";
 import { listToCsv } from "@/lib/csv-cell";
+import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
+import { sayWith } from "@/lib/i18n/say";
 import { formatRM } from "@/lib/format";
 import { compareSenOrNone, formatMoney, senToDecimalString } from "@/lib/money";
 import { needsPaging, PAGE_SIZES } from "@/lib/paging";
@@ -378,10 +381,10 @@ export function DataList({
   actionsPlacement = "column",
   rowOpens = false,
   selectable = true,
-  searchPlaceholder = "Search…",
+  searchPlaceholder,
   searchable = true,
   flat = false,
-  emptyTitle = "Nothing here",
+  emptyTitle,
   emptyBody,
   exportName = "export",
   toolbar = true,
@@ -434,6 +437,10 @@ export function DataList({
 }) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
+  // The list's own words, in the language being read (NFR-LNG-001); a screen's words are passed in and left as they come.
+  const say = useSay();
+  const { language } = useLanguage();
+  const sayN = (words: typeof WORDS.showing, values: Record<string, string>) => sayWith(words, language, values);
   const [view, setView] = useState(initialView && views.some((v) => v.id === initialView) ? initialView : "all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
@@ -578,7 +585,7 @@ export function DataList({
           {views.length > 0 && (
             <Select
               variant="chip"
-              aria-label="View"
+              aria-label={say(WORDS.view)}
               searchable={false}
               value={view === "all" ? "" : view}
               onChange={(e) => {
@@ -586,7 +593,7 @@ export function DataList({
                 onViewChange?.(e.target.value);
               }}
             >
-              <option value="">All records</option>
+              <option value="">{say(WORDS.allRecords)}</option>
               {views.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.label}
@@ -607,9 +614,9 @@ export function DataList({
                   "w-full pl-9 outline-none placeholder:text-ink-4 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15",
                 )}
                 value={query}
-                placeholder={searchPlaceholder}
+                placeholder={searchPlaceholder ?? say(WORDS.searchPlaceholder)}
                 onChange={(e) => setQuery(e.target.value)}
-                aria-label="Search this list"
+                aria-label={say(WORDS.searchThisList)}
               />
             </div>
           )}
@@ -630,7 +637,7 @@ export function DataList({
                 })
               }
             >
-              <option value="">{`Any ${f.label.toLowerCase()}`}</option>
+              <option value="">{sayN(WORDS.anyOf, { label: f.label.toLowerCase() })}</option>
               {(optionsFor[f.key] ?? []).map((v) => (
                 <option key={v} value={v}>
                   {v}
@@ -644,8 +651,8 @@ export function DataList({
             <button
               type="button"
               onClick={exportCsv}
-              aria-label={leavesOutSulit ? "Download this view as CSV, SULIT columns left out" : "Download this view as CSV"}
-              title={leavesOutSulit ? "Download this view as CSV (SULIT columns left out)" : "Download this view as CSV"}
+              aria-label={say(leavesOutSulit ? WORDS.downloadCsvLeavesOut : WORDS.downloadCsv)}
+              title={say(leavesOutSulit ? WORDS.downloadCsvTitleLeavesOut : WORDS.downloadCsv)}
               className={iconButtonClass("sm", true, "size-9")}
             >
               <DownloadIcon size={16} />
@@ -657,13 +664,13 @@ export function DataList({
 
       {selected.size > 0 && (
         <div className="mx-4 mb-3 flex items-center gap-3 rounded-2xl bg-brand-50 px-4 py-2 text-[13px] font-semibold text-brand-800 sm:mx-5">
-          <span>{selected.size} selected</span>
+          <span>{sayN(WORDS.nSelected, { count: String(selected.size) })}</span>
           <button
             type="button"
             className="ml-auto rounded-full px-3 py-1 text-[12.5px] hover:bg-brand-100"
             onClick={() => setSelected(new Set())}
           >
-            Clear
+            {say(WORDS.clear)}
           </button>
         </div>
       )}
@@ -671,7 +678,7 @@ export function DataList({
       {visible.length === 0 ? (
         <EmptyState
           size="sm"
-          title={narrowed ? (views.find((v) => v.id === view)?.emptyTitle ?? "Nothing matches") : emptyTitle}
+          title={narrowed ? (views.find((v) => v.id === view)?.emptyTitle ?? say(WORDS.nothingMatches)) : (emptyTitle ?? say(WORDS.nothingHere))}
           className={cx(showTools && "border-t border-line")}
           action={
             narrowed ? (
@@ -685,12 +692,12 @@ export function DataList({
                   setChosen({});
                 }}
               >
-                Show all records
+                {say(WORDS.showAllRecords)}
               </Button>
             ) : undefined
           }
         >
-          {narrowed ? (views.find((v) => v.id === view)?.emptyBody ?? "No record matches the view, search and filters you have chosen.") : emptyBody}
+          {narrowed ? (views.find((v) => v.id === view)?.emptyBody ?? say(WORDS.noMatch)) : emptyBody}
         </EmptyState>
       ) : (
         <>
@@ -714,7 +721,7 @@ export function DataList({
                         return next;
                       })
                     }
-                    aria-label={`Select ${cellText(row.cells[(mobilePrimary ?? columns[0]).key])}`}
+                    aria-label={sayN(WORDS.selectRow, { name: cellText(row.cells[(mobilePrimary ?? columns[0]).key]) })}
                   />
                 )}
                 <div className="min-w-0 flex-1">
@@ -783,7 +790,7 @@ export function DataList({
                       onChange={(e) =>
                         setSelected(e.target.checked ? new Set(paged.map((r) => r.id)) : new Set())
                       }
-                      aria-label="Select all rows"
+                      aria-label={say(WORDS.selectAllRows)}
                     />
                   </th>
                 )}
@@ -821,7 +828,7 @@ export function DataList({
                   <th className="px-4 py-2.5 text-right text-[12px] font-semibold whitespace-nowrap text-ink-3">
                     {/* A lone row link is an arrow in a 56px column; the word would clip.
                         Screen readers still get the name of the column. */}
-                    <span className={actions ? undefined : "sr-only"}>Actions</span>
+                    <span className={actions ? undefined : "sr-only"}>{say(WORDS.actions)}</span>
                   </th>
                 )}
               </tr>
@@ -873,7 +880,7 @@ export function DataList({
                             return next;
                           })
                         }
-                        aria-label={`Select ${cellText(row.cells[columns[0].key])}`}
+                        aria-label={sayN(WORDS.selectRow, { name: cellText(row.cells[columns[0].key]) })}
                       />
                     </td>
                   )}
@@ -943,13 +950,13 @@ export function DataList({
       {showFooter && (
         <div className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3 text-[13px] text-ink-3 sm:px-5">
           <span className="tabular-nums">
-            {`Showing ${start + 1}-${Math.min(start + pageSize, visible.length)} of ${visible.length}`}
+            {sayN(WORDS.showing, { from: String(start + 1), to: String(Math.min(start + pageSize, visible.length)), total: String(visible.length) })}
           </span>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-[12.5px]" aria-hidden="true">Rows</span>
+            <span className="text-[12.5px]" aria-hidden="true">{say(WORDS.rows)}</span>
             <Select
               variant="chip"
-              aria-label="Rows per page"
+              aria-label={say(WORDS.rowsPerPage)}
               searchable={false}
               value={String(pageSize)}
               onChange={(e) => {
@@ -965,13 +972,13 @@ export function DataList({
             </Select>
           </div>
           {pageCount > 1 && (
-            <nav className="flex items-center gap-1" aria-label="Pagination">
+            <nav className="flex items-center gap-1" aria-label={say(WORDS.pagination)}>
               <button
                 type="button"
                 className={iconButtonClass("sm")}
                 disabled={current === 0}
                 onClick={() => setPage(current - 1)}
-                aria-label="Previous page"
+                aria-label={say(WORDS.previousPage)}
               >
                 <ChevronRight size={14} className="rotate-180" />
               </button>
@@ -991,7 +998,7 @@ export function DataList({
                 className={iconButtonClass("sm")}
                 disabled={current === pageCount - 1}
                 onClick={() => setPage(current + 1)}
-                aria-label="Next page"
+                aria-label={say(WORDS.nextPage)}
               >
                 <ChevronRight size={14} />
               </button>

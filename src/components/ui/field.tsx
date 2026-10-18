@@ -3,6 +3,8 @@
 import { useId, useRef, useState } from "react";
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
+import { useSay } from "@/components/i18n/language-context";
+import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 import { NOT_SCANNED_LABEL, progressPercent, progressText, uploadOutcome, type UploadAnswer, type UploadPhase } from "@/lib/ui/upload-logic";
 
 import { Chip } from "./badge";
@@ -103,7 +105,7 @@ export interface FileUpload {
 export function FileInput({
   className,
   onChange,
-  chooseLabel = "Choose file",
+  chooseLabel,
   upload,
   ...props
 }: Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "size" | "value" | "defaultValue"> & {
@@ -112,6 +114,7 @@ export function FileInput({
   upload?: FileUpload;
 }) {
   const ctx = useFieldContext();
+  const say = useSay();
   const [name, setName] = useState<string | null>(null);
   const [phase, setPhase] = useState<UploadPhase>("idle");
   const [loaded, setLoaded] = useState<[number, number]>([0, 0]);
@@ -176,14 +179,14 @@ export function FileInput({
           "peer-aria-invalid:border-rose-400",
         )}
       >
-        <span className="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-[13px] font-semibold text-brand-800">{chooseLabel}</span>
-        <span className={cx("min-w-0 truncate", name ? "text-ink" : "text-ink-4")}>{name ?? "No file chosen"}</span>
+        <span className="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-[13px] font-semibold text-brand-800">{chooseLabel ?? say(WORDS.chooseFile)}</span>
+        <span className={cx("min-w-0 truncate", name ? "text-ink" : "text-ink-4")}>{name ?? say(WORDS.noFileChosen)}</span>
       </label>
       {upload && busy && (
         <div className="mt-1.5">
           <div
             role="progressbar"
-            aria-label="Upload progress"
+            aria-label={say(WORDS.uploadProgress)}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={progressPercent(loaded[0], loaded[1])}
@@ -198,7 +201,7 @@ export function FileInput({
       )}
       {upload && phase === "done" && (
         <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[12.5px] text-ink-2" aria-live="polite">
-          <span>Uploaded.</span>
+          <span>{say(WORDS.uploaded)}</span>
           <Chip tone="warn">{NOT_SCANNED_LABEL}</Chip>
         </p>
       )}

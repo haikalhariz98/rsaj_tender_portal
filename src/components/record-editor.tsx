@@ -4,6 +4,8 @@ import { useActGate } from "@/components/act-gate";
 import { formDataOf } from "@/components/ui/form-submit";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
+import { useSay } from "@/components/i18n/language-context";
+import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 import { actPostedNames, ActAttributionFields } from "@/components/act-attribution-fields";
 import type { ActorFieldSpec } from "@/lib/auth/actor-field";
 import { PlusIcon, SaveIcon } from "@/components/icons";
@@ -146,8 +148,8 @@ export function RecordEditor({
   action,
   values,
   trigger,
-  submitLabel = "Save",
-  cancelLabel = "Cancel",
+  submitLabel: submitLabelAsked,
+  cancelLabel: cancelLabelAsked,
   showWhen,
   destructive,
   reason: reasonAsked,
@@ -202,6 +204,10 @@ export function RecordEditor({
   defaultOpen?: boolean;
 }) {
   // Review S1: inside a contract section whose act family the state refuses, the table's words come first (ActGate).
+  const say = useSay();
+  // The buttons' own words follow the language being read; a label the screen passes in is the screen's.
+  const submitLabel = submitLabelAsked ?? say(WORDS.save);
+  const cancelLabel = cancelLabelAsked ?? say(WORDS.cancel);
   const gate = useActGate();
   const submitBlock = gate ?? ownBlock;
   const [open, setOpenState] = useState(defaultOpen);
@@ -336,7 +342,7 @@ export function RecordEditor({
                     confirm.fields.map((name) => {
                       const f = fields.find((x) => "name" in x && x.name === name);
                       const typed = String(data.get(name) ?? "").trim();
-                      return { label: f && "label" in f ? f.label : name, value: f?.kind === "money" && typed ? `RM ${typed}` : typed || "Nothing typed" };
+                      return { label: f && "label" in f ? f.label : name, value: f?.kind === "money" && typed ? `RM ${typed}` : typed || say(WORDS.nothingTyped) };
                     }),
                   );
                   return;
@@ -472,7 +478,7 @@ export function RecordEditor({
                     }
                   }}
                 >
-                  {review ? "Change it" : proposed ? "Close" : cancelLabel}
+                  {review ? say(WORDS.changeIt) : proposed ? say(WORDS.close) : cancelLabel}
                 </button>
                 <button
                   hidden={proposed != null}
@@ -482,7 +488,7 @@ export function RecordEditor({
                   aria-describedby={submitBlock ? "record-submit-block" : undefined}
                 >
                   {!destructive && !danger && <SaveIcon size={15} />}
-                  {pending ? "Saving…" : review && confirm ? confirm.submitLabel : submitLabel}
+                  {pending ? say(WORDS.saving) : review && confirm ? confirm.submitLabel : submitLabel}
                 </button>
               </footer>
             </form>
@@ -506,6 +512,7 @@ function FieldInput({
   /// Every error the form holds, for the one field that places several (the actor's).
   errors?: Record<string, string>;
 }) {
+  const say = useSay();
   const required = "required" in field && field.required;
   const hint = "hint" in field ? field.hint : undefined;
   const id = `field-${field.name}`;
@@ -602,7 +609,7 @@ function FieldInput({
     return (
       <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error}>
         <Select id={id} name={field.name} defaultValue={current} aria-invalid={error ? true : undefined}>
-          <option value="" disabled={field.placeholderDisabled && current !== ""}>{field.placeholder ?? "Not set"}</option>
+          <option value="" disabled={field.placeholderDisabled && current !== ""}>{field.placeholder ?? say(WORDS.notSet)}</option>
           {orphaned && <option value={current}>{field.orphanLabel ?? current}</option>}
           {field.options.map((o) => (
             <option key={o.value} value={o.value} disabled={o.disabled}>

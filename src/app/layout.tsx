@@ -6,6 +6,9 @@ import { ActorProvider } from "@/components/auth/actor-context";
 import { AppShell } from "@/components/shell/app-shell";
 import { loadShell } from "@/lib/shell";
 import { currentStaffOrNull } from "./_auth/actor";
+import { LanguageProvider } from "@/components/i18n/language-context";
+import { currentLanguage } from "./_auth/language";
+import { setLanguageAction } from "./_auth/language-action";
 import { currentSupplierOrNull } from "./_auth/supplier";
 import { staffCounts } from "./_auth/worklist";
 import { signOutAction } from "./sign-in/actions";
@@ -37,23 +40,31 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Who is signed in comes from the session, read from the database on this request, never from the environment or from whoever sorts first.
   // On the public copy the one who can be signed in is a supplier's contact (Phase 4a), and the frame names them and their supplier: the same session, read once.
   const supplier = portalOnly ? await currentSupplierOrNull() : null;
-  const user = actor ? { name: actor.personName, jobTitle: actor.jobTitle, kind: "staff" as const } : supplier ? { name: supplier.displayName, jobTitle: supplier.supplierName, kind: "supplier" as const } : null;
+  const user = actor ? { name: actor.personName, jobTitle: actor.jobTitle, jobTitleMs: actor.jobTitleMs ?? null, kind: "staff" as const } : supplier ? { name: supplier.displayName, jobTitle: supplier.supplierName, kind: "supplier" as const } : null;
+
+  // The language this person reads the staff screens in (NFR-LNG-001): nobody signed in, and the public copy, read English and offer no switch.
+  const read = await currentLanguage();
+  const language = portalOnly ? "en" : read.language;
+  const choice = portalOnly ? null : read.choice;
+  const canSwitch = actor != null && !portalOnly;
 
   return (
-    <html lang="en" className={jakarta.variable} style={{ colorScheme: "light" }}>
+    <html lang={language} className={jakarta.variable} style={{ colorScheme: "light" }}>
       <body>
         <DialogFocus />
         <ActorProvider name={actor?.personName ?? null} personId={actor?.personId ?? null}>
-          <AppShell
-            organisation={shell.organisation}
-            strapline={ORGANISATION_STRAPLINE}
-            counts={portalOnly ? {} : personal}
-            user={user}
-            portalOnly={portalOnly}
-            signOut={signOutAction}
-          >
-            {children}
-          </AppShell>
+          <LanguageProvider language={language} choice={choice} canSwitch={canSwitch} setLanguage={setLanguageAction}>
+            <AppShell
+              organisation={shell.organisation}
+              strapline={ORGANISATION_STRAPLINE}
+              counts={portalOnly ? {} : personal}
+              user={user}
+              portalOnly={portalOnly}
+              signOut={signOutAction}
+            >
+              {children}
+            </AppShell>
+          </LanguageProvider>
         </ActorProvider>
       </body>
     </html>

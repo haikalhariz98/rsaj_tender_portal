@@ -1,8 +1,3 @@
-import type { ReactNode } from "react";
-
-import { XIcon } from "@/components/icons";
-
-import { iconButtonClass } from "./button";
 import { cx } from "./cx";
 
 /**
@@ -38,41 +33,6 @@ export function confirmPanelClass(extra?: string): string {
   return cx("flex max-h-[90vh] w-[28rem] max-w-full flex-col overflow-hidden rounded-2xl bg-surface shadow-pop", extra);
 }
 
-export function DrawerHeader({
-  icon,
-  title,
-  badge,
-  subtitle,
-  onClose,
-}: {
-  icon?: ReactNode;
-  title: ReactNode;
-  badge?: ReactNode;
-  subtitle?: ReactNode;
-  onClose: () => void;
-}) {
-  return (
-    <header className="flex items-start gap-3 border-b border-line px-6 py-5">
-      {icon && (
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700">
-          {icon}
-        </span>
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <h2
-            className="min-w-0 text-[18px] leading-snug font-bold tracking-tight break-words text-ink"
-            title={typeof title === "string" ? title : undefined}
-          >
-            {title}
-          </h2>
-          {badge}
-        </div>
-        {subtitle && <p className="mt-0.5 text-[13px] break-words text-ink-3">{subtitle}</p>}
-      </div>
-      <button type="button" className={iconButtonClass("sm")} aria-label="Close" onClick={onClose}>
-        <XIcon size={17} />
-      </button>
-    </header>
-  );
-}
+/// The drawer's header is a client component (it carries the language switch and says "Close" in the language being read), so it lives in its own
+/// file; this module stays free of hooks, because server components import the scrim and panel classes from it.
+export { DrawerHeader } from "./drawer-header";

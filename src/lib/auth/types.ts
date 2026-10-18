@@ -38,6 +38,8 @@ export interface StaffActor {
   personName: string;
   /// The person's job title as recorded, for the shell. Null where none is.
   jobTitle: string | null;
+  /// The same title in Malay, where one is recorded (NFR-LNG-001). Optional so existing fixtures stay valid; absent reads as none.
+  jobTitleMs?: string | null;
   isAdministrator: boolean;
   organisationId: string;
   organisationCode: string;

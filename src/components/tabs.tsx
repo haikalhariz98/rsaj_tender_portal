@@ -5,6 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { useLanguage, useSay } from "@/components/i18n/language-context";
+import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
+import { sayWith } from "@/lib/i18n/say";
 import { scrollFor } from "@/lib/ui/strip-scroll";
 import { tabHref } from "@/lib/ui/tab-href";
 import { navigatesOnSelect, sectionToOpen, tabKeyMove } from "@/lib/ui/tab-keys";
@@ -93,16 +96,17 @@ function useScrollStrip<T extends HTMLElement>(currentSelector: string, keyOf: s
 /// are for the pointer: the keyboard moves between tabs with the arrow keys, so they stay out
 /// of the tab order.
 function EdgeButtons({ more, scroll, label }: { more: { start: boolean; end: boolean }; scroll: (dir: -1 | 1) => void; label: string }) {
+  const { language } = useLanguage();
   const cls = "absolute top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-ink-2 shadow-sm transition hover:text-ink";
   return (
     <>
       {more.start && (
-        <button type="button" tabIndex={-1} aria-label={`Scroll ${label} back`} onClick={() => scroll(-1)} className={`${cls} left-1`}>
+        <button type="button" tabIndex={-1} aria-label={sayWith(WORDS.scrollBack, language, { label })} onClick={() => scroll(-1)} className={`${cls} left-1`}>
           <ChevronLeft size={15} />
         </button>
       )}
       {more.end && (
-        <button type="button" tabIndex={-1} aria-label={`Scroll ${label} forward`} onClick={() => scroll(1)} className={`${cls} right-1`}>
+        <button type="button" tabIndex={-1} aria-label={sayWith(WORDS.scrollForward, language, { label })} onClick={() => scroll(1)} className={`${cls} right-1`}>
           <ChevronRight size={15} />
         </button>
       )}
@@ -113,7 +117,7 @@ function EdgeButtons({ more, scroll, label }: { more: { start: boolean; end: boo
 export function Tabs({
   tabs,
   initial,
-  label = "Sections",
+  label,
   dense: denseAsked,
   keep,
 }: {
@@ -129,6 +133,8 @@ export function Tabs({
   /// What the strip is, for a screen reader.
   label?: string;
 }) {
+  const say = useSay();
+  const { language } = useLanguage();
   const [active, setActive] = useState(initial ?? tabs[0]?.id);
   // The address names the tab: when a navigation (a section link, a shared URL) brings a
   // different one, follow it. Adjusting state while rendering, as React recommends, rather
@@ -200,7 +206,7 @@ export function Tabs({
       <div
         ref={attachStrip}
         role="tablist"
-        aria-label={label}
+        aria-label={label ?? say(WORDS.sections)}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
         onScroll={measureStrip}
@@ -231,7 +237,7 @@ export function Tabs({
           );
         })}
       </div>
-      <EdgeButtons more={stripMore} scroll={scrollStrip} label="the tabs" />
+      <EdgeButtons more={stripMore} scroll={scrollStrip} label={say(WORDS.theTabs)} />
       </div>
 
       <div role="tabpanel" className="min-w-0">
@@ -240,7 +246,7 @@ export function Tabs({
             <div className="relative min-w-0">
               <nav
                 ref={attachSub}
-                aria-label={`${current.label} sections`}
+                aria-label={sayWith(WORDS.sectionsOf, language, { label: current.label })}
                 onScroll={measureSub}
                 style={subMask}
                 className="flex max-w-full gap-1 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -261,12 +267,12 @@ export function Tabs({
                   );
                 })}
               </nav>
-              <EdgeButtons more={subMore} scroll={scrollSub} label={`${current.label} sections`} />
+              <EdgeButtons more={subMore} scroll={scrollSub} label={sayWith(WORDS.sectionsOf, language, { label: current.label })} />
             </div>
-            {current.panel ?? <p className="text-[13.5px] text-ink-3" role="status">Loading…</p>}
+            {current.panel ?? <p className="text-[13.5px] text-ink-3" role="status">{say(WORDS.loading)}</p>}
           </div>
         ) : (
-          (current?.panel ?? (current?.lazy ? <p className="text-[13.5px] text-ink-3" role="status">Loading…</p> : null))
+          (current?.panel ?? (current?.lazy ? <p className="text-[13.5px] text-ink-3" role="status">{say(WORDS.loading)}</p> : null))
         )}
       </div>
     </div>

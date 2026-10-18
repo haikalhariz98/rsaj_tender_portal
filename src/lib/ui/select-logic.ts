@@ -1,3 +1,7 @@
+import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
+import type { Language } from "@/lib/i18n/language";
+import { say, sayWith } from "@/lib/i18n/say";
+
 /// The pure part of the shared Select: what a search keeps, where the arrow keys land,
 /// what typing a letter jumps to, and how several chosen values ride one form field.
 /// The component renders; it does not decide any of this.
@@ -161,8 +165,8 @@ export function splitValues(posted: FormDataEntryValue | string | null | undefin
 }
 
 /// "{n} options" / "No matches", for the polite live region.
-export function resultsAnnouncement(count: number): string {
-  return count === 0 ? "No matches" : count === 1 ? "1 option" : `${count} options`;
+export function resultsAnnouncement(count: number, lang: Language = "en"): string {
+  return count === 0 ? say(COMPONENT_WORDS.noMatches, lang) : count === 1 ? say(COMPONENT_WORDS.oneOption, lang) : sayWith(COMPONENT_WORDS.nOptions, lang, { count: String(count) });
 }
 
 // ---- server-side search (Phase 4b): the choices are not all on the page --------------------------

@@ -8,12 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { rowFieldLabel } from "@/lib/audit/diff";
+import { useLanguage, useSay } from "@/components/i18n/language-context";
+import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
+import { sayWith } from "@/lib/i18n/say";
+import type { Words } from "@/lib/contract/labels";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
-const ACTION: Record<HistoryEntry["action"], { label: string; tone: "ok" | "info" | "err" }> = {
-  CREATE: { label: "Created", tone: "ok" },
-  UPDATE: { label: "Changed", tone: "info" },
-  DELETE: { label: "Removed", tone: "err" },
+const ACTION: Record<HistoryEntry["action"], { label: Words; tone: "ok" | "info" | "err" }> = {
+  CREATE: { label: WORDS.created, tone: "ok" },
+  UPDATE: { label: WORDS.changed, tone: "info" },
+  DELETE: { label: WORDS.removed, tone: "err" },
 };
 
 /**
@@ -35,6 +39,8 @@ export function HistoryButton({
   label: string;
   iconOnly?: boolean;
 }) {
+  const say = useSay();
+  const { language } = useLanguage();
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const [pending, startTransition] = useTransition();
@@ -56,12 +62,12 @@ export function HistoryButton({
       <button
         type="button"
         onClick={show}
-        aria-label={`History of ${label}`}
-        title="History"
+        aria-label={sayWith(WORDS.historyOf, language, { label })}
+        title={say(WORDS.history)}
         className={iconOnly ? iconButtonClass("sm") : buttonClass("ghost", "sm")}
       >
         <ClockIcon size={15} />
-        {!iconOnly && "History"}
+        {!iconOnly && say(WORDS.history)}
       </button>
 
       {open && (
@@ -72,22 +78,22 @@ export function HistoryButton({
           <aside
             role="dialog"
             aria-modal="true"
-            aria-label={`History of ${label}`}
+            aria-label={sayWith(WORDS.historyOf, language, { label })}
             className={drawerPanelClass("md")}
           >
             <DrawerHeader
               icon={<ClockIcon size={17} />}
-              title="History"
+              title={say(WORDS.history)}
               subtitle={label}
               onClose={() => setOpen(false)}
             />
 
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {pending || entries == null ? (
-                <p className="text-[13px] text-ink-3">Loading…</p>
+                <p className="text-[13px] text-ink-3">{say(WORDS.loading)}</p>
               ) : entries.length === 0 ? (
-                <EmptyState size="sm" title="Nothing recorded">
-                  No change to this record has been recorded.
+                <EmptyState size="sm" title={say(WORDS.nothingRecorded)}>
+                  {say(WORDS.noChangeRecorded)}
                 </EmptyState>
               ) : (
                 <ol className="relative flex flex-col gap-5 border-l border-line pl-5">
@@ -95,12 +101,12 @@ export function HistoryButton({
                     <li key={e.id} className="relative">
                       <span className="absolute top-1.5 -left-[25px] size-2.5 rounded-full bg-brand-500 ring-4 ring-surface" />
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={ACTION[e.action].tone}>{ACTION[e.action].label}</Badge>
+                        <Badge tone={ACTION[e.action].tone}>{say(ACTION[e.action].label)}</Badge>
                         <span className="text-[12.5px] text-ink-3">{e.when}</span>
                       </div>
                       {e.part && <p className="mt-1.5 text-[13px] font-semibold break-words text-ink">{e.part}</p>}
                       <p className="mt-1 text-[12.5px] text-ink-3">
-                        {e.actorName ?? (e.unattributed ? "Not attributed — before sign-in" : "Unknown")}
+                        {e.actorName ?? say(e.unattributed ? WORDS.notAttributed : WORDS.unknown)}
                       </p>
                       {e.reason && (
                         <p className="mt-1.5 rounded-xl bg-sunken px-3 py-2 text-[13px] text-ink-2">“{e.reason}”</p>
@@ -112,12 +118,12 @@ export function HistoryButton({
                               <dt className="font-semibold text-ink-2">{rowFieldLabel(c.field, e.changes.map((x) => x.field))}</dt>
                               <dd className="break-words text-ink-3">
                                 {e.action === "CREATE" ? (
-                                  <span className="text-ink">{c.after ?? "empty"}</span>
+                                  <span className="text-ink">{c.after ?? say(WORDS.empty)}</span>
                                 ) : (
                                   <>
-                                    <span className="line-through decoration-ink-4">{c.before ?? "empty"}</span>
+                                    <span className="line-through decoration-ink-4">{c.before ?? say(WORDS.empty)}</span>
                                     {" → "}
-                                    <span className="text-ink">{c.after ?? "empty"}</span>
+                                    <span className="text-ink">{c.after ?? say(WORDS.empty)}</span>
                                   </>
                                 )}
                               </dd>

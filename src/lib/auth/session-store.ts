@@ -36,7 +36,7 @@ export async function readStaffSession(token: string | undefined | null, request
     include: {
       account: {
         include: {
-          person: { select: { id: true, name: true, jobTitle: true, isActive: true } },
+          person: { select: { id: true, name: true, jobTitle: true, jobTitleMs: true, isActive: true } },
           organisation: { select: { id: true, code: true, timeZone: true } },
         },
       },
@@ -72,6 +72,7 @@ export async function readStaffSession(token: string | undefined | null, request
     personId: account.personId,
     personName: account.person.name,
     jobTitle: account.person.jobTitle,
+    jobTitleMs: account.person.jobTitleMs,
     isAdministrator: account.isAdministrator,
     organisationId: account.organisationId,
     organisationCode: account.organisation.code,

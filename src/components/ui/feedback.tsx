@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 
+import { Say } from "@/components/i18n/language-context";
 import { AlertTriangle, CheckIcon, InfoIcon, XIcon } from "@/components/icons";
 
 import type { Tone } from "./badge";
+import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
+
 import { cx } from "./cx";
 
 /// Nothing to show. Says what would be here and, where there is one, the way forward.
@@ -107,7 +110,7 @@ export function Meter({
   showValue?: boolean;
   className?: string;
 }) {
-  if (percent == null) return <span className="text-[12px] text-ink-3">Not set</span>;
+  if (percent == null) return <span className="text-[12px] text-ink-3"><Say words={COMPONENT_WORDS.notSet} /></span>;
   const over = threshold != null && percent >= threshold;
   const fill =
     tone === "err" ? "bg-rose-500" : tone === "warn" || over ? "bg-amber-500" : "bg-brand-500";

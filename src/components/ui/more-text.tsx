@@ -1,5 +1,7 @@
 "use client";
 
+import { useSay } from "@/components/i18n/language-context";
+import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { InfoIcon } from "@/components/icons";
@@ -20,7 +22,7 @@ export function MoreText({
   text,
   title,
   variant = "plain",
-  label = "Show the full description",
+  label,
 }: {
   text: string;
   /// A bold first line in the popover (the `note` variant).
@@ -31,6 +33,7 @@ export function MoreText({
   /// The button's accessible name.
   label?: string;
 }) {
+  const say = useSay();
   const [open, setOpen] = useState(false);
   const [above, setAbove] = useState(false);
   const pinned = useRef(false);
@@ -91,7 +94,7 @@ export function MoreText({
     <span ref={root} className={cx("-my-1 inline-block align-middle", variant === "note" && "relative")} onPointerEnter={hoverIn} onPointerLeave={hoverOut}>
       <button
         type="button"
-        aria-label={label}
+        aria-label={label ?? say(COMPONENT_WORDS.showFullDescription)}
         aria-expanded={open}
         aria-controls={id}
         className={cx(

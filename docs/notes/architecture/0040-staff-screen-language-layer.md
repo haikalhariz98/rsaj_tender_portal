@@ -110,3 +110,18 @@ slice. Sign-in and welcome stay English (Q6).
   are converted.
 - **Rules out:** a string-key lookup, a second pair shape, and keying any component on the language.
 - **Rules out:** rewriting stored records (notice text) on a language change.
+
+## As built in step 3 (the shell and the switch)
+
+- The root layout reads `currentLanguage()`, sets `<html lang>` and mounts `LanguageProvider` beside `ActorProvider`. The server action that saves the
+  choice is handed to the provider as a prop, as `signOut` is to `AppShell`, so no component imports the server and a drawer tests without a database.
+  With no action handed in the provider offers no switch.
+- `LanguageSwitch` is the shared `Toggle` (`type="button"` controls) calling the action inside `startTransition`. It sits in the top bar and in
+  `DrawerHeader`, on its own row under the drawer's title. It has no `<form>`, no `formAction` and no submit button, because `RecordEditor` draws
+  `DrawerHeader` inside its own form. The fixed "EN" mark is gone.
+- Navigation labels, group names and breadcrumb labels are `Words` (catalogue `shell`). Shared components' own words are the `components` catalogue.
+  Both are registered as `DRAFTED_NOT_REVIEWED`. Words that need a value use `{name}` placeholders through `sayWith`.
+- With Malay chosen, `AppShell` shows a `Callout` through `Bi` on a staff screen whose `coverageOf(pathname)` is not `CONVERTED`.
+- Proof: `language-switch-keeps-input.test.ts` opens a real `RecordEditor`, types into a text field, a select and a textarea, clicks the switch in the
+  drawer's header, and asserts the values, the open drawer and the same form element survive, nothing was submitted, and the drawer's words are Malay.
+  A source scan holds that no `key={...}` mentions the language.

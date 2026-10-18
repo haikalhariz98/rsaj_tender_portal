@@ -25,10 +25,13 @@ import {
   UsersIcon,
   XIcon,
 } from "@/components/icons";
+import { useSay } from "@/components/i18n/language-context";
 import { cx } from "@/components/ui/cx";
+import { SHELL_WORDS } from "@/lib/i18n/catalogues/shell";
 import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { ShellOrganisation } from "@/lib/shell";
 import {
+  CONFIG_GROUP_WORDS,
   CONFIG_PINNED,
   CONFIG_SECTIONS,
   navFor,
@@ -62,7 +65,7 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
 /// sidebar becomes its navigator — the settings pattern — so the sections never have
 /// to sit in a second rail squeezed beside the screen. The pinned items are held apart,
 /// drawn above the groups with no header (founder, 2026-10-08).
-const CONFIG_NAV: NavGroup[] = CONFIG_SECTIONS.map((g) => ({ label: g.group, items: g.items }));
+const CONFIG_NAV: NavGroup[] = CONFIG_SECTIONS.map((g) => ({ label: CONFIG_GROUP_WORDS[g.group], items: g.items }));
 
 export function Sidebar({
   organisation,
@@ -84,6 +87,7 @@ export function Sidebar({
   portalOnly?: boolean;
 }) {
   const pathname = usePathname();
+  const say = useSay();
   const router = useRouter();
   const workspace = workspaceFor(pathname);
   const inConfig = pathname === "/configuration" || pathname.startsWith("/configuration/");
@@ -139,7 +143,7 @@ export function Sidebar({
 
   const orgName = organisation.name;
   const logo = organisation.logo;
-  const workspaceName = workspace === "supplier" ? "Supplier portal" : orgName;
+  const workspaceName = workspace === "supplier" ? say(SHELL_WORDS.supplierPortal) : orgName;
 
   // Each section owns its subtree; the two workspace roots need an exact match so
   // /supplier/bids does not light Home as well.
@@ -170,9 +174,9 @@ export function Sidebar({
           <Ico size={16} />
         </span>
         {/* A long label wraps onto a second line rather than being cut off ("Changes awaiting a second person"). */}
-        <span className="line-clamp-2 min-w-0 flex-1 leading-snug">{item.label}</span>
+        <span className="line-clamp-2 min-w-0 flex-1 leading-snug">{say(item.label)}</span>
         {inConfig && !item.built && (
-          <span className="mt-1 self-start rounded-full bg-amber-100 px-2 text-[11px] leading-5 font-bold text-amber-800">soon</span>
+          <span className="mt-1 self-start rounded-full bg-amber-100 px-2 text-[11px] leading-5 font-bold text-amber-800">{say(SHELL_WORDS.soon)}</span>
         )}
         {count ? (
           <span
@@ -212,7 +216,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close navigation"
+            aria-label={say(SHELL_WORDS.closeNavigation)}
             className="ml-auto grid size-9 place-items-center rounded-full text-ink-3 hover:bg-ink/5"
           >
             <XIcon size={18} />
@@ -228,10 +232,10 @@ export function Sidebar({
             className="inline-flex items-center gap-1.5 rounded-full py-1 pr-3 pl-2 text-[13px] font-semibold text-ink-3 no-underline transition hover:bg-ink/5 hover:text-ink hover:no-underline"
           >
             <ChevronDown size={15} className="rotate-90" />
-            Back to dashboard
+            {say(SHELL_WORDS.backToDashboard)}
           </Link>
           <div className="mt-3 px-2">
-            <div className="text-[18px] font-bold tracking-tight text-ink">Configuration</div>
+            <div className="text-[18px] font-bold tracking-tight text-ink">{say(SHELL_WORDS.configuration)}</div>
           </div>
         </div>
       ) : (
@@ -242,7 +246,7 @@ export function Sidebar({
           ref={trigger}
           aria-haspopup={portalOnly ? undefined : "menu"}
           aria-expanded={portalOnly ? undefined : switching}
-          aria-label={portalOnly ? workspaceName : `Viewing as ${workspaceName}. Switch workspace`}
+          aria-label={portalOnly ? workspaceName : `${say(SHELL_WORDS.viewingAs)} ${workspaceName}. ${say(SHELL_WORDS.switchWorkspace)}`}
           disabled={portalOnly}
           onClick={() => setSwitching((open) => !open)}
           className="flex w-full items-center gap-3 rounded-2xl border border-line bg-sunken px-3 py-2.5 text-left transition not-disabled:hover:border-line-2 not-disabled:hover:bg-surface disabled:cursor-default"
@@ -260,14 +264,14 @@ export function Sidebar({
         {switching && !portalOnly && (
           <div
             role="menu"
-            aria-label="Switch workspace"
+            aria-label={say(SHELL_WORDS.switchWorkspace)}
             className="absolute inset-x-0 top-[calc(100%+6px)] z-30 rounded-2xl border border-line bg-surface p-1.5 shadow-pop"
           >
-            <div className="px-3 pt-2 pb-1 text-[11.5px] font-semibold text-ink-3">Viewing as</div>
+            <div className="px-3 pt-2 pb-1 text-[11.5px] font-semibold text-ink-3">{say(SHELL_WORDS.viewingAs)}</div>
             {(
               [
                 ["internal", orgName, BuildingIcon],
-                ["supplier", "Supplier portal", UserIcon],
+                ["supplier", say(SHELL_WORDS.supplierPortal), UserIcon],
               ] as const
             ).map(([id, label, Ico]) => (
               <button
@@ -291,8 +295,8 @@ export function Sidebar({
       <div ref={rail} className="-mx-1 mt-2 flex-1 overflow-y-auto px-1 [scrollbar-width:thin]">
         {pinned.length > 0 && <div className="mt-1 mb-1 flex flex-col gap-0.5">{pinned.map(renderItem)}</div>}
         {groups.map((group, i) => (
-          <div key={group.label} className={cx("mt-3.5", i === 0 && pinned.length === 0 && "first:mt-1")}>
-            <div className="px-3 pb-1.5 text-[11.5px] font-semibold text-ink-4">{group.label}</div>
+          <div key={group.label.en} className={cx("mt-3.5", i === 0 && pinned.length === 0 && "first:mt-1")}>
+            <div className="px-3 pb-1.5 text-[11.5px] font-semibold text-ink-4">{say(group.label)}</div>
             <div className="flex flex-col gap-0.5">{group.items.map(renderItem)}</div>
           </div>
         ))}

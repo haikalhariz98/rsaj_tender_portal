@@ -1,3 +1,6 @@
+import { w, type Words } from "@/lib/contract/labels";
+import { enOnly } from "@/lib/i18n/say";
+
 /**
  * Navigation, taken from the approved prototype rather than invented.
  *
@@ -8,7 +11,8 @@
  */
 export interface NavItem {
   href: string;
-  label: string;
+  /// Words, rendered through `say` (NFR-LNG-001, ADR 0040).
+  label: Words;
   icon: string;
   /// False where the module has not been built yet. The item still appears — the
   /// shape of the portal is agreed — but it lands on a page that says so plainly.
@@ -16,7 +20,7 @@ export interface NavItem {
 }
 
 export interface NavGroup {
-  label: string;
+  label: Words;
   items: NavItem[];
 }
 
@@ -26,81 +30,81 @@ export interface NavGroup {
 /// sidebar promises no module that will not be built.
 export const STAFF_NAV: NavGroup[] = [
   {
-    label: "Overview",
+    label: w("Overview", "Gambaran Keseluruhan"),
     items: [
-      { href: "/", label: "Dashboard", icon: "grid", built: true },
+      { href: "/", label: w("Dashboard", "Papan Pemuka"), icon: "grid", built: true },
       // Not in the prototype (close-out ruling CO-7): the steps waiting for the person signed in, and every open approval's next step by the office
       // deciding it. The count beside it is the steps waiting for them (FR-APR-018).
-      { href: "/approvals", label: "My approvals", icon: "clock", built: true },
+      { href: "/approvals", label: w("My approvals", "Kelulusan saya"), icon: "clock", built: true },
       // The staff inbox (Phase 3c): notices shown in the portal, since email is not connected (INT-09). The count is the unread ones.
-      { href: "/inbox", label: "Inbox", icon: "inbox", built: true },
+      { href: "/inbox", label: w("Inbox", "Peti Masuk"), icon: "inbox", built: true },
     ],
   },
   {
-    label: "Procurement",
+    label: w("Procurement", "Perolehan"),
     items: [
       // Not in the prototype, whose requisition screen no route renders. Above
       // Sourcing, not under it: a supervision-only matter never becomes sourcing (6.1).
-      { href: "/requisitions", label: "Requisitions", icon: "clipboard", built: true },
-      { href: "/sourcing", label: "Sourcing", icon: "globe", built: true },
+      { href: "/requisitions", label: w("Requisitions", "Permintaan"), icon: "clipboard", built: true },
+      { href: "/sourcing", label: w("Sourcing", "Sumber Perolehan"), icon: "globe", built: true },
       // AC-17 (C-1): Awards is not a menu; an award is the first stage of a case on the Contracts list.
     ],
   },
   {
-    label: "Contracts",
+    label: w("Contracts", "Kontrak"),
     items: [
       // 6.12 (OD-6 A): the contracts after award, formed, signed and on their baseline.
-      { href: "/projects", label: "Contracts", icon: "tools", built: true },
+      { href: "/projects", label: w("Contracts", "Kontrak"), icon: "tools", built: true },
     ],
   },
   {
-    label: "Governance",
+    label: w("Governance", "Tadbir Urus"),
     items: [
       // Not in the prototype, which shows committee votes only on each matter's own
       // record. Sittings run before those modules exist (ruling 5.1).
-      { href: "/committees", label: "Committee sittings", icon: "users", built: true },
+      { href: "/committees", label: w("Committee sittings", "Mesyuarat jawatankuasa"), icon: "users", built: true },
     ],
   },
   {
-    label: "Records",
+    label: w("Records", "Rekod"),
     items: [
       // 6.15a: the staff-side register (ADR 0019). The supplier's own workspace (bids, projects, company) waits for sign-in (6.15b); the public pages do not.
-      { href: "/suppliers", label: "Suppliers", icon: "building", built: true },
+      { href: "/suppliers", label: w("Suppliers", "Pembekal"), icon: "building", built: true },
       // MN-02 (AC-16): the Documents menu is gone; /documents redirects. Each contract holds its certificates, copies and submissions.
     ],
   },
   {
-    label: "Administration",
-    items: [{ href: "/configuration", label: "Configuration", icon: "sliders", built: true }],
+    label: w("Administration", "Pentadbiran"),
+    items: [{ href: "/configuration", label: w("Configuration", "Konfigurasi"), icon: "sliders", built: true }],
   },
 ];
 
 export const SUPPLIER_NAV: NavGroup[] = [
   {
-    label: "Overview",
-    items: [{ href: "/supplier", label: "Home", icon: "grid", built: true }],
+    label: enOnly("Overview"),
+    items: [{ href: "/supplier", label: enOnly("Home"), icon: "grid", built: true }],
   },
   {
     // Open to anyone: no sign-in (founder, 2026-10-06). Words are in src/lib/portal/labels.ts.
-    label: "Open to everyone",
+    label: enOnly("Open to everyone"),
     items: [
-      { href: "/supplier/opportunities", label: "Opportunities", icon: "globe", built: true },
-      { href: "/supplier/results", label: "Results", icon: "award", built: true },
-      { href: "/supplier/register", label: "Register as a supplier", icon: "building", built: true },
+      { href: "/supplier/opportunities", label: enOnly("Opportunities"), icon: "globe", built: true },
+      { href: "/supplier/results", label: enOnly("Results"), icon: "award", built: true },
+      { href: "/supplier/register", label: enOnly("Register as a supplier"), icon: "building", built: true },
     ],
   },
   {
     // Each of these needs to know who is asking, so it waits for sign-in and says so on its own page.
-    label: "With sign-in",
+    label: enOnly("With sign-in"),
     items: [
       // Phase 4d: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
-      { href: "/supplier/bids", label: "My Bids", icon: "inbox", built: true },
+      { href: "/supplier/bids", label: enOnly("My Bids"), icon: "inbox", built: true },
       // Phase 4e: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
-      { href: "/supplier/projects", label: "My Projects", icon: "tools", built: true },
+      { href: "/supplier/projects", label: enOnly("My Projects"), icon: "tools", built: true },
       // Phase 4c: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
-      { href: "/supplier/company", label: "Company", icon: "building", built: true },
+      { href: "/supplier/company", label: enOnly("Company"), icon: "building", built: true },
       // Phase 4e (FR-VND-014): the announcements board, read by every signed-in supplier.
-      { href: "/supplier/announcements", label: "Announcements", icon: "bell", built: true },
+      { href: "/supplier/announcements", label: enOnly("Announcements"), icon: "bell", built: true },
     ],
   },
 ];
@@ -117,7 +121,7 @@ export function navFor(workspace: Workspace): NavGroup[] {
 
 export interface ConfigItem {
   href: string;
-  label: string;
+  label: Words;
   icon: string;
   built?: boolean;
 }
@@ -132,12 +136,23 @@ export type ConfigGroup =
   | "Contracts"
   | "Records";
 
+/// The groups' own words (NFR-LNG-001). The union above stays the identifier that the placement rule and its test read; this is what the rail shows.
+export const CONFIG_GROUP_WORDS: Readonly<Record<ConfigGroup, Words>> = {
+  "People and access": w("People and access", "Orang dan akses"),
+  Governance: w("Governance", "Tadbir urus"),
+  "Across every stage": w("Across every stage", "Merentas setiap peringkat"),
+  Requisitions: w("Requisitions", "Permintaan"),
+  "Sourcing and award": w("Sourcing and award", "Sumber perolehan dan anugerah"),
+  Contracts: w("Contracts", "Kontrak"),
+  Records: w("Records", "Rekod"),
+};
+
 /// Pinned above the groups, with no header (founder, 2026-10-08): Organisation, which everything else hangs from and where Configuration
 /// opens, and the changes waiting on a second person. The second one is shown to everyone; its page says who may decide. Its count is the
 /// viewer's own "waiting for you" number and never an organisation-wide one, so it arrives with the actor in `staffCounts`, not here.
 export const CONFIG_PINNED: ConfigItem[] = [
-  { href: "/configuration/organisation", label: "Organisation", icon: "building", built: true },
-  { href: "/configuration/changes", label: "Changes awaiting a second person", icon: "clipboard", built: true },
+  { href: "/configuration/organisation", label: w("Organisation", "Organisasi"), icon: "building", built: true },
+  { href: "/configuration/changes", label: w("Changes awaiting a second person", "Perubahan menunggu orang kedua"), icon: "clipboard", built: true },
 ];
 
 /**
@@ -160,51 +175,51 @@ export const CONFIG_SECTIONS: { group: ConfigGroup; items: ConfigItem[] }[] = [
   {
     group: "People and access",
     items: [
-      { href: "/configuration/users", label: "Users & roles", icon: "user", built: true },
+      { href: "/configuration/users", label: w("Users & roles", "Pengguna dan peranan"), icon: "user", built: true },
       // Phase 1b: the administrator's screen for who can sign in. Staff reach it by the link; the page itself says so to anyone who is not an administrator.
-      { href: "/configuration/accounts", label: "Sign-in accounts", icon: "shield", built: true },
+      { href: "/configuration/accounts", label: w("Sign-in accounts", "Akaun log masuk"), icon: "shield", built: true },
       // Phase 2c: the sign-in settings.
-      { href: "/configuration/security", label: "Sign-in settings", icon: "sliders", built: true },
+      { href: "/configuration/security", label: w("Sign-in settings", "Tetapan log masuk"), icon: "sliders", built: true },
     ],
   },
   {
     group: "Governance",
     items: [
-      { href: "/configuration/approval-matrix", label: "Approval matrix", icon: "sliders", built: true },
-      { href: "/configuration/committees", label: "Committees", icon: "users", built: true },
+      { href: "/configuration/approval-matrix", label: w("Approval matrix", "Matriks kelulusan"), icon: "sliders", built: true },
+      { href: "/configuration/committees", label: w("Committees", "Jawatankuasa"), icon: "users", built: true },
     ],
   },
   {
     group: "Across every stage",
     items: [
-      { href: "/configuration/reference-data", label: "Reference data", icon: "globe", built: true },
-      { href: "/configuration/notifications", label: "Notifications", icon: "inbox", built: true },
+      { href: "/configuration/reference-data", label: w("Reference data", "Data rujukan"), icon: "globe", built: true },
+      { href: "/configuration/notifications", label: w("Notifications", "Pemberitahuan"), icon: "inbox", built: true },
     ],
   },
   {
     group: "Requisitions",
     items: [
-      { href: "/configuration/requisitions", label: "Requisition controls", icon: "clipboard", built: true },
-      { href: "/configuration/budget", label: "Budget", icon: "chart", built: true },
+      { href: "/configuration/requisitions", label: w("Requisition controls", "Kawalan permintaan"), icon: "clipboard", built: true },
+      { href: "/configuration/budget", label: w("Budget", "Bajet"), icon: "chart", built: true },
     ],
   },
   {
     // In the order a matter takes them: scope, the pack, the invitation, evaluation, the award.
     group: "Sourcing and award",
     items: [
-      { href: "/configuration/scope", label: "Scope and estimate", icon: "tools", built: true },
-      { href: "/configuration/tender-documents", label: "Tender documents", icon: "files", built: true },
-      { href: "/configuration/invitation", label: "Invitation controls", icon: "globe", built: true },
-      { href: "/configuration/bid-sealing", label: "Bid sealing", icon: "shield", built: true },
-      { href: "/configuration/evaluation", label: "Evaluation models", icon: "sliders", built: true },
-      { href: "/configuration/awards", label: "Award controls", icon: "award", built: true },
+      { href: "/configuration/scope", label: w("Scope and estimate", "Skop dan anggaran"), icon: "tools", built: true },
+      { href: "/configuration/tender-documents", label: w("Tender documents", "Dokumen tender"), icon: "files", built: true },
+      { href: "/configuration/invitation", label: w("Invitation controls", "Kawalan jemputan"), icon: "globe", built: true },
+      { href: "/configuration/bid-sealing", label: w("Bid sealing", "Pemeteraian bida"), icon: "shield", built: true },
+      { href: "/configuration/evaluation", label: w("Evaluation models", "Model penilaian"), icon: "sliders", built: true },
+      { href: "/configuration/awards", label: w("Award controls", "Kawalan anugerah"), icon: "award", built: true },
     ],
   },
   {
     group: "Contracts",
     items: [
-      { href: "/configuration/contracts", label: "Contract controls", icon: "file", built: true },
-      { href: "/configuration/post-award", label: "Post-award controls", icon: "tools", built: true },
+      { href: "/configuration/contracts", label: w("Contract controls", "Kawalan kontrak"), icon: "file", built: true },
+      { href: "/configuration/post-award", label: w("Post-award controls", "Kawalan selepas anugerah"), icon: "tools", built: true },
     ],
   },
   {
@@ -213,17 +228,17 @@ export const CONFIG_SECTIONS: { group: ConfigGroup; items: ConfigItem[] }[] = [
     items: [
       // 6.15a: the prototype keeps CIDB grades and MOF codes on Reference data; here every registration
       // body's values sit with the register, per body, never as regulator columns (FR-VND-003).
-      { href: "/configuration/suppliers", label: "Supplier register", icon: "building", built: true },
-      { href: "/configuration/documents", label: "Documents", icon: "files", built: true },
-      { href: "/configuration/templates", label: "Templates", icon: "files", built: true },
-      { href: "/configuration/routing-sheets", label: "Routing sheets", icon: "clock", built: true },
-      { href: "/configuration/numbering", label: "Numbering", icon: "grid", built: true },
-      { href: "/configuration/audit", label: "Audit trail", icon: "clock", built: true },
+      { href: "/configuration/suppliers", label: w("Supplier register", "Daftar pembekal"), icon: "building", built: true },
+      { href: "/configuration/documents", label: w("Documents", "Dokumen"), icon: "files", built: true },
+      { href: "/configuration/templates", label: w("Templates", "Templat"), icon: "files", built: true },
+      { href: "/configuration/routing-sheets", label: w("Routing sheets", "Helaian laluan"), icon: "clock", built: true },
+      { href: "/configuration/numbering", label: w("Numbering", "Penomboran"), icon: "grid", built: true },
+      { href: "/configuration/audit", label: w("Audit trail", "Jejak audit"), icon: "clock", built: true },
     ],
   },
 ];
 
 /// A section's folder name to its label, from the rail itself, so the breadcrumb and the rail cannot split.
-export const CONFIG_LABELS: Record<string, string> = Object.fromEntries(
+export const CONFIG_LABELS: Record<string, Words> = Object.fromEntries(
   [...CONFIG_PINNED, ...CONFIG_SECTIONS.flatMap((g) => g.items)].map((item) => [item.href.slice("/configuration/".length), item.label]),
 );

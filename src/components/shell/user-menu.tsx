@@ -5,7 +5,10 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { ChevronDown, LogOutIcon, UserIcon } from "@/components/icons";
 import { Avatar } from "@/components/ui/avatar";
+import { useLanguage, useSay } from "@/components/i18n/language-context";
 import { cx } from "@/components/ui/cx";
+import { SHELL_WORDS } from "@/lib/i18n/catalogues/shell";
+import { titleFor } from "@/lib/i18n/job-title";
 import type { ShellUser } from "@/lib/shell";
 
 /**
@@ -16,6 +19,12 @@ import type { ShellUser } from "@/lib/shell";
 export function UserMenu({ user, signOut }: { user: ShellUser; signOut: (data: FormData) => Promise<void> }) {
   // A supplier's session is the portal's own: its account page, and a sign-out that is a plain POST to the portal's route (the public copy takes no server action).
   const supplier = user.kind === "supplier";
+  const say = useSay();
+  const { language, choice } = useLanguage();
+  // The Malay title when Malay is chosen and one is recorded; never a made-up one.
+  const jobTitle = titleFor(user, language);
+  // A default is not a choice: say which this is (NFR-LNG-001).
+  const languageLine = choice === null ? SHELL_WORDS.languageNotChosen : choice === "ms" ? SHELL_WORDS.languageChosenMs : SHELL_WORDS.languageChosenEn;
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -47,7 +56,7 @@ export function UserMenu({ user, signOut }: { user: ShellUser; signOut: (data: F
         <Avatar name={user.name} size="sm" />
         <span className="hidden min-w-0 text-left leading-tight md:block">
           <span className="block truncate text-[13px] font-semibold text-ink">{user.name}</span>
-          {user.jobTitle && <span className="block truncate text-[12px] text-ink-3">{user.jobTitle}</span>}
+          {jobTitle && <span className="block truncate text-[12px] text-ink-3">{jobTitle}</span>}
         </span>
         <ChevronDown size={15} className={cx("text-ink-3 transition", open && "rotate-180")} />
       </button>
@@ -56,17 +65,23 @@ export function UserMenu({ user, signOut }: { user: ShellUser; signOut: (data: F
         <div id={menuId} role="menu" className="absolute right-0 z-30 mt-2 w-60 rounded-2xl border border-line bg-surface p-1.5 shadow-pop">
           <div className="px-3 pt-2 pb-2.5">
             <div className="truncate text-[13.5px] font-bold text-ink">{user.name}</div>
-            {user.jobTitle && <div className="truncate text-[12px] text-ink-3">{user.jobTitle}</div>}
+            {jobTitle && <div className="truncate text-[12px] text-ink-3">{jobTitle}</div>}
+            {!supplier && (
+              <div className="mt-1.5 text-[12px] text-ink-3">
+                <span className="font-semibold">{say(SHELL_WORDS.language)}: </span>
+                {say(languageLine)}
+              </div>
+            )}
           </div>
           <div className="my-1 h-px bg-line" />
           <Link href={supplier ? "/supplier/account" : "/account"} role="menuitem" className={item} onClick={() => setOpen(false)}>
             <UserIcon size={16} />
-            Your account
+            {say(SHELL_WORDS.yourAccount)}
           </Link>
           <form {...(supplier ? { action: "/supplier/sign-out", method: "post" } : { action: signOut })}>
             <button type="submit" role="menuitem" className={item}>
               <LogOutIcon size={16} />
-              Sign out
+              {say(SHELL_WORDS.signOut)}
             </button>
           </form>
         </div>

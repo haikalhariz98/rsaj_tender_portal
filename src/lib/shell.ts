@@ -6,6 +6,8 @@ export interface ShellUser {
   name: string;
   /// As the person's record has it. Null where none is recorded: nothing is made up to fill the line. For a supplier: the supplier's name.
   jobTitle: string | null;
+  /// The title in Malay, where one is recorded. The shell shows it when Bahasa Malaysia is chosen (`titleFor`).
+  jobTitleMs?: string | null;
   /// Whose session this is (Phase 4a). A supplier's menu leads to the portal's account page and signs out at the portal's own door; a staff member's to the staff's.
   kind?: "staff" | "supplier";
 }

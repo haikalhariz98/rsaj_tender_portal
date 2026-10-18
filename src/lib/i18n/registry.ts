@@ -9,7 +9,9 @@
 
 import type { Words } from "@/lib/contract/labels";
 
+import { COMPONENTS } from "./catalogues/components";
 import { DATES } from "./catalogues/dates";
+import { SHELL } from "./catalogues/shell";
 import { COVERAGE_NOTICES } from "./coverage";
 import { hasMalay } from "./say";
 
@@ -22,7 +24,7 @@ export interface Catalogue {
 }
 
 /** Every catalogue a converted screen renders. Each slice that converts a screen registers its catalogues here. */
-export const CONVERTED_CATALOGUES: readonly Catalogue[] = [DATES, COVERAGE_NOTICES];
+export const CONVERTED_CATALOGUES: readonly Catalogue[] = [DATES, COVERAGE_NOTICES, SHELL, COMPONENTS];
 
 /** Every pair with no Malay, which therefore renders its English. */
 export function untranslated(cats: readonly Catalogue[]): { catalogue: string; key: string; en: string }[] {

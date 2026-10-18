@@ -25,7 +25,8 @@ function hasPage(href: string): boolean {
 }
 
 const trail = (p: string, name: string | null, parent: string | null = null) => crumbTrail(p.split("/").filter(Boolean), name, parent);
-const labels = (c: { label: string }[]) => c.map((x) => x.label);
+// AC-63 N1 (NFR-LNG-001, ADR 0040): a crumb's label is `Words`; these assertions read the English, as they always did.
+const labels = (c: { label: { en: string } }[]) => c.map((x) => x.label.en);
 
 describe("breadcrumbs of the certificate core's pages (S-1)", () => {
   it("a certificate: Projects › its contract › Documents (the contract's tab) › the certificate", () => {
@@ -80,7 +81,7 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
     for (const [name, parent] of [[null, null], ["REC", "PAR"]] as const) {
       const c = crumbTrail(segs, name, parent);
       expect(c.filter((x) => !hasPage(x.href)).map((x) => x.href), `${name ?? "unnamed"}: dead`).toEqual([]);
-      expect(c.filter((x) => x.label === "Details").map((x) => x.href), `${name ?? "unnamed"}: Details`).toEqual([]);
+      expect(c.filter((x) => x.label.en === "Details").map((x) => x.href), `${name ?? "unnamed"}: Details`).toEqual([]);
     }
   });
   it("a page under an exercise names the exercise at the exercise's crumb, and its own section and page in words", () => {

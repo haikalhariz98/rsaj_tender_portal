@@ -49,13 +49,16 @@ describe("Configuration's navigator", () => {
   it("each entry reads the same in the breadcrumb as it does in the navigator", () => {
     for (const item of all) {
       const slug = item.href.slice("/configuration/".length);
-      expect(CONFIG_LABELS[slug], item.href).toBe(item.label);
+      // AC-63 N1 (NFR-LNG-001): labels are `Words`; the English is what these assertions always read, and the Malay must agree as well.
+      expect(CONFIG_LABELS[slug].en, item.href).toBe(item.label.en);
+      expect(CONFIG_LABELS[slug].ms, item.href).toBe(item.label.ms);
       const crumbs = crumbTrail(["configuration", slug], null, null);
-      expect(crumbs.map((c) => c.label), item.href).toEqual(["Configuration", item.label]);
+      expect(crumbs.map((c) => c.label.en), item.href).toEqual(["Configuration", item.label.en]);
+      expect(crumbs.map((c) => c.label.ms), item.href).toEqual(["Konfigurasi", item.label.ms]);
     }
   });
 
   it("the section's name never shows a configuration code", () => {
-    for (const item of all) expect(item.label, item.href).not.toMatch(/[_/]|^[a-z]+(-[a-z]+)+$/);
+    for (const item of all) expect(item.label.en, item.href).not.toMatch(/[_/]|^[a-z]+(-[a-z]+)+$/);
   });
 });

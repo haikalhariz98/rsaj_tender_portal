@@ -39,6 +39,9 @@ import {
 } from "@/lib/ui/select-logic";
 
 import { Avatar } from "./avatar";
+import { useLanguage, useSay } from "@/components/i18n/language-context";
+import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
+import { sayWith } from "@/lib/i18n/say";
 import { NOTCH_LABEL, NOTCH_WRAP, inputClass, type ControlSize } from "./control";
 import { cx } from "./cx";
 import { fieldAria, useFieldContext } from "./field-context";
@@ -146,6 +149,8 @@ export type MultiSelectProps = Attrs &
   };
 
 export function Select(props: SingleSelectProps | MultiSelectProps) {
+  const say = useSay();
+  const { language } = useLanguage();
   const {
     size = "md",
     label,
@@ -488,7 +493,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
   if (multiple) {
     display =
       selectedItems.length === 0 ? (
-        <span className="truncate text-ink-4">{placeholder ?? "Select…"}</span>
+        <span className="truncate text-ink-4">{placeholder ?? say(WORDS.selectEllipsis)}</span>
       ) : (
         <span className="flex min-w-0 flex-wrap gap-1">
           {selectedItems.map((o) => (
@@ -511,7 +516,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
   } else {
     display = (
       <span className={cx("truncate", emptyOption?.label && !placeholderText ? "text-ink-3" : "text-ink-4")}>
-        {emptyOption?.label || placeholder || "Select an option"}
+        {emptyOption?.label || placeholder || say(WORDS.selectAnOption)}
       </span>
     );
   }
@@ -563,7 +568,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
     >
       {chip && chipLabel && <span>{chipLabel}</span>}
       {chip && !chipLabel && !hasValue ? (
-        <span className="truncate">{emptyOption?.label ?? placeholder ?? "Select"}</span>
+        <span className="truncate">{emptyOption?.label ?? placeholder ?? say(WORDS.select)}</span>
       ) : (
         (!chip || hasValue) && <span className={cx("flex min-w-0 items-center gap-2", chip ? "max-w-40" : "flex-1")}>{display}</span>
       )}
@@ -597,10 +602,10 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={active >= 0 ? optId(active) : undefined}
-            aria-label="Search"
+            aria-label={say(WORDS.search)}
             autoComplete="off"
             spellCheck={false}
-            placeholder="Search"
+            placeholder={say(WORDS.search)}
             value={query}
             onChange={(e) => {
               const q = e.target.value;
@@ -662,13 +667,13 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
         ) : (
           shown.length === 0 && (
             <li role="presentation" className="px-3 py-2 text-[13px] text-ink-3">
-              {plan.rows.length === 0 ? "Nothing to choose yet" : `No matches for “${query.trim()}”`}
+              {plan.rows.length === 0 ? say(WORDS.nothingToChoose) : sayWith(WORDS.noMatchesFor, language, { query: query.trim() })}
             </li>
           )
         )}
       </ul>
       <div aria-live="polite" className="sr-only">
-        {searchUrl ? (remoteStatus === "loading" ? "Searching" : remoteStatus === "error" ? "The list could not be loaded" : resultsAnnouncement(shown.length)) : resultsAnnouncement(shown.length)}
+        {searchUrl ? (remoteStatus === "loading" ? say(WORDS.searching) : remoteStatus === "error" ? say(WORDS.listNotLoaded) : resultsAnnouncement(shown.length, language)) : resultsAnnouncement(shown.length, language)}
       </div>
     </div>
   );

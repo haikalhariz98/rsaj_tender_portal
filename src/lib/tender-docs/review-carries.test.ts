@@ -54,6 +54,8 @@ describe("print and route polish (source scan)", () => {
   });
   it("the route card's subtitle names the version, and the crumb is 'Tender documents'", () => {
     expect(read("src/app/sourcing/[id]/documents/workspace.tsx")).toMatch(/versionLabel \? `\$\{versionLabel\}, submitted`/);
-    expect(read("src/components/shell/topbar.tsx")).toContain('crumbs[i].label = "Tender documents"');
+    // AC-63 N1 (NFR-LNG-001): a crumb's label is `Words` now, so the topbar assigns the catalogue's pair and the pair reads "Tender documents".
+    expect(read("src/components/shell/topbar.tsx")).toContain("crumbs[i].label = CRUMB_WORDS.tenderDocuments");
+    expect(read("src/lib/i18n/catalogues/shell.ts")).toContain('tenderDocuments: w("Tender documents",');
   });
 });
