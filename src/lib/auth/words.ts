@@ -35,6 +35,7 @@ export const AUTH_WORDS = {
   codeUsed: { en: "Your password is set. Sign in with it.", ms: "Kata laluan anda telah ditetapkan. Log masuk dengannya." },
   passwordChanged: { en: "Your password is changed. Every other sign-in of yours has ended.", ms: "Kata laluan anda telah ditukar. Semua log masuk anda yang lain telah ditamatkan." },
   signedOutEverywhere: { en: "You are signed out everywhere, this device included.", ms: "Anda telah log keluar di mana-mana, termasuk peranti ini." },
+  languageNotRecognised: { en: "That language is not one the screens are available in. Choose English or Bahasa Malaysia.", ms: "Bahasa itu tidak tersedia untuk skrin. Pilih Bahasa Inggeris atau Bahasa Malaysia." },
   notSignedIn: { en: "You are not signed in.", ms: "Anda belum log masuk." },
   portalFormsClosed: {
     en: "This form is closed: the portal has not been set up to sign its forms. Tell the procurement office.",

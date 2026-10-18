@@ -1,6 +1,7 @@
 import { writeAudit } from "@/lib/audit/record";
 import { AccountStatus } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { fromStored, toStored, type Language } from "@/lib/i18n/language";
 
 import { codeVerdict, hashCode, normaliseCode } from "./codes";
 import { signInOrganisation } from "./deployment";
@@ -209,5 +210,32 @@ export async function acknowledgeResetNotice(actor: StaffActor, request: Request
       "UPDATE",
       [{ field: "resetNoticePending", before: "yes", after: "no" }],
     );
+  });
+}
+
+/**
+ * Save the language the signed-in person reads the staff screens in (NFR-LNG-001, ADR 0040). The column and its audit row commit together.
+ * The same value again writes nothing, neither a column change nor a row. Returns whether anything changed.
+ */
+export async function setStaffLanguage(actor: StaffActor, next: Language): Promise<{ changed: boolean }> {
+  return db.$transaction(async (tx) => {
+    await lockAccount(tx, actor.accountId);
+    const row = await tx.staffAccount.findUniqueOrThrow({ where: { id: actor.accountId }, select: { uiLanguage: true } });
+    if (fromStored(row.uiLanguage) === next) return { changed: false };
+    await tx.staffAccount.update({ where: { id: actor.accountId }, data: { uiLanguage: toStored(next) } });
+    await writeAudit(
+      tx,
+      {
+        organisationId: actor.organisationId,
+        entity: "StaffAccount",
+        entityId: actor.accountId,
+        entityLabel: `Sign-in account of ${actor.personName}`,
+        reason: "Display language chosen by the account holder",
+        actor: { kind: "STAFF", personId: actor.personId, sessionId: actor.sessionId, offices: actor.offices, sourceAddress: actor.sourceAddress },
+      },
+      "UPDATE",
+      [{ field: "uiLanguage", before: row.uiLanguage, after: toStored(next) }],
+    );
+    return { changed: true };
   });
 }
