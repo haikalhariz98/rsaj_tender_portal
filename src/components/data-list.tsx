@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, useTransition, type ReactNode } from "react";
 
 import {
   ChevronRight,
@@ -40,7 +40,7 @@ export type Cell =
   | { kind: "chip"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "person"; name: string; sub?: string }
   | { kind: "link"; text: string; href: string; sub?: string }
-  /// A link that is an act: a form posting `fields` to a server action, which does its work and then redirects (the inbox's notice, AC-47). Not an anchor, so a prefetch never runs it.
+  /// A link that is an act: a button that calls a server action with `fields`, which does its work and then redirects (the inbox's notice, AC-47). Not an anchor, so a prefetch never runs it.
   | { kind: "open"; text: string; action: (data: FormData) => Promise<void>; fields: Record<string, string>; sub?: string }
   /// A file to save: a plain anchor with the `download` attribute (never a client-side Link, which could prefetch it and write a log row for a download nobody made).
   | { kind: "download"; text: string; href: string; label: string }
@@ -313,22 +313,7 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
         </div>
       );
     case "open":
-      return (
-        <div className="min-w-0">
-          <form action={cell.action}>
-            {Object.entries(cell.fields).map(([name, value]) => (
-              <input key={name} type="hidden" name={name} value={value} />
-            ))}
-            <button
-              type="submit"
-              className={cx("block cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-brand-700 hover:text-brand-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500", line)}
-            >
-              {cell.text}
-            </button>
-          </form>
-          {cell.sub && <div className="break-words text-[12.5px] text-ink-3">{cell.sub}</div>}
-        </div>
-      );
+      return <OpenCell cell={cell} line={line} />;
     case "download":
       return (
         <a href={cell.href} download className={buttonClass("secondary", "sm")} aria-label={cell.label}>
@@ -1014,6 +999,32 @@ export function DataList({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/// The "open" cell (AC-47). The act is the caller's: this piece only calls the action it was handed, on a press, so a prefetch or a render never runs it, and it opens no drawer and
+/// records nothing itself. A server action that redirects rejects its promise with the redirect, which the router follows.
+function OpenCell({ cell, line }: { cell: Extract<Cell, { kind: "open" }>; line: string }) {
+  const [pending, start] = useTransition();
+  return (
+    <div className="min-w-0">
+      <button
+        type="button"
+        aria-disabled={pending || undefined}
+        onClick={() => {
+          if (pending) return;
+          const data = new FormData();
+          for (const [name, value] of Object.entries(cell.fields)) data.set(name, value);
+          start(async () => {
+            await cell.action(data);
+          });
+        }}
+        className={cx("block cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-brand-700 hover:text-brand-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500", line)}
+      >
+        {cell.text}
+      </button>
+      {cell.sub && <div className="break-words text-[12.5px] text-ink-3">{cell.sub}</div>}
     </div>
   );
 }
