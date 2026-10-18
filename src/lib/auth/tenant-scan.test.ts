@@ -52,6 +52,8 @@ const MAY_READ: Readonly<Record<string, string>> = {
   "src/lib/test-db/setup.ts": "sets the variable to the database tests' own organisation before anything reads it; it reads nothing itself",
   // Phase 1d: added deliberately (decisions log, Phase 1d tests).
   "src/lib/demo/demo-additive.db.test.ts": "sets it for the demo loader it runs as a child process, as an operator would; it reads nothing itself",
+  // Wave C step C11 (Award and Contract Requirements v2, C-3): added deliberately, as demo-additive above is.
+  "src/lib/contract/case-walk.db.test.ts": "sets it for the demo loader and the walk's harness it runs as child processes against a throwaway database, as an operator would; it reads nothing itself",
 };
 /// The portal's own modules serve anonymous public pages (ADR 0034 D10 names `src/lib/portal/**`); none reads the constant today except through deployment.ts.
 const PORTAL = "src/lib/portal/";
