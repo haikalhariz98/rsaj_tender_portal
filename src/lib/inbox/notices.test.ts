@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { STAFF_NOTICE_KINDS, STAFF_NOTICE_KIND_LABEL } from "./kinds";
-import { caseClockNotices, caseClockRecipients, delegationReceivedNotice, holderMarkedAbsentNotices, matterNotCarriedMemo, routeRecalledNotices, stepEscalatedNotices, stepMovedOnAbsenceNotices } from "./notices";
+import { caseClockNotices, delegationReceivedNotice, holderMarkedAbsentNotices, matterNotCarriedMemo, routeRecalledNotices, stepEscalatedNotices, stepMovedOnAbsenceNotices } from "./notices";
 
 const matter = { label: "REQ-1 · Roof", href: "/approvals", exerciseId: "ex1" };
 
@@ -68,16 +68,15 @@ describe("the closed list of kinds", () => {
 
 describe("the clock notices of an award (FR-AWD-006, FR-AWD-009; C13)", () => {
   const base = { awardId: "a1", awardLabel: "AWD-1", day: "2026-10-01", dayWords: "1 Oct 2026", exerciseId: "ex1", href: "/projects/a1" };
-  it("tells the requester, the requesting unit's head and the case owner's head once each, and keys on the day", () => {
-    const recipients = caseClockRecipients({ requesterId: "r", requestingUnitHeadId: "h", caseOwnerUnitHeadId: "r" });
-    expect(recipients).toEqual(["h", "r"]);
+  // AC-42: the recipients come from `clockPlan` (the notification rule's offices and the requester), not from unit heads; here the notices are written to whoever is given.
+  it("writes one notice to each recipient given, and keys it on the day", () => {
+    const recipients = ["h", "r"];
     const n = caseClockNotices({ ...base, kind: "INDENT_EXPIRED", recipients });
     expect(n.map((x) => x.recipientPersonId)).toEqual(["h", "r"]);
     expect(n[0]).toMatchObject({ kind: "INDENT_EXPIRED", subjectEntity: "Award", subjectId: "a1", occurrence: "2026-10-01", exerciseId: "ex1" });
     expect(caseClockNotices({ ...base, kind: "COMMENCEMENT_LATE", recipients })[0]!.kind).toBe("COMMENCEMENT_LATE");
   });
-  it("tells no one in a role nobody fills", () => {
-    expect(caseClockRecipients({ requesterId: "r", requestingUnitHeadId: null, caseOwnerUnitHeadId: null })).toEqual(["r"]);
-    expect(caseClockRecipients({ requesterId: null, requestingUnitHeadId: null, caseOwnerUnitHeadId: null })).toEqual([]);
+  it("writes none when nobody is to be told", () => {
+    expect(caseClockNotices({ ...base, kind: "INDENT_EXPIRED", recipients: [] })).toEqual([]);
   });
 });

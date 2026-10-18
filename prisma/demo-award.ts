@@ -208,6 +208,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
     data: [
       { id: `${P}nr4`, organisationId, eventKey: "security.expiring", nameEn: "Security or policy expiring", recipientRoleCodes: ["HOD_CP"], reminderOffsetDays: [60, 30, 7], provenance: "ASSUMED", sortOrder: 4 },
       { id: `${P}nr5`, organisationId, eventKey: "award.indent.expired", nameEn: "Indent expired", recipientRoleCodes: ["HOD_CP", "DEPT_HEAD"], reminderOffsetDays: [], provenance: "ASSUMED", sortOrder: 5 },
+      { id: `${P}nr8`, organisationId, eventKey: "award.commencement.late", nameEn: "Commencement late", recipientRoleCodes: ["HOD_CP", "DEPT_HEAD"], reminderOffsetDays: [], provenance: "ASSUMED", sortOrder: 8 },
     ],
   });
 

@@ -1,44 +1,47 @@
 /**
- * The staff notices of an award's two clocks (FR-AWD-006 indent expiry, FR-AWD-009 late commencement; design note 0004 C13, F-4). Written when the case is read, once per recipient and
- * expiry or due day: the notice's key (recipient, kind, award, day) makes a second reading write nothing. The drafts and the recipients are pure (`inbox/notices.ts`); this is the reading.
+ * The staff notices of an award's two clocks (FR-AWD-006 indent expiry, FR-AWD-009 late commencement; design note 0004 C13, AC-42). Written when the case is read, once per recipient and
+ * expiry or due day: the notice's key (recipient, kind, award, day) makes a second reading write nothing. The drafts and the plan are pure (`inbox/notices.ts`, `inbox/clock-plan.ts`).
  *
- * Recipients (F-4, a default the founder may change): the requisition's requester; the person who heads the requesting org unit; the person who heads the unit that owns the case now
- * (the latest `CaseOwnershipEvent`, standing for C&P). A unit with no head named, or a case with no handover recorded, tells no one in that role: nothing is guessed.
+ * Recipients (AC-42): the holders, and acting holders, on the organisation's day, of the offices the organisation's notification rule for the event names (looked up for the requesting
+ * unit, nearest holder first, as the approval worklist does); and the requisition's requester. No rule, a rule that is off, or an office nobody holds tells no office: nothing is guessed.
  */
 
+import { deciderIdsOfStep } from "@/lib/approvals/recall-store";
 import { db } from "@/lib/db";
-import { activeOn } from "@/lib/effective";
-import { caseClockNotices, caseClockRecipients } from "@/lib/inbox/notices";
+import { CLOCK_EVENT_KEY, clockPlan, type ClockKind, type ClockPlan } from "@/lib/inbox/clock-plan";
+import { caseClockNotices } from "@/lib/inbox/notices";
 import { writeNotices } from "@/lib/inbox/store";
+
+/// Who the clock's notice is to be told to today, from the organisation's notification rule for the event. `today` is the organisation's day, or null where its time zone is not set.
+export async function loadClockPlan(i: { organisationId: string; organisationCode: string; requestingUnitCode: string; requesterId: string | null; today: string | null; kind: ClockKind }): Promise<ClockPlan> {
+  // A rule that is off is read as well as one that is on: off is the organisation's decision, absent is an oversight.
+  const rule = await db.notificationRule.findFirst({ where: { organisationId: i.organisationId, eventKey: CLOCK_EVENT_KEY[i.kind] }, select: { nameEn: true, isActive: true, recipientRoleCodes: true } });
+  const holders = new Map<string, string[]>();
+  if (rule?.isActive && i.today) {
+    for (const code of new Set(rule.recipientRoleCodes)) {
+      holders.set(code, await deciderIdsOfStep(db, { organisationCode: i.organisationCode, organisationId: i.organisationId }, { unitCode: i.requestingUnitCode, today: i.today, roleCode: code, actingRoleCode: null }));
+    }
+  }
+  return clockPlan({ requesterId: i.requesterId, rule, holdersOf: (code) => holders.get(code) ?? [], dayKnown: i.today != null });
+}
 
 export interface CaseClockInput {
   organisationId: string;
   awardId: string;
   awardLabel: string;
   exerciseId: string;
-  requesterId: string;
-  requestingUnitCode: string;
-  /// The organisation's day, for the units in force on it (a unit is versioned).
-  on: Date;
-  /// Null until a Contract row exists, and then no handover to read.
-  contractId: string | null;
   href: string;
-  /// The clocks that are running late today, each with its day.
-  clocks: readonly { kind: "INDENT_EXPIRED" | "COMMENCEMENT_LATE"; day: string; dayWords: string }[];
+  /// The clocks that are running late today, each with its day and who is to be told (`loadClockPlan`).
+  clocks: readonly { kind: ClockKind; day: string; dayWords: string; recipientIds: readonly string[] }[];
 }
 
 /// Returns how many notices were newly written.
 export async function raiseCaseClockNotices(i: CaseClockInput): Promise<number> {
   if (i.clocks.length === 0) return 0;
   return db.$transaction(async (tx) => {
-    const owner = i.contractId ? await tx.caseOwnershipEvent.findFirst({ where: { contractId: i.contractId }, orderBy: [{ on: "desc" }, { id: "desc" }], select: { toUnitCode: true } }) : null;
-    const codes = [i.requestingUnitCode, ...(owner?.toUnitCode ? [owner.toUnitCode] : [])];
-    const units = activeOn(await tx.orgUnit.findMany({ where: { organisationId: i.organisationId, code: { in: codes } }, select: { code: true, headPersonId: true, effectiveFrom: true, effectiveTo: true, sortOrder: true } }), i.on);
-    const head = (code: string | null | undefined) => (code ? (units.find((u) => u.code === code)?.headPersonId ?? null) : null);
-    const recipients = caseClockRecipients({ requesterId: i.requesterId, requestingUnitHeadId: head(i.requestingUnitCode), caseOwnerUnitHeadId: head(owner?.toUnitCode) });
     let written = 0;
     for (const c of i.clocks) {
-      written += await writeNotices(tx, i.organisationId, null, caseClockNotices({ kind: c.kind, awardId: i.awardId, awardLabel: i.awardLabel, day: c.day, dayWords: c.dayWords, exerciseId: i.exerciseId, href: i.href, recipients }));
+      written += await writeNotices(tx, i.organisationId, null, caseClockNotices({ kind: c.kind, awardId: i.awardId, awardLabel: i.awardLabel, day: c.day, dayWords: c.dayWords, exerciseId: i.exerciseId, href: i.href, recipients: c.recipientIds }));
     }
     return written;
   });

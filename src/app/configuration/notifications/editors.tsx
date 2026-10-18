@@ -15,7 +15,7 @@ function ruleFields(editing: boolean, officeCodes: string[]): Field[] {
             label: "Event",
             required: true,
             mono: true,
-            hint: "What fires the rule. A key, never shown on a screen.",
+            hint: "What fires the rule. A key, never shown on a screen. The award clocks listen for award.indent.expired and award.commencement.late.",
           },
         ] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },

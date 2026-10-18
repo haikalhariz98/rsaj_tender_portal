@@ -201,7 +201,8 @@ export async function loadAwardConfig(organisationId: string, client: Tx = db) {
     client.approvedIssuer.findMany({ where, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     client.notificationRule.findFirst({ where: { organisationId, eventKey: "security.expiring", isActive: true } }),
     client.codeFormat.findFirst({ where: { organisationId, key: "erp_indent_no" } }),
-    client.notificationRule.findFirst({ where: { organisationId, eventKey: "award.indent.expired", isActive: true } }),
+    // Read whether on or off (AC-42): a rule that is off is the organisation's decision, not an absent one.
+    client.notificationRule.findFirst({ where: { organisationId, eventKey: "award.indent.expired" } }),
     client.orgUnit.findMany({ where, select: { code: true, nameEn: true } }),
   ]);
   const unitNames = new Map(units.map((u) => [u.code, u.nameEn]));

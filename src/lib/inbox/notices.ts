@@ -237,8 +237,3 @@ export function caseClockNotices(i: {
     href: i.href,
   }));
 }
-
-/// F-4: the requisition's requester, the people who head the requesting unit, and the people who head the unit that owns the case now. Each once, in a fixed order.
-export function caseClockRecipients(i: { requesterId: string | null; requestingUnitHeadId: string | null; caseOwnerUnitHeadId: string | null }): string[] {
-  return [...new Set([i.requesterId, i.requestingUnitHeadId, i.caseOwnerUnitHeadId].filter((x): x is string => !!x))].sort();
-}

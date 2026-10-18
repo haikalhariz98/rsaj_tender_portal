@@ -43,6 +43,8 @@ import { SecuritiesPanel } from "./securities-panel";
 import { HistoryPanel } from "./history-panel";
 import { AwardRoutingSheetPanel } from "./routing-sheet-panel";
 import { NOT_SET, yesNo, day, FaultList } from "./shared";
+import { loadClockPlan } from "@/lib/award/clock-notices";
+import { clockPlanWords, type ClockKind } from "@/lib/inbox/clock-plan";
 
 /// The award's panels, by the tab id they have on /awards/[id] (the case page maps them to stages, C-2).
 export type AwardPanelId = "overview" | "approval" | "instrument" | "distribution" | "return" | "conditions" | "securities" | "routing" | "history";
@@ -83,7 +85,9 @@ export interface AwardView {
   /// The award's own warnings (cancelled, barred supplier, late commencement, expired indent) for every stage of the case.
   caseCallouts: () => Promise<ReactNode>;
   /// The clocks running late today, by the conditions of the two callouts: each is told to staff once (FR-AWD-006, FR-AWD-009; C13).
-  lateClocks: { kind: "INDENT_EXPIRED" | "COMMENCEMENT_LATE"; day: string; dayWords: string }[];
+  lateClocks: { kind: ClockKind; day: string; dayWords: string }[];
+  /// Who each late clock is told to today and the words that say so (AC-42): the notification rule's offices and the requester. Read once, however many callers ask.
+  clockTellings: () => Promise<{ kind: ClockKind; day: string; dayWords: string; recipientIds: string[]; words: string }[]>;
   /// The parts that depend on which tab is open, read once the page knows which that is.
   finish: (q: { tab: AwardPanelId | "none"; chrome: boolean }) => Promise<AwardFinish>;
 }
@@ -164,12 +168,25 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     commencementOffered,
   };
 
+  let tellings: ReturnType<AwardView["clockTellings"]> | null = null;
+  const clockTellings: AwardView["clockTellings"] = () =>
+    (tellings ??= (async () => {
+      const out: Awaited<ReturnType<AwardView["clockTellings"]>> = [];
+      for (const c of lateClocks) {
+        const plan = await loadClockPlan({ organisationId: org.id, organisationCode: actor.organisationCode, requestingUnitCode: l.req.requestingUnitCode, requesterId: l.req.requestingPersonId, today, kind: c.kind });
+        const names = new Map((await db.authorityRole.findMany({ where: { organisationId: org.id, code: { in: plan.emptyOffices } }, select: { code: true, nameEn: true } })).map((r) => [r.code, r.nameEn] as const));
+        out.push({ ...c, recipientIds: plan.recipientIds, words: clockPlanWords(c.kind, plan, (code) => names.get(code) ?? "an office no longer configured") });
+      }
+      return out;
+    })());
+
   /// The warnings about the award itself, shown on every stage of the case to a reader who sees the whole case (FR-AWD-006, FR-AWD-009, FR-AWD-008): cancelled, barred supplier,
   /// late commencement and an expired indent. They need no SULIT figure. The Award stage's header adds the others (`finish`'s chrome).
   async function caseCallouts(): Promise<ReactNode> {
     // 6.15a fix S-3: the linked supplier's standing, derived on the organisation's day; barred warns, never refuses.
     const vendorStanding = award.vendor && today ? await standingOf(award.vendor.id, org.id, today) : null;
     const awardee = vendorStanding ? awardStanding(vendorStanding.reading, formatDate) : null;
+    const told = new Map((await clockTellings()).map((c) => [c.kind, c.words] as const));
     return (
       <>
       {status === "CANCELLED" && (
@@ -191,12 +208,12 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       )}
       {ev.commencement?.state === "LATE" && status === "ISSUED" && (
         <Callout tone="err" title="Work has not commenced">
-          The grace period ended on {formatDate(ev.commencement.deadline)}. The variant&apos;s consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. Cancelling records it; a blacklisting is then asked for on the supplier&apos;s record, where its route decides it. Nothing is sent.
+          The grace period ended on {formatDate(ev.commencement.deadline)}. The variant&apos;s consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. Cancelling records it; a blacklisting is then asked for on the supplier&apos;s record, where its route decides it. {told.get("COMMENCEMENT_LATE")}
         </Callout>
       )}
       {ev.indent?.state === "EXPIRED" && issued && indentExpiryRaised(ev.indent, day(award.commencedOn), status) && (
         <Callout tone="err" title="The indent has expired">
-          It expired on {formatDate(ev.indent.expiresOn)}. {f.config.indentExpiredRule ? `The rule “${f.config.indentExpiredRule.nameEn}” names who is to be told;` : "No notification rule names who is to be told;"} nothing is sent from the portal in this phase. {INDENT_READING}
+          It expired on {formatDate(ev.indent.expiresOn)}. {told.get("INDENT_EXPIRED")} {INDENT_READING}
         </Callout>
       )}
       </>
@@ -390,7 +407,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       }
     : null;
 
-  return { status, kind, issued, ev, f, stepFacts, main, before, caseCallouts, lateClocks, finish };
+  return { status, kind, issued, ev, f, stepFacts, main, before, caseCallouts, lateClocks, clockTellings, finish };
 }
 
 /// The award's recorded terms as the terms form and the securities panel read them, with the tender's pre-fill on a first save (64-C4).
