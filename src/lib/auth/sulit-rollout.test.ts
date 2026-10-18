@@ -343,7 +343,8 @@ describe("the award is judged against a recommendation that is SULIT (FR-EVL-014
     expect(open).not.toMatch(/evaluation\.recommended\.party|evaluation\.recommended\.price/);
     // C-2 (wave C step C5): the award page's composition moved to award-view.tsx, which /awards/[id] and the case page share; the scan reads it there.
     const page = src("src/app/projects/[id]/award/award-view.tsx");
-    expect(page).toMatch(/recommendation = await sulitExerciseGate\(actor, award\.exerciseId, "evaluation", RECOMMENDATION_FIELDS\)/);
+    // C-3 (wave C step C5): every reading is logged, so the gate is asked only where the header or the Overview shows what rests on it (the case page's other stages ask nothing).
+    expect(page).toMatch(/const recommendation = chrome \|\| want\("overview"\) \? await sulitExerciseGate\(actor, award\.exerciseId, "evaluation", RECOMMENDATION_FIELDS\) : null;/);
     expect(page).toMatch(/recommendation=\{recommendationShown \?/);
   });
 });

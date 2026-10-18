@@ -52,6 +52,23 @@ describe("the SULIT fields of the award's panels are refused under the contract'
     expect(src).not.toMatch(/scope: "contract"/);
   });
 
+  it("a read that reaches no screen is not written: the exercise gates are asked only where a panel or the header shows what rests on them", () => {
+    // Every reading is logged, allowed or refused (FR-MTD-007, NFR-AUD-004), so the case page's Signing, Project and History stages must not write award reads.
+    const src = read(AWARD_VIEW);
+    expect([...src.matchAll(/sulitExerciseGate\(/g)]).toHaveLength(2);
+    // The exercise's answer: one memoised ask, reached from two places only. The step bar's, while the award is ISSUED (the one state where the Return step reads it)...
+    expect(src).toMatch(/const exerciseGate = async \(\) => \(exerciseAnswer \?\?= await sulitExerciseGate\(actor, award\.exerciseId, "exercise", \["estimatedValue", "icNumber"\]\)\);/);
+    expect(src).toMatch(/returnOffered: status === "ISSUED" && \(await exerciseGate\(\)\)\.state === "GRANTED",/);
+    // ...and the parts that show it: the header, the Overview, the Return panel.
+    expect(src).toMatch(/const exerciseAsked = chrome \|\| want\("overview", "return"\) \? await exerciseGate\(\) : null;/);
+    expect([...src.matchAll(/exerciseGate\(\)/g)]).toHaveLength(2);
+    // Who is recommended: the header and the Overview only, never the step bar.
+    expect(src).toMatch(/const recommendation = chrome \|\| want\("overview"\) \? await sulitExerciseGate\(actor, award\.exerciseId, "evaluation", RECOMMENDATION_FIELDS\) : null;/);
+    expect(src.indexOf('"evaluation", RECOMMENDATION_FIELDS')).toBeGreaterThan(src.indexOf("async function finish("));
+    // And the case page asks the award composition for its tab-specific parts only when the award is what is shown.
+    expect(read(PAGE)).toMatch(/const fin = av && awardShown \?/);
+  });
+
   it("the case page asks the contract's gate only, and hands it to the contract's panels only", () => {
     const src = read(PAGE);
     expect(src).not.toMatch(/sulitExerciseGate\(/);

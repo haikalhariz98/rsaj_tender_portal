@@ -57,6 +57,18 @@ describe("each kind of case opens on the right default step (C5 done-when 1)", (
     expect(v).toMatchObject({ stage: "project", noContractYet: true });
   });
 
+  it("an issued indent whose return is not yet recorded: the earliest step with an act is still Award, and Project carries Record commencement (AC-19, product-owner question)", () => {
+    // The state the system reaches: an indent is ISSUED until its return completes, and commencement is offered from ISSUED (awards/[id]/page.tsx:303).
+    const facts = { award: award("ISSUED", { instrumentKind: "WORK_INDENT", returnOffered: true, commencementOffered: true }) };
+    const standing: CaseStanding = caseStage({ award: { status: "ISSUED", instrumentKind: "WORK_INDENT" }, contract: null, commencement: { commencedOn: null } });
+    const steps = caseSteps({ visibility: "WHOLE", standing, beforeSigning: null, signing: null, ...facts });
+    expect(steps.find((x) => x.key === "award")?.action).toBe("RECORD_RETURN");
+    expect(steps.find((x) => x.key === "project")?.action).toBe("RECORD_COMMENCEMENT");
+    expect(resolveCaseView({ stage: undefined, tab: undefined, steps, standing, hasContract: false, visibility: "WHOLE" }).stage).toBe("award");
+    // Asked for, the Project stage is the one with the commencement button.
+    expect(resolveCaseView({ stage: "project", tab: undefined, steps, standing, hasContract: false, visibility: "WHOLE" })).toMatchObject({ stage: "project", noContractYet: true });
+  });
+
   it("a cancelled case: where it ended (F0-6), here the Award stage", () => {
     const v = open({ awardStatus: "CANCELLED", contract: null, facts: { award: award("CANCELLED") } });
     expect(v.stage).toBe("award");

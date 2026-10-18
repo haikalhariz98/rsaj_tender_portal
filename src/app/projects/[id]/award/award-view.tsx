@@ -116,12 +116,10 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
   const routePreview = ev.route?.ok ? ev.route.chain.map((s) => `${f.issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured"} — ${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"}${s.committeeCode ? ", as a committee decision" : ""}`) : [];
 
   // The exercise's estimate and the contractor's identity-card number are SULIT (NFR-SEC-002, FR-AWD-008): the award is an exercise's, so those named on the exercise and the roles
-  // the organisation has chosen read them. One answer for the page, logged.
-  const sulit = await sulitExerciseGate(actor, award.exerciseId, "exercise", ["estimatedValue", "icNumber"]);
-  // Who is recommended, and at what price, is SULIT (FR-EVL-014): read by those the evaluation is open to. A reader it is closed to is offered every bidder carried to
-  // evaluation, no pre-fill, no recommended figure and no "differs from the recommendation" mark; the act that saves the award refuses them too (Phase 3b).
-  const recommendation = await sulitExerciseGate(actor, award.exerciseId, "evaluation", RECOMMENDATION_FIELDS);
-  const recommendationShown = recommendation.state === "GRANTED";
+  // the organisation has chosen read them. One answer for the page, logged. Every reading is logged (allowed or refused), so it is asked only where a figure is shown or a
+  // decision rests on it: the case page's other stages read none of it (C-3: the gates are unchanged, and a read that never reached a screen is not written).
+  let exerciseAnswer: Awaited<ReturnType<typeof sulitExerciseGate>> | null = null;
+  const exerciseGate = async () => (exerciseAnswer ??= await sulitExerciseGate(actor, award.exerciseId, "exercise", ["estimatedValue", "icNumber"]));
 
   const main: AwardView["main"] = {};
   if (status === "DRAFT") main.SEND_FOR_APPROVAL = <SubmitAwardDrawer id={award.id} blocker={submitBlocker} route={routePreview} />;
@@ -154,8 +152,9 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     issueFaults: ev.issueFaults,
     // Copies not yet sent, while the distribution panel offers its drawer (ISSUED or ACCEPTED): the drawer is also offered on a sent row, to correct it.
     despatchOpen: issued ? award.distributions.filter((r) => !r.despatchedOn).length : 0,
-    // return-panel.tsx: the Return drawer is offered ISSUED or ACCEPTED, to a reader the award's gate grants.
-    returnOffered: issued && sulit.state === "GRANTED",
+    // return-panel.tsx: the Return drawer is offered ISSUED or ACCEPTED, to a reader the award's gate grants. The step bar reads it only while ISSUED (an accepted award's
+    // Award step is done whatever it says), so the gate is asked only then.
+    returnOffered: status === "ISSUED" && (await exerciseGate()).state === "GRANTED",
     returned: instrumentReturned(kind, award.awardReturn),
     commencement: ev.commencement ?? null,
     commencementOffered,
@@ -165,6 +164,14 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
   async function finish({ tab, chrome }: { tab: AwardPanelId | "none" | "all"; chrome: boolean }): Promise<AwardFinish> {
     const all = tab === "all";
     const want = (...ids: AwardPanelId[]) => all || ids.includes(tab as AwardPanelId);
+    // Which SULIT answers the asked-for parts show: the header's notes and drawers, the Overview and the Return panel read the exercise's; the header and the Overview read
+    // who is recommended (FR-EVL-014: a reader it is closed to is offered every bidder carried to evaluation, no pre-fill, no recommended figure and no "differs from the
+    // recommendation" mark; the act that saves the award refuses them too, Phase 3b).
+    const exerciseAsked = chrome || want("overview", "return") ? await exerciseGate() : null;
+    const recommendation = chrome || want("overview") ? await sulitExerciseGate(actor, award.exerciseId, "evaluation", RECOMMENDATION_FIELDS) : null;
+    const recommendationShown = recommendation?.state === "GRANTED";
+    // Read only by the parts that asked for it above (the header, the Overview, the Return panel); the page asks `finish` for no other.
+    const sulit = exerciseAsked as NonNullable<typeof exerciseAsked>;
     // 6.15a fix S-3: the linked supplier's standing, derived on the organisation's day; barred warns, never refuses.
     const needsAwardee = chrome || want("overview", "approval");
     const vendorStanding = needsAwardee && award.vendor && today ? await standingOf(award.vendor.id, org.id, today) : null;
