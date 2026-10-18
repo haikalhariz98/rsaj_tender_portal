@@ -50,8 +50,8 @@ precedent for "one row per export, with the file's digest". The judgement calls 
    (`PageHeader`, `Card`, `KeyValues`, `DataList`, `Callout`, `Bi`), with a Print button and a "Download (JSON)" button.
 2. **`/supplier/account/data/file`**: a GET that returns one JSON file of the same content, built by the same pure function.
 3. **One pure selector** in `src/lib/suppliers/data-export.ts` with a closed allow-list. Every scalar column of every classified model is
-   IN or OUT with a reason. Every model with a `supplierId` column is classified or listed OUT-as-a-model. Two pins fail on a new column or
-   a new supplier-owned table that nobody has classified.
+   IN or OUT with a reason. Every model with a field typed `Supplier`, `SupplierAccount` or `SupplierContact` is classified or listed
+   OUT-as-a-model. Two pins fail on a new column or on a new supplier-linked table that nobody has classified.
 4. **Each export is audited on the supplier.** It writes one `SupplierDataExport` row with its audit row (CREATE), labelled
    `"<reference> · Data export"` so it lands on the supplier's History. Its `changes` carry only the form, the section counts and the
    digest, never an exported value. The bank and contact reads also write their `SulitAccessEvent`s, as today.
@@ -71,9 +71,11 @@ export const EXPORT_COLUMNS: {
   Supplier; SupplierContact; SupplierAccount; SupplierApplication; ApplicationDecision; ResubmissionItem; SupplierDocument;
   SupplierDocumentValue; CreditorProfile; RegistrationDeclaration; StandingEvent; DocumentPurchase; PaymentAttempt; PurchaseDownload; OnlineBid;
 } /* each: Record<column, Classified>, satisfies-checked */;
-export const OUT_MODELS: Readonly<Record<string, OutReason>>; // every other model with a supplierId column, e.g.
+export const OUT_MODELS: Readonly<Record<string, OutReason>>; // every other model with a field typed Supplier, SupplierAccount or SupplierContact
+//   (whatever the column is named: PortalApplication.acceptedSupplierId, SulitAccessEvent.actorSupplierAccountId, ...), e.g.
 //   StandingRequest STAFF_ONLY, OnlineBidFile/OnlineBidPart SEALED, PortalApplication NOT_SHOWN_TODAY,
-//   SupplierSession/SignInEvent SECRET, RegistrationDraft NOT_SHOWN_TODAY (wizard state), EvaluationBidder STAFF_ONLY, ...
+//   SupplierSession/SignInEvent/OneTimeCode SECRET, RegistrationDraft NOT_SHOWN_TODAY (wizard state), SulitAccessEvent/DocumentAccessEvent
+//   TECHNICAL, SiteDiaryEntry/ContractorSubmission NOT_SHOWN_TODAY (contracts, parked), ...
 export function inColumns<M extends keyof typeof EXPORT_COLUMNS>(model: M): Record<string, true>; // a Prisma `select` from the IN set
 ```
 
@@ -108,7 +110,8 @@ export function exportFileName(e: SupplierExport, day: string): string; // "supp
 export function exportAuditChanges(e: SupplierExport, form: "FILE" | "PAGE", sha256: string | null): FieldChange[]; // counts and digest only
 ```
 
-The JSON keys are stable English. Values are labels as `{ en, ms }`, never configuration codes: an entity type, state, bank or account
+The JSON keys are stable English. Dates in the file are ISO (`YYYY-MM-DD` for a day, an ISO instant for a moment), and the page formats
+them through `src/lib/format.ts` (`formatDate`, `formatOrgDateTime`). Enumerated values are labels as `{ en, ms }`, never configuration codes: an entity type, state, bank or account
 type is its list label. Money (`DocumentPurchase.amount`) is the `Decimal` as a string, formatted by `src/lib/format.ts`, never a float.
 
 ```prisma
@@ -151,7 +154,9 @@ export const SUPPLIER_DATA_EXPORT = { page: "/supplier/account/data", file: "/su
   `exportJson` or in `exportAuditChanges`.
   - Pin (a): every scalar of each `EXPORT_COLUMNS` model, read from `prisma/schema.prisma` as text (the `slot-columns.test.ts` pattern),
     is classified, and nothing classified is missing from the schema.
-  - Pin (b): every model with a `supplierId` column is in `EXPORT_COLUMNS` or `OUT_MODELS`.
+  - Pin (b): every model with a field whose type is `Supplier`, `SupplierAccount` or `SupplierContact`, read from the schema text as
+    `supplier-act-slots.test.ts` reads `SupplierAccount` relations, is in `EXPORT_COLUMNS` or `OUT_MODELS`. Nothing is listed that the
+    schema lacks.
   - Other assertions: verificationNote only when NOT_IN_ORDER; loginName only for an open contact; no `ExportFile.path` contains `t=`;
     codes never appear as values; every `Words` in the new files has a non-empty `ms`; the `leftOut` notice is present.
 - **Done when:** `npx vitest run src/lib/suppliers` passes, and deleting one entry from `EXPORT_COLUMNS` (or adding a scalar to `Supplier`
@@ -179,7 +184,8 @@ export const SUPPLIER_DATA_EXPORT = { page: "/supplier/account/data", file: "/su
 **Step 3. The file route** (api-engineer)
 - Add `SUPPLIER_DATA_EXPORT` to `src/lib/auth/routes.ts` and both paths to `PUBLIC_PAGES` in `src/lib/portal/surface.ts`.
 - Write `src/app/supplier/account/data/file/route.ts` (read `node_modules/next/dist/docs` for route handlers first). It calls
-  `supplierGet(request, <new FormPurpose>)` first, then `exportSupplierData(actor, "FILE")`, and answers `application/json; charset=utf-8`
+  `supplierGet(request, <new FormPurpose>)` first (register the purpose wherever `FormPurpose` values are listed, starting at
+  `src/lib/auth/form-token.ts`), then `exportSupplierData(actor, "FILE")`, and answers `application/json; charset=utf-8`
   with `Content-Disposition: attachment; filename="<exportFileName>"` and `Cache-Control: no-store`. The digest is computed on the exact
   bytes sent.
 - Tests: a handler test beside the route (pattern: `src/app/supplier/bids/handlers.test.ts`) covers: refused when not signed in; refused on
@@ -192,12 +198,15 @@ export const SUPPLIER_DATA_EXPORT = { page: "/supplier/account/data", file: "/su
   section with `PageHeader`, `Card`, `KeyValues` and `DataList` through `Bi`, plus the `leftOut` `Callout`. A document's file opens through
   a fresh tokened `SUPPLIER_REGISTRATION_GETS.file` link, built with `issueFormToken` as `panels.tsx` does. The page has a Print button and
   a "Download (JSON)" `ButtonLink` to the file route with its token. Add print-only CSS through Tailwind `print:` utilities only.
-- Link the page from `src/app/supplier/account/page.tsx` ("Your data" card).
+- Link the page from `src/app/supplier/account/page.tsx` ("Your data" card) with `prefetch={false}`. Rendering the page writes an
+  export audit row, and a prefetch must not record an export the supplier never opened. If `ButtonLink` (`src/components/ui/button.tsx`)
+  does not pass `prefetch` through, extend it. The Download link takes `prefetch={false}` too.
 - Move the backlog row in `docs/notes/backlog.md` to built, citing this plan.
 - Tests: a jsdom test (`.ts`, `createElement`) checks that every section title and the left-out notice render in both languages, and that
   no configuration code is in the text. Compare the page with `/supplier/account` and `/supplier/company` at desktop width: header, card
   spacing and list styling.
-- **Done when:** `npm run check`, `npx vitest run src/app/supplier src/components/ui` and `npm run test:db` pass, and the full Linux suite
+- **Done when:** both links are `prefetch={false}`; `npm run check`, `npx vitest run src/app/supplier src/components/ui` and
+  `npm run test:db` pass; and the full Linux suite
   (`powershell -NoProfile -File scripts/test-linux.ps1`) passes before this last commit.
 
 ## 5. Judgement calls (step 1 appends each as a "- 2026-10-19 · ..." line in the decisions log)
@@ -212,7 +221,7 @@ export const SUPPLIER_DATA_EXPORT = { page: "/supplier/account/data", file: "/su
 4. Paper bid envelopes (`BidEnvelope` without an `OnlineBid`) are not on the portal today, so they are OUT. Bid receipts are the online
    submissions' receipts as the receipt card shows them. Product-owner question.
 5. `erpVendorCode` / `erpSyncedAt` are OUT as an internal integration key. Product-owner question.
-6. The JSON carries list labels, not configuration codes (rule 5). The document links in the file carry no form token, because a token in
+6. The JSON carries list labels, not configuration codes (rule 5), and ISO dates. The document links in the file carry no form token, because a token in
    a saved file would outlive its purpose. Only the printable page carries live links.
 7. Opening the printable page and downloading the file are each an export and each audited (`PAGE` / `FILE`).
 8. There is no standing gate on the export (ruling 1875(3)).
