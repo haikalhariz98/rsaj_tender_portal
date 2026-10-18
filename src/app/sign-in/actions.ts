@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
 import { redeemOneTimeCode } from "@/lib/auth/account-store";
@@ -31,7 +31,9 @@ export async function signInAction(_prev: FormState, data: FormData): Promise<Fo
   const outcome = await StaffCredentials.authenticate(parsed.value, { request: await currentRequestFacts(), replacingToken: await staffToken() });
   if (outcome.ok) {
     await setStaffCookie(outcome.token, outcome.maxAgeSeconds);
-    return { ok: true, href: AFTER_SIGN_IN };
+    // One navigation (AC-8, AC-9a). The cookie write makes Next re-render this page in the action's answer, and /sign-in sends a signed-in person to /; a
+    // client-side router.replace on top of that fetched / a second time. The redirect is the one navigation, and it replaces, so Back does not return to sign-in.
+    redirect(AFTER_SIGN_IN, RedirectType.replace);
   }
   switch (outcome.kind) {
     case "SESSION_LIMIT":

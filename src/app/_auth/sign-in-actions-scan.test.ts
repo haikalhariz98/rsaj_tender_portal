@@ -42,6 +42,12 @@ describe("the sign-in and account actions", () => {
     expect(Object.keys(ACCOUNT).sort()).toEqual(["acknowledgeResetAction", "changePasswordAction", "signOutEverywhereAction"]);
   });
 
+  it("a successful sign-in is one server redirect, not an href for the form to navigate to (AC-8, AC-9a)", () => {
+    // The cookie write re-renders /sign-in, which redirects a signed-in person to /; a client navigation on top of that fetched / twice.
+    expect(SIGN_IN.signInAction.code).toContain("redirect(AFTER_SIGN_IN");
+    expect(SIGN_IN.signInAction.code).not.toMatch(/href\s*:\s*AFTER_SIGN_IN/);
+  });
+
   it("every one passes the Origin guard", () => {
     for (const [name, { code }] of Object.entries(ALL)) expect(code, name).toContain("refuseForeignPost(");
   });
