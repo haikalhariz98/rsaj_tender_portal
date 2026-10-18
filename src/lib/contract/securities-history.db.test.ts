@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { awardHistory } from "@/lib/award/repo";
 import { awardReadiness } from "@/lib/award/gate-read";
-import { securityLabel } from "@/lib/audit/entity-labels";
+import { policyLabel, securityLabel } from "@/lib/audit/entity-labels";
 import { db } from "@/lib/db";
 import { requiredBond } from "@/lib/securities/bond";
 import { parseSen, senFromDecimal } from "@/lib/money";
@@ -69,5 +69,20 @@ describe("a bond lodged and verified from the case page", () => {
     const award = await awardHistory(l);
     expect(own(contract.entries)).toHaveLength(2);
     expect(own(award.entries)).toHaveLength(2);
+  });
+});
+
+describe("a reader who sees the contract stages only (AC-37 b)", () => {
+  it("is given neither the securities' nor the insurance policies' lodging rows, and still the wages-check row", async () => {
+    const { l } = await bondItem();
+    const policy = await db.insurancePolicy.create({
+      data: { contractId, kind: "WORKMENS_COMPENSATION", issuerNameAsWritten: "An insurer", policyNo: "P-1", sumInsured: "100.00", periodStart: day("2026-10-03"), periodEnd: day("2027-10-03"), lodgedOn: day("2026-10-03") },
+    });
+    await db.auditEntry.create({ data: { organisationId, entity: "InsurancePolicy", entityId: policy.id, entityLabel: policyLabel(awardRef, "WORKMENS_COMPENSATION"), action: "CREATE", changes: [{ field: "status", before: null, after: "LODGED" }] } });
+    await db.auditEntry.create({ data: { organisationId, entity: "InsurancePolicy", entityId: policy.id, entityLabel: `Contract ${l.contract.number} · workmen's compensation wages check`, action: "UPDATE", changes: [{ field: "wcCheckedOn", before: null, after: "2026-10-05" }] } });
+    const fresh = (await loadContract(organisationId, contractId))!;
+    const rows = (await contractHistory(fresh, { withAwardActs: false })).entries.filter((e) => e.entity === "InsurancePolicy" || e.entity === "SecurityInstrument");
+    expect(rows.map((e) => e.entityLabel)).toEqual([`Contract ${l.contract.number} · workmen's compensation wages check`]);
+    expect((await contractHistory(fresh)).entries.filter((e) => e.entity === "InsurancePolicy")).toHaveLength(2);
   });
 });

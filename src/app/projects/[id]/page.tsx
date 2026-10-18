@@ -215,7 +215,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   // The contract's gate (the priced working, the figures a certificate's override trail names) is asked only where a panel of the contract shows them.
   const needsContractGate = !!lc && ((projectTab === "overview") || (stage === "signing" && !view.history && view.tab === "formation") || (view.history && sources.includes("contract")));
   const sulit = needsContractGate && c ? await sulitGate(actor, { scope: "contract", entity: "Contract", id: c.id, label: c.number }, fieldsOfScope("contract")) : null;
-  const history = lc && view.history && sources.includes("contract") ? await contractHistory(lc, { withSecurities: visibility === "WHOLE" }) : null;
+  const history = lc && view.history && sources.includes("contract") ? await contractHistory(lc, { withAwardActs: visibility === "WHOLE" }) : null;
   // The people who decide a contract matter's route read that matter's amount, and nothing else of the contract (ruling of 2026-10-08): asked (and logged) only where a row carries one.
   const matterIds = history ? [...new Set(history.entries.filter((e) => e.entity === "ContractMatter" && e.changes.some((ch) => ch.field === ROUTED_MATTER_VALUE_FIELD)).map((e) => e.entityId))] : [];
   const matterGates = matterIds.length ? await sulitGates(actor, matterIds.map((id) => ({ scope: "contract" as const, entity: "ContractMatter", id, label: "A contract matter" })), [ROUTED_MATTER_VALUE_FIELD]) : new Map<string, Sulit<true>>();
@@ -651,7 +651,7 @@ function HistoryPanel({ withheldRows, sulit, matterGates, entries, total, timeZo
         </ul>
       )}
       {/* AC-37 (b): for a reader who sees the contract stages only, the award's own acts (lodging and verifying securities included) are left out, and the list says so. */}
-      {withheldRows && <p className="border-t border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">Rows of the award&apos;s own acts, including lodging and verifying securities, are restricted to the people named on the exercise.</p>}
+      {withheldRows && <p className="border-t border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">Rows of the award&apos;s own acts, including lodging and verifying securities and insurance policies, are restricted to the people named on the exercise.</p>}
     </Card>
   );
 }

@@ -22,7 +22,9 @@ export async function loadClockPlan(i: { organisationId: string; organisationCod
       holders.set(code, await deciderIdsOfStep(db, { organisationCode: i.organisationCode, organisationId: i.organisationId }, { unitCode: i.requestingUnitCode, today: i.today, roleCode: code, actingRoleCode: null }));
     }
   }
-  return clockPlan({ requesterId: i.requesterId, rule, holdersOf: (code) => holders.get(code) ?? [], dayKnown: i.today != null });
+  // An offboarded requester cannot sign in, so is not told (the office holders are already only the active).
+  const requesterActive = i.requesterId ? ((await db.person.findFirst({ where: { id: i.requesterId, organisationId: i.organisationId }, select: { isActive: true } }))?.isActive ?? false) : true;
+  return clockPlan({ requesterId: i.requesterId, requesterActive, rule, holdersOf: (code) => holders.get(code) ?? [], dayKnown: i.today != null });
 }
 
 export interface CaseClockInput {

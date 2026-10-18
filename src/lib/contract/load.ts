@@ -364,12 +364,13 @@ export const CONTRACT_HISTORY_PAGE = 200;
 
 /// Every change to the contract and what is under it: its own rows, and every row its acts wrote under its label.
 ///
-/// `withSecurities` false leaves out the security instruments' rows: they are written by the award's lodge and verify acts (the checker's name, a rejection reason, the bond
-/// requirement worked out from the award's terms), so a reader who sees the contract stages only is not given them (AC-18; the more conservative reading, logged 2026-10-18).
-export async function contractHistory(l: LoadedContract, opts: { withSecurities?: boolean } = {}) {
+/// `withAwardActs` false leaves out the rows of the security instruments and of the insurance policies: they are written by the award's lodge and verify acts (the checker's name, a
+/// rejection reason, the requirement worked out from the award's terms), so a reader who sees the contract stages only is not given them (AC-18, AC-37 b). The wages check is a
+/// contract act and is found by its `Contract {number} ·` label, so it stays.
+export async function contractHistory(l: LoadedContract, opts: { withAwardActs?: boolean } = {}) {
   const c = l.contract;
-  const securityIds = opts.withSecurities === false ? [] : c.securities.map((x) => x.id);
-  const where = { organisationId: l.org.id, OR: [{ entityId: { in: [c.id, ...securityIds, ...c.policies.map((p) => p.id)] } }, { entityLabel: { startsWith: `Contract ${c.number} ·` } }] };
+  const awardActIds = opts.withAwardActs === false ? [] : [...c.securities.map((x) => x.id), ...c.policies.map((p) => p.id)];
+  const where = { organisationId: l.org.id, OR: [{ entityId: { in: [c.id, ...awardActIds] } }, { entityLabel: { startsWith: `Contract ${c.number} ·` } }] };
   const [rows, total] = await Promise.all([db.auditEntry.findMany({ where, orderBy: { at: "desc" }, take: CONTRACT_HISTORY_PAGE }), db.auditEntry.count({ where })]);
   return {
     total,

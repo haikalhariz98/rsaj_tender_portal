@@ -38,4 +38,19 @@ describe("clockPlanWords", () => {
     expect(clockPlanWords("COMMENCEMENT_LATE", clockPlan({ requesterId: "r", rule: null, holdersOf, dayKnown: true }), name)).toContain("No notification rule names who is to be told of a late commencement");
     expect(clockPlanWords("INDENT_EXPIRED", clockPlan({ requesterId: "r", rule: { ...rule, isActive: false }, holdersOf, dayKnown: true }), name)).toContain("switched off");
   });
+  it("says a restricted exercise's notice reaches only those named on it", () => {
+    const p = clockPlan({ requesterId: "r", rule, holdersOf, dayKnown: true });
+    expect(clockPlanWords("INDENT_EXPIRED", p, name, { restricted: true })).toContain("This exercise is restricted: a notice reaches only those of them who are named on it.");
+    expect(clockPlanWords("INDENT_EXPIRED", p, name)).not.toContain("restricted");
+  });
+  it("leaves a requester who is no longer active out, and says so rather than that the requester is told", () => {
+    const p = clockPlan({ requesterId: "r", requesterActive: false, rule, holdersOf, dayKnown: true });
+    expect(p.recipientIds).toEqual(["h1", "h2"]);
+    expect(p.requesterInactive).toBe(true);
+    const w = clockPlanWords("INDENT_EXPIRED", p, name);
+    expect(w).toContain("The requester is no longer active and is not told.");
+    expect(w).not.toContain("The requester and");
+    expect(clockPlanWords("INDENT_EXPIRED", clockPlan({ requesterId: "r", requesterActive: false, rule: null, holdersOf, dayKnown: true }), name)).not.toContain("The requester is.");
+    expect(clockPlan({ requesterId: "r", requesterActive: true, rule, holdersOf, dayKnown: true }).requesterInactive).toBeUndefined();
+  });
 });

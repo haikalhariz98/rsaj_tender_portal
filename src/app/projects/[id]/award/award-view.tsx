@@ -175,7 +175,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       for (const c of lateClocks) {
         const plan = await loadClockPlan({ organisationId: org.id, organisationCode: actor.organisationCode, requestingUnitCode: l.req.requestingUnitCode, requesterId: l.req.requestingPersonId, today, kind: c.kind });
         const names = new Map((await db.authorityRole.findMany({ where: { organisationId: org.id, code: { in: plan.emptyOffices } }, select: { code: true, nameEn: true } })).map((r) => [r.code, r.nameEn] as const));
-        out.push({ ...c, recipientIds: plan.recipientIds, words: clockPlanWords(c.kind, plan, (code) => names.get(code) ?? "an office no longer configured") });
+        out.push({ ...c, recipientIds: plan.recipientIds, words: clockPlanWords(c.kind, plan, (code) => names.get(code) ?? "an office no longer configured", { restricted: ex.restricted }) });
       }
       return out;
     })());

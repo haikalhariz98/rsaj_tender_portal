@@ -97,6 +97,6 @@ describe("a case's History holds the rows its reader may have (C5 done-when 4)",
     // Without a whole-case reader there is no award composition to ask at all.
     expect(src).toMatch(/const av = visibility === "WHOLE" \? await buildAwardView\(\{ actor, l \}\) : null;/);
     expect(src).not.toMatch(/awardHistory\(/);
-    expect(src).toMatch(/const history = lc && view\.history && sources\.includes\("contract"\) \? await contractHistory\(lc, \{ withSecurities: visibility === "WHOLE" \}\) : null;/);
+    expect(src).toMatch(/const history = lc && view\.history && sources\.includes\("contract"\) \? await contractHistory\(lc, \{ withAwardActs: visibility === "WHOLE" \}\) : null;/);
   });
 });

@@ -27,39 +27,46 @@ export type ClockPlan = {
   recipientIds: string[];
   /// The offices the rule names that nobody holds today (office codes; the screen resolves their names).
   emptyOffices: string[];
+  /// Set only where the requester is known but no longer active: an offboarded person cannot sign in, so is not written a notice that could never be read.
+  requesterInactive?: boolean;
 };
 
-export function clockPlan(i: { requesterId: string | null; rule: ClockRule | null; holdersOf: (officeCode: string) => readonly string[]; dayKnown: boolean }): ClockPlan {
-  const requester = i.requesterId ? [i.requesterId] : [];
-  if (!i.rule) return { state: "NO_RULE", ruleName: null, recipientIds: requester, emptyOffices: [] };
+export function clockPlan(i: { requesterId: string | null; requesterActive?: boolean; rule: ClockRule | null; holdersOf: (officeCode: string) => readonly string[]; dayKnown: boolean }): ClockPlan {
+  const inactive = i.requesterId != null && i.requesterActive === false;
+  const requester = i.requesterId && !inactive ? [i.requesterId] : [];
+  const flag = inactive ? { requesterInactive: true } : {};
+  if (!i.rule) return { state: "NO_RULE", ruleName: null, recipientIds: requester, emptyOffices: [], ...flag };
   const ruleName = i.rule.nameEn;
-  if (!i.rule.isActive) return { state: "RULE_OFF", ruleName, recipientIds: requester, emptyOffices: [] };
-  if (!i.dayKnown) return { state: "NO_TIME_ZONE", ruleName, recipientIds: requester, emptyOffices: [] };
+  if (!i.rule.isActive) return { state: "RULE_OFF", ruleName, recipientIds: requester, emptyOffices: [], ...flag };
+  if (!i.dayKnown) return { state: "NO_TIME_ZONE", ruleName, recipientIds: requester, emptyOffices: [], ...flag };
   const codes = [...new Set(i.rule.recipientRoleCodes)];
   const emptyOffices = codes.filter((c) => i.holdersOf(c).length === 0);
   const holders = codes.flatMap((c) => i.holdersOf(c));
-  return { state: "RULE_SET", ruleName, recipientIds: [...new Set([...requester, ...holders])].sort(), emptyOffices };
+  return { state: "RULE_SET", ruleName, recipientIds: [...new Set([...requester, ...holders])].sort(), emptyOffices, ...flag };
 }
 
 const EVENT_WORDS: Readonly<Record<ClockKind, string>> = { INDENT_EXPIRED: "an expired indent", COMMENCEMENT_LATE: "a late commencement" };
 /// Said on both callouts: the notices are portal notices only.
 export const CLOCK_NOTICE_CHANNEL = "The notices appear in the inbox only and are not emailed.";
 
-/// What the callout says about who is told. `officeName` resolves an office code to its name.
-export function clockPlanWords(kind: ClockKind, plan: ClockPlan, officeName: (code: string) => string): string {
+/// What the callout says about who is told. `officeName` resolves an office code to its name. `restricted` is the exercise's: its notices reach only those recipients named on it.
+export function clockPlanWords(kind: ClockKind, plan: ClockPlan, officeName: (code: string) => string, opts: { restricted?: boolean } = {}): string {
   const what = EVENT_WORDS[kind];
+  const gone = plan.requesterInactive === true;
   const lead = (() => {
     switch (plan.state) {
       case "NO_RULE":
-        return `No notification rule names who is to be told of ${what}, so no office is told. The requester is.`;
+        return `No notification rule names who is to be told of ${what}, so no office is told.${gone ? "" : " The requester is."}`;
       case "RULE_OFF":
-        return `The notification rule “${plan.ruleName}” for ${what} is switched off, which records that no office is to be told. The requester is.`;
+        return `The notification rule “${plan.ruleName}” for ${what} is switched off, which records that no office is to be told.${gone ? "" : " The requester is."}`;
       case "NO_TIME_ZONE":
-        return `The organisation's time zone is not set, so who holds the offices the notification rule “${plan.ruleName}” names could not be worked out. The requester is told.`;
+        return `The organisation's time zone is not set, so who holds the offices the notification rule “${plan.ruleName}” names could not be worked out.${gone ? "" : " The requester is told."}`;
       case "RULE_SET":
-        return `The requester and the holders of the offices the notification rule “${plan.ruleName}” names are told.`;
+        return gone ? `The holders of the offices the notification rule “${plan.ruleName}” names are told.` : `The requester and the holders of the offices the notification rule “${plan.ruleName}” names are told.`;
     }
   })();
   const empty = plan.emptyOffices.length > 0 ? ` Nobody holds ${plan.emptyOffices.map(officeName).join(", ")} today, so that office is not told.` : "";
-  return `${lead}${empty} ${CLOCK_NOTICE_CHANNEL}`;
+  const left = gone ? " The requester is no longer active and is not told." : "";
+  const sealed = opts.restricted ? " This exercise is restricted: a notice reaches only those of them who are named on it." : "";
+  return `${lead}${empty}${left}${sealed} ${CLOCK_NOTICE_CHANNEL}`;
 }
