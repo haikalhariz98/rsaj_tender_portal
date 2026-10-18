@@ -119,6 +119,8 @@ const LINK_ACTION_LABEL: Readonly<Partial<Record<CaseAction, string>>> = {
   RECORD_POSSESSION: "Record possession of site",
 };
 
+/// AC-37 (a): the conditions are not withheld (the Project overview shows them); only adding and settling them is restricted.
+const RESTRICTED_CONDITIONS_NOTE = "Adding and settling the award's conditions is restricted to the people named on the exercise. Their state shows on the Project overview.";
 const RESTRICTED_AWARD_STAGE = "The award stage of this exercise is restricted to the people named on it. The contract stages are open to you.";
 
 /**
@@ -237,7 +239,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     switch (t) {
       case "conditions":
         // The conditions are read from the award (F0-4): a reader who sees the contract stages only is told so.
-        return fin ? fin.panel("conditions") : notice("The award's conditions are restricted", RESTRICTED_AWARD_STAGE);
+        return fin ? fin.panel("conditions") : notice("Adding and settling conditions is restricted", RESTRICTED_CONDITIONS_NOTE);
       case "securities":
         return (
           <div className="flex flex-col gap-6">
@@ -270,7 +272,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const historyPanel = (
     <div className="flex flex-col gap-6">
       {sources.length > 1 && <h2 className="text-[13px] font-semibold tracking-wide text-ink-3 uppercase">The contract</h2>}
-      {lc && history && sulit && <HistoryPanel sulit={sulit} matterGates={matterGates} entries={history.entries} total={history.total} timeZone={l.org.timeZone} />}
+      {lc && history && sulit && <HistoryPanel withheldRows={visibility !== "WHOLE"} sulit={sulit} matterGates={matterGates} entries={history.entries} total={history.total} timeZone={l.org.timeZone} />}
       {sources.length > 1 && <h2 className="text-[13px] font-semibold tracking-wide text-ink-3 uppercase">The award</h2>}
       {fin?.panel("history")}
     </div>
@@ -608,7 +610,7 @@ const ENTITY_LABEL: Record<string, string> = {
   // 6.13 Part A step 4: variations, the matters tabled from them, and the adjustment of the contract sum.
   ...Object.fromEntries(VARIATION_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
 };
-function HistoryPanel({ sulit, matterGates, entries, total, timeZone }: { sulit: Sulit<true>; matterGates: ReadonlyMap<string, Sulit<true>>; entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
+function HistoryPanel({ withheldRows, sulit, matterGates, entries, total, timeZone }: { withheldRows: boolean; sulit: Sulit<true>; matterGates: ReadonlyMap<string, Sulit<true>>; entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
   // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.
   const read = (field: string, value: string | null, entity: string): string => historyValue(field, value, formatDate, entity);
   // A registered SULIT field's value is shown or withheld as the contract's one answer says, as on the sibling History panels.
@@ -649,6 +651,8 @@ function HistoryPanel({ sulit, matterGates, entries, total, timeZone }: { sulit:
           ))}
         </ul>
       )}
+      {/* AC-37 (b): for a reader who sees the contract stages only, the award's own acts (lodging and verifying securities included) are left out, and the list says so. */}
+      {withheldRows && <p className="border-t border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">Rows of the award&apos;s own acts, including lodging and verifying securities, are restricted to the people named on the exercise.</p>}
     </Card>
   );
 }

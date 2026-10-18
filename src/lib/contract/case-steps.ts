@@ -149,7 +149,7 @@ export class CaseFactsError extends Error {
 
 const NOT_ISSUED_YET = "Opens once the award is issued";
 const RESTRICTED_AWARD = "The award stage is restricted to those named on its exercise";
-const RESTRICTED_CONDITIONS = "The award's conditions are restricted; the contract's securities are shown";
+const RESTRICTED_CONDITIONS = "Adding and settling conditions is restricted; the contract's securities are shown";
 export const CLOSE_OUT_PARKED = "Parked until after go-live";
 /// Where an ended case ended (F0-6), on the step it ended at.
 export const CASE_ENDED_WORDS: Readonly<Record<CaseEnded, string>> = {
