@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
 import { encodeCursor } from "./paging";
-import { inboxTotals, loadInbox, loadInboxPage, markAllRead, markRead, unreadCount, writeNotices } from "./store";
+import { inboxTotals, loadInbox, loadInboxPage, markAllRead, markBackdateNoticeRead, markRead, openNotice, unreadCount, writeNotices } from "./store";
 import { matterNotCarriedMemo, stepEscalatedNotices, type NoticeDraft } from "./notices";
 
 /**
@@ -210,5 +210,43 @@ describe("the memo's state on a decision", () => {
     await expect(db.committeeDecision.update({ where: { id: notCarried.id }, data: { memoState: "SENT_BY_EMAIL" } })).rejects.toThrow(/memo_state_known|constraint/i);
     await db.committeeDecision.update({ where: { id: notCarried.id }, data: { memoState: "NO_RULE" } });
     expect((await db.committeeDecision.findUniqueOrThrow({ where: { id: notCarried.id } })).memoState).toBe("NO_RULE");
+  });
+});
+
+describe("opening a notice marks it read, as the reader's own act (AC-47)", () => {
+  const readAt = async (recipient: string, subjectId: string) => (await db.staffNotice.findFirstOrThrow({ where: { recipientPersonId: recipient, subjectId } })).readAt;
+  const idOf = async (recipient: string, subjectId: string) => (await db.staffNotice.findFirstOrThrow({ where: { recipientPersonId: recipient, subjectId } })).id;
+  const viewer = (personId: string) => ({ organisationId, personId });
+  const now = new Date("2026-10-19T02:00:00Z");
+
+  it("marks the one notice read and returns where it points; another reader opening it marks and learns nothing", async () => {
+    const d = draft({ recipientPersonId: alice, href: "/approvals/open-me" });
+    await db.$transaction((tx) => writeNotices(tx, organisationId, null, [d]));
+    const id = await idOf(alice, d.subjectId);
+    expect(await openNotice(db, viewer(mallory), [], id, now)).toBeNull();
+    expect(await readAt(alice, d.subjectId)).toBeNull();
+    expect(await openNotice(db, viewer(alice), [], id, now)).toEqual({ href: "/approvals/open-me" });
+    expect(await readAt(alice, d.subjectId)).toEqual(now);
+  });
+
+  it("does not mark a back-dated signature to confirm read by opening it; recording the confirmation does, and only the confirmer's", async () => {
+    const attributionId = `attr_${randomId()}`;
+    const d = draft({ recipientPersonId: alice, kind: "BACKDATE_TO_CONFIRM", subjectEntity: "ActAttribution", subjectId: attributionId, href: `/inbox/${attributionId}` });
+    await db.$transaction((tx) => writeNotices(tx, organisationId, null, [d]));
+    const id = await idOf(alice, attributionId);
+    expect(await openNotice(db, viewer(alice), [], id, now)).toEqual({ href: `/inbox/${attributionId}` });
+    expect(await readAt(alice, attributionId)).toBeNull();
+    expect(await markBackdateNoticeRead(db, viewer(mallory), attributionId, now)).toBe(0);
+    expect(await readAt(alice, attributionId)).toBeNull();
+    expect(await markBackdateNoticeRead(db, viewer(alice), attributionId, now)).toBe(1);
+    expect(await readAt(alice, attributionId)).toEqual(now);
+  });
+
+  it("leaves a notice of a restricted exercise unopened for a reader it is hidden from", async () => {
+    const d = draft({ recipientPersonId: alice, exerciseId: "ex_hidden_ac47", href: "/approvals/hidden" });
+    await db.$transaction((tx) => writeNotices(tx, organisationId, null, [d]));
+    const id = await idOf(alice, d.subjectId);
+    expect(await openNotice(db, viewer(alice), ["ex_hidden_ac47"], id, now)).toBeNull();
+    expect(await readAt(alice, d.subjectId)).toBeNull();
   });
 });

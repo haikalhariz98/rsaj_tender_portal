@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
@@ -11,7 +12,7 @@ import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 import { hiddenExercises } from "@/app/_auth/sulit";
 import { requireStaff, staffForAct } from "@/app/_auth/actor";
 import { markUpTo } from "@/lib/inbox/paging";
-import { markAllRead } from "@/lib/inbox/store";
+import { markAllRead, markBackdateNoticeRead, openNotice } from "@/lib/inbox/store";
 import { db } from "@/lib/db";
 
 /**
@@ -28,6 +29,19 @@ export async function markNoticesRead(data: FormData): Promise<void> {
   await markAllRead(db, { organisationId: actor.organisationId, personId: actor.personId }, await hiddenExercises(actor), now, upTo);
   revalidatePath("/inbox");
   revalidatePath("/", "layout");
+}
+
+/**
+ * Open one notice (AC-47): the action on a notice's link. The reader's own notice is marked read (the one kind that asks for an act, a back-dated signature to confirm, is not: it is read when
+ * the confirmation is recorded), the layout is revalidated so the bell and the sidebar count fall, and the reader goes to the notice's address. Never run by a page render or a prefetch.
+ * A notice that is not the reader's, is hidden from them or has no address sends them back to the inbox.
+ */
+export async function openNoticeAction(data: FormData): Promise<void> {
+  const actor = await requireStaff();
+  const opened = await openNotice(db, { organisationId: actor.organisationId, personId: actor.personId }, await hiddenExercises(actor), String(data.get("id") ?? ""), new Date());
+  if (!opened) redirect("/inbox");
+  revalidatePath("/", "layout");
+  redirect(opened.href);
 }
 
 /**
@@ -51,6 +65,8 @@ export async function confirmBackdatingAction(_prev: FormState, data: FormData):
     const outcome = await db.$transaction(async (tx) => {
       const done = await confirmBackdating(tx, actor, attributionId, new Date());
       // The office the signer held (NFR-SIG-001): the one they hold, where they hold exactly one; with several, which of them they confirm in is not asked, and none is recorded.
+      // AC-47: the notice that asked for this confirmation is read now, in the same transaction.
+      if (done.ok) await markBackdateNoticeRead(tx, { organisationId: actor.organisationId, personId: actor.personId }, attributionId, new Date());
       if (done.ok) await act.write(tx, done.confirmationId, { document: { entity: "ActAttribution", id: attributionId }, roleCode: actor.offices.length === 1 ? actor.offices[0].roleCode : null });
       return done;
     });

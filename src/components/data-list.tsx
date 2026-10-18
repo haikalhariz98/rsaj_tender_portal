@@ -40,6 +40,8 @@ export type Cell =
   | { kind: "chip"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "person"; name: string; sub?: string }
   | { kind: "link"; text: string; href: string; sub?: string }
+  /// A link that is an act: a form posting `fields` to a server action, which does its work and then redirects (the inbox's notice, AC-47). Not an anchor, so a prefetch never runs it.
+  | { kind: "open"; text: string; action: (data: FormData) => Promise<void>; fields: Record<string, string>; sub?: string }
   /// A file to save: a plain anchor with the `download` attribute (never a client-side Link, which could prefetch it and write a log row for a download nobody made).
   | { kind: "download"; text: string; href: string; label: string }
   /// An overlapping stack of avatars with a +N overflow, as the prototype shows for
@@ -220,6 +222,7 @@ function cellText(cell: Cell | undefined): string {
     case "person":
       return cell.name;
     case "link":
+    case "open":
       return cell.text;
     case "download":
       return "";
@@ -306,6 +309,23 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
           >
             {cell.text}
           </Link>
+          {cell.sub && <div className="break-words text-[12.5px] text-ink-3">{cell.sub}</div>}
+        </div>
+      );
+    case "open":
+      return (
+        <div className="min-w-0">
+          <form action={cell.action}>
+            {Object.entries(cell.fields).map(([name, value]) => (
+              <input key={name} type="hidden" name={name} value={value} />
+            ))}
+            <button
+              type="submit"
+              className={cx("block cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-brand-700 hover:text-brand-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500", line)}
+            >
+              {cell.text}
+            </button>
+          </form>
           {cell.sub && <div className="break-words text-[12.5px] text-ink-3">{cell.sub}</div>}
         </div>
       );

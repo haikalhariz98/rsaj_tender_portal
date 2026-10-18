@@ -46,4 +46,12 @@ export const STAFF_NOTICE_KIND_LABEL: Readonly<Record<StaffNoticeKind, string>> 
 };
 
 /// Said on every screen that shows a notice. The delivery is a fact of the product: there is no outbound email.
+/**
+ * AC-47: opening a notice from the inbox marks it read, as the reader's own act, except for a closed list of one kind: a notice asking its reader to confirm a back-dated signature is
+ * not read by opening it, because opening the page is not the act it asks for. It is marked read when the confirmation is recorded. No other kind is exempt. "Mark all as read" clears
+ * every kind, that one included: it is the reader's explicit choice.
+ */
+export const READ_WHEN_ACTED_ON: readonly StaffNoticeKind[] = ["BACKDATE_TO_CONFIRM"];
+export const markedReadByOpening = (kind: string): boolean => !(READ_WHEN_ACTED_ON as readonly string[]).includes(kind);
+
 export const NOTICE_DELIVERY_STATEMENT = "Shown in the portal; not sent — email is not connected (INT-09).";

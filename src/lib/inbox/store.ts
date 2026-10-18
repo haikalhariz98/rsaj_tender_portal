@@ -13,6 +13,7 @@
 import type { Tx } from "@/lib/audit/record";
 import { exerciseIdNotHidden } from "@/lib/auth/sulit-store";
 
+import { markedReadByOpening } from "./kinds";
 import type { NoticeDraft } from "./notices";
 import { INBOX_PAGE_SIZE, type InboxCursor } from "./paging";
 
@@ -92,5 +93,22 @@ export async function markAllRead(tx: Tx, viewer: { organisationId: string; pers
 export async function markRead(tx: Tx, viewer: { organisationId: string; personId: string }, ids: readonly string[], now: Date): Promise<number> {
   if (ids.length === 0) return 0;
   const r = await tx.staffNotice.updateMany({ where: { organisationId: viewer.organisationId, recipientPersonId: viewer.personId, id: { in: [...ids] }, readAt: null }, data: { readAt: now } });
+  return r.count;
+}
+
+/**
+ * AC-47: the reader opens one of their own notices. Returns where it points, and marks it read unless its kind is read when acted on (`markedReadByOpening`). Null: it is not theirs, is
+ * hidden from them (a restricted exercise), has no address, or does not exist, and nothing is changed. Called only by the action on the notice's link, never by a page render or a prefetch.
+ */
+export async function openNotice(tx: Tx, viewer: { organisationId: string; personId: string }, hidden: readonly string[], id: string, now: Date): Promise<{ href: string } | null> {
+  const n = await tx.staffNotice.findFirst({ where: { ...OWN(viewer.organisationId, viewer.personId, hidden), id }, select: { kind: true, href: true } });
+  if (!n?.href) return null;
+  if (markedReadByOpening(n.kind)) await markRead(tx, viewer, [id], now);
+  return { href: n.href };
+}
+
+/// AC-47: the confirmation of a back-dated signature has been recorded, so the notice that asked for it is read. Only the confirmer's own notice for that signature.
+export async function markBackdateNoticeRead(tx: Tx, viewer: { organisationId: string; personId: string }, attributionId: string, now: Date): Promise<number> {
+  const r = await tx.staffNotice.updateMany({ where: { organisationId: viewer.organisationId, recipientPersonId: viewer.personId, kind: "BACKDATE_TO_CONFIRM", subjectEntity: "ActAttribution", subjectId: attributionId, readAt: null }, data: { readAt: now } });
   return r.count;
 }

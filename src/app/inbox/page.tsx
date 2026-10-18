@@ -13,7 +13,7 @@ import { STAFF_NOTICE_KIND_LABEL, type StaffNoticeKind } from "@/lib/inbox/kinds
 import { decodeCursor, encodeCursor } from "@/lib/inbox/paging";
 import { inboxTotals, loadInboxPage } from "@/lib/inbox/store";
 
-import { markNoticesRead } from "./actions";
+import { markNoticesRead, openNoticeAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +38,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     search: [n.title, n.body].join(" "),
     sortKeys: { received: n.raisedAt.getTime() },
     cells: {
-      notice: n.href ? { kind: "link", text: n.title, href: n.href, sub: n.body } : { kind: "stack", title: n.title, sub: n.body },
+      notice: n.href ? { kind: "open", text: n.title, action: openNoticeAction, fields: { id: n.id }, sub: n.body } : { kind: "stack", title: n.title, sub: n.body },
       what: { kind: "chip", text: STAFF_NOTICE_KIND_LABEL[n.kind as StaffNoticeKind] ?? "Notice", tone: "brand" },
       received: { kind: "text", text: formatOrgDateTime(n.raisedAt, actor.organisationTimeZone) },
       status: n.readAt ? { kind: "chip", text: "Read" } : { kind: "chip", text: "Unread", tone: "info" },
