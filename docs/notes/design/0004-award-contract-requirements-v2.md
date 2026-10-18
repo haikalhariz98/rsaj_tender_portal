@@ -53,7 +53,8 @@ To close: either authorise a scratch copy of the demo organisation and a browser
 
 - Contract submissions are shown to the S.O. even for a restricted exercise (AC-18, AC-19). The first G9 build hid them. Fixed in `721327d2`.
 - The organisation-wide securities view still leaves out restricted exercises the reader is not named on (FR-MTD-007), while the contract's own
-  Securities tab shows them. Open product-owner question, in the backlog.
+  Securities tab shows them. Open product-owner question, in the backlog. **Superseded 2026-10-19:** AC-45 lists them by `caseVisibility`, with no tender
+  details.
 - The Contracts card hint reads "n awarding (on Awards, until a contract is formed)" until wave C. Logged as interim. **Superseded 2026-10-19:** wave C
   removed the Awards page, and no source file carries that hint any more.
 
@@ -64,7 +65,7 @@ Code is committed on branch `build-all-modules`, commits `0364318d` (C0) to `298
 
 Checks run: `npm run check`; the full Linux suite (829 files, 15383 tests) after the review fix round's last code change; `test:db` on the
 case-load, securities-history, case-walk and clock-notices files. ADR 0037 (`docs/notes/architecture/0037-...md`) is **Proposed**, not accepted.
-Accepting it is the product owner's act (decisions log, C0 and the fix round).
+Accepting it is the product owner's act (decisions log, C0 and the fix round). **Superseded 2026-10-19:** accepted with amendments (AC-36, AC-37).
 
 | Item | Status | Differs from the design | What is still owed |
 | --- | --- | --- | --- |
@@ -81,11 +82,12 @@ Accepting it is the product owner's act (decisions log, C0 and the fix round).
 - **C12 re-audit.** The code-review and security round ran once and its findings were fixed in `ffbfcb16`. The security re-audit of the fix round and of C13
   (`caseVisibility` at the resolver, redirects, list, counts and each moved act) has not run.
 - **Snapshots and browser checks** listed in the table. The fix round's pages were verified by typecheck, tests and the walk only.
-- **ADR 0037** and F0-1 to F0-11 await acceptance. C2 to C11 change if any is ruled differently.
+- **ADR 0037** and F0-1 to F0-11 await acceptance. C2 to C11 change if any is ruled differently. **Superseded 2026-10-19:** accepted with amendments (AC-36); C2 to C11 stand.
 
 ### Product-owner questions raised by the build
 
-Each is built to the conservative default shown. All are in the decisions log under wave C.
+Each is built to the conservative default shown. All are in the decisions log under wave C. **Ruled 2026-10-19 (§4, AC-36 to AC-43):**
+1 AC-36; 2 AC-41; 3 AC-39; 4 AC-37 (d); 5 AC-37 (b); 6 AC-38; 7 AC-42; 8 AC-40; 9 AC-43; 10 AC-43.
 
 1. Accept ADR 0037 and F0-1 to F0-11.
 2. Should the demonstration load carry a decision on who reads SULIT, or leave it undecided? Today it is undecided, so no officer can complete formation on the demonstration until the organisation decides.
@@ -919,6 +921,122 @@ The six spec Musts the document would otherwise break are each given a compliant
 - 2026-10-14 · Product owner (for the founder): Award and Contract v2 V-2: waves 3b and 3c are the vehicle; not "covered" until 3c lands; no unsealed RFQ (FR-BID-001) (AC-32).
 - 2026-10-14 · Product owner (for the founder): Award and Contract v2 sequencing: sealed bids 3b and 3c, then GN/MN, then Part 1, then Part 2 (after CPD), then Part 3. nav.ts, configuration files and sourcing/[id]/page.tsx wait until stage B is committed (AC-0, AC-35).
 
+### Rulings of 2026-10-19 (AC-36 onward)
+
+By the product owner, for the founder, on 2026-10-19. They answer the questions wave C raised (decisions log, 2026-10-18; the backlog's
+wave C row), the security review's lows, and four questions the founder left. They are not part of the verbatim 2026-10-14 set above.
+"Code" says whether the ruling needs a change to the product. Line numbers are the decisions log's.
+
+- **AC-36. ADR 0037 is accepted, with amendments.** Code: no.
+  - F0-1 to F0-11 are accepted as written. F0-4 is amended to match what the fix round built: Before signing is open on a case with no
+    Contract row (a draft, pending or approved award), for the award's conditions and bond requirement (FR-AWD-014; log 2519).
+  - The visibility table is amended to the access-log and History readings of AC-37.
+  - F0-2's "due" (today's header condition, log 2455) and F0-3 (an award id is 404 and logged for a contract-stages-only reader, never
+    forwarded) stand. C2 to C11 stand as built.
+- **AC-37. The restricted case (FR-MTD-007, AC-18): the security review's lows.**
+  - **(a) The Conditions note withholds nothing. Code: yes (words).** The Project overview keeps showing the award's conditions and
+    readiness gate to a reader who sees the contract stages only. AC-18 keeps today's split, and R-2 is RSAJ's. So the note in Before
+    signing › Conditions must not claim the conditions are withheld. It says that adding and settling them is restricted to the people
+    named on the exercise, and that their state shows on the Project overview. No reader is added.
+  - **(b) Security instruments' trail in the contract's History. Code: yes (words).** For that reader the contract's History keeps
+    leaving out the instruments' audit rows (the fix round's reading, log 2524, accepted). Lodging and verifying are award acts (AC-21),
+    run through `withLockedAwardFor`, which refuses that reader, and the rows are labelled by the award's reference. The register itself
+    still shows each instrument's state (F0-4). A History that drops rows says so, in one line under it, for example: "Rows of the
+    award's own acts, including lodging and verifying securities, are restricted to the people named on the exercise." No security field
+    is registered SULIT today (log 2490); this ruling does not depend on that.
+  - **(c) The stage split shows whether a restricted issued award was accepted. Code: no.** Accepted as a residual. The Project
+    overview's readiness gate already shows that reader "Instrument returned signed", so the stage tells them nothing new. Staging a
+    case differently for each reader would break AC-12's one count per case. Revisit with R-2.
+  - **(d) Access-log rows on every load. Code: no.** Confirmed as built (log 2523, which supersedes the question in 2470): a contract id
+    is decided without a write, and the refusal is written on each load that asks for the Award stage. A named reader's award reads are
+    logged by the SULIT gates on each load that reads them (log 2486), as NFR-AUD-004 asks. Rows are not de-duplicated, because thinning
+    them would make the log decide what counts as an access.
+- **AC-38. The case page stays as built. Code: no.**
+  - Step words stay in the redacted form for every reader (log 2463). The panel carries the reader's own figures.
+  - The five C1 gap readings stand (log 2464). `despatchOpen` counts the rows not yet despatched (log 2478).
+  - Acts whose drawer lives in a panel stay links from the bar (log 2477). A link adds no second way to do an act.
+  - No link to the default step is added (log 2479). The bar already shows where something waits.
+  - No counts beside tabs (log 2480, AC-19). The counts AC-16 puts inside the Documents tab stay.
+  - History stays two sections, each under its own gate (log 2483).
+  - An indent opens on the earliest step with an act, so the return comes before commencement (log 2487).
+  - The award panels are not gated by the contract's act table (log 2474). They host award acts, gated as award acts (AC-20: no new gate).
+  - The new-award form's eyebrow already reads "Contracts" (log 2496). Superseded.
+- **AC-39. The case list. Code: yes (one test).**
+  - The award chips stay on every live case (log 2499). "No commitment number" and "Securities to verify" are true gaps on a contract on
+    site; hiding them would make a gap look closed.
+  - The four formation counts are not restored to the header (log 2498). The stage views replace them.
+  - The Commenced view gets a database fixture with a commenced variation pending approval (log 2469), so the view is proved non-empty
+    as well as empty. Test only. `listCases` keeps the Commenced count (log 2525 d).
+- **AC-40. The pinned words that say "the contract's Securities tab"** (`src/lib/award/gate-words.ts`, `src/lib/payment/labels.ts`; log
+  2493) **are reworded** to name Before signing › Securities, with their tests updated, citing AC-40. Code: yes. A screen must not send a
+  user to a tab that no longer exists.
+- **AC-41. Who reads SULIT on the demonstration** (logs 2514, 2518). Code: no. The demonstration load stays undecided. It is a customer
+  policy choice, and the demonstration shows the product as a new customer meets it. Demonstrating formation starts with that decision,
+  made through Configuration's two-person path, as the browser walk did. The walk harness keeps its in-memory grant.
+- **AC-42. The C13 recipients** (log 2527, F-4). Code: yes.
+  - As built, the screen and the notices disagree. The expiry callout says the organisation's notification rule names who is told, while
+    the notices go to unit heads and ignore that rule. The configuration decides (AGENTS.md rule 1). `NotificationRule.recipientRoleCodes`
+    names offices, so a change of holder drops no one.
+  - **Recipients:**
+    - the holders, and acting holders, on the organisation's day, of the offices named by the organisation's active notification rule for
+      the event: the existing indent-expired event, and a late-commencement event added beside it in Configuration;
+    - the requisition's requester, the user department's own party to the case (FR-AWD-006).
+  - The unit-head reading is dropped. No pre-contract ownership is invented.
+  - **When a role resolves to no one:**
+    - With no rule, the callout says no notification rule names who is to be told, as it does now, and no office is told.
+    - A rule that is off is the organisation's recorded decision that no office is told. The callout says that.
+    - An office with no holder on the day tells no one, and the callout names that office.
+  - The callout says the notices appear in the inbox only and are not emailed.
+- **AC-43. Carried, not changed. Code: no.**
+  - The demonstration's completed, closed and terminated cases are driven through their acts once those acts exist (log 2507, ADR 0031).
+  - Step-bar and tab words stay English until NFR-LNG-001 is built (log 2525 c). Words added to a screen that has Malay get Malay.
+  - The C2 and C4 text snapshots (log 2472) and the browser checks stay owed before wave C closes. They are taken on a scratch server
+    over a scratch database made by migrate, seed and `demo:load`, never on `perolehan`.
+- **AC-44. Online "Status as read"** (wave 3c, log 2420; the founder's first question). Code: yes. The recommendation is applied, with
+  one amendment so that the register's reading is never passed off as the envelope's (SR-15 review M3):
+  - an online row's Status shows the supplier register's standing frozen in the opening's eligibility reading, as a label, never a code,
+    and marked as the register's (for example "Register: Active");
+  - never the live register;
+  - with no frozen reading, it reads "Not typed: an online bid", as Class as read does, never a dash;
+  - one pure `statusAsReadText` beside `classAsReadText`, for the screen, the print page and the CSV, tested.
+- **AC-45. The organisation-wide securities view and a restricted tender** (G8, log 2439; the founder's second question). Code: yes.
+  This supersedes G8's conservative reading and the matching "Wave G status" difference.
+  - The view applies `caseVisibility`. A security on a contract whose contract stages the reader sees is listed and counted, with the
+    cells the contract's own register shows that reader: kind, contractor, contract number, issuer, value, expiry and status.
+  - Nothing of the tender is shown: no exercise title or reference, no award reference, no evaluation. That holds for columns added later.
+  - The row opens the contract's Before signing › Securities, which shows that reader the contract's register (F0-4).
+  - HIDDEN stays absent.
+  - Reasons:
+    - FR-AWD-012 (M), whose only organisation-wide surface is this view (AC-15);
+    - AC-18 keeps the contract visible after issue;
+    - a bond is lodged only after issue (AC-21), so every listed security belongs to a contract.
+  - Tests that pinned the absence are updated, citing AC-45.
+- **AC-46. The badge refresh scope** (G6, log 2435; the founder's third question). Code: no. As built:
+  - the named carriers revalidate the layout;
+  - the badges are read again on every navigation (`721327d2`);
+  - acts outside the carriers refresh at the next navigation: supplier registration and standing, exercise windows, negotiation
+    decisions and non-award.
+  - This amends AC-13's "every act" to exactly that.
+- **AC-47. Opening a notice marks it read** (G6, log 2434; the founder's fourth question). Code: yes.
+  - Opening a notice from the inbox marks that one notice read, as the reader's own act. An action on the notice's link:
+    1. checks that the reader is its recipient;
+    2. marks it read (`store.ts`, marking by id);
+    3. revalidates the layout (AC-13);
+    4. redirects to the notice's address.
+  - It is never marked read by a page render or a prefetch.
+  - One amendment to the recommendation: a notice that asks its reader to act (a back-dated signature to confirm) is not marked read by
+    opening it. It is marked read when the confirmation is recorded, so an outstanding act never drops out of the unread count.
+  - "Mark all as read" stays.
+- **AC-48. Wave V (V0 to V4) does not run now.** Code: no.
+  - AC-35: Part 3 starts after Part 2, or after CPD declines Part 2. Neither has happened. The log holds neither CPD's written [NET-NEW]
+    sign-off of P-1 to P-7 (AC-7) nor a decline.
+  - Part 1 has not been through its own cycle (AC-35: designed, built, reviewed, fixed). The C12 security re-audit, the C2 and C4
+    snapshots and the browser checks are owed.
+  - V2 waits on R-5 (electronic signature). V4's end-to-end check runs through Part 2's kick-off and submissions.
+  - This includes V0 (design) and V1 (the commitment number): starting either starts Part 3. The case list's "No commitment number" chip
+    already shows that gap.
+  - Wave V may start once the founder records CPD's sign-off and wave P is through, or records CPD's decline.
+
 ## 5. Wave plan
 
 **Entry for every wave:**
@@ -1322,7 +1440,7 @@ and no code (AC-7). The C-2 Project stage holds today's tabs and the MN-02 bridg
 
 ### 6.1 Wave C (and G3): no schema change (AC-1)
 
-**Frozen in C0, 2026-10-18,** against the code after wave G (`2537beaf`), with ADR 0037 (proposed, not yet accepted). The changes
+**Frozen in C0, 2026-10-18,** against the code after wave G (`2537beaf`), with ADR 0037 (proposed then; accepted with amendments on 2026-10-19, AC-36). The changes
 from the sketch are listed below. Each is ADR 0037's F0 point, logged in the decisions log as a product-owner question.
 - **Real type names (F0-1).**
   - `InstrumentKind`, not `AwardInstrumentKind`;
@@ -1381,6 +1499,10 @@ export function caseVisibilityWhere(hiddenExerciseIds: readonly string[]): Prism
 // | Case-level History       | award+contract| contract rows only; award rows (awardHistory) dropped                           | —             |
 // | /awards/** redirects     | redirect      | 404, logged (today's award page refuses before and after issue)                 | 404, logged   |
 // | Dashboard Contracts card | counted       | counted (as Contracts are today)                                                | not counted   |
+// Amended 2026-10-19 (AC-36, AC-37): Before signing is open before issue, with no Contract row (FR-AWD-014). Under
+// CONTRACT_STAGES_ONLY the conditions note says what it withholds (the acts, not the state the overview shows); a contract
+// id writes no log row and the Award stage's refusal is logged on each load that asks for it; History also drops the
+// security instruments' rows and says rows are withheld.
 
 // src/lib/dashboard/pipeline.ts (G3, built): CASE_PIPELINE, casePipelineWhere. listCases' stage counts use the same
 // CASE_STAGE_WHERE fragments joined to caseVisibilityWhere by AND, so the list's Awarding + Signing + On site equals the card.
@@ -1557,7 +1679,7 @@ alone, and new numbers start at 0037.
 
 | ADR | Title | Status when | Decides | Relation to earlier ADRs |
 | --- | --- | --- | --- | --- |
-| **0037** | The case page is keyed by the award until a contract exists | proposed in C0, accepted before C2 | The case is the Award, which is 1:1 with the Contract, with no Case table. `caseVisibility` per surface (§6.1 table): `/awards/**` is 404 unless WHOLE. `/projects/[id]` resolves a contract, else an award, and redirects once a contract exists. `caseStage` and `caseVisibility` (AC-18, reversible). The parallel step bar. The `?stage=&tab=` scheme and `caseHref`. The `/awards/**` guarded redirects kept permanently. | **ADR 0007 is unchanged; 0037 complements it**: issueAward stays the only creator, and the registers stay on the Contract. Where a gate is shown is a screen fact, not a 0007 decision. Builds on ADR 0034 D14 (restricted exercises), and records the per-surface table of §6.1. Nothing is superseded. |
+| **0037** | The case page is keyed by the award until a contract exists | proposed in C0; accepted with amendments 2026-10-19 (AC-36) | The case is the Award, which is 1:1 with the Contract, with no Case table. `caseVisibility` per surface (§6.1 table): `/awards/**` is 404 unless WHOLE. `/projects/[id]` resolves a contract, else an award, and redirects once a contract exists. `caseStage` and `caseVisibility` (AC-18, reversible). The parallel step bar. The `?stage=&tab=` scheme and `caseHref`. The `/awards/**` guarded redirects kept permanently. | **ADR 0007 is unchanged; 0037 complements it**: issueAward stays the only creator, and the registers stay on the Contract. Where a gate is shown is a screen fact, not a 0007 decision. Builds on ADR 0034 D14 (restricted exercises), and records the per-surface table of §6.1. Nothing is superseded. |
 | **0038** | Contract teams and access to the Project exchange | proposed in P0, held | Derived and stored membership; the exchange-only gate; oversight permission; the contractor request → approve path with D6 kept; the backfill. | Extends ADR 0034 (a new granted-only permission; the D6 identity check reused) and ADR 0020 (two identity stores, with a request but no self-service). |
 | **0039** | Project submissions, revisions and review | proposed in P0, held | The submission and revision model; answer authority (FR-SUP-004 at the act); higher approval (FR-SUP-006); internal comments; the target snapshot and RSAJ-only clock; per-kind answer sets; legacy `ContractorSubmission` kept read-only; `SupplierNotice` (P-5); whether an approved work programme writes `WorkProgramme` in the same act (AC-26 leaves this to the ADR; proposed: yes, one act, with the register revision as the source and `WorkProgramme` pinned to it). | **Extends ADR 0011**, without superseding: new owner FKs under D4 ("more arrive with their modules"); contractor read entitlement for its own and sent files, alongside D6; a per-contract upload bound under the store policy. |
 | **0040** | The award return may be lodged online | proposed in V0 | The online return as the hybrid (scans plus typed fields, officer verification under OD-5); queries; click-only acceptance behind an unset switch. | Extends the return model of the 6.11 plan; nothing superseded. |

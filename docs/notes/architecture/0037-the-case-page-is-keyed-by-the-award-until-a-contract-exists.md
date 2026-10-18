@@ -1,18 +1,22 @@
 # 0037 — The case page is keyed by the award until a contract exists
 
-**Status:** Proposed (2026-10-18, wave C step C0). **Not accepted.** Acceptance is the product owner's act, for the founder, and is owed
-before step C2 (design note 0004 §7). The decisions it records are already ruled: AC-17, AC-18, AC-19 and AC-23 in design note 0004 §4.
-The contracts in design note 0004 §6.1 and §6.2 were reviewed against the code after wave G (latest `2537beaf`) and frozen on
-2026-10-18. The freeze adds eleven points the rulings do not cover (F0-1 to F0-11 below). Each is the most conservative reading. Each is
-logged in the decisions log as a product-owner question, and each is built to its default unless ruled otherwise.
+**Status:** Accepted, with amendments (2026-10-19, the product owner for the founder, design note 0004 AC-36 and AC-37). Proposed on
+2026-10-18 (wave C step C0). The decisions it records were already ruled: AC-17, AC-18, AC-19 and AC-23 in design note 0004 §4. The
+contracts in design note 0004 §6.1 and §6.2 were reviewed against the code after wave G (latest `2537beaf`) and frozen on 2026-10-18. The
+freeze added eleven points the rulings did not cover (F0-1 to F0-11 below). All eleven are accepted as written, except F0-4, which is
+amended. The visibility table below is amended to what the review fix round built, and to AC-37.
 
-**Review round (2026-10-18).** Steps C2 to C11 and the fix round were built on F0-1 to F0-11 as defaults, and the ADR is still not accepted: the
-code review and the security audit both name that. The fix round settled three points the conservative way, which a ruling may change:
-(1) F0-4 gains a clause: Before signing is open with no Contract row, because the award's conditions and bond requirement are entered
-before issue (FR-AWD-014); (2) the access log: a contract id is decided without a write, and the refusal is written when the Award stage
-is asked for by a reader who sees the contract stages only (an award id is still logged where it is asked, F0-3); (3) a reader who sees
-the contract stages only is not given the security instruments' audit rows in the contract's History. Open: the Project overview still shows
-the award's conditions to that reader, as the contract overview always did (R-2).
+**Review round (2026-10-18), settled 2026-10-19.** Steps C2 to C11 and the fix round were built on F0-1 to F0-11 as defaults. The fix
+round settled three points the conservative way, and AC-36 and AC-37 accept all three:
+1. F0-4 gains a clause: Before signing is open with no Contract row, because the award's conditions and bond requirement are entered
+   before issue (FR-AWD-014).
+2. The access log: a contract id is decided without a write. The refusal is written when the Award stage is asked for by a reader who
+   sees the contract stages only, once per such load. An award id is still logged where it is asked (F0-3).
+3. A reader who sees the contract stages only is not given the security instruments' audit rows in the contract's History. Lodging and
+   verifying are award acts (AC-21), which that reader is refused. The History says that rows are withheld (AC-37).
+
+The Project overview still shows the award's conditions and readiness gate to that reader, as the contract overview always did (AC-18,
+R-2). So the Conditions note says what is actually withheld (AC-37).
 
 **Relation to earlier ADRs.**
 - **ADR 0007 is unchanged; this ADR complements it.** `issueAward` stays the only creator of a Contract row, and the registers stay on
@@ -56,11 +60,11 @@ formed from a restricted exercise is itself restricted is RSAJ's question (R-2).
    | Surface | WHOLE | CONTRACT_STAGES_ONLY | HIDDEN |
    | --- | --- | --- | --- |
    | `listCases` row and counts | full row | listed, with only the columns `listContracts` shows today; no award chips or award facts | absent |
-   | `/projects/[id]` by contract id | every stage | Award stage refused and logged; contract stages render | — (a hidden case has no contract) |
+   | `/projects/[id]` by contract id | every stage | Award stage refused; the refusal is logged on each load that asks for the Award stage, and a contract stage alone writes no row (AC-37); contract stages render | — (a hidden case has no contract) |
    | `/projects/[id]` by award id | renders, or redirects once a contract exists | 404, logged (F0-3) | 404, logged |
-   | Before signing › conditions | rendered, acts offered | not rendered; the restricted note is shown (F0-4) | — |
+   | Before signing › conditions | rendered, acts offered; open before issue, with no Contract row (F0-4) | not rendered; a note says that adding and settling the conditions is restricted, and that their state shows on the Project overview's readiness gate (F0-4, AC-37) | — |
    | Before signing › securities | the award's register with its lodge and verify drawers, plus the contract's wages check | the contract's register exactly as its Securities tab shows it today, wages check included; no lodge or verify (F0-4) | — |
-   | Case-level History | award and contract rows | contract rows only; `awardHistory` rows dropped | — |
+   | Case-level History | award and contract rows | contract rows only: `awardHistory` rows and the security instruments' rows are dropped, and the History says rows of the award's acts are withheld (AC-37) | — |
    | `/awards/**` redirects | redirect | 404, logged (today's award page refuses before and after issue) | 404, logged |
    | Dashboard Contracts card | counted | counted, as Contracts are today | not counted |
 
@@ -103,6 +107,9 @@ Every point below is in the frozen contracts in design note 0004 §6.1 and §6.2
     `withLockedAwardFor`, and AC-18 keeps today's split exactly.
   - **Conditions** has no contract-side reader (it reads `LoadedAward`), so it is not rendered. The restricted note is shown in its place.
   - No `LODGE_SECURITY` or `VERIFY_SECURITY` is offered.
+  - **Amended (AC-36).** Before signing is open on a case with no Contract row (a draft, pending or approved award), for the award's
+    conditions and bond requirement (FR-AWD-014). The Conditions note under CONTRACT_STAGES_ONLY says what it withholds: the acts and
+    the award's own panel, not the conditions' state, which the Project overview's readiness gate shows (AC-37).
 - **F0-5. A stage-less `?tab=` resolves by tab alone.** Persisted links need this: `src/lib/inbox/notices.ts:184` (`?tab=submissions`, in
   StaffNotice rows), `src/lib/documents/targets.ts:86` (`?tab=formation`) and `src/app/projects/securities-view.tsx` (`?tab=securities`).
   The resolution:
