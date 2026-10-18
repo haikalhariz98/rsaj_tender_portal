@@ -88,18 +88,16 @@ export async function SecuritiesView({ actor, sv, pageParam }: { actor: StaffAct
       </Callout>
       <Card className="overflow-hidden">
         <CardHeader icon={<ShieldIcon size={17} />} title="Securities expiring or not verified" subtitle={`Live ones first, soonest to expire first; then those long expired, then those rejected. ${counts.unverified} lodged, not verified; ${counts.expiring} expiring or expired. ${remindersText(offsets)}. Each is lodged and verified under Before signing, in the contract's securities and insurance panel.`}
-          actions={
-            <span className="flex flex-wrap gap-1.5">
-              <ButtonLink href="/projects" size="sm" variant="secondary">All contracts</ButtonLink>
-              {VIEWS.map((v) => (
-                <ButtonLink key={v.id} href={href(v.id)} size="sm" variant={v.id === view ? "secondary" : "ghost"} aria-current={v.id === view ? "page" : undefined}>
-                  {`${v.label} (${counts[v.id]})`}
-                </ButtonLink>
-              ))}
-            </span>
-          }
           divided={false}
         />
+        <div className="flex flex-wrap gap-1.5 px-5 pb-3 sm:px-6">
+          <ButtonLink href="/projects" size="sm" variant="secondary">All contracts</ButtonLink>
+          {VIEWS.map((v) => (
+            <ButtonLink key={v.id} href={href(v.id)} size="sm" variant={v.id === view ? "secondary" : "ghost"} aria-current={v.id === view ? "page" : undefined}>
+              {`${v.label} (${counts[v.id]})`}
+            </ButtonLink>
+          ))}
+        </div>
         <DataList
           flat
           selectable={false}
