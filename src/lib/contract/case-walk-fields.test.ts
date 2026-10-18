@@ -28,9 +28,9 @@ const POSTED: { act: string; file: string; names: string[]; whole?: true; genera
   { act: "updateAwardDetails", file: AWARD_EDITORS, names: DETAILS, whole: true },
   { act: "updateAwardTerms", file: AWARD_EDITORS, names: TERMS },
   { act: "submitAward", file: AWARD_EDITORS, names: ["id"] },
-  { act: "decideAppointmentStep", file: AWARD_EDITORS, names: ["id", "stepId", "decision", "decidedOn", "receivedOn", "personId"] },
+  { act: "decideAppointmentStep", file: AWARD_EDITORS, names: ["id", "stepId", "decision", "decidedOn", "receivedOn"] },
   { act: "recordCommitment", file: AWARD_EDITORS, names: ["id", "erpCommitmentNo", "erpCommitmentKind", "receivedOn"] },
-  { act: "issueAward", file: AWARD_EDITORS, names: ["id", "signatoryPersonId", "signedOn"] },
+  { act: "issueAward", file: AWARD_EDITORS, names: ["id", "signedOn"] },
   { act: "recordDespatch", file: AWARD_EDITORS, names: ["id", "distributionId", "method", "consignmentRef", "despatchedOn", "acknowledgedOn", "note"] },
   { act: "recordReturn", file: AWARD_EDITORS, names: ["id", "signedLetterReceivedOn", "declarationReceivedOn", "authorisationReceivedOn", "whereHeld", "signatoryName", "icNumber", "occupation", "address", "capacity", "contractorSigned", "stampAffixed", "witnessName", "witnessSigned"] },
   { act: "recordCommencement", file: AWARD_EDITORS, names: ["id", "commencedOn"] },
@@ -38,26 +38,43 @@ const POSTED: { act: string; file: string; names: string[]; whole?: true; genera
   { act: "addCondition", file: AWARD_EDITORS, names: ["id", "kindId", "reference", "requiredBy", "note"] },
   { act: "satisfyCondition", file: AWARD_EDITORS, names: ["id", "conditionId", "satisfiedOn"] },
   { act: "lodgeSecurity", file: AWARD_EDITORS, names: ["id", "kind", "form", "issuerId", "issuerNameAsWritten", "instrumentRef", "value", "effectiveFrom", "expiresOn", "lodgedOn"] },
-  { act: "reviewSecurity", file: AWARD_EDITORS, names: ["id", "securityId", "outcome", "on", "reason", "personId"] },
+  { act: "reviewSecurity", file: AWARD_EDITORS, names: ["id", "securityId", "outcome", "on", "reason"] },
   { act: "lodgePolicy", file: AWARD_EDITORS, names: ["id", "kind", "issuerId", "issuerNameAsWritten", "policyNo", "sumInsured", "periodStart", "periodEnd", "lodgedOn", "premiumReceiptRef", "perkesoRegistrationNo"] },
-  { act: "reviewPolicy", file: AWARD_EDITORS, names: ["id", "policyId", "outcome", "on", "reason", "personId"] },
+  { act: "reviewPolicy", file: AWARD_EDITORS, names: ["id", "policyId", "outcome", "on", "reason"] },
   { act: "startPreparation", file: PROJECT_EDITORS, names: ["id"] },
   { act: "addRate", file: PROJECT_EDITORS, names: ["id", "checkId", "itemRef", "description", "tenderedRate", "estimateRate"] },
-  { act: "completeCheck", file: PROJECT_EDITORS, names: ["id", "checkId", "completedOn", "note", "personId"] },
-  { act: "recordReconciliation", file: PROJECT_EDITORS, names: ["id", "comparison", "outcome", "checkedOn", "note", "personId"] },
-  { act: "submitLegal", file: PROJECT_EDITORS, names: ["id", "personId"] },
-  { act: "decideLegal", file: PROJECT_EDITORS, names: ["id", "decision", "decidedOn", "comments", "reviewerPersonId"] },
+  { act: "completeCheck", file: PROJECT_EDITORS, names: ["id", "checkId", "completedOn", "note"] },
+  { act: "recordReconciliation", file: PROJECT_EDITORS, names: ["id", "comparison", "outcome", "checkedOn", "note"] },
+  { act: "submitLegal", file: PROJECT_EDITORS, names: ["id"] },
+  { act: "decideLegal", file: PROJECT_EDITORS, names: ["id", "decision", "decidedOn", "comments"] },
   { act: "saveBaselineEntry", file: PROJECT_EDITORS, names: ["id", "group", "provenance", "note", "pcSums", "provisionalSums", "days", "amount", "sectionalApplies"], whole: true },
   { act: "recordContractorSignature", file: PROJECT_EDITORS, names: ["id", "name", "icNumber", "capacity", "signedOn", "witnessName", "witnessIcNumber"] },
-  { act: "recordRsajSignature", file: PROJECT_EDITORS, names: ["id", "personId"] },
+  { act: "recordRsajSignature", file: PROJECT_EDITORS, names: ["id"] },
   { act: "recordStamping", file: PROJECT_EDITORS, names: ["id", "stampedOn", "stampingRef"] },
-  { act: "recordPossession", file: "src/app/projects/[id]/supervision-editors.tsx", names: ["id", "possessionOn", "personId", "note"] },
+  { act: "recordPossession", file: "src/app/projects/[id]/supervision-editors.tsx", names: ["id", "possessionOn", "note"] },
   { act: "attachDocument", file: "src/components/attachments/attach-to-record.tsx", names: ["ownerKind", "ownerId", "purpose", "versionId"] },
-  { act: "scheduleSitting", file: COMMITTEE_EDITORS, names: ["committeeId", "meetingDate", "agenda", "items", "tabledByPersonId"] },
+  { act: "scheduleSitting", file: COMMITTEE_EDITORS, names: ["committeeId", "meetingDate", "agenda", "items"] },
   { act: "changeStatus", file: COMMITTEE_EDITORS, names: ["meetingId", "to"] },
   { act: "recordAttendance", file: "src/app/committees/attendance-toggle.tsx", names: ["meetingId", "personId", "attended"] },
   { act: "recordOutcome", file: COMMITTEE_EDITORS, names: ["decisionId", "outcome", "outcomeNote"] },
 ];
+
+/// The act's person slot, for the acts whose drawer names who acts. The drawer asks `actorField(slot, …)` and the walk posts the password under that slot's person field only if the
+/// registry makes the slot a signature (`signedBy` in the harness). A slot named here is held in the drawer, and in the harness.
+const SLOT: Record<string, string> = {
+  decideAppointmentStep: "ApprovalStep.decidedBy",
+  issueAward: "Award.signatoryPerson",
+  recordReturn: "AwardReturn.receivedBy",
+  reviewSecurity: "SecurityInstrument.verifiedBy",
+  reviewPolicy: "InsurancePolicy.verifiedBy",
+  completeCheck: "FormationCheck.completedBy",
+  recordReconciliation: "ContractReconciliation.checkedBy",
+  submitLegal: "LegalReview.submittedBy",
+  decideLegal: "LegalReview.reviewer",
+  recordRsajSignature: "ContractSignature.person",
+  recordPossession: "Possession.recordedBy",
+  scheduleSitting: "CommitteeDecision.tabledBy",
+};
 
 /// Every place the file uses the act (not in its import): from the start of the component that uses it to a little past the use.
 function segments(src: string, act: string, whole = false): string[] {
@@ -84,6 +101,7 @@ describe("the walk posts the field names the case page's drawers post", () => {
       expect(segs.length, `${file} does not use ${act}`).toBeGreaterThan(0);
       const missing = names.filter((n) => !segs.some((s) => quoted(n).test(s) || generated?.[n]?.test(s)));
       expect(missing, `${act} is posted by ${file} without: ${missing.join(", ")}`).toEqual([]);
+      if (SLOT[act]) expect(segs.some((x) => x.includes(`"${SLOT[act]}"`)), `${file} does not ask who acts for ${act} (${SLOT[act]})`).toBe(true);
     });
   }
 
@@ -96,6 +114,8 @@ describe("the walk posts the field names the case page's drawers post", () => {
     expect([...called].filter((a) => !held.has(a))).toEqual([]);
     // Every act in the table is called by the harness: the table cannot grow past the walk.
     expect([...held].filter((a) => !called.has(a))).toEqual([]);
+    // Every person slot is posted by the harness through the registry-reading helper.
+    for (const slot of Object.values(SLOT)) expect(harness.includes(`"${slot}"`), `the walk never acts through ${slot}`).toBe(true);
     // Every name in the table is one the harness writes (as a key of a posted form).
     const all = new Set(POSTED.flatMap((p) => p.names));
     for (const n of all) expect(new RegExp(`\\b${n}\\b`).test(harness), `the walk never posts "${n}"`).toBe(true);

@@ -1137,6 +1137,7 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
 - **Done when** `npm run db:reset` produces each stage once in the demo.
 
 **C11. test-engineer: the rules and the walk (AC-20).**
+- **Status (2026-10-18): built.** See the decisions log, "Wave C step C11". The rules and the walk are `scripts/case-walk-harness.ts`, run by `src/lib/contract/case-walk.db.test.ts` (`npm run test:db`) against a throwaway database loaded with the demonstration; the walk also ran in headless Chrome on a scratch server (29 phases, to Active on site). Product-owner question logged: who reads SULIT across the organisation is undecided in the demonstration.
 - One regression test per Must listed in AC-20, driving the action as posted from the case page:
   - FR-AWD-001: issue refused unapproved;
   - FR-AWD-004: a copy logged per despatch;

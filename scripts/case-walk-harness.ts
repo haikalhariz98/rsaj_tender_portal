@@ -70,6 +70,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { actFieldNames } from "@/lib/auth/act-field-names";
+import { slotOf } from "@/lib/auth/act-slots";
 import { createStaffSession, readStaffSession } from "@/lib/auth/session-store";
 import { hashToken } from "@/lib/auth/token";
 import type { StaffActor } from "@/lib/auth/types";
@@ -89,8 +90,18 @@ import { recordPossession } from "@/app/projects/[id]/supervision-actions";
 import { attachDocument } from "@/app/documents/actions";
 import { addCondition, cancelAward, createAward, decideAppointmentStep, issueAward, lodgePolicy, lodgeSecurity, recordCommencement, recordCommitment, recordDespatch, recordReturn, reviewPolicy, reviewSecurity, satisfyCondition, submitAward, updateAwardDetails, updateAwardTerms } from "@/app/awards/actions";
 
-const PASSWORD_FIELD = actFieldNames("personId").password;
 const PASSWORD = process.env.DEMO_ACCOUNT_PASSWORD ?? "";
+/**
+ * What a drawer posts for the person of an act. An act is the signed-in officer's own, so a drawer posts no person for it; and it asks for the sign-in password only where the
+ * act's slot is signature-class (`actorField` reads the registry for both, `src/lib/auth/actor-field.ts`). So the walk posts the password under `<person field>:password` for
+ * those slots and nothing for the rest, read from the same registry: a slot that becomes a signature is then posted with its password here, without a line changing.
+ */
+const signedBy = (slotKey: string, personField: string): Record<string, string> => {
+  const dot = slotKey.indexOf(".");
+  const slot = slotOf(slotKey.slice(0, dot), slotKey.slice(dot + 1));
+  if (!slot) throw new Error(`"${slotKey}" is not an act slot (src/lib/auth/act-slots.ts).`);
+  return slot.signatureClass ? { [actFieldNames(personField).password]: PASSWORD } : {};
+};
 const form = (fields: Record<string, string>) => {
   const f = new FormData();
   for (const [k, v] of Object.entries(fields)) f.set(k, v);
@@ -156,14 +167,14 @@ async function committeeCarries(o: { awardId: string; exerciseId: string; commit
   await as(o.secretary);
   const today = orgToday();
   const step = await db.approvalStep.findFirstOrThrow({ where: { instance: { awardId: o.awardId, status: "PENDING" }, committeeCode: { not: null }, decision: "PENDING" }, orderBy: { sequence: "asc" } });
-  ok(await scheduleSitting(FIRST, form({ committeeId: o.committeeId, meetingDate: today, agenda: "The walk's appointment.", items: step.id, tabledByPersonId: o.secretary, [actFieldNames("tabledByPersonId").password]: PASSWORD })), "schedule");
+  ok(await scheduleSitting(FIRST, form({ committeeId: o.committeeId, meetingDate: today, agenda: "The walk's appointment.", items: step.id, ...signedBy("CommitteeDecision.tabledBy", "tabledByPersonId") })), "schedule");
   const tabled = await db.committeeDecision.findFirstOrThrow({ where: { exerciseId: o.exerciseId, outcome: "PENDING", withdrawnAt: null, meeting: { committeeId: o.committeeId } }, include: { meeting: true } });
   ok(await changeStatus(FIRST, form({ meetingId: tabled.meeting.id, to: "IN_PROGRESS" })), "start the sitting");
   for (const p of o.present) ok(await recordAttendance(FIRST, form({ meetingId: tabled.meeting.id, personId: p, attended: "yes" })), `attendance of ${p}`);
   for (const p of o.present) {
     await as(p);
     const res = await castVote(
-      new Request(`http://localhost/api/committees/decisions/${tabled.id}/votes`, { method: "POST", body: JSON.stringify({ choice: "SETUJU", votedAt: today, password: PASSWORD }), headers: { "content-type": "application/json" } }),
+      new Request(`http://localhost/api/committees/decisions/${tabled.id}/votes`, { method: "POST", body: JSON.stringify({ choice: "SETUJU", votedAt: today, ...(Object.keys(signedBy("Vote.person", "onBehalfOf")).length ? { password: PASSWORD } : {}) }), headers: { "content-type": "application/json" } }),
       { params: Promise.resolve({ id: tabled.id }) } as never,
     );
     expect(res.status, JSON.stringify(await res.clone().json())).toBe(200);
@@ -186,11 +197,11 @@ async function approvedIndent(o: { startOn: string; indentNo: string; receivedDa
     await updateAwardTerms(FIRST, form({ id: award.id, startDate: o.startOn, regulatedActivity: "no", bondRequired: "no", bondNotRequiredReason: "Short-form terms, no bond asked.", bondBasisProvenance: "ASSUMED", ladAmount: "100", ladUnit: "per day", dlpMonths: "0", retentionPercent: "5", retentionCapPercent: "5", termsProvenance: "ASSUMED", wcBasis: "PERCENT_OF_CONTRACT" })),
     "terms (indent)",
   );
-  ok(await submitAward(FIRST, form({ id: award.id, [PASSWORD_FIELD]: PASSWORD })), "submit (indent)");
+  ok(await submitAward(FIRST, form({ id: award.id, ...signedBy("ApprovalInstance.submittedBy", "personId") })), "submit (indent)");
   await committeeCarries({ awardId: award.id, exerciseId: "demo_sx13", committeeId: "demo_c2", present: ["demo_p2", "demo_p4"], secretary: "demo_p3" });
   await as("demo_p1");
   const ceo = await db.approvalStep.findFirstOrThrow({ where: { instance: { awardId: award.id, status: "PENDING" }, decision: "PENDING" }, orderBy: { sequence: "asc" } });
-  ok(await decideAppointmentStep(FIRST, form({ id: award.id, stepId: ceo.id, decision: "DONE", decidedOn: orgToday(), receivedOn: orgToday(), personId: "demo_p1", [PASSWORD_FIELD]: PASSWORD })), "the Chief Executive's step");
+  ok(await decideAppointmentStep(FIRST, form({ id: award.id, stepId: ceo.id, decision: "DONE", decidedOn: orgToday(), receivedOn: orgToday(), ...signedBy("ApprovalStep.decidedBy", "personId") })), "the Chief Executive's step");
   expect((await db.award.findUniqueOrThrow({ where: { id: award.id } })).status).toBe("APPROVED");
   await as("demo_p3");
   ok(await recordCommitment(FIRST, form({ id: award.id, erpCommitmentNo: o.indentNo, erpCommitmentKind: "INDENT", receivedOn: dayPlus(orgToday(), -o.receivedDaysAgo) })), "the indent number");
@@ -215,17 +226,17 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
 
   it("sets the terms and sends the award for approval", async () => {
     ok(await updateAwardTerms(FIRST, form({ id: walk.awardId, startDate: startDay(), regulatedActivity: "no", bondRequired: "yes", bondBasis: "CONTRACT_PRICE", bondPercent: "5", bondValidityExtraMonths: "12", bondBasisProvenance: "ASSUMED", ladAmount: "800", ladUnit: "per day", retentionPercent: "5", retentionCapPercent: "5", dlpMonths: "12", termsProvenance: "ASSUMED", wcBasis: "PERCENT_OF_CONTRACT" })), "terms");
-    ok(await submitAward(FIRST, form({ id: walk.awardId, [PASSWORD_FIELD]: PASSWORD })), "submit");
+    ok(await submitAward(FIRST, form({ id: walk.awardId, ...signedBy("ApprovalInstance.submittedBy", "personId") })), "submit");
     expect((await db.award.findUniqueOrThrow({ where: { id: walk.awardId } })).status).toBe("PENDING_APPROVAL");
   });
 
   it("FR-AWD-001: issue is refused to an award not yet approved, and no Contract is made (pending, and a draft)", async () => {
     await as("demo_p2");
     const before = await db.contract.count();
-    const signed = { signatoryPersonId: "demo_p2", signedOn: orgToday(), [actFieldNames("signatoryPersonId").password]: PASSWORD };
-    expect(refusal(await issueAward(FIRST, form({ id: walk.awardId, ...signed })))).toMatch(/Not issued/);
+    const issueFields = { signedOn: orgToday(), ...signedBy("Award.signatoryPerson", "signatoryPersonId") };
+    expect(refusal(await issueAward(FIRST, form({ id: walk.awardId, ...issueFields })))).toMatch(/Not issued/);
     // The demonstration's draft award, on another exercise.
-    expect(refusal(await issueAward(FIRST, form({ id: "demo_aw7", ...signed })))).toMatch(/Not issued/);
+    expect(refusal(await issueAward(FIRST, form({ id: "demo_aw7", ...issueFields })))).toMatch(/Not issued/);
     expect(await db.contract.count()).toBe(before);
     expect((await db.award.findUniqueOrThrow({ where: { id: walk.awardId } })).status).toBe("PENDING_APPROVAL");
     expect((await db.award.findUniqueOrThrow({ where: { id: "demo_aw7" } })).status).toBe("DRAFT");
@@ -244,7 +255,7 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
     const before = await db.contract.count({ where: { awardId: walk.awardId } });
     for (const p of ["demo_p1", "demo_p3"]) {
       await as(p);
-      refusal(await issueAward(FIRST, form({ id: walk.awardId, signatoryPersonId: p, signedOn: orgToday(), [actFieldNames("signatoryPersonId").password]: PASSWORD })));
+      refusal(await issueAward(FIRST, form({ id: walk.awardId, signedOn: orgToday(), ...signedBy("Award.signatoryPerson", "signatoryPersonId") })));
     }
     expect(await db.contract.count({ where: { awardId: walk.awardId } })).toBe(before);
     expect((await db.award.findUniqueOrThrow({ where: { id: walk.awardId } })).status).toBe("APPROVED");
@@ -254,7 +265,7 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
     await as("demo_p2");
     expect(await db.contract.count({ where: { awardId: walk.awardId } })).toBe(0);
     const total = await db.contract.count();
-    ok(await issueAward(FIRST, form({ id: walk.awardId, signatoryPersonId: "demo_p2", signedOn: orgToday(), [actFieldNames("signatoryPersonId").password]: PASSWORD })), "issue");
+    ok(await issueAward(FIRST, form({ id: walk.awardId, signedOn: orgToday(), ...signedBy("Award.signatoryPerson", "signatoryPersonId") })), "issue");
     expect(await db.contract.count()).toBe(total + 1);
     const contract = await db.contract.findFirstOrThrow({ where: { awardId: walk.awardId } });
     walk.contractId = contract.id;
@@ -289,28 +300,10 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
     for (const row of rows) expect(await db.auditEntry.count({ where: { entity: "AwardDistribution", entityId: row.id, action: "UPDATE" } }), row.recipientName).toBe(1);
   });
 
-  it("FR-AWD-008: the contractor's identity-card number is SULIT; an officer it is closed to cannot record the return, and nothing is written", async () => {
-    await as("demo_p9");
-    const words = refusal(await recordReturn(FIRST, form({ id: walk.awardId, signedLetterReceivedOn: orgToday(), signatoryName: "Walk Director", icNumber: "900101-14-5678", [PASSWORD_FIELD]: PASSWORD })));
-    expect(words).toMatch(/SULIT/);
-    const ret = await db.awardReturn.findFirstOrThrow({ where: { awardId: walk.awardId } });
-    expect(ret.icNumber).toBe("");
-    expect(ret.signedLetterReceivedOn).toBeNull();
-  });
-
-  it("FR-AWD-003 and FR-AWD-008: the return is recorded, and the award is accepted only once every paper received has its scan", async () => {
+  it("FR-AWD-003: the return is recorded, and the award is accepted only once every paper received has its scan", async () => {
     await as("demo_p3");
     const today = orgToday();
-    ok(
-      await recordReturn(
-        FIRST,
-        form({
-          id: walk.awardId, signedLetterReceivedOn: today, declarationReceivedOn: today, authorisationReceivedOn: today, whereHeld: "Procurement registry", signatoryName: "Walk Director", icNumber: "900101-14-5678",
-          occupation: "Director", address: "1 Walk Road", capacity: "Director", contractorSigned: "yes", stampAffixed: "yes", witnessName: "Walk Witness", witnessSigned: "yes", [PASSWORD_FIELD]: PASSWORD,
-        }),
-      ),
-      "return",
-    );
+    ok(await recordReturn(FIRST, form({ id: walk.awardId, signedLetterReceivedOn: today, declarationReceivedOn: today, authorisationReceivedOn: today, whereHeld: "Procurement registry", ...signedBy("AwardReturn.receivedBy", "receivedByPersonId") })), "return");
     expect((await db.award.findUniqueOrThrow({ where: { id: walk.awardId } })).status).toBe("ISSUED");
     const purposes = ["SIGNED_LETTER", "DECLARATION", "AUTHORISATION"] as const;
     for (const [i, purpose] of purposes.entries()) {
@@ -331,14 +324,14 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
     ok(await lodgeSecurity(FIRST, bond(walk.awardId, "WALK-BG-SMALL", "1000.00")), "lodge the small bond");
     const small = await db.securityInstrument.findFirstOrThrow({ where: { contractId: walk.contractId, instrumentRef: "WALK-BG-SMALL" } });
     await as("demo_p5");
-    expect(refusal(await reviewSecurity(FIRST, form({ id: walk.awardId, securityId: small.id, outcome: "VERIFIED", on: today, personId: "demo_p5", [PASSWORD_FIELD]: PASSWORD })))).toMatch(/Not verified/);
+    expect(refusal(await reviewSecurity(FIRST, form({ id: walk.awardId, securityId: small.id, outcome: "VERIFIED", on: today, ...signedBy("SecurityInstrument.verifiedBy", "personId") })))).toMatch(/Not verified/);
     expect((await db.securityInstrument.findUniqueOrThrow({ where: { id: small.id } })).status).toBe("LODGED");
-    ok(await reviewSecurity(FIRST, form({ id: walk.awardId, securityId: small.id, outcome: "REJECTED", reason: "Below the bond the award requires.", on: today, personId: "demo_p5", [PASSWORD_FIELD]: PASSWORD })), "reject");
+    ok(await reviewSecurity(FIRST, form({ id: walk.awardId, securityId: small.id, outcome: "REJECTED", reason: "Below the bond the award requires.", on: today, ...signedBy("SecurityInstrument.verifiedBy", "personId") })), "reject");
     await as("demo_p3");
     ok(await lodgeSecurity(FIRST, bond(walk.awardId, "WALK-BG-001", "62000.00")), "lodge the bond");
     const good = await db.securityInstrument.findFirstOrThrow({ where: { contractId: walk.contractId, instrumentRef: "WALK-BG-001" } });
     await as("demo_p5");
-    ok(await reviewSecurity(FIRST, form({ id: walk.awardId, securityId: good.id, outcome: "VERIFIED", on: today, personId: "demo_p5", [PASSWORD_FIELD]: PASSWORD })), "verify");
+    ok(await reviewSecurity(FIRST, form({ id: walk.awardId, securityId: good.id, outcome: "VERIFIED", on: today, ...signedBy("SecurityInstrument.verifiedBy", "personId") })), "verify");
     expect((await db.securityInstrument.findUniqueOrThrow({ where: { id: good.id } })).status).toBe("VERIFIED");
   });
 
@@ -354,19 +347,19 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
     const checks = await db.formationCheck.findMany({ where: { contractId: walk.contractId } });
     for (const c of checks) {
       if (c.kind === "FRONT_LOADING") ok(await addRate(FIRST, form({ id: walk.contractId, checkId: c.id, itemRef: "A1", description: "Earthworks", tenderedRate: "90.00", estimateRate: "100.00" })), "rate");
-      ok(await completeCheck(FIRST, form({ id: walk.contractId, checkId: c.id, completedOn: today, note: "Checked in the walk.", personId: "demo_p3", [PASSWORD_FIELD]: PASSWORD })), c.kind);
+      ok(await completeCheck(FIRST, form({ id: walk.contractId, checkId: c.id, completedOn: today, note: "Checked in the walk.", ...signedBy("FormationCheck.completedBy", "personId") })), c.kind);
     }
     for (const comparison of ["TENDER_DOCUMENT", "TENDER_TABLE_DOCUMENT", "DRAWINGS"]) {
-      ok(await recordReconciliation(FIRST, form({ id: walk.contractId, comparison, outcome: "MATCHES", checkedOn: today, note: "", personId: "demo_p3", [PASSWORD_FIELD]: PASSWORD })), comparison);
+      ok(await recordReconciliation(FIRST, form({ id: walk.contractId, comparison, outcome: "MATCHES", checkedOn: today, note: "", ...signedBy("ContractReconciliation.checkedBy", "personId") })), comparison);
     }
     ok(await attachDocument(FIRST, form({ ownerKind: "contract", ownerId: walk.contractId, purpose: "LEGAL_SUBMISSION", versionId: await storedScan("Walk legal submission") })), "legal submission");
-    ok(await submitLegal(FIRST, form({ id: walk.contractId, personId: "demo_p3", [PASSWORD_FIELD]: PASSWORD })), "submit to legal");
+    ok(await submitLegal(FIRST, form({ id: walk.contractId, ...signedBy("LegalReview.submittedBy", "personId") })), "submit to legal");
     expect((await db.contract.findUniqueOrThrow({ where: { id: walk.contractId } })).status).toBe("PENDING_LEGAL_ENDORSEMENT");
   });
 
   it("the legal office endorses the contract", async () => {
     await as("demo_p5");
-    ok(await decideLegal(FIRST, form({ id: walk.contractId, decision: "ENDORSED", decidedOn: orgToday(), comments: "Endorsed in the walk.", reviewerPersonId: "demo_p5", [actFieldNames("reviewerPersonId").password]: PASSWORD })), "endorse");
+    ok(await decideLegal(FIRST, form({ id: walk.contractId, decision: "ENDORSED", decidedOn: orgToday(), comments: "Endorsed in the walk.", ...signedBy("LegalReview.reviewer", "reviewerPersonId") })), "endorse");
     expect((await db.contract.findUniqueOrThrow({ where: { id: walk.contractId } })).status).toBe("LEGALLY_ENDORSED");
   });
 
@@ -378,8 +371,8 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
     ok(await lodgePolicy(FIRST, form({ id: walk.awardId, kind: "WORKS", sumInsured: "100.00", policyNo: "WALK-WORKS-SMALL", ...base })), "lodge the small policy");
     const small = await db.insurancePolicy.findFirstOrThrow({ where: { contractId: walk.contractId, policyNo: "WALK-WORKS-SMALL" } });
     await as("demo_p5");
-    expect(refusal(await reviewPolicy(FIRST, form({ id: walk.awardId, policyId: small.id, outcome: "VERIFIED", on: today, personId: "demo_p5", [PASSWORD_FIELD]: PASSWORD })))).toMatch(/Not verified/);
-    ok(await reviewPolicy(FIRST, form({ id: walk.awardId, policyId: small.id, outcome: "REJECTED", reason: "Below the sum the contract needs.", on: today, personId: "demo_p5", [PASSWORD_FIELD]: PASSWORD })), "reject");
+    expect(refusal(await reviewPolicy(FIRST, form({ id: walk.awardId, policyId: small.id, outcome: "VERIFIED", on: today, ...signedBy("InsurancePolicy.verifiedBy", "personId") })))).toMatch(/Not verified/);
+    ok(await reviewPolicy(FIRST, form({ id: walk.awardId, policyId: small.id, outcome: "REJECTED", reason: "Below the sum the contract needs.", on: today, ...signedBy("InsurancePolicy.verifiedBy", "personId") })), "reject");
     const policies: Record<string, string>[] = [
       { kind: "WORKS", sumInsured: "1240000.00" },
       { kind: "PUBLIC_LIABILITY", sumInsured: "150000.00" },
@@ -390,7 +383,7 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
       ok(await lodgePolicy(FIRST, form({ id: walk.awardId, policyNo: `WALK-${p.kind}`, ...base, ...p })), `lodge ${p.kind}`);
       const row = await db.insurancePolicy.findFirstOrThrow({ where: { contractId: walk.contractId, policyNo: `WALK-${p.kind}` } });
       await as("demo_p5");
-      ok(await reviewPolicy(FIRST, form({ id: walk.awardId, policyId: row.id, outcome: "VERIFIED", on: today, personId: "demo_p5", [PASSWORD_FIELD]: PASSWORD })), `verify ${p.kind}`);
+      ok(await reviewPolicy(FIRST, form({ id: walk.awardId, policyId: row.id, outcome: "VERIFIED", on: today, ...signedBy("InsurancePolicy.verifiedBy", "personId") })), `verify ${p.kind}`);
     }
   });
 
@@ -410,7 +403,7 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
     ok(await attachDocument(FIRST, form({ ownerKind: "contract", ownerId: walk.contractId, purpose: "COMPANY_RESOLUTION", versionId: await storedScan("Walk company resolution") })), "resolution");
     ok(await recordContractorSignature(FIRST, form({ id: walk.contractId, name: "Walk Director", icNumber: "900101-14-5678", capacity: "Director", signedOn: orgToday(), witnessName: "Walk Witness", witnessIcNumber: "880202-10-1234" })), "contractor");
     await as("demo_p1");
-    ok(await recordRsajSignature(FIRST, form({ id: walk.contractId, personId: "demo_p1", [PASSWORD_FIELD]: PASSWORD })), "employer");
+    ok(await recordRsajSignature(FIRST, form({ id: walk.contractId, ...signedBy("ContractSignature.person", "personId") })), "employer");
     expect((await db.contract.findUniqueOrThrow({ where: { id: walk.contractId } })).status).toBe("EXECUTED");
   });
 
@@ -421,7 +414,7 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
     expect((await db.contract.findUniqueOrThrow({ where: { id: walk.contractId } })).status).toBe("STAMPED");
     expect(await stageOf()).toEqual({ kind: "LIVE", stage: "SIGNING" });
     await as("demo_p2");
-    ok(await recordPossession(FIRST, form({ id: walk.contractId, possessionOn: today, note: "Site handed over in the walk.", personId: "demo_p2", [PASSWORD_FIELD]: PASSWORD })), "possession");
+    ok(await recordPossession(FIRST, form({ id: walk.contractId, possessionOn: today, note: "Site handed over in the walk.", ...signedBy("Possession.recordedBy", "personId") })), "possession");
     expect((await db.contract.findUniqueOrThrow({ where: { id: walk.contractId } })).status).toBe("ACTIVE");
     expect(await stageOf()).toEqual({ kind: "LIVE", stage: "ON_SITE" });
   });
@@ -434,7 +427,7 @@ describe.skipIf(!PASSWORD)("a work indent: expiry, the contract number, and late
     indent.awardId = await approvedIndent({ startOn: dayPlus(orgToday(), -8), indentNo: "XI202699001", receivedDaysAgo: 15 });
     await as("demo_p9");
     const total = await db.contract.count();
-    const words = refusal(await issueAward(FIRST, form({ id: indent.awardId, signatoryPersonId: "demo_p9", signedOn: orgToday(), [actFieldNames("signatoryPersonId").password]: PASSWORD })));
+    const words = refusal(await issueAward(FIRST, form({ id: indent.awardId, signedOn: orgToday(), ...signedBy("Award.signatoryPerson", "signatoryPersonId") })));
     expect(words).toMatch(/Not issued/);
     expect(words).toMatch(/expired/i);
     // Expiry is the only thing in the way: the terms, the approvals and the number are all in order.
@@ -447,10 +440,27 @@ describe.skipIf(!PASSWORD)("a work indent: expiry, the contract number, and late
     ok(await cancelAward(FIRST, form({ id: indent.awardId, reason: "Re-awarded with the indent number received on its last valid day." })), "cancel the expired indent");
     indent.awardId = await approvedIndent({ startOn: dayPlus(orgToday(), -8), indentNo: "XI202699002", receivedDaysAgo: 14 });
     await as("demo_p9");
-    ok(await issueAward(FIRST, form({ id: indent.awardId, signatoryPersonId: "demo_p9", signedOn: orgToday(), [actFieldNames("signatoryPersonId").password]: PASSWORD })), "issue");
+    ok(await issueAward(FIRST, form({ id: indent.awardId, signedOn: orgToday(), ...signedBy("Award.signatoryPerson", "signatoryPersonId") })), "issue");
     const contract = await db.contract.findFirstOrThrow({ where: { awardId: indent.awardId } });
     expect(contract.number).toBe("XI202699002");
     expect(contract.numberSource).toBe("INDENT_NUMBER");
+  });
+
+  it("FR-AWD-008 and FR-AWD-003: the acceptance page's identity-card number is SULIT (refused to an officer it is closed to, nothing written); the indent is accepted only once the page has its scan", async () => {
+    const today = orgToday();
+    const page = (extra: Record<string, string> = {}) =>
+      form({ id: indent.awardId, signedLetterReceivedOn: today, signatoryName: "Walk Director", icNumber: "900101-14-5678", occupation: "Director", address: "2 Walk Lane", capacity: "Director", contractorSigned: "yes", stampAffixed: "yes", witnessName: "Walk Witness", witnessSigned: "yes", whereHeld: "Procurement registry", ...signedBy("AwardReturn.receivedBy", "receivedByPersonId"), ...extra });
+    await as("demo_p9");
+    expect(refusal(await recordReturn(FIRST, page()))).toMatch(/SULIT/);
+    const empty = await db.awardReturn.findFirstOrThrow({ where: { awardId: indent.awardId } });
+    expect(empty.icNumber).toBe("");
+    expect(empty.signedLetterReceivedOn).toBeNull();
+    // Not named on this exercise, the officer reads and writes the number only where the organisation has granted the organisation-wide reading.
+    await as("demo_p3", { sulit: true });
+    ok(await recordReturn(FIRST, page()), "the acceptance page");
+    expect((await db.award.findUniqueOrThrow({ where: { id: indent.awardId } })).status).toBe("ISSUED");
+    ok(await attachDocument(FIRST, form({ ownerKind: "award", ownerId: indent.awardId, purpose: "ACCEPTANCE_PAGE", versionId: await storedScan("Walk acceptance page") })), "scan the page");
+    expect((await db.award.findUniqueOrThrow({ where: { id: indent.awardId } })).status).toBe("ACCEPTED");
   });
 
   it("FR-AWD-009: commencement that is late past the grace period is shown with its consequence, and recording it moves the case on site", async () => {
@@ -481,7 +491,7 @@ describe.skipIf(!PASSWORD)("the evaluation's recommendation is SULIT (run by cas
     await as("demo_p9");
     const before = await refused();
     expect(refusal(await updateAwardDetails(FIRST, details()))).toMatch(/SULIT/);
-    expect(refusal(await submitAward(FIRST, form({ id: draft.id, [PASSWORD_FIELD]: PASSWORD })))).toMatch(/SULIT/);
+    expect(refusal(await submitAward(FIRST, form({ id: draft.id, ...signedBy("ApprovalInstance.submittedBy", "personId") })))).toMatch(/SULIT/);
     expect(await refused()).toBe(before + 2);
     expect((await db.award.findUniqueOrThrow({ where: { id: draft.id } })).updatedAt).toEqual(draft.updatedAt);
     // The same officer, once the organisation has granted the organisation-wide reading: the edit goes through.
