@@ -18,7 +18,8 @@ export const SCREEN_COVERAGE: Readonly<Record<string, Exclude<Coverage, "NOT_CON
   "/": "CONVERTED",
   // A notice's stored title and body show as written (ADR 0040 Q2).
   "/inbox": "PARTLY",
-  "/projects": "CONVERTED",
+  // The submissions view's answer drawer (the officer field, its validation text) and the action's refusals stay English (decisions log, N1 review fixes).
+  "/projects": "PARTLY",
   // Panel bodies, drawer forms and action messages stay English in slice 1 (ADR 0040 Q1).
   "/projects/[id]": "PARTLY",
 };

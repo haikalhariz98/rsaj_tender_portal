@@ -41,7 +41,7 @@ describe("routePatternOf", () => {
 describe("coverageOf", () => {
   it("reads the converted and partly converted screens", () => {
     expect(coverageOf("/")).toBe("CONVERTED");
-    expect(coverageOf("/projects")).toBe("CONVERTED");
+    expect(coverageOf("/projects")).toBe("PARTLY");
     expect(coverageOf("/inbox")).toBe("PARTLY");
     expect(coverageOf("/projects/cl0abc")).toBe("PARTLY");
   });
