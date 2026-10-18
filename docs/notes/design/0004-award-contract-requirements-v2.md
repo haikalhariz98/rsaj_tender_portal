@@ -58,6 +58,16 @@ To close: either authorise a scratch copy of the demo organisation and a browser
 - The Contracts card hint reads "n awarding (on Awards, until a contract is formed)" until wave C. Logged as interim. **Superseded 2026-10-19:** wave C
   removed the Awards page, and no source file carries that hint any more.
 
+### Wave G close-out, 2026-10-19
+
+- **Fixed since the table above** (commits `837ddeb3`, `4df909c2`, `de9968bc`): sign-in now ends in one server redirect rather than a second fetch of `/`; the opening matrix
+  columns narrowed so four bidders need 872px; the Securities register's view buttons sit on their own row. The rulings AC-37, 39, 40, 42, 44, 45 and 47 are built.
+- **Verified in a browser: nothing.** The browser round was blocked: the app role `perolehan_vg_app` on the scratch database `perolehan_verify_g` had no password the
+  round was given, and production refuses an owner login at sign-in. No server was started on the founder's database and nobody signed in against it.
+- **Sign-in numbers (AC-8): none.** Median, p95 and requests after the action stay "not measured" for before and after. Nothing here claims the 2.0 s and 3.0 s targets are met.
+- **Still owed:** the 20-run set on `next build && next start` against a scratch demo organisation with a given role password; the one-request count; GN-02 to GN-05, MN-01
+  and MN-02 browser checks; the opening matrix at 1440 and 1600 (its cause was never measured); the register title at 1280 and 1600.
+
 ## Wave C status, 2026-10-19
 
 Code is committed on branch `build-all-modules`, commits `0364318d` (C0) to `29892c60` (C13). **Wave C stays open.** Words as in the Wave G table:
@@ -83,6 +93,16 @@ Accepting it is the product owner's act (decisions log, C0 and the fix round). *
   (`caseVisibility` at the resolver, redirects, list, counts and each moved act) has not run.
 - **Snapshots and browser checks** listed in the table. The fix round's pages were verified by typecheck, tests and the walk only.
 - **ADR 0037** and F0-1 to F0-11 await acceptance. C2 to C11 change if any is ruled differently. **Superseded 2026-10-19:** accepted with amendments (AC-36); C2 to C11 stand.
+
+### Wave C close-out, 2026-10-19
+
+- **Security re-audit ran** on `ffbfcb16`, `29892c60` and the ten commits to `d16033f5`: nothing critical, high or medium. Three findings were fixed in the repair round: the
+  contract's History for a contract-stages-only reader now leaves out the insurance policies' lodging and verifying rows as well as the securities' (AC-37 b; the wages-check row
+  stays, found by its contract label); the late-clock warning says a restricted exercise's notice reaches only those named on it; an offboarded requester is neither written a
+  notice nor said to be told (AC-42).
+- **Verified in a browser: nothing.** Same block as wave G. The pages were checked by typecheck, lint, unit tests, `test:db` and the case walk only.
+- **Still owed:** the C2 and C4 text snapshots (old page against new); every browser check in the table above at 1280 and 1600; the console and network check of
+  `/projects`, `/projects/[id]` and the inbox after the notice change.
 
 ### Product-owner questions raised by the build
 
