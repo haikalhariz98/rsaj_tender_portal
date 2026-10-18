@@ -496,6 +496,7 @@ export function scanCertificateWrites(files: readonly { file: string; src: strin
 /// Model-handle-like property reads that are not a Prisma handle, by "file › function name" (none may write).
 const HANDLE_EXEMPT: Readonly<Record<string, string>> = {
   "src/app/configuration/tender-documents/page.tsx › TenderDocumentsConfigurationPage certificate": "UNSET.certificate: a word map's entry, not a client",
+  "src/app/projects/[id]/payment-panels.tsx › ValuationsSection certificate": "x.certificate: a loaded valuation row's relation, read for display (cert?.status, cert?.number), never written",
 };
 
 describe("every write that can reach a certificate's rows (R-8)", () => {

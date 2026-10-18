@@ -28,7 +28,7 @@ interface Surface {
 // `<SulitValue of>`, the sitting's History judges each row by its matter (`historyAmount`), and the drawer's hint says the amount is SULIT and may be left blank. The rule that
 // every surface is held here, and chips what its kinds can show, is unchanged.
 const SURFACES: readonly Surface[] = [
-  { file: "src/app/page.tsx", what: "dashboard, Committee matters waiting (Value column)", kinds: "ANY", region: 'title="Committee matters waiting"', regionEnd: "rows={data.queue", chip: /key: "value", label: "Value"[^}]*\bsulit: true/ },
+  { file: "src/app/page.tsx", what: "dashboard, Committee matters waiting (Value column)", kinds: "ANY", region: 'title={t(D.committeeTitle)}', regionEnd: "rows={data.queue", chip: /key: "value", label: (?:"Value"|t\(D\.value\))[^}]*\bsulit: true/ },
   { file: "src/components/committee/decision-panel.tsx", what: "sitting agenda, each matter's panel", kinds: "ANY", chip: /\{matter\.amount\.sulit \? <SulitValue of=\{matter\.amount\.sulit\} \/>/ },
   { file: "src/app/committees/[id]/page.tsx", what: "sitting History, a matter's amount", kinds: "ANY", chip: /historyAmount\(\{[^}]*\}\)[\s\S]*<SulitValue of=\{amount\.sulit\} \/>/ },
   { file: "src/app/committees/editors.tsx", what: "sitting, Table a matter drawer's Amount", kinds: "ANY", chip: /name: "amount", label: "Amount", hint: "SULIT:/ },
