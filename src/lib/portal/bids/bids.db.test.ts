@@ -14,7 +14,7 @@ import { requestDocuments, withdrawRequest } from "./request-store";
 import { signUp, withdrawSignUp } from "./signup-store";
 import { acknowledgementsByAddendum, inspectionLogOf, requestsOfWindow, signUpsByEvent } from "./staff-read";
 import { loadReleaseFacts, openForInspection, recordInspection } from "./inspection-store";
-import { loadNonAwardPanel } from "./non-award-store";
+import { loadEarlierNotices, loadNonAwardPanel } from "./non-award-store";
 import { SUPERSEDED_NOTICE_WORDS } from "./non-award";
 import { INSPECTION_REPEAT_SECONDS } from "./documents";
 import { addendaTab, briefingsTab, documentsTab, outcomeTab, overviewTab } from "./workspace-store";
@@ -630,6 +630,12 @@ describe("an award cancelled and made again (Phase 4d review)", () => {
     expect(again.notice).not.toBeNull();
     expect(again.supersededNotice).toBeNull();
     expect((await panelOf()).rows.find((r) => r.partyId === pb.id)?.notice).not.toBeNull();
+
+    // AC-22: the exercise's Award tab shows the cancelled award's notice read only, as an earlier record, and not the live award's.
+    const earlier = await loadEarlierNotices(db, organisationId, ex.exerciseId, [first.id]);
+    expect(earlier).toHaveLength(1);
+    expect(earlier[0]).toMatchObject({ awardId: first.id, partyName: pb.name, reasonText: "Above the estimate." });
+    expect(await loadEarlierNotices(db, organisationId, ex.exerciseId, [])).toEqual([]);
   });
 });
 

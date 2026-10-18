@@ -16,7 +16,7 @@ import type { Reader } from "@/lib/auth/sulit-store";
 import { FormReader } from "@/lib/validate";
 
 /**
- * The notice of non-award (FR-AWD-010, policy D7, Phase 4d): an officer issues it to one unsuccessful tenderer, from the award, after the award was issued. A separate act: the award's own issue is not touched.
+ * The notice of non-award (FR-AWD-010, policy D7, Phase 4d): an officer issues it to one unsuccessful tenderer, from the exercise's Award tab, after the award was issued. A separate act: the award's own issue is not touched.
  * It refuses, and says why in words, while the organisation has not decided to issue them (policy D7 unset) or has decided not to. The text is frozen as issued, carries a reason only where the organisation's debrief
  * does, and never a score, a rank or a figure. It is shown in the portal and is not sent (INT-09). Every check runs again here, on the locked award, whatever the page offered.
  */
@@ -38,7 +38,7 @@ async function inAward(scope: Reader, id: string, fn: (tx: Tx, l: LoadedAward) =
     throw e;
   }
   if (result?.ok) {
-    revalidatePath(`/awards/${id}`);
+    // AC-22: the notices are issued and read on the exercise's Award tab.
     if (exerciseId) revalidatePath(`/sourcing/${exerciseId}`);
   }
   return result ?? GONE;

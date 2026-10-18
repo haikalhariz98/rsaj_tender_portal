@@ -53,3 +53,22 @@ export async function loadNonAwardPanel(client: Tx, organisationId: string, awar
     }),
   };
 }
+
+export interface EarlierNotice {
+  awardId: string;
+  partyName: string;
+  issuedOn: string;
+  reasonText: string;
+  issuedBy: string;
+}
+
+/// The notices issued under awards that no longer stand (AC-22): an earlier record, shown read only on the exercise. Reads only.
+export async function loadEarlierNotices(client: Tx, organisationId: string, exerciseId: string, awardIds: string[]): Promise<EarlierNotice[]> {
+  if (awardIds.length === 0) return [];
+  const rows = await client.nonAwardNotice.findMany({
+    where: { exerciseId, organisationId, awardId: { in: awardIds } },
+    select: { awardId: true, issuedOn: true, reasonText: true, issuedBy: { select: { name: true } }, party: { select: { name: true } } },
+    orderBy: [{ issuedAt: "asc" }, { id: "asc" }],
+  });
+  return rows.map((n) => ({ awardId: n.awardId, partyName: n.party.name, issuedOn: formatDate(storedDay(n.issuedOn)), reasonText: n.reasonText, issuedBy: n.issuedBy.name }));
+}

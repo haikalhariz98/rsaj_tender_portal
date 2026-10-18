@@ -136,6 +136,7 @@ import { money, OverviewPanel, pct, tone } from "./overview";
 import type { ReactNode } from "react";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseValue, sulitExerciseGate } from "@/app/_auth/sulit";
+import { EarlierNoticesPanel, NonAwardPanel } from "./non-award-panel";
 import { fieldIsFor, sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import { isBlindMasked, maskAllRows } from "@/lib/evaluation/blind-audit";
@@ -174,7 +175,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     loadRoster(actor.organisationCode),
     loadDelegations(actor.organisationCode),
     db.orgUnit.findMany({ where: { organisationId: org.id } }),
-    db.award.findMany({ where: { exerciseId: ex.id }, orderBy: { createdAt: "desc" }, select: { id: true, reference: true, awardeeName: true, awardedValue: true, status: true, instrumentKind: true, cancelReason: true, contract: { select: { number: true } } } }),
+    db.award.findMany({ where: { exerciseId: ex.id }, orderBy: { createdAt: "desc" }, select: { id: true, reference: true, awardeeName: true, awardeePartyId: true, awardedValue: true, status: true, instrumentKind: true, cancelReason: true, contract: { select: { number: true } } } }),
     loadAwardPolicy(org.id),
   ]);
   // FR-EVL-020 (decisions log, 2026-10-09, ruling on 1867(3)): a reader on the evaluation team of a version that still holds identities back is shown the opening's rows and the
@@ -630,6 +631,17 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           packKind={ex.packKindSnapshot}
           window={windowGateNow}
           awards={awards}
+          notices={
+            tab === "award" ? (
+              <>
+                {(() => {
+                  const standing = awards.find((a) => a.status !== "CANCELLED");
+                  return standing ? <NonAwardPanel actor={actor} award={{ id: standing.id, exerciseId: ex.id, status: standing.status, awardeePartyId: standing.awardeePartyId }} /> : null;
+                })()}
+                <EarlierNoticesPanel actor={actor} exerciseId={ex.id} awards={awards.filter((a) => a.status === "CANCELLED")} />
+              </>
+            ) : null
+          }
           // Whether an award can be opened here at all, and whether it could then go for approval.
           opening={(() => {
             const i = instrumentFor(ex.regime, awardPolicy);
@@ -807,7 +819,7 @@ function RoutedNames({ named, personName }: { named: ExerciseAccessFacts["named"
   );
 }
 
-function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossier, bidFaults, openingFaults, evaluationFaults }: { exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; bidFaults: string[]; openingFaults: string[]; evaluationFaults: string[]; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
+function AwardTab({ notices, exerciseId, status, packKind, window, awards, opening, dossier, bidFaults, openingFaults, evaluationFaults }: { notices: React.ReactNode; exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; bidFaults: string[]; openingFaults: string[]; evaluationFaults: string[]; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; awardeePartyId: string | null; contract: { number: string } | null }[] }) {
   const live = awards.find((a) => a.status !== "CANCELLED") ?? null;
   const cancelled = awards.filter((a) => a.status === "CANCELLED");
   return (
@@ -869,6 +881,7 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
           )}
         </CardBody>
       </Card>
+      {notices}
       {cancelled.length > 0 && (
         <Card className="overflow-hidden">
           <CardHeader icon={<ClockIcon size={17} />} title="Cancelled awards" subtitle="Kept on record." />

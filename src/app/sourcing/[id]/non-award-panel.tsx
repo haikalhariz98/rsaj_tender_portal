@@ -5,13 +5,13 @@ import { Callout } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
-import { loadNonAwardPanel } from "@/lib/portal/bids/non-award-store";
+import { loadEarlierNotices, loadNonAwardPanel } from "@/lib/portal/bids/non-award-store";
 import { NOTICE_DELIVERY_STATEMENT } from "@/lib/portal/bids/notices";
 
 import { IssueNoticeDrawer } from "./non-award-drawer";
 
 /**
- * "Notices to tenderers" on an award (FR-AWD-010, policy D7, Phase 4d): the organisation's decision whether unsuccessful tenderers are told the outcome, and each one with its notice. Unset says it is unset and
+ * "Notices to unsuccessful tenderers" on the exercise's Award tab (AC-22) (FR-AWD-010, policy D7, Phase 4d): the organisation's decision whether unsuccessful tenderers are told the outcome, and each one with its notice. Unset says it is unset and
  * issues nothing; the rules are the action's, which judges them again. The notice is shown in the portal and is not sent.
  */
 export async function NonAwardPanel({ actor, award }: { actor: Pick<StaffActor, "organisationId">; award: { id: string; exerciseId: string; status: string; awardeePartyId: string | null } }) {
@@ -65,5 +65,34 @@ export async function NonAwardPanel({ actor, award }: { actor: Pick<StaffActor, 
         )}
       </Card>
     </div>
+  );
+}
+
+/**
+ * Notices issued under awards that were later cancelled (AC-22): an earlier record, read only. Nothing here can issue or change one; the live award's notices are above.
+ */
+export async function EarlierNoticesPanel({ actor, exerciseId, awards }: { actor: Pick<StaffActor, "organisationId">; exerciseId: string; awards: { id: string; reference: string }[] }) {
+  const notices = await loadEarlierNotices(db, actor.organisationId, exerciseId, awards.map((a) => a.id));
+  if (notices.length === 0) return null;
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader icon={<InboxIcon size={17} />} title="Earlier notices to tenderers" subtitle="Issued under an award that was later cancelled. They no longer apply and are kept on record." />
+      <ul className="divide-y divide-line/70">
+        {awards.map((a) => {
+          const mine = notices.filter((n) => n.awardId === a.id);
+          if (mine.length === 0) return null;
+          return (
+            <li key={a.id} className="flex flex-col gap-1 px-5 py-3 sm:px-6">
+              <div className="text-[13px] font-semibold text-ink">{a.reference}</div>
+              {mine.map((n, i) => (
+                <div key={i} className="text-[13px] break-words text-ink-3">
+                  {`${n.partyName} · Notice issued ${n.issuedOn} by ${n.issuedBy}${n.reasonText ? `. Reason: ${n.reasonText}` : ""}`}
+                </div>
+              ))}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }

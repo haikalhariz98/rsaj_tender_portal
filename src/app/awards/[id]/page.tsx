@@ -12,7 +12,6 @@ import { AWARD_NOTE_ID } from "@/app/awards/editors";
 import { requireStaff } from "@/app/_auth/actor";
 import { buildAwardView } from "@/app/projects/[id]/award/award-view";
 import { money } from "@/app/projects/[id]/award/shared";
-import { NonAwardPanel } from "./non-award-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +38,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
     { id: "instrument", label: "Instrument", icon: <FileIcon size={15} />, count: v.counts.instrument, panel: v.panel("instrument") },
     { id: "distribution", label: "Distribution", icon: <InboxIcon size={15} />, panel: v.panel("distribution") },
     { id: "return", label: "Return", icon: <ClipboardIcon size={15} />, panel: v.panel("return") },
-    // Phase 4d (FR-AWD-010, policy D7): the notices to the tenderers whose bid did not win. Read only while this tab is the one open.
-    { id: "notices", label: "Notices to tenderers", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "notices" ? <NonAwardPanel actor={actor} award={{ id: award.id, exerciseId: award.exerciseId, status: award.status, awardeePartyId: award.awardeePartyId }} /> : null },
+    // The notices to unsuccessful tenderers moved to the exercise's Award tab (AC-22).
     { id: "conditions", label: "Conditions", icon: <CheckIcon size={15} />, count: v.counts.conditions, panel: v.panel("conditions") },
     { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: v.counts.securities, panel: v.panel("securities") },
     // 6.14 increment 1 (rulings condition): the pre-award routing sheet over the appointment route.
