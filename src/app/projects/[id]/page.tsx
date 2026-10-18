@@ -4,12 +4,26 @@ import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker, actStatusText } from "@/lib/contract/act-status";
 import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
 import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { AWARD_NOTE_ID } from "@/app/awards/editors";
+import { loadCase } from "@/app/_auth/case";
+import { Stepper, type StepperStep } from "@/components/ui/stepper";
+import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, INSTRUMENT_SHORT } from "@/lib/award/labels";
+import { loadAward } from "@/lib/award/repo";
+import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
+import { caseStage } from "@/lib/contract/case-stage";
+import { CASE_STEP_LABEL, CLOSE_OUT_PARKED, caseSteps, type CaseAction, type CaseFacts } from "@/lib/contract/case-steps";
+import { CASE_TABS, HISTORY_TAB } from "@/lib/contract/case-tabs";
+import { caseHistorySources, resolveCaseView } from "@/lib/contract/case-view";
+import { CASE_ACTION_AT, caseHref, keepQuery } from "@/lib/contract/links";
+import type { HiddenAct } from "@/lib/supervision/authority";
+import { buildAwardView, type AwardPanelId } from "./award/award-view";
+import { possessionBlockerOf, signingActOf, startState } from "./signing-acts";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
-import { AwardIcon, BuildingIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, InboxIcon, ScaleIcon, ShieldIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
+import { AwardIcon, BuildingIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, FilesIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
-import { Tabs } from "@/components/tabs";
+import { Tabs, type TabSpec } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
 import { ButtonLink } from "@/components/ui/button";
@@ -20,19 +34,18 @@ import { KeyValues } from "@/components/ui/stat";
 import { INSURANCE_KIND_LABEL, REGISTER_STATUS_LABEL, REGISTER_STATUS_TONE, SECURITY_KIND_LABEL, WC_BASIS_LABEL } from "@/lib/award/labels";
 import { loadExpiryOffsets } from "@/lib/award/repo";
 import { expiryAlert, expiryChip, remindersText } from "@/lib/securities/expiry";
-import { contractFaultText } from "@/lib/contract/fault-text";
 import { arithmeticVariance } from "@/lib/contract/formation";
 import { signingFacts } from "@/lib/contract/judge";
 import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
 import { CONTRACT_YEAR_WORDS, contractYearReading } from "@/lib/contract/issue-year";
 import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
-import { contractHistory, loadContractConfig, preparationSettings } from "@/lib/contract/load";
-import { readFormationSnapshot, startFaults } from "@/lib/contract/preparation";
+import { contractHistory } from "@/lib/contract/load";
+import { readFormationSnapshot } from "@/lib/contract/preparation";
 import { loadContract, type LoadedContract } from "@/lib/contract/repo";
 import { briefingMissing } from "@/lib/contract/sign";
 import { isExecuted } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
-import { dayOf, storedDay } from "@/lib/dates";
+import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
@@ -63,138 +76,286 @@ const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const notSet = (what = "Not set") => <span className="text-ink-4">{what}</span>;
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
 
+// ------------------------------------------------------------------ the case
+
+/// How each tab of the case looks in the strip. The ids are `CASE_TABS`' (src/lib/contract/case-tabs.ts), which decides which stage
+/// lists which; "instrument" is the Letter (AC-19).
+const TAB_LOOK: Readonly<Record<string, { label: string; icon: ReactNode }>> = {
+  overview: { label: "Overview", icon: <AwardIcon size={15} /> },
+  approval: { label: "Approval", icon: <RouteIcon size={15} /> },
+  instrument: { label: "Letter", icon: <FileIcon size={15} /> },
+  distribution: { label: "Distribution", icon: <InboxIcon size={15} /> },
+  return: { label: "Return", icon: <ClipboardIcon size={15} /> },
+  routing: { label: "Routing sheet", icon: <SlidersIcon size={15} /> },
+  conditions: { label: "Conditions", icon: <CheckIcon size={15} /> },
+  securities: { label: "Securities and insurance", icon: <ShieldIcon size={15} /> },
+  formation: { label: "Formation", icon: <ToolsIcon size={15} /> },
+  baseline: { label: "Baseline", icon: <FileIcon size={15} /> },
+  team: { label: "Team", icon: <UsersIcon size={15} /> },
+  site: { label: "Site", icon: <BuildingIcon size={15} /> },
+  payments: { label: "Payments", icon: <WalletIcon size={15} /> },
+  variations: { label: "Variations", icon: <ScaleIcon size={15} /> },
+  documents: { label: "Documents", icon: <FilesIcon size={15} /> },
+  submissions: { label: "Submissions", icon: <InboxIcon size={15} /> },
+};
+
+/// The tabs that have a second level, with the sections the case page reads from its address.
+const SECTIONED = { formation: FORMATION_SECTIONS, site: SITE_SECTIONS, payments: PAYMENT_SECTIONS, variations: VARIATION_SECTIONS } as const;
+
+const STEP_STATE = { done: "done", "in-progress": "current", waiting: "waiting", parked: "parked" } as const;
+
+/// The label of a main button that is a link to the panel holding the act's drawer (see `CASE_ACTION_AT`).
+const LINK_ACTION_LABEL: Readonly<Partial<Record<CaseAction, string>>> = {
+  RECORD_DESPATCH: "Record despatch",
+  RECORD_RETURN: "Record the return",
+  LODGE_SECURITY: "Lodge a security",
+  VERIFY_SECURITY: "Verify securities",
+  SUBMIT_TO_LEGAL: "Send to the legal office",
+  RECORD_SIGNATURE: "Record the signatures",
+  RECORD_STAMPING: "Record the stamping",
+  RECORD_POSSESSION: "Record possession of site",
+};
+
+const RESTRICTED_AWARD_STAGE = "The award stage of this exercise is restricted to the people named on it. The contract stages are open to you.";
+
 /**
- * A contract after award (6.12, FR-CON-003–014): what it is, where it stands, how it is formed and
- * signed, the baseline every later calculation reads, its securities and its History. Everything an act
- * would refuse is said beside the act's button, from the same rule the act runs.
+ * The case (Award and Contract Requirements v2, C-1, C-2; design note 0004 C5; ADR 0037): one page for an award from "Start the
+ * award" to "On site", keyed by the contract once there is one and by the award until then. A step bar of five stages, a "What's
+ * next" line and one main button; below it the tabs of the stage being viewed, one at a time.
+ *
+ * - `loadCase` answers first: unknown or hidden is a 404, an award id whose contract exists is a redirect that keeps the query.
+ * - The Award stage reads the award's readers and the exercise's SULIT gates (`buildAwardView`). The contract stages read the
+ *   contract's readers and its own `contract` gate. Neither gate is handed to the other's panels.
+ * - A reader who sees the contract stages only (a restricted exercise, once issued) gets no award reader at all (AC-18).
+ * - A case with no Contract row runs no contract reader.
  */
-export default async function ContractPage(props: PageProps<"/projects/[id]">) {
+export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const actor = await requireStaff();
-  const [{ id }, { tab, section, page, waiting, answered }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string; page?: string; waiting?: string; answered?: string }>]);
-  const l = await loadContract(actor.organisationId, id);
+  const [{ id }, sp] = await Promise.all([props.params, props.searchParams as Promise<Record<string, string | string[] | undefined>>]);
+  const first = (k: string) => {
+    const v = sp[k];
+    return typeof v === "string" ? v : v?.[0];
+  };
+  const loaded = await loadCase(actor, id);
+  if (loaded.kind === "NOT_FOUND") notFound();
+  if (loaded.kind === "REDIRECT") redirect(`/projects/${encodeURIComponent(loaded.contractId)}${keepQuery(sp)}`);
+  const visibility = loaded.visibility;
+  const lc = loaded.kind === "CONTRACT" ? await loadContract(actor.organisationId, loaded.contractId) : null;
+  const l = lc ?? (await loadAward(actor.organisationId, loaded.awardId));
   if (!l) notFound();
-  const c = l.contract;
-  // The contract's priced working (the arithmetic corrections, the estimate rates a tendered rate is set against, the figures a certificate's override trail names) is SULIT; a
-  // contract keeps no list of who is named on it, so only the organisation-wide permission opens it (undecided until decided). One answer for the page, logged.
-  const sulit = await sulitGate(actor, { scope: "contract", entity: "Contract", id: c.id, label: c.number }, fieldsOfScope("contract"));
-  const status = c.status as ContractStatus;
-  const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
-  const [people, history, facts, certificates, supervision, submissionCount, documentFacts] = await Promise.all([
-    db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    contractHistory(l),
-    today ? signingFacts(l, null, today) : Promise.resolve(null),
-    // 6.14 increment 1: the contract's certificates, counted for the Documents tab.
-    db.certificate.count({ where: { contractId: c.id } }),
-    // 6.13 Part A: the contract's supervision, read once for the Overview, Team and Site tabs.
-    supervisionView(l, today),
-    // AC-16, AC-18: the submissions waiting on this contract, counted for the Submissions tab, restricted exercise or not.
-    db.contractorSubmission.count({ where: { organisationId: l.org.id, contractId: c.id, outcome: null } }),
-    // AC-16: the copies not sent and the routing sheets open, for the Documents tab alone (one tab's data at a time).
-    tab === "documents" ? contractDocumentFacts(l.org.id, c.id, today) : Promise.resolve(null),
-  ]);
-  // The people who decide a contract matter's route read that matter's amount, and nothing else of the contract (ruling of 2026-10-08, the amendment of the ruling on log line 1526): the
-  // trail's rows of a matter that name its routed value are judged by the matter's own gate where the contract's is withheld. Asked (and logged) only where a row carries one.
-  const matterIds = [...new Set(history.entries.filter((e) => e.entity === "ContractMatter" && e.changes.some((ch) => ch.field === ROUTED_MATTER_VALUE_FIELD)).map((e) => e.entityId))];
+  const { award, ex } = l;
+  const c = lc?.contract ?? null;
+  const status = c ? (c.status as ContractStatus) : null;
+  const today = l.org.today;
+  const ref = { awardId: award.id, contractId: c?.id ?? null };
+  const { tab, section, page, waiting, answered } = { tab: first("tab"), section: first("section"), page: first("page"), waiting: first("waiting"), answered: first("answered") };
+  const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
+
+  // ----------------------------------------------------------------- what the step bar needs
+  // The award's facts, for a reader who sees the whole case; none of the award's readers run for the others (AC-18).
+  const av = visibility === "WHOLE" ? await buildAwardView({ actor, l }) : null;
+  // The contract's signing facts, once there is a Contract row: Signing's act and the header's phase (the phase needs a time zone).
+  const facts = lc && today ? await signingFacts(lc, null, today) : null;
+  const start = lc ? await startState(lc, today) : null;
+  // Possession of site is the one signing act that needs the supervision reader; only at STAMPED.
+  let supervision: SupervisionView | null = null;
+  const supervisionOf = async () => (supervision ??= await supervisionView(lc!, today));
+  let hiddenActs: HiddenAct[] = [];
+  const hiddenOf = (v: SupervisionView) => (today && !actor.system ? hiddenFor(actor.personId, v.so?.office ?? null, delegationFactsOf(v.s), today, SUPERVISION_ACTS) : []);
+  let possession: { blocker: string | null; hidden: boolean } | null = null;
+  if (lc && status === "STAMPED") {
+    const v = await supervisionOf();
+    hiddenActs = hiddenOf(v);
+    possession = { blocker: await possessionBlockerOf(lc, v, today), hidden: hiddenActs.includes("PRINCIPAL_OR_SO") };
+  }
+  const standing = caseStage({ award: { status: award.status as AwardStatus, instrumentKind: award.instrumentKind as InstrumentKind }, contract: status ? { status } : null, commencement: { commencedOn: day(award.commencedOn) } });
+  const caseFacts: CaseFacts = {
+    visibility,
+    standing,
+    award: av?.stepFacts ?? null,
+    // Under CONTRACT_STAGES_ONLY the conditions are the award's, so they are not judged (F0-4).
+    beforeSigning: !c ? null : av ? av.before : { readiness: null, securitiesToVerify: 0, lodgeOffered: false },
+    signing: lc ? { status: status!, act: signingActOf(lc, facts, today, start, possession) } : null,
+  };
+  const steps = caseSteps(caseFacts);
+  const view = resolveCaseView({ stage: first("stage"), tab, steps, standing, hasContract: !!c, visibility });
+  const viewed = steps.find((s) => s.key === view.stage)!;
+  const sources = caseHistorySources({ hasContract: !!c, visibility });
+
+  // ----------------------------------------------------------------- the viewed stage, and only it
+  const stage = view.stage;
+  const awardTab: AwardPanelId | "none" = view.history ? "history" : stage === "award" || stage === "before-signing" ? ((view.tab ?? "overview") as AwardPanelId) : "none";
+  // The award's tab-specific readers run only for the award tab being shown (or the award's history); nothing for a stage that is not the award's.
+  const awardShown = !view.awardRefused && !view.noContractYet && (view.history ? sources.includes("award") : stage === "award" || (stage === "before-signing" && (view.tab === "conditions" || view.tab === "securities")));
+  const fin = av && awardShown ? await av.finish({ tab: awardTab, chrome: stage === "award" && !view.history }) : null;
+  const contractTab = lc && !view.history ? view.tab : null;
+  const needsPeople = !!lc && !view.history && !!contractTab && ["formation", "team", "site", "payments", "variations", "securities"].includes(contractTab);
+  const people: Option[] = needsPeople ? (await db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name })) : [];
+  const supervisionTabs = ["overview", "team", "site", "payments", "variations"];
+  const projectTab = lc && stage === "project" && !view.history ? contractTab : null;
+  if (lc && projectTab && supervisionTabs.includes(projectTab)) {
+    const v = await supervisionOf();
+    if (!hiddenActs.length) hiddenActs = hiddenOf(v);
+  }
+  const payments = lc && projectTab && (projectTab === "overview" || projectTab === "payments") ? await paymentView(lc, today) : null;
+  const variations = lc && projectTab && (projectTab === "overview" || projectTab === "variations") ? await variationView(lc, today) : null;
+  const documentFacts = lc && projectTab === "documents" ? await contractDocumentFacts(l.org.id, lc.contract.id, today) : null;
+  // The contract's gate (the priced working, the figures a certificate's override trail names) is asked only where a panel of the contract shows them.
+  const needsContractGate = !!lc && ((projectTab === "overview") || (stage === "signing" && !view.history && view.tab === "formation") || (view.history && sources.includes("contract")));
+  const sulit = needsContractGate && c ? await sulitGate(actor, { scope: "contract", entity: "Contract", id: c.id, label: c.number }, fieldsOfScope("contract")) : null;
+  const history = lc && view.history && sources.includes("contract") ? await contractHistory(lc) : null;
+  // The people who decide a contract matter's route read that matter's amount, and nothing else of the contract (ruling of 2026-10-08): asked (and logged) only where a row carries one.
+  const matterIds = history ? [...new Set(history.entries.filter((e) => e.entity === "ContractMatter" && e.changes.some((ch) => ch.field === ROUTED_MATTER_VALUE_FIELD)).map((e) => e.entityId))] : [];
   const matterGates = matterIds.length ? await sulitGates(actor, matterIds.map((id) => ({ scope: "contract" as const, entity: "ContractMatter", id, label: "A contract matter" })), [ROUTED_MATTER_VALUE_FIELD]) : new Map<string, Sulit<true>>();
-  // 6.13 Part A step 3: interim payment and the damages chain, for the Overview and the Payments tab.
-  // Step 4: variations and the adjustments of the contract sum, for the Overview and the Variations tab.
-  const [payments, variations] = await Promise.all([paymentView(l, today), variationView(l, today)]);
-  // FR-SUP-004 (Phase 3d): the acts outside the delegated scope of a representative who is signed in are not offered to them. Nothing is hidden from the S.O. or from an officer who is no representative.
-  const hiddenActs = today && !actor.system ? hiddenFor(actor.personId, supervision.so?.office ?? null, delegationFactsOf(supervision.s), today, SUPERVISION_ACTS) : [];
-  const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
-  const phase = facts?.phase ?? status;
+
   const formationSection = (FORMATION_SECTIONS.find((s) => s.id === section)?.id ?? "assembly") as FormationSection;
   const siteSection = (SITE_SECTIONS.find((s) => s.id === section)?.id ?? "start") as SiteSection;
   const paymentSection = (PAYMENT_SECTIONS.find((s) => s.id === section)?.id ?? "valuations") as PaymentSection;
   const variationSection = (VARIATION_SECTIONS.find((s) => s.id === section)?.id ?? "variations") as VariationSection;
-  const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
+  const sectionOf: Record<string, string> = { formation: formationSection, site: siteSection, payments: paymentSection, variations: variationSection };
 
-  const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel sulit={sulit} l={l} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> },
-    {
-      id: "formation",
-      label: "Formation",
-      icon: <ToolsIcon size={15} />,
-      sections: [...FORMATION_SECTIONS],
-      section: formationSection,
-      panel: tab === "formation" && facts ? <FormationPanel sulit={sulit} l={l} section={formationSection} facts={facts} people={peopleOptions} today={today} /> : null,
-    },
-    { id: "baseline", label: "Baseline", icon: <FileIcon size={15} />, count: c.baselines.filter((b) => b.version != null).length, lazy: true, panel: tab === "baseline" && facts ? <BaselinePanel l={l} facts={facts} timeZone={l.org.timeZone} /> : null },
-    // 6.13 Part A: who supervises the contract, and what happens on site.
-    { id: "team", label: "Team", icon: <UsersIcon size={15} />, count: supervision.s.soDelegations.length + supervision.s.contractParties.length, lazy: true, panel: tab === "team" ? <TeamPanel l={l} v={supervision} people={peopleOptions} today={today} /> : null },
-    {
-      id: "site",
-      label: "Site",
-      icon: <BuildingIcon size={15} />,
-      sections: [...SITE_SECTIONS],
-      section: siteSection,
-      lazy: true,
-      panel: tab === "site" ? <SitePanel l={l} v={supervision} people={peopleOptions} today={today} section={siteSection} page={pageNo} hidden={hiddenActs} /> : null,
-    },
-    // 6.13 Part A step 3: valuations and their certificates, retention, the advance and liquidated damages.
-    {
-      id: "payments",
-      label: "Payments",
-      icon: <WalletIcon size={15} />,
-      count: payments.p.interimValuations.length,
-      sections: [...PAYMENT_SECTIONS],
-      section: paymentSection,
-      lazy: true,
-      panel: tab === "payments" ? <PaymentsPanel l={l} v={payments} people={peopleOptions} today={today} section={paymentSection} page={pageNo} hidden={hiddenActs} /> : null,
-    },
-    // 6.13 Part A step 4: variations, from application to certificate, and the adjustments of the contract sum.
-    {
-      id: "variations",
-      label: "Variations",
-      icon: <ScaleIcon size={15} />,
-      count: variations.all.length,
-      sections: [...VARIATION_SECTIONS],
-      section: variationSection,
-      lazy: true,
-      panel: tab === "variations" ? <VariationsPanel l={l} v={variations} people={peopleOptions} today={today} section={variationSection} page={pageNo} hidden={hiddenActs} /> : null,
-    },
-    { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, lazy: true, panel: tab === "securities" ? <SecuritiesPanel l={l} people={peopleOptions} today={today} /> : null },
-    // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.
-    { id: "documents", label: "Documents", icon: <FilesIcon size={15} />, count: certificates, lazy: true, panel: documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null },
-    // AC-16 (MN-02): the bridge for the Documents menu's review queue; while Part 2 is held this tab may be permanent.
-    { id: "submissions", label: "Submissions", icon: <InboxIcon size={15} />, count: submissionCount, lazy: true, panel: tab === "submissions" ? <SubmissionsTab organisationId={l.org.id} contractId={c.id} status={status} today={today} waiting={waiting} answered={answered} /> : null },
-    { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel sulit={sulit} matterGates={matterGates} entries={history.entries} total={history.total} timeZone={l.org.timeZone} /> },
+  const notice = (title: string, body: ReactNode) => (
+    <Card>
+      <EmptyState title={title}>{body}</EmptyState>
+    </Card>
+  );
+  const panelFor = (t: string): ReactNode => {
+    if (stage === "award") return fin?.panel(t as AwardPanelId) ?? null;
+    if (!lc || !c) return null;
+    switch (t) {
+      case "conditions":
+        // The conditions are read from the award (F0-4): a reader who sees the contract stages only is told so.
+        return fin ? fin.panel("conditions") : notice("The award's conditions are restricted", RESTRICTED_AWARD_STAGE);
+      case "securities":
+        return (
+          <div className="flex flex-col gap-6">
+            {fin?.panel("securities")}
+            <SecuritiesPanel l={lc} people={people} today={today} />
+          </div>
+        );
+      case "formation":
+        return facts && sulit ? <FormationPanel sulit={sulit!} l={lc} section={formationSection} facts={facts} people={people} today={today} /> : notice("Not judged", "Set the organisation's time zone first.");
+      case "baseline":
+        return facts ? <BaselinePanel l={lc} facts={facts} timeZone={l.org.timeZone} /> : notice("Not judged", "Set the organisation's time zone first.");
+      case "overview":
+        return supervision && payments && variations && sulit ? <OverviewPanel sulit={sulit} l={lc} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> : null;
+      case "team":
+        return supervision ? <TeamPanel l={lc} v={supervision} people={people} today={today} /> : null;
+      case "site":
+        return supervision ? <SitePanel l={lc} v={supervision} people={people} today={today} section={siteSection} page={pageNo} hidden={hiddenActs} /> : null;
+      case "payments":
+        return supervision && payments ? <PaymentsPanel l={lc} v={payments} people={people} today={today} section={paymentSection} page={pageNo} hidden={hiddenActs} /> : null;
+      case "variations":
+        return supervision && variations ? <VariationsPanel l={lc} v={variations} people={people} today={today} section={variationSection} page={pageNo} hidden={hiddenActs} /> : null;
+      case "documents":
+        return documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null;
+      case "submissions":
+        return <SubmissionsTab organisationId={l.org.id} contractId={c.id} status={status!} today={today} waiting={waiting} answered={answered} />;
+      default:
+        return null;
+    }
+  };
+  const historyPanel = (
+    <div className="flex flex-col gap-6">
+      {sources.length > 1 && <h2 className="text-[13px] font-semibold tracking-wide text-ink-3 uppercase">The contract</h2>}
+      {lc && history && sulit && <HistoryPanel sulit={sulit} matterGates={matterGates} entries={history.entries} total={history.total} timeZone={l.org.timeZone} />}
+      {sources.length > 1 && <h2 className="text-[13px] font-semibold tracking-wide text-ink-3 uppercase">The award</h2>}
+      {fin?.panel("history")}
+    </div>
+  );
+
+  const stageTabs = stage === "close-out" ? [] : CASE_TABS[stage];
+  const tabs: TabSpec[] = [
+    ...stageTabs.map((t): TabSpec => {
+      const sections = SECTIONED[t as keyof typeof SECTIONED];
+      return { id: t, label: TAB_LOOK[t].label, icon: TAB_LOOK[t].icon, lazy: true, ...(sections ? { sections: [...sections], section: sectionOf[t] } : {}), panel: !view.history && view.tab === t ? panelFor(t) : null };
+    }),
+    { id: HISTORY_TAB, label: "History", icon: <ClockIcon size={15} />, lazy: true, panel: view.history ? historyPanel : null },
   ];
+
+  // ----------------------------------------------------------------- the header, the bar, the main button
+  const phase = facts?.phase ?? status;
+  const stepperSteps: StepperStep[] = steps.map((s) => ({
+    key: s.key,
+    label: CASE_STEP_LABEL[s.key],
+    state: STEP_STATE[s.state],
+    stateText: s.key === "award" && visibility === "CONTRACT_STAGES_ONLY" ? "restricted to the people named on the exercise" : undefined,
+    href: caseHref(ref, { stage: s.key }),
+  }));
+  // Review S1: the family's row first, in the acts' own words, for the one drawer the header offers.
+  const formationShut = status ? actStatusBlocker("FORMATION", status) : null;
+  const linkAt = viewed.action ? CASE_ACTION_AT[viewed.action] : undefined;
+  const mainNode =
+    viewed.action && av && (viewed.action === "SEND_FOR_APPROVAL" || viewed.action === "ISSUE" || viewed.action === "RECORD_COMMENCEMENT")
+      ? av.main[viewed.action]
+      : viewed.action === "START_PREPARATION" && lc && start
+        ? <ActGate blocker={formationShut}><StartPreparationDrawer id={lc.contract.id} blocker={start.blocker} frozen={start.frozen} /></ActGate>
+        : null;
+  const mainLink = linkAt && viewed.action ? <ButtonLink href={caseHref(ref, linkAt)} size="sm" variant="primary">{LINK_ACTION_LABEL[viewed.action]}</ButtonLink> : null;
+  // On the Award stage the award's own drawers stay in the header, as on the award's page (C-3); the step's main act is one of them.
+  const actions = fin?.chrome ? <>{fin.chrome.actions}{mainLink}</> : <>{mainNode}{mainLink}</>;
+  const awardStatus = award.status as AwardStatus;
 
   return (
     <>
-      <RecordCrumb label={c.number} />
+      <RecordCrumb label={c?.number ?? award.reference} />
       <PageHeader
         eyebrow={<Link href="/projects">Contracts</Link>}
-        title={`Contract ${c.number}`}
-        badge={<Badge tone={TONE[PHASE_TONE[phase]]} dot>{PHASE_WORDS[phase].en}</Badge>}
-        subtitle={l.ex.title}
-        meta={[l.award.awardeeName, formatMoney(senFromDecimal(c.contractSum)), <Link key="aw" href={`/awards/${l.award.id}`}>{l.award.reference}</Link>, c.contractDate ? `Contract Date ${formatDate(day(c.contractDate))}` : "Not signed"]}
+        title={c ? `Contract ${c.number}` : award.awardeeName}
+        badge={c && phase ? <Badge tone={TONE[PHASE_TONE[phase as keyof typeof PHASE_TONE]]} dot>{PHASE_WORDS[phase as keyof typeof PHASE_WORDS].en}</Badge> : <Badge tone={AWARD_STATUS_TONE[awardStatus]} dot>{AWARD_STATUS_LABEL[awardStatus]}</Badge>}
+        subtitle={ex.title}
+        meta={[
+          c ? award.awardeeName : <span key="ref" className="font-mono text-[12.5px]">{award.reference}</span>,
+          formatMoney(senFromDecimal(c ? c.contractSum : award.awardedValue)),
+          visibility === "WHOLE" ? <Link key="aw" href={caseHref(ref, { stage: "award" })}>{award.reference}</Link> : award.reference,
+          visibility === "WHOLE" ? <span key="for">for <Link href={`/sourcing/${ex.id}?tab=award`}>{ex.reference}</Link></span> : null,
+          c ? (c.contractDate ? `Contract Date ${formatDate(day(c.contractDate))}` : "Not signed") : INSTRUMENT_SHORT[award.instrumentKind as InstrumentKind],
+        ]}
+        actions={actions}
+        actionsNote={fin?.chrome?.headerNote}
+        actionsNoteId={AWARD_NOTE_ID}
       />
       <div className="mb-6 flex flex-col gap-3">
-        {!today && (
+        {fin?.chrome?.callouts}
+        {c && !today && !fin?.chrome && (
           <Callout tone="warn" title="The organisation's time zone is not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>
             Every act on a contract records the organisation&apos;s day, and the Contract Date is the day of the signature act: none is assumed to be UTC.
           </Callout>
         )}
-        {status === "CANCELLED" && (
+        {status === "CANCELLED" && c && (
           <Callout tone="warn" title="Cancelled with its award">
             {c.cancelReason || "No reason recorded."} The number stays allocated as a gap; everything recorded is kept as it was.
           </Callout>
         )}
         {/* ADR 0031 (run 1a): a terminated or closed contract says what is still recorded on it, in the acts' own words. */}
-        {(status === "TERMINATED" || status === "CLOSED") && (
+        {c && (status === "TERMINATED" || status === "CLOSED") && (
           <Callout tone="warn" title={CONTRACT_STATUS_WORDS[status].en}>
             {actStatusText({ code: status === "TERMINATED" ? "CONTRACT_TERMINATED" : "CONTRACT_CLOSED", level: "block" })}
           </Callout>
         )}
-        {briefingMissing(status, !!c.briefing) && (
+        {c && status && briefingMissing(status, !!c.briefing) && (
           <Callout tone="warn" title="No Integrity Pact briefing recorded">
-            The Stage Three briefing at signing is not on record. It does not block anything (a Should); record it under Formation › Signing.
+            The Stage Three briefing at signing is not on record. It does not block anything (a Should); record it under Signing › Formation › Signing.
           </Callout>
         )}
       </div>
-      <Tabs initial={tab} label="Contract" tabs={tabs} />
+      <Card className="mb-6">
+        <CardBody className="flex flex-col gap-5">
+          <Stepper steps={stepperSteps} label="Stages of this case" selected={stage} />
+          <p className="text-[13.5px] text-ink-2">
+            <span className="font-semibold text-ink">What&apos;s next on {CASE_STEP_LABEL[stage]}:</span> {viewed.next}
+          </p>
+        </CardBody>
+      </Card>
+      {view.awardRefused ? (
+        notice("The award stage is restricted", RESTRICTED_AWARD_STAGE)
+      ) : view.noContractYet ? (
+        notice(CASE_STEP_LABEL[stage], viewed.next)
+      ) : stage === "close-out" ? (
+        notice("Close-out", CLOSE_OUT_PARKED)
+      ) : (
+        <Tabs initial={view.history ? HISTORY_TAB : (view.tab ?? undefined)} label="Case" tabs={tabs} keep={{ stage }} />
+      )}
     </>
   );
 }
@@ -207,28 +368,11 @@ async function OverviewPanel({ sulit, l, facts, today, supervision, payments, va
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
-  const status = c.status as ContractStatus;
   const snap = readFormationSnapshot(c.formationSnapshot);
   const arithmetic = c.checks.find((k) => k.kind === "ARITHMETIC");
   const variance = arithmetic && arithmetic.corrections.length ? arithmeticVariance(arithmetic.corrections.map((x) => ({ tendered: senFromDecimal(x.tendered), corrected: senFromDecimal(x.corrected) }))) : null;
-  let start: { blocker: string | null; frozen: string } | null = null;
-  if (status === "NUMBER_ALLOCATED") {
-    const cfg = await loadContractConfig(l.org.id);
-    // The same reading the start act makes, on the organisation's day (R-6); with no zone, today's settings are not judged.
-    const settings = today ? preparationSettings(cfg, l.ex.contractBasisCode, today) : null;
-    const basis = settings?.basis ?? null;
-    const p = cfg.policy;
-    const fs = startFaults({
-      status,
-      awardStatus: l.award.status,
-      today,
-      basis: { code: l.ex.contractBasisCode, name: basis?.nameEn ?? null, requiresBq: basis?.requiresBq ?? null },
-      parts: settings?.parts.length ?? 0,
-      policy: { legalOfficeCode: p?.legalOfficeCode ?? null, legalOfficeKnown: settings?.legalOfficeKnown ?? false, signatoryCond: p?.signatoryCond ?? null, controlledCopyStampEn: p?.controlledCopyStampEn ?? null },
-      recipients: settings?.recipients.length ?? 0,
-    });
-    start = { blocker: fs.length ? fs.map(contractFaultText).join(" ") : null, frozen: "the legal office, the front-loading ratio, the controlled-copy stamp and recipients, the signatory condition, and the basis's checks and document parts" };
-  }
+  // C-2 (wave C step C5): the start act's words are computed once, in signing-acts.ts, for this card and for the case page's step bar.
+  const start = await startState(l, today);
   // S-1: the year the number was issued is the organisation's day of issue, never digits read from the number.
   const year = contractYearReading(c);
   return (

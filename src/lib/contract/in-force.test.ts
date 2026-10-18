@@ -59,9 +59,11 @@ describe("what preparation starts from, on the organisation's day", () => {
   it("the start act, the Overview and Configuration all read it, and none compares retiredOn with null to decide", () => {
     const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");
     expect(read("src/app/projects/[id]/actions.ts")).toContain("preparationSettings(");
-    expect(read("src/app/projects/[id]/page.tsx")).toContain("preparationSettings(");
+    // C-2 (wave C step C5): the Overview card's reading moved to signing-acts.ts (startState), which the card and the case page's step bar both call.
+    expect(read("src/app/projects/[id]/signing-acts.ts")).toContain("preparationSettings(");
+    expect(read("src/app/projects/[id]/page.tsx")).toContain("startState(");
     expect(read("src/app/configuration/contracts/page.tsx")).toContain("rowInForce(");
-    for (const p of ["src/app/projects/[id]/actions.ts", "src/app/projects/[id]/page.tsx", "src/app/configuration/contracts/page.tsx"]) {
+    for (const p of ["src/app/projects/[id]/actions.ts", "src/app/projects/[id]/page.tsx", "src/app/projects/[id]/signing-acts.ts", "src/app/configuration/contracts/page.tsx"]) {
       expect(read(p), p).not.toMatch(/retiredOn == null|!\w+\.retiredOn\)/);
     }
   });

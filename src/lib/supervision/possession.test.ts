@@ -67,9 +67,10 @@ describe("6.13A residual D2: every caller asks when the S.O. takes effect", () =
     expect(soFromOf([])).toBeNull();
     expect(soFromOf([{ effectiveOn: "2026-10-05" }, { effectiveOn: "2026-09-30" }, { effectiveOn: "2026-10-01" }])).toBe("2026-09-30");
   });
+  // C-2 (wave C step C5): the Site tab's preview words moved to signing-acts.ts (possessionBlockerOf), which the panel and the case page's step bar both call.
   it("the act and the Site tab's preview both pass soFrom from the S.O. assignments (so the drawer is never offered where the act refuses NO_SO)", () => {
     const root = path.join(__dirname, "../../..");
-    for (const f of ["src/app/projects/[id]/supervision-actions.ts", "src/app/projects/[id]/supervision-panels.tsx"]) {
+    for (const f of ["src/app/projects/[id]/supervision-actions.ts", "src/app/projects/[id]/signing-acts.ts"]) {
       const src = readFileSync(path.join(root, f), "utf8");
       const calls = src.match(/possessionFaults\(\{[^\n]*\}\)/g) ?? [];
       expect(calls.length).toBe(1);

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type CSSProperties, type FocusEvent, 
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { scrollFor } from "@/lib/ui/strip-scroll";
+import { tabHref } from "@/lib/ui/tab-href";
 import { navigatesOnSelect, sectionToOpen, tabKeyMove } from "@/lib/ui/tab-keys";
 
 /**
@@ -114,6 +115,7 @@ export function Tabs({
   initial,
   label = "Sections",
   dense: denseAsked,
+  keep,
 }: {
   tabs: TabSpec[];
   /// Tighten the strip and drop its icons below the widest screens. By default a strip does it
@@ -121,6 +123,9 @@ export function Tabs({
   /// says so itself, so its strip looks the same on every record.
   dense?: boolean;
   initial?: string;
+  /// Other address parameters a navigation from this strip carries along (the case page's `stage`), so a tab or section
+  /// hop does not drop them. Absent: the address is `?tab=` and `?section=` only, as ever.
+  keep?: Readonly<Record<string, string>>;
   /// What the strip is, for a screen reader.
   label?: string;
 }) {
@@ -159,11 +164,11 @@ export function Tabs({
     if (next?.sections && navigatesOnSelect(next)) {
       // Back to a tab that has sections lands on the section the address last named, if it is one of its.
       const section = sectionToOpen(next.sections, new URL(window.location.href).searchParams.get("section"));
-      if (id !== current?.id && section) router.push(sectionHref(pathname, id, section), { scroll: false });
+      if (id !== current?.id && section) router.push(tabHref(pathname, id, section, keep), { scroll: false });
       return;
     }
     if (next && next.lazy) {
-      if (id !== current?.id) router.push(`${pathname}?tab=${encodeURIComponent(id)}`, { scroll: false });
+      if (id !== current?.id) router.push(tabHref(pathname, id, undefined, keep), { scroll: false });
       return;
     }
     const url = new URL(window.location.href);
@@ -245,7 +250,7 @@ export function Tabs({
                   return (
                     <Link
                       key={s.id}
-                      href={sectionHref(pathname, current.id, s.id)}
+                      href={tabHref(pathname, current.id, s.id, keep)}
                       scroll={false}
                       aria-current={on ? "page" : undefined}
                       // Inset: the strip scrolls, so it clips an outline drawn outside the link.
@@ -268,5 +273,3 @@ export function Tabs({
   );
 }
 
-/// Where a section of a tab is: the same page, with the tab and the section named.
-const sectionHref = (pathname: string, tab: string, section: string) => `${pathname}?tab=${encodeURIComponent(tab)}&section=${encodeURIComponent(section)}`;

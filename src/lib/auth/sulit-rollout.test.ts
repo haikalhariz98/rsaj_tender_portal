@@ -317,7 +317,8 @@ describe("the award is judged against a recommendation that is SULIT (FR-EVL-014
     }
   });
   it("the page puts the comparison findings into one sentence for a reader the recommendation is closed to, whatever the list", () => {
-    const page = src("src/app/awards/[id]/page.tsx");
+    // C-2 (wave C step C5): the award page's composition moved to award-view.tsx, which /awards/[id] and the case page share; the scan reads it there.
+    const page = src("src/app/projects/[id]/award/award-view.tsx");
     expect(page.match(/recommendation=\{recommendationShown\}/g)).toHaveLength(2);
     // The warnings (a value above the ceiling, a value or period that differs) are filtered and worded the same way.
     expect(page).toMatch(/findingsForReader\(ev\.valueFaults\.filter\(\(x\) => x\.level === "warn"\), recommendationShown\)/);
@@ -340,7 +341,8 @@ describe("the award is judged against a recommendation that is SULIT (FR-EVL-014
     const open = src("src/app/awards/new/page.tsx");
     expect(open).toMatch(/sulitExerciseGate\(actor, ex\.id, "evaluation", RECOMMENDATION_FIELDS\)/);
     expect(open).not.toMatch(/evaluation\.recommended\.party|evaluation\.recommended\.price/);
-    const page = src("src/app/awards/[id]/page.tsx");
+    // C-2 (wave C step C5): the award page's composition moved to award-view.tsx, which /awards/[id] and the case page share; the scan reads it there.
+    const page = src("src/app/projects/[id]/award/award-view.tsx");
     expect(page).toMatch(/recommendation = await sulitExerciseGate\(actor, award\.exerciseId, "evaluation", RECOMMENDATION_FIELDS\)/);
     expect(page).toMatch(/recommendation=\{recommendationShown \?/);
   });

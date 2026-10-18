@@ -151,7 +151,8 @@ describe("every caller of the gate passes the governing sums (no reading skips t
   it("the award page, the contract's gate and the contracts list", () => {
     const read = (f: string) => readFileSync(path.join(ROOT, f), "utf8");
     expect(read("src/lib/award/gate-read.ts")).toMatch(/insured: \{ governing: governingSums\(/);
-    expect(read("src/app/awards/[id]/page.tsx")).toMatch(/awardReadiness\(award, ev\.requiredBond, requirements, ev\.appendix\?\.baseline \?\? null\)/);
+    // C-2 (wave C step C5): the award page's composition moved to award-view.tsx, shared with the case page.
+    expect(read("src/app/projects/[id]/award/award-view.tsx")).toMatch(/awardReadiness\(award, ev\.requiredBond, requirements, ev\.appendix\?\.baseline \?\? null\)/);
     expect(read("src/lib/contract/load.ts")).toMatch(/frozenTenderOf\(l\.ex\.id/);
     expect(read("src/lib/contract/load.ts")).toMatch(/frozenTendersOf\(rows\.map/);
   });

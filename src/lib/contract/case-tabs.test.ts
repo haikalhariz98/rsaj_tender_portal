@@ -12,13 +12,17 @@ const tabIdsOf = (page: string) => [...readFileSync(join(process.cwd(), page), "
 const CONTRACT_TAB_IDS = ["overview", "formation", "baseline", "team", "site", "payments", "variations", "securities", "documents", "submissions", "history"];
 
 describe("the tab ids are today's (scanned from the pages)", () => {
-  // Until C5 turns /awards/[id] into a redirect, its tabs list is the source; C5 re-points this at the case page, citing C-6.
+  // Until C9 turns /awards/[id] into a redirect, its tabs list is the source.
   it("/awards/[id] has exactly the ten AWARD_TAB_IDS", () => {
     expect(new Set(tabIdsOf("src/app/awards/[id]/page.tsx"))).toEqual(new Set(AWARD_TAB_IDS));
     expect(AWARD_TAB_IDS).toHaveLength(10);
   });
-  it("/projects/[id] has exactly the eleven contract tabs", () => {
-    expect(new Set(tabIdsOf("src/app/projects/[id]/page.tsx"))).toEqual(new Set(CONTRACT_TAB_IDS));
+  // C-2 (wave C step C5): /projects/[id] is the case page. It lists no tab ids of its own: it draws CASE_TABS' (and History), so the
+  // eleven tabs the contract page had are all still reachable, each under its stage.
+  it("/projects/[id] draws its tabs from CASE_TABS, and every tab the contract page had is in a stage or is History", () => {
+    expect(readFileSync(join(process.cwd(), "src/app/projects/[id]/page.tsx"), "utf8")).toMatch(/const stageTabs = stage === "close-out" \? \[\] : CASE_TABS\[stage\];/);
+    const staged = new Set<string>([...Object.values(CASE_TABS).flat(), HISTORY_TAB]);
+    for (const id of CONTRACT_TAB_IDS) expect(staged.has(id), id).toBe(true);
   });
 });
 

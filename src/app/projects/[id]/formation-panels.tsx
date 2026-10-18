@@ -18,11 +18,12 @@ import { arithmeticVariance, completeFaults, frontLoadingItems, type RateFacts }
 import type { signingFacts } from "@/lib/contract/judge";
 import { reviewsOf } from "@/lib/contract/judge";
 import { CHECK_WORDS, COMPARISON_WORDS, CUSTODY_KIND_WORDS, DECISION_WORDS, OUTCOME_WORDS } from "@/lib/contract/labels";
-import { openReview, submitFaults } from "@/lib/contract/legal";
+import { openReview } from "@/lib/contract/legal";
 import { liveOf } from "@/lib/contract/load";
 import { readFormationSnapshot } from "@/lib/contract/preparation";
 import type { LoadedContract } from "@/lib/contract/repo";
-import { briefingOpen, contractorSignFaults, stampFaults } from "@/lib/contract/sign";
+import { briefingOpen } from "@/lib/contract/sign";
+import { contractorSignBlock, stampBlock, submitLegalBlocker } from "./signing-acts";
 import { isExecuted } from "@/lib/contract/status";
 import { RECONCILIATION_COMPARISONS, type ContractStatus, type FormationCheckKind } from "@/lib/contract/types";
 import { storedDay } from "@/lib/dates";
@@ -281,7 +282,8 @@ function LegalSection({ l, facts, people, today }: { l: LoadedContract; facts: F
   const reviews = reviewsOf(c);
   const pending = openReview(reviews);
   const docs = liveOf(c, "LEGAL_SUBMISSION");
-  const fs = submitFaults({ status: c.status as ContractStatus, officeCode: facts.form.snap?.policy.legalOfficeCode ?? null, submissionDocuments: docs.length, formationFaults: facts.form.faults.length, reviews });
+  // C-2 (wave C step C5): the words are computed once, in signing-acts.ts, for this drawer and for the case page's step bar.
+  const submitBlocker = submitLegalBlocker(l, facts);
   const canSend = c.status === "IN_PREPARATION" || c.status === "RETURNED_FOR_AMENDMENT";
   return (
     <ActGate blocker={shut}>
@@ -292,7 +294,7 @@ function LegalSection({ l, facts, people, today }: { l: LoadedContract; facts: F
           title={`Legal review by ${facts.form.snap?.policy.legalOfficeLabel ?? "the legal office"}`}
           subtitle="Signature is refused until endorsed. Each submission pins the documents it went with; no limit on iterations and no timeout."
           actions={
-            pending ? <DecideLegalDrawer id={c.id} iteration={pending.iteration} people={people} today={today} /> : canSend ? <SubmitLegalDrawer id={c.id} office={facts.form.snap?.policy.legalOfficeLabel ?? "the legal office"} people={people} blocker={fs.length ? fs.map(contractFaultText).join(" ") : null} documents={docs.map((d) => `${d.version.document.title} (version ${d.version.versionNo})`).join("; ") || "none attached"} /> : undefined
+            pending ? <DecideLegalDrawer id={c.id} iteration={pending.iteration} people={people} today={today} /> : canSend ? <SubmitLegalDrawer id={c.id} office={facts.form.snap?.policy.legalOfficeLabel ?? "the legal office"} people={people} blocker={submitBlocker} documents={docs.map((d) => `${d.version.document.title} (version ${d.version.versionNo})`).join("; ") || "none attached"} /> : undefined
           }
           divided={reviews.length === 0}
         />
@@ -332,15 +334,14 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
   const witness = c.signatures.find((s) => s.party === "WITNESS");
   const rsaj = c.signatures.find((s) => s.party === "RSAJ");
   const executed = isExecuted(status);
-  const endorsedOn = reviewsOf(c).filter((x) => x.decision === "ENDORSED").sort((a, b) => b.iteration - a.iteration)[0]?.decidedOn ?? null;
-  const contractorBlock = today ? contractorSignFaults({ status, gate: facts.gate, resolutionLive: facts.inputs.resolutionLive, alreadySigned: !!contractor, signatory: { name: "-", icNumber: "000000-00-0000" }, witness: { name: "-", icNumber: "000000-00-0000" }, signedOn: today, today, endorsedOn }) : [];
+  const contractorBlock = contractorSignBlock(l, facts, today);
   const rsajBlock = facts.faults;
   const office = facts.signatory?.ok ? facts.signatory.roleLabel : "the office the approval matrix names";
   // Review S1: each family's row first (the signatures and stamping FORMATION, the briefing COPIES_AND_CUSTODY), in the
   // acts' own words; every drawer and blocked control below is gated by its family's.
   const shut = actStatusBlocker("FORMATION", status);
   const custody = actStatusBlocker("COPIES_AND_CUSTODY", status);
-  const stampBlock = today ? stampFaults({ status, stampedOn: today, reference: "-", contractDate: day(c.contractDate), today }).filter((f) => f.code !== "BEFORE_CONTRACT_DATE") : [];
+  const stampBlocks = stampBlock(l, today);
   return (
     <>
       <ActGate blocker={shut}>
@@ -378,7 +379,7 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
         </CardBody>
       </Card>
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="Stamping at LHDN" subtitle="Fully executed once the stamping day and the LHDN reference are both recorded." actions={status === "EXECUTED" ? (stampBlock.length ? <Blocked label="Record stamping" reason={stampBlock.map(contractFaultText).join(" ")} /> : <StampingDrawer id={c.id} today={today} />) : c.stampedOn ? <Badge tone="ok">Stamped</Badge> : undefined} />
+        <CardHeader icon={<FileIcon size={17} />} title="Stamping at LHDN" subtitle="Fully executed once the stamping day and the LHDN reference are both recorded." actions={status === "EXECUTED" ? (stampBlocks.length ? <Blocked label="Record stamping" reason={stampBlocks.map(contractFaultText).join(" ")} /> : <StampingDrawer id={c.id} today={today} />) : c.stampedOn ? <Badge tone="ok">Stamped</Badge> : undefined} />
         <CardBody>
           <KeyValues columns={2} items={[{ label: "Stamped on", value: c.stampedOn ? formatDate(c.stampedOn) : notSet("Not recorded") }, { label: "LHDN reference", value: c.stampingRef || notSet("Not recorded") }]} />
         </CardBody>

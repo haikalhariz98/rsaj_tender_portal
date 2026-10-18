@@ -5,7 +5,7 @@
  * parameters follow in the order stage, tab, section; an empty one is left out, and with none there is no `?`.
  */
 
-import type { CaseStepKey } from "./case-steps";
+import type { CaseAction, CaseStepKey } from "./case-steps";
 
 export interface CaseRef {
   awardId: string;
@@ -21,3 +21,29 @@ export function caseHref(ref: CaseRef, at?: { stage?: CaseStepKey; tab?: string;
   const s = q.toString();
   return s ? `${path}?${s}` : path;
 }
+
+/// The whole query string of a request as the address carried it, to be written back on a redirect (every parameter, and every
+/// value of a repeated one), `?` first; empty when there is none. `caseHref` builds the case's own addresses and drops what it
+/// does not know (`page`, `waiting`, `answered`); a redirect from an award id to its contract must not.
+export function keepQuery(params: Readonly<Record<string, string | readonly string[] | undefined>>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined) continue;
+    for (const one of typeof v === "string" ? [v] : v) q.append(k, one);
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+/// Where the act behind a step's main button lives, for the acts whose drawer sits inside a panel rather than the header: the
+/// button is a link to that panel (design note 0004 C5; ADR 0037 F0-2). The section is for a tab that has them.
+export const CASE_ACTION_AT: Readonly<Partial<Record<CaseAction, { stage: CaseStepKey; tab: string; section?: string }>>> = {
+  RECORD_DESPATCH: { stage: "award", tab: "distribution" },
+  RECORD_RETURN: { stage: "award", tab: "return" },
+  LODGE_SECURITY: { stage: "before-signing", tab: "securities" },
+  VERIFY_SECURITY: { stage: "before-signing", tab: "securities" },
+  SUBMIT_TO_LEGAL: { stage: "signing", tab: "formation", section: "legal" },
+  RECORD_SIGNATURE: { stage: "signing", tab: "formation", section: "signing" },
+  RECORD_STAMPING: { stage: "signing", tab: "formation", section: "signing" },
+  RECORD_POSSESSION: { stage: "project", tab: "site", section: "start" },
+};

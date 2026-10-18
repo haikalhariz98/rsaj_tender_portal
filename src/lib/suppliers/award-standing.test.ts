@@ -47,9 +47,9 @@ describe("the awardee's standing on an award (fix S-3)", () => {
   });
 
   it("the award's record, form and route step show it; nothing in the award's acts refuses on it (source)", () => {
-    // C-3: the panels moved out of the award page (wave C step C4); the page keeps the standing read, the panels show it.
+    // C-3: the panels moved out of the award page (wave C step C4); award-view.tsx (C5) keeps the standing read, the panels show it.
     const dir = "src/app/projects/[id]/award/";
-    const page = readFileSync("src/app/awards/[id]/page.tsx", "utf8") + readFileSync(dir + "overview-panel.tsx", "utf8") + readFileSync(dir + "approval-panel.tsx", "utf8");
+    const page = readFileSync(dir + "award-view.tsx", "utf8") + readFileSync(dir + "overview-panel.tsx", "utf8") + readFileSync(dir + "approval-panel.tsx", "utf8");
     expect(page).toMatch(/awardStanding\(vendorStanding\.reading, formatDate\)/);
     expect(page).toMatch(/label: "Standing on the register"/);
     expect(page).toMatch(/Before a step is decided: the awardee's supplier is barred on the register/);

@@ -259,7 +259,6 @@ const NO_ACT: Readonly<Record<string, string>> = {
   SitePanel: "Dispatches to its sections, which gate themselves.",
   FormationPanel: "Dispatches to its sections, which gate themselves.",
   VariationsPanel: "Dispatches to its sections, which gate themselves.",
-  ContractPage: "Dispatches to its tabs' panels and sections, which gate themselves (its header offers no act).",
 };
 
 describe("S1: no hand-written status list on a screen", () => {
@@ -311,6 +310,8 @@ const GATED_BY_PARENT: Readonly<Record<string, string>> = {
 /// its tabs in them.
 const PAGE_GATES: Readonly<Record<string, RegExp[]>> = {
   CertificatePage: [/const gates = certificateGates\(cert\.kind as CertificateKind, cert\.status as CertificateStatus, l\.contract\.status as ContractStatus\);/, /<ActGate blocker=\{gates\.acts\}>\{action\}<\/ActGate>/, /<ActGate blocker=\{gates\.void\}>/, /<ActGate blocker=\{gates\.acts\}>\s*<Tabs /],
+  // C-2 (wave C step C5): the case page is the contract's page now. Its header offers one drawer, Start preparation, inside the FORMATION family's gate; every other act is in a panel that gates itself.
+  CasePage: [/const formationShut = status \? actStatusBlocker\("FORMATION", status\) : null;/, /<ActGate blocker=\{formationShut\}><StartPreparationDrawer /],
   VariationPage: [/const gate = actStatusBlocker\("VARIATION", l\.contract\.status as ContractStatus\);/, /<ActGate blocker=\{gate\}>\s*\{action\}/, /<ActGate blocker=\{gate\}>\s*<Tabs /],
 };
 

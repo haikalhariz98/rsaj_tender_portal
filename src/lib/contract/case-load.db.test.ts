@@ -136,6 +136,31 @@ describe("loadCase (F0-3, F0-7)", () => {
   });
 });
 
+describe("loadCase writes the refusal to the access log (C5 done-when 3, FR-MTD-007)", () => {
+  const actorOf = (personId: string) => reader(personId) as unknown as StaffActor;
+  const refusals = (exerciseId: string) => db.sulitAccessEvent.count({ where: { organisationId, entityId: exerciseId, outcome: "WITHHELD", actorPersonId: outsider } });
+  it("before issue: the 404 is logged", async () => {
+    const before = await refusals(ids["restricted draft"].exerciseId);
+    expect(await loadCase(actorOf(outsider), ids["restricted draft"].awardId)).toEqual({ kind: "NOT_FOUND" });
+    expect((await refusals(ids["restricted draft"].exerciseId)) - before).toBe(1);
+  });
+  it("after issue: the contract stages are shown and the Award stage's refusal is logged, by contract id and by award id", async () => {
+    const e = ids["restricted active"];
+    const before = await refusals(e.exerciseId);
+    expect(await loadCase(actorOf(outsider), e.contractId!)).toMatchObject({ kind: "CONTRACT", visibility: "CONTRACT_STAGES_ONLY" });
+    expect((await refusals(e.exerciseId)) - before).toBe(1);
+    expect(await loadCase(actorOf(outsider), e.awardId)).toEqual({ kind: "NOT_FOUND" });
+    expect((await refusals(e.exerciseId)) - before).toBe(2);
+  });
+  it("a named reader is let in, and that is logged as granted rather than refused", async () => {
+    const e = ids["restricted draft"];
+    const refused = await db.sulitAccessEvent.count({ where: { organisationId, entityId: e.exerciseId, outcome: "WITHHELD", actorPersonId: named } });
+    expect(await loadCase(actorOf(named), e.awardId)).toMatchObject({ kind: "AWARD_ONLY" });
+    expect(await db.sulitAccessEvent.count({ where: { organisationId, entityId: e.exerciseId, outcome: "WITHHELD", actorPersonId: named } })).toBe(refused);
+    expect(await db.sulitAccessEvent.count({ where: { organisationId, entityId: e.exerciseId, outcome: "GRANTED", actorPersonId: named } })).toBeGreaterThan(0);
+  });
+});
+
 describe("listCases (C-1, AC-17, AC-18)", () => {
   it("pages stably across pre- and post-contract rows: ordered by award createdAt desc then id, no row twice, none missing", async () => {
     const hidden = await hiddenFor(outsider);

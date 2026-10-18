@@ -1090,6 +1090,7 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
   - the SULIT fields of each panel are refused under the other gate (a test);
   - a restricted case is 404 before issue, and after issue its Award stage is refused and logged while the contract stages show;
   - for that reader the case-level History holds contract rows only (no `awardHistory` rows).
+- **Status, 2026-10-18.** Built: `/projects/[id]` is the case page (`page.tsx`), with `award/award-view.tsx` (the award's composition, shared with `/awards/[id]`), `signing-acts.ts` (the signing acts' words, shared with the panels), and the pure `case-view.ts`, `links.ts` (`keepQuery`, `CASE_ACTION_AT`) and `tab-href.ts`. Tested in `case-view.test.ts`, `case-sulit.test.ts`, `links.test.ts`, `tab-href.test.ts` and `case-load.db.test.ts`. Not checked in a browser (decisions log, C5).
 
 **C6. frontend-engineer: Before signing (AC-21).**
 - The lodge and review drawers (`awards/editors.tsx`) and the chips render in Before signing. They still post the award id to the
