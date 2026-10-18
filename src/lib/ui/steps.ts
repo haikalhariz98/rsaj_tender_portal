@@ -1,5 +1,6 @@
-/// Where one step of a flow stands. `current` is the step waiting now; `rejected` ends the flow.
-export type StepState = "done" | "current" | "waiting" | "rejected";
+/// Where one step of a flow stands. `current` is the step waiting now; `rejected` ends the flow;
+/// `parked` is a step set aside for now (greyed out, dashed). Several steps may be `current` at once.
+export type StepState = "done" | "current" | "waiting" | "rejected" | "parked";
 
 /// One step of a flow, as the shared Stepper draws it.
 export interface StepperStep {
@@ -13,4 +14,6 @@ export interface StepperStep {
   stateText?: string;
   /// How a `rejected` step is drawn where red would say too much: a return is amber, as it is elsewhere.
   tone?: "warn";
+  /// A step that is also a link (the case page's stage switch). The Stepper draws the label as the link.
+  href?: string;
 }

@@ -1047,6 +1047,7 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
 - Add a `parked` state, optional per-step `href`, and a `selected` key, rendered as `aria-current="step"` on the selected step only.
   Several steps may be `current`.
 - **Done when** the existing five users render unchanged (snapshot), and a test covers parked, selected and linked steps.
+- **Status, 2026-10-18.** Built: `parked`, `href` and `selected` in `Stepper` (`src/components/ui/stepper.tsx`, `src/lib/ui/steps.ts`), tested in `stepper.test.ts`.
 
 **C3. api-engineer: `loadCase` and `listCases` (§6.1).**
 - `src/lib/contract/case-load.ts` resolves a contract, or else an award, within the organisation (`resolveCase`). Under the C0 freeze
