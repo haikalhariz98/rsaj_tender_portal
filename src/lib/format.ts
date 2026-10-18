@@ -1,4 +1,7 @@
 import { dayIn } from "./dates";
+import { MONTH_WORDS, ZONE_UNSET_WORDS } from "./i18n/catalogues/dates";
+import type { Language } from "./i18n/language";
+import { say } from "./i18n/say";
 import { formatMoney, parseSen } from "./money";
 
 /// Ringgit, the way the manuals write it: "RM300,000" with no decimals unless the
@@ -109,16 +112,18 @@ export function formatPercentBand(min: string | null, max: string | null, upperI
   return `${t(min)}% – ${t(max)}%`;
 }
 
-const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 /// "02 Nov 2026": two-digit day, three-letter month, every time — the locale's "Sept"
 /// beside "Nov" read as two formats. Days are stored at midnight UTC, so read in UTC.
-const dayText = (d: Date) => `${String(d.getUTCDate()).padStart(2, "0")} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+/// The month is a word (ADR 0040 Q4): "02 Okt 2026" in Malay, from the drafted `dates` catalogue.
+const dayText = (d: Date, lang: Language) =>
+  `${String(d.getUTCDate()).padStart(2, "0")} ${say(MONTH_WORDS[d.getUTCMonth()], lang)} ${d.getUTCFullYear()}`;
 
-export function formatDate(value: Date | string | null | undefined): string {
+/// `lang` is optional and English by default, so a caller that does not pass it reads as before.
+export function formatDate(value: Date | string | null | undefined, lang: Language = "en"): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return "—";
-  return dayText(d);
+  return dayText(d, lang);
 }
 
 /**
@@ -128,21 +133,22 @@ export function formatDate(value: Date | string | null | undefined): string {
  * UTC and says so (ruling BD-32): an unset zone is not UTC, so the day is marked
  * rather than passed off as the organisation's.
  */
-export function formatOrgDay(instant: Date | null | undefined, timeZone: string | null): string {
+export function formatOrgDay(instant: Date | null | undefined, timeZone: string | null, lang: Language = "en"): string {
   if (!instant) return "—";
-  const day = dayText(new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`));
-  return timeZone ? day : `${day} (UTC — time zone not set)`;
+  const day = dayText(new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`), lang);
+  return timeZone ? day : `${day} ${say(ZONE_UNSET_WORDS, lang)}`;
 }
 
 /**
  * An instant as the organisation reads it: its day and the time on its clock,
  * "01 Oct 2026 · 04:00". With the zone unset both are UTC and it says so (ruling BD-32).
  */
-export function formatOrgDateTime(instant: Date | null | undefined, timeZone: string | null): string {
+export function formatOrgDateTime(instant: Date | null | undefined, timeZone: string | null, lang: Language = "en"): string {
   if (!instant) return "—";
+  // The clock is digits only ("04:00", 24-hour), the same in both languages.
   const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timeZone ?? "UTC" }).format(instant);
-  const day = dayText(new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`));
-  return timeZone ? `${day} · ${time}` : `${day} · ${time} (UTC — time zone not set)`;
+  const day = dayText(new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`), lang);
+  return timeZone ? `${day} · ${time}` : `${day} · ${time} ${say(ZONE_UNSET_WORDS, lang)}`;
 }
 
 /// Two initials for an avatar. Malaysian names often carry bin/binti/a/l — those are

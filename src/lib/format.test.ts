@@ -46,6 +46,43 @@ describe("an instant with its time, on the organisation's clock", () => {
   });
 });
 
+describe("a date in Malay (NFR-LNG-001, ADR 0040 Q4: drafted, not yet reviewed)", () => {
+  // 20:00 UTC on 30 September is 04:00 on 1 October in Kuala Lumpur.
+  const late = new Date("2026-09-30T20:00:00Z");
+
+  it("months whose Malay differs: Mac, Mei, Ogo, Okt, Dis", () => {
+    expect(formatDate("2026-03-05", "ms")).toBe("05 Mac 2026");
+    expect(formatDate("2026-05-05", "ms")).toBe("05 Mei 2026");
+    expect(formatDate("2026-08-05", "ms")).toBe("05 Ogo 2026");
+    expect(formatDate("2026-10-05", "ms")).toBe("05 Okt 2026");
+    expect(formatDate("2026-12-05", "ms")).toBe("05 Dis 2026");
+    expect(formatDate("2026-09-24", "ms")).toBe("24 Sep 2026");
+  });
+
+  it("the organisation's day and time, with and without a zone", () => {
+    expect(formatOrgDay(late, "Asia/Kuala_Lumpur", "ms")).toBe("01 Okt 2026");
+    expect(formatOrgDateTime(late, "Asia/Kuala_Lumpur", "ms")).toBe("01 Okt 2026 · 04:00");
+    expect(formatOrgDay(late, null, "ms")).toBe("30 Sep 2026 (UTC — zon waktu belum ditetapkan)");
+    expect(formatOrgDateTime(late, null, "ms")).toBe("30 Sep 2026 · 20:00 (UTC — zon waktu belum ditetapkan)");
+  });
+
+  it("nothing still reads as a dash", () => {
+    expect(formatDate(null, "ms")).toBe("—");
+    expect(formatOrgDay(null, null, "ms")).toBe("—");
+    expect(formatOrgDateTime(null, null, "ms")).toBe("—");
+  });
+
+  it("English is unchanged, and an explicit en equals no argument", () => {
+    expect(formatDate("2026-10-05", "en")).toBe("05 Oct 2026");
+    expect(formatOrgDay(late, null, "en")).toBe("30 Sep 2026 (UTC — time zone not set)");
+    for (const day of ["2026-01-31", "2026-03-05", "2026-05-05", "2026-08-05", "2026-10-05", "2026-12-05"]) {
+      expect(formatDate(day, "en")).toBe(formatDate(day));
+    }
+    expect(formatOrgDateTime(late, null, "en")).toBe(formatOrgDateTime(late, null));
+    expect(formatOrgDateTime(late, "Asia/Kuala_Lumpur", "en")).toBe(formatOrgDateTime(late, "Asia/Kuala_Lumpur"));
+  });
+});
+
 describe("a route's band, from its pinned rule and stored boundary operator (FR-APR-019, ruling R4)", () => {
   // Worked example: the boundary is RM300,000. Two rules meet there — (RM50,000,
   // RM300,000] and (RM300,000, —) — and both follow the switch. Whether a requisition of
