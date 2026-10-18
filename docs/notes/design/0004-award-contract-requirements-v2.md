@@ -122,7 +122,9 @@ Each is built to the conservative default shown. All are in the decisions log un
 
 ## Wave P status, 2026-10-19
 
-**P0 is written. It is awaiting the product owner's review, so it is not done.** P1 to P7 remain held (AC-7): no migration and no code.
+**P0 is written and was reviewed by the product owner on 2026-10-19 (AC-49 to AC-61), so it is done.** The ADRs and the plan stay
+Proposed, held for CPD; the amendments of AC-61 are folded in before acceptance. P1 to P7 remain held (AC-7): no migration and no
+code. Entry gate items 1 and 2 (CPD's written sign-off and the R-1 answers) are the founder's; item 3 is met.
 - **ADR 0038** (`docs/notes/architecture/0038-contract-teams-and-access-to-the-project-exchange.md`) and **ADR 0039**
   (`docs/notes/architecture/0039-project-submissions-revisions-and-review.md`) are both Proposed, held for CPD.
 - **The Part 2 build plan** is `docs/notes/plans/wave-p-build-plan.md`. It gives the §6.3 tables as declarations (§2), the pure contracts
@@ -1077,6 +1079,125 @@ wave C row), the security review's lows, and four questions the founder left. Th
     already shows that gap.
   - Wave V may start once the founder records CPD's sign-off and wave P is through, or records CPD's decline.
 
+### Rulings of 2026-10-19, second set (AC-49 onward)
+
+By the product owner, for the founder, on 2026-10-19. They review wave P step P0 (its nine questions in the build plan §6 and the
+departures from §6.3 the architect logged), answer the open question on lodging rows (log, repair round, History), and choose the next
+work that needs nothing from the founder, CPD, RSAJ or an outside service. "Code" says whether the ruling needs a change to the product.
+None of them starts wave P: P1 to P7 stay held (AC-7).
+
+- **AC-49. Wave P step P0 is reviewed, and done. Code: no.**
+  - ADR 0038, ADR 0039 and `docs/notes/plans/wave-p-build-plan.md` stay **Proposed, held for CPD** (AC-7). Reviewing them as proposed,
+    held is P0's Done-when; it is met. Nothing in them is accepted, and no migration or code follows.
+  - The build plan's entry gate item 3 (the product owner has ruled the §6 questions) is met by AC-50 to AC-60. Items 1 (CPD's written
+    [NET-NEW] sign-off of P-1 to P-7) and 2 (the R-1 answers, or the founder keeping each default) are still open, and are the founder's.
+  - The text amendments in AC-61 are folded into the two ADRs and the plan by the architect before they are accepted, as both ADRs'
+    headers already require. They are not edited in this ruling's commit.
+- **AC-50. Question 1, non-member senders of the six system types (ADR 0038 D5): adopted, with one narrowing.** Code: at P1 and P3.
+  - Any active account of the awardee that `supplierHoldsContract` admits may send the six system types, member or not. A contractual
+    notice is never refused (AC-27 over AC-25, for those six only). The staff side shows "No contractor Lead is set".
+  - **Narrowing.** A non-member reads only the revisions **its own account** sent, and their files. A member reads the revisions sent by
+    its own supplier on that contract (any member account, and paper revisions recorded on its behalf), as D11 says. As declared,
+    `contractorMayRead` takes `revisionSentByThisSupplier`, which would let a non-member read a colleague's submissions. It gains the
+    member and own-account facts, with a test for each side.
+- **AC-51. Question 2, both checks under the Principal S.O.'s Representative (ADR 0039 D5): adopted.** Code: at P3. FR-SUP-004 (M) asks
+  the contractor communication scope of whoever speaks to the contractor; FR-SUP-006 (M) asks the principal capacity of whoever approves.
+  A Principal representative without the scope is refused, and the screen says why.
+- **AC-52. Question 3, oversight is read-only (ADR 0038 D3): adopted.** Code: at P1. It answers nothing, opens no SULIT value its holder
+  would not otherwise open, is never held by an administrator, and is undecided (refused, said so) until granted.
+- **AC-53. Question 4, the day-basis and SULIT switches: adopted, with one source per value.** Code: at P2.
+  - `reviewDayBasis` and `sulitToContractor` are added, nullable. Unset day basis reads calendar days shown as ASSUMED (AC-27). Unset
+    `sulitToContractor` refuses a SULIT-class send and the screen says the setting is **not set**; `false` refuses it and says **the
+    organisation's setting refuses it**. The two are never worded alike.
+  - `ProjectExchangePolicy` holds three answers CPD gives separately (the upload bound, the day basis, SULIT to contractors). One
+    `provenance` column for the three would state claims nobody made once one is answered and another is not. Each value gets its own
+    provenance column, following the Part A ruling ("split into one source per value", BD-613-128..131 rulings, log line 90).
+  - `ProjectDocumentType` keeps one provenance per type as declared. Whether a type's target and higher approval each need their own is
+    the same question as ContractType's per-column provenance (BD-613-128), which is held for the founder. It is not decided here by
+    analogy; it is logged as a question for the founder.
+- **AC-54. Question 5, typed detail tables instead of `detail Json?`: adopted** (AGENTS.md rule 4, money is `Decimal`). Code: at P6.
+  `ProjectSubmissionClaimDetail` and `ProjectSubmissionMaterialLine` as declared lack `organisationId`; the plan's own first line says
+  every table carries it. Both gain it, with `onDelete: Restrict` relations.
+- **AC-55. Question 6, the `WorkProgramme` row is written at send (ADR 0039 D9): adopted, with today's programme rules kept whole.**
+  Code: at P6.
+  - Writing at send is what the direct act does today (`submitProgramme`), so the EOT and progress readers see the same shape of row.
+  - **No rule is weakened.** The register's acts on a pinned row run the existing pure checks unchanged: `scrutinyFaults` for the
+    recommendation, and `decideFaults` for the final answer. So Approved and Approved with comments are refused until the scrutiny is
+    recorded and found reasonable, and until the programme has its planned-progress points (`NO_POINTS`); Revise and resubmit and
+    Rejected need a written reason (`REASON_REQUIRED`).
+  - **The signatures stay.** The final answer on a work programme keeps the `WorkProgramme.decidedBy` act slot, signed with the
+    password or recorded from paper (ADR 0034 D12), as `decideProgramme` does today. The recommendation keeps
+    `WorkProgramme.scrutinisedBy`.
+  - A recommendation to approve (with or without comments) records the scrutiny as reasonable; a recommendation to revise or reject
+    records it as not reasonable.
+  - **Open in the design, for the architect before P6:** a contractor's file carries no planned-progress points, and D9 refuses the
+    direct record act on a pinned row. The plan must name the act by which staff enter the points on a pinned row (`pointFaults`
+    unchanged, its own audit row). A portal form for the contractor to type points is scope not ruled, and is not added.
+- **AC-56. A work programme type cannot be issued without higher approval.** Code: at P2. `typeIssueFaults` as declared refuses only a
+  wrong answer set for a system kind, so a WORK_PROGRAMME type with `higherApproval = NONE` could be issued and answered by one person.
+  AC-30 says the work programme has "the four answers plus higher approval", and FR-SUP-006 (M) requires scrutiny, then approval. Issue
+  is refused for that system kind with NONE (PRINCIPAL_SO_REP and SO_OFFICE are allowed), with a test.
+- **AC-57. Question 7, no notices for meetings or team requests: adopted** (AC-28 is a closed list). Code: at P1. So that a pending
+  request is not invisible, the Project stage's team panel lists pending member requests to the staff who may decide them, inside the
+  panel (no count beside a tab, AC-38).
+- **AC-58. Question 8, an account opened after go-live is not a member until added: adopted** (ADR 0038 D4). Membership is never
+  inferred from the supplier, because that would undo P-2's narrowing. Code: at P1.
+- **AC-59. Question 9, a statutory declaration received on paper: the exclusion is adopted, as the one recorded exception to AC-26's
+  paper-on-behalf.** Code: at P3 (words).
+  - Nothing is lost against today: no staff path for a paper declaration exists (`sendSubmission` takes only a supplier actor), and no
+    stage, payment or certificate reader takes a declaration row as its gate today (`declarationBlocking` has no producer).
+  - Its step-up is the contractor's own signature. A staff entry would be a declaration nobody signed in the system.
+  - The paper-on-behalf form, for that type, says it cannot be recorded from paper and why. It is never hidden.
+  - **R-1 gains item 9:** ask CPD whether a declaration lodged on paper must be recorded in the system. If yes, the alternative is a
+    holder of `acts.recordOnBehalf` recording it with the paper reference, attributed as recorded on behalf and shown as not signed
+    (ADR 0034 D12), and this ruling is revisited.
+- **AC-60. The departures from §6.3 are adopted.** Code: at the step named.
+  - As logged by the architect: typed detail tables (AC-54); the two policy switches (AC-53); non-member senders of the six (AC-50);
+    each kind's old send path closes only once its system type is issued, so a contractual notice is never refused (ADR 0039 D8); the
+    lock order kept, with only the request approval taking the supplier row; `serviceLevelDays` not copied (it would promote a value
+    without its provenance); ADR 0038 cites ADR 0034, not the superseded ADR 0020 (the §7 table is corrected).
+  - **Not logged by the architect, adopted here:** the revision snapshots `reviewDayBasis` with `reviewDays` and `dueOn`, so a later
+    policy change moves no sent due day (AC-27's snapshot); `paperReceivedOn`, required on a paper revision; `identityCheck` on the
+    request (ADR 0034 D6); the `removedBy*` columns on a member row; a free-text attendee name on the meeting.
+- **AC-61. Text amendments to fold in before acceptance.** Code: no (documents).
+  - **(a) ADR 0038 D8 contradicts the plan, and the plan wins.** D8 says the portal's `context-store` and `list-store` call
+    `exchangeReach`; the plan's P1 says they keep today's reach. If they called it, a non-member would lose its diary, certificates and
+    payments (against D1) and D5's non-member delay notice would be refused (against AC-27). Only exchange stores, exchange acts and
+    the staff exchange panels call `exchangeReach`; a scan pins that list. The same holds for §5's P1 wording in this note.
+  - **(b) The pure contract's names are the plan's §3** (`staffExchangeRole`, `contractorExchangeRole`, `maySendSystemType`), not the
+    `contractTeamAccess` of D8 and of §5's P1 in this note. The plan declares its names binding on the builders.
+  - **(c) Kick-off minutes are a send to the contractor.** AC-29 lets a contractor read only what it submitted or what RSAJ deliberately
+    sent it. Attaching minutes that contractor members will read is that deliberate send, so it runs `sendToContractorFaults` (a
+    SULIT-class minute is refused while `sulitToContractor` is not set) and the D4 check, as D12 already requires for recording.
+  - **(d)** AC-50's entitlement facts, AC-53's per-value provenance, AC-54's `organisationId`, AC-55's kept checks, AC-56's issue rule,
+    AC-57's panel list and AC-59's R-1 item 9 are written into the ADRs and the plan.
+- **AC-62. Lodging rows of securities and insurance stay out of the contract's History for a reader who sees the contract stages only.**
+  Code: no. (The repair round's question: should lodging rows of securities and insurance be shown to every reader of the contract
+  after all, since they are visible in the registers?)
+  - AC-37 (b) ruled this for securities the same day; reversing it now would be oscillation. Insurance follows for the same reason:
+    lodging and verifying a policy are award acts too (AC-21), run under `withLockedAwardFor`, which refuses that reader.
+  - Their audit rows are labelled with the award's reference (`policyLabel(award.reference, ...)`). Showing them would put the
+    tender's reference in front of a reader AC-45 shows no award reference to.
+  - Nothing that reader needs is hidden: each instrument's and policy's state is in the contract's register (F0-4), and the History
+    already says, under the list, that rows of the award's own acts, including lodging and verifying securities and insurance policies,
+    are restricted to the people named on the exercise. Every reader who sees the whole case sees the rows.
+  - Revisit with R-2 (whether a contract formed from a restricted exercise is itself restricted).
+- **AC-63. The next work, in this order. Each needs nothing from the founder, CPD, RSAJ or an outside service.** Code: yes.
+  1. **N1. Malay on screen, first slice (NFR-LNG-001, M, a go-live condition).** One switchable layer, the per-user choice, the shell,
+     dashboard, inbox and the Contracts case list and case page. RSAJ's review of the Malay stays the go-live gate.
+  2. **N2. A supplier exports its own data** (the PDPA right of access, a go-live condition, log ruling on 1875(8)).
+  3. **N3. The ui-guidelines pass on the sourcing, opening and case screens, with the "Sealed (version N)" overclaim fixed** (ruling
+     20cw (b) precedent) and the opening matrix's fourth column at 1440 as a shared `Matrix` change.
+  4. **N4. Source-scan tests portable to Windows**, every walker's file set proved identical before and after.
+  - **Not chosen now, with the reason:**
+    - the browser checks owed for waves G and C: still blocked on a scratch login (`perolehan_vg_app`), which is not worked around;
+    - a scheduler for the sealed-bid file mover: LIVE waits on CPD's SK002/SK003 amendment and the outside review anyway;
+    - dead code of the removed features: removing the receive-from-finance modules deletes their tests, and dropping the splitting
+      columns deletes data, both outside this mandate; the backlog also leaves keep-or-remove to a customer's need;
+    - the Part A provenance split: its migration unsets stored provenance tags on existing rows, a data change on the founder's
+      database; it waits for the founder.
+  - Each item's scope, Done-when and risk are in the decisions log lines for AC-63.
+
 ## 5. Wave plan
 
 **Entry for every wave:**
@@ -1720,7 +1841,7 @@ alone, and new numbers start at 0037.
 | ADR | Title | Status when | Decides | Relation to earlier ADRs |
 | --- | --- | --- | --- | --- |
 | **0037** | The case page is keyed by the award until a contract exists | proposed in C0; accepted with amendments 2026-10-19 (AC-36) | The case is the Award, which is 1:1 with the Contract, with no Case table. `caseVisibility` per surface (§6.1 table): `/awards/**` is 404 unless WHOLE. `/projects/[id]` resolves a contract, else an award, and redirects once a contract exists. `caseStage` and `caseVisibility` (AC-18, reversible). The parallel step bar. The `?stage=&tab=` scheme and `caseHref`. The `/awards/**` guarded redirects kept permanently. | **ADR 0007 is unchanged; 0037 complements it**: issueAward stays the only creator, and the registers stay on the Contract. Where a gate is shown is a screen fact, not a 0007 decision. Builds on ADR 0034 D14 (restricted exercises), and records the per-surface table of §6.1. Nothing is superseded. |
-| **0038** | Contract teams and access to the Project exchange | proposed in P0, held | Derived and stored membership; the exchange-only gate; oversight permission; the contractor request → approve path with D6 kept; the backfill. | Extends ADR 0034 (a new granted-only permission; the D6 identity check reused) and ADR 0020 (two identity stores, with a request but no self-service). |
+| **0038** | Contract teams and access to the Project exchange | proposed in P0, held | Derived and stored membership; the exchange-only gate; oversight permission; the contractor request → approve path with D6 kept; the backfill. | Extends ADR 0034 (a new granted-only permission; the D6 identity check reused; two identity stores, with a request but no self-service). This row first said ADR 0020, which ADR 0034 D1 to D3 superseded (AC-60). |
 | **0039** | Project submissions, revisions and review | proposed in P0, held | The submission and revision model; answer authority (FR-SUP-004 at the act); higher approval (FR-SUP-006); internal comments; the target snapshot and RSAJ-only clock; per-kind answer sets; legacy `ContractorSubmission` kept read-only; `SupplierNotice` (P-5); whether an approved work programme writes `WorkProgramme` in the same act (AC-26 leaves this to the ADR; proposed: yes, one act, with the register revision as the source and `WorkProgramme` pinned to it). | **Extends ADR 0011**, without superseding: new owner FKs under D4 ("more arrive with their modules"); contractor read entitlement for its own and sent files, alongside D6; a per-contract upload bound under the store policy. |
 | **0040** | The award return may be lodged online | proposed in V0 | The online return as the hybrid (scans plus typed fields, officer verification under OD-5); queries; click-only acceptance behind an unset switch. | Extends the return model of the 6.11 plan; nothing superseded. |
 | (unnumbered) | Supply claims and the typed payment route | Part 3 design | Only once ruled; must reconcile BD-613-128. | — |
