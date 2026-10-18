@@ -309,6 +309,17 @@ export { PER_DAY };
 
 export const CONTRACT_PAGE = 50;
 
+/// The derived phases are read for at most this many legally endorsed contracts; more are counted, not split (moved from the Projects page, F0-9).
+export const DERIVE_CAP = 200;
+
+/// The columns the contracts list shows, one select for `listContracts` and for the case list's contract side (AC-18).
+export const CONTRACT_LIST_SELECT = {
+  id: true, number: true, status: true, contractSum: true, contractDate: true,
+  award: { select: { id: true, reference: true, awardeeName: true, exercise: { select: { title: true } } } },
+  // Every version's day, so the version in force is read through baselineFor (ADR 0021), never the highest number.
+  baselines: { where: { version: { not: null } }, select: { version: true, reason: true, recordedOn: true, dateForCompletion: true } },
+} satisfies Prisma.ContractSelect;
+
 /// Contracts after award, newest number first, paged in the database.
 export async function listContracts(organisationId: string, page = 0, only: readonly string[] | null = null) {
   const org = await exerciseOrg(organisationId);
@@ -322,12 +333,7 @@ export async function listContracts(organisationId: string, page = 0, only: read
       orderBy: [{ numberedOn: "desc" }, { number: "desc" }],
       skip: page * CONTRACT_PAGE,
       take: CONTRACT_PAGE,
-      select: {
-        id: true, number: true, status: true, contractSum: true, contractDate: true,
-        award: { select: { id: true, reference: true, awardeeName: true, exercise: { select: { title: true } } } },
-        // Every version's day, so the version in force is read through baselineFor (ADR 0021), never the highest number.
-        baselines: { where: { version: { not: null } }, select: { version: true, reason: true, recordedOn: true, dateForCompletion: true } },
-      },
+      select: CONTRACT_LIST_SELECT,
     }),
     db.contract.count({ where: listed }),
     db.contract.count({ where: { ...where, status: "IN_PREPARATION" } }),
@@ -337,11 +343,16 @@ export async function listContracts(organisationId: string, page = 0, only: read
     db.contract.count({ where: { ...where, status: { in: [...EXECUTED_STATES] } } }),
   ]);
   const today = org.timeZone ? dayOf(new Date(), org.timeZone) : null;
-  const out = rows.map((r) => {
+  const out = withCompletion(rows, today);
+  return { org, rows: out, total, page, counts: { preparing, returned, legal, endorsed, executed } };
+}
+
+/// A contract row of the list with the completion date of the version in force, read through baselineFor (ADR 0021).
+export function withCompletion<R extends { baselines: { version: number | null; reason: unknown; recordedOn: Date | null; dateForCompletion: Date | null }[] }>(rows: R[], today: string | null) {
+  return rows.map((r) => {
     const inForce = today ? baselineFor(r.baselines.map((b) => ({ version: b.version, reason: b.reason as BaselineReason | null, recordedOn: day(b.recordedOn), dateForCompletion: b.dateForCompletion })), today) : null;
     return { ...r, dateForCompletion: inForce?.dateForCompletion ?? null };
   });
-  return { org, rows: out, total, page, counts: { preparing, returned, legal, endorsed, executed } };
 }
 
 /// The day the contract's preparation started, as frozen.

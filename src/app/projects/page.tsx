@@ -6,7 +6,7 @@ import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
-import { CONTRACT_PAGE, endorsedPhases, listContracts } from "@/lib/contract/load";
+import { CONTRACT_PAGE, DERIVE_CAP, endorsedPhases, listContracts } from "@/lib/contract/load";
 import { beforeExecution, CONTRACT_PHASES, isExecuted, type ContractPhase } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf, daysFrom, storedDay } from "@/lib/dates";
@@ -29,8 +29,6 @@ export const dynamic = "force-dynamic";
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
 /// Variations commenced pending approval shown per page; the set is judged whole first.
 const COMMENCED_PAGE = 50;
-/// The derived phases are read for at most this many legally endorsed contracts; more are counted, not split.
-const DERIVE_CAP = 200;
 
 /**
  * Projects (OD-6 A): the contracts after award, each forming, executed or running. The header's counts

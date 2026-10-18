@@ -1065,6 +1065,7 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
   - after issue, a restricted case's row for an unnamed officer carries only the columns `listContracts` shows today: no awards-list
     chips and no award facts;
   - the re-keyed In Delay set equals today's on fixtures.
+- **Status, 2026-10-18.** Built: `case-load.ts` (`resolveCase`, `listCases`, `parseCaseListView`), `src/app/_auth/case.ts` (`loadCase`), and the shared selects. Tested in `case-load.db.test.ts`; the commenced view is proved empty only (decisions log, C3).
 
 **C4. frontend-engineer: extract the award panels.**
 - Move `OverviewPanel`, `ApprovalPanel`, `InstrumentPanel`, `DistributionPanel`, `ReturnPanel`, `ConditionsPanel`, `SecuritiesPanel`,

@@ -462,6 +462,18 @@ export async function exerciseMatters(exerciseId: string, client: Tx = db) {
 
 export const AWARDS_PAGE = 100;
 
+/// What the awards list reads of each award: its columns and chips. The case list's award side reads the same (C3), with the
+/// contract's own columns added beside `contract`'s.
+export const AWARD_LIST_INCLUDE_BASE = {
+  exercise: { select: { id: true, reference: true, title: true, regime: true } },
+  awardReturn: true,
+  attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
+  approvalInstances: { select: { status: true, domain: true, openedAt: true, createdAt: true }, orderBy: { openedAt: "desc" } },
+} satisfies Prisma.AwardInclude;
+/// The contract part of the awards list's chips.
+export const AWARD_LIST_CONTRACT_SELECT = { number: true, securities: { select: { status: true, kind: true } }, policies: { select: { status: true } } } satisfies Prisma.ContractSelect;
+export const AWARD_LIST_INCLUDE = { ...AWARD_LIST_INCLUDE_BASE, contract: { select: AWARD_LIST_CONTRACT_SELECT } } satisfies Prisma.AwardInclude;
+
 /**
  * The latest page of awards, and the header's counts taken in the database so they
  * cover every award, not the page: awaiting approval, approved and not issued, issued
@@ -479,13 +491,7 @@ export async function listAwards(organisationId: string, hidden: readonly string
       where,
       orderBy: [{ createdAt: "desc" }, { reference: "desc" }],
       take: AWARDS_PAGE,
-      include: {
-        exercise: { select: { id: true, reference: true, title: true, regime: true } },
-        contract: { select: { number: true, securities: { select: { status: true, kind: true } }, policies: { select: { status: true } } } },
-        awardReturn: true,
-        attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
-        approvalInstances: { select: { status: true, domain: true, openedAt: true, createdAt: true }, orderBy: { openedAt: "desc" } },
-      },
+      include: AWARD_LIST_INCLUDE,
     }),
     db.award.count({ where }),
     db.award.count({ where: { ...where, status: "PENDING_APPROVAL" } }),
