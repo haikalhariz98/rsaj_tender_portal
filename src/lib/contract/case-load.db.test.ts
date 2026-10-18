@@ -301,6 +301,21 @@ describe("listCases (C-1, AC-17, AC-18)", () => {
     expect(page.rows).toEqual([]);
     expect(page.total).toBe(0);
   });
+
+  // AC-39: the view is proved non-empty as well as empty. This runs after the empty case above and adds the variation that makes it hold one row.
+  it("holds the commenced view to the one contract with a variation commenced pending approval, and counts it", async () => {
+    const contractId = ids.active.contractId!;
+    await db.variation.create({
+      data: {
+        organisationId, contractId, origin: "DEPARTMENT", originatorPersonId: named, originatorName: "Case named", description: "Extra drainage", reason: "Found on site.", estimate: "100.00",
+        status: "SUPPORTED", commencedOn: day("2026-10-06"), commencedSupportPersonId: named, recordedOn: day("2026-10-06"), recordedAt: day("2026-10-06"),
+      },
+    });
+    const page = await listCases(organisationId, await hiddenFor(named), { view: "commenced" });
+    expect(page.rows.map((r) => r.contractId)).toEqual([contractId]);
+    expect(page.total).toBe(1);
+    expect(page.counts.commenced).toBe(1);
+  });
 });
 
 describe("parseCaseListView", () => {
