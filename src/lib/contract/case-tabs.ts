@@ -26,7 +26,7 @@ export const CASE_TABS: Readonly<Record<CaseTabStep, readonly string[]>> = {
 /// The case-level tab: it has no stage.
 export const HISTORY_TAB = "history";
 
-/// The ten tab ids `/awards/[id]` has today (awards/[id]/page.tsx, the `tabs` list), for its `?tab=` links (C-6).
+/// The ten tab ids `/awards/[id]` had before it became a redirect, for the old `?tab=` links that are still followed (C-6).
 export const AWARD_TAB_IDS: readonly string[] = ["overview", "approval", "instrument", "distribution", "return", "notices", "conditions", "securities", "routing", "history"];
 
 const AWARD_STAGE_OF: Readonly<Record<string, CaseTabStep>> = {

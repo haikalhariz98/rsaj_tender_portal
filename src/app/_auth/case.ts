@@ -4,12 +4,13 @@ import { awardTabToCase } from "@/lib/contract/case-tabs";
 import { caseHref } from "@/lib/contract/links";
 import type { StaffActor } from "@/lib/auth/types";
 
-import { exerciseIsHidden } from "./sulit";
+import { exerciseIsHidden, hiddenExercises } from "./sulit";
 
 /**
  * Where an id on the case address leads, for the reader (Award and Contract Requirements v2, C-1, C-6; ADR 0037 F0-3, F0-7).
  * `resolveCase` reads the database; `exerciseIsHidden` decides whether the exercise is a restricted one the reader may not see,
- * and writes the refusal to the access log, as the award page does today; `caseVisibility` (the pure rule, AC-18) turns the two
+ * and writes the refusal to the access log, as the award page does today (for an award id; a contract id is decided without a write, and the
+ * page logs the refusal when the Award stage is asked for); `caseVisibility` (the pure rule, AC-18) turns the two
  * facts into one answer.
  *
  * - A contract id: CONTRACT, visible whole, or with its contract stages only when the exercise is restricted to others.
@@ -27,8 +28,10 @@ export type LoadedCase =
 export async function loadCase(actor: StaffActor, id: string): Promise<LoadedCase> {
   const r = await resolveCase(actor.organisationId, id);
   if (r.kind === "NOT_FOUND") return { kind: "NOT_FOUND" };
-  // True: the exercise is restricted and the actor is not named on it (an administrator is never let in by being named). Logged.
-  const restrictedFromReader = await exerciseIsHidden(actor, r.exerciseId);
+  // True: the exercise is restricted and the actor is not named on it (an administrator is never let in by being named).
+  // A contract id asks for no award data, so it is decided without writing to the access log: the page logs the refusal only when the Award stage is
+  // actually asked for (a read that reached no screen is not written, e894f165). An award id is an award read: it is logged, as the old award page did.
+  const restrictedFromReader = r.kind === "CONTRACT" ? (await hiddenExercises(actor)).includes(r.exerciseId) : await exerciseIsHidden(actor, r.exerciseId);
   const visibility = caseVisibility({ restricted: restrictedFromReader, actorNamed: false, system: false, issued: r.kind !== "AWARD_ONLY" });
   if (visibility === "HIDDEN") return { kind: "NOT_FOUND" };
   switch (r.kind) {

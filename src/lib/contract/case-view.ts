@@ -30,7 +30,7 @@ export interface CaseView {
   history: boolean;
   /// The Award stage was asked for by a reader who sees the contract stages only (AC-18): it is refused, not rendered.
   awardRefused: boolean;
-  /// A contract stage was asked for on a case with no Contract row yet: the page says what the stage waits for, nothing more.
+  /// A contract stage (Signing or Project) was asked for on a case with no Contract row yet: the page says what the stage waits for, nothing more.
   noContractYet: boolean;
 }
 
@@ -59,7 +59,8 @@ export function resolveCaseView(i: CaseViewInput): CaseView {
     }
   }
   const awardRefused = !history && stage === "award" && i.visibility === "CONTRACT_STAGES_ONLY";
-  const noContractYet = !history && !i.hasContract && stage !== "award" && stage !== "close-out";
+  // Before signing's two tabs are the award's conditions and bond requirement: they are entered before the contract exists (FR-AWD-014).
+  const noContractYet = !history && !i.hasContract && stage !== "award" && stage !== "close-out" && stage !== "before-signing";
   return { stage, tab, history, awardRefused, noContractYet };
 }
 

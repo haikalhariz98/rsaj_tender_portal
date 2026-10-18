@@ -10,13 +10,15 @@
  *   `caseVisibilityWhere` by AND, the same fragments the dashboard's Contracts card counts (`casePipelineWhere`), so the two agree.
  * - A case from a restricted exercise that the reader is not named on, once issued (CONTRACT_STAGES_ONLY, AC-18), is listed with
  *   only the columns `listContracts` shows today: its `award` is null, with no chips and no award facts.
+ * - `pending`, `approved`, `return`, `commitment` and `expired` are the old Awards list's organisation-wide work views (`case-work-views.ts`),
+ *   counted and paged in the database; they leave out restricted exercises the reader is not named on, whole.
  * - `delay` and `commenced` are the Projects page's two sets, judged over the whole organisation by the same readers and then
  *   keyed to the award of each contract, never to a page.
  */
 
 import type { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
-import { AWARD_LIST_CONTRACT_SELECT, AWARD_LIST_INCLUDE_BASE } from "@/lib/award/repo";
+import { AWARD_LIST_CONTRACT_SELECT, AWARD_LIST_INCLUDE_BASE, loadAwardPolicy } from "@/lib/award/repo";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -26,6 +28,7 @@ import { commencedPendingAll } from "@/lib/variation/view";
 
 import { CASE_STAGE_WHERE, caseStage, type CaseStage, type CaseStanding } from "./case-stage";
 import { caseVisibility, caseVisibilityWhere, type CaseVisibility } from "./case-visibility";
+import { CASE_WORK_VIEWS, caseWorkWhere, type CaseWorkView } from "./case-work-views";
 import { CONTRACT_LIST_SELECT, CONTRACT_PAGE, withCompletion } from "./load";
 import type { ContractStatus } from "./types";
 
@@ -53,11 +56,11 @@ export async function resolveCase(organisationId: string, id: string, client: Tx
 
 // ------------------------------------------------------------------ the list
 
-export type CaseListView = Lowercase<CaseStage> | "ended" | "delay" | "commenced" | "securities" | "submissions";
+export type CaseListView = Lowercase<CaseStage> | "ended" | CaseWorkView | "delay" | "commenced" | "securities" | "submissions";
 /// The two wave G views stay their own readers (F0-8); the row views are the ones `listCases` pages.
 export type CaseRowView = Exclude<CaseListView, "securities" | "submissions">;
 
-const ROW_VIEWS: readonly CaseRowView[] = ["awarding", "signing", "on_site", "completed", "closed", "ended", "delay", "commenced"];
+const ROW_VIEWS: readonly CaseRowView[] = ["awarding", "signing", "on_site", "completed", "closed", "ended", ...CASE_WORK_VIEWS, "delay", "commenced"];
 const LIST_VIEWS: readonly CaseListView[] = [...ROW_VIEWS, "securities", "submissions"];
 
 /// An unknown or absent view is undefined, meaning "all".
@@ -87,29 +90,39 @@ export interface CasePage {
   page: number;
   pageSize: number;
   counts: Record<CaseRowView | "all", number>;
+  /// Whether the organisation has set how long an indent is valid: without it the "expired" view cannot be judged, and says so rather than showing zero.
+  indentRuleSet: boolean;
 }
 
 export const CASE_PAGE = CONTRACT_PAGE;
 
-const EMPTY_COUNTS: CasePage["counts"] = { all: 0, awarding: 0, signing: 0, on_site: 0, completed: 0, closed: 0, ended: 0, delay: 0, commenced: 0 };
+const EMPTY_COUNTS: CasePage["counts"] = { all: 0, awarding: 0, signing: 0, on_site: 0, completed: 0, closed: 0, ended: 0, pending: 0, approved: 0, return: 0, commitment: 0, expired: 0, delay: 0, commenced: 0 };
 
 /// The page of cases. `hidden` is `hiddenExercises(actor)`, passed by the caller as `casePipelineWhere`'s is. Ordered by the award's
 /// creation (newest first), then id. `page` is zero-based.
-export async function listCases(organisationId: string, hidden: readonly string[], q: { view?: CaseRowView; page?: number } = {}): Promise<CasePage> {
+export async function listCases(organisationId: string, hidden: readonly string[], q: { view?: CaseRowView; page?: number; delayIds?: readonly string[]; commencedContractIds?: readonly string[] } = {}): Promise<CasePage> {
   const page = Math.max(0, q.page ?? 0);
   const org = await exerciseOrg(organisationId);
-  if (!org) return { rows: [], total: 0, page, pageSize: CASE_PAGE, counts: { ...EMPTY_COUNTS } };
+  if (!org) return { rows: [], total: 0, page, pageSize: CASE_PAGE, counts: { ...EMPTY_COUNTS }, indentRuleSet: false };
 
   // The two sets the Projects page judges over the whole organisation, then keys to awards (AC-17: re-keyed, not re-judged).
+  // A caller that has already judged them (the Projects page does, for its own cards) passes them, so a load judges every possessed contract once.
   const [delay, commenced] = await Promise.all([
-    org.today ? inDelayContractIds(org.id, org.today).then((d) => d.ids) : Promise.resolve<string[]>([]),
-    commencedPendingAll(org.id).then((vs) => [...new Set(vs.map((v) => v.contract.id))]),
+    q.delayIds ? Promise.resolve([...q.delayIds]) : org.today ? inDelayContractIds(org.id, org.today).then((d) => d.ids) : Promise.resolve<string[]>([]),
+    q.commencedContractIds ? Promise.resolve([...q.commencedContractIds]) : commencedPendingAll(org.id).then((vs) => [...new Set(vs.map((v) => v.contract.id))]),
   ]);
   const byContracts = (ids: string[]): Prisma.AwardWhereInput => ({ contract: { is: { id: { in: ids } } } });
+  // The award-work views are about the award itself (its approval, return and commitment number), so a restricted case the reader sees as contract stages only is
+  // left out of them and of their counts (AC-18): they leave out every hidden-or-restricted exercise.
+  const policy = await loadAwardPolicy(org.id);
+  const work = caseWorkWhere(policy.indentValidityDays, org.today);
+  const awardSide: Prisma.AwardWhereInput = hidden.length ? { exerciseId: { notIn: [...hidden] } } : {};
+  const workWhere = Object.fromEntries(CASE_WORK_VIEWS.map((k) => [k, { AND: [awardSide, work[k] ?? { id: { in: [] } }] }])) as Record<CaseWorkView, Prisma.AwardWhereInput>;
   const viewWhere: Record<CaseRowView | "all", Prisma.AwardWhereInput> = {
     all: {},
     awarding: CASE_STAGE_WHERE.AWARDING, signing: CASE_STAGE_WHERE.SIGNING, on_site: CASE_STAGE_WHERE.ON_SITE,
     completed: CASE_STAGE_WHERE.COMPLETED, closed: CASE_STAGE_WHERE.CLOSED, ended: CASE_STAGE_WHERE.ENDED,
+    ...workWhere,
     delay: byContracts(delay), commenced: byContracts(commenced),
   };
   // Fragments carry a top-level OR or AND, so they are joined by AND and never spread (case-visibility.ts).
@@ -147,5 +160,5 @@ export async function listCases(organisationId: string, hidden: readonly string[
     }
     return { awardId: a.id, contractId: c?.id ?? null, standing, visibility, contract, award: visibility === "WHOLE" ? { ...awardOnly, contract: null } : null };
   });
-  return { rows, total: counts[view], page, pageSize: CASE_PAGE, counts };
+  return { rows, total: counts[view], page, pageSize: CASE_PAGE, counts, indentRuleSet: policy.indentValidityDays != null };
 }

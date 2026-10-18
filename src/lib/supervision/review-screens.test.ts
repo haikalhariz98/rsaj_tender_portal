@@ -25,7 +25,7 @@ describe("review 14: the In Delay view is judged over the whole set, then paged"
     // Phase 1c (ADR 0034 D10): the list is the signed-in person's organisation's; paging and the view are as pinned.
     // AC-17 (C9): the list is the case list; its In Delay view is `listCases`' "delay" view, which takes the same contracts' ids from
     // inDelayContractIds over the whole organisation and keys them to awards, then pages (case-load.ts, tested in case-load.db.test.ts).
-    expect(p).toMatch(/listCases\(actor\.organisationId, hidden, \{ view: rowView, page \}\)/);
+    expect(p).toMatch(/listCases\(actor\.organisationId, hidden, \{ view: rowView, page, delayIds, commencedContractIds: /);
     expect(read("src/lib/contract/case-load.ts")).toMatch(/inDelayContractIds\(org\.id, org\.today\)/);
     expect(p).not.toMatch(/\{ id: "delay", label: "In Delay" \}/);
     const l = read("src/lib/contract/load.ts");

@@ -6,6 +6,14 @@ The contracts in design note 0004 §6.1 and §6.2 were reviewed against the code
 2026-10-18. The freeze adds eleven points the rulings do not cover (F0-1 to F0-11 below). Each is the most conservative reading. Each is
 logged in the decisions log as a product-owner question, and each is built to its default unless ruled otherwise.
 
+**Review round (2026-10-18).** Steps C2 to C11 and the fix round were built on F0-1 to F0-11 as defaults, and the ADR is still not accepted: the
+code review and the security audit both name that. The fix round settled three points the conservative way, which a ruling may change:
+(1) F0-4 gains a clause: Before signing is open with no Contract row, because the award's conditions and bond requirement are entered
+before issue (FR-AWD-014); (2) the access log: a contract id is decided without a write, and the refusal is written when the Award stage
+is asked for by a reader who sees the contract stages only (an award id is still logged where it is asked, F0-3); (3) a reader who sees
+the contract stages only is not given the security instruments' audit rows in the contract's History. Open: the Project overview still shows
+the award's conditions to that reader, as the contract overview always did (R-2).
+
 **Relation to earlier ADRs.**
 - **ADR 0007 is unchanged; this ADR complements it.** `issueAward` stays the only creator of a Contract row, and the registers stay on
   the Contract. Where a gate is shown is a screen fact, not a 0007 decision.

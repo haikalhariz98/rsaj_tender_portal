@@ -41,6 +41,6 @@ describe("the contracts list", () => {
     expect(list).toMatch(/status: "IN_PREPARATION" \}/);
     expect(list).toMatch(/status: "RETURNED_FOR_AMENDMENT" \}/);
     // AC-17 (C9): the page's header counts the case list's stages now; the returned count stays in listContracts' counts.
-    expect(list).toContain("returned");
+    expect(list).toMatch(/RETURNED_FOR_AMENDMENT"[\s\S]*counts: \{[^}]*\breturned\b/);
   });
 });

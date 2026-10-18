@@ -4,7 +4,7 @@
  * The finance system mints the indent or purchase order number; the portal consumes it
  * and never mints one. Until an adapter exists the only one is manual: an officer types
  * the number the finance system returned, and it is checked against the configured
- * format where one is set. The "Issued, no commitment number" view on /awards is the
+ * format where one is set. The "No commitment number" view on the case list (/projects) is the
  * reconciliation list.
  */
 

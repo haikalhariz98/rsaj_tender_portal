@@ -6,6 +6,7 @@ import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { CASE_PAGE, listCases, parseCaseListView, type CaseRow, type CaseRowView } from "@/lib/contract/case-load";
+import { CASE_WORK_VIEWS } from "@/lib/contract/case-work-views";
 import { awardChips, CASE_ENDED_TONE, CASE_ENDED_WORDS, CASE_STAGE_WORDS, CASE_VIEW_WORDS, standingWords } from "@/lib/contract/case-list-words";
 import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
 import { caseHref } from "@/lib/contract/links";
@@ -40,6 +41,8 @@ const COMMENCED_PAGE = 50;
 
 /// The server-side views of the case list, in the order of their buttons (AC-17). The wave G views are their own readers (F0-8).
 const STAGE_VIEWS = ["awarding", "signing", "on_site", "completed", "closed", "ended"] as const;
+/// The old Awards list's organisation-wide work views, over the whole organisation (FR-AWD-006 for the indents).
+const WORK_VIEWS = CASE_WORK_VIEWS;
 const day = (d: Date | null) => (d ? storedDay(d) : null);
 
 /**
@@ -78,7 +81,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   ]);
   // "commenced" is the variations' exposure report above, not a view over cases; every other view is one `listCases` pages.
   const rowView: CaseRowView | undefined = parsed && parsed !== "commenced" && parsed !== "securities" && parsed !== "submissions" ? parsed : undefined;
-  const data = await listCases(actor.organisationId, hidden, { view: rowView, page });
+  const data = await listCases(actor.organisationId, hidden, { view: rowView, page, delayIds, commencedContractIds: [...new Set(commenced.map((v) => v.contract.id))] });
   const derived: Map<string, ContractPhase> = org0 ? await endorsedPhases(org0.id, DERIVE_CAP) : new Map();
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
   const awaiting = [...derived.values()].filter((x) => x === "AWAITING_CONDITIONS").length;
@@ -149,6 +152,13 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
             <ButtonLink key={v} href={at(v)} size="sm" variant={rowView === v ? "primary" : "secondary"}>{`${CASE_VIEW_WORDS[v].en} (${data.counts[v]})`}</ButtonLink>
           ))}
           <ButtonLink href={at("delay")} size="sm" variant={delayView ? "primary" : "secondary"}>{`In Delay (${data.counts.delay})`}</ButtonLink>
+        </nav>
+        <nav aria-label="Awards that need work" className="flex flex-wrap gap-2 px-5 pb-4 sm:px-6">
+          {WORK_VIEWS.map((v) => (
+            <ButtonLink key={v} href={at(v)} size="sm" variant={rowView === v ? "primary" : "secondary"}>
+              {v === "expired" && !data.indentRuleSet ? `${CASE_VIEW_WORDS[v].en} (validity not set)` : `${CASE_VIEW_WORDS[v].en} (${data.counts[v]})`}
+            </ButtonLink>
+          ))}
         </nav>
         <DataList
           flat

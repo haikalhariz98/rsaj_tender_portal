@@ -39,6 +39,12 @@ export const CASE_VIEW_WORDS = {
   completed: CASE_STAGE_WORDS.COMPLETED,
   closed: CASE_STAGE_WORDS.CLOSED,
   ended: ENDED_VIEW_WORDS,
+  // The old Awards list's organisation-wide work views (FR-AWD-006 for the indents).
+  pending: w("Awaiting approval", "Menunggu kelulusan"),
+  approved: w("Approved, not issued", "Diluluskan, belum dikeluarkan"),
+  return: w("Awaiting return", "Menunggu pulangan"),
+  commitment: w("No commitment number", "Tiada nombor komitmen"),
+  expired: w("Indents expired", "Indent tamat tempoh"),
 } as const;
 
 export interface AwardChipFacts {

@@ -48,13 +48,13 @@ import { NOT_SET, yesNo, day, FaultList } from "./shared";
 export type AwardPanelId = "overview" | "approval" | "instrument" | "distribution" | "return" | "conditions" | "securities" | "routing" | "history";
 
 /**
- * Everything the award's screen is made of, computed once and shared by `/awards/[id]` and the case page (Award and Contract
+ * Everything the award's screen is made of, computed once and read by the case page (`/awards/[id]` now redirects to it) (Award and Contract
  * Requirements v2, C-2, C-3; design note 0004 C5). It moves what `awards/[id]/page.tsx` computed, unchanged; the two pages differ
  * only in how they lay it out.
  *
- * Nothing is read that the asked-for parts do not need (GN-01): the history only with `tab` "history" or "all", the committee
+ * Nothing is read that the asked-for parts do not need (GN-01): the history only with `tab` "history", the committee
  * matters and sittings only for the Approval tab, the opening gate, the recommendation and the standing of the awardee only for
- * the header and the tabs that show them. "all" is what `/awards/[id]` asks for, which is what it has always loaded.
+ * the header and the tabs that show them.
  *
  * The two SULIT answers are the award's own: `sulit` (the exercise's estimate and the identity-card number) and
  * `recommendation` (who is recommended and at what price, FR-EVL-014). The contract's gate is never passed in here.
@@ -80,8 +80,10 @@ export interface AwardView {
   before: BeforeSigningFacts | null;
   /// The award's main acts, as today's header offers them. Only the ones whose drawer is in the header.
   main: { SEND_FOR_APPROVAL?: ReactNode; ISSUE?: ReactNode; RECORD_COMMENCEMENT?: ReactNode };
+  /// The award's own warnings (cancelled, barred supplier, late commencement, expired indent) for every stage of the case.
+  caseCallouts: () => Promise<ReactNode>;
   /// The parts that depend on which tab is open, read once the page knows which that is.
-  finish: (q: { tab: AwardPanelId | "none" | "all"; chrome: boolean }) => Promise<AwardFinish>;
+  finish: (q: { tab: AwardPanelId | "none"; chrome: boolean }) => Promise<AwardFinish>;
 }
 
 export async function buildAwardView({ actor, l }: { actor: StaffActor; l: LoadedAward }): Promise<AwardView> {
@@ -160,10 +162,48 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     commencementOffered,
   };
 
+  /// The warnings about the award itself, shown on every stage of the case to a reader who sees the whole case (FR-AWD-006, FR-AWD-009, FR-AWD-008): cancelled, barred supplier,
+  /// late commencement and an expired indent. They need no SULIT figure. The Award stage's header adds the others (`finish`'s chrome).
+  async function caseCallouts(): Promise<ReactNode> {
+    // 6.15a fix S-3: the linked supplier's standing, derived on the organisation's day; barred warns, never refuses.
+    const vendorStanding = award.vendor && today ? await standingOf(award.vendor.id, org.id, today) : null;
+    const awardee = vendorStanding ? awardStanding(vendorStanding.reading, formatDate) : null;
+    return (
+      <>
+      {status === "CANCELLED" && (
+        <Callout tone="info" title="Cancelled">
+          {award.cancelReason || "No reason recorded."}
+          {award.cancelConsequence && ` Consequence recorded: ${NON_COMMENCEMENT_LABEL[award.cancelConsequence].toLowerCase()}.`}
+          {award.cancelConsequence === "CANCEL_AND_BLACKLIST" &&
+            (award.standingRequests.length > 0
+              ? " Blacklisting was asked for from this award, on the supplier's record."
+              : award.vendor
+                ? <> Blacklisting is asked for on the supplier&apos;s record, where its route decides it: <Link href={`/suppliers/${award.vendor.id}?tab=standing&fromAward=${award.id}`}>ask for the blacklisting of {award.vendor.registeredName}</Link>.</>
+                : " Blacklisting is asked for on the supplier's record once the awardee is linked to the supplier register (from the supplier's record, Participation).")}
+        </Callout>
+      )}
+      {awardee?.warning && status !== "CANCELLED" && (
+        <Callout tone="warn" title="The awardee's supplier is barred on the register">
+          {awardee.warning.en}
+        </Callout>
+      )}
+      {ev.commencement?.state === "LATE" && status === "ISSUED" && (
+        <Callout tone="err" title="Work has not commenced">
+          The grace period ended on {formatDate(ev.commencement.deadline)}. The variant&apos;s consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. Cancelling records it; a blacklisting is then asked for on the supplier&apos;s record, where its route decides it. Nothing is sent.
+        </Callout>
+      )}
+      {ev.indent?.state === "EXPIRED" && issued && indentExpiryRaised(ev.indent, day(award.commencedOn), status) && (
+        <Callout tone="err" title="The indent has expired">
+          It expired on {formatDate(ev.indent.expiresOn)}. {f.config.indentExpiredRule ? `The rule “${f.config.indentExpiredRule.nameEn}” names who is to be told;` : "No notification rule names who is to be told;"} nothing is sent from the portal in this phase. {INDENT_READING}
+        </Callout>
+      )}
+      </>
+    );
+  }
+
   /// The parts that depend on which tab is open: asked once the page knows (it needs the steps, which need the facts above).
-  async function finish({ tab, chrome }: { tab: AwardPanelId | "none" | "all"; chrome: boolean }): Promise<AwardFinish> {
-    const all = tab === "all";
-    const want = (...ids: AwardPanelId[]) => all || ids.includes(tab as AwardPanelId);
+  async function finish({ tab, chrome }: { tab: AwardPanelId | "none"; chrome: boolean }): Promise<AwardFinish> {
+    const want = (...ids: AwardPanelId[]) => ids.includes(tab as AwardPanelId);
     // Which SULIT answers the asked-for parts show: the header's notes and drawers, the Overview and the Return panel read the exercise's; the header and the Overview read
     // who is recommended (FR-EVL-014: a reader it is closed to is offered every bidder carried to evaluation, no pre-fill, no recommended figure and no "differs from the
     // recommendation" mark; the act that saves the award refuses them too, Phase 3b).
@@ -173,7 +213,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     // Read only by the parts that asked for it above (the header, the Overview, the Return panel); the page asks `finish` for no other.
     const sulit = exerciseAsked as NonNullable<typeof exerciseAsked>;
     // 6.15a fix S-3: the linked supplier's standing, derived on the organisation's day; barred warns, never refuses.
-    const needsAwardee = chrome || want("overview", "approval");
+    const needsAwardee = want("overview", "approval");
     const vendorStanding = needsAwardee && award.vendor && today ? await standingOf(award.vendor.id, org.id, today) : null;
     const awardee = vendorStanding ? awardStanding(vendorStanding.reading, formatDate) : null;
 
@@ -251,23 +291,6 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
         ) : null;
       const callouts = (
         <>
-          {status === "CANCELLED" && (
-            <Callout tone="info" title="Cancelled">
-              {award.cancelReason || "No reason recorded."}
-              {award.cancelConsequence && ` Consequence recorded: ${NON_COMMENCEMENT_LABEL[award.cancelConsequence].toLowerCase()}.`}
-              {award.cancelConsequence === "CANCEL_AND_BLACKLIST" &&
-                (award.standingRequests.length > 0
-                  ? " Blacklisting was asked for from this award, on the supplier's record."
-                  : award.vendor
-                    ? <> Blacklisting is asked for on the supplier&apos;s record, where its route decides it: <Link href={`/suppliers/${award.vendor.id}?tab=standing&fromAward=${award.id}`}>ask for the blacklisting of {award.vendor.registeredName}</Link>.</>
-                    : " Blacklisting is asked for on the supplier's record once the awardee is linked to the supplier register (from the supplier's record, Participation).")}
-            </Callout>
-          )}
-          {awardee?.warning && status !== "CANCELLED" && (
-            <Callout tone="warn" title="The awardee's supplier is barred on the register">
-              {awardee.warning.en}
-            </Callout>
-          )}
           {!today && (
             <Callout tone="warn" title="The organisation's time zone is not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>
               Sending for approval, issuing and recording depend on today&apos;s date, which is not assumed to be UTC.
@@ -286,16 +309,6 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
           {findingsForReader(ev.valueFaults.filter((x) => x.level === "warn"), recommendationShown).map((x, i) => (
             <Callout key={i} tone="warn">{awardFindingTextFor(x, sulit.state === "GRANTED", recommendationShown)}</Callout>
           ))}
-          {ev.commencement?.state === "LATE" && status === "ISSUED" && (
-            <Callout tone="err" title="Work has not commenced">
-              The grace period ended on {formatDate(ev.commencement.deadline)}. The variant&apos;s consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. Cancelling records it; a blacklisting is then asked for on the supplier&apos;s record, where its route decides it. Nothing is sent.
-            </Callout>
-          )}
-          {ev.indent?.state === "EXPIRED" && issued && indentExpiryRaised(ev.indent, day(award.commencedOn), status) && (
-            <Callout tone="err" title="The indent has expired">
-              It expired on {formatDate(ev.indent.expiresOn)}. {f.config.indentExpiredRule ? `The rule “${f.config.indentExpiredRule.nameEn}” names who is to be told;` : "No notification rule names who is to be told;"} nothing is sent from the portal in this phase. {INDENT_READING}
-            </Callout>
-          )}
         </>
       );
       chromeParts = { actions, headerNote, callouts };
@@ -371,7 +384,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       }
     : null;
 
-  return { status, kind, issued, ev, f, stepFacts, main, before, finish };
+  return { status, kind, issued, ev, f, stepFacts, main, before, caseCallouts, finish };
 }
 
 /// The award's recorded terms as the terms form and the securities panel read them, with the tender's pre-fill on a first save (64-C4).

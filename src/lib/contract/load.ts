@@ -363,9 +363,13 @@ export const preparationOn = (c: LoadedContract["contract"]) => readFormationSna
 export const CONTRACT_HISTORY_PAGE = 200;
 
 /// Every change to the contract and what is under it: its own rows, and every row its acts wrote under its label.
-export async function contractHistory(l: LoadedContract) {
+///
+/// `withSecurities` false leaves out the security instruments' rows: they are written by the award's lodge and verify acts (the checker's name, a rejection reason, the bond
+/// requirement worked out from the award's terms), so a reader who sees the contract stages only is not given them (AC-18; the more conservative reading, logged 2026-10-18).
+export async function contractHistory(l: LoadedContract, opts: { withSecurities?: boolean } = {}) {
   const c = l.contract;
-  const where = { organisationId: l.org.id, OR: [{ entityId: { in: [c.id, ...c.securities.map((x) => x.id), ...c.policies.map((p) => p.id)] } }, { entityLabel: { startsWith: `Contract ${c.number} ·` } }] };
+  const securityIds = opts.withSecurities === false ? [] : c.securities.map((x) => x.id);
+  const where = { organisationId: l.org.id, OR: [{ entityId: { in: [c.id, ...securityIds, ...c.policies.map((p) => p.id)] } }, { entityLabel: { startsWith: `Contract ${c.number} ·` } }] };
   const [rows, total] = await Promise.all([db.auditEntry.findMany({ where, orderBy: { at: "desc" }, take: CONTRACT_HISTORY_PAGE }), db.auditEntry.count({ where })]);
   return {
     total,

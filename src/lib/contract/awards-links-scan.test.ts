@@ -39,7 +39,9 @@ const ALLOWED_FILES = [
   "src/app/awards/[id]/page.tsx",
 ];
 /// A print view's address is kept (the instrument panel links to it).
-const isPrintLiteral = (line: string) => /\/awards\/[^"'`]*\/print\//.test(line);
+/// Only the print address itself is taken out of the line, so a second /awards literal on the same line is still a hit.
+const PRINT_LITERAL = /["'`]\/awards\/[^"'`]*\/print\/[^"'`]*["'`]/g;
+const withoutPrintLiterals = (line: string) => line.replace(PRINT_LITERAL, "");
 
 describe("no code builds an /awards address (AC-23)", () => {
   const files = walk(join(ROOT, "src")).concat(walk(join(ROOT, "scripts")));
@@ -52,7 +54,7 @@ describe("no code builds an /awards address (AC-23)", () => {
       if (/\.test\.tsx?$/.test(rel)) continue;
       const lines = stripComments(readFileSync(f, "utf8")).split("\n");
       lines.forEach((line, i) => {
-        if (LITERAL.test(line) && !isPrintLiteral(line)) hits.push(`${rel}:${i + 1}: ${line.trim().slice(0, 120)}`);
+        if (LITERAL.test(withoutPrintLiterals(line))) hits.push(`${rel}:${i + 1}: ${line.trim().slice(0, 120)}`);
         LITERAL.lastIndex = 0;
       });
     }

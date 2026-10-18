@@ -68,6 +68,7 @@ import { SUPERVISION_ACTS } from "@/lib/supervision/types";
 import { VARIATION_SECTIONS, VariationsPanel, VariationSummaryCard, type VariationSection } from "./variation-panels";
 import { variationView, type VariationView } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
@@ -181,6 +182,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const view = resolveCaseView({ stage: first("stage"), tab, steps, standing, hasContract: !!c, visibility });
   const viewed = steps.find((s) => s.key === view.stage)!;
   const sources = caseHistorySources({ hasContract: !!c, visibility });
+  // The Award stage was asked for by a reader not named on a restricted exercise: the refusal is written to the access log now (FR-MTD-007), not on every contract stage.
+  if (view.awardRefused) await exerciseIsHidden(actor, award.exerciseId);
 
   // ----------------------------------------------------------------- the viewed stage, and only it
   const stage = view.stage;
@@ -188,6 +191,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   // The award's tab-specific readers run only for the award tab being shown (or the award's history); nothing for a stage that is not the award's.
   const awardShown = !view.awardRefused && !view.noContractYet && (view.history ? sources.includes("award") : stage === "award" || (stage === "before-signing" && (view.tab === "conditions" || view.tab === "securities")));
   const fin = av && awardShown ? await av.finish({ tab: awardTab, chrome: stage === "award" && !view.history }) : null;
+  // The award's own warnings (cancelled, barred supplier, late commencement, expired indent) show on every stage to a reader who sees the whole case (FR-AWD-006, FR-AWD-009).
+  const awardCallouts = av ? await av.caseCallouts() : null;
   const contractTab = lc && !view.history ? view.tab : null;
   const needsPeople = !!lc && !view.history && !!contractTab && ["formation", "team", "site", "payments", "variations", "securities"].includes(contractTab);
   const people: Option[] = needsPeople ? (await db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name })) : [];
@@ -203,7 +208,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   // The contract's gate (the priced working, the figures a certificate's override trail names) is asked only where a panel of the contract shows them.
   const needsContractGate = !!lc && ((projectTab === "overview") || (stage === "signing" && !view.history && view.tab === "formation") || (view.history && sources.includes("contract")));
   const sulit = needsContractGate && c ? await sulitGate(actor, { scope: "contract", entity: "Contract", id: c.id, label: c.number }, fieldsOfScope("contract")) : null;
-  const history = lc && view.history && sources.includes("contract") ? await contractHistory(lc) : null;
+  const history = lc && view.history && sources.includes("contract") ? await contractHistory(lc, { withSecurities: visibility === "WHOLE" }) : null;
   // The people who decide a contract matter's route read that matter's amount, and nothing else of the contract (ruling of 2026-10-08): asked (and logged) only where a row carries one.
   const matterIds = history ? [...new Set(history.entries.filter((e) => e.entity === "ContractMatter" && e.changes.some((ch) => ch.field === ROUTED_MATTER_VALUE_FIELD)).map((e) => e.entityId))] : [];
   const matterGates = matterIds.length ? await sulitGates(actor, matterIds.map((id) => ({ scope: "contract" as const, entity: "ContractMatter", id, label: "A contract matter" })), [ROUTED_MATTER_VALUE_FIELD]) : new Map<string, Sulit<true>>();
@@ -221,7 +226,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   );
   const panelFor = (t: string): ReactNode => {
     if (stage === "award") return fin?.panel(t as AwardPanelId) ?? null;
-    if (!lc || !c) return null;
+    // Before the contract exists the award's conditions and its bond requirement are still entered here (FR-AWD-014): the award's panels need no Contract row.
+    if (!lc || !c) return stage === "before-signing" && (t === "conditions" || t === "securities") ? (fin?.panel(t) ?? null) : null;
     switch (t) {
       case "conditions":
         // The conditions are read from the award (F0-4): a reader who sees the contract stages only is told so.
@@ -317,6 +323,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         actionsNoteId={AWARD_NOTE_ID}
       />
       <div className="mb-6 flex flex-col gap-3">
+        {awardCallouts}
         {fin?.chrome?.callouts}
         {c && !today && !fin?.chrome && (
           <Callout tone="warn" title="The organisation's time zone is not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>

@@ -495,7 +495,7 @@ const DECIDED_ABSENT = [
   {
     screen: /^[/]projects$/,
     match: /^(Opened from the exercise|All awards|Drafts|Awaiting approval|Ready to issue|Issued|Awaiting return|No commitment number|Indents expired|Search by awardee or reference|Not started|Being formed|Ready to sign|Executed|Contracts In Delay|All contracts)$/,
-    why: "C-1 (AC-17): the Awards list and its views merged into the case list; the stages (Awarding, Signing, On site, Completed, Closed) and 'Cancelled or terminated' are server-side views, the awards list's chips ride on each case's Status, and the old in-page views became the stage views. 'Opened from the exercise' is dropped with the Awards page; an award is started from the exercise's Award tab or New award",
+    why: "C-1 (AC-17): the Awards list and its views merged into the case list; the stages (Awarding, Signing, On site, Completed, Closed) and 'Cancelled or terminated' are server-side views, the awards list's chips ride on each case's Status, and the old Drafts and Issued views are the Awarding stage and the later stages; Awaiting approval, Approved not issued (was Ready to issue), Awaiting return, No commitment number and Indents expired (FR-AWD-006) stay organisation-wide server views with their counts, no longer searchable in-page. 'Opened from the exercise' is dropped with the Awards page; an award is started from the exercise's Award tab or New award",
   },
   {
     screen: /^[/]securities$/,

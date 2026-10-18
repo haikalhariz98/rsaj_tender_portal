@@ -114,6 +114,14 @@ describe("the address names the view", () => {
     expect(open({ awardStatus: "DRAFT", contract: null, facts: {}, stage: "signing" }).noContractYet).toBe(true);
     expect(open({ awardStatus: "DRAFT", contract: null, facts: {}, stage: "award" }).noContractYet).toBe(false);
   });
+  it("Before signing is open on an award with no contract yet: its conditions and bond requirement are entered there (FR-AWD-014)", () => {
+    for (const awardStatus of ["DRAFT", "PENDING_APPROVAL", "APPROVED"] as const) {
+      for (const tab of ["conditions", "securities"]) {
+        expect(open({ awardStatus, contract: null, facts: {}, tab })).toMatchObject({ stage: "before-signing", tab, noContractYet: false, awardRefused: false });
+        expect(open({ awardStatus, contract: null, facts: {}, stage: "before-signing", tab })).toMatchObject({ stage: "before-signing", tab, noContractYet: false });
+      }
+    }
+  });
 });
 
 describe("a reader who sees the contract stages only (AC-18)", () => {

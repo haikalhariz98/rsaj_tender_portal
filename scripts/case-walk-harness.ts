@@ -230,6 +230,16 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
     expect((await db.award.findUniqueOrThrow({ where: { id: walk.awardId } })).status).toBe("PENDING_APPROVAL");
   });
 
+  it("FR-AWD-014: a condition is added to an award that has no contract yet, from Before signing (the case page offers it before issue)", async () => {
+    await as("demo_p3");
+    ok(await addCondition(FIRST, form({ id: walk.awardId, kindId: "demo_cpk1", reference: "WALK-PRE-ISSUE", requiredBy: startDay(), note: "" })), "add before issue");
+    expect(await db.contract.count({ where: { awardId: walk.awardId } })).toBe(0);
+    expect(await db.awardCondition.count({ where: { awardId: walk.awardId, reference: "WALK-PRE-ISSUE" } })).toBe(1);
+    // Met at once, so that the walk's later readiness is not held by it.
+    const pre = await db.awardCondition.findFirstOrThrow({ where: { awardId: walk.awardId, reference: "WALK-PRE-ISSUE" } });
+    ok(await satisfyCondition(FIRST, form({ id: walk.awardId, conditionId: pre.id, satisfiedOn: orgToday() })), "satisfy before issue");
+  });
+
   it("FR-AWD-001: issue is refused to an award not yet approved, and no Contract is made (pending, and a draft)", async () => {
     await as("demo_p2");
     const before = await db.contract.count();
@@ -279,7 +289,7 @@ describe.skipIf(!PASSWORD)("the award case, from Start the award to Active on si
   it("FR-AWD-014: a condition precedent is added from the configured kinds, copies its no-extension flag, and is met on a day", async () => {
     await as("demo_p3");
     ok(await addCondition(FIRST, form({ id: walk.awardId, kindId: "demo_cpk1", reference: "WALK-SWMS", requiredBy: startDay(), note: "" })), "add");
-    const condition = await db.awardCondition.findFirstOrThrow({ where: { awardId: walk.awardId } });
+    const condition = await db.awardCondition.findFirstOrThrow({ where: { awardId: walk.awardId, reference: "WALK-SWMS" } });
     expect(condition.excludesEot).toBe(true);
     expect(condition.satisfiedOn).toBeNull();
     ok(await satisfyCondition(FIRST, form({ id: walk.awardId, conditionId: condition.id, satisfiedOn: orgToday() })), "satisfy");

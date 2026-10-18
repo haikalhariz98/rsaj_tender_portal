@@ -146,13 +146,15 @@ describe("loadCase writes the refusal to the access log (C5 done-when 3, FR-MTD-
     expect(await loadCase(actorOf(outsider), ids["restricted draft"].awardId)).toEqual({ kind: "NOT_FOUND" });
     expect((await refusals(ids["restricted draft"].exerciseId)) - before).toBe(1);
   });
-  it("after issue: the contract stages are shown and the Award stage's refusal is logged, by contract id and by award id", async () => {
+  // Review fix round (security audit, low; decisions log 2026-10-18): a contract id asks for no award data, so loadCase writes nothing for it and the page writes the
+  // refusal when the Award stage is asked for. An award id is an award read and is still logged here.
+  it("after issue: the contract stages are shown with no write for a contract id, and an award id's refusal is logged", async () => {
     const e = ids["restricted active"];
     const before = await refusals(e.exerciseId);
     expect(await loadCase(actorOf(outsider), e.contractId!)).toMatchObject({ kind: "CONTRACT", visibility: "CONTRACT_STAGES_ONLY" });
-    expect((await refusals(e.exerciseId)) - before).toBe(1);
+    expect((await refusals(e.exerciseId)) - before).toBe(0);
     expect(await loadCase(actorOf(outsider), e.awardId)).toEqual({ kind: "NOT_FOUND" });
-    expect((await refusals(e.exerciseId)) - before).toBe(2);
+    expect((await refusals(e.exerciseId)) - before).toBe(1);
   });
   it("a named reader is let in, and that is logged as granted rather than refused", async () => {
     const e = ids["restricted draft"];
