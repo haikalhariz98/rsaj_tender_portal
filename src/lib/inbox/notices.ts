@@ -207,3 +207,38 @@ export function matterNotCarriedMemo(i: {
     href: i.href,
   }));
 }
+
+/// FR-AWD-006 and FR-AWD-009 (design note 0004 C13, F-4): an issued award's indent ran out, or its work did not commence in time. The expiry day or the due day is the occurrence, so
+/// the notice is told once however often the case is read, and a later award is another notice. No amount is named. The exercise is set, so a restricted exercise's notice is hidden.
+export function caseClockNotices(i: {
+  kind: "INDENT_EXPIRED" | "COMMENCEMENT_LATE";
+  awardId: string;
+  awardLabel: string;
+  /// The expiry day, or the day the grace period ended, as the organisation's day (`YYYY-MM-DD`).
+  day: string;
+  /// The same day as it reads on a screen.
+  dayWords: string;
+  exerciseId: string;
+  href: string;
+  recipients: readonly string[];
+}): NoticeDraft[] {
+  const expired = i.kind === "INDENT_EXPIRED";
+  return recipientsOf(i.recipients, null).map((r) => ({
+    recipientPersonId: r,
+    kind: i.kind,
+    subjectEntity: "Award",
+    subjectId: i.awardId,
+    occurrence: i.day,
+    exerciseId: i.exerciseId,
+    title: expired ? `The indent has expired: ${i.awardLabel}` : `Work has not commenced: ${i.awardLabel}`,
+    body: expired
+      ? `${i.awardLabel}: the indent expired on ${i.dayWords} and the award has not commenced. The case page shows what the organisation's rule asks for.`
+      : `${i.awardLabel}: the grace period for commencement ended on ${i.dayWords} and work has not commenced. The case page shows the consequence the variant records.`,
+    href: i.href,
+  }));
+}
+
+/// F-4: the requisition's requester, the people who head the requesting unit, and the people who head the unit that owns the case now. Each once, in a fixed order.
+export function caseClockRecipients(i: { requesterId: string | null; requestingUnitHeadId: string | null; caseOwnerUnitHeadId: string | null }): string[] {
+  return [...new Set([i.requesterId, i.requestingUnitHeadId, i.caseOwnerUnitHeadId].filter((x): x is string => !!x))].sort();
+}

@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { STAFF_NOTICE_KINDS, STAFF_NOTICE_KIND_LABEL } from "./kinds";
-import { delegationReceivedNotice, holderMarkedAbsentNotices, matterNotCarriedMemo, routeRecalledNotices, stepEscalatedNotices, stepMovedOnAbsenceNotices } from "./notices";
+import { caseClockNotices, caseClockRecipients, delegationReceivedNotice, holderMarkedAbsentNotices, matterNotCarriedMemo, routeRecalledNotices, stepEscalatedNotices, stepMovedOnAbsenceNotices } from "./notices";
 
 const matter = { label: "REQ-1 · Roof", href: "/approvals", exerciseId: "ex1" };
 
@@ -57,10 +57,27 @@ describe("the closed list of kinds", () => {
     for (const k of STAFF_NOTICE_KINDS) expect(STAFF_NOTICE_KIND_LABEL[k], k).toBeTruthy();
     // Changed for Phase 4e: the CHECK was replaced whole by the My Projects migration, which adds CONTRACTOR_SUBMISSION; the latest definition is the one held to the list.
     // Changed for Phase 5a (ruling item 9): replaced whole again by the back-dating confirmation's migration, which adds BACKDATE_TO_CONFIRM.
-    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261018110000_backdate_confirmation/migration.sql"), "utf8");
+    // Changed for C13 (design note 0004, AC-20): replaced whole again by the migration that adds INDENT_EXPIRED and COMMENCEMENT_LATE.
+    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261110000000_staff_notices_indent_and_commencement/migration.sql"), "utf8");
     const check = /StaffNotice_kind_known" CHECK \(\("kind" IN \(([^)]*)\)\)/.exec(sql);
     expect(check, "the CHECK is in the migration").toBeTruthy();
     const named = [...check![1]!.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
     expect([...named].sort()).toEqual([...STAFF_NOTICE_KINDS].sort());
+  });
+});
+
+describe("the clock notices of an award (FR-AWD-006, FR-AWD-009; C13)", () => {
+  const base = { awardId: "a1", awardLabel: "AWD-1", day: "2026-10-01", dayWords: "1 Oct 2026", exerciseId: "ex1", href: "/projects/a1" };
+  it("tells the requester, the requesting unit's head and the case owner's head once each, and keys on the day", () => {
+    const recipients = caseClockRecipients({ requesterId: "r", requestingUnitHeadId: "h", caseOwnerUnitHeadId: "r" });
+    expect(recipients).toEqual(["h", "r"]);
+    const n = caseClockNotices({ ...base, kind: "INDENT_EXPIRED", recipients });
+    expect(n.map((x) => x.recipientPersonId)).toEqual(["h", "r"]);
+    expect(n[0]).toMatchObject({ kind: "INDENT_EXPIRED", subjectEntity: "Award", subjectId: "a1", occurrence: "2026-10-01", exerciseId: "ex1" });
+    expect(caseClockNotices({ ...base, kind: "COMMENCEMENT_LATE", recipients })[0]!.kind).toBe("COMMENCEMENT_LATE");
+  });
+  it("tells no one in a role nobody fills", () => {
+    expect(caseClockRecipients({ requesterId: "r", requestingUnitHeadId: null, caseOwnerUnitHeadId: null })).toEqual(["r"]);
+    expect(caseClockRecipients({ requesterId: null, requestingUnitHeadId: null, caseOwnerUnitHeadId: null })).toEqual([]);
   });
 });

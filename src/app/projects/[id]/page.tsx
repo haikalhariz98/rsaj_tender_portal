@@ -46,6 +46,8 @@ import { briefingMissing } from "@/lib/contract/sign";
 import { isExecuted } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { storedDay } from "@/lib/dates";
+import { dayToDate } from "@/lib/dates";
+import { raiseCaseClockNotices } from "@/lib/award/clock-notices";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
@@ -193,6 +195,10 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const fin = av && awardShown ? await av.finish({ tab: awardTab, chrome: stage === "award" && !view.history }) : null;
   // The award's own warnings (cancelled, barred supplier, late commencement, expired indent) show on every stage to a reader who sees the whole case (FR-AWD-006, FR-AWD-009).
   const awardCallouts = av ? await av.caseCallouts() : null;
+  // FR-AWD-006, FR-AWD-009 (C13): the same two clocks, told to staff once per recipient and day. A restricted exercise's notice carries its exercise, so others never see it.
+  if (av && av.lateClocks.length > 0) {
+    await raiseCaseClockNotices({ organisationId: l.org.id, awardId: award.id, awardLabel: award.reference, exerciseId: award.exerciseId, requesterId: l.req.requestingPersonId, requestingUnitCode: l.req.requestingUnitCode, on: today ? dayToDate(today) : new Date(), contractId: c?.id ?? null, href: `/projects/${c?.id ?? award.id}`, clocks: av.lateClocks });
+  }
   const contractTab = lc && !view.history ? view.tab : null;
   const needsPeople = !!lc && !view.history && !!contractTab && ["formation", "team", "site", "payments", "variations", "securities"].includes(contractTab);
   const people: Option[] = needsPeople ? (await db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name })) : [];

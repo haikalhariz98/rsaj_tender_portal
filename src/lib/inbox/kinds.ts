@@ -1,6 +1,6 @@
 /**
  * What the staff inbox can hold (Phase 3c). Product vocabulary, not policy: the closed list of events a notice is raised for. `StaffNotice.kind` is checked
- * against this list in the database (migration 20261009090000, widened by 20261017090000 for the contractor's submission and by 20261018110000 for a back-dated signature to confirm), and a source test holds the two together.
+ * against this list in the database (migration 20261009090000, widened by 20261017090000 for the contractor's submission by 20261018110000 for a back-dated signature to confirm and by 20261110000000 for the indent-expiry and late-commencement notices), and a source test holds the two together.
  *
  * Email is not connected (INT-09), so a notice is delivered in the portal and nowhere else. That is a fact about the product, not a per-notice setting, and it is
  * said where a notice is shown, in these words.
@@ -23,6 +23,10 @@ export const STAFF_NOTICE_KINDS = [
   "CONTRACTOR_SUBMISSION",
   /// A signer named the recipient as authorising a back-dated signature (NFR-AUD-006, Phase 5a): the recipient confirms it, as a signature of their own.
   "BACKDATE_TO_CONFIRM",
+  /// An issued award's indent ran past its expiry day with the award not commenced (FR-AWD-006): the requester, the requesting unit's head and the case owner are told (design note 0004 C13, F-4).
+  "INDENT_EXPIRED",
+  /// An issued award's work has not commenced by the end of the grace period (FR-AWD-009): the same people are told.
+  "COMMENCEMENT_LATE",
 ] as const;
 
 export type StaffNoticeKind = (typeof STAFF_NOTICE_KINDS)[number];
@@ -37,6 +41,8 @@ export const STAFF_NOTICE_KIND_LABEL: Readonly<Record<StaffNoticeKind, string>> 
   MATTER_NOT_CARRIED_MEMO: "Memo: matter not carried",
   CONTRACTOR_SUBMISSION: "Contractor's submission to answer",
   BACKDATE_TO_CONFIRM: "A back-dated signature to confirm",
+  INDENT_EXPIRED: "An indent has expired",
+  COMMENCEMENT_LATE: "Work has not commenced",
 };
 
 /// Said on every screen that shows a notice. The delivery is a fact of the product: there is no outbound email.

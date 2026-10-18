@@ -82,6 +82,8 @@ export interface AwardView {
   main: { SEND_FOR_APPROVAL?: ReactNode; ISSUE?: ReactNode; RECORD_COMMENCEMENT?: ReactNode };
   /// The award's own warnings (cancelled, barred supplier, late commencement, expired indent) for every stage of the case.
   caseCallouts: () => Promise<ReactNode>;
+  /// The clocks running late today, by the conditions of the two callouts: each is told to staff once (FR-AWD-006, FR-AWD-009; C13).
+  lateClocks: { kind: "INDENT_EXPIRED" | "COMMENCEMENT_LATE"; day: string; dayWords: string }[];
   /// The parts that depend on which tab is open, read once the page knows which that is.
   finish: (q: { tab: AwardPanelId | "none"; chrome: boolean }) => Promise<AwardFinish>;
 }
@@ -200,6 +202,10 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       </>
     );
   }
+
+  const lateClocks: AwardView["lateClocks"] = [];
+  if (ev.commencement?.state === "LATE" && status === "ISSUED") lateClocks.push({ kind: "COMMENCEMENT_LATE", day: ev.commencement.deadline, dayWords: formatDate(ev.commencement.deadline) });
+  if (ev.indent?.state === "EXPIRED" && issued && indentExpiryRaised(ev.indent, day(award.commencedOn), status)) lateClocks.push({ kind: "INDENT_EXPIRED", day: ev.indent.expiresOn, dayWords: formatDate(ev.indent.expiresOn) });
 
   /// The parts that depend on which tab is open: asked once the page knows (it needs the steps, which need the facts above).
   async function finish({ tab, chrome }: { tab: AwardPanelId | "none"; chrome: boolean }): Promise<AwardFinish> {
@@ -384,7 +390,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       }
     : null;
 
-  return { status, kind, issued, ev, f, stepFacts, main, before, caseCallouts, finish };
+  return { status, kind, issued, ev, f, stepFacts, main, before, caseCallouts, lateClocks, finish };
 }
 
 /// The award's recorded terms as the terms form and the securities panel read them, with the tender's pre-fill on a first save (64-C4).
