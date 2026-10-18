@@ -87,7 +87,7 @@ export async function SecuritiesView({ actor, sv, pageParam }: { actor: StaffAct
         Expiry reminders are worked out from the notification rule for expiring securities and shown on this register. Nothing is sent from the portal in this phase.
       </Callout>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Securities expiring or not verified" subtitle={`Live ones first, soonest to expire first; then those long expired, then those rejected. ${counts.unverified} lodged, not verified; ${counts.expiring} expiring or expired. ${remindersText(offsets)}. Each is lodged and verified on its award's Securities tab.`}
+        <CardHeader icon={<ShieldIcon size={17} />} title="Securities expiring or not verified" subtitle={`Live ones first, soonest to expire first; then those long expired, then those rejected. ${counts.unverified} lodged, not verified; ${counts.expiring} expiring or expired. ${remindersText(offsets)}. Each is lodged and verified under Before signing, in the contract's securities and insurance panel.`}
           actions={
             <span className="flex flex-wrap gap-1.5">
               <ButtonLink href="/projects" size="sm" variant="secondary">All contracts</ButtonLink>

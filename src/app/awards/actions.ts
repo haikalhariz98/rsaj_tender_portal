@@ -96,6 +96,8 @@ function refresh(id?: string, exerciseId?: string) {
   // GN-04 / AC-13: a step may have moved, so the side-menu badges are drawn again.
   revalidatePath("/", "layout");
   revalidatePath("/awards");
+  // AC-21 (C6): the case page shows the register an act changed (Before signing, and the Project stage's summary), under the contract's id or the award's.
+  revalidatePath("/projects/[id]", "page");
   if (id) revalidatePath(`/awards/${id}`);
   if (exerciseId) revalidatePath(`/sourcing/${exerciseId}`);
 }

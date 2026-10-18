@@ -229,8 +229,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       case "securities":
         return (
           <div className="flex flex-col gap-6">
-            {fin?.panel("securities")}
-            <SecuritiesPanel l={lc} people={people} today={today} />
+            {fin?.panel("securities", { termsReadOnly: true })}
+            <SecuritiesPanel l={lc} people={people} today={today} wagesCheckOnly={!!fin} />
           </div>
         );
       case "formation":
@@ -385,6 +385,7 @@ async function OverviewPanel({ sulit, l, facts, today, supervision, payments, va
         </Card>
       )}
       <OnSiteCard l={l} v={supervision} />
+      <SecuritiesSummaryCard l={l} today={today} />
       <PaymentSummaryCard l={l} v={payments} />
       <VariationSummaryCard l={l} v={variations} />
       <Card>
@@ -441,7 +442,40 @@ async function OverviewPanel({ sulit, l, facts, today, supervision, payments, va
 
 // ------------------------------------------------------------------ securities
 
-async function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people: Option[]; today: string | null }) {
+/// AC-21: the Project stage's summary of the register, for the advance-payment guarantees and retention bonds that are lodged after signing. It opens the Before signing panel, where the lodge and review drawers are.
+async function SecuritiesSummaryCard({ l, today }: { l: LoadedContract; today: string | null }) {
+  const c = l.contract;
+  const offsets = await loadExpiryOffsets(l.org.id);
+  const rows = [...c.securities.map((s) => ({ status: s.status, on: s.expiresOn })), ...c.policies.map((p) => ({ status: p.status, on: p.periodEnd }))];
+  const waiting = rows.filter((x) => x.status === "LODGED").length;
+  const chips = rows.filter((x) => x.status !== "REJECTED").map((x) => (today ? expiryChip(expiryAlert(day(x.on), offsets, today)) : null)).filter((x) => x != null);
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return (
+    <Card>
+      <CardHeader
+        icon={<ShieldIcon size={17} />}
+        title="Securities and insurance"
+        subtitle="Bonds, guarantees and policies on this contract. Advance-payment guarantees and retention bonds are lodged and checked in the same panel."
+        actions={<ButtonLink href={caseHref({ awardId: l.award.id, contractId: c.id }, { stage: "before-signing", tab: "securities" })} size="sm" variant="secondary">Open securities</ButtonLink>}
+      />
+      <CardBody className="flex flex-wrap items-center gap-2 text-[13.5px] text-ink-2">
+        {rows.length === 0 ? (
+          <span className="text-ink-4">Nothing lodged yet.</span>
+        ) : (
+          <>
+            <span>{`${plural(c.securities.length, "security", "securities")}, ${plural(c.policies.length, "insurance policy", "insurance policies")}.`}</span>
+            <Chip tone={waiting ? "warn" : "ok"}>{waiting ? `${waiting} lodged, not verified` : "All checked"}</Chip>
+            {chips.map((x, i) => (
+              <Chip key={i} tone={x.tone}>{x.text}</Chip>
+            ))}
+          </>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: LoadedContract; people: Option[]; today: string | null; wagesCheckOnly: boolean }) {
   const c = l.contract;
   // AC-15: the same chips as the award's tab (one wording, `expiryChip`) and the configured reminder intervals, which with none set say so.
   const offsets = await loadExpiryOffsets(l.org.id);
@@ -454,11 +488,33 @@ async function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people
   const shut = actStatusBlocker("FORMATION", status);
   const wcOpen = !shut && !isExecuted(status);
   const wcOnWages = l.award.wcBasis === "UNCOVERED_WAGES";
+  // The award's register above already lists everything with its drawers (AC-21): here only the wages check, which is a contract act, is added.
+  if (wagesCheckOnly) {
+    const wcPolicies = c.policies.filter((p) => p.kind === "WORKMENS_COMPENSATION" && wcOnWages);
+    if (wcPolicies.length === 0) return null;
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader icon={<ShieldIcon size={17} />} title="Workmen's compensation wages check" subtitle="Recorded on the contract once the policy is verified. Recorded, not judged." />
+        <ActGate blocker={shut}>
+          <ul className="divide-y divide-line/70">
+            {wcPolicies.map((p) => (
+              <li key={p.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <span className="text-[12.5px] break-words text-ink-3">
+                  {p.wcCheckedOn ? `Wages check recorded ${formatDate(day(p.wcCheckedOn))} by ${p.wcCheckedBy?.name ?? "an officer"}: declared uncovered wages ${formatMoney(parseSen(p.wcDeclaredUncoveredWages!.toString()))}. Recorded, not judged: basis not set (D4).` : "The uncovered-wages check is not recorded: the gate's insurance item is not met until it is."}
+                </span>
+                {!p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label="Record the wages check" reason="Verify the policy above first." />)}
+              </li>
+            ))}
+          </ul>
+        </ActGate>
+      </Card>
+    );
+  }
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ShieldIcon size={17} />} title="Securities and insurances" subtitle={`The award's register for this contract. They are lodged and checked on the award. ${remindersText(offsets)}, shown and not sent.`} actions={<ButtonLink href={`/awards/${l.award.id}?tab=securities`} size="sm" variant="secondary">Open on the award</ButtonLink>} divided={c.securities.length + c.policies.length === 0} />
+      <CardHeader icon={<ShieldIcon size={17} />} title="Securities and insurances" subtitle={`The contract's register, read-only here: lodging and checking sit with the people named on the exercise. ${remindersText(offsets)}, shown and not sent.`} divided={c.securities.length + c.policies.length === 0} />
       {c.securities.length + c.policies.length === 0 ? (
-        <EmptyState size="sm" title="Nothing lodged">Lodge them on the award&apos;s Securities tab.</EmptyState>
+        <EmptyState size="sm" title="Nothing lodged">Nothing has been lodged on this contract.</EmptyState>
       ) : (
         <ActGate blocker={shut}>
         <ul className="divide-y divide-line/70">
@@ -492,7 +548,7 @@ async function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people
                 <span className="flex shrink-0 flex-wrap items-center gap-2">
                   {p.status !== "REJECTED" && alert(p.periodEnd)}
                   <Chip tone={REGISTER_STATUS_TONE[p.status]}>{REGISTER_STATUS_LABEL[p.status]}</Chip>
-                  {wc && !p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label="Record the wages check" reason="Verify the policy on the award first." />)}
+                  {wc && !p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label="Record the wages check" reason="Verify the policy first." />)}
                 </span>
               </li>
             );

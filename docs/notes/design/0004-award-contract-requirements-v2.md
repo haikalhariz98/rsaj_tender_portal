@@ -1099,6 +1099,7 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
 - The Project stage has a securities summary that opens the same panel.
 - `refresh()` (`awards/actions.ts:95-100`) revalidates the case paths.
 - **Done when** a bond is lodged and verified from the case page, and the signature gate reads it. Both histories show the rows.
+- **Status, 2026-10-18.** Built (see the decisions log, C6): read-only terms, one register with the wages check, the Project summary card, `refresh()`, and `contractHistory` now naming securities. Tested in `securities-history.db.test.ts`. Not checked in a browser.
 
 **C7. frontend-engineer + api-engineer [after stage B: `sourcing/[id]/page.tsx`]: start the award (AC-19).**
 - `src/app/projects/new/page.tsx` takes `?exercise=` and uses the moved `award-form.tsx`.

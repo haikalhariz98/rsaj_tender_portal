@@ -30,6 +30,7 @@ export function SecuritiesPanel({
   people,
   today,
   termsValues,
+  termsReadOnly = false,
 }: {
   l: LoadedAward;
   ev: AwardEvaluation;
@@ -38,6 +39,8 @@ export function SecuritiesPanel({
   people: { value: string; label: string }[];
   today: string | null;
   termsValues: Record<string, string | boolean | null>;
+  /// Before signing (AC-21): the bond decision and the insurance terms are the Award stage's, printed in the letter, so they are shown and not edited here.
+  termsReadOnly?: boolean;
 }) {
   const { award } = l;
   const c = award.contract;
@@ -56,8 +59,9 @@ export function SecuritiesPanel({
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title="The performance bond" subtitle="Decided for this contract: what it is a percentage of, the percentage and how long it must run. Never filled in for you." actions={editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} label="Edit bond" tender={ev.appendix ? Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null> : null} /> : undefined} />
+        <CardHeader icon={<ShieldIcon size={17} />} title="The performance bond" subtitle="Decided for this contract: what it is a percentage of, the percentage and how long it must run. Never filled in for you." actions={!termsReadOnly && editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} label="Edit bond" tender={ev.appendix ? Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null> : null} /> : undefined} />
         <CardBody className="flex flex-col gap-5">
+          {termsReadOnly && <p className="text-[13px] text-ink-3">These terms are decided on the Award stage and are printed in the letter, so they are read-only here.</p>}
           {ev.appendix && <p className="text-[13px] text-ink-2">The tender Appendix states no bond terms, so there is nothing to compare: the bond is decided for this contract.</p>}
           {award.bondRequired == null ? (
             <Callout tone="warn" title="Not decided">Whether this contract needs a performance bond is not decided. Nothing is assumed.</Callout>

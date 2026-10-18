@@ -519,7 +519,7 @@ export async function recordWcCheck(_prev: FormState, data: FormData): Promise<F
     await c.tx.$queryRaw`SELECT id FROM "InsurancePolicy" WHERE id = ${policyId} FOR UPDATE`;
     const p = await c.tx.insurancePolicy.findFirst({ where: { id: policyId, contractId: k.id, contract: { organisationId: actor.organisationId } } });
     if (!p || p.kind !== "WORKMENS_COMPENSATION") return { ok: false, message: "That is not a workmen's compensation policy on this contract." };
-    if (p.status !== "VERIFIED") return { ok: false, message: "Verify the policy on the award's Securities tab first." };
+    if (p.status !== "VERIFIED") return { ok: false, message: "Verify the policy first, in the securities and insurance panel under Before signing." };
     if (p.wcCheckedOn) return { ok: false, message: "The wages check is already recorded on this policy." };
     if (storedDay(on) > c.today) return NOT_AFTER_TODAY;
     if (p.verifiedOn && storedDay(on) < storedDay(p.verifiedOn)) return NOT_BEFORE_VERIFIED;

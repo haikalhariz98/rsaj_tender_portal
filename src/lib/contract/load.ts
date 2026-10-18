@@ -365,7 +365,7 @@ export const CONTRACT_HISTORY_PAGE = 200;
 /// Every change to the contract and what is under it: its own rows, and every row its acts wrote under its label.
 export async function contractHistory(l: LoadedContract) {
   const c = l.contract;
-  const where = { organisationId: l.org.id, OR: [{ entityId: { in: [c.id, ...c.policies.map((p) => p.id)] } }, { entityLabel: { startsWith: `Contract ${c.number} ·` } }] };
+  const where = { organisationId: l.org.id, OR: [{ entityId: { in: [c.id, ...c.securities.map((x) => x.id), ...c.policies.map((p) => p.id)] } }, { entityLabel: { startsWith: `Contract ${c.number} ·` } }] };
   const [rows, total] = await Promise.all([db.auditEntry.findMany({ where, orderBy: { at: "desc" }, take: CONTRACT_HISTORY_PAGE }), db.auditEntry.count({ where })]);
   return {
     total,

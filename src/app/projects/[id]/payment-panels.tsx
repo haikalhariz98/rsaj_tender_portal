@@ -579,7 +579,7 @@ function AdvanceSection({ l, v, people, hidden }: { l: LoadedContract; v: Paymen
   const nscs = v.p.contractParties.filter((pt) => pt.kind === "NOMINATED_SUBCONTRACTOR" && !pt.retiredOn).map((pt) => ({ value: pt.id, label: pt.name }));
   const formSet = !!kindSettingOf(v.cfg, "ADVANCE_PAYMENT")?.templateId;
   const inProg = inProgressSequenceOf(v.p);
-  const blocker = shut ?? (!formSet ? paymentFaultText(noFormFault("ADVANCE_PAYMENT")) : inProg != null ? paymentFaultText({ code: "ADVANCE_VALUATION_IN_PROGRESS", level: "block", data: { sequence: inProg } }) : guarantees.length === 0 ? "No Advance Payment Guarantee is lodged: lodge and verify it on the award's Securities tab first." : null);
+  const blocker = shut ?? (!formSet ? paymentFaultText(noFormFault("ADVANCE_PAYMENT")) : inProg != null ? paymentFaultText({ code: "ADVANCE_VALUATION_IN_PROGRESS", level: "block", data: { sequence: inProg } }) : guarantees.length === 0 ? "No Advance Payment Guarantee is lodged: lodge and verify it first, under Before signing › Securities and insurance." : null);
   return (
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">

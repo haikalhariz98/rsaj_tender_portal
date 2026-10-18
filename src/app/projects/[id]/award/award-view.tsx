@@ -63,7 +63,7 @@ export interface AwardFinish {
   /// The header's drawers and the notes under it; null unless asked for.
   chrome: { actions: ReactNode; headerNote: ReactNode; callouts: ReactNode } | null;
   /// One panel at a time: the caller asks only for the one it shows.
-  panel: (id: AwardPanelId) => ReactNode;
+  panel: (id: AwardPanelId, opts?: { termsReadOnly?: boolean }) => ReactNode;
   /// The number beside a counted tab; `history` only when the history was read.
   counts: { instrument: number | undefined; conditions: number | undefined; securities: number; history: number | null };
 }
@@ -325,7 +325,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     const securities = award.contract?.securities ?? [];
     const policies = award.contract?.policies ?? [];
 
-    const panel = (id: AwardPanelId): ReactNode => {
+    const panel = (id: AwardPanelId, opts?: { termsReadOnly?: boolean }): ReactNode => {
       switch (id) {
         case "overview":
           return <OverviewPanel sulit={sulit} l={l} ev={ev} awardee={awardee} recommendation={recommendationShown ? (f.facts.exercise.evaluation?.facts.issued ?? null) : null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} />;
@@ -340,7 +340,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
         case "conditions":
           return <ConditionsPanel l={l} gate={gate} kinds={f.config.conditionKinds.filter((k) => k.retiredOn == null).map((k) => ({ value: k.id, label: k.nameEn }))} today={today} />;
         case "securities":
-          return <SecuritiesPanel l={l} ev={ev} f={f} requirements={requirements} people={people} today={today} termsValues={termsValuesOf(l, ev)} />;
+          return <SecuritiesPanel l={l} ev={ev} f={f} requirements={requirements} people={people} today={today} termsValues={termsValuesOf(l, ev)} termsReadOnly={opts?.termsReadOnly} />;
         case "routing":
           return <AwardRoutingSheetPanel l={l} people={people} today={today} />;
         case "history":
