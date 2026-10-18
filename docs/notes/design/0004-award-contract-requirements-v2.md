@@ -999,6 +999,10 @@ wave C row), the security review's lows, and four questions the founder left. Th
   - never the live register;
   - with no frozen reading, it reads "Not typed: an online bid", as Class as read does, never a dash;
   - one pure `statusAsReadText` beside `classAsReadText`, for the screen, the print page and the CSV, tested.
+  - **Amended the same day.** While the row's names are held (online, unsealed, not finalised, reader not named: `read.ts` `held`),
+    the Status cell shows no register standing. It follows the row's hold, as Status as read does today. A standing such as barred or
+    suspended beside a listing number would give away the eligibility verdict before finalising (sealed-bid gate held). The Kelas
+    column's own behaviour while held is not reopened here.
 - **AC-45. The organisation-wide securities view and a restricted tender** (G8, log 2439; the founder's second question). Code: yes.
   This supersedes G8's conservative reading and the matching "Wave G status" difference.
   - The view applies `caseVisibility`. A security on a contract whose contract stages the reader sees is listed and counted, with the
@@ -1024,9 +1028,11 @@ wave C row), the security review's lows, and four questions the founder left. Th
     3. revalidates the layout (AC-13);
     4. redirects to the notice's address.
   - It is never marked read by a page render or a prefetch.
-  - One amendment to the recommendation: a notice that asks its reader to act (a back-dated signature to confirm) is not marked read by
-    opening it. It is marked read when the confirmation is recorded, so an outstanding act never drops out of the unread count.
-  - "Mark all as read" stays.
+  - One amendment to the recommendation, a closed list of one kind: a notice asking its reader to confirm a back-dated signature
+    (`BACKDATE_TO_CONFIRM`) is not marked read by opening it, because opening the page is not the act it asks for. It is marked read
+    when the confirmation is recorded. No other kind is exempt.
+  - "Mark all as read" stays as it is and clears every kind, that one included. It is the reader's explicit choice, and an
+    unconfirmed back-dated signature still reads "not confirmed" on every screen and on the audit page's card (NFR-AUD-006).
 - **AC-48. Wave V (V0 to V4) does not run now.** Code: no.
   - AC-35: Part 3 starts after Part 2, or after CPD declines Part 2. Neither has happened. The log holds neither CPD's written [NET-NEW]
     sign-off of P-1 to P-7 (AC-7) nor a decline.
