@@ -9,7 +9,7 @@ import { GATE_ITEM_NOTE, gateDetailText } from "./gate-words";
 /**
  * 6.12 review S-3 (flagged against accepted 6.11, new tests): the gate's insurance item says what it judges,
  * under the item whatever its state, on the award and the contract alike. And the wages check is on the
- * contract's Securities tab, not its Formation tab.
+ * contract's Before signing › Securities (AC-40, formerly its Securities tab), not its Formation tab.
  *
  * 64-C4-b (6.13 Part A step 0, as ruled: "S-3's 'not compared' sentence leaves the shared gate wording",
  * a faithful change): the award's own insurance terms are built and sums insured are compared, so the note
@@ -42,10 +42,10 @@ describe("the insurance item says what it does not judge", () => {
   });
 });
 
-describe("the wages check is recorded on the contract's Securities tab", () => {
-  it("names the Securities tab, not the Formation tab", () => {
+describe("the wages check is recorded under Before signing › Securities (AC-40: the contract has no Securities tab)", () => {
+  it("names Before signing › Securities, not the Formation tab", () => {
     const t = gateDetailText({ key: "INSURANCE", detail: ["WC_NOT_CHECKED"] }, "");
-    expect(t).toMatch(/on the contract's Securities tab\.$/);
+    expect(t).toMatch(/under Before signing › Securities\.$/);
     expect(t).not.toMatch(/Formation tab/);
   });
 });

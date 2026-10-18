@@ -37,7 +37,7 @@ export function gateDetailText(item: { key: string; detail: readonly string[] },
     BASIS_NOT_SET: "The bond's basis is not set.",
     NOT_VERIFIED: "No verified performance bond covers the required amount.",
     REQUIREMENTS_NOT_SET: "No insurance requirements are configured, so what must be verified is not known.",
-    WC_NOT_CHECKED: "Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Securities tab.",
+    WC_NOT_CHECKED: "Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, under Before signing › Securities.",
     WC_RECORDED_NOT_JUDGED: "Workmen's compensation on uncovered wages: the check of the declared wages is recorded on the contract. Recorded, not judged: basis not set (D4).",
     WC_BASIS_NOT_SET: "How workmen's compensation is calculated is not set on the award.",
   };

@@ -211,7 +211,7 @@ export function paymentFaultWords(f: Finding): Words {
     case "APG_NOT_AN_APG":
       return w("The security named is not an Advance Payment Guarantee.", "Jaminan yang dinamakan bukan Jaminan Bayaran Pendahuluan.");
     case "APG_NOT_VERIFIED":
-      return w("The Advance Payment Guarantee is not verified in the register: verify it on the award's Securities tab first.", "Jaminan Bayaran Pendahuluan belum disahkan dalam daftar.");
+      return w("The Advance Payment Guarantee is not verified in the register: verify it under Before signing › Securities first.", "Jaminan Bayaran Pendahuluan belum disahkan dalam daftar.");
     case "APG_NOT_LIVE":
       return w("The Advance Payment Guarantee is not in force on the day (not yet effective, or expired).", "Jaminan Bayaran Pendahuluan tidak berkuat kuasa pada hari itu.");
     case "APG_BELOW_ADVANCE":
@@ -280,7 +280,7 @@ export function paymentFaultWords(f: Finding): Words {
       return w(`Before the contract is signed, a certificate is issued only with ${g.en}.`, `Sebelum kontrak ditandatangani, perakuan dikeluarkan hanya dengan ${g.ms}.`);
     }
     case "COVER_NOTE_NO_RECEIPT":
-      return w(`A cover note is not evidence of insurance without its premium receipt: record the receipt on ${s(d.policies, "the policy")} (the award's Securities tab).`, `Nota perlindungan bukan bukti insurans tanpa resit premium: rekodkan resit pada ${s(d.policies, "polisi")}.`);
+      return w(`A cover note is not evidence of insurance without its premium receipt: record the receipt on ${s(d.policies, "the policy")} (under Before signing › Securities).`, `Nota perlindungan bukan bukti insurans tanpa resit premium: rekodkan resit pada ${s(d.policies, "polisi")}.`);
     case "PERKESO_NOT_RECORDED":
       return w("Before the contract is signed, the certificate carries the contractor's social security (PERKESO) registration number: record it on a verified policy.", "Sebelum kontrak ditandatangani, perakuan membawa nombor pendaftaran PERKESO kontraktor.");
     case "OPENING_CLOSED":
