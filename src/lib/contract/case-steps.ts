@@ -251,9 +251,16 @@ function projectStep(f: CaseFacts): Draft {
     return { state: "in-progress", next: words, action: "RECORD_COMMENCEMENT" };
   }
   if (stage === "ON_SITE") return { state: "in-progress", next: "On site", action: null };
-  if (stage === "COMPLETED") return { state: "in-progress", next: "The works are complete; making good and the final account follow", action: null };
+  if (stage === "COMPLETED") return { state: "in-progress", next: f.signing ? COMPLETED_WORDS[f.signing.status] ?? "The works are complete" : "The works are complete", action: null };
   return { state: "waiting", next: "Opens once the contract is in force", action: null };
 }
+
+/// What the Project step says once the works are complete, by the contract's status.
+const COMPLETED_WORDS: Readonly<Partial<Record<ContractStatus, string>>> = {
+  PRACTICALLY_COMPLETE: "The works are practically complete",
+  MAKING_GOOD_COMPLETE: "Making good of defects is complete",
+  FINAL_CERTIFICATE_ISSUED: "The final certificate is issued",
+};
 
 /// Where an ended case ended (F0-6): the step that carries its words and opens by default.
 export const CASE_ENDED_STEP: Readonly<Record<CaseEnded, CaseStepKey>> = {

@@ -362,6 +362,12 @@ describe("the Project step", () => {
   const at = (standing: CaseStanding, contract: ContractStatus) => step(caseSteps(facts({ standing, award: award("ACCEPTED"), beforeSigning: before(), signing: signing(contract) })), "project");
   it("ON_SITE: in progress", () => expect(at(live("ON_SITE"), "ACTIVE")).toMatchObject({ state: "in-progress", action: null, next: "On site" }));
   it("COMPLETED: in progress (the close-out records stay here, F-3)", () => expect(at(live("COMPLETED"), "PRACTICALLY_COMPLETE").state).toBe("in-progress"));
+  it("COMPLETED: the words follow the status, and never say a step already taken is still to come", () => {
+    expect(at(live("COMPLETED"), "PRACTICALLY_COMPLETE").next).toBe("The works are practically complete");
+    expect(at(live("COMPLETED"), "MAKING_GOOD_COMPLETE").next).toBe("Making good of defects is complete");
+    expect(at(live("COMPLETED"), "FINAL_CERTIFICATE_ISSUED").next).toBe("The final certificate is issued");
+    for (const c of ["MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED"] as const) expect(at(live("COMPLETED"), c).next).not.toMatch(/follow|to come|still/);
+  });
   it("CLOSED: done", () => expect(at(live("CLOSED"), "CLOSED").state).toBe("done"));
   it("SIGNING, no commencement offered: waiting", () => expect(at(live("SIGNING"), "STAMPED").state).toBe("waiting"));
 });
