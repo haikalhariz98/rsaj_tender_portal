@@ -1352,7 +1352,7 @@ export interface AwardStepFacts {
   issueFaults: readonly Finding[];    // ev.issueFaults, for the "next" words when not ready
   despatchOpen: number;               // distribution rows whose DespatchDrawer renders (awards/[id]/page.tsx:1055)
   returnOffered: boolean;             // awards/[id]/page.tsx:1110: ISSUED or ACCEPTED, and the panel's SULIT gate GRANTED
-  returned: boolean;                  // instrumentReturned(kind, awardReturn)
+  returned: boolean;                  // instrumentReturned(kind, awardReturn): for the "next" words only, never a gate on RECORD_RETURN
   commencement: CommencementState | null;   // ev.commencement, for the "next" words only
   commencementOffered: boolean;       // awards/[id]/page.tsx:303: ISSUED or ACCEPTED, not a Letter of Acceptance, no commencedOn
 }
@@ -1379,8 +1379,8 @@ export function caseSteps(f: CaseFacts): CaseStep[];   // always five steps, in 
 // State per step (C1 tests each line):
 //  award:          done if ACCEPTED; in-progress if DRAFT..ISSUED; waiting under CONTRACT_STAGES_ONLY (its words say it is
 //                  restricted). Action: DRAFT with no submitBlocks → SEND_FOR_APPROVAL; APPROVED and issueReady → ISSUE; ISSUED
-//                  with despatchOpen → RECORD_DESPATCH; else ISSUED, not returned and returnOffered → RECORD_RETURN; otherwise
-//                  null, and the first blocking finding's words (or "Waiting for approval" while PENDING_APPROVAL) become `next`.
+//                  with despatchOpen → RECORD_DESPATCH; else ISSUED and returnOffered → RECORD_RETURN (a part-recorded
+//                  return stays ISSUED, and its drawer stays offered); otherwise null, and the first blocking finding's words (or "Waiting for approval" while PENDING_APPROVAL) become `next`.
 //  before-signing: waiting with no contract; done if readiness.ready or the contract is EXECUTED or later; in-progress otherwise.
 //                  Action: securitiesToVerify > 0 → VERIFY_SECURITY; else lodgeOffered and the BOND or INSURANCE item NOT_MET
 //                  → LODGE_SECURITY; else null, with the outstanding item's words.

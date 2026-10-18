@@ -131,7 +131,7 @@ Every point below is in the frozen contracts in design note 0004 §6.1 and §6.2
   | NUMBER_ALLOCATED | START_PREPARATION | `start` (`projects/[id]/page.tsx:230`) |
   | IN_PREPARATION, RETURNED_FOR_AMENDMENT | SUBMIT_TO_LEGAL | `canSend` (`formation-panels.tsx:295`) |
   | PENDING_LEGAL_ENDORSEMENT | none: "With the legal office" | the decision stays on the Formation tab |
-  | LEGALLY_ENDORSED | RECORD_SIGNATURE | `contractorBlock` (`formation-panels.tsx:361`) |
+  | LEGALLY_ENDORSED | RECORD_SIGNATURE | the contractor's signature first (`contractorBlock`, `formation-panels.tsx:361`), then, once it is recorded, the employer's, which executes (`rsajBlock`, `formation-panels.tsx:362`) |
   | EXECUTED | RECORD_STAMPING | `stampBlock` (`formation-panels.tsx:381`) |
   | STAMPED | RECORD_POSSESSION | `possessionBlocker`, not offered where the office is hidden (`supervision-panels.tsx:368`) |
 
