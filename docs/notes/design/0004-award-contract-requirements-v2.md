@@ -1100,6 +1100,9 @@ None of them starts wave P: P1 to P7 stay held (AC-7).
     its own supplier on that contract (any member account, and paper revisions recorded on its behalf), as D11 says. As declared,
     `contractorMayRead` takes `revisionSentByThisSupplier`, which would let a non-member read a colleague's submissions. It gains the
     member and own-account facts, with a test for each side.
+  - **Clarified the same day.** "Its own supplier" means every revision the supplier sent on that contract, whoever sent it: a member
+    account, a non-member account under the first bullet, or staff on its behalf from paper. Otherwise the contractor Lead, told of an
+    answer under AC-28, could not open the revision it was told about. Only a non-member is limited to its own account's revisions.
 - **AC-51. Question 2, both checks under the Principal S.O.'s Representative (ADR 0039 D5): adopted.** Code: at P3. FR-SUP-004 (M) asks
   the contractor communication scope of whoever speaks to the contractor; FR-SUP-006 (M) asks the principal capacity of whoever approves.
   A Principal representative without the scope is refused, and the screen says why.
