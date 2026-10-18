@@ -364,7 +364,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     const panel = (id: AwardPanelId, opts?: { termsReadOnly?: boolean }): ReactNode => {
       switch (id) {
         case "overview":
-          return <OverviewPanel sulit={sulit} l={l} ev={ev} awardee={awardee} recommendation={recommendationShown ? (f.facts.exercise.evaluation?.facts.issued ?? null) : null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} />;
+          return <OverviewPanel sulit={sulit} l={l} ev={ev} awardee={awardee} recommendation={recommendationShown ? (f.facts.exercise.evaluation?.facts.issued ?? null) : null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={f.config.indentExpiredRule ? (f.config.indentExpiredRule.isActive ? "ON" : "OFF") : "NONE"} unitName={f.config.unitName} />;
         case "approval":
           return <ApprovalPanel l={l} ev={ev} awardee={awardee} suggestions={suggestions} today={today} matters={matters} sittings={sittings} roleName={(c) => f.issue?.matrix.roles[c]?.nameEn ?? "An office no longer configured"} />;
         case "instrument":

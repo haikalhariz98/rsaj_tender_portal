@@ -24,7 +24,7 @@ import { governingSum, INSURED_KINDS } from "@/lib/award/insurance-terms";
 import { AWARD_TERM_WORDS, type AwardTerm } from "@/lib/contract/award-correction";
 import { money, pct, NOT_SET, notSet, day, AgainstTender, FromRecommendation, GoverningSum, tenderInsurance } from "./shared";
 
-export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { sulit: Sulit<true>; l: LoadedAward; ev: AwardEvaluation; awardee: AwardStanding | null; recommendation: { price: bigint; period: { value: number; unit: "DAYS" | "WEEKS" | "MONTHS" } | null } | null; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean; unitName: (code: string | null) => string | null }) {
+export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { sulit: Sulit<true>; l: LoadedAward; ev: AwardEvaluation; awardee: AwardStanding | null; recommendation: { price: bigint; period: { value: number; unit: "DAYS" | "WEEKS" | "MONTHS" } | null } | null; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: "ON" | "OFF" | "NONE"; unitName: (code: string | null) => string | null }) {
   const { award, ex, req } = l;
   const kind = award.instrumentKind as InstrumentKind;
   const c = award.contract;
@@ -105,7 +105,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
                       ) : (
                         <span className="flex flex-col items-start gap-1">
                           <span>{`${indent.state === "EXPIRED" ? "Expired" : "Valid"} · expires ${formatDate(indent.expiresOn)} (${validityDays} days from receipt)`}</span>
-                          <span className="text-[12.5px] text-ink-3">{INDENT_READING}{indent.state === "EXPIRED" && !expiredRule ? " No notification rule names who is told." : ""}</span>
+                          <span className="text-[12.5px] text-ink-3">{INDENT_READING}{indent.state === "EXPIRED" && expiredRule !== "ON" ? (expiredRule === "OFF" ? " The notification rule is switched off, so no office is told." : " No notification rule names who is told.") : ""}</span>
                         </span>
                       ),
                     },
