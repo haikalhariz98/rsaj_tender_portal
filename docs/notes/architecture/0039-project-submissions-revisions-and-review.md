@@ -147,8 +147,12 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
 - The revision has `onBehalf = true`, the staff sender, and the day the paper was received.
 - It reads "recorded from paper on the contractor's behalf" wherever it is shown.
 - It is never presented as the contractor's signature, under ADR 0034 D12.
-- A statutory declaration cannot be recorded this way. Its step-up is the contractor's own signature. The legacy paper path for it is
-  unchanged.
+- A statutory declaration cannot be recorded this way. Its step-up is the contractor's own signature.
+  - Today there is no staff path for it either: `sendSubmission` (`src/lib/portal/projects/submission-store.ts:71`) takes only a
+    supplier actor. So nothing that exists is lost, and a declaration that arrives on paper stays outside the system, as it does today.
+  - AC-26 names no exception, so this is the architect's carve-out, logged as a product-owner question. The alternative is to let a
+    holder of `acts.recordOnBehalf` record it with the paper reference, attributed as recorded on behalf and shown as not signed
+    (ADR 0034 D12).
 
 **D11. Files: owners, entitlement, bounds and scanning (extends ADR 0011).**
 - **Owners and purposes.**

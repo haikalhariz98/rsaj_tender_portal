@@ -1,7 +1,7 @@
 # Wave P — the Project workspace (Part 2): build plan
 
 **Status (2026-10-19): Proposed, HELD for CPD (AC-7). Not built, and not to be started.** This is wave P step P0 of design note 0004,
-written by the solution architect. It contains ADR 0038, ADR 0039 and this plan. The plan declares contracts; it is not code. The Prisma
+written by the solution architect. It sits alongside ADR 0038 and ADR 0039, which hold the decisions. The plan declares contracts; it is not code. The Prisma
 blocks in §2 and the signatures in §3 are **declarations for the builders**: no migration is written and no file under `prisma/` or
 `src/` changes until the entry gate below is met.
 
@@ -502,6 +502,10 @@ The exit for every wave in design note 0004 §5 applies: text snapshots, the ui-
    it today, with the decision written by the answer.
 7. **No notice for meetings or team requests** (ADR 0039 D13). *Default:* none, since AC-28 lists none.
 8. **Accounts opened after go-live are not members until added** (ADR 0038 D4). *Default:* yes.
+9. **A statutory declaration received on paper** (ADR 0039 D10). AC-26 lets staff record a paper revision on the contractor's behalf
+   and names no exception. *Default:* the declaration is excluded, because its step-up is the contractor's own signature and no staff
+   path for it exists today. The alternative is `acts.recordOnBehalf` with the paper reference, recorded on behalf and shown as not
+   signed (ADR 0034 D12).
 
 ## 7. R-1: what the founder must obtain from CPD before P1
 

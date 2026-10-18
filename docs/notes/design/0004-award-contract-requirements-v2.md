@@ -126,7 +126,7 @@ Each is built to the conservative default shown. All are in the decisions log un
 - **ADR 0038** (`docs/notes/architecture/0038-contract-teams-and-access-to-the-project-exchange.md`) and **ADR 0039**
   (`docs/notes/architecture/0039-project-submissions-revisions-and-review.md`) are both Proposed, held for CPD.
 - **The Part 2 build plan** is `docs/notes/plans/wave-p-build-plan.md`. It gives the §6.3 tables as declarations (§2), the pure contracts
-  (§3), the steps (§5), eight product-owner questions (§6), and the R-1 list for CPD (§7).
+  (§3), the steps (§5), nine product-owner questions (§6), and the R-1 list for CPD (§7).
 - **Where the plan departs from §6.3**, each change is logged:
   - typed detail tables replace `detail Json?`, because money is `Decimal`;
   - `ProjectExchangePolicy` gains `reviewDayBasis` and `sulitToContractor`;
