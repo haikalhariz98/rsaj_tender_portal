@@ -307,7 +307,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         meta={[
           c ? award.awardeeName : <span key="ref" className="font-mono text-[12.5px]">{award.reference}</span>,
           formatMoney(senFromDecimal(c ? c.contractSum : award.awardedValue)),
-          visibility === "WHOLE" ? <Link key="aw" href={caseHref(ref, { stage: "award" })}>{award.reference}</Link> : award.reference,
+          // The award-only case already names its reference first.
+          c ? (visibility === "WHOLE" ? <Link key="aw" href={caseHref(ref, { stage: "award" })}>{award.reference}</Link> : award.reference) : null,
           visibility === "WHOLE" ? <span key="for">for <Link href={`/sourcing/${ex.id}?tab=award`}>{ex.reference}</Link></span> : null,
           c ? (c.contractDate ? `Contract Date ${formatDate(day(c.contractDate))}` : "Not signed") : INSTRUMENT_SHORT[award.instrumentKind as InstrumentKind],
         ]}
