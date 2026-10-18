@@ -120,6 +120,20 @@ Each is built to the conservative default shown. All are in the decisions log un
 9. When the Practically complete, Closed and Terminated acts exist, drive the demo cases through them instead of writing the rows directly?
 10. Malay for the step-bar and tab words, when NFR-LNG-001 is built.
 
+## Wave P status, 2026-10-19
+
+**P0 is written. It is awaiting the product owner's review, so it is not done.** P1 to P7 remain held (AC-7): no migration and no code.
+- **ADR 0038** (`docs/notes/architecture/0038-contract-teams-and-access-to-the-project-exchange.md`) and **ADR 0039**
+  (`docs/notes/architecture/0039-project-submissions-revisions-and-review.md`) are both Proposed, held for CPD.
+- **The Part 2 build plan** is `docs/notes/plans/wave-p-build-plan.md`. It gives the §6.3 tables as declarations (§2), the pure contracts
+  (§3), the steps (§5), eight product-owner questions (§6), and the R-1 list for CPD (§7).
+- **Where the plan departs from §6.3**, each change is logged:
+  - typed detail tables replace `detail Json?`, because money is `Decimal`;
+  - `ProjectExchangePolicy` gains `reviewDayBasis` and `sulitToContractor`;
+  - the six system types may be sent by a non-member awardee account, because a contractual notice is never refused (AC-27);
+  - each kind's old send path closes only once its system type is issued.
+- **The §7 table says 0038 extends ADR 0020.** ADR 0020 was superseded by ADR 0034, so 0038 cites 0034.
+
 ## 0. Who answered section 5
 
 - No answer comes from the founder or from CPD.
