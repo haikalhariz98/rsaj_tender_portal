@@ -22,7 +22,7 @@ const SCREENS = [
   "src/app/projects/[id]/certificates/[certId]/page.tsx",
   "src/app/projects/[id]/certificates/[certId]/editors.tsx",
   "src/app/projects/[id]/certificates/[certId]/actions.ts",
-  "src/app/awards/[id]/routing-sheet-panel.tsx",
+  "src/app/projects/[id]/award/routing-sheet-panel.tsx",
   "src/app/awards/[id]/routing-actions.ts",
   "src/app/projects/[id]/documents-panel.tsx",
   "src/lib/nav.ts",

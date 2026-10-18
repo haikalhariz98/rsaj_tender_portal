@@ -89,7 +89,9 @@ describe("6.13A residual: a difference with no reason on an award already issued
     expect(noReasonText(true)).not.toMatch(/is not issued/);
   });
   it("the award page words both places through it, from the award's issuedAt", () => {
-    const page = readFileSync(path.join(__dirname, "../../../src/app/awards/[id]/page.tsx"), "utf8");
+    // C-3: the panels moved out of the award page (wave C step C4); the two words are in shared.tsx, the four flags in OverviewPanel.
+    const dir = path.join(__dirname, "../../../src/app/projects/[id]/award/");
+    const page = readFileSync(dir + "shared.tsx", "utf8") + readFileSync(dir + "overview-panel.tsx", "utf8");
     expect(page).not.toMatch(/No reason recorded: the instrument is not issued/);
     expect(page.match(/noReasonText\(issued\)/g)?.length).toBe(2);
     expect(page.match(/issued=\{award\.issuedAt != null\}/g)?.length).toBe(4);

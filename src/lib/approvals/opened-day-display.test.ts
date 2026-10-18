@@ -16,7 +16,8 @@ import { formatDate, formatOrgDay } from "@/lib/format";
 
 const FILES = [
   "src/app/requisitions/[id]/page.tsx",
-  "src/app/awards/[id]/page.tsx",
+  // C-3 (wave C step C4): the award's route cards moved with ApprovalPanel; /awards/[id]/page.tsx imports it.
+  "src/app/projects/[id]/award/approval-panel.tsx",
   "src/app/sourcing/[id]/page.tsx",
   "src/app/sourcing/[id]/window/window-section.tsx",
   "src/app/sourcing/[id]/documents/workspace.tsx",

@@ -33,7 +33,8 @@ const SURFACES: readonly Surface[] = [
   { file: "src/app/committees/[id]/page.tsx", what: "sitting History, a matter's amount", kinds: "ANY", chip: /historyAmount\(\{[^}]*\}\)[\s\S]*<SulitValue of=\{amount\.sulit\} \/>/ },
   { file: "src/app/committees/editors.tsx", what: "sitting, Table a matter drawer's Amount", kinds: "ANY", chip: /name: "amount", label: "Amount", hint: "SULIT:/ },
   { file: "src/app/requisitions/[id]/page.tsx", what: "requisition, Committee matters card", kinds: ["REQUISITION"], region: "function CommitteeMatters(", chip: "NO_AMOUNT" },
-  { file: "src/app/awards/[id]/page.tsx", what: "award, the committee step's decision amount", kinds: ["EXERCISE"], chip: null },
+  // C-3 (wave C step C4): ApprovalPanel moved out of the award page; the surface is unchanged.
+  { file: "src/app/projects/[id]/award/approval-panel.tsx", what: "award, the committee step's decision amount", kinds: ["EXERCISE"], chip: null },
 ];
 
 /// Where a screen reads committee matters, and where it renders an amount.

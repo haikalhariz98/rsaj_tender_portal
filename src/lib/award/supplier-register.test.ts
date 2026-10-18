@@ -19,6 +19,7 @@ describe("the award and the supplier register", () => {
   });
 
   it("shows the award's link to the register, or says it is not linked", () => {
-    expect(page).toMatch(/label: "On the supplier register"/);
+    // C-3: OverviewPanel moved out of the award page (wave C step C4).
+    expect(readFileSync("src/app/projects/[id]/award/overview-panel.tsx", "utf8")).toMatch(/label: "On the supplier register"/);
   });
 });

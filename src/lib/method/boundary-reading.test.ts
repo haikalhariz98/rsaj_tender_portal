@@ -34,7 +34,7 @@ describe("the screens that say it ask the helper", () => {
   });
 
   it("the award page's boundary line is held to the reader's gate on the estimate", () => {
-    const src = read("src/app/awards/[id]/page.tsx");
+    const src = read("src/app/projects/[id]/award/overview-panel.tsx") /* C-3: OverviewPanel moved out of the award page (wave C step C4) */;
     expect(src).toMatch(/boundaryShown\(ex\.onBoundary, sulit\.state === "GRANTED"\) && ex\.boundaryOperator/);
   });
 });

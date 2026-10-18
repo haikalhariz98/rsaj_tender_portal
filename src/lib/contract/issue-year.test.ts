@@ -80,7 +80,8 @@ describe("the real paths read it (6.12 re-review)", () => {
     expect(body.indexOf("issueDayOf(")).toBeLessThan(body.indexOf("numberedOn: on"));
   });
   it("the award's page gives the year note only for a series number (S-5), from contractYearReading", () => {
-    const page = read("src/app/awards/[id]/page.tsx");
+    // C-3: OverviewPanel moved out of the award page (wave C step C4).
+    const page = read("src/app/projects/[id]/award/overview-panel.tsx");
     expect(page).not.toContain("CONTRACT_YEAR_READING");
     expect(page).toMatch(/contractYearReading\(c\)\.seriesNumber && /);
   });

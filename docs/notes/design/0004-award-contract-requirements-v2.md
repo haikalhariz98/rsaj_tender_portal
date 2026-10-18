@@ -1073,6 +1073,7 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
   `awards/[id]/page.tsx` imports them.
 - Re-point `act-status-scan.test.ts:330-337` and `lock-order.test.ts:375-376,488`, with comments citing C-3.
 - **Done when** the `/awards/{id}` text snapshot is identical before and after, for every tab.
+- **Status, 2026-10-18.** Built: the panels are in `src/app/projects/[id]/award/*.tsx` (`shared.tsx` holds the helpers they share), and `awards/[id]/page.tsx` imports them. The text snapshot could not be taken (no session cookie may be used against the founder's database), so sameness is proved by a line-by-line check of the moved code (decisions log, C4).
 
 **C5. frontend-engineer: the case page (AC-19).**
 - `/projects/[id]`:

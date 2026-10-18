@@ -333,7 +333,8 @@ describe("S3: every way into a contract's records asks the table, or is named wi
       const body = acts.slice(acts.indexOf(`export async function ${a}(`), acts.indexOf("\n}\n", acts.indexOf(`export async function ${a}(`)));
       expect(body, a).toMatch(/registerRefusal\(l\)/);
     }
-    const page = readFileSync("src/app/awards/[id]/page.tsx", "utf8");
+    // C-3: SecuritiesPanel moved out of the award page (wave C step C4).
+    const page = readFileSync("src/app/projects/[id]/award/securities-panel.tsx", "utf8");
     expect(page).toMatch(/const open = !!c && !actStatusFault\("FORMATION", c\.status as ContractStatus\);/);
   });
 

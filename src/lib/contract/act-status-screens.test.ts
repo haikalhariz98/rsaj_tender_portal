@@ -192,8 +192,12 @@ const GATE_EXCEPTIONS: Readonly<Record<string, string>> = {
 };
 
 const SOURCES: Sources = new Map(walk("src").filter((f) => /\.tsx?$/.test(f) && !f.includes("/generated/") && !/\.test\.tsx?$/.test(f)).map((f) => [f, readFileSync(f, "utf8")]));
-/// Every .tsx file under the contract's pages (code re-review S-2: no hand list).
-const PAGE_FILES = [...SOURCES.keys()].filter((f) => f.startsWith(`${DIR}/`) && f.endsWith(".tsx"));
+/// The award's panels (wave C step C4, C-3): they moved under the case route but are the award's, not the contract's. They run before a
+/// contract exists and are judged by the award's own status rules (editable, cancellable, and the securities register's FORMATION row,
+/// which act-status-scan.test.ts reads in securities-panel.tsx). They were outside this scan at `src/app/awards/[id]`, so leaving them out keeps its scope as it was.
+const AWARD_DIR = `${DIR}/award/`;
+/// Every .tsx file under the contract's pages (code re-review S-2: no hand list), except the award's panels above.
+const PAGE_FILES = [...SOURCES.keys()].filter((f) => f.startsWith(`${DIR}/`) && !f.startsWith(AWARD_DIR) && f.endsWith(".tsx"));
 
 /**
  * Code re-review S-2: whether a component offers an act, followed through what it renders: it opens a drawer or a
@@ -323,7 +327,7 @@ describe("S1 and S-2: every component on the contract's pages that offers an act
     expect(PAGE_FILES).toContain(`${DIR}/certificates/[certId]/page.tsx`);
     expect(PAGE_FILES).toContain(`${DIR}/variations/[variationId]/page.tsx`);
     expect(PAGE_FILES).toContain(`${DIR}/payment-panels.tsx`);
-    expect(PAGE_FILES.length).toBe(walk(DIR).filter((f) => f.endsWith(".tsx")).length);
+    expect(PAGE_FILES.length).toBe(walk(DIR).filter((f) => f.endsWith(".tsx") && !f.startsWith(AWARD_DIR)).length);
   });
 
   it("offersAct follows what a component renders (self-test)", () => {

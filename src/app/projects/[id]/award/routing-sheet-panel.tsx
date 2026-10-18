@@ -12,7 +12,7 @@ import { db } from "@/lib/db";
 import { actorField } from "@/lib/auth/actor-field";
 import { storedDay } from "@/lib/dates";
 
-import { recordAwardRoutingCheck, recordAwardRoutingReceived, startAwardRoutingSheet } from "./routing-actions";
+import { recordAwardRoutingCheck, recordAwardRoutingReceived, startAwardRoutingSheet } from "@/app/awards/[id]/routing-actions";
 
 /**
  * The award's pre-award routing sheet (6.14 increment 1, rulings condition; flagged against accepted 6.11): a
