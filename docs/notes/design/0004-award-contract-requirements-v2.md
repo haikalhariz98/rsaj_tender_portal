@@ -1130,6 +1130,7 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
     `caseVisibility` is `WHOLE`, so an unnamed reader is never forwarded to the contract from an old award link.
 
 **C10. data-migration-engineer: the demo seed (AC-20).**
+- **Status (2026-10-18): built.** See the decisions log, "Wave C step C10".
 - In `prisma/demo-award.ts:134`, set `indentValidityDays` to 14 and `commencementGraceDays` to 7. If a test pins 10/5, keep it and say
   why.
 - Seed cases in every stage, including an indent past commencement and a cancelled one.

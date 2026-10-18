@@ -131,7 +131,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
 
   await db.awardPolicy.create({
     data: {
-      id: `${P}ap1`, organisationId, tenderInstrument: "LETTER_OF_ACCEPTANCE", quotationInstrument: "WORK_INDENT", indentValidityDays: 10, commencementGraceDays: 5, acceptanceReturnDays: 21,
+      id: `${P}ap1`, organisationId, tenderInstrument: "LETTER_OF_ACCEPTANCE", quotationInstrument: "WORK_INDENT", indentValidityDays: 14, commencementGraceDays: 7, acceptanceReturnDays: 21,
       preContractUnitCode: "CP-PRE", postContractUnitCode: "CP-POST", quotationContractKey: "INDENT_NUMBER", regulatedActivityLabel: "Regulated utility works",
       loaTemplateId: `${P}dt1`, declarationTemplateId: `${P}dt4`, coveringMemoTemplateId: `${P}dt5`, provenance: "ASSUMED", notes: "Invented demo controls.",
     },
@@ -218,8 +218,9 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
 
   // ---------------------------------------------------- five approved requisitions
   await db.budgetCode.create({ data: { id: `${P}bcode9`, organisationId, code: "CAP26-050", descriptionEn: "Northern network renewal", type: "Capital", owningUnitCode: "NTH", accountCode: "7400400", holderPersonId: `${P}p9`, effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") } });
-  await db.budgetMovement.create({ data: { id: `${P}bm30`, budgetCodeId: `${P}bcode9`, kind: "ORIGINAL", amount: "8000000.00", occurredOn: day("2026-01-01"), reference: "BR26-050" } });
-  let balance = 800_000_000n;
+  await db.budgetMovement.create({ data: { id: `${P}bm30`, budgetCodeId: `${P}bcode9`, kind: "ORIGINAL", amount: "8500000.00", occurredOn: day("2026-01-01"), reference: "BR26-050" } });
+  // Raised from RM8,000,000 to RM8,500,000 by the four later-stage cases' requisitions (AC-20, step C10), which the code must still have room for.
+  let balance = 850_000_000n;
   for (const r of REQS) {
     const approvedOn = r.steps[r.steps.length - 1];
     await db.requisition.create({
@@ -241,7 +242,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
     const value = BigInt(Math.round(Number(r.value) * 100));
     const fmt = (s: bigint) => `${s / 100n}.${String(s % 100n).padStart(2, "0")}`;
     await db.requisitionBudgetCheck.create({
-      data: { id: `${P}bk${r.id}`, requisitionId: `${P}rq${r.id}`, checkedAt: day(r.checked), asAt: day(r.checked), source: "PORTAL_LEDGER", budgetCodeId: `${P}bcode9`, budgetCodeCode: "CAP26-050", requestedAmount: r.value, actualBudget: "8000000.00", balanceAsAt: fmt(balance), approvedAccount: fmt(800_000_000n - balance), approvedAccountProvenance: "ASSUMED", projectedBalance: fmt(balance - value), verdict: "WITHIN" },
+      data: { id: `${P}bk${r.id}`, requisitionId: `${P}rq${r.id}`, checkedAt: day(r.checked), asAt: day(r.checked), source: "PORTAL_LEDGER", budgetCodeId: `${P}bcode9`, budgetCodeCode: "CAP26-050", requestedAmount: r.value, actualBudget: "8500000.00", balanceAsAt: fmt(balance), approvedAccount: fmt(850_000_000n - balance), approvedAccountProvenance: "ASSUMED", projectedBalance: fmt(balance - value), verdict: "WITHIN" },
     });
     balance -= value;
     await db.requisitionSplitCheck.create({ data: { id: `${P}sp${r.id}`, requisitionId: `${P}rq${r.id}`, checkedAt: day(r.checked), state: "CLEAR", windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: false, policyProvenance: "ASSUMED", relatedRequisitionIds: [], relatedReferences: [] } });
@@ -268,7 +269,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
   await db.sourcingExercise.createMany({
     data: EXERCISES.map((x) => ({
       id: `${P}sx${x.n}`, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", submissionChannel: "PAPER", reference: SX(x.n), requisitionId: `${P}rq${x.rq}`, title: x.title, estimatedValue: x.value, sourcingMethodCode: x.method,
-      status: "DOCUMENTS_IN_PREPARATION" as const, contractBasisCode: "bq", createdAt: day("2026-09-02"),
+      status: "DOCUMENTS_IN_PREPARATION" as const, contractBasisCode: "bq", createdAt: day((x as { created?: string }).created ?? "2026-09-02"),
     })),
   });
   await db.exerciseScopePart.createMany({ data: EXERCISES.map((x) => ({ id: `${P}sx${x.n}p1`, exerciseId: `${P}sx${x.n}`, deliverableKind: x.kind, amount: x.value, description: x.title, sortOrder: 1 })) });
@@ -280,7 +281,9 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
   await db.meeting.createMany({
     data: [
       { id: `${P}mt6`, committeeId: `${P}c1`, reference: "DEMO/SIT/5/2026", meetingDate: day("2026-09-14"), status: "MINUTED", minutedAt: day("2026-09-15"), agenda: "Two awards in the tender band.", minutes: "The Board met with three voting members present and carried both awards." },
-      { id: `${P}mt7`, committeeId: `${P}c2`, reference: "DEMO/SQ/1/2026", meetingDate: day("2026-09-11"), status: "MINUTED", minutedAt: day("2026-09-12"), agenda: "Two quotations.", minutes: "The Committee recommended both awards." },
+      { id: `${P}mt7`, committeeId: `${P}c2`, reference: "DEMO/SQ/1/2026", meetingDate: day("2026-09-11"), status: "MINUTED", minutedAt: day("2026-09-12"), agenda: "Three quotations.", minutes: "The Committee recommended all three awards." },
+      // AC-20 (step C10): an earlier sitting of the same Committee, for the cases that stand past signing.
+      { id: `${P}mt30`, committeeId: `${P}c2`, reference: "DEMO/SQ/4/2026", meetingDate: day("2026-07-28"), status: "MINUTED", minutedAt: day("2026-07-29"), agenda: "Three quotations.", minutes: "The Committee recommended all three awards." },
     ],
   });
   await raiseSeries(db, `${P}n4`, 6);
@@ -292,6 +295,8 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
       { id: `${P}at16`, meetingId: `${P}mt6`, personId: `${P}p7`, attended: true },
       { id: `${P}at17`, meetingId: `${P}mt7`, personId: `${P}p2`, attended: true },
       { id: `${P}at18`, meetingId: `${P}mt7`, personId: `${P}p4`, attended: true },
+      { id: `${P}at30_1`, meetingId: `${P}mt30`, personId: `${P}p2`, attended: true },
+      { id: `${P}at30_2`, meetingId: `${P}mt30`, personId: `${P}p4`, attended: true },
     ],
   });
   const matter = (id: string, meetingId: string, sx: number, subject: string, amount: string, act: "A" | "MR", tabledAt: string, decided: { on: string; quorum: number } | null, sequence: number) => ({
@@ -307,6 +312,8 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
       matter("d12", "mt7", 14, "Quotation: valve keys and chamber covers", "36000", "MR", "2026-09-09", { on: "2026-09-11", quorum: 2 }, 2),
       // Tabled at the Board's sitting in progress: not yet decided.
       matter("d10", "mt1", 10, "Award of the pumping station refurbishment", "1240000", "A", "2026-09-25", null, 3),
+      // AC-20 (step C10): the later-stage cases' quotations.
+      ...CASE_STAGE_CASES.map((c, i) => matter(c.d, c.meeting, c.sx, `Quotation: ${c.title.toLowerCase()}`, c.value.replace(".00", ""), "MR", c.meeting === "mt7" ? "2026-09-10" : "2026-07-27", { on: c.meetingOn, quorum: 2 }, c.meeting === "mt7" ? 3 : i)),
     ],
   });
   const vote = (id: string, d: string, p: string, on: string) => ({ id: `${P}${id}`, decisionId: `${P}${d}`, personId: `${P}${p}`, choice: "SETUJU" as const, votedAt: day(on), recordedAt: day(on) });
@@ -316,6 +323,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
       vote("v14", "d9", "p1", "2026-09-14"), vote("v15", "d9", "p2", "2026-09-14"), vote("v16", "d9", "p7", "2026-09-14"),
       vote("v17", "d11", "p2", "2026-09-11"), vote("v18", "d11", "p4", "2026-09-11"),
       vote("v19", "d12", "p2", "2026-09-11"), vote("v20", "d12", "p4", "2026-09-11"),
+      ...CASE_STAGE_CASES.flatMap((c, i) => [vote(`v${21 + i * 2}`, c.d, "p2", c.meetingOn), vote(`v${22 + i * 2}`, c.d, "p4", c.meetingOn)]),
     ],
   });
 
@@ -343,7 +351,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
     entry("ApprovalInstance", `${P}ai${r.id + 20}`, route, "UPDATE", last, diffFields({ status: "PENDING" }, { status: "APPROVED", commitment: "written" }));
     entry("Requisition", reqId, label, "UPDATE", last, diffFields({ status: "PENDING_APPROVAL" }, { status: "APPROVED" }));
     const sx = EXERCISES.find((x) => x.rq === r.id)!;
-    entry("Requisition", reqId, label, "UPDATE", "2026-09-08", diffFields({ status: "APPROVED" }, { status: "SOURCING" }), `Exercise ${SX(sx.n)} moved into preparation.`);
+    entry("Requisition", reqId, label, "UPDATE", (sx as { created?: string }).created ?? "2026-09-08", diffFields({ status: "APPROVED" }, { status: "SOURCING" }), `Exercise ${SX(sx.n)} moved into preparation.`);
   }
   await db.auditEntry.createMany({ data: entries as never });
   return EXERCISES.map((x) => `${P}sx${x.n}`);
@@ -356,7 +364,7 @@ const BIG_CHAIN = [
   ["CEO", "Chief Executive", "A", "p1", "Aisyah Rahman"],
 ] as const;
 const BIG = { key: "demo.requisition.4", label: "Requisition, above RM250,000", clause: "DEMO 3.1(d)", chain: BIG_CHAIN };
-const REQS = [
+const BASE_REQS = [
   { id: 20, n: 27, title: "Pumping station refurbishment, Bukit Demo", value: "1300000.00", raised: "2026-07-01", endorsed: "2026-07-02", checked: "2026-07-03", steps: ["2026-07-06", "2026-07-08", "2026-07-10", "2026-07-14"], rule: BIG, justification: "The station's pumps and switchgear are past their service life.", need: "Reliable supply to the upper zones." },
   { id: 21, n: 28, title: "Trunk main renewal, Zone C", value: "1700000.00", raised: "2026-07-02", endorsed: "2026-07-03", checked: "2026-07-06", steps: ["2026-07-08", "2026-07-10", "2026-07-13", "2026-07-16"], rule: BIG, justification: "Repeated bursts on the Zone C trunk main.", need: "Renew 2.4 km of trunk main." },
   { id: 22, n: 29, title: "Reservoir rehabilitation, Demo Hill", value: "2800000.00", raised: "2026-07-03", endorsed: "2026-07-06", checked: "2026-07-07", steps: ["2026-07-09", "2026-07-13", "2026-07-15", "2026-07-20"], rule: BIG, justification: "The reservoir's roof and lining have failed inspection.", need: "Rehabilitate the 10 ML reservoir." },
@@ -372,12 +380,57 @@ const REQS = [
   },
 ] as const;
 
+/**
+ * AC-20 (wave C step C10): the four work-indent cases that stand past the first two stages, so the case list shows each stage
+ * once with the five already told (awarding, on site, cancelled before issue, an indent past its commencement day). Invented.
+ *
+ * No act yet writes a contract's completed, closed or terminated status (ADR 0031 names them "each written only by its own act"
+ * and those acts are not built), so the contract rows are written as the status would leave them and the trail says so:
+ * the demo stands for the day an act exists. Each decision is on a minuted Quotation Committee sitting, the route is the
+ * quotation rule's (committee, then the Chief Executive), and the issued documents are frozen by the issue's own functions.
+ */
+const CASE_STAGE_CASES = ([
+  {
+    stage: "SIGNING", n: 14, ref: 10, sx: 40, d: "d13", meeting: "mt7", meetingOn: "2026-09-11", created: "2026-09-04", title: "Chamber lid replacement, northern zones", value: "54000.00",
+    awardee: "Sinar Utility Supplies Sdn Bhd", reg: "DEMO-0014-X", address: "14 Sinar Lane, Demo North", indent: "XI202600851", receivedAt: "2026-09-18", ceoReceived: "2026-09-17", ceoOn: "2026-09-18",
+    issuedOn: "2026-09-22", returnedOn: "2026-09-30", start: "2026-11-02", commenced: null as string | null, weeks: 6, contract: "NUMBER_ALLOCATED" as const, contractOn: null as string | null, why: "",
+  },
+  {
+    stage: "COMPLETED", n: 15, ref: 11, sx: 41, d: "d14", meeting: "mt30", meetingOn: "2026-07-28", created: "2026-07-20", title: "Hydrant marker posts, supply and fix", value: "72000.00",
+    awardee: "Contoh Marker Works Sdn Bhd", reg: "DEMO-0015-X", address: "15 Contoh Yard, Demo North", indent: "XI202600852", receivedAt: "2026-07-30", ceoReceived: "2026-07-29", ceoOn: "2026-07-30",
+    issuedOn: "2026-08-03", returnedOn: "2026-08-05", start: "2026-08-10", commenced: "2026-08-10", weeks: 6, contract: "PRACTICALLY_COMPLETE" as const, contractOn: "2026-09-21", why: "",
+  },
+  {
+    stage: "CLOSED", n: 16, ref: 12, sx: 42, d: "d15", meeting: "mt30", meetingOn: "2026-07-28", created: "2026-07-20", title: "Sluice gate greasing and repainting", value: "48000.00",
+    awardee: "Demo Coatings Enterprise", reg: "DEMO-0016-X", address: "16 Demo Quay, Demo North", indent: "XI202600853", receivedAt: "2026-07-30", ceoReceived: "2026-07-29", ceoOn: "2026-07-30",
+    issuedOn: "2026-08-03", returnedOn: "2026-08-05", start: "2026-08-11", commenced: "2026-08-11", weeks: 5, contract: "CLOSED" as const, contractOn: "2026-10-09", why: "",
+  },
+  {
+    stage: "TERMINATED", n: 17, ref: 13, sx: 43, d: "d16", meeting: "mt30", meetingOn: "2026-07-28", created: "2026-07-20", title: "Pipe bridge repainting", value: "96000.00",
+    awardee: "Sampel Painting Sdn Bhd", reg: "DEMO-0017-X", address: "17 Sampel Close, Demo North", indent: "XI202600854", receivedAt: "2026-07-30", ceoReceived: "2026-07-29", ceoOn: "2026-07-30",
+    issuedOn: "2026-08-03", returnedOn: "2026-08-05", start: "2026-08-12", commenced: "2026-08-12", weeks: 8, contract: "TERMINATED" as const, contractOn: "2026-09-14", why: "Invented for the demo: the contractor left the site after two written warnings.",
+  },
+] as const).map((c, i) => ({ ...c, rq: 200 + i, reqN: 51 + i, reqOn: i === 0 ? "2026-08-20" : "2026-06-22" }));
+const plusDays = (iso: string, n: number) => new Date(new Date(`${iso}T00:00:00.000Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
+/// Each later-stage case's own requisition, approved on the 40,000 to 250,000 rule as the meter-chamber one is (rq23).
+const REQS = [
+  ...BASE_REQS,
+  ...CASE_STAGE_CASES.map((c) => ({
+    ...BASE_REQS[3], id: c.rq, n: c.reqN, title: c.title, value: c.value, raised: c.reqOn, endorsed: plusDays(c.reqOn, 1), checked: plusDays(c.reqOn, 2),
+    steps: [plusDays(c.reqOn, 4), plusDays(c.reqOn, 6), plusDays(c.reqOn, 8)] as const, justification: "The works are needed within the quarter.", need: "Carry out the works described.",
+  })),
+];
+
 const EXERCISES = [
   { n: 10, rq: 20, title: "Pumping station refurbishment", value: "1300000.00", method: "open_tender", kind: "MEASURED_CONSTRUCTION" as const },
   { n: 11, rq: 21, title: "Trunk main renewal, Zone C", value: "1700000.00", method: "open_tender", kind: "MEASURED_CONSTRUCTION" as const },
   { n: 12, rq: 22, title: "Reservoir rehabilitation", value: "2800000.00", method: "open_tender", kind: "MEASURED_CONSTRUCTION" as const },
   { n: 13, rq: 23, title: "Meter chamber upgrades", value: "200000.00", method: "open_quotation", kind: "MEASURED_CONSTRUCTION" as const },
   { n: 14, rq: 24, title: "Valve keys and chamber covers", value: "40000.00", method: "open_quotation", kind: "GOODS_DELIVERED" as const },
+  // AC-20 (wave C step C10): four more quotation-band exercises, each the single exercise of a case that stands at a later stage
+  // (signing, completed, closed, terminated), so the demo shows every stage of the case list. Each has its own approved
+  // requisition, since a requisition's exercises may not sum past its approved value (EXCEEDS_APPROVED_VALUE).
+  ...CASE_STAGE_CASES.map((c) => ({ n: c.sx, rq: c.rq, title: c.title, value: c.value, method: "open_quotation", kind: "MEASURED_CONSTRUCTION" as const })),
 ];
 
 /**
@@ -420,16 +473,29 @@ export async function loadAwards(db: Db, organisationId: string) {
         signatoryRoleCode: "DEPT_HEAD", signatoryRoleLabel: "Head of Department", signatoryRuleKey: "demo.signatory.indent", signatoryRuleLabel: "Appointment letter, quotation band", signatoryPersonId: `${P}p9`, signatoryName: "Imran Hakim", signedOn: day("2026-09-16"), issuedAt: day("2026-09-16"),
         variantId: `${P}alv1`, variantName: "Short-form appointment letter", createdAt: day("2026-09-09"),
       }),
+      // AC-20 (step C10): the later-stage cases. Work indents on the short-form terms, as demo_aw5 is; the reference is the next
+      // free in the award register (the series is raised past them when the load ends).
+      ...CASE_STAGE_CASES.map((c) => ({
+        ...aw(c.n, c.sx, {
+          status: "ACCEPTED", instrumentKind: "WORK_INDENT", awardeeName: c.awardee, awardeeRegistrationNo: c.reg, awardeeAddress: c.address, awardedValue: c.value, completionPeriod: c.weeks, completionUnit: "WEEKS", startDate: day(c.start),
+          ...(c.commenced ? { commencedOn: day(c.commenced) } : {}), regulatedActivity: false,
+          bondRequired: false, bondNotRequiredReason: "Short-form terms: no performance bond is asked below the extended terms band (demo policy).", bondBasisProvenance: "ASSUMED", ladAmount: "100", ladUnit: "per day", retentionPercent: "5", retentionCapPercent: "5", dlpMonths: 0, termsProvenance: "ASSUMED", wcBasis: "PERCENT_OF_CONTRACT",
+          erpCommitmentNo: c.indent, erpCommitmentKind: "INDENT", commitmentRecordedOn: day(c.receivedAt), indentReceivedOn: day(c.receivedAt),
+          signatoryRoleCode: "DEPT_HEAD", signatoryRoleLabel: "Head of Department", signatoryRuleKey: "demo.signatory.indent", signatoryRuleLabel: "Appointment letter, quotation band", signatoryPersonId: `${P}p9`, signatoryName: "Imran Hakim", signedOn: day(c.issuedOn), issuedAt: day(c.issuedOn),
+          variantId: `${P}alv1`, variantName: "Short-form appointment letter", createdAt: day(c.created),
+        }),
+        reference: AWD(c.ref),
+      })),
     ] as never,
   });
   // The classification is locked from each award's first submission (FR-MTD-011).
-  for (const [sx, on] of [[10, "2026-09-22"], [11, "2026-09-09"], [12, "2026-09-09"], [13, "2026-09-09"], [14, "2026-09-09"]] as const) {
+  for (const [sx, on] of [[10, "2026-09-22"], [11, "2026-09-09"], [12, "2026-09-09"], [13, "2026-09-09"], [14, "2026-09-09"], ...CASE_STAGE_CASES.map((c) => [c.sx, c.meetingOn] as const)] as const) {
     await db.sourcingExercise.update({ where: { id: `${P}sx${sx}` }, data: { classificationLockedAt: new Date(`${on}T02:00:00Z`) } });
   }
 
   // The appointment routes, as the submission resolved them and the decisions discharged them.
   const route = (n: number, sx: number, value: string, rule: { key: string; label: string; clause: string }, opened: string, closed: string | null, status: "PENDING" | "APPROVED", steps: object[]) => ({
-    id: `${P}ai${n + 50}`, organisationId, matterKind: "EXERCISE" as const, exerciseId: `${P}sx${sx}`, awardId: `${P}aw${n}`, domain: "appointment", value,
+    id: `${P}ai${n < 14 ? n + 50 : n + 300}`, organisationId, matterKind: "EXERCISE" as const, exerciseId: `${P}sx${sx}`, awardId: `${P}aw${n}`, domain: "appointment", value,
     authorityMatrixId: `${P}mx1`, matrixLabel: "Demo limits, issue 1", ruleKey: rule.key, ruleLabel: rule.label, ruleClause: rule.clause, boundaryValue: "300000", boundaryInclusive: true, ruleFollowsBoundarySwitch: true,
     boundaryOperator: "GT" as const, fundingRouteCode: "capex", checkedAgainstMatrix: true, status, openedAt: day(opened), closedAt: closed ? day(closed) : null,
     steps: { create: steps },
@@ -447,6 +513,11 @@ export async function loadAwards(db: Db, organisationId: string) {
     route(3, 12, "2700000.00", TENDER, "2026-09-09", "2026-09-14", "APPROVED", [board(3, { on: "2026-09-14", d: "d9" })]),
     route(4, 13, "180000.00", QUOTE, "2026-09-09", "2026-09-14", "APPROVED", quote(4, "d11", { received: "2026-09-12", on: "2026-09-14" })),
     route(5, 14, "36000.00", QUOTE, "2026-09-09", "2026-09-14", "APPROVED", quote(5, "d12", { received: "2026-09-13", on: "2026-09-14" })),
+    ...CASE_STAGE_CASES.map((c) => {
+      const steps = quote(c.n, c.d, { received: c.ceoReceived, on: c.ceoOn });
+      steps[0] = { ...steps[0], decidedOn: day(c.meetingOn), recordedAt: day(c.meetingOn) };
+      return route(c.n, c.sx, c.value, QUOTE, c.meetingOn, c.ceoOn, "APPROVED", steps);
+    }),
   ]) {
     await db.approvalInstance.create({ data: r as never });
   }
@@ -457,6 +528,12 @@ export async function loadAwards(db: Db, organisationId: string) {
       { id: `${P}con1`, organisationId, number: "DEMO/KP/T/004/2026", numberSource: "SERIES", seriesKey: "contract", numberedOn: day("2026-09-17"), awardId: `${P}aw3`, contractSum: "2700000.00" },
       { id: `${P}con2`, organisationId, number: "XI202600812", numberSource: "INDENT_NUMBER", numberedOn: day("2026-09-19"), awardId: `${P}aw4`, contractSum: "180000.00" },
       { id: `${P}con3`, organisationId, number: "XI202600799", numberSource: "INDENT_NUMBER", numberedOn: day("2026-09-16"), awardId: `${P}aw5`, contractSum: "36000.00" },
+      // AC-20 (step C10): no act yet writes the statuses after Active, so these rows stand for what each would leave. A contract that
+      // reached Active was stamped first: the stamp is recorded as the formation acts would have left it.
+      ...CASE_STAGE_CASES.map((c) => ({
+        id: `${P}con${c.n}`, organisationId, number: c.indent, numberSource: "INDENT_NUMBER" as const, numberedOn: day(c.issuedOn), awardId: `${P}aw${c.n}`, contractSum: c.value, status: c.contract,
+        ...(c.contractOn ? { contractDate: day(c.returnedOn), contractDateRecordedAt: day(c.returnedOn), stampedOn: day(c.returnedOn), stampingRef: `DEMO-STAMP-2026-${String(c.n).padStart(4, "0")}`, stampedAt: day(c.returnedOn) } : {}),
+      })),
     ],
   });
   await raiseSeries(db, `${P}n2`, 5);
@@ -465,6 +542,7 @@ export async function loadAwards(db: Db, organisationId: string) {
       { id: `${P}ce1`, contractId: `${P}con1`, fromUnitCode: "CP-PRE", toUnitCode: "CP-POST", on: day("2026-09-17") },
       { id: `${P}ce2`, contractId: `${P}con2`, fromUnitCode: "CP-PRE", toUnitCode: "CP-POST", on: day("2026-09-19") },
       { id: `${P}ce3`, contractId: `${P}con3`, fromUnitCode: "CP-PRE", toUnitCode: "CP-POST", on: day("2026-09-16") },
+      ...CASE_STAGE_CASES.map((c) => ({ id: `${P}ce${c.n}`, contractId: `${P}con${c.n}`, fromUnitCode: "CP-PRE", toUnitCode: "CP-POST", on: day(c.issuedOn) })),
     ],
   });
   const copy = (id: string, awardId: string, recipientId: string | null, recipientName: string, sortOrder: number, sent: { method: "REGISTERED_POST" | "COLLECTION" | "BY_HAND"; on: string; ack?: string; ref?: string } | null) => ({
@@ -484,6 +562,11 @@ export async function loadAwards(db: Db, organisationId: string) {
       copy("ad9", "aw5", null, "Contoh Supplies Enterprise", 0, { method: "COLLECTION", on: "2026-09-16", ack: "2026-09-16" }),
       copy("ad10", "aw5", "dr6", "Implementing department", 1, { method: "BY_HAND", on: "2026-09-16", ack: "2026-09-16" }),
       copy("ad11", "aw5", "dr7", "Finance department", 2, { method: "BY_HAND", on: "2026-09-17", ack: "2026-09-17" }),
+      ...CASE_STAGE_CASES.flatMap((c, i) => [
+        copy(`ad${12 + i * 3}`, `aw${c.n}`, null, c.awardee, 0, { method: "COLLECTION", on: c.issuedOn, ack: c.issuedOn }),
+        copy(`ad${13 + i * 3}`, `aw${c.n}`, "dr6", "Implementing department", 1, { method: "BY_HAND", on: c.issuedOn, ack: c.issuedOn }),
+        copy(`ad${14 + i * 3}`, `aw${c.n}`, "dr7", "Finance department", 2, { method: "BY_HAND", on: c.issuedOn, ack: c.issuedOn }),
+      ]),
     ],
   });
   // Visibly invented identity card number (6.11 ruling).
@@ -495,6 +578,11 @@ export async function loadAwards(db: Db, organisationId: string) {
         id: `${P}ar5`, awardId: `${P}aw5`, signedLetterReceivedOn: day("2026-09-21"), receivedByPersonId: `${P}p4`, whereHeld: "Contract & Procurement strongroom", signatoryName: "Lee Mei Ling", icNumber: "000000-00-0005", occupation: "Director",
         address: "5 Contoh Road, Demo North", capacity: "Director, for Contoh Supplies Enterprise", contractorSigned: true, stampAffixed: true, witnessName: "Ahmad bin Demo", witnessSigned: true,
       },
+      // AC-20 (step C10): complete returns, as demo_ar5 is. The identity card numbers are visibly invented.
+      ...CASE_STAGE_CASES.map((c) => ({
+        id: `${P}ar${c.n}`, awardId: `${P}aw${c.n}`, signedLetterReceivedOn: day(c.returnedOn), receivedByPersonId: `${P}p4`, whereHeld: "Contract & Procurement strongroom", signatoryName: "Tan Demo Signatory", icNumber: `000000-00-${String(c.n).padStart(4, "0")}`, occupation: "Director",
+        address: c.address, capacity: `Director, for ${c.awardee}`, contractorSigned: true, stampAffixed: true, witnessName: "Ahmad bin Demo", witnessSigned: true,
+      })),
     ],
   });
   await db.awardCondition.createMany({
@@ -528,6 +616,7 @@ export async function loadAwards(db: Db, organisationId: string) {
     { n: 3, number: "DEMO/KP/T/004/2026", on: "2026-09-17", signer: "Aisyah Rahman" },
     { n: 4, number: "XI202600812", on: "2026-09-19", signer: "Imran Hakim" },
     { n: 5, number: "XI202600799", on: "2026-09-16", signer: "Imran Hakim" },
+    ...CASE_STAGE_CASES.map((c) => ({ n: c.n, number: c.indent, on: c.issuedOn, signer: "Imran Hakim" })),
   ];
   for (const i of issued) {
     const l = await loadAward(await demoOrgId(), `${P}aw${i.n}`);
@@ -580,7 +669,7 @@ export async function loadAwards(db: Db, organisationId: string) {
     entry("Award", a.id, label, "UPDATE", inst.openedAt, diffFields({ status: "DRAFT" }, { status: "PENDING_APPROVAL" }));
     for (const s of inst.steps.filter((x) => x.decision === "DONE")) {
       entry("ApprovalStep", s.id, `${a.reference} · ${s.roleLabel}`, "UPDATE", s.decidedOn!, s.committeeCode
-        ? diffFields({ decision: "PENDING" }, { decision: "DONE", committee: s.decidedByName, sitting: s.committeeCode === "TENDER_BOARD" ? "DEMO/SIT/5/2026" : "DEMO/SQ/1/2026", decidedOn: s.decidedOn, minuted: "yes" })
+        ? diffFields({ decision: "PENDING" }, { decision: "DONE", committee: s.decidedByName, sitting: s.committeeCode === "TENDER_BOARD" ? "DEMO/SIT/5/2026" : s.committeeDecisionId === `${P}d13` ? "DEMO/SQ/1/2026" : CASE_STAGE_CASES.some((c) => `${P}${c.d}` === s.committeeDecisionId) ? "DEMO/SQ/4/2026" : "DEMO/SQ/1/2026", decidedOn: s.decidedOn, minuted: "yes" })
         : diffFields({ decision: "PENDING", receivedOn: null }, { decision: "DONE", decidedBy: s.decidedByName, decidedOn: s.decidedOn, receivedOn: s.receivedOn, recordedOnBehalf: "not signed", underDelegation: null }));
     }
     if (inst.status !== "APPROVED") continue;
@@ -590,7 +679,7 @@ export async function loadAwards(db: Db, organisationId: string) {
     if (!a.issuedAt || !a.contract) continue;
     const c = a.contract;
     entry("Contract", c.id, `${a.reference} · contract ${c.number}`, "CREATE", a.issuedAt, diffFields(null, { number: c.number, numberSource: c.numberSource, numberedOn: c.numberedOn, contractSum: c.contractSum.toString(), yearReading: "issue date, assumed" }));
-    entry("CaseOwnershipEvent", `${P}ce${a.id.slice(-1) === "3" ? 1 : a.id.slice(-1) === "4" ? 2 : 3}`, `${a.reference} · case handed over`, "CREATE", a.issuedAt, diffFields(null, { from: "Pre-contract Section", to: "Post-contract Section", on: a.issuedAt }));
+    entry("CaseOwnershipEvent", `${P}ce${({ [`${P}aw3`]: 1, [`${P}aw4`]: 2, [`${P}aw5`]: 3 } as Record<string, number>)[a.id] ?? a.id.replace(`${P}aw`, "")}`, `${a.reference} · case handed over`, "CREATE", a.issuedAt, diffFields(null, { from: "Pre-contract Section", to: "Post-contract Section", on: a.issuedAt }));
     for (const d of a.distributions) entry("AwardDistribution", d.id, `${a.reference} · copy to ${d.recipientName}`, "CREATE", a.issuedAt, diffFields(null, { recipient: d.recipientName, mandatory: d.mandatory, awardee: d.isAwardee }));
     for (const d of a.documents) entry("AwardDocument", d.id, `${a.reference} · ${d.templateName}`, "CREATE", a.issuedAt, diffFields(null, { template: d.templateName, formCode: d.templateFormCode, textVersion: d.templateBodyVersion, language: d.language, frozen: "yes" }));
     if (a.awardReturn) entry("AwardReturn", a.awardReturn.id, `${a.reference} · return`, "CREATE", a.issuedAt, diffFields(null, { opened: "yes" }));
@@ -605,6 +694,9 @@ export async function loadAwards(db: Db, organisationId: string) {
       if (a.status === "ACCEPTED") entry("Award", a.id, label, "UPDATE", at, diffFields({ status: "ISSUED" }, { status: "ACCEPTED" }), "The acceptance page is complete.");
     }
     if (a.commencedOn) entry("Award", a.id, label, "UPDATE", a.commencedOn, diffFields({ commencedOn: null }, { commencedOn: a.commencedOn }));
+    // AC-20 (step C10): the status the contract stands at, as the act that is not yet built would record it.
+    const later = CASE_STAGE_CASES.find((x) => `${P}aw${x.n}` === a.id);
+    if (later?.contractOn) entry("Contract", c.id, `${a.reference} · contract ${c.number}`, "UPDATE", later.contractOn, diffFields({ status: "ACTIVE" }, { status: c.status }), later.why);
     for (const s of c.securities) {
       const lbl = securityLabel(a.reference, s.kind);
       entry("SecurityInstrument", s.id, lbl, "CREATE", s.lodgedOn, awardAuditCreate({ ...s, status: "LODGED", verifiedOn: null, verifiedByPersonId: null, rejectedReason: "", requiredValue: null, basis: null, basisPercent: null, basisAmount: null, basisProvenance: null, requiredUntil: null }, { contract: c.number }));
@@ -616,10 +708,44 @@ export async function loadAwards(db: Db, organisationId: string) {
       if (p.verifiedOn) entry("InsurancePolicy", p.id, lbl, "UPDATE", p.verifiedOn, diffFields({ status: "LODGED" }, { status: p.status, checkedBy: "Chen Wei Ling", checkedOn: p.verifiedOn, recordedOnBehalf: "not signed" }));
     }
   }
-  const locks = [[10, "2026-09-22", "DEMO/AWD/0001/2026"], [11, "2026-09-09", "DEMO/AWD/0002/2026"], [12, "2026-09-09", "DEMO/AWD/0003/2026"], [13, "2026-09-09", "DEMO/AWD/0004/2026"], [14, "2026-09-09", "DEMO/AWD/0005/2026"]] as const;
+  const locks = [[10, "2026-09-22", "DEMO/AWD/0001/2026"], [11, "2026-09-09", "DEMO/AWD/0002/2026"], [12, "2026-09-09", "DEMO/AWD/0003/2026"], [13, "2026-09-09", "DEMO/AWD/0004/2026"], [14, "2026-09-09", "DEMO/AWD/0005/2026"], ...CASE_STAGE_CASES.map((c) => [c.sx, c.meetingOn, AWD(c.ref)] as const)] as const;
   for (const [sx, on, ref] of locks) {
     const ex = EXERCISES.find((x) => x.n === sx)!;
     entries.push({ id: `${P}sx${sx}_lock`, organisationId, entity: "SourcingExercise", entityId: `${P}sx${sx}`, entityLabel: `${SX(sx)} · ${ex.title}`, action: "UPDATE", at: day(on), changes: diffFields({ classificationLockedAt: null }, { classificationLockedAt: day(on) }), reason: `Award ${ref} sent for approval.`, ...DEMO_ACTOR });
   }
   await db.auditEntry.createMany({ data: entries as never });
+}
+
+// -------------------------------------------------------------- AC-20 (wave C step C10): the load's last word on the case list
+
+/**
+ * Raised when the load ends, never earlier: the later loaders take the next award and exercise numbers from their series as they
+ * go, so the references the later-stage cases carry are reserved by moving the series past them only once those loaders are done.
+ */
+export async function finishCaseStages(db: Db) {
+  const last = (key: "ref" | "sx") => Math.max(...CASE_STAGE_CASES.map((c) => c[key]));
+  await raiseSeries(db, `${P}n7`, last("ref") + 1);
+  await raiseSeries(db, `${P}n5`, last("sx") + 1);
+  await raiseSeries(db, `${P}n1`, Math.max(...CASE_STAGE_CASES.map((c) => c.reqN)) + 1);
+}
+
+/**
+ * The demo shows every stage of the case list at least once, and an indent past its commencement day. Read by the same filters the
+ * list and the dashboard use (`CASE_STAGE_WHERE`), so it cannot drift from them. It does not depend on the day of the load: the
+ * indent is judged on the day the load ran, and every date of the cases is in the past of any load day from 18 October 2026.
+ */
+export async function checkCaseStages(db: Db, organisationId: string, today: string) {
+  const { CASE_STAGES, CASE_STAGE_WHERE } = await import("../src/lib/contract/case-stage");
+  const { commencementState } = await import("../src/lib/award/commencement");
+  const found: Record<string, number> = {};
+  for (const key of [...CASE_STAGES, "ENDED"] as const) {
+    found[key] = await db.award.count({ where: { AND: [{ organisationId, id: { startsWith: `${P}aw` } }, CASE_STAGE_WHERE[key]] } });
+    if (found[key] === 0) throw new Error(`The demo has no case in the ${key} stage of the case list.`);
+  }
+  const policy = await db.awardPolicy.findFirstOrThrow({ where: { organisationId } });
+  if (policy.indentValidityDays !== 14 || policy.commencementGraceDays !== 7) throw new Error("The demo award controls are not 14 days of indent validity and 7 of commencement grace (AC-20).");
+  const indents = await db.award.findMany({ where: { organisationId, id: { startsWith: `${P}aw` }, instrumentKind: "WORK_INDENT", status: { not: "CANCELLED" }, commencedOn: null, startDate: { not: null } } });
+  const late = indents.filter((a) => commencementState(a.startDate!.toISOString().slice(0, 10), null, policy.commencementGraceDays, today, null).state === "LATE");
+  if (late.length === 0) throw new Error("The demo has no work indent past its commencement day (AC-20).");
+  console.log(`Case list stages in the demo: ${Object.entries(found).map(([k, v]) => `${k} ${v}`).join(", ")}; work indents past their commencement day: ${late.length}.`);
 }

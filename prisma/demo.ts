@@ -6,7 +6,7 @@ import "./demo-acts";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
-import { loadAwards, loadAwardSetup } from "./demo-award";
+import { checkCaseStages, finishCaseStages, loadAwards, loadAwardSetup } from "./demo-award";
 import { checkContractsDemo, configureContractsDemo, loadContractsDemo } from "./demo-contracts";
 import { checkCertificatesDemo, configureCertificatesDemo, loadCertificatesDemo } from "./demo-certificates";
 import { checkFidelityDemo, configureFidelityDemo } from "./demo-fidelity";
@@ -707,7 +707,7 @@ async function load() {
   const lifecycleSittings = await loadLifecycleAward(db, organisationId);
   await nameRouteTrail(organisationId);
   await loadCloseout(organisationId);
-  const minuted = [`${P}mt2`, `${P}mt5`, `${P}mt6`, `${P}mt7`, `${P}mt8`, `${P}mt9`, ...lifecycleSittings];
+  const minuted = [`${P}mt2`, `${P}mt5`, `${P}mt6`, `${P}mt7`, `${P}mt8`, `${P}mt9`, `${P}mt30`, ...lifecycleSittings];
   // Their History: the trail the sitting actions would have written (6.10 local review 4).
   await loadSittingTrail(db, organisationId, minuted);
   await snapshotMinuted(minuted);
@@ -826,6 +826,10 @@ async function load() {
   // last, on everything above (prisma/demo-results.ts). `npm run demo:results` applies it alone to a loaded database.
   await loadResultsDemo(db, organisationId, { determine: determineExercises });
   await checkResultsDemo(db);
+  // AC-20 (wave C step C10): the award and exercise registers moved past the later-stage cases' references, and every stage of the case
+  // list read back from the same filters the list uses.
+  await finishCaseStages(db);
+  await checkCaseStages(db, organisationId, new Date().toISOString().slice(0, 10));
   // Phase 2b: the rows the loaders wrote straight into the tables are attributed to the demo loader, as the acts it ran already are.
   await attributeSeededRows(db, organisationId);
 
