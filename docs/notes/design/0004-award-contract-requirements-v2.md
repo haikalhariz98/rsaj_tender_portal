@@ -54,7 +54,49 @@ To close: either authorise a scratch copy of the demo organisation and a browser
 - Contract submissions are shown to the S.O. even for a restricted exercise (AC-18, AC-19). The first G9 build hid them. Fixed in `721327d2`.
 - The organisation-wide securities view still leaves out restricted exercises the reader is not named on (FR-MTD-007), while the contract's own
   Securities tab shows them. Open product-owner question, in the backlog.
-- The Contracts card hint reads "n awarding (on Awards, until a contract is formed)" until wave C. Logged as interim.
+- The Contracts card hint reads "n awarding (on Awards, until a contract is formed)" until wave C. Logged as interim. **Superseded 2026-10-19:** wave C
+  removed the Awards page, and no source file carries that hint any more.
+
+## Wave C status, 2026-10-19
+
+Code is committed on branch `build-all-modules`, commits `0364318d` (C0) to `29892c60` (C13). **Wave C stays open.** Words as in the Wave G table:
+**Built** means code and automated tests are committed. **Unconfirmed** means a "Done when" browser or snapshot check is still owed.
+
+Checks run: `npm run check`; the full Linux suite (829 files, 15383 tests) after the review fix round's last code change; `test:db` on the
+case-load, securities-history, case-walk and clock-notices files. ADR 0037 (`docs/notes/architecture/0037-...md`) is **Proposed**, not accepted.
+Accepting it is the product owner's act (decisions log, C0 and the fix round).
+
+| Item | Status | Differs from the design | What is still owed |
+| --- | --- | --- | --- |
+| C-1 One case list (AC-17, AC-18) | Built: C3 `222d0c74` `listCases`, C9 `91324a27`, fix round `ffbfcb16`. Awards is out of the menu. `/projects` shows the five stages, "Cancelled or terminated" and In Delay, paged in the database. | The old awards chips ride on every live case's Status cell, not only Awarding. The header drops the "in preparation / returned / with the legal office / executed" counts, since the stage views replace them. The fix round restored the old Awards work views (Awaiting approval, Approved not issued, Awaiting return, No commitment number, Indents expired) with organisation-wide counts. "Ready to issue" is now "Approved not issued". Drafts and Issued views are not restored. They leave out every restricted exercise the reader is not named on. | Browser look of the restored work views at 1280 and 1600. |
+| C-2 The case page (AC-19) | Built: C1 to C5, C7. `/projects/[id]` is the case page, five-stage step bar (`Stepper` extended in C2), one main button per stage, default stage is the earliest with an act. The nine award panels moved unchanged to `src/app/projects/[id]/award/`. The start form is at `/projects/new?exercise=`. | Counts beside tabs are dropped on the case page (each step loads only its own data, AC-19). A viewed stage shows its own "What's next", not the default stage's. The Project overview still shows the award's conditions and readiness gate to a reader who sees the contract stages only, as the contract overview always did. A restricted issued case shows as Awarding or Signing by the award's status, as the dashboard card does. Step-bar and tab words are English only. Fix round: cancelled, barred supplier, late commencement and expired indent now show on every stage for a reader who sees the whole case. | The C2 and C4 text snapshots (old page against new, one demo database, two servers). A browser look at the fix round's changed pages. |
+| C-3 Rules that must stay (AC-20) | Built: C10, C11. One test per Must, named by its id, driven through the real acts by the walk harness (`scripts/case-walk-harness.ts`, `case-walk.db.test.ts`). `issueAward` is still the only creator of a Contract row (`contract-creator-scan.test.ts` and the Contract count before and after each issue in the walk). Demo uses 14 and 7 days. The 29-phase browser walk from Start the award to Active on site ran on a scratch server and database. | **FR-AWD-006's alert to both departments is now met by C13.** The design said C-3 does not keep it because it was never met. Scans were re-pointed, none weakened, each change cites C-3. | None for the rules. The walk's SULIT question is carried below. |
+| C-4 Bond and insurance on the contract (AC-21) | Built: C6 `d4195ae1`, fix round. Lodge and verify drawers sit on Before signing and still post the award id. The acts stay in `awards/actions.ts`. The Project overview gains a "Securities and insurance" card. | For a reader who sees the whole case, the contract's own list is now only the wages check (it repeated every row). `contractHistory` now lists securities' audit rows (it missed them). Under contract stages only, the contract's History leaves out the instruments' rows, a conservative reading. Fix round: Before signing opens on a case with no Contract row, so conditions and the bond requirement work on a draft, pending or approved award (FR-AWD-014 regression). | The C4 snapshot (see C-2). |
+| C-5 Regret letters (AC-22) | Built: C8 `e03821bd`. The notices moved to `src/app/sourcing/[id]/` and show on the exercise's Award tab for the live award. Earlier notices under cancelled awards show read-only. | The award page has no Notices tab. `?tab=notices` goes to the exercise. | Browser check of an issued notice. Unconfirmed. |
+| C-6 Old links (AC-23) | Built: C9. `/awards`, `/awards/new` and `/awards/[id]` are temporary redirects with the tab map. Stored notices use `caseHref` keyed by award id. The print views keep their URLs. A scan (`awards-links-scan`) allows only the three listed `/awards` literals. | A restricted exercise is 404 and logged before and after issue, for every tab, and is never forwarded (F0-3). A contract id on `/awards/{id}` is 404, as before. The print view's first crumb reads "Contracts". | None known. Render-checked on a scratch server in C9. |
+| C13 Staff notices (FR-AWD-006, FR-AWD-009) | Built: `29892c60`, one migration (kinds `INDENT_EXPIRED`, `COMMENCEMENT_LATE`), applied to `perolehan_native_check` and `perolehan`. Written when the case page is read, once per recipient and expiry or due day. Hidden for restricted exercises like other exercise notices. | Recipients (F-4) are read as people: the head of the requesting unit, and the head of the unit that owns the case (nobody before a handover). A unit with no head named tells no one in that role. A contract-stages-only reader raises none. | Browser look. Unconfirmed. |
+
+### Open at the close of this record
+
+- **C12 re-audit.** The code-review and security round ran once and its findings were fixed in `ffbfcb16`. The security re-audit of the fix round and of C13
+  (`caseVisibility` at the resolver, redirects, list, counts and each moved act) has not run.
+- **Snapshots and browser checks** listed in the table. The fix round's pages were verified by typecheck, tests and the walk only.
+- **ADR 0037** and F0-1 to F0-11 await acceptance. C2 to C11 change if any is ruled differently.
+
+### Product-owner questions raised by the build
+
+Each is built to the conservative default shown. All are in the decisions log under wave C.
+
+1. Accept ADR 0037 and F0-1 to F0-11.
+2. Should the demonstration load carry a decision on who reads SULIT, or leave it undecided? Today it is undecided, so no officer can complete formation on the demonstration until the organisation decides.
+3. Should the awards chips be limited to Awarding and Signing?
+4. Confirm the reading of "Award stage refused and logged" (a contract-stages-only reader's refusal is logged once per page load).
+5. Widen the History rule to drop the award's rows entirely under contract stages only?
+6. Should a link to the default stage be added when the viewed stage has no action?
+7. Should the roster's holders of a configured office stand for the head in the C13 recipients, and should the pre-contract section own the case before the handover?
+8. Reword the pinned gate and payment words that still say "the contract's Securities tab"?
+9. When the Practically complete, Closed and Terminated acts exist, drive the demo cases through them instead of writing the rows directly?
+10. Malay for the step-bar and tab words, when NFR-LNG-001 is built.
 
 ## 0. Who answered section 5
 
