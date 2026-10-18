@@ -14,6 +14,7 @@
  *   a cancelled contract's are counted apart.
  */
 
+import { caseHref } from "@/lib/contract/links";
 import { Prisma } from "@/generated/prisma/client";
 import { DOCUMENT_LABEL } from "@/lib/award/labels";
 import { dayOf, storedDay } from "@/lib/dates";
@@ -129,7 +130,7 @@ export async function libraryPage(organisationId: string, query: string, askedPa
         id: e.id,
         at: e.at,
         source: "AWARD_DOCUMENT",
-        href: `/awards/${awardId}?tab=instrument`,
+        href: caseHref({ awardId, contractId: null }, { stage: "award", tab: "instrument" }),
         kindEn: `${DOCUMENT_LABEL[kind as keyof typeof DOCUMENT_LABEL]}${Number(version) > 1 ? `, version ${version}` : ""}`,
         number: null,
         ofEn: d ? `Award ${d.award.reference} · ${d.award.awardeeName}` : "An award",

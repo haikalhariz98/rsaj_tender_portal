@@ -8,6 +8,7 @@ import { Callout } from "@/components/ui/feedback";
 import { evaluateAward } from "@/lib/award/evaluate";
 import { kindOfSlug, LANGUAGE_LABEL } from "@/lib/award/labels";
 import { awardFacts, loadAward } from "@/lib/award/repo";
+import { caseHref } from "@/lib/contract/links";
 import { formatDate, formatOrgDay } from "@/lib/format";
 
 import { PrintButton } from "./print-button";
@@ -52,7 +53,7 @@ export default async function PrintPage(props: PageProps<"/awards/[id]/print/[ki
     <>
       <RecordCrumb label={award.reference} />
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href={`/awards/${award.id}?tab=instrument`}>Back to the award</Link>
+        <Link href={caseHref({ awardId: award.id, contractId: null }, { stage: "award", tab: "instrument" })}>Back to the award</Link>
         <PrintButton icon={<PrinterIcon size={15} />} />
       </div>
       {frozen ? (

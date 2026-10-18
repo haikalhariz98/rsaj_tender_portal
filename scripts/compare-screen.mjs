@@ -491,6 +491,12 @@ const DECIDED_ABSENT = [
     match: /^(Delivery|Open my steps)$/,
     why: "GN-05 (AC-14): the Delivery box and the Open my steps button are removed from the Inbox; the shell's My approvals item opens the same list",
   },
+  // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
+  {
+    screen: /^[/]projects$/,
+    match: /^(Opened from the exercise|All awards|Drafts|Awaiting approval|Ready to issue|Issued|Awaiting return|No commitment number|Indents expired|Search by awardee or reference|Not started|Being formed|Ready to sign|Executed|Contracts In Delay|All contracts)$/,
+    why: "C-1 (AC-17): the Awards list and its views merged into the case list; the stages (Awarding, Signing, On site, Completed, Closed) and 'Cancelled or terminated' are server-side views, the awards list's chips ride on each case's Status, and the old in-page views became the stage views. 'Opened from the exercise' is dropped with the Awards page; an award is started from the exercise's Award tab or New award",
+  },
   {
     screen: /^[/]securities$/,
     match: /^(Securities|The register|Search by contract, awardee or issuer|Shown here, not sent)$/,

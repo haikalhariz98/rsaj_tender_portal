@@ -44,7 +44,7 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
   const header = (
     <>
       <RecordCrumb label="New award" />
-      <PageHeader eyebrow={<Link href="/awards">Awards</Link>} title="New award" subtitle="Opened on an exercise in preparation; the exercise's band decides the instrument." />
+      <PageHeader eyebrow={<Link href="/projects">Contracts</Link>} title="New award" subtitle="Opened on an exercise in preparation; the exercise's band decides the instrument." />
     </>
   );
   if (!l) {

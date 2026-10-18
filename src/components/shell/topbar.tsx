@@ -167,6 +167,11 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
   }
   // The print crumb is the page itself (the document's own slug left off): it links to the page, never to a bare …/print.
   if (printAt > 0) crumbs[printAt].href = "/" + segments.join("/");
+  // AC-17, AC-23: Awards is no section any more; a printed award document sits under the Contracts list.
+  if (segments[0] === "awards") {
+    crumbs[0].label = "Contracts";
+    crumbs[0].href = "/projects";
+  }
 
   // An exercise's documents are the Tender documents tab, not the register of documents: named so, and linked to the tab (no page of its own sits at that path).
   if (segments[0] === "sourcing") {

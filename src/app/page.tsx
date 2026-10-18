@@ -34,13 +34,14 @@ import { organisationTimeZone } from "@/lib/org-time";
 import { requireStaff } from "@/app/_auth/actor";
 import { SignInNotices } from "@/components/auth/sign-in-notices";
 import { loadAccountView } from "@/lib/auth/account-view";
+import { caseHref } from "@/lib/contract/links";
 
 export const dynamic = "force-dynamic";
 
 /// Where each kind of line links, and the icon that tells the kinds apart at a glance.
 const ACTIVITY_HREF = {
   requisition: (id: string) => `/requisitions/${id}`,
-  award: (id: string) => `/awards/${id}`,
+  award: (id: string) => caseHref({ awardId: id, contractId: null }),
   exercise: (id: string) => `/sourcing/${id}`,
   sitting: (id: string) => `/committees/${id}`,
 };
@@ -159,7 +160,7 @@ export default async function Dashboard() {
           tone="brand"
           icon={<AwardIcon size={17} />}
           href="/projects"
-          hint={conPipe.total === 0 ? "none in the pipeline" : `${conPipe.awarding} awarding (on Awards, until a contract is formed) · ${conPipe.signing} signing · ${conPipe.onSite} on site`}
+          hint={conPipe.total === 0 ? "none in the pipeline" : `${conPipe.awarding} awarding · ${conPipe.signing} signing · ${conPipe.onSite} on site`}
         />
       </div>
 

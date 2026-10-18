@@ -1,4 +1,5 @@
 import { ActedBy } from "@/components/attribution";
+import { caseHref } from "@/lib/contract/links";
 import { routeActed } from "@/lib/auth/attribution-read";
 import { ROUTED_NAMED_ABOUT, ROUTED_NAMED_HEADINGS } from "@/lib/auth/routed-people";
 import { exerciseAccessFacts, type ExerciseAccessFacts } from "@/lib/auth/sulit-store";
@@ -849,7 +850,7 @@ function AwardTab({ notices, exerciseId, status, packKind, window, awards, openi
               <KeyValues
                 columns={2}
                 items={[
-                  { label: "Awardee", value: <Link href={`/awards/${live.id}`}>{live.awardeeName}</Link> },
+                  { label: "Awardee", value: <Link href={caseHref({ awardId: live.id, contractId: null }, { stage: "award" })}>{live.awardeeName}</Link> },
                   { label: "Reference", value: <span className="font-mono text-[13px]">{live.reference}</span> },
                   { label: "Awarded value", value: <span className="tabular-nums">{money(live.awardedValue)}</span> },
                   { label: "Instrument", value: INSTRUMENT_SHORT[live.instrumentKind as InstrumentKind] },
@@ -858,7 +859,7 @@ function AwardTab({ notices, exerciseId, status, packKind, window, awards, openi
                 ]}
               />
               <div>
-                <ButtonLink href={`/awards/${live.id}`} variant="secondary" size="sm">Open the award</ButtonLink>
+                <ButtonLink href={caseHref({ awardId: live.id, contractId: null }, { stage: "award" })} variant="secondary" size="sm">Open the award</ButtonLink>
               </div>
             </div>
           ) : !exerciseOpenForAward(status, packKind, window) ? (
@@ -888,7 +889,7 @@ function AwardTab({ notices, exerciseId, status, packKind, window, awards, openi
           <ul className="divide-y divide-line/70">
             {cancelled.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
-                <Link href={`/awards/${a.id}`} className="font-semibold">{a.awardeeName}</Link>
+                <Link href={caseHref({ awardId: a.id, contractId: null }, { stage: "award" })} className="font-semibold">{a.awardeeName}</Link>
                 <span className="min-w-0 break-words text-ink-3">{`${a.reference} · ${a.cancelReason || "no reason recorded"}`}</span>
               </li>
             ))}

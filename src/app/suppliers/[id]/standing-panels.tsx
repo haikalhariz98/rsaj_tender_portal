@@ -1,4 +1,5 @@
 import { ActedBy } from "@/components/attribution";
+import { caseHref } from "@/lib/contract/links";
 import Link from "next/link";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
@@ -165,7 +166,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                 <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-[14px] font-semibold text-ink">{REQUEST_KIND_LABEL[r.kind].en}{r.reasonSnapshot ? ` · ${r.reasonSnapshot}` : ""}</span>
-                    <span className="text-[12.5px] text-ink-3"><ActedBy entity="StandingRequest" id={r.id} slot="requestedBy" name={r.requestedBy.name} />, {formatOrgDay(r.requestedAt, l.org.timeZone)}{r.sourceAward ? <> · from the cancelled award <Link href={`/awards/${r.sourceAward.id}`}>{r.sourceAward.reference}</Link></> : null}{r.note ? ` · “${r.note}”` : ""}</span>
+                    <span className="text-[12.5px] text-ink-3"><ActedBy entity="StandingRequest" id={r.id} slot="requestedBy" name={r.requestedBy.name} />, {formatOrgDay(r.requestedAt, l.org.timeZone)}{r.sourceAward ? <> · from the cancelled award <Link href={caseHref({ awardId: r.sourceAward.id, contractId: null }, { stage: "award" })}>{r.sourceAward.reference}</Link></> : null}{r.note ? ` · “${r.note}”` : ""}</span>
                     {r.withdrawnAt && <span className="text-[12.5px] break-words text-ink-3"><ActedBy entity="StandingRequest" id={r.id} slot="withdrawnBy" name={r.withdrawnBy?.name} />, {formatOrgDay(r.withdrawnAt, l.org.timeZone)}: “{r.withdrawnReason}”</span>}
                   </div>
                   <span className="flex flex-wrap items-center gap-2">
@@ -383,7 +384,7 @@ export async function ParticipationPanel({ l, people }: { l: LoadedSupplier; peo
             <tbody>
               {s.awards.map((a) => (
                 <Tr key={a.id}>
-                  <Td label="Award"><CellStack title={<Link href={`/awards/${a.id}`}>{a.reference}</Link>} sub={`${a.awardeeName} · ${AWARD_STATUS_LABEL[a.status]}`} /></Td>
+                  <Td label="Award"><CellStack title={<Link href={caseHref({ awardId: a.id, contractId: null }, { stage: "award" })}>{a.reference}</Link>} sub={`${a.awardeeName} · ${AWARD_STATUS_LABEL[a.status]}`} /></Td>
                   <Td label="Linked through">{a.awardeePartyId ? "Its awardee party" : "The award itself"}</Td>
                 </Tr>
               ))}

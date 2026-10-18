@@ -10,6 +10,7 @@
  * record, which names the approval the committee decides on (RECORD_TABLED_MATTER_KINDS).
  */
 
+import { caseHref } from "@/lib/contract/links";
 import type { CommitteeDecision } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
 import { approvalRouteNotHidden } from "@/lib/auth/sulit-store";
@@ -168,7 +169,7 @@ function shape(r: Route) {
     const ex = r.exercise;
     // The citation compares the matter's amount to the awarded value (exerciseCitationFault OTHER_AMOUNT).
     const tabling = { matterKind: "EXERCISE" as const, matterRef: ex.reference, domain: APPOINTMENT_DOMAIN, subject: `Appointment of ${a.awardeeName} for ${ex.title}`, amount: a.awardedValue?.toString() ?? null };
-    return { kind: "APPOINTMENT" as const, route: route(`EXERCISE:${ex.id}`), reference: a.reference, title: `${a.awardeeName} · ${ex.title}`, href: `/awards/${a.id}?tab=approval`, value: r.value, tabling };
+    return { kind: "APPOINTMENT" as const, route: route(`EXERCISE:${ex.id}`), reference: a.reference, title: `${a.awardeeName} · ${ex.title}`, href: caseHref({ awardId: a.id, contractId: null }, { stage: "award", tab: "approval" }), value: r.value, tabling };
   }
   if (r.matterKind === "EXERCISE" && r.domain === NAME_APPROVAL_DOMAIN && r.exercise) {
     const ex = r.exercise;

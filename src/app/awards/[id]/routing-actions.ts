@@ -38,7 +38,7 @@ async function inAwardSheet(scope: Reader, awardId: string, now: Date, fn: (tx: 
     if (attribution) return attribution;
     throw e;
   }
-  if (result?.ok) revalidatePath(`/awards/${awardId}`);
+  if (result?.ok) revalidatePath("/projects/[id]", "page");
   return result ?? GONE;
 }
 

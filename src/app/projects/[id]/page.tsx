@@ -238,7 +238,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       case "baseline":
         return facts ? <BaselinePanel l={lc} facts={facts} timeZone={l.org.timeZone} /> : notice("Not judged", "Set the organisation's time zone first.");
       case "overview":
-        return supervision && payments && variations && sulit ? <OverviewPanel sulit={sulit} l={lc} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> : null;
+        return supervision && payments && variations && sulit ? <OverviewPanel sulit={sulit} l={lc} awardOpen={visibility === "WHOLE"} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> : null;
       case "team":
         return supervision ? <TeamPanel l={lc} v={supervision} people={people} today={today} /> : null;
       case "site":
@@ -365,7 +365,7 @@ type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 
 // ------------------------------------------------------------------ overview
 
-async function OverviewPanel({ sulit, l, facts, today, supervision, payments, variations }: { sulit: Sulit<true>; l: LoadedContract; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
+async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, payments, variations }: { sulit: Sulit<true>; l: LoadedContract; awardOpen: boolean; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -411,7 +411,7 @@ async function OverviewPanel({ sulit, l, facts, today, supervision, payments, va
               },
               { label: "Stamped", value: c.stampedOn ? `${formatDate(day(c.stampedOn))} · reference ${c.stampingRef}` : notSet("Not recorded") },
               { label: "Formed under", value: snap ? `${snap.basis.name}; legal review by ${snap.policy.legalOfficeLabel}; frozen ${formatDate(snap.startedOn)}` : notSet("Preparation not started") },
-              { label: "Award", value: <Link href={`/awards/${l.award.id}`} className="font-semibold">{l.award.reference}</Link> },
+              { label: "Award", value: awardOpen ? <Link href={caseHref({ awardId: l.award.id, contractId: l.contract.id }, { stage: "award" })} className="font-semibold">{l.award.reference}</Link> : l.award.reference },
             ]}
           />
         </CardBody>

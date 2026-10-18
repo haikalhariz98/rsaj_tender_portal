@@ -213,7 +213,7 @@ async function inSittingAfterExercise(scope: Reader, actor: AuditActor, meetingI
     if (said) return said;
     throw e;
   }
-  if (result?.ok) refresh(meetingId, appointment ? [`/awards/${appointment.awardId}`, `/sourcing/${exerciseId}`] : []);
+  if (result?.ok) refresh(meetingId, appointment ? [`/projects/${appointment.awardId}`, `/sourcing/${exerciseId}`] : []);
   return result ?? GONE;
 }
 

@@ -42,7 +42,7 @@ const ROUTES = [
   "/requisitions",
   "/requisitions/new",
   "/sourcing/new",
-  "/awards",
+  // AC-23 (C9): /awards redirects to /projects, which is already crawled.
   "/projects/new",
   "/approvals",
   "/inbox",
@@ -90,11 +90,12 @@ function lines(html) {
 for (const [list, re] of [
   ["/requisitions", /href="(\/requisitions\/(?!new|receive)[0-9A-Za-z_-]{4,})"/],
   ["/sourcing", /href="(\/sourcing\/[0-9A-Za-z_-]{4,})"/],
-  ["/awards", /href="(\/awards\/[0-9A-Za-z_-]{4,})"/],
+  // AC-17, AC-19 (C9): a case from the Contracts list (an award-only case has the award id).
+  ["/projects", /href="(\/projects\/(?!new)[0-9A-Za-z_-]{4,})"/],
   ["/committees", /href="(\/committees\/[0-9A-Za-z_-]{4,})"/],
 ]) {
   const hit = re.exec(await (await signedInFetch(base + list)).text());
-  if (hit) ROUTES.push(hit[1], ...(list === "/awards" || list === "/committees" ? [] : [`${hit[1]}/edit`]));
+  if (hit) ROUTES.push(hit[1], ...(list === "/projects" || list === "/committees" ? [] : [`${hit[1]}/edit`]));
 }
 
 ROUTES.push(...process.argv.slice(4));

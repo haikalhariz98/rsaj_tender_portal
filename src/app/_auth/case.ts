@@ -1,5 +1,7 @@
 import { caseVisibility } from "@/lib/contract/case-visibility";
 import { resolveCase } from "@/lib/contract/case-load";
+import { awardTabToCase } from "@/lib/contract/case-tabs";
+import { caseHref } from "@/lib/contract/links";
 import type { StaffActor } from "@/lib/auth/types";
 
 import { exerciseIsHidden } from "./sulit";
@@ -38,4 +40,27 @@ export async function loadCase(actor: StaffActor, id: string): Promise<LoadedCas
     case "AWARD_WITH_CONTRACT":
       return visibility === "WHOLE" ? { kind: "REDIRECT", contractId: r.contractId } : { kind: "NOT_FOUND" };
   }
+}
+
+/**
+ * Where an old `/awards/{id}` address leads (Award and Contract Requirements v2, C-6; AC-23). The same guard as `loadCase`, stricter:
+ * today's award page returned 404 to a reader not named on a restricted exercise before issue and after it, so the redirect is made
+ * only when the case is WHOLE to the reader. A CONTRACT_STAGES_ONLY reader is never forwarded to the contract from an award link, and
+ * a hidden case is never forwarded to its exercise either (the refusal is logged by `exerciseIsHidden`, before the tab is read).
+ * A contract id is not an award's address, as `loadAward` never found one: NOT_FOUND.
+ *
+ * `tab` is the old `?tab=`, mapped by `awardTabToCase`: "notices" goes to the exercise's Award tab (AC-22); none or unknown opens
+ * the case's default step.
+ */
+export type OldAwardTarget = { kind: "NOT_FOUND" } | { kind: "REDIRECT"; href: string };
+
+export async function oldAwardTarget(actor: StaffActor, awardId: string, tab: string | undefined): Promise<OldAwardTarget> {
+  const r = await resolveCase(actor.organisationId, awardId);
+  if (r.kind !== "AWARD_ONLY" && r.kind !== "AWARD_WITH_CONTRACT") return { kind: "NOT_FOUND" };
+  const restrictedFromReader = await exerciseIsHidden(actor, r.exerciseId);
+  const visibility = caseVisibility({ restricted: restrictedFromReader, actorNamed: false, system: false, issued: r.kind === "AWARD_WITH_CONTRACT" });
+  if (visibility !== "WHOLE") return { kind: "NOT_FOUND" };
+  const at = awardTabToCase(tab);
+  if ("exercise" in at) return { kind: "REDIRECT", href: `/sourcing/${r.exerciseId}?tab=award` };
+  return { kind: "REDIRECT", href: caseHref({ awardId: r.awardId, contractId: r.kind === "AWARD_WITH_CONTRACT" ? r.contractId : null }, at) };
 }

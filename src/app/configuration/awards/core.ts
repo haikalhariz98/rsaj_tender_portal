@@ -39,7 +39,7 @@ async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, e
 
 const done = (): FormState => {
   revalidatePath(PATH);
-  revalidatePath("/awards");
+  revalidatePath("/projects");
   return { ok: true };
 };
 

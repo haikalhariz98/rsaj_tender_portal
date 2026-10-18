@@ -23,7 +23,10 @@ describe("review 14: the In Delay view is judged over the whole set, then paged"
     const p = read("src/app/projects/page.tsx");
     expect(p).toMatch(/await inDelayContractIds\(org0\.id, today\)/);
     // Phase 1c (ADR 0034 D10): the list is the signed-in person's organisation's; paging and the view are as pinned.
-    expect(p).toMatch(/listContracts\(actor\.organisationId, page, delayView \? delayIds : null\)/);
+    // AC-17 (C9): the list is the case list; its In Delay view is `listCases`' "delay" view, which takes the same contracts' ids from
+    // inDelayContractIds over the whole organisation and keys them to awards, then pages (case-load.ts, tested in case-load.db.test.ts).
+    expect(p).toMatch(/listCases\(actor\.organisationId, hidden, \{ view: rowView, page \}\)/);
+    expect(read("src/lib/contract/case-load.ts")).toMatch(/inDelayContractIds\(org\.id, org\.today\)/);
     expect(p).not.toMatch(/\{ id: "delay", label: "In Delay" \}/);
     const l = read("src/lib/contract/load.ts");
     expect(l).toMatch(/const listed = only \? \{ \.\.\.where, id: \{ in: \[\.\.\.only\] \} \} : where;/);
@@ -44,8 +47,9 @@ describe("BD-613-12 ruling: the In Delay reading is tagged ASSUMED wherever show
     expect(panels).not.toMatch(/\{d\.title\.en\}<\/Badge> : undefined/);
     // As ruled by the 6.13A residual review: the Projects list uses the shared ProvenanceBadge (through the
     // DataList chip's provenance), and only on a reading that rests on the straight line.
+    // AC-17 (C9): the chip is built in the case row (cx is the row context).
     const list = read("src/app/projects/page.tsx");
-    expect(list).toMatch(/\{ text: "In Delay", tone: "err", \.\.\.\(delay\.assumed\.has\(r\.id\) \? \{ provenance: "ASSUMED" as const \} : \{\}\) \}/);
+    expect(list).toMatch(/\{ text: "In Delay", tone: "err", \.\.\.\(cx\.delayAssumed\.has\(c\.id\) \? \{ provenance: "ASSUMED" as const \} : \{\}\) \}/);
     expect(list).toMatch(/<ProvenanceBadge value="ASSUMED" \/>/);
     expect(list).not.toMatch(/assumed reading|\(assumed\)/);
     expect(DELAY_BASIS).toMatch(/straight line/);

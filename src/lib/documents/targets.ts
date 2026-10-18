@@ -9,6 +9,7 @@
  * same (`exercisePurposes`), so a document is never filed under a heading the exercise never shows.
  */
 
+import { caseHref } from "@/lib/contract/links";
 import { administrationConflict } from "@/lib/auth/administration-conflict";
 import { methodKeeps, ownerState, purposeFits, type OwnerFacts } from "./attach";
 import { exitWords, PURPOSE_LABEL } from "./labels";
@@ -54,7 +55,7 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
     case "exercise":
       return `/sourcing/${id}`;
     case "award":
-      return `/awards/${id}`;
+      return caseHref({ awardId: id, contractId: null });
     case "delegation":
       return "/configuration/users";
     case "specificationPanel":

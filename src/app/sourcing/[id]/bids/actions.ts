@@ -405,7 +405,7 @@ export async function applyValidityExtension(_prev: FormState, data: FormData): 
     const moved = await tx.validityExtension.updateMany({ where: { id: x.id, appliedAt: null }, data: { appliedAt } });
     if (moved.count !== 1) return { ok: false, message: "The extension changed while this was being saved. Reload and try again." };
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.extension, x.id, label(l, `Validity extension to ${formatDate(storedDay(x.toExpiry))}`), "UPDATE", diffFields({ applied: null }, appliedFields(appliedAt, l.org.timeZone)));
-    revalidatePath("/awards");
+    revalidatePath("/projects");
     return { ok: true };
   });
 }

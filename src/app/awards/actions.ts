@@ -96,10 +96,10 @@ const refuse = (fs: readonly Finding[], lead: string): FormState => ({ ok: false
 function refresh(id?: string, exerciseId?: string) {
   // GN-04 / AC-13: a step may have moved, so the side-menu badges are drawn again.
   revalidatePath("/", "layout");
-  revalidatePath("/awards");
+  revalidatePath("/projects");
   // AC-21 (C6): the case page shows the register an act changed (Before signing, and the Project stage's summary), under the contract's id or the award's.
   revalidatePath("/projects/[id]", "page");
-  if (id) revalidatePath(`/awards/${id}`);
+  if (id) revalidatePath(`/projects/${id}`);
   if (exerciseId) revalidatePath(`/sourcing/${exerciseId}`);
 }
 
@@ -576,7 +576,7 @@ export async function recallAward(_prev: FormState, data: FormData): Promise<For
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, routeLabel(a), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), reason);
     await mustMove(tx, l, "DRAFT");
     await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "DRAFT" }), reason);
-    await noticeRecall(tx, actor, { routeId: inst.id, steps: inst.steps, matter: { label: `${a.reference} · appointment`, href: `/awards/${id}`, exerciseId: l.ex.id }, unitCode: l.req.sectionUnitCode || l.req.requestingUnitCode, today: l.org.today, reason });
+    await noticeRecall(tx, actor, { routeId: inst.id, steps: inst.steps, matter: { label: `${a.reference} · appointment`, href: caseHref({ awardId: id, contractId: null }, { stage: "award" }), exerciseId: l.ex.id }, unitCode: l.req.sectionUnitCode || l.req.requestingUnitCode, today: l.org.today, reason });
     return { ok: true };
   });
 }

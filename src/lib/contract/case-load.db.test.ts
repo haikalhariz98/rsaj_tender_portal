@@ -3,12 +3,14 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { StaffActor } from "@/lib/auth/types";
 import { hiddenExerciseIds, type Reader } from "@/lib/auth/sulit-store";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
-import { loadCase } from "@/app/_auth/case";
+import { loadCase, oldAwardTarget } from "@/app/_auth/case";
 import { pipelineCounts } from "@/lib/dashboard";
 import { db } from "@/lib/db";
 import { inDelayContractIds } from "@/lib/supervision/load";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
+import { caseHref } from "./links";
+import { AWARD_TAB_IDS, awardTabToCase } from "./case-tabs";
 import { caseStage, caseStageKey } from "./case-stage";
 import { listCases, parseCaseListView, resolveCase, type CaseRowView } from "./case-load";
 import { listContracts } from "./load";
@@ -158,6 +160,49 @@ describe("loadCase writes the refusal to the access log (C5 done-when 3, FR-MTD-
     expect(await loadCase(actorOf(named), e.awardId)).toMatchObject({ kind: "AWARD_ONLY" });
     expect(await db.sulitAccessEvent.count({ where: { organisationId, entityId: e.exerciseId, outcome: "WITHHELD", actorPersonId: named } })).toBe(refused);
     expect(await db.sulitAccessEvent.count({ where: { organisationId, entityId: e.exerciseId, outcome: "GRANTED", actorPersonId: named } })).toBeGreaterThan(0);
+  });
+});
+
+describe("oldAwardTarget: /awards/{id}?tab= (C9 done-when 2 and 3; AC-23)", () => {
+  const actorOf = (personId: string) => reader(personId) as unknown as StaffActor;
+  const refusals = (exerciseId: string) => db.sulitAccessEvent.count({ where: { organisationId, entityId: exerciseId, outcome: "WITHHELD", actorPersonId: outsider } });
+  const tabs = [...AWARD_TAB_IDS, undefined, "no-such-tab", ""];
+  it("walks every ?tab value for an award-only case, an award with a contract, a cancelled award and a terminated contract", async () => {
+    for (const name of ["draft", "active", "cancelled before issue", "terminated"]) {
+      const e = ids[name];
+      for (const tab of tabs) {
+        const want = awardTabToCase(tab);
+        const got = await oldAwardTarget(actorOf(outsider), e.awardId, tab);
+        const href = "exercise" in want ? `/sourcing/${e.exerciseId}?tab=award` : caseHref({ awardId: e.awardId, contractId: e.contractId }, want);
+        expect(got, `${name} ?tab=${tab}`).toEqual({ kind: "REDIRECT", href });
+      }
+    }
+  });
+  it("sends notices to the exercise, history to the case level, and a stage-less default to the bare case", async () => {
+    const e = ids["active"];
+    expect(await oldAwardTarget(actorOf(outsider), e.awardId, "notices")).toEqual({ kind: "REDIRECT", href: `/sourcing/${e.exerciseId}?tab=award` });
+    expect(await oldAwardTarget(actorOf(outsider), e.awardId, "history")).toEqual({ kind: "REDIRECT", href: `/projects/${e.contractId}?tab=history` });
+    expect(await oldAwardTarget(actorOf(outsider), e.awardId, undefined)).toEqual({ kind: "REDIRECT", href: `/projects/${e.contractId}` });
+    expect(await oldAwardTarget(actorOf(outsider), ids["draft"].awardId, "approval")).toEqual({ kind: "REDIRECT", href: `/projects/${ids["draft"].awardId}?stage=award&tab=approval` });
+  });
+  it("a contract id, an unknown id and another organisation's id are 404, as the award page found nothing for them", async () => {
+    expect(await oldAwardTarget(actorOf(outsider), ids["active"].contractId!, undefined)).toEqual({ kind: "NOT_FOUND" });
+    expect(await oldAwardTarget(actorOf(outsider), "no-such-id", undefined)).toEqual({ kind: "NOT_FOUND" });
+  });
+  it("a hidden award is 404 and the refusal is written, before issue and after, for every tab (never forwarded to the exercise or the contract)", async () => {
+    for (const name of ["restricted approved", "restricted active", "restricted issued"]) {
+      const e = ids[name];
+      for (const tab of tabs) {
+        const before = await refusals(e.exerciseId);
+        expect(await oldAwardTarget(actorOf(outsider), e.awardId, tab), `${name} ?tab=${tab}`).toEqual({ kind: "NOT_FOUND" });
+        expect((await refusals(e.exerciseId)) - before, `${name} ?tab=${tab} logged`).toBe(1);
+      }
+    }
+  });
+  it("a reader named on the restricted exercise is redirected", async () => {
+    // The named participant is on the first restricted exercise only (the restricted draft).
+    const e = ids["restricted draft"];
+    expect(await oldAwardTarget(actorOf(named), e.awardId, "approval")).toEqual({ kind: "REDIRECT", href: caseHref({ awardId: e.awardId, contractId: e.contractId }, { stage: "award", tab: "approval" }) });
   });
 });
 

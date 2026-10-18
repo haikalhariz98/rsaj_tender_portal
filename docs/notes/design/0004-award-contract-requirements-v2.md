@@ -1122,6 +1122,7 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
 - The print views keep their URLs, with new back links.
 - Remove the dead `revalidatePath('/awards…')` calls.
 - Update `text-snapshot.mjs`, `crumbs.test.ts` and `surface.test.ts`.
+- **Status (2026-10-18): built.** See the decisions log, "Wave C step C9".
 - **Done when:**
   - a scan finds no `"/awards/` literal outside the redirect pages, the print pages and `/configuration/awards`;
   - a db test walks every `?tab` value;

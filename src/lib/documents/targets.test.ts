@@ -64,7 +64,8 @@ describe("ownerHref", () => {
   it("points at the owner's own screen", () => {
     expect(ownerHref("meeting", "x")).toBe("/committees/x");
     expect(ownerHref("exercise", "x")).toBe("/sourcing/x");
-    expect(ownerHref("award", "x")).toBe("/awards/x");
+    // AC-23 (C9): an award is a case now; its address is the case page, which forwards to the contract once there is one.
+    expect(ownerHref("award", "x")).toBe("/projects/x");
   });
   it("a specification panel is shown on its exercise's screen", () => {
     expect(ownerHref("specificationPanel", "panel1", "ex1")).toBe("/sourcing/ex1");

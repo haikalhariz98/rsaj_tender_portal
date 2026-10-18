@@ -5,17 +5,19 @@ import { describe, expect, it } from "vitest";
 
 import { AWARD_TAB_IDS, CASE_TABS, HISTORY_TAB, awardTabToCase, caseTabToStep, parseCaseStepKey, stageTab, type CaseTabStep } from "./case-tabs";
 
-/// The tab ids a page's `tabs` list declares today: each entry opens with `{ id: "…",` or `id: "…",` on its own line.
-const tabIdsOf = (page: string) => [...readFileSync(join(process.cwd(), page), "utf8").matchAll(/^\s*\{?\s*id: "([a-z-]+)",/gm)].map((m) => m[1]);
 
 // The contract page's eleven tabs, as persisted `?tab=` links carry them (F0-5).
 const CONTRACT_TAB_IDS = ["overview", "formation", "baseline", "team", "site", "payments", "variations", "securities", "documents", "submissions", "history"];
 
 describe("the tab ids are today's (scanned from the pages)", () => {
-  // Until C9 turns /awards/[id] into a redirect, its tabs list is the source.
-  it("/awards/[id] has exactly the ten AWARD_TAB_IDS", () => {
-    expect(new Set(tabIdsOf("src/app/awards/[id]/page.tsx"))).toEqual(new Set(AWARD_TAB_IDS));
+  // AC-23 (C9): /awards/[id] is a redirect and lists no tabs, so AWARD_TAB_IDS is the record of the ten it had. Every one of them
+  // still goes somewhere: a stage and tab of the case, History, or the exercise's notices.
+  it("the ten tab ids /awards/[id] had all still resolve", () => {
     expect(AWARD_TAB_IDS).toHaveLength(10);
+    for (const id of AWARD_TAB_IDS) {
+      const at = awardTabToCase(id);
+      expect(Object.keys(at).length, id).toBeGreaterThan(0);
+    }
   });
   // C-2 (wave C step C5): /projects/[id] is the case page. It lists no tab ids of its own: it draws CASE_TABS' (and History), so the
   // eleven tabs the contract page had are all still reachable, each under its stage.

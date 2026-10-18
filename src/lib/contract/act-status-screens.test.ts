@@ -277,8 +277,10 @@ describe("S1: no hand-written status list on a screen", () => {
 
   it("the contract list's executed view and its count read the same rule", () => {
     const page = readFileSync("src/app/projects/page.tsx", "utf8");
-    expect(page).toMatch(/isExecuted\(status\) \? \["executed"\]/);
-    expect(page).toMatch(/beforeExecution\(status\) \? \["forming"\]/);
+    // AC-17 (C9): the page's own "executed" and "forming" views became the case list's stage views, taken in the database from
+    // case-stage.ts (CASE_STAGE_WHERE, the twin of caseStage); the page keeps no status list of its own.
+    expect(page).toContain("listCases(");
+    expect(page).not.toMatch(/isExecuted\(|beforeExecution\(/);
     expect(readFileSync("src/lib/contract/load.ts", "utf8")).toMatch(/status: \{ in: \[\.\.\.EXECUTED_STATES\] \}/);
   });
 

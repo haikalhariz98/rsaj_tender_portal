@@ -91,7 +91,7 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
           today: l.org.today,
           label: `${l.ex.reference}`,
           facts: exerciseFacts(l.ex, awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(l.ex.classificationSnapshot, configured), window),
-          paths: [`/sourcing/${ref.id}`, ...awards.map((a) => `/awards/${a.id}`)],
+          paths: [`/sourcing/${ref.id}`, ...awards.map((a) => `/projects/${a.id}`)],
           reliance: () => null,
         });
       });
@@ -107,7 +107,7 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
           today: l.org.today,
           label: `${a.reference}`,
           facts,
-          paths: [`/awards/${a.id}`, "/awards"],
+          paths: [`/projects/${a.id}`, "/projects"],
           reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
           // OD-5, BD-12: the scan that completes the return accepts the award in the same act.
           afterChange: (tx) => acceptOnCompleteReturn(tx, actor, l),
@@ -236,7 +236,7 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
           today: l.org.today,
           label: extensionLabel(x),
           facts,
-          paths: [`/sourcing/${exerciseId}`, "/awards"],
+          paths: [`/sourcing/${exerciseId}`, "/projects"],
           reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
         });
       });
@@ -257,7 +257,7 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
           today: l.org.today,
           label: openingLabel(o),
           facts,
-          paths: [`/sourcing/${exerciseId}`, "/awards"],
+          paths: [`/sourcing/${exerciseId}`, "/projects"],
           reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
         });
       });

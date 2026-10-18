@@ -100,7 +100,9 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
   });
   it("a printed award document's crumb is the page itself; configuration's sections are named", () => {
     const c = trail("/awards/aw1/print/loa", "AW/1");
-    expect(labels(c)).toEqual(["Awards", "AW/1", "Print"]);
+    // AC-17, AC-23 (C9): Awards left the menu, so the print view's first crumb is the Contracts list.
+    expect(labels(c)).toEqual(["Contracts", "AW/1", "Print"]);
+    expect(c[0].href).toBe("/projects");
     expect(c[2].href).toBe("/awards/aw1/print/loa");
     expect(labels(trail("/configuration/contracts", null))).toEqual(["Configuration", "Contract controls"]);
     expect(labels(trail("/configuration/post-award", null))).toEqual(["Configuration", "Post-award controls"]);

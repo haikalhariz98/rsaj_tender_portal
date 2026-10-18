@@ -141,7 +141,7 @@ export async function linkAwardToSupplier(_prev: FormState, data: FormData): Pro
       diffFields({ supplier: null }, { supplier: supplierWords(supplier!), numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: reason || null, linkedBy: person.name }), reason);
     const n = notes(fs);
     return { ok: true, message: `Linked to ${supplierWords(supplier!)}.${n ? ` ${n}` : ""}` };
-  }, [`/suppliers/${supplierId}`, `/awards/${awardId}`]);
+  }, [`/suppliers/${supplierId}`, `/projects/${awardId}`]);
 }
 
 function refuseLink(fs: readonly Finding[]): FormState {

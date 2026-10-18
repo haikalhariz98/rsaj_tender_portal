@@ -3,6 +3,7 @@
  * the waiting days are `queue.ts`.
  */
 
+import { caseHref } from "@/lib/contract/links";
 import { someoneCanAct } from "@/lib/authority/absence";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { EVENT_WORDS } from "@/lib/variation/labels";
@@ -94,7 +95,7 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
       : r.certificate?.id
       ? { label: `${r.certificate.contract.number} · ${r.certificate.contract.award.awardeeName}`, kind: KIND_WORDS[r.certificate.kind].en, href: `/projects/${r.certificate.contract.id}/certificates/${r.certificate.id}?tab=routing` }
       : r.award && r.exercise
-        ? { label: `${r.award.reference} · ${r.award.awardeeName}`, kind: "Appointment", href: `/awards/${r.award.id}?tab=approval` }
+        ? { label: `${r.award.reference} · ${r.award.awardeeName}`, kind: "Appointment", href: caseHref({ awardId: r.award.id, contractId: null }, { stage: "award", tab: "approval" }) }
         : r.exercise
           ? (() => {
               // Labelled by domain, never by the absence of an award (ruling X-5).
