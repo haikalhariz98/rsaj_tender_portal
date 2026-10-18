@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { sulitGranted, sulitWithheld } from "@/lib/auth/sulit-access";
 import { registerClassOf } from "@/lib/suppliers/opening-hook";
 
-import { classAsReadText, DOWNLOAD_REFUSAL_TEXT, NO_CLASS_ON_REGISTER, ONLINE_CLASS_AS_READ, openingCsv, openingDownloadName, type DownloadOpening } from "./download";
+import { classAsReadText, DOWNLOAD_REFUSAL_TEXT, NO_CLASS_ON_REGISTER, ONLINE_CLASS_AS_READ, openingCsv, openingDownloadName, statusAsReadText, type DownloadOpening } from "./download";
 
 const opening = (over: Partial<DownloadOpening> = {}): DownloadOpening => ({
   title: "Main opening",
@@ -12,8 +12,8 @@ const opening = (over: Partial<DownloadOpening> = {}): DownloadOpening => ({
   online: false,
   header: [{ label: "Reference", value: "T-1" }],
   rows: [
-    { listingNo: 1, bidderName: "Acme Sdn Bhd", registrationClass: "G5", registerClass: "G6", registrationStatus: "Active", openingPrice: sulitGranted("RM 1,000.00", "ORGANISATION_PERMISSION"), period: "12 months", alternative: null },
-    { listingNo: 2, bidderName: "=Evil", registrationClass: "", registerClass: null, registrationStatus: "", openingPrice: sulitGranted("RM 900.00", "ORGANISATION_PERMISSION"), period: "6 months", alternative: "Alternative to No. 1" },
+    { listingNo: 1, bidderName: "Acme Sdn Bhd", registrationClass: "G5", registerClass: "G6", registrationStatus: "Active", registerStanding: null, statusHeld: false, openingPrice: sulitGranted("RM 1,000.00", "ORGANISATION_PERMISSION"), period: "12 months", alternative: null },
+    { listingNo: 2, bidderName: "=Evil", registrationClass: "", registerClass: null, registrationStatus: "", registerStanding: null, statusHeld: false, openingPrice: sulitGranted("RM 900.00", "ORGANISATION_PERMISSION"), period: "6 months", alternative: "Alternative to No. 1" },
   ],
   benchmark: { sealed: false, label: "Company estimate", companyEstimate: sulitGranted("RM 950.00", "ORGANISATION_PERMISSION") },
   summary: { rows: [{ listingNo: 1, bidderName: "Acme Sdn Bhd", openingPrice: sulitGranted("RM 1,000.00", "ORGANISATION_PERMISSION"), label: "Qualified" }, { listingNo: 2, bidderName: "=Evil", openingPrice: sulitGranted("RM 900.00", "ORGANISATION_PERMISSION"), label: "Not qualified" }] },
@@ -79,6 +79,14 @@ describe("registerClassOf (SR-15: Kelas is the register's frozen reading)", () =
 });
 
 describe("Class as read on an online row (SR-15, 20cu)", () => {
+  // AC-44 (and its same-day amendment): one function for the screen, the print page and the CSV.
+  it("statusAsReadText: paper keeps what was recorded; online shows the register's frozen standing marked as the register's, or says it was not typed, and shows nothing while held", () => {
+    expect(statusAsReadText({ value: "Active", online: false, held: false, registerStanding: null })).toBe("Active");
+    expect(statusAsReadText({ value: " ", online: false, held: false, registerStanding: null })).toBe("—");
+    expect(statusAsReadText({ value: "", online: true, held: false, registerStanding: "Active" })).toBe("Register: Active");
+    expect(statusAsReadText({ value: "", online: true, held: false, registerStanding: null })).toBe("Not typed: an online bid");
+    expect(statusAsReadText({ value: "", online: true, held: true, registerStanding: "Blacklisted" })).toBe("—");
+  });
   it("classAsReadText: online says it was not typed, paper keeps what was recorded or a dash", () => {
     expect(classAsReadText("G5", true)).toBe("Not typed: an online bid");
     expect(classAsReadText("", true)).toBe(ONLINE_CLASS_AS_READ);
@@ -93,7 +101,8 @@ describe("Class as read on an online row (SR-15, 20cu)", () => {
   };
   it("the CSV's online rows read the words in the Class as read cell, and the register's Kelas beside it is unchanged", () => {
     const rows = body(opening({ online: true }));
-    expect(rows[0]).toBe('"1","Acme Sdn Bhd","G6","Not typed: an online bid","Active","RM 1,000.00","12 months"');
+    expect(rows[0]).toBe('"1","Acme Sdn Bhd","G6","Not typed: an online bid","Not typed: an online bid","RM 1,000.00","12 months"');
+    // Changed for AC-44: an online row's Status is the register's frozen standing or, with none frozen, the same words as Class as read, never a value typed for paper.
     expect(rows[1]).toContain(`"${NO_CLASS_ON_REGISTER}","Not typed: an online bid"`);
     // The estimate row has no class at all, online or not.
     expect(rows[2]).not.toContain(ONLINE_CLASS_AS_READ);

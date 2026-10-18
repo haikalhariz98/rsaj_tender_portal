@@ -2,7 +2,7 @@ import { DataList, type Row } from "@/components/data-list";
 import { sulitText } from "@/components/sulit-cell";
 import { ButtonLink } from "@/components/ui/button";
 import { FLOW_LABEL } from "@/lib/method/flow";
-import { classAsReadText, kelasText, readText, SCHEDULE_COLUMNS, SUMMARY_COLUMNS } from "@/lib/opening/download";
+import { classAsReadText, kelasText, readText, SCHEDULE_COLUMNS, statusAsReadText, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import type { ScheduleSectionView } from "@/lib/opening/read";
 
 /**
@@ -34,7 +34,7 @@ export function ScheduleList({ o }: { o: ScheduleOpening }) {
       bidder: { kind: "stack", title: r.bidderName, sub: r.alternative || undefined },
       kelas: { kind: "text", text: kelasText(r.registerClass) },
       classAsRead: { kind: "text", text: classAsReadText(r.registrationClass, o.online) },
-      status: { kind: "text", text: readText(r.registrationStatus) },
+      status: { kind: "text", text: statusAsReadText({ value: r.registrationStatus, online: o.online, held: r.statusHeld, registerStanding: r.registerStanding }) },
       openingPrice: sulitText(r.openingPrice),
       period: { kind: "text", text: r.period },
     },

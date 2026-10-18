@@ -9,6 +9,8 @@
  */
 
 import { isEligibilitySnapshot, type EligibilitySnapshot } from "./eligibility";
+import { STANDING_LABEL } from "./labels";
+import type { Standing } from "./standing";
 
 export type Consequence = "ELIMINATE" | "REPORT";
 
@@ -23,6 +25,13 @@ export function registerClassOf(raw: unknown): string | null {
   const f = eligibilityFindingOf(raw);
   const held = [...new Set((f?.rows ?? []).filter((r) => r.kind === "GRADE").map((r) => r.data?.held?.trim() ?? "").filter(Boolean))];
   return held.length ? held.join(", ") : null;
+}
+
+/// The supplier register's standing for a bidder, as the frozen eligibility reading held it when the offer was read (AC-44), as a label. Null: not linked to the register, or a
+/// standing with no label. Never the live register.
+export function registerStandingOf(raw: unknown): string | null {
+  const s = eligibilityFindingOf(raw)?.standing;
+  return s ? (STANDING_LABEL[s as Standing]?.en ?? null) : null;
 }
 
 /// Whether an offer's frozen finding is NOT_ELIGIBLE. Not assessed is not a failure.

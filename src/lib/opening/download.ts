@@ -36,6 +36,17 @@ export const ONLINE_CLASS_AS_READ = "Not typed: an online bid";
 /// The "Class as read" cell, once for the screen, the print page and the CSV, so the three cannot drift (20cu). Paper: what the officer recorded, or a dash.
 export const classAsReadText = (value: string, online: boolean): string => (online ? ONLINE_CLASS_AS_READ : readText(value));
 
+/// What an online bid's "Status as read" reads when the frozen eligibility reading holds no register standing (AC-44), the same words as Class as read.
+export const ONLINE_STATUS_AS_READ = ONLINE_CLASS_AS_READ;
+/**
+ * The "Status as read" cell, once for the screen, the print page and the CSV (AC-44). Paper: what the officer recorded, or a dash. Online: nothing is typed, so the cell shows the supplier
+ * register's standing as frozen in the opening's eligibility reading, marked as the register's ("Register: Active"), never the live register; with none frozen, "Not typed: an online bid".
+ * While the row's names are held (`held`) it shows no standing at all and follows the row's hold, as before: a barred or suspended standing beside a listing number would give away the
+ * eligibility verdict before finalising (sealed-bid gate).
+ */
+export const statusAsReadText = (i: { value: string; online: boolean; held: boolean; registerStanding: string | null }): string =>
+  !i.online ? readText(i.value) : i.held ? readText("") : i.registerStanding?.trim() ? `Register: ${i.registerStanding.trim()}` : ONLINE_STATUS_AS_READ;
+
 /// The part of the schedule section's view that a download reads.
 export interface DownloadOpening {
   title: string;
@@ -45,7 +56,9 @@ export interface DownloadOpening {
   online: boolean;
   header: readonly { label: string; value: string }[];
   rows: readonly { listingNo: number; bidderName: string; registrationClass: string; /// The class the register held, frozen when the offer was read. Null: the register gave none.
- registerClass: string | null; registrationStatus: string; openingPrice: Sulit<string>; period: string; alternative: string | null }[];
+ registerClass: string | null; registrationStatus: string; /// The register's standing frozen in the eligibility reading, as a label; null: none, or held (AC-44).
+ registerStanding: string | null; /// The row's names are held from this reader (AC-44).
+ statusHeld: boolean; openingPrice: Sulit<string>; period: string; alternative: string | null }[];
   benchmark: null | { sealed: true; text: string } | { sealed: false; label: string; companyEstimate: Sulit<string> };
   summary: null | { rows: readonly { listingNo: number; bidderName: string; openingPrice: Sulit<string>; label: string }[] };
 }
@@ -66,7 +79,7 @@ export function openingCsv(kind: OpeningDownloadKind, o: DownloadOpening): { csv
   if (kind === "schedule") {
     const c = SCHEDULE_COLUMNS;
     out.push(line([c.listing, c.bidder, c.kelas, c.classAsRead, c.status, c.price, c.period]));
-    for (const r of o.rows) out.push(line([String(r.listingNo), r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName, kelasText(r.registerClass), classAsReadText(r.registrationClass, o.online), readText(r.registrationStatus), priceText(r.openingPrice), r.period]));
+    for (const r of o.rows) out.push(line([String(r.listingNo), r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName, kelasText(r.registerClass), classAsReadText(r.registrationClass, o.online), statusAsReadText({ value: r.registrationStatus, online: o.online, held: r.statusHeld, registerStanding: r.registerStanding }), priceText(r.openingPrice), r.period]));
     if (o.benchmark) out.push(line(["—", o.benchmark.sealed ? "Company estimate" : o.benchmark.label, "—", "—", "—", o.benchmark.sealed ? o.benchmark.text : priceText(o.benchmark.companyEstimate), "—"]));
     return { csv: out.join("\r\n") };
   }
