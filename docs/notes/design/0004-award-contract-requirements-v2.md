@@ -1040,6 +1040,8 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
   - the default step for an unknown tab is the earliest with something to do;
   - for `CONTRACT_STAGES_ONLY`, no Award-stage action and no `LODGE_SECURITY` or `VERIFY_SECURITY` is offered (Before signing is
     read-only, as today's contract tab is).
+- **Status, 2026-10-18.** Built and tested (`case-steps.test.ts`, `case-tabs.test.ts`, `links.test.ts`). The gaps the state table
+  leaves, the redacted step words and the additive exports are logged in the decisions log (C1 lines).
 
 **C2. design-system-engineer: extend `Stepper` (§6.2).**
 - Add a `parked` state, optional per-step `href`, and a `selected` key, rendered as `aria-current="step"` on the selected step only.
