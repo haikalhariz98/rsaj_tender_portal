@@ -1025,6 +1025,10 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
 
 **C0. solution-architect: ADR 0037 and the §6.1–6.2 contracts reviewed against the code as it stands after wave G.**
 - **Done when** the ADR is accepted and the contracts are frozen.
+- **Status, 2026-10-18.**
+  - The contracts are frozen (§6.1, §6.2).
+  - ADR 0037 is written and **Proposed**. The product owner's acceptance is owed before C2. It is asked in the decisions log, with
+    F0-1 to F0-11.
 
 **C1. domain-engineer: the case contracts and rules (§6.1).**
 - Add `case-steps.ts` (`caseSteps`, `defaultCaseStep`), `case-tabs.ts` (`CASE_TABS`, `awardTabToCase`) and `links.ts` (`caseHref`).
@@ -1043,7 +1047,8 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
 - **Done when** the existing five users render unchanged (snapshot), and a test covers parked, selected and linked steps.
 
 **C3. api-engineer: `loadCase` and `listCases` (§6.1).**
-- `src/lib/contract/case-load.ts` resolves a contract, or else an award, within the organisation.
+- `src/lib/contract/case-load.ts` resolves a contract, or else an award, within the organisation (`resolveCase`). Under the C0 freeze
+  (F0-7), `loadCase`, which adds the logged visibility check, lives in `src/app/_auth/case.ts`.
 - `listCases` runs `Award` LEFT JOIN `Contract`, with the views:
   - the five stages;
   - `ended`;
@@ -1264,12 +1269,30 @@ and no code (AC-7). The C-2 Project stage holds today's tabs and the MN-02 bridg
 
 ### 6.1 Wave C (and G3): no schema change (AC-1)
 
+**Frozen in C0, 2026-10-18,** against the code after wave G (`2537beaf`), with ADR 0037 (proposed, not yet accepted). The changes
+from the sketch are listed below. Each is ADR 0037's F0 point, logged in the decisions log as a product-owner question.
+- **Real type names (F0-1).**
+  - `InstrumentKind`, not `AwardInstrumentKind`;
+  - `Finding`, not `Fault`;
+  - `ReturnType<typeof readinessGate>`, not `ReadinessGate`;
+  - `CaseFacts` takes today's outputs, not `AwardFacts`.
+- **Buttons as today (F0-2).** Each main button comes from today's own drawer condition, and "Record commencement" is offered on today's
+  header condition, on the Project step.
+- **Award ids (F0-3).** Under CONTRACT_STAGES_ONLY an award id is 404 and logged on `/projects/[id]`.
+- **Before signing (F0-4).** Two rows are added to the surface table.
+- **Stage-less tabs (F0-5).** `caseTabToStep` is added.
+- **Ended cases (F0-6).** `defaultCaseStep` takes the standing.
+- **The split (F0-7).** `resolveCase` (lib) is separated from `loadCase` (app).
+- **Standalone views (F0-8).** `CaseRowView` and `parseCaseListView`; securities and submissions stay their own views.
+- **Shared cap (F0-9).** `DERIVE_CAP` moves to lib.
+- **Signing (F0-11).** The action table.
+
 ```ts
 // src/lib/contract/case-stage.ts (G3)
 export type CaseStage = "AWARDING" | "SIGNING" | "ON_SITE" | "COMPLETED" | "CLOSED";
 export type CaseEnded = "CANCELLED_BEFORE_ISSUE" | "CONTRACT_CANCELLED" | "TERMINATED";
 export interface CaseStageInput {
-  award: { status: AwardStatus; instrumentKind: AwardInstrumentKind };
+  award: { status: AwardStatus; instrumentKind: InstrumentKind };
   contract: { status: ContractStatus } | null;
   commencement: { commencedOn: string | null };   // Award.commencedOn as an organisation day
 }
@@ -1295,50 +1318,132 @@ export function caseVisibilityWhere(hiddenExerciseIds: readonly string[]): Prism
 // | /projects/[id]           | every stage   | Award stage refused and logged; contract stages render                          | 404, logged   |
 // | Before signing           | acts offered  | read-only; caseSteps offers no LODGE_SECURITY / VERIFY_SECURITY (the acts sit  | —             |
 // |                          |               | behind withLockedAwardFor, which refuses today)                                 |               |
+// | Before signing ›         | rendered,     | not rendered (it reads LoadedAward); the restricted note in its place (F0-4)    | —             |
+// |   conditions             | acts offered  |                                                                                 |               |
+// | Before signing ›         | award register| the contract's register exactly as its Securities tab today                     | —             |
+// |   securities             | + drawers, and| (projects/[id]/page.tsx:299), recordWcCheck still offered (a contract act under |               |
+// |                          | the wages chk | staffForAct); no lodge or verify (F0-4)                                         |               |
+// | /projects/[awardId]      | render, or    | 404, logged; never redirected (F0-3)                                            | 404, logged   |
+// |                          | redirect      |                                                                                 |               |
 // | Case-level History       | award+contract| contract rows only; award rows (awardHistory) dropped                           | —             |
 // | /awards/** redirects     | redirect      | 404, logged (today's award page refuses before and after issue)                 | 404, logged   |
 // | Dashboard Contracts card | counted       | counted (as Contracts are today)                                                | not counted   |
 
-// src/lib/contract/case-steps.ts (C1)
+// src/lib/dashboard/pipeline.ts (G3, built): CASE_PIPELINE, casePipelineWhere. listCases' stage counts use the same
+// CASE_STAGE_WHERE fragments joined to caseVisibilityWhere by AND, so the list's Awarding + Signing + On site equals the card.
+
+// src/lib/contract/case-steps.ts (C1). Pure. It never adds a gate (F0-2, AC-20): it orders the facts the page already computes
+// and turns them into a state, a "next" line and at most one action per step.
 export type CaseStepKey = "award" | "before-signing" | "signing" | "project" | "close-out";
 export type CaseStepState = "done" | "in-progress" | "waiting" | "parked";
 export type CaseAction =
   | "SEND_FOR_APPROVAL" | "ISSUE" | "RECORD_DESPATCH" | "RECORD_RETURN" | "RECORD_COMMENCEMENT"
   | "LODGE_SECURITY" | "VERIFY_SECURITY" | "START_PREPARATION" | "SUBMIT_TO_LEGAL"
   | "RECORD_SIGNATURE" | "RECORD_STAMPING" | "RECORD_POSSESSION";
+/// The acts that run through withLockedAwardFor: never offered under CONTRACT_STAGES_ONLY.
+export const AWARD_ACTS: readonly CaseAction[] = ["SEND_FOR_APPROVAL", "ISSUE", "RECORD_DESPATCH", "RECORD_RETURN", "RECORD_COMMENCEMENT", "LODGE_SECURITY", "VERIFY_SECURITY"];
 export interface CaseStep { key: CaseStepKey; state: CaseStepState; next: string /* label words, never a code */; action: CaseAction | null }
-export interface CaseFacts { /* the existing outputs, not re-derived: */
-  award: AwardFacts; submitFaults: Fault[]; issueFaults: Fault[]; readiness: ReadinessGate | null;
-  startFaults: Fault[] | null; actStatus: ActStatusFault | null; commencement: CommencementState | null;
-  securitiesToVerify: number; visibility: CaseVisibility;
+
+/// Each fact is today's own condition, computed by the page at the line cited (F0-1, F0-2). Nothing here is re-derived.
+export interface AwardStepFacts {
+  status: AwardStatus; instrumentKind: InstrumentKind;
+  submitBlocks: readonly Finding[];   // ev.submitFaults at level "block" (awards/[id]/page.tsx:200)
+  issueReady: boolean;                // awards/[id]/page.tsx:206: APPROVED, no issue fault, the signatory resolved
+  issueFaults: readonly Finding[];    // ev.issueFaults, for the "next" words when not ready
+  despatchOpen: number;               // distribution rows whose DespatchDrawer renders (awards/[id]/page.tsx:1055)
+  returnOffered: boolean;             // awards/[id]/page.tsx:1110: ISSUED or ACCEPTED, and the panel's SULIT gate GRANTED
+  returned: boolean;                  // instrumentReturned(kind, awardReturn)
+  commencement: CommencementState | null;   // ev.commencement, for the "next" words only
+  commencementOffered: boolean;       // awards/[id]/page.tsx:303: ISSUED or ACCEPTED, not a Letter of Acceptance, no commencedOn
 }
-export function caseSteps(f: CaseFacts): CaseStep[];        // Close-out always "parked", action null
-export function defaultCaseStep(steps: CaseStep[]): CaseStepKey;   // earliest with an action, else the last in progress
+export interface BeforeSigningFacts {
+  readiness: ReturnType<typeof readinessGate> | null;   // null under CONTRACT_STAGES_ONLY (it reads the award)
+  securitiesToVerify: number;         // LODGED bonds and policies; 0 under CONTRACT_STAGES_ONLY
+  lodgeOffered: boolean;              // the award SecuritiesPanel's `open` (awards/[id]/page.tsx:1216); false under CONTRACT_STAGES_ONLY
+}
+export type SigningAct = Extract<CaseAction, "START_PREPARATION" | "SUBMIT_TO_LEGAL" | "RECORD_SIGNATURE" | "RECORD_STAMPING" | "RECORD_POSSESSION">;
+export interface SigningFacts {
+  status: ContractStatus;
+  /// The act today's page offers for this status (ADR 0037 F0-11), with its Blocked words already rendered (contractFaultText);
+  /// null where none is offered (PENDING_LEGAL_ENDORSEMENT, or the possession's office hidden).
+  act: { action: SigningAct; blocker: string | null } | null;
+}
+export interface CaseFacts {
+  visibility: Exclude<CaseVisibility, "HIDDEN">;   // the page has already answered 404 for HIDDEN
+  standing: CaseStanding;                         // caseStage(...)
+  award: AwardStepFacts | null;                   // null under CONTRACT_STAGES_ONLY: the award readers do not run
+  beforeSigning: BeforeSigningFacts | null;       // null before issue (no Contract row; lodging only after issue, R-4)
+  signing: SigningFacts | null;                   // null without a Contract row
+}
+export function caseSteps(f: CaseFacts): CaseStep[];   // always five steps, in CaseStepKey order
+// State per step (C1 tests each line):
+//  award:          done if ACCEPTED; in-progress if DRAFT..ISSUED; waiting under CONTRACT_STAGES_ONLY (its words say it is
+//                  restricted). Action: DRAFT with no submitBlocks → SEND_FOR_APPROVAL; APPROVED and issueReady → ISSUE; ISSUED
+//                  with despatchOpen → RECORD_DESPATCH; else ISSUED, not returned and returnOffered → RECORD_RETURN; otherwise
+//                  null, and the first blocking finding's words (or "Waiting for approval" while PENDING_APPROVAL) become `next`.
+//  before-signing: waiting with no contract; done if readiness.ready or the contract is EXECUTED or later; in-progress otherwise.
+//                  Action: securitiesToVerify > 0 → VERIFY_SECURITY; else lodgeOffered and the BOND or INSURANCE item NOT_MET
+//                  → LODGE_SECURITY; else null, with the outstanding item's words.
+//  signing:        waiting with no contract; in-progress NUMBER_ALLOCATED..STAMPED; done from ACTIVE on (and for TERMINATED).
+//                  Action: signing.act when its blocker is null; else null, with the blocker as `next`.
+//  project:        in-progress at ON_SITE or COMPLETED, or when award.commencementOffered (an indent before commencement);
+//                  done at CLOSED; waiting otherwise. Action: RECORD_COMMENCEMENT when award.commencementOffered; else null.
+//  close-out:      always parked, action null, next "Parked until after go-live" (F-3).
+// Then: under CONTRACT_STAGES_ONLY every AWARD_ACTS action is null. For an ENDED standing every action is null and every
+// in-progress step reads waiting.
+export function defaultCaseStep(steps: CaseStep[], standing: CaseStanding): CaseStepKey;
+// ENDED (F0-6): CANCELLED_BEFORE_ISSUE → "award"; CONTRACT_CANCELLED → "signing"; TERMINATED → "project".
+// LIVE: the earliest step with an action; else the last in progress; else the last done; else "award".
 
 // src/lib/contract/case-tabs.ts (C1)
 export const CASE_TABS: Record<Exclude<CaseStepKey, "close-out">, readonly string[]> = {
   award: ["overview", "approval", "instrument", "distribution", "return", "routing"],   // "instrument" is labelled "Letter"
-  "before-signing": ["conditions", "securities"],
+  "before-signing": ["conditions", "securities"],   // securities: the award's register and the contract's, one tab (F0-4)
   signing: ["formation", "baseline"],
   project: ["overview", "team", "site", "payments", "variations", "documents", "submissions"],   // overview: F-1
 };
 // history is case-level: ?tab=history with no stage
+/// The ten award tab ids, for /awards/[id]?tab= (C-6). "notices" goes to the exercise (AC-22); "history" is case-level.
 export function awardTabToCase(tab: string | undefined): { stage?: CaseStepKey; tab?: string } | { exercise: "notices" };
+/// A stage-less ?tab= on /projects/[id], as persisted links carry (F0-5): "overview" → project on a contract, award on an
+/// award-only case; "securities" → before-signing; "history" → case level; any other known tab → its one stage; else null
+/// (the default step). `?stage=` with a tab not in that stage opens the stage's first tab.
+export function caseTabToStep(tab: string | undefined, hasContract: boolean): { stage: Exclude<CaseStepKey, "close-out">; tab: string } | { history: true } | null;
 
 // src/lib/contract/links.ts (C1): the only builder of case URLs (AC-23)
 export interface CaseRef { awardId: string; contractId: string | null }
 export function caseHref(ref: CaseRef, at?: { stage?: CaseStepKey; tab?: string; section?: string }): string;
-// → /projects/{contractId ?? awardId}?stage=&tab=&section=
+// → /projects/{contractId ?? awardId}?stage=&tab=&section= (empty parameters left out)
 
-// src/lib/contract/case-load.ts (C3)
-export type LoadedCase =
-  | { kind: "CONTRACT"; contractId: string; awardId: string; visibility: CaseVisibility }
-  | { kind: "AWARD_ONLY"; awardId: string; visibility: CaseVisibility }
-  | { kind: "REDIRECT"; contractId: string }   // an award id whose contract exists
+// src/lib/contract/case-load.ts (C3). Database only; no logging, no src/app import (F0-7).
+export type ResolvedCase =
+  | { kind: "CONTRACT"; contractId: string; awardId: string; exerciseId: string }
+  | { kind: "AWARD_ONLY"; awardId: string; exerciseId: string }
+  | { kind: "AWARD_WITH_CONTRACT"; awardId: string; contractId: string; exerciseId: string }   // an award id whose contract exists
   | { kind: "NOT_FOUND" };
-export function loadCase(actor: StaffActor, id: string): Promise<LoadedCase>;   // logs a refusal for a restricted case
-export function listCases(actor: StaffActor, q: { view?: CaseListView; page?: number }): Promise<CasePage>;
-export type CaseListView = Lowercase<CaseStage> | "ended" | "delay" | "commenced" | "securities" | "submissions" | undefined;
+export function resolveCase(organisationId: string, id: string, client?: Tx): Promise<ResolvedCase>;   // a contract id first, then an award id
+export type CaseListView = Lowercase<CaseStage> | "ended" | "delay" | "commenced" | "securities" | "submissions";
+export type CaseRowView = Exclude<CaseListView, "securities" | "submissions">;   // F0-8: the two wave G views stay their own readers
+export function parseCaseListView(v: string | undefined): CaseListView | undefined;   // unknown → undefined ("all")
+export interface CaseRow {
+  awardId: string; contractId: string | null; standing: CaseStanding;
+  visibility: Exclude<CaseVisibility, "HIDDEN">;
+  contract: ContractListColumns | null;   // exactly the columns listContracts returns today
+  award: AwardListColumns | null;         // the awards-list columns and chips; null under CONTRACT_STAGES_ONLY (AC-18)
+}
+export interface CasePage { rows: CaseRow[]; total: number; page: number; pageSize: number; counts: Record<CaseRowView | "all", number> }
+/// `hidden` is hiddenExercises(actor), passed by the caller as casePipelineWhere's is. Ordered by award createdAt desc, then id.
+export function listCases(organisationId: string, hidden: readonly string[], q: { view?: CaseRowView; page?: number }): Promise<CasePage>;
+export const DERIVE_CAP: number;   // moved from src/app/projects/page.tsx:33 to src/lib/contract/load.ts (F0-9), value unchanged
+
+// src/app/_auth/case.ts (C3): the app-layer guard beside exerciseIsHidden (F0-7)
+export type LoadedCase =
+  | { kind: "CONTRACT"; contractId: string; awardId: string; visibility: "WHOLE" | "CONTRACT_STAGES_ONLY" }
+  | { kind: "AWARD_ONLY"; awardId: string; visibility: "WHOLE" }
+  | { kind: "REDIRECT"; contractId: string }   // only when WHOLE (F0-3)
+  | { kind: "NOT_FOUND" };                     // missing, HIDDEN, or an award id under CONTRACT_STAGES_ONLY; the refusal logged
+/// resolveCase, then exerciseIsHidden (which logs, as the award page does today), then caseVisibility.
+export function loadCase(actor: StaffActor, id: string): Promise<LoadedCase>;
 ```
 
 **Routes.**
@@ -1350,11 +1455,16 @@ export type CaseListView = Lowercase<CaseStage> | "ended" | "delay" | "commenced
 
 ### 6.2 `Stepper` extension (C2)
 
+**Frozen in C0, 2026-10-18 (ADR 0037 F0-10):** `selected` is optional, and its absence is today's behaviour.
+
 ```ts
 // src/lib/ui/steps.ts
 export type StepState = "done" | "current" | "waiting" | "rejected" | "parked";   // parked: greyed out, dashed, "parked" to a screen reader
 export interface StepperStep { /* existing */ href?: string }                   // a step may be a link (the case's stage switch)
-// <Stepper steps label selected?: string />: aria-current="step" on the selected step only; several steps may be "current"
+// <Stepper steps label selected?: string />
+//  - selected absent: aria-current="step" on every "current" step, exactly as today, so the five users render unchanged;
+//  - selected given: aria-current="step" on that step only; several steps may still be "current".
+// STATE_WORDS.parked = "parked"; DOT.parked: a dashed border, greyed out.
 ```
 
 `caseSteps` maps "in-progress" to `current`, "waiting" to `waiting` and "parked" to `parked`. No one-off step bar is drawn.
