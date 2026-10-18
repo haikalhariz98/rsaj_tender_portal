@@ -1,4 +1,8 @@
-import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_ORDER } from "./labels";
+import { BREAKDOWN_WORDS, EXERCISE_PHASE_WORDS, EXERCISE_STATUS_WORDS } from "@/lib/i18n/catalogues/dashboard";
+import type { Language } from "@/lib/i18n/language";
+import { say, sayWith } from "@/lib/i18n/say";
+
+import { EXERCISE_STATUS_ORDER } from "./labels";
 import type { ExerciseStatus } from "./types";
 
 /// The three phases an open sourcing exercise is in, for a summary that fits a dashboard card
@@ -31,7 +35,7 @@ type Bucket = { status: ExerciseStatus; count: number };
 
 /// "13 preparing · 2 out to market · 3 at opening or evaluation": phases with none are left out.
 /// Cancelled exercises are not open and are not counted here.
-export function phaseSummary(openByStatus: readonly Bucket[]): string {
+export function phaseSummary(openByStatus: readonly Bucket[], lang: Language = "en"): string {
   const totals = new Map<ExercisePhase, number>();
   for (const b of openByStatus) {
     if (b.status === "CANCELLED" || b.count <= 0) continue;
@@ -39,16 +43,16 @@ export function phaseSummary(openByStatus: readonly Bucket[]): string {
     totals.set(phase, (totals.get(phase) ?? 0) + b.count);
   }
   return PHASE_ORDER.filter((p) => (totals.get(p) ?? 0) > 0)
-    .map((p) => `${totals.get(p)} ${EXERCISE_PHASE_LABEL[p]}`)
+    .map((p) => `${totals.get(p)} ${say(EXERCISE_PHASE_WORDS[p], lang)}`)
     .join(" · ");
 }
 
 /// The full breakdown behind the summary, in the statuses' own order, for its tooltip.
-export function statusBreakdown(openByStatus: readonly Bucket[], cancelled: number): string {
+export function statusBreakdown(openByStatus: readonly Bucket[], cancelled: number, lang: Language = "en"): string {
   const by = new Map(openByStatus.map((b) => [b.status, b.count]));
   const parts = EXERCISE_STATUS_ORDER.filter((s) => s !== "CANCELLED" && (by.get(s) ?? 0) > 0).map(
-    (s) => `${by.get(s)} ${EXERCISE_STATUS_LABEL[s].toLowerCase()}`,
+    (s) => `${by.get(s)} ${say(EXERCISE_STATUS_WORDS[s], lang).toLowerCase()}`,
   );
-  if (cancelled > 0) parts.push(`${cancelled} cancelled, not counted`);
+  if (cancelled > 0) parts.push(sayWith(BREAKDOWN_WORDS.cancelledNotCounted, lang, { count: String(cancelled) }));
   return parts.join(" · ");
 }

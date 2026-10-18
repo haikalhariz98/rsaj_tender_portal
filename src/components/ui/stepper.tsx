@@ -1,19 +1,21 @@
 import Link from "next/link";
 
+import { Say } from "@/components/i18n/language-context";
 import { CheckIcon, XIcon } from "@/components/icons";
+import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 import type { StepState, StepperStep } from "@/lib/ui/steps";
 
 import { cx } from "./cx";
 
 export type { StepState, StepperStep };
 
-const STATE_WORDS: Record<StepState, string> = {
-  done: "done",
-  current: "waiting now",
-  waiting: "not reached yet",
-  rejected: "rejected",
-  parked: "parked",
-};
+const STATE_WORDS = {
+  done: COMPONENT_WORDS.stepDone,
+  current: COMPONENT_WORDS.stepCurrent,
+  waiting: COMPONENT_WORDS.stepWaiting,
+  rejected: COMPONENT_WORDS.stepRejected,
+  parked: COMPONENT_WORDS.stepParked,
+} as const;
 
 const DOT: Record<StepState, string> = {
   done: "bg-emerald-600 text-white",
@@ -68,7 +70,7 @@ export function Stepper({ steps, label, selected }: { steps: StepperStep[]; labe
                 )}
               </span>
               {s.sub && <span className="mt-0.5 block text-[12.5px] leading-snug break-words text-ink-3">{s.sub}</span>}
-              <span className="sr-only">, {s.stateText ?? STATE_WORDS[s.state]}</span>
+              <span className="sr-only">, {s.stateText ?? <Say words={STATE_WORDS[s.state]} />}</span>
             </span>
           </li>
         );

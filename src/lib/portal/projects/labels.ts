@@ -3,7 +3,10 @@
  * against its service level.
  */
 
+import { SUBMISSIONS_WORDS } from "@/lib/contract/case-page-words";
 import { formatDate } from "@/lib/format";
+import type { Language } from "@/lib/i18n/language";
+import { say, sayWith } from "@/lib/i18n/say";
 
 import type { ServiceState } from "./submission";
 import type { SubmissionKind, SubmissionOutcome } from "./types";
@@ -48,16 +51,18 @@ export const SERVICE_UNIT_ASSUMED_NOTE = w("The unit is calendar days. That is a
 
 export const SERVICE_NOT_SET = w("Service level not set", "Tahap perkhidmatan belum ditetapkan");
 
-export function serviceWords(s: ServiceState): { text: string; tone: "ok" | "warn" | "err" | "neutral" | "info" } {
+export function serviceWords(s: ServiceState, lang: Language = "en"): { text: string; tone: "ok" | "warn" | "err" | "neutral" | "info" } {
+  const S = SUBMISSIONS_WORDS;
+  const date = (d: Date | string) => formatDate(d, lang);
   switch (s.state) {
     case "NOT_SET":
-      return { text: `${SERVICE_NOT_SET.en}: no due day`, tone: "neutral" };
+      return { text: sayWith(S.svcNotSet, lang, { notSet: say(SERVICE_NOT_SET, lang) }), tone: "neutral" };
     case "DUE":
-      return { text: s.daysLeft === 0 ? `Due today, ${formatDate(s.dueOn)}` : `Due ${formatDate(s.dueOn)}, ${s.daysLeft} day${s.daysLeft === 1 ? "" : "s"} left`, tone: s.daysLeft <= 2 ? "warn" : "info" };
+      return { text: s.daysLeft === 0 ? sayWith(S.svcDueToday, lang, { date: date(s.dueOn) }) : sayWith(s.daysLeft === 1 ? S.svcDueOne : S.svcDueMany, lang, { date: date(s.dueOn), count: String(s.daysLeft) }), tone: s.daysLeft <= 2 ? "warn" : "info" };
     case "OVERDUE":
-      return { text: `Overdue: was due ${formatDate(s.dueOn)}, ${s.daysOver} day${s.daysOver === 1 ? "" : "s"} ago`, tone: "err" };
+      return { text: sayWith(s.daysOver === 1 ? S.svcOverdueOne : S.svcOverdueMany, lang, { date: date(s.dueOn), count: String(s.daysOver) }), tone: "err" };
     case "ANSWERED":
-      return s.onTime == null ? { text: "Answered (no service level was set)", tone: "ok" } : s.onTime ? { text: `Answered by its due day, ${formatDate(s.dueOn!)}`, tone: "ok" } : { text: `Answered after its due day, ${formatDate(s.dueOn!)}`, tone: "warn" };
+      return s.onTime == null ? { text: say(S.svcAnsweredNoLevel, lang), tone: "ok" } : s.onTime ? { text: sayWith(S.svcAnsweredOnTime, lang, { date: date(s.dueOn!) }), tone: "ok" } : { text: sayWith(S.svcAnsweredLate, lang, { date: date(s.dueOn!) }), tone: "warn" };
   }
 }
 

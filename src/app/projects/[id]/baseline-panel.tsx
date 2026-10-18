@@ -1,3 +1,5 @@
+import { Say, SayWith } from "@/components/i18n/language-context";
+import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import type { ReactNode } from "react";
@@ -123,7 +125,7 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
       <Card className="overflow-hidden">
         <CardHeader
           icon={<FileIcon size={17} />}
-          title={latest ? `Version ${latest.version} in force` : "The draft"}
+          title={latest ? <SayWith words={P.versionInForce} values={{ version: String(latest.version) }} /> : <Say words={P.theDraft} />}
           subtitle={latest ? `${REASON_WORDS[latest.reason!].en}, ${formatDate(latest.recordedOn)}. Never edited: a change is a correction, with its reason.` : "Built when preparation started. Values nothing else states are entered here, each with where it came from."}
           actions={
             !latest && status !== "CANCELLED" && !isExecuted(status) ? (
@@ -188,7 +190,7 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClockIcon size={17} />} title="Versions" subtitle="Each written once. Every later calculation reads the version in force on its day and keeps the one it read." divided={versions.length === 0} />
+        <CardHeader icon={<ClockIcon size={17} />} title={<Say words={P.versions} />} subtitle="Each written once. Every later calculation reads the version in force on its day and keeps the one it read." divided={versions.length === 0} />
         {versions.length === 0 ? (
           <EmptyState size="sm" title="No version yet">The baseline is confirmed before the first valuation, once the readiness gate is met.</EmptyState>
         ) : (

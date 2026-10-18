@@ -1,5 +1,7 @@
 import { requireStaff } from "@/app/_auth/actor";
-import { EMPLOYER_SIGNING_NOT_SET, EMPLOYER_SIGNING_NOT_SET_WHY } from "@/lib/contract/employer-signing";
+import { currentLanguage } from "@/app/_auth/language";
+import { CASE_REFUSAL_WORDS as R } from "@/lib/contract/case-page-words";
+import { say, sayWith } from "@/lib/i18n/say";
 import { db } from "@/lib/db";
 
 /**
@@ -9,12 +11,13 @@ import { db } from "@/lib/db";
  */
 export async function EmployerSigningNote() {
   const actor = await requireStaff();
+  const { language: lang } = await currentLanguage();
   const policy = await db.contractPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { employerSigningRoleCode: true } });
   const code = policy?.employerSigningRoleCode ?? null;
   const office = code ? await db.authorityRole.findFirst({ where: { organisationId: actor.organisationId, code }, select: { nameEn: true } }) : null;
   return (
     <p className="text-[12.5px] break-words text-ink-3">
-      {code ? <>The employer&apos;s amendments are signed by {office?.nameEn ?? "an office no longer configured"}.</> : <><span className="font-semibold text-ink-2">{EMPLOYER_SIGNING_NOT_SET}.</span> {EMPLOYER_SIGNING_NOT_SET_WHY} It is set under Configuration › Contract controls.</>}
+      {code ? <>{sayWith(R.employerSignedBy, lang, { office: office?.nameEn ?? say(R.officeNoLongerConfigured, lang) })}</> : <><span className="font-semibold text-ink-2">{say(R.employerSigningNotSet, lang)}.</span> {say(R.employerSigningNotSetWhy, lang)} {say(R.employerSigningSetUnder, lang)}</>}
     </p>
   );
 }

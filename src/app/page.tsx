@@ -22,7 +22,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import Link from "next/link";
 import type { ActivityKind } from "@/lib/dashboard/activity";
-import { WAITING_RULE_TEXT } from "@/lib/approvals/queue";
+import type { Words } from "@/lib/contract/labels";
 import { phaseSummary, statusBreakdown } from "@/lib/method/phase";
 import { loadDashboard } from "@/lib/dashboard";
 import { requestWorklist } from "@/app/_auth/worklist";
@@ -32,6 +32,10 @@ import { matterLabel } from "@/lib/labels";
 import { greetingAt } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
 import { requireStaff } from "@/app/_auth/actor";
+import { currentLanguage } from "@/app/_auth/language";
+import { DASHBOARD_WORDS as D, WAITING_RULE_WORDS } from "@/lib/i18n/catalogues/dashboard";
+import { titleFor } from "@/lib/i18n/job-title";
+import { say, sayWith } from "@/lib/i18n/say";
 import { SignInNotices } from "@/components/auth/sign-in-notices";
 import { loadAccountView } from "@/lib/auth/account-view";
 import { caseHref } from "@/lib/contract/links";
@@ -59,23 +63,24 @@ const ACTIVITY_ICON: Record<ActivityKind, React.ReactNode> = {
 const COMING = [
   {
     icon: <ToolsIcon size={17} />,
-    title: "Project health",
-    body: "Progress, certified value and time remaining will report here once contract administration lands.",
+    title: D.projectHealth,
+    body: D.projectHealthBody,
   },
 ];
 
 export default async function Dashboard() {
   const actor = await requireStaff();
+  const { language: lang } = await currentLanguage();
+  const t = (words: Words) => say(words, lang);
   // "Awaiting my decision" is the My approvals badge's own reading: `requestWorklist` is request-cached, so the layout and this page share one load (GN-03, AC-11). Every read starts
   // together (AC-9b); `hiddenExercises` and the time zone are request-cached, so the layout, the worklist and the loader share one read each.
-  const [accountView, data, timeZone, worklist] = await Promise.all([loadAccountView(actor), hiddenExercises(actor).then((hidden) => loadDashboard(actor.organisationId, hidden)), organisationTimeZone(actor.organisationId), requestWorklist(actor)]);
+  const [accountView, data, timeZone, worklist] = await Promise.all([loadAccountView(actor), hiddenExercises(actor).then((hidden) => loadDashboard(actor.organisationId, hidden, new Date(), lang)), organisationTimeZone(actor.organisationId), requestWorklist(actor)]);
 
   if (!data) {
     return (
       <Card>
-        <EmptyState title="Nothing configured yet" icon={<SparkleIcon size={24} />}>
-          Run <code className="font-mono text-[12.5px]">npm run setup</code> to load the
-          organisation.
+        <EmptyState title={t(D.setupTitle)} icon={<SparkleIcon size={24} />}>
+          {t(D.setupRun)} <code className="font-mono text-[12.5px]">npm run setup</code> {t(D.setupLoad)}
         </EmptyState>
       </Card>
     );
@@ -91,6 +96,7 @@ export default async function Dashboard() {
   const now = new Date();
   // Greet by the name of whoever is signed in, from their session. Nobody signed in: the greeting alone.
   const firstName = actor.personName.split(/\s+/)[0];
+  const jobTitle = titleFor(actor, lang);
   const awaitingMe = worklist ? waitingForCount(myStepsOf(worklist.groups, actor.personId)) : 0;
   const { requisitions: reqPipe, sourcing: srcPipe, contracts: conPipe } = data.pipeline;
   // Waiting days are shown as a count, with no judgement: there is no configured
@@ -99,68 +105,68 @@ export default async function Dashboard() {
   return (
     <>
       <PageHeader
-        title={firstName ? `${greetingAt(now, timeZone)}, ${firstName}` : greetingAt(now, timeZone)}
+        title={firstName ? `${greetingAt(now, timeZone, lang)}, ${firstName}` : greetingAt(now, timeZone, lang)}
         meta={[
-          actor.jobTitle && (
+          jobTitle && (
             <>
               <UserIcon size={14} />
-              {actor.jobTitle}
+              {jobTitle}
             </>
           ),
           <>
             <CalendarIcon size={14} />
-            {formatOrgDay(now, timeZone)}
+            {formatOrgDay(now, timeZone, lang)}
           </>,
         ]}
         actions={
           <>
             <ButtonLink href="/requisitions/new" variant="primary" icon={<PlusIcon size={16} />}>
-              New requisition
+              {t(D.newRequisition)}
             </ButtonLink>
           </>
         }
       />
 
-      <SignInNotices view={accountView} />
+      <SignInNotices view={accountView} lang={lang} />
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
-          label="Awaiting my decision"
+          label={t(D.awaitingMyDecision)}
           value={awaitingMe}
           tone="warn"
           icon={<ClockIcon size={17} />}
           href="/approvals?tab=mine"
-          hint={awaitingMe > 0 ? "steps waiting for you" : "nothing is waiting for you"}
+          hint={t(awaitingMe > 0 ? D.stepsWaitingForYou : D.nothingWaitingForYou)}
         />
         <Stat
-          label="Requisitions"
+          label={t(D.requisitions)}
           value={reqPipe.total}
           tone="brand"
           icon={<FilesIcon size={17} />}
           href="/requisitions"
-          hint={reqPipe.total === 0 ? "none in the pipeline" : `${reqPipe.approvedWaiting} approved, waiting for sourcing · ${reqPipe.backWithRequester} back with the requester`}
+          hint={reqPipe.total === 0 ? t(D.noneInPipeline) : sayWith(D.requisitionHint, lang, { approved: String(reqPipe.approvedWaiting), back: String(reqPipe.backWithRequester) })}
         />
         <Stat
-          label="Sourcing"
+          label={t(D.sourcing)}
           value={srcPipe.total}
           tone="brand"
           icon={<GlobeIcon size={17} />}
           href="/sourcing"
           hint={
             srcPipe.total === 0 ? (
-              "none in the pipeline"
+              t(D.noneInPipeline)
             ) : (
-              <span title={statusBreakdown(srcPipe.phases, 0)}>{phaseSummary(srcPipe.phases)}</span>
+              <span title={statusBreakdown(srcPipe.phases, 0, lang)}>{phaseSummary(srcPipe.phases, lang)}</span>
             )
           }
         />
         <Stat
-          label="Contracts"
+          label={t(D.contracts)}
           value={conPipe.total}
           tone="brand"
           icon={<AwardIcon size={17} />}
           href="/projects"
-          hint={conPipe.total === 0 ? "none in the pipeline" : `${conPipe.awarding} awarding · ${conPipe.signing} signing · ${conPipe.onSite} on site`}
+          hint={conPipe.total === 0 ? t(D.noneInPipeline) : sayWith(D.contractsHint, lang, { awarding: String(conPipe.awarding), signing: String(conPipe.signing), onSite: String(conPipe.onSite) })}
         />
       </div>
 
@@ -169,36 +175,36 @@ export default async function Dashboard() {
           <Card className="overflow-hidden">
             <CardHeader
               icon={<ClockIcon size={17} />}
-              title="Committee matters waiting"
-              subtitle="Matters routed to a committee, oldest first."
+              title={t(D.committeeTitle)}
+              subtitle={t(D.committeeSubtitle)}
               divided={false}
               actions={
                 <ButtonLink href="/configuration/committees" variant="ghost" size="sm">
-                  View all
+                  {t(D.viewAll)}
                 </ButtonLink>
               }
             />
             <DataList
               flat
               exportName="committee-matters-waiting"
-              searchPlaceholder="Search matters…"
-              emptyTitle="No committee matter is waiting"
-              emptyBody="Matters routed to a committee appear here the moment they are raised."
-              views={[{ id: "financial", label: "Financial items" }]}
+              searchPlaceholder={t(D.searchMatters)}
+              emptyTitle={t(D.committeeEmptyTitle)}
+              emptyBody={t(D.committeeEmptyBody)}
+              views={[{ id: "financial", label: t(D.financialItems) }]}
               filters={[
-                { key: "type", label: "Type" },
-                { key: "with", label: "Committee" },
+                { key: "type", label: t(D.type) },
+                { key: "with", label: t(D.committee) },
               ]}
               rowAction={{
-                label: "Open the sitting",
+                label: t(D.openTheSitting),
                 hrefTemplate: "/configuration/committees",
               }}
               columns={[
-                { key: "item", label: "Item", sortable: true, mobile: "primary" },
-                { key: "type", label: "Type", width: "140px", sortable: true, hideBelow: "lg", mobile: "meta" },
-                { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
-                { key: "waiting", label: "Waiting", width: "104px", numeric: true, sortable: true, mobile: "meta" },
-                { key: "with", label: "With", width: "190px", hideBelow: "md", mobile: "meta" },
+                { key: "item", label: t(D.item), sortable: true, mobile: "primary" },
+                { key: "type", label: t(D.type), width: "140px", sortable: true, hideBelow: "lg", mobile: "meta" },
+                { key: "value", label: t(D.value), width: "132px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
+                { key: "waiting", label: t(D.waiting), width: "104px", numeric: true, sortable: true, mobile: "meta" },
+                { key: "with", label: t(D.with), width: "190px", hideBelow: "md", mobile: "meta" },
               ]}
               rows={data.queue.map((item) => ({
                 id: item.decisionId,
@@ -208,7 +214,7 @@ export default async function Dashboard() {
                   ...(item.amount == null ? { value: -1 } : matterGates.get(item.decisionId) && matterGates.get(item.decisionId)!.state !== "GRANTED" ? {} : { value: item.amount }),
                   waiting: item.waitingDays,
                   item: item.subject,
-                  type: matterLabel(item.domain),
+                  type: matterLabel(item.domain, lang),
                 },
                 cells: {
                   item: {
@@ -217,14 +223,14 @@ export default async function Dashboard() {
                     sub: item.matterRef ?? item.meetingReference,
                     monoSub: true,
                   },
-                  type: { kind: "text", text: matterLabel(item.domain), dim: true },
-                  value: matterGates.has(item.decisionId) ? sulitCell(matterGates.get(item.decisionId)!, () => ({ kind: "money" as const, value: item.amount })) : { kind: "money", value: item.amount },
-                  waiting: { kind: "badge", text: `${item.waitingDays}d` },
+                  type: { kind: "text", text: matterLabel(item.domain, lang), dim: true },
+                  value: matterGates.has(item.decisionId) ? sulitCell(matterGates.get(item.decisionId)!, () => ({ kind: "money" as const, value: item.amount }), lang) : { kind: "money", value: item.amount },
+                  waiting: { kind: "badge", text: sayWith(D.daysShort, lang, { days: String(item.waitingDays) }) },
                   with: {
                     kind: "link",
                     text: item.committeeName,
                     href: `/configuration/committees/${item.committeeCode}`,
-                    sub: `${item.votesCast} of ${item.entitled} voted`,
+                    sub: sayWith(D.votesCast, lang, { cast: String(item.votesCast), entitled: String(item.entitled) }),
                   },
                 },
               }))}
@@ -234,12 +240,12 @@ export default async function Dashboard() {
           <Card className="overflow-hidden">
             <CardHeader
               icon={<ClockIcon size={17} />}
-              title="Requisitions awaiting approval"
-              subtitle={<LeadWithMore lead="Open approval routes, longest wait first." more={`Each step shows the office acting for it. ${WAITING_RULE_TEXT}`} />}
+              title={t(D.awaitingTitle)}
+              subtitle={<LeadWithMore lead={t(D.awaitingLead)} more={`${t(D.awaitingMore)} ${t(WAITING_RULE_WORDS)}`} />}
               divided={false}
               actions={
                 <ButtonLink href="/approvals" variant="ghost" size="sm">
-                  My approvals
+                  {t(D.myApprovals)}
                 </ButtonLink>
               }
             />
@@ -248,24 +254,24 @@ export default async function Dashboard() {
               toolbar={false}
               selectable={false}
               exportName="requisitions-awaiting-approval"
-              emptyTitle="No requisition is awaiting approval"
-              emptyBody="A requisition appears here once it is submitted, until its route closes."
-              rowAction={{ label: "Open", hrefTemplate: "/requisitions/{id}" }}
+              emptyTitle={t(D.awaitingEmptyTitle)}
+              emptyBody={t(D.awaitingEmptyBody)}
+              rowAction={{ label: t(D.open), hrefTemplate: "/requisitions/{id}" }}
               rowOpens
               columns={[
-                { key: "item", label: "Requisition", mobile: "primary" },
-                { key: "on", label: "Waiting on", width: "200px", hideBelow: "md", mobile: "meta" },
-                { key: "value", label: "Value", width: "132px", numeric: true, sulit: true, mobile: "meta" },
-                { key: "waiting", label: "Waiting", width: "104px", numeric: true, mobile: "meta" },
+                { key: "item", label: t(D.requisition), mobile: "primary" },
+                { key: "on", label: t(D.waitingOn), width: "200px", hideBelow: "md", mobile: "meta" },
+                { key: "value", label: t(D.value), width: "132px", numeric: true, sulit: true, mobile: "meta" },
+                { key: "waiting", label: t(D.waiting), width: "104px", numeric: true, mobile: "meta" },
               ]}
               rows={data.requisitions.map((q) => ({
                 id: q.id,
                 search: `${q.title} ${q.reference}`,
                 cells: {
                   item: { kind: "link", text: q.title, href: `/requisitions/${q.id}`, sub: q.reference },
-                  on: q.waitingOn ? { kind: "stack", title: q.waitingOn, sub: q.escalatedFrom ? `escalated from ${q.escalatedFrom}` : undefined } : { kind: "text", text: "No step pending", dim: true },
-                  value: sulitCell(requisitionGates.get(q.id)!, () => ({ kind: "money" as const, value: q.estimatedValue })),
-                  waiting: { kind: "badge", text: q.waitingDays == null ? "Not counted" : `${q.waitingDays}d` },
+                  on: q.waitingOn ? { kind: "stack", title: q.waitingOn, sub: q.escalatedFrom ? sayWith(D.escalatedFrom, lang, { office: q.escalatedFrom }) : undefined } : { kind: "text", text: t(D.noStepPending), dim: true },
+                  value: sulitCell(requisitionGates.get(q.id)!, () => ({ kind: "money" as const, value: q.estimatedValue }), lang),
+                  waiting: { kind: "badge", text: q.waitingDays == null ? t(D.notCounted) : sayWith(D.daysShort, lang, { days: String(q.waitingDays) }) },
                 },
               }))}
             />
@@ -274,18 +280,18 @@ export default async function Dashboard() {
           <Card tone="flat" className="border-dashed bg-surface/60">
             <CardHeader
               icon={<SparkleIcon size={17} />}
-              title="On the way"
-              subtitle="These will report here once their modules are built."
+              title={t(D.onTheWay)}
+              subtitle={t(D.onTheWaySubtitle)}
             />
             <CardBody className="grid gap-5 md:grid-cols-2">
               {COMING.map((c) => (
-                <div key={c.title} className="min-w-0">
+                <div key={c.title.en} className="min-w-0">
                   <div className="flex items-center gap-2 text-ink-3">
                     {c.icon}
-                    <Badge tone="warn">Not built yet</Badge>
+                    <Badge tone="warn">{t(D.notBuiltYet)}</Badge>
                   </div>
-                  <div className="mt-2.5 text-[14px] font-bold text-ink">{c.title}</div>
-                  <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{c.body}</p>
+                  <div className="mt-2.5 text-[14px] font-bold text-ink">{t(c.title)}</div>
+                  <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{t(c.body)}</p>
                 </div>
               ))}
             </CardBody>
@@ -296,11 +302,11 @@ export default async function Dashboard() {
           <Card>
             <CardHeader
               icon={<CalendarIcon size={17} />}
-              title="Upcoming sittings"
-              subtitle="Committees scheduled to sit."
+              title={t(D.upcomingTitle)}
+              subtitle={t(D.upcomingSubtitle)}
             />
             {data.upcoming.length === 0 ? (
-              <EmptyState size="sm" title="Nothing scheduled" />
+              <EmptyState size="sm" title={t(D.nothingScheduled)} />
             ) : (
               <ul className="divide-y divide-line/70 px-2 py-1.5">
                 {data.upcoming.map((m) => (
@@ -314,10 +320,10 @@ export default async function Dashboard() {
                     </div>
                     <div className="shrink-0 text-right">
                       <div className="text-[12.5px] font-bold text-ink tabular-nums">
-                        {m.daysAway <= 0 ? "today" : `in ${m.daysAway} days`}
+                        {m.daysAway <= 0 ? t(D.today) : sayWith(D.inDays, lang, { days: String(m.daysAway) })}
                       </div>
                       <div className="text-[12px] text-ink-4 tabular-nums">
-                        {formatDate(m.meetingDate)}
+                        {formatDate(m.meetingDate, lang)}
                       </div>
                     </div>
                   </li>
@@ -327,10 +333,10 @@ export default async function Dashboard() {
           </Card>
 
           <Card>
-            <CardHeader icon={<ClockIcon size={17} />} title="Recent activity" subtitle="Requisitions, sittings and awards as they move." />
+            <CardHeader icon={<ClockIcon size={17} />} title={t(D.recentTitle)} subtitle={t(D.recentSubtitle)} />
             {data.activity.length === 0 ? (
-              <EmptyState size="sm" title="Nothing has moved yet">
-                Requisitions, sittings and awards appear here as they change.
+              <EmptyState size="sm" title={t(D.nothingMoved)}>
+                {t(D.nothingMovedBody)}
               </EmptyState>
             ) : (
               <ol className="px-6 py-4">

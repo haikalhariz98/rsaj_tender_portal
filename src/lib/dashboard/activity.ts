@@ -13,26 +13,30 @@
  * declaration itself.
  */
 import { formatDate, formatOrgDay } from "@/lib/format";
+import { ACTIVITY_WORDS as A } from "@/lib/i18n/catalogues/dashboard";
+import type { Language } from "@/lib/i18n/language";
+import { say, sayWith } from "@/lib/i18n/say";
+import type { Words } from "@/lib/contract/labels";
 
 import type { FieldChange } from "@/lib/audit/diff";
 import { EXERCISE_STATUSES, type ExerciseStatus } from "@/lib/method/types";
 
 /// The feed's line for an exercise's move into each state (X-8: exhaustive). A return to
 /// preparation from approval for tendering is the documents returned for amendment (Q-3).
-const EXERCISE_MOVE_HEADLINE: Record<ExerciseStatus, (ref: string, from: string | null) => string | null> = {
+const EXERCISE_MOVE_HEADLINE: Record<ExerciseStatus, (from: string | null) => Words | null> = {
   DRAFT: () => null,
-  DOCUMENTS_IN_PREPARATION: (ref, from) => (from === "PENDING_APPROVAL_FOR_TENDERING" ? `Exercise ${ref}: tender documents returned for amendment` : `Exercise ${ref} moved into preparation`),
-  PENDING_APPROVAL_FOR_TENDERING: (ref) => `Exercise ${ref}: tender documents sent for approval`,
-  APPROVED_FOR_TENDERING: (ref) => `Exercise ${ref} approved for tendering`,
-  ADVERTISED: (ref) => `Exercise ${ref} advertised`,
-  INVITED: (ref) => `Exercise ${ref}: letters of invitation issued`,
+  DOCUMENTS_IN_PREPARATION: (from) => (from === "PENDING_APPROVAL_FOR_TENDERING" ? A.exReturned : A.exPreparation),
+  PENDING_APPROVAL_FOR_TENDERING: () => A.exSentForApproval,
+  APPROVED_FOR_TENDERING: () => A.exApprovedForTendering,
+  ADVERTISED: () => A.exAdvertised,
+  INVITED: () => A.exInvited,
   // 6.7: the opening's acts, never a price or a bidder (C-4).
-  OPENING_IN_PROGRESS: (ref) => `Exercise ${ref}: tender box opened at its opening`,
-  OPENED: (ref) => `Exercise ${ref}: opening finalised`,
+  OPENING_IN_PROGRESS: () => A.exOpeningInProgress,
+  OPENED: () => A.exOpened,
   // 6.8: the evaluation's acts, never a score, a price or a bidder (E-3).
-  UNDER_EVALUATION: (ref) => `Exercise ${ref}: under evaluation`,
-  EVALUATED: (ref) => `Exercise ${ref}: evaluation report issued`,
-  CANCELLED: (ref) => `Exercise ${ref} cancelled`,
+  UNDER_EVALUATION: () => A.exUnderEvaluation,
+  EVALUATED: () => A.exEvaluated,
+  CANCELLED: () => A.exCancelled,
 };
 
 /// The only entities the feed reads. Everything else, including `Vote`,
@@ -113,34 +117,34 @@ function shortReason(text: string | null | undefined): string | null {
   return t.length <= REASON_MAX ? t : `${t.slice(0, REASON_MAX - 1).trimEnd()}…`;
 }
 
-const REQUISITION_VERB: Record<string, string> = {
-  ENDORSED: "endorsed",
-  REGISTERED: "registered",
-  OVER_BUDGET: "is over budget",
-  APPROVED: "approved",
-  RECALLED: "recalled",
-  CANCELLED: "cancelled",
-  CLOSED: "closed",
+const REQUISITION_VERB: Record<string, Words> = {
+  ENDORSED: A.reqEndorsed,
+  REGISTERED: A.reqRegistered,
+  OVER_BUDGET: A.reqOverBudget,
+  APPROVED: A.reqApproved,
+  RECALLED: A.reqRecalled,
+  CANCELLED: A.reqCancelled,
+  CLOSED: A.reqClosed,
 };
 
-const AWARD_VERB: Record<string, string> = {
-  PENDING_APPROVAL: "sent for approval",
-  APPROVED: "approved",
-  ISSUED: "issued",
-  ACCEPTED: "accepted",
-  CANCELLED: "cancelled",
+const AWARD_VERB: Record<string, Words> = {
+  PENDING_APPROVAL: A.awardSentForApproval,
+  APPROVED: A.awardApproved,
+  ISSUED: A.awardIssued,
+  ACCEPTED: A.awardAccepted,
+  CANCELLED: A.awardCancelled,
 };
 
-const OUTCOME_VERB: Record<string, string> = {
-  CARRIED: "carried",
-  NOT_CARRIED: "not carried",
-  DEFERRED: "deferred",
+const OUTCOME_VERB: Record<string, Words> = {
+  CARRIED: A.outcomeCarried,
+  NOT_CARRIED: A.outcomeNotCarried,
+  DEFERRED: A.outcomeDeferred,
 };
 
-const SITTING_VERB: Record<string, string> = {
-  IN_PROGRESS: "started",
-  MINUTED: "minuted",
-  CANCELLED: "cancelled",
+const SITTING_VERB: Record<string, Words> = {
+  IN_PROGRESS: A.sittingStarted,
+  MINUTED: A.sittingMinuted,
+  CANCELLED: A.sittingCancelled,
 };
 
 /// Entities that are their own owner.
@@ -158,7 +162,9 @@ function ownerOf(entry: ActivityEntry, owners: Record<string, ActivityOwner>): A
   return own ? { kind: own, id: entry.entityId, reference: refOf(entry.entityLabel), committee: null } : null;
 }
 
-function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, timeZone: string | null): Fact | null {
+function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, timeZone: string | null, lang: Language): Fact | null {
+  const t = (words: Words) => say(words, lang);
+  const tw = (words: Words, values: Record<string, string>) => sayWith(words, lang, values);
   const owner = ownerOf(entry, owners);
   const ownerKey = owner ? `${owner.kind}:${owner.id}` : null;
   const s = status(entry.changes);
@@ -175,7 +181,7 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
       title: extra.title ?? null,
       reason: shortReason(extra.reason ?? null),
       at: entry.at,
-      day: formatOrgDay(entry.at, timeZone),
+      day: formatOrgDay(entry.at, timeZone, lang),
       link: owner ? { kind: owner.kind, id: owner.id } : null,
     },
     ownerKey,
@@ -192,21 +198,21 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
       const title = titleOf(entry.entityLabel);
       if (entry.action === "CREATE") {
         const fromFinance = /finance system/i.test(entry.reason);
-        return make("requisition", ref, fromFinance ? "received from the finance system" : "raised", { title });
+        return make("requisition", ref, t(fromFinance ? A.reqFromFinance : A.reqRaised), { title });
       }
       if (entry.action !== "UPDATE" || !s) return null;
       const to = s.after ?? "";
       const from = s.before ?? "";
-      let verb: string | null = null;
+      let verb: Words | null = null;
       let reason: string | null = null;
-      if (to === "PENDING_APPROVAL") verb = from === "REJECTED" ? "returned to an earlier step" : "sent for approval";
-      else if (to === "DRAFT") verb = from === "REJECTED" ? "sent back to whoever raised it" : null;
+      if (to === "PENDING_APPROVAL") verb = from === "REJECTED" ? A.reqReturnedEarlier : A.reqSentForApproval;
+      else if (to === "DRAFT") verb = from === "REJECTED" ? A.reqSentBack : null;
       else if (to === "REJECTED") {
-        verb = "rejected";
+        verb = A.reqRejected;
         reason = entry.reason;
       } else verb = REQUISITION_VERB[to] ?? null;
       if (!verb) return null;
-      return make("requisition", ref, verb, { title, reason, to, from });
+      return make("requisition", ref, t(verb), { title, reason, to, from });
     }
     case "ApprovalStep": {
       if (entry.action !== "UPDATE") return null;
@@ -220,11 +226,11 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
         if (!acting) return null;
         // No reason, ever: an escalation's reason is a declared conflict's own words, or
         // why a holder is away. The feed says the step moved and to which office.
-        return make("approval", ref, "", { office, step: "ESCALATED", headline: `${ref}: ${office} step passed to ${acting}` });
+        return make("approval", ref, "", { office, step: "ESCALATED", headline: tw(A.stepPassed, { ref, office, acting }) });
       }
       const decision = field(entry.changes, "decision");
-      if (decision?.after === "DONE") return make("approval", ref, "", { office, step: "DONE", headline: `${ref}: ${office} decided` });
-      if (decision?.after === "REJECTED") return make("approval", ref, "", { office, step: "REJECTED", reason: entry.reason, headline: `${ref}: ${office} rejected` });
+      if (decision?.after === "DONE") return make("approval", ref, "", { office, step: "DONE", headline: tw(A.stepDecided, { ref, office }) });
+      if (decision?.after === "REJECTED") return make("approval", ref, "", { office, step: "REJECTED", reason: entry.reason, headline: tw(A.stepRejected, { ref, office }) });
       return null;
     }
     case "SourcingExercise": {
@@ -232,11 +238,12 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
       const title = titleOf(entry.entityLabel);
       if (entry.action === "CREATE") {
         const req = field(entry.changes, "requisition")?.after;
-        return make("exercise", ref, "", { title, headline: req ? `Exercise ${ref} opened for ${req}` : `Exercise ${ref} opened` });
+        return make("exercise", ref, "", { title, headline: req ? tw(A.exOpenedFor, { ref, req }) : tw(A.exOpenedPlain, { ref }) });
       }
       if (entry.action !== "UPDATE" || !s) return null;
       const to = (EXERCISE_STATUSES as readonly string[]).includes(s.after ?? "") ? (s.after as ExerciseStatus) : null;
-      const headline = to ? EXERCISE_MOVE_HEADLINE[to](ref, s.before) : null;
+      const moved = to ? EXERCISE_MOVE_HEADLINE[to](s.before) : null;
+      const headline = moved ? tw(moved, { ref }) : null;
       if (!headline) return null;
       return make("exercise", ref, "", { title, to: s.after, from: s.before, ...(to === "CANCELLED" || (to === "DOCUMENTS_IN_PREPARATION" && s.before === "PENDING_APPROVAL_FOR_TENDERING") ? { reason: entry.reason } : {}), headline });
     }
@@ -246,10 +253,10 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
       const committee = created
         ? (field(entry.changes, "committee")?.after ?? null)
         : (owner?.committee ?? (entry.entityLabel.endsWith(" sitting") ? entry.entityLabel.slice(0, -" sitting".length) : null));
-      const name = committee ? `${committee} sitting` : `Sitting ${ref}`;
+      const name = committee ? tw(A.sittingOf, { committee }) : tw(A.sittingRef, { ref });
       if (created) {
         const day = field(entry.changes, "meetingDate")?.after;
-        return make("sitting", name, "", { headline: `${name} scheduled${day ? ` for ${formatDate(day)}` : ""}` });
+        return make("sitting", name, "", { headline: day ? tw(A.sittingScheduledFor, { name, date: formatDate(day, lang) }) : tw(A.sittingScheduled, { name }) });
       }
       if (entry.action !== "UPDATE" || !s) return null;
       const verb = SITTING_VERB[s.after ?? ""];
@@ -258,14 +265,14 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
         to: s.after,
         from: s.before,
         reason: s.after === "CANCELLED" ? entry.reason : null,
-        headline: committee ? `${name} ${ref} ${verb}` : `${name} ${verb}`,
+        headline: committee ? `${name} ${ref} ${t(verb)}` : `${name} ${t(verb)}`,
       });
     }
     case "CommitteeDecision": {
       const subject = entry.entityLabel;
       if (entry.action === "CREATE") {
         const at = owner?.committee;
-        return make("matter", subject, "", { headline: at ? `${subject} tabled at ${at}` : `${subject} tabled` });
+        return make("matter", subject, "", { headline: at ? tw(A.matterTabledAt, { subject, at }) : tw(A.matterTabled, { subject }) });
       }
       if (entry.action !== "UPDATE") return null;
       const outcome = field(entry.changes, "outcome");
@@ -273,19 +280,19 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
       // The outcome and nothing else. The row also carries who was present, how many
       // were recused and the voting rule; none of that is read.
       if (!verb) return null;
-      return make("matter", subject, "", { headline: `${subject}: ${verb}` });
+      return make("matter", subject, "", { headline: tw(A.matterOutcome, { subject, verb: t(verb) }) });
     }
     case "Award": {
       const ref = refOf(entry.entityLabel);
-      const label = `Award ${ref}`;
-      if (entry.action === "CREATE") return make("award", label, "opened");
+      const label = tw(A.awardLabel, { ref });
+      if (entry.action === "CREATE") return make("award", label, t(A.awardOpened));
       if (entry.action !== "UPDATE") return null;
       const commenced = field(entry.changes, "commencedOn");
-      if (commenced?.after && !commenced.before) return make("award", label, "", { headline: `${label}: work commenced ${formatDate(commenced.after)}` });
+      if (commenced?.after && !commenced.before) return make("award", label, "", { headline: tw(A.awardCommenced, { label, date: formatDate(commenced.after, lang) }) });
       if (!s) return null;
       const verb = AWARD_VERB[s.after ?? ""];
       if (!verb) return null;
-      return make("award", label, verb, { to: s.after, from: s.before, reason: s.after === "CANCELLED" ? entry.reason : null });
+      return make("award", label, t(verb), { to: s.after, from: s.before, reason: s.after === "CANCELLED" ? entry.reason : null });
     }
     default:
       return null;
@@ -296,23 +303,24 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
  * One audit entry as one line, or null when the feed does not report it.
  * Uncollapsed: see `activityFeed` for how the rows of one act become one line.
  */
-export function activityLine(entry: ActivityEntry, owners: Record<string, ActivityOwner> = {}, timeZone: string | null = null): ActivityLine | null {
-  return build(entry, owners, timeZone)?.line ?? null;
+export function activityLine(entry: ActivityEntry, owners: Record<string, ActivityOwner> = {}, timeZone: string | null = null, lang: Language = "en"): ActivityLine | null {
+  return build(entry, owners, timeZone, lang)?.line ?? null;
 }
 
 /// Rows written by one act sit within this window. `at` is set when the row is written,
 /// not at the start of the transaction, so exact equality would miss them.
 const SAME_ACT_MS = 2000;
 
-const TERMINAL_REQUISITION: Record<string, string> = {
-  DRAFT: "sent back to whoever raised it",
-  CLOSED: "closed",
-  PENDING_APPROVAL: "returned to an earlier step",
+const TERMINAL_REQUISITION: Record<string, Words> = {
+  DRAFT: A.reqSentBack,
+  CLOSED: A.reqClosed,
+  PENDING_APPROVAL: A.reqReturnedEarlier,
 };
 
 /// Fold the rows of one act into one line. The terminal state wins and carries the
 /// step's office.
-function fold(group: Fact[]): ActivityLine[] {
+function fold(group: Fact[], lang: Language): ActivityLine[] {
+  const tw = (words: Words, values: Record<string, string>) => sayWith(words, lang, values);
   const step = group.find((f) => f.step === "REJECTED" || f.step === "DONE");
   if (!step || group.length < 2) return group.map((f) => f.line);
   const others = group.filter((f) => f !== step);
@@ -324,22 +332,22 @@ function fold(group: Fact[]): ActivityLine[] {
     const rejected = others.find((f) => f.line.kind === "requisition" && f.to === "REJECTED");
     if (rejected) {
       const destination = others.find((f) => f.line.kind === "requisition" && f.from === "REJECTED" && f.to && TERMINAL_REQUISITION[f.to]);
-      const end = destination ? ` and ${TERMINAL_REQUISITION[destination.to!]}` : "";
+      const end = destination ? ` ${say(A.foldAnd, lang)} ${say(TERMINAL_REQUISITION[destination.to!], lang)}` : "";
       const used = new Set([step, rejected, destination]);
       const rest = group.filter((f) => !used.has(f));
-      return [make(destination ?? rejected, `${rejected.subject} rejected at ${office}${end}`, [rejected]), ...rest.map((f) => f.line)];
+      return [make(destination ?? rejected, tw(A.foldRejectedAt, { subject: rejected.subject, office, end }), [rejected]), ...rest.map((f) => f.line)];
     }
     const cancelled = others.find((f) => f.line.kind === "exercise" && f.to === "CANCELLED");
     if (cancelled) {
       const rest = group.filter((f) => f !== step && f !== cancelled);
-      return [make(cancelled, `Exercise ${cancelled.subject} cancelled: ${office} refused the name`, []), ...rest.map((f) => f.line)];
+      return [make(cancelled, tw(A.foldCancelledRefused, { subject: cancelled.subject, office }), []), ...rest.map((f) => f.line)];
     }
     // 6.4 (Q-3): a rejection on the Approval for Tendering route returns the documents for amendment.
     const returned = others.find((f) => f.line.kind === "exercise" && f.to === "DOCUMENTS_IN_PREPARATION" && f.from === "PENDING_APPROVAL_FOR_TENDERING");
     if (returned) {
       const rest = group.filter((f) => f !== step && f !== returned);
       // The step's own reason: the exercise's repeats the headline ("Tender documents returned for amendment: …").
-      return [{ ...make(returned, `Exercise ${returned.subject}: tender documents returned for amendment at ${office}`, []), reason: step.line.reason ?? returned.line.reason }, ...rest.map((f) => f.line)];
+      return [{ ...make(returned, tw(A.foldReturnedAt, { subject: returned.subject, office }), []), reason: step.line.reason ?? returned.line.reason }, ...rest.map((f) => f.line)];
     }
     return group.map((f) => f.line);
   }
@@ -347,13 +355,13 @@ function fold(group: Fact[]): ActivityLine[] {
   const approved = others.find((f) => (f.line.kind === "requisition" || f.line.kind === "award") && f.to === "APPROVED");
   if (approved) {
     const rest = group.filter((f) => f !== step && f !== approved);
-    return [make(approved, `${approved.subject} approved at ${office}`, []), ...rest.map((f) => f.line)];
+    return [make(approved, tw(A.foldApprovedAt, { subject: approved.subject, office }), []), ...rest.map((f) => f.line)];
   }
   // 6.4: the step that completes the Approval for Tendering route moves the exercise: one line, the outcome.
   const forTendering = others.find((f) => f.line.kind === "exercise" && f.to === "APPROVED_FOR_TENDERING");
   if (forTendering) {
     const rest = group.filter((f) => f !== step && f !== forTendering);
-    return [make(forTendering, `Exercise ${forTendering.subject} approved for tendering at ${office}`, []), ...rest.map((f) => f.line)];
+    return [make(forTendering, tw(A.foldTenderingAt, { subject: forTendering.subject, office }), []), ...rest.map((f) => f.line)];
   }
   return group.map((f) => f.line);
 }
@@ -364,10 +372,10 @@ function fold(group: Fact[]): ActivityLine[] {
  * `owners` is keyed `${entity}:${entityId}` and names the record an approval step, a
  * tabled matter or a sitting belongs to. Without an owner a line is plain text.
  */
-export function activityFeed(entries: ActivityEntry[], owners: Record<string, ActivityOwner>, timeZone: string | null, limit = 8): ActivityLine[] {
+export function activityFeed(entries: ActivityEntry[], owners: Record<string, ActivityOwner>, timeZone: string | null, limit = 8, lang: Language = "en"): ActivityLine[] {
   const facts = [...entries]
     .sort((a, b) => b.at.getTime() - a.at.getTime())
-    .map((e) => build(e, owners, timeZone))
+    .map((e) => build(e, owners, timeZone, lang))
     .filter((f): f is Fact => f !== null);
 
   // Group rows about one owner that were written in one act.
@@ -385,7 +393,7 @@ export function activityFeed(entries: ActivityEntry[], owners: Record<string, Ac
   }
 
   return groups
-    .flatMap(fold)
+    .flatMap((g) => fold(g, lang))
     .sort((a, b) => b.at.getTime() - a.at.getTime())
     .slice(0, limit);
 }

@@ -1,3 +1,5 @@
+import { Say } from "@/components/i18n/language-context";
+import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { ActedBy } from "@/components/attribution";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker } from "@/lib/contract/act-status";
@@ -123,7 +125,7 @@ export function PaymentSummaryCard({ l, v }: { l: LoadedContract; v: PaymentView
   const paid = v.p.interimValuations.filter((x) => x.certificate?.financePayment).length;
   return (
     <Card>
-      <CardHeader icon={<WalletIcon size={17} />} title="Payments" subtitle="From the issued certificates only, as issued. Each is on the Payments tab." actions={<ButtonLink href={`/projects/${l.contract.id}?tab=payments&section=valuations`} size="sm" variant="secondary">Open payments</ButtonLink>} />
+      <CardHeader icon={<WalletIcon size={17} />} title={<Say words={P.payments} />} subtitle="From the issued certificates only, as issued. Each is on the Payments tab." actions={<ButtonLink href={`/projects/${l.contract.id}?tab=payments&section=valuations`} size="sm" variant="secondary">Open payments</ButtonLink>} />
       <CardBody>
         <KeyValues
           columns={2}
@@ -203,7 +205,7 @@ function OpeningCard({ l, v, people, today, hidden }: { l: LoadedContract; v: Pa
     <Card>
       <CardHeader
         icon={<ClipboardIcon size={17} />}
-        title="Opening position"
+        title={<Say words={P.openingPosition} />}
         subtitle="Where interim certificates were issued before this system (or not from a valuation here): the last one, and the figures to date, each stated on a certificate or assumed with a reason. Entered once, before the first valuation raised here; the next certificate continues from it."
         actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <OpeningDrawer id={l.contract.id} people={people} groups={OPENING_GROUPS.map((g) => ({ group: g, label: OPENING_GROUP_WORDS[g].en }))} values={values} existing={!!o} blocker={blocker} />}
       />
@@ -252,7 +254,7 @@ function ValuationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<CalendarIcon size={17} />} title="Valuation calendar" subtitle="The day of each month agreed with the contractor for the joint site valuation. A valuation on another day is started by a claim." actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <CalendarDrawer id={c.id} people={people} today={today} current={cal ? { dayOfMonth: cal.dayOfMonth, agreedWith: cal.agreedWith } : null} />} />
+        <CardHeader icon={<CalendarIcon size={17} />} title={<Say words={P.valuationCalendar} />} subtitle="The day of each month agreed with the contractor for the joint site valuation. A valuation on another day is started by a claim." actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <CalendarDrawer id={c.id} people={people} today={today} current={cal ? { dayOfMonth: cal.dayOfMonth, agreedWith: cal.agreedWith } : null} />} />
         <CardBody>
           {cal ? (
             <KeyValues
@@ -274,7 +276,7 @@ function ValuationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
       {v.current?.status === "OPEN" ? <CurrentValuation l={l} v={v} today={today} formSet={formSet} /> : null}
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<WalletIcon size={17} />} title="Valuations and their certificates" subtitle="Newest first. A valuation raises its interim payment certificate, which goes for approval, is signed and issued from the certificate." actions={hidden.includes("VALUATION") ? undefined : <OpenValuationDrawer id={c.id} people={people} today={today} triggers={opts(VALUATION_TRIGGERS, TRIGGER_WORDS)} blocker={openBlocker} warning={null} />} divided={all.length > 0} />
+        <CardHeader icon={<WalletIcon size={17} />} title={<Say words={P.valuationsAndCertificates} />} subtitle="Newest first. A valuation raises its interim payment certificate, which goes for approval, is signed and issued from the certificate." actions={hidden.includes("VALUATION") ? undefined : <OpenValuationDrawer id={c.id} people={people} today={today} triggers={opts(VALUATION_TRIGGERS, TRIGGER_WORDS)} blocker={openBlocker} warning={null} />} divided={all.length > 0} />
         {all.length === 0 ? (
           <EmptyState size="sm" title="None yet">No valuation has been opened on this contract.</EmptyState>
         ) : (
@@ -378,7 +380,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
           ]}
         />
       </CardBody>
-      <CardHeader title="Materials on site" subtitle="The contractor's list, each line with its three answers. A line that fails one is shown, not valued." actions={<MaterialDrawer id={c.id} valuationId={x.id} today={today} />} divided={x.materialLines.length > 0} className="border-t border-line/70" />
+      <CardHeader title={<Say words={P.materialsOnSite} />} subtitle="The contractor's list, each line with its three answers. A line that fails one is shown, not valued." actions={<MaterialDrawer id={c.id} valuationId={x.id} today={today} />} divided={x.materialLines.length > 0} className="border-t border-line/70" />
       {x.materialLines.length > 0 && (
         <ul className="divide-y divide-line/70">
           {x.materialLines.map((m) => {
@@ -400,7 +402,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
           })}
         </ul>
       )}
-      <CardHeader title="Nominated parties and assignees" subtitle={`Totals only: the payment annexes A1 to A3 are not available (B1). A nominated party's value to date is part of the gross; what is due to each is what the waterfall pays.${parties.some((pt) => pt.directPayment) ? ` ${PAYEE_BANK_UNCHECKED.direct.en}` : ""}`} divided className="border-t border-line/70" />
+      <CardHeader title={<Say words={P.nominatedParties} />} subtitle={`Totals only: the payment annexes A1 to A3 are not available (B1). A nominated party's value to date is part of the gross; what is due to each is what the waterfall pays.${parties.some((pt) => pt.directPayment) ? ` ${PAYEE_BANK_UNCHECKED.direct.en}` : ""}`} divided className="border-t border-line/70" />
       {parties.length === 0 ? (
         <EmptyState size="sm" title="None on this contract">Nominated parties and assignees are recorded on the Team tab.</EmptyState>
       ) : (
@@ -422,7 +424,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
           })}
         </ul>
       )}
-      <CardHeader title="Deductions keyed" subtitle="What no rule computes. Retention, earlier certificates, the advance recouped and the damages are worked out from the records." actions={<DeductionDrawer id={c.id} valuationId={x.id} kinds={opts(KEYED_DEDUCTION_KINDS, DEDUCTION_WORDS)} />} divided={x.deductions.length > 0} className="border-t border-line/70" />
+      <CardHeader title={<Say words={P.deductionsKeyed} />} subtitle="What no rule computes. Retention, earlier certificates, the advance recouped and the damages are worked out from the records." actions={<DeductionDrawer id={c.id} valuationId={x.id} kinds={opts(KEYED_DEDUCTION_KINDS, DEDUCTION_WORDS)} />} divided={x.deductions.length > 0} className="border-t border-line/70" />
       {x.deductions.length > 0 && (
         <ul className="divide-y divide-line/70">
           {x.deductions.map((d) => (
@@ -459,7 +461,7 @@ function PreviewFigures({ a }: { a: Assembled | null }) {
   const text = (type: string, value: string | null) => (value == null ? "Not computed" : type === "MONEY" ? formatMoney(parseSen(value)) : type === "PERCENT" ? `${value}%` : type === "DAYS" ? `${value} days` : type === "DATE" ? formatDate(value) : value);
   return (
     <>
-      <CardHeader title="The certificate as it stands" subtitle={`${snap.rule.en}. Every total is worked out from its lines, never keyed; nothing here is saved until the certificate is raised.${a.minimum.state === "BELOW" ? ` Below the ${a.minimum.first ? "first certificate's" : "certificate's"} minimum (${formatMoney(a.minimum.minimum)}): hold it to the next cycle.` : ""}`} divided className="border-t border-line/70" />
+      <CardHeader title={<Say words={P.certificateAsItStands} />} subtitle={`${snap.rule.en}. Every total is worked out from its lines, never keyed; nothing here is saved until the certificate is raised.${a.minimum.state === "BELOW" ? ` Below the ${a.minimum.first ? "first certificate's" : "certificate's"} minimum (${formatMoney(a.minimum.minimum)}): hold it to the next cycle.` : ""}`} divided className="border-t border-line/70" />
       <ul className="divide-y divide-line/70">
         {e.lines.map((f) => (
           <li key={f.key} className={f.type === "TEXT" ? "flex flex-col gap-1 px-5 py-2.5 sm:px-6" : "flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:px-6"}>
@@ -513,7 +515,7 @@ function RetentionSection({ l, v, people, today, hidden }: { l: LoadedContract; 
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title="Retention" subtitle="Held three ways on every interim certificate, from the contract's baseline; released first on the as-built drawings and the balance on the Certificate of Making Good Defects. A release is paid through the next interim certificate." />
+        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.retention} />} subtitle="Held three ways on every interim certificate, from the contract's baseline; released first on the as-built drawings and the balance on the Certificate of Making Good Defects. A release is paid through the next interim certificate." />
         <CardBody>
           <KeyValues
             columns={2}
@@ -530,7 +532,7 @@ function RetentionSection({ l, v, people, today, hidden }: { l: LoadedContract; 
       <Card className="overflow-hidden">
         <CardHeader
           icon={<ShieldIcon size={17} />}
-          title="Releases"
+          title={<Say words={P.releases} />}
           subtitle="Once each. The balance waits for the Certificate of Making Good Defects, which arrives with completion and defects (Part B): the contract carries on meanwhile."
           actions={
             <span className="flex flex-wrap items-center gap-2">
@@ -587,7 +589,7 @@ function AdvanceSection({ l, v, people, hidden }: { l: LoadedContract; v: Paymen
         Eligibility and the percentage are not checked: no rule states them. An advance rests on an Advance Payment Guarantee verified in the register and on a recoupment schedule entered for the contract; it goes for approval on the approval matrix.
       </Callout>
       <Card className="overflow-hidden">
-        <CardHeader icon={<WalletIcon size={17} />} title="Advance payments" subtitle="Each with its schedule: what each interim certificate recoups, and what is still to recoup." actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <AdvanceDrawer id={c.id} people={people} parties={nscs} guarantees={guarantees} parts={opts(ADVANCE_PARTIES, ADVANCE_PARTY_WORDS)} blocker={blocker} />} divided={v.p.advancePayments.length > 0} />
+        <CardHeader icon={<WalletIcon size={17} />} title={<Say words={P.advancePayments} />} subtitle="Each with its schedule: what each interim certificate recoups, and what is still to recoup." actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <AdvanceDrawer id={c.id} people={people} parties={nscs} guarantees={guarantees} parts={opts(ADVANCE_PARTIES, ADVANCE_PARTY_WORDS)} blocker={blocker} />} divided={v.p.advancePayments.length > 0} />
         {v.p.advancePayments.length === 0 ? (
           <EmptyState size="sm" title="None">No advance payment is recorded on this contract.</EmptyState>
         ) : (
@@ -650,7 +652,7 @@ function DamagesSection({ l, v, people, today, hidden }: { l: LoadedContract; v:
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<GavelIcon size={17} />} title="Liquidated damages" subtitle="The rate is the baseline's, never typed, frozen with the decision and its Certificate of Non-Completion. No damages line exists before the Certificate of Non-Completion is issued; a certificate past the date for completion with no decision is refused, never issued without its damages." actions={reading && reading.state !== "NOT_DUE" ? <Badge tone={reading.state === "EXCUSED" || reading.state === "NOTHING_TO_CHARGE" ? "info" : "warn"}>{reading.state === "CHARGED" ? "Damages running" : reading.state === "EXCUSED" ? "Excused or pending" : "Decision needed"}</Badge> : undefined} />
+        <CardHeader icon={<GavelIcon size={17} />} title={<Say words={P.liquidatedDamages} />} subtitle="The rate is the baseline's, never typed, frozen with the decision and its Certificate of Non-Completion. No damages line exists before the Certificate of Non-Completion is issued; a certificate past the date for completion with no decision is refused, never issued without its damages." actions={reading && reading.state !== "NOT_DUE" ? <Badge tone={reading.state === "EXCUSED" || reading.state === "NOTHING_TO_CHARGE" ? "info" : "warn"}>{reading.state === "CHARGED" ? "Damages running" : reading.state === "EXCUSED" ? "Excused or pending" : "Decision needed"}</Badge> : undefined} />
         <CardBody>
           <KeyValues
             columns={2}
@@ -665,7 +667,7 @@ function DamagesSection({ l, v, people, today, hidden }: { l: LoadedContract; v:
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<AlertTriangle size={17} />} title="Warning letters" subtitle="The letter of intention to impose damages, before they are imposed; sent by registered post. The response window is the organisation's clock (advisory)." actions={hidden.includes("SO_ONLY") ? undefined : <WarningDrawer id={c.id} people={people} today={today} blocker={warningBlock} completion={completion ? formatDate(completion) : null} />} divided={v.p.ladWarnings.length > 0} />
+        <CardHeader icon={<AlertTriangle size={17} />} title={<Say words={P.warningLetters} />} subtitle="The letter of intention to impose damages, before they are imposed; sent by registered post. The response window is the organisation's clock (advisory)." actions={hidden.includes("SO_ONLY") ? undefined : <WarningDrawer id={c.id} people={people} today={today} blocker={warningBlock} completion={completion ? formatDate(completion) : null} />} divided={v.p.ladWarnings.length > 0} />
         {v.p.ladWarnings.length === 0 ? (
           <EmptyState size="sm" title="None">No warning letter has been raised.</EmptyState>
         ) : (
@@ -697,7 +699,7 @@ function DamagesSection({ l, v, people, today, hidden }: { l: LoadedContract; v:
       <Card className="overflow-hidden">
         <CardHeader
           icon={<FileIcon size={17} />}
-          title="Non-completion decisions"
+          title={<Say words={P.nonCompletionDecisions} />}
           subtitle="The latest decision governs. Until the extension-of-time module, the decision records the entitlement itself; that module's record replaces it and never rewrites an issued certificate."
           actions={hidden.includes("SO_ONLY") ? undefined : <NonCompletionDrawer id={c.id} people={people} outcomes={opts(NON_COMPLETION_OUTCOMES, OUTCOME_WORDS)} scopes={opts(NON_COMPLETION_SCOPES, SCOPE_WORDS)} sections={(v.baseline?.values.sections ?? []).map((s) => ({ value: s.ref, label: s.description || s.ref }))} pack={PACK_ITEMS.map((item) => ({ item, label: PACK_WORDS[item].en }))} blocker={decisionBlock ?? (liveRow ? say(replacementFaults({ live: { ...liveRow, certificateStatus: liveRow.certificate?.status ?? null }, replacesId: liveRow.id, reason: "x", valuationInProgress: v.current ? `interim valuation of ${formatDate(day(v.current.valuationDate))}` : null })) : null)} windowFrom={completion ? dayPlus(completion, 1) : null} replaces={liveRow ? { id: liveRow.id, text: `${OUTCOME_WORDS[liveRow.outcome].en}, decided ${formatDate(day(liveRow.decidedOn))}` } : null} />}
           divided={v.p.nonCompletions.length > 0}

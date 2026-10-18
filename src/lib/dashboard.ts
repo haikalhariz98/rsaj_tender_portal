@@ -11,6 +11,7 @@ import { hiddenDecisionIds } from "@/lib/committee/hidden";
 import { db } from "@/lib/db";
 import type { FieldChange } from "@/lib/audit/diff";
 import { organisationTimeZone } from "@/lib/org-time";
+import type { Language } from "@/lib/i18n/language";
 
 const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
 
@@ -76,7 +77,7 @@ export async function pipelineCounts(organisationId: string, hidden: readonly st
 
 /// What the dashboard reports. `hidden`: the restricted exercises the reader may not see (FR-MTD-007). Their matters, their counts and their lines in the feed are left out.
 /// The reads are independent and run together; the time zone is read once (AC-9b).
-export async function loadDashboard(organisationId: string, hidden: readonly string[], asOf: Date = new Date()) {
+export async function loadDashboard(organisationId: string, hidden: readonly string[], asOf: Date = new Date(), lang: Language = "en") {
   const timeZoneRead = organisationTimeZone(organisationId);
   const [org, pendingDecisions, activity, meetings, upcoming, pendingRequisitions, committees, withoutQuorum, pipeline, timeZone] = await Promise.all([
     db.organisation.findUnique({ where: { id: organisationId }, select: { id: true } }),
@@ -88,7 +89,7 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
         meeting: { include: { committee: { include: { members: { where: { effectiveTo: null }, select: { personId: true } } } } } },
       },
     }),
-    timeZoneRead.then((tz) => recentActivity(organisationId, tz, hidden)),
+    timeZoneRead.then((tz) => recentActivity(organisationId, tz, hidden, lang)),
     db.meeting.count({ where: { committee: { organisationId } } }),
     db.meeting.findMany({ where: { committee: { organisationId }, meetingDate: { gte: asOf } }, include: { committee: true }, orderBy: { meetingDate: "asc" }, take: 5 }),
     db.approvalInstance.findMany({
@@ -204,7 +205,7 @@ async function withoutHiddenExercises(entries: ActivityEntry[], hidden: readonly
  * and awards, from the audit trail. Votes, recusals, attendance and configuration are
  * not in the allowlist, so those rows are never read.
  */
-async function recentActivity(organisationId: string, timeZone: string | null, hidden: readonly string[]) {
+async function recentActivity(organisationId: string, timeZone: string | null, hidden: readonly string[], lang: Language) {
   const rows = await db.auditEntry.findMany({
     where: { organisationId, entity: { in: [...ACTIVITY_ENTITIES] } },
     orderBy: { at: "desc" },
@@ -242,5 +243,5 @@ async function recentActivity(organisationId: string, timeZone: string | null, h
   for (const d of decisions) owners[`CommitteeDecision:${d.id}`] = { kind: "sitting", id: d.meeting.id, reference: d.meeting.reference, committee: d.meeting.committee.nameEn };
   for (const m of meetings) owners[`Meeting:${m.id}`] = { kind: "sitting", id: m.id, reference: m.reference, committee: m.committee.nameEn };
 
-  return activityFeed(entries, owners, timeZone);
+  return activityFeed(entries, owners, timeZone, 8, lang);
 }

@@ -2,17 +2,22 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker, actStatusText } from "@/lib/contract/act-status";
-import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
+import { CONTRACT_STATUS_WORDS, type Words } from "@/lib/contract/labels";
+import { currentLanguage } from "@/app/_auth/language";
+import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
+import type { Language } from "@/lib/i18n/language";
+import { say, sayWith } from "@/lib/i18n/say";
+import { AWARD_STATUS_WORDS, CASE_HEADER_WORDS as H, CASE_LINK_ACTION_WORDS, CASE_PANEL_TITLE_WORDS as P, CASE_REFUSAL_WORDS as R, CASE_SECTION_WORDS, CASE_STEP_WORDS, CASE_TAB_WORDS, INSTRUMENT_SHORT_WORDS } from "@/lib/contract/case-page-words";
 import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
 import { notFound, redirect } from "next/navigation";
 import { AWARD_NOTE_ID } from "@/app/awards/editors";
 import { loadCase } from "@/app/_auth/case";
 import { Stepper, type StepperStep } from "@/components/ui/stepper";
-import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, INSTRUMENT_SHORT } from "@/lib/award/labels";
+import { AWARD_STATUS_TONE } from "@/lib/award/labels";
 import { loadAward } from "@/lib/award/repo";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { caseStage } from "@/lib/contract/case-stage";
-import { CASE_STEP_LABEL, CLOSE_OUT_PARKED, caseSteps, type CaseAction, type CaseFacts } from "@/lib/contract/case-steps";
+import { caseSteps, type CaseAction, type CaseFacts } from "@/lib/contract/case-steps";
 import { CASE_TABS, HISTORY_TAB } from "@/lib/contract/case-tabs";
 import { caseHistorySources, resolveCaseView } from "@/lib/contract/case-view";
 import { CASE_ACTION_AT, caseHref, keepQuery } from "@/lib/contract/links";
@@ -82,23 +87,23 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
 
 /// How each tab of the case looks in the strip. The ids are `CASE_TABS`' (src/lib/contract/case-tabs.ts), which decides which stage
 /// lists which; "instrument" is the Letter (AC-19).
-const TAB_LOOK: Readonly<Record<string, { label: string; icon: ReactNode }>> = {
-  overview: { label: "Overview", icon: <AwardIcon size={15} /> },
-  approval: { label: "Approval", icon: <RouteIcon size={15} /> },
-  instrument: { label: "Letter", icon: <FileIcon size={15} /> },
-  distribution: { label: "Distribution", icon: <InboxIcon size={15} /> },
-  return: { label: "Return", icon: <ClipboardIcon size={15} /> },
-  routing: { label: "Routing sheet", icon: <SlidersIcon size={15} /> },
-  conditions: { label: "Conditions", icon: <CheckIcon size={15} /> },
-  securities: { label: "Securities and insurance", icon: <ShieldIcon size={15} /> },
-  formation: { label: "Formation", icon: <ToolsIcon size={15} /> },
-  baseline: { label: "Baseline", icon: <FileIcon size={15} /> },
-  team: { label: "Team", icon: <UsersIcon size={15} /> },
-  site: { label: "Site", icon: <BuildingIcon size={15} /> },
-  payments: { label: "Payments", icon: <WalletIcon size={15} /> },
-  variations: { label: "Variations", icon: <ScaleIcon size={15} /> },
-  documents: { label: "Documents", icon: <FilesIcon size={15} /> },
-  submissions: { label: "Submissions", icon: <InboxIcon size={15} /> },
+const TAB_ICON: Readonly<Record<string, ReactNode>> = {
+  overview: <AwardIcon size={15} />,
+  approval: <RouteIcon size={15} />,
+  instrument: <FileIcon size={15} />,
+  distribution: <InboxIcon size={15} />,
+  return: <ClipboardIcon size={15} />,
+  routing: <SlidersIcon size={15} />,
+  conditions: <CheckIcon size={15} />,
+  securities: <ShieldIcon size={15} />,
+  formation: <ToolsIcon size={15} />,
+  baseline: <FileIcon size={15} />,
+  team: <UsersIcon size={15} />,
+  site: <BuildingIcon size={15} />,
+  payments: <WalletIcon size={15} />,
+  variations: <ScaleIcon size={15} />,
+  documents: <FilesIcon size={15} />,
+  submissions: <InboxIcon size={15} />,
 };
 
 /// The tabs that have a second level, with the sections the case page reads from its address.
@@ -107,20 +112,9 @@ const SECTIONED = { formation: FORMATION_SECTIONS, site: SITE_SECTIONS, payments
 const STEP_STATE = { done: "done", "in-progress": "current", waiting: "waiting", parked: "parked" } as const;
 
 /// The label of a main button that is a link to the panel holding the act's drawer (see `CASE_ACTION_AT`).
-const LINK_ACTION_LABEL: Readonly<Partial<Record<CaseAction, string>>> = {
-  RECORD_DESPATCH: "Record despatch",
-  RECORD_RETURN: "Record the return",
-  LODGE_SECURITY: "Lodge a security",
-  VERIFY_SECURITY: "Verify securities",
-  SUBMIT_TO_LEGAL: "Send to the legal office",
-  RECORD_SIGNATURE: "Record the signatures",
-  RECORD_STAMPING: "Record the stamping",
-  RECORD_POSSESSION: "Record possession of site",
-};
+const LINK_ACTION_WORDS: Readonly<Partial<Record<CaseAction, Words>>> = CASE_LINK_ACTION_WORDS;
 
-/// AC-37 (a): the conditions are not withheld (the Project overview shows them); only adding and settling them is restricted.
-const RESTRICTED_CONDITIONS_NOTE = "Adding and settling the award's conditions is restricted to the people named on the exercise. Their state shows on the Project overview.";
-const RESTRICTED_AWARD_STAGE = "The award stage of this exercise is restricted to the people named on it. The contract stages are open to you.";
+/// AC-37 (a): the conditions are not withheld (the Project overview shows them); only adding and settling them is restricted (`CASE_REFUSAL_WORDS`).
 
 /**
  * The case (Award and Contract Requirements v2, C-1, C-2; design note 0004 C5; ADR 0037): one page for an award from "Start the
@@ -135,6 +129,8 @@ const RESTRICTED_AWARD_STAGE = "The award stage of this exercise is restricted t
  */
 export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const actor = await requireStaff();
+  const { language: lang } = await currentLanguage();
+  const t = (words: Words) => say(words, lang);
   const [{ id }, sp] = await Promise.all([props.params, props.searchParams as Promise<Record<string, string | string[] | undefined>>]);
   const first = (k: string) => {
     const v = sp[k];
@@ -231,14 +227,14 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       <EmptyState title={title}>{body}</EmptyState>
     </Card>
   );
-  const panelFor = (t: string): ReactNode => {
-    if (stage === "award") return fin?.panel(t as AwardPanelId) ?? null;
+  const panelFor = (tabId: string): ReactNode => {
+    if (stage === "award") return fin?.panel(tabId as AwardPanelId) ?? null;
     // Before the contract exists the award's conditions and its bond requirement are still entered here (FR-AWD-014): the award's panels need no Contract row.
-    if (!lc || !c) return stage === "before-signing" && (t === "conditions" || t === "securities") ? (fin?.panel(t) ?? null) : null;
-    switch (t) {
+    if (!lc || !c) return stage === "before-signing" && (tabId === "conditions" || tabId === "securities") ? (fin?.panel(tabId) ?? null) : null;
+    switch (tabId) {
       case "conditions":
         // The conditions are read from the award (F0-4): a reader who sees the contract stages only is told so.
-        return fin ? fin.panel("conditions") : notice("Adding and settling conditions is restricted", RESTRICTED_CONDITIONS_NOTE);
+        return fin ? fin.panel("conditions") : notice(t(R.conditionsRestrictedTitle), t(R.conditionsRestrictedBody));
       case "securities":
         return (
           <div className="flex flex-col gap-6">
@@ -247,9 +243,9 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
           </div>
         );
       case "formation":
-        return facts && sulit ? <FormationPanel sulit={sulit!} l={lc} section={formationSection} facts={facts} people={people} today={today} /> : notice("Not judged", "Set the organisation's time zone first.");
+        return facts && sulit ? <FormationPanel sulit={sulit!} l={lc} section={formationSection} facts={facts} people={people} today={today} /> : notice(t(R.notJudged), t(R.setTimeZoneFirst));
       case "baseline":
-        return facts ? <BaselinePanel l={lc} facts={facts} timeZone={l.org.timeZone} /> : notice("Not judged", "Set the organisation's time zone first.");
+        return facts ? <BaselinePanel l={lc} facts={facts} timeZone={l.org.timeZone} /> : notice(t(R.notJudged), t(R.setTimeZoneFirst));
       case "overview":
         return supervision && payments && variations && sulit ? <OverviewPanel sulit={sulit} l={lc} awardOpen={visibility === "WHOLE"} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> : null;
       case "team":
@@ -270,29 +266,29 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   };
   const historyPanel = (
     <div className="flex flex-col gap-6">
-      {sources.length > 1 && <h2 className="text-[13px] font-semibold tracking-wide text-ink-3 uppercase">The contract</h2>}
-      {lc && history && sulit && <HistoryPanel withheldRows={visibility !== "WHOLE"} sulit={sulit} matterGates={matterGates} entries={history.entries} total={history.total} timeZone={l.org.timeZone} />}
-      {sources.length > 1 && <h2 className="text-[13px] font-semibold tracking-wide text-ink-3 uppercase">The award</h2>}
+      {sources.length > 1 && <h2 className="text-[13px] font-semibold tracking-wide text-ink-3 uppercase">{t(P.theContract)}</h2>}
+      {lc && history && sulit && <HistoryPanel withheldRows={visibility !== "WHOLE"} sulit={sulit} matterGates={matterGates} entries={history.entries} total={history.total} timeZone={l.org.timeZone} lang={lang} />}
+      {sources.length > 1 && <h2 className="text-[13px] font-semibold tracking-wide text-ink-3 uppercase">{t(P.theAward)}</h2>}
       {fin?.panel("history")}
     </div>
   );
 
   const stageTabs = stage === "close-out" ? [] : CASE_TABS[stage];
   const tabs: TabSpec[] = [
-    ...stageTabs.map((t): TabSpec => {
-      const sections = SECTIONED[t as keyof typeof SECTIONED];
-      return { id: t, label: TAB_LOOK[t].label, icon: TAB_LOOK[t].icon, lazy: true, ...(sections ? { sections: [...sections], section: sectionOf[t] } : {}), panel: !view.history && view.tab === t ? panelFor(t) : null };
+    ...stageTabs.map((tabId): TabSpec => {
+      const sections = SECTIONED[tabId as keyof typeof SECTIONED];
+      return { id: tabId, label: t(CASE_TAB_WORDS[tabId]), icon: TAB_ICON[tabId], lazy: true, ...(sections ? { sections: sections.map((x) => ({ id: x.id, label: t(CASE_SECTION_WORDS[`${tabId}.${x.id}`]) })), section: sectionOf[tabId] } : {}), panel: !view.history && view.tab === tabId ? panelFor(tabId) : null };
     }),
-    { id: HISTORY_TAB, label: "History", icon: <ClockIcon size={15} />, lazy: true, panel: view.history ? historyPanel : null },
+    { id: HISTORY_TAB, label: t(COMPONENT_WORDS.history), icon: <ClockIcon size={15} />, lazy: true, panel: view.history ? historyPanel : null },
   ];
 
   // ----------------------------------------------------------------- the header, the bar, the main button
   const phase = facts?.phase ?? status;
   const stepperSteps: StepperStep[] = steps.map((s) => ({
     key: s.key,
-    label: CASE_STEP_LABEL[s.key],
+    label: t(CASE_STEP_WORDS[s.key]),
     state: STEP_STATE[s.state],
-    stateText: s.key === "award" && visibility === "CONTRACT_STAGES_ONLY" ? "restricted to the people named on the exercise" : undefined,
+    stateText: s.key === "award" && visibility === "CONTRACT_STAGES_ONLY" ? t(H.awardRestricted) : undefined,
     href: caseHref(ref, { stage: s.key }),
   }));
   // Review S1: the family's row first, in the acts' own words, for the one drawer the header offers.
@@ -304,7 +300,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       : viewed.action === "START_PREPARATION" && lc && start
         ? <ActGate blocker={formationShut}><StartPreparationDrawer id={lc.contract.id} blocker={start.blocker} frozen={start.frozen} /></ActGate>
         : null;
-  const mainLink = linkAt && viewed.action ? <ButtonLink href={caseHref(ref, linkAt)} size="sm" variant="primary">{LINK_ACTION_LABEL[viewed.action]}</ButtonLink> : null;
+  const mainLink = linkAt && viewed.action ? <ButtonLink href={caseHref(ref, linkAt)} size="sm" variant="primary">{LINK_ACTION_WORDS[viewed.action] ? t(LINK_ACTION_WORDS[viewed.action]!) : null}</ButtonLink> : null;
   // On the Award stage the award's own drawers stay in the header, as on the award's page (C-3); the step's main act is one of them.
   const actions = fin?.chrome ? <>{fin.chrome.actions}{mainLink}</> : <>{mainNode}{mainLink}</>;
   const awardStatus = award.status as AwardStatus;
@@ -313,17 +309,17 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     <>
       <RecordCrumb label={c?.number ?? award.reference} />
       <PageHeader
-        eyebrow={<Link href="/projects">Contracts</Link>}
-        title={c ? `Contract ${c.number}` : award.awardeeName}
-        badge={c && phase ? <Badge tone={TONE[PHASE_TONE[phase as keyof typeof PHASE_TONE]]} dot>{PHASE_WORDS[phase as keyof typeof PHASE_WORDS].en}</Badge> : <Badge tone={AWARD_STATUS_TONE[awardStatus]} dot>{AWARD_STATUS_LABEL[awardStatus]}</Badge>}
+        eyebrow={<Link href="/projects">{t(H.contracts)}</Link>}
+        title={c ? sayWith(H.contractNumber, lang, { number: c.number }) : award.awardeeName}
+        badge={c && phase ? <Badge tone={TONE[PHASE_TONE[phase as keyof typeof PHASE_TONE]]} dot>{t(PHASE_WORDS[phase as keyof typeof PHASE_WORDS])}</Badge> : <Badge tone={AWARD_STATUS_TONE[awardStatus]} dot>{t(AWARD_STATUS_WORDS[awardStatus])}</Badge>}
         subtitle={ex.title}
         meta={[
           c ? award.awardeeName : <span key="ref" className="font-mono text-[12.5px]">{award.reference}</span>,
           formatMoney(senFromDecimal(c ? c.contractSum : award.awardedValue)),
           // The award-only case already names its reference first.
           c ? (visibility === "WHOLE" ? <Link key="aw" href={caseHref(ref, { stage: "award" })}>{award.reference}</Link> : award.reference) : null,
-          visibility === "WHOLE" ? <span key="for">for <Link href={`/sourcing/${ex.id}?tab=award`}>{ex.reference}</Link></span> : null,
-          c ? (c.contractDate ? `Contract Date ${formatDate(day(c.contractDate))}` : "Not signed") : INSTRUMENT_SHORT[award.instrumentKind as InstrumentKind],
+          visibility === "WHOLE" ? <span key="for">{t(H.forExercise)} <Link href={`/sourcing/${ex.id}?tab=award`}>{ex.reference}</Link></span> : null,
+          c ? (c.contractDate ? sayWith(H.contractDate, lang, { date: formatDate(day(c.contractDate), lang) }) : t(H.notSigned)) : t(INSTRUMENT_SHORT_WORDS[award.instrumentKind as InstrumentKind]),
         ]}
         actions={actions}
         actionsNote={fin?.chrome?.headerNote}
@@ -356,20 +352,20 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       </div>
       <Card className="mb-6">
         <CardBody className="flex flex-col gap-5">
-          <Stepper steps={stepperSteps} label="Stages of this case" selected={stage} />
+          <Stepper steps={stepperSteps} label={t(H.stagesLabel)} selected={stage} />
           <p className="text-[13.5px] text-ink-2">
-            <span className="font-semibold text-ink">What&apos;s next on {CASE_STEP_LABEL[stage]}:</span> {viewed.next}
+            <span className="font-semibold text-ink">{sayWith(H.whatsNextOn, lang, { step: t(CASE_STEP_WORDS[stage]) })}</span> {viewed.next}
           </p>
         </CardBody>
       </Card>
       {view.awardRefused ? (
-        notice("The award stage is restricted", RESTRICTED_AWARD_STAGE)
+        notice(t(R.awardStageRestrictedTitle), t(R.awardStageRestrictedBody))
       ) : view.noContractYet ? (
-        notice(CASE_STEP_LABEL[stage], viewed.next)
+        notice(t(CASE_STEP_WORDS[stage]), viewed.next)
       ) : stage === "close-out" ? (
-        notice("Close-out", CLOSE_OUT_PARKED)
+        notice(t(CASE_STEP_WORDS["close-out"]), t(R.closeOutParked))
       ) : (
-        <Tabs initial={view.history ? HISTORY_TAB : (view.tab ?? undefined)} label="Case" tabs={tabs} keep={{ stage }} />
+        <Tabs initial={view.history ? HISTORY_TAB : (view.tab ?? undefined)} label={t(H.caseTabs)} tabs={tabs} keep={{ stage }} />
       )}
     </>
   );
@@ -380,6 +376,8 @@ type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 // ------------------------------------------------------------------ overview
 
 async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, payments, variations }: { sulit: Sulit<true>; l: LoadedContract; awardOpen: boolean; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
+  const { language: lang } = await currentLanguage();
+  const t = (words: Words) => say(words, lang);
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -395,7 +393,7 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
     <div className="flex flex-col gap-6">
       {start && (
         <Card>
-          <CardHeader icon={<ToolsIcon size={17} />} title="Not started" subtitle="The contract is numbered. Preparing it freezes what it is formed under and builds the baseline's draft." actions={<StartPreparationDrawer id={c.id} blocker={start.blocker} frozen={start.frozen} />} />
+          <CardHeader icon={<ToolsIcon size={17} />} title={t(P.notStarted)} subtitle="The contract is numbered. Preparing it freezes what it is formed under and builds the baseline's draft." actions={<StartPreparationDrawer id={c.id} blocker={start.blocker} frozen={start.frozen} />} />
         </Card>
       )}
       <OnSiteCard l={l} v={supervision} />
@@ -403,7 +401,7 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
       <PaymentSummaryCard l={l} v={payments} />
       <VariationSummaryCard l={l} v={variations} />
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="The contract" subtitle="As awarded, numbered at issue, and as it is being formed." />
+        <CardHeader icon={<FileIcon size={17} />} title={t(P.theContract)} subtitle="As awarded, numbered at issue, and as it is being formed." />
         <CardBody>
           <KeyValues
             columns={2}
@@ -431,11 +429,11 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
         </CardBody>
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Ready to sign?" subtitle="The readiness gate, as the award shows it. Preparation continues while it is red." actions={facts ? <Badge tone={facts.gate.ready ? "ok" : "warn"}>{facts.gate.ready ? "Gate met" : "Gate not met"}</Badge> : undefined} />
-        {facts ? <ReadinessGateList items={facts.gate.items} bondNotRequiredReason={l.award.bondNotRequiredReason} /> : <EmptyState size="sm" title="Not judged">Set the organisation&apos;s time zone first.</EmptyState>}
+        <CardHeader icon={<ShieldIcon size={17} />} title={t(P.readyToSign)} subtitle="The readiness gate, as the award shows it. Preparation continues while it is red." actions={facts ? <Badge tone={facts.gate.ready ? "ok" : "warn"}>{facts.gate.ready ? "Gate met" : "Gate not met"}</Badge> : undefined} />
+        {facts ? <ReadinessGateList items={facts.gate.items} bondNotRequiredReason={l.award.bondNotRequiredReason} /> : <EmptyState size="sm" title={t(R.notJudged)}>{t(R.setTimeZoneFirst)}</EmptyState>}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<CheckIcon size={17} />} title="The award's conditions" subtitle="Before work starts, each with the day it is needed by. Recorded on the award." divided={l.award.conditions.length > 0} />
+        <CardHeader icon={<CheckIcon size={17} />} title={t(P.awardConditions)} subtitle="Before work starts, each with the day it is needed by. Recorded on the award." divided={l.award.conditions.length > 0} />
         {l.award.conditions.length === 0 ? (
           <EmptyState size="sm" title="None recorded">The award records none.</EmptyState>
         ) : (
@@ -458,6 +456,8 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
 
 /// AC-21: the Project stage's summary of the register, for the advance-payment guarantees and retention bonds that are lodged after signing. It opens the Before signing panel, where the lodge and review drawers are.
 async function SecuritiesSummaryCard({ l, today }: { l: LoadedContract; today: string | null }) {
+  const { language: lang } = await currentLanguage();
+  const t = (words: Words) => say(words, lang);
   const c = l.contract;
   const offsets = await loadExpiryOffsets(l.org.id);
   const rows = [...c.securities.map((s) => ({ status: s.status, on: s.expiresOn })), ...c.policies.map((p) => ({ status: p.status, on: p.periodEnd }))];
@@ -468,7 +468,7 @@ async function SecuritiesSummaryCard({ l, today }: { l: LoadedContract; today: s
     <Card>
       <CardHeader
         icon={<ShieldIcon size={17} />}
-        title="Securities and insurance"
+        title={t(P.securitiesAndInsurance)}
         subtitle="Bonds, guarantees and policies on this contract. Advance-payment guarantees and retention bonds are lodged and checked in the same panel."
         actions={<ButtonLink href={caseHref({ awardId: l.award.id, contractId: c.id }, { stage: "before-signing", tab: "securities" })} size="sm" variant="secondary">Open securities</ButtonLink>}
       />
@@ -490,6 +490,8 @@ async function SecuritiesSummaryCard({ l, today }: { l: LoadedContract; today: s
 }
 
 async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: LoadedContract; people: Option[]; today: string | null; wagesCheckOnly: boolean }) {
+  const { language: lang } = await currentLanguage();
+  const t = (words: Words) => say(words, lang);
   const c = l.contract;
   // AC-15: the same chips as the award's tab (one wording, `expiryChip`) and the configured reminder intervals, which with none set say so.
   const offsets = await loadExpiryOffsets(l.org.id);
@@ -508,7 +510,7 @@ async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: Loaded
     if (wcPolicies.length === 0) return null;
     return (
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Workmen's compensation wages check" subtitle="Recorded on the contract once the policy is verified. Recorded, not judged." />
+        <CardHeader icon={<ShieldIcon size={17} />} title={t(P.wagesCheck)} subtitle="Recorded on the contract once the policy is verified. Recorded, not judged." />
         <ActGate blocker={shut}>
           <ul className="divide-y divide-line/70">
             {wcPolicies.map((p) => (
@@ -516,7 +518,7 @@ async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: Loaded
                 <span className="text-[12.5px] break-words text-ink-3">
                   {p.wcCheckedOn ? `Wages check recorded ${formatDate(day(p.wcCheckedOn))} by ${p.wcCheckedBy?.name ?? "an officer"}: declared uncovered wages ${formatMoney(parseSen(p.wcDeclaredUncoveredWages!.toString()))}. Recorded, not judged: basis not set (D4).` : "The uncovered-wages check is not recorded: the gate's insurance item is not met until it is."}
                 </span>
-                {!p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label="Record the wages check" reason="Verify the policy above first." />)}
+                {!p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label={t(R.recordWagesCheck)} reason={t(R.verifyPolicyAbove)} />)}
               </li>
             ))}
           </ul>
@@ -526,7 +528,7 @@ async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: Loaded
   }
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ShieldIcon size={17} />} title="Securities and insurances" subtitle={`The contract's register, read-only here: lodging and checking sit with the people named on the exercise. ${remindersText(offsets)}, shown and not sent.`} divided={c.securities.length + c.policies.length === 0} />
+      <CardHeader icon={<ShieldIcon size={17} />} title={t(P.securitiesAndInsurances)} subtitle={`The contract's register, read-only here: lodging and checking sit with the people named on the exercise. ${remindersText(offsets)}, shown and not sent.`} divided={c.securities.length + c.policies.length === 0} />
       {c.securities.length + c.policies.length === 0 ? (
         <EmptyState size="sm" title="Nothing lodged">Nothing has been lodged on this contract.</EmptyState>
       ) : (
@@ -562,7 +564,7 @@ async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: Loaded
                 <span className="flex shrink-0 flex-wrap items-center gap-2">
                   {p.status !== "REJECTED" && alert(p.periodEnd)}
                   <Chip tone={REGISTER_STATUS_TONE[p.status]}>{REGISTER_STATUS_LABEL[p.status]}</Chip>
-                  {wc && !p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label="Record the wages check" reason="Verify the policy first." />)}
+                  {wc && !p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label={t(R.recordWagesCheck)} reason={t(R.verifyPolicyFirst)} />)}
                 </span>
               </li>
             );
@@ -609,7 +611,7 @@ const ENTITY_LABEL: Record<string, string> = {
   // 6.13 Part A step 4: variations, the matters tabled from them, and the adjustment of the contract sum.
   ...Object.fromEntries(VARIATION_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
 };
-function HistoryPanel({ withheldRows, sulit, matterGates, entries, total, timeZone }: { withheldRows: boolean; sulit: Sulit<true>; matterGates: ReadonlyMap<string, Sulit<true>>; entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
+function HistoryPanel({ withheldRows, sulit, matterGates, entries, total, timeZone, lang }: { withheldRows: boolean; sulit: Sulit<true>; matterGates: ReadonlyMap<string, Sulit<true>>; entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null; lang: Language }) {
   // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.
   const read = (field: string, value: string | null, entity: string): string => historyValue(field, value, formatDate, entity);
   // A registered SULIT field's value is shown or withheld as the contract's one answer says, as on the sibling History panels.
@@ -621,7 +623,7 @@ function HistoryPanel({ withheldRows, sulit, matterGates, entries, total, timeZo
   };
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this contract and what is under it. "}Each change names who made it; any from before sign-in is not attributed. Identity-card numbers are masked here.`} divided={entries.length === 0} />
+      <CardHeader icon={<ClockIcon size={17} />} title={say(COMPONENT_WORDS.history, lang)} subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this contract and what is under it. "}Each change names who made it; any from before sign-in is not attributed. Identity-card numbers are masked here.`} divided={entries.length === 0} />
       {entries.length === 0 ? (
         <EmptyState size="sm" title="No recorded changes">Changes made through the portal appear here.</EmptyState>
       ) : (

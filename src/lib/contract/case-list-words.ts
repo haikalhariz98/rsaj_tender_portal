@@ -7,8 +7,11 @@
  */
 
 import type { AwardStatus } from "@/lib/award/types";
+import type { Language } from "@/lib/i18n/language";
+import { say, sayWith } from "@/lib/i18n/say";
 
 import type { CaseEnded, CaseStage, CaseStanding } from "./case-stage";
+import { CASE_CHIP_WORDS as C } from "./case-page-words";
 import { w, type Tone, type Words } from "./labels";
 
 export const CASE_STAGE_WORDS: Readonly<Record<CaseStage, Words>> = {
@@ -65,13 +68,14 @@ export interface Chip {
 }
 
 /// The Awards list's "checks" chips, in its order and words.
-export function awardChips(f: AwardChipFacts): Chip[] {
+export function awardChips(f: AwardChipFacts, lang: Language = "en"): Chip[] {
+  const t = (words: Words) => say(words, lang);
   const issued = f.status === "ISSUED" || f.status === "ACCEPTED";
   return [
-    ...(issued ? [{ text: f.returned ? "Returned" : "Awaiting return", tone: f.returned ? ("ok" as const) : ("warn" as const) }] : []),
-    ...(issued ? [{ text: f.toVerify ? `${f.toVerify} to verify` : f.registered ? "Securities verified" : "No securities lodged", tone: f.toVerify || !f.registered ? ("warn" as const) : ("ok" as const) }] : []),
-    ...(issued && !f.hasCommitmentNo ? [{ text: "No commitment number", tone: "warn" as const }] : []),
-    ...(f.indentExpired ? [{ text: "Indent expired", tone: "err" as const }] : []),
-    ...(!issued && f.status !== "CANCELLED" ? [{ text: f.status === "APPROVED" ? "To issue" : f.status === "PENDING_APPROVAL" ? "With the approvers" : "Being prepared", tone: "brand" as const }] : []),
+    ...(issued ? [{ text: t(f.returned ? C.returned : C.awaitingReturn), tone: f.returned ? ("ok" as const) : ("warn" as const) }] : []),
+    ...(issued ? [{ text: f.toVerify ? sayWith(C.toVerify, lang, { count: String(f.toVerify) }) : t(f.registered ? C.securitiesVerified : C.noSecuritiesLodged), tone: f.toVerify || !f.registered ? ("warn" as const) : ("ok" as const) }] : []),
+    ...(issued && !f.hasCommitmentNo ? [{ text: t(C.noCommitmentNumber), tone: "warn" as const }] : []),
+    ...(f.indentExpired ? [{ text: t(C.indentExpired), tone: "err" as const }] : []),
+    ...(!issued && f.status !== "CANCELLED" ? [{ text: t(f.status === "APPROVED" ? C.toIssue : f.status === "PENDING_APPROVAL" ? C.withTheApprovers : C.beingPrepared), tone: "brand" as const }] : []),
   ];
 }

@@ -3,6 +3,10 @@
  * notification rule's offsets. Computed and shown; nothing is sent (6.11 ruling).
  */
 
+import { EXPIRY_WORDS } from "@/lib/contract/case-page-words";
+import type { Language } from "@/lib/i18n/language";
+import { say, sayWith } from "@/lib/i18n/say";
+
 import { addDays, daysFrom, type Day } from "./period";
 
 export type ExpiryAlert =
@@ -46,15 +50,15 @@ export function registerRank(row: { status: string; expiresOn: Day | null }, cut
  * Securities tab, the contract's and the Contracts list's view show the same chip for the same instrument. Null when
  * the alert is not due.
  */
-export function expiryChip(a: ExpiryAlert | null): { text: string; tone: "err" | "warn" } | null {
+export function expiryChip(a: ExpiryAlert | null, lang: Language = "en"): { text: string; tone: "err" | "warn" } | null {
   if (!a) return null;
-  if (a.state === "EXPIRED") return { text: `Expired ${a.daysAgo} days ago`, tone: "err" };
-  if (a.state === "DUE") return { text: `Expires in ${a.daysLeft} days`, tone: "warn" };
-  if (a.state === "NO_EXPIRY") return { text: "No expiry recorded", tone: "warn" };
+  if (a.state === "EXPIRED") return { text: sayWith(EXPIRY_WORDS.expiredAgo, lang, { days: String(a.daysAgo) }), tone: "err" };
+  if (a.state === "DUE") return { text: sayWith(EXPIRY_WORDS.expiresIn, lang, { days: String(a.daysLeft) }), tone: "warn" };
+  if (a.state === "NO_EXPIRY") return { text: say(EXPIRY_WORDS.noExpiry, lang), tone: "warn" };
   return null;
 }
 
 /// The configured reminder intervals in words. With none configured it says so; it is never "0 days" (AC-15).
-export function remindersText(offsets: readonly number[]): string {
-  return offsets.length ? `Reminders at ${offsets.join(", ")} days` : "Expiry reminders are not set";
+export function remindersText(offsets: readonly number[], lang: Language = "en"): string {
+  return offsets.length ? sayWith(EXPIRY_WORDS.remindersAt, lang, { days: offsets.join(", ") }) : say(EXPIRY_WORDS.remindersNotSet, lang);
 }

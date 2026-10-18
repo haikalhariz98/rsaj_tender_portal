@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, type ReactNode } from "react";
 
 import type { Words } from "@/lib/contract/labels";
 import type { Language, LanguageChoice } from "@/lib/i18n/language";
-import { say } from "@/lib/i18n/say";
+import { say, sayWith } from "@/lib/i18n/say";
 
 /**
  * The language the staff screens are read in (NFR-LNG-001, ADR 0040), read by the root layout on this request and handed down. The default
@@ -44,4 +44,10 @@ export function useSay(): (words: Words) => string {
 /// A pair as text, for a server component's JSX: the same words, in the language being read.
 export function Say({ words }: { words: Words }) {
   return <>{useSay()(words)}</>;
+}
+
+/// A sentence with values as text, for a server component's JSX: the same words, in the language being read.
+export function SayWith({ words, values }: { words: Words; values: Readonly<Record<string, string>> }) {
+  const { language } = useLanguage();
+  return <>{sayWith(words, language, values)}</>;
 }

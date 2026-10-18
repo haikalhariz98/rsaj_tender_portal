@@ -2,6 +2,7 @@ import type { Tx } from "@/lib/audit/record";
 import { pageOf } from "@/lib/certificate/library";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
+import type { Language } from "@/lib/i18n/language";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 
 import { serviceState, type ServiceState } from "./submission";
@@ -73,7 +74,7 @@ export interface ReviewQueue {
 }
 
 /// The queue as the officers read it: each list paged in the database (4e review fix: it was one capped read, and the counts came from the cap).
-export async function loadReviewQueue(client: Tx, organisationId: string, today: string | null, pages: { waiting?: string; answered?: string } = {}, scope: ReviewScope = {}): Promise<ReviewQueue> {
+export async function loadReviewQueue(client: Tx, organisationId: string, today: string | null, pages: { waiting?: string; answered?: string } = {}, scope: ReviewScope = {}, lang: Language = "en"): Promise<ReviewQueue> {
   const [counts, settings] = await Promise.all([reviewCounts(client, organisationId, today, scope), client.contractorSubmissionSetting.findMany({ where: { organisationId }, select: { kind: true, serviceLevelDays: true } })]);
   const waitingPage = pageOf(pages.waiting, counts.waiting, REVIEW_PAGE);
   const answeredPage = pageOf(pages.answered, counts.answered, REVIEW_PAGE);
@@ -95,8 +96,8 @@ export async function loadReviewQueue(client: Tx, organisationId: string, today:
       title: r.title,
       body: r.body,
       amount: r.amount == null ? null : formatMoney(senFromDecimal(r.amount)),
-      aboutDay: r.aboutDay ? formatDate(storedDay(r.aboutDay)) : null,
-      sentOn: formatDate(sentDay),
+      aboutDay: r.aboutDay ? formatDate(storedDay(r.aboutDay), lang) : null,
+      sentOn: formatDate(sentDay, lang),
       sentDay,
       signed: r.signedAt != null,
       routedTo: r.routedToRoleLabel,
@@ -104,7 +105,7 @@ export async function loadReviewQueue(client: Tx, organisationId: string, today:
       outcome: r.outcome as SubmissionOutcome | null,
       outcomeNote: r.outcomeNote,
       decidedBy: r.decidedBy?.name ?? null,
-      decidedOn: r.decidedOn ? formatDate(storedDay(r.decidedOn)) : null,
+      decidedOn: r.decidedOn ? formatDate(storedDay(r.decidedOn), lang) : null,
       lines: r.lines.map((l) => ({ description: l.description, quantity: l.quantity, location: l.location, value: formatMoney(senFromDecimal(l.value)) })),
     };
   };

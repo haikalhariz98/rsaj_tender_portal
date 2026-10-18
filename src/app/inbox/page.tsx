@@ -1,5 +1,6 @@
 import { hiddenExercises } from "@/app/_auth/sulit";
 import { requireStaff } from "@/app/_auth/actor";
+import { currentLanguage } from "@/app/_auth/language";
 import { DataList, type Row } from "@/components/data-list";
 import { InboxIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -7,11 +8,14 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Card, CardHeader } from "@/components/ui/card";
 import { LeadWithMore } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
+import type { Words } from "@/lib/contract/labels";
 import { db } from "@/lib/db";
 import { formatOrgDateTime } from "@/lib/format";
 import { STAFF_NOTICE_KIND_LABEL, type StaffNoticeKind } from "@/lib/inbox/kinds";
 import { decodeCursor, encodeCursor } from "@/lib/inbox/paging";
 import { inboxTotals, loadInboxPage } from "@/lib/inbox/store";
+import { INBOX_WORDS as I } from "@/lib/i18n/catalogues/inbox";
+import { say, sayWith } from "@/lib/i18n/say";
 
 import { markNoticesRead, openNoticeAction } from "./actions";
 
@@ -25,6 +29,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ before?: string }> }) {
   const actor = await requireStaff();
+  const { language: lang } = await currentLanguage();
+  const t = (words: Words) => say(words, lang);
   const { before } = await searchParams;
   const viewer = { organisationId: actor.organisationId, personId: actor.personId };
   const hidden = await hiddenExercises(actor);
@@ -39,30 +45,30 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     sortKeys: { received: n.raisedAt.getTime() },
     cells: {
       notice: n.href ? { kind: "open", text: n.title, action: openNoticeAction, fields: { id: n.id }, sub: n.body } : { kind: "stack", title: n.title, sub: n.body },
-      what: { kind: "chip", text: STAFF_NOTICE_KIND_LABEL[n.kind as StaffNoticeKind] ?? "Notice", tone: "brand" },
-      received: { kind: "text", text: formatOrgDateTime(n.raisedAt, actor.organisationTimeZone) },
-      status: n.readAt ? { kind: "chip", text: "Read" } : { kind: "chip", text: "Unread", tone: "info" },
+      what: { kind: "chip", text: t(STAFF_NOTICE_KIND_LABEL[n.kind as StaffNoticeKind] ?? I.otherKind), tone: "brand" },
+      received: { kind: "text", text: formatOrgDateTime(n.raisedAt, actor.organisationTimeZone, lang) },
+      status: n.readAt ? { kind: "chip", text: t(I.read) } : { kind: "chip", text: t(I.unread), tone: "info" },
     },
   }));
 
   return (
     <>
       <PageHeader
-        title="Inbox"
-        subtitle={<LeadWithMore lead="What has been told to you in the portal. Notices appear here only; they are not emailed." more="A step that arrived, was moved or was withdrawn, a delegation given to you, and a memo that a matter was not approved. What is waiting for you to decide is on My approvals." />}
-        meta={[`${totals.unread} unread`, `${totals.total} ${totals.total === 1 ? "notice" : "notices"}`]}
+        title={t(I.title)}
+        subtitle={<LeadWithMore lead={t(I.lead)} more={t(I.more)} />}
+        meta={[sayWith(I.unreadCount, lang, { count: String(totals.unread) }), sayWith(totals.total === 1 ? I.noticeCount : I.noticesCount, lang, { count: String(totals.total) })]}
       />
       <Card className="overflow-hidden">
         <CardHeader
           icon={<InboxIcon size={17} />}
-          title="Notices"
-          subtitle={before ? `Newest first, older than the ones before. Showing ${notices.length} of ${totals.total}.` : more ? `Newest first. Showing the latest ${notices.length} of ${totals.total}.` : "Newest first."}
+          title={t(I.notices)}
+          subtitle={before ? sayWith(I.subtitleOlder, lang, { shown: String(notices.length), total: String(totals.total) }) : more ? sayWith(I.subtitleMore, lang, { shown: String(notices.length), total: String(totals.total) }) : t(I.subtitleNewest)}
           actions={
             totals.unread > 0 ? (
               <form action={markNoticesRead}>
                 <input type="hidden" name="upTo" value={drawnAt.toISOString()} />
                 <Button type="submit" size="sm" variant="secondary">
-                  Mark all as read
+                  {t(I.markAllRead)}
                 </Button>
               </form>
             ) : undefined
@@ -70,25 +76,25 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           divided={false}
         />
         {rows.length === 0 ? (
-          <EmptyState title="Nothing has been told to you">Notices appear here when an act of someone else concerns your office or your work.</EmptyState>
+          <EmptyState title={t(I.emptyTitle)}>{t(I.emptyBody)}</EmptyState>
         ) : (
           <DataList
             flat
             selectable={false}
             exportName="inbox"
-            searchPlaceholder="Search notices"
-            emptyTitle="Nothing here"
-            emptyBody="No notice in this view."
+            searchPlaceholder={t(I.searchNotices)}
+            emptyTitle={t(I.listEmptyTitle)}
+            emptyBody={t(I.listEmptyBody)}
             views={[
-              { id: "unread", label: "Unread" },
-              { id: "read", label: "Read" },
+              { id: "unread", label: t(I.unread) },
+              { id: "read", label: t(I.read) },
             ]}
             rowOpens
             columns={[
-              { key: "notice", label: "Notice", mobile: "primary" },
-              { key: "what", label: "What", width: "210px", hideBelow: "md", mobile: "meta" },
-              { key: "received", label: "Received", width: "190px", sortable: true, mobile: "meta" },
-              { key: "status", label: "Status", width: "100px", mobile: "meta" },
+              { key: "notice", label: t(I.colNotice), mobile: "primary" },
+              { key: "what", label: t(I.colWhat), width: "210px", hideBelow: "md", mobile: "meta" },
+              { key: "received", label: t(I.colReceived), width: "190px", sortable: true, mobile: "meta" },
+              { key: "status", label: t(I.colStatus), width: "100px", mobile: "meta" },
             ]}
             rows={rows}
           />
@@ -97,14 +103,14 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
             {before ? (
               <ButtonLink href="/inbox" size="sm" variant="secondary">
-                Back to the newest
+                {t(I.backToNewest)}
               </ButtonLink>
             ) : (
               <span />
             )}
             {more && last && (
               <ButtonLink href={`/inbox?before=${encodeURIComponent(encodeCursor(last))}`} size="sm" variant="secondary">
-                Older notices
+                {t(I.olderNotices)}
               </ButtonLink>
             )}
           </div>

@@ -76,6 +76,21 @@ export const COMPONENT_WORDS = {
   uploadProgress: w("Upload progress", "Kemajuan muat naik"),
   uploaded: w("Uploaded.", "Dimuat naik."),
   showFullDescription: w("Show the full description", "Tunjuk keterangan penuh"),
+  // The step bar (Stepper): a step's state, said after its name for a screen reader
+  stepDone: w("done", "selesai"),
+  stepCurrent: w("waiting now", "menunggu sekarang"),
+  stepWaiting: w("not reached yet", "belum sampai"),
+  stepRejected: w("rejected", "ditolak"),
+  stepParked: w("parked", "ditangguhkan"),
+  // Where a configured fact came from (ProvenanceBadge)
+  provStated: w("Stated", "Dinyatakan"),
+  provObserved: w("Observed", "Diperhatikan"),
+  provAssumed: w("Assumed", "Andaian"),
+  provNotSet: w("Not set", "Belum ditetapkan"),
+  provStatedHint: w("Written in a governing document", "Ditulis dalam dokumen yang mengawal"),
+  provObservedHint: w("Seen in practice, not written down", "Dilihat dalam amalan, tidak ditulis"),
+  provAssumedHint: w("A working default, awaiting sign-off", "Lalai kerja, menunggu pengesahan"),
+  provNotSetHint: w("Nobody has said where this came from", "Tiada siapa menyatakan dari mana ini datang"),
 } as const satisfies Record<string, Words>;
 
 export const COMPONENTS: Catalogue = {

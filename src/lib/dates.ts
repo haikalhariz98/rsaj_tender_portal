@@ -1,3 +1,7 @@
+import { GREETING } from "@/lib/i18n/catalogues/dashboard";
+import type { Language } from "@/lib/i18n/language";
+import { say } from "@/lib/i18n/say";
+
 /**
  * Which calendar day an instant falls on, for the organisation.
  *
@@ -92,12 +96,12 @@ export function hourIn(instant: Date, timeZone: string | null): number {
 
 /// How the prototype greets, by the hour in the organisation's zone. With no zone set
 /// there is no honest time of day, so it does not claim one.
-export function greetingAt(instant: Date, timeZone: string | null): string {
-  if (!timeZone) return "Welcome";
+export function greetingAt(instant: Date, timeZone: string | null, lang: Language = "en"): string {
+  if (!timeZone) return say(GREETING.welcome, lang);
   const hour = hourIn(instant, timeZone);
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return say(GREETING.morning, lang);
+  if (hour < 18) return say(GREETING.afternoon, lang);
+  return say(GREETING.evening, lang);
 }
 
 const CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
