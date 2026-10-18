@@ -19,7 +19,7 @@ import type { Words } from "@/lib/contract/labels";
  * the page in place. Each option is named in its own language, the same in both settings. Nothing is keyed on the language.
  */
 export function LanguageSwitch({ className }: { className?: string }) {
-  const { language, canSwitch } = useLanguage();
+  const { language, choice, canSwitch } = useLanguage();
   const say = useSay();
   const setLanguage = useSetLanguage();
   const [pending, startTransition] = useTransition();
@@ -27,7 +27,9 @@ export function LanguageSwitch({ className }: { className?: string }) {
   if (!canSwitch || !setLanguage) return null;
 
   const choose = (next: Language) => {
-    if (next === language) return;
+    // Against the stored choice, not the language read: with nothing chosen English reads, and pressing it must record that English was chosen.
+    // Presses while a save is out are ignored, not disabled: a disabled button drops the keyboard focus out of a modal drawer.
+    if (next === choice || pending) return;
     const data = new FormData();
     data.set("language", next);
     startTransition(async () => {
@@ -41,11 +43,10 @@ export function LanguageSwitch({ className }: { className?: string }) {
   };
 
   return (
-    <span className={cx("flex shrink-0 flex-col gap-1", className ?? "items-end")}>
+    <span aria-busy={pending} className={cx("flex shrink-0 flex-col gap-1", className ?? "items-end")}>
       <Toggle
         label={say(SHELL_WORDS.languageSwitch)}
         value={language}
-        disabled={pending}
         options={LANGUAGES.map((l) => ({ value: l, label: LANGUAGE_NAMES[l] }))}
         onChange={choose}
       />

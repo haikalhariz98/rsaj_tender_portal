@@ -53,7 +53,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         <DialogFocus />
         <ActorProvider name={actor?.personName ?? null} personId={actor?.personId ?? null}>
-          <LanguageProvider language={language} choice={choice} canSwitch={canSwitch} setLanguage={setLanguageAction}>
+          <LanguageProvider language={language} choice={choice} canSwitch={canSwitch} setLanguage={portalOnly ? undefined : setLanguageAction}>
             <AppShell
               organisation={shell.organisation}
               strapline={ORGANISATION_STRAPLINE}

@@ -20,6 +20,7 @@ import { ACT_LABEL } from "@/lib/labels";
 import { formatOrgDateTime } from "@/lib/format";
 import { requireStaff } from "@/app/_auth/actor";
 import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
+import { STAFF_LANGUAGE_VALUE_WORDS } from "@/lib/i18n/language";
 import type { OrgScope } from "@/lib/org-scope";
 import { sulitFieldOf } from "@/lib/sulit-trail";
 
@@ -150,7 +151,7 @@ const ENTITY_VALUE_LABEL: Record<string, Record<string, Record<string, string>>>
   FinanceIntegration: { budgetCheckSource: SOURCE_LABEL },
   DocumentClass: { classification: CLASSIFICATION_LABEL, retentionTrigger: RETENTION_TRIGGER_LABEL, disposalMethod: DISPOSAL_METHOD_LABEL },
   SourcingMethod: { scopeAct: ACT_LABEL },
-  StaffAccount: { status: ACCOUNT_STATUS_WORDS },
+  StaffAccount: { status: ACCOUNT_STATUS_WORDS, uiLanguage: STAFF_LANGUAGE_VALUE_WORDS },
 };
 /// Yes or No where a stored flag is a boolean.
 const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq", "scopeApprovalRequired", "completenessEliminates"]);

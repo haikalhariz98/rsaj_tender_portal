@@ -28,7 +28,8 @@ export interface Crumb {
 }
 
 /// A record's name is data: the same in both languages, and never marked as untranslated.
-const named = (name: string): Words => w(name, name);
+// A blank name (an organisation set up with none) falls back to a fixed word rather than a pair `say` would refuse.
+const named = (name: string): Words => (name.trim() ? w(name, name) : SHELL_WORDS.dashboard);
 
 /**
  * The breadcrumb's crumbs for a path, given the names the page gave its record (and the record it sits

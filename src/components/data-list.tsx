@@ -11,7 +11,7 @@ import {
 import { useLanguage, useSay } from "@/components/i18n/language-context";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, SulitLock, SulitWithheld } from "@/components/ui/badge";
-import { SULIT_COLUMN_WORDS } from "@/lib/sulit-fields";
+import type { Language } from "@/lib/i18n/language";
 import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
@@ -118,7 +118,8 @@ export function canExport(columns: readonly Column[]): boolean {
 /// The mark a SULIT column's header carries: the shared lock beside the column name, the
 /// whole sentence in the tooltip and to a screen reader (founder, 2026-10-04: a lock, not a chip).
 function SulitMark({ label }: { label?: string }) {
-  return <SulitLock size={12} label={label ?? SULIT_COLUMN_WORDS} />;
+  const say = useSay();
+  return <SulitLock size={12} label={label ?? say(WORDS.sulitColumn)} />;
 }
 // Written out whole for Tailwind (see HIDE_COL_BELOW): the stacked list below the breakpoint, the table from it.
 const STACKED_BELOW = { md: "md:hidden", xl: "xl:hidden", "2xl": "2xl:hidden" } as const;
@@ -210,7 +211,7 @@ export function hasRowAction(node: ReactNode): boolean {
 /// columns that matter, so the data keeps the width and no button is cut at the card's edge.
 export type ActionsPlacement = "column" | "below";
 
-function cellText(cell: Cell | undefined): string {
+function cellText(cell: Cell | undefined, lang: Language = "en"): string {
   if (!cell) return "";
   switch (cell.kind) {
     case "stack":
@@ -234,7 +235,7 @@ function cellText(cell: Cell | undefined): string {
     case "badges":
       return cell.items.join(" ");
     case "chips":
-      return cell.items.map((i) => (i.provenance ? `${i.text} (${provenanceLabel(i.provenance)})` : i.text)).join(" · ");
+      return cell.items.map((i) => (i.provenance ? `${i.text} (${provenanceLabel(i.provenance, lang)})` : i.text)).join(" · ");
     case "meter":
       return cell.percent == null ? "" : `${cell.percent}%`;
     case "withheld":
@@ -252,6 +253,7 @@ function senOf(cell: Cell | undefined): bigint | null | undefined {
 const dash = <span className="text-ink-4">—</span>;
 
 function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: boolean }) {
+  const { language } = useLanguage();
   if (!cell) return dash;
   // Text wraps by default (a long name goes onto a second line, break-words so a long
   // reference cannot push the column wider); `nowrap` columns keep one line.
@@ -343,7 +345,7 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
             return item.provenance ? (
               <span key={item.text} className="flex flex-wrap items-center gap-1.5">
                 {chip}
-                <ProvenanceBadge value={item.provenance} />
+                <ProvenanceBadge value={item.provenance} lang={language} />
               </span>
             ) : (
               chip
@@ -446,16 +448,25 @@ export function DataList({
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chosen, setChosen] = useState<Record<string, string>>({});
+  // A filter and a typed search hold the words a cell showed, which another language no longer shows: on a switch they are cleared
+  // (during render, as React advises) rather than left to empty the list under a chip that matches nothing. The view, sort and page stay.
+  const [readIn, setReadIn] = useState(language);
+  if (readIn !== language) {
+    setReadIn(language);
+    setChosen({});
+    setQuery("");
+    setPage(0);
+  }
 
   /// Distinct values a filter can offer, taken from the rows themselves.
   const optionsFor = useMemo(() => {
     const map: Record<string, string[]> = {};
     for (const f of filters) {
-      const held = [...new Set(rows.map((r) => cellText(r.cells[f.key])).filter(Boolean))].sort();
+      const held = [...new Set(rows.map((r) => cellText(r.cells[f.key], language)).filter(Boolean))].sort();
       map[f.key] = f.order ? [...f.order, ...held.filter((v) => !f.order!.includes(v))] : held;
     }
     return map;
-  }, [filters, rows]);
+  }, [filters, rows, language]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -463,7 +474,7 @@ export function DataList({
       (r) =>
         (view === "all" || r.views?.includes(view)) &&
         (needle === "" || r.search.toLowerCase().includes(needle)) &&
-        Object.entries(chosen).every(([key, value]) => cellText(r.cells[key]) === value),
+        Object.entries(chosen).every(([key, value]) => cellText(r.cells[key], language) === value),
     );
 
     if (sort) {
@@ -476,8 +487,8 @@ export function DataList({
           const cmp = compareSenOrNone(as, bs);
           return dir === "asc" ? cmp : -cmp;
         }
-        const av = a.sortKeys?.[key] ?? cellText(a.cells[key]);
-        const bv = b.sortKeys?.[key] ?? cellText(b.cells[key]);
+        const av = a.sortKeys?.[key] ?? cellText(a.cells[key], language);
+        const bv = b.sortKeys?.[key] ?? cellText(b.cells[key], language);
         const cmp =
           typeof av === "number" && typeof bv === "number"
             ? av - bv
@@ -486,7 +497,7 @@ export function DataList({
       });
     }
     return out;
-  }, [rows, view, query, sort, chosen]);
+  }, [rows, view, query, sort, chosen, language]);
 
   // Paging controls say nothing when everything fits on one page at every size.
   const showFooter = needsPaging(visible.length);
@@ -537,7 +548,7 @@ export function DataList({
     const cols = exportColumns(columns);
     const header = cols.map((c) => c.label);
     // The whole filtered list, not just the page being looked at.
-    const lines = visible.map((r) => cols.map((c) => cellText(r.cells[c.key])));
+    const lines = visible.map((r) => cols.map((c) => cellText(r.cells[c.key], language)));
     const csv = listToCsv(header, lines);
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
@@ -721,7 +732,7 @@ export function DataList({
                         return next;
                       })
                     }
-                    aria-label={sayN(WORDS.selectRow, { name: cellText(row.cells[(mobilePrimary ?? columns[0]).key]) })}
+                    aria-label={sayN(WORDS.selectRow, { name: cellText(row.cells[(mobilePrimary ?? columns[0]).key], language) })}
                   />
                 )}
                 <div className="min-w-0 flex-1">
@@ -880,7 +891,7 @@ export function DataList({
                             return next;
                           })
                         }
-                        aria-label={sayN(WORDS.selectRow, { name: cellText(row.cells[columns[0].key]) })}
+                        aria-label={sayN(WORDS.selectRow, { name: cellText(row.cells[columns[0].key], language) })}
                       />
                     </td>
                   )}

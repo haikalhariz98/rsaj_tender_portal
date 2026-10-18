@@ -78,6 +78,7 @@ const NAMED_FIELDS: Record<string, string> = {
   // 65-C1: an effective-dated end day is exclusive (inForceOn); History says so as the forms do.
   effectiveTo: END_DAY_LABEL,
   endsOn: END_DAY_LABEL,
+  uiLanguage: "Display language",
   tabledByPersonId: "Tabled by",
   standingInForSeatId: "Standing in for",
   dependsOnDecisionId: "Depends on",

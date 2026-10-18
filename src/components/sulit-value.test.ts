@@ -31,7 +31,7 @@ describe("SulitValue", () => {
   // Phase 3b, a deliberate change to this test (logged): the older form, which drew a value no loader had judged with "not restricted until sign-in", is retired. A value is drawn from a
   // `Sulit`, or it is not drawn as SULIT: the component takes no children.
   it("takes only a judged value: the older form with children is gone", () => {
-    const src = readFileSync(join(process.cwd(), "src/components/ui/badge.tsx"), "utf8");
+    const src = readFileSync(join(process.cwd(), "src/components/ui/sulit-marks.tsx"), "utf8");
     const component = src.slice(src.indexOf("export function SulitValue"));
     expect(component.slice(0, 200)).toMatch(/\{ of: s \}: \{ of: Sulit<ReactNode> \}/);
     expect(src).not.toMatch(/not restricted until sign-in/);

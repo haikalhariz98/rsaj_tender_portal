@@ -37,3 +37,9 @@ export function fromStored(v: "EN" | "MS" | null): LanguageChoice {
   if (v === null) return null;
   return v === "MS" ? "ms" : "en";
 }
+
+/** The stored spellings read in words, for the audit trail's History and export (never "EN" or "MS"). */
+export const STAFF_LANGUAGE_VALUE_WORDS: Readonly<Record<string, string>> = {
+  EN: LANGUAGE_NAMES.en,
+  MS: LANGUAGE_NAMES.ms,
+};

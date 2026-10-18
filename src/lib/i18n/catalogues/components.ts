@@ -82,6 +82,13 @@ export const COMPONENT_WORDS = {
   stepWaiting: w("not reached yet", "belum sampai"),
   stepRejected: w("rejected", "ditolak"),
   stepParked: w("parked", "ditangguhkan"),
+  // The SULIT marks (SulitLock, SulitTag, SulitWithheld and a SULIT column's header). SULIT itself is the classification mark and stays.
+  sulitWithheld: w("SULIT · withheld", "SULIT · disembunyikan"),
+  sulitValue: w("SULIT. Shown only to the people entitled to it, and every reading is logged.", "SULIT. Ditunjukkan hanya kepada mereka yang berhak, dan setiap bacaan direkodkan."),
+  sulitColumn: w(
+    "SULIT. Shown to the people entitled to it and withheld from everyone else, and every reading is logged. Not exported.",
+    "SULIT. Ditunjukkan kepada mereka yang berhak dan disembunyikan daripada orang lain, dan setiap bacaan direkodkan. Tidak dieksport.",
+  ),
   // Where a configured fact came from (ProvenanceBadge)
   provStated: w("Stated", "Dinyatakan"),
   provObserved: w("Observed", "Diperhatikan"),

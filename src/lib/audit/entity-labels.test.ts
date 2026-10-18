@@ -1,3 +1,4 @@
+import { fieldLabel } from "@/lib/audit/diff";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
@@ -132,5 +133,13 @@ describe("a sign-in account's trail reads in words (Phase 1b)", () => {
     expect(historyValueWords("StaffAccount", "loginName", "ahmad.z")).toBe("ahmad.z");
     expect(historyValueWords("Requisition", "status", "DISABLED")).toBe("DISABLED");
     expect(historyValueWords("StaffAccount", "status", null)).toBeNull();
+  });
+
+  it("its display language reads as the language's name and the field as words (N1)", () => {
+    expect(historyValueWords("StaffAccount", "uiLanguage", "MS")).toBe("Bahasa Malaysia");
+    expect(historyValueWords("StaffAccount", "uiLanguage", "EN")).toBe("English");
+    expect(historyValueWords("StaffAccount", "uiLanguage", null)).toBeNull();
+    expect(historyValueWords("Requisition", "uiLanguage", "MS")).toBe("MS");
+    expect(fieldLabel("uiLanguage")).toBe("Display language");
   });
 });
