@@ -1106,6 +1106,7 @@ ADR 0037 (§7) is proposed in C0 and accepted before C2.
 - `createAward` (`awards/actions.ts:313`) redirects to `caseHref`.
 - The exercise's Start button (`sourcing/[id]/page.tsx:858`) links to it.
 - **Done when** "Start the award" lands on the new case's Award stage.
+- **Status, 2026-10-18.** Built (decisions log, C7); tested by source-wiring test `start-award.test.ts`; not checked in a browser.
 
 **C8. frontend-engineer [after stage B: `sourcing/[id]/page.tsx`]: regret letters to the exercise (AC-22).**
 - Move the three `non-award-*` files to `src/app/sourcing/[id]/`, with the section on the Award tab for the live award.

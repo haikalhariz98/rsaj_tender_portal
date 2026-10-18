@@ -101,7 +101,7 @@ const NESTED_LABEL: Record<string, string> = {
   // The sign-in screens, shown without the frame but named for the breadcrumb test.
   "sign-in/code": "Use a code",
   "requisitions/new": "New requisition",
-  "awards/new": "New award",
+  "projects/new": "New award",
   // 6.15a: the register's configuration, and recording a paper application.
   "suppliers/new": "New application",
   // Online applications waiting for an officer: the list is the Online tab, one application sits under it.

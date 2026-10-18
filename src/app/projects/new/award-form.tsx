@@ -13,7 +13,7 @@ import { formDataOf } from "@/components/ui/form-submit";
 import { KeyValues } from "@/components/ui/stat";
 import { DOSSIER_EVIDENCE_NEEDED } from "@/lib/award/labels";
 
-import { createAward } from "./actions";
+import { createAward } from "@/app/awards/actions";
 
 /**
  * Opening an award on an exercise in preparation. What typed is kept on a refused save;

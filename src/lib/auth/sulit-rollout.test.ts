@@ -338,7 +338,7 @@ describe("the award is judged against a recommendation that is SULIT (FR-EVL-014
     expect(awardFindingTextFor(compare[0], true, true)).toBe(awardFindingText(compare[0]));
   });
   it("the pages show the recommendation, and pre-fill from it, only when the gate is granted", () => {
-    const open = src("src/app/awards/new/page.tsx");
+    const open = src("src/app/projects/new/page.tsx");
     expect(open).toMatch(/sulitExerciseGate\(actor, ex\.id, "evaluation", RECOMMENDATION_FIELDS\)/);
     expect(open).not.toMatch(/evaluation\.recommended\.party|evaluation\.recommended\.price/);
     // C-2 (wave C step C5): the award page's composition moved to award-view.tsx, which /awards/[id] and the case page share; the scan reads it there.

@@ -61,7 +61,7 @@ describe("the dossier evidence note on the Award tab and the new-award form (rev
     expect(dossierEvidenceMissing(null, { ...numbered, evidenceAttachments: 0 })).toBe(false);
   });
   it("both screens ask it, never a count of their own (source scan)", () => {
-    for (const p of ["src/app/sourcing/[id]/page.tsx", "src/app/awards/new/page.tsx"]) {
+    for (const p of ["src/app/sourcing/[id]/page.tsx", "src/app/projects/new/page.tsx"]) {
       const text = readFileSync(join(process.cwd(), p), "utf8");
       expect(text, p).toMatch(/dossier=\{dossierEvidenceMissing\(/);
       expect(text, p).not.toMatch(/dossier=\{[^}]*=== 0\}/);

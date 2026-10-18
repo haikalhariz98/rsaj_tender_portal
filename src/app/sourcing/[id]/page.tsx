@@ -862,7 +862,7 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
                   {DOSSIER_EVIDENCE_NEEDED.body}
                 </Callout>
               )}
-              <EmptyState size="sm" title="Not awarded yet" action={<ButtonLink href={`/awards/new?exercise=${exerciseId}`} size="sm" variant="primary">Start the award</ButtonLink>}>
+              <EmptyState size="sm" title="Not awarded yet" action={<ButtonLink href={`/projects/new?exercise=${exerciseId}`} size="sm" variant="primary">Start the award</ButtonLink>}>
                 {dossier ? DOSSIER_EVIDENCE_NEEDED.short : "Record the awardee and the awarded value; the award is then sent for the appointment's approval."}
               </EmptyState>
             </div>

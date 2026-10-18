@@ -45,6 +45,7 @@ import { evidenceSnapshot } from "@/lib/documents/evidence";
 import { awardTransition, editable, LIVE_STATUSES } from "@/lib/award/status";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
 import { issueDayOf } from "@/lib/contract/issue-year";
+import { caseHref } from "@/lib/contract/links";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { manualCommitment } from "@/lib/integration/award-commitment";
 import { ACT_LABEL } from "@/lib/labels";
@@ -313,7 +314,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
     throw e;
   }
   refresh(id!, exerciseId);
-  redirect(`/awards/${id}`);
+  redirect(caseHref({ awardId: id!, contractId: null }, { stage: "award" }));
 }
 
 /// The awardee, value and period: only while the award is a draft, because they are

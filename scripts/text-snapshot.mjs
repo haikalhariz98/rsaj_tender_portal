@@ -43,7 +43,7 @@ const ROUTES = [
   "/requisitions/new",
   "/sourcing/new",
   "/awards",
-  "/awards/new",
+  "/projects/new",
   "/approvals",
   "/inbox",
   "/projects?view=securities",
