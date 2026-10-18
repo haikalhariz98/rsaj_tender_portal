@@ -1,3 +1,5 @@
+import { Say } from "@/components/i18n/language-context";
+import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import Link from "next/link";
 import { ClipboardIcon, ClockIcon, FileIcon, RouteIcon } from "@/components/icons";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
@@ -76,7 +78,7 @@ export async function ApprovalPanel({
     <div className="flex flex-col gap-6">
       {!inst ? (
         <Card>
-          <CardHeader icon={<RouteIcon size={17} />} title="Who approves the appointment" subtitle={status === "CANCELLED" ? "No route was resolved." : "Resolved when the award is sent for approval, for the awarded value, under the approval matrix then in force."} />
+          <CardHeader icon={<RouteIcon size={17} />} title={<Say words={P.whoApproves} />} subtitle={status === "CANCELLED" ? "No route was resolved." : "Resolved when the award is sent for approval, for the awarded value, under the approval matrix then in force."} />
           <CardBody className="flex flex-col gap-3">
             {status === "CANCELLED" ? (
               <p className="text-[13.5px] text-ink-2">Cancelled before it was sent for approval — no route was resolved, and nobody was asked to approve it.</p>
@@ -109,7 +111,7 @@ export async function ApprovalPanel({
         <Card className="overflow-hidden">
           <CardHeader
             icon={<RouteIcon size={17} />}
-            title="Approval of the appointment"
+            title={<Say words={P.approvalOfAppointment} />}
             subtitle={`Sent ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
             actions={<Badge tone={routeTone(inst.status)}>{inst.status === "APPROVED" ? "Approved" : inst.status === "PENDING" ? "In progress" : inst.status === "REJECTED" ? "Refused" : "Withdrawn"}</Badge>}
           />
@@ -240,7 +242,7 @@ export async function ApprovalPanel({
       )}
 
       <Card>
-        <CardHeader icon={<ClipboardIcon size={17} />} title="Routing sheet" subtitle="The committee's part and the approver's, taken from the committee's decision and the route as recorded. They are fixed into the covering memo when it is issued." />
+        <CardHeader icon={<ClipboardIcon size={17} />} title={<Say words={P.routingSheet} />} subtitle="The committee's part and the approver's, taken from the committee's decision and the route as recorded. They are fixed into the covering memo when it is issued." />
         <CardBody className="grid gap-5 md:grid-cols-2">
           <div className="flex flex-col gap-2">
             <p className="text-[12px] font-semibold text-ink-3">Committee</p>
@@ -279,7 +281,7 @@ export async function ApprovalPanel({
 
       {status !== "CANCELLED" || award.signatoryName ? (
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Who signs the instrument" subtitle="Set by the signatory rules on the approval matrix for this instrument and value. If no rule fits, two rules fit, or the rule is a known gap, nobody may sign until the matrix is corrected." />
+          <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.whoSigns} />} subtitle="Set by the signatory rules on the approval matrix for this instrument and value. If no rule fits, two rules fit, or the rule is a known gap, nobody may sign until the matrix is corrected." />
           <CardBody>
             {award.signatoryName ? (
               <KeyValues
@@ -312,7 +314,7 @@ export async function ApprovalPanel({
 
       {earlier.length > 0 && (
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Earlier routes" subtitle="Kept on record." />
+          <CardHeader icon={<ClockIcon size={17} />} title={<Say words={P.earlierRoutes} />} subtitle="Kept on record." />
           <ul className="divide-y divide-line/70">
             {earlier.map((e) => (
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">

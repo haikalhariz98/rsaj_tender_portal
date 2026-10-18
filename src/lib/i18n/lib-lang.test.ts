@@ -112,7 +112,7 @@ describe("a case's chips and a security's expiry", () => {
     expect(expiryChip({ state: "EXPIRED", daysAgo: 3 }, "ms")?.text).toBe("Tamat 3 hari yang lalu");
     expect(expiryChip({ state: "NO_EXPIRY" }, "ms")?.text).toBe("Tiada tarikh tamat direkodkan");
     expect(remindersText([30, 7])).toBe("Reminders at 30, 7 days");
-    expect(remindersText([30, 7], "ms")).toBe("Peringatan pada hari ke-30, 7");
+    expect(remindersText([30, 7], "ms")).toBe("Peringatan pada 30, 7 hari");
     expect(remindersText([])).toBe("Expiry reminders are not set");
     expect(remindersText([], "ms")).toBe("Peringatan tamat tempoh belum ditetapkan");
   });

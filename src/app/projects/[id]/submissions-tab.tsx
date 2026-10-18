@@ -1,4 +1,5 @@
 import { ActGate } from "@/components/act-gate";
+import { currentLanguage } from "@/app/_auth/language";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { db } from "@/lib/db";
@@ -11,7 +12,8 @@ import { SubmissionsPanel } from "../submissions-panel";
  * Contracts list's "Submissions waiting" view. Not hidden for a restricted exercise (AC-18, AC-19): the contract's supervising officer answers it whether or not named on the exercise.
  */
 export async function SubmissionsTab({ organisationId, contractId, status, today, waiting, answered }: { organisationId: string; contractId: string; status: ContractStatus; today: string | null; waiting: string | undefined; answered: string | undefined }) {
-  const review = await loadReviewQueue(db, organisationId, today, { waiting, answered }, { contractId });
+  const { language: lang } = await currentLanguage();
+  const review = await loadReviewQueue(db, organisationId, today, { waiting, answered }, { contractId }, lang);
   const href = (w: number, a: number) => {
     const q = new URLSearchParams({ tab: "submissions", ...(w ? { waiting: String(w) } : {}), ...(a ? { answered: String(a) } : {}) });
     return `/projects/${contractId}?${q.toString()}`;
@@ -20,7 +22,7 @@ export async function SubmissionsTab({ organisationId, contractId, status, today
   const shut = actStatusBlocker("SUPERVISION", status);
   return (
     <ActGate blocker={shut}>
-      <SubmissionsPanel review={review} judged={!!today} hrefOf={href} withContract={false} />
+      <SubmissionsPanel review={review} judged={!!today} hrefOf={href} withContract={false} lang={lang} />
     </ActGate>
   );
 }

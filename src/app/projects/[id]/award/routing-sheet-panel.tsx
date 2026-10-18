@@ -1,3 +1,5 @@
+import { Say } from "@/components/i18n/language-context";
+import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { RoutingSheetView } from "@/components/certificate/routing-sheet";
 import { RouteIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
@@ -40,7 +42,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
       <Card>
         <CardHeader
           icon={<RouteIcon size={17} />}
-          title="Routing sheet"
+          title={<Say words={P.routingSheet} />}
           subtitle="The pre-award routing sheet around the appointment route: the day received, its internal checks, the route's own steps and the day approved, and the elapsed time against the sheet's target."
           actions={
             <RecordEditor
@@ -62,7 +64,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
   if (!sheet) {
     return (
       <Card>
-        <CardHeader icon={<RouteIcon size={17} />} title="Routing sheet" />
+        <CardHeader icon={<RouteIcon size={17} />} title={<Say words={P.routingSheet} />} />
         <EmptyState size="sm" title="Not judged">Set the organisation&apos;s time zone first.</EmptyState>
       </Card>
     );

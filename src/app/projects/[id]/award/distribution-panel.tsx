@@ -1,3 +1,5 @@
+import { Say } from "@/components/i18n/language-context";
+import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import Link from "next/link";
 import { InboxIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +20,7 @@ export function DistributionPanel({ l, ev }: { l: LoadedAward; ev: AwardEvaluati
   if (rows.length === 0) {
     return (
       <Card>
-        <CardHeader icon={<InboxIcon size={17} />} title="Distribution" subtitle="Drawn from the configured recipients when the instrument is issued, with the awardee's own copy." />
+        <CardHeader icon={<InboxIcon size={17} />} title={<Say words={P.distribution} />} subtitle="Drawn from the configured recipients when the instrument is issued, with the awardee's own copy." />
         <CardBody>
           {"rows" in ev.distribution ? (
             <ul className="flex list-disc flex-col gap-1 pl-5 text-[13.5px] text-ink-2">
@@ -39,7 +41,7 @@ export function DistributionPanel({ l, ev }: { l: LoadedAward; ev: AwardEvaluati
   const open = award.status === "ISSUED" || award.status === "ACCEPTED";
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<InboxIcon size={17} />} title="Distribution" subtitle={done.complete ? "Every mandatory copy has gone." : `${done.sent} of ${done.total} sent · ${done.outstanding} mandatory still to go. Nothing is sent from the portal: each copy's despatch is recorded here.`} actions={<Badge tone={done.complete ? "ok" : "warn"}>{done.complete ? "Complete" : "Outstanding"}</Badge>} />
+      <CardHeader icon={<InboxIcon size={17} />} title={<Say words={P.distribution} />} subtitle={done.complete ? "Every mandatory copy has gone." : `${done.sent} of ${done.total} sent · ${done.outstanding} mandatory still to go. Nothing is sent from the portal: each copy's despatch is recorded here.`} actions={<Badge tone={done.complete ? "ok" : "warn"}>{done.complete ? "Complete" : "Outstanding"}</Badge>} />
       <ul className="divide-y divide-line/70">
         {rows.map((r) => (
           <li key={r.id} className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">

@@ -1,3 +1,5 @@
+import { Say } from "@/components/i18n/language-context";
+import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { ClockIcon } from "@/components/icons";
@@ -128,7 +130,7 @@ export function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<Re
     <Card className="overflow-hidden">
       <CardHeader
         icon={<ClockIcon size={17} />}
-        title="History"
+        title={<Say words={COMPONENT_WORDS.history} />}
         subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this award and what is under it. "}Each change names who made it; any from before sign-in is not attributed. The identity card number is masked here.`}
         divided={entries.length === 0}
       />

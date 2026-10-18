@@ -1,3 +1,5 @@
+import { Say } from "@/components/i18n/language-context";
+import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { ClipboardIcon } from "@/components/icons";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
@@ -60,7 +62,7 @@ async function ReturnRecordCard({ sulit, l, ret, people }: { sulit: Sulit<true>;
     <Card>
       <CardHeader
         icon={<ClipboardIcon size={17} />}
-        title={loa ? "What came back (integrity pact, second stage)" : "The acceptance page"}
+        title={<Say words={loa ? P.returnedItems : P.acceptancePage} />}
         subtitle={loa ? (state.complete ? "All three documents are back." : `Still to come: ${state.missing.map((m) => RETURN_ITEM_LABEL[m]).join(", ")}.`) : page.length === 0 ? "Every field is recorded." : `Still to record: ${page.map((x) => ACCEPTANCE_FAULT_LABEL[x]).join(", ")}.`}
         actions={(award.status === "ISSUED" || award.status === "ACCEPTED") && sulit.state === "GRANTED" ? <ReturnDrawer id={award.id} loa={loa} people={people} correcting={award.status === "ACCEPTED"} values={{ ...ret, contractorSigned: yesNo(ret.contractorSigned), stampAffixed: yesNo(ret.stampAffixed), witnessSigned: yesNo(ret.witnessSigned), receivedByPersonId: r.receivedByPersonId, whereHeld: r.whereHeld }} /> : undefined}
       />

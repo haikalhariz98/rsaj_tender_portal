@@ -1,3 +1,5 @@
+import { Say } from "@/components/i18n/language-context";
+import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { through, type Sulit } from "@/lib/auth/sulit-access";
 import Link from "next/link";
 import { AwardIcon, FileIcon, SlidersIcon } from "@/components/icons";
@@ -35,7 +37,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={`${INSTRUMENT_LABEL[kind]}. The band, method and contract type are the exercise's, shown as it records them.`} />
+        <CardHeader icon={<AwardIcon size={17} />} title={<Say words={P.theAward} />} subtitle={`${INSTRUMENT_LABEL[kind]}. The band, method and contract type are the exercise's, shown as it records them.`} />
         <CardBody>
           <KeyValues
             columns={2}
@@ -63,7 +65,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
         </CardBody>
       </Card>
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="Contract and commitment" subtitle="The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here." />
+        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.contractAndCommitment} />} subtitle="The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here." />
         <CardBody>
           <KeyValues
             columns={2}
@@ -122,7 +124,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
       <Card>
         <CardHeader
           icon={<SlidersIcon size={17} />}
-          title="The letter's terms"
+          title={<Say words={P.lettersTerms} />}
           subtitle={ev.appendix ? `Opened from the tender Appendix (documents version ${ev.appendix.baseline.packVersion}). A term stated otherwise needs a reason.` : "Per award, with where they came from. Never defaulted."}
           actions={award.termsProvenance ? <ProvenanceBadge value={award.termsProvenance} /> : undefined}
         />

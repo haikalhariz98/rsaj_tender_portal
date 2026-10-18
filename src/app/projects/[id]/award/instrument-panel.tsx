@@ -1,3 +1,5 @@
+import { Say } from "@/components/i18n/language-context";
+import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { FileIcon, PrinterIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -21,7 +23,7 @@ export function InstrumentPanel({ l, ev }: { l: LoadedAward; ev: AwardEvaluation
           : "The documents are generated from the configured templates and frozen when the instrument is issued. Until then a preview shows how they read today, marked as a draft."}
       </Callout>
       <Card className="overflow-hidden">
-        <CardHeader icon={<FileIcon size={17} />} title="Documents" subtitle={INSTRUMENT_LABEL[award.instrumentKind as InstrumentKind]} />
+        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.documents} />} subtitle={INSTRUMENT_LABEL[award.instrumentKind as InstrumentKind]} />
         <ul className="divide-y divide-line/70">
           {issued
             ? award.documents.map((d) => (

@@ -1,3 +1,5 @@
+import { Say } from "@/components/i18n/language-context";
+import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { actStatusFault } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import Link from "next/link";
@@ -59,7 +61,7 @@ export function SecuritiesPanel({
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title="The performance bond" subtitle="Decided for this contract: what it is a percentage of, the percentage and how long it must run. Never filled in for you." actions={!termsReadOnly && editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} label="Edit bond" tender={ev.appendix ? Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null> : null} /> : undefined} />
+        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.performanceBond} />} subtitle="Decided for this contract: what it is a percentage of, the percentage and how long it must run. Never filled in for you." actions={!termsReadOnly && editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} label="Edit bond" tender={ev.appendix ? Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null> : null} /> : undefined} />
         <CardBody className="flex flex-col gap-5">
           {termsReadOnly && <p className="text-[13px] text-ink-3">These terms are decided on the Award stage and are printed in the letter, so they are read-only here.</p>}
           {ev.appendix && <p className="text-[13px] text-ink-2">The tender Appendix states no bond terms, so there is nothing to compare: the bond is decided for this contract.</p>}
@@ -86,7 +88,7 @@ export function SecuritiesPanel({
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Securities lodged" subtitle={c ? `On contract ${c.number}. Verified only against the approved issuers list${offsets.length ? `; expiry reminders at ${offsets.join(", ")} days, shown and not sent` : "; no expiry reminders are set"}.` : "Lodged on the contract, which exists once the instrument is issued."} actions={open ? <LodgeSecurityDrawer id={award.id} issuers={issuers} today={today} /> : undefined} divided={(c?.securities.length ?? 0) > 0} />
+        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.securitiesLodged} />} subtitle={c ? `On contract ${c.number}. Verified only against the approved issuers list${offsets.length ? `; expiry reminders at ${offsets.join(", ")} days, shown and not sent` : "; no expiry reminders are set"}.` : "Lodged on the contract, which exists once the instrument is issued."} actions={open ? <LodgeSecurityDrawer id={award.id} issuers={issuers} today={today} /> : undefined} divided={(c?.securities.length ?? 0) > 0} />
         {!c || c.securities.length === 0 ? (
           <EmptyState size="sm" title="None lodged">{c ? "Lodge the performance bond when it is handed in." : "Nothing can be lodged before issue."}</EmptyState>
         ) : (
@@ -113,7 +115,7 @@ export function SecuritiesPanel({
       <Card className="overflow-hidden">
         <CardHeader
           icon={<ShieldIcon size={17} />}
-          title="Insurance"
+          title={<Say words={P.insurance} />}
           subtitle={requirements.length ? `Required for this contract: ${requirements.map((r) => r.nameEn).join(", ")}.${requirements.some((r) => r.kind === "WORKMENS_COMPENSATION") ? ` How workmen's compensation is calculated: ${award.wcBasis ? WC_BASIS_LABEL[award.wcBasis].toLowerCase() : "not set — set it in Edit terms"}.` : ""}` : "No insurance requirements are configured, so what must be verified is not known."}
           actions={open ? <LodgePolicyDrawer id={award.id} issuers={issuers} today={today} tenderUplift={ev.appendix?.baseline.insurance.worksUplift ? formatMoney(ev.appendix.baseline.insurance.worksUplift.sen) : null} /> : undefined}
           divided={(c?.policies.length ?? 0) > 0 || true}

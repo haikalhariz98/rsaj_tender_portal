@@ -185,12 +185,29 @@ export const CASE_PANEL_TITLE_WORDS = {
   openingPosition: w("Opening position", "Kedudukan permulaan"),
   releases: w("Releases", "Pelepasan"),
   nonCompletionDecisions: w("Non-completion decisions", "Keputusan ketidaksempurnaan"),
-  superintendingOfficer: w("Superintending Officer", "Pegawai Penyelia"),
+  superintendingOfficer: w("Superintending Officer", "Pegawai Penguasa"),
   representatives: w("Representatives", "Wakil"),
   possessionOfSite: w("Possession of site", "Milikan tapak"),
   adjustmentsOfContractSum: w("Adjustments of the contract sum", "Pelarasan jumlah kontrak"),
   theDraft: w("The draft", "Draf"),
   versionInForce: w("Version {version} in force", "Versi {version} berkuat kuasa"),
+  // the award's panels
+  whoApproves: w("Who approves the appointment", "Siapa yang meluluskan pelantikan"),
+  approvalOfAppointment: w("Approval of the appointment", "Kelulusan pelantikan"),
+  routingSheet: w("Routing sheet", "Helaian penghalaan"),
+  whoSigns: w("Who signs the instrument", "Siapa yang menandatangani instrumen"),
+  earlierRoutes: w("Earlier routes", "Laluan terdahulu"),
+  conditionsPrecedent: w("Conditions precedent to signing", "Syarat terdahulu sebelum menandatangani"),
+  beforeWorkStarts: w("Before work starts", "Sebelum kerja bermula"),
+  distribution: w("Distribution", "Pengedaran"),
+  documents: w("Documents", "Dokumen"),
+  contractAndCommitment: w("Contract and commitment", "Kontrak dan komitmen"),
+  lettersTerms: w("The letter's terms", "Terma surat"),
+  returnedItems: w("What came back (integrity pact, second stage)", "Yang dikembalikan (pakatan integriti, peringkat kedua)"),
+  acceptancePage: w("The acceptance page", "Halaman penerimaan"),
+  performanceBond: w("The performance bond", "Bon pelaksanaan"),
+  securitiesLodged: w("Securities lodged", "Sekuriti yang difailkan"),
+  insurance: w("Insurance", "Insurans"),
 } as const;
 
 // ------------------------------------------------------------------ the case list and its sibling views
@@ -353,7 +370,7 @@ export const EXPIRY_WORDS = {
   expiredAgo: w("Expired {days} days ago", "Tamat {days} hari yang lalu"),
   expiresIn: w("Expires in {days} days", "Tamat dalam {days} hari"),
   noExpiry: w("No expiry recorded", "Tiada tarikh tamat direkodkan"),
-  remindersAt: w("Reminders at {days} days", "Peringatan pada hari ke-{days}"),
+  remindersAt: w("Reminders at {days} days", "Peringatan pada {days} hari"),
   remindersNotSet: w("Expiry reminders are not set", "Peringatan tamat tempoh belum ditetapkan"),
 } as const;
 
@@ -379,7 +396,7 @@ export const SUBMISSIONS_WORDS = {
   ),
   overdueUnjudged: w(", overdue is not judged because the organisation's time zone is not set", ", lewat tempoh tidak dinilai kerana zon waktu organisasi belum ditetapkan"),
   overduePast: w(", {count} of them past the due day", ", {count} daripadanya melepasi hari akhir"),
-  routingStatement: w("Routed inside the portal to the contract's Superintending Officer; not sent by email (INT-09).", "Dihalakan dalam portal kepada Pegawai Penyelia kontrak. Tidak dihantar melalui e-mel (INT-09)."),
+  routingStatement: w("Routed inside the portal to the contract's Superintending Officer; not sent by email (INT-09).", "Dihalakan dalam portal kepada Pegawai Penguasa kontrak. Tidak dihantar melalui e-mel (INT-09)."),
   nothingWaits: w("Nothing waits for an answer", "Tiada yang menunggu jawapan"),
   nothingWaitsBody: w(
     "A contractor's programme, claim, materials list, delay notice, defects report or notice that the statutory declaration is lodged appears here when it is sent.",
@@ -390,7 +407,7 @@ export const SUBMISSIONS_WORDS = {
   claimed: w("claimed {amount}", "dituntut {amount}"),
   aboutDay: w("day {day}", "hari {day}"),
   routedTo: w("routed to {office}", "dihalakan kepada {office}"),
-  routedToNobody: w("routed to nobody: no Superintending Officer was assigned", "tidak dihalakan kepada sesiapa: tiada Pegawai Penyelia ditetapkan"),
+  routedToNobody: w("routed to nobody: no Superintending Officer was assigned", "tidak dihalakan kepada sesiapa: tiada Pegawai Penguasa ditetapkan"),
   rangeOf: w("{from}–{to} of {total}.{note}", "{from}–{to} daripada {total}.{note}"),
   searchLooksInPage: w(" Search and sort look within this page.", " Carian dan isihan hanya melihat dalam halaman ini."),
   answered: w("Answered", "Dijawab"),
@@ -417,6 +434,18 @@ export const SUBMISSIONS_WORDS = {
   svcAnsweredNoLevel: w("Answered (no service level was set)", "Dijawab (tiada tahap perkhidmatan ditetapkan)"),
   svcAnsweredOnTime: w("Answered by its due day, {date}", "Dijawab pada hari akhirnya, {date}"),
   svcAnsweredLate: w("Answered after its due day, {date}", "Dijawab selepas hari akhirnya, {date}"),
+  // the answer drawer
+  answerTitle: w("Answer: {label}", "Jawapan: {label}"),
+  answerDescription: w(
+    "From {contractor}. Taken up means you record what it calls for on the contract's own tabs (the programme, the valuation, the delay notice); returned sends it back to the contractor with your note, which it reads in the portal. Either way the answer is shown in the portal and not sent by email.",
+    "Daripada {contractor}. Diambil tindakan bermakna anda merekodkan apa yang diperlukannya pada tab kontrak itu sendiri (program, penilaian, notis kelewatan). Dipulangkan menghantarnya semula kepada kontraktor bersama nota anda, yang dibacanya dalam portal. Dalam kedua-dua keadaan, jawapan dipaparkan dalam portal dan tidak dihantar melalui e-mel.",
+  ),
+  answerField: w("The answer", "Jawapan"),
+  answerChoose: w("Choose", "Pilih"),
+  answerReturned: w("Returned to the contractor", "Dipulangkan kepada kontraktor"),
+  answerNote: w("Note to the contractor", "Nota kepada kontraktor"),
+  answerNoteHint: w("Required where it is returned. Shown to the contractor.", "Diperlukan apabila dipulangkan. Dipaparkan kepada kontraktor."),
+  answerSubmit: w("Answer", "Jawab"),
 } as const;
 
 const flat = (prefix: string, table: Readonly<Record<string, Words>>): Record<string, Words> =>

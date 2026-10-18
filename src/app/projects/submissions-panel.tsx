@@ -69,7 +69,7 @@ export function SubmissionsPanel({ review, judged, hrefOf, withContract, lang = 
                     </span>
                     <span className="flex shrink-0 flex-wrap items-center gap-2">
                       <Badge tone={sv.tone === "neutral" ? undefined : sv.tone}>{sv.text}</Badge>
-                      <AnswerDrawer id={r.id} label={`${SUBMISSION_KIND_WORDS[r.kind].en}: ${r.title}`} contractor={r.contractor} />
+                      <AnswerDrawer id={r.id} label={`${t(SUBMISSION_KIND_WORDS[r.kind])}: ${r.title}`} contractor={r.contractor} lang={lang} />
                     </span>
                   </div>
                   <p className="text-[13.5px] break-words whitespace-pre-line text-ink-2">{r.body}</p>

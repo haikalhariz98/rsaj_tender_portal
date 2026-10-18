@@ -110,9 +110,10 @@ describe("the case page's words cover what the page draws", () => {
 
   it("draws no card heading in a panel as a plain English string", async () => {
     const { readdirSync, readFileSync } = await import("node:fs");
+    // The panels the case page draws: the contract's `*-panel(s).tsx` and every file of the award's own panels (`award/`, drawn through `buildAwardView`).
     const dir = "src/app/projects/[id]";
-    const files = readdirSync(dir).filter((f) => /panels?\.tsx$/.test(f));
-    expect(files.length).toBeGreaterThanOrEqual(6);
+    const files = [...readdirSync(dir).filter((f) => /panels?\.tsx$/.test(f)), ...readdirSync(`${dir}/award`).filter((f) => f.endsWith(".tsx")).map((f) => `award/${f}`)];
+    expect(files.length).toBeGreaterThanOrEqual(16);
     const plain: string[] = [];
     for (const f of files) {
       const src = readFileSync(`${dir}/${f}`, "utf8");

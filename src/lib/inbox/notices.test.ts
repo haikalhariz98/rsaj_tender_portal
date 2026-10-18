@@ -54,7 +54,11 @@ describe("the notices of Phase 3c", () => {
 
 describe("the closed list of kinds", () => {
   it("has a label for every kind, and the database CHECK names exactly these kinds", () => {
-    for (const k of STAFF_NOTICE_KINDS) expect(STAFF_NOTICE_KIND_LABEL[k], k).toBeTruthy();
+    // AC-63 N1: the label is a Words pair now, so the assertion reads both languages (a bare truthiness check would pass for an empty pair).
+    for (const k of STAFF_NOTICE_KINDS) {
+      expect(STAFF_NOTICE_KIND_LABEL[k].en.trim(), k).not.toBe("");
+      expect(STAFF_NOTICE_KIND_LABEL[k].ms.trim(), k).not.toBe("");
+    }
     // Changed for Phase 4e: the CHECK was replaced whole by the My Projects migration, which adds CONTRACTOR_SUBMISSION; the latest definition is the one held to the list.
     // Changed for Phase 5a (ruling item 9): replaced whole again by the back-dating confirmation's migration, which adds BACKDATE_TO_CONFIRM.
     // Changed for C13 (design note 0004, AC-20): replaced whole again by the migration that adds INDENT_EXPIRED and COMMENCEMENT_LATE.
