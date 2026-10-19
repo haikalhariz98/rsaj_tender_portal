@@ -30,7 +30,7 @@ export async function DocumentsPanel({ contractId, page, facts }: { contractId: 
   const copiesText = `${facts.notSent} ${facts.notSent === 1 ? "copy" : "copies"} not sent`;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<FilesIcon size={17} />} title={<Say words={P.certificates} />} subtitle="Every certificate of this contract, newest first; each is signed, numbered and distributed on its own page. A delegation to a representative raises its letters under Team; the advance payment, the interim payment certificates, the warning letter and the Certificate of Non-Completion are raised under Payments; a variation's application, the S.O.'s instruction, the Variation Order Certificate and the adjustments of the contract sum under Variations." divided={false} />
+      <CardHeader icon={<FilesIcon size={17} />} title={<Say words={P.certificates} />} divided={false} />
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 pb-4 text-[13.5px] text-ink-2 sm:px-6">
         {facts.firstUnsentCertificateId ? <Link href={`/projects/${contractId}/certificates/${facts.firstUnsentCertificateId}?tab=distribution`} className="font-semibold hover:underline">{copiesText}</Link> : <span>{copiesText}</span>}
         {facts.firstOpenCertificateId ? <Link href={`/projects/${contractId}/certificates/${facts.firstOpenCertificateId}?tab=routing`} className="font-semibold hover:underline">{sheetsText}</Link> : <span>{sheetsText}</span>}
@@ -41,7 +41,6 @@ export async function DocumentsPanel({ contractId, page, facts }: { contractId: 
         exportName="certificates"
         searchPlaceholder="Search by kind or number"
         emptyTitle="No certificates yet"
-        emptyBody="None is raised on this contract. A delegation under Team raises its letters; Payments raises the advance, interim, warning and non-completion certificates; Variations raises a variation's application, instruction and order, and the adjustments of the contract sum."
         filters={[{ key: "status", label: "Status", order: CERTIFICATE_STATUSES.map((s) => STATUS_WORDS[s].en) }]}
         rowAction={{ label: "Open", hrefTemplate: `/projects/${contractId}/certificates/{id}` }}
         rowOpens
@@ -71,7 +70,7 @@ export async function DocumentsPanel({ contractId, page, facts }: { contractId: 
       {pages > 1 && (
         <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
           <span>
-            Certificates {page * CERTIFICATES_PAGE + 1}–{Math.min(total, (page + 1) * CERTIFICATES_PAGE)} of {total}. Search and the filters look within this page.
+            Certificates {page * CERTIFICATES_PAGE + 1}–{Math.min(total, (page + 1) * CERTIFICATES_PAGE)} of {total}. Search covers this page.
           </span>
           <span className="flex gap-2">
             {page > 0 && <ButtonLink href={`/projects/${contractId}?tab=documents&page=${page - 1}`} size="sm" variant="ghost">Previous</ButtonLink>}

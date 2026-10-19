@@ -95,7 +95,7 @@ export function PartDrawer({ id, part }: { id: string; part: { id: string; label
   return (
     <RecordEditor
       title={part.label}
-      description="Where an accepted alternative proposal replaces this part, it is marked cancelled and what it cancels is stated as the document will state it."
+      description="Marks this part cancelled by an accepted alternative."
       fields={[
         hidden("id"),
         hidden("partId"),
@@ -116,7 +116,7 @@ export function ReconciliationDrawer({ id, comparison, label, people, today, cur
   return (
     <RecordEditor
       title={label}
-      description="The Contract Document set against the tender as it stood, with every tender-stage addendum it should take in listed on the record."
+      description="Lists every tender-stage addendum taken in."
       fields={[
         hidden("id"),
         hidden("comparison"),
@@ -136,7 +136,7 @@ export function AmendmentDrawer({ id, reconciliationId, people, today }: { id: s
   return (
     <RecordEditor
       title="Record an amendment"
-      description="An amendment to recorded information is signed by the contractor's signatory (named: the contractor has no account here) and by the preparing officer, who signs in with their password. An officer's signature made on paper is recorded for them, and is not signed. The office the officer signs in is the one set under Contract controls; where none is set, the offices the officer held that day are recorded."
+      description="Signed by the contractor's signatory and the preparing officer. Paper signatures are recorded, not signed."
       columns={2}
       fields={[
         hidden("id"),
@@ -160,7 +160,7 @@ export function CorrectionDrawer({ id, checkId }: { id: string; checkId: string 
   return (
     <RecordEditor
       title="Record an arithmetical correction"
-      description="The item as tendered and as corrected. The variance is their difference; the accepted contract sum stands and the variance is shown beside it."
+      description="As tendered and as corrected. The contract sum stands."
       columns={2}
       fields={[
         hidden("id"),
@@ -182,7 +182,7 @@ export function RateDrawer({ id, checkId }: { id: string; checkId: string }) {
   return (
     <RecordEditor
       title="Compare a rate"
-      description="A tendered rate set against the estimate's. The estimate rate is SULIT: it is shown with its chip and kept out of the trail."
+      description="The estimate rate is SULIT and kept out of the trail."
       columns={2}
       fields={[
         hidden("id"),
@@ -204,7 +204,7 @@ export function RemoveLineDrawer({ id, checkId, lineId, label }: { id: string; c
   return (
     <RecordEditor
       title={`Take off ${label}`}
-      description="A line recorded by mistake, on a check not yet complete. The trail keeps it."
+      description="The trail keeps it."
       fields={[hidden("id"), hidden("checkId"), hidden("lineId")]}
       values={{ id, checkId, lineId }}
       destructive={{ reasonLabel: "Why it is taken off" }}
@@ -220,7 +220,7 @@ export function CompleteCheckDrawer({ id, checkId, label, people, today, blocker
   return (
     <RecordEditor
       title={`Complete: ${label}`}
-      description="Recorded complete with the officer and the day. Its lines no longer change."
+      description="Its lines no longer change."
       fields={[hidden("id"), hidden("checkId"), by("FormationCheck.completedBy", "personId", people), { kind: "date", name: "completedOn", label: "Completed on", required: true }, { kind: "textarea", name: "note", label: "Note", hint: noteHint }]}
       values={{ id, checkId, completedOn: today }}
       action={completeCheck}
@@ -251,7 +251,7 @@ export function DecideLegalDrawer({ id, iteration, people, today }: { id: string
   return (
     <RecordEditor
       title={`The legal office's decision on iteration ${iteration}`}
-      description="Endorsed, or returned for amendment with its comments (typed here, or attached as the legal office's comments first)."
+      description="Endorsed, or sent back with comments."
       fields={[
         hidden("id"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "ENDORSED", label: "Endorsed" }, { value: "RETURNED", label: "Returned for amendment" }] },
@@ -285,7 +285,7 @@ export function ContractorSignatureDrawer({ id, today, blocker }: { id: string; 
   return (
     <RecordEditor
       title="Record the contractor's signature"
-      description="The contractor's signatory and the witness, with their full names and identity-card numbers, named by you and not signed: they have no account here. The numbers are masked everywhere but here."
+      description="Named by you, not signed. Identity numbers are masked elsewhere."
       columns={2}
       fields={[
         hidden("id"),
@@ -326,7 +326,7 @@ export function CorrectDateDrawer({ id, current }: { id: string; current: string
       description={`To an earlier day than ${current} only, never before the day the contract was first ready to sign, nor before the contractor signed (or its witness). Audited, with the reason; the screen says it was corrected and from what.`}
       fields={[hidden("id"), { kind: "date", name: "contractDate", label: "The day it was signed", required: true }]}
       values={{ id }}
-      reason={{ label: "Why the recorded day is not the day it was signed" }}
+      reason={{ label: "Why the day differs from signing" }}
       action={correctContractDate}
       trigger={{ label: "Correct the date", className: ghost }}
     />
@@ -337,7 +337,7 @@ export function StampingDrawer({ id, today }: { id: string; today: string | null
   return (
     <RecordEditor
       title="Record stamping at LHDN"
-      description="The contract is fully executed once the stamping day and the LHDN reference are both recorded."
+      description="Executes the contract."
       fields={[hidden("id"), { kind: "date", name: "stampedOn", label: "Stamped on", required: true }, { kind: "text", name: "stampingRef", label: "Stamping reference", required: true, mono: true }]}
       values={{ id, stampedOn: today }}
       action={recordStamping}
@@ -350,7 +350,7 @@ export function BriefingDrawer({ id, people, today }: { id: string; people: Opti
   return (
     <RecordEditor
       title="Record the Integrity Pact briefing"
-      description="Stage Three, at signing: the action that may be taken on a breach of the anti-corruption clause is emphasised to the contractor."
+      description="Records the briefing on the anti-corruption clause."
       fields={[
         hidden("id"),
         { kind: "date", name: "heldOn", label: "Held on", required: true },
@@ -371,7 +371,7 @@ export function ConsultingEngineerDrawer({ id, current }: { id: string; current:
   return (
     <RecordEditor
       title="A consulting engineer on this contract?"
-      description="Whether a consulting engineer is engaged decides whether their copy is on the list. Until it is answered, nothing is distributed."
+      description="Decides whether their copy is listed."
       fields={[hidden("id"), { kind: "select", name: "consultingEngineer", label: "Consulting engineer engaged", required: true, placeholder: "Not answered", options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }] }]}
       values={{ id, consultingEngineer: current == null ? null : current ? "yes" : "no" }}
       action={answerConsultingEngineer}
@@ -384,7 +384,7 @@ export function IssueCopyDrawer({ id, recipients, today, blocker }: { id: string
   return (
     <RecordEditor
       title="Issue a controlled copy"
-      description="Numbered, stamped with the words frozen for this contract, addressed and logged."
+      description="Numbered, stamped and logged."
       fields={[hidden("id"), { kind: "select", name: "recipientId", label: "Recipient", required: true, placeholder: "Choose", options: recipients }, { kind: "text", name: "addressedTo", label: "Addressed to", required: true }, METHOD, { kind: "date", name: "despatchedOn", label: "Despatched on" }]}
       values={{ id, despatchedOn: today }}
       action={issueCopy}
@@ -406,7 +406,7 @@ export function RecallCopyDrawer({ id, copyId, copyNo, today }: { id: string; co
   return (
     <RecordEditor
       title={`Recall copy ${copyNo}`}
-      description="A recalled copy stays on the register. A reissue takes the next number and names this one."
+      description="The recalled copy stays on the register."
       fields={[hidden("id"), hidden("copyId"), { kind: "date", name: "recalledOn", label: "Recalled on", required: true }]}
       values={{ id, copyId, recalledOn: today }}
       destructive={{ reasonLabel: "Why it is recalled" }}
@@ -422,7 +422,7 @@ export function ReissueCopyDrawer({ id, copyId, copyNo, addressedTo, today }: { 
   return (
     <RecordEditor
       title={`Reissue copy ${copyNo}`}
-      description="A new number, linked to the copy it replaces."
+      description="Takes a new number."
       fields={[hidden("id"), hidden("copyId"), { kind: "text", name: "addressedTo", label: "Addressed to", required: true }, METHOD, { kind: "date", name: "despatchedOn", label: "Despatched on" }]}
       values={{ id, copyId, addressedTo, despatchedOn: today }}
       action={reissueCopy}
@@ -435,7 +435,7 @@ export function RegisterOriginalDrawer({ id, originals, people }: { id: string; 
   return (
     <RecordEditor
       title="Register an original in custody"
-      description="Where the physical original is held and who holds it."
+      description="Where it is held, and by whom."
       fields={[
         hidden("id"),
         { kind: "select", name: "original", label: "Original", required: true, placeholder: "Choose", options: originals },
@@ -508,8 +508,8 @@ export function BaselineEntryDrawer({ id, group, label, mode }: { id: string; gr
       title={correcting ? `Correct: ${label}` : `Enter: ${label}`}
       description={
         correcting
-          ? "A correction is a new version with its reason; earlier versions, and any certificate that read one, stay as they were."
-          : "Entered at baseline, not from a tender Appendix: only where nothing else states it. Say where it came from: there is no default."
+          ? "A correction is a new version. Earlier versions stay."
+          : "Say where it came from. There is no default."
       }
       fields={[hidden("id"), hidden("group"), ...GROUP_FIELDS[group], PROVENANCE, ...(correcting ? [] : [{ kind: "textarea", name: "note", label: "Note" } as Field])]}
       values={{ id, group }}
@@ -525,7 +525,7 @@ export function ConfirmBaselineDrawer({ id, blocker }: { id: string; blocker: st
   return (
     <RecordEditor
       title="Confirm the baseline"
-      description="Version 1, before the first valuation. It is never edited afterwards: execution adds only the Contract Date, and any other change is a correction with its reason."
+      description="Version 1. Never edited afterwards; changes are corrections with a reason."
       fields={[hidden("id")]}
       values={{ id }}
       action={confirmBaseline}
@@ -538,8 +538,8 @@ export function ConfirmBaselineDrawer({ id, blocker }: { id: string; blocker: st
 
 /// 612-C1: the fields for each of the award's terms, as the corrected value is given.
 const TERM_FIELDS: Readonly<Record<AwardTerm, Field[]>> = {
-  LAD: [{ kind: "money", name: "ladAmount", label: "Liquidated damages a day, as the signed letter states", required: true }],
-  DLP: [{ kind: "number", name: "dlpMonths", label: "Defects liability period, months, as the signed letter states (0 for none)", min: 0, required: true }],
+  LAD: [{ kind: "money", name: "ladAmount", label: "Per day, as the letter states", required: true }],
+  DLP: [{ kind: "number", name: "dlpMonths", label: "Months; 0 for none", min: 0, required: true }],
   RETENTION: [
     { kind: "text", name: "retentionPercent", label: "Retention percentage of each certificate", placeholder: "e.g. 10", required: true },
     { kind: "text", name: "retentionCapPercent", label: "Capped at, percentage of the contract sum", placeholder: "e.g. 5", required: true },

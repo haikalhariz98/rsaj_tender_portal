@@ -11,6 +11,7 @@ import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { Blocked } from "@/components/ui/blocked";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { KeyValues } from "@/components/ui/stat";
 import { maskIc, MASKING_NOTE } from "@/lib/award/mask";
 import { missingMandatory, recipientsFor, liveCopy } from "@/lib/contract/copies";
@@ -81,9 +82,7 @@ export function FormationPanel({ sulit, l, section, facts, people, today }: { su
   return (
     <div className="flex flex-col gap-6">
       {notStarted && (
-        <Callout tone="info" title="Preparation has not started">
-          Start it on the Overview: it freezes what the contract is formed under. Nothing below is recorded before then.
-        </Callout>
+        <Callout tone="warn" title="Preparation not started. Start it on the Overview." />
       )}
       {!notStarted && section === "assembly" && <AssemblySection l={l} facts={facts} />}
       {!notStarted && section === "checks" && <ChecksSection sulit={sulit} l={l} facts={facts} people={people} today={today} />}
@@ -104,17 +103,17 @@ function AssemblySection({ l, facts }: { l: LoadedContract; facts: Facts }) {
   return (
     <ActGate blocker={shut}>
     <Card className="overflow-hidden">
-      <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.contractDocument} />} subtitle={`In the order prescribed for ${facts.form.snap?.basis.name ?? "its basis"}, as configured when preparation started.`} actions={<Badge tone={faults.length ? "warn" : "ok"}>{faults.length ? "Not complete" : "Complete"}</Badge>} divided={c.assemblyParts.length === 0} />
+      <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.contractDocument} />} actions={<Badge tone={faults.length ? "warn" : "ok"}>{faults.length ? "Not complete" : "Complete"}</Badge>} divided={c.assemblyParts.length === 0} />
       {faults.length > 0 && <div className="px-5 pt-3 sm:px-6"><Callout tone="warn" title="Not complete">{faults.map(contractFaultText).join(" ")}</Callout></div>}
       {c.assemblyParts.length === 0 ? (
-        <EmptyState size="sm" title="No parts">None were configured for the basis when preparation started.</EmptyState>
+        <EmptyState size="sm" title="No parts" />
       ) : (
         <ul className="divide-y divide-line/70">
           {c.assemblyParts.map((p) => (
             <li key={p.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <span className="min-w-0">
                 <span className="block text-[13.5px] font-semibold break-words text-ink">{[p.printedNumber, p.labelSnapshot].filter(Boolean).join(". ")}</span>
-                {p.state === "CANCELLED_BY_ALTERNATIVE" && <span className="block text-[12.5px] break-words text-ink-3">{p.cancelledStatement ? `Cancelled by the accepted alternative: ${p.cancelledStatement}` : "Cancelled by the accepted alternative, without saying what it cancels."}</span>}
+                {p.state === "CANCELLED_BY_ALTERNATIVE" && <span className="block text-[12.5px] break-words text-ink-3">{p.cancelledStatement ? `Cancelled by the accepted alternative: ${p.cancelledStatement}` : "Cancelled by the accepted alternative"}</span>}
               </span>
               <span className="flex shrink-0 flex-wrap items-center gap-2">
                 <Chip tone={p.state === "READY" ? "ok" : p.cancelledStatement ? "info" : "warn"}>{p.state === "READY" ? "As tendered" : "Cancelled by the alternative"}</Chip>
@@ -140,7 +139,7 @@ function ChecksSection({ sulit, l, facts, people, today }: { sulit: Sulit<true>;
     <ActGate blocker={shut}>
     <>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ScaleIcon size={17} />} title={<Say words={P.reconciliation} />} subtitle="The Contract Document against the Tender Document and the Tender Table Document, and the drawings, with every tender-stage addendum." />
+        <CardHeader icon={<ScaleIcon size={17} />} title={<Say words={P.reconciliation} />} />
         <ul className="divide-y divide-line/70">
           {RECONCILIATION_COMPARISONS.map((cmp) => {
             const r = c.reconciliations.find((x) => x.comparison === cmp);
@@ -212,7 +211,7 @@ function CheckCard({ sulit, l, check: k, people, today, editable, preparationOn,
           <span className="flex flex-wrap items-center gap-2">
             {editable && !done && kind === "ARITHMETIC" && <CorrectionDrawer id={c.id} checkId={k.id} />}
             {editable && !done && kind === "FRONT_LOADING" && <RateDrawer id={c.id} checkId={k.id} />}
-            {editable && !done && <CompleteCheckDrawer id={c.id} checkId={k.id} label={CHECK_WORDS[kind].en} people={people} today={today} blocker={blocker.length ? blocker.map(contractFaultText).join(" ") : null} noteHint={kind === "FRONT_LOADING" ? "Say what was done about the rates listed, or, with no ratio set, how they were judged." : "Optional."} />}
+            {editable && !done && <CompleteCheckDrawer id={c.id} checkId={k.id} label={CHECK_WORDS[kind].en} people={people} today={today} blocker={blocker.length ? blocker.map(contractFaultText).join(" ") : null} noteHint={kind === "FRONT_LOADING" ? "What was done about the listed rates." : "Optional."} />}
             {done && <Badge tone="ok">Complete</Badge>}
           </span>
         }
@@ -235,12 +234,12 @@ function CheckCard({ sulit, l, check: k, people, today, editable, preparationOn,
               </li>
             ))}
           </ul>
-          <div className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6"><span className="flex flex-wrap items-center gap-x-2">Variance against the tendered figures: <SulitValue of={through(sulit, variance! < 0n ? `−${formatMoney(-variance!)}` : `+${formatMoney(variance!)}`)} /></span> The accepted contract sum stands (an assumed reading, to be confirmed).</div>
+          <div className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6"><span className="flex flex-wrap items-center gap-x-2">Variance against the tendered figures: <SulitValue of={through(sulit, variance! < 0n ? `−${formatMoney(-variance!)}` : `+${formatMoney(variance!)}`)} /></span> <InfoChip tone="warn" detail="The accepted contract sum stands. To be confirmed.">Assumed</InfoChip></div>
         </>
       )}
       {kind === "FRONT_LOADING" && (
         <>
-          <div className="px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">{ratio ? `Rates above ${formatPct(ratio).replace(/%$/, "")} times the estimate rate are listed, as frozen when preparation started. Rates exactly at it are listed apart: the configuration does not say which side the multiple falls.` : "No ratio was set when preparation started: nothing is listed for you, and the check is the officer's judgement, recorded in the note."}</div>
+          <div className="px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">{ratio ? `Rates above ${formatPct(ratio).replace(/%$/, "")} times the estimate are listed. Exact matches are listed apart.` : "Ratio not set. The check is the officer's judgement."}</div>
           {rates.length > 0 && (
             <ul className="divide-y divide-line/70 border-t border-line">
               {rates.map((x) => {
@@ -294,7 +293,6 @@ function LegalSection({ l, facts, people, today }: { l: LoadedContract; facts: F
         <CardHeader
           icon={<ScaleIcon size={17} />}
           title={<SayWith words={P.legalReviewBy} values={{ office: facts.form.snap?.policy.legalOfficeLabel ?? "the legal office" }} />}
-          subtitle="Signature is refused until endorsed. Each submission pins the documents it went with; no limit on iterations and no timeout."
           actions={
             pending ? <DecideLegalDrawer id={c.id} iteration={pending.iteration} people={people} today={today} /> : canSend ? <SubmitLegalDrawer id={c.id} office={facts.form.snap?.policy.legalOfficeLabel ?? "the legal office"} people={people} blocker={submitBlocker} documents={docs.map((d) => `${d.version.document.title} (version ${d.version.versionNo})`).join("; ") || "none attached"} /> : undefined
           }
@@ -302,7 +300,7 @@ function LegalSection({ l, facts, people, today }: { l: LoadedContract; facts: F
         />
         {canSend && facts.form.faults.length > 0 && <div className="px-5 pt-3 sm:px-6"><Callout tone="warn" title="Formation is not complete">{facts.form.faults.map(contractFaultText).join(" ")}</Callout></div>}
         {reviews.length === 0 ? (
-          <EmptyState size="sm" title="Not sent">Attach what goes to the legal office below, then send it.</EmptyState>
+          <EmptyState size="sm" title="Not sent" />
         ) : (
           <ul className="divide-y divide-line/70">
             {[...c.legalReviews].reverse().map((r) => {
@@ -321,7 +319,7 @@ function LegalSection({ l, facts, people, today }: { l: LoadedContract; facts: F
           </ul>
         )}
       </Card>
-      <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="To and from the legal office" subtitle="What goes for review (pinned at each submission) and the comments that come back." only={["LEGAL_SUBMISSION", "LEGAL_COMMENTS"]} />
+      <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="To and from the legal office" only={["LEGAL_SUBMISSION", "LEGAL_COMMENTS"]} />
     </>
     </ActGate>
   );
@@ -348,7 +346,7 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
     <>
       <ActGate blocker={shut}>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.beforeSignature} />} subtitle="The company resolution or other proof of signing authority is on file before the contractor's signature can be recorded." />
+        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.beforeSignature} />} />
         <div className="p-4 sm:p-5">
           <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="Company resolution" only={["COMPANY_RESOLUTION"]} required={{ COMPANY_RESOLUTION: !executed }} />
         </div>
@@ -357,7 +355,6 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
         <CardHeader
           icon={<UsersIcon size={17} />}
           title={<Say words={P.signatures} />}
-          subtitle="Each signature is read from how it was recorded: signed in by the holder, or recorded from their paper."
           actions={
             !executed && status !== "CANCELLED" ? (
               <span className="flex flex-wrap items-center gap-2">
@@ -374,14 +371,14 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
               { label: "For the contractor", value: contractor ? `${contractor.name}${contractor.capacity ? `, ${contractor.capacity}` : ""} · IC ${maskIc(contractor.icNumber)} · ${formatDate(contractor.signedOn)}` : notSet("Not recorded") },
               { label: "Witness", value: witness ? `${witness.name} · IC ${maskIc(witness.icNumber)}` : notSet("Not recorded") },
               { label: "For the employer", value: rsaj ? `${rsaj.name}, ${rsaj.roleLabel ?? "the signing office"}${rsaj.delegationId ? " (under a delegation)" : ""} · ${rsaj.ruleLabel ?? ""}` : notSet(`Not recorded: signed by ${office}`) },
-              { label: "Contract Date", value: c.contractDate ? <span className="flex flex-col items-start gap-1"><span>{formatDate(day(c.contractDate))}</span>{c.contractDateCorrectedFrom && <Chip tone="info">{`Corrected from ${formatDate(day(c.contractDateCorrectedFrom))}`}</Chip>}{executed && status !== "CANCELLED" && <CorrectDateDrawer id={c.id} current={formatDate(day(c.contractDate))} />}</span> : notSet("The day the signature for the employer is recorded") },
+              { label: "Contract Date", value: c.contractDate ? <span className="flex flex-col items-start gap-1"><span>{formatDate(day(c.contractDate))}</span>{c.contractDateCorrectedFrom && <Chip tone="info">{`Corrected from ${formatDate(day(c.contractDateCorrectedFrom))}`}</Chip>}{executed && status !== "CANCELLED" && <CorrectDateDrawer id={c.id} current={formatDate(day(c.contractDate))} />}</span> : notSet("Employer signature day") },
             ]}
           />
           <p className="mt-3 text-[12px] text-ink-3">{MASKING_NOTE}</p>
         </CardBody>
       </Card>
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.stampingAtLhdn} />} subtitle="Fully executed once the stamping day and the LHDN reference are both recorded." actions={status === "EXECUTED" ? (stampBlocks.length ? <Blocked label="Record stamping" reason={stampBlocks.map(contractFaultText).join(" ")} /> : <StampingDrawer id={c.id} today={today} />) : c.stampedOn ? <Badge tone="ok">Stamped</Badge> : undefined} />
+        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.stampingAtLhdn} />} actions={status === "EXECUTED" ? (stampBlocks.length ? <Blocked label="Record stamping" reason={stampBlocks.map(contractFaultText).join(" ")} /> : <StampingDrawer id={c.id} today={today} />) : c.stampedOn ? <Badge tone="ok">Stamped</Badge> : undefined} />
         <CardBody>
           <KeyValues columns={2} items={[{ label: "Stamped on", value: c.stampedOn ? formatDate(c.stampedOn) : notSet("Not recorded") }, { label: "LHDN reference", value: c.stampingRef || notSet("Not recorded") }]} />
         </CardBody>
@@ -390,7 +387,7 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
       </ActGate>
       <ActGate blocker={custody}>
       <Card>
-        <CardHeader icon={<UsersIcon size={17} />} title={<Say words={P.integrityPact} />} subtitle="The briefing at signing. It does not block signing; a signed contract without it is shown so." actions={!c.briefing && !custody && briefingOpen(status) ? <BriefingDrawer id={c.id} people={people} today={today} /> : undefined} />
+        <CardHeader icon={<UsersIcon size={17} />} title={<Say words={P.integrityPact} />} actions={!c.briefing && !custody && briefingOpen(status) ? <BriefingDrawer id={c.id} people={people} today={today} /> : undefined} />
         <CardBody>
           {c.briefing ? (
             <KeyValues columns={2} items={[{ label: "Held on", value: formatDate(c.briefing.heldOn) }, { label: "For the employer", value: c.briefing.participantNames.join(", ") }, { label: "For the contractor", value: c.briefing.contractorAttendees.join(", ") }, { label: "Note", value: c.briefing.note || notSet("None") }]} />
@@ -420,7 +417,7 @@ function CopiesSection({ l, people, today }: { l: LoadedContract; people: Option
   const shut = actStatusBlocker("COPIES_AND_CUSTODY", status);
   const originalsShut = actStatusBlocker("ORIGINALS", status);
   const issuable = list === "CONSULTANT_NOT_ANSWERED" ? [] : list.filter((r) => !facts2.some((x) => x.recipientId === r.id && liveCopy(x)));
-  const issueBlock = !executed ? "The contract is not executed yet." : list === "CONSULTANT_NOT_ANSWERED" ? "Say whether a consulting engineer is engaged first." : issuable.length === 0 ? "Every recipient holds a live copy." : null;
+  const issueBlock = !executed ? "The contract is not executed yet." : list === "CONSULTANT_NOT_ANSWERED" ? "Answer the consulting engineer question first." : issuable.length === 0 ? "Every recipient holds a live copy." : null;
   const originals: Option[] = [
     ...(executed && !c.custodyItems.some((i) => i.kind === "CONTRACT") ? [{ value: "CONTRACT:", label: CUSTODY_KIND_WORDS.CONTRACT.en }] : []),
     ...c.securities.filter((s) => s.status === "VERIFIED" && !c.custodyItems.some((i) => i.securityId === s.id)).map((s) => ({ value: `SECURITY:${s.id}`, label: `${SECURITY_KIND_LABEL[s.kind]} ${s.instrumentRef}`.trim() })),
@@ -433,14 +430,14 @@ function CopiesSection({ l, people, today }: { l: LoadedContract; people: Option
         <CardHeader
           icon={<InboxIcon size={17} />}
           title={<Say words={P.controlledCopies} />}
-          subtitle={`Numbered, stamped "${snap?.policy.stampEn ?? ""}", addressed and logged. The list and the stamp are as frozen when preparation started.`}
+          subtitle={`Stamped "${snap?.policy.stampEn ?? ""}"`}
           actions={status !== "CANCELLED" ? (issueBlock ? <Blocked label="Issue a copy" reason={issueBlock} /> : <IssueCopyDrawer id={c.id} recipients={issuable.map((r) => ({ value: r.id, label: r.name }))} today={today} blocker={null} />) : undefined}
         />
         <CardBody>
           <KeyValues
             columns={2}
             items={[
-              { label: "Consulting engineer engaged", value: <span className="flex flex-wrap items-center gap-2">{c.consultingEngineer == null ? notSet("Not answered: nothing is distributed until it is") : c.consultingEngineer ? "Yes" : "No"}{status !== "CANCELLED" && c.copies.length === 0 && <ConsultingEngineerDrawer id={c.id} current={c.consultingEngineer} />}</span> },
+              { label: "Consulting engineer engaged", value: <span className="flex flex-wrap items-center gap-2">{c.consultingEngineer == null ? notSet("Not answered") : c.consultingEngineer ? "Yes" : "No"}{status !== "CANCELLED" && c.copies.length === 0 && <ConsultingEngineerDrawer id={c.id} current={c.consultingEngineer} />}</span> },
               { label: "Distribution", value: !executed ? notSet("After execution") : list === "CONSULTANT_NOT_ANSWERED" ? notSet("Waiting on the consulting engineer answer") : missing.length ? `Not complete: ${missing.map((r) => r.name).join(", ")}` : "Complete: every mandatory recipient holds a live copy" },
             ]}
           />
@@ -472,9 +469,9 @@ function CopiesSection({ l, people, today }: { l: LoadedContract; people: Option
       </ActGate>
       <ActGate blocker={originalsShut}>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.originalsInCustody} />} subtitle="Where each physical original is held and by whom, with every check-out and check-in." actions={status !== "CANCELLED" ? (originals.length ? <RegisterOriginalDrawer id={c.id} originals={originals} people={people} /> : <Blocked label="Register an original" reason={executed ? "Every original on record is registered." : "The signed contract is registered once executed; verified bonds and policies any time."} />) : undefined} divided={c.custodyItems.length === 0} />
+        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.originalsInCustody} />} actions={status !== "CANCELLED" ? (originals.length ? <RegisterOriginalDrawer id={c.id} originals={originals} people={people} /> : <Blocked label="Register an original" reason={executed ? "Every original on record is registered." : "The signed contract is registered once executed; verified bonds and policies any time."} />) : undefined} divided={c.custodyItems.length === 0} />
         {c.custodyItems.length === 0 ? (
-          <EmptyState size="sm" title="None registered">Register the signed contract, the bond and the policies as they are filed.</EmptyState>
+          <EmptyState size="sm" title="None registered" />
         ) : (
           <ul className="divide-y divide-line/70">
             {c.custodyItems.map((i) => {

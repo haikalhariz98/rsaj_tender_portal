@@ -1,5 +1,5 @@
 import { Say } from "@/components/i18n/language-context";
-import { Callout } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import type { HiddenAct } from "@/lib/supervision/authority";
 import { hiddenNote } from "@/lib/supervision/labels";
 
@@ -11,9 +11,7 @@ export function HiddenNote({ hidden }: { hidden: readonly HiddenAct[] }) {
   const note = hiddenNote(hidden);
   if (!note) return null;
   return (
-    <Callout tone="info" title={<Say words={note.title} />}>
-      <Say words={note.body} />
-    </Callout>
+    <div><InfoChip outline detail={note.body.en}><Say words={note.title} /></InfoChip></div>
   );
 }
 

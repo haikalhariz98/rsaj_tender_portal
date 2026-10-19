@@ -47,7 +47,7 @@ function rowsOf(b: BaselineValues): FieldRow[] {
     { key: "contractSum", group: null, value: rm(b.contractSum), source: "AWARD" },
     { key: "completion", group: null, value: period(b.completionPeriod, b.completionUnit), source: "AWARD" },
     { key: "contractDate", group: null, value: b.contractDate ? formatDate(b.contractDate) : null, source: null, unset: "The day the signature for the employer is recorded" },
-    { key: "possession", group: null, value: b.possessionDate ? formatDate(b.possessionDate) : null, source: null, unset: "Recorded at possession of site (post-award lifecycle)" },
+    { key: "possession", group: null, value: b.possessionDate ? formatDate(b.possessionDate) : null, source: null, unset: "Set at possession of site" },
     { key: "dateForCompletion", group: null, value: b.dateForCompletion ? formatDate(b.dateForCompletion) : null, source: b.dateForCompletion ? "DERIVED" : null, unset: "From possession and the period" },
     // 64-C4-c: no defects liability period reads "None", never "0 months".
     { key: "dlp", group: "dlp", value: b.dlpApplies == null ? null : b.dlpApplies ? (b.dlpMonths ? period(b.dlpMonths, "MONTHS") : null) : "None", source: b.dlpSource },
@@ -59,19 +59,19 @@ function rowsOf(b: BaselineValues): FieldRow[] {
     },
     { key: "retention", group: "retention", value: b.retentionApplies == null ? null : !b.retentionApplies ? "Does not apply" : `${b.retentionPercent ? formatPct(b.retentionPercent) : "Not set"} of each certificate, capped at ${b.retentionCapPercent ? formatPct(b.retentionCapPercent) : "not set"} of the contract sum`, source: b.retentionSource },
     { key: "sums", group: "sums", value: b.pcSums == null || b.provisionalSums == null ? null : `Prime cost ${rm(b.pcSums)} · provisional ${rm(b.provisionalSums)}`, source: b.sumsSource },
-    { key: "buildersWorksValue", group: null, value: rm(b.buildersWorksValue), source: b.buildersWorksValue != null ? "DERIVED" : null, unset: "The contract sum less the prime cost and provisional sums, once those are stated" },
+    { key: "buildersWorksValue", group: null, value: rm(b.buildersWorksValue), source: b.buildersWorksValue != null ? "DERIVED" : null, unset: "Not set until prime cost and provisional sums are stated" },
     { key: "firstInterim", group: "firstInterim", value: rm(b.firstInterimMinimum), source: b.firstInterimSource },
     { key: "subsequentInterim", group: "subsequentInterim", value: rm(b.subsequentInterimMinimum), source: b.subsequentInterimSource },
-    { key: "honourDays", group: "honourDays", value: b.honourCertificateDays == null ? null : period(b.honourCertificateDays, "DAYS"), source: b.honourSource, unset: "Not set: the module that reads it refuses its own act until it is" },
+    { key: "honourDays", group: "honourDays", value: b.honourCertificateDays == null ? null : period(b.honourCertificateDays, "DAYS"), source: b.honourSource, unset: "Not set" },
     {
       key: "sectional",
       group: "sectional",
       value: b.sectionalCompletion == null ? null : !b.sectionalCompletion ? "Does not apply" : b.sections.length ? b.sections.map((s) => `${s.ref}. ${s.description}: ${s.ladDaily != null ? `${rm(s.ladDaily)} a day` : "damages not stated"}`).join("; ") : "Applies, no section stated",
       source: b.sectionalSource,
     },
-    { key: "unfixedMaterials", group: "unfixedMaterials", value: b.unfixedMaterialsPct ? formatPct(b.unfixedMaterialsPct) : null, source: b.unfixedMaterialsPct ? "ENTERED" : null, unset: "Not set: the module that reads it refuses its own act until it is" },
-    { key: "onCost", group: "onCost", value: b.onCostPct ? formatPct(b.onCostPct) : null, source: b.onCostPct ? "ENTERED" : null, unset: "Not set: the module that reads it refuses its own act until it is" },
-    { key: "designWork", group: "designWork", value: rm(b.designWorkValue), source: b.designWorkValue != null ? "ENTERED" : null, unset: "Not set: the module that reads it refuses its own act until it is" },
+    { key: "unfixedMaterials", group: "unfixedMaterials", value: b.unfixedMaterialsPct ? formatPct(b.unfixedMaterialsPct) : null, source: b.unfixedMaterialsPct ? "ENTERED" : null, unset: "Not set" },
+    { key: "onCost", group: "onCost", value: b.onCostPct ? formatPct(b.onCostPct) : null, source: b.onCostPct ? "ENTERED" : null, unset: "Not set" },
+    { key: "designWork", group: "designWork", value: rm(b.designWorkValue), source: b.designWorkValue != null ? "ENTERED" : null, unset: "Not set" },
   ];
 }
 
@@ -91,7 +91,7 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
   if (!shown) {
     return (
       <Card>
-        <EmptyState title="No baseline yet">The draft is built when preparation starts, from the award, the tender Appendix and the bill.</EmptyState>
+        <EmptyState title="No baseline yet" />
       </Card>
     );
   }
@@ -126,7 +126,7 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
         <CardHeader
           icon={<FileIcon size={17} />}
           title={latest ? <SayWith words={P.versionInForce} values={{ version: String(latest.version) }} /> : <Say words={P.theDraft} />}
-          subtitle={latest ? `${REASON_WORDS[latest.reason!].en}, ${formatDate(latest.recordedOn)}. Never edited: a change is a correction, with its reason.` : "Built when preparation started. Values nothing else states are entered here, each with where it came from."}
+          subtitle={latest ? `${REASON_WORDS[latest.reason!].en}, ${formatDate(latest.recordedOn)}` : undefined}
           actions={
             !latest && status !== "CANCELLED" && !isExecuted(status) ? (
               confirm.length ? <Blocked label="Confirm the baseline" reason={confirm.map(contractFaultText).join(" ")} primary /> : <ConfirmBaselineDrawer id={c.id} blocker={null} />
@@ -180,19 +180,19 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
         {inputs && (
           <div className="border-t border-line px-5 py-3 text-[12.5px] break-words text-ink-3 sm:px-6">
             {[
-              inputs.appendix ? `Tender Appendix: the approved pack's version ${inputs.appendix.packVersion}` : "No tender Appendix was frozen for this exercise: values it would state are entered at baseline",
-              inputs.bq ? `Bill of quantities: version ${inputs.bq.versionNo} as pinned to the pack` : "No bill was pinned to an approved pack",
+              inputs.appendix ? `Tender Appendix: the approved pack's version ${inputs.appendix.packVersion}` : "No tender Appendix frozen",
+              inputs.bq ? `Bill of quantities: version ${inputs.bq.versionNo} as pinned to the pack` : "No bill pinned",
               inputs.band ? `Terms band: ${inputs.band.label ?? "unnamed"}` : "No terms band was recorded",
-              inputs.interimPolicy.floor != null && inputs.interimPolicy.pct != null ? `First interim minimum: the lesser of ${formatMoney(inputs.interimPolicy.floor)} and ${formatPct(inputs.interimPolicy.pct)} of the builder's works value` : "No first-interim rule was set: the minimum is stated or entered",
+              inputs.interimPolicy.floor != null && inputs.interimPolicy.pct != null ? `First interim minimum: the lesser of ${formatMoney(inputs.interimPolicy.floor)} and ${formatPct(inputs.interimPolicy.pct)} of the builder's works value` : "No first-interim rule set",
             ].join(". ")}
             .
           </div>
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClockIcon size={17} />} title={<Say words={P.versions} />} subtitle="Each written once. Every later calculation reads the version in force on its day and keeps the one it read." divided={versions.length === 0} />
+        <CardHeader icon={<ClockIcon size={17} />} title={<Say words={P.versions} />} divided={versions.length === 0} />
         {versions.length === 0 ? (
-          <EmptyState size="sm" title="No version yet">The baseline is confirmed before the first valuation, once the readiness gate is met.</EmptyState>
+          <EmptyState size="sm" title="No version yet" />
         ) : (
           <ul className="divide-y divide-line/70">
             {[...versions].reverse().map((v) => (

@@ -34,6 +34,7 @@ import { Blocked } from "@/components/ui/blocked";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { INSURANCE_KIND_LABEL, REGISTER_STATUS_LABEL, REGISTER_STATUS_TONE, SECURITY_KIND_LABEL, WC_BASIS_LABEL } from "@/lib/award/labels";
@@ -329,13 +330,11 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         {awardCallouts}
         {fin?.chrome?.callouts}
         {c && !today && !fin?.chrome && (
-          <Callout tone="warn" title="The organisation's time zone is not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>
-            Every act on a contract records the organisation&apos;s day, and the Contract Date is the day of the signature act: none is assumed to be UTC.
-          </Callout>
+          <Callout tone="warn" title="Time zone not set. Dates cannot be judged." action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>} />
         )}
         {status === "CANCELLED" && c && (
           <Callout tone="warn" title="Cancelled with its award">
-            {c.cancelReason || "No reason recorded."} The number stays allocated as a gap; everything recorded is kept as it was.
+            {c.cancelReason || "No reason recorded."}
           </Callout>
         )}
         {/* ADR 0031 (run 1a): a terminated or closed contract says what is still recorded on it, in the acts' own words. */}
@@ -346,7 +345,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         )}
         {c && status && briefingMissing(status, !!c.briefing) && (
           <Callout tone="warn" title="No Integrity Pact briefing recorded">
-            The Stage Three briefing at signing is not on record. It does not block anything (a Should); record it under Signing › Formation › Signing.
+            Record it under Signing › Formation.
           </Callout>
         )}
       </div>
@@ -393,7 +392,7 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
     <div className="flex flex-col gap-6">
       {start && (
         <Card>
-          <CardHeader icon={<ToolsIcon size={17} />} title={t(P.notStarted)} subtitle="The contract is numbered. Preparing it freezes what it is formed under and builds the baseline's draft." actions={<StartPreparationDrawer id={c.id} blocker={start.blocker} frozen={start.frozen} />} />
+          <CardHeader icon={<ToolsIcon size={17} />} title={t(P.notStarted)} subtitle="Preparing freezes the formation basis." actions={<StartPreparationDrawer id={c.id} blocker={start.blocker} frozen={start.frozen} />} />
         </Card>
       )}
       <OnSiteCard l={l} v={supervision} />
@@ -401,25 +400,25 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
       <PaymentSummaryCard l={l} v={payments} />
       <VariationSummaryCard l={l} v={variations} />
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title={t(P.theContract)} subtitle="As awarded, numbered at issue, and as it is being formed." />
+        <CardHeader icon={<FileIcon size={17} />} title={t(P.theContract)} />
         <CardBody>
           <KeyValues
             columns={2}
             items={[
               { label: "Contract number", value: <span className="flex flex-col items-start gap-1"><span className="font-mono text-[13px]">{c.number}</span>{year.seriesNumber && <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_WORDS.series(year.issueYear).en}</span>}</span> },
               { label: "Contractor", value: l.award.awardeeName },
-              { label: "Contract sum", value: <span className="flex flex-col items-start gap-1"><span className="tabular-nums">{formatMoney(senFromDecimal(c.contractSum))}</span><span className="text-[12.5px] text-ink-3">The Letter of Acceptance&apos;s sum (assumed: corrections do not change it).</span></span> },
-              { label: "Arithmetic corrections", value: variance == null ? notSet("None recorded") : <span className="flex flex-col items-start gap-1"><SulitValue of={through(sulit, `${variance < 0n ? "−" : "+"}${formatMoney(variance < 0n ? -variance : variance)}`)} /><span className="text-[12.5px] text-ink-3">Against the tendered figures: shown, not applied.</span></span> },
+              { label: "Contract sum", value: <span className="flex flex-col items-start gap-1"><span className="tabular-nums">{formatMoney(senFromDecimal(c.contractSum))}</span><InfoChip tone="warn" detail="Corrections do not change the Letter of Acceptance sum.">Assumed</InfoChip></span> },
+              { label: "Arithmetic corrections", value: variance == null ? notSet("None recorded") : <span className="flex flex-col items-start gap-1"><SulitValue of={through(sulit, `${variance < 0n ? "−" : "+"}${formatMoney(variance < 0n ? -variance : variance)}`)} /><Chip tone="neutral">Not applied</Chip></span> },
               {
                 label: "Contract Date",
                 value: c.contractDate ? (
                   <span className="flex flex-col items-start gap-1">
                     <span>{formatDate(day(c.contractDate))}</span>
-                    <span className="text-[12.5px] text-ink-3">The day the signature for the employer was recorded.</span>
+                    
                     {year.yearsDiffer && <Chip tone="warn">{CONTRACT_YEAR_WORDS.differs(year.issueYear, year.contractDateYear!).en}</Chip>}
                     {c.contractDateCorrectedFrom && <Chip tone="info">{`Corrected from ${formatDate(day(c.contractDateCorrectedFrom))}: ${c.contractDateCorrectionReason}`}</Chip>}
                   </span>
-                ) : notSet("Not signed: the day of the signature act, never typed"),
+                ) : notSet("Not signed"),
               },
               { label: "Stamped", value: c.stampedOn ? `${formatDate(day(c.stampedOn))} · reference ${c.stampingRef}` : notSet("Not recorded") },
               { label: "Formed under", value: snap ? `${snap.basis.name}; legal review by ${snap.policy.legalOfficeLabel}; frozen ${formatDate(snap.startedOn)}` : notSet("Preparation not started") },
@@ -429,13 +428,13 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
         </CardBody>
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title={t(P.readyToSign)} subtitle="The readiness gate, as the award shows it. Preparation continues while it is red." actions={facts ? <Badge tone={facts.gate.ready ? "ok" : "warn"}>{facts.gate.ready ? "Gate met" : "Gate not met"}</Badge> : undefined} />
+        <CardHeader icon={<ShieldIcon size={17} />} title={t(P.readyToSign)} actions={facts ? <Badge tone={facts.gate.ready ? "ok" : "warn"}>{facts.gate.ready ? "Gate met" : "Gate not met"}</Badge> : undefined} />
         {facts ? <ReadinessGateList items={facts.gate.items} bondNotRequiredReason={l.award.bondNotRequiredReason} /> : <EmptyState size="sm" title={t(R.notJudged)}>{t(R.setTimeZoneFirst)}</EmptyState>}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<CheckIcon size={17} />} title={t(P.awardConditions)} subtitle="Before work starts, each with the day it is needed by. Recorded on the award." divided={l.award.conditions.length > 0} />
+        <CardHeader icon={<CheckIcon size={17} />} title={t(P.awardConditions)} divided={l.award.conditions.length > 0} />
         {l.award.conditions.length === 0 ? (
-          <EmptyState size="sm" title="None recorded">The award records none.</EmptyState>
+          <EmptyState size="sm" title="None recorded" />
         ) : (
           <ul className="divide-y divide-line/70">
             {l.award.conditions.map((x) => (
@@ -469,8 +468,7 @@ async function SecuritiesSummaryCard({ l, today }: { l: LoadedContract; today: s
       <CardHeader
         icon={<ShieldIcon size={17} />}
         title={t(P.securitiesAndInsurance)}
-        subtitle="Bonds, guarantees and policies on this contract. Advance-payment guarantees and retention bonds are lodged and checked in the same panel."
-        actions={<ButtonLink href={caseHref({ awardId: l.award.id, contractId: c.id }, { stage: "before-signing", tab: "securities" })} size="sm" variant="secondary">Open securities</ButtonLink>}
+                actions={<ButtonLink href={caseHref({ awardId: l.award.id, contractId: c.id }, { stage: "before-signing", tab: "securities" })} size="sm" variant="secondary">Open securities</ButtonLink>}
       />
       <CardBody className="flex flex-wrap items-center gap-2 text-[13.5px] text-ink-2">
         {rows.length === 0 ? (
@@ -510,13 +508,13 @@ async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: Loaded
     if (wcPolicies.length === 0) return null;
     return (
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title={t(P.wagesCheck)} subtitle="Recorded on the contract once the policy is verified. Recorded, not judged." />
+        <CardHeader icon={<ShieldIcon size={17} />} title={t(P.wagesCheck)} />
         <ActGate blocker={shut}>
           <ul className="divide-y divide-line/70">
             {wcPolicies.map((p) => (
               <li key={p.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <span className="text-[12.5px] break-words text-ink-3">
-                  {p.wcCheckedOn ? `Wages check recorded ${formatDate(day(p.wcCheckedOn))} by ${p.wcCheckedBy?.name ?? "an officer"}: declared uncovered wages ${formatMoney(parseSen(p.wcDeclaredUncoveredWages!.toString()))}. Recorded, not judged: basis not set (D4).` : "The uncovered-wages check is not recorded: the gate's insurance item is not met until it is."}
+                  {p.wcCheckedOn ? `Wages check recorded ${formatDate(day(p.wcCheckedOn))} by ${p.wcCheckedBy?.name ?? "an officer"}: declared uncovered wages ${formatMoney(parseSen(p.wcDeclaredUncoveredWages!.toString()))}. Not judged.` : "Wages check not recorded. The insurance item stays open."}
                 </span>
                 {!p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label={t(R.recordWagesCheck)} reason={t(R.verifyPolicyAbove)} />)}
               </li>
@@ -557,7 +555,7 @@ async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: Loaded
                   </span>
                   {wc && (
                     <span className="block text-[12.5px] break-words text-ink-3">
-                      {p.wcCheckedOn ? `Wages check recorded ${formatDate(day(p.wcCheckedOn))} by ${p.wcCheckedBy?.name ?? "an officer"}: declared uncovered wages ${formatMoney(parseSen(p.wcDeclaredUncoveredWages!.toString()))}. Recorded, not judged: basis not set (D4).` : "The uncovered-wages check is not recorded: the gate's insurance item is not met until it is."}
+                      {p.wcCheckedOn ? `Wages check recorded ${formatDate(day(p.wcCheckedOn))} by ${p.wcCheckedBy?.name ?? "an officer"}: declared uncovered wages ${formatMoney(parseSen(p.wcDeclaredUncoveredWages!.toString()))}. Not judged.` : "Wages check not recorded. The insurance item stays open."}
                     </span>
                   )}
                 </span>
@@ -623,9 +621,9 @@ function HistoryPanel({ withheldRows, sulit, matterGates, entries, total, timeZo
   };
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ClockIcon size={17} />} title={say(COMPONENT_WORDS.history, lang)} subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this contract and what is under it. "}Each change names who made it; any from before sign-in is not attributed. Identity-card numbers are masked here.`} divided={entries.length === 0} />
+      <CardHeader icon={<ClockIcon size={17} />} title={say(COMPONENT_WORDS.history, lang)} subtitle={total > entries.length ? `Latest ${entries.length} of ${total}` : undefined} divided={entries.length === 0} />
       {entries.length === 0 ? (
-        <EmptyState size="sm" title="No recorded changes">Changes made through the portal appear here.</EmptyState>
+        <EmptyState size="sm" title="No recorded changes" />
       ) : (
         <ul className="divide-y divide-line/70">
           {entries.map((e) => (
@@ -653,7 +651,7 @@ function HistoryPanel({ withheldRows, sulit, matterGates, entries, total, timeZo
         </ul>
       )}
       {/* AC-37 (b): for a reader who sees the contract stages only, the award's own acts (lodging and verifying securities included) are left out, and the list says so. */}
-      {withheldRows && <p className="border-t border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">Rows of the award&apos;s own acts, including lodging and verifying securities and insurance policies, are restricted to the people named on the exercise.</p>}
+      {withheldRows && <p className="border-t border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">Award acts are hidden here.</p>}
     </Card>
   );
 }

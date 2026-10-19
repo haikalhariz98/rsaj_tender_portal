@@ -109,11 +109,11 @@ export const INSTRUMENT_SHORT_WORDS: Readonly<Record<InstrumentKind, Words>> = {
 export const CASE_REFUSAL_WORDS = {
   conditionsRestrictedTitle: w("Adding and settling conditions is restricted"),
   conditionsRestrictedBody: w(
-    "Adding and settling the award's conditions is restricted to the people named on the exercise. Their state shows on the Project overview.",
+    "Conditions are restricted to the people named on the exercise.",
   ),
   awardStageRestrictedTitle: w("The award stage is restricted"),
   awardStageRestrictedBody: w(
-    "The award stage of this exercise is restricted to the people named on it. The contract stages are open to you.",
+    "Award stage restricted to the people named on the exercise.",
   ),
   notJudged: w("Not judged"),
   setTimeZoneFirst: w("Set the organisation's time zone first."),
@@ -126,7 +126,7 @@ export const CASE_REFUSAL_WORDS = {
   employerSignedBy: w("The employer's amendments are signed by {office}."),
   officeNoLongerConfigured: w("an office no longer configured"),
   employerSigningNotSet: w("Employer's signing office not set"),
-  employerSigningNotSetWhy: w("An amendment is still recorded, with the offices its signer held on the day."),
+  employerSigningNotSetWhy: w("Amendments still recorded with the signer's offices."),
   employerSigningSetUnder: w("It is set under Configuration › Contract controls."),
 } as const;
 

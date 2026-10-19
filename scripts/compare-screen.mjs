@@ -513,6 +513,12 @@ const DECIDED_ABSENT = [
     match: /^(Every award from the day it is started.*|Still to come here|Possession of site.*|Newest first[.] A case begins.*|Every contract In Delay today.*|Planned progress between.*|Shown here, not sent|Expiry reminders are worked out.*|Contracts after award.*|Live ones first.*|Securities and policies are lodged.*|Submissions contractors sent.*|A contractor's programme, claim.*)$/,
     why: "0005, founder 2026-10-19: the list subtitle, the Still-to-come callout, the view subtitles and the empty-state bodies were cut; the roadmap sentence is behind the information button, Not emailed and Assumed are chips",
   },
+  // Note 0005, founder 2026-10-19 (minimal words): the case page header, Overview and Formation panels.
+  {
+    screen: /^[/]projects[/][^/]+$/,
+    match: /^(Every act on a contract records.*|The Stage Three briefing at signing.*|Bonds, guarantees and policies on this contract.*|Before work starts, each with.*|The readiness gate, as the award shows it.*|Each written once[.].*|Start it on the Overview.*|Signature is refused until endorsed.*|Each signature is read from.*)$/,
+    why: "0005, founder 2026-10-19: card subtitles, callout bodies and drawer introductions on the case Overview, Formation and baseline were cut to the consequence; Assumed and Not judged are chips, the hidden-acts note is a chip with a popover",
+  },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
     screen: /^[/]projects$/,

@@ -59,15 +59,15 @@ export function hiddenNote(hidden: readonly HiddenAct[]): { title: Words; body: 
   if (hidden.length === 0) return null;
   const listed = hidden.filter((a): a is SupervisionAct => a !== "SO_ONLY" && a !== "PRINCIPAL_OR_SO");
   const needs = hidden.filter((a): a is HiddenNeed => a === "SO_ONLY" || a === "PRINCIPAL_OR_SO");
-  const en = ["You act as the S.O.'s representative, so some acts are left off your screens."];
+  const en: string[] = [];
   if (listed.length > 0) {
-    en.push(`Your letter of delegation does not list these acts: ${listed.map((a) => ACT_WORDS[a].en.toLowerCase()).join("; ")}.`);
+    en.push(`Not in your delegation letter: ${listed.map((a) => ACT_WORDS[a].en.toLowerCase()).join("; ")}.`);
   }
   if (needs.length > 0) {
     en.push(`Also left off: ${needs.map((n) => HIDDEN_NEED_WORDS[n].en).join("; and ")}.`);
   }
   en.push("The S.O. records them.");
-  return { title: w("Acts outside your delegation are not shown"), body: w(en.join(" ")) };
+  return { title: w("Some acts hidden"), body: w(en.join(" ")) };
 }
 
 export const VARIANT_WORDS: Readonly<Record<DelegationVariant, Words>> = {

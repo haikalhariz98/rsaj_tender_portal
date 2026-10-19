@@ -222,8 +222,8 @@ describe("a representative is told what is left off, on every screen that leaves
     expect(n.body.en).toMatch(/compliance observations/);
     expect(n.body.en).toMatch(/S\.O\.'s own/);
     expect(n.body.en).toMatch(/Principal Representative/);
-    // Only the needs: no letter is named when the letter is not the reason.
-    expect(hiddenNote(["SO_ONLY"])!.body.en).not.toMatch(/letter of delegation does not list/);
-    expect(hiddenNote(["DIARY", "PROGRESS"])!.body.en).toMatch(/does not list these acts: keep and attest the site diary; record progress\./);
+    // Only the needs: no letter is named when the letter is not the reason. Shortened per note 0005, founder 2026-10-19; the meaning is unchanged.
+    expect(hiddenNote(["SO_ONLY"])!.body.en).not.toMatch(/delegation letter/);
+    expect(hiddenNote(["DIARY", "PROGRESS"])!.body.en).toMatch(/Not in your delegation letter: keep and attest the site diary; record progress\./);
   });
 });
