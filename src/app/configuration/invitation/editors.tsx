@@ -42,21 +42,21 @@ export function EditWindowPolicy({ values, channels, calendars, templates }: { v
         { kind: "number", name: "newspaperWarnDays", label: "Margin for a late newspaper (days)", min: 0 },
         { kind: "number", name: "purchaseCutoffDays", label: RULE_LABEL.purchaseCutoff, min: 0, hint: "Exactly this many passes." },
         provenance("dateRulesProvenance", "Where the date rules come from"),
-        { kind: "text", name: "dateRuleSource", label: "The source the date rules cite", hint: "Quoted in the messages that refuse a date. Leave empty to cite none." },
-        { kind: "text", name: "defaultClosingTime", label: "Default closing time", placeholder: "14:30", hint: "24-hour. Another time needs a reason on the window." },
+        { kind: "text", name: "dateRuleSource", label: "The source the date rules cite", hint: "Quoted in refusals. Empty cites none." },
+        { kind: "text", name: "defaultClosingTime", label: "Default closing time", placeholder: "14:30", hint: "24-hour. Another time needs a reason." },
         provenance("closingTimeProvenance", "Where the closing time comes from"),
         { kind: "select", name: "advertisementDayRule", label: "Which publication day is the advertisement day", placeholder: "Not set", options: [{ value: "LATEST_REQUIRED_CHANNEL", label: "The latest day among the required channels" }, { value: "NAMED_CHANNEL", label: "The day of one named channel" }] },
-        { kind: "select", name: "advertisementChannelId", label: "The named channel", placeholder: "None", options: channels, hint: "Only where one channel is named. It must be a required channel." },
+        { kind: "select", name: "advertisementChannelId", label: "The named channel", placeholder: "None", options: channels, hint: "Only for one named, required channel." },
         provenance("dayRuleProvenance", "Where the advertisement-day rule comes from"),
         { kind: "select", name: "calendarId", label: "Holiday calendar", placeholder: "Not set", options: calendars },
         { kind: "select", name: "mandatoryAttendancePermitted", label: RULE_LABEL.mandatoryAttendance, placeholder: "Not set", options: [{ value: "yes", label: "Yes, it may be" }, { value: "no", label: "No, it may not" }, { value: "unset", label: "Not set: no event is mandatory" }] },
         provenance("attendanceProvenance", "Where the attendance rule comes from"),
-        { kind: "select", name: "electronicDocumentRelease", label: "Release the tender documents online after payment", placeholder: "Not set", options: [{ value: "yes", label: "Yes, once an officer records the payment" }, { value: "no", label: "No, collected at the counter only" }, { value: "unset", label: "Not set: nothing is released online" }], hint: "A supplier asks online and an officer records the sale and the payment receipt, or buys online and pays on the demonstration simulator below. A real payment provider is not connected." },
+        { kind: "select", name: "electronicDocumentRelease", label: "Release the tender documents online after payment", placeholder: "Not set", options: [{ value: "yes", label: "Yes, once an officer records the payment" }, { value: "no", label: "No, collected at the counter only" }, { value: "unset", label: "Not set: nothing is released online" }], hint: "Demonstration only: a real provider is not connected." },
         provenance("electronicReleaseProvenance", "Where the release decision comes from"),
-        { kind: "select", name: "documentSaleMode", label: "How the tender documents are sold", placeholder: "Not set", options: [{ value: "COUNTER", label: "At the counter: an officer sells and records the receipt" }, { value: "ONLINE", label: "Online: a supplier buys through the portal" }, { value: "unset", label: "Not set: an exercise made now cannot be published until it is" }], hint: "Taken by an exercise when it is made, and frozen when it is published. An online sale needs the release setting above to be Yes, or the documents cannot be handed over." },
-        { kind: "select", name: "submissionChannel", label: "How bids are submitted", placeholder: "Not set", options: [{ value: "PAPER", label: "On paper: sealed envelopes at the counter, by post, by courier or in the box" }, { value: "ONLINE", label: "Online: sealed in the portal by the supplier" }, { value: "unset", label: "Not set: an exercise made now cannot be published until it is" }], hint: "Taken by an exercise when it is made, and frozen when it is published. Online needs online submission allowed under Configuration, Bid sealing, and the opening officers' keys set on each exercise." },
-        { kind: "select", name: "paymentSimulatorOn", label: "Demonstration payment simulator", placeholder: "Not set", options: [{ value: "yes", label: "On: a buyer chooses a method and pays on a simulated page" }, { value: "no", label: "Off" }, { value: "unset", label: "Not set: the office records the payment instead" }], hint: "A demonstration only: no money moves, and a simulated payment is never a finance receipt. Switch it off before go-live." },
-        { kind: "textarea", name: "paymentMethodsText", label: "Payment methods the simulator offers", hint: "One per line, in the order offered. Up to 12.", placeholder: "Online banking (FPX)" },
+        { kind: "select", name: "documentSaleMode", label: "How the tender documents are sold", placeholder: "Not set", options: [{ value: "COUNTER", label: "At the counter: an officer sells and records the receipt" }, { value: "ONLINE", label: "Online: a supplier buys through the portal" }, { value: "unset", label: "Not set: an exercise made now cannot be published until it is" }], hint: "Frozen when published. Online needs release Yes." },
+        { kind: "select", name: "submissionChannel", label: "How bids are submitted", placeholder: "Not set", options: [{ value: "PAPER", label: "On paper: sealed envelopes at the counter, by post, by courier or in the box" }, { value: "ONLINE", label: "Online: sealed in the portal by the supplier" }, { value: "unset", label: "Not set: an exercise made now cannot be published until it is" }], hint: "Frozen when published. Needs online submission allowed." },
+        { kind: "select", name: "paymentSimulatorOn", label: "Demonstration payment simulator", placeholder: "Not set", options: [{ value: "yes", label: "On: a buyer chooses a method and pays on a simulated page" }, { value: "no", label: "Off" }, { value: "unset", label: "Not set: the office records the payment instead" }], hint: "Demonstration only: no money moves." },
+        { kind: "textarea", name: "paymentMethodsText", label: "Payment methods the simulator offers", hint: "One per line, in order. Up to 12.", placeholder: "Online banking (FPX)" },
         { kind: "select", name: "noticeTemplateId", label: "Template for the published notice", placeholder: "Not set", options: templates },
         { kind: "select", name: "invitationTemplateId", label: "Template for a letter of invitation", placeholder: "Not set", options: templates },
         { kind: "select", name: "addendumTemplateId", label: "Template for an addendum", placeholder: "Not set", options: templates },
@@ -82,7 +82,7 @@ export function ChannelDrawer({ channel }: { channel?: { id: string; name: strin
       columns={2}
       fields={[
         hidden("id"),
-        ...(channel ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Lower case letters, numbers and underscores. A key, not shown to officers; it cannot be changed." } as Field]),
+        ...(channel ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Lower case, numbers, underscores. Cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
         { kind: "hidden", name: "nameMs" },
         { kind: "select", name: "requiredWhenAdvertised", label: "Required for an advertised exercise", placeholder: "Not set", options: THREE },
@@ -104,7 +104,7 @@ export function RetireChannelDrawer({ id, name, retired }: { id: string; name: s
   return (
     <RecordEditor
       title={retired ? `Bring ${name} back` : `Retire ${name}`}
-      description={retired ? "It is offered again on new exercises." : "It stays on every publication already recorded through it, and is no longer offered on new ones."}
+      description={retired ? "It is offered again on new exercises." : "Kept on past publications. No longer offered on new ones."}
       fields={[hidden("id"), hidden("retire")]}
       values={{ id, retire: retired ? "no" : "yes" }}
       {...(retired ? {} : { destructive: { reasonLabel: "Why it is retired" } })}
@@ -170,7 +170,7 @@ export function CalendarDrawer({ calendar }: { calendar?: { id: string; name: st
       columns={2}
       fields={[
         hidden("id"),
-        ...(calendar ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key, not shown to officers; it cannot be changed." } as Field]),
+        ...(calendar ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." } as Field]),
         { kind: "text", name: "name", label: "Name", required: true },
         { kind: "tokens", name: "weekendDays", label: "Weekend days", placeholder: "Not set", options: WEEKDAYS },
         provenance("weekendProvenance", "Where the weekend comes from"),
@@ -295,9 +295,9 @@ export function EditMethodBidRule({ id, name, values, committees }: { id: string
       columns={2}
       fields={[
         hidden("id"),
-        { kind: "select", name: "lateAdmissionCommitteeCode", label: "Committee that decides late admission", placeholder: "Not set", options: committees, hint: "Each late envelope is tabled at its sitting: carried admits it." },
+        { kind: "select", name: "lateAdmissionCommitteeCode", label: "Committee that decides late admission", placeholder: "Not set", options: committees, hint: "Carried admits each late envelope." },
         provenance("lateAdmissionProvenance"),
-        { kind: "number", name: "minimumBids", label: "Fewest bids expected", min: 1, hint: "Fewer is shown to the committee, never refused. One bid is flagged and proceeds." },
+        { kind: "number", name: "minimumBids", label: "Fewest bids expected", min: 1, hint: "Fewer is shown to the committee." },
         provenance("minimumBidsProvenance"),
         { kind: "select", name: "completenessEliminates", label: "An incomplete bid", required: true, placeholder: "Choose", placeholderDisabled: true, options: [{ value: "yes", label: "Is eliminated" }, { value: "no", label: "Is reported to the committee" }, { value: "unset", label: "Not set" }] },
         provenance("completenessProvenance"),
@@ -321,7 +321,7 @@ export function EditMethodOpeningRule({ id, name, values, committees }: { id: st
       columns={2}
       fields={[
         hidden("id"),
-        { kind: "select", name: "openingCommitteeCode", label: "Committee whose panel opens the bids", placeholder: "Not set", options: committees, hint: "Its opening panel size and independence rule are set under Committees." },
+        { kind: "select", name: "openingCommitteeCode", label: "Committee whose panel opens the bids", placeholder: "Not set", options: committees, hint: "Panel size is set under Committees." },
         provenance("openingCommitteeProvenance"),
         { kind: "select", name: "unpurchasedBidConsequence", label: "A bid by a bidder with no live purchase, or not invited", placeholder: "Not set", options: [{ value: "ELIMINATE", label: "Is not carried to evaluation" }, { value: "REPORT", label: "Is carried, and reported to the committee" }] },
         provenance("unpurchasedProvenance"),

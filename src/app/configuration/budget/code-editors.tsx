@@ -56,7 +56,7 @@ function budgetCodeFields(units: Unit[], people: Person[], accounts: Account[]):
       required: true,
       mono: true,
       hint: accounts.length
-        ? "As it is in the finance system. Checked against the chart of accounts on save."
+        ? "As in the finance system. Checked on save."
         : "As it is in the finance system.",
     },
     {
@@ -73,7 +73,7 @@ function budgetCodeFields(units: Unit[], people: Person[], accounts: Account[]):
       kind: "switch",
       name: "isActive",
       label: "Active",
-      hint: "Switch off to stop offering this anywhere in the portal.",
+      hint: "Off stops offering it anywhere.",
     },
   ];
 }

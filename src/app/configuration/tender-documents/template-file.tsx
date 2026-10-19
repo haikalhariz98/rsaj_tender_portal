@@ -53,7 +53,7 @@ export function TemplateFileDrawer({ id, label, current, upload }: { id: string;
           accept: upload.accept || undefined,
           hint: [upload.allowedTypes.length ? `Allowed: ${upload.allowedTypes.join(", ")}.` : null, upload.capText ? `${upload.capText}.` : null, "Its type is read from the file itself, not from its name."].filter(Boolean).join(" "),
         },
-        { kind: "select", name: "documentClassId", label: "Class of the file", required: true, placeholder: "Choose a class", options: upload.classes, hint: "A class that sets a classification: an unclassified file is never served." },
+        { kind: "select", name: "documentClassId", label: "Class of the file", required: true, placeholder: "Choose a class", options: upload.classes, hint: "An unclassified file is never served." },
       ]}
       values={{ id }}
       action={save}
@@ -69,7 +69,7 @@ export function RemoveTemplateFileDrawer({ id, label }: { id: string; label: str
   return (
     <RecordEditor
       title={`Remove the template file of ${label}`}
-      description={"Its line on an exercise's tender documents says \"No template set\" again. Packs already started read the configuration as it stands. The file stays in the document store."}
+      description={"Reads \"No template set\" again. The file stays in the document store."}
       fields={[hidden("id"), hidden("remove")]}
       values={{ id, remove: "yes" }}
       destructive={{ reasonLabel: "Why it is removed" }}

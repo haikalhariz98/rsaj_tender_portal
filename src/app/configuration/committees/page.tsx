@@ -98,10 +98,7 @@ export default async function CommitteesPage() {
           divided={committees.length === 0}
         />
         {committees.length === 0 ? (
-          <EmptyState title="Not set">
-            No committee has been configured. Until one is, no matter can be routed to a body
-            that must sit before it is decided.
-          </EmptyState>
+          <EmptyState title="No committee set" />
         ) : (
           <>
             <Table minWidth={860}>
@@ -200,11 +197,7 @@ export default async function CommitteesPage() {
           divided={outcomes.length === 0}
         />
         {outcomes.length === 0 ? (
-          <EmptyState title="Not set">
-            No not-approved outcome is configured, so a matter a committee votes down cannot be recorded, and
-            the sitting that heard it cannot be minuted. None is shipped: which outcomes exist is your
-            organisation&apos;s policy.
-          </EmptyState>
+          <EmptyState title="No not-approved outcome set" />
         ) : (
           <Table minWidth={760}>
             <colgroup>

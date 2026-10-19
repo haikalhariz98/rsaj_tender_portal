@@ -30,7 +30,7 @@ import {
  * password asked where the act is a signature) except applying a change that makes a code, which has something to show once afterwards.
  */
 
-const WHY_PROPOSED: Field = { kind: "textarea", name: "reason", label: "Why is it proposed?", required: true, hint: "Kept with the change, and shown to the second person who decides it." };
+const WHY_PROPOSED: Field = { kind: "textarea", name: "reason", label: "Why is it proposed?", required: true, hint: "Kept with the change, shown to the decider." };
 const PROPOSER: Field = actorField("ConfigurationChange.proposedBy", { name: "personId" });
 const DECIDED_BY = actorField("ConfigurationChange.decidedBy", { name: "personId" });
 const DECIDER: Field = DECIDED_BY;
@@ -142,8 +142,8 @@ export function ProposeAdministrator({ accountId, name, direction }: { accountId
       title={grant ? `Propose making ${name} an administrator` : `Propose taking administration from ${name}`}
       description={
         grant
-          ? "An administrator is kept apart from every office, committee seat and delegation, so someone who holds one cannot be made one. A second administrator decides it, and the account's sessions end when it is applied."
-          : "A second administrator decides it. The account's sessions end when it is applied. The only active administrator cannot be taken from."
+          ? "A second administrator decides it. Their sessions end when applied."
+          : "A second administrator decides it. Their sessions end when applied."
       }
       fields={[{ kind: "hidden", name: "accountId" }, { kind: "hidden", name: "direction" }, WHY_PROPOSED, PROPOSER]}
       values={{ accountId, direction }}
@@ -160,7 +160,7 @@ export function ProposeAccountCode({ accountId, name, purpose, notice }: { accou
   return (
     <RecordEditor
       title={`Propose ${activation ? "an activation" : "a reset"} code for ${name}`}
-      description={`${notice ? `${notice} ` : ""}A second administrator issues the code and is the one shown it. Say how ${name}'s identity was checked outside the system.`}
+      description={`${notice ? `${notice} ` : ""}A second administrator issues the code.`}
       fields={[
         { kind: "hidden", name: "accountId" },
         { kind: "hidden", name: "purpose" },

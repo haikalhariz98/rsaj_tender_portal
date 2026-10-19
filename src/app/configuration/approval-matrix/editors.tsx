@@ -47,14 +47,14 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     name: "label",
     label: "Issue",
     required: true,
-    hint: "How this issue of the limits is cited — an issue number, a resolution date.",
+    hint: "An issue number or resolution date.",
   },
   {
     kind: "date",
     name: "effectiveFrom",
     label: "Meant to start",
     required: true,
-    hint: "Nothing is in force until the draft is issued. You confirm the date then.",
+    hint: "Confirmed when the draft is issued.",
   },
   {
     kind: "note",
@@ -66,13 +66,13 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     name: "tenderFloor",
     label: "Tender floor",
     required: true,
-    hint: "Where the quotation band ends and the tender band begins: the boundary.",
+    hint: "Where the quotation band ends.",
   },
   {
     kind: "switch",
     name: "boundaryInclusive",
     label: "A value exactly on the tender floor falls in the quotation band",
-    hint: "Where governing documents disagree, this is the switch. Amounts: it decides only a value exactly on the tender floor, for the quotation and tender bands and for a rule whose edge sits on the tender floor and that is set to follow the switch; every other amount edge counts in the band it closes. Percentages: it decides every band edge on this matrix. On, a value exactly on an edge it decides falls in the band the edge closes; off, in the band it opens.",
+    hint: "Which band an exact edge value falls in.",
   },
   {
     kind: "select",
@@ -85,13 +85,13 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
       { value: "OBSERVED", label: "Observed — seen in practice" },
       { value: "ASSUMED", label: "Assumed — the interim position, needs a ruling" },
     ],
-    hint: "Every exercise exactly on the boundary records whether the rule it ran under was written down.",
+    hint: "Records whether the rule was written down.",
   },
   {
     kind: "text",
     name: "boundarySource",
     label: "Boundary ruling source",
-    hint: "The document that states it. Required where the ruling is stated.",
+    hint: "The document that states it.",
   },
   { kind: "money", name: "requisitionBoundary", label: "Requisition boundary", required: true },
   { kind: "text", name: "currency", label: "Currency", required: true },
@@ -102,7 +102,7 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     placeholder: "None — the organisation's own limits",
     options: routes.map((r) => ({ value: r.code, label: r.nameEn })),
     orphanLabel: "A funding route no longer configured",
-    hint: "Only for a funder whose rules supersede these limits. Such an issue routes matters on that funding route alone, and never replaces the organisation's own issue.",
+    hint: "Routes matters on that funding route alone.",
   },
   {
     kind: "note",
@@ -112,7 +112,7 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     kind: "text",
     name: "noRuleClause",
     label: "Clause: no rule matches",
-    hint: "Escalate to the superior of the officer expected to approve.",
+    hint: "Escalate to the approving officer's superior.",
   },
   {
     kind: "text",
@@ -130,7 +130,7 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     kind: "text",
     name: "funderOverrideClause",
     label: "Clause: funder's directives prevail",
-    hint: "An external funder's rules override these limits where they conflict.",
+    hint: "Overrides these limits where they conflict.",
   },
   ];
 }
@@ -220,7 +220,7 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
       label: "Rule key",
       required: true,
       mono: true,
-      hint: "Cited in every resolution, so a route can be traced back to this row.",
+      hint: "Cited in every resolution.",
     },
     { kind: "text", name: "labelEn", label: "Label", required: true },
     { kind: "hidden", name: "labelMs" },
@@ -247,7 +247,7 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
       placeholder: "Any contract type",
       options: contractTypes.map((t) => ({ value: t.code, label: t.nameEn })),
       orphanLabel: "A contract type no longer configured",
-      hint: `Only for matters routed with a contract type (${contractTypeDomainWords()}); on any other the save refuses it. Empty: the rule applies whatever the contract type. A rule for one type is preferred to one for any type.`,
+      hint: `Only for ${contractTypeDomainWords()}. Empty: any type.`,
     },
     { kind: "money", name: "minValue", label: "From value" },
     { kind: "money", name: "maxValue", label: "To value" },
@@ -260,7 +260,7 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
         { value: "yes", label: "Follows the boundary switch" },
         { value: "no", label: "Does not follow it — the band stays above its lower edge" },
       ],
-      hint: "Required where an edge of this band is the value where the bands meet. A rule that does not follow the switch routes a value exactly on the boundary the same way under either setting.",
+      hint: "Required where an edge meets the boundary.",
     },
     {
       kind: "select",
@@ -304,7 +304,7 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
       kind: "switch",
       name: "isGap",
       label: "This is a known gap in the source",
-      hint: "A matter matching it resolves, but warns that the route is an assumption.",
+      hint: "Matches resolve, but warn the route is assumed.",
     },
     { kind: "text", name: "gapNote", label: "What the gap is" },
     {
@@ -312,7 +312,7 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
       name: "clause",
       label: "Clause",
       required: true,
-      hint: "The clause this row came from. Every routing decision cites it.",
+      hint: "The clause this row came from.",
     },
     {
       kind: "select",
@@ -323,14 +323,14 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
         { value: "yes", label: CHAIN_CHOICE_LABEL.GENERATED.en },
         { value: "no", label: CHAIN_CHOICE_LABEL.AS_ENTERED.en },
       ],
-      hint: "Generated: the issue's core routing for the approving office comes first, and this rule may only strengthen its steps or add its own. As entered: the proposer and recommenders below are the whole chain. Not set: the route warns that its chain was not checked.",
+      hint: "Not set warns that the chain was unchecked.",
     },
     {
       kind: "text",
       name: "coreChainReason",
       label: "Why the chain is as entered",
       required: true,
-      hint: "Required for “As entered on this rule”: a decision not to check, kept with every route — the clause that states this chain, for example.",
+      hint: "Required for As entered: why unchecked.",
     },
     { kind: "number", name: "sortOrder", label: "Order", min: 0 },
     { kind: "textarea", name: "note", label: "Note" },
@@ -508,7 +508,7 @@ export function StartRevision({ fromId, fromLabel }: { fromId: string; fromLabel
           name: "label",
           label: "Label",
           required: true,
-          hint: "How the new issue is cited — an issue number, a resolution date.",
+          hint: "An issue number or resolution date.",
         },
         { kind: "date", name: "effectiveFrom", label: "Meant to start", required: true },
       ]}
@@ -541,8 +541,8 @@ export function IssueDraft({
       title={`Issue ${label}`}
       description={
         replaces
-          ? `From the date below it routes every matter, ${replaces} ends, and neither can be changed again. A change after that is a new issue.`
-          : "From the date below it routes every matter and can no longer be changed. A change after that is a new issue."
+          ? `Routes every matter from the date below. ${replaces} ends. Cannot be changed.`
+          : "Routes every matter from the date below. Cannot be changed."
       }
       fields={[
         { kind: "hidden", name: "id" },
@@ -557,7 +557,7 @@ export function IssueDraft({
           kind: "textarea",
           name: "reason",
           label: "Why it is being issued",
-          hint: "The resolution or decision behind it. Kept with the issue.",
+          hint: "The decision behind it. Kept with the issue.",
         },
         // Issuing is signed: the password is asked again, every time. The issuer is never one of the people who made the draft.
         actorField("AuthorityMatrix.issuedByPerson", { name: "personId" }),
@@ -597,7 +597,7 @@ const TRI = (yes: string, no: string) => [
 function termsFields(): Field[] {
   return [
     { kind: "hidden", name: "authorityMatrixId" },
-    { kind: "text", name: "labelEn", label: "Terms set", required: true, hint: "Which set of terms applies — never the retention or defects figures, which belong to the contract." },
+    { kind: "text", name: "labelEn", label: "Terms set", required: true, hint: "Which set of terms applies." },
     { kind: "hidden", name: "labelMs" },
     {
       kind: "select",
@@ -610,10 +610,10 @@ function termsFields(): Field[] {
         { value: "tender", label: "Tender band" },
       ],
     },
-    { kind: "money", name: "minValue", label: "Above", hint: "The band starts above this value. Empty for no floor." },
+    { kind: "money", name: "minValue", label: "Above", hint: "Starts above this value. Empty for no floor." },
     { kind: "money", name: "maxValue", label: "Up to and including", hint: "Empty for no ceiling." },
-    { kind: "select", name: "followsBoundarySwitch", label: "At the boundary value", placeholder: "Not decided", options: TRI("Follows the boundary switch", "Ignores the boundary switch"), hint: "Required where an edge is the value where the regimes meet." },
-    { kind: "select", name: "retentionApplies", label: "Retention", placeholder: "Not set", options: TRI("Applies", "Does not apply"), hint: "Whether retention applies; the percentage is set on the contract." },
+    { kind: "select", name: "followsBoundarySwitch", label: "At the boundary value", placeholder: "Not decided", options: TRI("Follows the boundary switch", "Ignores the boundary switch"), hint: "Required where the regimes meet." },
+    { kind: "select", name: "retentionApplies", label: "Retention", placeholder: "Not set", options: TRI("Applies", "Does not apply"), hint: "Whether retention applies." },
     { kind: "select", name: "defectsLiabilityApplies", label: "Defects liability period", placeholder: "Not set", options: TRI("Applies", "Does not apply") },
     { kind: "text", name: "insuranceNote", label: "Insurance" },
     { kind: "text", name: "clause", label: "Clause" },
@@ -749,7 +749,7 @@ export function SetRejectionDestination({ domain, label, offices, current }: { d
           required: true,
           placeholder: "Choose",
           options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
-          hint: "The earliest step of this office before the rejecting one. Where the route has none, the officer chooses.",
+          hint: "The earliest step before the rejecting one.",
         },
         { kind: "text", name: "governingSource", label: "Source document" },
         {
@@ -818,7 +818,7 @@ function coreLevelFields(offices: { code: string; nameEn: string }[]): Field[] {
       placeholder: "Choose",
       options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
       orphanLabel: "An office no longer configured",
-      hint: "The office whose approvals carry this chain beneath them. The offices beneath it are added on the row.",
+      hint: "The office whose approvals carry this chain.",
     },
     { kind: "text", name: "clause", label: "Clause", hint: "Where your manual states this chain." },
     { kind: "select", name: "provenance", label: "Where this comes from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
@@ -888,8 +888,8 @@ export function AddCoreStep({ levelId, officeName, offices }: { levelId: string;
       fields={[
         { kind: "hidden", name: "coreRoutingLevelId" },
         { kind: "select", name: "roleCode", label: "Office", required: true, placeholder: "Choose", options: offices.map((o) => ({ value: o.code, label: o.nameEn })) },
-        { kind: "select", name: "act", label: "Acts as", required: true, placeholder: "Choose", options: CORE_ACT_OPTIONS, hint: "The core routing holds proposing and recommending. A mandatory recommendation belongs on the rule that needs it." },
-        { kind: "number", name: "sequence", label: "Place in the chain", min: 1, hint: "1 is first. Leave empty to add it at the end." },
+        { kind: "select", name: "act", label: "Acts as", required: true, placeholder: "Choose", options: CORE_ACT_OPTIONS, hint: "Proposing and recommending are in core routing." },
+        { kind: "number", name: "sequence", label: "Place in the chain", min: 1, hint: "1 is first. Empty adds at the end." },
         { kind: "select", name: "provenance", label: "Where this comes from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "text", name: "note", label: "Note" },
       ]}

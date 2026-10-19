@@ -165,7 +165,7 @@ export default async function BidSealingPage() {
           </CardBody>
           {pepperState === "NOT_HELD" && <CardBody><Callout tone="warn" title="No pepper is held">{PEPPER_LIST_WORDS.notHeld}</Callout></CardBody>}
           {pepperState === "INVALID" && <CardBody><Callout tone="warn" title="The pepper held is not usable">{PEPPER_LIST_WORDS.invalid}</Callout></CardBody>}
-          {pepperState === "NONE" && <EmptyState title="None">{PEPPER_LIST_WORDS.none}</EmptyState>}
+          {pepperState === "NONE" && <EmptyState title="None you can see" />}
           {pepperState === "SOME" && (
             <>
               <CardBody>

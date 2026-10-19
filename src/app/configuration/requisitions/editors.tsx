@@ -38,7 +38,7 @@ export function EditPolicy({
           name: "endorsementTiers",
           label: "Tiers whose heads endorse",
           options: (["SECTION", "DEPARTMENT", "DIVISION"] as const).map((t) => ({ value: t, label: TIER_LABEL[t] })),
-          hint: "The head of each tier's unit on the requesting unit's path. Empty: nothing can be endorsed or submitted.",
+          hint: "Head of each tier's unit. Empty blocks endorsement.",
         },
         { kind: "note", text: "Budget check" },
         { kind: "number", name: "budgetRecheckDays", label: "Re-check on submission when the check is older than (days)", min: 0, hint: "Empty: a check never goes stale." },

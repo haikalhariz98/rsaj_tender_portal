@@ -35,11 +35,11 @@ function blockFields(offices: Option[]): Field[] {
   return [
     { kind: "hidden", name: "templateId" },
     { kind: "hidden", name: "id" },
-    { kind: "number", name: "blockOrder", label: "Place in the printed order", required: true, min: 1, hint: "1 signs first. A later block is refused until every earlier one is recorded." },
+    { kind: "number", name: "blockOrder", label: "Place in the printed order", required: true, min: 1, hint: "1 signs first. Later blocks wait." },
     { kind: "text", name: "labelEn", label: "Label, as printed", required: true },
     { kind: "text", name: "labelMs", label: "Label (Malay)" },
     { kind: "select", name: "blockKind", label: "What the block is for", required: true, placeholder: "Choose", options: SIGNATURE_BLOCK_KINDS.map((k) => ({ value: k, label: BLOCK_KIND_WORDS[k].en })) },
-    { kind: "select", name: "officeRule", label: "Who signs it", required: true, placeholder: "Choose", options: SIGNATURE_OFFICE_RULES.map((k) => ({ value: k, label: OFFICE_RULE_WORDS[k].en })), hint: "The Superintending Officer's blocks are resolved from the contract's supervision, which the post-award module records." },
+    { kind: "select", name: "officeRule", label: "Who signs it", required: true, placeholder: "Choose", options: SIGNATURE_OFFICE_RULES.map((k) => ({ value: k, label: OFFICE_RULE_WORDS[k].en })), hint: "Resolved from the contract's supervision." },
     { kind: "select", name: "officeCode", label: "The office", placeholder: "Choose", options: offices },
     { kind: "select", name: "delegable", label: "May a delegate of the office sign it?", placeholder: "Not decided: nobody signs on it until it is", options: YES_NO("Yes: a delegate of the whole office may sign", "No: only the office itself") },
     { kind: "switch", name: "datesCertificate", label: "This block's act dates the certificate" },
@@ -100,7 +100,7 @@ function rowFields(): Field[] {
   return [
     { kind: "hidden", name: "templateId" },
     { kind: "hidden", name: "id" },
-    { kind: "text", name: "recipientCode", label: "Code", required: true, mono: true, hint: "Small letters, digits and underscores. Kept on each copy made from this row." },
+    { kind: "text", name: "recipientCode", label: "Code", required: true, mono: true, hint: "Small letters, digits, underscores. Kept on copies." },
     { kind: "text", name: "labelEn", label: "Recipient, as the form addresses them", required: true },
     { kind: "text", name: "labelMs", label: "Recipient (Malay)" },
     { kind: "select", name: "condition", label: "Sent", required: true, placeholder: "Choose", options: DISTRIBUTION_CONDITIONS.map((c) => ({ value: c, label: CONDITION_WORDS[c].en })) },
@@ -109,7 +109,7 @@ function rowFields(): Field[] {
     { kind: "select", name: "isOriginal", label: "Receives the original?", required: true, placeholder: "Choose: there is no default", options: YES_NO("Yes: the original", "No: a copy") },
     { kind: "number", name: "sortOrder", label: "Order on the list", min: 0 },
     PROVENANCE,
-    { kind: "textarea", name: "notes", label: "Notes", hint: "Where the SOP's list and the printed form's differ, say which this follows." },
+    { kind: "textarea", name: "notes", label: "Notes", hint: "Say which list this follows." },
   ];
 }
 
@@ -167,11 +167,11 @@ function printedFields(values: Option[]): Field[] {
   return [
     { kind: "hidden", name: "templateId" },
     { kind: "hidden", name: "id" },
-    { kind: "text", name: "key", label: "Code", required: true, mono: true, hint: "Small letters, digits and underscores, unique on the form." },
+    { kind: "text", name: "key", label: "Code", required: true, mono: true, hint: "Small letters, digits, underscores; unique on the form." },
     { kind: "text", name: "labelEn", label: "Label, as printed", required: true, hint: "The form's own wording for the field." },
     { kind: "text", name: "labelMs", label: "Label (Malay), as printed" },
     { kind: "select", name: "filled", label: "How it is filled", required: true, placeholder: "Choose", options: [{ value: "PORTAL", label: "By the portal, from the certificate or its routing sheet (never typed in)" }, { value: "HAND", label: "By hand on the paper (left blank): not for a value the portal holds, which it fills" }] },
-    { kind: "select", name: "computedKey", label: "The value it prints", placeholder: "Choose", options: values, hint: "A routing sheet's value prints only on a certificate with a routing type: on one without, the first signature is refused rather than printing blank." },
+    { kind: "select", name: "computedKey", label: "The value it prints", placeholder: "Choose", options: values, hint: "Needs a routing type, else first signature refuses." },
     { kind: "number", name: "sortOrder", label: "Place on the form", min: 0 },
     PROVENANCE,
     { kind: "textarea", name: "notes", label: "Notes" },

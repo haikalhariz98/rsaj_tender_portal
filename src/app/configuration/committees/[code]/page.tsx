@@ -120,9 +120,7 @@ export default async function CommitteePage({
 
         {faults.includes("QUORUM_EXCEEDS_VOTING_SEATS") && (
           <Callout tone="err" title="This quorum can never be met">
-            The quorum is {committee.quorum}, but the committee has {voting.length} voting{" "}
-            {voting.length === 1 ? "seat" : "seats"} today. The Secretary and alternates do not count. Every
-            sitting would be inquorate however many attend. Either the quorum or the membership is wrong.
+            Quorum {committee.quorum}, voting {voting.length === 1 ? "seat" : "seats"} {voting.length}.
           </Callout>
         )}
 
@@ -152,10 +150,7 @@ export default async function CommitteePage({
               </div>
             )}
             {seats.length === 0 ? (
-              <EmptyState size="sm" title="No membership set">
-                Nobody has been appointed to this committee yet. Add its members before it can
-                record a decision.
-              </EmptyState>
+              <EmptyState size="sm" title="No membership set" />
             ) : (
               <ul className="divide-y divide-line/70">
                 {seats.map((seat) => {
@@ -331,10 +326,7 @@ export default async function CommitteePage({
             divided={rules.length === 0}
           />
           {rules.length === 0 ? (
-            <EmptyState size="sm" title="Nothing routes here automatically">
-              This committee is established by procedure rather than by an authority limit, so
-              no value band sends a matter to it on its own.
-            </EmptyState>
+            <EmptyState size="sm" title="No value band routes here" />
           ) : (
             <Table>
               <colgroup>
@@ -416,8 +408,7 @@ function QuorumCard({ quorum, seats }: { quorum: number | null; seats: number })
   if (quorum == null) {
     return (
       <Callout tone="warn" title="No quorum set">
-        Sittings of this committee cannot be certified as quorate until one is set. A quorum of
-        zero is not assumed in its place.
+        Sittings cannot be certified quorate.
       </Callout>
     );
   }

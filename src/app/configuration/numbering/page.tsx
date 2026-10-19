@@ -47,8 +47,7 @@ export default async function NumberingPage() {
 
       {!day && (
         <Callout tone="warn" title="The organisation's time zone is not set" className="mb-6">
-          Which period a serial belongs to is decided on the organisation&apos;s day, which is not assumed to be UTC. Next references are not
-          previewed, and a series cannot be saved, until the zone is set under Organisation.
+          Set it under Organisation to save a series.
         </Callout>
       )}
       {faulty.length > 0 && (

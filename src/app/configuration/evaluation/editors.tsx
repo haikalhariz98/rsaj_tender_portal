@@ -65,14 +65,14 @@ export function ModelDrawer({ model }: { model?: { id: string; values: Values; l
   return (
     <RecordEditor
       title={model ? `Edit ${model.label}` : "Start an evaluation model"}
-      description={model ? "The draft's name, route and source. Its stages, criteria and bands are below." : "A model starts as a draft, version 1. Its stages, criteria and bands are added next; it is offered on an exercise's Window card once issued."}
+      description={model ? "The draft's name, route and source. Its stages, criteria and bands are below." : "Starts as draft version 1. Add stages, criteria and bands next."}
       columns={2}
       fields={[
         hidden("id"),
         ...(model ? [] : [codeField()]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
         { kind: "hidden", name: "nameMs" },
-        { kind: "select", name: "route", label: "Route", required: true, placeholder: "Choose", options: opts(EVALUATION_ROUTES, ROUTE_LABEL), hint: "An exercise pins a model of its contract basis's route." },
+        { kind: "select", name: "route", label: "Route", required: true, placeholder: "Choose", options: opts(EVALUATION_ROUTES, ROUTE_LABEL), hint: "Exercises pin the model for their route." },
         ...sourceFields,
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
@@ -189,7 +189,7 @@ export function StageDrawer({ modelId, stage, committees, offices }: { modelId: 
         { kind: "select", name: "kind", label: "What the stage does", required: true, placeholder: "Choose", options: opts(STAGE_KINDS, STAGE_KIND_LABEL) },
         { kind: "select", name: "side", label: "Who evaluates it", required: true, placeholder: "Choose", options: opts(SIDES, SIDE_LABEL) },
         { kind: "number", name: "unlocksAfterOrder", label: "Opens after the stage of order", min: 1, hint: "Scores are refused until that stage is submitted." },
-        { kind: "text", name: "maxMarks", label: "Total marks", hint: "A scored stage: what its top-level criteria sum to." },
+        { kind: "text", name: "maxMarks", label: "Total marks", hint: "What its top-level criteria sum to." },
         { kind: "text", name: "passMark", label: "Pass mark (%)", hint: "Empty: no pass mark." },
         { kind: "select", name: "passInclusive", label: "A figure exactly on the pass mark", placeholder: "Not set", options: YES_NO("Passes", "Fails") },
         { kind: "select", name: "mustPass", label: "Failing it puts the bidder out", placeholder: "Not set", options: YES_NO("Yes", "No") },
@@ -383,9 +383,9 @@ export function PolicyDrawer({ values, series, offices, templates }: { values: V
       columns={2}
       fields={[
         { kind: "select", name: "reportSeriesKey", label: "Report reference series", placeholder: "Not set", options: series },
-        { kind: "number", name: "scoreDecimals", label: "Decimal places a score is judged at", min: 0, hint: "The figure shown is the figure judged against a pass mark; rounded half up." },
+        { kind: "number", name: "scoreDecimals", label: "Decimal places a score is judged at", min: 0, hint: "Judged against pass mark; rounded half up." },
         { kind: "select", name: "scoreDecimalsProvenance", label: "Where the decimal places came from", placeholder: "Not set", options: PROVENANCE },
-        { kind: "select", name: "anonymisedScoring", label: "Anonymise the technical scoring stage", placeholder: "Not set", options: [{ value: "ON", label: "On" }, { value: "OFF", label: "Off" }], hint: "On: each bid reads as Bidder n while it is scored, and is named only for a criterion that needs the named contractor, the reveal logged. Not set shows the names." },
+        { kind: "select", name: "anonymisedScoring", label: "Anonymise the technical scoring stage", placeholder: "Not set", options: [{ value: "ON", label: "On" }, { value: "OFF", label: "Off" }], hint: "On: bids read Bidder n while scored." },
         { kind: "select", name: "anonymisedScoringProvenance", label: "Where that choice came from", placeholder: "Not set", options: PROVENANCE },
         { kind: "select", name: "checkerRoleCode", label: "Office checking the Proposal paper", placeholder: "Not set", options: offices },
         { kind: "select", name: "recommenderRoleCode", label: "Office recommending it", placeholder: "Not set", options: offices },

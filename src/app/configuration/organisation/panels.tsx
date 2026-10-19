@@ -168,8 +168,7 @@ function DetailsView({ details, logo, signInImage, signInDarkLogo, signInPage, t
             <KeyValues items={[{ label: "Dates are judged in", value: timeZone.label }]} />
           ) : (
             <Callout tone="warn" title="Time zone not set">
-              &ldquo;Today&rdquo; is not assumed to be UTC. Until the zone the organisation keeps its dates in is set,
-              committee sittings cannot start, matters cannot be tabled and votes cannot be recorded.
+              Sittings, tabling and votes are blocked.
             </Callout>
           )}
         </CardBody>
@@ -200,10 +199,7 @@ function StructureView(data: OrganisationPanelData) {
           icon={<BuildingIcon size={24} />}
           title="No structure yet"
           action={<AddOrgUnit kind="COMPANY" parent={null} people={people} variant="primary" />}
-        >
-          Start with the company. Divisions, departments and sections are added under it,
-          one level at a time.
-        </EmptyState>
+        />
       </Card>
     );
   }
@@ -424,13 +420,11 @@ function UnitPanel({
             </div>
           ) : head.state === "LEFT" ? (
             <Callout tone="err" title={head.person ? `${head.person.name} has left` : "The head named here is no longer on record"}>
-              Anything that goes to the {headTitle.toLowerCase()} of this unit has nobody to go to. Name a new
-              head with Edit.
+              Name a new head with Edit.
             </Callout>
           ) : (
             <Callout tone="warn" title="Nobody is named as head">
-              Endorsements and approvals that go to the {headTitle.toLowerCase()} of this unit cannot
-              find one until somebody is named.
+              Approvals to the {headTitle.toLowerCase()} have nobody to go to.
             </Callout>
           )}
         </div>

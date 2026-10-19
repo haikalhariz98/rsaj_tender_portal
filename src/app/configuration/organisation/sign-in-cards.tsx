@@ -6,7 +6,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Chip } from "@/components/ui/badge";
 import { InfoChip } from "@/components/ui/info-chip";
 import { KeyValues } from "@/components/ui/stat";
-import { LOGO_MAX_BYTES, SIGN_IN_IMAGE_MAX_BYTES, SIGN_IN_IMAGE_SUGGESTED_WIDTH } from "@/lib/organisation/logo-limits";
+import { LOGO_MAX_BYTES, SIGN_IN_IMAGE_MAX_BYTES } from "@/lib/organisation/logo-limits";
 import { SIGN_IN_ICON_LABEL, SIGN_IN_ICONS, SIGN_IN_LABEL, signInIconOf, type SignInField, type SignInPageSettings } from "@/lib/organisation/sign-in-page";
 
 import { IMAGE_TYPE as TYPE, ImageUploadCard } from "./logo-card";
@@ -38,19 +38,19 @@ export function SignInPageCards({ image, darkLogo, settings }: { image: SignInIm
 }
 
 const WORDS: { field: SignInField; hint: string; textarea?: boolean; icon?: boolean }[] = [
-  { field: "portalName", hint: "The small spaced line over the headline, and the title of the sign-in card." },
+  { field: "portalName", hint: "Spaced line above headline; card title." },
   { field: "headline", hint: "The large line on the picture." },
   { field: "supportingText", hint: "One sentence under the headline.", textarea: true },
-  { field: "highlight1", hint: "A short phrase with a round icon above it." },
+  { field: "highlight1", hint: "Short phrase, with a round icon." },
   { field: "highlight1Icon", hint: "Left unchosen, a plain tick is drawn.", icon: true },
   { field: "highlight2", hint: "Left blank, it is not shown." },
   { field: "highlight2Icon", hint: "Left unchosen, a plain tick is drawn.", icon: true },
   { field: "highlight3", hint: "Left blank, it is not shown." },
   { field: "highlight3Icon", hint: "Left unchosen, a plain tick is drawn.", icon: true },
   { field: "tagline", hint: "A line at the bottom of the picture." },
-  { field: "privacyUrl", hint: "A web address, starting with https://. Left blank, the link is not shown." },
-  { field: "termsUrl", hint: "A web address, starting with https://. Left blank, the link is not shown." },
-  { field: "helpDeskUrl", hint: "A web address, starting with https://. Left blank, the link is not shown." },
+  { field: "privacyUrl", hint: "https:// address. Blank hides the link." },
+  { field: "termsUrl", hint: "https:// address. Blank hides the link." },
+  { field: "helpDeskUrl", hint: "https:// address. Blank hides the link." },
 ];
 
 function SignInWordsCard({ settings }: { settings: SignInPageSettings }) {
@@ -137,7 +137,7 @@ function SignInImageCard({ image }: { image: SignInImageInfo | null }) {
       field={{
         name: "signInImage",
         label: image ? "Replace the picture" : "Upload a picture",
-        hint: `PNG, JPEG or WebP, up to ${SIGN_IN_IMAGE_MAX_BYTES / 1024} KB (a technical limit). At least ${SIGN_IN_IMAGE_SUGGESTED_WIDTH} px wide is suggested. Words and logos are better added above than baked into the picture. SVG is not accepted.`,
+        hint: `PNG, JPEG or WebP, up to ${SIGN_IN_IMAGE_MAX_BYTES / 1024} KB.`,
         maxBytes: SIGN_IN_IMAGE_MAX_BYTES,
         noun: "image",
       }}
@@ -187,7 +187,7 @@ function SignInDarkLogoCard({ darkLogo }: { darkLogo: SignInDarkLogoInfo | null 
       field={{
         name: "darkLogo",
         label: darkLogo ? "Replace the logo for dark backgrounds" : "Upload a logo for dark backgrounds",
-        hint: `PNG, JPEG or WebP, up to ${LOGO_MAX_BYTES / 1024} KB (a technical limit). Use a file with a transparent background. SVG is not accepted.`,
+        hint: `Transparent PNG, JPEG or WebP, ${LOGO_MAX_BYTES / 1024} KB max.`,
         maxBytes: LOGO_MAX_BYTES,
         noun: "logo",
       }}

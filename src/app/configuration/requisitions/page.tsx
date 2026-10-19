@@ -181,14 +181,12 @@ export default async function RequisitionControlsPage() {
           {gatedWithoutRule.length > 0 && (
             <CardBody className="border-b border-line">
               <Callout tone="warn" title="A route needs a gate and has no rule">
-                {gatedWithoutRule.map((x) => x.nameEn).join(", ")} {gatedWithoutRule.length === 1 ? "is" : "are"} set to need a committee gate, and no rule is in force for {gatedWithoutRule.length === 1 ? "it" : "them"}. No exercise can be opened on a requisition approved there until one is added.
+                {gatedWithoutRule.map((x) => x.nameEn).join(", ")}: add a gate rule.
               </Callout>
             </CardBody>
           )}
           {gateRules.length === 0 ? (
-            <EmptyState size="sm" title="No committee gate">
-              None ships with the product. Whether a funding route needs one is set on the route under Reference data; a route left unset blocks opening an exercise.
-            </EmptyState>
+            <EmptyState size="sm" title="No committee gate" />
           ) : (
             <Table minWidth={760}>
               <colgroup>

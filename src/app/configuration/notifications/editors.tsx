@@ -15,7 +15,7 @@ function ruleFields(editing: boolean, officeCodes: string[]): Field[] {
             label: "Event",
             required: true,
             mono: true,
-            hint: "What fires the rule. A key, never shown on a screen. The award clocks listen for award.indent.expired and award.commencement.late.",
+            hint: "What fires the rule. A key, never shown.",
           },
         ] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
@@ -27,13 +27,13 @@ function ruleFields(editing: boolean, officeCodes: string[]): Field[] {
       hint:
         officeCodes.length > 0
           ? `Comma separated. Available: ${officeCodes.join(", ")}`
-          : "No office exists yet. Add one under Users & roles first.",
+          : "No office yet. Add one under Users.",
     },
     {
       kind: "text",
       name: "reminderOffsetDays",
       label: "Remind this many days before",
-      hint: "Comma separated, for example 30, 7, 1. Leave empty where it does not chase.",
+      hint: "Comma separated, e.g. 30, 7, 1.",
     },
     {
       kind: "text",
@@ -46,7 +46,7 @@ function ruleFields(editing: boolean, officeCodes: string[]): Field[] {
       kind: "switch",
       name: "isActive",
       label: "This rule sends",
-      hint: "Switch it off to record that this event deliberately notifies nobody.",
+      hint: "Off: this event notifies nobody.",
     },
   {
     kind: "select",

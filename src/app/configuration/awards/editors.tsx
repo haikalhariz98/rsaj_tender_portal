@@ -66,7 +66,7 @@ export function EditAwardPolicy({ values, templates, units, label = "Edit contro
             { value: "YES", label: "Yes, show the awarded value" },
             { value: "NO", label: "No, show the winner but not the value" },
           ],
-          hint: "The public sees the winner's name either way. Only a Yes shows the figure.",
+          hint: "Only Yes shows the figure publicly.",
         },
         { kind: "select", name: "publishAwardedValueProvenance", label: "Where the publishing choice came from", placeholder: "Not recorded", options: (PROVENANCE as Extract<Field, { kind: "select" }>).options },
         { kind: "select", name: "loaTemplateId", label: "Template: Letter of Acceptance", placeholder: "Not set", options: templates },
@@ -96,8 +96,8 @@ export function EditNonAwardPolicy({ values }: { values: Values }) {
       title="Notices to unsuccessful tenderers"
       description="Policy not decided: nothing is issued. A tenderer's own score is never in a notice."
       fields={[
-        { kind: "select", name: "nonAwardNotices", label: "Send unsuccessful tenderers a notice of the outcome", placeholder: "Not decided", options: YES_NO, hint: "A notice is shown in the supplier portal and is not sent: email is not connected." },
-        { kind: "select", name: "debriefIncludesReason", label: "The notice carries the reason for non-award", placeholder: "Not decided (it carries none)", options: YES_NO, hint: "The officer writes the reason for each tenderer when issuing the notice." },
+        { kind: "select", name: "nonAwardNotices", label: "Send unsuccessful tenderers a notice of the outcome", placeholder: "Not decided", options: YES_NO, hint: "Shown in the supplier portal, not emailed." },
+        { kind: "select", name: "debriefIncludesReason", label: "The notice carries the reason for non-award", placeholder: "Not decided (it carries none)", options: YES_NO, hint: "Written per tenderer when the notice is issued." },
         { kind: "select", name: "nonAwardProvenance", label: "Where the decision came from", placeholder: "Not recorded", options: (PROVENANCE as Extract<Field, { kind: "select" }>).options },
       ]}
       values={values}
@@ -134,7 +134,7 @@ const variantFields = (editing: boolean, templates: Option[], types: Option[], b
   { kind: "text", name: "nameEn", label: "Name", required: true },
   { kind: "select", name: "templateId", label: "Template", required: true, placeholder: "Choose", options: templates },
   { kind: "tokens", name: "contractTypeCodes", label: "Contract types", placeholder: "Any type", options: types, hint: "Empty: any contract type." },
-  { kind: "select", name: "termsBandKey", label: "Contract terms band", placeholder: "Any band", options: bands, hint: "The exercise's terms band on the approval matrix in force." },
+  { kind: "select", name: "termsBandKey", label: "Contract terms band", placeholder: "Any band", options: bands, hint: "The terms band in force." },
   {
     kind: "select",
     name: "nonCommencement",
@@ -182,7 +182,7 @@ const requirementFields = (editing: boolean, types: Option[]): Field[] => [
       { value: "EAR", label: "Erection all risks" },
     ],
   },
-  { kind: "select", name: "contractTypeCode", label: "For contract type", placeholder: "Every type", options: types, hint: "A type's own row takes the place of the general row of the same policy." },
+  { kind: "select", name: "contractTypeCode", label: "For contract type", placeholder: "Every type", options: types, hint: "A type's own row replaces the general row." },
   { kind: "switch", name: "required", label: "Required" },
   { kind: "text", name: "percent", label: "Percentage of the contract sum", hint: "Workmen's compensation on a percentage basis only." },
   { kind: "number", name: "tailMonths", label: "Runs past completion and defects liability: months", min: 0 },
@@ -200,8 +200,8 @@ export function EditRequirement({ id, values, name, types }: { id: string; value
 
 const bandFields = (editing: boolean): Field[] => [
   ...code(editing),
-  { kind: "money", name: "minValue", label: "Contract price above", hint: "Empty: from nothing. The band holds prices above this figure." },
-  { kind: "money", name: "maxValue", label: "…and up to", hint: "Empty: no upper edge. The band holds this figure itself." },
+  { kind: "money", name: "minValue", label: "Contract price above", hint: "Empty: no lower edge. Holds prices above." },
+  { kind: "money", name: "maxValue", label: "…and up to", hint: "Empty: no upper edge. Includes this figure." },
   { kind: "money", name: "limitAmount", label: "Public liability limit", required: true },
   PROVENANCE,
   ORDER,

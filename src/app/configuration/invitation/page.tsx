@@ -154,7 +154,7 @@ export default async function InvitationControlsPage() {
       <div className="flex flex-col gap-6">
         {c.notSet > 0 && (
           <Callout tone="warn" title={`${c.notSet} ${c.notSet === 1 ? "setting is" : "settings are"} not set`}>
-            Each one that is not set holds back the act it governs, and says so where the act is asked for. Set them below.
+            Each holds back the act it governs.
           </Callout>
         )}
 
@@ -423,7 +423,7 @@ export default async function InvitationControlsPage() {
                 )}
                 {cal.weekend === "Not set" && (
                   <CardBody className="border-b border-line/70">
-                    <Callout tone="warn" title="Weekend days not set">A closing cannot be checked against this calendar until its weekend days are set.</Callout>
+                    <Callout tone="warn" title="Weekend days not set">Closings cannot be checked.</Callout>
                   </CardBody>
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-5 py-3 sm:px-6">

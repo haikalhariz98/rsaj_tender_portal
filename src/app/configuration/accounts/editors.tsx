@@ -31,7 +31,7 @@ export function CreateAccount({ people }: { people: { id: string; name: string; 
           placeholder: people.length === 0 ? "Everyone on record has an account" : "Choose",
           options: people.map((p) => ({ value: p.id, label: p.jobTitle ? `${p.name} · ${p.jobTitle}` : p.name })),
         },
-        { kind: "text", name: "loginName", label: "Sign-in name", required: true, mono: true, hint: "3 to 64 characters: letters, digits and . _ - @, starting with a letter or digit. Not case-sensitive." },
+        { kind: "text", name: "loginName", label: "Sign-in name", required: true, mono: true, hint: "3 to 64: letters, digits, ._-@" },
         { kind: "note", text: "An account made here is an ordinary one. Administrators are made on the server (npm run auth:bootstrap), never from a screen." },
       ]}
       action={createAccountAction}

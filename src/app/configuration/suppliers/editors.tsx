@@ -38,12 +38,12 @@ export function ValueDrawer({ bodyId, bodyName, categories, value }: { bodyId: s
       fields={[
         hidden("id"),
         hidden("bodyId"),
-        ...(value ? [hidden("kind"), hidden("code")] : [{ kind: "select", name: "kind", label: "Kind of value", required: true, placeholder: "Choose", options: KIND_OPTIONS } as Field, { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "As the body publishes it. A key, not shown to officers; it cannot be changed." } as Field]),
+        ...(value ? [hidden("kind"), hidden("code")] : [{ kind: "select", name: "kind", label: "Kind of value", required: true, placeholder: "Choose", options: KIND_OPTIONS } as Field, { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "As the body publishes it. Cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
         { kind: "hidden", name: "nameMs" },
         { kind: "select", name: "parentCode", label: "Under the category", placeholder: "None", options: categories, hint: "A specialisation only." },
-        { kind: "number", name: "rank", label: "Rank", min: 1, hint: "A grade only. Ranks are unique within the body." },
-        { kind: "money", name: "valueCeiling", label: "Value ceiling", hint: "A grade only, as the body publishes it. Shown only." },
+        { kind: "number", name: "rank", label: "Rank", min: 1, hint: "Grade only. Ranks are unique per body." },
+        { kind: "money", name: "valueCeiling", label: "Value ceiling", hint: "Grade only, as the body publishes it." },
         provenance("ceilingProvenance", "Where the ceiling comes from"),
         { kind: "text", name: "governingSource", label: "Source", hint: "The list it is taken from." },
         provenance("provenance", "Where it comes from", true),
@@ -71,15 +71,15 @@ export function DocumentTypeDrawer({ bodies, type }: { bodies: Option[]; type?: 
       columns={2}
       fields={[
         hidden("id"),
-        ...(type ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key, not shown to officers; it cannot be changed." } as Field]),
+        ...(type ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
         { kind: "hidden", name: "nameMs" },
-        { kind: "select", name: "bodyId", label: "Registration body", placeholder: "None", options: bodies, hint: "The body whose values it records. Bodies are configured under Tender documents." },
+        { kind: "select", name: "bodyId", label: "Registration body", placeholder: "None", options: bodies, hint: "The body whose values it records." },
         { kind: "tokens", name: "valueKinds", label: "Values it records", options: KIND_OPTIONS, hint: "Only of the body named." },
         { kind: "select", name: "expires", label: "Whether it expires", placeholder: "Not set", options: three("Carries an expiry", "Does not expire", "Not set: none can be lodged") },
         { kind: "select", name: "mandatoryAtRegistration", label: "Mandatory for every registration", placeholder: "Not set", options: three("Mandatory", "Not mandatory", "Not set: no application can be decided") },
         { kind: "select", name: "notApplicableAllowed", label: "May be recorded as not applicable", placeholder: "Not set", options: three("Yes", "No", "Not set: none is recorded so") },
-        { kind: "text", name: "hintEn", label: "What the applicant is told it is", hint: "Shown beside the upload on the supplier's registration, for example the form's name. Blank: nothing is said." },
+        { kind: "text", name: "hintEn", label: "What the applicant is told it is", hint: "Shown beside the upload, e.g. the form's name." },
         { kind: "hidden", name: "hintMs" },
         { kind: "select", name: "recordsRate", label: "Whether it records a rate", placeholder: "Not set", options: three("Records a rate (such as a tax rate)", "Records no rate", "Not set: no rate is asked") },
         { kind: "select", name: "repeatable", label: "Whether several may be lodged", placeholder: "Not set", options: three("Several, each with a title", "One only", "Not set: one only") },
@@ -110,11 +110,11 @@ export function ListValueDrawer({ list, listName, value }: { list: string; listN
       fields={[
         hidden("id"),
         hidden("list"),
-        ...(value ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key, not shown to officers; it cannot be changed." } as Field]),
+        ...(value ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
         { kind: "hidden", name: "nameMs" },
         // A dial code belongs to a country: shown before the mobile number on the public form. Not set: no prefix is shown and a number is taken as typed.
-        ...(list === "COUNTRY" ? [{ kind: "text", name: "callingCode", label: "Dial code", mono: true, hint: "A plus sign and up to six digits, for example +60. Not set: no prefix is shown on the form and the number is taken as typed." } as Field] : []),
+        ...(list === "COUNTRY" ? [{ kind: "text", name: "callingCode", label: "Dial code", mono: true, hint: "A plus sign and up to 6 digits." } as Field] : []),
         provenance("provenance", "Where it comes from", true),
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
@@ -149,7 +149,7 @@ export function EditSupplierPolicy({ values }: { values: Record<string, string> 
             { value: "both", label: "Both an email and a mobile number" },
             { value: "either", label: "An email or a mobile number" },
           ],
-          hint: "Applies to the public form and to an officer recording a supplier. Not set keeps today's rule, either one.",
+          hint: "Applies to the public form and officer entry.",
         },
         provenance("contactRuleProvenance", "Where the contact rule comes from"),
         { kind: "text", name: "governingSource", label: "Source" },
@@ -171,14 +171,14 @@ export function EditRegistrationSettings({ values, classes }: { values: Record<s
       description="What a registration is judged by. Not set keeps what it governs closed."
       columns={2}
       fields={[
-        { kind: "text", name: "helpEmail", label: "Help email", hint: "Shown on the supplier's registration. Blank: no line is shown." },
+        { kind: "text", name: "helpEmail", label: "Help email", hint: "Shown on the registration. Blank: no line." },
         { kind: "text", name: "helpPhone", label: "Help telephone" },
         provenance("helpProvenance", "Where the help contact comes from"),
-        { kind: "number", name: "maxFiles", label: "Files one registration may hold", min: 1, hint: "Every version uploaded counts, a withdrawn one too: bytes are never deleted. Set both limits, or neither." },
+        { kind: "number", name: "maxFiles", label: "Files one registration may hold", min: 1, hint: "Counts every version. Set both limits or neither." },
         { kind: "number", name: "maxMegabytes", label: "Megabytes one registration may hold", min: 1 },
         provenance("uploadLimitProvenance", "Where the limits come from"),
-        { kind: "select", name: "uploadClassId", label: "Document class of a supplier's uploads", placeholder: "Not set: uploads are closed", options: classes.upload, hint: "A supplier cannot choose a class. Classes are configured under Documents." },
-        { kind: "select", name: "statementClassId", label: "Document class of a bank statement", placeholder: "Not set: the statement cannot be uploaded", options: classes.statement, hint: "Only a class classified SULIT is offered: the statement is restricted data." },
+        { kind: "select", name: "uploadClassId", label: "Document class of a supplier's uploads", placeholder: "Not set: uploads are closed", options: classes.upload, hint: "Classes are configured under Documents." },
+        { kind: "select", name: "statementClassId", label: "Document class of a bank statement", placeholder: "Not set: the statement cannot be uploaded", options: classes.statement, hint: "Only SULIT classes are offered." },
         provenance("uploadClassProvenance", "Where the classes come from"),
         { kind: "select", name: "onlineDeclarationReplacesPaper", label: "The declaration signed online", placeholder: "Not set: the paper is still required", options: three("Replaces the paper declaration", "Does not replace it: the paper is still required", "Not set: the paper is still required") },
         provenance("onlineDeclarationProvenance", "Where that ruling comes from"),
@@ -201,7 +201,7 @@ export function DeclarationTextDrawer({ text }: { text?: { id: string; name: str
   return (
     <RecordEditor
       title={text ? `Edit ${text.name}` : "Add a declaration wording"}
-      description={text ? "A wording nobody has signed may be corrected. One that has been signed is never changed: add a new version instead." : "A new wording is a new version, in force from today and replacing the one before it. A supplier part-way through is asked to read it again. Write {organisation} where the wording names the organisation."}
+      description={text ? "A signed wording is never changed: add a new version." : "A new version, in force from today. Write {organisation} for the organisation."}
       fields={[
         hidden("id"),
         ...(text ? [hidden("kind")] : [{ kind: "select", name: "kind", label: "Which declaration", required: true, placeholder: "Choose", options: DECLARATION_OPTIONS } as Field]),
@@ -230,11 +230,11 @@ export function EditPortalIntake({ values }: { values: Record<string, string> })
       description="The public form stays closed until the notice and both limits are set."
       columns={2}
       fields={[
-        { kind: "textarea", name: "personalDataNoticeEn", label: "Notice about personal details", hint: "Say why the details are collected, that they are needed to review the application, who sees them, how long they are kept and how to ask for access or correction. Shown above the send button." },
+        { kind: "textarea", name: "personalDataNoticeEn", label: "Notice about personal details", hint: "Say why collected, who sees, retention, access." },
         { kind: "textarea", name: "personalDataNoticeMs", label: "Notice about personal details (Malay)" },
         provenance("personalDataProvenance", "Where the notice comes from"),
-        { kind: "number", name: "portalDailyLimit", label: "Applications taken in any 24 hours", min: 1, hint: "Once reached, the form says it is busy and takes no more until the earliest have aged out." },
-        { kind: "number", name: "portalDailyLimitPerNumber", label: "Applications taken for one registration number in 24 hours", min: 1, hint: "Stops one number being sent over and over. Must not be more than the figure beside it. The cost: anyone can send a company's number this many times and turn that company away online for 24 hours. It can still apply on paper, and the busy message sends it to the office." },
+        { kind: "number", name: "portalDailyLimit", label: "Applications taken in any 24 hours", min: 1, hint: "Once reached, the form says it is busy." },
+        { kind: "number", name: "portalDailyLimitPerNumber", label: "Applications taken for one registration number in 24 hours", min: 1, hint: "Must not exceed the figure beside it." },
         provenance("portalLimitProvenance", "Where the limits come from"),
       ]}
       values={values}
@@ -259,11 +259,11 @@ export function StandingReasonDrawer({ reason }: { reason?: { id: string; name: 
           ? [hidden("code"), hidden("appliesTo")]
           : ([
               { kind: "select", name: "appliesTo", label: "Given for", required: true, placeholder: "Choose", placeholderDisabled: true, options: [{ value: "SUSPEND", label: "A suspension" }, { value: "BLACKLIST", label: "A blacklisting" }] },
-              { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key, not shown to officers; it cannot be changed." },
+              { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." },
             ] as Field[])),
         { kind: "text", name: "nameEn", label: "Reason", required: true },
         { kind: "hidden", name: "nameMs" },
-        { kind: "text", name: "governingSource", label: "Source", hint: "The clause or circular it comes from, if any." },
+        { kind: "text", name: "governingSource", label: "Source", hint: "The clause or circular it comes from." },
         provenance("provenance", "Where it comes from", true),
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
@@ -286,20 +286,20 @@ export function EditStandingRules({ values, suspensionReasons, documentTypes }: 
       description="Not set: the act it governs says so. A rule set shows its source."
       columns={2}
       fields={[
-        { kind: "number", name: "criticalDays", label: "Critical, within (days)", min: 0, hint: "A document this many days or fewer from its expiry is critical. Set all three bands, or none." },
+        { kind: "number", name: "criticalDays", label: "Critical, within (days)", min: 0, hint: "Set all three bands, or none." },
         { kind: "number", name: "warningDays", label: "Warning, within (days)", min: 0 },
         { kind: "number", name: "upcomingDays", label: "Upcoming, within (days)", min: 0 },
         provenance("bandsProvenance", "Where the bands come from"),
         { kind: "select", name: "expiryOnClosingDayCounts", label: "A document expiring on the closing day", options: three("Counts as valid for the window", "Does not count as valid", "Not set: read as not assessed") },
         provenance("closingDayProvenance", "Where that comes from"),
         { kind: "select", name: "autoSuspendOnLapse", label: "A registered supplier with an expired mandatory document", options: three("Stands suspended on lapse, until it is renewed and verified", "Stays active, with the expiry noted", "Not set: active, saying the rule is not set") },
-        { kind: "select", name: "lapseReasonId", label: "Shown with the reason", placeholder: "None", options: suspensionReasons, hint: "A suspension reason, shown beside a suspension on lapse." },
+        { kind: "select", name: "lapseReasonId", label: "Shown with the reason", placeholder: "None", options: suspensionReasons, hint: "Shown beside a suspension on lapse." },
         provenance("lapseProvenance", "Where that comes from"),
-        { kind: "number", name: "blacklistFirstOffenceMonths", label: "A first-offence blacklisting lasts (months)", min: 1, hint: "A later offence lasts until further notice. Not set: a first offence cannot be recorded." },
+        { kind: "number", name: "blacklistFirstOffenceMonths", label: "A first-offence blacklisting lasts (months)", min: 1, hint: "Not set: first offence cannot be recorded." },
         provenance("blacklistProvenance", "Where the period comes from"),
         { kind: "select", name: "registerRequiredForSale", label: "Documents sold only to suppliers on the register", options: three("Yes: a purchaser not linked to the register is refused", "No: an unlinked purchaser is sold to, not checked", "Not set: sold to, not checked, saying the rule is not set") },
         provenance("saleProvenance", "Where that comes from"),
-        { kind: "select", name: "restrictionEvidenceTypeId", label: "The document that evidences a restricted tender's restriction", placeholder: "Not set", options: documentTypes, hint: "Not set: a restricted tender's restriction reads not assessed." },
+        { kind: "select", name: "restrictionEvidenceTypeId", label: "The document that evidences a restricted tender's restriction", placeholder: "Not set", options: documentTypes, hint: "Not set: restriction reads not assessed." },
         provenance("restrictionProvenance", "Where that comes from"),
         { kind: "select", name: "ineligibleBidConsequence", label: "A linked bidder found not eligible at the opening", options: [{ value: "ELIMINATE", label: "Eliminated at the opening" }, { value: "REPORT", label: "Reported to the committee, which decides" }, { value: "unset", label: "Not set: an opening holding one cannot finalise" }] },
         provenance("ineligibleProvenance", "Where that comes from"),

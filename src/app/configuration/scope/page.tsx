@@ -162,7 +162,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
       <div className="flex flex-col gap-6">
         {leadUnset && (
           <Callout tone="warn" title="Estimate lead time is not set">
-            How many days before closing the estimate is made is not set, so its lead time cannot be judged on any exercise and no number is assumed. Set it under &ldquo;Estimate made at least this many days before closing&rdquo; below.
+            Set it below.
           </Callout>
         )}
 

@@ -11,6 +11,7 @@ export const BUDGET = {
   cardSubtitle: 6,
   editorIntro: 15,
   callout: 15,
+  fieldHint: 8,
 };
 
 /// Spec and ruling codes are configuration keys and never reach a screen (AGENTS.md rule 5, 0005 R2).
@@ -93,6 +94,10 @@ export function scanSource(file, source) {
         const t = attrText(attr(node, limitOf[0]));
         if (t != null && words(t) > limitOf[1]) add(node, limitOf[2], `${tag} ${limitOf[0]} is ${words(t)} words (limit ${limitOf[1]})`);
       }
+      if (tag === "Field") {
+        const h = attrText(attr(node, "hint"));
+        if (h != null && words(h) > BUDGET.fieldHint) add(node, "field-hint", `Field hint is ${words(h)} words (limit ${BUDGET.fieldHint})`);
+      }
       if (tag === "EmptyState" && ts.isJsxElement(node) && node.children.some((c) => !(ts.isJsxText(c) && !c.text.trim()))) {
         add(node, "empty-body", "EmptyState has a body: use a title of 6 words or fewer and an action");
       }
@@ -107,6 +112,14 @@ export function scanSource(file, source) {
         const title = attrText(attr(node, "title")) ?? "";
         const n = words(title) + words(renderedText(node));
         if (n > BUDGET.callout) add(node, "callout-length", `Callout is ${n} words (limit ${BUDGET.callout})`);
+      }
+    }
+    // A field defined as data (`{ kind: "text", name, label, hint }`) is held to the same hint budget as a <Field>.
+    if (ts.isPropertyAssignment(node) && node.name.getText(sf) === "hint") {
+      const alts = branches(node.initializer);
+      if (!alts.every((t) => t === "X")) {
+        const t = longest(alts);
+        if (words(t) > BUDGET.fieldHint) add(node, "field-hint", `Field hint is ${words(t)} words (limit ${BUDGET.fieldHint})`);
       }
     }
     // Product codes in anything that renders: JSX text and string literals.

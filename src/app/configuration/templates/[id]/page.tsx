@@ -9,6 +9,7 @@ import { InfoChip } from "@/components/ui/info-chip";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Blocked } from "@/components/ui/blocked";
 import { EmptyState } from "@/components/ui/feedback";
+import { MoreText } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -156,9 +157,10 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
           <CardHeader
             icon={<PrinterIcon size={17} />}
             title="Printed form"
-            subtitle={`${t.pageCount == null ? "Its pages are not recorded" : `${t.pageCount} printed page${t.pageCount === 1 ? "" : "s"}`}. Each printed field carries the form's own label, and is filled by the portal from the certificate or its routing sheet (never typed in) or left blank for the pen. Where this form is a routing sheet's printed sheet, its labels for the received and approved days show beside the portal's words.`}
+            subtitle={t.pageCount == null ? "Pages not recorded" : `${t.pageCount} printed page${t.pageCount === 1 ? "" : "s"}`}
             actions={
               <span className="flex flex-wrap items-center gap-2">
+                <MoreText label="About printed fields" text="Each printed field carries the form's own label. The portal fills it from the certificate or its routing sheet, or it is left blank for the pen. A routing sheet's form also shows its received and approved day labels." />
                 <EditPageCount templateId={t.id} pageCount={t.pageCount} />
                 {notAPrinted ? <Blocked label="Add field" reason={notAPrinted} /> : <AddPrintedField templateId={t.id} values={printable} />}
               </span>

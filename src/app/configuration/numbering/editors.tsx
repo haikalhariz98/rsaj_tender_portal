@@ -34,14 +34,14 @@ function seriesFields(editing: boolean): Field[] {
       label: "Pattern",
       required: true,
       mono: true,
-      hint: "Tokens: {SERIAL}, {YEAR}, {SHORTYEAR}, {MONTH}. Everything else is literal.",
+      hint: "Tokens: {SERIAL}, {YEAR}, {SHORTYEAR}, {MONTH}. Rest is literal.",
     },
     {
       kind: "number",
       name: "padding",
       label: "Serial width",
       min: 1,
-      hint: "3 gives 001. A serial that outgrows its width widens rather than truncating.",
+      hint: "3 gives 001. Wider serials widen.",
     },
     {
       kind: "select",
@@ -60,14 +60,14 @@ function seriesFields(editing: boolean): Field[] {
       name: "financialYearStartMonth",
       label: "Financial year starts in month",
       min: 1,
-      hint: "1 is January. Only used where the series resets on a financial year.",
+      hint: "1 is January. For financial-year resets.",
     },
     {
       kind: "number",
       name: "nextSerial",
       label: "Next serial",
       min: 1,
-      hint: "Never goes backwards. An allocated reference is never reused.",
+      hint: "Never goes backwards.",
     },
     {
       kind: "select",

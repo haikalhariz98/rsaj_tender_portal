@@ -101,7 +101,7 @@ export default async function SupplierRegisterConfigPage() {
       <div className="flex flex-col gap-6">
         {listsEmpty.length > 0 && (
           <Callout tone="warn" title="A list the register needs is empty">
-            {listsEmpty.map((k) => LIST_KIND_LABEL[k].en).join(" and ")} {listsEmpty.length === 1 ? "has" : "have"} no entry in force, so no supplier can be recorded. Add them under Lists, below.
+            {listsEmpty.map((k) => LIST_KIND_LABEL[k].en).join(" and ")}: none in force.
           </Callout>
         )}
 
@@ -365,7 +365,7 @@ export default async function SupplierRegisterConfigPage() {
         <Card id="values" className="scroll-mt-24 overflow-hidden">
           <CardHeader icon={<BuildingIcon size={17} />} title="Registration bodies' values" subtitle="By body" divided={cfg.bodies.length === 0} />
           {cfg.bodies.length === 0 ? (
-            <EmptyState title="No registration body is configured" action={<Link href="/configuration/tender-documents">Tender documents</Link>}>Add the bodies first; their values are kept here.</EmptyState>
+            <EmptyState title="No registration body" action={<Link href="/configuration/tender-documents">Tender documents</Link>} />
           ) : (
             <div className="divide-y divide-line/70">
               {cfg.bodies.map((b) => {

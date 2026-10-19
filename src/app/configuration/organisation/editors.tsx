@@ -43,7 +43,7 @@ function unitFields(kind: OrgUnitKind, people: Person[]): Field[] {
       placeholder: "Nobody named",
       options: personOptions(people),
       orphanLabel: "Somebody no longer on record",
-      hint: "Endorsements and approvals that go to the head of this unit find them here.",
+      hint: "Receives approvals sent to the unit head.",
     },
   ];
 
@@ -59,7 +59,7 @@ function unitFields(kind: OrgUnitKind, people: Person[]): Field[] {
       name: "financialYearStart",
       label: "Financial year starts",
       placeholder: "MM-DD",
-      hint: "The day it turns, every year. 01-01 for a calendar year.",
+      hint: "Day it turns, yearly. 01-01 for calendar year.",
     },
     { kind: "textarea", name: "address", label: "Address" },
     { kind: "text", name: "operatingLicence", label: "Operating licence" },
@@ -99,7 +99,7 @@ export function AddOrgUnit({
           label: "Code",
           required: true,
           mono: true,
-          hint: "Set once. Records elsewhere refer to it, so it cannot be changed later.",
+          hint: "Set once; cannot be changed later.",
         },
         ...unitFields(kind, people),
         { kind: "date", name: "effectiveFrom", label: "In force from", required: true },
@@ -162,7 +162,7 @@ function costCentreFields(units: OrgUnit[], sites: Site[], people: Person[]): Fi
       label: "Code",
       required: true,
       mono: true,
-      hint: "What finance posts against. The customer's own shape, not one this system composes.",
+      hint: "What finance posts against.",
     },
     { kind: "text", name: "nameEn", label: "Name", required: true },
     {
@@ -193,7 +193,7 @@ function costCentreFields(units: OrgUnit[], sites: Site[], people: Person[]): Fi
       kind: "date",
       name: "effectiveTo",
       label: END_DAY_LABEL,
-      hint: "The first day it is closed. Leave empty while it is still in use.",
+      hint: "First day closed. Empty while in use.",
     },
   ];
 }
@@ -284,7 +284,7 @@ function siteFields(units: OrgUnit[]): Field[] {
       kind: "date",
       name: "effectiveTo",
       label: END_DAY_LABEL,
-      hint: "The first day it is closed. Leave empty while it is still in use.",
+      hint: "First day closed. Empty while in use.",
     },
   ];
 }
@@ -360,7 +360,7 @@ export function EditTimeZone({
           placeholder: "Not set",
           options,
           orphanLabel: timeZone ? timeZoneLabel(timeZone) : undefined,
-          hint: "Search by country or city. Left unset, sittings cannot start, table or vote until it is chosen.",
+          hint: "Search by country or city. Unset blocks sittings.",
         },
       ]}
       values={{ timeZone }}

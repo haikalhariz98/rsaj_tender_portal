@@ -317,9 +317,7 @@ function SpendChart({ spend }: { spend: PeriodSpend[] }) {
         subtitle="Cumulative across the financial year."
       />
       {spend.length === 0 ? (
-        <EmptyState size="sm" title="No period to plot">
-          A year needs periods before spend can be drawn against it.
-        </EmptyState>
+        <EmptyState size="sm" title="No period to plot" />
       ) : (
         <>
           <CardBody>
@@ -410,9 +408,7 @@ function UnitChart({
         subtitle="Committed and paid, by department"
       />
       {drawn.length === 0 ? (
-        <EmptyState size="sm" title="Nothing to compare">
-          No department holds a code with an allocation, so there is no share to draw.
-        </EmptyState>
+        <EmptyState size="sm" title="No allocation to compare" />
       ) : (
         <>
           <CardBody>

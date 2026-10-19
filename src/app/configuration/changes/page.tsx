@@ -28,8 +28,8 @@ export default async function ChangesPage() {
     return (
       <>
         <PageHeader title="Changes awaiting a second person" info={{ title: "Changes awaiting a second person", text: "Proposed by one person, decided by a different one. Nothing is applied until then." }} />
-        <Callout tone="warn" title="Only those who decide these changes read them">
-          This queue is read by people who hold the permission to change the sign-in settings, to grant permissions to roles, or to manage sign-in accounts. Ask an administrator if a change is waiting on you.
+        <Callout tone="warn" title="Only deciders read this queue">
+          Ask an administrator if one waits on you.
         </Callout>
       </>
     );
@@ -80,7 +80,7 @@ export default async function ChangesPage() {
 
       {stuck > 0 && (
         <Callout tone="warn" title={stuck === 1 ? "One change has nobody who could decide it" : `${stuck} changes have nobody who could decide them`} className="mb-5">
-          Each needs a second person who holds the permission that decides it, and who is not the person who proposed it. Until one exists the change waits, and the product does not approve it for them.
+          Needs a second decider.
         </Callout>
       )}
 

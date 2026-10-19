@@ -28,7 +28,7 @@ export function EditPostAwardPolicy({ values, forms }: { values: Record<string, 
       size="lg"
       columns={2}
       fields={[
-        { kind: "text", name: "inDelayProgressPct", label: "In Delay below this share of planned progress (%)", hint: "Unset: In Delay is not judged on progress (a lapsed completion date still is)." },
+        { kind: "text", name: "inDelayProgressPct", label: "In Delay below this share of planned progress (%)", hint: "Unset: In Delay ignores progress." },
         provenance("inDelayProvenance", "Where the percentage came from"),
         { kind: "select", name: "soReResolve", label: "The S.O. changes when an adjustment moves the contract sum across a band", placeholder: "Not decided", options: [{ value: "yes", label: "Yes: resolved again at the new sum" }, { value: "no", label: "No: the S.O. stays as resolved" }] },
         provenance("soReResolveProvenance", "Where that came from"),
@@ -63,9 +63,9 @@ export function EditPaymentPolicy({ values, figures, remainders }: { values: Rec
         provenance("unfixedMaterialsProvenance", "Where the allowance came from"),
         pctField("firstReleasePct", "First release of retention (%)", "The share released at practical completion. Unset: the first release is refused, naming this setting."),
         provenance("firstReleaseProvenance", "Where the release came from"),
-        { kind: "select", name: "paymentRouteFigure", label: "The figure an interim certificate is routed on", placeholder: "Not set", options: figures, hint: "Unset: an interim certificate cannot be sent for approval." },
+        { kind: "select", name: "paymentRouteFigure", label: "The figure an interim certificate is routed on", placeholder: "Not set", options: figures, hint: "Unset: no interim certificate can be sent." },
         provenance("paymentRouteProvenance", "Where that came from"),
-        { kind: "select", name: "waterfallRemainder", label: "Where the sen of a pro-rata split go", placeholder: "Not set", options: remainders, hint: "Unset: a certificate that cannot pay every party in full is refused." },
+        { kind: "select", name: "waterfallRemainder", label: "Where the sen of a pro-rata split go", placeholder: "Not set", options: remainders, hint: "Unset: underpaying certificates are refused." },
         provenance("waterfallProvenance", "Where that came from"),
         { kind: "number", name: "preExecutionInterimLimit", label: "Interim certificates that may issue before the contract is signed", min: 0, hint: "Unset: none issues before the contract is executed." },
         provenance("preExecutionProvenance", "Where the number came from"),
@@ -84,7 +84,7 @@ export function EditKindSetting({ kind, label, values, forms, sheets, noSheet = 
   return (
     <RecordEditor
       title={label}
-      description={noSheet ? "The form this certificate prints on. It is approved on its variation's own routes, so it takes no routing sheet. Without a form it cannot be raised." : "The form this certificate prints on, and the routing sheet it goes on before it is signed. Without a form it cannot be raised."}
+      description={noSheet ? "The form it prints on. Without one it cannot be raised." : "The form and routing sheet it uses. Without a form it cannot be raised."}
       fields={[
         { kind: "hidden", name: "certificateKind" },
         form("templateId", "Form", forms),
@@ -175,13 +175,13 @@ export function EditVariationPolicy({ values, bases, sums, forms, committees }: 
       size="lg"
       columns={2}
       fields={[
-        { kind: "select", name: "variationPctBasis", label: "A variation's percentage is of", placeholder: "Not set", options: bases, hint: "Unset: a variation cannot be submitted or sent for approval." },
-        { kind: "select", name: "variationBase", label: "Taken over", placeholder: "Not set", options: sums, hint: "Also the contract value its band is read at." },
+        { kind: "select", name: "variationPctBasis", label: "A variation's percentage is of", placeholder: "Not set", options: bases, hint: "Unset: variations cannot be submitted." },
+        { kind: "select", name: "variationBase", label: "Taken over", placeholder: "Not set", options: sums, hint: "Also the contract value its band reads." },
         provenance("variationProvenance", "Where that came from"),
         { kind: "select", name: "scheduleFormAgreedRate", label: "The schedule form where an agreed rate exists", placeholder: "Not set", options: forms },
         { kind: "select", name: "scheduleFormNoAgreedRate", label: "The schedule form where none does", placeholder: "Not set", options: forms, hint: "Unset: the instruction is refused, naming this setting." },
         provenance("scheduleFormProvenance", "Where those came from"),
-        { kind: "select", name: "funderConsentCommitteeId", label: "The committee that decides a funder's consent", placeholder: committees.length ? "Not set" : "No committees configured", options: committees, hint: "Unset: a variation affecting a funder's assets cannot be tabled for consent." },
+        { kind: "select", name: "funderConsentCommitteeId", label: "The committee that decides a funder's consent", placeholder: committees.length ? "Not set" : "No committees configured", options: committees, hint: "Unset: consent cannot be tabled." },
         provenance("funderConsentProvenance", "Where that came from"),
       ]}
       values={values}

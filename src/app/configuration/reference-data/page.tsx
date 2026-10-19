@@ -138,9 +138,7 @@ export default async function ReferenceDataPage() {
               : `${unbanded.length} sourcing methods are available at no value at all`
           }
         >
-          {unbanded.map((m) => m.nameEn).join(", ")} — no band is ticked, so nothing will
-          ever offer{unbanded.length === 1 ? " it" : " them"}. Which band applies is a
-          policy question, so the portal leaves it showing rather than picking one.
+          {unbanded.map((m) => m.nameEn).join(", ")}: no band ticked.
         </Callout>
       )}
 

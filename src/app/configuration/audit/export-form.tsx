@@ -48,7 +48,7 @@ export function AuditExportForm({ today }: { today: string | null }) {
       {state.message && !state.ok && <Callout tone="err">{state.message}</Callout>}
       {state.ok && state.masked ? (
         <Callout tone="warn" title="Not the whole trail">
-          {state.masked} {state.masked === 1 ? "entry has" : "entries have"} bidder names and prices held back. You are on an evaluation team. Someone else exports all.
+          {state.masked} {state.masked === 1 ? "entry" : "entries"} held back. Someone else exports all.
         </Callout>
       ) : null}
       {state.ok && state.sha256 && (

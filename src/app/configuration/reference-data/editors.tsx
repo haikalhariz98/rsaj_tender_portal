@@ -67,7 +67,7 @@ function fundingFields(editing: boolean): Field[] {
       kind: "switch",
       name: "organisationProcures",
       label: "The organisation runs the procurement",
-      hint: "Leave off where it appoints nobody and only records eligibility, inspection and acceptance.",
+      hint: "Off where it only records eligibility, inspection, acceptance.",
     },
     {
       kind: "switch",
@@ -78,13 +78,13 @@ function fundingFields(editing: boolean): Field[] {
       kind: "switch",
       name: "supersedesAuthority",
       label: "The funder's rules override the approval matrix",
-      hint: "A requisition on this route is routed by the funder's rule set where one is issued, and otherwise by the approval matrix with a warning.",
+      hint: "Routed by the funder's rule set where issued.",
     },
     {
       kind: "switch",
       name: "requiresExternalAuthorityRef",
       label: "A matter waits for an external body's authority",
-      hint: "A requisition on this route cannot be submitted until that authority's reference is recorded.",
+      hint: "Submission needs that authority's reference.",
     },
     {
       kind: "text",
@@ -118,7 +118,7 @@ function fundingFields(editing: boolean): Field[] {
       name: "committeeGateRequired",
       label: "Needs a committee gate before sourcing",
       placeholder: "Not set — no exercise can be opened",
-      hint: "Whether an approved requisition on this route must be passed by a committee (its gate rules are under Requisition controls) before its first sourcing exercise.",
+      hint: "Whether a committee must pass the requisition first.",
       options: [
         { value: "yes", label: "Yes — its gate rules apply" },
         { value: "no", label: "No — this route has no committee gate" },
@@ -161,7 +161,7 @@ function methodFields(editing: boolean): Field[] {
       kind: "switch",
       name: "requiresFreshSourcing",
       label: "Sources afresh",
-      hint: "Leave off where the method calls off an existing contract and has no bids.",
+      hint: "Off where the method has no bids.",
     },
     { kind: "text", name: "awardInstrument", label: "Awarded by" },
     { kind: "text", name: "committeeCode", label: "Committee code", mono: true },
@@ -170,7 +170,7 @@ function methodFields(editing: boolean): Field[] {
       name: "authorityMethodKey",
       label: "Approval matrix method key",
       mono: true,
-      hint: "Binds this method to the approval rows banded under that key.",
+      hint: "Binds the method to approval rows by key.",
     },
     {
       kind: "note",
@@ -183,9 +183,9 @@ function methodFields(editing: boolean): Field[] {
     { kind: "text", name: "justificationPrompt", label: "What the justification must show" },
     { kind: "switch", name: "requiresProposal", label: "Needs a proposal reviewed by Contract & Procurement" },
     { kind: "switch", name: "requiresNameApproval", label: "Needs the name approved" },
-    { kind: "switch", name: "restrictedAccess", label: "Restricted to named participants", hint: "An exercise of this method is hidden from everyone but the people named on it. It takes the method's restriction each time it is saved as a draft, and keeps it once its documents go into preparation." },
+    { kind: "switch", name: "restrictedAccess", label: "Restricted to named participants", hint: "Hidden from all but the people named." },
     { kind: "switch", name: "requiresDossier", label: "Keeps a justification dossier with a reason code" },
-    { kind: "text", name: "dossierSeriesKey", label: "Dossier numbering series key", mono: true, hint: "The numbering series its dossier references are issued from." },
+    { kind: "text", name: "dossierSeriesKey", label: "Dossier numbering series key", mono: true, hint: "The series dossier references use." },
     { kind: "switch", name: "requiresCoordinationRecord", label: "Needs an emergency coordination record" },
     { kind: "text", name: "governingSource", label: "Source document" },
     PROVENANCE_FIELD,
@@ -211,14 +211,14 @@ function contractFields(editing: boolean): Field[] {
       label: "Default for this deliverable",
       placeholder: "None — chosen only",
       options: KIND_OPTIONS,
-      hint: "An exercise whose scope is this deliverable takes this type unless someone chooses another, with a reason.",
+      hint: "Default type for this deliverable's exercises.",
     },
     {
       kind: "text",
       name: "contractSeriesKey",
       label: "Contract numbering series key",
       mono: true,
-      hint: "The numbering series a contract of this type is numbered from when its award is issued. Not set: an award of this type cannot be issued.",
+      hint: "Numbering series for this type's contracts.",
     },
     { kind: "text", name: "governingSource", label: "Source document" },
     PROVENANCE_FIELD,
@@ -457,10 +457,10 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         t("interimPaymentRule"),
         t("sumAdjustmentDrivers", "Separate them with commas. Kept as the type's own words; the typed list below is what the adjustment certificate reads."),
         // 6.13 Part A step 1 (A7): the typed twin of the drivers. Empty: not set.
-        { kind: "tokens", name: "sumAdjustmentTriggers", label: "Contract-sum adjustment triggers", options: SUM_ADJUSTMENT_TRIGGERS.map((k) => ({ value: k, label: SUM_ADJUSTMENT_TRIGGER_WORDS[k].en })), placeholder: "Add a trigger", hint: "Which adjustments of the contract sum this type allows. Empty: not set, and an adjustment certificate is refused until it is." },
+        { kind: "tokens", name: "sumAdjustmentTriggers", label: "Contract-sum adjustment triggers", options: SUM_ADJUSTMENT_TRIGGERS.map((k) => ({ value: k, label: SUM_ADJUSTMENT_TRIGGER_WORDS[k].en })), placeholder: "Add a trigger", hint: "Allowed adjustments. Empty refuses adjustment certificates." },
         { kind: "select", name: "claimsApprovalCommitteeCode", label: BEHAVIOUR_LABEL.claimsApprovalCommitteeCode, placeholder: "Not set", options: offices },
         // 6.13 Part A step 2 (FR-SUP-003): not one of the twelve; which letters a delegation on this type's contracts uses.
-        { kind: "select", name: "delegationVariant", label: "Delegation letters", placeholder: "Not set", options: DELEGATION_VARIANTS.map((k) => ({ value: k, label: VARIANT_WORDS[k].en })), hint: "Unset: a delegation to a representative on this type's contracts is refused until it is." },
+        { kind: "select", name: "delegationVariant", label: "Delegation letters", placeholder: "Not set", options: DELEGATION_VARIANTS.map((k) => ({ value: k, label: VARIANT_WORDS[k].en })), hint: "Unset: representative delegations are refused." },
       ]}
       values={{
         id,

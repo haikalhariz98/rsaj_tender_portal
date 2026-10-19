@@ -29,18 +29,18 @@ export function EditScopePolicy({ values, qualifications, offices, lists }: { va
       description="Each value is the organisation's own. Empty stays unset."
       columns={2}
       fields={[
-        { kind: "select", name: "specPanelUsed", label: "Specification panel used", placeholder: "Not set", options: [{ value: "yes", label: "Used" }, { value: "no", label: "Not used" }], hint: "Each exercise takes this when it is made and keeps it. Not used removes the panel and its signed form from the exercise and from submission." },
-        { kind: "select", name: "onScreenBillUsed", label: "On-screen bill used", placeholder: "Not set", options: [{ value: "yes", label: "Built on screen" }, { value: "no", label: "An uploaded Excel file" }], hint: "Each exercise takes this when it is made and keeps it. An uploaded file is a document line under Tender documents, with its template; its prime cost and provisional sums are entered at the contract baseline." },
+        { kind: "select", name: "specPanelUsed", label: "Specification panel used", placeholder: "Not set", options: [{ value: "yes", label: "Used" }, { value: "no", label: "Not used" }], hint: "Taken when an exercise is made." },
+        { kind: "select", name: "onScreenBillUsed", label: "On-screen bill used", placeholder: "Not set", options: [{ value: "yes", label: "Built on screen" }, { value: "no", label: "An uploaded Excel file" }], hint: "Taken when an exercise is made." },
         { kind: "text", name: "measurementStandardLabel", label: "Measurement standard a bill follows", hint: "As the organisation names it." },
         provenance("measurementStandardProvenance"),
         { kind: "select", name: "bqPreparerQualificationCode", label: "Qualification a bill's preparer holds", placeholder: "Not set", options: qualifications },
         { kind: "note", text: "A bill cannot be finalised until the standard and the qualification are set." },
         { kind: "number", name: "estimateLeadDays", label: "Estimate made at least this many days before closing", min: 0 },
         provenance("estimateLeadProvenance"),
-        { kind: "select", name: "estimateCustodianRoleCode", label: "Office holding the estimate's copies", placeholder: "Not set", options: offices, hint: "With the estimate's preparer and the auditing office, this office reads the figure once the opening has disclosed it. Held for a department, it counts for that department's estimates only. While either office is unset, nobody reads it." },
-        { kind: "select", name: "estimateAuditRoleCode", label: "Office auditing the estimate", placeholder: "Not set", options: offices, hint: "Reads the disclosed figure, as the holding office does." },
+        { kind: "select", name: "estimateCustodianRoleCode", label: "Office holding the estimate's copies", placeholder: "Not set", options: offices, hint: "Reads the figure after opening. Unset: nobody." },
+        { kind: "select", name: "estimateAuditRoleCode", label: "Office auditing the estimate", placeholder: "Not set", options: offices, hint: "Reads the disclosed figure too." },
         { kind: "select", name: "estimateOverrideRoleCode", label: "Office that may accept a late estimate", placeholder: "Not set: none may", options: offices, hint: "Left unset, no late estimate is accepted." },
-        { kind: "number", name: "panelSignatoryLimit", label: "Most verifiers on a specification panel", min: 1, hint: "Left empty, the number of verifiers is not checked." },
+        { kind: "number", name: "panelSignatoryLimit", label: "Most verifiers on a specification panel", min: 1, hint: "Empty: verifier count not checked." },
         provenance("panelSignatoryLimitProvenance"),
         { kind: "select", name: "panelContractKindTaxonomyCode", label: "List of contract kinds", placeholder: "Not set", options: lists },
         { kind: "select", name: "panelProjectStatusTaxonomyCode", label: "List of project statuses", placeholder: "Not set", options: lists },
@@ -108,7 +108,7 @@ export function QualificationDrawer({ q }: { q?: { id: string; name: string; nam
       title={q ? `Edit ${q.name}` : "Add a qualification"}
       fields={[
         hidden("id"),
-        ...(q ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A short key, not shown to officers. It cannot be changed." } as Field]),
+        ...(q ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
         { kind: "hidden", name: "nameMs" },
         { kind: "text", name: "governingSource", label: "Where it is required", hint: "The document that asks for it." },
@@ -159,7 +159,7 @@ export function TemplateDrawer({ t }: { t?: { id: string; name: string; nameMs: 
       description="A template brings its section headings to a new bill, and no lines."
       fields={[
         hidden("id"),
-        ...(t ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A short key, not shown to officers. It cannot be changed." } as Field]),
+        ...(t ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
         { kind: "hidden", name: "nameMs" },
         { kind: "select", name: "deliverableKind", label: "What the contract delivers", placeholder: "Any", options: DELIVERABLES },
@@ -203,7 +203,7 @@ export function ColumnDrawer({ units, c }: { units: Option[]; c?: { id: string; 
       description="A column of the signed panel form, verified by a named person."
       fields={[
         hidden("id"),
-        ...(c ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A short key, not shown to officers. It cannot be changed." } as Field]),
+        ...(c ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." } as Field]),
         { kind: "text", name: "labelEn", label: "Heading", required: true },
         { kind: "hidden", name: "labelMs" },
         { kind: "select", name: "orgUnitCode", label: "Unit whose officer verifies", placeholder: "Not tied to a unit", options: units },
@@ -231,10 +231,10 @@ export function EditMethodScopeRule({ id, name, raw, committees, acts }: { id: s
       fields={[
         hidden("id"),
         { kind: "select", name: "scopeApprovalRequired", label: "Scope approved by a committee", required: true, placeholder: "Choose", placeholderDisabled: true, options: [...TRI, { value: "unset", label: "Not set" }] },
-        { kind: "select", name: "scopeCommitteeCode", label: "The committee that approves it", placeholder: "Not set", options: committees, hint: "Left empty with Yes, the check reads “Committee not set” and blocks." },
+        { kind: "select", name: "scopeCommitteeCode", label: "The committee that approves it", placeholder: "Not set", options: committees, hint: "Empty with Yes: check blocks." },
         provenance("scopeApprovalProvenance", "Where this came from", false),
         { kind: "note", text: "Say where the answer came from whenever it is Yes or No." },
-        { kind: "select", name: "scopeAct", label: "The committee's act on the scope", placeholder: "Not set", options: acts, hint: "Tabling writes this act, and only a matter carried under it approves the scope. Left empty with Yes, it reads “Act not set” and blocks tabling." },
+        { kind: "select", name: "scopeAct", label: "The committee's act on the scope", placeholder: "Not set", options: acts, hint: "Empty with Yes: tabling is blocked." },
         provenance("scopeActProvenance", "Where the act came from", false),
       ]}
       values={{ id, ...raw }}
@@ -252,11 +252,11 @@ export function StartRateIssueDrawer({ label }: { label?: string }) {
   return (
     <RecordEditor
       title={label ? `Start the next issue of ${label}` : "Add a schedule of rates"}
-      description={label ? "A draft, with the latest issue's items copied in to edit. It takes effect only when it is issued." : "A draft first issue. Add its items, then issue it with the day it takes effect from."}
+      description={label ? "A draft copying the latest items. Takes effect when issued." : "A draft first issue. Add items, then issue it."}
       fields={[
         ...(label ? [hidden("label")] : [{ kind: "text", name: "label", label: "Schedule", required: true, hint: "As the organisation names it." } as Field]),
         provenance("provenance", "Where its rates come from", true),
-        { kind: "text", name: "governingSource", label: "Governing source", hint: "The circular or letter that issues it, if any." },
+        { kind: "text", name: "governingSource", label: "Governing source", hint: "Circular or letter that issues it." },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
       values={label ? { label } : undefined}
@@ -317,7 +317,7 @@ export function IssueRateScheduleDrawer({ scheduleId, title, today, blocked }: {
       description="From the day it takes effect, lines take these rates. Priced lines keep theirs."
       fields={[
         hidden("scheduleId"),
-        { kind: "date", name: "effectiveFrom", label: "Takes effect from", required: true, hint: "The organisation's day. After the day the current issue took effect." },
+        { kind: "date", name: "effectiveFrom", label: "Takes effect from", required: true, hint: "Organisation's day after the current issue took effect." },
         actorField("RateSchedule.issuedBy", { name: "issuedByPersonId", hint: "You issue it, from your sign-in." }),
         ...(today ? [] : [{ kind: "note", text: "Set the organisation's time zone under Configuration, Organisation first: the day it is issued is the organisation's." } as Field]),
       ]}

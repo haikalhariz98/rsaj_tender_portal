@@ -95,7 +95,7 @@ export default async function DocumentsConfigPage() {
 
       {unclassified.length > 0 && (
         <Callout tone="warn" className="mb-6" title={unclassified.length === 1 ? "1 class has no classification" : `${unclassified.length} classes have no classification`}>
-          A document filed under a class with no classification is listed but never opened in the portal, and nothing says how it is to be handled. Set it on the class: {unclassified.map((c) => c.nameEn).join(", ")}.
+          Set it on: {unclassified.map((c) => c.nameEn).join(", ")}.
         </Callout>
       )}
 
@@ -245,9 +245,7 @@ export default async function DocumentsConfigPage() {
           divided={staged.length === 0}
         />
         {staged.length === 0 ? (
-          <EmptyState size="sm" title="Nothing waiting">
-            A file appears here when it is uploaded and then not attached, for instance because the record refused it.
-          </EmptyState>
+          <EmptyState size="sm" title="Nothing waiting" />
         ) : (
           <Table minWidth={760} stack>
             <colgroup>
@@ -303,9 +301,7 @@ export default async function DocumentsConfigPage() {
           divided={holds.length === 0}
         />
         {holds.length === 0 ? (
-          <EmptyState size="sm" title="No legal holds">
-            No document is on hold. Open a document and place one if it must be kept for a claim or an inquiry.
-          </EmptyState>
+          <EmptyState size="sm" title="No legal holds" />
         ) : (
           <Table minWidth={760} stack>
             <colgroup>

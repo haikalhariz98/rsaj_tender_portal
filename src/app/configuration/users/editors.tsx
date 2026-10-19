@@ -85,7 +85,7 @@ function personFields(offices: Office[], authorityLevels: string[], units: UnitO
       placeholder: "Not recorded",
       orphanLabel: "A unit no longer in the structure",
       options: units.map((u) => ({ value: u.code, label: u.nameEn })),
-      hint: "Where a committee excludes a unit from its opening panel, this is what is checked.",
+      hint: "Checked where a committee excludes a unit.",
     },
   ];
 }
@@ -294,8 +294,8 @@ export function LeaverToggle({ person, exposure = [] }: { person: Person; exposu
       title={leaving ? `Mark ${person.name} as left` : `Reinstate ${person.name}`}
       description={
         leaving
-          ? `They stay on record, and decisions they signed keep resolving to their name. No new role can be assigned to them; roles they still hold are flagged on the Roles tab until each assignment is ended.${exposure.length ? ` They are a named opening officer of ${exposure.length === 1 ? "an online exercise" : `${exposure.length} online exercises`}, and leaving affects ${exposure.length === 1 ? "it" : "them"}: ${exposure.join(" ")}` : ""}`
-          : "They can hold a role again. Nothing that happened while they were marked as left is altered."
+          ? `They stay on record. No new role can be assigned.${exposure.length ? ` Opening officer of ${exposure.length === 1 ? "an online exercise" : `${exposure.length} online exercises`}: ${exposure.join(" ")}` : ""}`
+          : "They can hold a role again."
       }
       fields={[
         { kind: "hidden", name: "id" },
@@ -430,14 +430,14 @@ function assignmentFields(people: Person[], offices: Office[]): Field[] {
       kind: "text",
       name: "scope",
       label: "Scope",
-      hint: "Set where the role is held per department rather than organisation-wide.",
+      hint: "Where the role is held per department.",
     },
     { kind: "date", name: "effectiveFrom", label: "Held from", required: true },
     {
       kind: "date",
       name: "effectiveTo",
       label: END_DAY_LABEL,
-      hint: "The first day they no longer hold it. Leave empty while they still hold it.",
+      hint: "First day no longer held. Empty while held.",
     },
   ];
 }
@@ -529,7 +529,7 @@ function delegationFields(
       label: "Jobholder (whose authority this is)",
       required: !beforeSuperiorRule,
       placeholder: beforeSuperiorRule ? "Not recorded: before the superior rule" : "Choose",
-      hint: "The person who holds the role. Not the grantor: nobody delegates their own authority, so the grantor is the jobholder's immediate superior and the delegate reports directly to the jobholder. Those two are checked against the reporting lines once they are recorded.",
+      hint: "The person who holds the role.",
       options: persons,
     },
     {
@@ -545,7 +545,7 @@ function delegationFields(
       kind: "date",
       name: "effectiveTo",
       label: END_DAY_LABEL,
-      hint: "The first day it no longer applies. Required unless named capabilities are chosen below: a delegation is limited in time or in task. Set an earlier date to end one early.",
+      hint: "Required unless capabilities are named below.",
     },
     {
       kind: "select",
@@ -562,7 +562,7 @@ function delegationFields(
       name: "capabilityCodes",
       label: "What is delegated",
       placeholder: "Select…",
-      hint: "Leave it empty to hand over the whole role, which is a larger act. Naming capabilities limits the delegation to those tasks: it hands over those capabilities and does not carry an approval step.",
+      hint: "Empty hands over the whole role.",
       options: capabilities.map((c) => ({ value: c.code, label: c.nameEn })),
     },
     { kind: "text", name: "reason", label: "Reason (EN)" },
@@ -719,7 +719,7 @@ export function EndAssignment({ id, label }: { id: string; label: string }) {
       description="The first day they no longer hold it. Signed decisions are kept."
       fields={[
         { kind: "hidden", name: "id" },
-        { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, required: true, hint: "Today or later. To correct a period already past, use Edit." },
+        { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, required: true, hint: "Today or later. Edit corrects past periods." },
       ]}
       values={{ id }}
       action={endAssignment}
@@ -757,11 +757,11 @@ function reportingLineFields(people: Person[]): Field[] {
       label: "Reports to",
       required: true,
       placeholder: "Choose",
-      hint: "Their immediate superior. Choose the last option to record that nobody is above them: that is a recorded fact, not the same as no line.",
+      hint: "Their immediate superior. Last option: nobody above them.",
       options: [...persons, { value: NO_SUPERIOR_CHOICE, label: "Nobody: the head of their line" }],
     },
     { kind: "date", name: "effectiveFrom", label: "From", required: true },
-    { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, hint: "The first day it no longer applies. Leave empty while it still does." },
+    { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, hint: "First day not applying. Empty while it does." },
     {
       kind: "select",
       name: "provenance",

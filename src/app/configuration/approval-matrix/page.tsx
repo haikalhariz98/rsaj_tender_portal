@@ -46,7 +46,8 @@ import type { Regime } from "@/lib/method/types";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/button";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, Note } from "@/components/ui/feedback";
+import { MoreText } from "@/components/ui/more-text";
 import { cx } from "@/components/ui/cx";
 import type { Rule } from "@/lib/authority/types";
 import { destinationFor, REJECTION_DOMAINS, type DestinationRow, type RejectionKind } from "@/lib/authority/rejection";
@@ -135,10 +136,7 @@ export default async function ApprovalMatrixPage({
         />
 
         <Card>
-          <EmptyState title="No approval limits yet" action={<AddMatrix />}>
-            {orgRow?.name ?? "This organisation"} has no authority limits, so the portal cannot say who
-            approves anything. Draft the first issue, add its rules, then issue it.
-          </EmptyState>
+          <EmptyState title="No approval limits yet" action={<AddMatrix />} />
         </Card>
       </>
     );
@@ -444,8 +442,8 @@ export default async function ApprovalMatrixPage({
               ]}
             />
 
-            <Callout tone="warn" title="The boundary itself is a policy choice">
-              A works package valued at exactly{" "}
+            <Note>
+              Exactly{" "}
               <span className="font-semibold tabular-nums">
                 {formatValueBand(null, matrix.policy.boundaryValue).replace("≤ ", "")}
               </span>{" "}
@@ -453,10 +451,12 @@ export default async function ApprovalMatrixPage({
               <span className="font-semibold">
                 {matrix.policy.boundaryInclusive ? "quotation" : "tender"}
               </span>{" "}
-              band under the current setting — a different committee, a different approver and a
-              different award instrument from the other reading. Among the ringgit bands only this
-              exact value is affected; a percentage band edge follows the same setting.
-            </Callout>
+              band.{" "}
+              <MoreText
+                label="About the boundary"
+                text="The boundary is a policy choice. The other reading gives a different committee, approver and award instrument. Only this exact value is affected; a percentage band edge follows the same setting."
+              />
+            </Note>
           </CardBody>
         </Card>
 
@@ -523,10 +523,7 @@ export default async function ApprovalMatrixPage({
             actions={editable ? <AddTermsBand matrixId={matrixId} /> : <Badge outline>{termsBands.length} {termsBands.length === 1 ? "band" : "bands"}</Badge>}
           />
           {termsBands.length === 0 ? (
-            <EmptyState size="sm" title="Not set">
-              No contract terms bands are set on this issue, so an exercise shows which terms set applies as not set.
-              {editable ? " Add them here." : " Add them on a new issue."}
-            </EmptyState>
+            <EmptyState size="sm" title="No terms bands set" />
           ) : (
             <Table stack minWidth={editable ? 820 : 720}>
               <colgroup>
@@ -602,10 +599,7 @@ export default async function ApprovalMatrixPage({
             </div>
           )}
           {coreRows.length === 0 ? (
-            <EmptyState size="sm" title="Not set">
-              Until core routing is recorded, every route uses the chain entered on its rule and says it has not been checked.
-              {editable ? " Add a row for each office that approves." : " Record it on a new issue."}
-            </EmptyState>
+            <EmptyState size="sm" title="No core routing set" />
           ) : (
             <Table stack minWidth={editable ? 820 : 720}>
               <colgroup>
@@ -676,11 +670,7 @@ export default async function ApprovalMatrixPage({
           />
           <CardBody className="flex flex-col gap-3">
             {domains.length === 0 && (
-              <EmptyState size="sm" title="No rules">
-                {selectedRoute
-                  ? "The funder's rules have not been supplied, so nothing is routed by them: every matter on this route is routed by the organisation's limits, with a warning."
-                  : "No rule has been added to this issue yet."}
-              </EmptyState>
+              <EmptyState size="sm" title={selectedRoute ? "No funder rules supplied" : "No rules yet"} />
             )}
             {domains.map(([domain, rules], i) => (
               <Accordion
@@ -833,8 +823,8 @@ export default async function ApprovalMatrixPage({
             tone="warn"
             title={gapTitle(gapList)}
           >
-            No limit has ever been set for who may authorise {gaps === 1 ? "this" : "these"}: {gapList.map((g) => g.label).join("; ")}. Work is still routed so
-            nothing stalls, but the route is an assumption.
+            Routes are assumed.{" "}
+            <MoreText label="Matters without a limit" text={gapList.map((g) => g.label).join("; ")} />
           </Callout>
         )}
 

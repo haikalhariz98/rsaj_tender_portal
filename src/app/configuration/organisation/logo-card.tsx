@@ -8,7 +8,7 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { Field, FileInput } from "@/components/ui/field";
-import { LOGO_MAX_BYTES, LOGO_SUGGESTED_HEIGHT } from "@/lib/organisation/logo-limits";
+import { LOGO_MAX_BYTES } from "@/lib/organisation/logo-limits";
 
 import { removeLogo, uploadLogo } from "./actions";
 
@@ -148,7 +148,7 @@ export function LogoCard({ logo }: { logo: LogoInfo | null }) {
       field={{
         name: "logo",
         label: logo ? "Replace the logo" : "Upload a logo",
-        hint: `PNG, JPEG or WebP, up to ${LOGO_MAX_BYTES / 1024} KB (a technical limit). At least ${LOGO_SUGGESTED_HEIGHT} px tall is suggested, cropped close to the mark. SVG is not accepted.`,
+        hint: `PNG, JPEG or WebP, up to ${LOGO_MAX_BYTES / 1024} KB.`,
         maxBytes: LOGO_MAX_BYTES,
         noun: "logo",
       }}

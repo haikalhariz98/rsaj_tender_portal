@@ -51,6 +51,14 @@ describe("literal-text rules", () => {
     expect(rules(`export const a = <Callout tone="warn" title="Stop">${"word ".repeat(15)}</Callout>;`)).toEqual(["callout-length"]);
   });
 
+  it("holds a field hint, as a prop or as field data, to 8 words", () => {
+    const nine = "one two three four five six seven eight nine";
+    expect(rules(`export const a = <Field label="X" hint="one two three four five six seven eight" />;`)).toEqual([]);
+    expect(rules(`export const a = <Field label="X" hint="${nine}" />;`)).toEqual(["field-hint"]);
+    expect(rules(`export const a = { kind: "text", name: "n", hint: "${nine}" };`)).toEqual(["field-hint"]);
+    expect(rules("export const a = { hint: value };")).toEqual([]);
+  });
+
   it("does not judge a test file", () => {
     expect(scanSource("x.test.tsx", `export const a = "FR-EVL-014";`)).toEqual([]);
   });

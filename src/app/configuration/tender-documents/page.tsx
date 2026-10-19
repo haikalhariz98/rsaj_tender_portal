@@ -371,9 +371,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                 divided={count === 0}
               />
               {count === 0 ? (
-                <EmptyState title="No parts configured" action={<PartDrawer options={options} />}>
-                  {allRetiredHidden ? "Every part is retired. Choose Show retired parts to see them." : `${g.packKind} cannot be started on any basis until its parts are added.`}
-                </EmptyState>
+                <EmptyState title={allRetiredHidden ? "Every part is retired" : "No parts configured"} action={<PartDrawer options={options} />} />
               ) : (
                 g.byBasis.map((b) => (
                   <div key={b.basis} className="border-t border-line first:border-t-0">

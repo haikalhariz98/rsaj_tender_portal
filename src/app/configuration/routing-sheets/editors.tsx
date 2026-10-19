@@ -36,7 +36,7 @@ function typeFields(editing: boolean, templates: Option[]): Field[] {
     { kind: "select", name: "subject", label: "Drawn over", required: true, placeholder: "Choose", options: ROUTING_SUBJECTS.map((s) => ({ value: s, label: SUBJECT_WORDS[s].en })) },
     { kind: "select", name: "certificateKind", label: "For the certificate", placeholder: "Any kind", options: CERTIFICATE_KINDS.map((k) => ({ value: k, label: KIND_WORDS[k].en })) },
     { kind: "select", name: "templateId", label: "The printed sheet", placeholder: "None chosen", options: templates },
-    { kind: "select", name: "upperEdgeInclusive", label: "A percentage exactly on a band's edge falls in", placeholder: "Not decided: such a value has no target", options: [{ value: "upper", label: "The band it closes: \"up to 20%\" includes 20.00%" }, { value: "lower", label: "The band it opens: \"20% and above\" includes 20.00%" }], hint: "Only matters where the targets are banded by percentage." },
+    { kind: "select", name: "upperEdgeInclusive", label: "A percentage exactly on a band's edge falls in", placeholder: "Not decided: such a value has no target", options: [{ value: "upper", label: "The band it closes: \"up to 20%\" includes 20.00%" }, { value: "lower", label: "The band it opens: \"20% and above\" includes 20.00%" }], hint: "Only for percentage-banded targets." },
     PROVENANCE,
     { kind: "number", name: "sortOrder", label: "Order", min: 0 },
     { kind: "textarea", name: "notes", label: "Notes" },
@@ -97,7 +97,7 @@ function checkFields(offices: Option[]): Field[] {
     { kind: "text", name: "labelEn", label: "Label, as printed", required: true },
     { kind: "hidden", name: "labelMs" },
     { kind: "select", name: "officeCode", label: "The office that records it", placeholder: "Any officer (shown so)", options: offices },
-    { kind: "number", name: "targetDays", label: "Printed days for this stage", min: 1, hint: "Where the sheet prints a stage's days. With every stage's days set, their sum is shown beside the printed total." },
+    { kind: "number", name: "targetDays", label: "Printed days for this stage", min: 1, hint: "Where the sheet prints each stage's days." },
   ];
 }
 
@@ -126,7 +126,7 @@ function targetFields(): Field[] {
     { kind: "hidden", name: "typeId" },
     { kind: "hidden", name: "id" },
     { kind: "number", name: "targetDays", label: "Target, in calendar days", required: true, min: 1, hint: "Weeks as days: 2 weeks is 14." },
-    { kind: "text", name: "pctMin", label: "Band from (%)", hint: "Leave both edges empty for a target that applies whatever the percentage." },
+    { kind: "text", name: "pctMin", label: "Band from (%)", hint: "Empty edges apply at any percentage." },
     { kind: "text", name: "pctMax", label: "Band to (%)" },
     PROVENANCE,
     { kind: "textarea", name: "notes", label: "Notes" },

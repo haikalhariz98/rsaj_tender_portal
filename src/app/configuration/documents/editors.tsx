@@ -33,7 +33,7 @@ function classificationField(current: SecurityClass | null): Field {
     placeholder: classificationChoiceText(unset),
     placeholderDisabled: !unset.allowed,
     options: choices.filter((c) => c.value != null).map((c) => ({ value: c.value!, label: classificationChoiceText(c), disabled: !c.allowed })),
-    hint: current == null ? "Taken by each document when it is filed. SULIT and not set are listed but never opened in the portal. Once set, it is not taken away or lowered by one person." : CLASS_CLASSIFICATION_HINT,
+    hint: current == null ? "SULIT or not set: never opened in portal." : CLASS_CLASSIFICATION_HINT,
   };
 }
 
@@ -49,7 +49,7 @@ function classFields(editing: boolean, offices: OfficeOption[], classification: 
       name: "retentionMonths",
       label: "Keep for (months)",
       min: 1,
-      hint: "Leave empty where nobody has set a period. Empty is not zero — nothing is disposed of on an assumption.",
+      hint: "Empty is not zero: nothing is disposed.",
     },
     {
       kind: "select",
@@ -57,7 +57,7 @@ function classFields(editing: boolean, offices: OfficeOption[], classification: 
       label: "Retention starts",
       placeholder: "Not set",
       options: RETENTION_TRIGGERS.map((t) => ({ value: t, label: RETENTION_TRIGGER_LABEL[t] })),
-      hint: "What starts the clock on the period above. Not set means it never starts, so nothing is disposed of.",
+      hint: "What starts the clock. Not set: never starts.",
     },
     classificationField(classification),
     {
@@ -66,7 +66,7 @@ function classFields(editing: boolean, offices: OfficeOption[], classification: 
       label: "How it is disposed of",
       placeholder: "Not set",
       options: DISPOSAL_METHODS.map((m) => ({ value: m, label: DISPOSAL_METHOD_LABEL[m] })),
-      hint: "Recorded for the day retention ends. The portal disposes of nothing.",
+      hint: "Recorded for the day retention ends.",
     },
     {
       kind: "select",
@@ -175,16 +175,16 @@ export function EditStorePolicy({ policy, sulitClasses }: { policy: { allowedMed
           label: "Allowed types",
           placeholder: "Not set",
           options: KNOWN_MEDIA_TYPES.map((t) => ({ value: t, label: MEDIA_LABEL[t] })),
-          hint: "Only types the portal can recognise from a file's own contents are offered. Excel workbooks and Word documents apply to staff uploads only: suppliers are not offered them and cannot upload them. Leave it empty and uploads are refused until it is set.",
+          hint: "Types recognised from file contents. Empty refuses uploads.",
         },
         {
           kind: "text",
           name: "maxMegabytes",
           label: "Largest file (MB)",
           placeholder: "e.g. 20",
-          hint: "1 MB here is 1,048,576 bytes. Leave it empty and uploads are refused until it is set. The deployment may hold a lower limit of its own.",
+          hint: "1 MB is 1,048,576 bytes. Empty refuses uploads.",
         },
-        { kind: "select", name: "onlineBidFileClassId", label: "Class of a filed online bid file", placeholder: "Not set", options: sulitClasses, hint: "An online bid's files are filed in the document store when its opening is finalised, under this class. It must be classified SULIT. Leave it empty and an online opening cannot be finalised until it is set." },
+        { kind: "select", name: "onlineBidFileClassId", label: "Class of a filed online bid file", placeholder: "Not set", options: sulitClasses, hint: "Must be classified SULIT. Empty blocks online openings." },
         { kind: "select", name: "provenance", label: "Where this came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}

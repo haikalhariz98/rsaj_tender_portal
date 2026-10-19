@@ -732,9 +732,7 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload, l
           divided={away.length > 0}
         />
         {away.length === 0 ? (
-          <EmptyState size="sm" title="Everyone is in">
-            Nobody is marked as away.
-          </EmptyState>
+          <EmptyState size="sm" title="Everyone is in" />
         ) : (
           <ul className="divide-y divide-line/70 px-5 pb-2 sm:px-6">
             {away.map((p) => {
@@ -846,7 +844,7 @@ function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
       </Card>
       {lines.length > 0 && withoutLine.length > 0 && (
         <Callout tone="warn" title={`${withoutLine.length} ${withoutLine.length === 1 ? "person has" : "people have"} no reporting line`}>
-          {withoutLine.map((p) => p.name).join(", ")}. Their steps do not move on absence. No delegation to them.
+          {withoutLine.map((p) => p.name).join(", ")}. No delegation to them.
         </Callout>
       )}
     </div>

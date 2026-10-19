@@ -32,10 +32,10 @@ export function BodyDrawer({ body }: { body?: { id: string; name: string; values
       columns={2}
       fields={[
         hidden("id"),
-        ...(body ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Lower case letters, numbers and underscores. A key, not shown to officers; it cannot be changed." } as Field]),
+        ...(body ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Lower case, numbers, underscores. Cannot be changed." } as Field]),
         { kind: "text", name: "labelEn", label: "Name", required: true, hint: "As the notice prints it." },
         { kind: "hidden", name: "labelMs" },
-        { kind: "text", name: "qualifierLabelEn", label: "What an exercise states with it", hint: "For example the grade, category and specialisation, or the field codes. Empty: nothing." },
+        { kind: "text", name: "qualifierLabelEn", label: "What an exercise states with it", hint: "E.g. grade, category, specialisation. Empty: nothing." },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
         { kind: "text", name: "governingSource", label: "Where it is required", hint: "The document that asks for it." },
         { kind: "select", name: "provenance", label: "Where this came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
@@ -58,10 +58,10 @@ export function ClauseDrawer({ clause }: { clause?: { id: string; title: string;
       columns={2}
       fields={[
         hidden("id"),
-        ...(clause ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Lower case letters, numbers and underscores. Templates cite it; it cannot be changed." } as Field]),
+        ...(clause ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Lower case, numbers, underscores. Templates cite it." } as Field]),
         { kind: "text", name: "titleEn", label: "Title", required: true },
         { kind: "hidden", name: "titleMs" },
-        { kind: "select", name: "mandatoryInAgreements", label: "Every agreement carries it", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not set holds every submission back, naming this clause." },
+        { kind: "select", name: "mandatoryInAgreements", label: "Every agreement carries it", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not set holds every submission back." },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
         { kind: "textarea", name: "bodyEn", label: "Text (English)", required: true },
         { kind: "textarea", name: "bodyMs", label: "Text (Malay)", hint: "Needed where a Malay template cites it." },
@@ -82,7 +82,7 @@ export function RetireDrawer({ kind, id, label }: { kind: "body" | "clause"; id:
   return (
     <RecordEditor
       title={`Retire ${label}`}
-      description={kind === "body" ? "From this day an exercise cannot add it, and one that requires it is told at submission. It stays on record and can be restored." : "From this day agreements are not judged against it, and a template citing it is refused. Frozen documents keep it. It can be restored."}
+      description={kind === "body" ? "Exercises cannot add it from this day. Can be restored." : "Not judged against from this day. Frozen documents keep it. Can be restored."}
       fields={[hidden("id"), { kind: "date", name: "retiredOn", label: "Retired from", required: true }]}
       values={{ id }}
       destructive={{ reasonLabel: "Why it is retired" }}

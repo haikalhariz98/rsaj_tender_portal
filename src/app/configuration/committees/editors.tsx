@@ -35,7 +35,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
             label: "Code",
             required: true,
             mono: true,
-            hint: "What an approval rule routes to. Never shown on a screen.",
+            hint: "What an approval rule routes to.",
           },
         ] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
@@ -44,7 +44,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       kind: "textarea",
       name: "aliases",
       label: "Also known as",
-      hint: "Other names the body goes by in the source documents, one per line.",
+      hint: "Other names in source documents, one per line.",
     },
     { kind: "textarea", name: "mandate", label: "Mandate", hint: "What this body decides." },
     {
@@ -71,7 +71,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       kind: "switch",
       name: "isExternal",
       label: "Outside the organisation",
-      hint: "An external body's decision is a precondition rather than an internal authority.",
+      hint: "An external decision is a precondition.",
     },
     // Phase 5a (FR-CTE-003): set when the committee is made; changed afterwards only by its own act, which a second person decides (`EditQuorum`).
     ...(editing
@@ -82,7 +82,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
             name: "quorum",
             label: "Quorum",
             min: 1,
-            hint: "Leave empty where none is set. Empty is not zero — a sitting cannot be certified quorate under an unset quorum. It is changed afterwards on the committee's own page, by a change a second person decides.",
+            hint: "Empty is not zero: unset quorum cannot certify.",
           },
           {
             kind: "select",
@@ -97,7 +97,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       name: "votingRule",
       label: "Voting rule",
       placeholder: "Not set",
-      hint: "How individual votes combine. Leave unset where none is written down: no matter can then be carried or voted down, and no majority is assumed.",
+      hint: "Unset: no majority is assumed.",
       options: [
         { value: "SIMPLE_MAJORITY", label: "Simple majority of votes cast (a tie is not carried)" },
         { value: "UNANIMOUS", label: "Unanimous" },
@@ -115,7 +115,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       name: "alternateMayVoteForRecused",
       label: "May an alternate vote for a recused member?",
       placeholder: "Not set",
-      hint: "Unset, a matter where a member with an alternate recuses cannot be decided. \"Yes\" is not available yet: it needs a per-matter stand-in while the member is present, which is not built.",
+      hint: "Unset: recusal with an alternate cannot be decided.",
       options: [
         { value: "no", label: "No — the recused member's seat does not vote on that matter" },
         { value: "yes", label: "Yes — not available yet" },
@@ -133,7 +133,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       name: "carriedLabelEn",
       label: "Name for a carried decision",
       placeholder: "Not set — reads “Carried”",
-      hint: "What this body calls a decision it carries, as its minutes write it. A not-carried decision is named by its not-approved outcome.",
+      hint: "What this body calls a carried decision.",
     },
     { kind: "hidden", name: "carriedLabelMs" },
     {
@@ -141,7 +141,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       name: "secretariatRoleCode",
       label: "Secretariat office",
       placeholder: "Not set",
-      hint: "Whoever holds this office on the day tables matters before the body. Unset, nobody may table.",
+      hint: "Tables matters before the body. Unset: nobody may.",
       options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
       orphanLabel: "An office no longer configured",
     },
@@ -159,7 +159,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       kind: "date",
       name: "retiredOn",
       label: "Retired on",
-      hint: "A retired body schedules nothing from this date and keeps its history.",
+      hint: "Schedules nothing from this date; keeps history.",
     },
   ];
 }
@@ -273,7 +273,7 @@ function memberFields(
       kind: "text",
       name: "seatLabel",
       label: "How the seat is described",
-      hint: "For an office with no code of its own, because no rule routes to it directly.",
+      hint: "For an office no rule routes to.",
     },
     {
       kind: "select",
@@ -294,13 +294,13 @@ function memberFields(
       name: "alternateForId",
       label: "Alternate for",
       placeholder: "Any seat of its position",
-      hint: "For an alternate only: the seat it covers while the holder is absent. The chair has no alternate.",
+      hint: "Alternates only: the seat covered while absent.",
       options: seats.map((s) => ({ value: s.id, label: s.label })),
       orphanLabel: "A seat no longer in force",
     },
     { kind: "text", name: "appointmentRef", label: "Appointment reference" },
     { kind: "date", name: "effectiveFrom", label: "Held from", required: true },
-    { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, hint: "The first day the seat is no longer held. Leave empty while it is." },
+    { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, hint: "First day no longer held. Empty while held." },
     {
       kind: "select",
       name: "provenance",
@@ -402,8 +402,8 @@ export function VacateSeat({ id, label, exOfficio = false }: { id: string; label
       title={exOfficio ? `Remove ${label} from the committee` : `Vacate ${label}`}
       description={
         exOfficio
-          ? "The office's seat ends today. Past sittings keep resolving to whoever held the office on the day."
-          : "The seat's period ends today. Votes already cast from it keep resolving to whoever cast them."
+          ? "The seat ends today. Past sittings keep their holder."
+          : "The seat ends today. Votes already cast stand."
       }
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
@@ -466,7 +466,7 @@ function outcomeFields(editing: boolean, committees: { id: string; nameEn: strin
       label: "Returns to stage",
       placeholder: "None",
       options: stageOptions(current),
-      hint: "For a return only. On an appointment not carried, a stage of the evaluation opens its next version from there.",
+      hint: "Return only: the stage that reopens.",
     },
     {
       kind: "select",
@@ -580,7 +580,7 @@ export function EditOpeningPanel({ id, name, values, units }: { id: string; name
       columns={2}
       fields={[
         { kind: "hidden", name: "id" },
-        { kind: "number", name: "panelSize", label: "Members on an opening panel", min: 1, hint: "Another size at an opening needs the authority it is assigned under, the reason and who records it." },
+        { kind: "number", name: "panelSize", label: "Members on an opening panel", min: 1, hint: "Another size needs authority, reason and recorder." },
         { kind: "select", name: "panelSizeProvenance", label: "Where this came from", placeholder: "Not set", options: PROVENANCE_OPTIONS },
         { kind: "select", name: "panelExclusionRule", label: "An opening panel excludes a unit's members", placeholder: "Not set", options: [{ value: "yes", label: "Yes, one unit's members may not sit" }, { value: "no", label: "No unit is excluded" }] },
         { kind: "select", name: "panelExcludesUnitCode", label: "The unit excluded", placeholder: "None", options: units, hint: "Its sub-units are excluded with it." },

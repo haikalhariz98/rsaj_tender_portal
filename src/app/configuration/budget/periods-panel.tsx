@@ -52,10 +52,7 @@ export function PeriodsPanel({
     return (
       <Card className="overflow-hidden">
         <CardHeader icon={<CalendarIcon size={17} />} title="Periods" />
-        <EmptyState size="sm" title="No period configured">
-          A budget year is divided into periods, and a posting is made into one. Until
-          some exist there is nothing to open or close.
-        </EmptyState>
+        <EmptyState size="sm" title="No period configured" />
       </Card>
     );
   }

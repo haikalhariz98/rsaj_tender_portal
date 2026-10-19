@@ -37,7 +37,7 @@ function templateFields(editing: boolean, classes: DocumentClass[]): Field[] {
       name: "documentClassId",
       label: "Document class",
       placeholder: "Not classified",
-      hint: "Sets retention and controlled-copy handling for anything issued on this template.",
+      hint: "Sets retention and controlled-copy handling.",
       options: classes.map((c) => ({ value: c.id, label: c.nameEn })),
     },
   {
@@ -65,7 +65,7 @@ function templateFields(editing: boolean, classes: DocumentClass[]): Field[] {
       name: "primaryLanguage",
       label: "Issued in",
       placeholder: "Not set",
-      hint: "Needed only where both texts are written: the document is issued in this one, the other is kept for reference.",
+      hint: "Issued in this one; the other is reference.",
       options: [
         { value: "MS", label: "Malay" },
         { value: "EN", label: "English" },

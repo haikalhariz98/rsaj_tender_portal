@@ -27,9 +27,9 @@ const PROVENANCE: Field = {
 function correctionFields(forms: Option[]): Field[] {
   return [
     { kind: "hidden", name: "id" },
-    { kind: "text", name: "fromText", label: "As the form misprints it", required: true, hint: "Exactly, letter case included. Only the form's own words are corrected, never a merge field or the value it is filled with." },
+    { kind: "text", name: "fromText", label: "As the form misprints it", required: true, hint: "Exactly, letter case included." },
     { kind: "text", name: "toText", label: "As it should read", required: true },
-    { kind: "tokens", name: "templateIds", label: "The forms it corrects", placeholder: forms.length ? "Choose" : "No certificate form to choose", options: forms, hint: "Certificate forms only. The form's code and revision stay as printed." },
+    { kind: "tokens", name: "templateIds", label: "The forms it corrects", placeholder: forms.length ? "Choose" : "No certificate form to choose", options: forms, hint: "Certificate forms only." },
     PROVENANCE,
     { kind: "textarea", name: "notes", label: "Notes", placeholder: "The document-control decision it rests on" },
   ];
@@ -73,11 +73,11 @@ export function RemoveCorrection({ id, label }: { id: string; label: string }) {
 function termFields(editing: boolean, code: string | null): Field[] {
   return [
     { kind: "hidden", name: "id" },
-    editing ? { kind: "readonly", name: "codeShown", label: "Code", text: code ?? "", hint: "Set once: a form's text cites the term by it." } : { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Small letters, digits and underscores. A form cites the term as {{term:code}}." },
-    { kind: "text", name: "canonicalMs", label: "Wording (Malay)", hint: "What a Malay text prints. At least one wording is needed." },
+    editing ? { kind: "readonly", name: "codeShown", label: "Code", text: code ?? "", hint: "Set once; forms cite the term by it." } : { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Small letters, digits, underscores." },
+    { kind: "text", name: "canonicalMs", label: "Wording (Malay)", hint: "At least one wording is needed." },
     { kind: "text", name: "canonicalEn", label: "Wording (English)" },
-    { kind: "textarea", name: "aliases", label: "Other wordings, one per line", hint: editing ? "The variants the source documents use. A wording replaced above is kept here, so certificates already issued in it are still found." : "The variants the source documents use. A search for any of them finds what the others find." },
-    ...(editing ? [{ kind: "textarea", name: "reason", label: "Why an alias is removed", hint: "Asked only where an issued certificate's text still says it." } as Field] : []),
+    { kind: "textarea", name: "aliases", label: "Other wordings, one per line", hint: editing ? "The variants source documents use." : "The variants source documents use." },
+    ...(editing ? [{ kind: "textarea", name: "reason", label: "Why an alias is removed", hint: "Asked where an issued certificate says it." } as Field] : []),
     PROVENANCE,
     { kind: "textarea", name: "notes", label: "Notes" },
   ];
