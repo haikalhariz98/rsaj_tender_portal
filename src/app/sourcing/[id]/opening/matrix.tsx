@@ -30,7 +30,7 @@ import { InitialDrawer, VerdictDrawer } from "./editors";
 const ANSWER_OPTIONS = [
   { value: "PRESENT", label: "Present", tone: "ok" },
   { value: "ABSENT", label: "Absent", tone: "err" },
-  { value: "NOT_APPLICABLE", label: "Not applicable", tone: "neutral" },
+  { value: "NOT_APPLICABLE", label: "N/A", name: "Not applicable", tone: "neutral" },
 ] as const;
 
 export interface VerdictAids {
@@ -66,6 +66,7 @@ function AnswerControl({ exerciseId, col, cell, label, rowLabel, disabled }: { e
         label={`${label}: ${rowLabel}`}
         value={cell.answer}
         disabled={disabled != null || pending}
+        compact
         onChange={record}
         options={ANSWER_OPTIONS.map((o) => (o.value === "PRESENT" && presentFault ? { ...o, disabled: true, reason: MATRIX_FAULT_TEXT.NO_FILE_RECEIVED } : { ...o }))}
       />
@@ -244,8 +245,11 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
       </div>
     ),
   }));
-  const refusals = view.columns.flatMap((c) => [c.pass, c.reject]).flatMap((a) => (a.allowed ? [] : [a.reason]));
-  const sharedNotes = new Map([...new Set(refusals)].filter((r) => refusals.filter((x) => x === r).length > 1).map((r, i) => [r, `matrix-refusal-${openingId}-${i}`] as const));
+  // Every refusal is said once, under the checklist, and each button points at it. A reason that another reason begins with is covered by the longer one, so the same sentence is never printed twice.
+  const refusals = [...new Set(view.columns.flatMap((c) => [c.pass, c.reject]).flatMap((a) => (a.allowed ? [] : [a.reason])))];
+  const covering = (r: string) => refusals.filter((x) => x.startsWith(r)).reduce((a, b) => (b.length > a.length ? b : a), r);
+  const noteTexts = [...new Set(refusals.map(covering))];
+  const sharedNotes = new Map(refusals.map((r) => [r, `matrix-refusal-${openingId}-${noteTexts.indexOf(covering(r))}`] as const));
   const answerNotes = new Map(view.columns.map((c) => [c.openedBidId, c.answer] as const));
   const rows: MatrixRowSpec[] = [
     ...view.rows.map((r) => ({
@@ -288,7 +292,7 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {view.online && view.phase === "CHECKING" && !view.viewerIsNamedOfficer && <Callout tone="info">The answers and decisions are shown to you. The files, the bidders&apos; names and the acknowledgement days stay with the named opening officers until the opening is finalised.</Callout>}
-      {[...sharedNotes].map(([reason, id]) => <p key={id} id={id} className="text-[12.5px] text-ink-3">{reason}</p>)}
+      {noteTexts.map((reason, i) => <p key={reason} id={`matrix-refusal-${openingId}-${i}`} className="text-[12.5px] text-ink-3">{reason}</p>)}
       <Matrix caption="Opening checklist: one row for each item, one column for each offer read" corner="Checked at the opening" columns={columns} rows={rows} />
       <p className="text-[12.5px] text-ink-3">{`Decision: ${DECISION_STANDS_WORDS}.`}</p>
     </div>

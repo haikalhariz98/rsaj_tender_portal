@@ -12,6 +12,8 @@ const PRESSED = {
 export type ToggleOption<V extends string> = {
   value: V;
   label: string;
+  /// A fuller name when `label` is short ("N/A"): the accessible name and the hover text.
+  name?: string;
   tone?: keyof typeof PRESSED;
   /// This choice alone is unavailable, with the reason on hover (SR-14: Present on a part no file was received for).
   disabled?: boolean;
@@ -26,6 +28,7 @@ export function Toggle<V extends string>({
   onChange,
   disabled,
   label,
+  compact,
 }: {
   options: readonly ToggleOption<V>[];
   value: V | null;
@@ -33,6 +36,8 @@ export function Toggle<V extends string>({
   disabled?: boolean;
   /// What is being chosen, for a screen reader ("Attendance of Gopal Nair").
   label: string;
+  /// Tighter buttons, for a toggle in a narrow table column.
+  compact?: boolean;
 }) {
   return (
     <span role="group" aria-label={label} className="inline-flex shrink-0 rounded-full border border-line-2 bg-surface p-0.5">
@@ -43,14 +48,16 @@ export function Toggle<V extends string>({
             key={o.value}
             type="button"
             className={cx(
-              "h-7 rounded-full px-3 text-[12.5px] font-semibold transition",
+              "h-7 rounded-full text-[12.5px] font-semibold transition",
+              compact ? "px-2" : "px-3",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500",
               "disabled:cursor-not-allowed",
               pressed ? PRESSED[o.tone ?? "brand"] : "text-ink-2 enabled:hover:bg-ink/5 enabled:hover:text-ink disabled:opacity-45",
             )}
             aria-pressed={pressed}
             disabled={disabled || o.disabled}
-            title={o.disabled ? o.reason : undefined}
+            title={o.disabled ? o.reason : o.name}
+            aria-label={o.name}
             onClick={() => onChange(o.value)}
           >
             {o.label}
