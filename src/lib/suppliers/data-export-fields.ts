@@ -364,6 +364,8 @@ export const OUT_MODELS: Readonly<Record<string, OutReason>> = {
   SulitAccessEvent: "TECHNICAL",
   DocumentAccessEvent: "TECHNICAL",
   SealedAccessEvent: "TECHNICAL",
+  // The export's own log (N2 step 2): what was exported, when and by which account, never a value. Its audit row is on the supplier's History.
+  SupplierDataExport: "TECHNICAL",
   AddendumAcknowledgement: "NOT_YET_EXPORTED",
   SiteEventRegistration: "NOT_YET_EXPORTED",
   DocumentRequest: "NOT_YET_EXPORTED",

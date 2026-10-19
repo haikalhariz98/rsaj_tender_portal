@@ -76,6 +76,7 @@ const GATED = [
 const EXEMPT: Readonly<Record<string, string>> = {
   "src/lib/portal/projects/diary-store.ts": "its acts run through `inHeldContract` (submission-store.ts), which asks",
   "src/lib/portal/bids/inspection-store.ts": "opening the tender documents is a read, and is logged (log 2026-10-09, 1915)",
+  "src/lib/portal/data-export-store.ts": "the supplier's export of its own data (N2, PDPA right of access) is a read: it writes only its own log row, its audit row and the SULIT access events, and ruling 1875(3) lets a barred supplier read",
   "src/lib/portal/bids/download-store.ts": "downloading what a released purchase releases is a read, and is logged; the release is judged on the request by the rule that opens the documents on screen (SR-10)",
   "src/lib/portal/bids/rate-store.ts": "the per-account throttle counter (SR-10 review SEC-2): it records that an account asked, not an act, and must count a barred supplier's tries too, so it is not gated",
   "src/lib/portal/bids/purchase-paid.ts": "the one writer of paid, called only inside purchase-store.ts (which asks the standing) and an officer's recording of a receipt (a staff act); it reads the register itself on the locked supplier row (SR-10)",

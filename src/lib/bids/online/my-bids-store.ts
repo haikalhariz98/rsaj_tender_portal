@@ -1,6 +1,7 @@
 import type { Tx } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
 import { deploymentCeiling } from "@/lib/documents/store";
+import { inColumns } from "@/lib/suppliers/data-export-fields";
 import type { Words } from "@/lib/contract/labels";
 
 import { discardedNotices, partViews, standingChoices, submissionViews, type DiscardedNotice, type OpeningFacts, type PartView, type SubmissionView } from "./my-bids";
@@ -94,3 +95,27 @@ export async function loadBidScreen(client: Tx, actor: Pick<SupplierActor, "supp
   };
 }
 
+
+/// One of the supplier's own submissions as its export reads it (N2, the PDPA right of access): the receipt card's facts and the allow-list's IN columns only.
+export interface OwnBidReceiptRow {
+  /// The OnlineBid's IN columns (`inColumns("OnlineBid")`): nothing sealed.
+  row: Record<string, unknown>;
+  exerciseId: string;
+  receivedAt: Date;
+  late: boolean;
+  keyFingerprint: string;
+}
+
+/**
+ * Every submission of the session's supplier, for its export of its own data (N2; plan docs/notes/plans/backlog-n2.md step 2), oldest first within an exercise. It selects through the export's
+ * allow-list, so no sealed column (a manifest, a declaration, a data key or their digests) is ever read. The caller judges which exercises the supplier may see (`loadBidContext`) and drops
+ * the rest: this reads by the session's supplier and no other.
+ */
+export async function loadOwnBidReceipts(client: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">): Promise<OwnBidReceiptRow[]> {
+  const rows = await client.onlineBid.findMany({
+    where: { organisationId: actor.organisationId, supplierId: actor.supplierId },
+    orderBy: [{ exerciseId: "asc" }, { envelope: { sequence: "asc" } }],
+    select: { ...inColumns("OnlineBid"), exerciseId: true, key: { select: { fingerprint: true } }, envelope: { select: { receivedAt: true, late: true } } },
+  });
+  return rows.map(({ exerciseId, key, envelope, ...row }) => ({ row, exerciseId, receivedAt: envelope.receivedAt, late: envelope.late, keyFingerprint: key.fingerprint }));
+}

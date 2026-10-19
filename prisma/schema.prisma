@@ -482,6 +482,8 @@ model Organisation {
   officerDekGrants          OfficerDekGrant[]
   sealedEstimateLodgements  SealedEstimateLodgement[]
   sealedAccessEvents        SealedAccessEvent[]
+  /// N2 (PDPA right of access): every export a supplier made of its own data.
+  supplierDataExports       SupplierDataExport[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -8726,6 +8728,8 @@ model Supplier {
   /// Wave 3b (SR-13, ADR 0036 D9): the supplier's online bid files and submissions. A plain identity link, a recorded gap (20a).
   onlineBidFiles           OnlineBidFile[]
   onlineBids               OnlineBid[]
+  /// N2 (PDPA right of access): every export it made of its own data.
+  dataExports              SupplierDataExport[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, registrationNoKey])
@@ -12418,6 +12422,8 @@ model SupplierAccount {
   onlineBidsSubmitted      OnlineBid[]               @relation("OnlineBidSubmittedBy")
   onlineBidsWithdrawn      OnlineBid[]               @relation("OnlineBidWithdrawnBy")
   sealedAccessEvents       SealedAccessEvent[]       @relation("SealedAccessSupplier")
+  /// N2 (PDPA right of access): the exports of the supplier's own data this account made.
+  dataExportsMade          SupplierDataExport[]      @relation("SupplierDataExportedBy")
 
   @@index([organisationId])
   @@index([supplierId])
@@ -12993,4 +12999,33 @@ model Announcement {
   withdrawReason String               @default("")
 
   @@index([organisationId, withdrawnAt, pinned, publishedAt])
+}
+
+/// N2 (PDPA right of access, ruling 1875(8)): how a supplier took its export, as the JSON file or the printable page.
+enum SupplierExportForm {
+  FILE
+  PAGE
+}
+
+/// N2 (PDPA right of access, ruling 1875(8); plan docs/notes/plans/backlog-n2.md section 3): one row per export a signed-in supplier made of its own data,
+/// written with its audit row (CREATE, labelled "<reference> · Data export") in the transaction that read the data. It holds how many records each section
+/// held and the file's digest, never an exported value. AuditExport (FR-APR-015) is the precedent.
+model SupplierDataExport {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  /// The signed-in account that took it, read from the session only.
+  accountId      String
+  account        SupplierAccount @relation("SupplierDataExportedBy", fields: [accountId], references: [id], onDelete: Restrict)
+  sessionId      String
+  form           SupplierExportForm
+  /// How many records each section held ({ company: 1, contacts: 2, ... }), and no values.
+  sectionCounts  Json
+  /// SHA-256 of the file's bytes, as lowercase hex, for FILE. Null for PAGE.
+  sha256         String?
+  generatedAt    DateTime     @default(now())
+
+  @@index([organisationId, supplierId, generatedAt])
 }

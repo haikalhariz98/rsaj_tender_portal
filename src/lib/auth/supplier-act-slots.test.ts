@@ -54,6 +54,8 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   // Wave 3b (SR-13, ADR 0036 D5, D9, ruling 20w).
   "OnlineBidFile.uploadedBy": "Who uploaded a draft bid part (SR-13): the column is the record, audited with the account and logged in the sealed access log. An upload signs nothing: the submission that takes the part is the signed act (OnlineBid.submittedBy).",
   "SealedAccessEvent.supplierAccount": "The sealed access log itself (SR-13, ruling 20w): it records a supplier's attempt at sealed content, granted or refused, and is append-only for every login.",
+  // N2 step 2 (PDPA right of access, ruling 1875(8)).
+  "SupplierDataExport.account": "Which account took an export of the supplier's own data (N2): the column is the record, written with its audit row in the read's transaction. Reading one's own data is not an act and signs nothing.",
 };
 
 describe("the schema scan finds what it should", () => {
