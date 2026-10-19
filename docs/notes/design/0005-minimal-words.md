@@ -1,6 +1,6 @@
 # 0005 — Minimal words: the writing standard and the sweep
 
-Status: the writing standard. Written 2026-10-19 by the UX lead. It is **binding on every staff and supplier screen** and on any
+Status: the writing standard. Written 2026-10-19 by the UX lead; ruled the same day by the product owner, accepted with the amendments in §8, which prevail. It is **binding on every staff and supplier screen** and on any
 change that adds text to them.
 
 **Ruling handle:** cite this note as **"0005, founder 2026-10-19"** when a test, comparator entry or snapshot changes because
@@ -453,3 +453,100 @@ There are 41 sentences of 8 words or more that appear in two or more files. The 
 - "Chain beneath the approver: an office no longer configured" (3 files)
 
 Each becomes one chip or one shared string.
+
+---
+
+## 8. Product-owner ruling, 2026-10-19
+
+**Accepted, with the amendments below.** Where this section differs from §§1–7, this section prevails. The founder's instruction
+outranks earlier wording rulings. It does not outrank a client-spec Must, and it never hides a fact a user needs to decide.
+
+**R1. Two kinds of refusal (amends §3.1, refusal row).** Both have a 12-word budget.
+- A **permission refusal** says what blocks it, then who can act (§3.5).
+- A **validation refusal** names the rule breached and its source (NFR-USE-002, Must). The source citation does not count toward the
+  12 words. Example: "Closing date falls on a weekend or public holiday · SK002 7.4.2(g)", with the citation read from
+  configuration.
+
+**R2. Source clauses stay on the surface (replaces §3.2 rule 4).** This follows NFR-USE-001 (Must): "an approver sees the DAL
+clause".
+- **Product codes never reach a screen** (AGENTS.md rule 5). These are spec IDs (FR-, NFR-), ruling and decision codes (AC-, OD-,
+  BD-, B1–B8, D1–D7) and build-module numbers ("6.7", "6.16"). The appendix A.4 removals stand. Each one was checked and is a
+  product code.
+- **A customer's own clause citation is not a product code.** This means a citation held as configuration: an authority row's
+  `clause`, the matrix's policy clauses or a rule's clause. It is data, rendered as written.
+- At every decision point with a legal consequence, the citation stays visible as "rule label · clause" and is never moved into a
+  popover. Those points are an approval step, a routing "Rule" row, the award approval and a validation refusal.
+- The step-0 lint rule matches **literal product-code patterns only**. It never matches interpolated values, money ("RM 1.2m"),
+  percentages ("6.2%") or dates. A fixture test proves that these pass.
+
+**R3. An assumed or unchecked route warns where it is acted on (AGENTS.md rule 2).**
+- **At the step where someone acts on the route** (approval step, routing panel, award approval), a `warn` callout of 15 words or
+  fewer stays, for example "Route assumed: no rule covers this matter." The same applies to a route not checked against the matrix
+  (BD-613-45) and to a role that resolves nobody (BD-613-30).
+- **Elsewhere** (lists, overview), it is an **Assumed** or **Not checked** chip.
+
+**R4. Additions to the §3.7 must-keep list.** Each item is shortened to its budget, and never removed or folded into a popover.
+
+| What | Source | How it survives |
+| --- | --- | --- |
+| Rule label and source clause at decision points | NFR-USE-001 (M) | R2. |
+| The two-week closing-date rule when breached, and the warning when the closing date is near the newspaper date | Spec (advertisement) and the NFR-USE-001 acceptance | A `warn` of 15 words or fewer, with the clause. |
+| Alerts for bid validity expiry and insurance lapse | Spec | A `warn` chip or callout on the record. |
+| Each bid's comparison against the estimate, in RM and per cent. Both variances and both classifications | Spec (evaluation, "computed and displayed") | Figures and chips in the bid row. Never only in a popover. |
+| An assumed or unchecked route | AGENTS.md rule 2 | R3. |
+| Capability gaps a screen could otherwise overclaim | Honesty (AGENTS.md); MFA is not built | A visible chip, for example **Password only** on the account and sign-in screens, with the code "NFR-SEC-005" removed. The same applies to **Restricted**, **Not scanned** and **Demo**. |
+| Notices appear in the product only and are not emailed | 0004 (the notices subtitle, and the expiry callout) | Staff screens: a **Not emailed** chip. Portal: a visible line of 8 words or fewer (§3.6), never a hover. |
+| No payment provider is connected | 0003 (sale, "Online payment is not connected yet…") | The portal's visible next step, of 12 words or fewer: "Pay as [organisation] instructs." Never a popover. |
+| Every named opening officer is needed to open | 0003 (opening officers) | The editor's consequence line, of 15 words or fewer. |
+| No substitution after the closing | 0003 (key custody) | A `warn` of 15 words or fewer, reviewed line by line with step 3. |
+| A refused Office file: why it was refused, and what to save as instead | 0003 (uploads) | A validation refusal (R1). |
+| A history that drops rows | 0004 (History) | One visible list note of 8 words or fewer. |
+| The expiry notification rule: none, off, or naming who is told | 0004 (securities expiry) | None: a `warn` "No notification rule. Nobody is told." Off: an **Off** chip. Named: a fact. |
+| Any text a user signs, declares or attests to, by a supplier or by staff | Spec and statute | **Verbatim**, as §3.7's declarations row. This covers evaluators' conflict-of-interest declarations, opening attestations, committee declarations and the Integrity Pact where it is shown. |
+
+**R5. Earlier rulings that required a sentence may become a chip with a popover,** on three conditions:
+- the chip is visible at the place the ruling named;
+- the chip uses §3.5's fixed words;
+- the detail sits in the popover, present in the DOM.
+
+This covers:
+- the per-value provenance tag or **Not set** (log, policy split);
+- **Not judged** rather than "not ready" when the time zone is unset (6.14 M-1b);
+- the **Not yet** stage (6.8 S-1);
+- the "return not set" item, which is a **Not set** chip, plus a `warn` where it blocks approval;
+- the "says so" rulings of 6.13 (possession not stamped, an unresolved officer), as chips except where R3 applies;
+- the 6.14 callout naming the supplier portal, which becomes a chip or nothing, since the `info` callout is retired.
+
+Two kinds of ruling keep their sentence within the budget:
+- warnings about a figure, such as the negotiated price above the ceiling;
+- refusals.
+
+**Overclaim rulings bind chips and popovers too.** These include "no screen says identity is encrypted", the ONLINE_SALE words
+saying only what is true, and the portal listing only the file types it accepts. A shorter word may not claim more than the
+sentence it replaces.
+
+**R6. Sweep scope (amends §5).** Awards, meaning the list and the award record (A.2 #8, 3,660 words), were in no step. They join
+step 4, after evaluation.
+
+**R7. Popovers meet WCAG 2.1 SC 1.4.13 (NFR-USE-003).** `InfoChip` and `MoreText` must be:
+- dismissible with Escape;
+- hoverable;
+- persistent until dismissed;
+- keyboard-reachable.
+
+Step 0 tests this.
+
+**R8. Success notices (amends §3.1).**
+- A success notice goes away on the next action or navigation, never on a timer.
+- It is never the only record of the act. The state chip or the history shows the act too.
+
+**R9. User testing (§7) is run by the founder, not a gate on the sweep.** The build cannot arrange real users. Each step's gate is
+§4's snapshot review.
+
+**R10. Everything else is accepted as written.** This covers:
+- the budgets;
+- the three homes for an explanation;
+- the retirement of `info`, `ok` (other than the success notice) and `neutral` callouts;
+- the supplier-portal rules;
+- the English-only line;
+- the order of the sweep.
