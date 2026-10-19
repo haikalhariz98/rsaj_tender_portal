@@ -59,7 +59,7 @@ outside service is contacted: every test talks to a fake clamd built with `net.c
 
 | Variable | Meaning | Valid values |
 | --- | --- | --- |
-| `MALWARE_SCANNER_SOCKET` | clamd's local socket (`LocalSocket` in `clamd.conf`) | An absolute POSIX path. A Windows named pipe `\\.\pipe\...` is accepted for local tests only. |
+| `MALWARE_SCANNER_SOCKET` | clamd's local socket (`LocalSocket` in `clamd.conf`) | An absolute POSIX path. Nothing else: the Windows socket-mode test calls `clamdScanner` directly with a named pipe, never through the parser. |
 | `MALWARE_SCANNER_PORT` | clamd's TCP port (`TCPSocket`) | An integer 1 to 65535, digits only |
 | `MALWARE_SCANNER_HOST` | Only with the port. Defaults to `127.0.0.1` | A loopback **literal**: an IPv4 address in `127.0.0.0/8`, dotted-quad, no leading zeros, or exactly `::1`. `localhost`, `0.0.0.0`, `::ffff:127.0.0.1`, bracketed forms and any name are refused. |
 | `MALWARE_SCANNER_TIMEOUT_MS` | Whole-scan deadline: connect, send and reply | An integer 1000 to 300000. Defaults to 30000. |
@@ -181,7 +181,7 @@ scripted per test:
 - A reply over 4096 bytes gives ERROR.
 - `INSTREAM size limit exceeded. ERROR\0` sent before the terminator gives ERROR.
 - A 300 KiB payload arrives as at least 5 frames whose lengths sum to the payload, with a zero terminator.
-- Socket mode: a fake listening on a temp unix path, or `\\.\pipe\perolehan-n5-<random>` on win32, gives CLEAN.
+- Socket mode: `clamdScanner({ kind: "socket", path })` called directly against a fake listening on a temp unix path, or `\\.\pipe\perolehan-n5-<random>` on win32, gives CLEAN.
 - `parseClamdReply` table: OK, FOUND, `stream:  FOUND`, `stream: OK extra`, empty, `ERROR`.
 - `scannerSettingFrom`:
   - no env gives NONE;
@@ -229,14 +229,18 @@ Tests:
 **`src/app/configuration/bid-sealing/core.ts:85`:** use `scannerSetting().state === "SET"` for `scannerConfigured`, so a
 FAULT does not let LIVE be issued.
 
-**`page.tsx:66,138`:** the row reads "Configured", "Not configured" or "Set wrongly" from `scannerSetting().state`, through the
+**`page.tsx:66,74,138`:** line 74 passes the same `scannerSetting().state === "SET"` to `liveIssueFaults`, so the page's missing
+list matches what issue refuses. The row reads "Configured", "Not configured" or "Set wrongly" from `scannerSetting().state`, through the
 existing `KeyValues`/`item` pieces. No fault code is shown.
 
 **`src/lib/portal/bids/purchase.db.test.ts`:** a new `it` beside line 327, on the same released fixture:
-- With the default (unconfigured) scanner, the NOT_SCANNED file is served, as today.
+- With `NotConfiguredScanner` injected explicitly (never the env default), the NOT_SCANNED file is served, as today.
 - With a stub configured scanner answering CLEAN, it is served.
 - With THREAT, ERROR or NOT_SCANNED, it is refused 403. Each refusal leaves one `DocumentAccessEvent` REFUSED with the matching
-  `reasonCode` and no `PurchaseDownload` row.
+  `reasonCode`. That access-event row is the assertion that matters. `PurchaseDownload` is written only by `commit()`, which a
+  refusal has none of.
+- About five calls on one account sit well under the `document-download` limit of 60 a minute (`limits.ts`). If more are added,
+  give each mode its own `supplier()` or space the calls with `now`.
 
 The existing tests are not edited.
 
@@ -245,6 +249,11 @@ The existing tests are not edited.
 - `npm run test:db` passes, apart from the known `holding-edit.db.test.ts` scratch-data failure.
 - `npm run check` passes.
 - Committed alone.
+
+**Decisions log, in the same commit as the step that puts the call into effect** (`- 2026-10-20 · ...` lines):
+- Step 1 logs that a setting fault fails closed (T2), and that only loopback literals are accepted (T3).
+- Step 3 logs that SEC-5 scans at download, not at upload, and why (2.4, T8).
+- Step 4 logs the open-rows line.
 
 ### Step 4: deployment notes, decisions log and backlog (devops-engineer). Last.
 
@@ -255,11 +264,8 @@ The existing tests are not edited.
 - that setting or changing a variable needs a restart of the product;
 - that released pack files are scanned at each download.
 
-**`docs/notes/decisions-log.md`**, as `- 2026-10-20 · ...` lines:
-1. SEC-5 scans at download, not at upload, and why (2.4, T8).
-2. A setting fault fails closed (T2).
-3. Loopback literals only (T3).
-4. **The go-live scanner condition, the SEC-5 row and the LIVE must-have 3 row stay open until a real clamd is deployed as the
+**`docs/notes/decisions-log.md`**, as a `- 2026-10-20 · ...` line. Steps 1 and 3 have already logged their own calls:
+- **The go-live scanner condition, the SEC-5 row and the LIVE must-have 3 row stay open until a real clamd is deployed as the
    deployment notes say.** N5 builds the adapter only.
 
 **`docs/notes/backlog.md`**: the three scanner rows (lines 58, 60, 71) get "adapter built 2026-10-20 (N5), open until deployed".
