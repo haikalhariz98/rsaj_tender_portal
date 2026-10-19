@@ -188,7 +188,7 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
     const waiting = await recordVerdict({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));
     expect(waiting).toMatchObject({ ok: false });
     expect(waiting.message).toMatch(/not assessed/i);
-    expect(waiting.message).toMatch(/read again from the supplier register and the new reading is saved/);
+    expect(waiting.message).toMatch(/Restriction re-read and saved/);
     expect(waiting.message).not.toMatch(/Nothing was saved/);
 
     // The configuration changes meanwhile (finding 3): the evidence type is cleared and the closing-day rule flipped. This opening goes on under the rule it started with.
@@ -204,7 +204,7 @@ describe("review of 17a: the opening of an online buyer whose renewal waits, to 
     const retaken = await db.openedBid.findUniqueOrThrow({ where: { id: bid.id } });
     expect(retaken.restrictionFinding).toBe("EVIDENCED");
     expect(retaken.restrictionReading).toMatchObject({ reason: "COVERS_CLOSING_DAY", supplierId: buyer.supplierId, evidenceTypeId: typeId, document: { reference: "STA-NEW" } });
-    expect(noReason.message ?? "").toMatch(/read again from the supplier register and the new reading is saved/);
+    expect(noReason.message ?? "").toMatch(/Restriction re-read and saved/);
 
     const verdict = await recordVerdict({ ok: false }, form({ ...(await columnSeen(bid.id)), exerciseId: e.ex.id, openedBidId: bid.id, verdict: "PASS" }));
     expect(verdict, JSON.stringify(verdict)).toMatchObject({ ok: true });

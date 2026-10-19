@@ -45,7 +45,7 @@ export const FLOW_LABEL = {
   DOCUMENTS: "Tender documents",
   PUBLISHED: "Published",
   RECEIVED: "Bids received",
-  JADUAL: "Jadual Tawaran",
+  JADUAL: "Schedule of tenders",
 } as const;
 
 export const FLOW_JADUAL_SUB = "Follows the opening";

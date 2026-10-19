@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 
 import { SealedFileDownload } from "@/components/sealed-file-download";
 import { Badge, Dot, type Tone } from "@/components/ui/badge";
-import { Callout } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Matrix, type MatrixColumnSpec, type MatrixRowSpec } from "@/components/ui/matrix";
 import { Toggle } from "@/components/ui/toggle";
 import { RecordEditor, EMPTY_FORM_STATE } from "@/components/record-editor";
@@ -291,9 +291,9 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
   ];
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {view.online && view.phase === "CHECKING" && !view.viewerIsNamedOfficer && <Callout tone="info">The answers and decisions are shown to you. The files, the bidders&apos; names and the acknowledgement days stay with the named opening officers until the opening is finalised.</Callout>}
+      {view.online && view.phase === "CHECKING" && !view.viewerIsNamedOfficer && <InfoChip tone="neutral" detail="Answers and decisions are shown to you. Files, bidders' names and acknowledgement days stay with the named opening officers until finalised." label="About what is held">Files and names held</InfoChip>}
       {refused.notes.map((n) => <p key={n.id} id={n.id} className="text-[12.5px] text-ink-3">{n.offers ? <><span className="font-semibold">{n.offers.join(", ")}: </span>{n.text}</> : n.text}</p>)}
-      <Matrix caption="Opening checklist: one row for each item, one column for each offer read" corner="Checked at the opening" columns={columns} rows={rows} />
+      <Matrix caption="Opening checklist" corner="Checked at the opening" columns={columns} rows={rows} />
       <p className="text-[12.5px] text-ink-3">{`Decision: ${DECISION_STANDS_WORDS}.`}</p>
     </div>
   );

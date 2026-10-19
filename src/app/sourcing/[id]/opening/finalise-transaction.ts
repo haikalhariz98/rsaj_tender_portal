@@ -146,7 +146,7 @@ export async function finaliseInTransaction(
       } catch (e) {
         // R-1: thrown as a Refusal, so anything written in this transaction rolls back with it.
         if (e instanceof DisclosureRefused) online?.onFault?.("ESTIMATE_DISCLOSURE_REFUSED");
-        if (e instanceof DisclosureRefused) throw new Refusal({ ok: false, message: "Nothing was saved: the company estimate could not be disclosed as it stands. Check its state on the Scope and estimate tab." });
+        if (e instanceof DisclosureRefused) throw new Refusal({ ok: false, message: "Nothing saved. Estimate cannot be disclosed. Check Scope and estimate." });
         throw e;
       }
     }
@@ -217,7 +217,7 @@ export async function finaliseInTransaction(
       reopened = await openNewVersion(tx, toAuditActor(actor), { organisationId: l.org.id, exercise: { id: l.ex.id, reference: l.ex.reference, title: l.ex.title, status: l.ex.status }, ceiling: ceilingOf(l.ex), today: l.org.today, timeZone: l.org.timeZone, now }, { trigger: "SUPPLEMENTARY_OPENING", openingId: o.id, personId: person!.id, act });
     }
     const again = reopened ? ` Evaluation version ${reopened} is opened with the late ${o.bids.length === 1 ? "offer" : "offers"}; every stage is submitted again.` : "";
-    const copy = disclosed?.check === "MISMATCH" || disclosed?.check === "NOT_IN_BOX" ? " The estimate's paper copy is recorded as a finding to explain on the Schedule section." : "";
-    return { ok: true, message: online ? `Finalised. Each price is now read, and ${released} file${released === 1 ? " is" : "s are"} being filed in the document store. Attach the signed schedule's scan on the Schedule section.${copy}${again}` : `Finalised. Attach the signed schedule's scan on the Schedule section.${copy}${again}` };
+    const copy = disclosed?.check === "MISMATCH" || disclosed?.check === "NOT_IN_BOX" ? " Paper copy mismatch: explain it on Schedule." : "";
+    return { ok: true, message: online ? `Finalised. ${released} file${released === 1 ? "" : "s"} filing. Attach the signed scan on Schedule.${copy}${again}` : `Finalised. Attach the signed scan on Schedule.${copy}${again}` };
   }
 }

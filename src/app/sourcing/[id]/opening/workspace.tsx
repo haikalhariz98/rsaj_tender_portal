@@ -6,6 +6,8 @@ import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
+import { LeadWithMore } from "@/components/ui/more-text";
 import { KeyValues } from "@/components/ui/stat";
 import { OPENING_STATEMENT } from "@/lib/opening/labels";
 import { db } from "@/lib/db";
@@ -44,23 +46,21 @@ export interface OpeningTabView {
 
 const GONE = (
   <Card>
-    <EmptyState title="This exercise could not be found">Its organisation may no longer be configured.</EmptyState>
+    <EmptyState title="Exercise not found" />
   </Card>
 );
 
 function Statement() {
   return (
-    <Callout tone="info" title={OPENING_STATEMENT.title}>
-      {OPENING_STATEMENT.body}
-    </Callout>
+    <div className="flex justify-end">
+      <InfoChip tone="neutral" detail={OPENING_STATEMENT.body} label={OPENING_STATEMENT.title}>Panel authorises</InfoChip>
+    </div>
   );
 }
 
-const NOT_HERE = (exerciseId: string, what: string) => (
+const NOT_HERE = (exerciseId: string, title: string) => (
   <Card>
-    <EmptyState title="Nothing is opened here" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids&section=received`} variant="secondary" size="sm">Open Received</ButtonLink>}>
-      {what}
-    </EmptyState>
+    <EmptyState title={title} action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids&section=received`} variant="secondary" size="sm">Open Received</ButtonLink>} />
   </Card>
 );
 
@@ -72,7 +72,7 @@ export async function loadOpening(actor: StaffActor, exerciseId: string): Promis
   const d = await openingSection(actor.organisationId, exerciseId, prices, actor.personId, actor.isAdministrator);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   if (!d.applies) {
-    return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement />{NOT_HERE(exerciseId, "Bids are opened here for an exercise published through its invitation window with tender or quotation documents. This one was not, so its opening is recorded outside the portal.")}</div> };
+    return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement />{NOT_HERE(exerciseId, "Opened outside the portal")}</div> };
   }
   // SR-14: each opening's matrix, read for this viewer. Only this section reads it.
   const matrices = await openingMatrices(actor.organisationId, exerciseId, d.openings.map((o) => o.id), { personId: actor.personId, administrator: actor.isAdministrator });
@@ -90,13 +90,13 @@ function OpeningPanel({ d, viewerPersonId, matrices, viewer }: { d: OpeningSecti
       <Statement />
       {d.startNeeded && (
         <Card>
-          <CardHeader icon={<UsersIcon size={17} />} title="Not started" subtitle="The opening starts once the window has closed and the box is recorded as locked. Its panel is drawn from the committee the method names." />
+          <CardHeader icon={<UsersIcon size={17} />} title="Not started" />
           <CardBody className="border-t border-line">
             <KeyValues
               columns={2}
               items={[
-                { label: "Opened by", value: d.start.committee ?? "The method names no opening committee" },
-                ...(d.start.roster ? [{ label: "Opening officers", value: d.start.roster.map((o) => o.label).join("; ") || "None named" }] : []),
+                { label: "Opened by", value: d.start.committee ?? "Not set" },
+                ...(d.start.roster ? [{ label: "Opening officers", value: d.start.roster.map((o) => o.label).join("; ") || "None" }] : []),
                 { label: "Panel size", value: d.start.panelSize == null ? "Not set" : String(d.start.panelSize) },
                 { label: "Independence", value: d.start.independence },
                 { label: "The box", value: d.box.lockedAt ? `Locked ${d.box.lockedAt}` : "Not recorded as locked" },
@@ -111,7 +111,7 @@ function OpeningPanel({ d, viewerPersonId, matrices, viewer }: { d: OpeningSecti
       ))}
       <LateCard d={d} />
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="Company estimate" subtitle="Never read at the opening. Disclosed when the opening is finalised, and only then compared with its paper copy." />
+        <CardHeader icon={<FileIcon size={17} />} title="Company estimate" />
         <CardBody className="border-t border-line">
           <p className="text-[13.5px] text-ink-2">{d.estimate.text}</p>
         </CardBody>
@@ -125,16 +125,15 @@ function MatrixSection({ d, o, matrix, viewer }: { d: OpeningSectionView; o: Ope
   const aids: Record<string, VerdictAids> = Object.fromEntries(o.offers.map((b) => [b.id, { options: b.verdictOptions, grounds: b.grounds, reported: b.reported }]));
   return (
     <CardBody className="flex min-w-0 flex-col gap-3 border-t border-line">
-      <div>
-        <h3 className="text-[13.5px] font-semibold text-ink">Checked against each bid</h3>
-        <p className="text-[12.5px] text-ink-3">{matrix?.online ? "One answer for each item and offer. The files the opening checks are opened here by the named officers only; each download asks your sign-in password and your unseal passphrase, every time, and is logged. A column is decided once, and stands once every named officer has confirmed it." : "One answer for each item and offer. A column is decided once, and stands once every present panel member has confirmed it."}</p>
-      </div>
-      {o.checklist.notJudged.length > 0 && <Callout tone="warn">{`Whether a bidder returns ${o.checklist.notJudged.join(", ")} is not set, so completeness is not judged against it and the opening cannot be finalised.`}</Callout>}
-      {o.checklist.notReturned.length > 0 && <p className="text-[12.5px] break-words text-ink-3">{`Not returned by a bidder, so not checked: ${o.checklist.notReturned.join(", ")}.`}</p>}
+      <h3 className="text-[13.5px] font-semibold text-ink">
+        <LeadWithMore lead="Checklist" more={matrix?.online ? "Files open here for named officers only. Each download asks your password and passphrase, and is logged. A column stands once every named officer confirms it." : "A column stands once every present panel member confirms it."} />
+      </h3>
+      {o.checklist.notJudged.length > 0 && <Callout tone="warn">{`Not judged: whether ${o.checklist.notJudged.join(", ")} must be returned is not set. Finalising is blocked.`}</Callout>}
+      {o.checklist.notReturned.length > 0 && <p className="text-[12.5px] break-words text-ink-3">{`Not checked, not returned: ${o.checklist.notReturned.join(", ")}.`}</p>}
       {!matrix || matrix.columns.length === 0 ? (
-        <EmptyState size="sm" title="No offer to check yet">{o.online ? "The checklist is answered once the bids are unsealed and each offer is listed." : "Each offer read is checked here, one column for each."}</EmptyState>
+        <EmptyState size="sm" title="No offer to check yet" />
       ) : matrix.rows.length === 0 ? (
-        <EmptyState size="sm" title="Nothing is on the checklist">The checklist for this opening holds no item, so there is nothing to answer here.</EmptyState>
+        <EmptyState size="sm" title="Checklist is empty" />
       ) : (
         <OpeningMatrix exerciseId={d.exerciseId} openingId={o.id} view={matrix} viewer={viewer} verdicts={matrix.namesHeld ? {} : aids} />
       )}
@@ -189,7 +188,7 @@ function OpeningCard({ d, o, viewerPersonId, matrices, viewer }: { d: OpeningSec
                 </span>
                 <Chip tone={p.present ? "ok" : undefined}>{p.present ? "Present" : "Absent"}</Chip>
                 {p.authorised && <Chip tone="brand">{`Authorised sitting ${o.sittingNo}`}</Chip>}
-                {shown(o, p.authorise) && !p.authorised && !o.finalised && p.authorise && (p.personId === viewerPersonId ? <AuthoriseDrawer exerciseId={ex} openingId={o.id} name={p.name} allowed={p.authorise} online={o.online ? o.authorisationsRequired : null} /> : <span className="text-[12.5px] text-ink-3">Authorises signed in as themselves</span>)}
+                {shown(o, p.authorise) && !p.authorised && !o.finalised && p.authorise && (p.personId === viewerPersonId ? <AuthoriseDrawer exerciseId={ex} openingId={o.id} name={p.name} allowed={p.authorise} online={o.online ? o.authorisationsRequired : null} /> : <span className="text-[12.5px] text-ink-3">Authorises in their own sign-in</span>)}
               </li>
             ))}
           </ul>
@@ -231,7 +230,7 @@ function OpeningCard({ d, o, viewerPersonId, matrices, viewer }: { d: OpeningSec
 
       {o.filesToFile != null && o.filesToFile > 0 && (
         <CardBody className="flex flex-col gap-3 border-t border-line">
-          <Callout tone="warn">{`${o.filesToFile} sealed bid file${o.filesToFile === 1 ? " is" : "s are"} still to be filed in the document store. Until each is filed its data key stays readable in the database.`}</Callout>
+          <Callout tone="warn">{`${o.filesToFile} sealed bid file${o.filesToFile === 1 ? "" : "s"} not filed. Keys stay readable until filed.`}</Callout>
           <FileSealedBidsDrawer exerciseId={ex} openingId={o.id} waiting={o.filesToFile} />
         </CardBody>
       )}
@@ -269,10 +268,10 @@ function OpeningCard({ d, o, viewerPersonId, matrices, viewer }: { d: OpeningSec
             {o.finalise.allowed.allowed && o.online && o.panel.some((p) => p.personId === viewerPersonId) && <OnlineFinaliseDrawer exerciseId={ex} openingId={o.id} title={o.title} allowed={o.finalise.allowed} />}
           </div>
           {o.online && o.finalise.online && (
-            <p className="text-[13px] text-ink-2">{`${o.finalise.online.signed} of the ${o.finalise.online.of} named officers have signed the schedule. Each signs in their own sign-in; when all have, any one of them finalises with their own unseal passphrase. Finalising unseals each bid's price and period, so none is read before it.`}</p>
+            <p className="text-[13px] text-ink-2">{`${o.finalise.online.signed} of ${o.finalise.online.of} officers have signed.`}</p>
           )}
           {o.finalise.outstanding.length === 0 ? (
-            <p className="text-[13px] text-ink-2">{o.online ? "Everything the schedule carries is on the record." : "Everything the paper schedule carries is on the record."}{o.finalise.paper ? " Finalising asks for the figure on the estimate's paper copy." : ""}</p>
+            <p className="text-[13px] text-ink-2">Nothing outstanding.{o.finalise.paper ? " Paper figure asked at finalising." : ""}</p>
           ) : (
             <Callout tone="warn" title="Before it can be finalised">
               <ul className="flex list-disc flex-col gap-1 pl-5">
@@ -290,7 +289,7 @@ function LateCard({ d }: { d: OpeningSectionView }) {
   if (d.late.length === 0) return null;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<InboxIcon size={17} />} title="Late envelopes" subtitle="Never opened at the main opening. The committee decides each one's admission on the Received section; an admitted one is opened at its own supplementary opening, after the main one is finalised. One not admitted is returned unopened." />
+      <CardHeader icon={<InboxIcon size={17} />} title="Late envelopes" subtitle="Admission is decided on Received." />
       <ul className="divide-y divide-line/70 border-t border-line">
         {d.late.map((e) => (
           <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 sm:px-6">
@@ -317,7 +316,7 @@ export async function loadSchedule(scope: StaffActor, exerciseId: string): Promi
 }
 
 function SchedulePanel({ d }: { d: ScheduleSectionView }) {
-  if (d.openings.length === 0) return NOT_HERE(d.exerciseId, "The schedule (Jadual Tawaran) is built from the opening's record once the opening has started.");
+  if (d.openings.length === 0) return NOT_HERE(d.exerciseId, "Opening not started");
   return (
     <div className="flex flex-col gap-6">
       {d.openings.map((o) => (
@@ -332,8 +331,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
     <Card className="overflow-hidden">
       <CardHeader
         icon={<FileIcon size={17} />}
-        title={<span className="inline-flex flex-wrap items-center gap-2">{`Schedule of tenders · ${o.title}`}<Badge tone={o.finalised ? "ok" : "warn"} dot>{o.finalised ? `Finalised ${o.finalisedAt}` : "Not finalised: a draft from the record"}</Badge></span>}
-        subtitle={o.finalised ? "Frozen when the opening was finalised; it never changes." : "Built from the record as it stands. It is frozen when the opening is finalised."}
+        title={<span className="inline-flex flex-wrap items-center gap-2">{`Schedule of tenders · ${o.title}`}<Badge tone={o.finalised ? "ok" : "warn"} dot>{o.finalised ? `Finalised ${o.finalisedAt}` : "Draft"}</Badge></span>}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <ScheduleDownloads exerciseId={d.exerciseId} o={o} />
@@ -354,15 +352,22 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
       )}
       {o.copy && (
         <CardBody className="flex flex-col gap-3 border-t border-line">
-          <Callout tone={o.copy.tone === "warn" ? "warn" : "info"} title={o.copy.text} action={o.explain?.allowed ? <CopyExplanationDrawer exerciseId={d.exerciseId} openingId={o.id} people={d.people} /> : undefined}>
-            {o.copy.fault ?? (o.explanation ? `Explained by ${o.explanation.by}, ${o.explanation.at}: ${o.explanation.text}` : o.copy.body)}
-          </Callout>
+          {o.copy.tone === "warn" ? (
+            <Callout tone="warn" title={o.copy.text} action={o.explain?.allowed ? <CopyExplanationDrawer exerciseId={d.exerciseId} openingId={o.id} people={d.people} /> : undefined}>
+              {o.copy.fault ?? (o.explanation ? `Explained by ${o.explanation.by}, ${o.explanation.at}: ${o.explanation.text}` : o.copy.body)}
+            </Callout>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <InfoChip tone={o.copy.tone === "ok" ? "ok" : "neutral"} detail={o.copy.body ?? o.copy.text} label="About the paper copy">{o.copy.text}</InfoChip>
+              {o.explain?.allowed && <CopyExplanationDrawer exerciseId={d.exerciseId} openingId={o.id} people={d.people} />}
+            </div>
+          )}
         </CardBody>
       )}
       <GrandSummaryList o={o} />
       <CardBody className="flex flex-col gap-3 border-t border-line">
         {o.finalised ? (
-          <OwnerAttachments owner={{ kind: "opening", id: o.id }} only={["SIGNED_SCHEDULE"]} title="The signed schedule" subtitle="The scan of the paper the panel signed. Evaluation and the award wait for it." collapseWhenEmpty={false} />
+          <OwnerAttachments owner={{ kind: "opening", id: o.id }} only={["SIGNED_SCHEDULE"]} title="The signed schedule" subtitle="Evaluation and award wait for it." collapseWhenEmpty={false} />
         ) : (
           <p className="text-[13px] text-ink-3">{o.scan}</p>
         )}
@@ -389,7 +394,6 @@ export async function loadReceivedSchedule(scope: StaffActor, exerciseId: string
           <CardHeader
             icon={<FileIcon size={17} />}
             title={<span className="inline-flex flex-wrap items-center gap-2">{`Schedule of tenders · ${o.title}`}<Badge tone="ok" dot>{`Finalised ${o.finalisedAt}`}</Badge></span>}
-            subtitle="Frozen when the opening was finalised; the same table as on the Schedule section."
             actions={<div className="flex flex-wrap items-center gap-2"><ScheduleDownloads exerciseId={d.exerciseId} o={o} /></div>}
           />
           <div className="border-t border-line">

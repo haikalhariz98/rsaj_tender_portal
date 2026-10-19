@@ -62,12 +62,12 @@ describe("M3: the schedule's columns are one list for the screen, the print and 
     benchmark: null,
     summary: { rows: [{ listingNo: 1, bidderName: "Maju Jaya", openingPrice: { state: "GRANTED", value: "RM 100.00" } as never, label: "Lowest" }] },
   };
-  it("the schedule file's heading row is the list, in order, with Kelas (register) and Class as read", () => {
+  it("the schedule file's heading row is the list, in order, with Class (register) and Class as read", () => {
     const csv = (openingCsv("schedule", opening) as { csv: string }).csv;
     const c = SCHEDULE_COLUMNS;
     const heading = csv.split(LINE_END).find((l) => l.includes(c.kelas))!;
     expect(heading.replaceAll('"', "").split(",")).toEqual([c.listing, c.bidder, c.kelas, c.classAsRead, c.status, c.price, c.period]);
-    expect(c.kelas).toBe("Kelas (register)");
+    expect(c.kelas).toBe("Class (register)");
     expect(c.classAsRead).toBe("Class as read");
   });
   it("the Grand Summary file's heading row is its list", () => {

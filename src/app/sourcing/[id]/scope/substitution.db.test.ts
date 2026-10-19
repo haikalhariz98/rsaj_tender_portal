@@ -381,7 +381,7 @@ describe("a substitution after publication (D11, ruling 11)", () => {
     // The opening cannot start with the share still with the officer who was replaced, and says what has happened.
     const refusedStart = await start(ex, o1);
     expect(refusedStart.ok).toBe(false);
-    expect(message(refusedStart)).toMatch(/substitution of an opening officer was started and not completed/);
+    expect(message(refusedStart)).toMatch(/officer substitution is unfinished/ /* 0005, founder 2026-10-19 */);
     expect(message(refusedStart)).toMatch(/re-tendered/);
     // The release is refused past the closing, and the share stays where it was.
     const late = await release(ex, o2);

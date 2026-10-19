@@ -36,7 +36,6 @@ export function EnvelopesToOpen({ exerciseId, o }: { exerciseId: string; o: Open
       toolbar={false}
       exportName="envelopes-to-open"
       emptyTitle="No envelope to open"
-      emptyBody={o.kind === "MAIN" ? "No envelope in time is on the register. Register each envelope found in the box first." : "The admitted envelope is not on the register."}
       actionsPlacement="below"
       columns={[
         { key: "envelope", label: "Envelope", width: "150px", sortable: true, mobile: "primary" },
@@ -96,13 +95,12 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
       toolbar={false}
       exportName="offers-read"
       emptyTitle="No offer read yet"
-      emptyBody="Each envelope opened is listed here in opening order, with its number (Bil.)."
       actionsPlacement="below"
       // S-1: stacked below 2xl (a 1280–1440 card cannot hold six columns and the bidder's name);
       // from 2xl the bidder keeps 200px at least, and the verdict column holds "Carried to evaluation".
       stackBelow="2xl"
       columns={[
-        { key: "listing", label: "Bil.", width: "110px", sortable: true, mobile: "primary" },
+        { key: "listing", label: "No.", width: "110px", sortable: true, mobile: "primary" },
         { key: "bidder", label: "Bidder as read", minWidth: "200px", mobile: "meta" },
         { key: "openingPrice", label: "Price as read", width: "190px", sulit: true, mobile: "meta" },
         { key: "findings", label: "Findings", width: "220px", mobile: "meta" },

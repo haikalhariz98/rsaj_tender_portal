@@ -124,7 +124,7 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
       await logCeremonyEvent(tx, { organisationId: l.org.id, exerciseId: l.ex.id, kind: "AUTHORISE", staffPersonId: actor.personId, recordId: row.id, at: now });
 
       // A resumed sitting, after the unseal: the officer has proved their passphrase and nothing is opened again, so no share is forwarded.
-      if (state.unsealed) return { ok: true, message: after.state === "AUTHORISED" ? "Recorded. The sitting is authorised: the opening may continue." : `Recorded. ${required - after.count} of the ${required} named officers have still to authorise this sitting.` };
+      if (state.unsealed) return { ok: true, message: after.state === "AUTHORISED" ? "Recorded. Sitting authorised." : `Recorded. ${required - after.count} of ${required} officers still to authorise.` };
 
       const gathered = await gatherHeldShares(tx, { organisationId: l.org.id, exerciseId: l.ex.id, openingId: o.id, sittingNo: state.sittingNo, keys, officerKeyId: me.officerKeyId, privateKey: unlocked.privateKey });
       if (!gathered.ok) throw new Refusal(stop([{ code: gathered.fault, level: "block" }], gathered.fault));
@@ -135,7 +135,7 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
           const forwarded = await forwardShares(tx, { organisationId: l.org.id, exerciseId: l.ex.id, openingId: o.id, authorisationId: row.id, keys, fromOfficerKeyId: me.officerKeyId, held: gathered.held, to: plan.forwardTo, now });
           await shredReleases(tx, { organisationId: l.org.id, openingId: o.id, ids: gathered.incoming, as: "used", now });
           await audit(tx, toAuditActor(actor), l.org.id, "ShareRelease", row.id, label(l, "Shares forwarded"), "CREATE", diffFields(null, { forwardedTo: `${forwarded} officer${forwarded === 1 ? "" : "s"} still to authorise` }));
-          return { ok: true, message: `Recorded. ${plan.forwardTo.length} of the ${required} named officers have still to authorise before the bids are unsealed. Every named officer is needed.` };
+          return { ok: true, message: `Recorded. ${plan.forwardTo.length} of ${required} officers still to authorise.` };
         }
 
         // The last authorisation. Everything is read and checked before anything is written.
@@ -193,7 +193,7 @@ export async function authoriseOnlineUnseal(_prev: FormState, data: FormData): P
           await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "OPENING_IN_PROGRESS" }));
         }
         const late = prepared.plan.waiting;
-        return { ok: true, message: `Recorded. Every named officer has authorised: the bids are unsealed and ${records.length} ${records.length === 1 ? "was" : "were"} opened.${late ? ` ${late} received after the closing ${late === 1 ? "waits" : "wait"} for the committee and a supplementary opening.` : ""} Each price is read when the opening is finalised.` };
+        return { ok: true, message: `Recorded. Bids unsealed: ${records.length} opened.${late ? ` ${late} late, awaiting the committee.` : ""}` };
       } finally {
         for (const h of gathered.held) zero(h.share);
       }

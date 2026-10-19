@@ -21,9 +21,9 @@ export const stampNow = () => toSecond(new Date());
 
 export const refuse = (fs: readonly Finding[], lead = "Nothing was saved:"): FormState => ({ ok: false, message: `${lead} ${blocking(fs).map(openingFindingText).join(" ")}` });
 export const warnings = (fs: readonly Finding[]) => fs.filter((f) => f.level !== "block").map(openingFindingText).join(" ");
-export const GONE_OPENING: FormState = { ok: false, message: "That opening is not on this exercise." };
-export const GONE_BID: FormState = { ok: false, message: "That offer is not on this exercise." };
-export const ENVELOPE_CHANGED: FormState = { ok: false, message: "The envelope changed while this was being saved. Nothing was saved. Reload and try again." };
+export const GONE_OPENING: FormState = { ok: false, message: "Opening not found here." };
+export const GONE_BID: FormState = { ok: false, message: "Offer not found here." };
+export const ENVELOPE_CHANGED: FormState = { ok: false, message: "Envelope changed. Nothing saved. Reload and try again." };
 
 /// Run an opening write with every lock its order asks for, and the context read under them.
 export async function inOpening(scope: Reader, exerciseId: string, now: Date, fn: (tx: Tx, l: LockedWindow, c: OpeningContext) => Promise<FormState>, opts: { estimate?: boolean; prices?: StaffActor } = {}): Promise<FormState> {
@@ -31,7 +31,7 @@ export async function inOpening(scope: Reader, exerciseId: string, now: Date, fn
     // Phase 3b: an act that writes a price as read is done by someone the prices are open to; what they may not read they may not change, and are told why. Logged in this transaction.
     if (opts.prices) {
       const refusal = await sulitWriteRefusal(tx, opts.prices, { scope: "exercise", exerciseId: l.ex.id }, ["openingPrice", "correctedPrice"]);
-      if (refusal) return { ok: false, message: `Nothing was saved: the prices read at the opening are SULIT and are closed to you. ${refusal}` };
+      if (refusal) return { ok: false, message: `Nothing saved. Opening prices are SULIT and closed to you. ${refusal}` };
     }
     await lockOpeningRows(tx, l.ex.id);
     if (opts.estimate) await lockLiveEstimateRows(tx, l.ex.id);

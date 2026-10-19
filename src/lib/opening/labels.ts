@@ -142,7 +142,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   OFFICERS_TOO_MANY: (f) => `${plural(Number(d(f, "required")), "officer is", "officers are")} needed, ${Number(d(f, "named"))} named. Remove one.`,
   OFFICER_IS_ADMINISTRATOR: (f) => `${d(f, "person")} is an administrator. Administrators do not open bids. Name someone else.`,
   EXERCISE_CANCELLED: () => "Cancelled. Opening officers stay as they were.",
-  AFTER_CLOSING: () => "Closing has passed. Officers cannot change. Without one, the exercise must be re-tendered.",
+  AFTER_CLOSING: () => "Closing has passed. Officers cannot change. If one cannot take part, the exercise must be re-tendered.",
   OPENING_STARTED: () => "Opening started. Its officers stay as they are.",
   AUTHORITY_REQUIRED: () => "Name the authority for the change.",
   PANEL_SIZE_NOT_SET: () => `Panel size not set. Set it under ${SETTING_AT.committee}.`,
@@ -183,7 +183,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   ALREADY_FINALISED: () => "Already finalised.",
   ADMINISTRATOR: () => "Administrators do not open, sign for or finalise bids.",
   KEY_OFFICERS_MISMATCH: (f) => (n(f, "waiting") === 1
-    ? "An officer substitution is unfinished. Once closed it cannot complete: re-tender the exercise."
+    ? "An officer substitution is unfinished. After closing it cannot complete: the exercise must be re-tendered."
     : n(f, "keyOfficers") === n(f, "officers")
     ? `Officers differ from those the key was split across. Each must set their share again.`
     : `Key split across ${n(f, "keyOfficers")} officers, ${n(f, "officers")} named. Each must set their share again.`),

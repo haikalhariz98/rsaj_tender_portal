@@ -1,7 +1,7 @@
 /**
  * The two opening documents as CSV files (Sourcing Requirements v2, SR-15, ruling 24). Pure.
  *
- * "Jadual Tawaran" (the schedule of tenders) and the Grand Summary are built from the copies frozen when the opening was finalised, in the
+ * The schedule of tenders and the Grand Summary are built from the copies frozen when the opening was finalised, in the
  * opening's order, and are offered only after finalising. They hold what the print page holds, no more: the price cells are the view's, so a reader who
  * may not read the prices gets "SULIT · withheld" with the reason in words, exactly as the screen shows it (SULIT handling is unchanged), and the
  * company estimate's row is there only as the view discloses it. Titles are the print page's own labels. Kelas is the supplier register's reading frozen
@@ -21,11 +21,11 @@ export const OPENING_DOWNLOAD_TITLE: Readonly<Record<OpeningDownloadKind, string
 export const NO_CLASS_ON_REGISTER = "No class on the register";
 
 /**
- * The columns of the two documents, once (SR-15 review M3). The screen, the print page and the CSV all take their headings from here, so the three cannot drift: Kelas is the register's reading
+ * The columns of the two documents, once (SR-15 review M3). The screen, the print page and the CSV all take their headings from here, so the three cannot drift: Class (register) is the register's reading
  * frozen when the offer was read, beside "Class as read" (what the officer recorded from the envelope), so neither is passed off as the other.
  */
-export const SCHEDULE_COLUMNS = { listing: "Bil.", bidder: "Bidder", kelas: "Kelas (register)", classAsRead: "Class as read", status: "Status", price: "Price as read", period: "Completion period" } as const;
-export const SUMMARY_COLUMNS = { listing: "Bil.", bidder: "Bidder", kelas: "Kelas (register)", price: "Price as read", period: "Completion period", label: "At the opening" } as const;
+export const SCHEDULE_COLUMNS = { listing: "No.", bidder: "Bidder", kelas: "Class (register)", classAsRead: "Class as read", status: "Status", price: "Price as read", period: "Completion period" } as const;
+export const SUMMARY_COLUMNS = { listing: "No.", bidder: "Bidder", kelas: "Class (register)", price: "Price as read", period: "Completion period", label: "At the opening" } as const;
 
 /// The cells of the Kelas columns as every output shows them.
 export const kelasText = (registerClass: string | null): string => registerClass?.trim() || NO_CLASS_ON_REGISTER;

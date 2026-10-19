@@ -136,8 +136,8 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     who.actor = o1.actor;
     const paper = await finaliseOpening({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, [PASSWORD_FIELD]: o1.password }));
     expect(paper.ok).toBe(false);
-    expect(message(paper)).toMatch(/takes bids online/);
-    expect(message(paper)).toMatch(/Finalising section of this exercise/);
+    expect(message(paper)).toMatch(/Online bids finalise only under Finalising/);
+    expect(message(paper)).toMatch(/under Finalising on this tab/);
 
     // Nobody has signed: refused by name, and nothing was written.
     const none = await finalise(ex, opening.id, o1);
@@ -149,7 +149,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     // One signature of two is not enough.
     const s1 = await sign(ex, opening.id, o1);
     expect(s1.ok, message(s1)).toBe(true);
-    expect(message(s1)).toMatch(/1 named officer has still to sign/);
+    expect(message(s1)).toMatch(/1 still to sign/);
     const one = await finalise(ex, opening.id, o2);
     expect(one.ok).toBe(false);
     expect(message(one)).toMatch(/Every named officer signs first/);
@@ -169,7 +169,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     // Any one of the two finalises, with only their own passphrase.
     const done = await finalise(ex, opening.id, o2);
     expect(done.ok, message(done)).toBe(true);
-    expect(message(done)).toMatch(/4 files are being filed/);
+    expect(message(done)).toMatch(/4 files filing/);
     const after = await db.opening.findUniqueOrThrow({ where: { id: opening.id } });
     expect(after.finalisedAt).not.toBeNull();
     const priced = await db.openedBid.findMany({ where: { openingId: opening.id } });
@@ -200,7 +200,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     // Finalised twice is refused in words.
     const again = await finalise(ex, opening.id, o1);
     expect(again.ok).toBe(false);
-    expect(message(again)).toMatch(/already finalised/);
+    expect(message(again)).toMatch(/already finalised/i);
   }, 300_000);
 
   it("a file that does not open whole blocks the finalise in words, before it commits: nothing is written, no key is released", async () => {
@@ -212,7 +212,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     const blocked = await finalise(ex, opening.id, ex.officers[0]);
     expect(blocked.ok).toBe(false);
     expect(message(blocked)).toMatch(/did not open whole/);
-    expect(message(blocked)).toMatch(/Nothing was finalised/);
+    expect(message(blocked)).toMatch(/Nothing finalised/);
     expect(message(blocked)).not.toMatch(/ONLINE_|FILE_UNREADABLE/);
     expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).finalisedAt).toBeNull();
     expect((await db.openedBid.findMany({ where: { openingId: opening.id } })).every((o) => o.priceAsRead === null)).toBe(true);
@@ -227,7 +227,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     await tamperCipher((await filesOf(ex.id))[1].id, true);
     const blocked = await finalise(ex, opening.id, ex.officers[1]);
     expect(blocked.ok).toBe(false);
-    expect(message(blocked)).toMatch(/no longer matches the digest/);
+    expect(message(blocked)).toMatch(/no longer matches its digest/);
     expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).finalisedAt).toBeNull();
   }, 300_000);
 
@@ -237,7 +237,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     const strangerAsOfficer = { ...stranger, rosterId: "", passphrase: "does not matter" } as Officer;
     const named = await finalise(ex, opening.id, strangerAsOfficer);
     expect(named.ok).toBe(false);
-    expect(message(named)).toMatch(/Only an opening officer named/);
+    expect(message(named)).toMatch(/Only a named opening officer/);
     const admin = await signedIn(true);
     who.actor = admin.actor;
     const refusedAdmin = await finaliseOnline({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, passphrase: "x".repeat(14), [PASSWORD_FIELD]: admin.password }));
@@ -257,7 +257,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     const openingB = await openingOf(exB);
     const early = await finalise(exB, openingB.id, exB.officers[0]);
     expect(early.ok).toBe(false);
-    expect(message(early)).toMatch(/not unsealed yet|bids are not unsealed/i);
+    expect(message(early)).toMatch(/not unsealed/i);
   }, 300_000);
 
   it("is refused in words, before any passphrase is tried, while the class a filed bid takes is not set", async () => {
@@ -268,7 +268,7 @@ describe("the online finalise, n = 2 (D10, ruling 20t)", () => {
     try {
       const r = await finalise(ex, opening.id, ex.officers[0]);
       expect(r.ok).toBe(false);
-      expect(message(r)).toMatch(/class that an online bid's files take/);
+      expect(message(r)).toMatch(/Class for filed bid files not set/);
       expect((await db.officerExerciseKey.findFirstOrThrow({ where: { exerciseId: ex.id, personId: ex.officers[0].person.id, retiredAt: null } })).failedAttempts).toBe(0);
       expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).finalisedAt).toBeNull();
     } finally {
@@ -488,7 +488,7 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
     expect(liveKey.id).not.toBe(first.keyId);
 
     // ESTIMATE_NOT_LODGED reads the online channel: the copy under the retired key no longer counts, though the estimate's state still says lodged.
-    const notLodged = /none is lodged/;
+    const notLodged = /None lodged/;
     const gateAfterRekey = (await openingSection(org, ex.id, granted, null, false))!.start.allowed;
     expect(gateAfterRekey.allowed).toBe(false);
     expect(JSON.stringify(gateAfterRekey)).toMatch(notLodged);
@@ -524,7 +524,7 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
     await setClosing(ex.id, ago(5));
     const late = await lodgeAs(ex, ex.officers[0], estimateId);
     expect(late.ok).toBe(false);
-    expect(message(late)).toMatch(/closing has passed/);
+    expect(message(late)).toMatch(/closing has passed/i);
     expect(await standing(ex.id)).toHaveLength(0);
     expect((await events(ex.id)).some((e) => e.kind === "ESTIMATE_LODGED" && e.outcome === "REFUSED" && e.reasonCode === "LODGEMENT_CLOSED")).toBe(true);
 
@@ -544,7 +544,7 @@ describe("review of wave 3b: the doors that were open", () => {
     who.actor = o1.actor;
     const own = await recordSignature({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, personId: o1.person.id, signedOn: dayIn(new Date(), "Asia/Kuala_Lumpur"), [PASSWORD_FIELD]: o1.password }));
     expect(own.ok).toBe(false);
-    expect(message(own)).toMatch(/takes bids online/);
+    expect(message(own)).toMatch(/Online bids: each named officer signs/);
     const other = await recordSignature({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, personId: o2.person.id, signedOn: "2020-01-01", [PASSWORD_FIELD]: o1.password, [actFieldNames("personId").onBehalf]: "on", [actFieldNames("personId").paperReference]: "paper 1", [actFieldNames("personId").reason]: "signed on paper" }));
     expect(other.ok).toBe(false);
     expect(await db.openingSignature.count({ where: { openingId: opening.id } })).toBe(0);
@@ -570,7 +570,7 @@ describe("review of wave 3b: the doors that were open", () => {
     try {
       const r = await finalise(ex, opening.id, ex.officers[0]);
       expect(r.ok).toBe(false);
-      expect(message(r)).toMatch(/no longer classified as the most restricted level/);
+      expect(message(r)).toMatch(/no longer SULIT/);
       expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).finalisedAt).toBeNull();
     } finally {
       await db.documentClass.update({ where: { id: bidFileClassId }, data: { classification: "SULIT" } });

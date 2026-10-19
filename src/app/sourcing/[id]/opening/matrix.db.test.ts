@@ -241,7 +241,7 @@ describe("who may answer, decide and confirm (ruling 22, 20cp)", () => {
     const revision = (await bidRow(bid)).columnRevision;
     const changed = await answer(ex, ex.officers[0], bid, item.key, "ABSENT");
     expect(changed.ok, message(changed)).toBe(true);
-    expect(message(changed)).toMatch(/verdict is cleared/);
+    expect(message(changed)).toMatch(/Verdict cleared/);
     const cleared = await bidRow(bid);
     expect(cleared.verdict).toBeNull();
     // One answer changed and the decision it cleared: one raise, not two.

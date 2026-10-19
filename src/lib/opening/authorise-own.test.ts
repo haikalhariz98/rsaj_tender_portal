@@ -27,7 +27,7 @@ describe("an opening authorisation is each member's own", () => {
 
   it("is offered on a member's row only to the member who is signed in; the others read that they authorise in their own sign-in", () => {
     expect(WORKSPACE).toMatch(/p\.personId === viewerPersonId \? <AuthoriseDrawer/);
-    expect(WORKSPACE).toMatch(/Authorises signed in as themselves/);
+    expect(WORKSPACE).toMatch(/Authorises in their own sign-in/);
     expect(WORKSPACE).toMatch(/viewerPersonId=\{actor\.personId\}/);
   });
 
@@ -36,7 +36,7 @@ describe("an opening authorisation is each member's own", () => {
     expect(drawer).not.toMatch(/forPerson/);
     expect(drawer).not.toMatch(/personId[,:]/);
     expect(drawer).toMatch(/own password/);
-    expect(drawer).toMatch(/nobody authorises for another/);
+    expect(drawer).toMatch(/nobody authorises for another/i);
     expect(drawer).not.toMatch(/paper/i);
   });
 

@@ -263,7 +263,7 @@ describe("starting an online opening", () => {
 
     const within = await start(ex);
     expect(within.ok).toBe(false);
-    expect(message(within)).toMatch(/closing has only just passed/);
+    expect(message(within)).toMatch(/Closing just passed/);
     expect(message(within)).toMatch(/Try again in \d+ seconds?/);
     expect(message(within)).not.toMatch(/SKEW_NOT_ELAPSED/);
     expect(await db.opening.count({ where: { exerciseId: ex.id } })).toBe(0);
@@ -271,7 +271,7 @@ describe("starting an online opening", () => {
     await setClosing(ex.id, ago(40));
     const ok = await start(ex);
     expect(ok.ok, message(ok)).toBe(true);
-    expect(message(ok)).toMatch(/Each of the 2 named opening officers now authorises/);
+    expect(message(ok)).toMatch(/All 2 named officers authorise next/);
     const opening = await openingOf(ex);
     expect(opening.unsealedAt).toBeNull();
     const roll = opening.receiptRoll as { v: number; entries: { sequence: number; receiptDigest: string; late: boolean }[]; rollDigest: string };
@@ -299,7 +299,7 @@ describe("starting an online opening", () => {
     await db.exerciseOpeningOfficer.create({ data: { organisationId: org, exerciseId: ex.id, personId: extra.person.id, seatLabelSnapshot: "Member 3", namedAt: new Date(), namedByPersonId: namer } });
     const r = await start(ex);
     expect(r.ok).toBe(false);
-    expect(message(r)).toMatch(/split across 2 officers, and 3 are named now/);
+    expect(message(r)).toMatch(/split across 2 officers, 3 named/);
   }, 120_000);
 });
 
@@ -354,8 +354,8 @@ describe("the unseal, n = 2 (D10)", () => {
 
     const lastDone = await authorise(ex, opening.id, o2);
     expect(lastDone.ok, message(lastDone)).toBe(true);
-    expect(message(lastDone)).toMatch(/3 were opened/);
-    expect(message(lastDone)).toMatch(/1 received after the closing waits/);
+    expect(message(lastDone)).toMatch(/3 opened/);
+    expect(message(lastDone)).toMatch(/1 late/);
 
     const after = await db.opening.findUniqueOrThrow({ where: { id: opening.id } });
     expect(after.unsealedAt).not.toBeNull();
@@ -403,12 +403,12 @@ describe("the unseal, n = 2 (D10)", () => {
     for (const p of priced) expect(p).toMatchObject({ state: "GRANTED", value: PRICE_NOT_READ_WORDS });
     const corrected = await correctAsRead({ ok: false }, form({ exerciseId: ex.id, openedBidId: offers[0].id, bidderName: "X", price: "10.00", reason: "Check", [PASSWORD_FIELD]: ex.officers[0].password }));
     expect(corrected.ok).toBe(false);
-    expect(message(corrected)).toMatch(/price is not read yet/);
+    expect(message(corrected)).toMatch(/Price not read yet/);
     // The paper finalise on an unsealed online opening refuses in words (it used to throw on a price not read).
     who.actor = ex.officers[0].actor;
     const paperFinalise = await finaliseOpening({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, [PASSWORD_FIELD]: ex.officers[0].password }));
     expect(paperFinalise.ok).toBe(false);
-    expect(message(paperFinalise)).toMatch(/takes bids online/);
+    expect(message(paperFinalise)).toMatch(/Online bids finalise only under Finalising/);
 
     // The releases are shredded, the shares kept for a supplementary opening, the exercise is in progress.
     expect((await db.shareRelease.findMany({ where: { openingId: opening.id } })).every((r) => r.sealedShares === null && r.usedAt !== null)).toBe(true);
@@ -491,7 +491,7 @@ describe("the unseal, n = 2 (D10)", () => {
     await setClosing(ex.id, new Date(Date.now() + 3600_000));
     const r = await authorise(ex, opening.id, ex.officers[0]);
     expect(r.ok).toBe(false);
-    expect(message(r)).toMatch(/opened only after the closing/);
+    expect(message(r)).toMatch(/Opens only after the closing/);
     expect(await db.openingAuthorisation.count({ where: { openingId: opening.id } })).toBe(0);
   }, 120_000);
 
@@ -524,7 +524,7 @@ describe("the unseal, n = 3 (D10, 20k)", () => {
     expect(await db.shareRelease.count({ where: { openingId: opening.id, sealedShares: { not: null } } })).toBe(2);
     const r1 = await authorise(ex, opening.id, o1);
     expect(r1.ok, message(r1)).toBe(true);
-    expect(message(r1)).toMatch(/1 of the 3 named officers have still to authorise/);
+    expect(message(r1)).toMatch(/1 of 3 officers still to authorise/);
     expect((await db.opening.findUniqueOrThrow({ where: { id: opening.id } })).unsealedAt).toBeNull();
     expect(await db.openedBid.count({ where: { openingId: opening.id } })).toBe(0);
     const r2 = await authorise(ex, opening.id, o2);
@@ -549,7 +549,7 @@ describe("the unseal, n = 3 (D10, 20k)", () => {
     who.actor = o1.actor;
     const adjourned = await adjournOpening({ ok: false }, form({ exerciseId: ex.id, openingId: opening.id, reason: "The third officer is delayed" }));
     expect(adjourned.ok, message(adjourned)).toBe(true);
-    expect(message(adjourned)).toMatch(/resuming needs 3 fresh authorisations/);
+    expect(message(adjourned)).toMatch(/Resuming needs 3 fresh authorisations/);
     expect((await db.openingAuthorisation.findMany({ where: { openingId: opening.id } })).every((a) => a.lapsedAt !== null)).toBe(true);
     expect((await db.shareRelease.findMany({ where: { openingId: opening.id } })).every((r) => r.sealedShares === null)).toBe(true);
     expect((await db.shareRelease.findMany({ where: { openingId: opening.id } })).some((r) => r.lapsedAt !== null || r.usedAt !== null)).toBe(true);
@@ -628,7 +628,7 @@ describe("a tampered bid blocks the unseal", () => {
     const last = await authorise(ex, opening.id, o2);
     expect(last.ok).toBe(false);
     expect(message(last)).toContain(`number ${f.sequence}`);
-    expect(message(last)).toMatch(/does not agree with its row/);
+    expect(message(last)).toMatch(/disagrees with its row/);
     expect(message(last)).not.toMatch(/some_other_supplier|BID_MANIFEST_BINDING/);
     const after = await db.opening.findUniqueOrThrow({ where: { id: opening.id } });
     expect(after.unsealedAt).toBeNull();

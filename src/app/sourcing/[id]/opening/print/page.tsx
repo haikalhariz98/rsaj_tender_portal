@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 const NOT_FINALISED = "Not finalised";
 
 /**
- * The schedule of tenders (Jadual Tawaran) in print (6.7 plan §5): once the opening is finalised,
+ * The schedule of tenders in print (6.7 plan §5): once the opening is finalised,
  * only its frozen copy, never recomputed. Before then, the rows as read so far with the company
  * estimate sealed, marked "Not finalised" on every page: the paper the panel signs. Prices are SULIT
  * and say so; this is the only paper route while a SULIT scan cannot be downloaded.
@@ -42,9 +42,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
         <RecordCrumb label={d.reference} />
         <PageHeader eyebrow={<Link href={back}>Back to the schedule</Link>} title="Nothing to print" meta={[<span key="ref" className="font-mono text-[12.5px]">{d.reference}</span>]} />
         <Card>
-          <EmptyState title="No opening has started" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the schedule</ButtonLink>}>
-            The schedule of tenders is printed once the opening has started.
-          </EmptyState>
+          <EmptyState title="No opening has started" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the schedule</ButtonLink>} />
         </Card>
       </>
     );
@@ -58,9 +56,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
         <Link href={back}>Back to the schedule</Link>
         <PrintButton icon={<PrinterIcon size={15} />} />
       </div>
-      <Callout tone={watermark ? "warn" : "info"} className="mb-5 print:hidden">
-        {watermark ? "Not finalised: the offers as read so far, with the company estimate sealed. It is frozen when the opening is finalised." : `As finalised ${o.finalisedAt}: the copy frozen then, never recomputed.`}
-      </Callout>
+      {watermark && <Callout tone="warn" className="mb-5 print:hidden">Not finalised. Draft of the offers read so far.</Callout>}
       <article className="relative mx-auto max-w-[900px] overflow-hidden rounded-card border border-line bg-surface px-6 py-10 shadow-card sm:px-12 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
         {watermark && (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid place-items-center overflow-hidden select-none [container-type:size] print:fixed">
@@ -122,7 +118,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
         </Table>
         {o.summary && (
           <>
-            {/* The Grand Summary's Kelas and period are the schedule row's of the same Bil. (SR-15). */}
+            {/* The Grand Summary's Kelas and period are the schedule row's of the same No. (SR-15). */}
             <h2 className="mt-10 mb-3 text-[17px] font-bold text-ink">{OPENING_DOWNLOAD_TITLE.summary}</h2>
             <Table>
               <THead>

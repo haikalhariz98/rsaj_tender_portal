@@ -87,7 +87,7 @@ export async function signOnlineFinalise(_prev: FormState, data: FormData): Prom
     await act.write(tx, row.id, { document: { entity: "Opening", id: o.id } });
     const signed = new Set([...o.signatures.map((s) => s.personId), personId]);
     const waiting = o.panel.filter((p) => !signed.has(p.personId)).length;
-    return { ok: true, message: waiting === 0 ? `${ONLINE_SIGNED} Every named officer has signed: one of them can now finalise.` : `${ONLINE_SIGNED} ${waiting} named officer${waiting === 1 ? " has" : "s have"} still to sign.` };
+    return { ok: true, message: waiting === 0 ? `${ONLINE_SIGNED} One can now finalise.` : `${ONLINE_SIGNED} ${waiting} still to sign.` };
   });
   if (out.ok) revalidatePath(`/sourcing/${exerciseId}`);
   else if (refusal.code) await logSealedRefusal({ organisationId: actor.organisationId, exerciseId, kind: "FINALISE", staffPersonId: actor.personId, reasonCode: refusal.code, recordId: recordIdOrNull(openingId) });
@@ -209,9 +209,9 @@ export async function finaliseOnline(_prev: FormState, data: FormData): Promise<
     // After the commit: the mover files the released files. A failure here never undoes the finalise: what is left stays released and is moved by the next call.
     try {
       const moved = await moveReleasedFiles({ organisationId: actor.organisationId, exerciseId });
-      if (moved.remaining > 0) return { ok: true, message: `${out.message ?? "Finalised."} ${moved.remaining} file${moved.remaining === 1 ? " is" : "s are"} still to be filed in the document store.` };
+      if (moved.remaining > 0) return { ok: true, message: `${out.message ?? "Finalised."} ${moved.remaining} file${moved.remaining === 1 ? "" : "s"} still to file.` };
     } catch {
-      return { ok: true, message: `${out.message ?? "Finalised."} Some files are still to be filed in the document store.` };
+      return { ok: true, message: `${out.message ?? "Finalised."} Some files still to file.` };
     }
     return out;
   } finally {
@@ -237,14 +237,14 @@ export async function fileSealedBidFiles(_prev: FormState, data: FormData): Prom
   const named = await db.exerciseOpeningOfficer.findFirst({ where: { exerciseId, organisationId: actor.organisationId, personId: actor.personId, endedAt: null }, select: { id: true } });
   const exercise = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: actor.organisationId }, select: { submissionChannel: true } });
   if (!exercise || exercise.submissionChannel !== "ONLINE") return GONE_OPENING;
-  if (!named) return { ok: false, message: "Only an opening officer named on this exercise files its sealed bid files." };
+  if (!named) return { ok: false, message: "Only a named opening officer can file these." };
   let moved: Awaited<ReturnType<typeof moveReleasedFiles>>;
   try {
     moved = await moveReleasedFiles({ organisationId: actor.organisationId, exerciseId });
   } catch {
-    return { ok: false, message: "The files could not be filed just now. Nothing was lost: try again." };
+    return { ok: false, message: "Filing failed. Nothing lost. Try again." };
   }
   revalidatePath(`/sourcing/${exerciseId}`);
-  if (moved.remaining > 0) return { ok: false, message: `${moved.moved} file${moved.moved === 1 ? "" : "s"} filed. ${moved.remaining} still cannot be filed: check the class under Configuration › Documents and the document store, then try again.` };
-  return { ok: true, message: moved.moved > 0 ? `${moved.moved} file${moved.moved === 1 ? "" : "s"} filed in the document store.` : "Every file is already in the document store." };
+  if (moved.remaining > 0) return { ok: false, message: `${moved.moved} filed. ${moved.remaining} cannot be filed. Check Configuration › Documents.` };
+  return { ok: true, message: moved.moved > 0 ? `${moved.moved} file${moved.moved === 1 ? "" : "s"} filed.` : "Every file is already filed." };
 }

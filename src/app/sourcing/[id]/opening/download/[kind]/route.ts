@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const plain = (text: string, status: number) => new Response(text, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
 
 /**
- * The schedule of tenders (Jadual Tawaran) or the Grand Summary of one opening as CSV (SR-15, ruling 24). Built from the copies frozen at finalising and offered
+ * The schedule of tenders or the Grand Summary of one opening as CSV (SR-15, ruling 24). Built from the copies frozen at finalising and offered
  * only once the opening is finalised. The price cells go through the same SULIT gate as the print page, so a reader who may not read them gets the words, never
  * the figure. An exercise restricted to its named people reads as one that does not exist to anyone else. Served as an attachment, never inline.
  * SEC-4: a request another site started is refused before anything is read, and a HEAD is refused outright, because the SULIT gate below writes an access row for every price it judges

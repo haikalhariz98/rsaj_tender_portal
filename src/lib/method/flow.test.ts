@@ -21,7 +21,7 @@ const base = (over: Partial<SourcingFlowInput> = {}): SourcingFlowInput => ({
 });
 const view = (i: SourcingFlowInput) => sourcingFlow(i).map((s) => `${s.label}:${s.state}`);
 
-const ALL = ["Requisition raised", "Requisition approved", "Exercise drafted", "Scope and estimate", "Tender documents", "Approval for tendering", "Published", "Bids received", "Opening", "Jadual Tawaran", "Evaluation", "Award"];
+const ALL = ["Requisition raised", "Requisition approved", "Exercise drafted", "Scope and estimate", "Tender documents", "Approval for tendering", "Published", "Bids received", "Opening", "Schedule of tenders", "Evaluation", "Award"];
 const at = (current: number, labels = ALL) => labels.map((l, i) => `${l}:${i < current ? "done" : i === current ? "current" : "waiting"}`);
 
 // Ruling 7 (GAP-F1, Sourcing Requirements v2 section 3): twelve steps, each derived from recorded state.
@@ -44,10 +44,10 @@ describe("the Overview flow follows section 3 of Sourcing Requirements v2", () =
   it("the window closed: the opening is next", () => {
     expect(view(base({ status: "ADVERTISED", windowPhase: "CLOSED" }))).toEqual(at(8));
   });
-  it("the opening under way, then finalised: the Jadual Tawaran follows the opening and claims nothing before it", () => {
+  it("the opening under way, then finalised: the schedule of tenders follows the opening and claims nothing before it", () => {
     expect(view(base({ status: "OPENING_IN_PROGRESS", windowPhase: "CLOSED" }))).toEqual(at(8));
     const opened = sourcingFlow(base({ status: "OPENED", windowPhase: "CLOSED" }));
-    expect(opened.find((s) => s.key === "JADUAL")).toEqual({ key: "JADUAL", label: "Jadual Tawaran", sub: "Follows the opening", state: "done" });
+    expect(opened.find((s) => s.key === "JADUAL")).toEqual({ key: "JADUAL", label: "Schedule of tenders", sub: "Follows the opening", state: "done" });
     expect(view(base({ status: "OPENED", windowPhase: "CLOSED" }))).toEqual(at(10));
   });
   it("an invited exercise says it was invited in the Published step", () => {
@@ -82,7 +82,7 @@ describe("the Overview flow follows section 3 of Sourcing Requirements v2", () =
     expect(published).not.toContain("Bids received:done");
     // Opened, then cancelled: the window and the opening stand.
     const opened = view(base({ status: "CANCELLED", routes: [submitted], on: { prepared: "x", approvedForTendering: "x", published: "x", opened: "x" } }));
-    expect(opened).toEqual(expect.arrayContaining(["Bids received:done", "Opening:done", "Jadual Tawaran:done"]));
+    expect(opened).toEqual(expect.arrayContaining(["Bids received:done", "Opening:done", "Schedule of tenders:done"]));
   });
   it("an award that stands ends the flow", () => {
     const steps = sourcingFlow(base({ status: "EVALUATED", windowPhase: "CLOSED", awards: [{ status: "APPROVED", reference: "A-1" }] }));

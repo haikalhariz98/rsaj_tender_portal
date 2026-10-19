@@ -1,12 +1,11 @@
 import { DataList, type Row } from "@/components/data-list";
 import { sulitText } from "@/components/sulit-cell";
 import { ButtonLink } from "@/components/ui/button";
-import { FLOW_LABEL } from "@/lib/method/flow";
 import { classAsReadText, kelasText, SCHEDULE_COLUMNS, statusAsReadText, SUMMARY_COLUMNS } from "@/lib/opening/download";
 import type { ScheduleSectionView } from "@/lib/opening/read";
 
 /**
- * The SR-15 tables of one opening, the schedule of tenders (Jadual Tawaran) and the Grand Summary, with the two downloads beside them. ONE copy: the Schedule section renders it and, once the
+ * The SR-15 tables of one opening, the schedule of tenders and the Grand Summary, with the two downloads beside them. ONE copy: the Schedule section renders it and, once the
  * opening is finalised, so does Received (SR-15 "Where: Received", ruling 20ct). Both screens read the same `scheduleSection`, so they cannot show different rows or columns.
  */
 
@@ -17,7 +16,7 @@ export function ScheduleDownloads({ exerciseId, o }: { exerciseId: string; o: Sc
   if (!o.finalised) return null;
   return (
     <>
-      <ButtonLink href={`/sourcing/${exerciseId}/opening/download/schedule?opening=${o.id}`} variant="secondary" size="sm">Download {FLOW_LABEL.JADUAL} (CSV)</ButtonLink>
+      <ButtonLink href={`/sourcing/${exerciseId}/opening/download/schedule?opening=${o.id}`} variant="secondary" size="sm">Download schedule (CSV)</ButtonLink>
       <ButtonLink href={`/sourcing/${exerciseId}/opening/download/summary?opening=${o.id}`} variant="secondary" size="sm">Download Grand Summary (CSV)</ButtonLink>
     </>
   );
@@ -47,7 +46,6 @@ export function ScheduleList({ o }: { o: ScheduleOpening }) {
       toolbar={false}
       exportName="schedule-of-tenders"
       emptyTitle="No offer read yet"
-      emptyBody="Each offer opened is listed in opening order."
       columns={[
         { key: "listing", label: SCHEDULE_COLUMNS.listing, width: "90px", sortable: true, mobile: "primary" },
         { key: "bidder", label: SCHEDULE_COLUMNS.bidder, mobile: "meta" },
@@ -65,7 +63,7 @@ export function ScheduleList({ o }: { o: ScheduleOpening }) {
 /// The Grand Summary, once the opening has one.
 export function GrandSummaryList({ o }: { o: ScheduleOpening }) {
   if (!o.summary) return null;
-  // SR-15: the Grand Summary's Kelas and Tempoh Kerja are the schedule row's of the same Bil.
+  // SR-15: the Grand Summary's Class and period are the schedule row's of the same No.
   const scheduleRow = new Map(o.rows.map((r) => [r.listingNo, r] as const));
   const summary: Row[] = o.summary.rows.map((r) => ({
     id: `s${r.listingNo}`,
@@ -89,7 +87,6 @@ export function GrandSummaryList({ o }: { o: ScheduleOpening }) {
         toolbar={false}
         exportName="grand-summary"
         emptyTitle="No offer"
-        emptyBody="No offer was read."
         columns={[
           { key: "listing", label: SUMMARY_COLUMNS.listing, width: "90px", mobile: "primary" },
           { key: "bidder", label: SUMMARY_COLUMNS.bidder, mobile: "meta" },

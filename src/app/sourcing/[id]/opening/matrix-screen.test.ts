@@ -34,7 +34,7 @@ describe("the SR-14 matrix on screen", () => {
   it("before finalising a named officer gets the sealed download, the dated addendum line and Present refused where no file came", () => {
     const html = render(view([column(cells)]));
     expect(html).toContain("Download Offer 1, Form of tender");
-    expect(html).toContain("Acknowledged on the portal on");
+    expect(html).toContain("Acknowledged 13 Nov 2026");
     expect(html).toContain(CELL_WORDS.NOT_RECEIVED);
     expect(html).not.toContain("/api/opening/filed-file");
     expect(html).toContain("Confirm this column");
@@ -82,7 +82,7 @@ describe("the SR-14 matrix on screen", () => {
 
   it("a received part not yet filed says so instead of a dead control", () => {
     const html = render(view([column([cell("boq", "RECEIVED_NOT_CHECKED", { fileIds: ["f2"], filed: [{ fileId: "f2", versionId: null, plainSha256: null }] })])], { phase: "FINALISED", rows: [{ key: "boq", label: "Bill of quantities", opened: false }] }));
-    expect(html).toContain("has not been filed as a document yet");
+    expect(html).toContain("Not filed yet");
   });
 
   it("a disabled Pass carries its reason, and a column with no item reads the empty tally words", () => {

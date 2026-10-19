@@ -58,19 +58,19 @@ function blockedOr(allowed: Allowed, label: string, node: () => React.ReactNode,
 
 /// Where the exercise names its opening officers (SR-07) the panel is those officers, and only who is present is asked.
 const rosterPanelFields = (officers: Option[], people: Option[]): Field[] => [
-  { kind: "note", text: `The panel is the officers named on the exercise: ${officers.map((o) => o.label).join("; ")}. Nobody else sits, authorises or signs.` },
-  { kind: "tokens", name: "present", label: "Present at the opening", options: officers, placeholder: "Pick who is present", hint: "Fixed when the opening starts. An absent member neither authorises, initials nor signs. At least two must be present." },
+  { kind: "note", text: `Panel: ${officers.map((o) => o.label).join("; ")}.` },
+  { kind: "tokens", name: "present", label: "Present at the opening", options: officers, placeholder: "Pick who is present", hint: "Fixed at the start. At least two present." },
   by("Opening.startedBy", people, "startedByPersonId", "Recorded by"),
-  { kind: "note", text: "Only if the committee's panel size has changed since the officers were named: the authority a panel of another size is assigned under and the reason. You record it." },
+  { kind: "note", text: "Only if the panel size changed since the officers were named." },
   { kind: "text", name: "panelOverrideAuthority", label: "Authority for a panel of another size" },
   { kind: "textarea", name: "panelOverrideReason", label: "Why the panel is of another size" },
 ];
 
 const panelFields = (seats: Option[], people: Option[], panelSize: number | null): Field[] => [
-  { kind: "tokens", name: "panel", label: "The panel", options: seats, placeholder: "Pick from the committee's seats", hint: panelSize == null ? "The committee's panel size is not set." : `The committee's opening panel has ${panelSize} ${panelSize === 1 ? "member" : "members"}.` },
-  { kind: "tokens", name: "present", label: "Present at the opening", options: seats, placeholder: "Pick who is present", hint: "Fixed when the opening starts. An absent member neither authorises, initials nor signs. At least two must be present." },
+  { kind: "tokens", name: "panel", label: "The panel", options: seats, placeholder: "Pick from the committee's seats", hint: panelSize == null ? "Panel size not set." : `Committee panel: ${panelSize}.` },
+  { kind: "tokens", name: "present", label: "Present at the opening", options: seats, placeholder: "Pick who is present", hint: "Fixed at the start. At least two present." },
   by("Opening.startedBy", people, "startedByPersonId", "Recorded by"),
-  { kind: "note", text: "Only for a panel of another size than the committee's: the authority it is assigned under and the reason. You record it." },
+  { kind: "note", text: "Only for a panel of another size." },
   { kind: "text", name: "panelOverrideAuthority", label: "Authority for a panel of another size" },
   { kind: "textarea", name: "panelOverrideReason", label: "Why the panel is of another size" },
 ];
@@ -82,7 +82,7 @@ export function StartOpeningDrawer({ exerciseId, allowed, seats, roster, people,
     () => (
       <RecordEditor
         title="Start the opening"
-        description={`${roster ? "The panel is the officers named on the exercise" : "The panel is drawn from the seats of the committee the method names"}, each member present or not. The checklist each bid is checked against, and the rules its verdicts read, are frozen now. ${independence}`}
+        description={`Freezes the checklist and verdict rules. ${independence}`}
         columns={2}
         fields={[
           hidden("exerciseId"),
@@ -90,7 +90,7 @@ export function StartOpeningDrawer({ exerciseId, allowed, seats, roster, people,
           ...(estimateLate
             ? ([
                 { kind: "note", text: estimateLate },
-                actorField("EstimateEvent.person", { name: "lateOverridePersonId", people, label: "Override by", hint: "Someone holding the office that may override a late estimate: you, if you hold it, or from their paper, for them." }),
+                actorField("EstimateEvent.person", { name: "lateOverridePersonId", people, label: "Override by", hint: "Holder of the override office." }),
                 { kind: "textarea", name: "lateOverrideReason", label: "Why the late estimate is accepted" },
               ] as Field[])
             : []),
@@ -110,7 +110,7 @@ export function StartSupplementaryDrawer({ exerciseId, decisionId, sequence, all
   return blockedOr(allowed, "Start its supplementary opening", () => (
     <RecordEditor
       title={`Supplementary opening of envelope ${sequence}`}
-      description="The committee admitted this late envelope. It is opened at its own opening, under the main opening's checklist and rules, by a panel drawn as the main one was; its offer is added to the schedule as a new version."
+      description="Adds its offer to the schedule as a new version."
       columns={2}
       fields={[hidden("exerciseId"), hidden("decisionId"), ...(roster ? rosterPanelFields(roster, people) : panelFields(seats, people, panelSize))]}
       values={{ exerciseId, decisionId }}
@@ -130,7 +130,7 @@ export function AuthoriseDrawer({ exerciseId, openingId, name, allowed, online =
   return blockedOr(allowed, "Authorise", () => (
     <RecordEditor
       title={`${name} authorises the opening`}
-      description="Signed by you, the panel member, with your own password, and stamped by the portal's clock when you save. Each present member authorises in their own sign-in: nobody authorises for another. The second present member's authorisation opens the box (or lets a resumed sitting record again). The box and its key remain the control."
+      description="Signed with your own password. Nobody authorises for another. The second authorisation opens the box."
       fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningAuthorisation.person", { name: "personId" })]}
       values={{ exerciseId, openingId }}
       action={recordAuthorisation}
@@ -146,8 +146,8 @@ export function AuthoriseOnlineDrawer({ exerciseId, openingId, name, allowed, re
   return blockedOr(allowed, "Authorise", () => (
     <RecordEditor
       title={`${name} authorises the opening`}
-      description={`Signed by you, with your own sign-in password, and with the unseal passphrase you chose for this exercise. Every one of the ${required} named officers authorises in their own sign-in: nobody authorises for another, and the bids are unsealed when the last has. A passphrase cannot be reset or recovered.`}
-      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "text", name: "passphrase", label: "Unseal passphrase", required: true, secret: true }, actorField("OpeningAuthorisation.person", { name: "personId" })]}
+      description={`Signed as you. All ${required} named officers must authorise. The last one unseals the bids.`}
+      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "text", name: "passphrase", label: "Unseal passphrase", required: true, secret: true, hint: "Cannot be reset or recovered." }, actorField("OpeningAuthorisation.person", { name: "personId" })]}
       values={{ exerciseId, openingId }}
       action={authoriseOnlineUnseal}
       submitLabel="Record the authorisation"
@@ -162,7 +162,7 @@ export function AdjournDrawer({ exerciseId, openingId, allowed, people, resume }
   return blockedOr(allowed, label, () => (
     <RecordEditor
       title={resume ? "Resume the opening" : "Adjourn the opening"}
-      description={resume ? "A new sitting starts. Nothing is recorded until two panel members present each authorise it again." : "The sitting ends. Nothing recorded is lost; an authorisation not yet paired lapses and is kept, marked lapsed. Resuming needs two fresh authorisations."}
+      description={resume ? "Starts a new sitting. Two present members must authorise it." : "Ends the sitting. Resuming needs two fresh authorisations."}
       fields={[hidden("exerciseId"), hidden("openingId"), { kind: "textarea", name: "reason", label: resume ? "Why it resumes now" : "Why it is adjourned", required: true }, by("OpeningSitting.recordedBy", people)]}
       values={{ exerciseId, openingId }}
       action={resume ? resumeOpening : adjournOpening}
@@ -179,7 +179,7 @@ export function RegisterBoxDrawer({ exerciseId, openingId, allowed, people }: { 
   return blockedOr(allowed, "Register an envelope from the box", () => (
     <RecordEditor
       title="Register an envelope found in the box"
-      description="Every envelope in the box is registered before the first is opened. It is in time by the box's lock, whatever the gap after the closing, which is shown as a finding; its time reads 'In the box when it was locked', never a receipt time."
+      description="Register every envelope before opening the first."
       fields={[
         hidden("exerciseId"),
         hidden("openingId"),
@@ -200,7 +200,7 @@ export function MatchWithdrawalDrawer({ exerciseId, openingId, withdrawalId, rec
   return blockedOr(allowed, "Match to an envelope", () => (
     <RecordEditor
       title="Match the withdrawal to its envelope"
-      description={`The withdrawal received ${received}, for an envelope in the box. The envelope matched is not opened: it is listed as withdrawn.`}
+      description={`Withdrawal received ${received}. The matched envelope is not opened.`}
       fields={[hidden("exerciseId"), hidden("openingId"), hidden("withdrawalId"), { kind: "select", name: "envelopeId", label: "The envelope it withdraws", required: true, placeholder: "Choose", options: envelopes }]}
       values={{ exerciseId, openingId, withdrawalId }}
       action={matchWithdrawal}
@@ -215,7 +215,7 @@ export function WithdrawalFindingDrawer({ exerciseId, openingId, withdrawalId, a
   return blockedOr(allowed, "Record what the panel found", () => (
     <RecordEditor
       title="No envelope matched the withdrawal"
-      description="Say what the panel found. The opening is not finalised while a withdrawal is neither matched nor explained."
+      description="Finalising waits until every withdrawal is matched or explained."
       fields={[hidden("exerciseId"), hidden("openingId"), hidden("withdrawalId"), { kind: "textarea", name: "finding", label: "What the panel found", required: true }, by("BidWithdrawal.findingBy", people)]}
       values={{ exerciseId, openingId, withdrawalId }}
       action={recordWithdrawalFinding}
@@ -229,7 +229,7 @@ export function WithdrawalFindingDrawer({ exerciseId, openingId, withdrawalId, a
 // ------------------------------------------------------------------ opening an envelope
 
 const offerFields = (): Field[] => [
-  { kind: "money", name: "price", label: "Price as read", required: true, hint: "As read out from the form of tender. SULIT: shown to the people the prices are open to, and every reading is logged." },
+  { kind: "money", name: "price", label: "Price as read", required: true, hint: "As read out. SULIT." },
   { kind: "number", name: "validityDays", label: "Validity stated (days)", min: 1 },
   { kind: "number", name: "periodValue", label: "Completion period", min: 1 },
   { kind: "select", name: "periodUnit", label: "Unit", placeholder: "Not stated", options: PERIOD_UNITS },
@@ -239,15 +239,15 @@ export function OpenEnvelopeDrawer({ exerciseId, openingId, envelope, parties, p
   return blockedOr(allowed, "Open", () => (
     <RecordEditor
       title={`Open envelope ${envelope.sequence}`}
-      description={`It takes the next number (Bil.) when you save, and the bidder is named here for the first time. Markings: ${envelope.markings}`}
+      description={`Markings: ${envelope.markings}`}
       columns={2}
       fields={[
         hidden("exerciseId"),
         hidden("openingId"),
         hidden("envelopeId"),
-        { kind: "select", name: "partyId", label: "The bidder", placeholder: "Not on the exercise yet: name it below", options: parties, hint: "Pick it where it bought the documents or was invited." },
-        { kind: "text", name: "bidderName", label: "Bidder's name as read", hint: "Required for a bidder not on the exercise; otherwise its name as written on the bid, if it differs." },
-        { kind: "text", name: "registrationNo", label: "Registration number as read", hint: "Required for a bidder not on the exercise." },
+        { kind: "select", name: "partyId", label: "The bidder", placeholder: "Not listed: name it below", options: parties },
+        { kind: "text", name: "bidderName", label: "Bidder's name as read", hint: "Required if not listed." },
+        { kind: "text", name: "registrationNo", label: "Registration number as read", hint: "Required if not listed." },
         { kind: "text", name: "registrationClass", label: "Registration class as read" },
         { kind: "text", name: "registrationStatus", label: "Registration status as read" },
         ...(envelope.isAlternative ? [{ kind: "select", name: "parentOpenedBidId", label: "Alternative to", placeholder: "Not named", options: parents } as Field] : []),
@@ -266,7 +266,7 @@ export function AlternativeInsideDrawer({ exerciseId, bid, allowed }: { exercise
   return blockedOr(allowed, "Alternative inside", () => (
     <RecordEditor
       title={`An alternative inside No. ${bid.listingNo}`}
-      description="An alternative offer found inside this envelope: the same bidder, its own offer and the next number."
+      description="Same bidder, its own offer, next number."
       columns={2}
       fields={[hidden("exerciseId"), hidden("openedBidId"), ...offerFields()]}
       values={{ exerciseId, openedBidId: bid.id }}
@@ -285,7 +285,7 @@ export function InitialDrawer({ exerciseId, bid, column, person, allowed, own = 
   return (
     <RecordEditor
       title={own ? `Confirm No. ${bid.listingNo}` : `${person.name} initials No. ${bid.listingNo}`}
-      description={own ? "Your initial confirms this column as it stands, with its answers and its decision. A later change to either asks for it again." : "The member's initial on the offer as read out: made by the member signed in, or recorded from their paper for them, and not signed. After a correction it is taken again."}
+      description={own ? "Confirms the column as it stands. A later change asks again." : "Recorded from their paper, not signed. A correction asks again."}
       fields={[hidden("exerciseId"), hidden("openedBidId"), hidden("columnRevision"), hidden("asReadCorrections"), actorField("OpenedBidInitial.person", { name: "personId", forPerson: { id: person.id, name: person.name } })]}
       values={{ exerciseId, openedBidId: bid.id, columnRevision: String(column.columnRevision), asReadCorrections: String(column.asReadCorrections) }}
       action={recordInitial}
@@ -301,7 +301,7 @@ export function ChecklistDrawer({ exerciseId, bid, items, allowed }: { exerciseI
   return blockedOr(allowed, "Answer the checklist", () => (
     <RecordEditor
       title={`Checklist for No. ${bid.listingNo}`}
-      description={`One item at a time. A changed answer clears the offer's verdict, which is recorded again. As it stands: ${items.map((i) => `${i.label}: ${i.answerLabel.toLowerCase()}`).join("; ")}.`}
+      description="A changed answer clears the verdict."
       fields={[
         hidden("exerciseId"),
         hidden("openedBidId"),
@@ -321,7 +321,7 @@ export function VerdictDrawer({ exerciseId, bid, column, options, grounds, repor
   return blockedOr(allowed, "Record the verdict", () => (
     <RecordEditor
       title={`Verdict on No. ${bid.listingNo}`}
-      description={`The opening does not evaluate: it carries a bid unless a ground the rules make eliminatory stands against it. ${grounds.length ? `Standing: ${grounds.join("; ")}.` : "No eliminatory ground stands."}${reported.length ? ` Reported to the committee: ${reported.join("; ")}.` : ""}`}
+      description={`${grounds.length ? `Standing: ${grounds.join("; ")}.` : "No eliminating ground."}${reported.length ? ` Reported: ${reported.join("; ")}.` : ""}`}
       fields={[
         hidden("exerciseId"),
         hidden("openedBidId"),
@@ -345,7 +345,7 @@ export function CorrectAsReadDrawer({ exerciseId, bid, values, allowed }: { exer
   return (
     <RecordEditor
       title={`Correct what was read for No. ${bid.listingNo}`}
-      description="A keying slip only, before finalising, with the reason. The before and after are kept, and each present member initials it again. The price is entered afresh: it is not shown back here."
+      description="Keying slips only. Members initial again. Enter the price afresh."
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -372,8 +372,8 @@ export function SignatureDrawer({ exerciseId, openingId, person, allowed }: { ex
   return (
     <RecordEditor
       title={`${person.name} signed the schedule`}
-      description="The member signs the schedule with their password, dated today; or the paper they signed is recorded for them, with the day written beside the signature, and is not a signature in the portal."
-      fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningSignature.person", { name: "personId", dated: true, forPerson: { id: person.id, name: person.name } }), { kind: "date", name: "signedOn", label: "Signed on", required: true, hint: "Not after today. A signed schedule is dated today unless back-dating is recorded." }]}
+      description="Recorded from their paper, not signed here."
+      fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningSignature.person", { name: "personId", dated: true, forPerson: { id: person.id, name: person.name } }), { kind: "date", name: "signedOn", label: "Signed on", required: true, hint: "Not after today." }]}
       values={{ exerciseId, openingId }}
       action={recordSignature}
       submitLabel="Record the signature"
@@ -388,7 +388,7 @@ export function OnlineSignatureDrawer({ exerciseId, openingId, name, allowed }: 
   return blockedOr(allowed, "Sign", () => (
     <RecordEditor
       title={`${name} signs the schedule`}
-      description="Signed by you, with your own sign-in password, and dated today. Every named officer signs in their own sign-in: nobody signs for another. When all have signed, any one of them finalises the opening with their own unseal passphrase."
+      description="Signed as you, dated today. Nobody signs for another."
       fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningSignature.person", { name: "personId" })]}
       values={{ exerciseId, openingId }}
       action={signOnlineFinalise}
@@ -404,8 +404,8 @@ export function OnlineFinaliseDrawer({ exerciseId, openingId, title, allowed }: 
   return blockedOr(allowed, "Finalise", () => (
     <RecordEditor
       title={`Finalise the ${title.toLowerCase()}`}
-      description="Nothing on it changes after this. Each bid's declared price and completion period are unsealed and written in this step, and the schedule and its Grand Summary are frozen from them; every file is checked before anything is saved, and a file that does not open whole stops the finalise. The files are then filed in the document store. Your unseal passphrase cannot be reset or recovered. The signed schedule's scan is attached afterwards, on the Schedule section."
-      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "text", name: "passphrase", label: "Unseal passphrase", required: true, secret: true }, actorField("EstimateEvent.person", { name: "personId" })]}
+      description="Unseals every bid and freezes the schedule. Cannot be undone."
+      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "text", name: "passphrase", label: "Unseal passphrase", required: true, secret: true, hint: "Cannot be reset or recovered." }, actorField("EstimateEvent.person", { name: "personId" })]}
       values={{ exerciseId, openingId }}
       action={finaliseOnline}
       submitLabel="Finalise"
@@ -419,7 +419,6 @@ export function ScheduleDetailsDrawer({ exerciseId, openingId, pages, minutes, a
   return blockedOr(allowed, "Pages and minutes", () => (
     <RecordEditor
       title="The signed schedule's pages, and the minutes"
-      description="The number of pages the panel signed, as the schedule's header carries it, and the minutes of the opening."
       fields={[hidden("exerciseId"), hidden("openingId"), { kind: "number", name: "schedulePages", label: "Pages of the signed schedule", required: true, min: 1 }, { kind: "textarea", name: "minutes", label: "Minutes" }]}
       values={{ exerciseId, openingId, schedulePages: pages == null ? "" : String(pages), minutes }}
       action={recordScheduleDetails}
@@ -434,14 +433,14 @@ export function FinaliseDrawer({ exerciseId, openingId, title, allowed, people, 
   return blockedOr(allowed, "Finalise", () => (
     <RecordEditor
       title={`Finalise the ${title.toLowerCase()}`}
-      description={`Nothing on it changes after this. In the same step the schedule and its Grand Summary are frozen${paper ? ", the company estimate is disclosed and its paper copy compared with the lodged version" : ""}. The signed schedule's scan is attached afterwards, on the Schedule section.`}
+      description={paper ? "Freezes the schedule and discloses the estimate. Cannot be undone." : "Freezes the schedule. Cannot be undone."}
       fields={[
         hidden("exerciseId"),
         hidden("openingId"),
         actorField("EstimateEvent.person", { name: "personId", people, label: "Finalised by", paper: false }),
         ...(paper
           ? ([
-              { kind: "select", name: "paperCopy", label: "The estimate's paper copy in the box", required: paper.required, placeholder: paper.required ? "Choose" : "Not entered", options: [{ value: "figure", label: "It was in the box: enter its figure" }, { value: "notInBox", label: "It was not in the box" }], hint: "Compared only once everything else is in order, when the estimate is disclosed. A difference never refuses finalising: it is a finding to explain." },
+              { kind: "select", name: "paperCopy", label: "The estimate's paper copy in the box", required: paper.required, placeholder: paper.required ? "Choose" : "Not entered", options: [{ value: "figure", label: "It was in the box: enter its figure" }, { value: "notInBox", label: "It was not in the box" }], hint: "A difference is explained, never refused." },
               { kind: "money", name: "paperFigure", label: "The figure on the paper copy", sealed: true },
             ] as Field[])
           : []),
@@ -460,7 +459,7 @@ export function CopyExplanationDrawer({ exerciseId, openingId, people }: { exerc
   return (
     <RecordEditor
       title="Explain the estimate's paper copy"
-      description="Recorded once and never edited. Evaluation and the award wait for it."
+      description="Recorded once. Cannot be edited."
       fields={[hidden("exerciseId"), hidden("openingId"), { kind: "textarea", name: "explanation", label: "Explanation", required: true }, by("EstimateCopyExplanation.recordedBy", people)]}
       values={{ exerciseId, openingId }}
       action={recordCopyExplanation}
@@ -476,7 +475,7 @@ export function FileSealedBidsDrawer({ exerciseId, openingId, waiting }: { exerc
   return (
     <RecordEditor
       title="File the sealed bid files"
-      description={`${waiting} file${waiting === 1 ? " is" : "s are"} still to be filed in the document store. Filing is safe to repeat and moves only what is left.`}
+      description={`${waiting} file${waiting === 1 ? "" : "s"} left to file. Safe to repeat.`}
       fields={[hidden("exerciseId"), hidden("openingId")]}
       values={{ exerciseId, openingId }}
       action={fileSealedBidFiles}
