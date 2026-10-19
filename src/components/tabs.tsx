@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { useLanguage, useSay } from "@/components/i18n/language-context";
@@ -135,6 +135,8 @@ export function Tabs({
 }) {
   const say = useSay();
   const { language } = useLanguage();
+  // Each tab names the panel it controls, and the panel is named by the selected tab (APG tabs pattern).
+  const uid = useId();
   const [active, setActive] = useState(initial ?? tabs[0]?.id);
   // The address names the tab: when a navigation (a section link, a shared URL) brings a
   // different one, follow it. Adjusting state while rendering, as React recommends, rather
@@ -221,6 +223,8 @@ export function Tabs({
               data-tab={tab.id}
               type="button"
               role="tab"
+              id={`${uid}-tab-${tab.id}`}
+              aria-controls={selected ? `${uid}-panel` : undefined}
               aria-selected={selected}
               tabIndex={tab.id === focusId ? 0 : -1}
               onClick={() => select(tab.id)}
@@ -240,7 +244,7 @@ export function Tabs({
       <EdgeButtons more={stripMore} scroll={scrollStrip} label={say(WORDS.theTabs)} />
       </div>
 
-      <div role="tabpanel" className="min-w-0">
+      <div role="tabpanel" id={`${uid}-panel`} aria-labelledby={current ? `${uid}-tab-${current.id}` : undefined} className="min-w-0">
         {current?.sections?.length ? (
           <div className="flex min-w-0 flex-col gap-5">
             <div className="relative min-w-0">
