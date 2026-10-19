@@ -63,7 +63,7 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
       [
         b.restrictionWhy,
         b.grounds.length ? `Eliminatory: ${b.grounds.join("; ")}.` : null,
-        b.reported.length ? `Reported to the committee: ${b.reported.join("; ")}.` : null,
+        b.reported.length ? `${b.reported.join("; ")}.` : null,
         b.verdict?.reason ? `Why not carried: ${b.verdict.reason}` : null,
         b.initialMissing.length && !o.finalised ? `Initials still to record: ${b.initialMissing.join(", ")}.` : null,
         b.unanswered && !o.finalised ? `${b.unanswered} checklist ${b.unanswered === 1 ? "item" : "items"} not answered.` : null,

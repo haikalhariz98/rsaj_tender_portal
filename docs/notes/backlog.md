@@ -39,6 +39,7 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 | Accounts disable drawer: exposure lines | Ruling 20ci(a). The refusal states its reason today; per-exposure lines are not shown. | decisions log, 20ci |
 | English-only re-check (2026-10-20) | Browser re-check items (a) to (i), including English-only (e) and the supplier export (f), were NOT RUN: they need the isolated build on ports 3101 and 3102 with the scratch database. Malay still held in issued documents, supplier registration legal texts, configuration editors and configuration screens (needs RSAJ to accept the NFR-LNG-001 departure and a founder decision before any stored data is removed). | decisions log 2026-10-20 |
 
+| Minimal words: screens still over budget after the round-3 browser re-check | Browser re-check 2026-10-20 (864d8771). Callouts over 15 words: case Award, case Project (two), requisition, committee sitting, approval matrix. Paragraphs over 15 words: dashboard, case Award next step, exercise Scope, Organisation logo hint, Committees, supplier bid (demo_sx18), Bids and opening (18, up to 43). Subtitles over 8 words: requisition, supplier record. Standard: `docs/notes/design/0005-minimal-words.md`. |
 ## Part B items moved here when a run overran
 
 (none yet)

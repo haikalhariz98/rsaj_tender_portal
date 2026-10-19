@@ -48,11 +48,11 @@ export function Matrix({ corner, columns, rows, caption }: { corner: ReactNode; 
         ))}
       </colgroup>
       <THead>
-        <Th scope="col" className={cx(STICKY, "bg-sunken whitespace-normal")}>
+        <Th scope="col" className={cx(STICKY, "bg-sunken whitespace-normal!")}>
           {corner}
         </Th>
         {columns.map((c) => (
-          <Th key={c.key} scope="col" className="align-top whitespace-normal">
+          <Th key={c.key} scope="col" className="align-top whitespace-normal!">
             {c.head}
           </Th>
         ))}
@@ -60,7 +60,7 @@ export function Matrix({ corner, columns, rows, caption }: { corner: ReactNode; 
       <tbody>
         {rows.map((r) => (
           <Tr key={r.key} className={cx("hover:bg-transparent", r.summary && "bg-sunken/50")}>
-            <Th scope="row" className={cx(STICKY, "align-top font-semibold whitespace-normal text-ink", r.summary ? "bg-sunken" : "bg-surface")}>
+            <Th scope="row" className={cx(STICKY, "align-top font-semibold whitespace-normal! text-ink!", r.summary ? "bg-sunken" : "bg-surface")}>
               {r.head}
             </Th>
             {columns.map((c) => (
