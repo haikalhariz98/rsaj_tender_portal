@@ -228,7 +228,7 @@ function AdjustmentsSection({ l, v, people, today, hidden }: { l: LoadedContract
           }
         />
         {v.adjustments.length === 0 ? (
-          <EmptyState size="sm" title="None raised">{free.length ? `${free.length} issued Variation Order Certificate${free.length === 1 ? " waits" : "s wait"} to adjust the contract sum.` : "Raised from issued Variation Order Certificates"}</EmptyState>
+          <EmptyState size="sm" title={free.length ? `${free.length} issued Variation Order Certificate${free.length === 1 ? " waits" : "s wait"}` : "None raised"} />
         ) : (
           <ul className="divide-y divide-line/70">
             {[...v.adjustments].reverse().map((a) => {

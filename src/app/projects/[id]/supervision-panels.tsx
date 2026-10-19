@@ -217,7 +217,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
           divided={v.s.soAssignments.length > 0}
         />
         {v.s.soAssignments.length === 0 ? (
-          <EmptyState size="sm" title="Not resolved">{executed ? "Executed before supervision: resolve the S.O. here." : "Resolved on execution."}</EmptyState>
+          <EmptyState size="sm" title={executed ? "Not resolved" : "Resolved on execution"} />
         ) : (
           <ul className="divide-y divide-line/70">
             {[...v.s.soAssignments].reverse().map((a) => {

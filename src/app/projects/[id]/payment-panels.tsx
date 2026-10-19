@@ -7,6 +7,7 @@ import type { ContractStatus } from "@/lib/contract/types";
 import { AlertTriangle, CalendarIcon, ClipboardIcon, FileIcon, GavelIcon, ShieldIcon, WalletIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { caseHref } from "@/lib/contract/links";
 import { Card, CardBody, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
@@ -405,7 +406,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
       )}
       <CardHeader title={<Say words={P.nominatedParties} />} subtitle={`Totals only${parties.some((pt) => pt.directPayment) ? ` · ${PAYEE_BANK_UNCHECKED.direct.en}` : ""}`} divided className="border-t border-line/70" />
       {parties.length === 0 ? (
-        <EmptyState size="sm" title="None on this contract" />
+        <EmptyState size="sm" title="None on this contract" action={<ButtonLink href={caseHref({ awardId: l.award.id, contractId: l.contract.id }, { stage: "project", tab: "team" })} size="sm" variant="secondary">Open Team</ButtonLink>} />
       ) : (
         <ul className="divide-y divide-line/70">
           {parties.map((pt) => {

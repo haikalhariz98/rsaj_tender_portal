@@ -7,6 +7,7 @@ import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
 import { SUBMISSIONS_WORDS as S } from "@/lib/contract/case-page-words";
@@ -48,7 +49,7 @@ export function SubmissionsPanel({ review, judged, hrefOf, withContract, lang = 
         </Callout>
       )}
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClockIcon size={17} />} title={t(S.waitingTitle)} subtitle={sayWith(S.waitingSubtitle, lang, { overdue: overdueText })} divided={w.total > 0} />
+        <CardHeader icon={<ClockIcon size={17} />} title={t(S.waitingTitle)} subtitle={<span className="inline-flex flex-wrap items-center gap-1.5">{sayWith(S.waitingSubtitle, lang, { overdue: overdueText })}<InfoChip outline detail={t(S.routingStatement)}>{t(S.notEmailed)}</InfoChip></span>} divided={w.total > 0} />
         {w.total === 0 ? (
           <EmptyState size="sm" title={t(S.nothingWaits)} />
         ) : (

@@ -408,7 +408,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
           No destination configured.
         </Callout>
       )}
-      {cards.length === 0 ? <Card><EmptyState size="sm" title="Not sent for approval yet">{v.exemption ? "An exempt variation needs no prior approval." : "Sent once the S.O. supports it."}</EmptyState></Card> : cards}
+      {cards.length === 0 ? <Card><EmptyState size="sm" title={v.exemption ? "Exempt from prior approval" : "Not sent for approval yet"} /></Card> : cards}
     </div>
   );
 }

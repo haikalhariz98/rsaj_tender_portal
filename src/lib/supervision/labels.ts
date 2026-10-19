@@ -64,7 +64,7 @@ export function hiddenNote(hidden: readonly HiddenAct[]): { title: Words; body: 
     en.push(`Not in your delegation letter: ${listed.map((a) => ACT_WORDS[a].en.toLowerCase()).join("; ")}.`);
   }
   if (needs.length > 0) {
-    en.push(`Also left off: ${needs.map((n) => HIDDEN_NEED_WORDS[n].en).join("; and ")}.`);
+    en.push(`${listed.length > 0 ? "Also left off" : "Left off"}: ${needs.map((n) => HIDDEN_NEED_WORDS[n].en).join("; and ")}.`);
   }
   en.push("The S.O. records them.");
   return { title: w("Some acts hidden"), body: w(en.join(" ")) };

@@ -362,6 +362,7 @@ export const SUBMISSIONS_WORDS = {
   serviceNotSetBody: w("No due day, never overdue. Set under "),
   postAwardControls: w("Configuration › Post-award controls"),
   waitingTitle: w("Submissions waiting"),
+  notEmailed: w("Not emailed"),
   waitingSubtitle: w("Longest waiting first{overdue}"),
   overdueUnjudged: w(" · overdue not judged"),
   overduePast: w(" · {count} past due"),
