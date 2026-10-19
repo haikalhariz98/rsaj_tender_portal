@@ -32,9 +32,8 @@ import { matterLabel } from "@/lib/labels";
 import { greetingAt } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
 import { requireStaff } from "@/app/_auth/actor";
-import { currentLanguage } from "@/app/_auth/language";
+import { ENGLISH } from "@/lib/i18n/language";
 import { DASHBOARD_WORDS as D, WAITING_RULE_WORDS } from "@/lib/i18n/catalogues/dashboard";
-import { titleFor } from "@/lib/i18n/job-title";
 import { say, sayWith } from "@/lib/i18n/say";
 import { SignInNotices } from "@/components/auth/sign-in-notices";
 import { loadAccountView } from "@/lib/auth/account-view";
@@ -70,7 +69,7 @@ const COMING = [
 
 export default async function Dashboard() {
   const actor = await requireStaff();
-  const { language: lang } = await currentLanguage();
+  const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   // "Awaiting my decision" is the My approvals badge's own reading: `requestWorklist` is request-cached, so the layout and this page share one load (GN-03, AC-11). Every read starts
   // together (AC-9b); `hiddenExercises` and the time zone are request-cached, so the layout, the worklist and the loader share one read each.
@@ -96,7 +95,7 @@ export default async function Dashboard() {
   const now = new Date();
   // Greet by the name of whoever is signed in, from their session. Nobody signed in: the greeting alone.
   const firstName = actor.personName.split(/\s+/)[0];
-  const jobTitle = titleFor(actor, lang);
+  const jobTitle = actor.jobTitle;
   const awaitingMe = worklist ? waitingForCount(myStepsOf(worklist.groups, actor.personId)) : 0;
   const { requisitions: reqPipe, sourcing: srcPipe, contracts: conPipe } = data.pipeline;
   // Waiting days are shown as a count, with no judgement: there is no configured

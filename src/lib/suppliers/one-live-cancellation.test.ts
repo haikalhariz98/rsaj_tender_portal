@@ -7,6 +7,8 @@ import { recordCancellationFaults } from "./cancellation";
 import { hasFaultText, supplierFaultText } from "./labels";
 import { standing } from "./standing";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B Run 0 fix round (consider, adapted to M-1 as BD-613-109): one live registration cancelled per registration,
  * held by the database as well as by the act (which locks the supplier row and refuses ALREADY_CANCELLED).
@@ -68,6 +70,5 @@ describe("the act names the registration it cancels", () => {
     expect(fs).toEqual([{ code: "REGISTRATION_DAY_NOT_RECORDED", level: "block" }]);
     expect(hasFaultText("REGISTRATION_DAY_NOT_RECORDED")).toBe(true);
     expect(supplierFaultText(fs[0])).toBe("The supplier's registration day is not recorded, so the registration a cancellation ends cannot be named.");
-    expect(supplierFaultText(fs[0], "ms")).toBe("Tarikh pendaftaran pembekal tidak direkodkan, jadi pendaftaran yang dibatalkan tidak boleh dinamakan.");
   });
 });

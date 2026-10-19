@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { LAD_FAULT_WORDS, ladFaultWords } from "./labels";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /** 6.13 Part B run 1b: every damages code of the run is worded, English and Malay, naming no code. */
 
 describe("the damages chain's run 1b words", () => {
@@ -10,8 +12,7 @@ describe("the damages chain's run 1b words", () => {
     for (const [code, f] of Object.entries(LAD_FAULT_WORDS)) {
       const w = f(data);
       expect(w.en.length, code).toBeGreaterThan(10);
-      expect(w.ms.length, code).toBeGreaterThan(10);
-      for (const t of [w.en, w.ms]) expect(t, code).not.toMatch(/\b[A-Z]{3,}_[A-Z_]+\b/);
+      for (const t of [w.en]) expect(t, code).not.toMatch(/\b[A-Z]{3,}_[A-Z_]+\b/);
     }
   });
   it("the cap names the line and its three figures in money", () => {

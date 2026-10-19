@@ -73,19 +73,18 @@ export interface EditRegistry {
 export type EditRefusal = { ok: false; kind: "EDITOR"; result: EditRunResult } | ChangeFaults;
 export type ProposeEditOutcome = { ok: true; changeId: string } | EditRefusal;
 
-const f = (code: string, en: string, ms: string): Fault => ({ code, en, ms });
+const f = (code: string, en: string): Fault => ({ code, en });
 const refuse = (faults: Fault[]): ChangeFaults => ({ ok: false, kind: "FAULTS", faults });
 
-const LOADER = f("LOADER_RUN", "A loader run is not a person, so it cannot propose or decide a change.", "Larian pemuat bukan seorang manusia, jadi ia tidak boleh mencadangkan atau memutuskan perubahan.");
-const NO_SUCH_CHANGE = f("NO_SUCH_CHANGE", "That change no longer exists.", "Perubahan itu tidak lagi wujud.");
-const UNKNOWN_EDITOR = f("UNKNOWN_EDITOR", "That is not an editor a change can carry.", "Itu bukan penyunting yang boleh dibawa oleh perubahan.");
-const NO_CHANGE = f("NO_CHANGE", "Nothing would change: the values posted are the ones already stored.", "Tiada apa yang berubah: nilai yang dihantar sama dengan yang telah disimpan.");
+const LOADER = f("LOADER_RUN", "A loader run is not a person, so it cannot propose or decide a change.");
+const NO_SUCH_CHANGE = f("NO_SUCH_CHANGE", "That change no longer exists.");
+const UNKNOWN_EDITOR = f("UNKNOWN_EDITOR", "That is not an editor a change can carry.");
+const NO_CHANGE = f("NO_CHANGE", "Nothing would change: the values posted are the ones already stored.");
 const TX_OPTIONS = { timeout: 30_000, maxWait: 10_000 } as const;
 
 const ADMIN_REFUSED = f(
   "ADMINISTRATOR_REFUSED",
   "An administrator account does not propose or decide this change: it reaches what administration is kept apart from (SULIT values or the contract's corrections).",
-  "Akaun pentadbir tidak mencadangkan atau memutuskan perubahan ini: ia menjangkau perkara yang dipisahkan daripada pentadbiran (nilai SULIT atau pembetulan kontrak).",
 );
 
 /// The posted form, put back as the editor reads it. The reason is the change's own, not a posted field.
@@ -133,7 +132,7 @@ async function deciders(client: Tx, actor: StaffActor, op: EditOperation, now: D
 /// Who may propose it: a holder of the maker's permission, and not an administrator account where the editor is kept from one.
 export function editProposalFaults(op: EditOperation, proposer: { permissions: ReadonlySet<string>; isAdministrator: boolean }): Fault[] {
   const out: Fault[] = [];
-  if (op.proposePermission && !proposer.permissions.has(op.proposePermission)) out.push(f("NOT_PERMITTED", "You do not hold the permission that proposes a change to configuration.", "Anda tidak memegang kebenaran yang mencadangkan perubahan konfigurasi."));
+  if (op.proposePermission && !proposer.permissions.has(op.proposePermission)) out.push(f("NOT_PERMITTED", "You do not hold the permission that proposes a change to configuration."));
   if (!op.administratorMay && proposer.isAdministrator) out.push(ADMIN_REFUSED);
   return out;
 }
@@ -141,9 +140,9 @@ export function editProposalFaults(op: EditOperation, proposer: { permissions: R
 /// Who may decide it: a different Person from the proposer, holding the checker's permission, while it is proposed, and not an administrator account where the editor is kept from one.
 export function editDecisionFaults(op: EditOperation, change: { status: string; proposedByPersonId: string }, decider: { personId: string; permissions: ReadonlySet<string>; isAdministrator: boolean }): Fault[] {
   const out: Fault[] = [];
-  if (change.status !== "PROPOSED") out.push(f("NOT_PROPOSED", "This change has already been decided or withdrawn.", "Perubahan ini sudah diputuskan atau ditarik balik."));
-  if (decider.personId === change.proposedByPersonId) out.push(f("PROPOSER_IS_DECIDER", "You proposed this change, so you cannot decide it. A second person decides it.", "Anda mencadangkan perubahan ini, jadi anda tidak boleh memutuskannya. Orang kedua memutuskannya."));
-  if (!decider.permissions.has(op.decidePermission)) out.push(f("NOT_PERMITTED", "You do not hold the permission that decides this kind of change.", "Anda tidak memegang kebenaran yang memutuskan jenis perubahan ini."));
+  if (change.status !== "PROPOSED") out.push(f("NOT_PROPOSED", "This change has already been decided or withdrawn."));
+  if (decider.personId === change.proposedByPersonId) out.push(f("PROPOSER_IS_DECIDER", "You proposed this change, so you cannot decide it. A second person decides it."));
+  if (!decider.permissions.has(op.decidePermission)) out.push(f("NOT_PERMITTED", "You do not hold the permission that decides this kind of change."));
   if (!op.administratorMay && decider.isAdministrator) out.push(ADMIN_REFUSED);
   return out;
 }
@@ -154,12 +153,10 @@ const secondPerson = (op: EditOperation) =>
     ? f(
         "SECOND_PERSON_NEEDED",
         "A second person is needed. Nobody else can decide a change to configuration, and the person who proposes a change never decides it. Another holder of the permission to issue configuration must exist first (an administrator holds it, and so does a role the organisation grants it to).",
-        "Orang kedua diperlukan. Tiada orang lain boleh memutuskan perubahan konfigurasi, dan orang yang mencadangkan perubahan tidak pernah memutuskannya. Pemegang lain kebenaran mengeluarkan konfigurasi mesti wujud dahulu (pentadbir memegangnya, begitu juga peranan yang diberikannya oleh organisasi).",
       )
     : f(
         "SECOND_PERSON_NEEDED",
         "A second person is needed. Nobody else can decide a correction of the record, and the person who proposes one never decides it. The organisation must first grant the permission to decide corrections to a role that someone else holds (Configuration, Users and roles), and an administrator account does not decide a correction.",
-        "Orang kedua diperlukan. Tiada orang lain boleh memutuskan pembetulan rekod, dan orang yang mencadangkannya tidak pernah memutuskannya. Organisasi mesti memberikan terlebih dahulu kebenaran memutuskan pembetulan kepada peranan yang dipegang oleh orang lain (Konfigurasi, Pengguna dan peranan), dan akaun pentadbir tidak memutuskan pembetulan.",
       );
 
 // --------------------------------------------------------------------------------------------- proposing
@@ -178,7 +175,7 @@ export async function proposeEdit(
   const unpermitted = editProposalFaults(op, actor);
   if (unpermitted.length > 0) return refuse(unpermitted);
   const parsed = parseEditPayload({ operation: input.operation, fields: input.fields });
-  if (!parsed.ok) return refuse(parsed.faults.map((x) => f(x.code, `${x.field === "*" ? "" : `${x.field}: `}${x.en}`, x.ms)));
+  if (!parsed.ok) return refuse(parsed.faults.map((x) => f(x.code, `${x.field === "*" ? "" : `${x.field}: `}${x.en}`)));
   const payload = parsed.payload;
   const reason = input.reason.trim();
 
@@ -187,7 +184,7 @@ export async function proposeEdit(
     const waiting = await tx.configurationChange.findMany({ where: { organisationId: actor.organisationId, kind: op.kind, status: "PROPOSED", proposedByPersonId: actor.personId }, select: { payload: true } });
     for (const w of waiting) {
       const p = parseEditPayload(w.payload);
-      if (p.ok && samePayload(p.payload, payload)) return refuse([f("ALREADY_PROPOSED", "You have already proposed exactly this. It is waiting for a second person.", "Anda telah mencadangkan perkara yang sama. Ia menunggu orang kedua.")]);
+      if (p.ok && samePayload(p.payload, payload)) return refuse([f("ALREADY_PROPOSED", "You have already proposed exactly this. It is waiting for a second person.")]);
     }
     // The rehearsal: the editor runs against the live values, as the proposer, and everything it wrote is undone. What it refuses is told to the proposer in its own words.
     const ambient = newAmbient(tx, savepointSql(tx), "REHEARSAL");
@@ -247,7 +244,7 @@ export async function decideEdit(
 ): Promise<DecideEditOutcome> {
   if (actor.system) return refuse([LOADER]);
   const reason = input.reason.trim();
-  if (input.decision === "DECLINE" && !reason) return refuse([f("REASON_REQUIRED", "A reason is required.", "Sebab diperlukan.")]);
+  if (input.decision === "DECLINE" && !reason) return refuse([f("REASON_REQUIRED", "A reason is required.")]);
 
   return db.$transaction(async (tx): Promise<DecideEditOutcome> => {
     await tx.$queryRaw`SELECT id FROM "ConfigurationChange" WHERE id = ${input.changeId} AND "organisationId" = ${actor.organisationId} FOR UPDATE`;
@@ -255,11 +252,11 @@ export async function decideEdit(
     if (!row || !isEditKind(row.kind)) return refuse([NO_SUCH_CHANGE]);
     const parsed = parseEditPayload(row.payload);
     const op = parsed.ok ? registry.find(parsed.payload.operation) : null;
-    if (!parsed.ok || !op) return refuse([f("UNREADABLE", "This change no longer fits what a change of its kind carries, or its editor is gone, so it cannot be applied. Decline it, and propose it again.", "Perubahan ini tidak lagi sepadan dengan apa yang dibawa oleh perubahan sejenisnya, atau penyuntingnya telah tiada, jadi ia tidak boleh dilaksanakan. Tolaknya, dan cadangkan semula.")]);
+    if (!parsed.ok || !op) return refuse([f("UNREADABLE", "This change no longer fits what a change of its kind carries, or its editor is gone, so it cannot be applied. Decline it, and propose it again.")]);
 
     if (input.decision === "WITHDRAW") {
-      if (row.status !== "PROPOSED") return refuse([f("NOT_PROPOSED", "This change has already been decided or withdrawn.", "Perubahan ini sudah diputuskan atau ditarik balik.")]);
-      if (row.proposedByPersonId !== actor.personId) return refuse([f("NOT_THE_PROPOSER", "Only the person who proposed a change withdraws it.", "Hanya orang yang mencadangkan perubahan menariknya balik.")]);
+      if (row.status !== "PROPOSED") return refuse([f("NOT_PROPOSED", "This change has already been decided or withdrawn.")]);
+      if (row.proposedByPersonId !== actor.personId) return refuse([f("NOT_THE_PROPOSER", "Only the person who proposed a change withdraws it.")]);
     } else {
       const faults = editDecisionFaults(op, row, actor);
       if (faults.length > 0) return refuse(faults);

@@ -10,6 +10,8 @@ import { ACT_STATUS, actStatusFault, actStatusText, certificateAct, CERTIFICATE_
 import { STATUS_WRITTEN_BY } from "./status";
 import { CONTRACT_STATUSES, type ContractStatus } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B Run 1a fix round (BD-613-114 as confirmed with its condition): a certificate's acts read the table by
  * its kind and the phase of the act. Before the issue (prepare, route, sign, issue) the kind's own family; after it
@@ -95,10 +97,9 @@ describe("voiding an issued certificate whose issue wrote the contract's status 
     }
     for (const s of ["DRAFT", "IN_ROUTING", "SIGNING"] as const) expect(voidFaults("PRACTICAL_COMPLETION", s), s).toEqual([]);
   });
-  it("its words name the state, in English and Malay", () => {
+  it("its words name the state", () => {
     const w = certificateFaultWords(voidFaults("PRACTICAL_COMPLETION", "ISSUED")[0]);
     expect(w.en).toBe("Its issue made the contract practically complete, and no act undoes that yet: an issued certificate that wrote where the contract stands is not voided.");
-    expect(w.ms).toBe("Pengeluarannya menjadikan kontrak siap kerja, dan belum ada tindakan yang membatalkannya: perakuan dikeluarkan yang menetapkan keadaan kontrak tidak dibatalkan.");
   });
   it("the void act asks it, and the certificate page and its acts read the phase the same way (source)", () => {
     const write = readFileSync("src/lib/certificate/write.ts", "utf8");
@@ -186,7 +187,6 @@ describe("S-2: the certificate page's gates say what its acts would", () => {
   it("the cancelled words are the wrapper's own (source), in English and Malay", () => {
     const acts = readFileSync("src/app/projects/[id]/certificates/[certId]/actions.ts", "utf8");
     expect(acts).toContain(`const CANCELLED: FormState = { ok: false, message: "${CERTIFICATE_CANCELLED_WORDS.en}" };`);
-    expect(CERTIFICATE_CANCELLED_WORDS.ms).toBe("Kontrak dibatalkan: perakuannya dikekalkan seperti sedia ada.");
   });
 
   it("an EOT draft once the final certificate is issued: its acts refused in the table's words, its void open", () => {

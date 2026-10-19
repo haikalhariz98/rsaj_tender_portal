@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The Company workspace's two route handlers (Phase 4c), end to end through a bare `Request`: the guards in front of each (the public copy, the Origin guard, the signed form token for THIS
  * workspace, who is signed in), the settings and the body bound (an unset setting refuses and names itself, a body of no stated size or past the bound is cut off, a program renamed to a
@@ -302,7 +304,7 @@ describe("a change of bank details", () => {
     expect(body.message).toMatch(/wording has been changed/);
     h.sendBankChange.mockRejectedValueOnce(new UploadRefusal({ code: "STATEMENT_CLASS_NOT_SULIT", level: "block", data: {} }, 422));
     expect((await (await change()).json()).message).toMatch(/not classified SULIT/);
-    h.sendBankChange.mockRejectedValueOnce(new AttributionRefused([{ code: "STEP_UP_STALE", en: "Enter your password again to sign this.", ms: "Masukkan kata laluan anda sekali lagi." }]));
+    h.sendBankChange.mockRejectedValueOnce(new AttributionRefused([{ code: "STEP_UP_STALE", en: "Enter your password again to sign this." }]));
     const signature = await change();
     expect([signature.status, (await signature.json()).code]).toEqual([403, "SIGNATURE_REFUSED"]);
   });

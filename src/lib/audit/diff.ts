@@ -59,17 +59,17 @@ export function snapshotFields(row: Record<string, unknown>): FieldChange[] {
 /// Fields whose generic reading would say what is stored rather than what it means.
 /// 6.14 inc 1 residual: a certificate's SULIT figures as the trail stores them (sulit-fields.ts), in both
 /// languages; History and the export read the English line, the Malay is kept for the bilingual pass.
-export const CERTIFICATE_FIGURE_FIELD_WORDS: Readonly<Record<string, { en: string; ms: string }>> = {
-  certificateComputedAmount: { en: "As computed", ms: "Seperti dikira" },
-  certificateOverrideAmount: { en: "Overridden to", ms: "Diganti kepada" },
-  signatureSupportedUpTo: { en: "Supported up to", ms: "Disokong sehingga" },
+export const CERTIFICATE_FIGURE_FIELD_WORDS: Readonly<Record<string, { en: string;  }>> = {
+  certificateComputedAmount: { en: "As computed" },
+  certificateOverrideAmount: { en: "Overridden to" },
+  signatureSupportedUpTo: { en: "Supported up to" },
 };
 
 /// Founder, 2026-10-05: a committee's outcome linked to the record's approval when the sitting recorded it, as a cited
 /// step's History and a matter's History say it, in both languages (the values are committee/labels.ts AUTO_LINK_WORDS).
-export const AUTO_LINK_FIELD_WORDS: Readonly<Record<string, { en: string; ms: string }>> = {
-  linkedHow: { en: "How the decision was linked", ms: "Cara keputusan dipautkan" },
-  linkedToApproval: { en: "Linked to the record's approval", ms: "Dipautkan kepada kelulusan rekod" },
+export const AUTO_LINK_FIELD_WORDS: Readonly<Record<string, { en: string;  }>> = {
+  linkedHow: { en: "How the decision was linked" },
+  linkedToApproval: { en: "Linked to the record's approval" },
 };
 
 const NAMED_FIELDS: Record<string, string> = {

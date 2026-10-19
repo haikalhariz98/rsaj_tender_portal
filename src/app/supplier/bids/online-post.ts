@@ -17,10 +17,9 @@ export interface OnlineAnswer {
   ok?: boolean;
   code?: string;
   message?: string;
-  messageMs?: string;
-  faults?: { message: string; messageMs: string }[];
+  faults?: { message: string; }[];
   receipt?: Receipt;
-  warnings?: { message: string; messageMs: string }[];
+  warnings?: { message: string; }[];
   fileId?: string;
   withdrawn?: string[];
   linksCleared?: string[];
@@ -48,7 +47,7 @@ export async function postUpload(path: string, token: string | null, form: FormD
 
 /// The words for an answer, in both languages: its own where it carried them, else what the status tells.
 export function answerWords(status: number, body: OnlineAnswer | null): Words {
-  if (typeof body?.message === "string" && body.message.trim()) return { en: body.message.trim(), ms: typeof body.messageMs === "string" && body.messageMs.trim() ? body.messageMs.trim() : body.message.trim() };
+  if (typeof body?.message === "string" && body.message.trim()) return { en: body.message.trim() };
   if (status === 401) return SCREEN_WORDS.signedOut;
   if (status === 403 || status === 400) return SCREEN_WORDS.secondTab;
   return SCREEN_WORDS.notReached;

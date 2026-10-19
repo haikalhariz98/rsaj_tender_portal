@@ -6,6 +6,8 @@ import { parseSen } from "@/lib/money";
 
 import { D2_EOT_NOTE, EOT_COND, eotCondOf, resolveMatterRoute } from "./route";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B run 1b: a contract matter's route on the matrix (FR-EOT-007, worked example 11; FR-LAD-009, example 12).
  * The matrix is the test-only Appendix B fixture: no row ships (Rule 1). BD-613-132: the EOT's conditions.
@@ -42,7 +44,6 @@ describe("FR-EOT-007: an EOT routes on the cause of its financial impact, never 
     const r = resolveMatterRoute(ctx(), { ...base, kind: "EOT", cond: eotCondOf("OTHER") }, "fixture", () => false);
     expect(r.ok && r.notes).toEqual([D2_EOT_NOTE]);
     expect(D2_EOT_NOTE.en).toMatch(/D2/);
-    expect(D2_EOT_NOTE.ms.length).toBeGreaterThan(20);
   });
 });
 

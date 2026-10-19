@@ -1311,7 +1311,7 @@ async function ApprovalPanel({
               columns={2}
               items={[
                 { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
-                { label: "Chain beneath the approver", value: routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n, ms: n }; }).en },
+                { label: "Chain beneath the approver", value: routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n }; }).en },
                 { label: "Routed on", value: routedOnLabel(inst.cond) },
                 { label: "Value band", value: routeBand ?? "Band not recorded" },
                 {

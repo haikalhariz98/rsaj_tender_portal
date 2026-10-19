@@ -26,7 +26,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { inDelayContractIds } from "@/lib/supervision/load";
 import { commencedPendingAll } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
-import { currentLanguage } from "@/app/_auth/language";
+import { ENGLISH } from "@/lib/i18n/language";
 import { CASES_LIST_WORDS as L, AWARD_STATUS_WORDS, INSTRUMENT_SHORT_WORDS } from "@/lib/contract/case-page-words";
 import type { Words } from "@/lib/contract/labels";
 import type { Language } from "@/lib/i18n/language";
@@ -58,7 +58,7 @@ const day = (d: Date | null) => (d ? storedDay(d) : null);
  */
 export default async function ProjectsPage(props: PageProps<"/projects">) {
   const actor = await requireStaff();
-  const { language: lang } = await currentLanguage();
+  const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   const n = (words: Words, count: number) => sayWith(words, lang, { count: String(count) });
   const { page: p, view, sv, waiting, answered } = (await props.searchParams) as { page?: string; view?: string; sv?: string; waiting?: string; answered?: string };

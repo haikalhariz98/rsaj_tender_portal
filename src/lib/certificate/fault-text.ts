@@ -245,7 +245,7 @@ export function certificateFaultWords(f: Finding): Words {
     case "VOID_WOULD_UNDO_STATUS": {
       // BD-613-114's condition: the status an issue wrote is not undone by a void (deferred to the run that decides how).
       const st = CONTRACT_STATUS_WORDS[d.status as ContractStatus] ?? { en: "where it stands", ms: "keadaannya" };
-      return w(`Its issue made the contract ${st.en.toLowerCase()}, and no act undoes that yet: an issued certificate that wrote where the contract stands is not voided.`, `Pengeluarannya menjadikan kontrak ${st.ms.toLowerCase()}, dan belum ada tindakan yang membatalkannya: perakuan dikeluarkan yang menetapkan keadaan kontrak tidak dibatalkan.`);
+      return w(`Its issue made the contract ${st.en.toLowerCase()}, and no act undoes that yet: an issued certificate that wrote where the contract stands is not voided.`, `Pengeluarannya menjadikan kontrak ${st.en.toLowerCase()}, dan belum ada tindakan yang membatalkannya: perakuan dikeluarkan yang menetapkan keadaan kontrak tidak dibatalkan.`);
     }
     case "ISSUED_IS_FINAL":
       return w("An issued certificate is final: it is corrected only by a later certificate.", "Perakuan yang dikeluarkan adalah muktamad.");

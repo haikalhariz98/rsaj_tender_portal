@@ -7,6 +7,8 @@ import { formatDate } from "@/lib/format";
 import { awardStanding } from "./award-standing";
 import { standing, type StandingEventFacts } from "./standing";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.15a fix S-3 (against accepted 6.11; BD-615-17 sent back): an award shows its linked supplier's derived
  * standing, and warns where the supplier is barred, naming the standing and since when. The product does
@@ -33,7 +35,7 @@ describe("the awardee's standing on an award (fix S-3)", () => {
   });
 
   it("active, or active with the lapse rule unset: shown as the register says it, no warning", () => {
-    expect(awardStanding(read([]), formatDate)).toEqual({ words: { en: "Active", ms: "Aktif" }, tone: "ok", warning: null });
+    expect(awardStanding(read([]), formatDate)).toEqual({ words: { en: "Active" }, tone: "ok", warning: null });
     const lapse = awardStanding(read([], [{ typeLabel: "Works board certificate", state: "EXPIRED" }], null), formatDate);
     expect(lapse.words.en).toBe("Active — lapse rule not set; a mandatory document has expired");
     expect(lapse.tone).toBe("warn");

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { cellText, importLines, MAX_IMPORT_LINES, parseCsv } from "./line-import";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const H = ["Description", "Quantity", "Unit", "Unit price (RM)", "Amount (RM)"];
 
 describe("parseCsv", () => {
@@ -90,7 +92,6 @@ describe("importLines", () => {
       "Row 9: the amount is not a figure.",
     ]);
     expect(r.problems.map((p) => p.row)).toEqual([4, 5, 6, 7, 8, 9]);
-    expect(r.problems[0].text.ms).toBe("Baris 4: jumlah bukan angka.");
   });
 
   it("says so when there is no header row, or no way to get an amount", () => {

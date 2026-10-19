@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { draftIssueFault, makerCheckerFault, secondPersonAvailable } from "./maker-checker";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 describe("who may issue a draft of the approval matrix (ADR 0034 D15)", () => {
   it("is anyone who did not make it", () => {
     expect(makerCheckerFault({ makerPersonIds: ["p1", "p2"], makersUnknownAtLanding: false, issuerPersonId: "p3" })).toBeNull();
@@ -67,7 +69,6 @@ describe("who may issue a draft that has no adopt act of its own (Phase 5a: an e
       const fault = draftIssueFault({ makerPersonIds: [], issuerPersonId: issuer, eligiblePersonIds: ["p1", "p2"] });
       expect(fault?.code).toBe("NO_MAKER_ON_RECORD");
       expect(fault?.en).toMatch(/edit it first/);
-      expect(fault?.ms.length).toBeGreaterThan(20);
     }
   });
 });

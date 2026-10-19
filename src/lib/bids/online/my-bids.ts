@@ -20,7 +20,7 @@ import { WITHDRAW_FAULT_WORDS } from "./words";
 
 /// A size, in words in both languages. The unit of a small one is spelled out.
 export function bytesWords(n: bigint): Words {
-  return n < BigInt(1024) ? w(`${n} bytes`, `${n} bait`) : w(formatBytes(n), formatBytes(n));
+  return n < BigInt(1024) ? w(`${n} bytes`) : w(formatBytes(n));
 }
 
 export interface PartView {

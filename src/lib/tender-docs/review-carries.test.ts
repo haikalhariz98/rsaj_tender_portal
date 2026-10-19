@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * Code review carries that are properties of how the acts and the demo are written, held by a
  * source scan (vitest has no database).
@@ -56,6 +58,6 @@ describe("print and route polish (source scan)", () => {
     expect(read("src/app/sourcing/[id]/documents/workspace.tsx")).toMatch(/versionLabel \? `\$\{versionLabel\}, submitted`/);
     // AC-63 N1 (NFR-LNG-001): a crumb's label is `Words` now, so the topbar assigns the catalogue's pair and the pair reads "Tender documents".
     expect(read("src/components/shell/topbar.tsx")).toContain("crumbs[i].label = CRUMB_WORDS.tenderDocuments");
-    expect(read("src/lib/i18n/catalogues/shell.ts")).toContain('tenderDocuments: w("Tender documents",');
+    expect(read("src/lib/i18n/catalogues/shell.ts")).toContain('tenderDocuments: w("Tender documents")');
   });
 });

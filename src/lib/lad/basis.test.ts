@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { claimState, decisionBasisFaults, liveDecisionsByScope, PART_A_LABEL, replacementFaultsOnScope, scopeKey, supersession, supersededNote, type ClaimFact } from "./basis";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B run 1b (613A-C2 (a)(1), (2) as approved, BD-613-89; FR-LAD-001, 011): the damages decision's basis, per
  * scope. Pure.
@@ -74,10 +76,8 @@ describe("613A-C2 (a)(2) as amended (BD-613-89): supersession for later certific
   it("the note recorded at the issue, in both languages, by whether the new date is past", () => {
     expect(supersededNote("EOT/1", "2026-09-14", "2026-09-10").en).toBe("Closed by the extension of time EOT/1: the new date for completion 14 Sep 2026 is not yet past.");
     expect(supersededNote("EOT/1", "2026-09-14", "2026-09-20").en).toMatch(/^Superseded by the extension of time EOT\/1: a valuation past 14 Sep 2026 needs a replacement decision\.$/);
-    expect(supersededNote("EOT/1", "2026-09-14", "2026-09-10").ms).toMatch(/Ditutup oleh lanjutan masa EOT\/1/);
   });
   it("a Part A decision is labelled as such", () => {
     expect(PART_A_LABEL.en).toBe("Entitlement determined on the non-completion decision, before extension-of-time records");
-    expect(PART_A_LABEL.ms).toBe("Kelayakan diputuskan pada keputusan kerja tidak siap, sebelum rekod lanjutan masa");
   });
 });

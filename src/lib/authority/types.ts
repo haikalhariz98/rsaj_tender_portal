@@ -156,7 +156,6 @@ export interface ResolutionWarning {
     | "TYPE_ROW_SKIPPED";
   level: WarningLevel;
   messageEn: string;
-  messageMs: string;
   clause?: string;
   from?: string;
   to?: string;

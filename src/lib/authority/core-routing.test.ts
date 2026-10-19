@@ -27,6 +27,8 @@ import {
 import { resolveApproval } from "./resolve";
 import type { AuthorityAct, CoreLevel, Rule } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * FR-APR-004, §2.2.1: the core routing rule. Read against Appendix B.2 (the test-only
  * fixture's four rows): a rule taking its chain from the core routing gets every core
@@ -307,7 +309,7 @@ describe("(13) a revision copies its source issue's core routing", () => {
 
 describe("(22) what a route stores, and how an earlier route reads", () => {
   const at = new Date("2026-10-01T03:00:00Z");
-  const name = (code: string) => ({ en: DAL_FIXTURE.roles[code]?.nameEn ?? "?", ms: DAL_FIXTURE.roles[code]?.nameMs ?? "?" });
+  const name = (code: string) => ({ en: DAL_FIXTURE.roles[code]?.nameEn ?? "?" });
 
   it("a generated route stores each step's origin and the core row it used", () => {
     const r = resolveApproval(DAL_FIXTURE, { domain: "requisition", value: 420_000 });
@@ -332,8 +334,7 @@ describe("(22) what a route stores, and how an earlier route reads", () => {
     expect(text.en).toBe(
       "Chain as entered on the rule, not checked against core routing: the rule takes its chain from the core routing, but this issue recorded no core routing for its approving office when the route opened.",
     );
-    for (const words of [text.en, text.ms]) expect(words).not.toMatch(/Generated from|Taken from|Dijana daripada|Diambil daripada/);
-    expect(text.ms).toMatch(/^Rantaian seperti yang dimasukkan/);
+    expect(text.en).not.toMatch(/Generated from|Taken from/);
     // Generated means the flag and a recorded core row together.
     expect(chainWasGenerated({ coreChainFlag: true, coreRoutingSnapshot: DAL_CORE_ROUTING[3] })).toBe(true);
     expect(chainWasGenerated({ coreChainFlag: true, coreRoutingSnapshot: {} })).toBe(false);
@@ -355,7 +356,6 @@ describe("(22) what a route stores, and how an earlier route reads", () => {
     const fields = { coreSnapshotAt: at, coreChainFlag: false, coreChainReason: "One office approves the documents: nothing to generate (demo)." };
     const text = routeCoreText({ ...fields, coreRoutingSnapshot: null }, name);
     expect(text.en).toBe("Chain as entered on the rule, recorded as not taken from the core routing: One office approves the documents: nothing to generate (demo).");
-    expect(text.ms).not.toMatch(/\.\.$/);
   });
 
   it("an unset flag is stored as such and reads 'not checked', never as generated", () => {
@@ -368,7 +368,6 @@ describe("(22) what a route stores, and how an earlier route reads", () => {
   it("a route opened before the snapshot existed reads 'Not recorded', and so does a step with no origin", () => {
     expect(routeCoreText({ coreSnapshotAt: null, coreChainFlag: null, coreChainReason: null, coreRoutingSnapshot: null }, name).en).toMatch(/^Not recorded/);
     expect(originLabel(null)).toBe("Not recorded");
-    expect(originLabel(null, "ms")).toBe("Tidak direkodkan");
   });
 });
 
@@ -378,17 +377,15 @@ describe("the words, in English and Malay (codes never on screen)", () => {
     expect(originLabel("CORE_STRENGTHENED")).toBe("Strengthened by this rule");
     expect(originLabel("CORE_ACT_SET")).toBe("Act set by this rule");
     expect(originLabel("RULE")).toBe("Added by this rule");
-    expect(originLabel("CORE_ACT_SET", "ms")).toBe("Tindakan ditetapkan oleh peraturan ini");
   });
   it("names the three-way choice, unset as 'Not set'", () => {
     expect([null, true, false].map((f) => chainChoiceLabel(f))).toEqual(["Not set", "Generated from core routing", "As entered on this rule"]);
     expect(APPROVES_ALONE.en).toBe("Approves alone");
   });
   it("names offices and rules, never their codes", () => {
-    const w = coreFaultWarning("WEAKENS", { en: "Big purchase", ms: "Belian besar" }, { en: "Head of Division", ms: "Ketua Bahagian" });
+    const w = coreFaultWarning("WEAKENS", { en: "Big purchase" }, { en: "Head of Division" });
     expect(w.en).toContain("Head of Division");
-    expect(w.ms).toContain("Ketua Bahagian");
-    expect(`${w.en} ${w.ms}`).not.toMatch(/WEAKENS|HODIV/);
+    expect(w.en).not.toMatch(/WEAKENS|HODIV/);
     expect(issueRefusal("CORE_ROW_MISSING", "Big purchase", "Chairman")).not.toMatch(/CORE_ROW_MISSING|CM\b/);
   });
 });
@@ -396,7 +393,6 @@ describe("the words, in English and Malay (codes never on screen)", () => {
 describe("a route step's origin line", () => {
   it("shows only on a generated route's generated steps", () => {
     expect(stepOriginText({ coreChainFlag: true }, { chainOrigin: "CORE_STRENGTHENED" })).toBe("Strengthened by this rule");
-    expect(stepOriginText({ coreChainFlag: true }, { chainOrigin: "CORE" }, "ms")).toBe("Daripada laluan teras");
     // the approver's step on a generated route, a chain as entered, an earlier route
     expect(stepOriginText({ coreChainFlag: true }, { chainOrigin: null })).toBeNull();
     expect(stepOriginText({ coreChainFlag: false }, { chainOrigin: "RULE" })).toBeNull();

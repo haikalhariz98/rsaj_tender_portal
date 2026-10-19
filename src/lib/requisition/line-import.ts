@@ -14,7 +14,7 @@ import { parseSen, senToDecimalString } from "@/lib/money";
 /// The most lines one upload may carry.
 export const MAX_IMPORT_LINES = 500;
 
-export type Words = { en: string; ms: string };
+export type Words = { en: string;  };
 
 export interface ImportedLine {
   description: string;
@@ -113,13 +113,13 @@ function amountSen(text: string): bigint | null {
   }
 }
 
-const problem = (row: number | null, en: string, ms: string): ImportProblem => ({ row, text: { en: row == null ? en : `Row ${row}: ${en}`, ms: row == null ? ms : `Baris ${row}: ${ms}` } });
+const problem = (row: number | null, en: string): ImportProblem => ({ row, text: { en: row == null ? en : `Row ${row}: ${en}` } });
 
 /// Why a money cell is refused: too many decimals, or not a figure at all.
-const figureProblem = (row: number, text: string, en: string, ms: string): ImportProblem =>
+const figureProblem = (row: number, text: string, en: string): ImportProblem =>
   /^(rm\s*)?\d[\d,]*\.\d{3,}$/i.test(text.trim())
-    ? problem(row, `${en} has more than two decimal places.`, `${ms} melebihi dua tempat perpuluhan.`)
-    : problem(row, `${en} is not a figure.`, `${ms} bukan angka.`);
+    ? problem(row, `${en} has more than two decimal places.`)
+    : problem(row, `${en} is not a figure.`);
 
 /**
  * Read the rows of an uploaded file. The header row is the first of the top few that names a
@@ -137,7 +137,6 @@ export function importLines(rows: string[][]): ImportResult {
         problem(
           null,
           "No header row was found. The file needs a row naming the columns Description, Quantity, Unit, Unit price and Amount. Download the template to start from.",
-          "Tiada baris tajuk ditemui. Fail ini memerlukan satu baris yang menamakan lajur Perihal, Kuantiti, Unit, Harga seunit dan Jumlah. Muat turun templat untuk bermula.",
         ),
       ],
     };
@@ -154,7 +153,6 @@ export function importLines(rows: string[][]): ImportResult {
         problem(
           headerAt + 1,
           "the columns do not give an amount. Add an Amount column, or both Quantity and Unit price.",
-          "lajur tidak memberi jumlah. Tambah lajur Jumlah, atau kedua-dua Kuantiti dan Harga seunit.",
         ),
       ],
     };
@@ -176,30 +174,30 @@ export function importLines(rows: string[][]): ImportResult {
     }
 
     const bad: ImportProblem[] = [];
-    if (!description) bad.push(problem(n, "the description is empty.", "perihal kosong."));
+    if (!description) bad.push(problem(n, "the description is empty."));
 
     const quantityText = get(row, "quantity").replace(/,/g, "");
     if (quantityText && !/^\d+(\.\d{1,3})?$/.test(quantityText)) {
       bad.push(
         /^\d+\.\d{4,}$/.test(quantityText)
-          ? problem(n, "the quantity has more than three decimal places.", "kuantiti melebihi tiga tempat perpuluhan.")
-          : problem(n, "the quantity is not a figure.", "kuantiti bukan angka."),
+          ? problem(n, "the quantity has more than three decimal places.")
+          : problem(n, "the quantity is not a figure."),
       );
     }
 
     const priceText = get(row, "unitPrice");
     const price = priceText ? amountSen(priceText) : null;
-    if (priceText && price == null) bad.push(figureProblem(n, priceText, "the unit price", "harga seunit"));
+    if (priceText && price == null) bad.push(figureProblem(n, priceText, "the unit price"));
 
     const amountText = get(row, "amount");
     let amount = amountText ? amountSen(amountText) : null;
-    if (amountText && amount == null) bad.push(figureProblem(n, amountText, "the amount", "jumlah"));
+    if (amountText && amount == null) bad.push(figureProblem(n, amountText, "the amount"));
 
     const unitPrice = price == null ? "" : senToDecimalString(price);
     if (bad.length === 0 && amount == null) {
       const worked = lineAmount(quantityText, unitPrice);
       if (worked == null) {
-        bad.push(problem(n, "there is no amount, and no quantity and unit price to work one out from.", "tiada jumlah, dan tiada kuantiti serta harga seunit untuk mengiranya."));
+        bad.push(problem(n, "there is no amount, and no quantity and unit price to work one out from."));
       } else amount = worked;
     }
 
@@ -214,12 +212,11 @@ export function importLines(rows: string[][]): ImportResult {
       problem(
         null,
         `Only the first ${MAX_IMPORT_LINES} lines were read. A requisition holds at most ${MAX_IMPORT_LINES} lines: split the rest into another requisition.`,
-        `Hanya ${MAX_IMPORT_LINES} baris pertama dibaca. Satu requisition memuatkan paling banyak ${MAX_IMPORT_LINES} baris: pecahkan selebihnya kepada requisition lain.`,
       ),
     );
   }
   if (lines.length === 0 && problems.length === 0) {
-    problems.push(problem(null, "The file has no lines below the header row.", "Fail ini tiada baris di bawah baris tajuk."));
+    problems.push(problem(null, "The file has no lines below the header row."));
   }
   return { lines, problems };
 }

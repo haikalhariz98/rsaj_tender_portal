@@ -1059,7 +1059,7 @@ async function NamePanel({
           })()}
           {inst.checkedAgainstMatrix && (
             <p className="border-t border-line px-5 py-2.5 text-[12.5px] break-words text-ink-3 sm:px-6">
-              Chain beneath the approver: {routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n, ms: n }; }).en}
+              Chain beneath the approver: {routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n }; }).en}
             </p>
           )}
           <RouteSteps

@@ -14,7 +14,6 @@ export const TEMPLATE_HEADERS = ["Description", "Quantity", "Unit", "Unit price 
 export const TEMPLATE_NOTES: readonly Words[] = [
   {
     en: "One item per row, below the headings. Amount may be left empty: it is then worked out as quantity × unit price.",
-    ms: "Satu item setiap baris, di bawah tajuk. Jumlah boleh dibiarkan kosong: ia dikira sebagai kuantiti × harga seunit.",
   },
 ];
 
@@ -23,7 +22,7 @@ export const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsh
 
 /// The template as CSV: UTF-8 with a byte order mark so Excel reads the characters, CRLF rows.
 export function csvTemplate(): string {
-  const note = TEMPLATE_NOTES.flatMap((n) => [n.en, n.ms]).map((t) => csvCell(t));
+  const note = TEMPLATE_NOTES.map((n) => n.en).map((t) => csvCell(t));
   return `﻿${[...note, TEMPLATE_HEADERS.map(csvCell).join(",")].join("\r\n")}\r\n`;
 }
 
@@ -40,7 +39,7 @@ export async function xlsxTemplate(): Promise<Uint8Array> {
   ];
   let r = 1;
   for (const n of TEMPLATE_NOTES) {
-    for (const t of [n.en, n.ms]) {
+    for (const t of [n.en]) {
       ws.mergeCells(r, 1, r, 5);
       const c = ws.getCell(r, 1);
       c.value = t;

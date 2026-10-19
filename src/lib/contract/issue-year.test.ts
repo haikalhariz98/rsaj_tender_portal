@@ -7,6 +7,8 @@ import { dayToDate } from "@/lib/dates";
 
 import { CONTRACT_YEAR_WORDS, contractYearReading, issueDayOf, issueYearOf } from "./issue-year";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.12 review S-1 (FR-CON-002): the issue year is the organisation's day of issue, never digits read out of
  * the number. A finance officer can check each case: the number, the day it was issued, the year shown.
@@ -61,7 +63,6 @@ describe("the year a contract number was issued in", () => {
   it("the words are in English and Malay and name the year", () => {
     const s = CONTRACT_YEAR_WORDS.series(2026);
     expect(s.en).toContain("issued, 2026");
-    expect(s.ms).toContain("2026");
   });
 
   it("the contract's screen reads the year from here, never from the number's digits", () => {

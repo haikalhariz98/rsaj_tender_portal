@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { boundaryOperatorFor, inBand } from "./authority/resolve";
 import { formatDate, formatOrgDateTime, formatOrgDay, formatRouteBand } from "./format";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 describe("a timestamp on the organisation's day (ruling BD-32)", () => {
   // 20:00 UTC on 30 September is already 1 October in Kuala Lumpur.
   const late = new Date("2026-09-30T20:00:00.000Z");
@@ -46,31 +48,8 @@ describe("an instant with its time, on the organisation's clock", () => {
   });
 });
 
-describe("a date in Malay (NFR-LNG-001, ADR 0040 Q4: drafted, not yet reviewed)", () => {
-  // 20:00 UTC on 30 September is 04:00 on 1 October in Kuala Lumpur.
+describe("the date in English, whatever argument is passed (founder, 2026-10-19: English only)", () => {
   const late = new Date("2026-09-30T20:00:00Z");
-
-  it("months whose Malay differs: Mac, Mei, Ogo, Okt, Dis", () => {
-    expect(formatDate("2026-03-05", "ms")).toBe("05 Mac 2026");
-    expect(formatDate("2026-05-05", "ms")).toBe("05 Mei 2026");
-    expect(formatDate("2026-08-05", "ms")).toBe("05 Ogo 2026");
-    expect(formatDate("2026-10-05", "ms")).toBe("05 Okt 2026");
-    expect(formatDate("2026-12-05", "ms")).toBe("05 Dis 2026");
-    expect(formatDate("2026-09-24", "ms")).toBe("24 Sep 2026");
-  });
-
-  it("the organisation's day and time, with and without a zone", () => {
-    expect(formatOrgDay(late, "Asia/Kuala_Lumpur", "ms")).toBe("01 Okt 2026");
-    expect(formatOrgDateTime(late, "Asia/Kuala_Lumpur", "ms")).toBe("01 Okt 2026 · 04:00");
-    expect(formatOrgDay(late, null, "ms")).toBe("30 Sep 2026 (UTC — zon waktu belum ditetapkan)");
-    expect(formatOrgDateTime(late, null, "ms")).toBe("30 Sep 2026 · 20:00 (UTC — zon waktu belum ditetapkan)");
-  });
-
-  it("nothing still reads as a dash", () => {
-    expect(formatDate(null, "ms")).toBe("—");
-    expect(formatOrgDay(null, null, "ms")).toBe("—");
-    expect(formatOrgDateTime(null, null, "ms")).toBe("—");
-  });
 
   it("English is unchanged, and an explicit en equals no argument", () => {
     expect(formatDate("2026-10-05", "en")).toBe("05 Oct 2026");

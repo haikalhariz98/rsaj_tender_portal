@@ -111,13 +111,12 @@ export function newerIssueNote(
   routedUnder: { id: string; label: string },
   inForceAtSubmission: { id: string; label: string } | null,
   raisedOnText: string,
-): { code: "NEWER_ISSUE_IN_FORCE"; level: "info"; messageEn: string; messageMs: string } | null {
+): { code: "NEWER_ISSUE_IN_FORCE"; level: "info"; messageEn: string; } | null {
   if (!inForceAtSubmission || inForceAtSubmission.id === routedUnder.id) return null;
   return {
     code: "NEWER_ISSUE_IN_FORCE",
     level: "info",
     messageEn: `Routed under “${routedUnder.label}”, the issue in force on ${raisedOnText}, when the requisition was raised. “${inForceAtSubmission.label}” is in force on the day it was submitted; a requisition keeps the limits it was raised under.`,
-    messageMs: `Dihalakan di bawah “${routedUnder.label}”, terbitan yang berkuat kuasa pada ${raisedOnText}, ketika permohonan dibuat. “${inForceAtSubmission.label}” berkuat kuasa pada hari ia dihantar; permohonan kekal di bawah had semasa ia dibuat.`,
   };
 }
 

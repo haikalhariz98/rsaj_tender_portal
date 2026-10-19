@@ -28,7 +28,7 @@ export interface SummarySection {
   title: string;
   items: SummaryItem[];
   /// Set where the section is SULIT and the reader may not see it: the reason, in words, and no items.
-  withheld?: { en: string; ms: string };
+  withheld?: { en: string;  };
   /// What the section says when it has nothing to show.
   empty?: string;
 }

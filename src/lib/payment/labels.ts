@@ -463,7 +463,9 @@ export function paymentFaultWords(f: Finding): Words {
     default:
       // 6.13 Part B run 1b (flagged against Part A, a code Part A never gave): the damages chain's run 1b codes are
       // lad/labels.ts's; any other still fails closed in words.
-      return ladFaultWords(f) ?? w("Refused.", "Ditolak.");
+      // The damages chain's words are English only now (founder, 2026-10-19); the Malay slot of a payment pair repeats the English.
+      const lad = ladFaultWords(f);
+      return lad ? w(lad.en, lad.en) : w("Refused.", "Ditolak.");
   }
 }
 

@@ -7,6 +7,8 @@ import { diffFields } from "@/lib/audit/diff";
 import { auditCsv, SULIT_WITHHELD, type ExportRow } from "@/lib/audit/export";
 import { isSulitField } from "@/lib/sulit-fields";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.14 inc 1 fix R-7: a certificate's figures are SULIT in the trail. An override's computed and overridden
  * figures and the amount a recommending block supported up to are written under specific registered keys
@@ -61,12 +63,12 @@ describe("a certificate's figures are SULIT (R-7)", () => {
 });
 
 describe("their History labels (6.14 residual)", () => {
-  it("read as the figures they are, in English and Malay, in History and in the export", async () => {
+  it("read as the figures they are, in History and in the export", async () => {
     const { CERTIFICATE_FIGURE_FIELD_WORDS, fieldLabel } = await import("@/lib/audit/diff");
     expect(fieldLabel("certificateComputedAmount")).toBe("As computed");
     expect(fieldLabel("certificateOverrideAmount")).toBe("Overridden to");
     expect(fieldLabel("signatureSupportedUpTo")).toBe("Supported up to");
-    for (const k of KEYS) expect(CERTIFICATE_FIGURE_FIELD_WORDS[k]?.ms, k).toBeTruthy();
+    for (const k of KEYS) expect(CERTIFICATE_FIGURE_FIELD_WORDS[k]?.en, k).toBeTruthy();
     const csv = auditCsv([row({ changes: diffFields(null, { certificateComputedAmount: "RM1.00" }) })], "Asia/Kuala_Lumpur");
     expect(csv).toContain("As computed");
   });

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { RECEIVED_WORDS, receivedView } from "./received";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * Received (SR-13; ruling 18 as amended by 20u, 20l). A worked example: sequences 1 to 5 were taken; 2 was replaced by 4, and 3 was withdrawn; 5 came after the
  * closing. Three bids stand: 1, 4 and 5 (late). Before the opening starts Received shows them as 1st, 2nd and 3rd by stamp, with no receipt numbers, so the gaps at
@@ -58,15 +60,11 @@ describe("Received before and after the opening's start", () => {
     expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/order of the bids now standing/);
     expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/can change before the closing/);
     expect(RECEIVED_WORDS.ordinalNote.en).toMatch(/order of receipt for the exercise is shown once the opening starts/);
-    expect(RECEIVED_WORDS.ordinalNote.ms).toMatch(/boleh berubah sebelum tarikh tutup/);
-    expect(RECEIVED_WORDS.ordinalNote.ms).toMatch(/susunan penerimaan portal/i);
-    expect(RECEIVED_WORDS.sequenceLabel).toEqual({ en: "Portal order of receipt", ms: "Susunan penerimaan portal" });
+    expect(RECEIVED_WORDS.sequenceLabel).toEqual({ en: "Portal order of receipt" });
     // 20ar: since 20an a supplier's receipt carries its own submission number, so neither language may call the sequence a receipt number.
     for (const x of Object.values(RECEIVED_WORDS)) {
       expect(x.en).not.toMatch(/receipt number/i);
-      expect(x.ms).not.toMatch(/nombor resit/i);
     }
     expect(RECEIVED_WORDS.ordinalLabel.en.length).toBeGreaterThan(2);
-    expect(RECEIVED_WORDS.ordinalLabel.ms.length).toBeGreaterThan(2);
   });
 });

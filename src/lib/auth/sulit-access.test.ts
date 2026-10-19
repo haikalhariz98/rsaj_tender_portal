@@ -32,6 +32,8 @@ import {
   type SulitContext,
 } from "./sulit-access";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const person: SulitActor = { personId: "p1", isAdministrator: false, system: false };
 const admin: SulitActor = { personId: "p9", isAdministrator: true, system: false };
 const loader: SulitActor = { personId: null, isAdministrator: false, system: true };
@@ -296,7 +298,6 @@ describe("the words", () => {
       for (const scope of [...SULIT_SCOPES, "estimate" as const]) {
         const w = refusalWords(basis, scope);
         expect(w.en.length, `${basis} en`).toBeGreaterThan(10);
-        expect(w.ms.length, `${basis} ms`).toBeGreaterThan(10);
         expect(w.en, basis).not.toMatch(/[A-Z]{3,}_[A-Z_]+|sulit\.read/);
       }
     }

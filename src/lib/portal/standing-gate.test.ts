@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { portalStandingBar, standingBarFinding } from "./standing-gate";
 import { posixRelative, toPosix } from "@/lib/scan/files";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 // Decisions log, 2026-10-09, ruling on 1875(3): a rejected, suspended or blacklisted supplier may sign in to read its own status; every act but reading is refused to it with the standing in words.
 
 describe("what a standing lets a supplier do in the portal", () => {
@@ -19,7 +21,6 @@ describe("what a standing lets a supplier do in the portal", () => {
       const bar = portalStandingBar({ status: "REJECTED", standing: "NOT_REGISTERED", kind });
       expect(bar?.en, kind).toMatch(/registration was not accepted/);
       expect(bar?.en).toMatch(/still sign in and read your status/);
-      expect(bar?.ms.length).toBeGreaterThan(20);
     }
   });
 
@@ -46,7 +47,7 @@ describe("what a standing lets a supplier do in the portal", () => {
 
   it("gives every domain the same finding, with both languages in its data", () => {
     const bar = portalStandingBar({ status: "REJECTED", standing: "NOT_REGISTERED", kind: "TRANSACT" })!;
-    expect(standingBarFinding(bar)).toEqual({ code: "SUPPLIER_STANDING_BARS", level: "block", data: { en: bar.en, ms: bar.ms } });
+    expect(standingBarFinding(bar)).toEqual({ code: "SUPPLIER_STANDING_BARS", level: "block", data: { en: bar.en } });
   });
 });
 

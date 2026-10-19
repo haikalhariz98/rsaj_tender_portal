@@ -22,12 +22,12 @@ export interface BackdatedAttribution {
 
 export function confirmationFaults(a: BackdatedAttribution | null, actorPersonId: string): Fault[] {
   if (!a || a.effectiveOn == null || a.authorisedByPersonId == null) {
-    return [{ code: "NOT_BACKDATED", en: "That act was not back-dated, or names no one as authorising it, so there is nothing to confirm.", ms: "Tindakan itu tidak diberi tarikh lalu, atau tidak menamakan sesiapa sebagai pemberi kuasa, jadi tiada apa untuk disahkan." }];
+    return [{ code: "NOT_BACKDATED", en: "That act was not back-dated, or names no one as authorising it, so there is nothing to confirm." }];
   }
   if (a.authorisedByPersonId !== actorPersonId) {
-    return [{ code: "NOT_THE_AUTHORISER", en: "Only the person the signer named as authorising it confirms a back-dating.", ms: "Hanya orang yang dinamakan oleh penandatangan sebagai pemberi kuasa mengesahkan pentarikhan lalu." }];
+    return [{ code: "NOT_THE_AUTHORISER", en: "Only the person the signer named as authorising it confirms a back-dating." }];
   }
-  if (a.alreadyConfirmed) return [{ code: "ALREADY_CONFIRMED", en: "You have already confirmed this back-dating.", ms: "Anda telah mengesahkan pentarikhan lalu ini." }];
+  if (a.alreadyConfirmed) return [{ code: "ALREADY_CONFIRMED", en: "You have already confirmed this back-dating." }];
   return [];
 }
 

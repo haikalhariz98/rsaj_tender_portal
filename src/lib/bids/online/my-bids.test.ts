@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { bytesWords, discardedNotices, partViews, standingChoices, submissionViews, type OwnBidRow } from "./my-bids";
-import { SCREEN_WORDS } from "./screen-words";
 import { stampText } from "./stamp-text";
 import type { BidPartRule } from "./types";
 import { WITHDRAW_FAULT_WORDS } from "./words";
+
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
 
 /**
  * What the supplier's screens for an online bid assemble (SR-13, rulings 20s, 20an, 20ab; build plan step 11). The closing is 4 November 2026 at 12:00:00 in Kuala Lumpur (04:00:00 UTC).
@@ -66,7 +67,6 @@ describe("from the opening's start, the four states and the digest in full (20s)
     const [v] = view([row({ id: "a", sequence: 12, receiptDigest: "d".repeat(64) })], { opening: started(roll([{ sequence: 12, receiptDigest: digest, late: false }])) });
     expect(v.opening!.digest).toBe(digest);
     expect(v.opening!.detail.en).toContain(digest);
-    expect(v.opening!.detail.ms).toContain(digest);
     expect(v.opening!.detail.en).toMatch(/Compare it with the receipt you printed or saved/);
   });
 
@@ -76,12 +76,10 @@ describe("from the opening's start, the four states and the digest in full (20s)
     expect(out.late.headline.en).toMatch(/Received after the closing/);
     expect(out.gone.headline.en).toMatch(/not in the opening's list/);
     expect(out.gone.detail.en).toContain("Perbadanan Contoh");
-    expect(out.gone.detail.ms).toContain("Perbadanan Contoh");
     // Stage C security audit nit: the list holds no digest for it, but the supplier's own recorded one is shown with words that say so (S11).
     expect(out.gone.digest).toBe("2".repeat(64));
     expect(out.gone.detail.en).toContain("The receipt digest recorded when you submitted it is");
     expect(out.gone.detail.en).toContain("The opening's list holds none for it");
-    expect(out.gone.detail.ms).toContain("Senarai pembukaan tidak mempunyai cincangan baginya");
     expect(out.opened.headline.en).toBe("Opened; the result follows the evaluation");
     expect(out.old.headline.en).toBe("Not opened, as expected");
   });
@@ -98,7 +96,7 @@ describe("the parts a bidder returns", () => {
 
   it("shows the types and the largest file in words, the smaller of the part's limit and the deployment's ceiling", () => {
     const [p] = partViews([rule({})], [], BigInt(2 * 1024 * 1024), null);
-    expect(p.types).toEqual({ en: "PDF", ms: "PDF" });
+    expect(p.types).toEqual({ en: "PDF" });
     expect(p.largest).toEqual(bytesWords(BigInt(2 * 1024 * 1024)));
     expect(p.largest!.en).toBe("2 MB");
     expect(p.uploadable).toBe(true);
@@ -139,7 +137,7 @@ describe("the choices the submit page offers, and the stamp's text", () => {
   });
 
   it("says the size of a small file in bytes, in both languages", () => {
-    expect(bytesWords(BigInt(500))).toEqual({ en: "500 bytes", ms: "500 bait" });
+    expect(bytesWords(BigInt(500))).toEqual({ en: "500 bytes" });
   });
 });
 
@@ -152,7 +150,4 @@ describe("files discarded because the key changed (step 8's review)", () => {
     expect(discardedNotices([], "cc")).toEqual([]);
   });
 
-  it("is said in both languages", () => {
-    expect(SCREEN_WORDS.discardedOne.ms).not.toBe(SCREEN_WORDS.discardedOne.en);
-  });
 });

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { buildIndex, loadAttributions } from "./attribution-read";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const row = (over: Record<string, unknown> = {}) => ({
   entity: "ApprovalStep",
   entityId: "s1",
@@ -21,13 +23,12 @@ describe("how a screen reads who did an act", () => {
     expect(buildIndex([row()], new Set()).read(ref, "Aini").en).toBe("Signed by Aini");
     // An act that is signed but is not a signature reads in its own slot's words.
     const own = buildIndex([row({ entity: "Possession", slot: "recordedBy", entityId: "p1" })], new Set()).read({ entity: "Possession", id: "p1", slot: "recordedBy" }, "Aini");
-    expect(own).toMatchObject({ state: "SIGNED", en: "Recorded by Aini", ms: "Direkodkan oleh Aini" });
+    expect(own).toMatchObject({ state: "SIGNED", en: "Recorded by Aini" });
   });
 
   it("reads an act recorded from paper as the recorder's, for the person, not signed", () => {
     const read = buildIndex([row({ mode: "RECORDED_ON_BEHALF", recordedByPerson: { name: "Clerk" } })], new Set()).read(ref, "Aini");
     expect(read).toMatchObject({ state: "ON_BEHALF", en: "Recorded by Clerk on behalf of Aini, not signed" });
-    expect(read.ms).toMatch(/bagi pihak Aini/);
   });
 
   it("reads an act the system recorded as the system's, by its label", () => {

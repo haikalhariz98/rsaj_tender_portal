@@ -1,7 +1,6 @@
 import { writeAudit } from "@/lib/audit/record";
 import { AccountStatus } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { fromStored, toStored, type Language } from "@/lib/i18n/language";
 
 import { codeVerdict, hashCode, normaliseCode } from "./codes";
 import { signInOrganisation } from "./deployment";
@@ -33,8 +32,8 @@ export type ChangePasswordOutcome =
   | { ok: false; kind: "LOCKED" }
   | { ok: false; kind: "POLICY_NOT_SET"; unset: SecurityPolicyKey[] };
 
-const WRONG_CURRENT: Fault = { code: "WRONG_CURRENT", en: "That is not your current password.", ms: "Itu bukan kata laluan semasa anda." };
-const SAME_AS_CURRENT: Fault = { code: "SAME_AS_CURRENT", en: "Choose a password different from the current one.", ms: "Pilih kata laluan yang berbeza daripada yang semasa." };
+const WRONG_CURRENT: Fault = { code: "WRONG_CURRENT", en: "That is not your current password." };
+const SAME_AS_CURRENT: Fault = { code: "SAME_AS_CURRENT", en: "Choose a password different from the current one." };
 
 /**
  * Change the password of the signed-in account. The current password is asked for again and counts towards the lockout if wrong. Every other
@@ -213,29 +212,3 @@ export async function acknowledgeResetNotice(actor: StaffActor, request: Request
   });
 }
 
-/**
- * Save the language the signed-in person reads the staff screens in (NFR-LNG-001, ADR 0040). The column and its audit row commit together.
- * The same value again writes nothing, neither a column change nor a row. Returns whether anything changed.
- */
-export async function setStaffLanguage(actor: StaffActor, next: Language): Promise<{ changed: boolean }> {
-  return db.$transaction(async (tx) => {
-    await lockAccount(tx, actor.accountId);
-    const row = await tx.staffAccount.findUniqueOrThrow({ where: { id: actor.accountId }, select: { uiLanguage: true } });
-    if (fromStored(row.uiLanguage) === next) return { changed: false };
-    await tx.staffAccount.update({ where: { id: actor.accountId }, data: { uiLanguage: toStored(next) } });
-    await writeAudit(
-      tx,
-      {
-        organisationId: actor.organisationId,
-        entity: "StaffAccount",
-        entityId: actor.accountId,
-        entityLabel: `Sign-in account of ${actor.personName}`,
-        reason: "Display language chosen by the account holder",
-        actor: { kind: "STAFF", personId: actor.personId, sessionId: actor.sessionId, offices: actor.offices, sourceAddress: actor.sourceAddress },
-      },
-      "UPDATE",
-      [{ field: "uiLanguage", before: row.uiLanguage, after: toStored(next) }],
-    );
-    return { changed: true };
-  });
-}

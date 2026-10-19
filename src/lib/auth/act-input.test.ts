@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { actFaultErrors, interpretAct, type ActForm } from "./act-input";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /// ApprovalStep.decidedBy: signature-class, may come from paper. Requisition.requestingPerson: neither.
 const SIGNATURE = { signatureClass: true, onBehalf: true } as const;
 const ORDINARY = { signatureClass: false, onBehalf: false } as const;
@@ -157,9 +159,6 @@ describe("the faults, as a form shows them", () => {
   it("says each in both languages, the Malay not the English", () => {
     const r = run({ slot: SIGNATURE });
     if (r.ok) throw new Error("expected a refusal");
-    for (const f of r.faults) {
-      expect(f.ms.length).toBeGreaterThan(10);
-      expect(f.ms).not.toBe(f.en);
-    }
+    for (const f of r.faults) expect(f.en.trim()).not.toBe("");
   });
 });

@@ -5,7 +5,9 @@ import type { Matrix } from "@/lib/authority/types";
 import { SUPPLIER_MATRIX } from "./fixture";
 import { supplierRoute, type SupplierRequester } from "./route";
 
-const WHAT = { en: "a supplier's registration", ms: "pendaftaran pembekal" };
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
+const WHAT = { en: "a supplier's registration" };
 const someone: SupplierRequester = { id: "p_clerk", holds: () => false, ableToAct: () => ({ holderIds: ["p_officer", "p_other"], delegateIds: [] }) };
 
 describe("a supplier matter's route (OD-2 A: routing value null)", () => {
@@ -31,7 +33,6 @@ describe("a supplier matter's route (OD-2 A: routing value null)", () => {
     const r = supplierRoute({ ...SUPPLIER_MATRIX, rules: [] }, "supplier_registration", "NEW", someone, WHAT);
     expect(r).toMatchObject({ state: "NO_RULE", chain: [] });
     expect(r.refusal?.en).toBe("No approval rule in the matrix in force covers a supplier's registration. Record a rule for it under Configuration › Approval matrix, with no value band (supplier matters are not routed on a value), then send it again.");
-    expect(r.refusal?.ms).toMatch(/Matriks kelulusan/);
   });
 
   it("a committee step is refused: no sitting tables a supplier matter", () => {

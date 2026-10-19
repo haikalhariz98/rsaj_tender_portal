@@ -1,45 +1,19 @@
 /**
- * The languages a staff screen can be read in (NFR-LNG-001, ADR 0040). The stored choice is nullable:
- * null means the person never chose, which reads English, as before the choice existed, and the screen says
- * so rather than passing the default off as a choice.
+ * The staff screens read in English only. Founder, 2026-10-19: "remove the Malay translation work, only English needed in the system"
+ * (supersedes ADR 0040; NFR-LNG-001 is a departure RSAJ must accept before go-live, see the backlog).
+ *
+ * `Language` stays as a one-member type so the many `say(words, lang)` calls keep compiling while the call sites are tidied; nothing is
+ * chosen, stored or switched. `StaffAccount.uiLanguage` is no longer read or written; the column is kept so no data is deleted.
  */
 
-export const LANGUAGES = ["en", "ms"] as const;
+export const LANGUAGES = ["en"] as const;
 export type Language = (typeof LANGUAGES)[number];
 
-/** As stored: null = never chosen (reads English, and says so). */
-export type LanguageChoice = Language | null;
+/** The one language every screen is read in. */
+export const ENGLISH: Language = "en";
 
-/**
- * A language as a form sends it. Hand validation (no schema library): anything but exactly "en" or "ms" is
- * refused, including "", the stored spellings "EN" and "MS", a file, and an absent field.
- */
-export function parseLanguageChoice(raw: FormDataEntryValue | null): { ok: true; value: Language } | { ok: false } {
-  if (typeof raw !== "string") return { ok: false };
-  return (LANGUAGES as readonly string[]).includes(raw) ? { ok: true, value: raw as Language } : { ok: false };
-}
-
-/** The language a screen renders in: the choice, or English when none was made. */
-export function effectiveLanguage(choice: LanguageChoice | undefined): Language {
-  return choice ?? "en";
-}
-
-/** Each language's own name, the same in both settings (a proper name, not a translated word). */
-export const LANGUAGE_NAMES: Readonly<Record<Language, string>> = { en: "English", ms: "Bahasa Malaysia" };
-
-/** The database enum's spelling (`UiLanguage`). */
-export function toStored(l: Language): "EN" | "MS" {
-  return l === "ms" ? "MS" : "EN";
-}
-
-/** The stored spelling back to a choice; null stays null (never chosen). */
-export function fromStored(v: "EN" | "MS" | null): LanguageChoice {
-  if (v === null) return null;
-  return v === "MS" ? "ms" : "en";
-}
-
-/** The stored spellings read in words, for the audit trail's History and export (never "EN" or "MS"). */
+/** The stored spellings of the retired display-language setting, read in words for the audit trail's History (old rows still hold them). */
 export const STAFF_LANGUAGE_VALUE_WORDS: Readonly<Record<string, string>> = {
-  EN: LANGUAGE_NAMES.en,
-  MS: LANGUAGE_NAMES.ms,
+  EN: "English",
+  MS: "Bahasa Malaysia",
 };

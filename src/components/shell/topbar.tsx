@@ -18,7 +18,6 @@ import { CRUMB_WORDS, NESTED_LABEL, RECORD_LABEL, SEGMENT_LABEL, SHELL_WORDS } f
 import { workspaceFor } from "@/lib/nav";
 import type { ShellUser } from "@/lib/shell";
 
-import { LanguageSwitch } from "./language-switch";
 import { useRecordCrumb, useRecordParentCrumb } from "./record-crumb";
 import { UserMenu } from "./user-menu";
 
@@ -29,7 +28,7 @@ export interface Crumb {
 
 /// A record's name is data: the same in both languages, and never marked as untranslated.
 // A blank name (an organisation set up with none) falls back to a fixed word rather than a pair `say` would refuse.
-const named = (name: string): Words => (name.trim() ? w(name, name) : SHELL_WORDS.dashboard);
+const named = (name: string): Words => (name.trim() ? w(name) : SHELL_WORDS.dashboard);
 
 /**
  * The breadcrumb's crumbs for a path, given the names the page gave its record (and the record it sits
@@ -238,9 +237,6 @@ export function Topbar({
       >
         <HelpCircle size={19} />
       </button>
-      {/* Where a person may choose, the switch; it replaces the fixed "EN" mark that named a language nobody could change. */}
-      <LanguageSwitch />
-
       <span className="mx-1.5 hidden h-6 w-px bg-line-2 sm:block" />
 
       {/* Who is signed in, from the session. Nobody signed in is said as such, with the way in: no avatar and no name is shown that is not a person's. */}

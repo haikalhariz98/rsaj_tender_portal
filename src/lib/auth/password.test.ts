@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { dummyHash, hashParameters, hashPassword, needsRehash, parseHash, passwordFaults, SCRYPT, verifyPassword } from "./password";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 describe("password hashing", () => {
   it("holds a PHC-style string with its parameters, and checks the right password and no other", async () => {
     const stored = await hashPassword("correct horse battery");
@@ -74,7 +76,6 @@ describe("password rules", () => {
   it("says each fault in both languages", () => {
     const [fault] = passwordFaults("x", ok);
     expect(fault.en).toContain("12");
-    expect(fault.ms).toContain("12");
   });
 });
 

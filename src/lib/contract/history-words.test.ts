@@ -3,8 +3,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { contractFaultWords } from "./fault-text";
 import { baselineKeyListWords, historyFieldLabel, historyValue } from "./history-words";
+
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
 
 /**
  * 6.12 review: the contract's History hid every all-capitals value as "—", so an LHDN reference or an
@@ -66,16 +67,14 @@ describe("the contract's History reads a stored value", () => {
 describe("the baseline's key lists read as the Baseline tab names them", () => {
   it("a single group", () => {
     expect(historyValue("changed", "contractDate", day, "ContractBaseline")).toBe("Contract Date");
-    expect(baselineKeyListWords("sums")).toEqual({ en: "Prime cost and provisional sums", ms: "Wang kos prima dan wang peruntukan sementara" });
+    expect(baselineKeyListWords("sums")).toEqual({ en: "Prime cost and provisional sums" });
   });
   it("a list", () => {
     expect(historyValue("changed", "sums, buildersWorksValue, firstInterim", day, "ContractBaseline")).toBe("Prime cost and provisional sums, Builder's works value, First interim certificate minimum");
     expect(historyValue("entered", "sums, subsequentInterim, sectional", day, "ContractBaseline")).toBe("Prime cost and provisional sums, Subsequent interim certificate minimum, Sectional completion");
-    expect(baselineKeyListWords("sums, sectional").ms).toBe("Wang kos prima dan wang peruntukan sementara, Penyiapan berperingkat");
   });
   it('"all" and "nothing"', () => {
     expect(historyValue("changed", "all", day, "ContractBaseline")).toBe("Every value");
-    expect(baselineKeyListWords("all").ms).toBe("Semua nilai");
     expect(historyValue("changed", "nothing", day, "ContractBaseline")).toBe("Nothing");
   });
   it("an unknown key is withheld, never shown", () => {
@@ -94,12 +93,3 @@ describe("the baseline's key lists read as the Baseline tab names them", () => {
   });
 });
 
-describe("the Malay refusal names the Letter of Acceptance, not 'award'", () => {
-  it("STATED_NOT_CORRECTED and its derived form", () => {
-    for (const source of ["AWARD", "APPENDIX", "BQ", "DERIVED"]) {
-      const ms = contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "dlp", source } }).ms;
-      expect(ms, source).not.toMatch(/\baward\b/);
-      expect(ms, source).toMatch(/Surat Setuju Terima/);
-    }
-  });
-});

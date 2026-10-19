@@ -6,7 +6,6 @@
  * at that same step.
  */
 
-import type { LanguageChoice } from "@/lib/i18n/language";
 
 /// The closed list of product permissions. Product vocabulary, not policy: which role holds which is configuration
 /// (Phase 2a, `permissions.ts`): no row is undecided, which is refused. The administrator flag grants only what ADR D8 says it does.
@@ -54,8 +53,6 @@ export interface StaffActor {
   sourceAddress: string | null;
   /// The account must choose a new password before anything else (it was reset or created with a temporary one).
   mustChangePassword: boolean;
-  /// The language the person chose for the staff screens (NFR-LNG-001). Absent or null = never chosen, which reads English and says so.
-  uiLanguage?: LanguageChoice;
   /// Set only for a loader run (the demo loaders call the product's own acts outside any request, with no sign-in): the acts then write their audit
   /// rows as this system actor. Never set for a request, and nothing a request carries can set it (see `src/app/_auth/loader.ts`).
   system?: { label: string };
@@ -117,5 +114,4 @@ export type SecurityPolicyKey = keyof SecurityPolicyValues;
 export interface Fault {
   code: string;
   en: string;
-  ms: string;
 }

@@ -7,6 +7,8 @@ import { CONFIG_LABELS, CONFIG_PINNED, CONFIG_SECTIONS } from "@/lib/nav";
 
 import { crumbTrail } from "./topbar";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * Configuration's navigator is held to the pages beside it (founder, 2026-10-08: "more features are coming and it is becoming
  * unorganised; let's stay organised"). The rule for where a section goes is the comment above CONFIG_SECTIONS; this is what makes it
@@ -51,10 +53,8 @@ describe("Configuration's navigator", () => {
       const slug = item.href.slice("/configuration/".length);
       // AC-63 N1 (NFR-LNG-001): labels are `Words`; the English is what these assertions always read, and the Malay must agree as well.
       expect(CONFIG_LABELS[slug].en, item.href).toBe(item.label.en);
-      expect(CONFIG_LABELS[slug].ms, item.href).toBe(item.label.ms);
       const crumbs = crumbTrail(["configuration", slug], null, null);
       expect(crumbs.map((c) => c.label.en), item.href).toEqual(["Configuration", item.label.en]);
-      expect(crumbs.map((c) => c.label.ms), item.href).toEqual(["Konfigurasi", item.label.ms]);
     }
   });
 

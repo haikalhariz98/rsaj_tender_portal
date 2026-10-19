@@ -12,7 +12,7 @@ export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 /// Rows read from a sheet, blank or not: a sheet formatted down to row a million is not read to its end.
 const MAX_SHEET_ROWS = 5000;
 
-const refuse = (en: string, ms: string): ImportResult => ({ lines: [], problems: [{ row: null, text: { en, ms } }] satisfies ImportProblem[] });
+const refuse = (en: string): ImportResult => ({ lines: [], problems: [{ row: null, text: { en } }] satisfies ImportProblem[] });
 
 export type FileKind = "xlsx" | "csv";
 
@@ -26,18 +26,18 @@ export function fileKind(name: string, bytes: Uint8Array): FileKind | null {
 
 export async function readUpload(name: string, bytes: Uint8Array): Promise<ImportResult> {
   if (bytes.byteLength > MAX_UPLOAD_BYTES) {
-    return refuse("The file is larger than 2 MB. Upload only the lines.", "Fail melebihi 2 MB. Muat naik baris sahaja.");
+    return refuse("The file is larger than 2 MB. Upload only the lines.");
   }
   const kind = fileKind(name, bytes);
   if (!kind) {
-    return refuse("The file must be an Excel file (.xlsx) or a CSV file (.csv), made from the template.", "Fail mestilah fail Excel (.xlsx) atau fail CSV (.csv), dibuat daripada templat.");
+    return refuse("The file must be an Excel file (.xlsx) or a CSV file (.csv), made from the template.");
   }
   try {
     if (kind === "csv") return importLines(parseCsv(new TextDecoder("utf-8").decode(bytes)));
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(bytes as unknown as ArrayBuffer);
     const ws = wb.worksheets[0];
-    if (!ws) return refuse("The workbook has no sheet.", "Buku kerja tiada helaian.");
+    if (!ws) return refuse("The workbook has no sheet.");
     const rows: string[][] = [];
     const last = Math.min(ws.rowCount, MAX_SHEET_ROWS);
     for (let r = 1; r <= last; r++) {
@@ -48,6 +48,6 @@ export async function readUpload(name: string, bytes: Uint8Array): Promise<Impor
     }
     return importLines(rows);
   } catch {
-    return refuse("The file could not be read. Check that it is the template, saved as .xlsx or .csv.", "Fail tidak dapat dibaca. Pastikan ia templat, disimpan sebagai .xlsx atau .csv.");
+    return refuse("The file could not be read. Check that it is the template, saved as .xlsx or .csv.");
   }
 }

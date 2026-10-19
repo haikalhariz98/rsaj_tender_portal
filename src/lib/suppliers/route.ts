@@ -32,7 +32,7 @@ export interface SupplierRoute {
   warnings: ResolutionWarning[];
   core?: CoreChainRecord;
   /// Why it cannot open, in words (English and Malay), where it cannot.
-  refusal: { en: string; ms: string } | null;
+  refusal: { en: string;  } | null;
 }
 
 export interface SupplierRequester {
@@ -43,16 +43,15 @@ export interface SupplierRequester {
 
 const MATRIX_EXIT = {
   en: "Record a rule for it under Configuration › Approval matrix, with no value band (supplier matters are not routed on a value), then send it again.",
-  ms: "Rekodkan peraturan untuknya di Konfigurasi › Matriks kelulusan, tanpa jalur nilai (perkara pembekal tidak dihalakan mengikut nilai), kemudian hantar semula.",
 };
 
 /**
  * The route for a supplier matter. `what` names the matter in the refusal ("a supplier's registration").
  */
-export function supplierRoute(matrix: Matrix, domain: string, cond: string | null, requester: SupplierRequester, what: { en: string; ms: string }): SupplierRoute {
+export function supplierRoute(matrix: Matrix, domain: string, cond: string | null, requester: SupplierRequester, what: { en: string;  }): SupplierRoute {
   const q = { domain, cond, value: null };
   let r = resolveApproval(matrix, q);
-  const base = (state: SupplierRouteState, refusal: { en: string; ms: string } | null): SupplierRoute => ({
+  const base = (state: SupplierRouteState, refusal: { en: string;  } | null): SupplierRoute => ({
     state,
     ruleKey: r.rule?.ruleKey ?? null,
     ruleLabel: r.rule?.labelEn ?? null,
@@ -64,13 +63,12 @@ export function supplierRoute(matrix: Matrix, domain: string, cond: string | nul
     core: r.core,
     refusal,
   });
-  if (!r.rule) return base("NO_RULE", { en: `No approval rule in the matrix in force covers ${what.en}. ${MATRIX_EXIT.en}`, ms: `Tiada peraturan kelulusan dalam matriks yang berkuat kuasa meliputi ${what.ms}. ${MATRIX_EXIT.ms}` });
+  if (!r.rule) return base("NO_RULE", { en: `No approval rule in the matrix in force covers ${what.en}. ${MATRIX_EXIT.en}` });
   const unsound = r.warnings.filter((w) => w.level === "err");
-  if (unsound.length) return base("RULE_UNSOUND", { en: unsound.map((w) => w.messageEn).join(" "), ms: unsound.map((w) => w.messageMs).join(" ") });
+  if (unsound.length) return base("RULE_UNSOUND", { en: unsound.map((w) => w.messageEn).join(" ") });
   if (r.chain.some((s) => s.committeeCode))
     return base("HAS_COMMITTEE_STEP", {
       en: `The rule “${r.rule.labelEn}” routes ${what.en} through a committee, and no sitting tables a supplier matter, so its decision would never be read. Route it to offices under Configuration › Approval matrix, then send it again.`,
-      ms: `Peraturan “${r.rule.labelMs ?? r.rule.labelEn}” menghalakan ${what.ms} melalui jawatankuasa, dan tiada mesyuarat membentangkan perkara pembekal, jadi keputusannya tidak akan dibaca. Halakan kepada jawatan di Konfigurasi › Matriks kelulusan, kemudian hantar semula.`,
     });
   if (r.approverCode && requester.holds(r.approverCode)) {
     const self = r.approverCode;
@@ -78,10 +76,8 @@ export function supplierRoute(matrix: Matrix, domain: string, cond: string | nul
     const refused = e.warnings.find((w) => w.code === "SELF_APPROVAL" && w.level === "err");
     if (refused || !e.approverCode) {
       const name = matrix.roles[self]?.nameEn ?? "the approving office";
-      const nameMs = matrix.roles[self]?.nameMs ?? "jawatan yang meluluskan";
       return base("SELF_APPROVAL_NOWHERE", {
         en: `The officer sending it holds the office that approves ${what.en} (${name}), and no office is set to approve in its place. Set where self-approval escalates to for that office under Users & roles, or have another officer send it.`,
-        ms: `Pegawai yang menghantarnya memegang jawatan yang meluluskan ${what.ms} (${nameMs}), dan tiada jawatan ditetapkan untuk meluluskan bagi pihaknya. Tetapkan ke mana kelulusan sendiri dinaikkan bagi jawatan itu di Pengguna & peranan, atau minta pegawai lain menghantarnya.`,
       });
     }
     r = e;
@@ -90,7 +86,7 @@ export function supplierRoute(matrix: Matrix, domain: string, cond: string | nul
   if (only.length) {
     // 6.1's words for the requester-only rule (English only, as written there).
     const en = only.map((s) => requesterOnlyText(s, matrix.roles[s.roleCode]?.nameEn ?? "an office no longer configured", "matter", matrix.policy.clauses?.selfApproval)).join(" ");
-    return base("REQUESTER_ONLY", { en, ms: `Pegawai yang menghantarnya sahaja boleh bertindak bagi langkah ${only.map((s) => s.sequence).join(", ")} laluan ini, dan tiada sesiapa memutuskan langkah perkara yang dibangkitkannya. ${en}` });
+    return base("REQUESTER_ONLY", { en });
   }
   return base("RESOLVED", null);
 }

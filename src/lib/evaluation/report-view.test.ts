@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { ReportSnapshot } from "./report";
 import { ESTIMATE_WITHHELD_WORDS, reportForReader, statesEstimateFigures } from "./report-view";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The issued report as a reader may see it (Phase 3b, FR-EVL-014 and FR-EST-008). The report is frozen with figures worked out from the company estimate; a reader
  * the evaluation is open to is not thereby in the estimate's custody, so those parts are held back whole, and nothing of the estimate is left in what is returned.
@@ -21,17 +23,16 @@ const report = (over: Partial<ReportSnapshot> = {}): ReportSnapshot => ({
   team: [{ name: "Chen", side: "IMPLEMENTING_DEPARTMENT" }],
   text: { language: "EN", body: `We recommend bid 1. The saving against the estimate is ${SAVING} (10.00%).`, template: { code: "T", name: "Report", bodyVersion: 1 } },
   annexes: [
-    { key: "A", label: "Jadual Penilaian", labelMs: null, body: [] },
+    { key: "A", label: "Jadual Penilaian", body: [] },
     {
       key: "B",
       label: "Jadual Perbandingan",
-      labelMs: null,
       body: [
         { listingNo: 1, bidder: "Contoh", asRead: "RM 264,000.00", vsEstimate: { difference: "−RM 33,000.00", percent: "−11.1111%" }, vsLowest: null },
         { listingNo: 2, bidder: "Sampel", asRead: "RM 300,000.00", vsEstimate: "Sealed", vsLowest: null },
       ],
     },
-    { key: "C", label: "Jadual Tawaran", labelMs: null, body: { rows: [{ listingNo: 1, bidderName: "Contoh", openingPrice: "264000.00" }], benchmark: { sealed: false, companyEstimate: "297000.00", label: "Company estimate" } } },
+    { key: "C", label: "Jadual Tawaran", body: { rows: [{ listingNo: 1, bidderName: "Contoh", openingPrice: "264000.00" }], benchmark: { sealed: false, companyEstimate: "297000.00", label: "Company estimate" } } },
   ],
   recommendation: { listingNo: 1, bidder: "Contoh", registrationNo: "R1", price: "RM 264,000.00", period: "90 days", topRanked: true, justification: "", formedBy: "A. Officer", formedOn: "2026-10-01" },
   saving: { state: "STATED", amount: SAVING, percent: "10.0000%" },
@@ -83,7 +84,7 @@ describe("a report that states figures worked out from the company estimate", ()
 
 describe("a report that states none", () => {
   it("is returned whole to everyone, and nothing is said to be withheld", () => {
-    const r = report({ saving: { state: "SEALED", amount: null, percent: null }, annexes: [{ key: "A", label: "A", labelMs: null, body: [] }] });
+    const r = report({ saving: { state: "SEALED", amount: null, percent: null }, annexes: [{ key: "A", label: "A", body: [] }] });
     expect(reportForReader(r, false)).toEqual({ report: r, estimateWithheld: null });
   });
 });

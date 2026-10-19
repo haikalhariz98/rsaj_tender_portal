@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { approvedWords, cancellationEndedWords, NEW_APPLICATION_WAY_BACK, supplierFaultText, withdrawnWords } from "./labels";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B Run 1a, Should 2 (flagged 6.15a): four strings the Run 0 fix round wrote in English only now come from
  * labels.ts with Malay beside them, and the screen and the acts read them from there.
@@ -16,44 +18,36 @@ describe("the words, in English and Malay", () => {
     const words = cancellationEndedWords("2026-10-03", "2026-10-04");
     expect(words).toEqual({
       en: "The registration cancelled from 03 Oct 2026 ended when the supplier registered again on 04 Oct 2026.",
-      ms: "Pendaftaran yang dibatalkan mulai 03 Oct 2026 tamat apabila pembekal berdaftar semula pada 04 Oct 2026.",
     });
     const note = { code: "CANCELLATION_ENDED", level: "info" as const, data: { since: "2026-10-03", registeredOn: "2026-10-04" } };
     expect(supplierFaultText(note, "en")).toBe(words.en);
-    expect(supplierFaultText(note, "ms")).toBe(words.ms);
   });
 
   it("the approval's message: registered again, registered, or approved", () => {
     expect(approvedWords("NEW", { since: "2026-10-03" }, "2026-10-04")).toEqual({
       en: "Approved: the supplier is registered again from 04 Oct 2026; the registration cancelled from 03 Oct 2026 no longer stands. The notice to the supplier is shown, not sent.",
-      ms: "Diluluskan: pembekal berdaftar semula mulai 04 Oct 2026; pendaftaran yang dibatalkan mulai 03 Oct 2026 tidak lagi berkuat kuasa. Notis kepada pembekal dipaparkan, tidak dihantar.",
     });
     expect(approvedWords("NEW", null, "2026-10-04")).toEqual({
       en: "Approved: the supplier is registered. The notice to the supplier is shown, not sent.",
-      ms: "Diluluskan: pembekal didaftarkan. Notis kepada pembekal dipaparkan, tidak dihantar.",
     });
     expect(approvedWords("RENEWAL", null, "2026-10-04")).toEqual({
       en: "Approved: the application is approved. The notice to the supplier is shown, not sent.",
-      ms: "Diluluskan: permohonan diluluskan. Notis kepada pembekal dipaparkan, tidak dihantar.",
     });
   });
 
   it("the withdrawal's message: the standing it changed to, in each language, or none where it did not change", () => {
-    const notRevisited = { en: "Not revisited.", ms: "Tidak disemak semula." };
-    expect(withdrawnWords({ en: "Active", ms: "Aktif" }, notRevisited)).toEqual({
+    const notRevisited = { en: "Not revisited." };
+    expect(withdrawnWords({ en: "Active" }, notRevisited)).toEqual({
       en: "Withdrawn as recorded in error. It stays on the record, marked withdrawn with why; the supplier's standing no longer reads it (now active). Not revisited.",
-      ms: "Ditarik balik kerana direkodkan secara tersilap. Ia kekal dalam rekod, ditanda ditarik balik beserta sebabnya; kedudukan pembekal tidak lagi membacanya (kini aktif). Tidak disemak semula.",
     });
     expect(withdrawnWords(null, notRevisited)).toEqual({
       en: "Withdrawn as recorded in error. It stays on the record, marked withdrawn with why; the supplier's standing no longer reads it. Not revisited.",
-      ms: "Ditarik balik kerana direkodkan secara tersilap. Ia kekal dalam rekod, ditanda ditarik balik beserta sebabnya; kedudukan pembekal tidak lagi membacanya. Tidak disemak semula.",
     });
   });
 
   it("the drawer's way back: a new application", () => {
     expect(NEW_APPLICATION_WAY_BACK).toEqual({
       en: "A cancellation that stood is not withdrawn: the supplier registers again, by a new application on the Applications tab, which ends it once approved.",
-      ms: "Pembatalan yang telah berkuat kuasa tidak ditarik balik: pembekal mendaftar semula melalui permohonan baharu di tab Permohonan, yang menamatkannya setelah diluluskan.",
     });
   });
 });

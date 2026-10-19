@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { contractStage, NO_STAGE_FACTS, NOT_SET_WORDS, POST_ACTIVE_STAGES, STAGE_WORDS, type Stage } from "./stage";
 import { CONTRACT_STATUSES } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * BD-613-98 (6.13 Part B run 1a, ADR 0031 §2–3): `contractStage` maps every §7.3.3 state after Active to stored (one of
  * the five statuses), derived in words from the records, or not built (Suspended: no FR defines the act; a departure
@@ -28,10 +30,9 @@ describe("every §7.3.3 state after Active, once", () => {
   it("each has words in English and Malay; Suspended's say it is not built", () => {
     for (const s of Object.keys(POST_ACTIVE_STAGES) as Stage[]) {
       expect(STAGE_WORDS[s].en, s).toMatch(/^[A-Z]/);
-      expect(STAGE_WORDS[s].ms, s).toMatch(/^[A-Z]/);
     }
     expect(STAGE_WORDS.SUSPENDED.en).toMatch(/not built/);
-    expect(STAGE_WORDS.TERMINATED_ACCOUNT_SETTLED).toEqual({ en: "Terminated — account settled", ms: "Ditamatkan — akaun diselesaikan" });
+    expect(STAGE_WORDS.TERMINATED_ACCOUNT_SETTLED).toEqual({ en: "Terminated — account settled" });
   });
 });
 
@@ -83,6 +84,5 @@ describe("S8 (Run 1a fix round): an unset defects liability period is said to be
   });
   it("the not-set words, in English and Malay, say what is not known and never claim a stage", () => {
     expect(NOT_SET_WORDS.DLP.en).toBe("The defects liability period is not set for this contract, so whether it is in defects liability or goes straight to its final account is not known.");
-    expect(NOT_SET_WORDS.DLP.ms).toBe("Tempoh tanggungan kecacatan tidak ditetapkan untuk kontrak ini, jadi sama ada ia dalam tempoh tanggungan kecacatan atau terus ke akaun muktamadnya tidak diketahui.");
   });
 });

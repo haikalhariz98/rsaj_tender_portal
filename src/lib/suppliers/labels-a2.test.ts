@@ -4,10 +4,12 @@ import { BAND_ORDER } from "./expiry";
 import { CONDITION_LABEL, conditionWords, EXPIRY_BAND_LABEL, hasFaultText, RESULT_LABEL, STANDING_EVENT_LABEL, STANDING_LABEL, standingTone, standingWords, supplierFaultText, VERDICT_LABEL, VERDICT_TONE } from "./labels";
 import { STANDING_EVENT_KINDS, STANDINGS, standing } from "./standing";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const CODE = /\b[A-Z]{2,}_[A-Z_]+\b/;
 
 describe("a2's words: both languages, never a code", () => {
-  const maps: [string, Record<string, { en: string; ms: string }>, readonly string[]][] = [
+  const maps: [string, Record<string, { en: string;  }>, readonly string[]][] = [
     ["standings", STANDING_LABEL, STANDINGS],
     ["standing events", STANDING_EVENT_LABEL, STANDING_EVENT_KINDS],
     ["expiry bands", EXPIRY_BAND_LABEL, BAND_ORDER],
@@ -18,7 +20,6 @@ describe("a2's words: both languages, never a code", () => {
   it.each(maps)("every one of the %s has English and Malay words", (_, map, values) => {
     for (const v of values) {
       expect(map[v]?.en, v).toBeTruthy();
-      expect(map[v]?.ms, v).toBeTruthy();
       expect(map[v].en).not.toMatch(CODE);
     }
   });
@@ -39,7 +40,6 @@ describe("a2's words: both languages, never a code", () => {
       expect(hasFaultText(c), c).toBe(true);
       const f = { code: c, level: "block" as const, data: { types: "Tax clearance", since: "2026-09-01", approvedOn: "2026-09-01", registeredOn: "2026-01-01", endsOn: "2031-10-01", lastDay: "2031-09-30", freeFrom: "2031-10-01", kind: "SUSPEND", effectiveOn: "2026-10-02", standing: "SUSPENDED", recorded: "1", register: "2" } };
       expect(supplierFaultText(f), c).not.toMatch(CODE);
-      expect(supplierFaultText(f, "ms"), c).toBeTruthy();
     }
   });
 });

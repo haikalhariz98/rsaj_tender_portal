@@ -136,7 +136,7 @@ export default async function InvitationControlsPage() {
   const openingNotSet = openingRulesNotSet(bidMethods) + openingPolicyNotSet(openingPolicy);
   const liveCommittees = committees.filter((x) => x.retiredOn == null).map((x) => ({ value: x.code, label: x.nameEn }));
   const op = openingPolicy;
-  const word = (en: string | null | undefined, ms: string | null | undefined) => (en ? [en, ms].filter(Boolean).join(" · ") : "Not set");
+  const word = (en: string | null | undefined) => (en ? en : "Not set");
 
   return (
     <>
@@ -252,9 +252,9 @@ export default async function InvitationControlsPage() {
               items={[
                 setting("The tenderers invited are", <Setting value={op?.invitedCountReading ? INVITED_READING_LABEL[op.invitedCountReading] : "Not set"} unset={OPENING_RULE_UNSET.reading} source={op?.invitedCountProvenance ?? null} />),
                 setting("Where it is written", op?.governingSource || "No source is cited"),
-                setting("A bid that passed", <Setting value={word(op?.qualifiedLabelEn, op?.qualifiedLabelMs)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.qualified}".`} source={op?.qualifiedLabelEn ? op.labelsProvenance : undefined} />),
-                setting("A bid that did not pass", <Setting value={word(op?.notQualifiedLabelEn, op?.notQualifiedLabelMs)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.notQualified}".`} source={op?.notQualifiedLabelEn ? op.labelsProvenance : undefined} />),
-                setting("The lowest qualifying offer", <Setting value={word(op?.lowestLabelEn, op?.lowestLabelMs)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.lowest}".`} source={op?.lowestLabelEn ? op.labelsProvenance : undefined} />),
+                setting("A bid that passed", <Setting value={word(op?.qualifiedLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.qualified}".`} source={op?.qualifiedLabelEn ? op.labelsProvenance : undefined} />),
+                setting("A bid that did not pass", <Setting value={word(op?.notQualifiedLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.notQualified}".`} source={op?.notQualifiedLabelEn ? op.labelsProvenance : undefined} />),
+                setting("The lowest qualifying offer", <Setting value={word(op?.lowestLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.lowest}".`} source={op?.lowestLabelEn ? op.labelsProvenance : undefined} />),
               ]}
             />
           </CardBody>

@@ -47,12 +47,10 @@ export const CONTRACT_YEAR_WORDS = {
   series: (year: number): Words =>
     w(
       `The year in the number is the year it was issued, ${year} — assumed to be the year the contract starts, to be confirmed.`,
-      `Tahun dalam nombor ialah tahun ia dikeluarkan, ${year} — diandaikan sebagai tahun kontrak bermula, untuk disahkan.`,
     ),
   /// Beside the Contract Date, where a series number was issued in another year.
   differs: (issueYear: number, contractYear: number): Words =>
     w(
       `The number was issued in ${issueYear} and carries that year, but the Contract Date is in ${contractYear}.`,
-      `Nombor dikeluarkan pada ${issueYear} dan membawa tahun itu, tetapi Tarikh Kontrak pada ${contractYear}.`,
     ),
 };

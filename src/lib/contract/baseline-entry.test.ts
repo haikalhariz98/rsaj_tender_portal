@@ -9,6 +9,8 @@ import { applyEntered, buildBaseline, derive, type BaselineInputs } from "./base
 import { correctableFaults, groupChange, groupText } from "./baseline-entry";
 import { contractFaultWords } from "./fault-text";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.12 review R-2 and R-3. The trail of a keyed or corrected group carries the group's values before and
  * after; and a correction never keys over a value the award, the Appendix or the bill states.
@@ -92,7 +94,6 @@ describe("a correction keeps what the award, the Appendix and the bill state (R-
       expect(t.en).toMatch(/is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order\. /);
       expect(t.en).toMatch(/A change to the terms themselves is a variation, not a correction\.$/);
       expect(t.en).not.toMatch(/variations and adjustments|recorded as a change to the contract|is not built/);
-      expect(t.ms).not.toMatch(/belum dibina/);
     }
     expect(contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "dlp", source: "AWARD" } }).en).toMatch(/If it was recorded wrongly from the signed letter, correct the award's recorded term \(Correct the award's term, beside it\): a reasoned correction writes a new version, still from the Letter of Acceptance\./);
     expect(contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "dlp", source: "APPENDIX" } }).en).toMatch(/Only the award's recorded terms are corrected after issue; the frozen tender Appendix is kept as frozen\./);

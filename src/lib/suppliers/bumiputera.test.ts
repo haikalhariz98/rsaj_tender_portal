@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { bumiputeraNeedsAttention, bumiputeraReading, bumiputeraWords } from "./bumiputera";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const stb = (verification: "NOT_CHECKED" | "VERIFIED" | "NOT_IN_ORDER") => ({ reference: "STB-9912", verification });
 const CLAIM = "Bumiputera company";
 
@@ -29,7 +31,6 @@ describe("Bumiputera status is read as declared, never as fact", () => {
     const r = bumiputeraReading(CLAIM, true, null, "REGISTER");
     expect(r.kind).toBe("CLAIM_WITHOUT_DOCUMENT");
     expect(bumiputeraNeedsAttention(r)).toBe(true);
-    expect(bumiputeraWords(r).ms).toMatch(/tiada dokumen bukti/);
   });
 
   it("a claim with its document lodged reads as not verified until the document is verified", () => {
@@ -53,7 +54,6 @@ describe("Bumiputera status is read as declared, never as fact", () => {
             const w = bumiputeraWords(bumiputeraReading(claim, set, doc, stage));
             if (claim) {
               expect(w.en).toMatch(/^Declared: /);
-              expect(w.ms).toMatch(/^Diisytiharkan: /);
             }
             expect(w.en).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
           }

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PermissionKey, StaffActor } from "@/lib/auth/types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The guard a configuration editor asks first (review of Phase 2a): an officer without the permission is refused, in words, as the form's own state; one who holds it
  * is let through. The session, the cookie and the lookup that words a refusal are stood in for: what is under test is the guard's decision and what it hands back.
@@ -11,7 +13,7 @@ const who = vi.hoisted(() => ({ actor: null as StaffActor | null }));
 
 vi.mock("./cookies", () => ({ staffToken: async () => "token", currentRequestFacts: async () => ({ sourceAddress: null, userAgent: "vitest" }), refuseForeignPost: async () => null }));
 vi.mock("@/lib/auth/session-store", () => ({ readStaffSession: async () => (who.actor ? { ok: true, actor: who.actor } : { ok: false }) }));
-vi.mock("@/lib/auth/permission-store", () => ({ explainRefusal: async () => ({ words: { en: "Nobody at the organisation has decided who holds this permission.", ms: "Tiada." } }) }));
+vi.mock("@/lib/auth/permission-store", () => ({ explainRefusal: async () => ({ words: { en: "Nobody at the organisation has decided who holds this permission." } }) }));
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/lib/auth/identity", () => ({ confirmStaffPassword: async () => ({ ok: false, kind: "WRONG" }) }));
 vi.mock("next/navigation", () => ({

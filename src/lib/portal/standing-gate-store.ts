@@ -9,7 +9,6 @@ import { inOrder } from "@/lib/series";
 /// What is said where the organisation's day cannot be known, so the standing cannot be judged: the act is refused rather than let through.
 export const STANDING_NOT_JUDGED: StandingBar = {
   en: "The organisation's time zone is not set, so your standing on the supplier register cannot be judged today and this cannot be done from the portal. Tell the procurement office.",
-  ms: "Zon waktu organisasi belum ditetapkan, jadi kedudukan anda pada daftar pembekal tidak dapat dinilai hari ini dan ini tidak boleh dilakukan dari portal. Beritahu pejabat perolehan.",
 };
 
 /**

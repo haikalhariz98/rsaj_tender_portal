@@ -66,7 +66,7 @@ function RouteBlock({ r, suggestions, today, matter, refused, kind }: { r: Route
         <span className="text-[13px] font-semibold text-ink-2">Route · sent {formatDate(day(r.openedAt))} · {r.ruleLabel ?? "a rule no longer recorded"}{r.ruleClause ? ` · ${r.ruleClause}` : ""}</span>
         <Badge tone={r.status === "REJECTED" ? "warn" : routeTone(r.status)}>{r.status === "PENDING" ? "With approval" : r.status === "APPROVED" ? "Approved" : r.status === "REJECTED" ? "Refused" : "Closed"}</Badge>
       </div>
-      <p className="px-5 pb-2 text-[12.5px] text-ink-3 sm:px-6">Routed on no value, so only a rule with no value band applies. Chain beneath the approver: {routeCoreText(r, () => ({ en: "an office no longer configured", ms: "jawatan yang tidak lagi dikonfigurasi" })).en}</p>
+      <p className="px-5 pb-2 text-[12.5px] text-ink-3 sm:px-6">Routed on no value, so only a rule with no value band applies. Chain beneath the approver: {routeCoreText(r, () => ({ en: "an office no longer configured" })).en}</p>
       {r.status === "REJECTED" && <p className="px-5 pb-2 text-[12.5px] text-ink-2 sm:px-6">Refused: {r.rejectionReason || "no reason recorded"}.</p>}
       <RouteSteps
         inst={r}

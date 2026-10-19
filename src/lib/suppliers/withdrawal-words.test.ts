@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { judgedWhileCancelled, notRevisitedWords, openingJudgedOf, type OpeningJudged } from "./cancellation";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B Run 0 fix round, S-2 and S-4: withdrawing a registration cancelled recorded in error.
  * - S-2: the audit recorded `standing: null` after; the act now re-reads the standing in its transaction after the update
@@ -41,13 +43,11 @@ describe("the openings judged while the cancellation stood (S-4)", () => {
   it("the words name each, in English and Malay, and say refused sales left no record", () => {
     expect(notRevisitedWords(judgedWhileCancelled(openings, "2026-10-01", null))).toEqual({
       en: "Judgments made while it stood are not revisited. The openings that judged the supplier cancelled keep their findings: DEMO/T/0007/2026 (bid No. 3, opened 02 Oct 2026, rejected at the opening). A sale refused for it left no record, so none is listed.",
-      ms: "Penilaian yang dibuat semasa ia berkuat kuasa tidak disemak semula. Pembukaan yang menilai pembekal sebagai dibatalkan mengekalkan penemuannya: DEMO/T/0007/2026 (tawaran No. 3, dibuka 02 Oct 2026, ditolak semasa pembukaan). Jualan yang ditolak kerananya tidak meninggalkan rekod, jadi tiada yang disenaraikan.",
     });
   });
   it("with none, they still say judgments are not revisited", () => {
     expect(notRevisitedWords([])).toEqual({
       en: "Judgments made while it stood are not revisited: no bid opening judged the supplier cancelled. A sale refused for it left no record, so none is listed.",
-      ms: "Penilaian yang dibuat semasa ia berkuat kuasa tidak disemak semula: tiada pembukaan tawaran yang menilai pembekal sebagai dibatalkan. Jualan yang ditolak kerananya tidak meninggalkan rekod, jadi tiada yang disenaraikan.",
     });
   });
 });

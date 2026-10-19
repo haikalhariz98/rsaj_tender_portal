@@ -82,10 +82,10 @@ export function committeeRosterIds(seats: readonly NamingSeat[], on: Date, holde
 
 /// How the routed names read, for the basis words and the Access tab's headings (the product owner's words).
 export const ROUTED_NAMED_WORDS = {
-  STEP_HOLDER: { en: "holds a step on its route", ms: "memegang langkah pada laluannya" },
-  STEP_DECIDER: { en: "decided a step on its route", ms: "memutuskan langkah pada laluannya" },
-  COMMITTEE_MEMBER: { en: "member of the committee it is tabled to", ms: "ahli jawatankuasa yang dikemukakan kepadanya" },
-  OPENING_OFFICER: { en: "named to open its bids", ms: "dinamakan untuk membuka bidaannya" },
+  STEP_HOLDER: { en: "holds a step on its route" },
+  STEP_DECIDER: { en: "decided a step on its route" },
+  COMMITTEE_MEMBER: { en: "member of the committee it is tabled to" },
+  OPENING_OFFICER: { en: "named to open its bids" },
 } as const satisfies Record<string, Words>;
 
 /// The Access tab's headings: the product owner's words, capitalised.
@@ -98,8 +98,8 @@ export const ROUTED_NAMED_HEADINGS = {
 
 /// What the Access tab says under each heading about when a person stops being named, so nobody takes a derived name for a list somebody keeps.
 export const ROUTED_NAMED_ABOUT = {
-  STEP_HOLDER: { en: "Named while the step is pending: whoever holds the office acting for it, or a delegate who would not be refused. Nobody keeps this list; it is worked out each time from the routes.", ms: "Dinamakan selagi langkah itu belum diputuskan." },
-  STEP_DECIDER: { en: "Named for good once they have decided a step.", ms: "Dinamakan selama-lamanya selepas memutuskan langkah." },
-  COMMITTEE_MEMBER: { en: "Named from the day a matter of this exercise is tabled to the committee, on the roster in force on the sitting's date, and for good after.", ms: "Dinamakan dari hari perkara dikemukakan kepada jawatankuasa." },
-  OPENING_OFFICER: { en: "The officers named under Opening officers on Scope and estimate, while they stand. Replacing one takes the first off and names the second. Nobody keeps this list here; it is worked out from that card.", ms: "Pegawai yang dinamakan di bawah Pegawai pembukaan, selagi mereka kekal." },
+  STEP_HOLDER: { en: "Named while the step is pending: whoever holds the office acting for it, or a delegate who would not be refused. Nobody keeps this list; it is worked out each time from the routes." },
+  STEP_DECIDER: { en: "Named for good once they have decided a step." },
+  COMMITTEE_MEMBER: { en: "Named from the day a matter of this exercise is tabled to the committee, on the roster in force on the sitting's date, and for good after." },
+  OPENING_OFFICER: { en: "The officers named under Opening officers on Scope and estimate, while they stand. Replacing one takes the first off and names the second. Nobody keeps this list here; it is worked out from that card." },
 } as const satisfies Record<string, Words>;

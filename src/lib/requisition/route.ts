@@ -78,7 +78,6 @@ export function resolveRequisitionRoute(
         code: "GOV_OVERRIDE",
         level: "info",
         messageEn: `Externally funded: the funder's rule set “${override.label}” superseded the approval matrix for this requisition.${noClause}`,
-        messageMs: `Dibiayai pihak luar: set peraturan penyandang dana “${override.label}” mengatasi matriks kelulusan.`,
         ...cite,
       });
     } else {
@@ -90,9 +89,6 @@ export function resolveRequisitionRoute(
           (override
             ? `Externally funded, but the funder's rule set “${override.label}” has no rule for this requisition, so the approval matrix routed it.`
             : "Externally funded, but no funder's rule set is issued for this funding route, so the approval matrix routed it. The funder's own guidelines may still prevail where they conflict.") + noClause,
-        messageMs: override
-          ? `Dibiayai pihak luar, tetapi set peraturan penyandang dana “${override.label}” tiada peraturan untuk permohonan ini.`
-          : "Dibiayai pihak luar, tetapi tiada set peraturan penyandang dana dikeluarkan untuk laluan ini.",
         ...cite,
       });
     }

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { fillUnset, policyFault, policyFaultWords, rangeFault, rangeFaultWords, SETTING_RANGES, retentionStatement, SETTING_LABELS, settingLabels, signInSettings, unsetSettings } from "./policy";
 import type { SecurityPolicyValues } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const unset: SecurityPolicyValues = {
   staffIdleMinutes: null,
   staffAbsoluteMinutes: null,
@@ -70,7 +72,6 @@ describe("labels", () => {
     for (const [key, label] of Object.entries(SETTING_LABELS)) {
       expect(label.en, key).not.toBe(key);
       expect(label.en, key).toMatch(/\s/);
-      expect(label.ms, key).toMatch(/\s/);
     }
     expect(settingLabels(["lockoutMinutes"])).toEqual(["How long a locked account stays locked"]);
   });
@@ -98,18 +99,14 @@ describe("the faults in both languages", () => {
     ];
     for (const f of faults) {
       expect(f).not.toBeNull();
-      expect(f!.ms).not.toBe(f!.en);
-      expect(f!.ms).not.toMatch(/(the|must|cannot|longer)/);
     }
     expect(policyFault({ ...signInSet, staffIdleMinutes: 500 })).toBe(policyFaultWords({ ...signInSet, staffIdleMinutes: 500 })!.en);
   });
 
-  it("say a value out of range in Malay for every unit a setting is counted in", () => {
+  it("say a value out of range for every unit a setting is counted in", () => {
     for (const [key, range] of Object.entries(SETTING_RANGES)) {
       const f = rangeFaultWords(key as Parameters<typeof rangeFaultWords>[0], range.min - 1);
       expect(f, key).not.toBeNull();
-      expect(f!.ms, key).not.toBe(f!.en);
-      expect(f!.ms, key).not.toMatch(/(minutes|sessions|attempts|characters|days|Enter)/);
       expect(rangeFault(key as Parameters<typeof rangeFault>[0], range.min - 1), key).toBe(f!.en);
       expect(rangeFaultWords(key as Parameters<typeof rangeFaultWords>[0], range.min), key).toBeNull();
     }

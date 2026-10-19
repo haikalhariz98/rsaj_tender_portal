@@ -7,20 +7,20 @@
 import { chainWasGenerated, type CoreChainFault, type CoreLevelFault } from "./core-routing";
 import type { ChainOrigin, CoreLevel } from "./types";
 
-export type Words = { en: string; ms: string };
-export type Lang = "en" | "ms";
+export type Words = { en: string;  };
+export type Lang = "en";
 
 /// A step's origin on a generated chain (ruling C1: "Strengthened" only above the core act).
 export const CHAIN_ORIGIN_LABEL: Record<ChainOrigin, Words> = {
-  CORE: { en: "From core routing", ms: "Daripada laluan teras" },
-  CORE_STRENGTHENED: { en: "Strengthened by this rule", ms: "Diperkukuh oleh peraturan ini" },
-  CORE_ACT_SET: { en: "Act set by this rule", ms: "Tindakan ditetapkan oleh peraturan ini" },
-  RULE: { en: "Added by this rule", ms: "Ditambah oleh peraturan ini" },
+  CORE: { en: "From core routing" },
+  CORE_STRENGTHENED: { en: "Strengthened by this rule" },
+  CORE_ACT_SET: { en: "Act set by this rule" },
+  RULE: { en: "Added by this rule" },
 };
 
-export const NOT_RECORDED: Words = { en: "Not recorded", ms: "Tidak direkodkan" };
-export const NOT_SET: Words = { en: "Not set", ms: "Belum ditetapkan" };
-export const APPROVES_ALONE: Words = { en: "Approves alone", ms: "Meluluskan sendiri" };
+export const NOT_RECORDED: Words = { en: "Not recorded" };
+export const NOT_SET: Words = { en: "Not set" };
+export const APPROVES_ALONE: Words = { en: "Approves alone" };
 
 export function originLabel(origin: string | null | undefined, lang: Lang = "en"): string {
   const w = origin ? CHAIN_ORIGIN_LABEL[origin as ChainOrigin] : undefined;
@@ -31,8 +31,8 @@ export function originLabel(origin: string | null | undefined, lang: Lang = "en"
 export type ChainChoice = "" | "yes" | "no";
 export const CHAIN_CHOICE_LABEL: Record<"NOT_SET" | "GENERATED" | "AS_ENTERED", Words> = {
   NOT_SET: NOT_SET,
-  GENERATED: { en: "Generated from core routing", ms: "Dijana daripada laluan teras" },
-  AS_ENTERED: { en: "As entered on this rule", ms: "Seperti yang dimasukkan pada peraturan ini" },
+  GENERATED: { en: "Generated from core routing" },
+  AS_ENTERED: { en: "As entered on this rule" },
 };
 
 export function chainChoiceLabel(flag: boolean | null | undefined, lang: Lang = "en"): string {
@@ -40,7 +40,7 @@ export function chainChoiceLabel(flag: boolean | null | undefined, lang: Lang = 
 }
 
 /// An office's name, never its code.
-export const NO_LONGER_CONFIGURED: Words = { en: "an office no longer configured", ms: "jawatan yang tidak lagi dikonfigurasi" };
+export const NO_LONGER_CONFIGURED: Words = { en: "an office no longer configured" };
 
 /**
  * The warning on a route whose rule takes its chain from the core routing but cannot
@@ -52,28 +52,23 @@ export function coreFaultWarning(fault: CoreChainFault, rule: Words, office: Wor
     case "CORE_ROW_MISSING":
       return {
         en: `Chain as entered, not checked against core routing: this issue records no core routing for ${office.en}. Record it on the issue in the approval matrix.`,
-        ms: `Rantaian seperti yang dimasukkan, tidak disemak terhadap laluan teras: isu ini tidak merekodkan laluan teras bagi ${office.ms}. Rekodkan pada isu dalam matriks kelulusan.`,
       };
     case "WEAKENS":
     case "ORDER_DIFFERS":
       return {
         en: `“${rule.en}” must take its chain from the core routing, but it gives ${office.en} a lesser act or a different place than the core routing does. Correct the rule or the core routing before relying on this route.`,
-        ms: `“${rule.ms}” mesti mengambil rantaiannya daripada laluan teras, tetapi ia memberi ${office.ms} tindakan yang lebih rendah atau kedudukan yang berbeza daripada laluan teras. Betulkan peraturan atau laluan teras sebelum bergantung pada laluan ini.`,
       };
     case "APPROVER_BENEATH":
       return {
         en: `“${rule.en}” must take its chain from the core routing, but it names ${office.en}, its approver, beneath the approval as well. Correct the rule before relying on this route.`,
-        ms: `“${rule.ms}” mesti mengambil rantaiannya daripada laluan teras, tetapi ia menamakan ${office.ms}, pelulusnya, di bawah kelulusan juga. Betulkan peraturan sebelum bergantung pada laluan ini.`,
       };
     case "APPROVE_BENEATH":
       return {
         en: `“${rule.en}” must take its chain from the core routing, but it gives ${office.en} an approval beneath the approver. Correct the rule before relying on this route.`,
-        ms: `“${rule.ms}” mesti mengambil rantaiannya daripada laluan teras, tetapi ia memberi ${office.ms} kelulusan di bawah pelulus. Betulkan peraturan sebelum bergantung pada laluan ini.`,
       };
     case "DUPLICATE_OFFICE":
       return {
         en: `“${rule.en}” must take its chain from the core routing, but it names ${office.en} twice. Correct the rule before relying on this route.`,
-        ms: `“${rule.ms}” mesti mengambil rantaiannya daripada laluan teras, tetapi ia menamakan ${office.ms} dua kali. Betulkan peraturan sebelum bergantung pada laluan ini.`,
       };
   }
 }
@@ -84,13 +79,11 @@ export const NOT_DECIDED_PREFIX_EN = "Chain as entered, not checked against core
 export function notDecidedWarning(rule: Words): Words {
   return {
     en: `${NOT_DECIDED_PREFIX_EN}: nobody has decided whether “${rule.en}” takes its chain from the core routing. Decide it on the rule in the approval matrix.`,
-    ms: `Rantaian seperti yang dimasukkan, tidak disemak terhadap laluan teras: belum diputuskan sama ada “${rule.ms}” mengambil rantaiannya daripada laluan teras. Putuskan pada peraturan dalam matriks kelulusan.`,
   };
 }
 
 export const AS_ENTERED_INFO: Words = {
   en: "Chain as entered on the rule: recorded as not taken from the core routing.",
-  ms: "Rantaian seperti yang dimasukkan pada peraturan: direkodkan sebagai tidak diambil daripada laluan teras.",
 };
 
 /// Refused on saving a rule that takes its chain from the core routing (departure 1).
@@ -142,15 +135,14 @@ export function routeCoreText(
   route: { coreSnapshotAt: Date | null; coreChainFlag: boolean | null; coreChainReason: string | null; coreRoutingSnapshot: unknown },
   officeName: (code: string) => Words,
 ): Words {
-  if (!route.coreSnapshotAt) return { en: "Not recorded: this route opened before core routing was recorded on routes.", ms: "Tidak direkodkan: laluan ini dibuka sebelum laluan teras direkodkan pada laluan." };
+  if (!route.coreSnapshotAt) return { en: "Not recorded: this route opened before core routing was recorded on routes." };
   if (route.coreChainFlag == null)
-    return { en: "Chain as entered on the rule, not checked against core routing: nobody had decided whether the rule takes its chain from it.", ms: "Rantaian seperti yang dimasukkan pada peraturan, tidak disemak terhadap laluan teras: belum diputuskan sama ada peraturan mengambil rantaiannya daripadanya." };
+    return { en: "Chain as entered on the rule, not checked against core routing: nobody had decided whether the rule takes its chain from it." };
   if (route.coreChainFlag === false) {
     // A reason typed as a sentence already ends in a full stop; the sentence supplies its own.
     const why = route.coreChainReason?.trim().replace(/[.\s]+$/, "");
     return {
       en: `Chain as entered on the rule, recorded as not taken from the core routing: ${why || "reason not recorded"}.`,
-      ms: `Rantaian seperti yang dimasukkan pada peraturan, direkodkan sebagai tidak diambil daripada laluan teras: ${why || "sebab tidak direkodkan"}.`,
     };
   }
   // Flagged, but nothing generated: every route opener refuses a core chain fault, so
@@ -158,12 +150,11 @@ export function routeCoreText(
   if (!chainWasGenerated(route))
     return {
       en: "Chain as entered on the rule, not checked against core routing: the rule takes its chain from the core routing, but this issue recorded no core routing for its approving office when the route opened.",
-      ms: "Rantaian seperti yang dimasukkan pada peraturan, tidak disemak terhadap laluan teras: peraturan mengambil rantaiannya daripada laluan teras, tetapi isu ini tidak merekodkan laluan teras bagi pejabat pelulusnya semasa laluan dibuka.",
     };
   const level = route.coreRoutingSnapshot as CoreLevel;
   const office = officeName(level.approverCode);
   const clause = level.clause ? ` (${level.clause})` : "";
-  return { en: `Generated from the core routing for ${office.en}${clause}.`, ms: `Dijana daripada laluan teras bagi ${office.ms}${clause}.` };
+  return { en: `Generated from the core routing for ${office.en}${clause}.` };
 }
 
 /// Said beside one step of a persisted route: where a generated chain's step came from.

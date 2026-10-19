@@ -140,7 +140,7 @@ export async function sendMatterRoute(c: MatterCtx, m: MatterRow, i: SendInput):
   }
   const rule = r.resolution.rule!;
   const on = dayToDate(c.today);
-  const warnings = [...r.warnings, ...r.notes.map((n) => ({ code: "D2_NOTE", level: "info" as const, messageEn: n.en, messageMs: n.ms })), ...checks.map((x) => ({ code: x.code, level: "warn" as const, messageEn: timeRefusal("", [x]), messageMs: timeRefusal("", [x]) }))];
+  const warnings = [...r.warnings, ...r.notes.map((n) => ({ code: "D2_NOTE", level: "info" as const, messageEn: n.en })), ...checks.map((x) => ({ code: x.code, level: "warn" as const, messageEn: timeRefusal("", [x]) }))];
   const inst = await c.tx.approvalInstance.create({
     data: {
       organisationId: c.l.org.id,

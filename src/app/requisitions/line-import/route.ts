@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     // fall through: no file
   }
   if (!(file instanceof File)) {
-    return Response.json({ lines: [], problems: [{ row: null, text: { en: "No file was sent.", ms: "Tiada fail dihantar." } }] }, { status: 400 });
+    return Response.json({ lines: [], problems: [{ row: null, text: { en: "No file was sent." } }] }, { status: 400 });
   }
   const result = await readUpload(file.name, new Uint8Array(await file.arrayBuffer()));
   return Response.json(result, { headers: { "Cache-Control": "no-store" } });

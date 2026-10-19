@@ -8,6 +8,8 @@ import { lex, spans } from "@/lib/scan/source";
 import { hiddenNote } from "./labels";
 import { SUPERVISION_ACTS } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * FR-SUP-002–004 (Phase 3d): acts outside a representative's delegated scope are hidden from them, mapped from the session. The rule is `hiddenActsFor` (tested in
  * `authority.test.ts`); this holds the screens to it: the pages that offer the acts ask it (`hiddenFor`, which adds the acts no letter can give) for the signed-in person (never for a person named in a form), and each drawer that
@@ -211,14 +213,12 @@ describe("a representative is told what is left off, on every screen that leaves
     expect(read(`${CONTRACT}/variations/[variationId]/page.tsx`)).toMatch(/<HiddenNote hidden=\{hidden\} \/>/);
   });
 
-  it("says nothing where nothing is hidden, and names what is, in both languages and never by a code", () => {
+  it("says nothing where nothing is hidden, and names what is, never by a code", () => {
     expect(hiddenNote([])).toBeNull();
     const n = hiddenNote(["OBSERVATION", "SO_ONLY", "PRINCIPAL_OR_SO"])!;
-    for (const lang of ["en", "ms"] as const) {
-      expect(n.body[lang].length).toBeGreaterThan(40);
-      expect(n.title[lang].length).toBeGreaterThan(10);
-      expect(n.body[lang], lang).not.toMatch(/OBSERVATION|SO_ONLY|PRINCIPAL_OR_SO/);
-    }
+    expect(n.body.en.length).toBeGreaterThan(40);
+    expect(n.title.en.length).toBeGreaterThan(10);
+    expect(n.body.en).not.toMatch(/OBSERVATION|SO_ONLY|PRINCIPAL_OR_SO/);
     expect(n.body.en).toMatch(/compliance observations/);
     expect(n.body.en).toMatch(/S\.O\.'s own/);
     expect(n.body.en).toMatch(/Principal Representative/);

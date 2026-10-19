@@ -8,6 +8,8 @@ import { DECLARED_UNITS, duplicatePartFaults, parseDeclaration, submitFaults, wi
 import type { BidPartRule } from "./types";
 import { SUBMIT_FAULT_WORDS } from "./words";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The online submission's door, a replace and a withdrawal (ADR 0036 D5, D7, D8; rulings 17c, 20b, 20e, 20h, 20m; build plan step 5). A worked example: the
  * closing is 4 November 2026 at 12:00:00 noon in Kuala Lumpur, which is 04:00:00 UTC. A bid stamped 04:00:00 is in time; one stamped 04:00:01 is late.
@@ -161,9 +163,9 @@ describe("the door's other refusals, in words", () => {
   });
 
   // Ruling 20ab: the words carry English and Malay, so each language is checked.
-  it("each refusal has words in both languages, never a code", () => {
+  it("each refusal has words, never a code", () => {
     for (const [k, w] of Object.entries(SUBMIT_FAULT_WORDS)) {
-      for (const text of [w.en, w.ms]) {
+      for (const text of [w.en]) {
         expect(text.length, k).toBeGreaterThan(15);
         expect(text, k).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
       }
@@ -178,8 +180,7 @@ describe("two files for one returned part (ruling 20al)", () => {
     expect(duplicatePartFaults([])).toEqual([]);
   });
 
-  it("is said in both languages, and a missing mandatory part is still only warned about (FR-BID-007)", () => {
-    expect(SUBMIT_FAULT_WORDS.DUPLICATE_PART.en).not.toBe(SUBMIT_FAULT_WORDS.DUPLICATE_PART.ms);
+  it("is said in words, and a missing mandatory part is still only warned about (FR-BID-007)", () => {
     expect(judge({ files: [{ mine: true, state: "DRAFT" as const, packPartId: "form" }] }).faults).toEqual([]);
   });
 });
@@ -200,7 +201,6 @@ describe("the cap per supplier per exercise (20e)", () => {
     expect(judge({ submissionsBySupplier: MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE - 1 }).faults).toEqual([]);
     expect(judge({ submissionsBySupplier: MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE }).faults).toEqual(["TOO_MANY_SUBMISSIONS"]);
     expect(SUBMIT_FAULT_WORDS.TOO_MANY_SUBMISSIONS.en).toMatch(/last submission stands/);
-    expect(SUBMIT_FAULT_WORDS.TOO_MANY_SUBMISSIONS.ms).toMatch(/penyerahan terakhir anda kekal/);
   });
 });
 

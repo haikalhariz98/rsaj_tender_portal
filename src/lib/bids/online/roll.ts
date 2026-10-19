@@ -52,53 +52,48 @@ export function myBidOpeningState(i: { status: OnlineBidStatus; openingStarted: 
 /// Audit 8: NOT_IN_ROLL speaks of this submission only. The supplier may have other receipts that are in the list.
 export function myBidOpenedWords(i: { state: MyBidOpeningState; digest: string | null; organisationName: string }): { headline: Words; detail: Words; digest: string | null } {
   const name = i.organisationName.trim();
-  const org = w(name || "the procurement office", name || "pejabat perolehan");
-  const shown = i.digest ? w(`Its receipt digest is ${i.digest}.`, `Cincangan resitnya ialah ${i.digest}.`) : w("No receipt digest is recorded for it.", "Tiada cincangan resit direkodkan baginya.");
+  const org = w(name || "the procurement office");
+  const shown = i.digest ? w(`Its receipt digest is ${i.digest}.`) : w("No receipt digest is recorded for it.");
   // NOT_IN_ROLL: the digest is the one recorded when the supplier submitted it (the opening's list holds none for it), which is what it needs to complain with (S11).
   const notListed = i.digest
-    ? w(`The receipt digest recorded when you submitted it is ${i.digest}. The opening's list holds none for it.`, `Cincangan resit yang direkodkan semasa anda menyerahkannya ialah ${i.digest}. Senarai pembukaan tidak mempunyai cincangan baginya.`)
-    : w("The opening's list holds no digest for it.", "Senarai pembukaan tidak mempunyai cincangan baginya.");
-  const compare = w("Compare it with the receipt you printed or saved when you submitted.", "Bandingkan dengan resit yang anda cetak atau simpan semasa anda menyerahkan.");
+    ? w(`The receipt digest recorded when you submitted it is ${i.digest}. The opening's list holds none for it.`)
+    : w("The opening's list holds no digest for it.");
+  const compare = w("Compare it with the receipt you printed or saved when you submitted.");
   const out = (headline: Words, detail: Words) => ({ headline, detail, digest: i.digest });
   switch (i.state) {
     case "LISTED_NOT_OPENED":
       return out(
-        w("Listed at the opening, not opened yet", "Disenaraikan semasa pembukaan, belum dibuka"),
+        w("Listed at the opening, not opened yet"),
         w(
           `Your bid is in the list frozen when the opening started. ${shown.en} ${compare.en} If the bids have been unsealed and yours is still not shown as opened, contact ${org.en} now, quoting your receipt.`,
-          `Bida anda ada dalam senarai yang dibekukan semasa pembukaan bermula. ${shown.ms} ${compare.ms} Jika meterai bida telah dibuka dan bida anda masih tidak ditunjukkan sebagai dibuka, hubungi ${org.ms} sekarang, dengan menyebut resit anda.`,
         ),
       );
     case "OPENED":
       return out(
-        w("Opened; the result follows the evaluation", "Dibuka; keputusannya menyusul selepas penilaian"),
+        w("Opened; the result follows the evaluation"),
         w(
           `Your bid was opened. ${shown.en} ${compare.en} Nothing of what was read, nor how it compares, is shown here.`,
-          `Bida anda telah dibuka. ${shown.ms} ${compare.ms} Apa yang dibaca, dan bagaimana ia dibandingkan, tidak ditunjukkan di sini.`,
         ),
       );
     case "LATE_IN_ROLL":
       return out(
-        w("Received after the closing, so not opened at the main opening", "Diterima selepas tarikh tutup, jadi tidak dibuka pada pembukaan utama"),
+        w("Received after the closing, so not opened at the main opening"),
         w(
           `Your bid was received after the closing. It is kept, sealed, and goes to the committee, which decides whether to admit it; if it is admitted, it is opened at a further opening. ${shown.en} ${compare.en}`,
-          `Bida anda diterima selepas tarikh tutup. Ia disimpan, bermeterai, dan dibawa kepada jawatankuasa, yang memutuskan sama ada menerimanya; jika diterima, ia dibuka pada pembukaan berikutnya. ${shown.ms} ${compare.ms}`,
         ),
       );
     case "NOT_IN_ROLL":
       return out(
-        w("This submission is not in the opening's list", "Penyerahan ini tiada dalam senarai pembukaan"),
+        w("This submission is not in the opening's list"),
         w(
           `This submission is not in the list frozen when the opening started. Contact ${org.en} now, quoting the receipt you kept. ${notListed.en}`,
-          `Penyerahan ini tiada dalam senarai yang dibekukan semasa pembukaan bermula. Hubungi ${org.ms} sekarang, dengan menyebut resit yang anda simpan. ${notListed.ms}`,
         ),
       );
     case "REPLACED_OR_WITHDRAWN":
       return out(
-        w("Not opened, as expected", "Tidak dibuka, seperti yang dijangka"),
+        w("Not opened, as expected"),
         w(
           `This submission was replaced or withdrawn before the closing, so it was not opened, as expected. ${shown.en}`,
-          `Penyerahan ini telah diganti atau ditarik balik sebelum tarikh tutup, jadi ia tidak dibuka, seperti yang dijangka. ${shown.ms}`,
         ),
       );
   }

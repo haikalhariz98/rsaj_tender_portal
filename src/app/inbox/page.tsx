@@ -1,6 +1,6 @@
 import { hiddenExercises } from "@/app/_auth/sulit";
 import { requireStaff } from "@/app/_auth/actor";
-import { currentLanguage } from "@/app/_auth/language";
+import { ENGLISH } from "@/lib/i18n/language";
 import { DataList, type Row } from "@/components/data-list";
 import { InboxIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ before?: string }> }) {
   const actor = await requireStaff();
-  const { language: lang } = await currentLanguage();
+  const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   const { before } = await searchParams;
   const viewer = { organisationId: actor.organisationId, personId: actor.personId };

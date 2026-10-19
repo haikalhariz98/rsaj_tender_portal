@@ -59,7 +59,7 @@ export interface AttributionRequest {
   backdate?: { reason: string; authorisedByPersonId: string } | null;
 }
 
-const fault = (code: string, en: string, ms: string): Fault => ({ code, en, ms });
+const fault = (code: string, en: string): Fault => ({ code, en });
 
 const sameParty = (s: ActSubject, r: ActRecorder): boolean =>
   (s.kind === "PERSON" && r.kind === "PERSON" && s.personId === r.personId) ||
@@ -88,11 +88,11 @@ export interface StepUpFacts {
 }
 
 export function stepUpFault(f: StepUpFacts): Fault | null {
-  if (!f.passed) return fault("STEP_UP_REQUIRED", "This act needs the password again. Enter it to sign.", "Tindakan ini memerlukan kata laluan sekali lagi. Masukkannya untuk menandatangani.");
+  if (!f.passed) return fault("STEP_UP_REQUIRED", "This act needs the password again. Enter it to sign.");
   if (!f.onSession || f.onSession.getTime() !== f.passed.getTime()) {
-    return fault("STEP_UP_NOT_CURRENT", "The password was not asked for this act in this session. Enter it again to sign.", "Kata laluan tidak ditanya untuk tindakan ini dalam sesi ini. Masukkannya sekali lagi untuk menandatangani.");
+    return fault("STEP_UP_NOT_CURRENT", "The password was not asked for this act in this session. Enter it again to sign.");
   }
-  if (f.consumed) return fault("STEP_UP_USED", "That password entry has already signed an act. Enter the password again to sign this one.", "Kemasukan kata laluan itu sudah menandatangani satu tindakan. Masukkan kata laluan sekali lagi untuk menandatangani yang ini.");
+  if (f.consumed) return fault("STEP_UP_USED", "That password entry has already signed an act. Enter the password again to sign this one.");
   return null;
 }
 
@@ -108,26 +108,26 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
   const out: Fault[] = [];
   const registered = slotOf(req.entity, req.slot);
   if (!registered) {
-    return [fault("UNKNOWN_SLOT", "This act has no registered person slot, so it cannot be attributed.", "Tindakan ini tidak mempunyai slot orang yang berdaftar, jadi ia tidak boleh dikaitkan.")];
+    return [fault("UNKNOWN_SLOT", "This act has no registered person slot, so it cannot be attributed.")];
   }
   const signatureClass = registered.signatureClass;
   const system = req.recorder.kind === "SYSTEM";
   if (signatureClass && !(req.document?.entity.trim() && req.document.id.trim())) {
-    out.push(fault("DOCUMENT_REQUIRED", "A signature names the exact document or record it signs.", "Tandatangan menamakan dokumen atau rekod tepat yang ditandatangani."));
+    out.push(fault("DOCUMENT_REQUIRED", "A signature names the exact document or record it signs."));
   }
   if (req.backdate) {
     if (req.mode !== "SIGNED" || !req.effectiveOn) {
-      out.push(fault("BACKDATE_NOT_SIGNED", "Only a signed act is back-dated, and it names the day it is dated.", "Hanya tindakan yang ditandatangani boleh dibertarikh lalu, dan ia menamakan hari bertarikhnya."));
+      out.push(fault("BACKDATE_NOT_SIGNED", "Only a signed act is back-dated, and it names the day it is dated."));
     }
     if (req.backdate.reason.trim() === "") {
-      out.push(fault("BACKDATE_REASON_REQUIRED", "Dating an act earlier than today needs the reason.", "Mentarikhkan tindakan lebih awal daripada hari ini memerlukan sebabnya."));
+      out.push(fault("BACKDATE_REASON_REQUIRED", "Dating an act earlier than today needs the reason."));
     }
     if (req.recorder.kind === "PERSON" && req.backdate.authorisedByPersonId === req.recorder.personId) {
-      out.push(fault("BACKDATE_SELF_AUTHORISED", "Dating an act earlier than today is authorised by someone other than the person who records it.", "Mentarikhkan tindakan lebih awal daripada hari ini dibenarkan oleh orang lain selain yang merekodkannya."));
+      out.push(fault("BACKDATE_SELF_AUTHORISED", "Dating an act earlier than today is authorised by someone other than the person who records it."));
     }
   }
   if (req.recorder.kind === "SYSTEM" && req.recorder.label.trim() === "") {
-    out.push(fault("SYSTEM_UNLABELLED", "A system act says what it is.", "Tindakan sistem menyatakan apa ia."));
+    out.push(fault("SYSTEM_UNLABELLED", "A system act says what it is."));
   }
 
   if (req.mode === "SIGNED") {
@@ -136,12 +136,11 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
         fault(
           "SIGNED_BY_ANOTHER",
           "An act is signed only by the person it is attributed to, in their own session. Recording it for someone else is recorded on their behalf, and is not a signature.",
-          "Sesuatu tindakan hanya ditandatangani oleh orang yang dikaitkan dengannya, dalam sesinya sendiri. Merekodkannya bagi pihak orang lain direkodkan bagi pihaknya, dan bukan tandatangan.",
         ),
       );
     }
     if (signatureClass && !req.stepUpAt) {
-      out.push(fault("STEP_UP_REQUIRED", "This act needs the password again. Enter it to sign.", "Tindakan ini memerlukan kata laluan sekali lagi. Masukkannya untuk menandatangani."));
+      out.push(fault("STEP_UP_REQUIRED", "This act needs the password again. Enter it to sign."));
     }
     return out;
   }
@@ -150,7 +149,7 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
   const paper = (req.paperReference ?? "").trim();
   const why = (req.reason ?? "").trim();
   if (paper === "" && why === "") {
-    out.push(fault("PAPER_OR_REASON_REQUIRED", "Recording an act on someone's behalf needs the paper it came from or the reason it is recorded.", "Merekodkan tindakan bagi pihak seseorang memerlukan kertas asalnya atau sebab ia direkodkan."));
+    out.push(fault("PAPER_OR_REASON_REQUIRED", "Recording an act on someone's behalf needs the paper it came from or the reason it is recorded."));
   }
   if (sameParty(req.subject, req.recorder)) {
     // A person who records their own act "on their behalf" would skip the password a signature asks, and says nothing true: it is signed, or it is not theirs.
@@ -158,7 +157,6 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
       fault(
         "ON_BEHALF_OF_SELF",
         "An act recorded on someone's behalf is recorded for another person. To act as yourself, sign it.",
-        "Tindakan yang direkodkan bagi pihak seseorang direkodkan untuk orang lain. Untuk bertindak sebagai diri sendiri, tandatanganinya.",
       ),
     );
   }
@@ -170,17 +168,15 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
           ? fault(
               "NOT_PERMITTED_TO_RECORD",
               "Recording an approval, signature or unsealing from paper needs the permission to record on someone's behalf, which you do not hold.",
-              "Merekodkan kelulusan, tandatangan atau pembukaan meterai daripada kertas memerlukan kebenaran merekod bagi pihak seseorang, yang tidak anda pegang.",
             )
           : fault(
               "NOT_PERMITTED_TO_RECORD",
               "Recording this from paper for someone else needs the permission to record on someone's behalf, which you do not hold. It moves money, time or authority.",
-              "Merekodkan ini daripada kertas bagi pihak orang lain memerlukan kebenaran merekod bagi pihak seseorang, yang tidak anda pegang. Ia melibatkan wang, masa atau kuasa.",
             ),
       );
     }
     if (paper === "") {
-      out.push(fault("PAPER_REFERENCE_REQUIRED", "A paper decision is recorded with the reference of the paper it came from.", "Keputusan atas kertas direkodkan dengan rujukan kertas asalnya."));
+      out.push(fault("PAPER_REFERENCE_REQUIRED", "A paper decision is recorded with the reference of the paper it came from."));
     }
   }
   if (signatureClass && !system) {
@@ -189,11 +185,10 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
         fault(
           "PAPER_SWITCH_NOT_SET",
           "The organisation has not set whether a paper decision may be recorded for someone else, so it cannot be recorded. That setting is the organisation's to choose.",
-          "Organisasi belum menetapkan sama ada keputusan atas kertas boleh direkodkan bagi pihak orang lain, jadi ia tidak boleh direkodkan. Tetapan itu pilihan organisasi.",
         ),
       );
     } else if (req.paperSignatureRecording === "REFUSED") {
-      out.push(fault("PAPER_REFUSED", "The organisation does not allow a paper decision to be recorded for someone else.", "Organisasi tidak membenarkan keputusan atas kertas direkodkan bagi pihak orang lain."));
+      out.push(fault("PAPER_REFUSED", "The organisation does not allow a paper decision to be recorded for someone else."));
     }
   }
   return out;
@@ -210,7 +205,7 @@ export const JUDGED_AT_PROPOSAL: readonly string[] = ["NOT_PERMITTED_TO_RECORD",
 /// The faults of an attribution a second person applies for the person who proposed it. A signature cannot be applied: it is made by the person signing, in their own session.
 export function appliedAttributionFaults(req: AttributionRequest): Fault[] {
   if (slotOf(req.entity, req.slot)?.signatureClass) {
-    return [fault("SIGNATURE_NOT_APPLIED", "A signature is made by the person signing it, in their own session, so it cannot be applied from a proposal.", "Tandatangan dibuat oleh orang yang menandatangani, dalam sesinya sendiri, jadi ia tidak boleh dilaksanakan daripada cadangan.")];
+    return [fault("SIGNATURE_NOT_APPLIED", "A signature is made by the person signing it, in their own session, so it cannot be applied from a proposal.")];
   }
   return attributionFaults(req).filter((f) => !JUDGED_AT_PROPOSAL.includes(f.code));
 }
@@ -256,7 +251,6 @@ export type AttributionState = "SIGNED" | "ON_BEHALF" | "LEGACY" | "MISSING";
 export interface AttributionRead {
   state: AttributionState;
   en: string;
-  ms: string;
 }
 
 export interface AttributionFacts {
@@ -289,21 +283,19 @@ export function attributionLabel(f: AttributionFacts): AttributionRead {
       const back = f.row.effectiveOn
         ? {
             en: `, dated ${f.row.effectiveOn} (back-dated${who ? (confirmed ? `; ${who} confirmed it on ${confirmed}` : `; the signer names ${who} as authorising it, not confirmed`) : ""})`,
-            ms: `, bertarikh ${f.row.effectiveOn} (bertarikh lalu${who ? (confirmed ? `; ${who} mengesahkannya pada ${confirmed}` : `; penandatangan menamakan ${who} sebagai pemberi kuasa, belum disahkan`) : ""})`,
           }
-        : { en: "", ms: "" };
-      if (f.slot && !f.slot.signatureClass) return { state: "SIGNED", en: `${f.slot.label} ${f.subjectName}${back.en}`, ms: `${f.slot.ms} ${f.subjectName}${back.ms}` };
-      return { state: "SIGNED", en: `Signed by ${f.subjectName}${back.en}`, ms: `Ditandatangani oleh ${f.subjectName}${back.ms}` };
+        : { en: "" };
+      if (f.slot && !f.slot.signatureClass) return { state: "SIGNED", en: `${f.slot.label} ${f.subjectName}${back.en}` };
+      return { state: "SIGNED", en: `Signed by ${f.subjectName}${back.en}` };
     }
     const by = f.row.recordedBySystemLabel ?? f.recorderName ?? "a person no longer on record";
     return {
       state: "ON_BEHALF",
       en: `Recorded by ${by} on behalf of ${f.subjectName}, ${NOT_SIGNED_WORDS}`,
-      ms: `Direkodkan oleh ${by} bagi pihak ${f.subjectName}, tidak ditandatangani`,
     };
   }
   if (!f.auditAttributed) {
-    return { state: "LEGACY", en: `Recorded on behalf of ${f.subjectName}, ${NOT_SIGNED_WORDS} (before sign-in)`, ms: `Direkodkan bagi pihak ${f.subjectName}, tidak ditandatangani (sebelum log masuk)` };
+    return { state: "LEGACY", en: `Recorded on behalf of ${f.subjectName}, ${NOT_SIGNED_WORDS} (before sign-in)` };
   }
-  return { state: "MISSING", en: "Attribution missing", ms: "Pengaitan tiada" };
+  return { state: "MISSING", en: "Attribution missing" };
 }

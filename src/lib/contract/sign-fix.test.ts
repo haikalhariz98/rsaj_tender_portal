@@ -8,6 +8,8 @@ import { executedSnapshot, frozenSigningDays } from "./executed-snapshot";
 import { contractFaultWords } from "./fault-text";
 import { signFaults, type SignInputs } from "./sign";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const codes = (fs: readonly { code: string }[]) => fs.map((f) => f.code);
 
 /**
@@ -29,7 +31,6 @@ describe("the Contract Date is never corrected to before the contractor signed (
     const fs = dateCorrectionFaults({ ...base, proposed: "2026-09-25" });
     expect(fs).toEqual([{ code: "BEFORE_CONTRACTOR_SIGNED", level: "block", data: { party: "CONTRACTOR", signedOn: "2026-09-29" } }]);
     expect(contractFaultWords(fs[0]).en).toBe("The contractor signed on 29 Sep 2026: the employer signs after the contractor, so the Contract Date cannot be before that day.");
-    expect(contractFaultWords(fs[0]).ms).toContain("29 Sep 2026");
   });
   it("24 Sep: before ready to sign and before the contractor signed", () => {
     expect(codes(dateCorrectionFaults({ ...base, proposed: "2026-09-24" }))).toEqual(["BEFORE_READY", "BEFORE_CONTRACTOR_SIGNED"]);

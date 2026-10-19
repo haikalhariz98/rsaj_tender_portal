@@ -779,13 +779,13 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
       ...resolved.warnings,
       ...newer,
       ...(disposition.controlNotSet
-        ? [{ code: "CONTROL_NOT_SET", level: "warn", messageEn: "Over budget with the availability check not set: the over-budget route was invoked by the officer.", messageMs: "Melebihi bajet dan kawalan semakan belum ditetapkan: laluan melebihi bajet digunakan oleh pegawai." }]
+        ? [{ code: "CONTROL_NOT_SET", level: "warn", messageEn: "Over budget with the availability check not set: the over-budget route was invoked by the officer." }]
         : []),
       ...(disposition.autoRouted
-        ? [{ code: "OVER_BUDGET", level: "warn", messageEn: "Over budget: routed to the over-budget approvers automatically, as the availability check is set to warn.", messageMs: "Melebihi bajet: dihalakan kepada pelulus melebihi bajet secara automatik kerana semakan ditetapkan untuk memberi amaran." }]
+        ? [{ code: "OVER_BUDGET", level: "warn", messageEn: "Over budget: routed to the over-budget approvers automatically, as the availability check is set to warn." }]
         : []),
-      ...(check ? [{ code: "BUDGET_RECHECKED", level: "info", messageEn: "The last budget check had gone stale and was re-run on submission.", messageMs: "Semakan bajet terakhir telah lapuk dan dijalankan semula semasa penghantaran." }] : []),
-      ...(check?.warnings ?? []).map((w) => ({ code: w, level: "warn", messageEn: "The cost centre's unit is not the budget code's owning unit.", messageMs: "Unit pusat kos bukan unit pemilik kod bajet." })),
+      ...(check ? [{ code: "BUDGET_RECHECKED", level: "info", messageEn: "The last budget check had gone stale and was re-run on submission." }] : []),
+      ...(check?.warnings ?? []).map((w) => ({ code: w, level: "warn", messageEn: "The cost centre's unit is not the budget code's owning unit." })),
     ];
     const instance = await tx.approvalInstance.create({
       data: {

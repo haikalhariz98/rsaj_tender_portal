@@ -3,7 +3,6 @@ import type { Tx } from "@/lib/audit/record";
 import { organisationDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { inForceOn } from "@/lib/effective";
-import { fromStored } from "@/lib/i18n/language";
 
 import { recordSignInEvent } from "./events";
 import { heldNow } from "./permission-store";
@@ -84,7 +83,6 @@ export async function readStaffSession(token: string | undefined | null, request
     sessionCreatedAt: session.createdAt,
     sourceAddress: request.sourceAddress,
     mustChangePassword: account.mustChangePassword,
-    uiLanguage: fromStored(account.uiLanguage),
   };
   return { ok: true, actor, session: { id: session.id, createdAt: session.createdAt, lastSeenAt: session.lastSeenAt, absoluteExpiresAt: session.absoluteExpiresAt } };
 }

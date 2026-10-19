@@ -36,15 +36,14 @@ export const PRODUCT_ANNEX_LABELS: Readonly<Record<AnnexKey, string>> = {
 };
 
 /// The configured labels (EN, MS) or the product's; each annex on its own.
-export function annexLabels(json: unknown): Record<AnnexKey, { en: string; ms: string | null; configured: boolean }> {
-  const o = json && typeof json === "object" && !Array.isArray(json) ? (json as Record<string, { en?: unknown; ms?: unknown }>) : {};
+export function annexLabels(json: unknown): Record<AnnexKey, { en: string; configured: boolean }> {
+  const o = json && typeof json === "object" && !Array.isArray(json) ? (json as Record<string, { en?: unknown;  }>) : {};
   return Object.fromEntries(
     ANNEX_KEYS.map((k) => {
       const en = typeof o[k]?.en === "string" && (o[k].en as string).trim() ? (o[k].en as string) : null;
-      const ms = typeof o[k]?.ms === "string" && (o[k].ms as string).trim() ? (o[k].ms as string) : null;
-      return [k, { en: en ?? PRODUCT_ANNEX_LABELS[k], ms, configured: en != null }];
+      return [k, { en: en ?? PRODUCT_ANNEX_LABELS[k], configured: en != null }];
     }),
-  ) as Record<AnnexKey, { en: string; ms: string | null; configured: boolean }>;
+  ) as Record<AnnexKey, { en: string; configured: boolean }>;
 }
 
 export type ReportFault =
@@ -148,7 +147,7 @@ export interface ReportSnapshot {
   decimals: number | null;
   team: { name: string; side: string }[];
   text: ReportInput["text"];
-  annexes: { key: AnnexKey; label: string; labelMs: string | null; body: unknown }[];
+  annexes: { key: AnnexKey; label: string; body: unknown }[];
   recommendation: { listingNo: number; bidder: string; registrationNo: string; price: string; period: string; topRanked: boolean; justification: string; formedBy: string; formedOn: string };
   saving: { state: "SEALED" | "NO_ESTIMATE" | "STATED"; amount: string | null; percent: string | null };
   meetings: { kind: string; round: number; listingNo: number; heldOn: string; place: string; minutes: string; priceBefore: string | null; priceAfter: string | null }[];
@@ -229,7 +228,7 @@ export function buildReport(i: ReportInput): ReportSnapshot {
     decimals: f.decimals,
     team: f.team.map((t) => ({ name: t.name, side: t.side })),
     text: i.text,
-    annexes: ANNEX_KEYS.map((k) => ({ key: k, label: labels[k].en, labelMs: labels[k].ms, body: bodies[k] })),
+    annexes: ANNEX_KEYS.map((k) => ({ key: k, label: labels[k].en, body: bodies[k] })),
     recommendation: { listingNo: rb.listingNo, bidder: rb.bidderName, registrationNo: rb.registrationNo, price: formatMoney(i.recommendation.price), period: periodWords(i.recommendation.period), topRanked: i.recommendation.topRanked, justification: i.recommendation.justification, formedBy: i.recommendation.formedBy, formedOn: i.recommendation.formedOn },
     saving: "sealed" in s ? { state: "SEALED", amount: null, percent: null } : "noEstimate" in s ? { state: "NO_ESTIMATE", amount: null, percent: null } : { state: "STATED", amount: formatMoney(s.amount), percent: s.pct == null ? null : pctText(s.pct, 4) },
     meetings: i.meetings.map((m) => ({ ...m, priceBefore: m.priceBefore != null ? formatMoney(m.priceBefore) : null, priceAfter: m.priceAfter != null ? formatMoney(m.priceAfter) : null })),

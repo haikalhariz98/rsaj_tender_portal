@@ -53,25 +53,25 @@ export const POST_ACTIVE_STAGES: Readonly<Record<Stage, StageKind>> = {
   CLOSED: { kind: "STORED", spec: "Closed" },
 };
 
-type Words = { en: string; ms: string };
-const w = (en: string, ms: string): Words => ({ en, ms });
+type Words = { en: string;  };
+const w = (en: string): Words => ({ en });
 
 export const STAGE_WORDS: Readonly<Record<Stage, Words>> = {
-  IN_DELAY: w("In delay", "Dalam kelewatan"),
-  SUSPENDED: w("Suspended (not built: no act suspends the works)", "Digantung (tidak dibina: tiada tindakan menggantung kerja)"),
-  NOTICE_OF_INTENTION_ISSUED: w("Notice of intention to terminate issued", "Notis hasrat penamatan dikeluarkan"),
-  TERMINATED: w("Terminated", "Ditamatkan"),
-  TERMINATED_ACCOUNT_SETTLED: w("Terminated — account settled", "Ditamatkan — akaun diselesaikan"),
-  PRACTICALLY_COMPLETE: w("Practically complete", "Siap kerja"),
-  PARTIALLY_OCCUPIED: w("Partially occupied", "Diduduki sebahagian"),
-  IN_DEFECTS_LIABILITY: w("In defects liability", "Dalam tempoh tanggungan kecacatan"),
-  DEFECTS_RECTIFICATION: w("Defects rectification", "Pembaikan kecacatan"),
-  THIRD_PARTY_RECTIFICATION: w("Third-party rectification", "Pembaikan oleh pihak ketiga"),
-  MAKING_GOOD_COMPLETE: w("Making good of defects complete", "Siap membaiki kecacatan"),
-  PENDING_FINAL_ACCOUNT: w("Pending final account", "Menunggu akaun muktamad"),
-  BLOCKED_STATUTORY_DECLARATION: w("Blocked — statutory declaration", "Disekat — akuan berkanun"),
-  FINAL_CERTIFICATE_ISSUED: w("Final certificate issued", "Perakuan muktamad dikeluarkan"),
-  CLOSED: w("Closed", "Ditutup"),
+  IN_DELAY: w("In delay"),
+  SUSPENDED: w("Suspended (not built: no act suspends the works)"),
+  NOTICE_OF_INTENTION_ISSUED: w("Notice of intention to terminate issued"),
+  TERMINATED: w("Terminated"),
+  TERMINATED_ACCOUNT_SETTLED: w("Terminated — account settled"),
+  PRACTICALLY_COMPLETE: w("Practically complete"),
+  PARTIALLY_OCCUPIED: w("Partially occupied"),
+  IN_DEFECTS_LIABILITY: w("In defects liability"),
+  DEFECTS_RECTIFICATION: w("Defects rectification"),
+  THIRD_PARTY_RECTIFICATION: w("Third-party rectification"),
+  MAKING_GOOD_COMPLETE: w("Making good of defects complete"),
+  PENDING_FINAL_ACCOUNT: w("Pending final account"),
+  BLOCKED_STATUTORY_DECLARATION: w("Blocked — statutory declaration"),
+  FINAL_CERTIFICATE_ISSUED: w("Final certificate issued"),
+  CLOSED: w("Closed"),
 };
 
 /// The records the derived stages are read from. Each run fills its own; until then false (or NOT_SET), never assumed.
@@ -104,7 +104,6 @@ export type NotSetFact = "DLP";
 export const NOT_SET_WORDS: Readonly<Record<NotSetFact, Words>> = {
   DLP: w(
     "The defects liability period is not set for this contract, so whether it is in defects liability or goes straight to its final account is not known.",
-    "Tempoh tanggungan kecacatan tidak ditetapkan untuk kontrak ini, jadi sama ada ia dalam tempoh tanggungan kecacatan atau terus ke akaun muktamadnya tidak diketahui.",
   ),
 };
 

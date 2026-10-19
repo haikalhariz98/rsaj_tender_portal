@@ -31,61 +31,61 @@ export interface PermissionInfo {
 export const PERMISSIONS: Readonly<Record<PermissionKey, PermissionInfo>> = {
   "accounts.manage": {
     source: "ADMINISTRATOR_ONLY",
-    label: { en: "Manage sign-in accounts", ms: "Urus akaun log masuk" },
-    lets: { en: "Create, disable and unlock sign-in accounts, and issue activation and reset codes.", ms: "Cipta, lumpuhkan dan buka kunci akaun log masuk, dan keluarkan kod pengaktifan dan tetapan semula." },
+    label: { en: "Manage sign-in accounts" },
+    lets: { en: "Create, disable and unlock sign-in accounts, and issue activation and reset codes." },
   },
   "security.policy": {
     source: "ADMINISTRATOR_ONLY",
-    label: { en: "Set the organisation's sign-in settings", ms: "Tetapkan tetapan log masuk organisasi" },
-    lets: { en: "Propose a change to session limits, lockout, password length and the paper-signature switch.", ms: "Cadangkan perubahan had sesi, penguncian, panjang kata laluan dan suis tandatangan kertas." },
+    label: { en: "Set the organisation's sign-in settings" },
+    lets: { en: "Propose a change to session limits, lockout, password length and the paper-signature switch." },
   },
   "permissions.grant": {
     source: "ADMINISTRATOR_ONLY",
-    label: { en: "Grant product permissions to roles", ms: "Beri kebenaran produk kepada peranan" },
-    lets: { en: "Propose which roles hold which product permission.", ms: "Cadangkan peranan mana memegang kebenaran produk mana." },
+    label: { en: "Grant product permissions to roles" },
+    lets: { en: "Propose which roles hold which product permission." },
   },
   "configuration.draft": {
     source: "ADMINISTRATOR_OR_GRANT",
-    label: { en: "Draft configuration", ms: "Draf konfigurasi" },
-    lets: { en: "Edit a draft of the approval matrix and other configuration that is issued in turn.", ms: "Sunting draf matriks kelulusan dan konfigurasi lain yang dikeluarkan kemudian." },
+    label: { en: "Draft configuration" },
+    lets: { en: "Edit a draft of the approval matrix and other configuration that is issued in turn." },
   },
   "configuration.issue": {
     source: "ADMINISTRATOR_OR_GRANT",
-    label: { en: "Issue configuration", ms: "Keluarkan konfigurasi" },
-    lets: { en: "Put a draft into force, provided the issuer is not one of its makers.", ms: "Kuatkuasakan draf, dengan syarat pengeluar bukan salah seorang pembuatnya." },
+    label: { en: "Issue configuration" },
+    lets: { en: "Put a draft into force, provided the issuer is not one of its makers." },
   },
   "audit.read": {
     source: "ADMINISTRATOR_OR_GRANT",
-    label: { en: "Read and export the audit trail", ms: "Baca dan eksport jejak audit" },
-    lets: { en: "Open the audit trail and export it.", ms: "Buka jejak audit dan eksportnya." },
+    label: { en: "Read and export the audit trail" },
+    lets: { en: "Open the audit trail and export it." },
   },
   "supplierAccounts.manage": {
     source: "GRANT_ONLY",
-    label: { en: "Manage supplier sign-in accounts", ms: "Urus akaun log masuk pembekal" },
-    lets: { en: "Issue a supplier's activation or reset code, after recording how the caller's identity was checked.", ms: "Keluarkan kod pengaktifan atau tetapan semula pembekal, selepas merekodkan cara identiti pemanggil disemak." },
+    label: { en: "Manage supplier sign-in accounts" },
+    lets: { en: "Issue a supplier's activation or reset code, after recording how the caller's identity was checked." },
   },
   "sulit.read.organisation": {
     source: "GRANT_ONLY",
-    label: { en: "Read SULIT values across the organisation", ms: "Baca nilai SULIT merentas organisasi" },
-    lets: { en: "See SULIT values on records the person is not named on. It never opens a restricted exercise.", ms: "Lihat nilai SULIT pada rekod yang tidak menamakan orang itu. Ia tidak pernah membuka eksesais terhad." },
+    label: { en: "Read SULIT values across the organisation" },
+    lets: { en: "See SULIT values on records the person is not named on. It never opens a restricted exercise." },
   },
   // Phase 4b (ruling 6 of the CPD registration rulings, 2026-10-07): a supplier's bank details are read by the officers who hold a step on its registration's route, and by staff the
   // organisation grants this to (finance). Undecided until the organisation decides: refused, and shown as undecided. It never reads a restricted exercise's figures.
   "sulit.read.creditorProfile": {
     source: "GRANT_ONLY",
-    label: { en: "Read suppliers' creditor profiles", ms: "Baca profil pemiutang pembekal" },
-    lets: { en: "See a supplier's bank and beneficiary details and the bank statement, and check them, without holding a step on its registration route. It opens no other SULIT value.", ms: "Lihat butiran bank dan benefisiari pembekal serta penyata bank, dan menyemaknya, tanpa memegang langkah pada laluan pendaftarannya. Ia tidak membuka nilai SULIT yang lain." },
+    label: { en: "Read suppliers' creditor profiles" },
+    lets: { en: "See a supplier's bank and beneficiary details and the bank statement, and check them, without holding a step on its registration route. It opens no other SULIT value." },
   },
   "acts.recordOnBehalf": {
     source: "GRANT_ONLY",
-    label: { en: "Record a signature-class act on someone's behalf from paper", ms: "Rekod tindakan kelas tandatangan bagi pihak seseorang daripada kertas" },
-    lets: { en: "Record an approval, signature or unseal from a paper record, with the paper reference. It is recorded as not signed.", ms: "Rekod kelulusan, tandatangan atau pembukaan meterai daripada rekod kertas, dengan rujukan kertas. Ia direkodkan sebagai tidak ditandatangani." },
+    label: { en: "Record a signature-class act on someone's behalf from paper" },
+    lets: { en: "Record an approval, signature or unseal from a paper record, with the paper reference. It is recorded as not signed." },
   },
   // Being named on an exercise is what opens its classified figures (FR-MTD-007, ADR 0034 D14), so naming is an authorised act: by someone already named on it, or by a holder of this.
   "sourcing.participants.manage": {
     source: "GRANT_ONLY",
-    label: { en: "Name the people on a sourcing exercise", ms: "Namakan orang pada eksesais sumber" },
-    lets: { en: "Name participants, the person in charge, the proposal's reviewer and the evaluation team on an exercise one is not named on. It does not let a person add themselves as a participant, person in charge or evaluator, and a holder is named on an exercise only by recording its proposal review or by restricting a draft.", ms: "Namakan peserta, orang yang bertanggungjawab, penyemak cadangan dan pasukan penilaian pada eksesais yang orang itu tidak dinamakan padanya. Ia tidak membenarkan seseorang menambah dirinya sebagai peserta, orang yang bertanggungjawab atau penilai, dan pemegangnya dinamakan pada sesuatu eksesais hanya dengan merekodkan semakan cadangannya atau dengan menghadkan draf." },
+    label: { en: "Name the people on a sourcing exercise" },
+    lets: { en: "Name participants, the person in charge, the proposal's reviewer and the evaluation team on an exercise one is not named on. It does not let a person add themselves as a participant, person in charge or evaluator, and a holder is named on an exercise only by recording its proposal review or by restricting a draft." },
   },
   // Phase 4e (FR-VND-014): "announcements are publishable by an authorised officer". Which officer is the organisation's to say: undecided until decided, refused, and shown as undecided.
   // Phase 5a (ADR 0034 D15): the corrections of the record are decided by a second person, and who that is is the organisation's to say. Granted only, undecided until
@@ -93,13 +93,13 @@ export const PERMISSIONS: Readonly<Record<PermissionKey, PermissionInfo>> = {
   // the corrections of a contract and an award).
   "corrections.decide": {
     source: "GRANT_ONLY",
-    label: { en: "Decide another officer's correction of the record", ms: "Putuskan pembetulan rekod oleh pegawai lain" },
-    lets: { en: "Apply or decline a correction another officer proposed: to a contract's baseline, an award's recorded terms, the Contract Date, an accepted award's return, or a lowered classification. It never lets a person decide their own.", ms: "Laksanakan atau tolak pembetulan yang dicadangkan oleh pegawai lain: pada garis dasar kontrak, terma anugerah yang direkodkan, Tarikh Kontrak, pulangan anugerah yang diterima, atau klasifikasi yang diturunkan. Ia tidak pernah membenarkan seseorang memutuskan pembetulannya sendiri." },
+    label: { en: "Decide another officer's correction of the record" },
+    lets: { en: "Apply or decline a correction another officer proposed: to a contract's baseline, an award's recorded terms, the Contract Date, an accepted award's return, or a lowered classification. It never lets a person decide their own." },
   },
   "announcements.publish": {
     source: "GRANT_ONLY",
-    label: { en: "Publish announcements to suppliers", ms: "Terbitkan pengumuman kepada pembekal" },
-    lets: { en: "Publish, pin and withdraw announcements on the supplier portal's board, which every signed-in supplier reads.", ms: "Terbitkan, sematkan dan tarik balik pengumuman di papan portal pembekal, yang dibaca oleh setiap pembekal yang log masuk." },
+    label: { en: "Publish announcements to suppliers" },
+    lets: { en: "Publish, pin and withdraw announcements on the supplier portal's board, which every signed-in supplier reads." },
   },
 };
 
@@ -204,26 +204,22 @@ export function permissionRefusal(key: PermissionKey, state: PermissionState, ro
     case "WITHHELD":
       return {
         en: `This needs the permission "${label.en}", and the organisation has withheld it from ${names(state.roleCodes)}.`,
-        ms: `Ini memerlukan kebenaran "${label.ms}", dan organisasi telah menahannya daripada ${names(state.roleCodes)}.`,
       };
     case "SCOPED_ONLY":
       return {
         en: `This needs the permission "${label.en}". It is granted to ${names(state.roleCodes)}, but you hold that office only for a department, and the permission is the organisation's.`,
-        ms: `Ini memerlukan kebenaran "${label.ms}". Ia diberikan kepada ${names(state.roleCodes)}, tetapi anda memegang jawatan itu bagi sesuatu jabatan sahaja, dan kebenaran ini milik organisasi.`,
       };
     case "ADMINISTRATOR_EXCLUDED":
       return {
         en: `This needs the permission "${label.en}", which an administrator never holds: administration is kept apart from transactions.`,
-        ms: `Ini memerlukan kebenaran "${label.ms}", yang tidak pernah dipegang pentadbir: pentadbiran diasingkan daripada urus niaga.`,
       };
     case "NOT_GRANTABLE":
-      return { en: `This needs the permission "${label.en}", which only an administrator holds.`, ms: `Ini memerlukan kebenaran "${label.ms}", yang hanya dipegang pentadbir.` };
+      return { en: `This needs the permission "${label.en}", which only an administrator holds.` };
     case "UNDECIDED":
       return {
         en: `This needs the permission "${label.en}", and the organisation has not yet decided which roles hold it.`,
-        ms: `Ini memerlukan kebenaran "${label.ms}", dan organisasi belum memutuskan peranan mana memegangnya.`,
       };
     default:
-      return { en: `This needs the permission "${label.en}".`, ms: `Ini memerlukan kebenaran "${label.ms}".` };
+      return { en: `This needs the permission "${label.en}".` };
   }
 }

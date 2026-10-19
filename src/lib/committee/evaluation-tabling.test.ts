@@ -5,6 +5,8 @@ import { matterLabel } from "@/lib/labels";
 
 import { MATTER_KIND_LABEL, NEGOTIATION_NOT_TABLED_TEXT, recordTabledText, SITTING_TABLED_MATTER_KINDS, sittingTablesDomain, STAGE_ONE_TABLED_TEXT } from "./labels";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.8 (flagged against accepted 6.10, new tests): a two-stage tender's first-stage matter names its
  * bidder by a typed key, so it is tabled only from the Evaluation tab; a negotiation is approved on its
@@ -28,7 +30,5 @@ describe("6.8: the first-stage matter and the negotiation at a sitting", () => {
   });
   it("both domains have their words in English and Malay", () => {
     expect(matterLabel(EVALUATION_STAGE_DOMAIN)).toBe("Two-stage tender, first stage");
-    expect(matterLabel(EVALUATION_STAGE_DOMAIN, "ms")).toBe("Tender dua peringkat, peringkat pertama");
-    expect(matterLabel(NEGOTIATION_DOMAIN, "ms")).toBe("Rundingan");
   });
 });

@@ -116,18 +116,18 @@ export const ROUTED_CONTRACT_FIELDS: readonly string[] = SULIT_FIELDS.filter((f)
 export type NamedAs = "PARTICIPANT" | "PERSON_IN_CHARGE" | "PROPOSAL_REVIEWER" | "EVALUATION_TEAM" | "OPENING_PANEL" | "STEP_HOLDER" | "STEP_DECIDER" | "COMMITTEE_MEMBER" | "OPENING_OFFICER" | "REQUESTER" | "VERIFIER";
 
 const NAMED_AS_WORDS: Readonly<Record<NamedAs, Words>> = {
-  PARTICIPANT: { en: "a named participant", ms: "peserta yang dinamakan" },
-  PERSON_IN_CHARGE: { en: "the person in charge", ms: "pegawai bertanggungjawab" },
-  PROPOSAL_REVIEWER: { en: "the proposal's reviewer", ms: "penyemak cadangan" },
-  EVALUATION_TEAM: { en: "on the evaluation team", ms: "dalam pasukan penilaian" },
-  OPENING_PANEL: { en: "on the opening panel", ms: "dalam panel pembukaan" },
+  PARTICIPANT: { en: "a named participant" },
+  PERSON_IN_CHARGE: { en: "the person in charge" },
+  PROPOSAL_REVIEWER: { en: "the proposal's reviewer" },
+  EVALUATION_TEAM: { en: "on the evaluation team" },
+  OPENING_PANEL: { en: "on the opening panel" },
   // The product owner's words (2026-10-08, ruling on log line 1711), read after "you are": "someone who holds a step on its route".
-  STEP_HOLDER: { en: `someone who ${ROUTED_NAMED_WORDS.STEP_HOLDER.en}`, ms: `seseorang yang ${ROUTED_NAMED_WORDS.STEP_HOLDER.ms}` },
-  STEP_DECIDER: { en: `someone who ${ROUTED_NAMED_WORDS.STEP_DECIDER.en}`, ms: `seseorang yang ${ROUTED_NAMED_WORDS.STEP_DECIDER.ms}` },
-  COMMITTEE_MEMBER: { en: `a ${ROUTED_NAMED_WORDS.COMMITTEE_MEMBER.en}`, ms: `seorang ${ROUTED_NAMED_WORDS.COMMITTEE_MEMBER.ms}` },
-  OPENING_OFFICER: { en: "an officer named to open its bids", ms: "pegawai yang dinamakan untuk membuka bidaannya" },
-  REQUESTER: { en: "the officer it was raised for", ms: "pegawai yang untuknya ia dibangkitkan" },
-  VERIFIER: { en: "the officer who checked it", ms: "pegawai yang menyemaknya" },
+  STEP_HOLDER: { en: `someone who ${ROUTED_NAMED_WORDS.STEP_HOLDER.en}` },
+  STEP_DECIDER: { en: `someone who ${ROUTED_NAMED_WORDS.STEP_DECIDER.en}` },
+  COMMITTEE_MEMBER: { en: `a ${ROUTED_NAMED_WORDS.COMMITTEE_MEMBER.en}` },
+  OPENING_OFFICER: { en: "an officer named to open its bids" },
+  REQUESTER: { en: "the officer it was raised for" },
+  VERIFIER: { en: "the officer who checked it" },
 };
 export const namedAsWords = (n: NamedAs): Words => NAMED_AS_WORDS[n];
 
@@ -324,54 +324,50 @@ export function estimateFigureAccess(actor: SulitActor, fault: EstimateFigureFau
 
 // ------------------------------------------------------------------ words
 
-const NOT_NAMED_REQUISITION: Words = { en: "You are not the officer it was raised for and you do not decide its route", ms: "Anda bukan pegawai yang untuknya ia dibangkitkan dan anda tidak memutuskan laluannya" };
-const NOT_NAMED_EXERCISE: Words = { en: "You are not named on this exercise", ms: "Anda tidak dinamakan pada eksesais ini" };
+const NOT_NAMED_REQUISITION: Words = { en: "You are not the officer it was raised for and you do not decide its route" };
+const NOT_NAMED_EXERCISE: Words = { en: "You are not named on this exercise" };
 
 /// What a withheld value says, in a sentence a person can act on. `scope` names the kind of record, so that "nobody is named on it" is
 /// said of the three scopes that keep no list, and "you are not named" of the others.
 export function refusalWords(basis: SulitRefusalBasis, scope: SulitScope | "estimate", options: { routeStarted?: boolean } = {}): Words {
   if (scope === "creditorProfile") return creditorRefusalWords(basis, options.routeStarted ?? true);
   const noList = scope === "contract" || scope === "supplier";
-  const why = scope === "requisition" ? { ...NOT_NAMED_REQUISITION } : noList ? { en: "No list names who may read this", ms: "Tiada senarai yang menamakan siapa boleh membacanya" } : { ...NOT_NAMED_EXERCISE };
+  const why = scope === "requisition" ? { ...NOT_NAMED_REQUISITION } : noList ? { en: "No list names who may read this" } : { ...NOT_NAMED_EXERCISE };
   switch (basis) {
     case "ADMINISTRATOR":
-      return { en: "An administrator account never reads SULIT values: administration is kept apart from transactions.", ms: "Akaun pentadbir tidak pernah membaca nilai SULIT: pentadbiran diasingkan daripada urus niaga." };
+      return { en: "An administrator account never reads SULIT values: administration is kept apart from transactions." };
     case "NOT_A_PERSON":
-      return { en: "Only a signed-in person reads SULIT values.", ms: "Hanya orang yang log masuk membaca nilai SULIT." };
+      return { en: "Only a signed-in person reads SULIT values." };
     case "RESTRICTED_NOT_NAMED":
-      return { en: "This exercise is restricted to the people named on it, and you are not one of them. The organisation-wide permission does not open it.", ms: "Eksesais ini terhad kepada orang yang dinamakan padanya, dan anda bukan salah seorang. Kebenaran seluruh organisasi tidak membukanya." };
+      return { en: "This exercise is restricted to the people named on it, and you are not one of them. The organisation-wide permission does not open it." };
     case "NOT_NAMED_PERMISSION_UNDECIDED":
       return {
         en: `${why.en}, and the organisation has not yet decided which roles may read SULIT values across it.`,
-        ms: `${why.ms}, dan organisasi belum memutuskan peranan mana boleh membaca nilai SULIT di seluruhnya.`,
       };
     case "NOT_NAMED_PERMISSION_WITHHELD":
       return {
         en: `${why.en}, and the organisation has withheld the right to read SULIT values across it from a role you hold.`,
-        ms: `${why.ms}, dan organisasi telah menahan hak membaca nilai SULIT di seluruhnya daripada peranan yang anda pegang.`,
       };
     case "NOT_NAMED_PERMISSION_SCOPED":
       return {
         en: `${why.en}. The right to read SULIT values across the organisation is granted to a role you hold only for a department, and it is the organisation's.`,
-        ms: `${why.ms}. Hak membaca nilai SULIT di seluruh organisasi diberikan kepada peranan yang anda pegang bagi sesuatu jabatan sahaja, dan hak itu milik organisasi.`,
       };
     case "NOT_NAMED_PERMISSION_NOT_HELD":
-      return { en: `${why.en}, and you hold no role the right to read SULIT values across the organisation is granted to.`, ms: `${why.ms}, dan anda tidak memegang peranan yang diberikan hak membaca nilai SULIT di seluruh organisasi.` };
+      return { en: `${why.en}, and you hold no role the right to read SULIT values across the organisation is granted to.` };
     case "FIELD_NOT_FOR_THIS_RECORD":
-      return { en: "This value is not shown here.", ms: "Nilai ini tidak dipaparkan di sini." };
+      return { en: "This value is not shown here." };
     case "SEALED":
-      return { en: "The company estimate stays sealed until the opening discloses it. Nobody reads it before then.", ms: "Anggaran syarikat kekal dimeteraikan sehingga pembukaan mendedahkannya. Tiada sesiapa membacanya sebelum itu." };
+      return { en: "The company estimate stays sealed until the opening discloses it. Nobody reads it before then." };
     case "CUSTODY_NOT_SET":
       return {
         en: "The estimate is disclosed, but the organisation has not set which offices hold its copies and audit it, so only the people the evaluation is open to are yet entitled to read it here, and you are not among them.",
-        ms: "Anggaran telah didedahkan, tetapi organisasi belum menetapkan jawatan mana memegang salinannya dan mengauditnya, jadi hanya mereka yang terbuka kepada penilaian berhak membacanya di sini, dan anda bukan antaranya.",
       };
     case "NOT_IN_CUSTODY":
-      return { en: "The estimate is read only by its preparer, the offices that hold its copies and audit it, and the people the evaluation is open to, and you are not among them.", ms: "Anggaran hanya dibaca oleh penyediaannya, jawatan yang memegang salinan dan mengauditnya, dan mereka yang terbuka kepada penilaian, dan anda bukan antaranya." };
+      return { en: "The estimate is read only by its preparer, the offices that hold its copies and audit it, and the people the evaluation is open to, and you are not among them." };
     case "CUSTODY_DAY_UNKNOWN":
-      return { en: "The organisation's time zone is not set, so the offices in force today are not known and nobody can be shown to hold the estimate's copies.", ms: "Zon waktu organisasi belum ditetapkan, jadi jawatan yang berkuat kuasa hari ini tidak diketahui dan tiada sesiapa dapat ditunjukkan memegang salinan anggaran." };
+      return { en: "The organisation's time zone is not set, so the offices in force today are not known and nobody can be shown to hold the estimate's copies." };
     case "NOT_LOGGED":
-      return { en: "The access could not be recorded, so the value is not shown.", ms: "Capaian tidak dapat direkodkan, jadi nilai tidak dipaparkan." };
+      return { en: "The access could not be recorded, so the value is not shown." };
   }
 }
 
@@ -379,39 +375,39 @@ export function refusalWords(basis: SulitRefusalBasis, scope: SulitScope | "esti
 /// where no route has been started, that nobody is named by a route yet.
 function creditorRefusalWords(basis: SulitRefusalBasis, routeStarted: boolean): Words {
   const why: Words = routeStarted
-    ? { en: "You hold no step on this registration's approval route and did not check this profile", ms: "Anda tidak memegang langkah pada laluan kelulusan pendaftaran ini dan tidak menyemak profil ini" }
-    : { en: "No approval route has been started for this registration (an officer sends it for decision, on the route configured for supplier registration), so nobody is named on it yet", ms: "Tiada laluan kelulusan telah dimulakan bagi pendaftaran ini (seorang pegawai menghantarnya untuk keputusan, pada laluan yang dikonfigurasi bagi pendaftaran pembekal), jadi tiada sesiapa dinamakan padanya lagi" };
+    ? { en: "You hold no step on this registration's approval route and did not check this profile" }
+    : { en: "No approval route has been started for this registration (an officer sends it for decision, on the route configured for supplier registration), so nobody is named on it yet" };
   switch (basis) {
     case "ADMINISTRATOR":
-      return { en: "An administrator account never reads SULIT values: administration is kept apart from transactions.", ms: "Akaun pentadbir tidak pernah membaca nilai SULIT: pentadbiran diasingkan daripada urus niaga." };
+      return { en: "An administrator account never reads SULIT values: administration is kept apart from transactions." };
     case "NOT_A_PERSON":
-      return { en: "Only a signed-in person reads SULIT values.", ms: "Hanya orang yang log masuk membaca nilai SULIT." };
+      return { en: "Only a signed-in person reads SULIT values." };
     case "NOT_NAMED_PERMISSION_UNDECIDED":
-      return { en: `${why.en}, and the organisation has not yet decided which roles may read creditor profiles.`, ms: `${why.ms}, dan organisasi belum memutuskan peranan mana boleh membaca profil pemiutang.` };
+      return { en: `${why.en}, and the organisation has not yet decided which roles may read creditor profiles.` };
     case "NOT_NAMED_PERMISSION_WITHHELD":
-      return { en: `${why.en}, and the organisation has withheld the right to read creditor profiles from a role you hold.`, ms: `${why.ms}, dan organisasi telah menahan hak membaca profil pemiutang daripada peranan yang anda pegang.` };
+      return { en: `${why.en}, and the organisation has withheld the right to read creditor profiles from a role you hold.` };
     case "NOT_NAMED_PERMISSION_SCOPED":
-      return { en: `${why.en}. The right to read creditor profiles is granted to a role you hold only for a department, and it is the organisation's.`, ms: `${why.ms}. Hak membaca profil pemiutang diberikan kepada peranan yang anda pegang bagi sesuatu jabatan sahaja, dan hak itu milik organisasi.` };
+      return { en: `${why.en}. The right to read creditor profiles is granted to a role you hold only for a department, and it is the organisation's.` };
     case "NOT_NAMED_PERMISSION_NOT_HELD":
-      return { en: `${why.en}, and you hold no role the right to read creditor profiles is granted to.`, ms: `${why.ms}, dan anda tidak memegang peranan yang diberikan hak membaca profil pemiutang.` };
+      return { en: `${why.en}, and you hold no role the right to read creditor profiles is granted to.` };
     case "NOT_LOGGED":
-      return { en: "The access could not be recorded, so the value is not shown.", ms: "Capaian tidak dapat direkodkan, jadi nilai tidak dipaparkan." };
+      return { en: "The access could not be recorded, so the value is not shown." };
     default:
-      return { en: "This value is not shown here.", ms: "Nilai ini tidak dipaparkan di sini." };
+      return { en: "This value is not shown here." };
   }
 }
 
 export const grantedWords = (basis: SulitGrantBasis, namedAs: readonly NamedAs[] = []): Words => {
-  if (basis === "CREDITOR_PROFILE_PERMISSION") return { en: "Shown because your role may read suppliers' creditor profiles.", ms: "Dipaparkan kerana peranan anda boleh membaca profil pemiutang pembekal." };
-  if (basis === "OWN_RECORD") return { en: "Shown because it is your own company's profile.", ms: "Dipaparkan kerana ia profil syarikat anda sendiri." };
+  if (basis === "CREDITOR_PROFILE_PERMISSION") return { en: "Shown because your role may read suppliers' creditor profiles." };
+  if (basis === "OWN_RECORD") return { en: "Shown because it is your own company's profile." };
   if (basis === "NAMED_ON_RECORD" && namedAs.length > 0) {
-    return { en: `Shown because you are ${namedAs.map((n) => NAMED_AS_WORDS[n].en).join(" and ")}.`, ms: `Dipaparkan kerana anda ${namedAs.map((n) => NAMED_AS_WORDS[n].ms).join(" dan ")}.` };
+    return { en: `Shown because you are ${namedAs.map((n) => NAMED_AS_WORDS[n].en).join(" and ")}.` };
   }
-  if (basis === "NAMED_ON_RECORD") return { en: "Shown because you are named on this record.", ms: "Dipaparkan kerana anda dinamakan pada rekod ini." };
-  if (basis === "ORGANISATION_PERMISSION") return { en: "Shown because your role may read SULIT values across the organisation.", ms: "Dipaparkan kerana peranan anda boleh membaca nilai SULIT di seluruh organisasi." };
-  if (basis === "SECRETARIAT_OFFICE") return { en: "Shown because you hold the office the organisation names as the Secretariat for evaluations.", ms: "Dipaparkan kerana anda memegang jawatan yang ditetapkan organisasi sebagai Sekretariat bagi penilaian." };
-  if (basis === "INTERNAL_AUDIT_OFFICE") return { en: "Shown because you hold the office the organisation names as Internal Audit for evaluations.", ms: "Dipaparkan kerana anda memegang jawatan yang ditetapkan organisasi sebagai Audit Dalam bagi penilaian." };
-  return { en: "Shown because you hold the estimate's copy or audit it.", ms: "Dipaparkan kerana anda memegang salinan anggaran atau mengauditnya." };
+  if (basis === "NAMED_ON_RECORD") return { en: "Shown because you are named on this record." };
+  if (basis === "ORGANISATION_PERMISSION") return { en: "Shown because your role may read SULIT values across the organisation." };
+  if (basis === "SECRETARIAT_OFFICE") return { en: "Shown because you hold the office the organisation names as the Secretariat for evaluations." };
+  if (basis === "INTERNAL_AUDIT_OFFICE") return { en: "Shown because you hold the office the organisation names as Internal Audit for evaluations." };
+  return { en: "Shown because you hold the estimate's copy or audit it." };
 };
 
 // ------------------------------------------------------------------ the loader's type

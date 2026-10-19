@@ -436,7 +436,7 @@ class Acts {
   }
 
   /// A route on a supplier domain, opened as openSupplierRoute does (no value; the requester never approves).
-  async openRoute(routeId: string, owner: { standingRequestId: string } | { specialPermissionId: string }, domain: string, cond: string | null, what: { en: string; ms: string }, routeLabel: string, matter: string, ifRefused: string, when: Date) {
+  async openRoute(routeId: string, owner: { standingRequestId: string } | { specialPermissionId: string }, domain: string, cond: string | null, what: { en: string }, routeLabel: string, matter: string, ifRefused: string, when: Date) {
     const { supplierRoute, supplierHolders } = await import("../src/lib/suppliers/route");
     const { loadIssue } = await import("../src/lib/authority/load");
     const { loadRoster, loadDelegations } = await import("../src/lib/people/load");

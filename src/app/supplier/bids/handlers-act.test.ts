@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The submit and withdraw routes (SR-13, ADR 0036 D5, D7; build plan step 10), end to end through a bare `Request`: the guards in front, the body parsed in one place, the order of
- * the stamp and the password (20aa), the password counting, each answer in English and Malay, and the 20w rate rule. The stores are stood in for (they are the database's, tested in
+ * the stamp and the password (20aa), the password counting, each answer in words, and the 20w rate rule. The stores are stood in for (they are the database's, tested in
  * `submit-store.db.test.ts`); the routes, the parsing and the words run for real.
  */
 
@@ -100,7 +102,6 @@ describe.each([
     expect([res.status, body.code, body.fields]).toEqual([400, "VALIDATION", ["unknown"]]);
     expect(JSON.stringify(body)).not.toContain("SECRET-VALUE");
     expect(body.message).toBeTruthy();
-    expect(body.messageMs).toBeTruthy();
     expect(h.takeStamp).not.toHaveBeenCalled();
     expect(h.confirm).not.toHaveBeenCalled();
   });
@@ -115,10 +116,9 @@ describe("the submit route", () => {
     const input = h.submit.mock.calls[0][1];
     expect(input).toMatchObject({ exerciseId: EX, kind: "BID", replacesOnlineBidId: "replaced_0001", parentOnlineBidId: null, fileIds: ["file_0000001"], stamp: STAMP, stepUpAt: new Date("2026-10-15T04:00:02.000Z") });
     expect(h.confirm.mock.calls[0][1]).toBe("correct horse");
-    // The warning is said in both languages.
+    // The warning is said in words.
     expect(body.warnings).toHaveLength(1);
     expect(body.warnings[0].message).toBeTruthy();
-    expect(body.warnings[0].messageMs).toBeTruthy();
   });
 
   it("the actor is the session's: nothing in the body names a supplier", async () => {
@@ -127,24 +127,22 @@ describe("the submit route", () => {
     expect((await submit(post("submit", { ...GOOD, supplierId: "sup_other" }))).status).toBe(400);
   });
 
-  it("refuses two files for one part (20al), in words in both languages, before the stamp and the password", async () => {
+  it("refuses two files for one part (20al), in words in words, before the stamp and the password", async () => {
     h.parts.mockResolvedValue(["part_form", "part_form"]);
     const res = await submit(post("submit", { ...GOOD, fileIds: ["file_0000001", "file_0000002"] }));
     const body = await res.json();
     expect([res.status, body.code]).toEqual([422, "DUPLICATE_PART"]);
     expect(body.message).toBe(SUBMIT_FAULT_WORDS.DUPLICATE_PART.en);
-    expect(body.messageMs).toBe(SUBMIT_FAULT_WORDS.DUPLICATE_PART.ms);
     expect(h.takeStamp).not.toHaveBeenCalled();
     expect(h.confirm).not.toHaveBeenCalled();
     expect(h.submit).not.toHaveBeenCalled();
   });
 
-  it("refuses a declaration the rules refuse, in words in both languages, before the stamp and the password", async () => {
+  it("refuses a declaration the rules refuse, in words in words, before the stamp and the password", async () => {
     const res = await submit(post("submit", { ...GOOD, declaration: { price: "-5", completionPeriod: 0, completionUnit: "DAYS" } }));
     const body = await res.json();
     expect([res.status, body.code]).toEqual([422, "PRICE_INVALID"]);
     expect(body.message).toBe(SUBMIT_FAULT_WORDS.PRICE_INVALID.en);
-    expect(body.messageMs).toBe(SUBMIT_FAULT_WORDS.PRICE_INVALID.ms);
     expect(body.faults).toHaveLength(2);
     expect(h.takeStamp).not.toHaveBeenCalled();
     expect(h.confirm).not.toHaveBeenCalled();
@@ -155,13 +153,12 @@ describe("the submit route", () => {
     ["LOCKED", 403, "LOCKED"],
     ["THROTTLED", 429, "THROTTLED"],
     ["POLICY_NOT_SET", 503, "ACT_CLOSED"],
-  ] as const)("a password answered %s submits nothing and says so in both languages", async (kind, status, code) => {
+  ] as const)("a password answered %s submits nothing and says so in words", async (kind, status, code) => {
     h.confirm.mockResolvedValue({ ok: false, kind });
     const res = await submit(post("submit", GOOD));
     const body = await res.json();
     expect([res.status, body.code]).toEqual([status, code]);
     expect(body.message).toBeTruthy();
-    expect(body.messageMs).toBeTruthy();
     expect(h.submit).not.toHaveBeenCalled();
   });
 
@@ -171,15 +168,15 @@ describe("the submit route", () => {
     expect([res.status, (await res.json()).code]).toEqual([404, "NOT_FOUND"]);
   });
 
-  it("says the rules' faults in both languages: 422 for a rule, 409 for a stale stamp, a rival and a refusal at the commit", async () => {
+  it("says the rules' faults in words: 422 for a rule, 409 for a stale stamp, a rival and a refusal at the commit", async () => {
     h.submit.mockResolvedValue({ ok: false, reason: "REFUSED", faults: ["NO_FILES"] });
     let body = await (await submit(post("submit", GOOD))).json();
-    expect([body.code, body.message, body.messageMs]).toEqual(["NO_FILES", SUBMIT_FAULT_WORDS.NO_FILES.en, SUBMIT_FAULT_WORDS.NO_FILES.ms]);
+    expect([body.code, body.message]).toEqual(["NO_FILES", SUBMIT_FAULT_WORDS.NO_FILES.en]);
     for (const fault of ["STAMP_STALE", "NOT_TAKEN", "LIVE_BID_HELD"] as const) {
       h.submit.mockResolvedValue({ ok: false, reason: "REFUSED", faults: [fault] });
       const res = await submit(post("submit", GOOD));
       body = await res.json();
-      expect([res.status, body.message, body.messageMs]).toEqual([409, SUBMIT_FAULT_WORDS[fault].en, SUBMIT_FAULT_WORDS[fault].ms]);
+      expect([res.status, body.message]).toEqual([409, SUBMIT_FAULT_WORDS[fault].en]);
     }
     h.submit.mockResolvedValue({ ok: false, reason: "REFUSED", faults: ["NO_FILES"] });
     expect((await submit(post("submit", GOOD))).status).toBe(422);
@@ -217,14 +214,14 @@ describe("the withdraw route", () => {
     expect(h.withdraw).not.toHaveBeenCalled();
   });
 
-  it("answers 404 for a submission that is not the supplier's, and says the rules' faults in both languages", async () => {
+  it("answers 404 for a submission that is not the supplier's, and says the rules' faults in words", async () => {
     h.withdraw.mockResolvedValue({ ok: false, reason: "NOT_FOUND" });
     expect((await withdraw(post("withdraw", body))).status).toBe(404);
     for (const fault of ["AFTER_CLOSING", "STAMP_STALE", "NOT_TAKEN"] as const) {
       h.withdraw.mockResolvedValue({ ok: false, reason: "REFUSED", faults: [fault] });
       const res = await withdraw(post("withdraw", body));
       const answer = await res.json();
-      expect([res.status, answer.message, answer.messageMs]).toEqual([fault === "AFTER_CLOSING" ? 422 : 409, WITHDRAW_FAULT_WORDS[fault].en, WITHDRAW_FAULT_WORDS[fault].ms]);
+      expect([res.status, answer.message]).toEqual([fault === "AFTER_CLOSING" ? 422 : 409, WITHDRAW_FAULT_WORDS[fault].en]);
     }
   });
 

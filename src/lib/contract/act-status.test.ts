@@ -10,6 +10,8 @@ import { bodyOf, TODAY_ACTS, TODAY_STATUSES, todayAnswer } from "./act-status-pi
 import { CONTRACT_TRANSITIONS, contractTransition, isExecuted, STATUS_WRITTEN_BY } from "./status";
 import { CONTRACT_STATUSES, type ContractStatus } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B run 1a (ADR 0031 §4, BD-613-99): one act × status table governs every act on a contract and /approvals.
  * CANCELLED refuses every act first. For the nine statuses that existed before, every act's answer is the one pinned
@@ -99,9 +101,7 @@ describe("R2: the originals' custody, for the record's life", () => {
   });
   it("the closed and terminated contract's words name the originals", () => {
     expect(actStatusWords({ code: "CONTRACT_CLOSED", level: "block" }).en).toMatch(/where the originals are held/);
-    expect(actStatusWords({ code: "CONTRACT_CLOSED", level: "block" }).ms).toMatch(/tempat dokumen asal disimpan/);
     expect(actStatusWords({ code: "CONTRACT_TERMINATED", level: "block" }).en).toMatch(/where the originals are held/);
-    expect(actStatusWords({ code: "CONTRACT_TERMINATED", level: "block" }).ms).toMatch(/tempat dokumen asal disimpan/);
   });
 });
 
@@ -119,7 +119,6 @@ describe("R5 (review S9a): the claim against the design guarantee bond survives 
   it("the closed and terminated contract's words name it, in English and Malay", () => {
     for (const code of ["CONTRACT_CLOSED", "CONTRACT_TERMINATED"]) {
       expect(actStatusWords({ code, level: "block" }).en, code).toMatch(/a claim on the design guarantee bond/);
-      expect(actStatusWords({ code, level: "block" }).ms, code).toMatch(/tuntutan ke atas bon jaminan reka bentuk/);
     }
   });
 });
@@ -151,8 +150,7 @@ describe("the rest of the table, as ADR 0031 and the plan's B5 set it", () => {
         if (!f) continue;
         const w = actStatusWords(f);
         expect(w.en, `${a} ${s}`).toMatch(/^[A-Z]/);
-        expect(w.ms, `${a} ${s}`).toMatch(/^[A-Z]/);
-        expect(`${w.en} ${w.ms}`).not.toMatch(/\b[A-Z]+_[A-Z_]+\b/);
+        expect(w.en).not.toMatch(/\b[A-Z]+_[A-Z_]+\b/);
       }
     }
   });
@@ -222,9 +220,9 @@ describe("the screens say what the acts would (source, screen–act agreement)",
 
 describe("the callout's title names the state in English and Malay", () => {
   it("terminated, closed, and a state that refuses by its words", () => {
-    expect(statusCalloutTitle("TERMINATED")).toEqual({ en: "The contract is terminated", ms: "Kontrak ditamatkan" });
-    expect(statusCalloutTitle("CLOSED")).toEqual({ en: "The contract is closed", ms: "Kontrak ditutup" });
-    expect(statusCalloutTitle("PRACTICALLY_COMPLETE")).toEqual({ en: "The contract is practically complete", ms: "Kontrak siap kerja" });
+    expect(statusCalloutTitle("TERMINATED")).toEqual({ en: "The contract is terminated" });
+    expect(statusCalloutTitle("CLOSED")).toEqual({ en: "The contract is closed" });
+    expect(statusCalloutTitle("PRACTICALLY_COMPLETE")).toEqual({ en: "The contract is practically complete" });
     for (const f of ["src/app/projects/[id]/variations/[variationId]/page.tsx", "src/app/projects/[id]/certificates/[certId]/page.tsx"]) expect(readFileSync(f, "utf8"), f).toMatch(/title=\{statusCalloutTitle\(l\.contract\.status as ContractStatus\)\.en\}/);
   });
 });

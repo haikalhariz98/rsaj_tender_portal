@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { actingPeople, appliedAttributionFaults, attributionFaults, attributionLabel, attributionRow, latestAttribution, needsStepUp, NOT_SIGNED_WORDS, ON_BEHALF_PHRASE, ON_BEHALF_SENTENCE, stepUpFault, type AttributionRequest } from "./attribution";
 import type { PermissionKey } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const person = (personId: string, sessionId: string | null = "s1") => ({ kind: "PERSON", personId, sessionId }) as const;
 const codes = (r: AttributionRequest) => attributionFaults(r).map((f) => f.code);
 
@@ -177,11 +179,10 @@ describe("the password asked again, judged against the session", () => {
     expect(stepUpFault({ passed: at, onSession: at, consumed: true })?.code).toBe("STEP_UP_USED");
   });
 
-  it("says each in both languages, the Malay not the English", () => {
+  it("says each in words", () => {
     for (const f of [{ passed: null, onSession: at, consumed: false }, { passed: at, onSession: null, consumed: false }, { passed: at, onSession: at, consumed: true }]) {
       const fault = stepUpFault(f)!;
-      expect(fault.ms).not.toBe(fault.en);
-      expect(fault.ms.length).toBeGreaterThan(10);
+      expect(fault.en.trim()).not.toBe("");
     }
   });
 
@@ -260,7 +261,6 @@ describe("how an attribution reads", () => {
     expect(attributionLabel({ row: { mode: "SIGNED", recordedBySystemLabel: null }, subjectName: "Aminah", recorderName: "Aminah", auditAttributed: true })).toEqual({
       state: "SIGNED",
       en: "Signed by Aminah",
-      ms: "Ditandatangani oleh Aminah",
     });
   });
 
@@ -338,7 +338,6 @@ describe("how a signed act that is not a signature reads", () => {
   it("reads in the slot's own words, not as a signature", () => {
     const r = attributionLabel({ row: { mode: "SIGNED", recordedBySystemLabel: null }, subjectName: "Aminah", recorderName: "Aminah", auditAttributed: true, slot });
     expect(r.en).toBe("Received by Aminah");
-    expect(r.ms).toBe("Diterima oleh Aminah");
   });
 
   it("a signature still reads as signed, and a back-dated one says so and by whom", () => {
@@ -351,6 +350,5 @@ describe("how a signed act that is not a signature reads", () => {
     });
     // Review of Phase 2b: the authoriser is only named by the person who signed, and has not confirmed it, so the words say that and not "authorised by".
     expect(r.en).toBe("Signed by Aminah, dated 2026-10-01 (back-dated; the signer names Zul as authorising it, not confirmed)");
-    expect(r.ms).toContain("menamakan Zul sebagai pemberi kuasa, belum disahkan");
   });
 });

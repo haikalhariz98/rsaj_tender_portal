@@ -66,7 +66,7 @@ export const ONLINE_SUBMISSION_WORDS: Readonly<Record<OnlineSubmissionFault, str
 };
 
 /// What every supplier screen, receipt and Received says under DEMONSTRATION (D1). In English and Malay (ruling 20ab); a staff screen reads `.en`.
-export const DEMONSTRATION_WORDS: Words = w("Demonstration — not for real tenders", "Tunjuk cara — bukan untuk tender sebenar");
+export const DEMONSTRATION_WORDS: Words = w("Demonstration — not for real tenders");
 
 export type TakeChannelFault = "EXERCISE_CANCELLED" | "ALREADY_PUBLISHED" | "NOTHING_TO_TAKE" | "SETTING_NOT_SET";
 

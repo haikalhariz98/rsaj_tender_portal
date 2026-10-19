@@ -7,6 +7,8 @@ import { supplierFaultText } from "./labels";
 import { applicationKindFaults, approveFaults, openApplicationFaults, submitFaults, type BlacklistInEffect, type CancellationInEffect, type FileFacts } from "./review";
 import { cancellationEnded, standing, type StandingEventFacts } from "./standing";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * M-1 (code review on Run 0; the lead's decision, BD-613-108 for the product owner to confirm): a genuine registration
  * cancellation can end. ADR 0019 Amendment 1 promises "the supplier registers again"; until now nothing delivered it.
@@ -61,7 +63,6 @@ describe("the standing rule: a cancellation ends when the supplier registers aga
     expect(after.cancellation).toBeNull();
     expect(after.notes).toEqual([{ code: "CANCELLATION_ENDED", level: "info", data: { since: "2026-10-01", registeredOn: "2026-10-05" } }]);
     expect(supplierFaultText(after.notes[0])).toBe("The registration cancelled from 01 Oct 2026 ended when the supplier registered again on 05 Oct 2026.");
-    expect(supplierFaultText(after.notes[0], "ms")).toBe("Pendaftaran yang dibatalkan mulai 01 Oct 2026 tamat apabila pembekal berdaftar semula pada 05 Oct 2026.");
   });
   it("boundary: registered on the very day it took effect, the cancellation still stands", () => {
     expect(read("2026-10-01", [cancelled]).standing).toBe("CANCELLED");
@@ -90,7 +91,6 @@ describe("which application a cancelled supplier may have (the way back)", () =>
       const fs = openApplicationFaults(kind, "REGISTERED", false, null, c);
       expect(fs).toEqual([{ code: "CANCELLED_NEW_APPLICATION_ONLY", level: "block", data: { kind, since: "2026-10-01", body: "the works board", reference: "WB/2026/118" } }]);
       expect(supplierFaultText(fs[0])).toBe("The supplier's registration is cancelled (since 01 Oct 2026 by the works board (WB/2026/118)): a renewal or an upgrade is not opened or approved while it stands. The way back is a new registration: open a first registration (a new application), which, once approved, ends the cancellation.");
-      expect(supplierFaultText(fs[0], "ms")).toBe("Pendaftaran pembekal dibatalkan (sejak 01 Oct 2026 oleh the works board (WB/2026/118)): pembaharuan atau naik taraf tidak dibuka atau diluluskan selagi ia berkuat kuasa. Jalan kembali ialah pendaftaran baharu: buka pendaftaran baharu (permohonan baharu), yang setelah diluluskan menamatkan pembatalan itu.");
     }
   });
   it("not cancelled: as before (a registered supplier renews or upgrades; one not registered opens a first registration)", () => {
@@ -108,7 +108,6 @@ describe("approving a new registration for a cancelled supplier", () => {
     const fs = approveFaults(file(), "2026-10-01");
     expect(fs).toEqual([{ code: "CANCELLED_APPROVE_FROM", level: "block", data: { since: "2026-10-01", body: "the works board", reference: "WB/2026/118", from: "2026-10-02" } }]);
     expect(supplierFaultText(fs[0])).toBe("The registration was cancelled from 01 Oct 2026: a new registration ends it only from a later day, so it is approved from 02 Oct 2026.");
-    expect(supplierFaultText(fs[0], "ms")).toBe("Pendaftaran dibatalkan mulai 01 Oct 2026: pendaftaran baharu menamatkannya hanya dari hari kemudian, jadi ia diluluskan mulai 02 Oct 2026.");
   });
   it("the day after: approved; and the standing then reads it as ended (registeredOn the day approved)", () => {
     expect(approveFaults(file(), "2026-10-02")).toEqual([]);

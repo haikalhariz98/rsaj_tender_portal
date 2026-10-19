@@ -233,7 +233,6 @@ export async function beginActFromWith(deps: ActDeps, actor: StaffActor, form: A
           {
             code: "CONSEQUENCE_NOT_PAPER",
             en: `"${also.slot.label}" cannot be recorded for someone else, so this act cannot be recorded from paper: the person it is for signs it themselves.`,
-            ms: `"${also.slot.ms}" tidak boleh direkodkan bagi pihak orang lain, jadi tindakan ini tidak boleh direkodkan daripada kertas: orang yang berkenaan menandatanganinya sendiri.`,
           },
         ]);
       }

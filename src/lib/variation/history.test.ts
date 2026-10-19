@@ -7,6 +7,8 @@ import { RECORD_TYPE_WORDS, VARIATION_ENTITIES } from "@/lib/audit/entity-labels
 import { CODE_FIELDS } from "@/lib/contract/history-words";
 import { closing, lex } from "@/lib/scan/source";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The contract's History reads the variation acts' trail in words (AGENTS.md rule 5): every record type they write is
  * registered with its name in both languages, the contract's History names each, and no value is written under a field
@@ -24,7 +26,6 @@ describe("the variation acts' trail", () => {
     for (const e of written) expect(VARIATION_ENTITIES as readonly string[], e).toContain(e);
     for (const e of VARIATION_ENTITIES) {
       expect(RECORD_TYPE_WORDS[e]?.en, e).toBeTruthy();
-      expect(RECORD_TYPE_WORDS[e]?.ms, e).toBeTruthy();
     }
   });
   it("the contract's History names each", () => {

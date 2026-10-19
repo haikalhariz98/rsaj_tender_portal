@@ -40,10 +40,9 @@ export const EMPLOYER_SIGNING_NOT_SET_WHY = "An amendment is still recorded, wit
 export const officesWords = (held: readonly HeldOffice[]): string => (held.length ? held.map((o) => o.name).join("; ") : "no office on record that day");
 
 /// The refusal where an office is configured and the signer did not hold it. `officeName` is the configured office's name (null where it is no longer configured).
-export function employerSigningRefusal(r: Extract<EmployerSigning, { state: "NOT_HELD" }>, officeName: string | null, signer: string): { en: string; ms: string } {
+export function employerSigningRefusal(r: Extract<EmployerSigning, { state: "NOT_HELD" }>, officeName: string | null, signer: string): { en: string;  } {
   const office = officeName ?? "the configured office (no longer on the list of offices)";
   return {
     en: `Not recorded: ${signer} did not hold ${office} on the day they signed (they held ${officesWords(r.held)}), and the employer's amendments are signed by ${office}. Choose the officer who held it, or change the setting under Configuration › Contract controls.`,
-    ms: `Tidak direkodkan: ${signer} tidak memegang jawatan ${office} pada hari beliau menandatangani, dan pindaan majikan ditandatangani oleh ${office}. Pilih pegawai yang memegangnya, atau ubah tetapan di Konfigurasi › Kawalan kontrak.`,
   };
 }

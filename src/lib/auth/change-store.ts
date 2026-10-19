@@ -69,11 +69,11 @@ export interface ChangeAct {
 export type ChangeFaults = { ok: false; kind: "FAULTS"; faults: Fault[]; fields?: FieldFault[] };
 
 const refuse = (faults: Fault[], fields?: FieldFault[]): ChangeFaults => ({ ok: false, kind: "FAULTS", faults, ...(fields ? { fields } : {}) });
-const f = (code: string, en: string, ms: string): Fault => ({ code, en, ms });
+const f = (code: string, en: string): Fault => ({ code, en });
 
-const REASON_REQUIRED = f("REASON_REQUIRED", "A reason is required.", "Sebab diperlukan.");
-const NO_SUCH_CHANGE = f("NO_SUCH_CHANGE", "That change no longer exists.", "Perubahan itu tidak lagi wujud.");
-const LOADER = f("LOADER_RUN", "A loader run is not a person, so it cannot propose or decide a change.", "Larian pemuat bukan seorang manusia, jadi ia tidak boleh mencadangkan atau memutuskan perubahan.");
+const REASON_REQUIRED = f("REASON_REQUIRED", "A reason is required.");
+const NO_SUCH_CHANGE = f("NO_SUCH_CHANGE", "That change no longer exists.");
+const LOADER = f("LOADER_RUN", "A loader run is not a person, so it cannot propose or decide a change.");
 
 const accountLabel = (personName: string) => `Sign-in account of ${personName}`;
 
@@ -169,7 +169,7 @@ export async function proposeChange(
   if (actor.system) return refuse([LOADER]);
   const reason = input.reason.trim();
   const parsed = parseChange(input.kind, input.payload);
-  if (!parsed.ok) return refuse(parsed.faults.map((x) => f(x.code, x.en, x.ms)), parsed.faults);
+  if (!parsed.ok) return refuse(parsed.faults.map((x) => f(x.code, x.en)), parsed.faults);
   const change = parsed.change;
   const unpermitted = proposalFaults(input.kind, actor);
   if (unpermitted.length > 0) return refuse(unpermitted);
@@ -187,7 +187,7 @@ export async function proposeChange(
       if (own.length > 0) return refuse(own);
       const policy = await loadSecurityPolicy(tx, actor.organisationId);
       const unset = unsetSettings(policy, "ISSUE_CODE");
-      if (unset.length > 0) return refuse([f("POLICY_NOT_SET", `A code cannot be issued until the organisation sets: ${settingLabels(unset).join("; ")}.`, "Kod tidak boleh dikeluarkan sehingga organisasi menetapkan tetapan yang diperlukan.")]);
+      if (unset.length > 0) return refuse([f("POLICY_NOT_SET", `A code cannot be issued until the organisation sets: ${settingLabels(unset).join("; ")}.`)]);
     }
     // Nobody else could decide it: refused here, with the reason said, rather than left in a queue that no one can clear. A code is never decided by the account's own Person.
     const eligible = (await eligibleFor(tx, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now }, KIND_PERMISSION[input.kind])).filter((p) => (change.kind === "ACCOUNT_CODE" ? p !== target.personId : true));
@@ -265,18 +265,18 @@ export async function decideChange(
     const row = await tx.configurationChange.findFirst({ where: { id: input.changeId, organisationId: actor.organisationId } });
     if (!row) return refuse([NO_SUCH_CHANGE]);
     // An editor's save is decided in `edit-store.ts` (Phase 5), which runs the editor: this path is for the kinds that have a rule of their own.
-    if (isEditKind(row.kind)) return refuse([f("WRONG_PATH", "This change is decided as a change to configuration.", "Perubahan ini diputuskan sebagai perubahan konfigurasi.")]);
+    if (isEditKind(row.kind)) return refuse([f("WRONG_PATH", "This change is decided as a change to configuration.")]);
     const rowKind = row.kind;
     const parsed = parseChange(rowKind, row.payload);
-    if (!parsed.ok) return refuse([f("UNREADABLE", "This change no longer fits what a change of its kind carries, so it cannot be decided. Decline it, and propose it again.", "Perubahan ini tidak lagi sepadan dengan apa yang dibawa oleh perubahan sejenisnya, jadi ia tidak boleh diputuskan. Tolaknya, dan cadangkan semula.")]);
+    if (!parsed.ok) return refuse([f("UNREADABLE", "This change no longer fits what a change of its kind carries, so it cannot be decided. Decline it, and propose it again.")]);
     const change = parsed.change;
     const target = await targetOf(tx, actor.organisationId, change);
     await lockTarget(tx, target);
 
     // Who may: the proposer withdraws their own and nobody else's; anyone else is a second person, holding the permission.
     if (input.decision === "WITHDRAW") {
-      if (row.status !== "PROPOSED") return refuse([f("NOT_PROPOSED", "This change has already been decided or withdrawn.", "Perubahan ini sudah diputuskan atau ditarik balik.")]);
-      if (row.proposedByPersonId !== actor.personId) return refuse([f("NOT_THE_PROPOSER", "Only the person who proposed a change withdraws it.", "Hanya orang yang mencadangkan perubahan menariknya balik.")]);
+      if (row.status !== "PROPOSED") return refuse([f("NOT_PROPOSED", "This change has already been decided or withdrawn.")]);
+      if (row.proposedByPersonId !== actor.personId) return refuse([f("NOT_THE_PROPOSER", "Only the person who proposed a change withdraws it.")]);
     } else {
       const faults = decisionFaults({ kind: row.kind, status: row.status, proposedByPersonId: row.proposedByPersonId }, { personId: actor.personId, permissions: actor.permissions });
       if (change.kind === "ACCOUNT_CODE" && target.personId) faults.push(...accountCodeTargetFaults({ targetPersonId: target.personId, proposerPersonId: null, deciderPersonId: actor.personId }));
@@ -404,7 +404,7 @@ async function applyChange(
       const policy = await loadSecurityPolicy(tx, actor.organisationId);
       const validity = policy?.resetCodeValidityMinutes;
       const unset = unsetSettings(policy, "ISSUE_CODE");
-      if (unset.length > 0 || validity == null) return refuse([f("POLICY_NOT_SET", `A code cannot be issued until the organisation sets: ${settingLabels(unset).join("; ")}.`, "Kod tidak boleh dikeluarkan sehingga organisasi menetapkan tetapan yang diperlukan.")]);
+      if (unset.length > 0 || validity == null) return refuse([f("POLICY_NOT_SET", `A code cannot be issued until the organisation sets: ${settingLabels(unset).join("; ")}.`)]);
       const code = generateCode();
       const expiresAt = codeExpiry(now, validity);
       const voided = await tx.oneTimeCode.updateMany({ where: { store: "STAFF", staffAccountId: target.accountId!, usedAt: null }, data: { usedAt: now } });

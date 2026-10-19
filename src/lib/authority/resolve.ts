@@ -154,12 +154,11 @@ export function regimeFor(value: number | null | undefined, policy: Policy): Reg
  * Which clause of the customer's manual says so is configuration. Unset, the warning
  * says the source is not recorded rather than borrowing another manual's numbering.
  */
-function cite(clause: string | null | undefined): { clause?: string; en: string; ms: string } {
+function cite(clause: string | null | undefined): { clause?: string; en: string;  } {
   return clause
-    ? { clause, en: "", ms: "" }
+    ? { clause, en: "" }
     : {
         en: " The clause behind this rule is not recorded in the approval matrix.",
-        ms: " Klausa bagi peraturan ini tidak direkodkan dalam matriks kelulusan.",
       };
 }
 
@@ -316,9 +315,9 @@ function candidateRules(matrix: Matrix, q: ResolveQuery): { rules: Rule[]; undec
   return { rules: matched, undecidedEdges: [...undecidedEdges], typeSkipped };
 }
 
-function roleName(matrix: Matrix, code: string): { en: string; ms: string } {
+function roleName(matrix: Matrix, code: string): { en: string;  } {
   const role = matrix.roles[code];
-  return role ? { en: role.nameEn, ms: role.nameMs } : { en: code, ms: code };
+  return role ? { en: role.nameEn } : { en: code };
 }
 
 /**
@@ -344,7 +343,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       code: "EDGE_UNDECIDED",
       level: "err",
       messageEn: `The percentage is exactly ${shown}%, a band edge, and the approval matrix has not decided which side of an edge such a value falls. Decide it on the issue before relying on this route.`,
-      messageMs: `Peratusan tepat ${shown}%, iaitu had jalur, dan matriks kelulusan belum menetapkan di sebelah mana nilai sedemikian jatuh. Tetapkannya pada keluaran sebelum bergantung pada laluan ini.`,
     });
   }
 
@@ -354,7 +352,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       code: "TYPE_ROW_SKIPPED",
       level: "warn",
       messageEn: `“${r.labelEn}” is confined to one contract type, and this matter was routed without its contract type, so the row was not considered.`,
-      messageMs: `“${r.labelMs || r.labelEn}” terhad kepada satu jenis kontrak, dan perkara ini dihalakan tanpa jenis kontraknya, jadi baris itu tidak dipertimbangkan.`,
       clause: r.clause,
     });
   }
@@ -366,7 +363,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       code: "AMBIGUOUS",
       level: "err",
       messageEn: `More than one approval rule matches this matter equally (“${rule.labelEn}” and “${matches[1].labelEn}”). The route shown follows the first by row order, which is not a decision — correct the overlapping rules.`,
-      messageMs: `Lebih daripada satu peraturan kelulusan sepadan sama rata (“${rule.labelMs ?? rule.labelEn}” dan “${matches[1].labelMs ?? matches[1].labelEn}”). Laluan yang ditunjukkan mengikut susunan baris, bukan keputusan — betulkan peraturan yang bertindih.`,
       clause: rule.clause,
     });
   }
@@ -382,9 +378,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       messageEn:
         "No approval rule matches this matter, so it cannot be routed. Escalate it to the immediate superior of the officer expected to approve, and record a rule or a known gap for it." +
         src.en,
-      messageMs:
-        "Tiada peraturan kelulusan sepadan, jadi perkara ini tidak boleh dihalakan. Naikkan kepada atasan terdekat pegawai yang dijangka meluluskan, dan rekodkan peraturan atau jurang yang diketahui." +
-        src.ms,
       clause: src.clause,
     });
     return {
@@ -406,8 +399,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       level: "gap",
       messageEn:
         "No documented approval rule exists for this item — the routing shown is an assumption, not a documented rule.",
-      messageMs:
-        "Tiada peraturan kelulusan bertulis untuk perkara ini — laluan yang ditunjukkan adalah andaian, bukan peraturan bertulis.",
       clause: rule.clause,
     });
   }
@@ -418,7 +409,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       code: "RULE_NOTE",
       level: "info",
       messageEn: rule.gapNote,
-      messageMs: rule.gapNote,
       clause: rule.clause,
     });
   }
@@ -431,7 +421,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       code: "BOUNDARY_SWITCH_UNDECIDED",
       level: "err",
       messageEn: `“${rule.labelEn}” has a band edge on the boundary value and nobody has decided whether it follows the boundary switch. Decide it on the rule before relying on this route.`,
-      messageMs: `“${rule.labelMs ?? rule.labelEn}” mempunyai had jalur pada nilai sempadan dan belum ditetapkan sama ada ia mengikut suis sempadan.`,
       clause: rule.clause,
     });
   }
@@ -460,7 +449,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
         code: "SELF_APPROVAL",
         level: "err",
         messageEn: `${roleName(matrix, approver).en} would be approving their own matter, and no office is set to approve in their place. Set where self-approval escalates to for this role.${src.en}`,
-        messageMs: `${roleName(matrix, approver).ms} akan meluluskan perkara sendiri, dan tiada jawatan ditetapkan untuk meluluskan bagi pihaknya.${src.ms}`,
         clause: src.clause,
         from: approver,
       });
@@ -470,7 +458,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
         code: "SELF_APPROVAL",
         level: "warn",
         messageEn: `No one may approve their own expenses or allocations — escalated to ${roleName(matrix, escalated).en}.${src.en}`,
-        messageMs: `Tiada sesiapa boleh meluluskan perbelanjaan sendiri — dinaikkan kepada ${roleName(matrix, escalated).ms}.${src.ms}`,
         clause: src.clause,
         from: approver,
         to: escalated,
@@ -506,7 +493,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
         code: "ABSENCE",
         level: "err",
         messageEn: `${roleName(matrix, approver).en} is absent and no office is set to take their authority. Set where this role escalates to.${absenceSrc.en}`,
-        messageMs: `${roleName(matrix, approver).ms} tiada dan tiada jawatan ditetapkan untuk mengambil alih kuasanya.${absenceSrc.ms}`,
         clause: absenceSrc.clause,
         from: approver,
       });
@@ -516,7 +502,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       code: "ABSENCE",
       level: "warn",
       messageEn: `${roleName(matrix, approver).en} is absent. Authority reverts upward to ${roleName(matrix, up).en} — it never passes down automatically.${absenceSrc.en}`,
-      messageMs: `${roleName(matrix, approver).ms} tiada. Kuasa kembali ke atas kepada ${roleName(matrix, up).ms} — ia tidak turun secara automatik.${absenceSrc.ms}`,
       clause: absenceSrc.clause,
       from: approver,
       to: up,
@@ -531,7 +516,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       code: "SELF_APPROVAL",
       level: "err",
       messageEn: `After escalation, ${roleName(matrix, approver).en} would be approving their own matter. It needs an approver above them.${src.en}`,
-      messageMs: `Selepas dinaikkan, ${roleName(matrix, approver).ms} akan meluluskan perkara sendiri.${src.ms}`,
       clause: src.clause,
       from: approver,
     });
@@ -563,9 +547,6 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       messageEn:
         "Externally funded: the funder's own guidelines and directives supersede these limits where they conflict." +
         src.en,
-      messageMs:
-        "Dibiayai pihak luar: garis panduan dan arahan penyandang dana mengatasi had ini apabila bercanggah." +
-        src.ms,
       clause: src.clause,
     });
   }
@@ -589,7 +570,7 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
 /// An office's name in both languages, never its code.
 function officeWords(matrix: Matrix, code: string | null): Words {
   const role = code ? matrix.roles[code] : undefined;
-  return role ? { en: role.nameEn, ms: role.nameMs } : NO_LONGER_CONFIGURED;
+  return role ? { en: role.nameEn } : NO_LONGER_CONFIGURED;
 }
 
 /**
@@ -607,12 +588,11 @@ export function chainBeneath(
 ): { steps: ApprovalStep[]; warnings: ResolutionWarning[]; core: CoreChainRecord } {
   const flag = rule.generateCoreChain ?? null;
   const reason = rule.coreChainReason ?? null;
-  const label: Words = { en: rule.labelEn, ms: rule.labelMs ?? rule.labelEn };
+  const label: Words = { en: rule.labelEn };
   const warn = (code: ResolutionWarning["code"], level: ResolutionWarning["level"], w: Words): ResolutionWarning => ({
     code,
     level,
     messageEn: w.en,
-    messageMs: w.ms,
     clause: rule.clause,
   });
 

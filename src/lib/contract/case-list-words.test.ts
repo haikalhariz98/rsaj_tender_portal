@@ -5,11 +5,12 @@ import { AWARD_STATUSES } from "@/lib/award/types";
 import { CASE_STAGES, caseStage } from "./case-stage";
 import { awardChips, CASE_ENDED_WORDS, CASE_STAGE_WORDS, standingWords } from "./case-list-words";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 describe("the case list's words", () => {
   it("every stage and every ended kind has English and Malay words, and none is a code", () => {
     for (const s of CASE_STAGES) {
       expect(CASE_STAGE_WORDS[s].en).not.toMatch(/_|^[A-Z]+$/);
-      expect(CASE_STAGE_WORDS[s].ms).not.toBe("");
     }
     for (const e of Object.values(CASE_ENDED_WORDS)) expect(e.en).not.toMatch(/_/);
   });

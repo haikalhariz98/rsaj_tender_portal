@@ -28,7 +28,6 @@ export const eotCondOf = (impact: FinancialImpact): string => EOT_COND[impact];
 /// FR-EOT-007's note (decision D2): shown on every EOT route, so the conflict is never hidden.
 export const D2_EOT_NOTE = {
   en: "Decision D2 is open: SK006 §7.6.1 (as amended 12.01.2026) makes the Variation Orders Committee the approver of an extension with no financial impact, while the DAL makes the S.O./P.D. the approver with the committee's mandatory recommendation. This route follows the matrix as configured.",
-  ms: "Keputusan D2 masih terbuka: SK006 §7.6.1 (pindaan 12.01.2026) menjadikan Jawatankuasa Perubahan Kerja pelulus lanjutan tanpa kesan kewangan, manakala DAL menjadikan P.P./P.D. pelulus dengan syor mandatori jawatankuasa. Laluan ini mengikut matriks seperti yang ditetapkan.",
 } as const;
 
 export interface MatterRouteQuery {
@@ -43,7 +42,7 @@ export interface MatterRouteQuery {
   absentRoleCodes?: readonly string[];
 }
 
-export type MatterRoute = { ok: true; resolution: Resolution; source: "DAL" | "OVERRIDE"; overrideIssue: { id: string; label: string } | null; warnings: ResolutionWarning[]; notes: { en: string; ms: string }[]; domain: string } | { ok: false; faults: Finding[] };
+export type MatterRoute = { ok: true; resolution: Resolution; source: "DAL" | "OVERRIDE"; overrideIssue: { id: string; label: string } | null; warnings: ResolutionWarning[]; notes: { en: string;  }[]; domain: string } | { ok: false; faults: Finding[] };
 
 export function resolveMatterRoute(ctx: FunderContext, q: MatterRouteQuery, matrixLabel: string, senderHolds: (roleCode: string) => boolean): MatterRoute {
   const domain = MATTER_DOMAIN[q.kind];

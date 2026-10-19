@@ -15,23 +15,23 @@ import { CASE_CHIP_WORDS as C } from "./case-page-words";
 import { w, type Tone, type Words } from "./labels";
 
 export const CASE_STAGE_WORDS: Readonly<Record<CaseStage, Words>> = {
-  AWARDING: w("Awarding", "Pemberian"),
-  SIGNING: w("Signing", "Menandatangani"),
-  ON_SITE: w("On site", "Di tapak"),
-  COMPLETED: w("Completed", "Selesai"),
-  CLOSED: w("Closed", "Ditutup"),
+  AWARDING: w("Awarding"),
+  SIGNING: w("Signing"),
+  ON_SITE: w("On site"),
+  COMPLETED: w("Completed"),
+  CLOSED: w("Closed"),
 };
 
 export const CASE_ENDED_WORDS: Readonly<Record<CaseEnded, Words>> = {
-  CANCELLED_BEFORE_ISSUE: w("Cancelled before issue", "Dibatalkan sebelum dikeluarkan"),
-  CONTRACT_CANCELLED: w("Cancelled — number kept as a gap", "Dibatalkan — nombor dikekalkan sebagai jurang"),
-  TERMINATED: w("Terminated", "Ditamatkan"),
+  CANCELLED_BEFORE_ISSUE: w("Cancelled before issue"),
+  CONTRACT_CANCELLED: w("Cancelled — number kept as a gap"),
+  TERMINATED: w("Terminated"),
 };
 
 export const CASE_ENDED_TONE: Readonly<Record<CaseEnded, Tone>> = { CANCELLED_BEFORE_ISSUE: "neutral", CONTRACT_CANCELLED: "neutral", TERMINATED: "err" };
 
 /// The Stage column's words for a standing: the stage, or "Cancelled or terminated" for all three ended kinds (AC-17's sixth view).
-export const ENDED_VIEW_WORDS: Words = w("Cancelled or terminated", "Dibatalkan atau ditamatkan");
+export const ENDED_VIEW_WORDS: Words = w("Cancelled or terminated");
 export const standingWords = (s: CaseStanding): Words => (s.kind === "LIVE" ? CASE_STAGE_WORDS[s.stage] : ENDED_VIEW_WORDS);
 
 /// The views the list offers over its rows, in order, with their words (the wave G views are their own readers, F0-8).
@@ -43,11 +43,11 @@ export const CASE_VIEW_WORDS = {
   closed: CASE_STAGE_WORDS.CLOSED,
   ended: ENDED_VIEW_WORDS,
   // The old Awards list's organisation-wide work views (FR-AWD-006 for the indents).
-  pending: w("Awaiting approval", "Menunggu kelulusan"),
-  approved: w("Approved, not issued", "Diluluskan, belum dikeluarkan"),
-  return: w("Awaiting return", "Menunggu pulangan"),
-  commitment: w("No commitment number", "Tiada nombor komitmen"),
-  expired: w("Indents expired", "Indent tamat tempoh"),
+  pending: w("Awaiting approval"),
+  approved: w("Approved, not issued"),
+  return: w("Awaiting return"),
+  commitment: w("No commitment number"),
+  expired: w("Indents expired"),
 } as const;
 
 export interface AwardChipFacts {

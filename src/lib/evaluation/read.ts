@@ -250,7 +250,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   const comp = f.model.stages.find((s) => s.kind === "COMPOSITE") ?? null;
   const rec = e.recommendation;
   const rb = rec ? (f.bidders.find((b) => b.id === rec.bidderId) ?? null) : null;
-  const estimateGate = "value" in f.estimate ? ((await gates.estimate()) ?? ({ state: "WITHHELD", basis: "CUSTODY_NOT_SET", scope: "estimate", words: { en: "The company estimate has no one in its custody to ask.", ms: "Anggaran syarikat tiada yang memegangnya untuk ditanya." } } as Sulit<true>)) : null;
+  const estimateGate = "value" in f.estimate ? ((await gates.estimate()) ?? ({ state: "WITHHELD", basis: "CUSTODY_NOT_SET", scope: "estimate", words: { en: "The company estimate has no one in its custody to ask." } } as Sulit<true>)) : null;
   const sv = rb ? saving(f.estimate, recommendedPriceOf(rb)) : null;
   const incomplete = incompleteStages(f);
   const recommendation = {

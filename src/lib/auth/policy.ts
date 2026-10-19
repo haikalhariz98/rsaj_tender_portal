@@ -9,25 +9,24 @@ import type { SecurityPolicyKey, SecurityPolicyValues } from "./types";
 
 export interface SettingLabel {
   en: string;
-  ms: string;
 }
 
 export const SETTING_LABELS: Record<SecurityPolicyKey, SettingLabel> = {
-  staffIdleMinutes: { en: "Staff idle time before a session ends", ms: "Masa tidak aktif kakitangan sebelum sesi tamat" },
-  staffAbsoluteMinutes: { en: "Longest a staff session may last", ms: "Tempoh terpanjang sesi kakitangan" },
-  supplierIdleMinutes: { en: "Supplier idle time before a session ends", ms: "Masa tidak aktif pembekal sebelum sesi tamat" },
-  supplierAbsoluteMinutes: { en: "Longest a supplier session may last", ms: "Tempoh terpanjang sesi pembekal" },
-  maxConcurrentSessions: { en: "Sessions one account may have open at once", ms: "Bilangan sesi yang boleh dibuka serentak oleh satu akaun" },
-  concurrentSessionAction: { en: "What happens at the limit of open sessions", ms: "Tindakan apabila had sesi terbuka dicapai" },
-  maxFailedAttempts: { en: "Wrong passwords before an account is locked", ms: "Kata laluan salah sebelum akaun dikunci" },
-  lockoutMinutes: { en: "How long a locked account stays locked", ms: "Tempoh akaun kekal dikunci" },
-  addressThrottleAttempts: { en: "Failed sign-ins from one address before it is held back", ms: "Log masuk gagal dari satu alamat sebelum disekat" },
-  addressThrottleMinutes: { en: "How far back failed sign-ins from one address are counted", ms: "Tempoh ke belakang log masuk gagal dari satu alamat dikira" },
-  passwordMinLength: { en: "Shortest password", ms: "Kata laluan terpendek" },
-  resetCodeValidityMinutes: { en: "How long a one-time code stays valid", ms: "Tempoh kod sekali guna kekal sah" },
-  paperSignatureRecording: { en: "Whether a paper decision may be recorded for someone else", ms: "Sama ada keputusan atas kertas boleh direkodkan bagi pihak orang lain" },
-  signInDetailRetentionDays: { en: "How long sign-in addresses are kept", ms: "Tempoh alamat log masuk disimpan" },
-  sealingPassphraseMinLength: { en: "Shortest unseal passphrase", ms: "Frasa laluan buka meterai terpendek" },
+  staffIdleMinutes: { en: "Staff idle time before a session ends" },
+  staffAbsoluteMinutes: { en: "Longest a staff session may last" },
+  supplierIdleMinutes: { en: "Supplier idle time before a session ends" },
+  supplierAbsoluteMinutes: { en: "Longest a supplier session may last" },
+  maxConcurrentSessions: { en: "Sessions one account may have open at once" },
+  concurrentSessionAction: { en: "What happens at the limit of open sessions" },
+  maxFailedAttempts: { en: "Wrong passwords before an account is locked" },
+  lockoutMinutes: { en: "How long a locked account stays locked" },
+  addressThrottleAttempts: { en: "Failed sign-ins from one address before it is held back" },
+  addressThrottleMinutes: { en: "How far back failed sign-ins from one address are counted" },
+  passwordMinLength: { en: "Shortest password" },
+  resetCodeValidityMinutes: { en: "How long a one-time code stays valid" },
+  paperSignatureRecording: { en: "Whether a paper decision may be recorded for someone else" },
+  signInDetailRetentionDays: { en: "How long sign-in addresses are kept" },
+  sealingPassphraseMinLength: { en: "Shortest unseal passphrase" },
 };
 
 export type PolicyNeed = "SIGN_IN" | "SUPPLIER_SIGN_IN" | "SET_PASSWORD" | "ISSUE_CODE" | "SET_OFFICER_SHARE";
@@ -67,7 +66,7 @@ export function unsetSettings(policy: SecurityPolicyValues | null, ...needs: Pol
   return [...keys].filter((key) => policy == null || policy[key] == null);
 }
 
-export function settingLabels(keys: readonly SecurityPolicyKey[], language: "en" | "ms" = "en"): string[] {
+export function settingLabels(keys: readonly SecurityPolicyKey[], language: "en" = "en"): string[] {
   return keys.map((key) => SETTING_LABELS[key][language]);
 }
 
@@ -76,14 +75,13 @@ export function policyFaultWords(p: Pick<SecurityPolicyValues, "signInDetailRete
   if (p.signInDetailRetentionDays != null && p.addressThrottleMinutes != null && p.signInDetailRetentionDays * 1440 < p.addressThrottleMinutes) {
     return {
       en: "Sign-in addresses must be kept at least as long as failed sign-ins from one address are counted, or the count would lose its own evidence.",
-      ms: "Alamat log masuk mesti disimpan sekurang-kurangnya selama log masuk gagal daripada satu alamat dikira, atau pengiraan itu akan kehilangan buktinya sendiri.",
     };
   }
   if (p.passwordMinLength != null && (p.passwordMinLength < 8 || p.passwordMinLength > 256)) {
-    return { en: "The shortest password is between 8 and 256 characters.", ms: "Kata laluan paling pendek ialah antara 8 dengan 256 aksara." };
+    return { en: "The shortest password is between 8 and 256 characters." };
   }
   if (p.staffIdleMinutes != null && p.staffAbsoluteMinutes != null && p.staffIdleMinutes > p.staffAbsoluteMinutes) {
-    return { en: "A session cannot be allowed to idle for longer than it may last.", ms: "Sesi tidak boleh dibenarkan melahu lebih lama daripada tempoh sesi itu dibenarkan." };
+    return { en: "A session cannot be allowed to idle for longer than it may last." };
   }
   return null;
 }
@@ -210,8 +208,6 @@ export const SETTING_RANGES: Partial<Record<SecurityPolicyKey, { min: number; ma
   sealingPassphraseMinLength: { min: 12, max: 256, unit: "characters" },
 };
 
-const UNIT_WORDS: Record<string, string> = { minutes: "minit", sessions: "sesi", attempts: "percubaan", characters: "aksara", days: "hari" };
-
 /// A value outside its setting's range, in both languages, or null.
 export function rangeFaultWords(key: SecurityPolicyKey, value: number): SettingLabel | null {
   const range = SETTING_RANGES[key];
@@ -219,7 +215,6 @@ export function rangeFaultWords(key: SecurityPolicyKey, value: number): SettingL
   if (!Number.isInteger(value) || value < range.min || value > range.max) {
     return {
       en: `Enter a whole number from ${range.min} to ${range.max} ${range.unit}.`,
-      ms: `Masukkan nombor bulat dari ${range.min} hingga ${range.max} ${UNIT_WORDS[range.unit] ?? range.unit}.`,
     };
   }
   return null;

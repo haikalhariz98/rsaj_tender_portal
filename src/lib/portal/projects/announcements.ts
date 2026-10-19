@@ -12,10 +12,10 @@ export const ANNOUNCEMENT_CATEGORIES = ["IMPORTANT", "POLICY", "NOTICE"] as cons
 export type AnnouncementCategory = (typeof ANNOUNCEMENT_CATEGORIES)[number];
 export const isAnnouncementCategory = (s: unknown): s is AnnouncementCategory => typeof s === "string" && (ANNOUNCEMENT_CATEGORIES as readonly string[]).includes(s);
 
-export const CATEGORY_WORDS: Readonly<Record<AnnouncementCategory, { en: string; ms: string }>> = {
-  IMPORTANT: { en: "Important", ms: "Penting" },
-  POLICY: { en: "Policy", ms: "Dasar" },
-  NOTICE: { en: "Notice", ms: "Makluman" },
+export const CATEGORY_WORDS: Readonly<Record<AnnouncementCategory, { en: string;  }>> = {
+  IMPORTANT: { en: "Important" },
+  POLICY: { en: "Policy" },
+  NOTICE: { en: "Notice" },
 };
 export const CATEGORY_TONE: Readonly<Record<AnnouncementCategory, "err" | "info" | "neutral">> = { IMPORTANT: "err", POLICY: "info", NOTICE: "neutral" };
 

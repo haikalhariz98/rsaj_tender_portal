@@ -130,11 +130,11 @@ export function BidForm(p: BidFormProps) {
     setBusy(false);
     if (res.status === 201 && res.body?.ok && res.body.receipt) {
       setPassword("");
-      setDone({ receipt: res.body.receipt, warnings: (res.body.warnings ?? []).map((x) => ({ en: x.message, ms: x.messageMs })), kind });
+      setDone({ receipt: res.body.receipt, warnings: (res.body.warnings ?? []).map((x) => ({ en: x.message })), kind });
       router.refresh();
       return;
     }
-    const more = (res.body?.faults ?? []).slice(1).map((f: NonNullable<OnlineAnswer["faults"]>[number]) => ({ en: f.message, ms: f.messageMs }));
+    const more = (res.body?.faults ?? []).slice(1).map((f: NonNullable<OnlineAnswer["faults"]>[number]) => ({ en: f.message }));
     setError({ words: answerWords(res.status, res.body), more });
   }
 
@@ -275,7 +275,7 @@ export function BidForm(p: BidFormProps) {
             <>
               <Field label={<Bi words={SCREEN_WORDS.kindParent} inline />} htmlFor={`${ids}-parent`}>
                 <Select id={`${ids}-parent`} value={parent} onChange={(e) => setParent(e.target.value)}>
-                  <option value="">{SCREEN_WORDS.kindNoParent.en} · {SCREEN_WORDS.kindNoParent.ms}</option>
+                  <option value="">{SCREEN_WORDS.kindNoParent.en}</option>
                   {p.parents.map((r) => <option key={r.id} value={r.id}>{`${r.number}`}</option>)}
                 </Select>
               </Field>
@@ -303,7 +303,7 @@ export function BidForm(p: BidFormProps) {
           <Field label={<Bi words={SCREEN_WORDS.unit} inline />} htmlFor={`${ids}-unit`}>
             <Select id={`${ids}-unit`} value={unit} onChange={(e) => setUnit(e.target.value)} disabled={busy}>
               <option value=""></option>
-              {(["DAYS", "WEEKS", "MONTHS"] as const).map((u) => <option key={u} value={u}>{UNIT_WORDS[u].en} · {UNIT_WORDS[u].ms}</option>)}
+              {(["DAYS", "WEEKS", "MONTHS"] as const).map((u) => <option key={u} value={u}>{UNIT_WORDS[u].en}</option>)}
             </Select>
           </Field>
         </CardBody>

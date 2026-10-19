@@ -42,7 +42,7 @@ export async function openSupplierRoute(
   tx: Tx,
   actor: AuditActor,
   org: SupplierOrg,
-  o: { domain: string; cond: string | null; owner: Owner; requester: { id: string; name: string }; what: { en: string; ms: string }; routeLabel: string; matter: string; ifRefused: string; now: Date },
+  o: { domain: string; cond: string | null; owner: Owner; requester: { id: string; name: string }; what: { en: string;  }; routeLabel: string; matter: string; ifRefused: string; now: Date },
 ): Promise<{ ok: true; id: string } | { ok: false; state: FormState }> {
   const today = org.today!;
   const issue = await loadIssue(org.code, dayToDate(today), undefined, null, tx);

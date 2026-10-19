@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 vi.mock("@/lib/db", () => ({ db: {} }));
 
 import { awardStanding } from "./award-standing";
@@ -38,7 +40,7 @@ const row = (o: Partial<Parameters<typeof standingEventFacts>[0]> = {}): Paramet
 
 describe("a cancellation's reason line, composed at read (BD-613-105(e), S-3)", () => {
   it("in English and Malay, from the body as frozen and the reference", () => {
-    expect(cancellationWords({ body: "the Demo Companies Registry", reference: "VERIFY/2026/118" })).toEqual({ en: "Cancelled by the Demo Companies Registry (VERIFY/2026/118)", ms: "Dibatalkan oleh the Demo Companies Registry (VERIFY/2026/118)" });
+    expect(cancellationWords({ body: "the Demo Companies Registry", reference: "VERIFY/2026/118" })).toEqual({ en: "Cancelled by the Demo Companies Registry (VERIFY/2026/118)" });
   });
   it("the stored row carries the body and reference, not words; a Run 0 row's stored English is not read", () => {
     const f = standingEventFacts(row());
@@ -46,12 +48,11 @@ describe("a cancellation's reason line, composed at read (BD-613-105(e), S-3)", 
     expect(f.reasonLabel).toBe("");
     const old = standingEventFacts(row({ reasonSnapshot: "Cancelled by the Demo Companies Registry (VERIFY/2026/118)" }));
     expect(old.reasonLabel).toBe("");
-    expect(eventReasonWords(old).ms).toBe("Dibatalkan oleh the Demo Companies Registry (VERIFY/2026/118)");
   });
   it("any other kind keeps its reason as recorded, in either language, and carries no body", () => {
     const s = standingEventFacts(row({ kind: "SUSPEND", reasonSnapshot: "Documents not in order", bodyLabelSnapshot: "", externalReference: "" }));
     expect(s.cancelledBy).toBeNull();
-    expect(eventReasonWords(s)).toEqual({ en: "Documents not in order", ms: "Documents not in order" });
+    expect(eventReasonWords(s)).toEqual({ en: "Documents not in order" });
   });
   it("withdrawn is always read (required): a withdrawn row says so", () => {
     expect(standingEventFacts(row({ withdrawnAt: new Date() })).withdrawn).toBe(true);
@@ -65,7 +66,6 @@ describe("the award's standing warning names the body, in English and Malay (S-3
     const r = standing({ status: "REGISTERED", registeredOn: null }, [ev()], [], { autoSuspendOnLapse: null }, "2026-10-04");
     expect(awardStanding(r, day).warning).toEqual({
       en: "Registration cancelled since 04 Oct 2026 (Cancelled by the Demo Companies Registry (VERIFY/2026/118)) — an award is not refused by the product: rule not set.",
-      ms: "Pendaftaran dibatalkan sejak 04 Oct 2026 (Dibatalkan oleh the Demo Companies Registry (VERIFY/2026/118)) — anugerah tidak ditolak oleh sistem: peraturan belum ditetapkan.",
     });
   });
 });

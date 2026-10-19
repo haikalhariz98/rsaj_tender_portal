@@ -27,8 +27,8 @@ import type { Fault, SecurityPolicyKey, SupplierActor } from "./types";
 
 export type SupplierFieldFaults = Partial<Record<"current" | "password" | "loginName" | "code", Fault>>;
 
-const WRONG_CURRENT: Fault = { code: "WRONG_CURRENT", en: "That is not your current password.", ms: "Itu bukan kata laluan semasa anda." };
-const SAME_AS_CURRENT: Fault = { code: "SAME_AS_CURRENT", en: "Choose a password different from the current one.", ms: "Pilih kata laluan yang berbeza daripada yang semasa." };
+const WRONG_CURRENT: Fault = { code: "WRONG_CURRENT", en: "That is not your current password." };
+const SAME_AS_CURRENT: Fault = { code: "SAME_AS_CURRENT", en: "Choose a password different from the current one." };
 
 export type ChangeSupplierPasswordOutcome =
   | { ok: true; token: string; maxAgeSeconds: number }

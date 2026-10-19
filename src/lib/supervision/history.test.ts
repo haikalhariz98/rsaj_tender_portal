@@ -7,6 +7,8 @@ import { RECORD_TYPE_WORDS, SUPERVISION_ENTITIES } from "@/lib/audit/entity-labe
 import { CODE_FIELDS } from "@/lib/contract/history-words";
 import { closing, lex } from "@/lib/scan/source";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The contract's History reads the supervision's trail in words (AGENTS.md rule 5): every record type the
  * supervision acts write is registered with its name, the contract's History names it, and no value is written
@@ -23,7 +25,6 @@ describe("the supervision's trail", () => {
     for (const e of written) if (e !== "ContractBaseline") expect(SUPERVISION_ENTITIES as readonly string[], e).toContain(e);
     for (const e of SUPERVISION_ENTITIES) {
       expect(RECORD_TYPE_WORDS[e]?.en, e).toBeTruthy();
-      expect(RECORD_TYPE_WORDS[e]?.ms, e).toBeTruthy();
     }
   });
   it("the contract's History names each", () => {

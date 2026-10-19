@@ -57,7 +57,6 @@ function personFields(offices: Office[], authorityLevels: string[], units: UnitO
     { kind: "text", name: "name", label: "Name", required: true },
     { kind: "text", name: "email", label: "Email", required: true },
     { kind: "text", name: "jobTitle", label: "Job title (EN)" },
-    { kind: "text", name: "jobTitleMs", label: "Job title (BM)" },
     {
       kind: "select",
       name: "portalRoleCode",
@@ -265,7 +264,6 @@ export function EditPerson({
         name: person.name,
         email: person.email,
         jobTitle: person.jobTitle,
-        jobTitleMs: person.jobTitleMs,
         portalRoleCode: person.portalRoleCode,
         authorityLevel: person.authorityLevel,
         department: person.department,

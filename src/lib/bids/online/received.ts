@@ -35,10 +35,9 @@ export function registerNumbers(rows: readonly { id: string; sequence: number; r
 /// opening starts"; ruling 20ar: never "the receipt number", since a supplier's receipt carries its own submission number), and the sequence column's label from the start. One constant; no component restates it.
 /// Ruling 20ab: in both languages, though Received is a staff screen; it renders the language its siblings render until the NFR-LNG-001 programme.
 export const RECEIVED_WORDS: { ordinalLabel: Words; ordinalNote: Words; sequenceLabel: Words } = {
-  ordinalLabel: w("Order", "Susunan"),
+  ordinalLabel: w("Order"),
   ordinalNote: w(
     "The order of the bids now standing. It can change before the closing. The portal's order of receipt for the exercise is shown once the opening starts.",
-    "Susunan bida yang masih berkuat kuasa sekarang. Ia boleh berubah sebelum tarikh tutup. Susunan penerimaan portal bagi pelawaan ini ditunjukkan sebaik sahaja pembukaan bermula.",
   ),
-  sequenceLabel: w("Portal order of receipt", "Susunan penerimaan portal"),
+  sequenceLabel: w("Portal order of receipt"),
 };

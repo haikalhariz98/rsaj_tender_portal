@@ -9,6 +9,8 @@ import { BASELINE_FIELD_KEYS } from "./baseline";
 import { CONTRACT_PHASES } from "./status";
 import { BASELINE_SOURCES, CONTRACT_STATUSES, FORMATION_CHECK_KINDS, RECONCILIATION_COMPARISONS } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * Codes never reach a screen (AGENTS.md rule 5): every fault code the 6.12 rules can emit has its own
  * sentence in English and Malay. The codes are read from the rules' own type unions, so a new code
@@ -36,19 +38,18 @@ describe("every 6.12 refusal is worded (EN and MS)", () => {
     const t = contractFaultWords({ code, level: "block", data: { field: "lad", group: "lad", check: "ARITHMETIC", comparison: "DRAWINGS", item: "BOND", state: "NOT_MET", fault: "IC_REQUIRED" } });
     expect(t.en).not.toBe("Refused.");
     expect(t.en.trim().length).toBeGreaterThan(5);
-    expect(t.ms.trim().length).toBeGreaterThan(5);
     expect(t.en).not.toMatch(/\b[A-Z]+_[A-Z_]+\b/);
   });
 });
 
 describe("the maps are exhaustive (X-8)", () => {
   it("every status, phase, check, comparison, source and baseline field has words", () => {
-    for (const s of CONTRACT_STATUSES) expect(CONTRACT_STATUS_WORDS[s].ms).toBeTruthy();
+    for (const s of CONTRACT_STATUSES) expect(CONTRACT_STATUS_WORDS[s].en).toBeTruthy();
     for (const p of CONTRACT_PHASES) expect(PHASE_WORDS[p].en).toBeTruthy();
-    for (const k of FORMATION_CHECK_KINDS) expect(CHECK_WORDS[k].ms).toBeTruthy();
-    for (const c of RECONCILIATION_COMPARISONS) expect(COMPARISON_WORDS[c].ms).toBeTruthy();
-    for (const s of BASELINE_SOURCES) expect(SOURCE_WORDS[s].ms).toBeTruthy();
-    for (const k of BASELINE_FIELD_KEYS) expect(BASELINE_FIELD_WORDS[k]?.ms).toBeTruthy();
+    for (const k of FORMATION_CHECK_KINDS) expect(CHECK_WORDS[k].en).toBeTruthy();
+    for (const c of RECONCILIATION_COMPARISONS) expect(COMPARISON_WORDS[c].en).toBeTruthy();
+    for (const s of BASELINE_SOURCES) expect(SOURCE_WORDS[s].en).toBeTruthy();
+    for (const k of BASELINE_FIELD_KEYS) expect(BASELINE_FIELD_WORDS[k]?.en).toBeTruthy();
   });
   it("an entered value says it is not from a tender Appendix (OD-5 A)", () => {
     expect(SOURCE_WORDS.ENTERED.en).toBe("Entered at baseline, not from a tender Appendix");

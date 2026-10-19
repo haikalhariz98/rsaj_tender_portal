@@ -100,21 +100,18 @@ export function passwordFaults(password: string, opts: { loginName: string; minL
     faults.push({
       code: "TOO_SHORT",
       en: `Use at least ${opts.minLength} characters.`,
-      ms: `Gunakan sekurang-kurangnya ${opts.minLength} aksara.`,
     });
   }
   if (length > PASSWORD_MAX_LENGTH) {
     faults.push({
       code: "TOO_LONG",
       en: `Use at most ${PASSWORD_MAX_LENGTH} characters.`,
-      ms: `Gunakan paling banyak ${PASSWORD_MAX_LENGTH} aksara.`,
     });
   }
   if (opts.loginName.trim() !== "" && normalise(password).trim().toLowerCase() === normalise(opts.loginName).trim().toLowerCase()) {
     faults.push({
       code: "SAME_AS_LOGIN",
       en: "The password must not be the same as the sign-in name.",
-      ms: "Kata laluan tidak boleh sama dengan nama log masuk.",
     });
   }
   return faults;

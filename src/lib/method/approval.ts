@@ -49,7 +49,6 @@ export function resolveUnderFunder(ctx: FunderContext, query: ResolveQuery): Fun
       code: "GOV_OVERRIDE",
       level: "info",
       messageEn: `Externally funded: the funder's rule set “${ctx.override.label}” superseded the approval matrix here.${noClause}`,
-      messageMs: `Dibiayai pihak luar: set peraturan penyandang dana “${ctx.override.label}” mengatasi matriks kelulusan.`,
       ...cite,
     });
     return { resolution, source: "OVERRIDE", overrideIssue: { id: ctx.override.id, label: ctx.override.label }, warnings: [...resolution.warnings, ...warnings] };
@@ -61,7 +60,6 @@ export function resolveUnderFunder(ctx: FunderContext, query: ResolveQuery): Fun
       (ctx.override
         ? `Externally funded, but the funder's rule set “${ctx.override.label}” has no rule for this, so the approval matrix routed it.`
         : "Externally funded, but no funder's rule set is issued for this funding route, so the approval matrix routed it. The funder's own guidelines may still prevail where they conflict.") + noClause,
-    messageMs: "Dibiayai pihak luar, tetapi set peraturan penyandang dana tidak digunakan.",
     ...cite,
   });
   // The engine's own GOV_OVERRIDE is not added: the query does not carry the flag.

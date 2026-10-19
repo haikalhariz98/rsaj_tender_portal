@@ -10,7 +10,7 @@ import { loadKeyHistory } from "@/lib/sealing/key-history";
 
 import { currentSupplierOrNull } from "../../../_auth/supplier";
 
-const both = (x: { en: string; ms: string }) => `${x.en} · ${x.ms}`;
+const both = (x: { en: string }) => x.en;
 
 /**
  * The sealing key of an online exercise and the history of its fingerprint, for a signed-in supplier who may see the exercise (SR-13, ADR 0036 D11; build plan step 11, moved from step 8).

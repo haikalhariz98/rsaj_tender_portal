@@ -57,18 +57,17 @@ export interface FieldFault {
   field: string;
   code: string;
   en: string;
-  ms: string;
 }
 
-const bad = (field: string, code: string, en: string, ms: string): FieldFault => ({ field, code, en, ms });
+const bad = (field: string, code: string, en: string): FieldFault => ({ field, code, en });
 
 /// What each kind is, in words, for the queue.
-export const KIND_WORDS: Record<ChangeKind, { en: string; ms: string }> = {
-  SECURITY_POLICY: { en: "Change the sign-in settings", ms: "Ubah tetapan log masuk" },
-  PERMISSION_GRANT: { en: "Change which roles hold a permission", ms: "Ubah peranan yang memegang sesuatu kebenaran" },
-  ADMINISTRATOR_GRANT: { en: "Make a person an administrator", ms: "Jadikan seseorang pentadbir" },
-  ADMINISTRATOR_REVOKE: { en: "Take administration from a person", ms: "Tarik balik pentadbiran daripada seseorang" },
-  ACCOUNT_CODE: { en: "Issue a code for an administrator's or office holder's account", ms: "Keluarkan kod untuk akaun pentadbir atau pemegang jawatan" },
+export const KIND_WORDS: Record<ChangeKind, { en: string;  }> = {
+  SECURITY_POLICY: { en: "Change the sign-in settings" },
+  PERMISSION_GRANT: { en: "Change which roles hold a permission" },
+  ADMINISTRATOR_GRANT: { en: "Make a person an administrator" },
+  ADMINISTRATOR_REVOKE: { en: "Take administration from a person" },
+  ACCOUNT_CODE: { en: "Issue a code for an administrator's or office holder's account" },
 };
 
 /// The product permission that decides each kind.
@@ -100,7 +99,7 @@ const isObject = (x: unknown): x is Record<string, unknown> => typeof x === "obj
 function unknownFields(raw: Record<string, unknown>, allowed: readonly string[]): FieldFault[] {
   return Object.keys(raw)
     .filter((k) => !allowed.includes(k))
-    .map((k) => bad(k, "UNKNOWN_FIELD", "This is not something a change of this kind carries.", "Ini bukan sesuatu yang dibawa oleh perubahan jenis ini."));
+    .map((k) => bad(k, "UNKNOWN_FIELD", "This is not something a change of this kind carries."));
 }
 
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" && v.length <= 200 ? v.trim() : null);
@@ -111,7 +110,7 @@ const POLICY_ENUMS: Partial<Record<SecurityPolicyKey, readonly string[]>> = {
 };
 
 export function parseChange(kind: ChangeKind, raw: unknown): { ok: true; change: ParsedChange } | { ok: false; faults: FieldFault[] } {
-  if (!isObject(raw)) return { ok: false, faults: [bad("*", "NOT_AN_OBJECT", "A change is an object.", "Perubahan ialah objek.")] };
+  if (!isObject(raw)) return { ok: false, faults: [bad("*", "NOT_AN_OBJECT", "A change is an object.")] };
   const faults: FieldFault[] = [];
 
   switch (kind) {
@@ -119,25 +118,25 @@ export function parseChange(kind: ChangeKind, raw: unknown): { ok: true; change:
       faults.push(...unknownFields(raw, ["changes"]));
       const changes = raw.changes;
       if (!isObject(changes) || Object.keys(changes).length === 0) {
-        faults.push(bad("changes", "NO_CHANGES", "Name at least one setting to change.", "Namakan sekurang-kurangnya satu tetapan untuk diubah."));
+        faults.push(bad("changes", "NO_CHANGES", "Name at least one setting to change."));
         return { ok: false, faults };
       }
       const out: Partial<Record<SecurityPolicyKey, unknown>> = {};
       for (const [key, value] of Object.entries(changes)) {
         if (!(key in SETTING_LABELS)) {
-          faults.push(bad(key, "UNKNOWN_SETTING", "That is not a sign-in setting.", "Itu bukan tetapan log masuk."));
+          faults.push(bad(key, "UNKNOWN_SETTING", "That is not a sign-in setting."));
           continue;
         }
         const k = key as SecurityPolicyKey;
         const allowed = POLICY_ENUMS[k];
         if (allowed) {
-          if (typeof value !== "string" || !allowed.includes(value)) faults.push(bad(key, "BAD_CHOICE", "Choose one of the options offered.", "Pilih salah satu pilihan yang ditawarkan."));
+          if (typeof value !== "string" || !allowed.includes(value)) faults.push(bad(key, "BAD_CHOICE", "Choose one of the options offered."));
           else out[k] = value;
         } else if (typeof value !== "number") {
-          faults.push(bad(key, "NOT_A_NUMBER", "Enter a whole number. A setting is changed to a value, never cleared.", "Masukkan nombor bulat. Tetapan diubah kepada nilai, tidak pernah dikosongkan."));
+          faults.push(bad(key, "NOT_A_NUMBER", "Enter a whole number. A setting is changed to a value, never cleared."));
         } else {
           const why = rangeFaultWords(k, value);
-          if (why) faults.push(bad(key, "OUT_OF_RANGE", why.en, why.ms));
+          if (why) faults.push(bad(key, "OUT_OF_RANGE", why.en));
           else out[k] = value;
         }
       }
@@ -148,10 +147,10 @@ export function parseChange(kind: ChangeKind, raw: unknown): { ok: true; change:
       faults.push(...unknownFields(raw, ["permissionKey", "roleCode", "decision"]));
       const key = text(raw.permissionKey);
       const role = text(raw.roleCode);
-      if (!key || !isPermissionKey(key)) faults.push(bad("permissionKey", "UNKNOWN_PERMISSION", "That is not a product permission.", "Itu bukan kebenaran produk."));
-      else if (!isGrantable(key)) faults.push(bad("permissionKey", "NOT_GRANTABLE", "This permission is held only through the administrator flag and is never granted to a role.", "Kebenaran ini dipegang melalui bendera pentadbir sahaja dan tidak pernah diberikan kepada peranan."));
-      if (!role) faults.push(bad("roleCode", "ROLE_REQUIRED", "Name the role.", "Namakan peranan."));
-      if (raw.decision !== "GRANTED" && raw.decision !== "WITHHELD" && raw.decision !== "UNDECIDED") faults.push(bad("decision", "BAD_DECISION", "Choose granted, withheld or undecided.", "Pilih diberikan, ditahan atau belum diputuskan."));
+      if (!key || !isPermissionKey(key)) faults.push(bad("permissionKey", "UNKNOWN_PERMISSION", "That is not a product permission."));
+      else if (!isGrantable(key)) faults.push(bad("permissionKey", "NOT_GRANTABLE", "This permission is held only through the administrator flag and is never granted to a role."));
+      if (!role) faults.push(bad("roleCode", "ROLE_REQUIRED", "Name the role."));
+      if (raw.decision !== "GRANTED" && raw.decision !== "WITHHELD" && raw.decision !== "UNDECIDED") faults.push(bad("decision", "BAD_DECISION", "Choose granted, withheld or undecided."));
       if (faults.length > 0) return { ok: false, faults };
       return { ok: true, change: { kind, payload: { permissionKey: key as PermissionKey, roleCode: role!, decision: raw.decision as PermissionChoice } } };
     }
@@ -159,15 +158,15 @@ export function parseChange(kind: ChangeKind, raw: unknown): { ok: true; change:
     case "ADMINISTRATOR_REVOKE": {
       faults.push(...unknownFields(raw, ["accountId"]));
       const accountId = text(raw.accountId);
-      if (!accountId) faults.push(bad("accountId", "ACCOUNT_REQUIRED", "Name the account.", "Namakan akaun."));
+      if (!accountId) faults.push(bad("accountId", "ACCOUNT_REQUIRED", "Name the account."));
       if (faults.length > 0) return { ok: false, faults };
       return { ok: true, change: { kind, payload: { accountId: accountId! } } };
     }
     case "ACCOUNT_CODE": {
       faults.push(...unknownFields(raw, ["accountId", "purpose"]));
       const accountId = text(raw.accountId);
-      if (!accountId) faults.push(bad("accountId", "ACCOUNT_REQUIRED", "Name the account.", "Namakan akaun."));
-      if (raw.purpose !== "ACTIVATION" && raw.purpose !== "RESET") faults.push(bad("purpose", "BAD_PURPOSE", "Choose an activation code or a reset code.", "Pilih kod pengaktifan atau kod tetapan semula."));
+      if (!accountId) faults.push(bad("accountId", "ACCOUNT_REQUIRED", "Name the account."));
+      if (raw.purpose !== "ACTIVATION" && raw.purpose !== "RESET") faults.push(bad("purpose", "BAD_PURPOSE", "Choose an activation code or a reset code."));
       if (faults.length > 0) return { ok: false, faults };
       return { ok: true, change: { kind, payload: { accountId: accountId!, purpose: raw.purpose as "ACTIVATION" | "RESET" } } };
     }
@@ -229,45 +228,44 @@ export const isStale = (before: Record<string, unknown>, now: Record<string, unk
 
 export const STALE_WORDS = {
   en: "What this change was based on has changed since it was proposed, so nothing was applied. Propose it again against the current values.",
-  ms: "Asas perubahan ini telah berubah sejak ia dicadangkan, jadi tiada apa yang dilaksanakan. Cadangkan semula berdasarkan nilai semasa.",
 };
 
 // --------------------------------------------------------------------------------------------- applying
 
 export type Plan = { ok: true; after: Record<string, unknown>; changes: FieldChange[] } | { ok: false; faults: Fault[] };
 
-const f = (code: string, en: string, ms: string): Fault => ({ code, en, ms });
+const f = (code: string, en: string): Fault => ({ code, en });
 
 /// The rules of the kind, run on the live state. `ok` says what applying would write and record; it writes nothing itself.
 export function planChange(change: ParsedChange, live: LiveState): Plan {
-  if (change.kind !== live.kind) return { ok: false, faults: [f("WRONG_STATE", "The state read does not belong to this kind of change.", "Keadaan yang dibaca bukan milik jenis perubahan ini.")] };
+  if (change.kind !== live.kind) return { ok: false, faults: [f("WRONG_STATE", "The state read does not belong to this kind of change.")] };
   switch (change.kind) {
     case "SECURITY_POLICY": {
       const current = (live as Extract<LiveState, { kind: "SECURITY_POLICY" }>).policy;
-      if (!current) return { ok: false, faults: [f("NO_POLICY", "The organisation has no sign-in settings yet. The first are set by the bootstrap command.", "Organisasi belum mempunyai tetapan log masuk. Yang pertama ditetapkan oleh arahan bootstrap.")] };
+      if (!current) return { ok: false, faults: [f("NO_POLICY", "The organisation has no sign-in settings yet. The first are set by the bootstrap command.")] };
       const merged = { ...current, ...change.payload.changes };
       const why = policyFaultWords(merged);
-      if (why) return { ok: false, faults: [f("POLICY_FAULT", why.en, why.ms)] };
+      if (why) return { ok: false, faults: [f("POLICY_FAULT", why.en)] };
       const before = Object.fromEntries(Object.keys(change.payload.changes).map((k) => [k, current[k as SecurityPolicyKey]]));
       const changes = diffFields(before, change.payload.changes);
-      if (changes.length === 0) return { ok: false, faults: [f("NO_CHANGE", "Every setting named already stands as this proposes.", "Setiap tetapan yang dinamakan sudah seperti yang dicadangkan.")] };
+      if (changes.length === 0) return { ok: false, faults: [f("NO_CHANGE", "Every setting named already stands as this proposes.")] };
       return { ok: true, after: { ...change.payload.changes }, changes };
     }
     case "PERMISSION_GRANT": {
       const l = live as Extract<LiveState, { kind: "PERMISSION_GRANT" }>;
-      if (!l.roleExists) return { ok: false, faults: [f("NO_SUCH_ROLE", "That role no longer exists.", "Peranan itu tidak lagi wujud.")] };
+      if (!l.roleExists) return { ok: false, faults: [f("NO_SUCH_ROLE", "That role no longer exists.")] };
       const after = { decision: change.payload.decision };
       const changes = diffFields({ decision: l.decision }, after);
-      if (changes.length === 0) return { ok: false, faults: [f("NO_CHANGE", "The role already stands as this proposes.", "Peranan itu sudah seperti yang dicadangkan.")] };
+      if (changes.length === 0) return { ok: false, faults: [f("NO_CHANGE", "The role already stands as this proposes.")] };
       return { ok: true, after, changes };
     }
     case "ADMINISTRATOR_GRANT": {
       const l = live as Extract<LiveState, { kind: "ADMINISTRATOR_GRANT" }>;
-      if (!l.account) return { ok: false, faults: [f("NO_SUCH_ACCOUNT", "That account no longer exists.", "Akaun itu tidak lagi wujud.")] };
+      if (!l.account) return { ok: false, faults: [f("NO_SUCH_ACCOUNT", "That account no longer exists.")] };
       const out: Fault[] = [];
-      if (l.account.isAdministrator) out.push(f("ALREADY_ADMINISTRATOR", "That account is already an administrator's.", "Akaun itu sudah milik pentadbir."));
-      if (l.account.status !== "ACTIVE") out.push(f("NOT_ACTIVE", "Only an active account is made an administrator's.", "Hanya akaun aktif dijadikan akaun pentadbir."));
-      if (!l.account.personActive) out.push(f("PERSON_INACTIVE", "That person is no longer active.", "Orang itu tidak lagi aktif."));
+      if (l.account.isAdministrator) out.push(f("ALREADY_ADMINISTRATOR", "That account is already an administrator's."));
+      if (l.account.status !== "ACTIVE") out.push(f("NOT_ACTIVE", "Only an active account is made an administrator's."));
+      if (!l.account.personActive) out.push(f("PERSON_INACTIVE", "That person is no longer active."));
       const conflict = administrationConflict({ kind: "MAKE_ADMINISTRATOR", holdings: l.holdings });
       if (conflict) out.push(conflict);
       if (out.length > 0) return { ok: false, faults: out };
@@ -275,26 +273,25 @@ export function planChange(change: ParsedChange, live: LiveState): Plan {
     }
     case "ADMINISTRATOR_REVOKE": {
       const l = live as Extract<LiveState, { kind: "ADMINISTRATOR_REVOKE" }>;
-      if (!l.account) return { ok: false, faults: [f("NO_SUCH_ACCOUNT", "That account no longer exists.", "Akaun itu tidak lagi wujud.")] };
-      if (!l.account.isAdministrator) return { ok: false, faults: [f("NOT_ADMINISTRATOR", "That account is not an administrator's.", "Akaun itu bukan milik pentadbir.")] };
+      if (!l.account) return { ok: false, faults: [f("NO_SUCH_ACCOUNT", "That account no longer exists.")] };
+      if (!l.account.isAdministrator) return { ok: false, faults: [f("NOT_ADMINISTRATOR", "That account is not an administrator's.")] };
       if (l.account.status === "ACTIVE" && l.activeAdministrators <= 1) return { ok: false, faults: [lastAdministrator()] };
       return { ok: true, after: { isAdministrator: false }, changes: diffFields({ isAdministrator: true }, { isAdministrator: false }) };
     }
     case "ACCOUNT_CODE": {
       const l = live as Extract<LiveState, { kind: "ACCOUNT_CODE" }>;
-      if (!l.account) return { ok: false, faults: [f("NO_SUCH_ACCOUNT", "That account no longer exists.", "Akaun itu tidak lagi wujud.")] };
+      if (!l.account) return { ok: false, faults: [f("NO_SUCH_ACCOUNT", "That account no longer exists.")] };
       const out: Fault[] = [];
-      if (!l.account.personActive) out.push(f("PERSON_INACTIVE", "That person is no longer active.", "Orang itu tidak lagi aktif."));
+      if (!l.account.personActive) out.push(f("PERSON_INACTIVE", "That person is no longer active."));
       else if (!l.heldOffice && !l.account.isAdministrator) {
         out.push(
           f(
             "NO_SECOND_PERSON_NEEDED",
             "That account is not an administrator's, and that person has never held an office, seat or delegation, so a second person is not needed: an administrator issues the code directly under Sign-in accounts.",
-            "Akaun itu bukan akaun pentadbir, dan orang itu tidak pernah memegang jawatan, kerusi atau perwakilan, jadi orang kedua tidak diperlukan: pentadbir mengeluarkan kod terus di bawah Akaun log masuk.",
           ),
         );
-      } else if (change.payload.purpose === "ACTIVATION" && l.account.status !== "PENDING_ACTIVATION") out.push(f("NOT_AWAITING_ACTIVATION", "An activation code is for an account that has not been activated.", "Kod pengaktifan untuk akaun yang belum diaktifkan."));
-      else if (change.payload.purpose === "RESET" && l.account.status !== "ACTIVE") out.push(f("NOT_ACTIVE", "A reset code is for an active account.", "Kod tetapan semula untuk akaun aktif."));
+      } else if (change.payload.purpose === "ACTIVATION" && l.account.status !== "PENDING_ACTIVATION") out.push(f("NOT_AWAITING_ACTIVATION", "An activation code is for an account that has not been activated."));
+      else if (change.payload.purpose === "RESET" && l.account.status !== "ACTIVE") out.push(f("NOT_ACTIVE", "A reset code is for an active account."));
       if (out.length > 0) return { ok: false, faults: out };
       return { ok: true, after: { codePurpose: change.payload.purpose }, changes: diffFields(null, { codePurpose: change.payload.purpose }) };
     }
@@ -329,19 +326,19 @@ export const CHANGE_MACHINE: Readonly<Record<ChangeStatus, Partial<Record<Change
 export const nextStatus = (from: ChangeStatus, decision: ChangeDecision): ChangeStatus | null => CHANGE_MACHINE[from][decision] ?? null;
 
 /// A decided change reads in words, never as the status.
-export const STATUS_WORDS: Record<ChangeStatus, { en: string; ms: string }> = {
-  PROPOSED: { en: "Waiting for a second person", ms: "Menunggu orang kedua" },
-  APPLIED: { en: "Applied", ms: "Dilaksanakan" },
-  DECLINED: { en: "Declined", ms: "Ditolak" },
-  WITHDRAWN: { en: "Withdrawn", ms: "Ditarik balik" },
-  STALE: { en: "Out of date, not applied", ms: "Lapuk, tidak dilaksanakan" },
+export const STATUS_WORDS: Record<ChangeStatus, { en: string;  }> = {
+  PROPOSED: { en: "Waiting for a second person" },
+  APPLIED: { en: "Applied" },
+  DECLINED: { en: "Declined" },
+  WITHDRAWN: { en: "Withdrawn" },
+  STALE: { en: "Out of date, not applied" },
 };
 
 /// Who may propose: someone holding the permission that decides this kind. A person without it could never see their own proposal decided by anyone like them.
 export function proposalFaults(kind: ChangeKind, proposer: { permissions: ReadonlySet<PermissionKey> }): Fault[] {
   return proposer.permissions.has(KIND_PERMISSION[kind])
     ? []
-    : [f("NOT_PERMITTED", "You do not hold the permission that proposes this kind of change.", "Anda tidak memegang kebenaran yang mencadangkan jenis perubahan ini.")];
+    : [f("NOT_PERMITTED", "You do not hold the permission that proposes this kind of change.")];
 }
 
 /**
@@ -351,10 +348,10 @@ export function proposalFaults(kind: ChangeKind, proposer: { permissions: Readon
 export function accountCodeTargetFaults(i: { targetPersonId: string; proposerPersonId: string | null; deciderPersonId: string | null }): Fault[] {
   const out: Fault[] = [];
   if (i.proposerPersonId != null && i.targetPersonId === i.proposerPersonId) {
-    out.push(f("OWN_ACCOUNT", "You cannot propose a code for your own account. Ask another administrator.", "Anda tidak boleh mencadangkan kod untuk akaun anda sendiri. Minta pentadbir lain."));
+    out.push(f("OWN_ACCOUNT", "You cannot propose a code for your own account. Ask another administrator."));
   }
   if (i.deciderPersonId != null && i.targetPersonId === i.deciderPersonId) {
-    out.push(f("OWN_ACCOUNT", "You cannot issue a code for your own account. Ask another administrator.", "Anda tidak boleh mengeluarkan kod untuk akaun anda sendiri. Minta pentadbir lain."));
+    out.push(f("OWN_ACCOUNT", "You cannot issue a code for your own account. Ask another administrator."));
   }
   return out;
 }
@@ -369,12 +366,12 @@ export interface Decider {
 /// Who may decide a proposed change: a different Person from the proposer (compared by Person), holding the kind's permission, while it is still proposed.
 export function decisionFaults(change: { kind: ChangeKind; status: string; proposedByPersonId: string }, decider: Decider): Fault[] {
   const out: Fault[] = [];
-  if (change.status !== "PROPOSED") out.push(f("NOT_PROPOSED", "This change has already been decided or withdrawn.", "Perubahan ini sudah diputuskan atau ditarik balik."));
+  if (change.status !== "PROPOSED") out.push(f("NOT_PROPOSED", "This change has already been decided or withdrawn."));
   if (decider.personId === change.proposedByPersonId) {
-    out.push(f("PROPOSER_IS_DECIDER", "You proposed this change, so you cannot decide it. A second person decides it.", "Anda mencadangkan perubahan ini, jadi anda tidak boleh memutuskannya. Orang kedua memutuskannya."));
+    out.push(f("PROPOSER_IS_DECIDER", "You proposed this change, so you cannot decide it. A second person decides it."));
   }
   if (!decider.permissions.has(KIND_PERMISSION[change.kind])) {
-    out.push(f("NOT_PERMITTED", "You do not hold the permission that decides this kind of change.", "Anda tidak memegang kebenaran yang memutuskan jenis perubahan ini."));
+    out.push(f("NOT_PERMITTED", "You do not hold the permission that decides this kind of change."));
   }
   return out;
 }
@@ -386,6 +383,5 @@ export function secondPersonFault(eligibleDeciderPersonIds: readonly string[], p
     : f(
         "SECOND_PERSON_NEEDED",
         "A second person is needed. Nobody else can decide this kind of change, and the person who proposes a change never decides it. Another administrator, or a holder of the permission, must exist first.",
-        "Orang kedua diperlukan. Tiada orang lain boleh memutuskan jenis perubahan ini, dan orang yang mencadangkan perubahan tidak pernah memutuskannya. Pentadbir lain, atau pemegang kebenaran, mesti wujud dahulu.",
       );
 }

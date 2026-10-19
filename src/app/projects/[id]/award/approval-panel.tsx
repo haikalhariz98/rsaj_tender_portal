@@ -170,7 +170,7 @@ export async function ApprovalPanel({
           })()}
           {inst.checkedAgainstMatrix && (
             <p className="border-t border-line px-5 py-2.5 text-[12.5px] break-words text-ink-3 sm:px-6">
-              Chain beneath the approver: {routeCoreText(inst, (c) => { const n = roleName(c); return { en: n, ms: n }; }).en}
+              Chain beneath the approver: {routeCoreText(inst, (c) => { const n = roleName(c); return { en: n }; }).en}
             </p>
           )}
           <ol className="divide-y divide-line/70 border-t border-line">

@@ -8,6 +8,8 @@ import { dayToDate } from "@/lib/dates";
 import { contractFaultWords } from "./fault-text";
 import { legalOfficeKnown, preparationSettings, rowInForce, unitInForce } from "./in-force";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.12 review R-6: a document part or copy recipient "retired from" a day was treated as retired the
  * moment any day was set. Now it is compared with the organisation's day, the end exclusive.
@@ -95,7 +97,6 @@ describe("the legal office's row in force on the day (M-2)", () => {
     const t = contractFaultWords({ code: "LEGAL_OFFICE_UNKNOWN", level: "block" });
     expect(t.en).toMatch(/in force today \(it has ended, or has not started yet\)/);
     expect(t.en).not.toMatch(/no longer/);
-    expect(t.ms).toMatch(/belum bermula/);
   });
   it("the configuration reads the units with their start, and the policy act judges them in force", () => {
     const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");

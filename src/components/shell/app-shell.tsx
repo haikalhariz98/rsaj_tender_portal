@@ -4,11 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { shellCountsAction } from "@/app/_auth/shell-counts";
-import { useLanguage } from "@/components/i18n/language-context";
-import { Bi } from "@/components/ui/bilingual";
-import { Callout } from "@/components/ui/feedback";
 import { isSignInPath } from "@/lib/auth/routes";
-import { coverageOf, NOT_CONVERTED_NOTICE, PARTLY_NOTICE } from "@/lib/i18n/coverage";
 
 import type { ShellOrganisation, ShellUser } from "@/lib/shell";
 
@@ -46,11 +42,6 @@ export function AppShell({
   const [fresh, setFresh] = useState<{ base: Record<string, number>; value: Record<string, number> } | null>(null);
   const first = useRef(true);
   const staffSide = !portalOnly && user?.kind === "staff";
-  // With Bahasa Malaysia chosen, a staff screen not (wholly) converted says so, in both languages (NFR-LNG-001, ADR 0040): the choice never
-  // overstates what is on the screen. Derived from the path; nothing is stored.
-  const { language } = useLanguage();
-  const coverage = coverageOf(pathname);
-  const notice = staffSide && language === "ms" && coverage !== "CONVERTED" ? (coverage === "PARTLY" ? PARTLY_NOTICE : NOT_CONVERTED_NOTICE) : null;
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -123,11 +114,6 @@ export function AppShell({
         />
         <main className="min-w-0 flex-1 px-4 pt-7 pb-16 sm:px-6 lg:px-8 print:p-0">
           <div className="mx-auto w-full max-w-[1400px]">
-            {notice && (
-              <Callout tone="info" className="mb-5">
-                <Bi words={notice} />
-              </Callout>
-            )}
             {children}
           </div>
         </main>

@@ -18,6 +18,8 @@ import type { BidFault } from "./types";
 import { supplierSees } from "./visibility";
 import { bidFaultText, bidFaultViews, hasBidFaultText } from "./words";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const NOW = klAt("2026-11-02", "09:00");
 const codes = (fs: readonly { code: string }[]) => fs.map((f) => f.code);
 
@@ -396,10 +398,9 @@ describe("the words", () => {
       expect(hasBidFaultText(code), code).toBe(true);
       const t = bidFaultText({ code });
       expect(t.en.length, code).toBeGreaterThan(10);
-      expect(t.ms.length, code).toBeGreaterThan(10);
       expect(t.en, code).not.toMatch(/\b[A-Z]{2,}(?:_[A-Z]+)+\b/);
     }
-    expect(bidFaultViews([{ code: "ALREADY_SIGNED_UP", level: "block" }])).toEqual([{ field: null, level: "block", message: "Your company is already signed up for this.", messageMs: expect.any(String) }]);
+    expect(bidFaultViews([{ code: "ALREADY_SIGNED_UP", level: "block" }])).toEqual([{ field: null, level: "block", message: "Your company is already signed up for this." }]);
   });
   it("says on which day an addendum was acknowledged", () => expect(bidFaultText({ code: "ALREADY_ACKNOWLEDGED", data: { on: "2026-11-02" } }).en).toContain("2026"));
 });

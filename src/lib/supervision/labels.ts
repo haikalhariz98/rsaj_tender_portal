@@ -15,42 +15,39 @@ import type { ComplianceArea, ContractPartyKind, DelegateKind, DelegationVariant
 
 export interface Words {
   en: string;
-  ms: string;
 }
-export const w = (en: string, ms: string): Words => ({ en, ms });
+export const w = (en: string): Words => ({ en });
 
 export const SO_REASON_WORDS: Readonly<Record<SoAssignmentReason, Words>> = {
-  EXECUTION: w("Resolved at execution", "Ditentukan semasa pelaksanaan"),
-  RESOLVED: w("Resolved for a contract executed before supervision was recorded", "Ditentukan bagi kontrak yang dilaksanakan sebelum penyeliaan direkodkan"),
-  RE_RESOLVED: w("Re-resolved after the contract sum moved across a band", "Ditentukan semula selepas jumlah kontrak melepasi jalur"),
+  EXECUTION: w("Resolved at execution"),
+  RESOLVED: w("Resolved for a contract executed before supervision was recorded"),
+  RE_RESOLVED: w("Re-resolved after the contract sum moved across a band"),
 };
 
 export const DELEGATE_KIND_WORDS: Readonly<Record<DelegateKind, Words>> = {
-  PRINCIPAL: w("Principal Representative", "Wakil P.P. Utama"),
-  SPECIALIST: w("Specialist Representative", "Wakil P.P. Pakar"),
-  SPECIALIST_QS: w("Specialist Representative (Quantity Surveyor)", "Wakil P.P. Pakar (Juruukur Bahan)"),
+  PRINCIPAL: w("Principal Representative"),
+  SPECIALIST: w("Specialist Representative"),
+  SPECIALIST_QS: w("Specialist Representative (Quantity Surveyor)"),
 };
 
 export const ACT_WORDS: Readonly<Record<SupervisionAct, Words>> = {
-  DIARY: w("Keep and attest the site diary", "Menyimpan dan mengesahkan diari tapak"),
-  PROGRAMME_SCRUTINY: w("Scrutinise the work programme", "Meneliti program kerja"),
-  PROGRESS: w("Record progress", "Merekod kemajuan"),
-  OBSERVATION: w("Record compliance observations", "Merekod pemerhatian pematuhan"),
-  CONTRACTOR_COMMUNICATION: w("Communicate with the contractor", "Berhubung dengan kontraktor"),
-  INSTRUCTION: w("Issue instructions", "Mengeluarkan arahan"),
-  VALUATION: w("Value work for interim payment", "Menilai kerja untuk bayaran interim"),
-  VARIATION_APPLICATION: w("Apply for variations", "Memohon perubahan kerja"),
+  DIARY: w("Keep and attest the site diary"),
+  PROGRAMME_SCRUTINY: w("Scrutinise the work programme"),
+  PROGRESS: w("Record progress"),
+  OBSERVATION: w("Record compliance observations"),
+  CONTRACTOR_COMMUNICATION: w("Communicate with the contractor"),
+  INSTRUCTION: w("Issue instructions"),
+  VALUATION: w("Value work for interim payment"),
+  VARIATION_APPLICATION: w("Apply for variations"),
 };
 
 /// The acts that are on no letter of delegation, which a representative is not offered (FR-SUP-004): said in words, never by their code.
 export const HIDDEN_NEED_WORDS: Readonly<Record<HiddenNeed, Words>> = {
   SO_ONLY: w(
     "the acts that are the S.O.'s own, which no letter of delegation gives (such as early action, special site meetings, warning letters, and the decision on a variation)",
-    "tindakan yang khusus bagi P.P. sendiri, yang tidak diberikan oleh sebarang surat perwakilan (seperti tindakan awal, mesyuarat tapak khas, surat amaran, dan keputusan mengenai perubahan kerja)",
   ),
   PRINCIPAL_OR_SO: w(
     "the acts that are the Principal Representative's or the S.O.'s (such as possession of the site, the decision on the work programme, directions on it, and the release of retention)",
-    "tindakan Wakil P.P. Utama atau P.P. (seperti pemilikan tapak, keputusan mengenai program kerja, arahan mengenainya, dan pelepasan wang tahanan)",
   ),
 };
 
@@ -63,107 +60,103 @@ export function hiddenNote(hidden: readonly HiddenAct[]): { title: Words; body: 
   const listed = hidden.filter((a): a is SupervisionAct => a !== "SO_ONLY" && a !== "PRINCIPAL_OR_SO");
   const needs = hidden.filter((a): a is HiddenNeed => a === "SO_ONLY" || a === "PRINCIPAL_OR_SO");
   const en = ["You act as the S.O.'s representative, so some acts are left off your screens."];
-  const ms = ["Anda bertindak sebagai wakil P.P., jadi sesetengah tindakan tidak dipaparkan pada skrin anda."];
   if (listed.length > 0) {
     en.push(`Your letter of delegation does not list these acts: ${listed.map((a) => ACT_WORDS[a].en.toLowerCase()).join("; ")}.`);
-    ms.push(`Surat perwakilan anda tidak menyenaraikan tindakan ini: ${listed.map((a) => ACT_WORDS[a].ms.toLowerCase()).join("; ")}.`);
   }
   if (needs.length > 0) {
     en.push(`Also left off: ${needs.map((n) => HIDDEN_NEED_WORDS[n].en).join("; and ")}.`);
-    ms.push(`Turut tidak dipaparkan: ${needs.map((n) => HIDDEN_NEED_WORDS[n].ms).join("; dan ")}.`);
   }
   en.push("The S.O. records them.");
-  ms.push("P.P. merekodkannya.");
-  return { title: w("Acts outside your delegation are not shown", "Tindakan di luar perwakilan anda tidak dipaparkan"), body: w(en.join(" "), ms.join(" ")) };
+  return { title: w("Acts outside your delegation are not shown"), body: w(en.join(" ")) };
 }
 
 export const VARIANT_WORDS: Readonly<Record<DelegationVariant, Words>> = {
-  CONVENTIONAL: w("Conventional contracts (letters A/1 and A/2)", "Kontrak konvensional (surat A/1 dan A/2)"),
-  DESIGN_AND_BUILD: w("Design and build and turnkey (letters B/1 and B/2)", "Reka dan bina serta turnkey (surat B/1 dan B/2)"),
+  CONVENTIONAL: w("Conventional contracts (letters A/1 and A/2)"),
+  DESIGN_AND_BUILD: w("Design and build and turnkey (letters B/1 and B/2)"),
 };
 
 export const PROGRAMME_KIND_WORDS: Readonly<Record<ProgrammeKind, Words>> = {
-  WORK_PROGRAMME: w("Work programme", "Program kerja"),
-  SERVICE_SCHEDULE: w("Service and maintenance implementation schedule", "Jadual pelaksanaan perkhidmatan dan penyelenggaraan"),
+  WORK_PROGRAMME: w("Work programme"),
+  SERVICE_SCHEDULE: w("Service and maintenance implementation schedule"),
 };
 
 export const PROGRAMME_DECISION_WORDS: Readonly<Record<ProgrammeDecision, Words>> = {
-  APPROVED: w("Approved", "Diluluskan"),
-  RETURNED: w("Returned for revision", "Dikembalikan untuk dipinda"),
+  APPROVED: w("Approved"),
+  RETURNED: w("Returned for revision"),
 };
 
 export const ENDORSER_WORDS: Readonly<Record<DiaryEndorser, Words>> = {
-  SUPERIOR_OFFICER: w("Superior officer", "Pegawai atasan"),
-  SUPERINTENDING_OFFICER: w("Superintending Officer", "Pegawai Penguasa"),
+  SUPERIOR_OFFICER: w("Superior officer"),
+  SUPERINTENDING_OFFICER: w("Superintending Officer"),
 };
 
 export const AREA_WORDS: Readonly<Record<ComplianceArea, Words>> = {
-  MATERIAL_QUALITY: w("Quality of materials", "Kualiti bahan"),
-  WORKMANSHIP: w("Workmanship", "Mutu kerja"),
-  AUTHORITY_COMPLIANCE: w("Local-authority and third-party compliance", "Pematuhan pihak berkuasa tempatan dan pihak ketiga"),
-  WORKER_WELFARE: w("Worker welfare", "Kebajikan pekerja"),
-  SAFETY: w("Safety", "Keselamatan"),
-  INSURANCE: w("Insurance protection", "Perlindungan insurans"),
-  WAGES: w("Payment of wages due", "Pembayaran gaji"),
-  OSHA: w("Occupational Safety and Health Act", "Akta Keselamatan dan Kesihatan Pekerjaan"),
+  MATERIAL_QUALITY: w("Quality of materials"),
+  WORKMANSHIP: w("Workmanship"),
+  AUTHORITY_COMPLIANCE: w("Local-authority and third-party compliance"),
+  WORKER_WELFARE: w("Worker welfare"),
+  SAFETY: w("Safety"),
+  INSURANCE: w("Insurance protection"),
+  WAGES: w("Payment of wages due"),
+  OSHA: w("Occupational Safety and Health Act"),
 };
 
 export const CAUSE_WORDS: Readonly<Record<DirectionCause, Words>> = {
-  VARIATION: w("A variation order", "Perintah perubahan kerja"),
-  LOCAL_AUTHORITY_DELAY: w("A local-authority delay", "Kelewatan pihak berkuasa tempatan"),
-  OTHER_DELAY: w("Another contractual delay event", "Peristiwa kelewatan kontrak yang lain"),
+  VARIATION: w("A variation order"),
+  LOCAL_AUTHORITY_DELAY: w("A local-authority delay"),
+  OTHER_DELAY: w("Another contractual delay event"),
 };
 
 export const DEDUCTION_KIND_WORDS: Readonly<Record<PendingDeductionKind, Words>> = {
-  INSURANCE_PREMIUM: w("Insurance premium paid by the employer (self-help)", "Premium insurans dibayar oleh majikan"),
+  INSURANCE_PREMIUM: w("Insurance premium paid by the employer (self-help)"),
 };
 
 export const BRANCH_WORDS: Readonly<Record<EarlyActionBranch, Words>> = {
-  EXTEND_TIME: w("Grant an extension of time or of the contract period", "Memberi lanjutan masa atau tempoh kontrak"),
-  IMPOSE_LAD: w("Impose liquidated damages", "Mengenakan ganti rugi tertentu"),
-  TERMINATE: w("Terminate the contractor's employment", "Menamatkan pengambilan kontraktor"),
+  EXTEND_TIME: w("Grant an extension of time or of the contract period"),
+  IMPOSE_LAD: w("Impose liquidated damages"),
+  TERMINATE: w("Terminate the contractor's employment"),
 };
 
 export const PARTY_KIND_WORDS: Readonly<Record<ContractPartyKind, Words>> = {
-  NOMINATED_SUBCONTRACTOR: w("Nominated sub-contractor", "Subkontraktor dinamakan"),
-  NOMINATED_SUPPLIER: w("Nominated supplier", "Pembekal dinamakan"),
-  ASSIGNEE: w("Approved assignee", "Penerima serah hak yang diluluskan"),
+  NOMINATED_SUBCONTRACTOR: w("Nominated sub-contractor"),
+  NOMINATED_SUPPLIER: w("Nominated supplier"),
+  ASSIGNEE: w("Approved assignee"),
 };
 
 export const RECORDS_SET_WORDS: Readonly<Record<SiteRecordsSet, Words>> = {
-  PIPE_LOG: w("Pipe log", "Log paip"),
-  AS_BUILT: w("As-built drawings", "Lukisan siap bina"),
+  PIPE_LOG: w("Pipe log"),
+  AS_BUILT: w("As-built drawings"),
 };
 
 // ------------------------------------------------------------------ readings shown on the contract
 
 export const DELEGATION_STATE_WORDS: Readonly<Record<DelegationState, Words>> = {
-  LETTER_NOT_ISSUED: w("Letter not issued: not yet in force", "Surat belum dikeluarkan: belum berkuat kuasa"),
-  IN_FORCE: w("In force", "Berkuat kuasa"),
-  REVOKED: w("Revoked", "Dibatalkan"),
-  LETTER_VOID: w("Letter void: not in force", "Surat terbatal: tidak berkuat kuasa"),
+  LETTER_NOT_ISSUED: w("Letter not issued: not yet in force"),
+  IN_FORCE: w("In force"),
+  REVOKED: w("Revoked"),
+  LETTER_VOID: w("Letter void: not in force"),
 };
 export const DELEGATION_STATE_TONE: Readonly<Record<DelegationState, "ok" | "warn" | "neutral">> = { LETTER_NOT_ISSUED: "warn", IN_FORCE: "ok", REVOKED: "neutral", LETTER_VOID: "neutral" };
 
 export const ENTRY_STATE_WORDS: Readonly<Record<EntryState, Words>> = {
-  COMPLETE: w("Attested by both", "Disahkan oleh kedua-dua pihak"),
-  AWAITING_OFFICER: w("Awaiting the responsible officer's attestation", "Menunggu pengesahan pegawai bertanggungjawab"),
-  AWAITING_AGENT: w("Awaiting the contractor's agent's attestation", "Menunggu pengesahan ejen kontraktor"),
-  AWAITING_BOTH: w("Not yet attested", "Belum disahkan"),
-  DISPUTED: w("Disputed: escalated to the S.O.", "Dipertikaikan: dirujuk kepada P.P."),
+  COMPLETE: w("Attested by both"),
+  AWAITING_OFFICER: w("Awaiting the responsible officer's attestation"),
+  AWAITING_AGENT: w("Awaiting the contractor's agent's attestation"),
+  AWAITING_BOTH: w("Not yet attested"),
+  DISPUTED: w("Disputed: escalated to the S.O."),
 };
 export const ENTRY_STATE_TONE: Readonly<Record<EntryState, "ok" | "warn" | "err" | "neutral">> = { COMPLETE: "ok", AWAITING_OFFICER: "warn", AWAITING_AGENT: "warn", AWAITING_BOTH: "warn", DISPUTED: "err" };
 
 export const START_RULE_WORDS: Readonly<Record<ReturnType<typeof startRuleReading>, Words>> = {
-  SECURITIES_FIRST: w("Work starts once the bond and the required insurance are verified", "Kerja bermula setelah bon dan insurans yang diperlukan disahkan"),
-  WITHOUT_SECURITIES: w("This contract type starts work without its securities", "Jenis kontrak ini memulakan kerja tanpa jaminannya"),
-  NOT_SET: w("Not set for this contract type", "Tidak ditetapkan bagi jenis kontrak ini"),
+  SECURITIES_FIRST: w("Work starts once the bond and the required insurance are verified"),
+  WITHOUT_SECURITIES: w("This contract type starts work without its securities"),
+  NOT_SET: w("Not set for this contract type"),
 };
 
 /// Where an early-action branch goes, in words (never a module number).
 export const BRANCH_OPENS_WORDS: Readonly<Record<(typeof BRANCH_OPENS)[EarlyActionBranch], Words>> = {
-  PART_B: w("opens with extensions of time and termination, which this version does not record yet", "dibuka bersama lanjutan masa dan penamatan, yang belum direkodkan oleh versi ini"),
-  LAD_CHAIN: w("opens with the liquidated-damages chain, which arrives with the interim payment certificate", "dibuka bersama rantaian ganti rugi tertentu, yang tiba bersama perakuan bayaran interim"),
+  PART_B: w("opens with extensions of time and termination, which this version does not record yet"),
+  LAD_CHAIN: w("opens with the liquidated-damages chain, which arrives with the interim payment certificate"),
 };
 
 const pct = (v: string | null) => (v == null ? "none recorded" : `${v}%`);
@@ -181,20 +174,20 @@ function delayText(r: DelayReading): { title: Words; detail: Words; tone: "err" 
   switch (r.state) {
     case "IN_DELAY":
       return r.why === "LAPSED"
-        ? { tone: "err", title: w("In Delay", "Dalam Kelewatan"), detail: w(`The date for completion, ${formatDate(r.dateForCompletion)}, has passed with the work incomplete (latest progress ${pct(r.actualPct)}).`, `Tarikh siap, ${formatDate(r.dateForCompletion)}, telah berlalu dan kerja belum siap (kemajuan terkini ${pct(r.actualPct)}).`) }
-        : { tone: "err", title: w("In Delay", "Dalam Kelewatan"), detail: w(`On ${formatDate(r.day)} actual progress was ${r.actualPct}% against ${r.plannedPct}% planned: below ${r.policyPct}% of the plan.`, `Pada ${formatDate(r.day)} kemajuan sebenar ${r.actualPct}% berbanding ${r.plannedPct}% dirancang: di bawah ${r.policyPct}% daripada rancangan.`) };
+        ? { tone: "err", title: w("In Delay"), detail: w(`The date for completion, ${formatDate(r.dateForCompletion)}, has passed with the work incomplete (latest progress ${pct(r.actualPct)}).`) }
+        : { tone: "err", title: w("In Delay"), detail: w(`On ${formatDate(r.day)} actual progress was ${r.actualPct}% against ${r.plannedPct}% planned: below ${r.policyPct}% of the plan.`) };
     case "ON_TRACK":
-      return { tone: "ok", title: w("Not in delay", "Tidak dalam kelewatan"), detail: w(`On ${formatDate(r.day)} actual progress was ${r.actualPct}% against ${r.plannedPct}% planned: not below ${r.policyPct}% of the plan.`, `Pada ${formatDate(r.day)} kemajuan sebenar ${r.actualPct}% berbanding ${r.plannedPct}% dirancang: tidak di bawah ${r.policyPct}% daripada rancangan.`) };
+      return { tone: "ok", title: w("Not in delay"), detail: w(`On ${formatDate(r.day)} actual progress was ${r.actualPct}% against ${r.plannedPct}% planned: not below ${r.policyPct}% of the plan.`) };
     case "NOT_SET":
-      return { tone: "warn", title: w("Not judged: the percentage is not set", "Tidak dinilai: peratusan belum ditetapkan"), detail: w("The share of planned progress below which a contract is In Delay is not set under Configuration › Post-award. It is never assumed.", "Peratusan kemajuan dirancang yang menjadikan kontrak Dalam Kelewatan belum ditetapkan di Konfigurasi › Selepas setuju terima.") };
+      return { tone: "warn", title: w("Not judged: the percentage is not set"), detail: w("The share of planned progress below which a contract is In Delay is not set under Configuration › Post-award. It is never assumed.") };
     case "NOT_JUDGED": {
       const why: Record<typeof r.why, Words> = {
-        NOT_POSSESSED: w("Possession of site is not recorded.", "Milik tapak belum direkodkan."),
-        NO_PROGRAMME: w("No work programme is approved.", "Tiada program kerja diluluskan."),
-        NO_PROGRESS: w("No progress is recorded.", "Tiada kemajuan direkodkan."),
-        BEFORE_PROGRAMME: w("The latest progress is before the approved programme's first point.", "Kemajuan terkini sebelum titik pertama program yang diluluskan."),
+        NOT_POSSESSED: w("Possession of site is not recorded."),
+        NO_PROGRAMME: w("No work programme is approved."),
+        NO_PROGRESS: w("No progress is recorded."),
+        BEFORE_PROGRAMME: w("The latest progress is before the approved programme's first point."),
       };
-      return { tone: "neutral", title: w("Not judged", "Tidak dinilai"), detail: why[r.why] };
+      return { tone: "neutral", title: w("Not judged"), detail: why[r.why] };
     }
   }
 }
@@ -207,35 +200,32 @@ export function supervisionFaultWords(f: Finding): Words {
   switch (f.code) {
     // ------------------------------------------------ the S.O.
     case "SO_UNRESOLVED":
-      return w(`No superintending-officer rule on the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract an S.O. at its value and method, or the rules that match disagree. Record the rule on the approval matrix; the S.O. is never keyed.`, `Tiada peraturan Pegawai Penguasa pada matriks kelulusan yang menentukan P.P. bagi kontrak ini. Rekodkan peraturan itu pada matriks kelulusan.`);
+      return w(`No superintending-officer rule on the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract an S.O. at its value and method, or the rules that match disagree. Record the rule on the approval matrix; the S.O. is never keyed.`);
     // ------------------------------------------------ the S.O. moved with a corrected Contract Date (6.13A residual)
     case "SO_MOVE_NO_MATRIX":
       return w(
         `No approval matrix was in force on ${day(d.day)}, so the S.O. (${String(d.office ?? "the office")}) that took effect on the Contract Date cannot be resolved again from the corrected date. The Contract Date is not corrected. Issue a matrix in force that day under Configuration › Approval matrix first.`,
-        `Tiada matriks kelulusan berkuat kuasa pada ${day(d.day)}, jadi P.P. (${String(d.office ?? "pejabat itu")}) yang berkuat kuasa pada Tarikh Kontrak tidak dapat ditentukan semula dari tarikh yang diperbetulkan. Tarikh Kontrak tidak diperbetulkan.`,
       );
     case "SO_MOVE_UNRESOLVED":
       return w(
         `On ${day(d.day)} the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract no single S.O. at the value its S.O. (${String(d.office ?? "the office")}) was resolved at: no superintending-officer rule matches, or the rules that match disagree. The Contract Date is not corrected, because the S.O. would not hold from it. Record the rule on that matrix first.`,
-        `Pada ${day(d.day)} matriks kelulusan tidak menentukan satu P.P. bagi kontrak ini. Tarikh Kontrak tidak diperbetulkan, kerana P.P. tidak akan berkuat kuasa daripadanya.`,
       );
     case "SO_MOVE_OTHER_OFFICE":
       return w(
         `On ${day(d.day)} the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract another S.O., ${String(d.other ?? "another office")}, not ${String(d.office ?? "the office")}, which was resolved from the Contract Date. A date correction does not change who supervises, so the Contract Date is not corrected.`,
-        `Pada ${day(d.day)} matriks kelulusan menentukan P.P. lain bagi kontrak ini, ${String(d.other ?? "pejabat lain")}, bukan ${String(d.office ?? "pejabat itu")}. Pembetulan tarikh tidak mengubah siapa yang menyelia, jadi Tarikh Kontrak tidak diperbetulkan.`,
       );
     case "NOT_EXECUTED":
-      return w("The contract is not executed yet: its S.O. is resolved at the employer's signature.", "Kontrak belum dilaksanakan: P.P. ditentukan semasa tandatangan majikan.");
+      return w("The contract is not executed yet: its S.O. is resolved at the employer's signature.");
     case "ALREADY_RESOLVED":
-      return w("This contract's S.O. is already resolved.", "P.P. kontrak ini telah ditentukan.");
+      return w("This contract's S.O. is already resolved.");
     case "NO_SO":
-      return w("No S.O. is resolved for this contract yet. Resolve it on the Team tab first.", "P.P. belum ditentukan bagi kontrak ini. Tentukan di tab Pasukan dahulu.");
+      return w("No S.O. is resolved for this contract yet. Resolve it on the Team tab first.");
     case "NOT_SO":
-      return w(`Only the S.O. (${String(d.office ?? "the office")}) is recorded for this, or someone acting in that office.`, `Hanya P.P. direkodkan untuk ini.`);
+      return w(`Only the S.O. (${String(d.office ?? "the office")}) is recorded for this, or someone acting in that office.`);
     case "NOT_PRINCIPAL":
-      return w(`This is the S.O.'s or the Principal Representative's: the person named is neither (the S.O. is ${String(d.office ?? "the office")}).`, `Ini untuk P.P. atau Wakil P.P. Utama sahaja.`);
+      return w(`This is the S.O.'s or the Principal Representative's: the person named is neither (the S.O. is ${String(d.office ?? "the office")}).`);
     case "NOT_IN_SCOPE":
-      return w(`The person named is the S.O.'s representative, but "${ACT_WORDS[d.act as SupervisionAct]?.en ?? "this act"}" is outside their delegation's scope. The S.O. records it, or a delegation that covers it.`, `Orang yang dinamakan ialah wakil P.P., tetapi perkara ini di luar skop perwakilannya.`);
+      return w(`The person named is the S.O.'s representative, but "${ACT_WORDS[d.act as SupervisionAct]?.en ?? "this act"}" is outside their delegation's scope. The S.O. records it, or a delegation that covers it.`);
     case "RECORDER_OUT_OF_SCOPE":
       return w(
         d.kind === "SO"
@@ -243,151 +233,150 @@ export function supervisionFaultWords(f: Finding): Words {
           : d.kind === "PRINCIPAL"
             ? `You act as a representative of the S.O., and this is the S.O.'s or the Principal Representative's act, so you cannot record it, not even for the S.O. The S.O. or a Principal Representative records it.`
             : `You act as the S.O.'s representative, and "${ACT_WORDS[d.act as SupervisionAct]?.en ?? "this act"}" is outside your delegation's scope, so you cannot record it, not even for the S.O. The S.O. records it, or a representative whose delegation covers it.`,
-        `Anda bertindak sebagai wakil P.P., dan perkara ini di luar skop perwakilan anda, jadi anda tidak boleh merekodkannya, walaupun bagi pihak P.P. P.P. atau wakil yang perwakilannya meliputinya merekodkannya.`,
       );
     case "NOT_AUTHORISED":
-      return w(`The person named is neither the S.O. (${String(d.office ?? "the office")}) nor a representative whose delegation is in force today.`, `Orang yang dinamakan bukan P.P. dan bukan wakil yang perwakilannya berkuat kuasa.`);
+      return w(`The person named is neither the S.O. (${String(d.office ?? "the office")}) nor a representative whose delegation is in force today.`);
     // ------------------------------------------------ delegation
     case "GRANTOR_NOT_SO":
-      return w(`Only the S.O. (${String(d.office ?? "the office")}) delegates: the person named as delegating does not hold the office today.`, `Hanya P.P. boleh mewakilkan.`);
+      return w(`Only the S.O. (${String(d.office ?? "the office")}) delegates: the person named as delegating does not hold the office today.`);
     case "SUB_DELEGATION":
-      return w("A representative never delegates: the S.O.'s authority is not delegated twice.", "Wakil tidak boleh mewakilkan semula.");
+      return w("A representative never delegates: the S.O.'s authority is not delegated twice.");
     case "DELEGATE_IS_GRANTOR":
-      return w("The S.O. does not delegate to themselves.", "P.P. tidak mewakilkan kepada diri sendiri.");
+      return w("The S.O. does not delegate to themselves.");
     case "RECORDER_IS_DELEGATE":
-      return w("You cannot record the S.O.'s delegation to yourself on their behalf. Another officer records it, or the S.O. signs in and delegates.", "Anda tidak boleh merekodkan perwakilan P.P. kepada diri anda bagi pihaknya. Pegawai lain merekodkannya, atau P.P. log masuk dan mewakilkan.");
+      return w("You cannot record the S.O.'s delegation to yourself on their behalf. Another officer records it, or the S.O. signs in and delegates.");
     case "DELEGATE_INACTIVE":
-      return w("Choose a delegate on record and active.", "Pilih wakil yang aktif.");
+      return w("Choose a delegate on record and active.");
     case "ALREADY_DELEGATED":
-      return w("That person already has a delegation on this contract that is not revoked.", "Orang itu sudah mempunyai perwakilan pada kontrak ini.");
+      return w("That person already has a delegation on this contract that is not revoked.");
     case "COMPETENCY_NOT_CONFIRMED":
-      return w("Record the S.O.'s satisfaction that the delegate has the ability and experience needed, and on what it rests.", "Rekodkan kepuasan P.P. bahawa wakil mempunyai kebolehan dan pengalaman.");
+      return w("Record the S.O.'s satisfaction that the delegate has the ability and experience needed, and on what it rests.");
     case "SCOPE_EMPTY":
-      return w("Choose what the delegation covers.", "Pilih skop perwakilan.");
+      return w("Choose what the delegation covers.");
     case "VARIANT_NOT_SET":
-      return w(`Which delegation letters ${d.type ? String(d.type) : "this contract type"} takes is not set. Set its delegation letter variant under Configuration › Reference data.`, `Varian surat perwakilan bagi jenis kontrak ini belum ditetapkan.`);
+      return w(`Which delegation letters ${d.type ? String(d.type) : "this contract type"} takes is not set. Set its delegation letter variant under Configuration › Reference data.`);
     case "FORMS_NOT_SET":
-      return w(`The forms of the delegation letter and its notification for ${VARIANT_WORDS[d.variant as DelegationVariant]?.en.toLowerCase() ?? "this variant"} are not set. Set them under Configuration › Post-award.`, `Borang surat perwakilan dan pemberitahuannya belum ditetapkan.`);
+      return w(`The forms of the delegation letter and its notification for ${VARIANT_WORDS[d.variant as DelegationVariant]?.en.toLowerCase() ?? "this variant"} are not set. Set them under Configuration › Post-award.`);
     case "ALREADY_REVOKED":
-      return w("The delegation is already revoked.", "Perwakilan telah dibatalkan.");
+      return w("The delegation is already revoked.");
     case "BEFORE_RECORDED":
-      return w(`Not before the delegation was made (${day(d.day)}).`, `Tidak sebelum perwakilan dibuat.`);
+      return w(`Not before the delegation was made (${day(d.day)}).`);
     // ------------------------------------------------ possession
     case "NOT_STAMPED":
-      return w("Possession is recorded once the contract is fully executed: record its stamping first (Formation › Signing).", "Milik tapak direkodkan selepas kontrak dilaksanakan sepenuhnya: rekodkan setem dahulu.");
+      return w("Possession is recorded once the contract is fully executed: record its stamping first (Formation › Signing).");
     case "ALREADY_POSSESSED":
-      return w("Possession of site is recorded once.", "Milik tapak direkodkan sekali sahaja.");
+      return w("Possession of site is recorded once.");
     case "NO_BASELINE_VERSION":
-      return w("The baseline has no version: possession writes a new one, so confirm the baseline first.", "Garis dasar belum mempunyai versi.");
+      return w("The baseline has no version: possession writes a new one, so confirm the baseline first.");
     case "BEFORE_CONTRACT_DATE":
-      return w(`Not before the Contract Date (${day(d.day)}).`, `Tidak sebelum Tarikh Kontrak.`);
+      return w(`Not before the Contract Date (${day(d.day)}).`);
     case "BEFORE_LATEST_ACT":
-      return w(`The representative was recorded for an act or signed on ${day(d.day)}: the delegation can be revoked from the day after, not earlier.`, `Wakil direkodkan bagi sesuatu tindakan atau menandatangani pada ${day(d.day)}: perwakilan boleh dibatalkan mulai hari berikutnya, bukan lebih awal.`);
+      return w(`The representative was recorded for an act or signed on ${day(d.day)}: the delegation can be revoked from the day after, not earlier.`);
     case "BEFORE_SO":
-      return w(`Nobody supervises the site before ${day(d.day)}, the day this contract's S.O. takes effect: possession is not recorded before it.`, `Tiada penyeliaan tapak sebelum ${day(d.day)}, tarikh P.P. kontrak ini berkuat kuasa: milik tapak tidak direkodkan sebelumnya.`);
+      return w(`Nobody supervises the site before ${day(d.day)}, the day this contract's S.O. takes effect: possession is not recorded before it.`);
     case "START_RULE_NOT_SET":
-      return w(`Whether ${d.type ? String(d.type) : "this contract type"} needs its securities before work starts is not set. Set its start-of-work behaviour under Configuration › Reference data.`, `Sama ada jaminan diperlukan sebelum kerja bermula belum ditetapkan bagi jenis kontrak ini.`);
+      return w(`Whether ${d.type ? String(d.type) : "this contract type"} needs its securities before work starts is not set. Set its start-of-work behaviour under Configuration › Reference data.`);
     case "SECURITIES_NOT_MET":
-      return w(`This contract type starts only with its securities verified: ${d.item === "BOND" ? "the performance bond" : "the required insurance"} is ${d.state === "NOT_SET" ? "not decided" : "not met"} (see Securities).`, `Jenis kontrak ini bermula hanya dengan jaminan disahkan.`);
+      return w(`This contract type starts only with its securities verified: ${d.item === "BOND" ? "the performance bond" : "the required insurance"} is ${d.state === "NOT_SET" ? "not decided" : "not met"} (see Securities).`);
     // ------------------------------------------------ programme
     case "OPEN_REVISION":
-      return w(`Revision ${String(d.revision ?? "")} is still waiting for its decision: decide it first.`, `Semakan sebelumnya masih menunggu keputusan.`);
+      return w(`Revision ${String(d.revision ?? "")} is still waiting for its decision: decide it first.`);
     case "DECIDED":
-      return w("That revision is already decided.", "Semakan itu telah diputuskan.");
+      return w("That revision is already decided.");
     case "ALREADY_SCRUTINISED":
-      return w("Its scrutiny is already recorded.", "Penelitiannya telah direkodkan.");
+      return w("Its scrutiny is already recorded.");
     case "ANSWER_REQUIRED":
-      return w("Say whether it reflects a reasonable and realistic sequence with reasonable commencement and completion dates.", "Nyatakan sama ada ia munasabah dan realistik.");
+      return w("Say whether it reflects a reasonable and realistic sequence with reasonable commencement and completion dates.");
     case "NOTE_REQUIRED":
-      return w("Say what is wrong with it.", "Nyatakan apa yang tidak kena.");
+      return w("Say what is wrong with it.");
     case "BEFORE_SUBMITTED":
-      return w(`Not before it was submitted (${day(d.day)}).`, `Tidak sebelum ia dikemukakan.`);
+      return w(`Not before it was submitted (${day(d.day)}).`);
     case "NOT_SCRUTINISED":
-      return w("A programme is approved only after its scrutiny is recorded.", "Program diluluskan hanya selepas penelitiannya direkodkan.");
+      return w("A programme is approved only after its scrutiny is recorded.");
     case "FOUND_UNREASONABLE":
-      return w("Its scrutiny found it not reasonable: return it for revision instead.", "Penelitian mendapati ia tidak munasabah: kembalikan untuk dipinda.");
+      return w("Its scrutiny found it not reasonable: return it for revision instead.");
     case "NO_POINTS":
-      return w("Give its planned progress (at least one day and percentage): it is the baseline progress is measured against.", "Nyatakan kemajuan dirancang.");
+      return w("Give its planned progress (at least one day and percentage): it is the baseline progress is measured against.");
     case "BEFORE_SCRUTINY":
-      return w(`Not before its scrutiny (${day(d.day)}).`, `Tidak sebelum penelitiannya.`);
+      return w(`Not before its scrutiny (${day(d.day)}).`);
     case "POINT_NOT_A_PERCENT":
-      return w(`Line ${String(d.line ?? "")}: the planned percentage must be from 0 to 100, to at most four places.`, `Baris ${String(d.line ?? "")}: peratusan tidak sah.`);
+      return w(`Line ${String(d.line ?? "")}: the planned percentage must be from 0 to 100, to at most four places.`);
     case "POINT_DAYS_NOT_ASCENDING":
-      return w(`Line ${String(d.line ?? "")}: each day must come after the one before.`, `Baris ${String(d.line ?? "")}: tarikh mesti menaik.`);
+      return w(`Line ${String(d.line ?? "")}: each day must come after the one before.`);
     case "POINT_PCT_FALLS":
-      return w(`Line ${String(d.line ?? "")}: planned progress is cumulative and never falls.`, `Baris ${String(d.line ?? "")}: kemajuan dirancang tidak boleh menurun.`);
+      return w(`Line ${String(d.line ?? "")}: planned progress is cumulative and never falls.`);
     case "POINT_BEFORE_POSSESSION":
-      return w(`Line ${String(d.line ?? "")}: not before possession of site (${day(d.day)}).`, `Baris ${String(d.line ?? "")}: tidak sebelum milik tapak.`);
+      return w(`Line ${String(d.line ?? "")}: not before possession of site (${day(d.day)}).`);
     // ------------------------------------------------ diary, progress, records
     case "NOT_POSSESSED":
-      return w("Possession of site is not recorded yet: the site's records start from it (Site tab).", "Milik tapak belum direkodkan.");
+      return w("Possession of site is not recorded yet: the site's records start from it (Site tab).");
     case "BEFORE_POSSESSION":
-      return w(`Not before possession of site (${day(d.day)}).`, `Tidak sebelum milik tapak.`);
+      return w(`Not before possession of site (${day(d.day)}).`);
     case "ALREADY_ENTERED":
-      return w(`The diary already has an entry for ${day(d.day)}: one a day.`, `Diari sudah mempunyai catatan bagi hari itu.`);
+      return w(`The diary already has an entry for ${day(d.day)}: one a day.`);
     case "ENTRY_REQUIRED":
-      return w("Write the day's entry.", "Tulis catatan hari itu.");
+      return w("Write the day's entry.");
     case "BACKDATED_NO_EXCEPTION":
-      return w(`An entry for ${day(d.day)}, an earlier day, needs a recorded exception: say why it was not written on the day.`, `Catatan bagi hari terdahulu memerlukan pengecualian yang direkodkan.`);
+      return w(`An entry for ${day(d.day)}, an earlier day, needs a recorded exception: say why it was not written on the day.`);
     case "ALREADY_ATTESTED":
-      return w("Already attested.", "Telah disahkan.");
+      return w("Already attested.");
     case "AGENT_NAME_REQUIRED":
-      return w("Give the contractor's agent's name, as signed.", "Nyatakan nama ejen kontraktor.");
+      return w("Give the contractor's agent's name, as signed.");
     case "BEFORE_DAY":
-      return w(`Not before the day the entry is for (${day(d.day)}).`, `Tidak sebelum hari catatan itu.`);
+      return w(`Not before the day the entry is for (${day(d.day)}).`);
     case "DISAGREEMENT_REQUIRED":
-      return w("Say what the two disagree on.", "Nyatakan perkara yang tidak dipersetujui.");
+      return w("Say what the two disagree on.");
     case "ALREADY_DISPUTED":
-      return w("A disagreement is already recorded on this entry and escalated to the S.O.", "Perselisihan telah direkodkan.");
+      return w("A disagreement is already recorded on this entry and escalated to the S.O.");
     case "COVERS_ORDER":
-      return w("The covered days run from the first to the last.", "Tempoh yang diliputi tidak sah.");
+      return w("The covered days run from the first to the last.");
     case "BEFORE_COVER":
-      return w(`The visit is on or after the last day it covers (${day(d.day)}).`, `Lawatan mesti pada atau selepas hari terakhir yang diliputi.`);
+      return w(`The visit is on or after the last day it covers (${day(d.day)}).`);
     case "NO_ENTRIES":
-      return w("No diary entry falls in those days.", "Tiada catatan diari dalam tempoh itu.");
+      return w("No diary entry falls in those days.");
     case "NOT_A_PERCENT":
-      return w("Give a percentage from 0 to 100, to at most four places.", "Nyatakan peratusan 0 hingga 100.");
+      return w("Give a percentage from 0 to 100, to at most four places.");
     case "ALREADY_RECORDED":
-      return w(`Progress is already recorded for ${day(d.day)}.`, `Kemajuan telah direkodkan bagi hari itu.`);
+      return w(`Progress is already recorded for ${day(d.day)}.`);
     case "FALLS":
-      return w("Actual progress is cumulative: it is not below an earlier day's, nor above a later day's.", "Kemajuan sebenar adalah kumulatif.");
+      return w("Actual progress is cumulative: it is not below an earlier day's, nor above a later day's.");
     case "NOT_IN_DELAY":
-      return w("A special meeting follows an In Delay classification, and the contract is not In Delay on that day.", "Mesyuarat khas diadakan selepas klasifikasi Lewat.");
+      return w("A special meeting follows an In Delay classification, and the contract is not In Delay on that day.");
     case "MINUTES_REQUIRED":
-      return w("Record the minutes.", "Rekodkan minit.");
+      return w("Record the minutes.");
     case "NO_ATTENDEES":
-      return w("Name who attended.", "Namakan yang hadir.");
+      return w("Name who attended.");
     case "POLICY_NOT_ON_CONTRACT":
-      return w("Choose a policy lodged on this contract.", "Pilih polisi kontrak ini.");
+      return w("Choose a policy lodged on this contract.");
     case "AMOUNT_NOT_POSITIVE":
-      return w("Give the premium paid, above nothing.", "Nyatakan premium yang dibayar.");
+      return w("Give the premium paid, above nothing.");
     case "EXTENDED_NOT_LATER":
-      return w(`The extended cover runs past the policy's present end (${day(d.day)}).`, `Lanjutan mesti melepasi tarikh tamat polisi.`);
+      return w(`The extended cover runs past the policy's present end (${day(d.day)}).`);
     case "NO_BRANCH":
-      return w("Choose at least one action.", "Pilih sekurang-kurangnya satu tindakan.");
+      return w("Choose at least one action.");
     case "NO_LIVE_VERSION":
-      return w(`Nothing to hand over: no ${RECORDS_SET_WORDS[d.set as SiteRecordsSet]?.en.toLowerCase() ?? "record"} is attached to the contract.`, `Tiada rekod untuk diserahkan.`);
+      return w(`Nothing to hand over: no ${RECORDS_SET_WORDS[d.set as SiteRecordsSet]?.en.toLowerCase() ?? "record"} is attached to the contract.`);
     case "TO_REQUIRED":
-      return w("Say who it is handed to (the Implementing Department).", "Nyatakan penerima.");
+      return w("Say who it is handed to (the Implementing Department).");
     case "RECEIVER_REQUIRED":
-      return w("Name who received it.", "Namakan penerima.");
+      return w("Name who received it.");
     case "NAME_REQUIRED":
-      return w("Give the party's name.", "Nyatakan nama pihak.");
+      return w("Give the party's name.");
     case "PARTY_BEFORE_EXECUTION":
-      return w("Parties paid through the certificates are recorded once the contract is executed.", "Pihak direkodkan selepas kontrak dilaksanakan.");
+      return w("Parties paid through the certificates are recorded once the contract is executed.");
     case "SUM_NEGATIVE":
-      return w("A sum is never below nothing.", "Jumlah tidak boleh negatif.");
+      return w("A sum is never below nothing.");
     case "DUPLICATE_NAME":
-      return w("That party is already recorded on this contract.", "Pihak itu telah direkodkan.");
+      return w("That party is already recorded on this contract.");
     case "RETIRED":
-      return w("That party is already retired.", "Pihak itu telah dikeluarkan.");
+      return w("That party is already retired.");
     // ------------------------------------------------ shared
     case "FUTURE_DATE":
-      return w(`Not in the future (${day(d.day)}).`, `Bukan tarikh akan datang.`);
+      return w(`Not in the future (${day(d.day)}).`);
     case "REASON_REQUIRED":
-      return w("Give the reason.", "Nyatakan sebabnya.");
+      return w("Give the reason.");
     default:
-      return w("Refused.", "Ditolak.");
+      return w("Refused.");
   }
 }
 

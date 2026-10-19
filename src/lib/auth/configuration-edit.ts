@@ -42,16 +42,16 @@ export const EDIT_DECIDE_PERMISSION: PermissionKey = "configuration.issue";
 export const CORRECTIONS_DECIDE_PERMISSION: PermissionKey = "corrections.decide";
 
 /// What each edit kind is, for the queue's heading. The operation's own label says which editor.
-export const EDIT_KIND_WORDS: Record<EditKind, { en: string; ms: string }> = {
-  CONFIGURATION_EDIT: { en: "Change configuration", ms: "Ubah konfigurasi" },
-  QUORUM_CHANGE: { en: "Change a committee's quorum", ms: "Ubah kuorum jawatankuasa" },
-  OPENING_PANEL_SIZE: { en: "Change the number of people who open the bids", ms: "Ubah bilangan orang yang membuka bida" },
-  CLASSIFICATION_DOWNGRADE: { en: "Lower a classification", ms: "Turunkan klasifikasi" },
-  BASELINE_CORRECTION: { en: "Correct a contract's baseline", ms: "Betulkan garis dasar kontrak" },
-  AWARD_TERM_CORRECTION: { en: "Correct an award's recorded terms", ms: "Betulkan terma anugerah yang direkodkan" },
-  CONTRACT_DATE_CORRECTION: { en: "Correct the Contract Date", ms: "Betulkan Tarikh Kontrak" },
-  AWARD_RETURN_CORRECTION: { en: "Correct an accepted award's return", ms: "Betulkan pulangan anugerah yang diterima" },
-  BID_SEALING_POLICY: { en: "Change the bid sealing policy", ms: "Ubah dasar pemeteraian bida" },
+export const EDIT_KIND_WORDS: Record<EditKind, { en: string;  }> = {
+  CONFIGURATION_EDIT: { en: "Change configuration" },
+  QUORUM_CHANGE: { en: "Change a committee's quorum" },
+  OPENING_PANEL_SIZE: { en: "Change the number of people who open the bids" },
+  CLASSIFICATION_DOWNGRADE: { en: "Lower a classification" },
+  BASELINE_CORRECTION: { en: "Correct a contract's baseline" },
+  AWARD_TERM_CORRECTION: { en: "Correct an award's recorded terms" },
+  CONTRACT_DATE_CORRECTION: { en: "Correct the Contract Date" },
+  AWARD_RETURN_CORRECTION: { en: "Correct an accepted award's return" },
+  BID_SEALING_POLICY: { en: "Change the bid sealing policy" },
 };
 
 /// The kinds that are an act of the record, not of configuration: what they carry names a document, an award or a contract, which may sit in an exercise restricted from the reader.
@@ -113,35 +113,34 @@ export interface EditFault {
   field: string;
   code: string;
   en: string;
-  ms: string;
 }
-const bad = (field: string, code: string, en: string, ms: string): EditFault => ({ field, code, en, ms });
+const bad = (field: string, code: string, en: string): EditFault => ({ field, code, en });
 
 /// A posted form, narrowed to what is stored. An unknown shape is refused field by field, never guessed at.
 export function parseEditPayload(raw: unknown): { ok: true; payload: EditPayload } | { ok: false; faults: EditFault[] } {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { ok: false, faults: [bad("*", "NOT_AN_OBJECT", "A change is an object.", "Perubahan ialah objek.")] };
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { ok: false, faults: [bad("*", "NOT_AN_OBJECT", "A change is an object.")] };
   const o = raw as Record<string, unknown>;
   const faults: EditFault[] = [];
-  for (const k of Object.keys(o)) if (k !== "operation" && k !== "fields") faults.push(bad(k, "UNKNOWN_FIELD", "This is not something a change of this kind carries.", "Ini bukan sesuatu yang dibawa oleh perubahan jenis ini."));
-  if (typeof o.operation !== "string" || !/^[a-z][a-zA-Z0-9-]*\.[a-zA-Z][a-zA-Z0-9]*$/.test(o.operation)) faults.push(bad("operation", "BAD_OPERATION", "Name the editor.", "Namakan penyunting."));
-  if (!Array.isArray(o.fields)) faults.push(bad("fields", "BAD_FIELDS", "A change carries a list of fields.", "Perubahan membawa senarai medan."));
+  for (const k of Object.keys(o)) if (k !== "operation" && k !== "fields") faults.push(bad(k, "UNKNOWN_FIELD", "This is not something a change of this kind carries."));
+  if (typeof o.operation !== "string" || !/^[a-z][a-zA-Z0-9-]*\.[a-zA-Z][a-zA-Z0-9]*$/.test(o.operation)) faults.push(bad("operation", "BAD_OPERATION", "Name the editor."));
+  if (!Array.isArray(o.fields)) faults.push(bad("fields", "BAD_FIELDS", "A change carries a list of fields."));
   if (faults.length > 0) return { ok: false, faults };
   const entries = o.fields as unknown[];
-  if (entries.length > MAX_FIELDS) return { ok: false, faults: [bad("fields", "TOO_MANY", "This form has more fields than a change can hold.", "Borang ini mempunyai lebih banyak medan daripada yang boleh dipegang oleh perubahan.")] };
+  if (entries.length > MAX_FIELDS) return { ok: false, faults: [bad("fields", "TOO_MANY", "This form has more fields than a change can hold.")] };
   const fields: [string, StagedValue][] = [];
   let size = 0;
   for (const e of entries) {
     if (!Array.isArray(e) || e.length !== 2 || typeof e[0] !== "string" || e[0] === "" || e[0].length > 120) {
-      faults.push(bad("fields", "BAD_FIELD", "A field is a name and a value.", "Medan ialah nama dan nilai."));
+      faults.push(bad("fields", "BAD_FIELD", "A field is a name and a value."));
       continue;
     }
     const [name, value] = e as [string, unknown];
     if (!isStoredField(name)) {
-      faults.push(bad(name, "NOT_STORED", "This field is never stored with a change.", "Medan ini tidak pernah disimpan bersama perubahan."));
+      faults.push(bad(name, "NOT_STORED", "This field is never stored with a change."));
       continue;
     }
     if (typeof value === "string") {
-      if (value.length > MAX_VALUE_CHARS) faults.push(bad(name, "TOO_LONG", "This value is too long for a change to hold.", "Nilai ini terlalu panjang untuk dipegang oleh perubahan."));
+      if (value.length > MAX_VALUE_CHARS) faults.push(bad(name, "TOO_LONG", "This value is too long for a change to hold."));
       size += value.length;
       fields.push([name, value]);
       continue;
@@ -150,17 +149,17 @@ export function parseEditPayload(raw: unknown): { ok: true; payload: EditPayload
     if (typeof f === "object" && f !== null) {
       const file = f as Record<string, unknown>;
       const ok = typeof file.name === "string" && typeof file.type === "string" && typeof file.size === "number" && typeof file.base64 === "string" && Object.keys(file).length === 4;
-      if (!ok) faults.push(bad(name, "BAD_FILE", "A file is its name, type, size and bytes.", "Fail ialah nama, jenis, saiz dan bait."));
-      else if ((file.size as number) > MAX_FILE_BYTES) faults.push(bad(name, "FILE_TOO_LARGE", "This file is too large for a change to hold.", "Fail ini terlalu besar untuk dipegang oleh perubahan."));
+      if (!ok) faults.push(bad(name, "BAD_FILE", "A file is its name, type, size and bytes."));
+      else if ((file.size as number) > MAX_FILE_BYTES) faults.push(bad(name, "FILE_TOO_LARGE", "This file is too large for a change to hold."));
       else {
         size += (file.base64 as string).length;
         fields.push([name, { file: { name: file.name as string, type: file.type as string, size: file.size as number, base64: file.base64 as string } }]);
       }
       continue;
     }
-    faults.push(bad(name, "BAD_VALUE", "A value is text or a file.", "Nilai ialah teks atau fail."));
+    faults.push(bad(name, "BAD_VALUE", "A value is text or a file."));
   }
-  if (size > MAX_PAYLOAD_CHARS) faults.push(bad("fields", "TOO_LARGE", "This form is too large for a change to hold.", "Borang ini terlalu besar untuk dipegang oleh perubahan."));
+  if (size > MAX_PAYLOAD_CHARS) faults.push(bad("fields", "TOO_LARGE", "This form is too large for a change to hold."));
   if (faults.length > 0) return { ok: false, faults };
   return { ok: true, payload: { operation: o.operation as string, fields } };
 }

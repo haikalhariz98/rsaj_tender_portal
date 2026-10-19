@@ -9,6 +9,8 @@ import { applyTerm, AWARD_TERM_WORDS, AWARD_TERMS, awardCorrectionFaults, correc
 import { baselineFaults, buildBaseline, changedFields, derive, type BaselineInputs } from "./baseline";
 import { contractFaultWords } from "./fault-text";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 612-C1 (ruled at 6.13 planning; ADR 0021 Amendment 1): correcting the award's recorded terms after issue.
  *
@@ -78,7 +80,6 @@ describe("each term", () => {
   it("every term has its words and its baseline row (exhaustive)", () => {
     for (const t of AWARD_TERMS) {
       expect(AWARD_TERM_WORDS[t].en.length).toBeGreaterThan(0);
-      expect(AWARD_TERM_WORDS[t].ms.length).toBeGreaterThan(0);
       expect(TERM_FIELD[t]).toMatch(/^(lad|dlp|retention|completion)$/);
     }
   });
@@ -110,7 +111,6 @@ describe("what refuses it, each naming the way out", () => {
     for (const code of ["AWARD_NOT_ISSUED", "AWARD_CANCELLED", "NO_BASELINE_VERSION", "NOT_AWARD_SOURCED", "VALUE_NOT_VALID"]) {
       const t = contractFaultWords({ code, level: "block", data: { term: "LAD", source: "ENTERED" } });
       expect(t.en, code).not.toBe("Refused.");
-      expect(t.ms, code).not.toBe("Ditolak.");
     }
     expect(contractFaultWords({ code: "NOT_AWARD_SOURCED", level: "block", data: { term: "LAD", source: "ENTERED" } }).en).toMatch(/^Liquidated damages in the baseline is not taken from the Letter of Acceptance/);
   });

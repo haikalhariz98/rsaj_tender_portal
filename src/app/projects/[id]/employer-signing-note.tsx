@@ -1,5 +1,5 @@
 import { requireStaff } from "@/app/_auth/actor";
-import { currentLanguage } from "@/app/_auth/language";
+import { ENGLISH } from "@/lib/i18n/language";
 import { CASE_REFUSAL_WORDS as R } from "@/lib/contract/case-page-words";
 import { say, sayWith } from "@/lib/i18n/say";
 import { db } from "@/lib/db";
@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
  */
 export async function EmployerSigningNote() {
   const actor = await requireStaff();
-  const { language: lang } = await currentLanguage();
+  const lang = ENGLISH;
   const policy = await db.contractPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { employerSigningRoleCode: true } });
   const code = policy?.employerSigningRoleCode ?? null;
   const office = code ? await db.authorityRole.findFirst({ where: { organisationId: actor.organisationId, code }, select: { nameEn: true } }) : null;

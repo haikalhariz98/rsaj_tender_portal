@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { applicationChannelWords, applicationKindWords, applicationStatusWords, outcomeWords, supplierStatusWords, type StatusApplication, type StatusDecision } from "./registration-status";
+import { applicationChannelWords, applicationStatusWords, outcomeWords, supplierStatusWords, type StatusApplication, type StatusDecision } from "./registration-status";
+
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
 
 const day = (d: string) => `D(${d})`;
 const CODE = /\b[A-Z]{2,}_[A-Z_]+\b/;
@@ -11,7 +13,6 @@ describe("where a supplier's registration stands, in its own words", () => {
       const s = applicationStatusWords({ status, resubmitBy: "2026-11-01" }, day);
       for (const t of [s.title, s.detail]) {
         expect(t.en, status).toBeTruthy();
-        expect(t.ms, status).toBeTruthy();
         expect(t.en).not.toMatch(CODE);
       }
     }
@@ -28,7 +29,6 @@ describe("where a supplier's registration stands, in its own words", () => {
   it("says every outcome, including the lapse that nobody decided", () => {
     for (const o of ["APPROVE", "RESUBMIT", "REJECT", "LAPSE"] as StatusDecision["outcome"][]) {
       expect(outcomeWords(o).en).toBeTruthy();
-      expect(outcomeWords(o).ms).toBeTruthy();
     }
     expect(outcomeWords("LAPSE").en).toMatch(/deadline/);
   });
@@ -43,7 +43,6 @@ describe("where a supplier's registration stands, in its own words", () => {
   });
 
   it("names the kind and the channel of an application", () => {
-    for (const k of ["NEW", "RENEWAL", "UPGRADE"] as StatusApplication["kind"][]) expect(applicationKindWords(k).ms).toBeTruthy();
     for (const c of ["COUNTER", "POST", "EMAIL", "PORTAL"] as StatusApplication["channel"][]) expect(applicationChannelWords(c).en).toMatch(/^(handed|sent)/);
   });
 });

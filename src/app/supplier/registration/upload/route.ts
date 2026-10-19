@@ -57,7 +57,7 @@ async function upload(actor: SupplierActor, request: Request) {
     logAccess({ organisationId: org.id, kind: "REFUSED", reasonCode, offeredFilename: extra.filename ?? null, offeredBytes: extra.bytes ?? offered, actor: { organisationId: org.id, supplierAccountId: actor.accountId, sessionId: actor.sessionId, sourceAddress: actor.sourceAddress } });
   const refuse = async (status: number, f: Finding<UploadFault>, extra: { filename?: string | null; bytes?: bigint | null } = {}) => {
     await log(f.code, extra);
-    return reply({ ok: false, code: f.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED", message: uploadFaultText(f, kind).en, messageMs: uploadFaultText(f, kind).ms }, status);
+    return reply({ ok: false, code: f.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED", message: uploadFaultText(f, kind).en }, status);
   };
 
   // Before the body is read: the store, the settings, the stated length.
@@ -131,7 +131,7 @@ async function upload(actor: SupplierActor, request: Request) {
       const f = e.finding as StoreFinding;
       await log(f.code, at);
       const asFault = f as unknown as Finding<UploadFault>;
-      return reply({ ok: false, code: f.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED", message: uploadFaultText(asFault, kind).en, messageMs: uploadFaultText(asFault, kind).ms }, e.status);
+      return reply({ ok: false, code: f.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED", message: uploadFaultText(asFault, kind).en }, e.status);
     }
     const refused = e instanceof DraftRefused ? refusalReply(e) : null;
     if (refused) return refused;

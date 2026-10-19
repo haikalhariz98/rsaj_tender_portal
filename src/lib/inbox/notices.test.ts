@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { STAFF_NOTICE_KINDS, STAFF_NOTICE_KIND_LABEL } from "./kinds";
 import { caseClockNotices, delegationReceivedNotice, holderMarkedAbsentNotices, matterNotCarriedMemo, routeRecalledNotices, stepEscalatedNotices, stepMovedOnAbsenceNotices } from "./notices";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const matter = { label: "REQ-1 · Roof", href: "/approvals", exerciseId: "ex1" };
 
 describe("the notices of Phase 3c", () => {
@@ -57,7 +59,6 @@ describe("the closed list of kinds", () => {
     // AC-63 N1: the label is a Words pair now, so the assertion reads both languages (a bare truthiness check would pass for an empty pair).
     for (const k of STAFF_NOTICE_KINDS) {
       expect(STAFF_NOTICE_KIND_LABEL[k].en.trim(), k).not.toBe("");
-      expect(STAFF_NOTICE_KIND_LABEL[k].ms.trim(), k).not.toBe("");
     }
     // Changed for Phase 4e: the CHECK was replaced whole by the My Projects migration, which adds CONTRACTOR_SUBMISSION; the latest definition is the one held to the list.
     // Changed for Phase 5a (ruling item 9): replaced whole again by the back-dating confirmation's migration, which adds BACKDATE_TO_CONFIRM.

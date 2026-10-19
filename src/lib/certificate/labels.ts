@@ -5,11 +5,19 @@
  */
 
 import { ON_BEHALF_PHRASE } from "@/lib/auth/attribution";
-import { w, type Tone, type Words } from "@/lib/contract/labels";
+import type { Tone } from "@/lib/contract/labels";
 
 import type { CertificateKind, CertificateStatus, DeliveryMethod, DistributionCondition, RoutingCheckKind, RoutingSubject, SignatureBlockKind, SignatureDecision, SignatureOfficeRule } from "./types";
 
-export { w, type Tone, type Words };
+export type { Tone };
+
+/// Issued certificates and printed forms keep their Malay text: it is document content the customer may have in a template, not a screen label.
+/// Founder, 2026-10-19: screens are English only; this pair is the documents' own and stays bilingual (logged as a question for the product owner).
+export interface Words {
+  en: string;
+  ms: string;
+}
+export const w = (en: string, ms: string): Words => ({ en, ms });
 
 export const KIND_WORDS: Readonly<Record<CertificateKind, Words>> = {
   DELEGATION_LETTER: w("Letter of delegation", "Surat perwakilan kuasa"),

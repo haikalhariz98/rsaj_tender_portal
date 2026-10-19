@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { channelSettingFaults, TAKE_CHANNEL_WORDS, takeChannelFaults, DEMONSTRATION_WORDS, LIVE_ISSUE_WORDS, liveIssueFaults, ONLINE_SUBMISSION_WORDS, onlineSubmissionAllowed } from "./switch";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const BOTH = { demoAllowed: true, liveAllowed: true };
 const NONE = { demoAllowed: false, liveAllowed: false };
 
@@ -60,7 +62,7 @@ describe("issuing LIVE (20o, 20v)", () => {
     expect(LIVE_ISSUE_WORDS.HARDENING_NOT_ATTESTED).toMatch(/attested, not checked by the portal/);
     for (const w of Object.values(ONLINE_SUBMISSION_WORDS)) expect(w).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
     // Step 11 (ruling 20ab): the banner is `Words`, in both languages; a staff screen reads `.en`.
-    expect(DEMONSTRATION_WORDS).toEqual({ en: "Demonstration — not for real tenders", ms: "Tunjuk cara — bukan untuk tender sebenar" });
+    expect(DEMONSTRATION_WORDS).toEqual({ en: "Demonstration — not for real tenders" });
   });
 });
 

@@ -202,7 +202,6 @@ export async function approvalGate(tx: Tx, actor: AuditActor, l: LoadedRequisiti
       code: RETURNED_AT_APPROVAL,
       level: "err",
       messageEn: "Returned at approval: re-checked under the budget code's lock, the budget no longer covered it. A fresh check was recorded; it goes back on the over-budget route.",
-      messageMs: "Dikembalikan semasa kelulusan: bajet tidak lagi mencukupi. Semakan baharu direkodkan; ia dihantar semula melalui laluan melebihi bajet.",
     };
     await tx.approvalInstance.update({
       where: { id: inst.id },

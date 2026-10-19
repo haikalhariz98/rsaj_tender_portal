@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { isSumAdjustmentTrigger, SUM_ADJUSTMENT_TRIGGER_WORDS, SUM_ADJUSTMENT_TRIGGERS, triggerFaults, triggerFaultWords } from "./behaviour-twins";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part A step 1 (plan A7, FR-MTD-012): the typed twin of a contract type's free-text adjustment drivers.
  * FR-PAD-001's five triggers; empty is "not set" and refuses naming the setting, never "none allowed".
@@ -17,7 +19,6 @@ describe("the five triggers (FR-PAD-001)", () => {
     expect(body.split("\n").map((l) => l.trim()).filter(Boolean)).toEqual([...SUM_ADJUSTMENT_TRIGGERS]);
     for (const k of SUM_ADJUSTMENT_TRIGGERS) {
       expect(SUM_ADJUSTMENT_TRIGGER_WORDS[k].en.length).toBeGreaterThan(0);
-      expect(SUM_ADJUSTMENT_TRIGGER_WORDS[k].ms.length).toBeGreaterThan(0);
     }
     expect(isSumAdjustmentTrigger("VARIATION")).toBe(true);
     expect(isSumAdjustmentTrigger("Variations")).toBe(false);

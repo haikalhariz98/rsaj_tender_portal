@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, officeHolderNotice, secondPersonNotice, unlockFaults } from "./administration-rules";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const codes = (faults: { code: string }[]) => faults.map((f) => f.code);
 const NOW = new Date("2026-10-06T10:00:00Z");
 
@@ -19,7 +21,6 @@ describe("creating an account", () => {
   it("says each fault in both languages", () => {
     for (const f of Object.values(createAccountFaults({ isAdministrator: false, loginNameValid: false, loginNameTaken: false, person: null }))) {
       expect(f!.en.length).toBeGreaterThan(10);
-      expect(f!.ms.length).toBeGreaterThan(10);
     }
   });
 });
@@ -50,7 +51,7 @@ describe("making a person inactive, which disables their account (Phase 1b revie
     expect(leaverFaults(ok)).toEqual([]);
     expect(codes(leaverFaults({ ...ok, isAdministrator: false }))).toEqual(["NOT_ADMINISTRATOR_FOR_LEAVER"]);
     expect(codes(leaverFaults({ ...ok, isAdministrator: false, account: { ...account, isAdministrator: true } }))).toEqual(["NOT_ADMINISTRATOR_FOR_LEAVER"]);
-    for (const f of leaverFaults({ ...ok, isAdministrator: false })) expect(f.ms.length).toBeGreaterThan(10);
+    for (const f of leaverFaults({ ...ok, isAdministrator: false })) expect(f.en.length).toBeGreaterThan(10);
   });
   it("is never one's own account, and never the only active administrator's", () => {
     expect(codes(leaverFaults({ ...ok, account: { ...account, id: "a1" } }))).toEqual(["OWN_ACCOUNT"]);

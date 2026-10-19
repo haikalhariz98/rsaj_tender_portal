@@ -59,22 +59,21 @@ export function creditorReviewFaults(i: CreditorReviewInput, p: CreditorReviewFa
 
 export interface Words {
   en: string;
-  ms: string;
 }
 
-const w = (en: string, ms: string): Words => ({ en, ms });
+const w = (en: string): Words => ({ en });
 
 const TEXT: Readonly<Record<CreditorReviewFault, (d: Record<string, string | number | null>) => Words>> = {
-  TIME_ZONE_UNSET: () => w("Set the organisation's time zone before checking bank details.", "Tetapkan zon waktu organisasi sebelum menyemak butiran bank."),
-  NOT_SENT: () => w("The supplier has not sent these bank details yet, so there is nothing to check.", "Pembekal belum menghantar butiran bank ini, jadi tiada apa-apa untuk disemak."),
-  ALREADY_CHECKED: () => w("These bank details were checked already. A change the supplier makes is a new version, checked on its own.", "Butiran bank ini telah disemak. Perubahan oleh pembekal ialah versi baharu, disemak sendiri."),
-  STATE_REQUIRED: () => w("Say whether the bank details are in order or not.", "Nyatakan sama ada butiran bank teratur atau tidak."),
-  PERSON_REQUIRED: () => w("The officer who checks them must be a person of the organisation.", "Pegawai yang menyemaknya mestilah orang dalam organisasi."),
-  DAY_REQUIRED: () => w("Give the day the check was made.", "Berikan hari semakan dibuat."),
-  IN_FUTURE: () => w("The check cannot be dated after today.", "Semakan tidak boleh bertarikh selepas hari ini."),
-  BEFORE_SENT: (d) => w(`The check cannot be dated before the supplier sent the details (${d.sentOn ?? "an earlier day"}).`, `Semakan tidak boleh bertarikh sebelum pembekal menghantar butiran (${d.sentOn ?? "hari terdahulu"}).`),
-  NOTE_REQUIRED: () => w("Say why the bank details are not in order, so the supplier can correct them.", "Nyatakan sebab butiran bank tidak teratur, supaya pembekal boleh membetulkannya."),
-  STATEMENT_REQUIRED: () => w("There is no bank statement to check the details against. Ask the supplier for one, or mark the details as not in order.", "Tiada penyata bank untuk menyemak butiran. Minta pembekal menghantar satu, atau tandakan butiran sebagai tidak teratur."),
+  TIME_ZONE_UNSET: () => w("Set the organisation's time zone before checking bank details."),
+  NOT_SENT: () => w("The supplier has not sent these bank details yet, so there is nothing to check."),
+  ALREADY_CHECKED: () => w("These bank details were checked already. A change the supplier makes is a new version, checked on its own."),
+  STATE_REQUIRED: () => w("Say whether the bank details are in order or not."),
+  PERSON_REQUIRED: () => w("The officer who checks them must be a person of the organisation."),
+  DAY_REQUIRED: () => w("Give the day the check was made."),
+  IN_FUTURE: () => w("The check cannot be dated after today."),
+  BEFORE_SENT: (d) => w(`The check cannot be dated before the supplier sent the details (${d.sentOn ?? "an earlier day"}).`),
+  NOTE_REQUIRED: () => w("Say why the bank details are not in order, so the supplier can correct them."),
+  STATEMENT_REQUIRED: () => w("There is no bank statement to check the details against. Ask the supplier for one, or mark the details as not in order."),
 };
 
 export function creditorReviewText(f: Pick<Finding<CreditorReviewFault>, "code" | "data">): Words {

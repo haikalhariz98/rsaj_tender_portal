@@ -13,13 +13,12 @@ export interface FaultView {
   field: string | null;
   level: StepFault["level"];
   message: string;
-  messageMs: string;
 }
 
 export const faultViews = (fs: readonly StepFault[]): FaultView[] =>
   fs.map((f) => {
     const t = registrationFaultText(f);
-    return { step: f.step, field: f.field ?? null, level: f.level, message: t.en, messageMs: t.ms };
+    return { step: f.step, field: f.field ?? null, level: f.level, message: t.en };
   });
 
 export const reply = (body: Record<string, unknown>, status = 200, headers: Record<string, string> = {}) => Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });

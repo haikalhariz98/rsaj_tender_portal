@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { EMPLOYER_SIGNING_NOT_SET, employerSigning, employerSigningRefusal, officesWords } from "./employer-signing";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * NFR-SIG-001 and the product owner's ruling of 2026-10-07: which office signs a reconciliation amendment for the employer is the customer's configuration, nullable and
  * unset by default. Unset, the signature is still recorded with the offices its signer held on the day, and the screen says "Employer's signing office not set". The
@@ -37,7 +39,6 @@ describe("the capacity an employer's amendment is signed in", () => {
     expect(words.en).toMatch(/Aminah did not hold Legal Adviser/);
     expect(words.en).toMatch(/Head of Department/);
     expect(words.en).not.toMatch(/LEGAL|HEAD/);
-    expect(words.ms).toMatch(/Legal Adviser/);
     // No longer a configured office: said in words, never the code.
     expect(employerSigningRefusal(notHeld, null, "Aminah").en).not.toMatch(/LEGAL/);
   });

@@ -12,6 +12,8 @@ import { uploadFault } from "./upload";
 import { acceptNote } from "./view";
 import { XLSX_TYPE } from "@/lib/documents/media";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const blocks = (fs: { code: string; level: string }[]) => fs.filter((f) => f.level === "block").map((f) => f.code);
 
 describe("a rate is a percentage with at most two places, never a float", () => {
@@ -423,7 +425,6 @@ describe("every finding has plain words, in English and Malay, and none shows a 
       expect(hasRegistrationFaultText(code), code).toBe(true);
       const t = registrationFaultText({ code: code as never, data: { type: "Companies registry certificate", field: "Account number", body: "Works board", value: "G1 — Grade 1", kind: "GIRO_AUTHORISATION", title: "Safety", max: 10, expiresOn: "2020-01-01" } });
       expect(t.en.length, code).toBeGreaterThan(8);
-      expect(t.ms.length, code).toBeGreaterThan(8);
       expect(t.en, code).not.toMatch(/[A-Z]{2,}_[A-Z_]+|undefined|null/);
     }
   });
@@ -436,7 +437,6 @@ describe("every finding has plain words, in English and Malay, and none shows a 
     for (const code of ["STORE_POLICY_NOT_SET", "CLASS_NOT_SET", "STATEMENT_CLASS_NOT_SULIT", "QUOTA_NOT_SET", "EMPTY", "TYPE_NOT_ALLOWED", "TOO_LARGE", "QUOTA_FILES", "QUOTA_BYTES"] as const) {
       const t = uploadFaultText({ code, level: "block", data: { max: 3 } });
       expect(t.en.length).toBeGreaterThan(8);
-      expect(t.ms.length).toBeGreaterThan(8);
     }
   });
 });

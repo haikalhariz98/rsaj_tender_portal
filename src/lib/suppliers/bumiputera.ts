@@ -54,28 +54,27 @@ export function bumiputeraReading(claim: string | null, evidenceTypeSet: boolean
 
 export interface BumiputeraWords {
   en: string;
-  ms: string;
 }
 
 /// One line for a screen: always "Declared", never the bare status. "Declared: Bumiputera company · STB-9912 · not verified".
 export function bumiputeraWords(r: BumiputeraReading): BumiputeraWords {
   const withDocument = (state: BumiputeraWords): BumiputeraWords => {
     if (r.reference == null) return state;
-    const checked = r.verification === "VERIFIED" ? { en: "verified", ms: "disahkan" } : r.verification === "NOT_IN_ORDER" ? { en: "found not in order", ms: "didapati tidak teratur" } : { en: "not verified", ms: "belum disahkan" };
-    return { en: `${state.en} · ${r.reference} · ${checked.en}`, ms: `${state.ms} · ${r.reference} · ${checked.ms}` };
+    const checked = r.verification === "VERIFIED" ? { en: "verified" } : r.verification === "NOT_IN_ORDER" ? { en: "found not in order" } : { en: "not verified" };
+    return { en: `${state.en} · ${r.reference} · ${checked.en}` };
   };
   switch (r.kind) {
     case "NOT_SET":
-      return r.claim ? withDocument({ en: `Declared: ${r.claim} · what evidences it is not set`, ms: `Diisytiharkan: ${r.claim} · bukti belum ditetapkan` }) : { en: "No claim made · what evidences it is not set", ms: "Tiada tuntutan dibuat · bukti belum ditetapkan" };
+      return r.claim ? withDocument({ en: `Declared: ${r.claim} · what evidences it is not set` }) : { en: "No claim made · what evidences it is not set" };
     case "NO_CLAIM":
-      return { en: "No claim made", ms: "Tiada tuntutan dibuat" };
+      return { en: "No claim made" };
     case "DECLARED_ONLY":
-      return { en: `Declared: ${r.claim} · nothing lodged to check it yet`, ms: `Diisytiharkan: ${r.claim} · belum ada dokumen untuk menyemaknya` };
+      return { en: `Declared: ${r.claim} · nothing lodged to check it yet` };
     case "DECLARED_EVIDENCE_PENDING":
     case "DECLARED_VERIFIED":
-      return withDocument({ en: `Declared: ${r.claim}`, ms: `Diisytiharkan: ${r.claim}` });
+      return withDocument({ en: `Declared: ${r.claim}` });
     case "CLAIM_WITHOUT_DOCUMENT":
-      return { en: `Declared: ${r.claim} · no evidence document is lodged`, ms: `Diisytiharkan: ${r.claim} · tiada dokumen bukti dikemukakan` };
+      return { en: `Declared: ${r.claim} · no evidence document is lodged` };
   }
 }
 

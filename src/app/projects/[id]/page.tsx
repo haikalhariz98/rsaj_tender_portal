@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker, actStatusText } from "@/lib/contract/act-status";
 import { CONTRACT_STATUS_WORDS, type Words } from "@/lib/contract/labels";
-import { currentLanguage } from "@/app/_auth/language";
+import { ENGLISH } from "@/lib/i18n/language";
 import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
@@ -129,7 +129,7 @@ const LINK_ACTION_WORDS: Readonly<Partial<Record<CaseAction, Words>>> = CASE_LIN
  */
 export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const actor = await requireStaff();
-  const { language: lang } = await currentLanguage();
+  const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   const [{ id }, sp] = await Promise.all([props.params, props.searchParams as Promise<Record<string, string | string[] | undefined>>]);
   const first = (k: string) => {
@@ -376,7 +376,7 @@ type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 // ------------------------------------------------------------------ overview
 
 async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, payments, variations }: { sulit: Sulit<true>; l: LoadedContract; awardOpen: boolean; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
-  const { language: lang } = await currentLanguage();
+  const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
@@ -456,7 +456,7 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
 
 /// AC-21: the Project stage's summary of the register, for the advance-payment guarantees and retention bonds that are lodged after signing. It opens the Before signing panel, where the lodge and review drawers are.
 async function SecuritiesSummaryCard({ l, today }: { l: LoadedContract; today: string | null }) {
-  const { language: lang } = await currentLanguage();
+  const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   const c = l.contract;
   const offsets = await loadExpiryOffsets(l.org.id);
@@ -490,7 +490,7 @@ async function SecuritiesSummaryCard({ l, today }: { l: LoadedContract; today: s
 }
 
 async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: LoadedContract; people: Option[]; today: string | null; wagesCheckOnly: boolean }) {
-  const { language: lang } = await currentLanguage();
+  const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   const c = l.contract;
   // AC-15: the same chips as the award's tab (one wording, `expiryChip`) and the configured reminder intervals, which with none set say so.

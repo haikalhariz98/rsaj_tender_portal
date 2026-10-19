@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The bid part's upload and discard routes (SR-13, ADR 0036 D5, D6; build plan step 9), end to end through a bare `Request`: the guards in front, each refusal, the scan
  * (a scanner that fails refuses in both modes), a slow body, another supplier's exercise, the supplier's one place, the 20w rate rule, and that the bytes handed to the store
@@ -183,13 +185,11 @@ describe("the happy path", () => {
   });
 });
 
-describe("each refusal says so in both languages and stores nothing", () => {
+describe("each refusal says so in words and stores nothing", () => {
   const refused = async (res: Response, status: number, code: string) => {
     const body = await res.json();
     expect([res.status, body.code]).toEqual([status, code]);
     expect(body.message).toBeTruthy();
-    expect(body.messageMs).toBeTruthy();
-    expect(body.message).not.toBe(body.messageMs);
     expect(h.put).not.toHaveBeenCalled();
     expect(h.created).toEqual([]);
   };
@@ -286,7 +286,6 @@ describe("the supplier's one place", () => {
       const res = await upload(await sized());
       const body = await res.json();
       expect([res.status, body.code, res.headers.get("retry-after")]).toEqual([503, "BUSY", "5"]);
-      expect(body.messageMs).toBeTruthy();
       expect(h.loadFacts).not.toHaveBeenCalled();
       const other = tryBeginBidUpload("o1", "sup_other");
       expect(other).not.toBeNull();
@@ -306,7 +305,6 @@ describe("the rate limit (20w)", () => {
       const res = await upload(await sized());
       const body = await res.json();
       expect([res.status, body.code, res.headers.get("retry-after")]).toEqual([429, "RATE_LIMITED", "30"]);
-      expect(body.messageMs).toBeTruthy();
     }
     expect(h.refusal).toHaveBeenCalledTimes(1);
     expect(h.refusal).toHaveBeenCalledWith(expect.anything(), EX, "PART_UPLOAD", "RATE_LIMITED");
@@ -330,7 +328,7 @@ describe("discard", () => {
     h.discard.mockResolvedValue({ ok: false, reason: "NOT_FOUND" });
     const res = await discard(post({ exerciseId: EX, fileId: "file_0000001" }));
     const body = await res.json();
-    expect([res.status, body.code, Boolean(body.messageMs)]).toEqual([404, "NOT_FOUND", true]);
+    expect([res.status, body.code, Boolean(body.message)]).toEqual([404, "NOT_FOUND", true]);
   });
   it("answers 409 for a file a submission took", async () => {
     h.discard.mockResolvedValue({ ok: false, reason: "FILE_NOT_DRAFT" });

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { administrationConflict, delegationPersonsToCheck, holdingGrows, holdingsInWords, type AdministratorAct, type HoldingKind } from "./administration-conflict";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const none = { offices: 0, seats: 0, delegations: 0 };
 
 describe("making a Person an administrator (ADR 0034 D9)", () => {
@@ -19,7 +21,6 @@ describe("making a Person an administrator (ADR 0034 D9)", () => {
     expect(fault?.code).toBe("ADMINISTRATOR_HOLDS_NOTHING");
     expect(fault?.en).toMatch(says);
     expect(fault?.en).toMatch(/Give the administrator a person of their own/);
-    expect(fault?.ms.length).toBeGreaterThan(20);
   });
 
   it("keeps the words the bootstrap command has always said", () => {
@@ -30,7 +31,7 @@ describe("making a Person an administrator (ADR 0034 D9)", () => {
 
   it("counts nothing for a holding of zero, and says nothing about it", () => {
     expect(holdingsInWords(none)).toBeNull();
-    expect(holdingsInWords({ ...none, seats: 2 })).toEqual({ en: "2 committee seats", ms: "2 kerusi jawatankuasa" });
+    expect(holdingsInWords({ ...none, seats: 2 })).toEqual({ en: "2 committee seats" });
   });
 });
 
@@ -41,7 +42,6 @@ describe("giving a holding to a Person whose account is an administrator's", () 
     const fault = administrationConflict({ kind: "GIVE_HOLDING", holding, personIsAdministrator: true });
     expect(fault?.code).toBe("ADMINISTRATOR_CANNOT_HOLD");
     expect(fault?.en).toMatch(/administrator/);
-    expect(fault?.ms).toMatch(/pentadbir/);
   });
 
   it.each(kinds)("is allowed for %s to anyone else", (holding) => {

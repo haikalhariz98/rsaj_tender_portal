@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import * as L from "./labels";
 import * as T from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /** Every supervision list equals the schema's enum, in order, and every word map covers it (X-8), EN and MS. */
 
 const schema = readFileSync(path.join(__dirname, "../../../prisma/schema.prisma"), "utf8");
@@ -15,7 +17,7 @@ const values = (name: string) => {
   return m[1].split("\n").map((l) => l.replace(/\/\/\/.*$/, "").trim()).filter(Boolean);
 };
 
-const PAIRS: [string, readonly string[], Readonly<Record<string, { en: string; ms: string }>> | null][] = [
+const PAIRS: [string, readonly string[], Readonly<Record<string, { en: string;  }>> | null][] = [
   ["SoAssignmentReason", T.SO_ASSIGNMENT_REASONS, L.SO_REASON_WORDS],
   ["DelegateKind", T.DELEGATE_KINDS, L.DELEGATE_KIND_WORDS],
   ["SupervisionAct", T.SUPERVISION_ACTS, L.ACT_WORDS],
@@ -39,7 +41,6 @@ describe("the vocabulary matches the schema, and every value has its words", () 
         expect(Object.keys(words).sort()).toEqual([...list].sort());
         for (const k of list) {
           expect(words[k].en.length, k).toBeGreaterThan(0);
-          expect(words[k].ms.length, k).toBeGreaterThan(0);
         }
       }
     });

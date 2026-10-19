@@ -109,7 +109,6 @@ export const VARIATION_TABLED_TEXT = "A variation's matter is tabled from the va
 /// 6.13 Part B run 1a: where a contract matter is tabled, in English and Malay (the sitting's refusal shows the English).
 export const CONTRACT_TABLED_WORDS = {
   en: "A contract matter (an extension of time, a period extension, a waiver of damages, a termination, a nomination, a nominated-sum increase or a loss-and-expense claim) is tabled from the matter itself, on its contract, which names the matter and the step the committee decides on.",
-  ms: "Perkara kontrak (lanjutan masa, lanjutan tempoh, pengecualian ganti rugi, penamatan, penamaan, pertambahan jumlah dinamakan atau tuntutan kerugian dan perbelanjaan) dibentangkan daripada perkara itu sendiri, pada kontraknya, yang menamakan perkara dan langkah yang diputuskan oleh jawatankuasa.",
 } as const;
 export const STAGE_ONE_TABLED_TEXT = "A two-stage tender's first-stage decision is tabled from the exercise, in the Stages section of Evaluation, which names the bidder the committee decides on.";
 
@@ -153,8 +152,8 @@ export const POSITION_LABEL = {
 
 /// A vote, in English, with the Malay term the member signs on the sheet.
 export const VOTE_LABEL = {
-  SETUJU: { en: "Agree", ms: "Setuju" },
-  TIDAK_SETUJU: { en: "Disagree", ms: "Tidak setuju" },
+  SETUJU: { en: "Agree" },
+  TIDAK_SETUJU: { en: "Disagree" },
 } as const;
 
 export const CHOICE_LABEL: Record<string, string> = {
@@ -382,101 +381,86 @@ export const MINUTES_EDITOR_DESCRIPTION = "The minutes as text. The signed copy 
 
 /// What an item waiting to be tabled is: the record kind its route approves, in English and Malay.
 export const WAITING_KIND_WORDS = {
-  REQUISITION: { en: "Requisition", ms: "Permohonan perolehan" },
-  NAME: { en: "Name approval", ms: "Kelulusan nama" },
-  APPOINTMENT: { en: "Appointment", ms: "Pelantikan" },
-  VARIATION: { en: "Variation", ms: "Perubahan kerja" },
-  CONTRACT: { en: "Contract matter", ms: "Perkara kontrak" },
+  REQUISITION: { en: "Requisition" },
+  NAME: { en: "Name approval" },
+  APPOINTMENT: { en: "Appointment" },
+  VARIATION: { en: "Variation" },
+  CONTRACT: { en: "Contract matter" },
 } as const;
 export type WaitingKind = keyof typeof WAITING_KIND_WORDS;
 
 /// The sittings page's list, and the schedule drawer's proposal, in English and Malay. Screens show the English.
 export const WAITING_WORDS = {
-  title: { en: "Waiting to be tabled", ms: "Menunggu untuk dibentangkan" },
+  title: { en: "Waiting to be tabled" },
   subtitle: {
     en: "Approval routes whose current step is a committee's, with no matter tabled for it yet. Longest waiting first. Scheduling a sitting of the committee offers them.",
-    ms: "Laluan kelulusan yang langkah semasanya milik jawatankuasa dan belum ada perkara dibentangkan untuknya. Paling lama menunggu dahulu. Menjadualkan sidang jawatankuasa itu akan mencadangkannya.",
   },
-  emptyTitle: { en: "Nothing is waiting to be tabled", ms: "Tiada yang menunggu untuk dibentangkan" },
+  emptyTitle: { en: "Nothing is waiting to be tabled" },
   emptyBody: {
     en: "A route appears here when it reaches a committee's step and no matter is tabled for it.",
-    ms: "Laluan dipaparkan di sini apabila sampai ke langkah jawatankuasa dan belum ada perkara dibentangkan untuknya.",
   },
-  search: { en: "Search waiting items", ms: "Cari item yang menunggu" },
-  record: { en: "Record", ms: "Rekod" },
-  kind: { en: "Kind", ms: "Jenis" },
-  amount: { en: "Amount", ms: "Amaun" },
-  act: { en: "Act needed", ms: "Tindakan diperlukan" },
-  committee: { en: "Committee", ms: "Jawatankuasa" },
-  waiting: { en: "Waiting", ms: "Menunggu" },
-  days: { en: (n: number) => (n === 1 ? "1 day" : `${n} days`), ms: (n: number) => `${n} hari` },
-  daysUnset: { en: "Not counted", ms: "Tidak dikira" },
+  search: { en: "Search waiting items" },
+  record: { en: "Record" },
+  kind: { en: "Kind" },
+  amount: { en: "Amount" },
+  act: { en: "Act needed" },
+  committee: { en: "Committee" },
+  waiting: { en: "Waiting" },
+  days: { en: (n: number) => (n === 1 ? "1 day" : `${n} days`) },
+  daysUnset: { en: "Not counted" },
   daysUnsetWhy: {
     en: "Days are counted on the organisation's day, and its time zone is not set.",
-    ms: "Hari dikira mengikut hari organisasi, dan zon waktunya belum ditetapkan.",
   },
-  since: { en: (day: string) => `since ${day}`, ms: (day: string) => `sejak ${day}` },
-  how: { en: "How it is tabled", ms: "Cara dibentangkan" },
-  tabledAtSitting: { en: "Offered when a sitting is scheduled", ms: "Dicadangkan apabila sidang dijadualkan" },
-  tabledFromRecord: { en: "Tabled from its record", ms: "Dibentangkan daripada rekodnya" },
-  open: { en: "Open the record", ms: "Buka rekod" },
+  since: { en: (day: string) => `since ${day}` },
+  how: { en: "How it is tabled" },
+  tabledAtSitting: { en: "Offered when a sitting is scheduled" },
+  tabledFromRecord: { en: "Tabled from its record" },
+  open: { en: "Open the record" },
 } as const;
 
 /// The schedule drawer (founder, 2026-10-05): the sitting's own number, and the waiting items it tables.
 export const SCHEDULE_WORDS = {
   description: {
     en: "A sitting of one committee, on one date. What is waiting for the committee is tabled onto it as it is scheduled; anything else is tabled afterwards.",
-    ms: "Sidang satu jawatankuasa, pada satu tarikh. Apa yang menunggu jawatankuasa itu dibentangkan ke dalamnya semasa dijadualkan; selebihnya dibentangkan kemudian.",
   },
-  sittingNumber: { en: "Sitting number", ms: "Nombor sidang" },
+  sittingNumber: { en: "Sitting number" },
   sittingNumberHint: {
     en: "Leave empty to draw the next number from the sittings series.",
-    ms: "Biarkan kosong untuk mengambil nombor seterusnya daripada siri sidang.",
   },
   sittingNumberTyped: {
     en: "No numbering series for sittings is configured, so type the sitting's own number. This is not a record's reference.",
-    ms: "Tiada siri penomboran untuk sidang dikonfigurasi, jadi taip nombor sidang ini sendiri. Ini bukan rujukan sesuatu rekod.",
   },
   sittingNumberRequired: {
     en: "No numbering series for sittings is configured, so type the sitting number.",
-    ms: "Tiada siri penomboran untuk sidang dikonfigurasi, jadi taip nombor sidang.",
   },
   sittingNumberNoZone: {
     en: "The sittings series numbers by the organisation's day, and its time zone is not set. Set it under Configuration, Organisation, or type the sitting number.",
-    ms: "Siri sidang bernombor mengikut hari organisasi, dan zon waktunya belum ditetapkan. Tetapkannya di bawah Konfigurasi, Organisasi, atau taip nombor sidang.",
   },
   sittingNumberSeriesInvalid: {
     en: "The sittings numbering series is not valid. Correct it under Configuration, Numbering, or type the sitting number.",
-    ms: "Siri penomboran sidang tidak sah. Betulkannya di bawah Konfigurasi, Penomboran, atau taip nombor sidang.",
   },
   sittingNumberClash: {
     en: "This committee already has a sitting with that number.",
-    ms: "Jawatankuasa ini sudah mempunyai sidang dengan nombor itu.",
   },
-  items: { en: "Table at this sitting", ms: "Bentangkan dalam sidang ini" },
+  items: { en: "Table at this sitting" },
   itemsHint: {
     en: "Each is tabled with its record's own reference, subject, amount and act. Untick any that should wait for a later sitting.",
-    ms: "Setiap satu dibentangkan dengan rujukan, perkara, amaun dan tindakan rekodnya sendiri. Nyahtanda mana-mana yang perlu menunggu sidang kemudian.",
   },
-  itemsWaiting: { en: "Choose the committee to see what is waiting for it.", ms: "Pilih jawatankuasa untuk melihat apa yang menunggunya." },
-  itemsNone: { en: "Nothing is waiting for this committee.", ms: "Tiada yang menunggu jawatankuasa ini." },
-  tabledBy: { en: "Tabled by", ms: "Dibentangkan oleh" },
+  itemsWaiting: { en: "Choose the committee to see what is waiting for it." },
+  itemsNone: { en: "Nothing is waiting for this committee." },
+  tabledBy: { en: "Tabled by" },
   tabledByHint: {
     en: "A holder of the committee's Secretariat office today. Needed only where something is ticked.",
-    ms: "Pemegang jawatan Urus Setia jawatankuasa hari ini, direkodkan bagi pihaknya. Diperlukan hanya jika ada yang ditanda.",
   },
-  tabledByNone: { en: "Nobody holds the Secretariat office today", ms: "Tiada sesiapa memegang jawatan Urus Setia hari ini" },
+  tabledByNone: { en: "Nobody holds the Secretariat office today" },
   fromRecordNote: {
     en: "A variation or a contract matter waiting for this committee is tabled from its own record, which names the approval it decides on.",
-    ms: "Perubahan kerja atau perkara kontrak yang menunggu jawatankuasa ini dibentangkan daripada rekodnya sendiri, yang menamakan kelulusan yang diputuskan.",
   },
   noLongerWaiting: {
     en: "Nothing was saved: one of the ticked items is no longer waiting for this committee. Reopen the drawer to see what is waiting now.",
-    ms: "Tiada yang disimpan: salah satu item yang ditanda tidak lagi menunggu jawatankuasa ini. Buka semula laci untuk melihat apa yang menunggu sekarang.",
   },
   itemRefused: {
     en: (what: string, why: string) => `Nothing was saved: ${what} could not be tabled. ${why}`,
-    ms: (what: string, why: string) => `Tiada yang disimpan: ${what} tidak dapat dibentangkan. ${why}`,
   },
 } as const;
 
@@ -485,18 +469,15 @@ export const AUTO_LINK_WORDS = {
   /// The value of the cited step's `linkedHow` field in its History.
   linked: {
     en: "Automatically, when the sitting recorded the committee's outcome",
-    ms: "Secara automatik, apabila sidang merekodkan keputusan jawatankuasa",
   },
   /// The value of the matter's `linkedToApproval` field where the link was refused.
-  notLinked: { en: "Not linked automatically", ms: "Tidak dipautkan secara automatik" },
-  noteTitle: { en: "Not linked to the approval automatically", ms: "Tidak dipautkan kepada kelulusan secara automatik" },
+  notLinked: { en: "Not linked automatically" },
+  noteTitle: { en: "Not linked to the approval automatically" },
   note: {
     en: (why: string) => `${why} The outcome is recorded. Cite the decision from the record once it can be.`,
-    ms: (why: string) => `${why} Keputusan telah direkodkan. Rujuk keputusan ini daripada rekod apabila boleh.`,
   },
   noStep: {
     en: "The record's approval has no step waiting for this committee.",
-    ms: "Kelulusan rekod ini tiada langkah yang menunggu jawatankuasa ini.",
   },
-  linkedNote: { en: "Linked to the record's approval when the outcome was recorded.", ms: "Dipautkan kepada kelulusan rekod apabila keputusan direkodkan." },
+  linkedNote: { en: "Linked to the record's approval when the outcome was recorded." },
 } as const;

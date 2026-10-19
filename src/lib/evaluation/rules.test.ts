@@ -18,6 +18,8 @@ import { rankByPrice, shortlistFaults } from "./shortlist";
 import { evaluationPhase, issuedActFaults, openActFaults } from "./state";
 import { startFaults } from "./start";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The rest of the evaluation's rules (plan §3: shortlist, aspects, meetings, recommend, report,
  * consent, bundle, proposal, loop, the award gate, pin, start, state). Each test fails if its rule is
@@ -165,9 +167,9 @@ describe("report.ts (FR-EVL-017)", () => {
     expect(reportStale(["a", "b"], ["a", "b", "c"])).toBe(true);
   });
   it("annex labels: configured where set, the product's English where not, in order A–F", () => {
-    const l = annexLabels({ A: { en: "Lampiran A: Markah", ms: "Markah" } });
-    expect(l.A).toEqual({ en: "Lampiran A: Markah", ms: "Markah", configured: true });
-    expect(l.F).toEqual({ en: PRODUCT_ANNEX_LABELS.F, ms: null, configured: false });
+    const l = annexLabels({ A: { en: "Lampiran A: Markah" } });
+    expect(l.A).toEqual({ en: "Lampiran A: Markah", configured: true });
+    expect(l.F).toEqual({ en: PRODUCT_ANNEX_LABELS.F, configured: false });
     expect(Object.keys(l)).toEqual(["A", "B", "C", "D", "E", "F"]);
   });
 });

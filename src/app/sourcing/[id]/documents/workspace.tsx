@@ -280,7 +280,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
             />
             {inst.checkedAgainstMatrix && (
               <p className="text-[12.5px] break-words text-ink-3">
-                Chain beneath the approver: {routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n, ms: n }; }).en}
+                Chain beneath the approver: {routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n }; }).en}
               </p>
             )}
           </div>

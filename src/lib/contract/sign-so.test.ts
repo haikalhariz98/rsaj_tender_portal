@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { contractFaultWords } from "./fault-text";
 import { signFaults, type SignInputs } from "./sign";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part A (FR-SUP-001, against accepted 6.12): the employer's signature resolves the contract's
  * Superintending Officer from the matrix in force, at the sum it executes and the method it was let by. A
@@ -27,7 +29,6 @@ describe("the S.O. at the employer's signature", () => {
     const t = contractFaultWords(fs[0]);
     expect(t.en).toMatch(/Issue 3 \(2026\)/);
     expect(t.en).toMatch(/Superintending Officer/);
-    expect(t.ms).toMatch(/Pegawai Penguasa/);
   });
   it("no issue in force: that refusal alone, not the S.O.'s too", () => {
     expect(codes(signFaults({ ...clear, issueInForce: false, so: { ok: false, matrix: null, why: "NO_RULE" } }))).toEqual(["NO_ISSUE_IN_FORCE"]);
@@ -53,7 +54,6 @@ describe("BD-613-9 ruling: the refusal's words", () => {
   it("says 'S.O. not resolved', names the matrix, says in words that its S.O. rows are missing, never the key", () => {
     const t = contractFaultWords(signFaults({ ...clear, so: { ok: false, matrix: "Demo limits, issue 1", why: "NO_RULE" } })[0]);
     expect(t.en).toMatch(/^S\.O\. not resolved: the approval matrix in force \(Demo limits, issue 1\) has no Superintending Officer rows/);
-    expect(t.ms).toMatch(/^P\.P\. tidak ditentukan/);
-    for (const x of [t.en, t.ms]) expect(x).not.toMatch(/superintending_officer|NO_RULE/);
+    for (const x of [t.en]) expect(x).not.toMatch(/superintending_officer|NO_RULE/);
   });
 });

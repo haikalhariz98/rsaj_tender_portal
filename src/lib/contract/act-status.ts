@@ -285,35 +285,34 @@ export function actStatusFault(act: ContractAct, status: ContractStatus): Findin
   return { code: "NOT_IN_STATUS", level: "block", data: { status } };
 }
 
-type Words = { en: string; ms: string };
+type Words = { en: string;  };
 
 /// The refusal in words, English and Malay; a state named by its words, never its code.
 export function actStatusWords(f: Finding): Words {
   switch (f.code as ActStatusFault) {
     case "CONTRACT_CANCELLED":
-      return { en: "The contract is cancelled: it is kept as it was.", ms: "Kontrak dibatalkan: ia dikekalkan seperti sedia ada." };
+      return { en: "The contract is cancelled: it is kept as it was." };
     case "NOT_EXECUTED":
-      return { en: "The contract is not executed yet: this is recorded once it is.", ms: "Kontrak belum dilaksanakan: ini direkodkan setelah ia dilaksanakan." };
+      return { en: "The contract is not executed yet: this is recorded once it is." };
     case "CONTRACT_TERMINATED":
       return {
         en: "The contract is terminated: only the termination's own consequences are recorded on it (its case and notices, renomination, the final payment on termination and its converse decision, bond claims, rectification, debts, the release of a security or the design guarantee bond, a claim on the design guarantee bond, where the originals are held, and its close).",
-        ms: "Kontrak telah ditamatkan: hanya akibat penamatan itu sendiri direkodkan padanya (kes dan notisnya, penamaan semula, pembayaran muktamad penamatan dan keputusan sebaliknya, tuntutan bon, pembaikan, hutang, pelepasan sekuriti atau bon jaminan reka bentuk, tuntutan ke atas bon jaminan reka bentuk, tempat dokumen asal disimpan, dan penutupannya).",
       };
     case "CONTRACT_CLOSED":
-      return { en: "The contract is closed: it is kept as it was, except what survives the close (the design guarantee bond's release and a claim on the design guarantee bond, debts, and where the originals are held).", ms: "Kontrak telah ditutup: ia dikekalkan seperti sedia ada, kecuali yang kekal selepas penutupan (pelepasan bon jaminan reka bentuk dan tuntutan ke atas bon jaminan reka bentuk, hutang, dan tempat dokumen asal disimpan)." };
+      return { en: "The contract is closed: it is kept as it was, except what survives the close (the design guarantee bond's release and a claim on the design guarantee bond, debts, and where the originals are held)." };
     case "NOT_IN_STATUS": {
-      const s = CONTRACT_STATUS_WORDS[f.data?.status as ContractStatus] ?? { en: "where it stands", ms: "keadaannya" };
-      return { en: `Not recorded while the contract stands at “${s.en}”.`, ms: `Tidak direkodkan semasa kontrak berada pada “${s.ms}”.` };
+      const s = CONTRACT_STATUS_WORDS[f.data?.status as ContractStatus] ?? { en: "where it stands" };
+      return { en: `Not recorded while the contract stands at “${s.en}”.` };
     }
     default:
-      return { en: "Not recorded where the contract stands.", ms: "Tidak direkodkan pada keadaan kontrak sekarang." };
+      return { en: "Not recorded where the contract stands." };
   }
 }
 
 /// A page's callout title for a contract whose state refuses its acts: the state by its words, English and Malay.
 export function statusCalloutTitle(status: ContractStatus): Words {
   const s = CONTRACT_STATUS_WORDS[status];
-  return { en: `The contract is ${s.en.toLowerCase()}`, ms: `Kontrak ${s.ms.toLowerCase()}` };
+  return { en: `The contract is ${s.en.toLowerCase()}` };
 }
 
 /// The act's refusal as the acts and screens say it (English, as every screen shows; Malay beside it in actStatusWords).
@@ -321,7 +320,7 @@ export const actStatusText = (f: Finding) => actStatusWords(f).en;
 
 /// A cancelled contract, as the certificate acts' wrapper words it (6.14; pinned in act-status-pin.test.ts), English
 /// and Malay.
-export const CERTIFICATE_CANCELLED_WORDS: Words = { en: "The contract is cancelled: its certificates are kept as they were.", ms: "Kontrak dibatalkan: perakuannya dikekalkan seperti sedia ada." };
+export const CERTIFICATE_CANCELLED_WORDS: Words = { en: "The contract is cancelled: its certificates are kept as they were." };
 
 /**
  * Code re-review S-2: the certificate page's gates, in its acts' words. `acts` gates every act the certificate's phase

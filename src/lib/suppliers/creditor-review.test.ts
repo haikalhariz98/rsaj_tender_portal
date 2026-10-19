@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { creditorReviewFaults, creditorReviewText, type CreditorReviewFacts, type CreditorReviewInput, type CreditorReviewFault } from "./creditor-review";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const TODAY = "2026-10-12";
 const sent: CreditorReviewFacts = { sent: true, verification: "NOT_CHECKED", sentOn: "2026-10-09", statementFiles: 1 };
 const ok: CreditorReviewInput = { state: "VERIFIED", personActive: true, verifiedOn: "2026-10-12", note: "" };
@@ -55,7 +57,6 @@ describe("checking a supplier's bank details (one officer, a signed act)", () =>
     for (const code of all) {
       const t = creditorReviewText({ code, data: { sentOn: "2026-10-09" } });
       expect(t.en.length, code).toBeGreaterThan(10);
-      expect(t.ms.length, code).toBeGreaterThan(10);
       expect(t.en, code).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
     }
   });

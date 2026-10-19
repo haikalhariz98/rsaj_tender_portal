@@ -15,6 +15,8 @@ import {
 } from "./resolve";
 import type { Matrix } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const matrix: Matrix = TEST_MATRIX;
 
 /// The chain as "ROLE:ACT" pairs, which is how a routing sheet reads.
@@ -476,7 +478,6 @@ describe("core routing at resolution (FR-APR-004)", () => {
     expect(trace(r.chain)).toEqual(["CLERK:P", "MANAGER:R", "CHIEF:A"]);
     expect(core(r).map((w) => [w.code, w.level])).toEqual([["CORE_NOT_CHECKED", "warn"]]);
     expect(core(r)[0].messageEn).toContain("“PAY_HIGH”");
-    expect(core(r)[0].messageMs).toMatch(/^Rantaian seperti yang dimasukkan/);
     expect(r.core).toEqual({ flag: null, reason: null, level: null });
   });
 

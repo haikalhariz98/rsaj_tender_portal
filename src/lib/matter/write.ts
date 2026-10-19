@@ -28,14 +28,14 @@ export class MatterChanged extends Error {
   }
 }
 
-export const MATTER_KIND_WORDS: Readonly<Record<ContractMatterKind, { en: string; ms: string }>> = {
-  EOT: { en: "extension-of-time claim", ms: "tuntutan lanjutan masa" },
-  PERIOD_EXTENSION: { en: "contract period extension", ms: "lanjutan tempoh kontrak" },
-  LAD_WAIVER: { en: "waiver of damages", ms: "pengecualian ganti rugi" },
-  TERMINATION: { en: "termination", ms: "penamatan" },
-  NOMINATED_INCREASE: { en: "nominated-sum increase", ms: "pertambahan jumlah dinamakan" },
-  NOMINATION: { en: "nomination", ms: "penamaan" },
-  LOSS_EXPENSE: { en: "loss-and-expense claim", ms: "tuntutan kerugian dan perbelanjaan" },
+export const MATTER_KIND_WORDS: Readonly<Record<ContractMatterKind, { en: string;  }>> = {
+  EOT: { en: "extension-of-time claim" },
+  PERIOD_EXTENSION: { en: "contract period extension" },
+  LAD_WAIVER: { en: "waiver of damages" },
+  TERMINATION: { en: "termination" },
+  NOMINATED_INCREASE: { en: "nominated-sum increase" },
+  NOMINATION: { en: "nomination" },
+  LOSS_EXPENSE: { en: "loss-and-expense claim" },
 };
 
 /// How the trail names the matter: under its contract's label, so the contract's History shows it.

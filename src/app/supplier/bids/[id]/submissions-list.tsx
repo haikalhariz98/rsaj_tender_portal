@@ -5,12 +5,9 @@ import { Bi } from "@/components/ui/bilingual";
 import { Callout } from "@/components/ui/feedback";
 import type { SubmissionView } from "@/lib/bids/online/my-bids";
 import { BID_KIND_WORDS, BID_STATUS_WORDS, SCREEN_WORDS } from "@/lib/bids/online/screen-words";
-import type { Words } from "@/lib/contract/labels";
 
 import { ReceiptCard, type ReceiptData } from "./receipt-card";
 import { WithdrawControl } from "./withdraw-control";
-
-const both = (x: Words) => `${x.en} · ${x.ms}`;
 
 /**
  * The supplier's own submissions on one exercise (SR-13, ADR 0036 D7, rulings 20s, 20an; build plan step 11): each with its own number, the stamp, the status and the receipt digest in full.
@@ -25,9 +22,9 @@ export function SubmissionsList({ reference, title, supplierName, demonstration,
     search: `${v.number} ${BID_KIND_WORDS[v.kind].en} ${BID_STATUS_WORDS[v.status].en}`,
     cells: {
       number: { kind: "text", text: String(v.number) },
-      kind: { kind: "stack", title: BID_KIND_WORDS[v.kind].en, sub: BID_KIND_WORDS[v.kind].ms },
-      stamp: { kind: "stack", title: v.stampText, sub: both(v.late ? SCREEN_WORDS.late : SCREEN_WORDS.inTime) },
-      status: { kind: "stack", title: BID_STATUS_WORDS[v.status].en, sub: BID_STATUS_WORDS[v.status].ms },
+      kind: { kind: "stack", title: BID_KIND_WORDS[v.kind].en, },
+      stamp: { kind: "stack", title: v.stampText, sub: (v.late ? SCREEN_WORDS.late : SCREEN_WORDS.inTime).en },
+      status: { kind: "stack", title: BID_STATUS_WORDS[v.status].en },
     },
   }));
   return (
@@ -37,15 +34,15 @@ export function SubmissionsList({ reference, title, supplierName, demonstration,
       searchable={false}
       toolbar={false}
       exportName="my-online-bids"
-      emptyTitle={both(SCREEN_WORDS.listEmptyTitle)}
-      emptyBody={both(SCREEN_WORDS.listEmptyBody)}
+      emptyTitle={SCREEN_WORDS.listEmptyTitle.en}
+      emptyBody={SCREEN_WORDS.listEmptyBody.en}
       actionsPlacement="below"
       stackBelow="xl"
       columns={[
         { key: "number", label: SCREEN_WORDS.colNumber.en, width: "70px", sortable: true, mobile: "primary" },
-        { key: "kind", label: both(SCREEN_WORDS.colKind), width: "190px", mobile: "meta" },
-        { key: "stamp", label: both(SCREEN_WORDS.colStamp), width: "260px", mobile: "meta" },
-        { key: "status", label: both(SCREEN_WORDS.colStatus), mobile: "meta" },
+        { key: "kind", label: SCREEN_WORDS.colKind.en, width: "190px", mobile: "meta" },
+        { key: "stamp", label: SCREEN_WORDS.colStamp.en, width: "260px", mobile: "meta" },
+        { key: "status", label: SCREEN_WORDS.colStatus.en, mobile: "meta" },
       ]}
       rows={rows}
       actions={(id) => {

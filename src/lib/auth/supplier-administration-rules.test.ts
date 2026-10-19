@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { accountStateWords, IDENTITY_CHECK_MAX, identityCheckFault, issueSupplierCodeFaults, openAccountFaults, unlockSupplierFaults } from "./supplier-administration-rules";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const liveContact = { retired: false, hasAccount: false };
 const open = (o: Partial<Parameters<typeof openAccountFaults>[0]> = {}) =>
   openAccountFaults({ permitted: true, loginName: "aini.sampel", loginNameTaken: false, identityCheck: "Seen at the counter", contact: liveContact, ...o });
@@ -42,7 +44,6 @@ describe("opening a supplier's portal account", () => {
     expect(all.length).toBeGreaterThanOrEqual(3);
     for (const f of all) {
       expect(f!.en).toBeTruthy();
-      expect(f!.ms).toBeTruthy();
       expect(f!.en).not.toMatch(/\b[A-Z]{2,}_[A-Z_]+\b/);
     }
   });
@@ -96,6 +97,6 @@ describe("an account in words", () => {
     expect(accountStateWords({ status: "ACTIVE", locked: true }).en).toMatch(/locked/);
     expect(accountStateWords({ status: "PENDING_ACTIVATION", locked: false }).en).toMatch(/activation code/);
     expect(accountStateWords({ status: "DISABLED", locked: true }).en).toBe("Disabled");
-    for (const status of ["ACTIVE", "PENDING_ACTIVATION", "DISABLED"] as const) expect(accountStateWords({ status, locked: false }).ms).toBeTruthy();
+    for (const status of ["ACTIVE", "PENDING_ACTIVATION", "DISABLED"] as const) expect(accountStateWords({ status, locked: false }).en).toBeTruthy();
   });
 });

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { attributionLabel } from "./attribution";
 import { backdateToConfirmNotice, confirmationFaults, confirmRefusal, type BackdatedAttribution } from "./backdate-confirmation";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The named authoriser's confirmation of a back-dated signature (NFR-AUD-006, ruling item 9 of the Phase 2 rulings, Phase 5a). Pure.
  */
@@ -26,7 +28,6 @@ describe("who may confirm a back-dating", () => {
     expect(codes(null, "boss")).toEqual(["NOT_BACKDATED"]);
     for (const f of [...confirmationFaults(null, "x"), ...confirmationFaults(attribution(), "x"), ...confirmationFaults(attribution({ alreadyConfirmed: true }), "boss")]) {
       expect(f.en.length).toBeGreaterThan(20);
-      expect(f.ms.length).toBeGreaterThan(20);
     }
   });
 });
@@ -79,12 +80,10 @@ describe("how a back-dated signature reads", () => {
 
   it("reads as the signer's claim, not confirmed, until the person named confirms it", () => {
     expect(read(null).en).toBe("Signed by Aini, dated 2026-09-30 (back-dated; the signer names Boss as authorising it, not confirmed)");
-    expect(read(null).ms).toContain("belum disahkan");
   });
 
   it("reads as confirmed, by whom and on which day, once they have", () => {
     expect(read("2026-10-10").en).toBe("Signed by Aini, dated 2026-09-30 (back-dated; Boss confirmed it on 2026-10-10)");
-    expect(read("2026-10-10").ms).toContain("Boss mengesahkannya pada 2026-10-10");
     expect(read("2026-10-10").en).not.toContain("not confirmed");
   });
 });

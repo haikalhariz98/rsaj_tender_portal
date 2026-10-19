@@ -4,6 +4,8 @@ import { ACT_STATUS, actStatusFault, actStatusWords, CONTRACT_ACTS, EDGE_EXCEPTI
 import { CONTRACT_TRANSITIONS, STATUS_WRITTEN_BY, type StatusWriter } from "./status";
 import { CONTRACT_STATUSES, type ContractStatus } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B Run 1a fix round (BD-613-119 R1, merged with the code review's S2): the act × status table and the
  * transitions agree. (a) Every edge of CONTRACT_TRANSITIONS can be taken: the family of the act that writes it is allowed
@@ -92,6 +94,6 @@ describe("R1, R3, R4 and BD-613-113's rows", () => {
     expect(actStatusFault("DESIGN_BOND_RELEASE", "TERMINATED")).toBeNull();
   });
   it("NOT_IN_STATUS names the state it refuses in, in English and Malay", () => {
-    expect(actStatusWords(actStatusFault("COMPLETION", "STAMPED")!)).toEqual({ en: "Not recorded while the contract stands at “Stamped, fully executed”.", ms: "Tidak direkodkan semasa kontrak berada pada “Dicop, dilaksanakan sepenuhnya”." });
+    expect(actStatusWords(actStatusFault("COMPLETION", "STAMPED")!)).toEqual({ en: "Not recorded while the contract stands at “Stamped, fully executed”." });
   });
 });

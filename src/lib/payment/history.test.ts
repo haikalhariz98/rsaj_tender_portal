@@ -7,6 +7,8 @@ import { PAYMENT_ENTITIES, RECORD_TYPE_WORDS } from "@/lib/audit/entity-labels";
 import { CODE_FIELDS } from "@/lib/contract/history-words";
 import { closing, lex } from "@/lib/scan/source";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The contract's History reads the payment acts' trail in words (AGENTS.md rule 5): every record type they write is
  * registered with its name in both languages, the contract's History and the certificate's name each, and no value
@@ -24,7 +26,6 @@ describe("the payment acts' trail", () => {
     for (const e of written) expect(PAYMENT_ENTITIES as readonly string[], e).toContain(e);
     for (const e of PAYMENT_ENTITIES) {
       expect(RECORD_TYPE_WORDS[e]?.en, e).toBeTruthy();
-      expect(RECORD_TYPE_WORDS[e]?.ms, e).toBeTruthy();
     }
   });
   it("the contract's History names each, and the certificate's names its route, steps and payment", () => {

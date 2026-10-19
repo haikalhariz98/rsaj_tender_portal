@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { adminConfers, holds, isGrantable, isPermissionKey, PERMISSION_KEYS, PERMISSIONS, permissionRefusal, permissionState, resolvePermissions, type ResolveInput } from "./permissions";
 import type { PermissionKey } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const TODAY = day("2026-10-07");
 
@@ -33,9 +35,7 @@ describe("the closed list of product permissions (ADR 0034 D8)", () => {
       const { label, lets } = PERMISSIONS[k];
       for (const w of [label, lets]) {
         expect(w.en.length).toBeGreaterThan(5);
-        expect(w.ms.length).toBeGreaterThan(5);
         expect(w.en).not.toContain(k);
-        expect(w.ms).not.toContain(k);
       }
     }
   });
@@ -166,9 +166,7 @@ describe("what a refused person is told", () => {
       const key: PermissionKey = s.state === "ADMINISTRATOR_EXCLUDED" ? "sulit.read.organisation" : s.state === "NOT_GRANTABLE" ? "accounts.manage" : "audit.read";
       const words = permissionRefusal(key, s, () => "the Finance Director");
       expect(words.en).toContain(PERMISSIONS[key].label.en);
-      expect(words.ms).toContain(PERMISSIONS[key].label.ms);
       expect(words.en).not.toContain(key);
-      expect(words.ms).not.toContain(key);
     }
   });
 

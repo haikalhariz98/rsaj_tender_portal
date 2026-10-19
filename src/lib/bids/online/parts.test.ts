@@ -7,6 +7,8 @@ import { partPreBodyFaults, partUploadFaults, storedScan, uploadGateFaults } fro
 import type { BidPartRule } from "./types";
 import { PART_UPLOAD_FAULT_WORDS, UPLOAD_BUSY_WORDS } from "./words";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const HASH = "a".repeat(64);
 const PDF = "application/pdf";
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -79,18 +81,15 @@ describe("a part's upload (D6, ruling 19)", () => {
     expect(faults({ draftFilesBySupplier: MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE })).toEqual(["TOO_MANY_DRAFT_FILES"]);
   });
 
-  // Ruling 20ab: the words carry English and Malay, so each language is checked.
-  it("each refusal has words in both languages; BUSY says to retry, and that the submission's stamp decides lateness (20e)", () => {
+  it("each refusal has words; BUSY says to retry, and that the submission's stamp decides lateness (20e)", () => {
     for (const [k, w] of Object.entries(PART_UPLOAD_FAULT_WORDS)) {
-      for (const text of [w.en, w.ms]) {
+      for (const text of [w.en]) {
         expect(text.length, k).toBeGreaterThan(10);
         expect(text, k).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
       }
     }
     expect(UPLOAD_BUSY_WORDS.en).toMatch(/Try again/);
     expect(UPLOAD_BUSY_WORDS.en).toMatch(/submitted decides whether it is late/);
-    expect(UPLOAD_BUSY_WORDS.ms).toMatch(/Cuba lagi/);
-    expect(UPLOAD_BUSY_WORDS.ms).toMatch(/diserahkan yang menentukan sama ada ia lewat/);
   });
 });
 

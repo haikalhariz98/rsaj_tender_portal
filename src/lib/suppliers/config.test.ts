@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { supplierFaultText } from "./labels";
 import { documentTypeFaults, listValueFaults, valueFaults, type ValueInput } from "./config";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 const grade: ValueInput = { kind: "GRADE", code: "G5", nameEn: "Grade 5", parentCode: null, rank: 5, valueCeiling: "5000000.00", ceilingProvenance: "ASSUMED", provenance: "ASSUMED" };
 const ctx = { bodyExists: true, codeTaken: false, categoryCodes: ["CIVIL"], gradeRanks: [1, 2, 3, 4] };
@@ -61,8 +63,6 @@ describe("the register's lists", () => {
     for (const bad of ["60", "+", "+0", "+60 1", "+1234567", "+6A", " +60"]) expect(codes(listValueFaults({ ...ok, callingCode: bad }, ctx)), bad).toEqual(["CALLING_CODE_NOT_VALID"]);
     expect(codes(listValueFaults({ ...ok, callingCode: "+60" }, { ...ctx, list: "STATE" }))).toEqual(["CALLING_CODE_ONLY_FOR_COUNTRY"]);
     expect(codes(listValueFaults({ ...ok, callingCode: "+60" }, { ...ctx, list: "ENTITY_TYPE" }))).toEqual(["CALLING_CODE_ONLY_FOR_COUNTRY"]);
-    // The words exist in both languages, and name no code.
-    expect(supplierFaultText({ code: "CALLING_CODE_NOT_VALID", level: "block" }, "ms")).toMatch(/Kod dailan/);
   });
 });
 
@@ -74,7 +74,6 @@ describe("a grade's rank does not move while a frozen requirement is compared by
     const fs = valueFaults(grade, { ...ctx, rankHeld: held });
     expect(codes(fs)).toEqual(["RANK_HELD"]);
     expect(supplierFaultText(fs[0]!)).toContain("DEMO/SX/0018/2026, DEMO/SX/0020/2026");
-    expect(supplierFaultText(fs[0]!, "ms")).toContain("DEMO/SX/0018/2026");
     expect(codes(valueFaults({ ...grade, rank: null }, { ...ctx, rankHeld: held }))).toEqual(["RANK_HELD"]);
     expect(codes(valueFaults({ ...grade, rank: 4 }, { ...ctx, rankHeld: { ...held, was: null } }))).toEqual(["RANK_HELD"]);
   });

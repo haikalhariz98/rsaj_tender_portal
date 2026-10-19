@@ -16,11 +16,11 @@ export type SumAdjustmentTrigger = (typeof SUM_ADJUSTMENT_TRIGGERS)[number];
 
 /// Each trigger in words (exhaustive), as SK013 names it.
 export const SUM_ADJUSTMENT_TRIGGER_WORDS: Readonly<Record<SumAdjustmentTrigger, Words>> = {
-  VARIATION: w("Variation of works", "Perubahan kerja"),
-  LOSS_AND_EXPENSE: w("Contractor's claim for loss or expense", "Tuntutan kerugian atau perbelanjaan kontraktor"),
-  REMEASUREMENT: w("Re-measurement of provisional quantities", "Pengukuran semula kuantiti sementara"),
-  PC_AND_PROVISIONAL_SUMS: w("Adjustment of prime cost and provisional sums", "Pelarasan wang kos prima dan wang peruntukan sementara"),
-  PRICE_FLUCTUATION: w("Material price fluctuation and extension of the contract period", "Turun naik harga bahan dan lanjutan tempoh kontrak"),
+  VARIATION: w("Variation of works"),
+  LOSS_AND_EXPENSE: w("Contractor's claim for loss or expense"),
+  REMEASUREMENT: w("Re-measurement of provisional quantities"),
+  PC_AND_PROVISIONAL_SUMS: w("Adjustment of prime cost and provisional sums"),
+  PRICE_FLUCTUATION: w("Material price fluctuation and extension of the contract period"),
 };
 
 export const isSumAdjustmentTrigger = (v: string): v is SumAdjustmentTrigger => (SUM_ADJUSTMENT_TRIGGERS as readonly string[]).includes(v);
@@ -39,7 +39,7 @@ export function triggerFaults(typeName: string | null, triggers: readonly SumAdj
 
 export function triggerFaultWords(f: Finding): Words {
   const t = f.data?.type ? String(f.data.type) : "the contract type";
-  if (f.code === "TRIGGERS_NOT_SET") return w(`Which adjustments of the contract sum ${t} allows is not set. Set its contract-sum adjustment triggers under Configuration › Reference data.`, `Pelarasan jumlah kontrak yang dibenarkan bagi ${t} belum ditetapkan. Tetapkannya di bawah Konfigurasi › Data rujukan.`);
-  const g = SUM_ADJUSTMENT_TRIGGER_WORDS[f.data?.trigger as SumAdjustmentTrigger] ?? w("That adjustment", "Pelarasan itu");
-  return w(`${g.en} is not a contract-sum adjustment ${t} allows.`, `${g.ms} bukan pelarasan jumlah kontrak yang dibenarkan bagi ${t}.`);
+  if (f.code === "TRIGGERS_NOT_SET") return w(`Which adjustments of the contract sum ${t} allows is not set. Set its contract-sum adjustment triggers under Configuration › Reference data.`);
+  const g = SUM_ADJUSTMENT_TRIGGER_WORDS[f.data?.trigger as SumAdjustmentTrigger] ?? w("That adjustment");
+  return w(`${g.en} is not a contract-sum adjustment ${t} allows.`);
 }

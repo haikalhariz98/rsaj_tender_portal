@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 
 import { XIcon } from "@/components/icons";
 import { useSay } from "@/components/i18n/language-context";
-import { LanguageSwitch } from "@/components/shell/language-switch";
 import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 
 import { iconButtonClass } from "./button";
@@ -48,8 +47,6 @@ export function DrawerHeader({
           {badge}
         </div>
         {subtitle && <p className="mt-0.5 text-[13px] break-words text-ink-3">{subtitle}</p>}
-        {/* On its own row: the narrowest drawer has no room beside a title for two language names. */}
-        <LanguageSwitch className="mt-3 items-start" />
       </div>
       <button type="button" className={iconButtonClass("sm")} aria-label={say(COMPONENT_WORDS.close)} onClick={onClose}>
         <XIcon size={17} />

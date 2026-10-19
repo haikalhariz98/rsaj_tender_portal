@@ -96,14 +96,13 @@ export function supersession(sup: { eotNumber: string | null; newDate: Day } | n
 }
 
 /// The note recorded on the decision at the EOT certificate's issue (BD-613-89).
-export function supersededNote(number: string, newDate: Day, today: Day): { en: string; ms: string } {
+export function supersededNote(number: string, newDate: Day, today: Day): { en: string;  } {
   const d = formatDate(newDate);
   return today <= newDate
-    ? { en: `Closed by the extension of time ${number}: the new date for completion ${d} is not yet past.`, ms: `Ditutup oleh lanjutan masa ${number}: tarikh siap baharu ${d} belum berlalu.` }
-    : { en: `Superseded by the extension of time ${number}: a valuation past ${d} needs a replacement decision.`, ms: `Digantikan oleh lanjutan masa ${number}: penilaian selepas ${d} memerlukan keputusan gantian.` };
+    ? { en: `Closed by the extension of time ${number}: the new date for completion ${d} is not yet past.` }
+    : { en: `Superseded by the extension of time ${number}: a valuation past ${d} needs a replacement decision.` };
 }
 
 export const PART_A_LABEL = {
   en: "Entitlement determined on the non-completion decision, before extension-of-time records",
-  ms: "Kelayakan diputuskan pada keputusan kerja tidak siap, sebelum rekod lanjutan masa",
 } as const;

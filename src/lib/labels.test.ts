@@ -9,6 +9,8 @@ import { AUTHORITY_ACTS } from "./authority/types";
 import { ACT_LABEL, actWithCode, condLabel, hasMatterLabel, matterLabel, routedOnLabel } from "./labels";
 import { toPosix } from "@/lib/scan/files";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 describe("an authority act reads as words with its DAL code (ruling CO-9, FR-APR-003)", () => {
   it("names every act and shows the manual's code beside it", () => {
     expect(actWithCode("MR")).toBe("Mandatory recommendation (MR)");
@@ -52,17 +54,14 @@ describe("every product matter-domain constant has a label (6.6 review S-4)", ()
     expect(domains).toContain(LATE_DOMAIN);
     expect(domains.length).toBeGreaterThanOrEqual(9);
   });
-  it.each(domains)("%s has its own words in English and Malay, never the code's fallback", (code) => {
+  it.each(domains)("%s has its own words, never the code's fallback", (code) => {
     expect(hasMatterLabel(code)).toBe(true);
-    for (const lang of ["en", "ms"] as const) {
-      const label = matterLabel(code, lang);
-      expect(label.trim()).not.toBe("");
-      expect(label).not.toMatch(/_/);
-    }
+    const label = matterLabel(code);
+    expect(label.trim()).not.toBe("");
+    expect(label).not.toMatch(/_/);
   });
   it("late tender admission reads as words in both languages", async () => {
     const { LATE_DOMAIN } = await import("@/lib/bids/late");
     expect(matterLabel(LATE_DOMAIN)).toBe("Late tender admission");
-    expect(matterLabel(LATE_DOMAIN, "ms")).toBe("Kemasukan tender lewat");
   });
 });

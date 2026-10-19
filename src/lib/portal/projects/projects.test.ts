@@ -12,6 +12,8 @@ import { SUBMISSION_KINDS, SUBMISSION_OUTCOMES } from "./types";
 import { supplierHoldsContract } from "./visibility";
 import { hasProjectFaultText, projectFaultText } from "./words";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * My Projects' pure rules (Phase 4e): which contracts a supplier holds, what each kind of submission asks for, the due day against the service level, the officer's answer, the
  * contractor's block on a certificate, certified against paid, the announcements board, and the parsers of the three request bodies.
@@ -27,7 +29,6 @@ describe("the vocabulary mirrors the schema", () => {
     expect([...SUBMISSION_OUTCOMES]).toEqual(enumValues("ContractorSubmissionOutcome"));
     for (const k of SUBMISSION_KINDS) {
       expect(SUBMISSION_KIND_WORDS[k].en.length).toBeGreaterThan(3);
-      expect(SUBMISSION_KIND_WORDS[k].ms.length).toBeGreaterThan(3);
       expect(KIND_SHAPE[k]).toBeDefined();
     }
     for (const o of SUBMISSION_OUTCOMES) expect(OUTCOME_WORDS[o].en.length).toBeGreaterThan(3);
@@ -92,7 +93,6 @@ describe("a submission's fields", () => {
     for (const code of ["NOT_FOUND", "CONTRACT_NOT_ACTIVE", "TITLE_TOO_LONG", "LINE_INCOMPLETE", "BLOCK_NOT_NEXT", "REFUSAL_NOT_ALLOWED"] as const) {
       const t = projectFaultText({ code, data: { max: 200, line: 2, first: "Recommending officer" } });
       expect(t.en.length).toBeGreaterThan(5);
-      expect(t.ms.length).toBeGreaterThan(5);
     }
     expect(hasProjectFaultText("NOT_FOUND")).toBe(true);
     expect(hasProjectFaultText("NOPE")).toBe(false);

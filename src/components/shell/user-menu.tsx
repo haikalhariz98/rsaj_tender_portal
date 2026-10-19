@@ -5,10 +5,9 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { ChevronDown, LogOutIcon, UserIcon } from "@/components/icons";
 import { Avatar } from "@/components/ui/avatar";
-import { useLanguage, useSay } from "@/components/i18n/language-context";
+import { useSay } from "@/components/i18n/language-context";
 import { cx } from "@/components/ui/cx";
 import { SHELL_WORDS } from "@/lib/i18n/catalogues/shell";
-import { titleFor } from "@/lib/i18n/job-title";
 import type { ShellUser } from "@/lib/shell";
 
 /**
@@ -20,11 +19,7 @@ export function UserMenu({ user, signOut }: { user: ShellUser; signOut: (data: F
   // A supplier's session is the portal's own: its account page, and a sign-out that is a plain POST to the portal's route (the public copy takes no server action).
   const supplier = user.kind === "supplier";
   const say = useSay();
-  const { language, choice } = useLanguage();
-  // The Malay title when Malay is chosen and one is recorded; never a made-up one.
-  const jobTitle = titleFor(user, language);
-  // A default is not a choice: say which this is (NFR-LNG-001).
-  const languageLine = choice === null ? SHELL_WORDS.languageNotChosen : choice === "ms" ? SHELL_WORDS.languageChosenMs : SHELL_WORDS.languageChosenEn;
+  const jobTitle = user.jobTitle;
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -66,12 +61,6 @@ export function UserMenu({ user, signOut }: { user: ShellUser; signOut: (data: F
           <div className="px-3 pt-2 pb-2.5">
             <div className="truncate text-[13.5px] font-bold text-ink">{user.name}</div>
             {jobTitle && <div className="truncate text-[12px] text-ink-3">{jobTitle}</div>}
-            {!supplier && (
-              <div className="mt-1.5 text-[12px] text-ink-3">
-                <span className="font-semibold">{say(SHELL_WORDS.language)}: </span>
-                {say(languageLine)}
-              </div>
-            )}
           </div>
           <div className="my-1 h-px bg-line" />
           <Link href={supplier ? "/supplier/account" : "/account"} role="menuitem" className={item} onClick={() => setOpen(false)}>

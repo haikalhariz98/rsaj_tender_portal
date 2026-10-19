@@ -35,16 +35,16 @@ export type StaffNoticeKind = (typeof STAFF_NOTICE_KINDS)[number];
 
 /// What a notice is called on a screen. Never the key.
 export const STAFF_NOTICE_KIND_LABEL: Readonly<Record<StaffNoticeKind, Words>> = {
-  STEP_ESCALATED: w("Step escalated to you", "Langkah dinaikkan kepada anda"),
-  STEP_MOVED_ON_ABSENCE: w("Step moved to you on an absence", "Langkah dipindahkan kepada anda kerana ketidakhadiran"),
-  HOLDER_MARKED_ABSENT: w("Someone who reports to you is away", "Seseorang di bawah seliaan anda tiada"),
-  ROUTE_RECALLED: w("Approval recalled", "Kelulusan ditarik balik"),
-  DELEGATION_RECEIVED: w("Delegation given to you", "Perwakilan diberikan kepada anda"),
-  MATTER_NOT_CARRIED_MEMO: w("Memo: matter not carried", "Memo: perkara tidak diluluskan"),
-  CONTRACTOR_SUBMISSION: w("Contractor's submission to answer", "Penyerahan kontraktor untuk dijawab"),
-  BACKDATE_TO_CONFIRM: w("A back-dated signature to confirm", "Tandatangan bertarikh lalu untuk disahkan"),
-  INDENT_EXPIRED: w("An indent has expired", "Indent telah tamat tempoh"),
-  COMMENCEMENT_LATE: w("Work has not commenced", "Kerja belum bermula"),
+  STEP_ESCALATED: w("Step escalated to you"),
+  STEP_MOVED_ON_ABSENCE: w("Step moved to you on an absence"),
+  HOLDER_MARKED_ABSENT: w("Someone who reports to you is away"),
+  ROUTE_RECALLED: w("Approval recalled"),
+  DELEGATION_RECEIVED: w("Delegation given to you"),
+  MATTER_NOT_CARRIED_MEMO: w("Memo: matter not carried"),
+  CONTRACTOR_SUBMISSION: w("Contractor's submission to answer"),
+  BACKDATE_TO_CONFIRM: w("A back-dated signature to confirm"),
+  INDENT_EXPIRED: w("An indent has expired"),
+  COMMENCEMENT_LATE: w("Work has not commenced"),
 };
 
 /// Said on every screen that shows a notice. The delivery is a fact of the product: there is no outbound email.

@@ -7,6 +7,8 @@ import { parseSen } from "@/lib/money";
 import { approvalOfRecord, CONTRACT_MATTER_KINDS, MATTER_DOMAIN, MATTER_FAMILY, MATTER_ROUTED_ON, matterApproved, matterSigning, MATTER_SIGNED_KINDS, sendFaults, type MatterFacts } from "./matter";
 import { MATTER_FAULT_WORDS, matterFaultWords } from "./labels";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B run 1b (ADR 0029; plan B5 matter/matter.ts; BD-613-73, BD-613-121). Pure.
  */
@@ -106,7 +108,6 @@ describe("the words", () => {
     for (const [code, f] of Object.entries(MATTER_FAULT_WORDS)) {
       const w = f({ reason: "r", day: "2026-09-14", domain: "eot", matrix: "Issue 1" });
       expect(w.en.length, code).toBeGreaterThan(10);
-      expect(w.ms.length, code).toBeGreaterThan(10);
       expect(w.en, code).not.toMatch(/\b[A-Z]{2,}_[A-Z_]+\b/);
     }
     expect(matterFaultWords({ code: "MATTER_SERIES_NOT_SET", level: "block" }).en).toMatch(/Configuration › Numbering/);

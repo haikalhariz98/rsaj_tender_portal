@@ -52,7 +52,7 @@ export async function attributeSupplierAct(tx: Tx, input: AttributeSupplierActIn
   }
 
   if ((await tx.supplierAccount.count({ where: { id: actor.accountId, organisationId: actor.organisationId } })) !== 1) {
-    throw new AttributionRefused([{ code: "NO_SUCH_ACCOUNT", en: "That account no longer exists.", ms: "Akaun itu tidak lagi wujud." }]);
+    throw new AttributionRefused([{ code: "NO_SUCH_ACCOUNT", en: "That account no longer exists." }]);
   }
 
   const last = await tx.actAttribution.aggregate({ where: { entity: input.entity, entityId: input.entityId, slot: input.slot }, _max: { occurrence: true } });
@@ -62,7 +62,7 @@ export async function attributeSupplierAct(tx: Tx, input: AttributeSupplierActIn
     const index = uniqueViolationIndex(e);
     if (index === "ActAttribution_sessionId_stepUpAt_key") throw new AttributionRefused([stepUpFault({ passed: request.stepUpAt, onSession: request.stepUpAt ?? null, consumed: true })!]);
     if (index === "ActAttribution_entity_entityId_slot_occurrence_key") {
-      throw new AttributionRefused([{ code: "ATTRIBUTION_CONFLICT", en: "Another request acted on this record at the same moment. Reload it and try again.", ms: "Permintaan lain bertindak pada rekod ini pada masa yang sama. Muat semula dan cuba lagi." }]);
+      throw new AttributionRefused([{ code: "ATTRIBUTION_CONFLICT", en: "Another request acted on this record at the same moment. Reload it and try again." }]);
     }
     throw e;
   }

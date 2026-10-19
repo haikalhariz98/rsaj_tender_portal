@@ -48,7 +48,7 @@ export async function readUpload(actor: SupplierActor, request: Request, kind: U
   const refuse = async (status: number, f: Finding<UploadFault>, extra: { filename?: string | null; bytes?: bigint | null } = {}) => {
     await log(f.code, extra);
     const words = uploadFaultText(f, kind);
-    return { ok: false as const, response: reply({ ok: false, code: f.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED", message: words.en, messageMs: words.ms }, status) };
+    return { ok: false as const, response: reply({ ok: false, code: f.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED", message: words.en }, status) };
   };
 
   const s = blobStore();
@@ -102,5 +102,5 @@ export async function readUpload(actor: SupplierActor, request: Request, kind: U
 export function storeRefusalReply(finding: StoreFinding, status: number, kind: UploadKind): Response {
   const asFault = finding as unknown as Finding<UploadFault>;
   const words = uploadFaultText(asFault, kind);
-  return reply({ ok: false, code: finding.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED", message: words.en, messageMs: words.ms }, status);
+  return reply({ ok: false, code: finding.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED", message: words.en }, status);
 }

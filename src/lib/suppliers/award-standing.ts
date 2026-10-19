@@ -19,8 +19,8 @@ export interface AwardStanding {
   warning: Words | null;
 }
 
-const w = (en: string, ms: string): Words => ({ en, ms });
-const NOT_REFUSED = w("an award is not refused by the product: rule not set", "anugerah tidak ditolak oleh sistem: peraturan belum ditetapkan");
+const w = (en: string): Words => ({ en });
+const NOT_REFUSED = w("an award is not refused by the product: rule not set");
 
 export function awardStanding(r: Pick<StandingReading, "standing" | "notes" | "blacklist" | "suspension" | "cancellation" | "lapsed">, day: (d: string) => string): AwardStanding {
   const words = standingWords(r);
@@ -30,15 +30,15 @@ export function awardStanding(r: Pick<StandingReading, "standing" | "notes" | "b
   let what: Words;
   if (r.standing === "BLACKLISTED" && r.blacklist) {
     const end = blacklistEndPhrase(r.blacklist.endsOn);
-    what = w(`Blacklisted since ${day(r.blacklist.effectiveOn)} (${r.blacklist.reasonLabel}; ${end.en})`, `Disenarai hitam sejak ${day(r.blacklist.effectiveOn)} (${r.blacklist.reasonLabel}; ${end.ms})`);
+    what = w(`Blacklisted since ${day(r.blacklist.effectiveOn)} (${r.blacklist.reasonLabel}; ${end.en})`);
   } else if (r.standing === "CANCELLED" && r.cancellation) {
     // BD-613-105(e) / S-3: the warning names the body and its reference, composed at read in each language.
     const by = r.cancellation.cancelledBy ? cancellationWords(r.cancellation.cancelledBy) : null;
-    what = w(`Registration cancelled since ${day(r.cancellation.effectiveOn)}${by ? ` (${by.en})` : ""}`, `Pendaftaran dibatalkan sejak ${day(r.cancellation.effectiveOn)}${by ? ` (${by.ms})` : ""}`);
+    what = w(`Registration cancelled since ${day(r.cancellation.effectiveOn)}${by ? ` (${by.en})` : ""}`);
   } else if (r.standing === "SUSPENDED" && r.suspension) {
-    what = w(`Suspended since ${day(r.suspension.effectiveOn)} (${r.suspension.reasonLabel})`, `Digantung sejak ${day(r.suspension.effectiveOn)} (${r.suspension.reasonLabel})`);
+    what = w(`Suspended since ${day(r.suspension.effectiveOn)} (${r.suspension.reasonLabel})`);
   } else {
-    what = w(`Suspended on lapse: ${r.lapsed.join(", ") || "a mandatory document"} expired`, `Digantung kerana luput: ${r.lapsed.join(", ") || "dokumen wajib"} tamat tempoh`);
+    what = w(`Suspended on lapse: ${r.lapsed.join(", ") || "a mandatory document"} expired`);
   }
-  return { words, tone, warning: w(`${what.en} — ${NOT_REFUSED.en}.`, `${what.ms} — ${NOT_REFUSED.ms}.`) };
+  return { words, tone, warning: w(`${what.en} — ${NOT_REFUSED.en}.`) };
 }

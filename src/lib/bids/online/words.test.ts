@@ -18,6 +18,8 @@ import { BID_KIND_WORDS, BID_STATUS_WORDS, SCREEN_WORDS, typesWords, UNIT_WORDS 
 import { ACT_ROUTE_WORDS, PART_UPLOAD_FAULT_WORDS, submissionWarningWords, PART_ROUTE_WORDS, SUBMIT_FAULT_WORDS, UPLOAD_BUSY_WORDS, WITHDRAW_FAULT_WORDS } from "./words";
 import { posixRelative, toPosix } from "@/lib/scan/files";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * Ruling 20j and 20s (build plan step 5): no words constant, receipt or My Bids state calls the receipt, or anything about a bid, "signed" or "proof" (or
  * "verified"). Two scans: every words value the module exports, and every string literal in the online-bid and sealing sources (their comments may say what the
@@ -32,10 +34,10 @@ const FORBIDDEN_EN = /\b(signed|proof|verified)\b/i;
 const FORBIDDEN_MS = /tandatangan|bukti|disahkan|mengesahkan|pengesahan/i;
 const forbidden = (text: string) => FORBIDDEN_EN.test(text) || FORBIDDEN_MS.test(text);
 
-/// A words value as the scan reads it: an English string, or the portal's `Words`, both languages.
-const texts = (v: string | Words): string[] => (typeof v === "string" ? [v] : [v.en, v.ms]);
+/// A words value as the scan reads it: an English string, or the portal's `Words`, English.
+const texts = (v: string | Words): string[] => (typeof v === "string" ? [v] : [v.en]);
 
-describe("no words call a receipt or a bid signed, proof or verified, in either language (20j, 20s, 20ab)", () => {
+describe("no words call a receipt or a bid signed, proof or verified, (20j, 20s, 20ab)", () => {
   it("every exported words value", () => {
     const values: string[] = [
       ...Object.values(RECEIPT_WORDS),

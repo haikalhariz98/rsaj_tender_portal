@@ -36,29 +36,28 @@ export type AdministrationQuestion =
   | { kind: "GIVE_HOLDING"; holding: HoldingKind; personIsAdministrator: boolean }
   | { kind: "ACT"; act: AdministratorAct; actorIsAdministrator: boolean };
 
-const HOLDING_WORDS: Record<HoldingKind, { en: string; ms: string }> = {
-  OFFICE: { en: "an office", ms: "jawatan" },
-  SEAT: { en: "a committee seat", ms: "kerusi jawatankuasa" },
-  DELEGATION: { en: "a delegation", ms: "pewakilan" },
+const HOLDING_WORDS: Record<HoldingKind, { en: string;  }> = {
+  OFFICE: { en: "an office" },
+  SEAT: { en: "a committee seat" },
+  DELEGATION: { en: "a delegation" },
 };
 
-const ACT_WORDS: Record<AdministratorAct, { en: string; ms: string }> = {
-  HOLDER_CHECKED: { en: "an act that only the holder of an office may do", ms: "tindakan yang hanya boleh dibuat pemegang jawatan" },
-  SIGNATURE: { en: "a signature", ms: "tandatangan" },
-  UNSEAL: { en: "an unsealing", ms: "pembukaan meterai" },
-  TRANSACTION: { en: "an act in a procurement matter", ms: "tindakan dalam urusan perolehan" },
+const ACT_WORDS: Record<AdministratorAct, { en: string;  }> = {
+  HOLDER_CHECKED: { en: "an act that only the holder of an office may do" },
+  SIGNATURE: { en: "a signature" },
+  UNSEAL: { en: "an unsealing" },
+  TRANSACTION: { en: "an act in a procurement matter" },
 };
 
 /// What a Person holds, in words: "2 offices, 1 committee seat".
-export function holdingsInWords(h: Holdings): { en: string; ms: string } | null {
+export function holdingsInWords(h: Holdings): { en: string;  } | null {
   const en = [
     h.offices > 0 && `${h.offices} ${h.offices === 1 ? "office" : "offices"}`,
     h.seats > 0 && `${h.seats} committee ${h.seats === 1 ? "seat" : "seats"}`,
     h.delegations > 0 && `${h.delegations} ${h.delegations === 1 ? "delegation" : "delegations"}`,
   ].filter(Boolean);
   if (en.length === 0) return null;
-  const ms = [h.offices > 0 && `${h.offices} jawatan`, h.seats > 0 && `${h.seats} kerusi jawatankuasa`, h.delegations > 0 && `${h.delegations} pewakilan`].filter(Boolean);
-  return { en: en.join(", "), ms: ms.join(", ") };
+  return { en: en.join(", ") };
 }
 
 /**
@@ -113,7 +112,6 @@ export function administrationConflict(q: AdministrationQuestion): Fault | null 
       return {
         code: "ADMINISTRATOR_HOLDS_NOTHING",
         en: `This person holds ${held.en}. An administrator holds no office, seat or delegation, so that administration stays apart from transactions. Give the administrator a person of their own.`,
-        ms: `Orang ini memegang ${held.ms}. Pentadbir tidak memegang sebarang jawatan, kerusi atau pewakilan, supaya pentadbiran kekal berasingan daripada urus niaga. Berikan pentadbir seorang individu tersendiri.`,
       };
     }
     case "GIVE_HOLDING": {
@@ -122,7 +120,6 @@ export function administrationConflict(q: AdministrationQuestion): Fault | null 
       return {
         code: "ADMINISTRATOR_CANNOT_HOLD",
         en: `This person has an administrator's sign-in account, and an administrator holds no office, seat or delegation, so ${w.en} cannot be given to them: administration is kept apart from transactions. Give the role to someone who is not an administrator.`,
-        ms: `Orang ini mempunyai akaun log masuk pentadbir, dan pentadbir tidak memegang sebarang jawatan, kerusi atau pewakilan, jadi ${w.ms} tidak boleh diberikan kepada mereka: pentadbiran diasingkan daripada urus niaga. Berikan peranan itu kepada seseorang yang bukan pentadbir.`,
       };
     }
     case "ACT": {
@@ -131,7 +128,6 @@ export function administrationConflict(q: AdministrationQuestion): Fault | null 
       return {
         code: "ADMINISTRATOR_CANNOT_ACT",
         en: `You are signed in as an administrator, and administration is kept apart from transactions, so you cannot do ${w.en}. Sign in as the person who holds the office.`,
-        ms: `Anda log masuk sebagai pentadbir, dan pentadbiran diasingkan daripada urus niaga, jadi anda tidak boleh membuat ${w.ms}. Log masuk sebagai orang yang memegang jawatan itu.`,
       };
     }
   }

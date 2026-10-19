@@ -70,9 +70,9 @@ export function historyValue(field: string, value: string | null, formatDay: (d:
  */
 export const BASELINE_KEY_LIST_FIELDS: ReadonlySet<string> = new Set(["changed", "entered"]);
 
-const ALL = w("Every value", "Semua nilai");
-const NOTHING = w("Nothing", "Tiada");
-const WITHHELD = w("—", "—");
+const ALL = w("Every value");
+const NOTHING = w("Nothing");
+const WITHHELD = w("—");
 
 export function baselineKeyListWords(value: string): Words {
   const v = value.trim();
@@ -80,7 +80,7 @@ export function baselineKeyListWords(value: string): Words {
   if (v === "nothing") return NOTHING;
   const items = v.split(",").map((k) => k.trim()).filter(Boolean).map((k) => BASELINE_FIELD_WORDS[k] ?? WITHHELD);
   if (!items.length) return WITHHELD;
-  return w(items.map((x) => x.en).join(", "), items.map((x) => x.ms).join(", "));
+  return w(items.map((x) => x.en).join(", "));
 }
 
 /// A History row's field name: on the baseline's rows a group key reads by its Baseline-tab label (the

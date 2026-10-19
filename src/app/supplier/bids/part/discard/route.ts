@@ -19,9 +19,9 @@ export async function POST(request: Request) {
   const { actor, post } = guard;
 
   const parsed = parseDiscardBody(post.fields);
-  if (!parsed.ok) return reply({ ok: false, code: "UNREADABLE", message: PART_ROUTE_WORDS.UNREADABLE.en, messageMs: PART_ROUTE_WORDS.UNREADABLE.ms }, 400);
+  if (!parsed.ok) return reply({ ok: false, code: "UNREADABLE", message: PART_ROUTE_WORDS.UNREADABLE.en }, 400);
   const done = await discardPart(actor, parsed.value);
   if (done.ok) return reply({ ok: true });
   const words = PART_ROUTE_WORDS[done.reason];
-  return reply({ ok: false, code: done.reason, message: words.en, messageMs: words.ms }, done.reason === "NOT_FOUND" ? 404 : 409);
+  return reply({ ok: false, code: done.reason, message: words.en }, done.reason === "NOT_FOUND" ? 404 : 409);
 }

@@ -4,6 +4,8 @@ import { recordCancellationFaults, withdrawCancellationFaults, type Cancellation
 import { hasFaultText, supplierFaultText } from "./labels";
 import { barred, standing, type StandingEventFacts } from "./standing";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 615-C2 as narrowed (BD-613-91): a registration body's cancellation of a supplier's registration, recorded as a fact,
  * one at a time, and withdrawn with a reason when recorded in error. Worked example: Syarikat Contoh's registration
@@ -97,7 +99,6 @@ describe("every refusal has words, in English and Malay", () => {
       expect(hasFaultText(c), c).toBe(true);
       const f = { code: c, level: "block" as const, data: { since: "2026-09-20", registeredOn: "2025-01-15" } };
       expect(supplierFaultText(f), c).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
-      expect(supplierFaultText(f, "ms"), c).toBeTruthy();
     }
     expect(supplierFaultText({ code: "ALREADY_CANCELLED", level: "block", data: { since: "2026-09-20" } })).toMatch(/20 Sep 2026/);
   });

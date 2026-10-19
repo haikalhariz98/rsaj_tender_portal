@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     return reply({
       ok: true,
       receipt: done.receipt,
-      warnings: done.warnings.map((x) => ({ message: submissionWarningWords(x).en, messageMs: submissionWarningWords(x).ms })),
+      warnings: done.warnings.map((x) => ({ message: submissionWarningWords(x).en })),
     }, 201);
   }
   if (done.reason === "NOT_FOUND") return actNotice("NOT_FOUND", 404);

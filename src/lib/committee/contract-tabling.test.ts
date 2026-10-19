@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { CONTRACT_TABLED_WORDS, MATTER_KINDS, RECORD_TABLED_MATTER_KINDS, recordTabledText, SITTING_TABLED_MATTER_KINDS } from "./labels";
 import { MATTER_AMOUNT_SULIT, matterAmountIsSulit, SULIT_AMOUNT_KINDS } from "./matter-amount";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * 6.13 Part B run 1a (ADR 0029 §3 and §5, BD-613-73): a CONTRACT matter is tabled only from its own record (its route's
  * committee step, through tablingOf), never at a sitting: a decision tabled at a sitting would name no contract matter and
@@ -22,7 +24,6 @@ describe("a contract matter is tabled from its record, never at a sitting", () =
     expect(recordTabledText("CONTRACT")).toBe(CONTRACT_TABLED_WORDS.en);
     expect(CONTRACT_TABLED_WORDS).toEqual({
       en: "A contract matter (an extension of time, a period extension, a waiver of damages, a termination, a nomination, a nominated-sum increase or a loss-and-expense claim) is tabled from the matter itself, on its contract, which names the matter and the step the committee decides on.",
-      ms: "Perkara kontrak (lanjutan masa, lanjutan tempoh, pengecualian ganti rugi, penamatan, penamaan, pertambahan jumlah dinamakan atau tuntutan kerugian dan perbelanjaan) dibentangkan daripada perkara itu sendiri, pada kontraknya, yang menamakan perkara dan langkah yang diputuskan oleh jawatankuasa.",
     });
   });
   it("the sitting's act takes the kind from SITTING_TABLED_MATTER_KINDS, so a CONTRACT matter is refused there", () => {

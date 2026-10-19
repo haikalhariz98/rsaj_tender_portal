@@ -23,6 +23,8 @@ import {
 import { mayReadQueue } from "./configuration-change";
 import type { PermissionKey } from "./types";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const row = (over: Partial<CapturedAudit> = {}): CapturedAudit => ({
   entity: "NumberingSeries",
   entityId: "s1",
@@ -40,7 +42,6 @@ describe("the kinds of an editor's save", () => {
     for (const k of EDIT_KINDS) {
       expect(isEditKind(k)).toBe(true);
       expect(EDIT_KIND_WORDS[k].en.length).toBeGreaterThan(5);
-      expect(EDIT_KIND_WORDS[k].ms.length).toBeGreaterThan(5);
     }
     for (const k of ["SECURITY_POLICY", "PERMISSION_GRANT", "ADMINISTRATOR_GRANT", "ADMINISTRATOR_REVOKE", "ACCOUNT_CODE", "", "NOPE"]) expect(isEditKind(k)).toBe(false);
   });

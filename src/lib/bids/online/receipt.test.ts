@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { RECEIPT_DIGEST_VERSION, RECEIPT_WORDS, receiptDigest, submissionNumbers } from "./receipt";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const h = (c: string) => c.repeat(64);
 const base = { exerciseId: "cmex0001", submissionNumber: 7, receivedAt: new Date("2026-11-04T03:59:58Z"), keyFingerprint: h("f"), manifestCipherSha256: h("1"), declarationCipherSha256: h("2"), fileCipherSha256s: [h("a"), h("b")] };
 
@@ -37,12 +39,10 @@ describe("the receipt digest (D5, H2)", () => {
 describe("the receipt's words (20j)", () => {
   it("say it records what the portal told the supplier, and never call it signed or proof", () => {
     // Ruling 20ab: in English and Malay; neither language calls it signed, proof or verified.
-    expect(RECEIPT_WORDS.title).toEqual({ en: "Your receipt", ms: "Resit anda" });
+    expect(RECEIPT_WORDS.title).toEqual({ en: "Your receipt" });
     expect(RECEIPT_WORDS.meaning.en).toMatch(/records what the portal told you/);
-    expect(RECEIPT_WORDS.meaning.ms).toMatch(/merekodkan apa yang dimaklumkan oleh portal/);
     for (const w of Object.values(RECEIPT_WORDS)) {
       expect(w.en).not.toMatch(/\b(signed|signature|proof|proves|verified)\b/i);
-      expect(w.ms).not.toMatch(/tandatangan|bukti|disahkan|mengesahkan|pengesahan/i);
     }
   });
 });

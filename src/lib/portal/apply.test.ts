@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { HONEYPOT_FIELD, honeypotTripped, portalApplicationFaults, portalCapacity, portalRefusal, PORTAL_FIELD_OF, validLimit, whatIsMissing, type PortalApplicationContext, type PortalApplicationInput } from "./apply";
 import { APPLY } from "./labels";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const good: PortalApplicationInput = {
   registeredName: "Sampel Works Sdn Bhd",
   registrationNo: "202001000123",
@@ -123,9 +125,8 @@ describe("a public registration application", () => {
     );
     for (const code of met) {
       expect(PORTAL_FIELD_OF[code as keyof typeof PORTAL_FIELD_OF], code).toBeTruthy();
-      const words = (APPLY.faults as Record<string, { en: string; ms: string }>)[code];
+      const words = (APPLY.faults as Record<string, { en: string;  }>)[code];
       expect(words?.en, code).toBeTruthy();
-      expect(words?.ms, code).toBeTruthy();
     }
   });
 

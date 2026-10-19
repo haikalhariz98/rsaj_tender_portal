@@ -21,7 +21,7 @@ import { eligibilityFindingOf } from "./opening-hook";
 import type { StandingReading } from "./standing";
 import type { Finding } from "./types";
 
-type Words = { en: string; ms: string };
+type Words = { en: string;  };
 
 export type CancellationFault =
   | "TIME_ZONE_UNSET"
@@ -154,10 +154,9 @@ export function judgedWhileCancelled(openings: readonly OpeningJudged[], effecti
 
 /// S-4: what a withdrawal does not revisit, in English and Malay, naming each opening that judged the supplier cancelled.
 export function notRevisitedWords(judged: readonly OpeningJudged[]): Words {
-  const lead = { en: "Judgments made while it stood are not revisited", ms: "Penilaian yang dibuat semasa ia berkuat kuasa tidak disemak semula" };
-  const sales = { en: "A sale refused for it left no record, so none is listed.", ms: "Jualan yang ditolak kerananya tidak meninggalkan rekod, jadi tiada yang disenaraikan." };
-  if (!judged.length) return { en: `${lead.en}: no bid opening judged the supplier cancelled. ${sales.en}`, ms: `${lead.ms}: tiada pembukaan tawaran yang menilai pembekal sebagai dibatalkan. ${sales.ms}` };
+  const lead = { en: "Judgments made while it stood are not revisited" };
+  const sales = { en: "A sale refused for it left no record, so none is listed." };
+  if (!judged.length) return { en: `${lead.en}: no bid opening judged the supplier cancelled. ${sales.en}` };
   const en = judged.map((o) => `${o.exercise} (bid No. ${o.listingNo}, opened ${formatDate(o.judgedOn)}${o.rejected ? ", rejected at the opening" : ""})`).join("; ");
-  const ms = judged.map((o) => `${o.exercise} (tawaran No. ${o.listingNo}, dibuka ${formatDate(o.judgedOn)}${o.rejected ? ", ditolak semasa pembukaan" : ""})`).join("; ");
-  return { en: `${lead.en}. The openings that judged the supplier cancelled keep their findings: ${en}. ${sales.en}`, ms: `${lead.ms}. Pembukaan yang menilai pembekal sebagai dibatalkan mengekalkan penemuannya: ${ms}. ${sales.ms}` };
+  return { en: `${lead.en}. The openings that judged the supplier cancelled keep their findings: ${en}. ${sales.en}` };
 }

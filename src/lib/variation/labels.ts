@@ -344,7 +344,8 @@ export function variationFaultWords(f: Finding): Words {
     case "MONEY_NEEDS_APPROVED_ROUTE":
       return kindFaultWords(f);
     case "SO_UNRESOLVED":
-      return supervisionFaultWords(f);
+      // Supervision's words are English only now (founder, 2026-10-19); the Malay slot of a variation pair repeats the English.
+      return ((x) => w(x.en, x.en))(supervisionFaultWords(f));
     // Intake 1 (BD-613-96): Part A's FORM_NOT_SET retired; the raise's one form rule names the need and where it is set.
     case "TEMPLATE_NOT_SET":
       return templateNotSetWords(d);

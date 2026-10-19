@@ -11,6 +11,8 @@ import { conditionViews, failingFirst, SUPPLIER_VERDICT } from "./eligibility-vi
 import type { CompanyDocument, OpenRequestFacts } from "./types";
 import { companyFaultText, hasCompanyFaultText } from "./words";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * Phase 4c's pure rules: the documents the supplier holds with their bands and reminders (FR-VND-008), the office's request and its answers (FR-VND-007), the rules for lodging a
  * replacement, the rules for changing the bank details after registration, and the supplier's own eligibility in words (FR-VND-011).
@@ -402,7 +404,6 @@ describe("every finding has words", () => {
       const t = companyFaultText({ code: code as never, data: { type: "Form 9", value: "G1 — Grade 1", field: "Account number", expiresOn: "2027-01-01", kind: "GIRO_AUTHORISATION" } });
       expect(t.en.length, code).toBeGreaterThan(10);
       expect(t.en, code).not.toContain(code);
-      expect(t.ms.length, code).toBeGreaterThan(10);
     }
   });
 });

@@ -1,6 +1,6 @@
 import matters from "./labels.json";
 
-type Label = { en: string; ms: string };
+type Label = { en: string;  };
 
 const MATTERS = matters as Record<string, Label>;
 
@@ -12,7 +12,7 @@ const MATTERS = matters as Record<string, Label>;
  * Anything unlabelled falls back to a readable form of the code rather than a blank,
  * so a customer adding a matter of their own still gets a usable heading.
  */
-export function matterLabel(code: string, language: "en" | "ms" = "en"): string {
+export function matterLabel(code: string, language: "en" = "en"): string {
   const label = MATTERS[code];
   if (label) return label[language];
   return code.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());

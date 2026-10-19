@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { applicationStatusWords, requestWords, supplierStatusWords } from "./registration-status";
 import { readRequest, type ReadingItem } from "./request-reading";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const BY = "2026-10-20";
 const day = (d: string) => `D(${d})`;
 const answer = (id: string, verification: "NOT_CHECKED" | "VERIFIED" | "NOT_IN_ORDER", lodgedOn = "2026-10-12") => ({ id, verification, lodgedOn });
@@ -44,7 +46,6 @@ describe("what the supplier is told of it", () => {
     expect(t.title.en + t.detail.en).not.toMatch(/answered the office|do not need to do anything/i);
     expect(t.detail.en).toContain("D(2026-10-20)");
     expect(t.detail.en).toMatch(/2 of the things it asked for were not sent/);
-    expect(t.detail.ms).toBeTruthy();
     expect(t.tone).toBe("warn");
     // The account page reads the same words.
     expect(applicationStatusWords({ status: "RESUBMISSION_REQUESTED", resubmitBy: BY, reading }, day).title.en).toBe(t.title.en);

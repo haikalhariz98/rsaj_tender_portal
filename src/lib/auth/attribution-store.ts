@@ -88,7 +88,7 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
     ]),
   ];
   if (personIds.length > 0 && (await tx.person.count({ where: { id: { in: personIds }, organisationId: input.actor.organisationId } })) !== personIds.length) {
-    throw new AttributionRefused([{ code: "NO_SUCH_PERSON", en: "That person no longer exists.", ms: "Orang itu tidak lagi wujud." }]);
+    throw new AttributionRefused([{ code: "NO_SUCH_PERSON", en: "That person no longer exists." }]);
   }
   // Written again, a slot is a new occurrence: the earlier ones are evidence and stay, and the highest is the one in force (`latestAttribution`).
   const last = await tx.actAttribution.aggregate({ where: { entity: input.entity, entityId: input.entityId, slot: input.slot }, _max: { occurrence: true } });
@@ -119,7 +119,7 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
       throw new AttributionRefused([stepUpFault({ passed: request.stepUpAt, onSession: request.stepUpAt ?? null, consumed: true })!]);
     }
     if (index === "ActAttribution_entity_entityId_slot_occurrence_key") {
-      throw new AttributionRefused([{ code: "ATTRIBUTION_CONFLICT", en: "Someone else acted on this record at the same moment. Reload it and try again.", ms: "Orang lain bertindak pada rekod ini pada masa yang sama. Muat semula dan cuba lagi." }]);
+      throw new AttributionRefused([{ code: "ATTRIBUTION_CONFLICT", en: "Someone else acted on this record at the same moment. Reload it and try again." }]);
     }
     throw e;
   }

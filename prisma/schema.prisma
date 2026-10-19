@@ -12280,7 +12280,7 @@ enum PaperSignatureRecording {
 /// A staff member's way in: one per Person, bound for good once made. The password is held only as a hash
 /// (scrypt, PHC format, parameters in the string). Its CHECKs (hand-appended in the migration) keep the sign-in key
 /// the lower-cased name and a disabled account dated.
-/// A language a staff screen can be read in. Stored on the account; null on the account means not yet chosen.
+/// RETIRED (founder, 2026-10-19: English only, ADR 0040 superseded). The staff screens no longer read or write this. Kept so no stored value is deleted; old audit rows name it.
 enum UiLanguage {
   EN
   MS
@@ -12314,7 +12314,7 @@ model StaffAccount {
   disabledReason String    @default("")
   /// A reset was done to this account: said once, at the next sign-in, until acknowledged.
   resetNoticePending Boolean @default(false)
-  /// The language this person reads the staff screens in (NFR-LNG-001, ADR 0040). Null = never chosen, which reads English and says so.
+  /// RETIRED (founder, 2026-10-19: English only). No longer read or written; the column stays so no data is deleted.
   uiLanguage UiLanguage?
 
   createdAt DateTime @default(now())

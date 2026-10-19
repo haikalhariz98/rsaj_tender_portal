@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 /**
  * The supplier portal's route handlers (Phase 4a), end to end through a bare `Request`: the guards in front of each (the public copy, the Origin guard, the JSON body, the
  * signed form token), and what each answers. The stores behind them are stand-ins; what they are asked is recorded.
@@ -210,7 +212,7 @@ describe("activating, and resetting", () => {
     const bad = await reset(post("/supplier/reset/submit", "reset", FIELDS));
     expect(bad.status).toBe(400);
     expect(await bad.json()).toMatchObject({ code: "CODE_FAILED" });
-    h.redeem.mockResolvedValueOnce({ ok: false, kind: "FIELDS", faults: { password: { code: "TOO_SHORT", en: "Too short.", ms: "Terlalu pendek." } } });
+    h.redeem.mockResolvedValueOnce({ ok: false, kind: "FIELDS", faults: { password: { code: "TOO_SHORT", en: "Too short." } } });
     const fields = await activate(post("/supplier/activate/submit", "activate", FIELDS));
     expect((await fields.json()).errors).toEqual({ password: "Too short." });
   });

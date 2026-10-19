@@ -19,7 +19,6 @@ export type PortalActKind = "TRANSACT" | "COMPANY_RECORD";
 
 export interface StandingBar {
   en: string;
-  ms: string;
 }
 
 /// Why this supplier may not do this kind of act in the portal, in words, or null where it may.
@@ -27,7 +26,6 @@ export function portalStandingBar(i: { status: string; standing: Standing; kind:
   if (i.status === "REJECTED") {
     return {
       en: "Your registration was not accepted, so this cannot be done from the portal. You can still sign in and read your status.",
-      ms: "Pendaftaran anda tidak diterima, jadi ini tidak boleh dilakukan dari portal. Anda masih boleh log masuk dan membaca status anda.",
     };
   }
   // Both kinds are barred by the same standings today (the ruling: every act but reading).
@@ -35,11 +33,10 @@ export function portalStandingBar(i: { status: string; standing: Standing; kind:
   const label = STANDING_LABEL[i.standing];
   return {
     en: `Your company is ${label.en.toLowerCase()} on the supplier register, so this cannot be done from the portal. You can still sign in and read your status and why. Ask the procurement office; anything with a time limit can still be given on paper.`,
-    ms: `Syarikat anda ${label.ms.toLowerCase()} pada daftar pembekal, jadi ini tidak boleh dilakukan dari portal. Anda masih boleh log masuk dan membaca status anda dan sebabnya. Tanya pejabat perolehan; apa-apa yang mempunyai had masa masih boleh diberikan di atas kertas.`,
   };
 }
 
 /// The finding every domain of the portal refuses with when the standing bars an act (each domain words it from the data, in both languages).
 export function standingBarFinding(bar: StandingBar) {
-  return { code: "SUPPLIER_STANDING_BARS" as const, level: "block" as const, data: { en: bar.en, ms: bar.ms } };
+  return { code: "SUPPLIER_STANDING_BARS" as const, level: "block" as const, data: { en: bar.en } };
 }

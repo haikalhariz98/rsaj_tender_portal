@@ -40,8 +40,8 @@ export async function POST(request: Request) {
   }
 }
 
-const busy = () => reply({ ok: false, code: "BUSY", message: UPLOAD_BUSY_WORDS.en, messageMs: UPLOAD_BUSY_WORDS.ms }, 503, { "Retry-After": String(RETRY_AFTER_SECONDS) });
-const notice = (code: PartRouteNotice, status: number, headers: Record<string, string> = {}) => reply({ ok: false, code, message: PART_ROUTE_WORDS[code].en, messageMs: PART_ROUTE_WORDS[code].ms }, status, headers);
+const busy = () => reply({ ok: false, code: "BUSY", message: UPLOAD_BUSY_WORDS.en }, 503, { "Retry-After": String(RETRY_AFTER_SECONDS) });
+const notice = (code: PartRouteNotice, status: number, headers: Record<string, string> = {}) => reply({ ok: false, code, message: PART_ROUTE_WORDS[code].en }, status, headers);
 const STATUS: Partial<Record<PartUploadFault, number>> = { TOO_LARGE: 413, BODY_TOO_SLOW: 408 };
 
 async function upload(actor: SupplierActor, request: Request) {
@@ -62,7 +62,7 @@ async function upload(actor: SupplierActor, request: Request) {
     await logPartRefusal(actor, exerciseId, "PART_UPLOAD", faults[0]);
     const first = PART_UPLOAD_FAULT_WORDS[faults[0]];
     return reply(
-      { ok: false, code: faults[0], message: first.en, messageMs: first.ms, faults: faults.map((f) => ({ message: PART_UPLOAD_FAULT_WORDS[f].en, messageMs: PART_UPLOAD_FAULT_WORDS[f].ms })) },
+      { ok: false, code: faults[0], message: first.en, faults: faults.map((f) => ({ message: PART_UPLOAD_FAULT_WORDS[f].en })) },
       status ?? STATUS[faults[0]] ?? 422,
     );
   };

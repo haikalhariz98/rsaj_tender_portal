@@ -45,7 +45,7 @@ export default async function BidExercisePage({ params, searchParams }: { params
     { id: "briefings", label: "Briefings and visits", icon: <CalendarIcon size={15} />, lazy: true, panel: tab === "briefings" ? <BriefingsPanel actor={actor} ctx={ctx} token={token} /> : null },
     { id: "addenda", label: "Addenda", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "addenda" ? <AddendaPanel actor={actor} ctx={ctx} token={token} /> : null },
     { id: "documents", label: "Documents", icon: <FileIcon size={15} />, lazy: true, panel: tab === "documents" ? <DocumentsPanel actor={actor} ctx={ctx} token={token} /> : null },
-    ...(online?.online ? [{ id: "bid", label: `${SCREEN_WORDS.tab.en} · ${SCREEN_WORDS.tab.ms}`, icon: <ShieldIcon size={15} />, lazy: true, panel: tab === "bid" ? <BidPanel screen={online} supplierName={actor.supplierName} /> : null }] : []),
+    ...(online?.online ? [{ id: "bid", label: SCREEN_WORDS.tab.en, icon: <ShieldIcon size={15} />, lazy: true, panel: tab === "bid" ? <BidPanel screen={online} supplierName={actor.supplierName} /> : null }] : []),
     { id: "outcome", label: "Outcome", icon: <CheckIcon size={15} />, lazy: true, panel: tab === "outcome" ? <OutcomePanel actor={actor} ctx={ctx} /> : null },
   ];
 

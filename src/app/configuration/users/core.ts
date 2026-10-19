@@ -80,7 +80,6 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
     name: r.text("name", "Name", { required: true, max: 160 }),
     email: r.text("email", "Email", { required: true, max: 160 }),
     jobTitle: r.optionalText("jobTitle"),
-    jobTitleMs: r.optionalText("jobTitleMs"),
     portalRoleCode: r.optionalText("portalRoleCode"),
     authorityLevel: r.optionalText("authorityLevel"),
     department: r.optionalText("department"),

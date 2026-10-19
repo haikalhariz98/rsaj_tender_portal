@@ -6,6 +6,8 @@ import type { PreSaleCheck } from "./checks";
 import { buyerStandingCheck, holdsReleasedPurchase, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS, restrictionPurchaseCheck } from "./purchase";
 import { releaseState } from "./release";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const pass = (key: PreSaleCheck["key"]): PreSaleCheck => ({ key, state: "PASS", detail: "ok" });
 const OK_BUYER = { name: "Aini", accountActive: true, contactCurrent: true, bar: null };
 
@@ -129,7 +131,7 @@ describe("the standing reading (SR-10)", () => {
   it("the standing reading blocks an inactive account, a retired contact and a barred supplier, each in words", () => {
     expect(buyerStandingCheck({ ...OK_BUYER, accountActive: false }).state).toBe("BLOCK");
     expect(buyerStandingCheck({ ...OK_BUYER, contactCurrent: false }).detail).toMatch(/no longer a current contact/);
-    expect(buyerStandingCheck({ ...OK_BUYER, bar: { en: "Your company is suspended.", ms: "Syarikat anda digantung." } })).toMatchObject({ state: "BLOCK", detail: "Your company is suspended." });
+    expect(buyerStandingCheck({ ...OK_BUYER, bar: { en: "Your company is suspended." } })).toMatchObject({ state: "BLOCK", detail: "Your company is suspended." });
     expect(buyerStandingCheck(OK_BUYER).detail).toMatch(/signed in as Aini/);
   });
 });

@@ -56,7 +56,7 @@ export interface ActFault extends Fault {
   field?: "onBehalf" | "person" | "paperReference" | "reason" | "password" | "date" | "backdateReason" | "backdateAuthorisedBy";
 }
 
-const f = (code: string, en: string, ms: string, field?: ActFault["field"]): ActFault => ({ code, en, ms, field });
+const f = (code: string, en: string, field?: ActFault["field"]): ActFault => ({ code, en, field });
 
 export function interpretAct(input: {
   slot: Pick<ActSlot, "signatureClass" | "onBehalf"> & { paperGated?: boolean };
@@ -77,7 +77,7 @@ export function interpretAct(input: {
   // A loader run: nobody is signed in, and the data names who did each act. Recorded by the system, which says what it is.
   if (input.actorPersonId == null) {
     if (!form.attestedPersonId) {
-      return { ok: false, faults: [f("ATTESTED_REQUIRED", "Name the person the act is recorded for.", "Namakan orang yang untuknya tindakan ini direkodkan.", "person")] };
+      return { ok: false, faults: [f("ATTESTED_REQUIRED", "Name the person the act is recorded for.", "person")] };
     }
     return {
       ok: true,
@@ -100,19 +100,17 @@ export function interpretAct(input: {
         f(
           "ON_BEHALF_NOT_ALLOWED",
           "This act is the signed-in person's own: it cannot be recorded for someone else.",
-          "Tindakan ini milik orang yang log masuk: ia tidak boleh direkodkan bagi pihak orang lain.",
           "onBehalf",
         ),
       );
     }
     if (!form.attestedPersonId) {
-      faults.push(f("ATTESTED_REQUIRED", "Name the person the act is recorded for.", "Namakan orang yang untuknya tindakan ini direkodkan.", "person"));
+      faults.push(f("ATTESTED_REQUIRED", "Name the person the act is recorded for.", "person"));
     } else if (form.attestedPersonId === input.actorPersonId) {
       faults.push(
         f(
           "ON_BEHALF_OF_SELF",
           "An act recorded on someone's behalf is recorded for another person. To act as yourself, sign it.",
-          "Tindakan yang direkodkan bagi pihak seseorang direkodkan untuk orang lain. Untuk bertindak sebagai diri sendiri, tandatanganinya.",
           "person",
         ),
       );
@@ -123,19 +121,18 @@ export function interpretAct(input: {
         f(
           "PAPER_OR_REASON_REQUIRED",
           "Recording an act on someone's behalf needs the paper it came from or the reason it is recorded.",
-          "Merekodkan tindakan bagi pihak seseorang memerlukan kertas asalnya atau sebab ia direkodkan.",
           "paperReference",
         ),
       );
     }
     // A signature, or an act that moves money, time or authority, is recorded from paper with the paper's reference: a bare reason is not enough.
     if (needsPaper && form.attestedPersonId && form.paperReference.trim() === "") {
-      faults.push(f("PAPER_REFERENCE_REQUIRED", "A paper decision is recorded with the reference of the paper it came from.", "Keputusan atas kertas direkodkan dengan rujukan kertas asalnya.", "paperReference"));
+      faults.push(f("PAPER_REFERENCE_REQUIRED", "A paper decision is recorded with the reference of the paper it came from.", "paperReference"));
     }
     if (input.dated && !claimed) {
-      faults.push(f("DATE_REQUIRED", "Say the day the paper is dated.", "Nyatakan tarikh pada kertas itu.", "date"));
+      faults.push(f("DATE_REQUIRED", "Say the day the paper is dated.", "date"));
     } else if (claimed && today != null && claimed > today) {
-      faults.push(f("DATE_IN_FUTURE", "An act cannot be dated after today.", "Tindakan tidak boleh ditarikhkan selepas hari ini.", "date"));
+      faults.push(f("DATE_IN_FUTURE", "An act cannot be dated after today.", "date"));
     }
     if (faults.length > 0) return { ok: false, faults };
     return {
@@ -155,16 +152,16 @@ export function interpretAct(input: {
 
   // The act is the signed-in person's own.
   if (slot.signatureClass && form.password === "") {
-    faults.push(f("PASSWORD_REQUIRED", "This act is signed with your password. Enter it to sign.", "Tindakan ini ditandatangani dengan kata laluan anda. Masukkannya untuk menandatangani.", "password"));
+    faults.push(f("PASSWORD_REQUIRED", "This act is signed with your password. Enter it to sign.", "password"));
   }
   let day: string | null = null;
   let backdate: ActIntent["backdate"] = null;
   let effectiveOn: string | null = null;
   if (claimed != null) {
     if (today == null) {
-      faults.push(f("TODAY_UNKNOWN", "The organisation's time zone is not set, so today's date is not known and an act cannot be dated.", "Zon waktu organisasi belum ditetapkan, jadi tarikh hari ini tidak diketahui dan tindakan tidak boleh ditarikhkan.", "date"));
+      faults.push(f("TODAY_UNKNOWN", "The organisation's time zone is not set, so today's date is not known and an act cannot be dated.", "date"));
     } else if (claimed > today) {
-      faults.push(f("DATE_IN_FUTURE", "An act cannot be dated after today.", "Tindakan tidak boleh ditarikhkan selepas hari ini.", "date"));
+      faults.push(f("DATE_IN_FUTURE", "An act cannot be dated after today.", "date"));
     } else if (claimed < today && !slot.signatureClass) {
       // The day of an ordinary act is a fact the officer reports (a check done last week, entered now): it is theirs to date, and the server's own stamp is `at`.
       day = claimed;
@@ -174,16 +171,15 @@ export function interpretAct(input: {
           f(
             "BACKDATE_NEEDED",
             "A signed act is dated today. To date it earlier, say that it is back-dated, why, and who authorised it.",
-            "Tindakan yang ditandatangani bertarikh hari ini. Untuk mentarikhkannya lebih awal, nyatakan ia dibertarikh lalu, sebabnya dan siapa yang membenarkannya.",
             "date",
           ),
         );
       } else {
-        if (form.backdateReason.trim() === "") faults.push(f("BACKDATE_REASON_REQUIRED", "Dating an act earlier than today needs the reason.", "Mentarikhkan tindakan lebih awal daripada hari ini memerlukan sebabnya.", "backdateReason"));
+        if (form.backdateReason.trim() === "") faults.push(f("BACKDATE_REASON_REQUIRED", "Dating an act earlier than today needs the reason.", "backdateReason"));
         if (!form.backdateAuthorisedByPersonId) {
-          faults.push(f("BACKDATE_AUTHORISER_REQUIRED", "Dating an act earlier than today needs the officer who authorised it.", "Mentarikhkan tindakan lebih awal daripada hari ini memerlukan pegawai yang membenarkannya.", "backdateAuthorisedBy"));
+          faults.push(f("BACKDATE_AUTHORISER_REQUIRED", "Dating an act earlier than today needs the officer who authorised it.", "backdateAuthorisedBy"));
         } else if (form.backdateAuthorisedByPersonId === input.actorPersonId) {
-          faults.push(f("BACKDATE_SELF_AUTHORISED", "Dating an act earlier than today is authorised by someone other than the person who records it.", "Mentarikhkan tindakan lebih awal daripada hari ini dibenarkan oleh orang lain selain yang merekodkannya.", "backdateAuthorisedBy"));
+          faults.push(f("BACKDATE_SELF_AUTHORISED", "Dating an act earlier than today is authorised by someone other than the person who records it.", "backdateAuthorisedBy"));
         }
         if (faults.length === 0) {
           backdate = { reason: form.backdateReason.trim(), authorisedByPersonId: form.backdateAuthorisedByPersonId! };

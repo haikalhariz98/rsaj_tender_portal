@@ -5,6 +5,8 @@ import { fileKind, MAX_UPLOAD_BYTES, readUpload } from "./line-import-file";
 import { importLines, parseCsv } from "./line-import";
 import { csvTemplate, TEMPLATE_HEADERS, xlsxTemplate } from "./line-template";
 
+// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+
 const enc = (s: string) => new TextEncoder().encode(s);
 
 describe("the template", () => {
@@ -14,7 +16,7 @@ describe("the template", () => {
     await wb.xlsx.load(bytes as unknown as ArrayBuffer);
     expect(wb.worksheets).toHaveLength(1);
     const ws = wb.worksheets[0];
-    const headerRow = ws.getRow(3).values as unknown[];
+    const headerRow = ws.getRow(2).values as unknown[];
     expect(headerRow.slice(1)).toEqual([...TEMPLATE_HEADERS]);
     expect(String(ws.getCell(1, 1).value)).toMatch(/quantity × unit price/);
     expect(ws.getColumn(4).numFmt).toBe("#,##0.00");
