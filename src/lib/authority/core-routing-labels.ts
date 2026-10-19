@@ -135,21 +135,21 @@ export function routeCoreText(
   route: { coreSnapshotAt: Date | null; coreChainFlag: boolean | null; coreChainReason: string | null; coreRoutingSnapshot: unknown },
   officeName: (code: string) => Words,
 ): Words {
-  if (!route.coreSnapshotAt) return { en: "Not recorded: this route opened before core routing was recorded on routes." };
+  if (!route.coreSnapshotAt) return { en: "Not recorded." };
   if (route.coreChainFlag == null)
-    return { en: "Chain as entered on the rule, not checked against core routing: nobody had decided whether the rule takes its chain from it." };
+    return { en: "Chain as entered on the rule, not checked against core routing." };
   if (route.coreChainFlag === false) {
     // A reason typed as a sentence already ends in a full stop; the sentence supplies its own.
     const why = route.coreChainReason?.trim().replace(/[.\s]+$/, "");
     return {
-      en: `Chain as entered on the rule, recorded as not taken from the core routing: ${why || "reason not recorded"}.`,
+      en: `Chain as entered on the rule, not from core routing: ${why || "reason not recorded"}.`,
     };
   }
   // Flagged, but nothing generated: every route opener refuses a core chain fault, so
   // the one fallback a route can open under is a missing core row for its approver.
   if (!chainWasGenerated(route))
     return {
-      en: "Chain as entered on the rule, not checked against core routing: the rule takes its chain from the core routing, but this issue recorded no core routing for its approving office when the route opened.",
+      en: "Chain as entered on the rule, not checked against core routing: none recorded for its approving office.",
     };
   const level = route.coreRoutingSnapshot as CoreLevel;
   const office = officeName(level.approverCode);

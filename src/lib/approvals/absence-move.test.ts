@@ -52,12 +52,12 @@ describe("the report of a sweep", () => {
 
   it("counts, and does not name, the steps on records restricted to those named on them", () => {
     const words = reportWords({ moved: [{ stepId: "s1", matter: null, from: "A", to: "B" }], stayed: [] });
-    expect(words).toEqual(["1 more on restricted records, not listed."]);
+    expect(words).toEqual(["1 more on restricted records, not listed."]) // 0005, founder 2026-10-19: shortened;
     expect(words.join(" ")).not.toContain("A to B");
   });
 
   it("says plainly when nothing was waiting", () => {
-    expect(reportWords({ moved: [], stayed: [] })).toEqual(["No pending step on that office."]);
+    expect(reportWords({ moved: [], stayed: [] })).toEqual(["No pending step on that office."]) // 0005, founder 2026-10-19: shortened;
   });
 });
 

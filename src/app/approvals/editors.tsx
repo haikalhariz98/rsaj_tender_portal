@@ -25,7 +25,7 @@ export function EscalateDrawer({
   return (
     <RecordEditor
       title={`Escalate the ${office}'s step`}
-      description="Moves the step one level up. The reason goes on the trail."
+      description="One level up. Told in the portal, not emailed. Reason is recorded."
       fields={[
         { kind: "hidden", name: "stepId" },
         {

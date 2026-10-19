@@ -35,7 +35,7 @@ export function MoveAwayButton({ waiting }: { waiting: number }) {
       {waiting === 0 && <span className="text-[12px] text-ink-3">Nothing stuck.</span>}
       {refused && (
         <Callout tone="warn" title="Nothing was moved">
-          {refused}
+          {refused} Ask an officer.
         </Callout>
       )}
       {words && !refused && (

@@ -6,6 +6,7 @@ import { actLabel } from "@/components/ui/act";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { LeadWithMore } from "@/components/ui/more-text";
+import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import { myStepsOf, waitingForCount, WAITING_RULE_TEXT, type QueueItem } from "@/lib/approvals/queue";
 import { ESCALATION_KIND_LABEL } from "@/lib/authority/escalation-labels";
@@ -160,7 +161,9 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
           title: "My approvals",
           text: "A step is yours when you hold its office or a delegation of it. Steps you raised are listed, not counted. Committees decide at the sitting. Not emailed: see your inbox.",
         }}
-        meta={[`${waiting} for you`, `${all.length} open`, `${escalated} escalated`, `${nobody} stuck`]}
+        meta={[`${waiting} for you`, `${all.length} open`, `${escalated} escalated`, `${nobody} need escalating`,
+          <InfoChip key="ne" tone="neutral" detail="Email is not connected. What happens to a step, and who is told, appears in your inbox.">Not emailed</InfoChip>,
+        ]}
       />
       {w && !w.today && (
         <Callout tone="warn" className="mb-6" title="Time zone not set. Waiting days are not counted." />

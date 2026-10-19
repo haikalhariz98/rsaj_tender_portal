@@ -33,6 +33,7 @@ const SURFACES: readonly Surface[] = [
   { file: "src/app/page.tsx", what: "dashboard, Committee matters waiting (Value column)", kinds: "ANY", region: 'title={t(D.committeeTitle)}', regionEnd: "rows={data.queue", chip: /key: "value", label: (?:"Value"|t\(D\.value\))[^}]*\bsulit: true/ },
   { file: "src/components/committee/decision-panel.tsx", what: "sitting agenda, each matter's panel", kinds: "ANY", chip: /\{matter\.amount\.sulit \? <SulitValue of=\{matter\.amount\.sulit\} \/>/ },
   { file: "src/app/committees/[id]/page.tsx", what: "sitting History, a matter's amount", kinds: "ANY", chip: /historyAmount\(\{[^}]*\}\)[\s\S]*<SulitValue of=\{amount\.sulit\} \/>/ },
+  // 0005, founder 2026-10-19: the amount hint was shortened to "SULIT. May be left blank." and still opens with SULIT.
   { file: "src/app/committees/editors.tsx", what: "sitting, Table a matter drawer's Amount", kinds: "ANY", chip: /name: "amount", label: "Amount", hint: "SULIT/ },
   { file: "src/app/requisitions/[id]/page.tsx", what: "requisition, Committee matters card", kinds: ["REQUISITION"], region: "function CommitteeMatters(", chip: "NO_AMOUNT" },
   // C-3 (wave C step C4): ApprovalPanel moved out of the award page; the surface is unchanged.

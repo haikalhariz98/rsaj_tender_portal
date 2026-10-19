@@ -216,6 +216,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   const lastCheck = r.budgetChecks[0] ?? null;
   const inst = r.approvalInstances[0] ?? null;
   const open = inst?.status === "PENDING" ? inst : null;
+  // The day the final step was decided, which is the day the commitment was written; read from the stored step, never worked out here.
+  const approvedOn = inst?.status === "APPROVED" ? (inst.steps[inst.steps.length - 1]?.decidedOn ?? null) : null;
   // The band the route ran under, from the rule its pinned issue holds (FR-APR-019, R4).
   const pinnedRule = inst?.checkedAgainstMatrix ? await loadPinnedRule(inst) : null;
   const routeBand = inst && pinnedRule ? formatRouteBand({ min: pinnedRule.minValue, max: pinnedRule.maxValue }, { value: inst.boundaryValue, operator: inst.boundaryOperator }) : null;
@@ -477,7 +479,13 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             {r.origin === "EXTERNAL" && <InfoChip tone="info" detail="Numbers, budget figures and approval trail are stored as typed. The trail is not checked against the approval matrix.">From finance system</InfoChip>}
           </>
         }
-        subtitle={`${unitName(r.requestingUnitCode)}${r.sectionUnitCode ? ` · ${unitName(r.sectionUnitCode)}` : ""} · raised by ${r.requestingPerson.name}`}
+        subtitle={
+          r.status === "CANCELLED"
+            ? `Cancelled: ${r.cancelReason || "no reason recorded"}`
+            : r.status === "CLOSED" && r.closedReason
+              ? `Closed: ${r.closedReason}`
+              : `${unitName(r.requestingUnitCode)}${r.sectionUnitCode ? ` · ${unitName(r.sectionUnitCode)}` : ""} · raised by ${r.requestingPerson.name}`
+        }
         meta={[
           // Founder, 2026-10-05: the reference in the header's own font, and the finance system's
           // number only once one is recorded (no "not recorded" placeholder).
@@ -485,6 +493,13 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           <SulitValue key="v" of={rm(formatRM(num(r.estimatedValue)))} />,
           `Required by ${formatDate(r.dateRequired)}`,
           route ? route.nameEn : "Funding route not set",
+          ...(r.commitmentMovementId && inst?.status === "APPROVED" && approvedOn
+            ? [
+                <span key="commit" className="inline-flex items-center gap-1">
+                  Committed <SulitValue of={rm(formatRM(num(r.estimatedValue)))} /> on {formatDate(approvedOn)}
+                </span>,
+              ]
+            : []),
         ]}
         actions={actions}
         actionsNote={headerNote}
@@ -533,19 +548,9 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           {sentBack.reason ? `“${sentBack.reason}”` : "No reason recorded."} Change, endorse and submit again.
         </Callout>
       )}
-      {r.status === "CLOSED" && r.closedReason && (
-        <Callout tone="warn" className="mb-6" title="Closed">
-          {r.closedReason}
-        </Callout>
-      )}
       {r.status === "RETURNED" && (
         <Callout tone="warn" className="mb-6" title={`Returned to ${r.returnedTo?.name ?? "Not recorded"} on ${formatDate(r.returnedOn)}`}>
           {r.returnedReason || "No reason recorded."}
-        </Callout>
-      )}
-      {r.status === "CANCELLED" && (
-        <Callout tone="warn" className="mb-6" title="Cancelled">
-          {r.cancelReason || "No reason recorded."}
         </Callout>
       )}
 
@@ -645,7 +650,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             icon: <RouteIcon size={15} />,
             panel: (
               <ApprovalPanel
-                estimate={estimate}
                 l={l}
                 officeName={(code) => (code ? (roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null)}
                 gates={
@@ -1156,7 +1160,6 @@ function BudgetPanel({
 type Step = LoadedRequisition["req"]["approvalInstances"][number]["steps"][number];
 
 async function ApprovalPanel({
-  estimate,
   l,
   gates,
   officeName,
@@ -1170,7 +1173,6 @@ async function ApprovalPanel({
   previewNote,
   previewRefusal,
 }: {
-  estimate: Sulit<true>;
   /// Why this route would be refused at submission: a step only the requester could act for (R1).
   previewRefusal: string | null;
   /// Said on the preview where a newer issue is in force today than on the raised-on day.
@@ -1256,6 +1258,7 @@ async function ApprovalPanel({
           actions={<Badge tone={routeTone(inst.status)}>{approvalRouteLabel(inst.status, inst.warnings)}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">
+          {!inst.checkedAgainstMatrix && <Callout tone="warn" title="Route not checked against the approval matrix." />}
           {/* Founder, 2026-10-05: the route at a glance first, as a flow of steps; how it was chosen below, folded. */}
           <Stepper
             label="Approval steps"
@@ -1314,7 +1317,7 @@ async function ApprovalPanel({
               ]}
             />
           ) : (
-            <div><InfoChip tone="warn" detail="Typed in from the finance system. The portal did not route it and does not vouch for it.">Not checked against matrix</InfoChip></div>
+            <div><InfoChip tone="warn" detail="Typed in from the finance system. The portal did not route it and does not vouch for it.">Typed trail</InfoChip></div>
           )}
           {warnings.length > 0 && (
             <ul className="flex flex-col gap-2">
@@ -1418,11 +1421,7 @@ async function ApprovalPanel({
 
       {inst.status === "APPROVED" && inst.checkedAgainstMatrix && (
         <div>
-          {r.commitmentMovementId ? (
-            <InfoChip tone="ok" detail="Written against the budget code on the day it was approved.">
-              {estimate.state === "GRANTED" ? `Committed ${formatRM(num(r.estimatedValue))}` : "Committed"}
-            </InfoChip>
-          ) : (
+          {r.commitmentMovementId ? null : (
             <InfoChip
               tone="info"
               detail={{

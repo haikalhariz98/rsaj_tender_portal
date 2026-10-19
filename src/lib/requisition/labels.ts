@@ -312,7 +312,7 @@ export const DECIDER_FAULT_TEXT: Record<DeciderFault, string> = {
   FUTURE_DATE: "A decision cannot be dated after today.",
   BEFORE_SUBMISSION: "A decision cannot be dated before the requisition was submitted.",
   DECLARED_CONFLICT: "Declared a conflict and recused. Step escalated.",
-  RECORDER_IS_REQUESTER: "You raised this. Someone else must record the decision.",
+  RECORDER_IS_REQUESTER: "You raised or sent this. Someone else must record the decision.",
   RECORDER_ENDORSED_IT: "You endorsed this matter. An endorser does not record its decision for someone else.",
   RECORDER_DECIDED_ANOTHER_STEP: "You already decided another step. Someone else records this one.",
   RECORDER_DECLARED_CONFLICT: "You recused on this step. Someone else records it.",

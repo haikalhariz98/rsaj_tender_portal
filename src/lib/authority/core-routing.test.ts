@@ -332,7 +332,7 @@ describe("(22) what a route stores, and how an earlier route reads", () => {
     expect(chainWasGenerated(route)).toBe(false);
     const text = routeCoreText(route, name);
     expect(text.en).toBe(
-      "Chain as entered on the rule, not checked against core routing: the rule takes its chain from the core routing, but this issue recorded no core routing for its approving office when the route opened.",
+      "Chain as entered on the rule, not checked against core routing: none recorded for its approving office.", // 0005, founder 2026-10-19: shortened
     );
     expect(text.en).not.toMatch(/Generated from|Taken from/);
     // Generated means the flag and a recorded core row together.
@@ -348,14 +348,14 @@ describe("(22) what a route stores, and how an earlier route reads", () => {
     const fields = routeCoreFields(r.core, at);
     expect(fields).toEqual({ coreSnapshotAt: at, coreChainFlag: false, coreChainReason: "§3.1.4.2 item 1 states the chain; §2.2.1 is silent above the CEO" });
     expect(routeCoreText({ ...fields, coreRoutingSnapshot: null }, name).en).toBe(
-      "Chain as entered on the rule, recorded as not taken from the core routing: §3.1.4.2 item 1 states the chain; §2.2.1 is silent above the CEO.",
+      "Chain as entered on the rule, not from core routing: §3.1.4.2 item 1 states the chain; §2.2.1 is silent above the CEO.", // 0005, founder 2026-10-19: shortened
     );
   });
 
   it("a reason that already ends in a full stop is not given a second one", () => {
     const fields = { coreSnapshotAt: at, coreChainFlag: false, coreChainReason: "One office approves the documents: nothing to generate (demo)." };
     const text = routeCoreText({ ...fields, coreRoutingSnapshot: null }, name);
-    expect(text.en).toBe("Chain as entered on the rule, recorded as not taken from the core routing: One office approves the documents: nothing to generate (demo).");
+    expect(text.en).toBe("Chain as entered on the rule, not from core routing: One office approves the documents: nothing to generate (demo)."); // 0005, founder 2026-10-19: shortened
   });
 
   it("an unset flag is stored as such and reads 'not checked', never as generated", () => {

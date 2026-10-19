@@ -252,7 +252,7 @@ export const VOTE_FAULT_MESSAGE: Record<VoteFault, string> = {
 export const TABLING_FAULT_MESSAGE: Record<TablingFault, string> = {
   SECRETARIAT_NOT_SET:
     "No Secretariat office set. Set one under Committees.",
-  NOT_TABLED: "Only the Secretariat holder tables matters. Sign in as them.",
+  NOT_TABLED: "Only the Secretariat holder tables matters. They sign in to do it.",
   NOT_SECRETARIAT_HOLDER: "Only the Secretariat holder can table matters.",
   TIME_ZONE_UNSET:
     "Time zone not set. An administrator sets it under Organisation.",

@@ -4,6 +4,7 @@ import { assessMatter, type MatterBlocker, type MatterInput } from "./matter";
 import { configurationGaps, subjectList, type GapMatter } from "./gaps";
 
 /*
+ * Note 0005, founder 2026-10-19: the banner title and gap lines were shortened (Committee set-up blocks ..., Blocks ...); the assertions still pin the count and the subjects.
  * The banner on a sitting says how many matters the committee's configuration stops,
  * and which, from the same per-matter assessment the cards show (6.10 local review 2).
  */

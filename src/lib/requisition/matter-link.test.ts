@@ -79,7 +79,7 @@ describe("a decision cited on a route returned at approval (ruling R2)", () => {
       { committeeDecisionId: "d1", decidedByName: "Board of Directors", roleLabel: "Board", decidedOn: d },
     ];
     expect(returnedRouteCitationNotes({ returnedAtApproval: true, steps })).toEqual([
-      "The Board of Directors's decision of 20 Aug 2026 cannot discharge this route. Table the matter again.",
+      "The Board of Directors's decision of 20 Aug 2026 cannot discharge this route. Table the matter again.", // 0005, founder 2026-10-19: shortened
     ]);
     expect(returnedRouteCitationNotes({ returnedAtApproval: false, steps })).toEqual([]);
   });
