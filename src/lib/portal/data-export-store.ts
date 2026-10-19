@@ -5,8 +5,7 @@ import { writeAudit } from "@/lib/audit/record";
 import { OWN_RECORD, writeSupplierSulitEvent } from "@/lib/auth/creditor-access-store";
 import type { SupplierActor } from "@/lib/auth/types";
 import { loadOwnBidReceipts } from "@/lib/bids/online/my-bids-store";
-import { w, type Words } from "@/lib/contract/labels";
-import { dayIn } from "@/lib/dates";
+import { dayIn, dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { auditActorOf } from "@/lib/portal/bids/signup-store";
 import { loadBidContext } from "@/lib/portal/bids/context-store";
@@ -47,9 +46,9 @@ export interface SupplierDataExportResult {
 
 const LIST_KINDS = { entityType: "ENTITY_TYPE", country: "COUNTRY", state: "STATE", bumiputeraClaim: "BUMIPUTERA_STATUS", bank: "BANK", bankAccountType: "ACCOUNT_TYPE" } as const;
 
-/// A list's values by code, as their words. A value with no Malay name reads in English in both, as the lists are kept today.
-function listsOf(values: readonly { list: string; code: string; nameEn: string; nameMs: string | null }[]): ExportLists {
-  const of = (kind: string): Record<string, Words> => Object.fromEntries(values.filter((v) => v.list === kind).map((v) => [v.code, w(v.nameEn, v.nameMs?.trim() ? v.nameMs : v.nameEn)]));
+/// A list's values by code, as their English names.
+function listsOf(values: readonly { list: string; code: string; nameEn: string }[]): ExportLists {
+  const of = (kind: string): Record<string, string> => Object.fromEntries(values.filter((v) => v.list === kind).map((v) => [v.code, v.nameEn]));
   return Object.fromEntries(Object.entries(LIST_KINDS).map(([key, kind]) => [key, of(kind)])) as unknown as ExportLists;
 }
 
@@ -64,9 +63,9 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
     const reference = String(supplier.reference ?? "");
 
     const [lists, contacts, declarations, documents, standingChanges, applications] = await Promise.all([
-      tx.supplierListValue.findMany({ where: { organisationId: actor.organisationId, list: { in: Object.values(LIST_KINDS) } }, select: { list: true, code: true, nameEn: true, nameMs: true } }),
+      tx.supplierListValue.findMany({ where: { organisationId: actor.organisationId, list: { in: Object.values(LIST_KINDS) } }, select: { list: true, code: true, nameEn: true } }),
       // As `loadContactsSummary`: the contacts not retired, the primary first.
-      tx.supplierContact.findMany({ where: { ...own, retiredOn: null }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }], select: { ...inColumns("SupplierContact"), account: { select: inColumns("SupplierAccount") } } }),
+      tx.supplierContact.findMany({ where: { ...own, retiredOn: null }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }], select: { ...inColumns("SupplierContact"), account: { select: { ...inColumns("SupplierAccount"), id: true } } } }),
       // As `loadDeclarationsSummary`: every declaration signed on one of the supplier's applications.
       tx.registrationDeclaration.findMany({ where: { organisationId: actor.organisationId, application: { supplierId: actor.supplierId } }, orderBy: [{ signedAt: "asc" }, { kind: "asc" }], select: inColumns("RegistrationDeclaration") }),
       // As `loadDocumentsTab` and `companyDocument`: every document of the supplier, with its codes and its live files (attached, not withdrawn).
@@ -79,7 +78,8 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
           attachments: { where: { purpose: "SUPPLIER_DOCUMENT", detachedAt: null, version: { withdrawnAt: null } }, select: { version: { select: inColumns("DocumentVersion") } } },
         },
       }),
-      tx.standingEvent.findMany({ where: own, orderBy: [{ effectiveOn: "asc" }, { recordedAt: "asc" }], select: inColumns("StandingEvent") }),
+      // Conservative reading (decisions log 2026-10-19): only what stands today, as the portal's standing reading does. A withdrawn change, or one not yet in effect, is left out; with no organisation day nothing is.
+      settings.org.today ? tx.standingEvent.findMany({ where: { ...own, withdrawnAt: null, effectiveOn: { lte: dayToDate(settings.org.today) } }, orderBy: [{ effectiveOn: "asc" }, { recordedAt: "asc" }], select: inColumns("StandingEvent") }) : Promise.resolve([]),
       // As `loadRegistrationStatus` (which reads outside this transaction): the supplier's applications, newest first, each with its outcomes and the items asked for.
       tx.supplierApplication.findMany({
         where: own,
@@ -133,6 +133,7 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
 
     const src: SupplierExportSource = {
       organisationName: settings.org.name,
+      accountId: actor.accountId,
       supplier,
       lists: listsOf(lists),
       contacts: contacts.map(({ account, ...row }) => ({ row, open: true, account: account ?? null })),

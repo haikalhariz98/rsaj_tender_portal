@@ -142,9 +142,9 @@ export const NESTED_LABEL: Readonly<Record<string, Words>> = {
   "supplier/register": w("Register as a supplier", "Daftar sebagai pembekal"),
   // Phase 4b: a signed-in supplier completing its registration.
   "supplier/registration": w("Registration", "Pendaftaran"),
-  // Phase 4a: a supplier activating the account an officer opened, and setting a new password with a reset code.
   // N2: the supplier's own data page. English in both slots (founder 2026-10-19: no Malay is added).
   "account/data": w("Your data", "Your data"),
+  // Phase 4a: a supplier activating the account an officer opened, and setting a new password with a reset code.
   "supplier/activate": w("Activate your account", "Aktifkan akaun anda"),
   "supplier/reset": w("Set a new password", "Tetapkan kata laluan baharu"),
 };

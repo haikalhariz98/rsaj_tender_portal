@@ -4,7 +4,6 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { Prisma } from "@/generated/prisma/client";
-import type { Words } from "@/lib/contract/labels";
 
 import { SUPPLIER_ENTITY, SUPPLIER_ENTITY_LABEL, SUPPLIER_FIELD_NAME } from "./audit-view";
 import { buildSupplierExport, ExportFileNameError, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportRow, type SourceRow, type SupplierExport, type SupplierExportSource } from "./data-export";
@@ -24,7 +23,6 @@ function fixture(model: ExportModel, values: Record<string, unknown>): SourceRow
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 const t = (s: string) => new Date(s);
-const W = (en: string, ms: string): Words => ({ en, ms });
 
 /// Distinctive list codes, so a code that leaks is found by its text.
 const CODES = { entity: "ET-SDNBHD", country: "CC-MY", state: "ST-SEL", bumi: "BC-BUMI", bank: "BK-MBB", accountType: "AT-CUR" };
@@ -32,6 +30,7 @@ const CODES = { entity: "ET-SDNBHD", country: "CC-MY", state: "ST-SEL", bumi: "B
 function source(over: Partial<SupplierExportSource> = {}): SupplierExportSource {
   return {
     organisationName: "Demonstration Authority",
+    accountId: "acc-aminah",
     supplier: fixture("Supplier", {
       reference: "SUP-0042",
       registeredName: "Syarikat Contoh Sdn Bhd",
@@ -51,23 +50,23 @@ function source(over: Partial<SupplierExportSource> = {}): SupplierExportSource 
       registeredOn: d("2026-05-04"),
     }),
     lists: {
-      entityType: { [CODES.entity]: W("Private limited company", "Syarikat sendirian berhad") },
-      country: { [CODES.country]: W("Malaysia", "Malaysia") },
-      state: { [CODES.state]: W("Selangor", "Selangor") },
-      bumiputeraClaim: { [CODES.bumi]: W("Bumiputera", "Bumiputera") },
-      bank: { [CODES.bank]: W("Maybank", "Maybank") },
-      bankAccountType: { [CODES.accountType]: W("Current account", "Akaun semasa") },
+      entityType: { [CODES.entity]: "Private limited company" },
+      country: { [CODES.country]: "Malaysia" },
+      state: { [CODES.state]: "Selangor" },
+      bumiputeraClaim: { [CODES.bumi]: "Bumiputera" },
+      bank: { [CODES.bank]: "Maybank" },
+      bankAccountType: { [CODES.accountType]: "Current account" },
     },
     contacts: [
       {
         open: true,
         row: fixture("SupplierContact", { name: "Aminah binti Ali", designation: "Director", email: "aminah@contoh.example", phone: "03-5555 0101", isPrimary: true }),
-        account: fixture("SupplierAccount", { loginName: "aminah.ali", passwordChangedAt: t("2026-06-01T02:00:00Z"), status: "ACTIVE", lastSignInAt: t("2026-10-18T01:30:00Z"), disabledAt: null, createdAt: t("2026-05-05T03:00:00Z") }),
+        account: { ...fixture("SupplierAccount", { loginName: "aminah.ali", passwordChangedAt: t("2026-06-01T02:00:00Z"), status: "ACTIVE", lastSignInAt: t("2026-10-18T01:30:00Z"), disabledAt: null, createdAt: t("2026-05-05T03:00:00Z") }), id: "acc-aminah" },
       },
       {
         open: false,
         row: fixture("SupplierContact", { name: "CLOSED-contact-name", designation: "CLOSED-designation", email: "closed@contoh.example", phone: "CLOSED-phone", isPrimary: false }),
-        account: fixture("SupplierAccount", { loginName: "CLOSED-login-name", passwordChangedAt: t("2026-06-01T02:00:00Z"), status: "ACTIVE", lastSignInAt: null, disabledAt: null, createdAt: t("2026-05-05T03:00:00Z") }),
+        account: { ...fixture("SupplierAccount", { loginName: "CLOSED-login-name", passwordChangedAt: t("2026-06-01T02:00:00Z"), status: "ACTIVE", lastSignInAt: null, disabledAt: null, createdAt: t("2026-05-05T03:00:00Z") }), id: "acc-closed" },
       },
     ],
     declarations: [
@@ -171,9 +170,9 @@ function versionRow(id: string, originalFilename: string): SourceRow {
 const CTX = { generatedAt: t("2026-10-19T03:00:00Z"), timeZone: "Asia/Kuala_Lumpur", officeName: "Demonstration Procurement Office" };
 const build = (over: Partial<SupplierExportSource> = {}) => buildSupplierExport(source(over), CTX);
 const section = (e: SupplierExport, key: string) => e.sections.find((s) => s.key === key)!;
-const label = (r: ExportRow) => r.label.en;
+const label = (r: ExportRow) => r.label;
 const find = (rows: readonly ExportRow[], en: string) => rows.find((r) => label(r) === en);
-const en = (v: ExportRow["value"] | undefined) => (v == null ? null : typeof v === "string" ? v : v.en);
+const en = (v: ExportRow["value"] | undefined) => v ?? null;
 
 function walkRows(rows: readonly ExportRow[], visit: (r: ExportRow) => void) {
   for (const r of rows) {
@@ -261,7 +260,7 @@ describe("what never leaves", () => {
 
   it("is audited as its own entity on the supplier's History", () => {
     expect(SUPPLIER_ENTITY.dataExport).toBe("SupplierDataExport");
-    expect(SUPPLIER_ENTITY_LABEL.SupplierDataExport).toEqual({ en: "Data export", ms: "Eksport data" });
+    expect(SUPPLIER_ENTITY_LABEL.SupplierDataExport.en).toBe("Data export");
   });
 });
 
@@ -284,9 +283,18 @@ describe("the gated columns", () => {
     expect(json).toContain("aminah.ali");
     for (const closed of ["CLOSED-login-name", "CLOSED-contact-name", "closed@contoh.example", "CLOSED-phone", "CLOSED-designation"]) expect(json).not.toContain(closed);
     const accounts = section(e, "accounts").rows;
-    expect(accounts.map((r) => en(r.value))).toEqual(["Aminah binti Ali", WORDS.CONTACT_WITHHELD.en]);
+    expect(accounts.map((r) => en(r.value))).toEqual(["Aminah binti Ali", WORDS.CONTACT_WITHHELD]);
     expect(accounts[1].rows).toBeUndefined();
-    expect(en(section(e, "contacts").rows[1].value)).toBe(WORDS.CONTACT_WITHHELD.en);
+    expect(en(section(e, "contacts").rows[1].value)).toBe(WORDS.CONTACT_WITHHELD);
+  });
+
+  it("a colleague's account is its name and status only: its sign-in name and times are the reader's own (N2 review, decisions log 2026-10-19)", () => {
+    const src = source();
+    const e = buildSupplierExport({ ...src, contacts: [src.contacts[0], { ...src.contacts[1], open: true }] }, CTX);
+    const accounts = section(e, "accounts").rows;
+    expect(accounts[0].rows!.map(label)).toEqual(expect.arrayContaining(["Sign-in name", "Password last changed", "Last signed in"]));
+    expect(accounts[1].rows!.map(label)).toEqual(["Account status", "Opened"]);
+    expect(exportJson(e)).not.toContain("CLOSED-login-name");
   });
 
   it("an account with its contact open but no account shows no account row", () => {
@@ -331,9 +339,9 @@ describe("files, codes and dates", () => {
     const enumValues = new Set([...SCHEMA.matchAll(/^enum \w+ \{([^}]*)\}/gm)].flatMap((m) => m[1].split(/\r?\n/).map((l) => l.trim()).filter((l) => /^[A-Z][A-Z0-9_]*$/.test(l))));
     expect(enumValues.has("NOT_IN_ORDER")).toBe(true);
     const values: string[] = [];
-    for (const s of e.sections) walkRows(s.rows, (r) => (r.value == null ? undefined : typeof r.value === "string" ? values.push(r.value) : values.push(r.value.en, r.value.ms)));
+    for (const s of e.sections) walkRows(s.rows, (r) => (r.value == null ? undefined : values.push(r.value)));
     expect(values.filter((v) => enumValues.has(v))).toEqual([]);
-    expect(find(section(e, "company").rows[0].rows!, "Entity type")?.value).toEqual({ en: "Private limited company", ms: "Syarikat sendirian berhad" });
+    expect(find(section(e, "company").rows[0].rows!, "Entity type")?.value).toBe("Private limited company");
   });
 
   it("a code no longer on its list is said to be so, never shown", () => {
@@ -380,36 +388,29 @@ describe("the file", () => {
 
   it("says what it leaves out and how to ask the office, by the office's configured name or the portal's own wording, never an address", () => {
     const e = build();
-    expect(e.leftOut).toHaveLength(2);
-    expect(e.leftOut[0].en).toMatch(/internal notes/);
-    expect(e.leftOut[1].en).toContain("Demonstration Procurement Office");
-    expect(e.leftOut[1].en).toContain("SUP-0042");
+    expect(e.leftOut).toEqual(["Office internal notes are not included. Ask Demonstration Procurement Office, quoting SUP-0042."]);
     const blank = buildSupplierExport(source(), { ...CTX, officeName: "  " });
-    expect(blank.leftOut[1]).toEqual({ en: "To ask for them, contact the procurement office and quote your supplier reference SUP-0042.", ms: "Untuk memintanya, hubungi pejabat perolehan dan nyatakan rujukan pembekal anda SUP-0042." });
-    for (const l of [...e.leftOut, ...blank.leftOut]) expect(`${l.en} ${l.ms}`).not.toMatch(/@|https?:\/\//);
+    expect(blank.leftOut).toEqual(["Office internal notes are not included. Ask the procurement office, quoting SUP-0042."]);
+    for (const l of [...e.leftOut, ...blank.leftOut]) expect(l.includes("@") || l.includes("http")).toBe(false);
   });
 });
 
 describe("the words", () => {
-  it("every Words of the export has both English and Malay", () => {
-    const found: [string, Words][] = [];
-    const visit = (name: string, v: unknown) => {
-      if (v && typeof v === "object" && "en" in v && "ms" in v) found.push([name, v as Words]);
-      else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) visit(`${name}.${k}`, x);
-    };
-    for (const [name, v] of Object.entries(WORDS)) visit(name, v);
-    for (const [i, l] of WORDS.leftOutWords("", "SUP-1").entries()) found.push([`leftOut.${i}`, l]);
+  it("the export is English only (founder, 2026-10-19): every label, title and value is a plain non-empty string", () => {
     const e = build();
+    const seen: string[] = [];
     for (const s of e.sections) {
-      found.push([`section.${s.key}`, s.title]);
+      expect(typeof s.title).toBe("string");
       walkRows(s.rows, (r) => {
-        found.push([`label.${r.label.en}`, r.label]);
-        if (r.value && typeof r.value !== "string") found.push([`value.${r.value.en}`, r.value]);
+        expect(typeof r.label).toBe("string");
+        expect(r.value === null || typeof r.value === "string").toBe(true);
+        seen.push(r.label);
       });
     }
-    found.push(["entity", SUPPLIER_ENTITY_LABEL.SupplierDataExport]);
-    expect(found.length).toBeGreaterThan(150);
-    expect(found.filter(([, x]) => !x.en.trim() || !x.ms.trim()).map(([n]) => n)).toEqual([]);
+    expect(seen.length).toBeGreaterThan(50);
+    expect(seen.filter((x) => !x.trim())).toEqual([]);
+    expect(exportJson(e)).not.toMatch(/"(?:en|ms)":/);
+    expect(e.version).toBe(2);
   });
 });
 
@@ -424,7 +425,7 @@ describe("a worked example a finance person can check by hand", () => {
       "Company: 1 · Contacts: 2 · Portal accounts: 2 · Declarations signed: 1 · Bank details: 2 · Documents: 3 · Current standing: 1 · Changes to your standing: 2 · Applications and outcomes: 1 · Tender document purchases: 1 · Online bid receipts: 1",
     );
     const app = section(e, "applications").rows[0];
-    expect(app.value).toEqual({ en: "First registration", ms: "Pendaftaran baharu" });
+    expect(app.value).toBe("First registration");
     expect(app.rows!.filter((r) => label(r) === "Outcome").map((r) => en(r.value))).toEqual(["Resubmission requested", "Approved"]);
   });
 });

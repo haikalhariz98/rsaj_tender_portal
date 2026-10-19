@@ -58,13 +58,13 @@ async function document(who: Who, o: { reference: string; verification: "VERIFIE
 }
 
 /// A standing event as the office records it (StandingEvent_shape): a reason from the list, and a blacklisting from its request.
-async function standing(who: Who, kind: "SUSPEND" | "BLACKLIST", o: { reason: string; note: string }) {
+async function standing(who: Who, kind: "SUSPEND" | "BLACKLIST", o: { reason: string; note: string; effectiveInDays?: number }) {
   const reasonId = (await db.standingReason.create({ data: { organisationId: org, code: `N2_${randomId()}`, nameEn: o.reason, appliesTo: kind } })).id;
   const requestId =
     kind === "BLACKLIST" ? (await db.standingRequest.create({ data: { organisationId: org, supplierId: who.supplierId, kind: "BLACKLIST", reasonId, reasonSnapshot: o.reason, note: o.note, requestedByPersonId: officer, requestedAt: new Date() } })).id : null;
   return db.standingEvent.create({
     data: {
-      organisationId: org, supplierId: who.supplierId, kind, reasonId, requestId, reasonSnapshot: o.reason, effectiveOn: D(new Date(Date.now() - DAY)), flaggedDocumentIds: [], note: o.note, checklist: { said: o.note }, recordedByPersonId: officer, recordedAt: new Date(),
+      organisationId: org, supplierId: who.supplierId, kind, reasonId, requestId, reasonSnapshot: o.reason, effectiveOn: D(new Date(Date.now() + (o.effectiveInDays ?? -1) * DAY)), flaggedDocumentIds: [], note: o.note, checklist: { said: o.note }, recordedByPersonId: officer, recordedAt: new Date(),
       ...(kind === "BLACKLIST" ? { offenceNo: 1, periodMonths: 12, endsOn: D(new Date(Date.now() + 360 * DAY)) } : {}),
     },
   });
@@ -284,5 +284,15 @@ describe("a supplier's export of its own data (N2)", () => {
     const c = await exportSupplierData(C.actor, "FILE");
     expect(c!.json).toContain(tag("C-REASON"));
     expect(c!.json).not.toContain(tag("C-OUT-NOTE"));
+  });
+
+  it("leaves out a standing change that is not yet in effect (a withdrawal is only of a cancelled registration, which the pure builder test and the store filter cover), and an offence number or period (N2 review, decisions log 2026-10-19)", async () => {
+    const D1 = await signedIn(tag("D Company"));
+    await standing(D1, "SUSPEND", { reason: tag("D-IN-EFFECT"), note: tag("D-NOTE-1") });
+    await standing(D1, "BLACKLIST", { reason: tag("D-FUTURE"), note: tag("D-NOTE-3"), effectiveInDays: 30 });
+    const out = await exportSupplierData(D1.actor, "FILE");
+    expect(out!.export.sections.find((s) => s.key === "standingChanges")!.rows).toHaveLength(1);
+    expect(out!.json).toContain(tag("D-IN-EFFECT"));
+    holdsNone(out!.json, [tag("D-FUTURE")]);
   });
 });

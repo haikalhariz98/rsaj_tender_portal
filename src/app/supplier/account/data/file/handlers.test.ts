@@ -18,6 +18,7 @@ import { FORM_SECRET_MIN_LENGTH, signFormToken, type FormPurpose } from "@/lib/a
 import { SUPPLIER_DATA_EXPORT } from "@/lib/auth/routes";
 import type { SupplierActor } from "@/lib/auth/types";
 
+import { downloadLimiter } from "@/lib/documents/concurrency";
 import { GET, HEAD } from "./route";
 
 const KEY = "s".repeat(FORM_SECRET_MIN_LENGTH);
@@ -112,5 +113,20 @@ describe("the data-export file route", () => {
     h.exportData.mockClear();
     expect((await HEAD()).status).toBe(405);
     expect(h.exportData).not.toHaveBeenCalled();
+  });
+
+  it("answers 503 with Retry-After and writes nothing while the exports in flight are at the cap, and frees the slot after", async () => {
+    const limiter = downloadLimiter();
+    const held = Array.from({ length: limiter.max }, () => limiter.tryAcquire());
+    try {
+      const res = await GET(get());
+      expect(res.status).toBe(503);
+      expect(res.headers.get("Retry-After")).toBeTruthy();
+      expect(h.exportData).not.toHaveBeenCalled();
+    } finally {
+      for (const release of held) release?.();
+    }
+    expect((await GET(get())).status).toBe(200);
+    expect(limiter.active()).toBe(0);
   });
 });

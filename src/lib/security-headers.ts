@@ -27,5 +27,8 @@ export function headerRules(): { source: string; headers: { key: string; value: 
     { source: "/:path*", headers: SECURITY_HEADERS.map((h) => ({ ...h })) },
     { source: "/api/opening/sealed-file", headers: [{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }] },
     { source: "/api/documents/versions/:path*", headers: [{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }] },
+    // The supplier file routes set their own policy too, and a header set in the global rule replaces it.
+    { source: "/supplier/account/data/file", headers: [{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }] },
+    { source: "/supplier/registration/file", headers: [{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }] },
   ];
 }

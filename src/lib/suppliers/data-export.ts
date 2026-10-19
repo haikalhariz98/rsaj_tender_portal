@@ -48,23 +48,25 @@ import { APPLICATION_KIND_LABEL, APPLICATION_STATUS_LABEL, CHANNEL_LABEL, OUTCOM
 export type { ExportSectionKey } from "./data-export-words";
 
 export const EXPORT_FORMAT = "perolehan-supplier-export";
-export const EXPORT_VERSION = 1;
+export const EXPORT_VERSION = 2;
 
 /// A row as the reader read it. Only its model's IN columns are ever looked at.
 export type SourceRow = Readonly<Record<string, unknown>>;
 
 /// The organisation's maintained lists, by code, as their labels. A code missing from its list is said to be so, never shown.
 export interface ExportLists {
-  entityType: Readonly<Record<string, Words>>;
-  country: Readonly<Record<string, Words>>;
-  state: Readonly<Record<string, Words>>;
-  bumiputeraClaim: Readonly<Record<string, Words>>;
-  bank: Readonly<Record<string, Words>>;
-  bankAccountType: Readonly<Record<string, Words>>;
+  entityType: Readonly<Record<string, string>>;
+  country: Readonly<Record<string, string>>;
+  state: Readonly<Record<string, string>>;
+  bumiputeraClaim: Readonly<Record<string, string>>;
+  bank: Readonly<Record<string, string>>;
+  bankAccountType: Readonly<Record<string, string>>;
 }
 
 export interface SupplierExportSource {
   organisationName: string;
+  /// The reader's own account: the only one whose sign-in details are exported (decisions log 2026-10-19).
+  accountId: string;
   /// Supplier.
   supplier: SourceRow;
   lists: ExportLists;
@@ -90,10 +92,15 @@ export interface SupplierExportSource {
   bidReceipts: readonly { row: SourceRow; exerciseName: string; receivedAt: Date; late: boolean; keyFingerprint: string }[];
 }
 
+/// How a value that is not plain text is to be shown.
+export type ValueKind = "day" | "instant" | "bytes";
+
 export interface ExportFile {
   name: string;
   type: string;
+  /// A byte count as digits.
   size: string;
+  /// An ISO instant.
   lodgedOn: string;
   versionId: string;
   /// The download's path with no token.
@@ -101,8 +108,10 @@ export interface ExportFile {
 }
 
 export interface ExportRow {
-  label: Words;
-  value: string | Words | null;
+  label: string;
+  value: string | null;
+  /// What the value is, where it is not plain text: the page formats a day, a moment or a byte count; the file keeps ISO and the raw count.
+  kind?: ValueKind;
   files?: ExportFile[];
   /// What belongs to this row (a contact's details, an application's outcomes).
   rows?: ExportRow[];
@@ -111,7 +120,7 @@ export interface ExportRow {
 export interface ExportSection {
   /// A stable English JSON key, never shown.
   key: ExportSectionKey;
-  title: Words;
+  title: string;
   /// One top-level row per record.
   rows: ExportRow[];
 }
@@ -124,7 +133,7 @@ export interface SupplierExport {
   organisation: string;
   supplier: { reference: string; name: string };
   sections: ExportSection[];
-  leftOut: Words[];
+  leftOut: string[];
 }
 
 export interface ExportContext {
@@ -138,8 +147,13 @@ export interface ExportContext {
 // --- reading a value -----------------------------------------------------------------------------------------------------------------------
 
 const isDate = (v: unknown): v is Date => v instanceof Date && !Number.isNaN(v.getTime());
-const day = (v: unknown) => (isDate(v) ? storedDay(v) : null);
-const instant = (v: unknown) => (isDate(v) ? v.toISOString() : null);
+/// A value with its kind, so that the row can carry it.
+interface Typed {
+  readonly typed: string;
+  readonly kind: ValueKind;
+}
+const day = (v: unknown): Typed | null => (isDate(v) ? { typed: storedDay(v), kind: "day" } : null);
+const instant = (v: unknown): Typed | null => (isDate(v) ? { typed: v.toISOString(), kind: "instant" } : null);
 const text = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v : null);
 const count = (v: unknown) => (typeof v === "number" || typeof v === "bigint" ? String(v) : null);
 const yesNo = (v: unknown) => (typeof v === "boolean" ? (v ? YES : NO) : null);
@@ -150,16 +164,19 @@ function decimal(v: unknown): string | null {
   if (typeof v === "object" && typeof (v as { toFixed?: unknown }).toFixed === "function") return (v as { toFixed(dp: number): string }).toFixed(2);
   return null;
 }
-function enumWords(map: Readonly<Record<string, Words>>, v: unknown): Words | null {
+/// Words as a table holds them: the register's own tables carry a second language that the export does not use.
+const en = (x: Words | string): string => (typeof x === "string" ? x : x.en);
+function enumWords(map: Readonly<Record<string, Words | string>>, v: unknown): string | null {
   if (typeof v !== "string" || v === "") return null;
-  return Object.prototype.hasOwnProperty.call(map, v) ? map[v] : VALUE_NOT_KNOWN;
+  return Object.prototype.hasOwnProperty.call(map, v) ? en(map[v]) : VALUE_NOT_KNOWN;
 }
-function listWords(list: Readonly<Record<string, Words>>, v: unknown): Words | null {
+function listWords(list: Readonly<Record<string, Words | string>>, v: unknown): string | null {
   if (typeof v !== "string" || v.trim() === "") return null;
-  return Object.prototype.hasOwnProperty.call(list, v) ? list[v] : NOT_ON_LIST;
+  return Object.prototype.hasOwnProperty.call(list, v) ? en(list[v]) : NOT_ON_LIST;
 }
 
-const row = (label: ExportLabelKey, value: string | Words | null, rest: Omit<ExportRow, "label" | "value"> = {}): ExportRow => ({ label: EXPORT_LABEL[label], value, ...rest });
+const row = (label: ExportLabelKey, value: string | Typed | null, rest: Omit<ExportRow, "label" | "value" | "kind"> = {}): ExportRow =>
+  typeof value === "object" && value !== null ? { label: EXPORT_LABEL[label], value: value.typed, kind: value.kind, ...rest } : { label: EXPORT_LABEL[label], value, ...rest };
 /// The detail rows of a record, without the ones that hold nothing.
 const details = (rows: readonly (ExportRow | null)[]) => rows.filter((r): r is ExportRow => r != null && (r.value != null || (r.rows?.length ?? 0) > 0 || (r.files?.length ?? 0) > 0));
 const pick = (model: ExportModel, r: SourceRow) => pickIn(model, r);
@@ -169,7 +186,7 @@ function files(rows: readonly SourceRow[]): ExportFile[] {
     const f = pick("DocumentVersion", raw);
     const versionId = text(f.id);
     if (!versionId) return [];
-    return [{ name: text(f.originalFilename) ?? "", type: text(f.mediaType) ?? "", size: count(f.byteSize) ?? "", lodgedOn: instant(f.storedAt) ?? "", versionId, path: `${SUPPLIER_REGISTRATION_GETS.file}?id=${encodeURIComponent(versionId)}` }];
+    return [{ name: text(f.originalFilename) ?? "", type: text(f.mediaType) ?? "", size: count(f.byteSize) ?? "", lodgedOn: instant(f.storedAt)?.typed ?? "", versionId, path: `${SUPPLIER_REGISTRATION_GETS.file}?id=${encodeURIComponent(versionId)}` }];
   });
 }
 
@@ -217,14 +234,16 @@ function accounts(src: SupplierExportSource): ExportRow[] {
     if (!c.open) return [row("account", CONTACT_WITHHELD)];
     const a = pick("SupplierAccount", c.account);
     const contact = pick("SupplierContact", c.row);
+    // Conservative reading (decisions log 2026-10-19): no portal screen shows a colleague's sign-in name or times, so a colleague's account is its name and status only.
+    const own = c.account.id === src.accountId;
     return [
       row("account", text(contact.name), {
         rows: details([
-          row("loginName", text(a.loginName)),
+          own ? row("loginName", text(a.loginName)) : null,
           row("accountStatus", enumWords(ACCOUNT_STATUS_WORDS, a.status)),
           row("openedOn", instant(a.createdAt)),
-          row("passwordChangedAt", instant(a.passwordChangedAt)),
-          row("lastSignInAt", instant(a.lastSignInAt)),
+          own ? row("passwordChangedAt", instant(a.passwordChangedAt)) : null,
+          own ? row("lastSignInAt", instant(a.lastSignInAt)) : null,
           row("disabledAt", instant(a.disabledAt)),
         ]),
       }),
@@ -254,7 +273,7 @@ function bank(src: SupplierExportSource): ExportRow[] {
   const facts = versions.flatMap(({ p }) => (typeof p.version === "number" && typeof p.verification === "string" ? [{ version: p.version, sent: isDate(p.submittedAt), verification: p.verification as "NOT_CHECKED" | "VERIFIED" | "NOT_IN_ORDER" }] : []));
   const state = bankState(facts);
   // Decision 3: the bank tab's set only (in force, waiting, not in order). A superseded version would be a wider read than today.
-  const shown: { version: number; words: Words }[] = [];
+  const shown: { version: number; words: string }[] = [];
   for (const [v, words] of [
     [state.inForce, BANK_STATE_WORDS.inForce],
     [state.waiting, BANK_STATE_WORDS.waiting],
@@ -340,12 +359,9 @@ function standingChanges(src: SupplierExportSource): ExportRow[] {
         row("reason", cancelled ? null : text(e.reasonSnapshot)),
         row("effectiveOn", day(e.effectiveOn)),
         row("endsOn", day(e.endsOn)),
-        row("offenceNo", count(e.offenceNo)),
-        row("periodMonths", count(e.periodMonths)),
         row("cancellingBody", text(e.bodyLabelSnapshot)),
         row("externalReference", text(e.externalReference)),
         row("cancelsRegistrationOn", day(e.cancelsRegistrationOn)),
-        row("withdrawnAt", instant(e.withdrawnAt)),
       ]),
     });
   });
@@ -472,9 +488,9 @@ export function exportSectionCounts(e: SupplierExport): Record<ExportSectionKey,
 
 /// The export's audit changes: the form, how many records each section held, and the file's digest. Never an exported value.
 export function exportAuditChanges(e: SupplierExport, form: "FILE" | "PAGE", sha256: string | null): FieldChange[] {
-  const held = e.sections.map((s) => `${s.title.en}: ${s.rows.length}`).join(" · ");
+  const held = e.sections.map((s) => `${s.title}: ${s.rows.length}`).join(" · ");
   return [
-    { field: "exportForm", before: null, after: EXPORT_FORM_WORDS[form].en },
+    { field: "exportForm", before: null, after: EXPORT_FORM_WORDS[form] },
     { field: "exportSections", before: null, after: held },
     ...(sha256 ? [{ field: "exportDigest", before: null, after: sha256 }] : []),
   ];

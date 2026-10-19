@@ -28,12 +28,17 @@ describe("the rules handed to Next", () => {
   });
   it("keep the download's own strict policy, which a general rule would otherwise replace", () => {
     const rules = headerRules();
-    const dl = rules.at(-1)!;
+    const dl = rules.find((r) => r.source === "/api/documents/versions/:path*")!;
     expect(dl.source).toBe("/api/documents/versions/:path*");
     expect(dl.headers).toEqual([{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }]);
     expect(DOWNLOAD_POLICY).toMatch(/default-src 'none'/);
     expect(DOWNLOAD_POLICY).toMatch(/\bsandbox\b/);
     expect(DOWNLOAD_POLICY).toMatch(/frame-ancestors 'self'/);
+  });
+  it("give the supplier's file routes the same strict policy (N2 review)", () => {
+    for (const source of ["/supplier/account/data/file", "/supplier/registration/file"]) {
+      expect(headerRules().find((r) => r.source === source)?.headers).toEqual([{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }]);
+    }
   });
   it("give the officer's sealed-file download the same strict policy (wave 3b step 14)", () => {
     const rule = headerRules().find((r) => r.source === "/api/opening/sealed-file");

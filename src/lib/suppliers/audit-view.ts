@@ -46,7 +46,7 @@ export const SUPPLIER_ENTITY_LABEL: Readonly<Record<string, Words>> = {
   SpecialPermission: { en: "Special permission", ms: "Kebenaran khas" },
   ExerciseParty: { en: "Party on an exercise", ms: "Pihak dalam latihan" },
   Award: { en: "Award", ms: "Anugerah" },
-  SupplierDataExport: { en: "Data export", ms: "Eksport data" },
+  SupplierDataExport: { en: "Data export", ms: "Data export" },
 };
 
 /// Field names as History shows them.
@@ -148,10 +148,10 @@ export const SUPPLIER_FIELD_NAME: Readonly<Record<string, string>> = {
   goodRecordConfirmed: "Good record",
   grantedOn: "Granted on",
   grantedBy: "Granted by (recorded)",
-  // N2: a supplier's export of its own data (the Malay is EXPORT_AUDIT_FIELD_WORDS in data-export-words.ts).
-  exportForm: EXPORT_AUDIT_FIELD_WORDS.exportForm.en,
-  exportSections: EXPORT_AUDIT_FIELD_WORDS.exportSections.en,
-  exportDigest: EXPORT_AUDIT_FIELD_WORDS.exportDigest.en,
+  // N2: a supplier's export of its own data (English only).
+  exportForm: EXPORT_AUDIT_FIELD_WORDS.exportForm,
+  exportSections: EXPORT_AUDIT_FIELD_WORDS.exportSections,
+  exportDigest: EXPORT_AUDIT_FIELD_WORDS.exportDigest,
 };
 
 /// A field's name in the supplier's History, read with the rest of its row (residual 4): a row written before
