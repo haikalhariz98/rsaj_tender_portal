@@ -27,12 +27,15 @@ describe("the boundary switch's words", () => {
     expect(e).not.toMatch(/nothing else/);
     expect(e).not.toMatch(/every amount and percentage band edge/);
   });
-  it("the percentage-edge line carries the boundary provenance tag", () => {
+  // Changed to match 0005 R14, 2026-10-20: the provenance badge shows once, on "Boundary ruling"; the percentage line says it takes the boundary's side.
+  it("the percentage-edge line follows the boundary ruling, whose provenance tag shows once", () => {
     const p = read("src/app/configuration/approval-matrix/page.tsx");
     const at = p.indexOf('label: "A percentage exactly on a band edge"');
     expect(at).toBeGreaterThan(-1);
     const item = p.slice(at, p.indexOf('label: "Boundary ruling"'));
-    expect(item).toMatch(/<ProvenanceBadge value=\{boundaryMeta\.boundaryProvenance\} \/>/);
+    expect(item).toMatch(/Same side as the boundary/);
+    expect(item).not.toMatch(/ProvenanceBadge/);
+    expect(p.match(/<ProvenanceBadge value=\{boundaryMeta\.boundaryProvenance\} \/>/g)).toHaveLength(1);
   });
 });
 
