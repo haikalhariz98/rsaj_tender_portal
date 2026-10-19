@@ -107,7 +107,7 @@ describe("the supplier's screens for an online bid", () => {
     "src/app/supplier/bids/[id]/submissions-list.tsx",
     "src/app/supplier/bids/[id]/withdraw-control.tsx",
     "src/app/supplier/bids/[id]/receipt-card.tsx",
-    "src/app/supplier/bids/[id]/print-button.tsx",
+    "src/components/ui/print-button.tsx",
     "src/app/supplier/opportunities/[id]/your-key.tsx",
   ];
 
