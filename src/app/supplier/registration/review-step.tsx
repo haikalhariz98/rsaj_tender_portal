@@ -81,18 +81,16 @@ export function ReviewStep({
     }
     setFaults(body?.faults ?? []);
     setStale(status === 409 && body?.code === "STALE");
-    setMessage(body?.message ?? "That did not work and nothing was sent. Try again in a moment.");
+    setMessage(body?.message ?? "Not sent. Try again in a moment.");
   }
 
   return (
     <div className="flex flex-col gap-5">
       {notice ? (
-        <Callout tone="info" title="What happens next">
-          <span className="whitespace-pre-line">{notice}</span>
-        </Callout>
+        <div className="rounded-xl border border-line bg-sunken/60 p-4 text-[13.5px] leading-relaxed whitespace-pre-line text-ink-2">{notice}</div>
       ) : (
-        <Callout tone="warn" title="The notice you read before sending is not set">
-          The procurement office has not written it, so the registration cannot be sent yet. Tell the procurement office.
+        <Callout tone="warn" title="Notice before sending not set">
+          Tell the procurement office.
         </Callout>
       )}
 
@@ -109,20 +107,20 @@ export function ReviewStep({
               )}
               <p className="mt-3 text-[13px] text-ink-3">
                 Signed by {signatoryName || "the person you name in step 4"}
-                {signatoryDesignation ? `, ${signatoryDesignation}` : ""}. Date: signed when you send, on the procurement office&apos;s day. You do not type it.
+                {signatoryDesignation ? `, ${signatoryDesignation}` : ""}. Dated the day you send.
               </p>
               <div className="mt-3">
                 <Checkbox label="I have read this declaration and confirm it." checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
               </div>
               <div className="mt-3 max-w-sm">
-                <Field label="Your password" htmlFor={`${base}-password`} required hint="Asked again, because this signs your registration.">
+                <Field label="Your password" htmlFor={`${base}-password`} required hint="Signs your registration.">
                   <Input id={`${base}-password`} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
                 </Field>
               </div>
             </>
           ) : (
-            <Callout tone="warn" title="The false-declaration text is not set">
-              The procurement office has to write it before you can send your registration. Tell the procurement office.
+            <Callout tone="warn" title="Declaration text not set">
+              Tell the procurement office.
             </Callout>
           )}
         </CardBody>
@@ -150,7 +148,7 @@ export function ReviewStep({
         </ButtonLink>
         <span className="ml-auto flex flex-col items-end gap-1.5">
           {reasons.length > 0 || !falseText || !notice ? (
-            <Blocked label="Submit registration" primary reason={reasons.length ? "Finish what is listed above." : !notice ? "The notice you read before sending is not set." : "The false-declaration text is not set."} />
+            <Blocked label="Submit registration" primary reason={reasons.length ? "Finish what is listed above." : !notice ? "Notice before sending not set." : "Declaration text not set."} />
           ) : (
             <>
               <Button type="button" variant="primary" disabled={busy || !!missing} aria-busy={busy || undefined} onClick={send} title={missing ?? undefined}>

@@ -130,11 +130,11 @@ export function creditorPrefill(view: DraftView, ctx: RegistrationContext, compa
   const tax = view.documents.find((d) => taxTypeIds.includes(d.typeId) && !d.notApplicable && d.reference.trim());
   if (!view.creditor.beneficiaryTaxRegistrationNo.trim() && tax) {
     values.beneficiaryTaxRegistrationNo = tax.reference.trim();
-    said.beneficiaryTaxRegistrationNo = "Taken from your tax certificate. Change it if it is wrong.";
+    said.beneficiaryTaxRegistrationNo = "From your tax certificate. Change it if wrong.";
   }
   if (!view.creditor.beneficiaryEmail.trim() && companyEmail.trim()) {
     values.beneficiaryEmail = companyEmail.trim();
-    said.beneficiaryEmail = "Taken from your company's email. Change it if it is wrong.";
+    said.beneficiaryEmail = "From your company email. Change it if wrong.";
   }
   return { values, said };
 }

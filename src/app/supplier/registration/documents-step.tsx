@@ -52,7 +52,7 @@ export interface DocRowView {
   files: FileView[];
 }
 
-const REQUIREMENT_WORDS = { REQUIRED: "Required", OPTIONAL: "Optional", NOT_SAID: "The office has not said whether this is required" } as const;
+const REQUIREMENT_WORDS = { REQUIRED: "Required", OPTIONAL: "Optional", NOT_SAID: "Required: not set" } as const;
 const REQUIREMENT_TONE = { REQUIRED: "brand", OPTIONAL: "neutral", NOT_SAID: "warn" } as const;
 
 let counter = 0;
@@ -99,7 +99,7 @@ export function DocumentsStep({ token, version, types, rows: initial, uploadClos
     if (status === 200 && body?.ok) {
       if (typeof body.version === "number") setVersion(body.version);
       patch(row.id, { files: row.files.filter((f) => f.versionId !== file.versionId) });
-    } else setMessage(body?.message ?? "That did not work and nothing was changed. Try again in a moment.");
+    } else setMessage(body?.message ?? "Not changed. Try again in a moment.");
   }
 
   return (
@@ -144,12 +144,12 @@ export function DocumentsStep({ token, version, types, rows: initial, uploadClos
                           <Input id={fid("authority")} value={r.issuingAuthority} maxLength={160} disabled={r.notApplicable} onChange={(e) => patch(r.id, { issuingAuthority: e.target.value })} />
                         </Field>
                         {t.expires !== false && (
-                          <Field label="Expiry date" htmlFor={fid("expires")} required={t.expires === true} hint={t.expires === null ? "The office has not said whether this expires. Give the date if it has one." : undefined} error={errorText(f("expiresOn"))}>
+                          <Field label="Expiry date" htmlFor={fid("expires")} required={t.expires === true} hint={t.expires === null ? "Give the date, if it has one" : undefined} error={errorText(f("expiresOn"))}>
                             <Input id={fid("expires")} type="date" value={r.expiresOn} disabled={r.notApplicable} onChange={(e) => patch(r.id, { expiresOn: e.target.value })} />
                           </Field>
                         )}
                         {t.recordsRate && (
-                          <Field label="Rate" htmlFor={fid("rate")} required hint="A percentage from 0 to 100, for example 8 or 6.5" error={errorText(f("ratePercent"))}>
+                          <Field label="Rate" htmlFor={fid("rate")} required hint="Per cent, 0 to 100" error={errorText(f("ratePercent"))}>
                             <AffixInput id={fid("rate")} suffix="%" inputMode="decimal" value={r.ratePercent} disabled={r.notApplicable} onChange={(e) => patch(r.id, { ratePercent: e.target.value })} />
                           </Field>
                         )}

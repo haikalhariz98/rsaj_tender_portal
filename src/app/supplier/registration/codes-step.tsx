@@ -71,24 +71,20 @@ export function CodesStep({ token, version, sections }: { token: string | null; 
     <div>
       <FaultSummary faults={faults} />
       {none && (
-        <Callout tone="info" title="The procurement office asks for no codes">
-          Nothing here needs choosing. Go on to the next step.
-        </Callout>
+        <p className="mb-3 text-[13.5px] text-ink-2">No codes asked for. Go to the next step.</p>
       )}
       <div className="flex flex-col gap-5">
         {sections.map((s) => (
           <section key={s.bodyId} className="rounded-2xl border border-line p-4 sm:p-5">
             <h3 className="text-[14.5px] font-bold text-ink">{s.bodyName}</h3>
-            <p className="mt-0.5 text-[12.5px] text-ink-3">Used for eligibility once verified by the procurement office. Nothing is filtered by them yet.</p>
+            <p className="mt-0.5 text-[12.5px] text-ink-3">Not yet used for eligibility.</p>
             {s.state === "DOCUMENT_FIRST" && (
-              <Callout tone="info" className="mt-3" title="Add the certificate first" action={<Link className="text-[13px] font-semibold text-brand-700 hover:underline" href={stepHref("documents")}>Go to step 2</Link>}>
-                Add the {s.missingTypes.join(", ")} in step 2 first. The codes of {s.bodyName} are recorded on it.
+              <Callout tone="warn" className="mt-3" title="Add the certificate first" action={<Link className="text-[13px] font-semibold text-brand-700 hover:underline" href={stepHref("documents")}>Go to step 2</Link>}>
+                Add the {s.missingTypes.join(", ")} in step 2 first.
               </Callout>
             )}
             {s.state === "LIST_NOT_CONFIGURED" && (
-              <Callout tone="neutral" className="mt-3" title="Nothing to choose yet">
-                The procurement office has not set up the codes for {s.bodyName}, so there is nothing to choose. This does not stop you sending your registration.
-              </Callout>
+              <p className="mt-3 text-[13px] text-ink-2">Codes for {s.bodyName} not set. Nothing to choose.</p>
             )}
             {s.state === "OPEN" && (
               <div className="mt-3 flex flex-col gap-4">

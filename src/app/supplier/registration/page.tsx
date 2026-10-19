@@ -109,7 +109,7 @@ export default async function SupplierRegistrationPage({ searchParams }: { searc
       <PageHeader
         title="Registration"
         badge={<Badge tone="warn">Draft</Badge>}
-        subtitle={`${actor.supplierName}. Complete these steps and send them to the procurement office.`}
+        subtitle={actor.supplierName}
         meta={[view.lastSavedAt ? `Last saved ${formatOrgDateTime(view.lastSavedAt, zone)}` : "Nothing saved yet"]}
       />
       <div className="mb-6">
@@ -186,7 +186,7 @@ async function CompanyStep({ actor }: { actor: Awaited<ReturnType<typeof require
           { label: "Company email", value: company.companyEmail },
         ]}
       />
-      <p className="text-[13px] text-ink-3">This is your company as the procurement office accepted it. To correct these, contact the procurement office.</p>
+      <p className="text-[13px] text-ink-3">To correct these, contact the procurement office.</p>
       <div>
         <ButtonLink href="/supplier/registration?step=documents" variant="primary">
           Next: documents
@@ -306,9 +306,7 @@ async function Sent({ actor, settings }: { actor: Awaited<ReturnType<typeof requ
   return (
     <>
       <PageHeader title="Registration" badge={<Badge tone="ok">Sent to the procurement office</Badge>} subtitle={actor.supplierName} meta={[draft?.submittedAt ? `Sent ${formatOrgDateTime(draft.submittedAt, zone)}` : "Sent"]} actions={<ButtonLink href="/supplier/account" variant="secondary">Where it stands</ButtonLink>} />
-      <Callout tone="ok" title="Your registration has been sent" className="mb-6">
-        The procurement office checks it. What it decides is told on your account page: nothing is e-mailed from the portal. Nothing here can be changed now.
-      </Callout>
+      <p className="mb-6 text-[14px] text-ink">Not emailed. The result shows on your account page.</p>
       {/* The supplier's copy: the state and the day of the office's checks, never the officer's name or note. */}
       <RegistrationSummaryCards sections={registrationSummary(forSupplier(record), { day: formatDate })} />
     </>
@@ -323,17 +321,17 @@ function Need({ ctx, settings, accept }: { ctx: Awaited<ReturnType<typeof loadRe
   return (
     <aside aria-label="What you'll need" className="xl:sticky xl:top-24">
       <Card>
-        <CardHeader title="What you'll need" subtitle="In the procurement office's own words." />
+        <CardHeader title="What you'll need" />
         <CardBody>
           {list.length === 0 ? (
-            <p className="text-[13.5px] text-ink-3">The procurement office has not listed the documents it asks for yet. Tell the procurement office.</p>
+            <p className="text-[13.5px] text-ink-3">Documents not listed. Tell the procurement office.</p>
           ) : (
             <ul className="flex flex-col gap-3">
               {list.map((n) => (
                 <li key={n.name} className="text-[13.5px]">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-ink">{n.name}</span>
-                    <Badge tone={n.requirement === "REQUIRED" ? "brand" : n.requirement === "OPTIONAL" ? "neutral" : "warn"}>{n.requirement === "REQUIRED" ? "Required" : n.requirement === "OPTIONAL" ? "Optional" : "The office has not said"}</Badge>
+                    <Badge tone={n.requirement === "REQUIRED" ? "brand" : n.requirement === "OPTIONAL" ? "neutral" : "warn"}>{n.requirement === "REQUIRED" ? "Required" : n.requirement === "OPTIONAL" ? "Optional" : "Not set"}</Badge>
                   </div>
                   {n.hint && <p className="text-ink-3">{n.hint}</p>}
                   {n.expiry && <p className="text-[12.5px] text-ink-3">{n.expiry}</p>}
@@ -343,13 +341,13 @@ function Need({ ctx, settings, accept }: { ctx: Awaited<ReturnType<typeof loadRe
           )}
           <div className="mt-4 border-t border-line pt-3 text-[13px] text-ink-2">
             <p className="font-semibold text-ink">Files</p>
-            <p>{accept ?? "The procurement office has not said which files it takes, so uploads are closed."}</p>
+            <p>{accept ?? "File types not set. Uploads closed."}</p>
             {p.uploadMaxFilesPerApplication != null && p.uploadMaxBytesPerApplication != null ? (
               <p className="mt-1">Up to {p.uploadMaxFilesPerApplication} files, {formatBytes(p.uploadMaxBytesPerApplication)} in all.</p>
             ) : (
-              <p className="mt-1">The procurement office has not set how many files you may upload, so uploads are closed.</p>
+              <p className="mt-1">File limit not set. Uploads closed.</p>
             )}
-            <p className="mt-1 text-ink-3">Every file is shown as &ldquo;Not scanned&rdquo;: nothing scans uploads yet.</p>
+            <p className="mt-1 text-ink-3">Uploads are not scanned.</p>
           </div>
           {(p.helpEmail || p.helpPhone) && (
             <div className="mt-4 border-t border-line pt-3 text-[13px] text-ink-2">

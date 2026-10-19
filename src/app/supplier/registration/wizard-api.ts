@@ -41,7 +41,7 @@ export async function postJson(path: string, token: string | null, body: Record<
 export const stepHref = (step: RegistrationStep) => `${SUPPLIER_REGISTRATION_PAGE}?step=${step}`;
 
 /// The words for an answer that is not ok and carried none of its own.
-const NOTHING_SAVED = "That did not work and nothing was saved. Try again in a moment.";
+const NOTHING_SAVED = "Not saved. Try again in a moment.";
 
 export interface Saved {
   ok: boolean;

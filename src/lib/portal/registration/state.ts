@@ -35,12 +35,12 @@ export interface WizardWords {
 export function wizardClosedWords(state: Exclude<WizardState, "OPEN">): WizardWords {
   switch (state) {
     case "SENT":
-      return { title: "Sent to the procurement office", body: "You have sent your registration. The office is checking it, and what it decides is told on your account page. Nothing here can be changed now." };
+      return { title: "Sent to the procurement office", body: "Not emailed. The result shows on your account page." };
     case "WITH_OFFICE":
-      return { title: "The procurement office has your application", body: "The office recorded your application itself, so there is nothing for you to fill in here. Where it stands is on your account page, and the office will ask you for anything it needs." };
+      return { title: "The procurement office has your application", body: "Nothing to fill in. The office will ask for anything it needs." };
     case "REGISTERED":
-      return { title: "You are registered", body: "Your registration is approved. Your account page shows where it stands." };
+      return { title: "You are registered", body: "Approved. See your account page." };
     case "REJECTED":
-      return { title: "Your registration was not approved", body: "Your account page shows the reasons the procurement office gave." };
+      return { title: "Your registration was not approved", body: "The reasons are on your account page." };
   }
 }

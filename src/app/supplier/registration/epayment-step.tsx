@@ -106,17 +106,15 @@ export function EpaymentStep({
     if (status === 200 && body?.ok) {
       if (typeof body.version === "number") setVersion(body.version);
       setStatement((all) => all.filter((f) => f.versionId !== file.versionId));
-    } else setMessage(body?.message ?? "That did not work and nothing was changed. Try again in a moment.");
+    } else setMessage(body?.message ?? "Not changed. Try again in a moment.");
   }
 
-  const banksClosed = banks.length === 0 ? "The procurement office has not set up the list of banks, so the bank details cannot be finished yet. Tell the procurement office." : accountTypes.length === 0 ? "The procurement office has not set up the list of account types, so the bank details cannot be finished yet. Tell the procurement office." : null;
+  const banksClosed = banks.length === 0 ? "Bank list not set. Tell the procurement office." : accountTypes.length === 0 ? "Account types not set. Tell the procurement office." : null;
   const stopped = closedReason ?? banksClosed;
 
   return (
     <div>
       <FaultSummary faults={faults} />
-      <p className="mb-4 text-[13px] text-ink-3">These details are confidential. The procurement office checks them against your bank statement before any payment is made to you.</p>
-
       <section aria-labelledby={id("h-beneficiary")} className="rounded-2xl border border-line p-4 sm:p-5">
         <h3 id={id("h-beneficiary")} className="text-[14.5px] font-bold text-ink">
           Beneficiary
@@ -224,21 +222,21 @@ export function EpaymentStep({
                 <Input id={id("designation")} value={designation} maxLength={120} onChange={(e) => setDesignation(e.target.value)} />
               </Field>
             </div>
-            <p className="mt-1 text-[12.5px] text-ink-3">Date: signed on submission, on the procurement office&apos;s day. You do not type it.</p>
+            <p className="mt-1 text-[12.5px] text-ink-3">Dated the day you send.</p>
             {giroVoided && !confirmed && (
-              <Callout tone="warn" className="mt-3" title="The wording changed after you ticked the box">
-                The procurement office changed this authorisation after you ticked it. Read it again and tick the box again.
+              <Callout tone="warn" className="mt-3" title="The wording changed after you ticked">
+                Read it again and tick again.
               </Callout>
             )}
             <div className="mt-2">
               <Checkbox label="I have read this and I authorise it." checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
               {errorText(faultsAt(faults, "giro.confirmed")) && <p className="mt-1 text-[12.5px] font-medium text-rose-600">{errorText(faultsAt(faults, "giro.confirmed"))}</p>}
             </div>
-            <p className="mt-2 text-[12.5px] text-ink-3">It is signed with your password when you send the registration in the last step.</p>
+            <p className="mt-2 text-[12.5px] text-ink-3">Signed with your password when you send.</p>
           </>
         ) : (
-          <Callout tone="warn" className="mt-2" title="The GIRO authorisation text is not set">
-            The procurement office has to write it before you can finish this step. Tell the procurement office.
+          <Callout tone="warn" className="mt-2" title="Authorisation text not set">
+            Tell the procurement office.
           </Callout>
         )}
       </section>
