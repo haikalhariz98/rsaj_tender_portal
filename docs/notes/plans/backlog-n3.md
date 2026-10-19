@@ -220,3 +220,28 @@ export function matrixMinWidth(columnCount: number): number; // HEAD_WIDTH + COL
 ## 6. Reviewer findings
 
 Filled in by step 3. Columns: id · Must/Should · file:line · owner (shared/screen) · status (fixed in `<commit>` / recorded: reason).
+
+### Run 1 (step 3, 2026-10-19). Self-applied
+
+The `ui-guidelines-reviewer` agent could not be launched from this session, so the run was **self-applied**: its checklist (`.claude/agents/ui-guidelines-reviewer.md`) was applied under the brief below, by reading `src/components/ui`, `tabs.tsx`, `data-list.tsx` and grepping `src/app/sourcing/**` and `src/app/projects/**`. Step 5 is a different agent, so run 2 stays independent. Contrast and anything that needs a rendered screen were not checked.
+
+Brief (word for word, for step 5):
+- The product is desktop only (1280 and 1440). Rules about 390 px, 44 px mobile targets and 16 px mobile inputs do not apply and are not findings.
+- The Malay layer (N1) covers only the shell, dashboard, inbox and the Contracts case list and case page. A missing Malay label elsewhere is recorded as carried, not fixed.
+- Report a rule broken in src/components/ui, src/components/tabs.tsx or src/components/data-list.tsx once, against the component.
+- Never ask for dark: variants or an icon package.
+- An open finding is one neither fixed nor recorded with a reason.
+
+Report (i), `src/app/sourcing/**`, and report (ii), `src/app/projects/**`. Both screens' own code was clean on: raw `<input>`/`<select>`/`<table>` (none outside the shared pieces), `outline-none`, `transition-all`, `dark:`, hex colours, `<div onClick>`, `...` in text, icon-only buttons without a name, `target="_blank"` without `noopener`, retired prototype classes. The findings below were all found in shared components, so each is reported once.
+
+| id | Must/Should | file:line | owner | status |
+| --- | --- | --- | --- | --- |
+| R1-1 | Must (modals contain overscroll) | `src/components/ui/drawer.tsx:15,29` (`DRAWER_SCRIM`, `CONFIRM_SCRIM`) and the two panel classes | shared | fixed in `c3ea975a` (`drawer-overscroll.test.ts`) |
+| R1-2 | Should (tabs: tab and panel are linked, APG) | `src/components/tabs.tsx:223,243` | shared | fixed in `01c1d4d6` (`tabs-aria.test.ts`) |
+| R1-3 | Should (a bar has an accessible role, range and name) | `src/components/ui/feedback.tsx` `Meter` | shared | fixed in `4cc6358e` (`meter-name.test.ts`). New optional `label`; the three callers (`committees/[id]/page.tsx:154`, `configuration/budget/code-editors.tsx:150`, `movements-drawer.tsx:115`) sit beside their own value text, so none was changed |
+| R1-4 | Must ("Skip to content" link, `main` as its target) | `src/components/shell/app-shell.tsx:124` | shared | recorded: the link needs a new word in both languages and the shell is in the Malay layer, so the Malay needs RSAJ's review. Product-owner question in the log |
+| R1-5 | Should (a disabled choice's reason is `title` only, so a keyboard user never meets it) | `src/components/ui/toggle.tsx:54` | shared | recorded: the fix is `aria-disabled` plus a visible reason, which changes when a press counts (behaviour of every attendance and vote caller). Product-owner question in the log |
+| R1-6 | Should (Malay labels) | `src/app/sourcing/**`, `src/app/projects/**` outside the Contracts case list and case page | screen | carried (N1 covers the shell, dashboard, inbox and the Contracts case list and page only) |
+| R1-7 | n/a | `src/components/data-list-width.test.ts:50-51` | shared test | fixed in `5ea085cb`: it failed on Windows only (backslash paths made `slice(indexOf("src/"))` return `x`). Path separators are normalised, assertions unchanged |
+
+No screen-owner Must or Should is open.
