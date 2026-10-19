@@ -48,7 +48,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   const requested = Math.max(0, Number.parseInt(raw ?? "0", 10) || 0);
   const org0 = await supplierOrg(actor.organisationId);
   if (!org0) {
-    return <PageHeader title="Suppliers" subtitle="The supplier register." />;
+    return <PageHeader title="Suppliers" />;
   }
   const cfg = await loadSupplierConfig(org0.id);
   const today = org0.today;
@@ -58,7 +58,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   // fix R-10: each list loads only what it shows; the Expiring list reaches no further than the furthest band.
   const data = await listSuppliers(actor.organisationId, requested, today, today && bandsSet ? addDays(today, bands.upcomingDays!) : null, p?.autoSuspendOnLapse ?? null);
   if (!data) {
-    return <PageHeader title="Suppliers" subtitle="The supplier register." />;
+    return <PageHeader title="Suppliers" />;
   }
   const { suppliers, expiring, standing: standingSuppliers, queue: openApplications } = data;
   const [online, intake] = await Promise.all([loadPortalQueue(org0.id), loadRegistrationForm()]);
@@ -223,7 +223,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       count: data.total,
       panel: (
         <Card className="overflow-hidden">
-          <CardHeader icon={<BuildingIcon size={17} />} title="The register" subtitle="Every supplier recorded, by name. Its documents are judged on the organisation's day: a renewal counts once verified." divided={false} />
+          <CardHeader icon={<BuildingIcon size={17} />} title="The register" subtitle="By name" divided={false} />
           <DataList
             flat
             selectable={false}
@@ -270,7 +270,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       count: data.queueTotal,
       panel: (
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Applications awaiting a decision" subtitle="Open applications, oldest first. The days since it was received are a count, not a judgement: no service level is set." divided={false} />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Applications awaiting a decision" subtitle="Oldest first" divided={false} />
           <DataList
             flat
             selectable={false}
@@ -304,12 +304,12 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       panel: (
         <div className="flex flex-col gap-4">
           {intake.ready && intake.missing.length > 0 && (
-            <Callout tone="warn" title="The public form is closed" action={<ButtonLink href="/configuration/suppliers#online-applications" size="sm">Open the settings</ButtonLink>}>
-              Nothing can arrive until it is set up. Still to be set: {intake.missing.map((m) => m.en).join(", ")}.
+            <Callout tone="warn" title="Public form closed" action={<ButtonLink href="/configuration/suppliers#online-applications" size="sm">Open the settings</ButtonLink>}>
+              Not set: {intake.missing.map((m) => m.en).join(", ")}.
             </Callout>
           )}
           <Card className="overflow-hidden">
-            <CardHeader icon={<GlobeIcon size={17} />} title="Online applications waiting" subtitle="Sent through the supplier portal and not yet on the register: none holds a registration number's place, and none is a supplier until an officer records it. Oldest first." divided={false} />
+            <CardHeader icon={<GlobeIcon size={17} />} title="Online applications waiting" subtitle="Oldest first" divided={false} />
             <DataList
               flat
               selectable={false}
@@ -344,12 +344,10 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       panel: (
         <div className="flex flex-col gap-4">
           {!bandsSet && (
-            <Callout tone="warn" title="The expiry bands are not set">
-              No document is banded critical, warning or upcoming until they are set under Configuration › Supplier register, Standing. Each document with an expiry is listed as “bands not set”, never as valid.
-            </Callout>
+            <Callout tone="warn" title="Expiry bands not set. Documents are not banded." />
           )}
           <Card className="overflow-hidden">
-            <CardHeader icon={<ClockIcon size={17} />} title="Documents expiring" subtitle={`Each type's document in force, soonest first. A reminder due is shown here and never sent: nothing is sent from the portal in this phase.${cfg.reminderOffsets.length ? "" : " No reminder rule is set for document expiry (Configuration › Notifications)."}`} divided={false} />
+            <CardHeader icon={<ClockIcon size={17} />} title="Documents expiring" subtitle={cfg.reminderOffsets.length ? "Soonest first" : "Soonest first · no reminder rule"} divided={false} />
             <DataList
               flat
               selectable={false}
@@ -383,7 +381,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       count: standingRows.length,
       panel: (
         <Card className="overflow-hidden">
-          <CardHeader icon={<ShieldIcon size={17} />} title="Standing" subtitle="Suppliers suspended, blacklisted or with their registration cancelled; those whose lapse rule is not set; and blacklistings asked for. Standing is derived from what is recorded, never stored." divided={false} />
+          <CardHeader icon={<ShieldIcon size={17} />} title="Standing" subtitle="Barred or cancelled" divided={false} />
           <DataList
             flat
             selectable={false}
@@ -421,17 +419,17 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             <CardHeader
               icon={<BellIcon size={17} />}
               title="Announcements to suppliers"
-              subtitle="Published to every signed-in supplier on the portal's Announcements page, pinned ones first; shown there and not sent by email. Withdrawn ones are kept here with their reason."
+              subtitle="Pinned first"
               actions={mayPublish.ok ? <PublishDrawer /> : undefined}
               divided={board.total > 0}
             />
             {!mayPublish.ok && (
               <div className="px-5 pt-4 sm:px-6">
-                <Callout tone="neutral" title="You cannot publish">{mayPublish.message}</Callout>
+                <Callout tone="warn" title="You cannot publish">{mayPublish.message}</Callout>
               </div>
             )}
             {board.total === 0 ? (
-              <EmptyState size="sm" title="Nothing published yet">An announcement marked Important, Policy or Notice appears on the supplier portal once published.</EmptyState>
+              <EmptyState size="sm" title="Nothing published" />
             ) : (
               <ul className="divide-y divide-line/70">
                 {board.items.map((a) => (
@@ -474,15 +472,10 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     <>
       <PageHeader
         title="Suppliers"
-        subtitle="Suppliers from paper or portal applications, with their documents and decisions."
-        meta={[plural(registered, "registered", "registered"), plural(data.queueTotal, "application awaiting a decision", "applications awaiting a decision"), paged ? `${attention} with documents to see to on this page` : plural(attention, "with documents to see to", "with documents to see to"), barredCount == null ? "Suspended or blacklisted: not judged, the time zone is not set" : plural(barredCount, "suspended or blacklisted", "suspended or blacklisted"), `${unsynced} ${ERP_NOT_SYNCED.en.toLowerCase()}`]}
+        info={{ title: "Suppliers", text: "Register, applications, documents and standing. Reminders and notices show here and are not emailed. Performance reports are not built." }}
+        meta={[plural(registered, "registered", "registered"), plural(data.queueTotal, "application awaiting a decision", "applications awaiting a decision"), paged ? `${attention} with documents to see to on this page` : plural(attention, "with documents to see to", "with documents to see to"), barredCount == null ? "Suspended or blacklisted: not judged" : plural(barredCount, "suspended or blacklisted", "suspended or blacklisted"), `${unsynced} ${ERP_NOT_SYNCED.en.toLowerCase()}`]}
         actions={<ButtonLink href="/suppliers/new" size="sm" variant="primary">Record a paper application</ButtonLink>}
       />
-      <div className="mb-6 flex flex-col gap-3">
-        <Callout tone="info" title="Not here yet">
-          Contractor performance reports and the grade they give arrive with contractor performance (6.16). A company may apply to register through the public form on the supplier portal; that application waits on the Online tab, apart from the register, until an officer checks it against the certificate and records the supplier from it. The supplier then signs in and completes its registration (documents, work codes, bank details and declarations); once it sends that, it becomes an application here, marked as sent through the portal, and is not decided until the office has checked it. Online purchase of documents and bids by the suppliers themselves, and reminders and notices sent to a supplier, arrive with the vendor portal, once vendors can sign in (6.15b). Until then every reminder and notice is shown here, not sent.
-        </Callout>
-      </div>
       <Tabs initial={tab} label="Suppliers" tabs={tabs} />
     </>
   );

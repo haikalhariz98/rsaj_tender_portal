@@ -17,6 +17,7 @@ import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { isMandatoryAct } from "@/components/ui/act";
 import { Badge, Chip, SulitTag, SulitValue } from "@/components/ui/badge";
+import { InfoChip } from "@/components/ui/info-chip";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -41,9 +42,7 @@ import {
   CHANNEL_LABEL,
   DOCUMENT_STATE_LABEL,
   DOCUMENT_STATE_TONE,
-  EPAYMENT_SULIT,
   ERP_NOT_SYNCED,
-  SCANS_SULIT,
   NOT_SENT,
   NOT_VALIDATED,
   OUTCOME_LABEL,
@@ -153,19 +152,16 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
       />
       <div className="mb-6 flex flex-col gap-3">
         {!today && (
-          <Callout tone="warn" title="The organisation's time zone is not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>
-            Documents are judged on the organisation&apos;s day, and every act on the register records a day: none is assumed to be UTC.
-          </Callout>
+          <Callout tone="warn" title="Time zone not set. Dates cannot be judged." action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>} />
         )}
         {reading && reading.standing !== "ACTIVE" && reading.standing !== "NOT_REGISTERED" && (
           <Callout tone="err" title={standingWords(reading).en}>
-            {reading.standing === "SUSPENDED_ON_LAPSE" ? `Derived from ${reading.lapsed.join(", ")} having expired; it ends when the renewal is verified.` : `Since ${formatDate((reading.blacklist ?? reading.cancellation ?? reading.suspension)!.effectiveOn)}. `}
-            {" "}A sale to it is refused, and an envelope it lodges is judged not eligible at the opening. See the Standing tab.
+            {reading.standing === "SUSPENDED_ON_LAPSE" ? `${reading.lapsed.join(", ")} expired.` : `Since ${formatDate((reading.blacklist ?? reading.cancellation ?? reading.suspension)!.effectiveOn)}.`} Sales refused.
           </Callout>
         )}
         {issues.length > 0 && (
           <Callout tone="warn" title="Mandatory documents not in force">
-            {issues.map((x) => `${x.type.label}: ${DOCUMENT_STATE_LABEL[x.state].en.toLowerCase()}`).join("; ")}. See the Documents tab.
+            {issues.map((x) => `${x.type.label}: ${DOCUMENT_STATE_LABEL[x.state].en.toLowerCase()}`).join("; ")}.
           </Callout>
         )}
       </div>
@@ -222,7 +218,7 @@ function ProfilePanel({ sulit, l, cfg, canManageAccounts }: { sulit: Sulit<true>
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<BuildingIcon size={17} />} title="The company" subtitle="As given on its application." />
+        <CardHeader icon={<BuildingIcon size={17} />} title="The company" />
         <CardBody>
           <KeyValues
             columns={2}
@@ -245,12 +241,12 @@ function ProfilePanel({ sulit, l, cfg, canManageAccounts }: { sulit: Sulit<true>
         <CardHeader
           icon={<UsersIcon size={17} />}
           title="Contacts"
-          subtitle="People at the supplier, as it names them: not users of this portal, and never staff records."
+          subtitle="Named by the supplier"
           actions={<span className="flex flex-wrap items-center gap-2"><SulitTag /><ContactDrawer supplierId={s.id} /></span>}
           divided={contacts.length === 0}
         />
         {contacts.length === 0 ? (
-          <EmptyState size="sm" title="No contact recorded">Add the primary contact named on the application.</EmptyState>
+          <EmptyState size="sm" title="No contact recorded" />
         ) : (
           <Table minWidth={820}>
             <colgroup>
@@ -300,7 +296,7 @@ function ProfilePanel({ sulit, l, cfg, canManageAccounts }: { sulit: Sulit<true>
         )}
       </Card>
       <Card>
-        <CardHeader icon={<RouteIcon size={17} />} title="The finance system" subtitle="The vendor code the finance system gives a registered supplier, entered by an officer. There is no adapter yet, so nothing is synced automatically." actions={<VendorCodeDrawer supplierId={s.id} current={s.erpVendorCode} blocker={vendorBlocker} />} />
+        <CardHeader icon={<RouteIcon size={17} />} title="The finance system" subtitle="Entered by hand" actions={<VendorCodeDrawer supplierId={s.id} current={s.erpVendorCode} blocker={vendorBlocker} />} />
         <CardBody>
           <KeyValues
             columns={2}
@@ -332,20 +328,20 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
   const notice = cfg.policy?.verificationNoticeEn;
   return (
     <div className="flex flex-col gap-6">
-      <Callout tone="info" title="Checked by an officer">
-        {NOT_VALIDATED.en} What the supplier is told:{" "}
-        {notice ? <>“{notice}” <ProvenanceBadge value={cfg.policy?.noticeProvenance} /></> : <>not set (Configuration › Supplier register).</>}
-      </Callout>
+      <div className="flex flex-wrap items-center gap-2 text-[13px] text-ink-3">
+        <InfoChip tone="warn" detail={NOT_VALIDATED.en}>Not checked</InfoChip>
+        {notice ? <>“{notice}” <ProvenanceBadge value={cfg.policy?.noticeProvenance} /></> : <Chip tone="warn">Notice not set</Chip>}
+      </div>
       <Card className="overflow-hidden">
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Statutory documents"
-          subtitle="By type, mandatory ones first. A type's state is its newest verified document's, on the organisation's day; a renewal counts once verified. Scans are SULIT: downloaded by the roles the organisation has chosen, and every download is logged."
+          subtitle="Mandatory first · scans SULIT"
           actions={<span className="flex flex-wrap items-center gap-2"><SulitTag /><LodgeDocumentDrawer supplierId={s.id} types={lodgeable} values={values(null)} people={people} blocker={lodgeBlocker} /></span>}
           divided={states.length === 0}
         />
         {states.length === 0 ? (
-          <EmptyState size="sm" title={today ? "Nothing lodged, and no type is mandatory" : "Not judged: the organisation's time zone is not set"}>Lodge each document from the application.</EmptyState>
+          <EmptyState size="sm" title={today ? "Nothing lodged" : "Not judged: time zone not set"} />
         ) : (
           <div className="divide-y divide-line/70">
             {states.map((st) => {
@@ -453,17 +449,15 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-ink-3">{NOT_SENT.en}</p>
+        <InfoChip tone="warn" detail={NOT_SENT.en}>Not emailed</InfoChip>
         <OpenApplicationDrawer supplierId={s.id} kinds={kinds} channels={PAPER_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL[c].en }))} people={people} today={today} blocker={openBlocker} />
       </div>
       {s.applications.length === 0 && (
         <Card>
           {waitingForApplicant ? (
-            <EmptyState title="Waiting for the applicant to complete registration online">
-              The supplier was accepted from online application {s.portalApplications[0]?.reference ? <Link href={`/suppliers/online/${s.portalApplications[0].id}`}>{s.portalApplications[0].reference}</Link> : "one"} and has not yet sent its documents, work codes, bank details and declarations. Its application appears here, in the queue, when it sends them. Until then nothing can be approved. To record a paper application for it instead, use &ldquo;Record a further application&rdquo; above.
-            </EmptyState>
+            <EmptyState title="Waiting for the applicant" action={s.portalApplications[0]?.reference ? <ButtonLink href={`/suppliers/online/${s.portalApplications[0].id}`} size="sm">{s.portalApplications[0].reference}</ButtonLink> : undefined} />
           ) : (
-            <EmptyState title="No application recorded">A supplier is recorded with its first application.</EmptyState>
+            <EmptyState title="No application recorded" />
           )}
         </Card>
       )}
@@ -587,7 +581,7 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
               <OwnerAttachments
                 owner={{ kind: "supplierApplication", id: a.id }}
                 title="The paper"
-                subtitle={`The signed declaration (SULIT) and the E-Payment form. ${SCANS_SULIT.en} ${EPAYMENT_SULIT.en} No bank detail is recorded in the portal itself.`}
+                subtitle="Declaration and E-Payment form · SULIT"
                 only={["SUPPLIER_DECLARATION", "SUPPLIER_EPAYMENT_FORM"]}
                 required={{ SUPPLIER_DECLARATION: isOpenNow }}
               />
@@ -629,11 +623,11 @@ function HistoryPanel({ sulit, entries, total, timeZone }: { sulit: Sulit<true>;
       <CardHeader
         icon={<ClockIcon size={17} />}
         title="History"
-        subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this supplier and what is under it. "}Each change names who made it; any from before sign-in is not attributed. A contact's details read with the SULIT chip and are withheld from the audit export.`}
+        subtitle={total > entries.length ? `Latest ${entries.length} of ${total}` : undefined}
         divided={entries.length === 0}
       />
       {entries.length === 0 ? (
-        <EmptyState size="sm" title="No recorded changes">Changes made through the portal appear here.</EmptyState>
+        <EmptyState size="sm" title="No recorded changes" />
       ) : (
         <ul className="divide-y divide-line/70">
           {entries.map((e) => (

@@ -112,7 +112,7 @@ export function ApplicationForm({
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Registered address" subtitle="In parts, as the certificate gives it. The single address is composed from them." />
+        <CardHeader title="Registered address" subtitle="As the certificate gives it" />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">{text("addressLine1", "Street address", { required: true })}</div>
           <div className="sm:col-span-2">{text("addressLine2", "Street address, second line")}</div>
@@ -122,7 +122,7 @@ export function ApplicationForm({
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Primary contact" subtitle="A person at the supplier, as the application names them. Not a Person of the organisation." actions={<SulitTag />} />
+        <CardHeader title="Primary contact" subtitle="As the application names them" actions={<SulitTag />} />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {text("contactName", "Name", { required: true })}
           {text("contactDesignation", "Designation")}
@@ -132,7 +132,7 @@ export function ApplicationForm({
       </Card>
       {portal ? (
         <Card>
-          <CardHeader title="Sent through the supplier portal" subtitle="The channel and the day it was sent are the portal's, not typed here. The signed declaration is recorded on the application once the office holds it." />
+          <CardHeader title="Sent through the supplier portal" subtitle="Channel and day are the portal's" />
           <CardBody className="grid gap-4 sm:grid-cols-2">
             <div className="text-[14px] text-ink-2">
               <p className="text-[12.5px] font-semibold text-ink-3">Online reference</p>
@@ -147,7 +147,7 @@ export function ApplicationForm({
         </Card>
       ) : (
       <Card>
-        <CardHeader title="The paper application" subtitle="How and when it arrived, and who is recording it. The signed declaration's scan and the E-Payment form's scan are attached on the application once recorded." />
+        <CardHeader title="The paper application" subtitle="How and when it arrived" />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {text("receivedOn", "Received on", { required: true, type: "date", hint: "The day it arrived; not after today." })}
           {select("channel", "How it came in", channels, { required: true })}
@@ -161,14 +161,12 @@ export function ApplicationForm({
         <Card>
           <CardHeader
             title="Portal account"
-            subtitle="Lets the contact sign in to the supplier portal and follow the application. Nothing is sent: you give them the one-time code yourself, once you have checked who is asking for it."
+            subtitle="Gives the contact portal sign-in"
           />
           <CardBody className="grid gap-4 sm:grid-cols-2">
             {!account.permitted ? (
               <div className="sm:col-span-2">
-                <Callout tone="info" title="You cannot open the account">
-                  Opening a supplier&apos;s portal account needs the permission to manage supplier accounts, which your role has not been given. Record the supplier now; someone who holds the permission opens the account afterwards from the supplier&apos;s page.
-                </Callout>
+                <Callout tone="warn" title="You cannot open accounts. Record now; an account manager opens it later." />
               </div>
             ) : !account.validitySet ? (
               <div className="sm:col-span-2">
@@ -185,7 +183,7 @@ export function ApplicationForm({
                   <>
                     {text("accountLoginName", "Sign-in name", { required: true, hint: "3 to 64 characters: letters, digits and . _ - @. The contact signs in with it." })}
                     <div className="sm:col-span-2">
-                      <Field label="How the caller's identity was checked" required htmlFor="identityCheck" error={err("identityCheck")} hint="For example: seen at the counter with their identity card, or called back on the number on the registration certificate. It is kept with the code and in the record.">
+                      <Field label="How the caller's identity was checked" required htmlFor="identityCheck" error={err("identityCheck")} hint="For example: seen at the counter with identity card.">
                         <Input id="identityCheck" name="identityCheck" value={v.identityCheck ?? ""} onChange={set("identityCheck")} />
                       </Field>
                     </div>
@@ -208,7 +206,7 @@ export function ApplicationForm({
         <CodeDialog
           label="Activation code"
           title="The supplier is recorded"
-          subtitle="Give the contact their activation code and their sign-in name."
+          subtitle="Give the code and sign-in name"
           shown={{ code: state.issued.code, validUntil: state.issued.validUntil, notice: `Their sign-in name is ${v.accountLoginName}. They activate the account on the portal's activation page and choose a password of their own.` }}
           onClose={() => {
             // The code is gone from the screen and from this form's memory the moment it is closed.

@@ -98,7 +98,7 @@ export async function CreditorPanel({ actor, l, version }: { actor: StaffActor; 
       </Callout>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<LockIcon size={17} />} title="Creditor profile" subtitle="Versions the supplier has sent. The bank details are SULIT: shown to those named on the registration's route, the officer who checked them, and staff the organisation grants reading to." actions={<SulitTag />} divided={false} />
+        <CardHeader icon={<LockIcon size={17} />} title="Creditor profile" subtitle="Versions sent · SULIT" actions={<SulitTag />} divided={false} />
         <DataList columns={COLUMNS} rows={listRows} toolbar={false} searchable={false} selectable={false} flat emptyTitle="No versions" />
       </Card>
 

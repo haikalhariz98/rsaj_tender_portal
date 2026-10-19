@@ -103,7 +103,7 @@ export function OpenPortalAccount({ supplierId, contactId, name, suggestedLoginN
       trigger="Open portal account"
       label={`Open ${name}'s portal account`}
       title={`Open ${name}'s portal account`}
-      subtitle="Lets them sign in to the supplier portal and follow the application. You give them the activation code yourself."
+      subtitle="Gives portal sign-in. You pass on the code."
       submitLabel="Open and issue code"
       hidden={{ supplierId, contactId }}
       asks={[
@@ -136,7 +136,7 @@ export function UnlockSupplierAccount({ supplierId, accountId, name }: { supplie
   return (
     <RecordEditor
       title={`Unlock ${name}'s portal account`}
-      description="Clears the wrong passwords counted against it and ends the lock now. A lock is time-limited, and may have been put there on purpose by someone guessing at the password: check who is asking."
+      description="Clears wrong-password counts and ends the lock now. Check who is asking."
       fields={[
         { kind: "hidden", name: "supplierId" },
         { kind: "hidden", name: "accountId" },
@@ -155,7 +155,7 @@ export function RetireContact({ supplierId, contactId, name }: { supplierId: str
   return (
     <RecordEditor
       title={`Retire ${name}`}
-      description="They leave the supplier's contacts. If they have a portal account it is disabled now, their sign-ins end and any code not yet used is voided. Their details stay on the record."
+      description="Removes them from contacts. Their portal account is disabled."
       fields={[{ kind: "hidden", name: "supplierId" }, { kind: "hidden", name: "contactId" }]}
       values={{ supplierId, contactId }}
       action={retireContactAction}
@@ -172,7 +172,7 @@ export function SetContractorSigner({ supplierId, contactId, name, mark }: { sup
   return (
     <RecordEditor
       title={`Who signs for the contractor: ${name}`}
-      description="When this supplier is the contractor on a contract, the portal lets only a contact marked here sign its block on a variation or adjustment certificate, and its notice that the statutory declaration is lodged. Until it is decided the portal refuses, and tells the contact why. The organisation's setting in Configuration, Post-award controls must also allow the portal to sign."
+      description="Only a marked contact may sign the contractor's certificate blocks. Refused until decided."
       fields={[
         { kind: "hidden", name: "supplierId" },
         { kind: "hidden", name: "contactId" },

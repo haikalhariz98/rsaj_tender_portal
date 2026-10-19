@@ -23,7 +23,7 @@ export function ContactDrawer({ supplierId, contact }: { supplierId: string; con
   return (
     <RecordEditor
       title={contact ? `Edit ${contact.name}` : "Add a contact"}
-      description="A person at the supplier, as the supplier names them: not a user of this portal. SULIT: shown to the roles the organisation has chosen, and withheld from everyone else, in History and in the audit export too."
+      description="SULIT. Shown only to roles the organisation has chosen."
       columns={2}
       fields={[
         hidden("supplierId"),
@@ -45,7 +45,7 @@ export function VendorCodeDrawer({ supplierId, current, blocker }: { supplierId:
   return (
     <RecordEditor
       title={current ? "Change the finance system's vendor code" : "Record the finance system's vendor code"}
-      description="The code the finance system gave this supplier. It is entered by an officer: no adapter to the finance system exists yet, so it is never synced automatically."
+      description="Entered by hand. Not synced."
       fields={[hidden("supplierId"), { kind: "text", name: "erpVendorCode", label: "Vendor code", required: true, mono: true }]}
       values={{ supplierId, erpVendorCode: current ?? "" }}
       {...(current ? { reason: { label: "Why the code changes" } } : {})}
@@ -92,7 +92,7 @@ export function VerifyDocumentDrawer({ documentId, label, people, today, blocker
   return (
     <RecordEditor
       title={`Record the check of ${label}`}
-      description={`Checked against the original or a certified copy, by you, signed in. A document is not checked twice: a corrected one is lodged as its renewal.`}
+      description="Checked against the original, signed with your password."
       fields={[
         hidden("documentId"),
         { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "Verified" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
@@ -118,7 +118,7 @@ export function VerifyCreditorDrawer({ profileId, version, today, blocker }: { p
   return (
     <RecordEditor
       title={`Check the bank details, version ${version}`}
-      description="Check the beneficiary and the bank against the statement the supplier uploaded. You sign with your own password. Payments to this supplier go to these details only once you have checked them."
+      description="You sign with your password. Payments use these details once checked."
       fields={[
         hidden("profileId"),
         { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "In order" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
@@ -141,7 +141,7 @@ export function OpenApplicationDrawer({ supplierId, kinds, channels, people, tod
   return (
     <RecordEditor
       title="Record a further application"
-      description="A renewal or an upgrade from a registered supplier, or a first registration again after a rejection, as received on paper."
+      description="As received on paper."
       columns={2}
       fields={[
         hidden("supplierId"),
@@ -165,7 +165,7 @@ export function PaperDaysDrawer({ applicationId, values }: { applicationId: stri
   return (
     <RecordEditor
       title="Record the paper's days"
-      description="When the signed declaration was signed, and when the paper E-Payment form was received (no bank detail is recorded here). Their scans are attached below."
+      description="Scans are attached below."
       fields={[hidden("applicationId"), { kind: "date", name: "declarationSignedOn", label: "Declaration signed on" }, { kind: "date", name: "epaymentFormReceivedOn", label: "E-Payment form received on" }]}
       values={{ applicationId, ...values }}
       action={recordApplicationPaper}
@@ -178,7 +178,7 @@ export function SubmitApplicationDrawer({ applicationId, people, blocker, route 
   return (
     <RecordEditor
       title="Send for decision"
-      description={`The file goes to its approval route: ${route.length ? route.join(" → ") : "as the approval matrix resolves it"}. Whoever sends it may not decide a step of it.`}
+      description={`Sent along ${route.length ? route.join(" → ") : "the matrix route"}. The sender cannot decide a step.`}
       fields={[hidden("applicationId"), actorField("SupplierApplication.submittedBy", { name: "personId", people })]}
       values={{ applicationId }}
       action={submitForDecision}
@@ -193,7 +193,7 @@ export function DecideStepDrawer({ stepId, office, done, people, today }: { step
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
-      description={`On the supplier's registration. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office organisation-wide, or a delegation of it with no value ceiling. A refusal leaves the application open.`}
+      description="Signed by the holder with their password. Paper decisions are recorded by someone else."
       fields={[
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused: the application stays open" }] },
@@ -213,7 +213,7 @@ export function ResubmissionDrawer({ applicationId, items, people, blocker }: { 
   return (
     <RecordEditor
       title="Request a resubmission"
-      description="Write the remarks for each item as they are to be given to the supplier; an item left empty is not asked for. The notice is shown on the record, not sent."
+      description="Written as given to the supplier. Shown on the record, not emailed."
       columns={1}
       fields={[
         hidden("applicationId"),
@@ -237,7 +237,7 @@ export function RejectApplicationDrawer({ applicationId, people, blocker }: { ap
   return (
     <RecordEditor
       title="Reject the application"
-      description="The reasons are recorded as written, to be given to the supplier. The notice is shown on the record, not sent. A first registration rejected leaves the supplier not registered; it may apply again."
+      description="Written as given to the supplier. Shown on the record, not emailed."
       fields={[hidden("applicationId"), hidden("outcome"), actorField("ApplicationDecision.decidedBy", { name: "personId", people, paper: false })]}
       values={{ applicationId, outcome: "REJECT" }}
       destructive={{ reasonLabel: "The reasons, as written" }}
@@ -254,7 +254,7 @@ export function RecordLapseDrawer({ applicationId, deadline }: { applicationId: 
   return (
     <RecordEditor
       title="Record the lapse"
-      description={`The resubmission was due by ${deadline} and has not been received. Recording the lapse rejects the application; nobody's name is put to it, it is the deadline's outcome. The notice is shown on the record, not sent.`}
+      description={`Due ${deadline}, not received. Recording it rejects the application.`}
       fields={[hidden("applicationId")]}
       values={{ applicationId }}
       danger

@@ -100,7 +100,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
   const states = today ? documentStates(cfg.typeFacts, docs, today) : [];
   const policyMonths = cfg.policy?.blacklistFirstOffenceMonths ?? null;
 
-  if (!reading) return <Card><EmptyState title="Not judged: the organisation's time zone is not set">Standing is read on the organisation&apos;s day.</EmptyState></Card>;
+  if (!reading) return <Card><EmptyState title="Not judged: time zone not set" /></Card>;
 
   const suspendBlocker = reasonsFor("SUSPEND").length === 0 ? "No suspension reason is configured (Configuration › Supplier register)." : first(suspendFaults({ reasonId: "x", effectiveOn: today, personActive: true, flaggedDocumentIds: [] }, { today, status: s.status, registeredOn: day(s.registeredOn), reading, reason: { appliesTo: "SUSPEND", retiredOn: null }, documentIds: [] }));
   const blacklistBlocker = reasonsFor("BLACKLIST").length === 0 ? "No blacklisting reason is configured (Configuration › Supplier register)." : first(requestBlacklistFaults({ reasonId: "x", personActive: true, sourceAward: null }, { today, supplierId: s.id, status: s.status, standing: reading.standing, reason: { appliesTo: "BLACKLIST", retiredOn: null }, requests }));
@@ -128,7 +128,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title="Standing"
-          subtitle="Derived from what is recorded and from the documents on the organisation's day; never stored. A notice to the supplier is shown here, not sent."
+          subtitle="Not emailed"
           actions={
             <span className="flex flex-wrap items-center gap-2">
               {reading.suspension ? <ReinstateDrawer supplierId={s.id} checklist={checklist.map((c) => ({ value: c.documentId, label: `${docLabel(c.documentId)}: ${c.typeLabel} now ${DOCUMENT_STATE_LABEL[c.state].en.toLowerCase()}` }))} people={people} today={today} blocker={reading.standing === "BLACKLISTED" ? supplierFaultText({ code: "BLACKLISTED", level: "block" }) : null} /> : <SuspendDrawer supplierId={s.id} reasons={reasonsFor("SUSPEND")} documents={s.documents.filter((d) => !d.renewedBy).map((d) => ({ value: d.id, label: docLabel(d.id) }))} people={people} today={today} blocker={suspendBlocker} />}
@@ -154,7 +154,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
 
       {s.standingRequests.length > 0 && (
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Asked for" subtitle="Each blacklisting, or its lifting, is decided on its route and recorded once the route approves it, with the day it takes effect." divided={false} />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Asked for" subtitle="Takes effect once approved" divided={false} />
           {s.standingRequests.map((r, i) => {
             const f = requests[i];
             // fix R-7: a request approved but not recordable (or never sent) may be withdrawn, with why.
@@ -183,9 +183,9 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
       )}
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Recorded" subtitle="Every suspension, reinstatement, blacklisting, lifting and registration cancelled, newest first. Nothing here is edited or removed: a cancellation recorded in error is withdrawn, with why, and stays listed." divided={s.standingEvents.length === 0} />
+        <CardHeader icon={<ShieldIcon size={17} />} title="Recorded" subtitle="Newest first · kept on record" divided={s.standingEvents.length === 0} />
         {s.standingEvents.length === 0 ? (
-          <EmptyState size="sm" title="Nothing recorded">The supplier has not been suspended or blacklisted, and no cancellation of its registration is recorded.</EmptyState>
+          <EmptyState size="sm" title="Nothing recorded" />
         ) : (
           <ul className="divide-y divide-line/70">
             {s.standingEvents.map((e) => (
@@ -208,7 +208,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                     ) : (
                       <span className="flex flex-wrap items-center gap-2"><WithdrawCancellationDrawer eventId={e.id} people={people} notRevisited={notRevisitedWords(judgedWhileCancelled(openings, storedDay(e.effectiveOn), cancellationStoodUntil({ id: e.id, effectiveOn: storedDay(e.effectiveOn) }, cancellationsOnFile(s.standingEvents), day(s.registeredOn)))).en} /></span>
                     )}
-                    <OwnerAttachments owner={{ kind: "standingEvent", id: e.id }} title="The body's notice" subtitle="The registration body's notice of the cancellation, as received." only={["REGISTRATION_CANCELLATION_NOTICE"]} required={{ REGISTRATION_CANCELLATION_NOTICE: !e.withdrawnAt }} />
+                    <OwnerAttachments owner={{ kind: "standingEvent", id: e.id }} title="The body's notice" subtitle="As received" only={["REGISTRATION_CANCELLATION_NOTICE"]} required={{ REGISTRATION_CANCELLATION_NOTICE: !e.withdrawnAt }} />
                   </>
                 )}
               </li>
@@ -239,7 +239,7 @@ export async function EligibilityPanel({ l, exerciseId }: { l: LoadedSupplier; e
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ScaleIcon size={17} />} title="Eligibility for an exercise" subtitle="Judged now, condition by condition, over the exercise's window: from its advertisement to its closing. Not assessed is never eligible." />
+        <CardHeader icon={<ScaleIcon size={17} />} title="Eligibility for an exercise" subtitle="Over the exercise window" />
         <CardBody>
           <form method="get" className="flex flex-wrap items-end gap-3">
             <input type="hidden" name="tab" value="eligibility" />
@@ -256,13 +256,13 @@ export async function EligibilityPanel({ l, exerciseId }: { l: LoadedSupplier; e
           </form>
         </CardBody>
       </Card>
-      {!today && <Callout tone="warn" title="Not judged">The organisation&apos;s time zone is not set.</Callout>}
+      {!today && <Callout tone="warn" title="Not judged: time zone not set" />}
       {chosen && e && (
         <Card className="overflow-hidden">
           <CardHeader
             icon={<ScaleIcon size={17} />}
             title={<span className="inline-flex flex-wrap items-center gap-2">{chosen.reference}<Badge tone={VERDICT_TONE[e.eligibility.verdict]} dot>{VERDICT_LABEL[e.eligibility.verdict].en}</Badge></span>}
-            subtitle={`${chosen.title}. Judged ${formatDate(e.snapshot.judgedOn)}; a sale or an opening freezes its own reading.`}
+            subtitle={`${chosen.title} · judged ${formatDate(e.snapshot.judgedOn)}`}
             actions={<Link href={`/sourcing/${chosen.id}`} className="text-[13px]">Open the exercise</Link>}
           />
           <Table minWidth={720}>
@@ -309,12 +309,12 @@ export async function ParticipationPanel({ l, people }: { l: LoadedSupplier; peo
         <CardHeader
           icon={<LinkIcon size={17} />}
           title="On exercises"
-          subtitle="Parties on exercises linked to this supplier by an explicit act, never by a matching number; what the register read at each sale and each opening, frozen there; and any special permission."
+          subtitle="Linked by an explicit act"
           actions={<span className="flex flex-wrap items-center gap-2"><LinkPartyDrawer supplierId={s.id} parties={unlinked.map((p) => ({ value: p.id, label: `${p.exercise.reference} · ${p.name} (${p.registrationNo || "no number"})` }))} /><LinkAwardDrawer supplierId={s.id} awards={partyless.map((a) => ({ value: a.id, label: `${a.reference} · ${a.awardeeName}` }))} /></span>}
           divided={s.parties.length === 0}
         />
         {s.parties.length === 0 ? (
-          <EmptyState size="sm" title="Not linked to any exercise">Link a party from an exercise&apos;s registers to read the register at its sales and openings.</EmptyState>
+          <EmptyState size="sm" title="Not linked to any exercise" />
         ) : (
           <div className="divide-y divide-line/70">
             {s.parties.map((p) => {
@@ -368,9 +368,9 @@ export async function ParticipationPanel({ l, people }: { l: LoadedSupplier; peo
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<LinkIcon size={17} />} title="Awards" subtitle="Awards linked to this supplier: through the awardee party's link, or (for an award with no party) on their own." divided={s.awards.length === 0} />
+        <CardHeader icon={<LinkIcon size={17} />} title="Awards" subtitle="Through the awardee link" divided={s.awards.length === 0} />
         {s.awards.length === 0 ? (
-          <EmptyState size="sm" title="No award linked">An award follows its awardee party&apos;s link.</EmptyState>
+          <EmptyState size="sm" title="No award linked" />
         ) : (
           <Table minWidth={560}>
             <colgroup>

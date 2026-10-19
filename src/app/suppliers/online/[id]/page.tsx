@@ -104,16 +104,11 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
             </Callout>
           );
         })}
-        {waiting && !stops && flags.length === 0 && (
-          <Callout tone="info" title="Nothing on the register clashes with this number">
-            It is not held by any supplier, and no other online application waits with it. Check it against the certificate before recording.
-          </Callout>
-        )}
       </div>
 
       {entry && (
         <Card className="mb-6">
-          <CardHeader title="Where the register differs from the applicant's words" subtitle="The applicant's words are kept beside the register's entry as it is today. A difference may be the officer's correction when recording the supplier or a later change to the register: this list does not say which." />
+          <CardHeader title="Where the register differs from the applicant's words" subtitle="As typed, beside today's register" />
           <CardBody>
             <p className="mb-3 text-[13.5px] text-ink-2">
               On the register as <Link href={`/suppliers/${entry.id}`}>{entry.registeredName} ({entry.reference})</Link>.
@@ -128,7 +123,7 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
       )}
       {erased ? (
         <Card>
-          <CardHeader title="What is kept" subtitle="The applicant's own words are not kept on an application that was set aside, or recorded before they were kept." />
+          <CardHeader title="What is kept" subtitle="Not kept for this application" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -145,7 +140,7 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
       ) : (
         <div className="grid gap-6 xl:grid-cols-2">
           <Card>
-            <CardHeader title="The company" subtitle="As the applicant typed it. Nothing here has been checked." />
+            <CardHeader title="The company" subtitle="As typed · not checked" />
             <CardBody>
               <KeyValues
                 columns={2}
@@ -164,7 +159,7 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
             </CardBody>
           </Card>
           <Card>
-            <CardHeader title="Who to reach" subtitle="A person at the company, as the applicant typed. Not a user of the portal." />
+            <CardHeader title="Who to reach" subtitle="As typed by the applicant" />
             <CardBody>
               <KeyValues
                 columns={2}

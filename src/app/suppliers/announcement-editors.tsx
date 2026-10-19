@@ -15,7 +15,7 @@ export function PublishDrawer() {
   return (
     <RecordEditor
       title="Publish an announcement"
-      description="Shown to every signed-in supplier on the portal's Announcements page, and not sent by email. It cannot be edited afterwards: to correct it, withdraw it and publish another."
+      description="Shown on the portal, not emailed. Cannot be edited: withdraw and republish."
       fields={[
         { kind: "select", name: "category", label: "Category", required: true, placeholder: "Choose", options: ANNOUNCEMENT_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_WORDS[c].en })) },
         { kind: "text", name: "title", label: "Title", required: true },
@@ -54,7 +54,7 @@ export function WithdrawDrawer({ id, title }: { id: string; title: string }) {
   return (
     <RecordEditor
       title="Withdraw this announcement"
-      description={`"${title}" is taken off the board. The record and your reason are kept; nothing is deleted.`}
+      description={`"${title}" is taken off the board. The reason is kept.`}
       fields={[
         { kind: "hidden", name: "id" },
         actorField("Announcement.withdrawnBy", { name: "withdrawnByPersonId" }),

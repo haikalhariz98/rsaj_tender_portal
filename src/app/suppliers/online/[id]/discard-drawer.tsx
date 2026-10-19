@@ -17,7 +17,7 @@ export function DiscardOnlineApplicationDrawer({ id, reference, people }: { id: 
   return (
     <RecordEditor
       title={`Set aside online application ${reference}`}
-      description="Use this for an application that is not a real company, a copy of one already sent, or one the office will not take. It is not shown to the applicant, who is not told."
+      description="For a non-company, a duplicate or one not taken. The applicant is not told."
       fields={fields}
       values={{ portalApplicationId: id }}
       destructive={{ reasonLabel: "Why it is set aside" }}

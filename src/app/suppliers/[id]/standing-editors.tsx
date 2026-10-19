@@ -27,7 +27,7 @@ export function SuspendDrawer({ supplierId, reasons, documents, people, today, b
   return (
     <RecordEditor
       title="Suspend the supplier"
-      description="A reason from the maintained list, the day it takes effect and the documents it is for. Reinstating it later needs each of those documents verified and in force again. The notice is shown on the record, not sent."
+      description="Reinstating needs each document verified again. Not emailed."
       fields={[
         hidden("supplierId"),
         { kind: "select", name: "reasonId", label: "Reason", required: true, placeholder: "Choose", options: reasons, hint: reasons.length ? undefined : "No suspension reason is configured (Configuration › Supplier register, Standing reasons)." },
@@ -49,7 +49,7 @@ export function ReinstateDrawer({ supplierId, checklist, people, today, blocker 
   return (
     <RecordEditor
       title="Reinstate the supplier"
-      description="Tick each document the suspension was for, having seen it verified and in force; say what was done. A blacklisting is not reinstated here: it is lifted on its own route."
+      description="Tick each document it was for. A blacklisting is lifted on its own route."
       fields={[
         hidden("supplierId"),
         ...(checklist.length
@@ -74,7 +74,7 @@ export function RequestBlacklistDrawer({ supplierId, reasons, awards, fromAward,
   return (
     <RecordEditor
       title="Ask for the supplier's blacklisting"
-      description="It is decided on its own route under the approval matrix, and recorded once that route approves it, with the day it takes effect. A first offence lasts the period set under Configuration › Supplier register; a later one until further notice."
+      description="Decided on its own route. Recorded once approved."
       fields={[
         hidden("supplierId"),
         { kind: "select", name: "reasonId", label: "Reason", required: true, placeholder: "Choose", options: reasons, hint: reasons.length ? undefined : "No blacklisting reason is configured (Configuration › Supplier register, Standing reasons)." },
@@ -95,7 +95,7 @@ export function RequestLiftDrawer({ supplierId, people, blocker }: { supplierId:
   return (
     <RecordEditor
       title="Ask to lift the blacklisting"
-      description="Decided on its own route under the approval matrix, and recorded once that route approves it."
+      description="Decided on its own route. Recorded once approved."
       fields={[hidden("supplierId"), { kind: "textarea", name: "note", label: "Why", required: true }, actorField("StandingRequest.requestedBy", { name: "personId", people })]}
       values={{ supplierId }}
       action={requestBlacklistLift}
@@ -130,7 +130,7 @@ export function WithdrawRequestDrawer({ requestId, what, people }: { requestId: 
   return (
     <RecordEditor
       title={`Withdraw the request: ${what}`}
-      description="It is closed and nothing is recorded from it; the supplier is no longer held open by it, so another may be asked for. The request and its route stay on the record, marked withdrawn, with why."
+      description="Closes the request. It stays on record, marked withdrawn."
       fields={[hidden("requestId"), actorField("StandingRequest.withdrawnBy", { name: "personId", people })]}
       values={{ requestId }}
       destructive={{ reasonLabel: "Why it is withdrawn" }}
@@ -150,7 +150,7 @@ export function RecordCancellationDrawer({ supplierId, bodies, people, today, bl
   return (
     <RecordEditor
       title="Record a registration cancelled"
-      description="A registration body has cancelled the supplier's registration: record it as the body's notice states it. It bars the supplier from a sale, a bid and an award while it stands. Attach the notice on the record once it is saved. Recorded in error, it is withdrawn with why, never deleted. The notice to the supplier is shown on the record, not sent."
+      description="Bars the supplier from sales, bids and awards while it stands."
       fields={[
         hidden("supplierId"),
         { kind: "select", name: "cancellingBodyId", label: "Cancelled by", required: true, placeholder: "Choose", options: bodies, hint: bodies.length ? undefined : "No registration body is configured (Configuration › Supplier register)." },
@@ -172,7 +172,7 @@ export function WithdrawCancellationDrawer({ eventId, people, notRevisited }: { 
   return (
     <RecordEditor
       title="Withdraw the cancellation: recorded in error"
-      description={`Only for a record made in error (another supplier's notice, a misread one). It stays on the record, marked withdrawn, with why, and the supplier's standing no longer reads it. ${notRevisited} ${NEW_APPLICATION_WAY_BACK.en}`}
+      description={`Only for a record made in error. ${notRevisited} ${NEW_APPLICATION_WAY_BACK.en}`}
       fields={[hidden("eventId"), actorField("StandingEvent.withdrawnBy", { name: "personId", people })]}
       values={{ eventId }}
       destructive={{ reasonLabel: "Why it was recorded in error" }}
@@ -189,7 +189,7 @@ export function DecideRouteStepDrawer({ stepId, office, done, people, today, mat
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
-      description={`On ${matter}. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office organisation-wide, or a delegation of it with no value ceiling.`}
+      description={`On ${matter}. The holder signs with their password.`}
       fields={[
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: refused }] },
@@ -212,7 +212,7 @@ export function LinkPartyDrawer({ supplierId, parties }: { supplierId: string; p
   return (
     <RecordEditor
       title="Link a party on an exercise to this supplier"
-      description="An explicit act, never inferred from a matching number. A number that differs from the register's needs a reason, and stays shown as differing. The party's awards follow the link."
+      description="An explicit link. A differing number needs a reason."
       fields={[
         hidden("supplierId"),
         { kind: "select", name: "partyId", label: "Party", required: true, placeholder: "Choose", options: parties },
@@ -232,7 +232,7 @@ export function LinkAwardDrawer({ supplierId, awards }: { supplierId: string; aw
   return (
     <RecordEditor
       title="Link an award to this supplier"
-      description="Only an award that names no awardee party (an award with a party follows the party's link)."
+      description="Only for an award with no awardee party."
       fields={[
         hidden("supplierId"),
         { kind: "select", name: "awardId", label: "Award", required: true, placeholder: "Choose", options: awards },
@@ -254,7 +254,7 @@ export function PermissionDrawer({ partyId, partyLabel, requirements, bodies, pe
   return (
     <RecordEditor
       title={`Special permission for ${partyLabel}`}
-      description="Relaxing the grade or the field codes of one registration requirement, where the exercise's notice offers it. Both confirmations are needed, and who grants it: a registration body, and/or the organisation's own approval on its route."
+      description="Needs both confirmations: the registration body and the organisation's approval."
       columns={2}
       fields={[
         hidden("partyId"),

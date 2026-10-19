@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import { LOGIN_NAME } from "@/lib/auth/login-name";
 import { loadSecurityPolicy } from "@/lib/auth/policy-store";
@@ -32,7 +33,7 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
       <>
         {header}
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation configured" />
         </Card>
       </>
     );
@@ -63,13 +64,9 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
     <>
       {header}
       {a ? (
-        <Callout tone="info" className="mb-6" title={`Online application ${a.reference}`}>
-          Sent through the supplier portal on {formatDate(storedDay(a.receivedOn))}. Nothing here is on the register until you record it. Its documents are lodged and checked on the supplier&apos;s record once it is recorded.
-        </Callout>
+        <div className="mb-6"><InfoChip tone="brand" detail="Not on the register until you record it.">{`Online ${a.reference} · ${formatDate(storedDay(a.receivedOn))}`}</InfoChip></div>
       ) : (
-        <Callout tone="info" className="mb-6" title="Recorded on paper">
-          {PAPER_CALLOUT.en} Its documents are lodged and checked on its record once it is recorded.
-        </Callout>
+        <div className="mb-6"><InfoChip tone="brand" detail={PAPER_CALLOUT.en}>Recorded on paper</InfoChip></div>
       )}
       {online && online.flags.length > 0 && (
         <div className="mb-6 flex flex-col gap-3">
