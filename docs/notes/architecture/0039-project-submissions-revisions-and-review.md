@@ -7,6 +7,11 @@ the decisions log, giving the signer's name, the date and the document version, 
 shapes and pure signatures are declared in the build plan §2 and §3. If CPD's answers differ from the defaults below, this record is
 amended before it is accepted.
 
+**Amended 2026-10-20** with the product owner's review of P0 (AC-49 to AC-61, design note 0004 §4, rulings of 2026-10-19, second
+set). The AC-61 text amendments are folded in: D5 (AC-51, AC-56), D7 (AC-53, AC-60), D8 (AC-54, AC-60), D9 (AC-55, with the act by
+which staff enter a pinned programme's planned progress), D10 (AC-59), D11 (AC-50, AC-53, AC-61 (c)), D12 (AC-61 (c)) and D13
+(AC-57). The record is still **Proposed, held for CPD**. Nothing in it is accepted until entry gate items 1 and 2 of the plan are met.
+
 **Relation to earlier ADRs.**
 - **Extends ADR 0011 and supersedes nothing in it.**
   - D4 already says new owner FKs "arrive with their modules". This record adds two.
@@ -86,7 +91,10 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
     The spec wins over the document's "the S.O. approves" (AC-26).
   - `SO_OFFICE`: the same flow, with the final answer needing `{ soOnly: true }`.
   - `null`: unset. A type cannot be issued while this is unset (AC-27), so no submission ever meets an unset value.
-- **Why both checks.** The second check under `PRINCIPAL_SO_REP` is the conservative reading. FR-SUP-004 requires the contractor
+- **A work programme type is never issued with `NONE` (AC-56).** AC-30 gives the work programme the four answers plus higher
+  approval, and FR-SUP-006 (M) requires scrutiny, then approval. `typeIssueFaults` refuses a type whose `systemKind` is
+  WORK_PROGRAMME and whose `higherApproval` is NONE. `PRINCIPAL_SO_REP` and `SO_OFFICE` are allowed.
+- **Why both checks. Adopted, AC-51.** The second check under `PRINCIPAL_SO_REP` is the conservative reading. FR-SUP-004 requires the contractor
   communication scope for whoever speaks to the contractor, and FR-SUP-006 requires the principal capacity for whoever approves. An S.O.
   holder meets both. A Principal representative whose letter leaves out contractor communication is refused, and the screen says why.
 
@@ -106,7 +114,11 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
 - **Day basis.** `ProjectExchangePolicy.reviewDayBasis` is CALENDAR or WORKING.
   - Unset reads as calendar days and is shown as ASSUMED (AC-27).
   - WORKING counts against the organisation's `HolidayCalendar`, which already exists.
-  - This is one column beyond design note §6.3. It is logged.
+  - The column is beyond design note §6.3. **Adopted, AC-53.** It has its own provenance column,
+    `reviewDayBasisProvenance`, because `ProjectExchangePolicy` holds three answers CPD gives separately (the upload bound, the day
+    basis, SULIT to contractors), and one shared tag would state claims nobody made.
+  - **The basis is snapshotted with the target (AC-60).** The revision copies `reviewDayBasis` together with `reviewDays` and
+    `dueOn`, so a later policy change moves no sent due day.
 - **No per-contract override, and no export** (AC-27).
 - **The legacy setting.** `ContractorSubmissionSetting.serviceLevelDays` is **not** copied into the system types. Copying it would
   promote a value without its provenance. The organisation enters each type's target through Configuration's two-person path.
@@ -118,27 +130,74 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
   - The claim amount and its day go in `ProjectSubmissionClaimDetail`.
   - The materials list goes in `ProjectSubmissionMaterialLine`, which mirrors `ContractorSubmissionLine`.
   - Design note §6.3 proposed `detail Json?`. That would put money in JSON, against the non-negotiable rule that money is `Decimal`.
-    This change is logged.
+    **Adopted, AC-54.** Both tables carry `organisationId`, with `onDelete: Restrict` relations, as every table does.
 - **The declaration keeps its safeguards.** Its password step-up, `contractorSigningFaultOf` and its `ActAttribution` slot all stay.
 - **The "sent on" day** is stamped by the server.
 - **The legacy rows.** `ContractorSubmission` rows stay as the earlier record, shown read-only, so their `ActAttribution` rows keep
   resolving.
 - **The bridge retires per kind.** The old send path for a kind closes only once its system type is issued. Until then, the old path
-  takes that kind, so a contractual notice is never refused (AC-27, and ADR 0038 D5).
+  takes that kind, so a contractual notice is never refused (AC-27, and ADR 0038 D5). **Adopted, AC-60.**
 - **The interim claim's day.** Readers of the claim day, such as the `InterimValuation` CLAIM trigger, read both the legacy row and the
   register revision. P6 pins that with a test.
 
 **D9. An approved work programme is the `WorkProgramme` record, written in the same act. There is one source of truth.**
+**Adopted, AC-55, with today's programme rules kept whole.** No rule is weakened, and the signatures stay.
 - **On send.** When a revision of the WORK_PROGRAMME system type is sent, the same transaction writes a `WorkProgramme` row pinned to
   it by a new unique FK, `WorkProgramme.projectSubmissionRevisionId`.
   - Its `revision` is the next number for the contract (as today, unique per contract). The register letter is reached through the pin.
   - Its `submittedOn` is the revision's `sentOn`.
   - If one is open, its `ProgrammeDirection` is linked as the direct act links it today.
-- **On recommendation.** The recommendation act writes the row's scrutiny fields in the same transaction: `scrutinisedBy`,
-  `scrutinisedOn`, and `reasonable` (true for a recommendation to approve).
-- **On the final answer.** The answer act writes `decision`. Approved and Approved with comments write `APPROVED`. Revise and resubmit
-  and Rejected write `RETURNED`. The comments go to `decisionNote`.
-- **No second writer.** For a pinned row, the direct supervision acts, record, scrutinise and decide, are refused with "answer it in
+  - **The send runs `submitFaults` unchanged** (`src/lib/supervision/programme.ts`). NOT_EXECUTED and OPEN_REVISION refuse the send,
+    and the screen names the revision still open. FUTURE_DATE cannot arise, because the day is server-stamped. A work programme is not
+    a contractual notice (the delay notice is), so AC-27's "never refused" does not reach it. Keeping OPEN_REVISION at send is the
+    architect's reading of AC-55, logged as a product-owner question. Today the same programme could not be recorded either.
+  - **The send does not run `pointFaults`.** A contractor's file carries no planned-progress points, so NO_POINTS would refuse every
+    send. The row is written with no points, and the points are entered by staff (below).
+- **Staff enter the planned progress on a pinned row** (the act AC-55 left open). The act is `enterProgrammePoints` in
+  `src/app/projects/[id]/exchange-actions.ts`. It is not a portal form: a contractor typing points is scope not ruled, and is not
+  added.
+  - **Reach and authority.** It starts with `exchangeReach`, and only a staff LEAD or REVIEWER passes. VIEWER and OVERSIGHT are
+    refused (AC-52). The authority need is today's `submitProgramme` need, a staff TRANSACTION act, with no `recorderFaultToday`
+    check. Points are a transcription of the contractor's file, not a judgement. The judgement is the scrutiny and the decision, which
+    keep their checks. Keeping today's need, rather than inventing a stricter one, is logged.
+  - **The checks.** The pure `pointFaults(points, possessionOn)` runs unchanged on the locked rows. The new pure
+    `pinnedPointsFaults` (plan §3) refuses a row that is not pinned (the direct act owns those), a row already scrutinised or decided,
+    a file that is not a `PROJECT_SUBMISSION_FILE` of the pinned revision, and a replacement without a reason.
+  - **The source file is named.** The officer chooses the file of the revision the points were read from. The audit row records it.
+  - **When.** The points may be entered, and replaced, only while the row has no scrutiny and no decision. The scrutiny judges the
+    points it saw, and the decision approves the baseline the scrutiny judged.
+  - **Replacing** swaps the whole set and needs a reason. The audit row carries the old set and the new one (a destructive change asks
+    for a reason, and the before is never lost). Nothing downstream reads the points before approval: `programmeInForce` reads
+    approved rows only.
+  - **Locks.** Contract, then submission, then the pinned `WorkProgramme` row (`SELECT ... FOR UPDATE`, as `lockedRevision` does
+    today). The write is guarded on `scrutinisedOn IS NULL AND decision IS NULL`. If the guard moves nothing, the act is refused
+    as changed.
+  - **Audit.** One UPDATE row on `WorkProgramme`, in the same transaction, with the planned progress before and after, written as the
+    direct act writes it ("N% by day"), and the file it came from.
+  - **On screen.** The points read "Entered by staff from the contractor's file", with the file's name. They are never shown as the
+    contractor's own entry.
+  - **No slot and no notice.** The act names no new `Person` column, so `act-slots.ts` gains no slot. The actor is on the audit row.
+    No notice is written (AC-28 is a closed list).
+  - **Paper revisions** (D10) use the same act.
+- **On recommendation.** The register's recommendation on a pinned row runs `scrutinyFaults` unchanged, then writes the row's scrutiny
+  fields in the same transaction: `scrutinisedBy`, `scrutinisedOn` and `reasonable`.
+  - `reasonable` is true for a recommendation to approve (with or without comments), and false for one to revise or to reject.
+  - **The need** is `{ act: "PROGRAMME_SCRUTINY" }`, as `answerNeeds` declares for a work programme's RECOMMEND step.
+  - **The slot** is `WorkProgramme.scrutinisedBy`, kept as it is today: the officer's own entry, or recorded from paper.
+  - **A recommendation to approve needs the points.** It is refused (NO_POINTS) while the row has none. This adds a check: points
+    lock at scrutiny, so without it a row could be found reasonable with no points, and then neither be approved (`decideFaults`
+    NO_POINTS) nor receive points. The added check is logged. A recommendation to revise or to reject needs no points.
+- **On the final answer.** The answer act runs `decideFaults` unchanged, with the decision from `programmeDecisionFor`. Approved and
+  Approved with comments write `APPROVED`, and Revise and resubmit and Rejected write `RETURNED`. So:
+  - an approval is refused until the scrutiny is recorded and found reasonable (NOT_SCRUTINISED, FOUND_UNREASONABLE), and until the
+    row has its points (NO_POINTS);
+  - Revise and resubmit and Rejected need a written reason (REASON_REQUIRED);
+  - the answer's comments go to `decisionNote`.
+  - **The signature stays.** The answer keeps the `WorkProgramme.decidedBy` act slot (`signatureClass`, HOLDER_CHECKED), signed with
+    the password or recorded from paper (ADR 0034 D12), as `decideProgramme` does today. Its `on` is the signed act's server day. The
+    slot's `entryPoints` gain the register's answer act, and the act-slot scan is extended, never loosened.
+  - The D4 and D5 needs apply as for any other type (`answerNeeds`).
+- **No second writer.** For a pinned row, the direct supervision acts, record, scrutinise and decide, are refused with "Answer it in
   the Project register". They stay for unpinned rows recorded before the switch. Paper programmes come in through the register's
   paper-on-behalf path (D10), not the direct act.
 - **What follows from the decision is unchanged.** EOT claims and the progress checks keep reading `WorkProgramme`.
@@ -150,9 +209,13 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
 - A statutory declaration cannot be recorded this way. Its step-up is the contractor's own signature.
   - Today there is no staff path for it either: `sendSubmission` (`src/lib/portal/projects/submission-store.ts:71`) takes only a
     supplier actor. So nothing that exists is lost, and a declaration that arrives on paper stays outside the system, as it does today.
-  - AC-26 names no exception, so this is the architect's carve-out, logged as a product-owner question. The alternative is to let a
-    holder of `acts.recordOnBehalf` record it with the paper reference, attributed as recorded on behalf and shown as not signed
-    (ADR 0034 D12).
+  - **Adopted, AC-59, as the one recorded exception to AC-26's paper-on-behalf.** No stage, payment or certificate reader takes a
+    declaration row as its gate today (`declarationBlocking` has no producer), so nothing is lost.
+  - **The paper form is never hidden.** For this type it says the declaration cannot be recorded from paper, and why: it needs the
+    contractor's own signature.
+  - **R-1 item 9** asks CPD whether a declaration lodged on paper must be recorded in the system. If yes, a holder of
+    `acts.recordOnBehalf` records it with the paper reference, attributed as recorded on behalf and shown as not signed (ADR 0034
+    D12), and AC-59 is revisited.
 
 **D11. Files: owners, entitlement, bounds and scanning (extends ADR 0011).**
 - **Owners and purposes.**
@@ -160,24 +223,33 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
   - The purposes are `PROJECT_SUBMISSION_FILE`, `PROJECT_REVIEW_MARKUP` and `PROJECT_MEETING_MINUTES`.
   - The one-owner and purpose CHECKs are replaced whole, in one migration, with every existing owner kept.
   - The demo-wipe plan learns both owners.
-- **What a contractor member may read** (AC-29):
-  - files on revisions it sent, including the on-behalf revisions of its own submissions;
+- **What a contractor member may read** (AC-29, AC-50):
+  - files on every revision its supplier sent on that contract, whoever sent it: a member account, a non-member account (ADR 0038
+    D5), or staff on its behalf from paper (D10);
   - files on RSAJ_TO_CONTRACTOR revisions;
-  - markups on SHARED comments;
-  - the kick-off minutes.
+  - markups on SHARED comments on those revisions;
+  - the kick-off minutes, which were sent to it under D12.
   It reads nothing else.
+- **What a non-member account may read** (AC-50's narrowing): the files of the revisions its own account sent, and the markups on
+  SHARED comments on those revisions. Nothing else: no colleague's revision, nothing RSAJ sent, no minutes.
+- The pure `contractorMayRead` takes the member fact, the "sent by this account" fact and the "sent by this supplier" fact, with a
+  test for each side (plan §3).
 - **Download.** A new contractor download route logs each download as a `DocumentAccessEvent` with the supplier account as the actor.
   Contractors do not see the access log. Uploads are logged by their audit CREATE rows.
 - **SULIT** is unchanged for staff (ADR 0034 D14).
   - **Sending to a contractor.** Sending a SULIT-class document to a contractor is refused while
-    `ProjectExchangePolicy.sulitToContractor` is unset or false. The screen says the setting is unset. This is the conservative default
-    while R-1 is open, and it is one column beyond §6.3, logged.
+    `ProjectExchangePolicy.sulitToContractor` is unset or false. **Adopted, AC-53.** The two refusals are never worded alike:
+    - unset: the screen says the setting is **not set** (finding `SULIT_TO_CONTRACTOR_NOT_SET`);
+    - false: the screen says **the organisation's setting refuses it** (finding `SULIT_TO_CONTRACTOR_REFUSED`).
+    - The switch has its own provenance column, `sulitToContractorProvenance`.
+  - **What counts as a send.** Every RSAJ_TO_CONTRACTOR revision, and the kick-off minutes (D12, AC-61 (c)).
   - **The contractor's own files.** A contractor reads back its own file whatever the class.
 - **Bounds.**
   - The type's `allowedMediaTypes` and `maxBytes` narrow the organisation's store policy. They never widen it.
   - Types are sniffed from the content.
   - `ProjectExchangePolicy.perContractMaxBytes` bounds the contractor's uploads to one contract. While it is unset, contractor uploads
-    are refused, and the screen says the setting is unset (AC-29).
+    are refused, and the screen says the setting is unset (AC-29). It has its own provenance column, `perContractMaxBytesProvenance`
+    (AC-53).
 - **Scanning.** Virus scanning stays a go-live condition (OD-4). Until then:
   - every version reads "not scanned";
   - staff download it as an attachment only.
@@ -191,6 +263,9 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
   - The officer records attendance.
   - The online link is plain text.
   - The minutes are a `PROJECT_MEETING_MINUTES` attachment.
+- **Attaching the minutes is a send to the contractor (AC-61 (c)).** AC-29 lets a contractor read only what it submitted or what RSAJ
+  deliberately sent it. Contractor members read the minutes, so attaching them is that deliberate send. The attach act runs the D4
+  check and `sendToContractorFaults`, so a SULIT-class minute is refused while `sulitToContractor` is not set, or set to refuse.
 - **The briefing.** The FR-CON-010 briefing is written by the meeting only if it is missing. `briefingMissing`
   (`src/lib/contract/sign.ts:170`) is unchanged.
 
@@ -210,7 +285,8 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
 - **Overdue** is written when the register is read, with `occurrence` set to the due day (the STEP_ESCALATED precedent). A scheduler
   is a go-live item.
 - **What a notice never carries:** a SULIT figure, or another contractor's name.
-- **No other notices.** Meetings and team requests write none, because none was ruled.
+- **No other notices.** Meetings and team requests write none, because none was ruled. **Adopted, AC-57.** A pending team request is
+  listed instead in the Project stage's team panel, to the staff who may decide it (ADR 0038 D6).
 - **Retention:** kept, with no disposal (R-7).
 
 **D14. Audit and locks.**

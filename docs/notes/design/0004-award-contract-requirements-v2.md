@@ -125,6 +125,9 @@ Each is built to the conservative default shown. All are in the decisions log un
 **P0 is written and was reviewed by the product owner on 2026-10-19 (AC-49 to AC-61), so it is done.** The ADRs and the plan stay
 Proposed, held for CPD; the amendments of AC-61 are folded in before acceptance. P1 to P7 remain held (AC-7): no migration and no
 code. Entry gate items 1 and 2 (CPD's written sign-off and the R-1 answers) are the founder's; item 3 is met.
+- **The AC-61 amendments were folded in on 2026-10-20**, into both ADRs and the plan, with AC-55's open point designed: staff enter a
+  pinned programme's planned progress through `enterProgrammePoints` (ADR 0039 D9, plan P6). The plan's §6 now lists four questions
+  that design raised. The ADRs and the plan carry no Malay (founder, 2026-10-19).
 - **ADR 0038** (`docs/notes/architecture/0038-contract-teams-and-access-to-the-project-exchange.md`) and **ADR 0039**
   (`docs/notes/architecture/0039-project-submissions-revisions-and-review.md`) are both Proposed, held for CPD.
 - **The Part 2 build plan** is `docs/notes/plans/wave-p-build-plan.md`. It gives the §6.3 tables as declarations (§2), the pure contracts
@@ -1597,9 +1600,10 @@ and no code (AC-7). The C-2 Project stage holds today's tabs and the MN-02 bridg
 **P1. data-modeler, then api-engineer: teams and access (P-2, AC-25).**
 - Add `ContractTeamMember`, `ContractTeamRequest` and the oversight permission.
 - The backfill migration makes each active awardee account a contractor Lead.
-- `contractTeamAccess` (pure) and `exchangeReach` (the reader) cover derived Leads, Reviewers and Viewers.
-- The portal stores (`context-store`, `list-store` and each exchange `*-store`) take membership **for the exchange only**. Today's
-  contract visibility for diary, certificates and payments is unchanged.
+- `staffExchangeRole`, `contractorExchangeRole` and `maySendSystemType` (pure, the plan's §3 names, AC-61 (b)) and `exchangeReach`
+  (the reader) cover derived Leads, Reviewers and Viewers.
+- Only the exchange stores, the exchange acts and the staff exchange panels call `exchangeReach`. The portal's `context-store` and
+  `list-store` keep today's reach (AC-61 (a)), so the contract visibility for diary, certificates and payments is unchanged.
 - The request → approve act (`supplierAccounts.manage`, D6 kept) runs under the supplier, then the contract lock.
 - **Done when** these are db-tested:
   - backfill parity, where every account sees what it saw;
