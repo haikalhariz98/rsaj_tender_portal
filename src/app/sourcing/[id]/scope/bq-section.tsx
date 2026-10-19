@@ -32,7 +32,10 @@ export function BqSection({ d }: { d: Data }) {
   if (!v) {
     return (
       <div className="flex flex-col gap-6">
-        <Callout tone="neutral" title="Priced figures are SULIT">{d.statement}</Callout>
+        <p className="flex items-center gap-2 text-[13px] text-ink-2">
+          <InfoChip tone="warn" detail={d.statement} label="About SULIT">SULIT</InfoChip>
+          Priced figures
+        </p>
         <Card>
           <CardHeader icon={<ScaleIcon size={17} />} title="Bill of quantities" subtitle="Measured work, prime cost and provisional sums." />
           <EmptyState size="sm" title="No bill of quantities yet" action={<StartBqDrawer exerciseId={exerciseId} templates={d.options.templates} allowed={d.actions.start} />}>

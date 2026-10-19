@@ -143,8 +143,8 @@ export const TEMPLATE_OTHER_USES: Readonly<Record<string, { en: string; ms: stri
   windowAddendumPolicies: { en: "the addendum", ms: "adendum" },
   invitationLetters: { en: "invitation letters already sent", ms: "surat jemputan yang telah dihantar" },
   evaluationReportPolicies: { en: "the evaluation report", ms: "laporan penilaian" },
-  evaluationProposalPolicies: { en: "the Kertas Cadangan", ms: "Kertas Cadangan" },
-  proposalPapers: { en: "Kertas Cadangan already produced", ms: "Kertas Cadangan yang telah dihasilkan" },
+  evaluationProposalPolicies: { en: "the proposal paper", ms: "Kertas Cadangan" },
+  proposalPapers: { en: "Proposal papers already produced", ms: "Kertas Cadangan yang telah dihasilkan" },
 };
 
 /// The other uses a template has, from its relation counts, in order.

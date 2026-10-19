@@ -8,7 +8,7 @@ import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { isMandatoryAct } from "@/components/ui/act";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -25,7 +25,7 @@ import { isPublished } from "@/lib/window/phase";
 import type { ExerciseStatus } from "@/lib/method/types";
 
 import { RouteSteps } from "../route-steps";
-import { DeliveryList, FromBadge, levelTone, SETTINGS_HREF } from "./common";
+import { DeliveryList, FromBadge, SETTINGS_HREF } from "./common";
 import { tabActs } from "./tab-acts";
 import {
   ChooseEvaluationModelDrawer,
@@ -170,9 +170,9 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
               <p className="text-[13px] font-semibold text-ink">Every check passes.</p>
             ) : (
               d.findings.map((f, i) => (
-                <Callout key={i} tone={levelTone(f.level)}>
+                <FindingNote key={i} level={f.level}>
                   {f.text}
-                </Callout>
+                </FindingNote>
               ))
             )}
           </CardBody>
@@ -658,9 +658,9 @@ function ChangeRouteCard({ c, inst }: { c: WindowContext; inst: Route }) {
           ]}
         />
         {warnings.map((w, i) => (
-          <Callout key={i} tone={levelTone(w.level === "err" ? "block" : w.level)}>
+          <FindingNote key={i} level={w.level}>
             {w.messageEn}
-          </Callout>
+          </FindingNote>
         ))}
       </CardBody>
       {inst.status === "PENDING" && <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">If refused, the change is not made.</p>}

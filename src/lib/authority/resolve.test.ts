@@ -288,7 +288,8 @@ describe("matters with no rule behind them", () => {
 
     const warning = result.warnings.find((w) => w.code === "GAP_RULE");
     expect(warning?.level).toBe("gap");
-    expect(warning?.messageEn).toContain("assumption");
+    // 0005 R3, founder 2026-10-19: the warning is shortened and still says the route is assumed.
+    expect(warning?.messageEn).toContain("Route assumed");
   });
 
   it("never outranks a documented rule", () => {

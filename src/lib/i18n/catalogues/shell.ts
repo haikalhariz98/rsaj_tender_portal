@@ -128,7 +128,7 @@ export const NESTED_LABEL: Readonly<Record<string, Words>> = {
   // 6.14 residual: every page names its crumbs (crumbs.test.ts walks every page).
   "sourcing/new": w("New exercise"),
   "evaluation/report": w("Evaluation report"),
-  "evaluation/proposal": w("Kertas Cadangan"),
+  "evaluation/proposal": w("Proposal paper"),
   // The supplier portal's own words, where a segment is also a staff section's name ("projects" is Contracts there).
   "supplier/projects": w("My Projects"),
   "supplier/results": w("Results"),

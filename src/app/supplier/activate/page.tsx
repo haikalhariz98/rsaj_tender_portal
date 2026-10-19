@@ -22,7 +22,7 @@ export default async function SupplierActivatePage() {
 
   return (
     <>
-      <PageHeader title="Activate your account" subtitle="Use the code the office gave you. Not emailed." />
+      <PageHeader title="Activate your account" subtitle="Use the code the office gave. Not emailed." />
       <div className="max-w-xl">
         {closed || !token ? (
           <Callout tone="warn" title={closed?.title ?? "The portal's forms are closed"}>

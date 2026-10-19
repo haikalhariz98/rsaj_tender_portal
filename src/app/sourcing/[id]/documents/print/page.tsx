@@ -7,7 +7,7 @@ import { RecordCrumb } from "@/components/shell/record-crumb";
 import { TenderDocumentArticle } from "@/components/tender-document";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState, Note } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { printView } from "@/lib/tender-docs/read";
 import { tableDocumentNote } from "@/lib/window/read";
@@ -82,9 +82,9 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
           {frozen ? "With approval: the text frozen when the version was submitted. It is not issued until approved for tendering." : "A draft: how the documents read with today's templates, bill and Appendix. The text is frozen when the version is submitted."}
         </Callout>
       ) : (
-        <Callout tone="info" className="mb-5 print:hidden">
+        <Note className="mb-5 print:hidden">
           As approved: the text frozen when the version was submitted. It is the portal&apos;s text of the documents, not the controlled printed forms.
-        </Callout>
+        </Note>
       )}
       <TenderDocumentArticle
         v={v}

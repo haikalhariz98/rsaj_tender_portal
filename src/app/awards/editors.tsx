@@ -58,18 +58,18 @@ export const AWARD_NOTE_ID = "award-actions-note";
 /// 6.7 (C-7): where the exercise's openings apply, the awardee is picked from the bidders carried to evaluation.
 export function detailFields(parties?: Option[], recommended?: { valueText: string } | null): Field[] {
   return [
-    ...(parties ? [{ kind: "select", name: "awardeePartyId", label: "Bidder carried to evaluation", required: true, placeholder: "Choose", options: parties, hint: "The award names a bidder the opening carried to evaluation; it is compared as that bidder, never by the words typed below." } as Field] : []),
-    { kind: "text", name: "awardeeName", label: "Awardee", required: true, hint: "As registered: the name, number and address are kept as written. The award's link to the supplier register follows its bidder's link (or is made from the supplier's record where there is no bidder)." },
+    ...(parties ? [{ kind: "select", name: "awardeePartyId", label: "Bidder carried to evaluation", required: true, placeholder: "Choose", options: parties, hint: "Compared as the bidder carried to evaluation." } as Field] : []),
+    { kind: "text", name: "awardeeName", label: "Awardee", required: true, hint: "As registered; kept as written." },
     { kind: "text", name: "awardeeRegistrationNo", label: "Registration number" },
     { kind: "textarea", name: "awardeeAddress", label: "Address" },
-    { kind: "money", name: "awardedValue", label: "Awarded value", required: true, hint: "Within what the requisition's approval covers, and in the exercise's band." },
+    { kind: "money", name: "awardedValue", label: "Awarded value", required: true, hint: "Within the approval and the exercise's band." },
     { kind: "number", name: "completionPeriod", label: "Completion period", required: true, min: 1 },
     { kind: "select", name: "completionUnit", label: "Counted in", required: true, placeholder: "Choose", options: UNITS },
     // 6.8 (E-9): each figure that differs from the evaluation's recommendation carries its reason.
     ...(recommended
       ? ([
-          { kind: "textarea", name: "recValueDiffersReason", label: "Why the value differs from the recommendation", hint: `Recommended: ${recommended.valueText}. Only where the awarded value is not that.` },
-          { kind: "textarea", name: "recPeriodDiffersReason", label: "Why the period differs from the recommendation", hint: "Only where the period is not the recommended one." },
+          { kind: "textarea", name: "recValueDiffersReason", label: "Why the value differs from the recommendation", hint: `Recommended: ${recommended.valueText}. Only where it differs.` },
+          { kind: "textarea", name: "recPeriodDiffersReason", label: "Why the period differs from the recommendation", hint: "Only where it differs." },
         ] as Field[])
       : []),
   ];
@@ -79,7 +79,7 @@ export function EditDetailsDrawer({ id, values, parties, recommended }: { id: st
   return (
     <RecordEditor
       title="Edit the award"
-      description="The awardee, the value and the period are what the appointment approves, so they change only while the award is a draft."
+      description="Awardee, value and period change only while the award is a draft."
       fields={[hidden("id"), ...detailFields(parties, recommended)]}
       values={{ id, ...values }}
       action={updateAwardDetails}
@@ -113,17 +113,17 @@ export function EditTermsDrawer({
   insuranceMinimums?: { works: string | null; liability: string | null; wc: string | null } | null;
 }) {
   const bond = { name: "bondRequired", in: ["yes"] } as const;
-  const fromTender = (t: string | null | undefined, words = "The tender Appendix states") => (t ? `${words}: ${t}. Stating it otherwise needs a reason, below.` : undefined);
+  const fromTender = (t: string | null | undefined, words = "The tender Appendix states") => (t ? `${words}: ${t}.` : undefined);
   const minimum = (t: string | null | undefined) =>
-    !insuranceMinimums ? "Empty: the award states none, and the tender Appendix's minimum governs where it states one." : t ? `The tender Appendix governs ${t}. Empty: that figure governs. A different figure stated here, above or below, governs instead and needs a reason, below; both are then shown.` : "The tender Appendix states no minimum. Empty: not stated, and the policy's sum is not compared.";
+    !insuranceMinimums ? "Empty: the tender Appendix minimum governs." : t ? `Appendix: ${t}. Empty takes it.` : "Appendix states none. Empty: not compared.";
   const reasons: Field[] = tender
     ? [
-        { kind: "note", text: "Where a term differs from the tender, say why. Each reason is kept in the award's history and shown beside the term; the instrument is not issued while a difference has none." },
-        ...(tender.lad ? [{ kind: "textarea", name: "ladDiffersReason", label: "Why the liquidated damages differ from the tender Appendix", hint: "Only where they differ. Left empty where they match." } as const] : []),
+        { kind: "note", text: "Explain each difference from the tender; issuing needs a reason for each." },
+        ...(tender.lad ? [{ kind: "textarea", name: "ladDiffersReason", label: "Why the liquidated damages differ from the tender Appendix", hint: "Only where they differ." } as const] : []),
         ...(tender.dlp ? [{ kind: "textarea", name: "dlpDiffersReason", label: "Why the defects liability period differs from the tender Appendix", hint: "Only where it differs." } as const] : []),
         ...(tender.regulated ? [{ kind: "textarea", name: "regulatedDiffersReason", label: "Why the regulated-activity answer differs from the tender's", hint: "Only where it differs." } as const] : []),
         // BD-613-2 ruling: a sum insured stated otherwise than the figure the Appendix governs needs its reason.
-        ...(tender.worksInsured ? [{ kind: "textarea", name: "worksInsuredDiffersReason", label: "Why the works sum insured differs from the tender Appendix", hint: "Only where the award states a figure other than the one the Appendix governs." } as const] : []),
+        ...(tender.worksInsured ? [{ kind: "textarea", name: "worksInsuredDiffersReason", label: "Why the works sum insured differs from the tender Appendix", hint: "Only where the figure differs." } as const] : []),
         ...(tender.liabilityInsured ? [{ kind: "textarea", name: "liabilityInsuredDiffersReason", label: "Why the public liability sum insured differs from the tender Appendix", hint: "Only where it differs." } as const] : []),
         ...(tender.wcInsured ? [{ kind: "textarea", name: "wcInsuredDiffersReason", label: "Why the workmen's compensation sum insured differs from the tender Appendix", hint: "Only where it differs." } as const] : []),
       ]
@@ -133,12 +133,12 @@ export function EditTermsDrawer({
       title="The terms, the bond and the start"
       description={
         tender
-          ? "The terms the tender Appendix states were filled in from it when the award was opened; stating one otherwise needs a reason. Everything else is decided for this award: an empty field is not set, and the instrument cannot be issued on what it needs until it is."
-          : "Each is decided for this award, with where it came from. Nothing is filled in for you: an empty field is not set, and the instrument cannot be issued on what it needs until it is."
+          ? "Appendix terms are pre-filled; a change needs a reason. Issuing needs the required terms."
+          : "Decided for this award. Empty means not set; issuing needs the required terms."
       }
       fields={[
         hidden("id"),
-        { kind: "date", name: "startDate", label: "Stated start date", hint: "The commencement clock and the insurance period run from it." },
+        { kind: "date", name: "startDate", label: "Stated start date", hint: "Starts the commencement and insurance clocks." },
         {
           kind: "select",
           name: "regulatedActivity",
@@ -161,8 +161,8 @@ export function EditTermsDrawer({
             { value: "STATED_AMOUNT", label: "A stated amount, entered below" },
           ],
         },
-        { kind: "text", name: "bondPercent", label: "Bond percentage", placeholder: "e.g. 5", hint: "More than 0. For a stated amount, leave it empty." },
-        { kind: "money", name: "bondBasisAmount", label: "One-year value, or the stated amount", hint: "Entered, never worked out for you: a figure from the sum and period is shown beside it for comparison." },
+        { kind: "text", name: "bondPercent", label: "Bond percentage", placeholder: "e.g. 5", hint: "More than 0; empty for a stated amount." },
+        { kind: "money", name: "bondBasisAmount", label: "One-year value, or the stated amount", hint: "Entered, not calculated; a comparison figure shows beside." },
         { kind: "number", name: "bondValidityExtraMonths", label: "Months it must run past completion", min: 0 },
         { kind: "select", name: "bondBasisProvenance", label: "Where the bond decision came from", placeholder: "Not recorded", options: PROVENANCE },
         { kind: "textarea", name: "bondBasisNote", label: "Bond note" },
@@ -181,10 +181,10 @@ export function EditTermsDrawer({
           orphanLabel: "As recorded before",
         },
         // Always on the form, so a save never clears them: where the terms band does not ask, it says so.
-        { kind: "text", name: "retentionPercent", label: "Retention percentage", placeholder: "e.g. 5", hint: asked.retention === false ? "Not asked by the exercise's terms band." : undefined },
+        { kind: "text", name: "retentionPercent", label: "Retention percentage", placeholder: "e.g. 5", hint: asked.retention === false ? "Not asked by the terms band." : undefined },
         { kind: "text", name: "retentionCapPercent", label: "Retention limit, percentage of the contract sum", placeholder: "e.g. 5" },
-        { kind: "number", name: "dlpMonths", label: "Defects liability period, months", min: 0, hint: fromTender(tender?.dlp === "None" ? "none (0 months)" : tender?.dlp) ?? (asked.dlp === false ? "Not asked by the exercise's terms band; the insurance period still counts it." : undefined) },
-        { kind: "note", text: "Sums insured, as the letter states them for this award. Empty: the award states none, and the tender Appendix's minimum governs where it states one. Each verified policy is compared with the figure that governs its kind before signing." },
+        { kind: "number", name: "dlpMonths", label: "Defects liability period, months", min: 0, hint: fromTender(tender?.dlp === "None" ? "none (0 months)" : tender?.dlp) ?? (asked.dlp === false ? "Not asked; the insurance period still counts it." : undefined) },
+        { kind: "note", text: "Sums insured as this award states them. Empty takes the tender Appendix minimum." },
         { kind: "money", name: "worksSumInsured", label: "Works insurance, sum insured", hint: minimum(insuranceMinimums?.works) },
         { kind: "money", name: "liabilitySumInsured", label: "Public liability insurance, sum insured", hint: minimum(insuranceMinimums?.liability) },
         { kind: "money", name: "wcSumInsured", label: "Workmen's compensation insurance, sum insured", hint: minimum(insuranceMinimums?.wc) },
@@ -198,7 +198,7 @@ export function EditTermsDrawer({
             { value: "UNCOVERED_WAGES", label: "On the wages of employees not covered by social security" },
             { value: "PERCENT_OF_CONTRACT", label: "As a percentage of the contract sum" },
           ],
-          hint: "Chosen for this award. On uncovered wages the declared sum cannot be checked, so the policy never counts as met.",
+          hint: "Uncovered wages: never counts as met.",
         },
         ...reasons,
       ]}
@@ -225,7 +225,7 @@ export function RecallAwardDrawer({ id, blocker }: { id: string; blocker: string
   return (
     <RecordEditor
       title="Recall the award"
-      description="Withdraws the award from approval before anyone has decided. The route is kept on record as recalled and the award returns to draft."
+      description="Recalls the award from approval and returns it to draft. The route stays on record."
       fields={[hidden("id")]}
       values={{ id }}
       action={recallAward}
@@ -242,7 +242,7 @@ export function SubmitAwardDrawer({ id, blocker, route }: { id: string; blocker:
   return (
     <RecordEditor
       title="Send the award for approval"
-      description="Who approves the appointment is resolved now, for the awarded value, under the approval matrix in force, and kept with the rules it was judged under. The exercise's contract type is locked from here."
+      description="The approval route is fixed now, under the matrix in force. The contract type locks."
       fields={[hidden("id")]}
       values={{ id }}
       sections={
@@ -266,14 +266,14 @@ export function DecideStepDrawer({ id, stepId, roleLabel, act, done, people, tod
   return (
     <RecordEditor
       title={`Record ${roleLabel}'s decision`}
-      description={`The ${act.toLowerCase()} step of the appointment. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for the requisition's department, or a delegation of it.`}
+      description={`The holder decides this ${act.toLowerCase()} step with their password. Paper is recorded, unsigned.`}
       fields={[
         hidden("id"),
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused" }] },
         actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true }),
-        { kind: "date", name: "receivedOn", label: "Received on", hint: "The day the matter reached them, from the routing sheet. Optional: not recorded is shown as such." },
-        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before the award went for approval. A signed decision is dated today unless back-dating is recorded." },
+        { kind: "date", name: "receivedOn", label: "Received on", hint: "From the routing sheet. Optional." },
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today; dated today unless back-dated." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
       values={{ id, stepId, decidedOn: today }}
@@ -291,8 +291,8 @@ export function CiteDecisionDrawer({ id, stepId, committee, matters }: { id: str
   return (
     <RecordEditor
       title={`Cite the ${committee}'s decision`}
-      description="A committee's step is discharged by its decision on this exercise, as the sitting recorded it — never by a person."
-      fields={[hidden("id"), hidden("stepId"), { kind: "select", name: "committeeDecisionId", label: "The matter", required: true, placeholder: "Choose", options: matters, hint: "A matter not decided yet is listed but cannot be chosen." }]}
+      description="Discharged by the committee's recorded decision, never by a person."
+      fields={[hidden("id"), hidden("stepId"), { kind: "select", name: "committeeDecisionId", label: "The matter", required: true, placeholder: "Choose", options: matters, hint: "Undecided matters cannot be chosen." }]}
       values={{ id, stepId }}
       action={citeAppointmentDecision}
       submitLabel="Cite decision"
@@ -306,11 +306,11 @@ export function RecordCommitmentDrawer({ id, indent, example, today }: { id: str
   return (
     <RecordEditor
       title="Record the commitment number"
-      description={indent ? "The indent number the finance system returned, typed in as it reads. The portal never makes one up." : "The finance system's number for this commitment, typed in as it reads. The portal never makes one up."}
+      description={indent ? "The indent number from the finance system, as it reads." : "The finance system's number, as it reads."}
       fields={[
         hidden("id"),
         ...(indent ? [hidden("erpCommitmentKind")] : []),
-        { kind: "text", name: "erpCommitmentNo", label: indent ? "Commitment number (the indent's)" : "Commitment number", required: true, mono: true, hint: example ? `For example ${example}.` : "No format is set for it, so it is not checked." },
+        { kind: "text", name: "erpCommitmentNo", label: indent ? "Commitment number (the indent's)" : "Commitment number", required: true, mono: true, hint: example ? `For example ${example}.` : "No format set, so not checked." },
         ...(indent ? [] : ([{ kind: "select", name: "erpCommitmentKind", label: "It is", required: true, placeholder: "Choose", options: [{ value: "INDENT", label: "An indent" }, { value: "PURCHASE_ORDER", label: "A purchase order" }] }] as Field[])),
         { kind: "date", name: "receivedOn", label: "Received on", required: true, hint: indent ? "The indent's validity runs from this day." : undefined },
       ]}
@@ -327,11 +327,11 @@ export function IssueDrawer({ id, signatory, people, today, summary }: { id: str
   return (
     <RecordEditor
       title="Issue the instrument"
-      description={`Signed by the ${signatory}, who signs in and signs with their password. A signature that was made on paper is recorded for them by someone else, and is not a signature in the portal. Issuing draws the contract number, freezes the documents' text, draws the distribution list and hands the case over.`}
+      description={`Signed by the ${signatory} in the portal. Issuing numbers the contract and hands it over.`}
       fields={[
         hidden("id"),
-        actorField("Award.signatoryPerson", { name: "signatoryPersonId", people, dated: true, hint: `Only a holder of the ${signatory} office for the requisition's department on the day, or a delegate where the rule allows one.` }),
-        { kind: "date", name: "signedOn", label: "Signed on", required: true, hint: "Not after today. A signed instrument is dated today unless back-dating is recorded." },
+        actorField("Award.signatoryPerson", { name: "signatoryPersonId", people, dated: true, hint: `Holder of the ${signatory} office, or a delegate.` }),
+        { kind: "date", name: "signedOn", label: "Signed on", required: true, hint: "Not after today; dated today unless back-dated." },
       ]}
       values={{ id, signedOn: today }}
       sections={
@@ -356,7 +356,7 @@ export function DespatchDrawer({ id, row }: { id: string; row: { id: string; nam
   return (
     <RecordEditor
       title={`The copy for ${row.name}`}
-      description="How it went, and when. A copy sent by registered post needs its consignment reference; a collection records the day it was collected."
+      description="Record how it went and when. Registered post needs its consignment reference."
       fields={[
         hidden("id"),
         hidden("distributionId"),
@@ -382,7 +382,7 @@ export function ReturnDrawer({ id, loa, values, people, correcting }: { id: stri
     { kind: "date", name: "authorisationReceivedOn", label: "Letter of authorisation received" },
   ];
   const pageFields: Field[] = [
-    { kind: "note", text: "The acceptance page, as the contractor returned it. The identity card number is shown in full only here and on the Return tab; it is SULIT, shown in full to the people entitled to it, and masked everywhere else." },
+    { kind: "note", text: "As the contractor returned it. Identity card number is SULIT: full only here and on Return." },
     { kind: "date", name: "signedLetterReceivedOn", label: "Acceptance page received on" },
     { kind: "text", name: "signatoryName", label: "Contractor's signatory" },
     { kind: "text", name: "icNumber", label: "Identity card number", mono: true, hint: "Twelve digits, with or without the hyphens: 900101-14-5678." },
@@ -439,8 +439,8 @@ export function CancelAwardDrawer({ id, issued, consequence }: { id: string; iss
       title="Cancel this award"
       description={
         issued
-          ? `The award stays on record. Its contract is cancelled: the number stays allocated as a gap, and its registers are kept.${consequence ? ` ${consequence}` : ""}`
-          : "The award stays on record, and an open approval route is withdrawn. Its value no longer counts against the requisition."
+          ? `Cancels its contract; the number stays as a gap.${consequence ? ` ${consequence}` : ""}`
+          : "The award stays on record; its approval route is withdrawn."
       }
       fields={[hidden("id")]}
       values={{ id }}
@@ -459,7 +459,7 @@ export function AddConditionDrawer({ id, kinds }: { id: string; kinds: Option[] 
   return (
     <RecordEditor
       title="Add a condition precedent"
-      description="Something to be in place before work may start, with the day it is needed by."
+      description="Needed before work starts, by a set day."
       fields={[
         hidden("id"),
         { kind: "select", name: "kindId", label: "Condition", required: true, placeholder: "Choose", options: kinds },
@@ -495,7 +495,7 @@ export function LodgeSecurityDrawer({ id, issuers, today }: { id: string; issuer
   return (
     <RecordEditor
       title="Lodge a security"
-      description="As it was handed in. It is verified separately, against the approved list, the award's bond basis and its validity."
+      description="Verified separately against the approved list, bond basis and validity."
       fields={[
         hidden("id"),
         { kind: "select", name: "kind", label: "Kind", required: true, placeholder: "Choose", options: [{ value: "PERFORMANCE_BOND", label: "Performance bond" }, { value: "ADVANCE_PAYMENT_GUARANTEE", label: "Advance payment guarantee" }, { value: "DESIGN_GUARANTEE_BOND", label: "Design guarantee bond" }, { value: "RETENTION_BOND", label: "Retention bond" }] },
@@ -521,7 +521,7 @@ export function ReviewDrawer({ id, targetId, kind, name, people, today }: { id: 
   return (
     <RecordEditor
       title={`Check the ${name.charAt(0).toLowerCase()}${name.slice(1)}`}
-      description="Verified only where every check passes; the refusal says which did not. The check is recorded as yours."
+      description="Verified only if every check passes; a refusal names the failed one."
       fields={[
         hidden("id"),
         hidden(kind === "security" ? "securityId" : "policyId"),
@@ -546,7 +546,7 @@ export function LodgePolicyDrawer({ id, issuers, today, tenderUplift = null }: {
   return (
     <RecordEditor
       title="Lodge an insurance policy"
-      description="As it was handed in. It is verified separately, against the requirement, the liability bands and the period it must run."
+      description="Verified separately against the requirement, bands and period."
       fields={[
         hidden("id"),
         { kind: "select", name: "kind", label: "Kind", required: true, placeholder: "Choose", options: KINDS },
@@ -559,9 +559,9 @@ export function LodgePolicyDrawer({ id, issuers, today, tenderUplift = null }: {
           kind: "money",
           name: "appendixAmount",
           label: "Amount stated in the appendix",
-          hint: tenderUplift ? `Works: the tender Appendix states ${tenderUplift} beyond the contract price. Left empty, that figure is taken; another is refused.` : "Works: the sum insured must cover the contract price plus this.",
+          hint: tenderUplift ? `Appendix states ${tenderUplift}. Empty takes it.` : "Must cover the contract price plus this.",
         },
-        { kind: "money", name: "requiredLimit", label: "Public liability limit to meet", hint: "Empty takes the limit derived from the bands. Raised above it needs a justification." },
+        { kind: "money", name: "requiredLimit", label: "Public liability limit to meet", hint: "Empty: band limit. Higher needs a reason." },
         { kind: "textarea", name: "raisedJustification", label: "Why the limit is raised" },
         { kind: "date", name: "periodStart", label: "Period from", required: true },
         { kind: "date", name: "periodEnd", label: "Period to", required: true },
@@ -583,11 +583,11 @@ export function AwardChoiceDrawer({ id, kinds, steps, people }: { id: string; ki
   return (
     <RecordEditor
       title="Where the refused appointment goes next"
-      description="No destination applied to this refusal, so the officer chooses. The choice is recorded as yours — it is not the organisation's policy."
+      description="No destination applied, so you choose. Recorded as yours, not policy."
       fields={[
         { kind: "hidden", name: "id" },
         { kind: "select", name: "kind", label: "Where it goes", required: true, placeholder: "Choose", options: kinds },
-        { kind: "select", name: "returnToSeq", label: "The step it returns to", required: true, placeholder: "Choose", options: steps, hint: "The route continues from this step; the steps before it keep their decisions." },
+        { kind: "select", name: "returnToSeq", label: "The step it returns to", required: true, placeholder: "Choose", options: steps, hint: "Steps before it keep their decisions." },
         actorField("ApprovalInstance.rejectionChosenBy", { name: "personId", people }),
         { kind: "textarea", name: "reason", label: "Why it goes there" },
       ]}

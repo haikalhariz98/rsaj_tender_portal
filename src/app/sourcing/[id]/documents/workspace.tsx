@@ -5,7 +5,7 @@ import { FileIcon, RouteIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { isMandatoryAct } from "@/components/ui/act";
 import { Stepper } from "@/components/ui/stepper";
 import { KeyValues } from "@/components/ui/stat";
@@ -30,7 +30,6 @@ import { requireStaff } from "@/app/_auth/actor";
 type Data = NonNullable<Awaited<ReturnType<typeof documentsTab>>>;
 type Route = LoadedExercise["ex"]["approvalInstances"][number];
 
-const levelTone = (l: string) => (l === "block" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 const GONE = (
   <Card>
     <EmptyState title="This exercise could not be found">Its organisation may no longer be configured.</EmptyState>
@@ -245,7 +244,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
           </Callout>
         )}
         {warnings.map((w, i) => (
-          <Callout key={i} tone={levelTone(w.level === "err" ? "block" : w.level)}>{w.messageEn}</Callout>
+          <FindingNote key={i} level={w.level}>{w.messageEn}</FindingNote>
         ))}
         {inst.status === "PENDING" && (
           <p className="text-[12.5px] text-ink-3">

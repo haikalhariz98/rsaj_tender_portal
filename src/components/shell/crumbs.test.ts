@@ -86,7 +86,7 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
   });
   it("a page under an exercise names the exercise at the exercise's crumb, and its own section and page in words", () => {
     expect(labels(trail("/sourcing/sx1/evaluation/report", "EX/1"))).toEqual(["Sourcing", "EX/1", "Evaluation", "Evaluation report"]);
-    expect(labels(trail("/sourcing/sx1/evaluation/proposal", "EX/1"))).toEqual(["Sourcing", "EX/1", "Evaluation", "Kertas Cadangan"]);
+    expect(labels(trail("/sourcing/sx1/evaluation/proposal", "EX/1"))).toEqual(["Sourcing", "EX/1", "Evaluation", "Proposal paper"]);
     expect(labels(trail("/sourcing/sx1/label/s1", "EX/1"))).toEqual(["Sourcing", "EX/1", "Sales", "Sale label"]);
     expect(labels(trail("/sourcing/sx1/opening/print", "EX/1"))).toEqual(["Sourcing", "EX/1", "Bid opening", "Print"]);
     expect(labels(trail("/sourcing/sx1/documents/print", "EX/1"))).toEqual(["Sourcing", "EX/1", "Tender documents", "Print"]);

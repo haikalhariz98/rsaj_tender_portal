@@ -14,7 +14,7 @@ import {
 import { type FormState } from "@/components/record-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, ToneNote } from "@/components/ui/feedback";
 import { AffixInput, Field, Select, Switch } from "@/components/ui/field";
 import { Stat } from "@/components/ui/stat";
 import { type BudgetCode, type Movement } from "@/lib/budget/codes";
@@ -251,7 +251,7 @@ export function ControlsPanel({
                   />
                 </div>
 
-                <Callout
+                <ToneNote
                   tone={
                     example.outcome === "RELEASED"
                       ? "ok"
@@ -271,7 +271,7 @@ export function ControlsPanel({
                   title={outcomeTitle(example.outcome)}
                 >
                   {exampleSentence(example, { amount: formatCompactRM(example.amount), available: formatCompactRM(example.available) })}
-                </Callout>
+                </ToneNote>
               </div>
             )}
           </CardBody>

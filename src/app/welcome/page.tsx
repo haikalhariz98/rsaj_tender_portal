@@ -1,6 +1,6 @@
 import { LastSignIn } from "@/components/auth/last-sign-in";
 import { ButtonLink, Button } from "@/components/ui/button";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, Note } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { loadAccountView } from "@/lib/auth/account-view";
 import { AUTH_WORDS } from "@/lib/auth/words";
@@ -23,7 +23,7 @@ export default async function WelcomePage() {
     <>
       <PageHeader
         title={`Welcome, ${firstName}`}
-        subtitle="You are signed in. Before you go on, check the sign-in below is yours."
+        subtitle="Signed in. Check the sign-in below is yours."
         actions={
           <ButtonLink href="/" variant="primary">
             Continue to the dashboard
@@ -61,9 +61,9 @@ export default async function WelcomePage() {
         )}
         <LastSignIn info={view.last} timeZone={actor.organisationTimeZone} />
         {!view.addressesRecorded && (
-          <Callout tone="neutral" title="Addresses are not recorded">
+          <Note title="Addresses are not recorded">
             {AUTH_WORDS.addressesNotRecorded.en}
-          </Callout>
+          </Note>
         )}
       </div>
     </>

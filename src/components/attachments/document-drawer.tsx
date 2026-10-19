@@ -11,7 +11,7 @@ import { Badge, Chip } from "@/components/ui/badge";
 import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { EmptyState, ToneNote } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
 import { KeyValues } from "@/components/ui/stat";
 import { endSentence, LOWER_NOTE, plural, RECLASSIFY_NOTE, WITHDRAW_NOTE, withdrawnLine } from "@/lib/documents/labels";
@@ -138,7 +138,7 @@ function Drawer({ data, reload, onClose, onRecord }: { data: DrawerView | null |
             </EmptyState>
           ) : (
             <div className="flex flex-col gap-6">
-              {notice && <Callout tone={notice.tone}>{notice.text}</Callout>}
+              {notice && <ToneNote tone={notice.tone}>{notice.text}</ToneNote>}
               <div>
                 <InfoChip tone="info" detail={`${data.statements.access} ${data.statements.fingerprint}`} label="About access">Access logged</InfoChip>
               </div>

@@ -7,7 +7,7 @@ import { FileIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, ToneNote } from "@/components/ui/feedback";
 import { MoreText } from "@/components/ui/more-text";
 import type { AttachmentItemView, PanelView, SlotView } from "@/lib/documents/views";
 
@@ -110,9 +110,9 @@ export function AttachmentPanel({
       <CardBody className="flex flex-col gap-4">
 
         {notice && (
-          <Callout tone={notice.tone} action={<Button size="sm" variant="ghost" onClick={() => setNotice(null)}>Dismiss</Button>}>
+          <ToneNote tone={notice.tone} action={<Button size="sm" variant="ghost" onClick={() => setNotice(null)}>Dismiss</Button>}>
             {notice.text}
-          </Callout>
+          </ToneNote>
         )}
         {refused && (
           <Callout tone="warn" title="Uploads are refused until this is set">

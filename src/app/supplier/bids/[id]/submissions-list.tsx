@@ -2,7 +2,7 @@
 
 import { DataList, type Row } from "@/components/data-list";
 import { Bi } from "@/components/ui/bilingual";
-import { Callout } from "@/components/ui/feedback";
+import { Note, ToneNote } from "@/components/ui/feedback";
 import type { SubmissionView } from "@/lib/bids/online/my-bids";
 import { BID_KIND_WORDS, BID_STATUS_WORDS, SCREEN_WORDS } from "@/lib/bids/online/screen-words";
 
@@ -60,11 +60,11 @@ export function SubmissionsList({ reference, title, supplierName, demonstration,
               <p className="text-[12.5px] text-ink-3"><Bi words={SCREEN_WORDS.tiedTo} inline /> {v.parentNumber}</p>
             )}
             {v.opening && (
-              <Callout tone={v.status === "OPENED" ? "ok" : v.opening.digest === null ? "warn" : "info"} title={<Bi words={v.opening.headline} />}>
+              <ToneNote tone={v.status === "OPENED" ? "ok" : v.opening.digest === null ? "warn" : "info"} title={<Bi words={v.opening.headline} />}>
                 <Bi words={v.opening.detail} />
-              </Callout>
+              </ToneNote>
             )}
-            {v.openingListMissing && <Callout tone="info"><Bi words={SCREEN_WORDS.rollMissing} /></Callout>}
+            {v.openingListMissing && <Note><Bi words={SCREEN_WORDS.rollMissing} /></Note>}
             <details className="rounded-xl border border-line bg-surface px-4 py-3 print:border-0 print:p-0">
               <summary className="cursor-pointer text-[13.5px] font-semibold text-ink print:hidden"><Bi words={SCREEN_WORDS.showReceipt} inline /></summary>
               <div className="mt-3"><ReceiptCard data={data} /></div>

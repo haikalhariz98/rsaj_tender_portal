@@ -6,7 +6,7 @@ import { ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState, FindingNote, ToneNote } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import { formatDate } from "@/lib/format";
 import type { scopeTab } from "@/lib/scope/read";
@@ -17,7 +17,6 @@ import { EditPanelDrawer, MarkVerifiedDrawer, TableScopeDrawer, TakeSettingsDraw
 type Data = NonNullable<Awaited<ReturnType<typeof scopeTab>>>;
 
 const STATE_TONE: Record<Data["panel"]["state"], Tone> = { NONE: "neutral", DRAFT: "info", VERIFIED: "ok", SCAN_GONE: "err" };
-const levelTone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 
 /**
  * SR-08 and SR-09 (rulings 12 and 13): the section opens with how this exercise is prepared (the two switches it is pinned to), the specification panel and its signed form are
@@ -86,7 +85,7 @@ export function ScopeSection({ d }: { d: Data }) {
             {panel.findings.length > 0 && (
               <div className="flex flex-col gap-2">
                 {panel.findings.map((f, i) => (
-                  <Callout key={i} tone={levelTone(f.level)}>{f.text}</Callout>
+                  <FindingNote key={i} level={f.level}>{f.text}</FindingNote>
                 ))}
               </div>
             )}
@@ -172,7 +171,7 @@ export function ScopeSection({ d }: { d: Data }) {
           actions={<Badge tone={approval.badge.tone} dot>{approval.badge.label}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">
-          <Callout tone={approval.state === "APPROVED" ? "ok" : approval.state === "NOT_REQUIRED" ? "neutral" : approval.badge.tone === "err" ? "err" : approval.state === "PENDING" ? "info" : "warn"}>{approval.line}</Callout>
+          <ToneNote tone={approval.state === "APPROVED" ? "ok" : approval.state === "NOT_REQUIRED" ? "neutral" : approval.badge.tone === "err" ? "err" : approval.state === "PENDING" ? "info" : "warn"}>{approval.line}</ToneNote>
           {/* 62-C1: configuration has moved on since the deciding matter was tabled; both rules named. */}
           {approval.moved && <Callout tone="warn" title="The rule has changed since this was tabled">{approval.moved}</Callout>}
           <KeyValues

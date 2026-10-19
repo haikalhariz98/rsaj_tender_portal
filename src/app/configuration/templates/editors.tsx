@@ -98,7 +98,7 @@ function MergeFieldList({ clauses, terms = [] }: { clauses: { code: string; titl
           {group("Tender documents", "The registration and window fields belong in the notice, and the permit field in the instructions to tenderers. They are filled when the documents are submitted for approval.", PACK_MERGE_FIELDS)}
           {group("Awards and agreements", null, MERGE_FIELDS)}
           {group("Evaluation report", "Filled when the report is issued, from the evaluation as it stands then.", EVALUATION_MERGE_FIELDS.REPORT)}
-          {group("Kertas Cadangan", "Filled when the paper is produced; the offices are the evaluation policy's.", EVALUATION_MERGE_FIELDS.PROPOSAL.filter((f) => !EVALUATION_MERGE_FIELDS.REPORT.some((x) => x.key === f.key)))}
+          {group("Proposal paper", "Filled when the paper is produced; the offices are the evaluation policy's.", EVALUATION_MERGE_FIELDS.PROPOSAL.filter((f) => !EVALUATION_MERGE_FIELDS.REPORT.some((x) => x.key === f.key)))}
           {group("Certificates", "Filled when the certificate is issued, from its frozen figures, the baseline version it read and its signatures. A certificate's own figures are named by the module that computes them.", CERTIFICATE_MERGE_FIELDS)}
           {group("Terms", terms.length ? "A certificate prints the term's wording in the text's language, as the glossary holds it when the certificate is first signed." : "No term is in the glossary yet: add one on the Terms tab to cite it here.", terms.map((t) => ({ key: `term:${t.code}`, labelEn: t.wording })))}
         </div>

@@ -41,4 +41,3 @@ export const READER_OFFICE_UNSET = {
   internalAuditRoleCode: "Not set: no office reads evaluations as Internal Audit.",
 } as const;
 
-export const READER_OFFICES_ABOUT = "FR-EVL-014 opens an evaluation to the Secretariat and to Internal Audit. A holder of the office, on the day, for the exercise's own department, reads its scores, prices and who is recommended, and the company estimate once the opening has disclosed it. It is reading only: it records nothing, and it does not open an exercise restricted to its named people. Unset, it grants nothing.";

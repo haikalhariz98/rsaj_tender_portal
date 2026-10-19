@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { Note } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import { SUPPLIER_REGISTRATION_GETS } from "@/lib/auth/routes";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
@@ -77,11 +77,11 @@ export function DataExportView({ data, fileToken, liveLinks, timeZone }: { data:
           </CardBody>
         </Card>
       ))}
-      <Callout tone="info">
+      <Note>
         {data.leftOut.map((x, i) => (
           <span key={i}>{x}</span>
         ))}
-      </Callout>
+      </Note>
     </div>
   );
 }

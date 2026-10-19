@@ -16,6 +16,7 @@ export function MoveAwayButton({ waiting }: { waiting: number }) {
   const [pending, start] = useTransition();
   const [words, setWords] = useState<string[] | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
+  const [stayed, setStayed] = useState(0);
   return (
     <div className="flex flex-col items-end gap-2">
       <Button
@@ -27,6 +28,7 @@ export function MoveAwayButton({ waiting }: { waiting: number }) {
             const r = await moveStepsOfAbsentHolders();
             setWords(r.words);
             setRefused(r.refused ?? null);
+            setStayed(r.stayed);
           })
         }
       >
@@ -35,11 +37,11 @@ export function MoveAwayButton({ waiting }: { waiting: number }) {
       {waiting === 0 && <span className="text-[12px] text-ink-3">Nothing stuck.</span>}
       {refused && (
         <Callout tone="warn" title="Nothing was moved">
-          {refused} Ask an officer.
+          {refused} Administrators cannot move steps. Ask a non-administrator officer.
         </Callout>
       )}
       {words && !refused && (
-        <Callout tone="ok" title="Done">
+        <Callout tone={stayed > 0 ? "warn" : "ok"} title={stayed > 0 ? `${stayed} could not be moved` : "Done"}>
           <ul className="mt-1 flex list-disc flex-col gap-1 pl-5">
             {words.map((w, i) => (
               <li key={i}>{w}</li>

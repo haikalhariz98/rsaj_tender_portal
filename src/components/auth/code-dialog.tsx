@@ -36,8 +36,8 @@ export function CodeDialog({
         <DrawerHeader title={title} subtitle={subtitle} onClose={onClose} />
         {shown ? (
           <div className="flex flex-col gap-4 px-6 py-5">
-            <Callout tone="ok" title="Shown once">
-              Read it out or write it down now. It cannot be shown again, and it is not kept anywhere you can read it back. Valid until {shown.validUntil}; it works once.
+            <Callout tone="warn" title="Shown once">
+              Write it down now. Valid until {shown.validUntil}; works once.
             </Callout>
             <p className="rounded-xl border border-line bg-sunken px-4 py-3 text-center font-mono text-[20px] font-bold tracking-wider break-all text-ink select-all" aria-label="The code">
               {shown.code}

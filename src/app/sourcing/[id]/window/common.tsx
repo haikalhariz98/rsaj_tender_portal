@@ -12,7 +12,6 @@ export const GONE = (
 );
 
 export const SETTINGS_HREF = "/configuration/invitation";
-export const levelTone = (l: string) => (l === "block" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 export const NOT_RECORDED = "Not recorded";
 
 /// A rule's provenance as the read model words it ("Stated", "Assumed", "Not set"), as the shared badge.

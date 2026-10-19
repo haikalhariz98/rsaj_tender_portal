@@ -4,7 +4,7 @@ import { SparkleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { EmptyState, Note } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 
 /**
@@ -50,7 +50,7 @@ export function NotBuilt({
         subtitle={summary}
       />
 
-      {note && <Callout tone="info" className="mb-6">{note}</Callout>}
+      {note && <Note className="mb-6">{note}</Note>}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>

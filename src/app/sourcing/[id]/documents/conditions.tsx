@@ -2,7 +2,7 @@ import { Accordion } from "@/components/accordion";
 import { CheckIcon, GavelIcon, UsersIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, FindingNote } from "@/components/ui/feedback";
 import { assuranceCardShown, CLAUSE_STATUS, clausesSummary, type ClausesLine } from "@/lib/tender-docs/conditions-view";
 import { capFirst } from "@/lib/tender-docs/frozen-view";
 import type { ConditionsTab, LiveConditions } from "@/lib/tender-docs/read-conditions";
@@ -16,7 +16,6 @@ import { ConfirmAssuranceDrawer, OverrideClauseDrawer, RemoveAssuranceDrawer, Re
  * `conditionsTab`; every act is the shared drawer, disabled with its reason where refused.
  */
 
-export const tone = (l: string) => (l === "block" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 export const NOT_SET = "Not set";
 export const Value = ({ v }: { v: string }) => (v === NOT_SET ? <Badge tone="warn">Not set</Badge> : <span className="break-words">{v}</span>);
 
@@ -26,7 +25,7 @@ export function Findings({ items }: { items: { level: string; text: string }[] }
     <ul className="flex flex-col gap-2">
       {items.map((f, i) => (
         <li key={i}>
-          <Callout tone={tone(f.level)}>{f.text}</Callout>
+          <FindingNote level={f.level}>{f.text}</FindingNote>
         </li>
       ))}
     </ul>

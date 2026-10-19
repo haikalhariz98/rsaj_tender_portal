@@ -5,7 +5,7 @@ import { ClipboardIcon } from "@/components/icons";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { SulitValue } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState, ToneNote } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
 import { KeyValues } from "@/components/ui/stat";
 import { ACCEPTANCE_FAULT_LABEL, RETURN_ITEM_LABEL, RETURN_SLOT_LABEL, returnScansText, WAITING_FOR_PAPER } from "@/lib/award/labels";
@@ -103,10 +103,10 @@ async function ReturnRecordCard({ sulit, l, ret, people }: { sulit: Sulit<true>;
             { label: "Originals held at", value: r.whereHeld || notSet("Not recorded") },
           ]}
         />
-        <Callout tone={scanLine.tone}>
+        <ToneNote tone={scanLine.tone}>
           <span className="font-semibold">Scans. </span>
           {scanLine.text}
-        </Callout>
+        </ToneNote>
       </CardBody>
     </Card>
   );

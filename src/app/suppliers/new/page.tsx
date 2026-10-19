@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 export default async function NewSupplierApplicationPage(props: { searchParams: Promise<{ from?: string }> }) {
   const actor = await requireStaff();
   const { from } = await props.searchParams;
-  const header = <PageHeader eyebrow={<Link href="/suppliers">Suppliers</Link>} title={from ? "Record a supplier from an online application" : "Record a paper application"} subtitle={from ? "An officer checks what the applicant sent against its certificate, then records the supplier." : "A new supplier, recorded by an officer from the application it handed in."} />;
+  const header = <PageHeader eyebrow={<Link href="/suppliers">Suppliers</Link>} title={from ? "Record a supplier from an online application" : "Record a paper application"} subtitle={from ? "Check against the certificate, then record." : "Recorded from the paper application."} />;
   const org = await supplierOrg(actor.organisationId);
   if (!org) {
     return (

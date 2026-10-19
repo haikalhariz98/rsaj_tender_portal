@@ -7,7 +7,7 @@ import { RuleChain } from "@/components/rule-chain";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
-import { EmptyState, Callout } from "@/components/ui/feedback";
+import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select } from "@/components/ui/field";
 import { SIMULATOR_HINT } from "@/lib/labels";
 
@@ -43,13 +43,6 @@ const REGIME_LABEL: Record<string, string> = {
   tender: "Tender band",
 };
 
-
-const CALLOUT: Record<Warning["level"], "info" | "warn" | "err"> = {
-  info: "info",
-  warn: "warn",
-  err: "err",
-  gap: "warn",
-};
 
 export function AuthoritySimulator({
   domains,
@@ -288,14 +281,14 @@ export function AuthoritySimulator({
         )}
 
         {result?.warnings.map((w, i) => (
-          <Callout key={`${w.code}-${i}`} tone={CALLOUT[w.level]}>
+          <FindingNote key={`${w.code}-${i}`} level={w.level}>
             <span>{w.messageEn}</span>
             {w.clause && (
               <Badge outline className="ml-2 align-middle" title={`Clause ${w.clause}`}>
                 {w.clause}
               </Badge>
             )}
-          </Callout>
+          </FindingNote>
         ))}
       </section>
     </div>

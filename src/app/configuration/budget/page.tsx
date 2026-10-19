@@ -1,4 +1,4 @@
-import { Callout } from "@/components/ui/feedback";
+import { ToneNote } from "@/components/ui/feedback";
 import { db } from "@/lib/db";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
 import { UNPOSTED_TEXT, UNPOSTED_TITLE } from "@/lib/requisition/labels";
@@ -95,9 +95,9 @@ export default async function BudgetPage({
       />
 
       {[...unposted.entries()].map(([why, rows]) => (
-        <Callout key={why} tone={why === "HELD_IN_FINANCE" || why === "ROUTE_OFF" ? "info" : "warn"} className="mb-6" title={`Received requisitions — ${UNPOSTED_TITLE[why].charAt(0).toLowerCase()}${UNPOSTED_TITLE[why].slice(1)}`}>
+        <ToneNote key={why} tone={why === "HELD_IN_FINANCE" || why === "ROUTE_OFF" ? "info" : "warn"} className="mb-6" title={`Received requisitions — ${UNPOSTED_TITLE[why].charAt(0).toLowerCase()}${UNPOSTED_TITLE[why].slice(1)}`}>
           {rows.map((h) => `${h.budgetCode?.code ?? "No budget code"}: ${h.reference} (${h.title})`).join("; ")}. For each: {UNPOSTED_TEXT[why]}
-        </Callout>
+        </ToneNote>
       ))}
 
       <BudgetTabs

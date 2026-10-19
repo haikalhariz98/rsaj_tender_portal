@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bi } from "@/components/ui/bilingual";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, Note } from "@/components/ui/feedback";
 import { Field, Input } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { sha256HexOf } from "@/lib/bids/online/browser-hash";
@@ -268,7 +268,7 @@ export function BidForm(p: BidFormProps) {
                   {p.replaceable.map((r) => <option key={r.id} value={r.id}>{`${r.number}`}</option>)}
                 </Select>
               </Field>
-              <Callout tone="info"><Bi words={SCREEN_WORDS.replaceNote} /></Callout>
+              <Note><Bi words={SCREEN_WORDS.replaceNote} /></Note>
             </>
           )}
           {mode === "NEW_ALTERNATIVE" && (

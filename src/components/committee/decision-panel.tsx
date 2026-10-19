@@ -10,7 +10,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardBody } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, ToneNote } from "@/components/ui/feedback";
 import { Field, Input } from "@/components/ui/field";
 import { KeyValues } from "@/components/ui/stat";
 import { Toggle } from "@/components/ui/toggle";
@@ -270,12 +270,12 @@ export function DecisionPanel({
       ) : matter.gapLine ? (
         <p className="text-[13px] font-medium text-amber-800">{matter.gapLine}</p>
       ) : (
-        <Callout tone={matter.registerTaken ? "warn" : "info"}>
+        <ToneNote tone={matter.registerTaken ? "warn" : "info"}>
           {matter.messageEn}
           {matter.blockers.length > 1 && (
             <span className="mt-1 block text-[12.5px]">Also: {matter.blockers.slice(1).join(", ").toLowerCase()}.</span>
           )}
-        </Callout>
+        </ToneNote>
       )}
 
       {notice}

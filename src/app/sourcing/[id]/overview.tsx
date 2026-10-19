@@ -8,7 +8,7 @@ import { ActBadge, actLabel } from "@/components/ui/act";
 import { Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { Stepper, type StepperStep } from "@/components/ui/stepper";
@@ -51,7 +51,6 @@ export const money = (v: { toString(): string }) => formatMoney(parseSen(v.toStr
 /// A percentage to as many places as it has (up to four), so "above the threshold" is
 /// visibly true: 50.0010%, not 50.00%.
 export const pct = (v: string) => v.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-export const tone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 /// Where a rule or band sits at the boundary, in words; the disagreement is the lib's finding.
 const boundarySide = (op: string | null | undefined, disagrees: boolean) => (!op ? "no edge at the boundary" : disagrees ? "the other side from its band — see the checks" : "the same side as its band");
 
@@ -80,9 +79,9 @@ function RouteList({ route, hideCoreNotice = false }: { route: RouteSnap; hideCo
       )}
       {route.ruleLabel && <p className="text-[12.5px] break-words text-ink-3">{`${route.ruleLabel}${route.clause ? ` · ${route.clause}` : ""}${route.overrideLabel ? ` · funder's rule set “${route.overrideLabel}”` : ""}`}</p>}
       {route.warnings.filter((w) => !(hideCoreNotice && isCoreNotCheckedNotice(w))).map((w) => (
-        <Callout key={w.text} tone={tone(w.level)}>
+        <FindingNote key={w.text} level={w.level}>
           {w.text}
-        </Callout>
+        </FindingNote>
       ))}
     </div>
   );
@@ -368,9 +367,9 @@ function RulesUsed({ p }: { p: OverviewProps }) {
           <h4 className="text-[13px] font-bold text-ink">{live ? "Checks, as they stand today" : ex.determinedAt ? `Checks, as recorded on ${formatDate(ex.determinedAt)}` : "Checks, as recorded"}</h4>
 
           {[...blocking, ...others].map((f, i) => (
-            <Callout key={i} tone={tone(f.level)}>
+            <FindingNote key={i} level={f.level}>
               {findingTextFor(f, p.estimate.state === "WITHHELD")}
-            </Callout>
+            </FindingNote>
           ))}
           {superseded.map((r) => (
             <p key={r.subject} className="text-[12.5px] text-ink-3">

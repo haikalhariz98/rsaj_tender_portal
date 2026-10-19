@@ -25,7 +25,7 @@ import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { sulitFieldOf } from "@/lib/sulit-trail";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
 import { MoreText } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
@@ -139,7 +139,7 @@ import { KeyDatesSection } from "./scope/key-dates-section";
 import { OfficersSection } from "./scope/officers-section";
 import { BriefingPrepSection, NoticeSection } from "./scope/notice-section";
 import { loadConditionsRead, loadKeyDatesRead } from "@/lib/method/prep-read";
-import { money, OverviewPanel, pct, tone } from "./overview";
+import { money, OverviewPanel, pct } from "./overview";
 import type { ReactNode } from "react";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseValue, sulitExerciseGate } from "@/app/_auth/sulit";
@@ -1008,9 +1008,9 @@ async function NamePanel({
           {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
             <CardBody className="flex flex-col gap-2">
               {(inst.warnings as { level: string; messageEn: string }[]).map((w, i) => (
-                <Callout key={i} tone={tone(w.level)}>
+                <FindingNote key={i} level={w.level}>
                   {w.messageEn}
-                </Callout>
+                </FindingNote>
               ))}
             </CardBody>
           )}

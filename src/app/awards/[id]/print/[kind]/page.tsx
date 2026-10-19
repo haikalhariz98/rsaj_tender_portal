@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { PrinterIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, Note } from "@/components/ui/feedback";
 import { evaluateAward } from "@/lib/award/evaluate";
 import { kindOfSlug, LANGUAGE_LABEL } from "@/lib/award/labels";
 import { awardFacts, loadAward } from "@/lib/award/repo";
@@ -57,12 +57,12 @@ export default async function PrintPage(props: PageProps<"/awards/[id]/print/[ki
         <PrintButton icon={<PrinterIcon size={15} />} />
       </div>
       {frozen ? (
-        <Callout tone="info" className="mb-5 print:hidden">
+        <Note className="mb-5 print:hidden">
           As issued: the text frozen when the instrument was issued. It is the portal&apos;s text of the instrument, not the controlled printed form.
-        </Callout>
+        </Note>
       ) : (
         <Callout tone="warn" className="mb-5 print:hidden">
-          A draft: how the document reads with today&apos;s template and today&apos;s record. The issued text is frozen when the instrument is issued.
+          A draft, read with today&apos;s template. The text freezes when issued.
         </Callout>
       )}
       <article className="relative mx-auto max-w-[800px] overflow-hidden rounded-card border border-line bg-surface px-6 py-10 shadow-card sm:px-14 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">

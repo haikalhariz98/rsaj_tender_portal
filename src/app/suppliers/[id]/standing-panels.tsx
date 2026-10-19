@@ -10,7 +10,7 @@ import { isMandatoryAct } from "@/components/ui/act";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState, ToneNote } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/field";
 import { KeyValues } from "@/components/ui/stat";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -148,7 +148,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
               ...(reading.lapsed.length ? [{ label: "Mandatory documents expired", value: reading.lapsed.join(", ") }] : []),
             ]}
           />
-          {reading.notes.map((n, i) => <Callout key={i} tone={n.level === "warn" ? "warn" : "info"}>{supplierFaultText(n)}</Callout>)}
+          {reading.notes.map((n, i) => <ToneNote key={i} tone={n.level === "warn" ? "warn" : "info"}>{supplierFaultText(n)}</ToneNote>)}
         </CardBody>
       </Card>
 

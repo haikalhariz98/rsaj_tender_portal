@@ -5,8 +5,10 @@
 // Every screen is on src/components/ui; this keeps it that way.
 //
 //   node scripts/check-ui.mjs
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+
+import { scanSource } from "./ui-text-rules.mjs";
 
 const MIGRATED = ["src/app", "src/components"];
 
@@ -48,10 +50,24 @@ function longSubtitles(file, source) {
   return found;
 }
 
+/// Literal-text rules (scripts/ui-text-rules.mjs, note 0005 section 4). Text written before the rules existed is
+/// recorded in scripts/ui-text-baseline.json as a count per file and rule: a file may hold fewer, never more, so
+/// new text meets the budget and the old text shrinks as it is touched. A rule with no entry (a retired callout
+/// tone, a missing tone, a product code, a long page subtitle) allows none. `--write-baseline` rewrites the file
+/// and may only be run after a count has gone down.
+const BASELINE_FILE = "scripts/ui-text-baseline.json";
+const baseline = existsSync(BASELINE_FILE) ? JSON.parse(readFileSync(BASELINE_FILE, "utf8")) : {};
+const counts = {};
+const slash = (f) => f.split("\\").join("/");
+
 const problems = [];
 for (const file of MIGRATED.flatMap(files).filter((f) => /\.tsx?$/.test(f))) {
   const source = readFileSync(file, "utf8");
   problems.push(...longSubtitles(file, source));
+  for (const v of scanSource(slash(file), source)) {
+    const key = `${v.file}|${v.rule}`;
+    (counts[key] ??= []).push(v);
+  }
   const lines = source.split("\n");
   lines.forEach((line, i) => {
     for (const cls of FORBIDDEN) {
@@ -60,6 +76,18 @@ for (const file of MIGRATED.flatMap(files).filter((f) => /\.tsx?$/.test(f))) {
       }
     }
   });
+}
+
+if (process.argv.includes("--write-baseline")) {
+  const next = Object.fromEntries(Object.entries(counts).filter(([k]) => !/\|(product-code|callout-tone|page-subtitle)$/.test(k)).map(([k, v]) => [k, v.length]).sort(([a], [b]) => a.localeCompare(b)));
+  writeFileSync(BASELINE_FILE, JSON.stringify(next, null, 1) + String.fromCharCode(10));
+  console.log(`Wrote ${Object.keys(next).length} entries to ${BASELINE_FILE}.`);
+  process.exit(0);
+}
+for (const [key, found] of Object.entries(counts)) {
+  if (found.length > (baseline[key] ?? 0)) {
+    for (const v of found) problems.push(`${v.file}:${v.line}  ${v.msg}`);
+  }
 }
 
 if (problems.length) {

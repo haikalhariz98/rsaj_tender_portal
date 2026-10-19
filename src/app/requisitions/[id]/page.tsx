@@ -20,7 +20,7 @@ import { absentOffices } from "@/lib/authority/absence";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { buttonClass, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
 import { MoreText } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
@@ -1323,7 +1323,7 @@ async function ApprovalPanel({
             <ul className="flex flex-col gap-2">
               {warnings.map((w, i) => (
                 <li key={i}>
-                  <Callout tone={w.level === "err" ? "err" : w.level === "info" ? "info" : "warn"}>{w.messageEn}</Callout>
+                  <FindingNote level={w.level}>{w.messageEn}</FindingNote>
                 </li>
               ))}
             </ul>

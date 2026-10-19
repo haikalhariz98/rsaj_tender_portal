@@ -15,7 +15,6 @@ export const NOT_SET = "Not set";
 export const notSet = (what = NOT_SET) => <span className="text-ink-4">{what}</span>;
 export const yesNo = (v: boolean | null) => (v == null ? null : v ? "yes" : "no");
 export const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
-export const tone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 
 /// `recommendation`: whether the evaluation's recommendation is open to the reader. Where it is not, the findings that compare the award with it become one sentence (FR-EVL-014).
 export function FaultList({ faults, figures = true, recommendation = true }: { faults: readonly Finding[]; figures?: boolean; recommendation?: boolean }) {

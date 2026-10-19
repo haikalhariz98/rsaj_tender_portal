@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { ArrowRight, CheckIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, Note } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
 import { FORM_TOKEN_FIELD } from "@/lib/auth/form-token";
@@ -91,9 +91,9 @@ export function ApplicationForm({
             </ul>
           </div>
           {notice && (
-            <Callout tone="info" title={APPLY.officeNoticeTitle.en}>
+            <Note title={APPLY.officeNoticeTitle.en}>
               <span className="whitespace-pre-line">{notice}</span>
-            </Callout>
+            </Note>
           )}
           <div>
             <ButtonLink href={PORTAL_PATH.home} variant="secondary" size="md">

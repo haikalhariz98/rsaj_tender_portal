@@ -29,7 +29,7 @@ export default async function UseCodePage() {
 
   return (
     <SignInScreen branding={branding}>
-      <PageHeader title={AUTH_WORDS.useCodeTitle.en} subtitle="Activate your account or set a new password with a code an administrator gave you." />
+      <PageHeader title={AUTH_WORDS.useCodeTitle.en} subtitle="Use the code an administrator gave you." />
       {unset.length > 0 && (
         <Callout tone="warn" title={AUTH_WORDS.policyNotSet.en} className="mb-5">
           {settingLabels(unset).join("; ")}. {AUTH_WORDS.policyNotSetHow.en}

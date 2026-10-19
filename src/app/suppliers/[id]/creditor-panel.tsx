@@ -1,3 +1,4 @@
+import { InfoChip } from "@/components/ui/info-chip";
 import { DataList, type Column, type Row } from "@/components/data-list";
 import { LockIcon } from "@/components/icons";
 import { RegistrationSummaryCards } from "@/components/registration-summary";
@@ -93,9 +94,15 @@ export async function CreditorPanel({ actor, l, version }: { actor: StaffActor; 
 
   return (
     <div className="flex flex-col gap-6">
-      <Callout tone={words.payable ? "ok" : "warn"} title={words.payable ? "Payments can go to this supplier" : "Payments to this supplier are refused"}>
-        {words.en} Bank details count for payment only once an officer has checked them; a change by the supplier is a new version and takes effect only after it is checked.
-      </Callout>
+      {words.payable ? (
+        <p className="flex items-center gap-2 text-[13px] text-ink-2">
+          <InfoChip tone="ok" dot detail={words.en} label="About payment">Payable</InfoChip>
+        </p>
+      ) : (
+        <Callout tone="warn" title="Payments refused">
+          {words.en}
+        </Callout>
+      )}
 
       <Card className="overflow-hidden">
         <CardHeader icon={<LockIcon size={17} />} title="Creditor profile" subtitle="Versions sent · SULIT" actions={<SulitTag />} divided={false} />

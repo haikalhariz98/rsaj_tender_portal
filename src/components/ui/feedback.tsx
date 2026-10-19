@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { Say } from "@/components/i18n/language-context";
 import { AlertTriangle, CheckIcon, InfoIcon, XIcon } from "@/components/icons";
 
-import type { Tone } from "./badge";
 import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 
 import { cx } from "./cx";
@@ -54,10 +53,7 @@ export function EmptyState({
   );
 }
 
-const CALLOUT: Record<Exclude<Tone, "brand">, { box: string; icon: ReactNode }> = {
-  /// A statement of record that asks nothing of the reader: no alert role, no colour of concern.
-  neutral: { box: "border-line bg-sunken text-ink-2 [&_.ico]:text-ink-3", icon: <InfoIcon size={18} /> },
-  info: { box: "border-sky-200 bg-sky-50 text-sky-900 [&_.ico]:text-sky-600", icon: <InfoIcon size={18} /> },
+const CALLOUT: Record<"ok" | "warn" | "err", { box: string; icon: ReactNode }> = {
   ok: { box: "border-emerald-200 bg-emerald-50 text-emerald-900 [&_.ico]:text-emerald-600", icon: <CheckIcon size={18} /> },
   warn: { box: "border-amber-200 bg-amber-50 text-amber-900 [&_.ico]:text-amber-600", icon: <AlertTriangle size={18} /> },
   err: { box: "border-rose-200 bg-rose-50 text-rose-900 [&_.ico]:text-rose-600", icon: <XIcon size={18} /> },
@@ -68,14 +64,16 @@ const CALLOUT: Record<Exclude<Tone, "brand">, { box: string; icon: ReactNode }> 
 /// included. A state belongs in a chip and an explanation in a popover (note 0005 §3.4); `ok` is the brief
 /// notice after the user's own act.
 export function Callout({
-  tone = "info",
+  tone,
   title,
   children,
   icon,
   action,
   className,
 }: {
-  tone?: "neutral" | "info" | "ok" | "warn" | "err";
+  /// Required, and never `info` or `neutral`: those are retired (note 0005 §3.4). A statement that asks
+  /// nothing of the reader is a `Note` or a chip.
+  tone: "ok" | "warn" | "err";
   title?: ReactNode;
   children?: ReactNode;
   icon?: ReactNode;
@@ -95,6 +93,45 @@ export function Callout({
       </div>
       {action && <div className="ml-auto shrink-0 self-center max-sm:ml-8">{action}</div>}
     </div>
+  );
+}
+
+/// A statement that asks nothing of the reader: a quiet line with a small mark, no box and no alert
+/// role. Where the user must act or something is wrong it is a `Callout` with `warn` or `err`
+/// instead (note 0005 §3.4).
+export function Note({ title, children, action, className }: { title?: ReactNode; children?: ReactNode; action?: ReactNode; className?: string }) {
+  return (
+    <div role="note" className={cx("flex flex-wrap items-start gap-x-2 gap-y-1 text-[13px] leading-relaxed text-ink-2", className)}>
+      <InfoIcon size={15} className="mt-0.5 shrink-0 text-ink-3" />
+      <div className="min-w-0 flex-1">
+        {title && <span className="font-bold text-ink">{title}</span>}
+        {title && children ? " " : null}
+        {children}
+      </div>
+      {action && <div className="ml-auto shrink-0">{action}</div>}
+    </div>
+  );
+}
+
+/// A message whose tone is decided at run time. `ok`, `warn` and `err` are a callout; `info` and `neutral`
+/// ask nothing of the reader and are a note (note 0005 §3.4).
+export function ToneNote({ tone, title, children, icon, action, className }: { tone: "ok" | "warn" | "err" | "info" | "neutral"; title?: ReactNode; children?: ReactNode; icon?: ReactNode; action?: ReactNode; className?: string }) {
+  if (tone === "info" || tone === "neutral") return <Note title={title} action={action} className={className}>{children}</Note>;
+  return (
+    <Callout tone={tone} title={title} icon={icon} action={action} className={className}>
+      {children}
+    </Callout>
+  );
+}
+
+/// One finding from a check: `warn` and `err` are a callout, an `info` finding a note. The level is the
+/// lib's word for it ("block", "err", "warn", "gap", "info"); a screen does not map it itself.
+export function FindingNote({ level, title, children, className }: { level: string; title?: ReactNode; children?: ReactNode; className?: string }) {
+  if (level === "info") return <Note title={title} className={className}>{children}</Note>;
+  return (
+    <Callout tone={level === "block" || level === "err" ? "err" : "warn"} title={title} className={className}>
+      {children}
+    </Callout>
   );
 }
 

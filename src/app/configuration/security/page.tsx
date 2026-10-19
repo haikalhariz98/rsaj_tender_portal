@@ -61,7 +61,7 @@ const GROUPS: { title: string; blurb: string; keys: SecurityPolicyKey[] }[] = [
 const CAUTION: Partial<Record<SecurityPolicyKey, string>> = {
   paperSignatureRecording: "A choice for the organisation, and the product advises neither. While it is not set, a paper decision is refused and the form says so.",
   concurrentSessionAction: "A choice for the organisation, and the product advises neither. While it is not set, sign-in is refused.",
-  signInDetailRetentionDays: "While it is not set, sign-in addresses are kept. Legal hold (NFR-RET-002) is not built.",
+  signInDetailRetentionDays: "Not set: sign-in addresses are kept. Legal hold is not built.",
   sealingPassphraseMinLength: "While it is not set, no opening officer can set a share of an online exercise's key. At least 12; a forgotten passphrase cannot be recovered.",
 };
 

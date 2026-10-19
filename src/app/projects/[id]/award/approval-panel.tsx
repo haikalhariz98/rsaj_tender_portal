@@ -8,7 +8,7 @@ import { escalationText } from "@/lib/authority/escalation-labels";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { Callout, FindingNote } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { type AwardEvaluation } from "@/lib/award/evaluate";
@@ -28,7 +28,7 @@ import { db } from "@/lib/db";
 import { tablingQuery } from "@/lib/committee/table-prefill";
 import { AwardChoiceDrawer, CiteDecisionDrawer, DecideStepDrawer } from "@/app/awards/editors";
 import { loadAttributions, routeActed } from "@/lib/auth/attribution-read";
-import { money, notSet, tone } from "./shared";
+import { money, notSet } from "./shared";
 
 // ------------------------------------------------------------------ approval
 
@@ -97,7 +97,7 @@ export async function ApprovalPanel({
                 <p className="text-[12.5px] break-words text-ink-3">{`${ev.route.ruleLabel}${ev.route.clause ? ` · ${ev.route.clause}` : ""}`}</p>
                 {absentLine}
                 {ev.route.warnings.map((w, i) => (
-                  <Callout key={i} tone={tone(w.level)}>{w.messageEn}</Callout>
+                  <FindingNote key={i} level={w.level}>{w.messageEn}</FindingNote>
                 ))}
               </>
             ) : ev.route ? (
@@ -119,7 +119,7 @@ export async function ApprovalPanel({
             <CardBody className="flex flex-col gap-2">
               {absentLine}
               {((inst.warnings as { level: string; messageEn: string }[]) ?? []).map((w, i) => (
-                <Callout key={i} tone={tone(w.level)}>{w.messageEn}</Callout>
+                <FindingNote key={i} level={w.level}>{w.messageEn}</FindingNote>
               ))}
             </CardBody>
           )}

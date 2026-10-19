@@ -90,7 +90,7 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   TENDERER_CONFIRMATION: "Tenderer's written confirmation",
   REPORT_DRAWINGS: "Drawings for the evaluation report",
   SIGNED_REPORT: "Signed evaluation report",
-  SIGNED_PROPOSAL_PAPER: "Signed Kertas Cadangan",
+  SIGNED_PROPOSAL_PAPER: "Signed proposal paper",
   SUPPLIER_DOCUMENT: "Scan of the supplier's document",
   SUPPLIER_DECLARATION: "Supplier's signed declaration",
   SUPPLIER_EPAYMENT_FORM: "Supplier's E-Payment form",

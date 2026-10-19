@@ -398,7 +398,7 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       code: "GAP_RULE",
       level: "gap",
       messageEn:
-        "No documented approval rule exists for this item — the routing shown is an assumption, not a documented rule.",
+        "Route assumed: no rule covers this matter.",
       clause: rule.clause,
     });
   }

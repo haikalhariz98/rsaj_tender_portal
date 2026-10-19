@@ -8,7 +8,7 @@ import { ClockIcon, FileIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
 import { Card, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { EmptyState, ToneNote } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { AWARD_TERMS, awardCorrectionFaults, readCorrectionMark, TERM_FIELD, termSource, type AwardTerm } from "@/lib/contract/award-correction";
 import { enterFault, latestVersion, type BaselineValues, type EnteredGroup } from "@/lib/contract/baseline";
@@ -118,9 +118,9 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       {findings.some((f) => f.level !== "info") && (
-        <Callout tone={findings.some((f) => f.level === "block") ? "warn" : "info"} title={findings.some((f) => f.level === "block") ? "The baseline is not complete" : "Noted"}>
+        <ToneNote tone={findings.some((f) => f.level === "block") ? "warn" : "info"} title={findings.some((f) => f.level === "block") ? "The baseline is not complete" : "Noted"}>
           {findings.filter((f) => f.level !== "info").map(contractFaultText).join(" ")}
-        </Callout>
+        </ToneNote>
       )}
       <Card className="overflow-hidden">
         <CardHeader
