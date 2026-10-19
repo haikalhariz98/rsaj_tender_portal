@@ -249,3 +249,20 @@ No screen-owner Must or Should is open.
 ### Step 4 (2026-10-19)
 
 Step 4 found no screen-owner Must or Should to fix. R1-6 is the only screen-owned row and is carried by the brief (Malay outside N1's slice). No screen file under `src/app/sourcing/**` or `src/app/projects/**` was changed, so there is no per-area commit. This note is the only change.
+
+### Run 2 (step 5, 2026-10-19). Self-applied
+
+The `ui-guidelines-reviewer` agent could not be launched from this session (no agent tool), so run 2 was **self-applied** from `.claude/agents/ui-guidelines-reviewer.md` under run 1's brief, word for word. It was done by a different agent from run 1, over `src/app/sourcing/**` and `src/app/projects/**` plus the shared changes made since run 1 (`git diff` of tabs, drawer, feedback, matrix). Contrast and anything needing a rendered screen were not checked.
+
+Clean in both scopes: `outline-none`, `transition-all`, `dark:`, hex colours, `<div onClick>`, `user-scalable`, `target="_blank"`, `...` in text, `toLocale*String`, retired prototype classes, `dangerouslySetInnerHTML`, `autoFocus`, `onPaste`. The only raw `<input>` elements are four `type="hidden"`. Every `Input`/`Textarea` found has a `name`, a value paired with `onChange`, and `aria-invalid` where it has an error.
+
+| id | Must/Should | file:line | owner | status |
+| --- | --- | --- | --- | --- |
+| R2-1 | Should (a `role="meter"` has an accessible name) | `src/components/ui/feedback.tsx` `Meter` | shared | recorded: run 1's fix made the name optional, and the three callers (`committees/[id]/page.tsx:154`, `configuration/budget/code-editors.tsx:150`, `movements-drawer.tsx:115`) pass none, so a screen reader meets an unnamed meter beside its value text. The fix is a name per caller, which is new words in both languages on screens outside N1's Malay slice, or a role change in a shared component whose test run 1 pinned. Product-owner question in the log. None of the callers is under the N3 scopes |
+| R2-2 | n/a | `src/components/tabs.tsx` | shared | checked: `aria-controls` only on the selected tab, ids from `useId`, panel `aria-labelledby` the current tab. Clean |
+
+No open Must or Should after run 2. No new shared-owner or screen-owner item needs to go back to step 3 or 4.
+
+### Snapshot (step 5)
+
+Not taken. Step 1's J6 line stands as owed: no scratch login exists, and none was made by creating or resetting a role.
