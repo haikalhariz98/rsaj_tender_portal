@@ -26,7 +26,7 @@ export interface BlobStore {
 /// is configured. A bid part reading THREAT or ERROR is refused in either mode (`storedScan`). Step 9 makes the scanner return it and every reader exhaustive over it.
 export type ScanResult = "NOT_SCANNED" | "CLEAN" | "THREAT" | "ERROR";
 
-/// Malware scanning (NFR-SEC-007). Ships unconfigured (OD-4): every version reads NOT_SCANNED.
+/// Malware scanning (NFR-SEC-007). Ships unconfigured unless the environment names a clamd (OD-4, N5): without one every version reads NOT_SCANNED.
 export interface MalwareScanner {
   readonly configured: boolean;
   scan(bytes: Uint8Array): Promise<ScanResult>;

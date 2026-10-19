@@ -4,7 +4,9 @@
  */
 
 import { postgresBlobStore } from "./postgres";
+import { clamdScanner, FailClosedScanner } from "./clamd-scanner";
 import { NotConfiguredScanner } from "./scanner";
+import { scannerSettingFrom, type ScannerSetting } from "./scanner-config";
 import { ceilingFrom, driverFrom, type DriverFault } from "./select";
 import type { BlobStore, MalwareScanner } from "./types";
 
@@ -25,5 +27,14 @@ export function blobStore(env: Readonly<Record<string, string | undefined>> = pr
 
 export const deploymentCeiling = (env: Readonly<Record<string, string | undefined>> = process.env) => ceilingFrom(env);
 
-/// The scanner: none is configured in this build (OD-4).
-export const malwareScanner = (): MalwareScanner => NotConfiguredScanner;
+export type { ScannerSetting, ScannerFault } from "./scanner-config";
+
+export const scannerSetting = (env: Readonly<Record<string, string | undefined>> = process.env): ScannerSetting => scannerSettingFrom(env);
+
+/// The scanner: unconfigured unless the environment names a clamd (OD-4, N5). A setting that is present but wrong fails closed: configured, every scan ERROR (T2).
+export function malwareScanner(env: Readonly<Record<string, string | undefined>> = process.env): MalwareScanner {
+  const s = scannerSettingFrom(env);
+  if (s.state === "NONE") return NotConfiguredScanner;
+  if (s.state === "FAULT") return FailClosedScanner;
+  return clamdScanner(s.target, { timeoutMs: s.timeoutMs });
+}
