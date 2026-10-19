@@ -39,7 +39,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
           },
         ] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
-    { kind: "text", name: "nameMs", label: "Name (Malay)" },
+    { kind: "hidden", name: "nameMs" },
     {
       kind: "textarea",
       name: "aliases",
@@ -135,7 +135,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       placeholder: "Not set — reads “Carried”",
       hint: "What this body calls a decision it carries, as its minutes write it. A not-carried decision is named by its not-approved outcome.",
     },
-    { kind: "text", name: "carriedLabelMs", label: "Name for a carried decision (Malay)", placeholder: "Not set" },
+    { kind: "hidden", name: "carriedLabelMs" },
     {
       kind: "select",
       name: "secretariatRoleCode",
@@ -448,7 +448,7 @@ function outcomeFields(editing: boolean, committees: { id: string; nameEn: strin
           { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A configuration key. Never shown on a screen." },
         ] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
-    { kind: "text", name: "nameMs", label: "Name (Malay)" },
+    { kind: "hidden", name: "nameMs" },
     {
       kind: "select",
       name: "kind",

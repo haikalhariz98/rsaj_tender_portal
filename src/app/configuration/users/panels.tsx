@@ -322,10 +322,10 @@ function RolesList({ offices, people, holdings, grants }: UsersData) {
 
     return {
       id: o.id,
-      search: [o.nameEn, o.nameMs, o.code, o.workspace, o.authorityLevel].filter(Boolean).join(" "),
+      search: [o.nameEn, o.code, o.workspace, o.authorityLevel].filter(Boolean).join(" "),
       sortKeys: { capabilities: grants.filter((g) => g.roleCode === o.code).length },
       cells: {
-        role: { kind: "stack", title: o.nameEn, sub: o.nameMs ?? undefined },
+        role: { kind: "stack", title: o.nameEn },
         workspace: o.workspace
           ? { kind: "badge", text: o.workspace }
           : { kind: "text", text: "Not set", dim: true },

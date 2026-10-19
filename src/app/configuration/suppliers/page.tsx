@@ -290,7 +290,7 @@ export default async function SupplierRegisterConfigPage() {
               <tbody>
                 {cfg.reasons.map((x) => (
                   <Tr key={x.id}>
-                    <Td label="Reason"><CellStack title={x.nameEn} sub={[x.nameMs, x.governingSource, retiredText(x.retiredOn)].filter(Boolean).join(" · ") || undefined} /></Td>
+                    <Td label="Reason"><CellStack title={x.nameEn} sub={[x.governingSource, retiredText(x.retiredOn)].filter(Boolean).join(" · ") || undefined} /></Td>
                     <Td label="Given for">{x.appliesTo === "SUSPEND" ? "A suspension" : "A blacklisting"}</Td>
                     <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                     <Td>
@@ -339,7 +339,7 @@ export default async function SupplierRegisterConfigPage() {
               <tbody>
                 {cfg.types.map((t) => {
                   const body = cfg.bodies.find((b) => b.id === t.bodyId);
-                  const sub = [t.nameMs, body ? `${asHeading(body.labelEn)}${t.valueKinds.length ? `: ${t.valueKinds.map((k) => VALUE_KIND_LABEL[k as RegistrationValueKind].en.toLowerCase()).join(", ")}` : ""}` : null, t.governingSource, retiredText(t.retiredOn)].filter(Boolean).join(" · ");
+                  const sub = [body ? `${asHeading(body.labelEn)}${t.valueKinds.length ? `: ${t.valueKinds.map((k) => VALUE_KIND_LABEL[k as RegistrationValueKind].en.toLowerCase()).join(", ")}` : ""}` : null, t.governingSource, retiredText(t.retiredOn)].filter(Boolean).join(" · ");
                   return (
                     <Tr key={t.id}>
                       <Td label="Type"><CellStack title={t.nameEn} sub={sub || undefined} /></Td>
@@ -399,7 +399,7 @@ export default async function SupplierRegisterConfigPage() {
                         <tbody>
                           {b.values.map((v) => (
                             <Tr key={v.id}>
-                              <Td label="Value"><CellStack title={v.nameEn} sub={[v.nameMs, v.parentCode ? `Under ${b.values.find((x) => x.kind === "CATEGORY" && x.code === v.parentCode)?.nameEn ?? "a category no longer listed"}` : null, retiredText(v.retiredOn)].filter(Boolean).join(" · ") || undefined} /></Td>
+                              <Td label="Value"><CellStack title={v.nameEn} sub={[v.parentCode ? `Under ${b.values.find((x) => x.kind === "CATEGORY" && x.code === v.parentCode)?.nameEn ?? "a category no longer listed"}` : null, retiredText(v.retiredOn)].filter(Boolean).join(" · ") || undefined} /></Td>
                               <Td label="Kind">{VALUE_KIND_LABEL[v.kind as RegistrationValueKind].en}</Td>
                               <Td label="Rank">{v.rank ?? <span className="text-ink-4">—</span>}</Td>
                               <Td label="Ceiling (shown only)">{v.valueCeiling ? <span className="flex flex-col items-start gap-1"><span className="tabular-nums">{formatMoney(parseSen(v.valueCeiling.toString()))}</span><ProvenanceBadge value={v.ceilingProvenance} /></span> : <span className="text-ink-4">—</span>}</Td>
@@ -451,7 +451,7 @@ export default async function SupplierRegisterConfigPage() {
                       <tbody>
                         {rows.map((v) => (
                           <Tr key={v.id}>
-                            <Td label="Entry"><CellStack title={v.nameEn} sub={[v.nameMs, v.list === "COUNTRY" ? (v.callingCode ? `Dial code ${v.callingCode}` : "Dial code not set") : null, retiredText(v.retiredOn)].filter(Boolean).join(" · ") || undefined} /></Td>
+                            <Td label="Entry"><CellStack title={v.nameEn} sub={[v.list === "COUNTRY" ? (v.callingCode ? `Dial code ${v.callingCode}` : "Dial code not set") : null, retiredText(v.retiredOn)].filter(Boolean).join(" · ") || undefined} /></Td>
                             <Td label="Source"><ProvenanceBadge value={v.provenance} /></Td>
                             <Td>
                               <RowActions>

@@ -62,7 +62,7 @@ function fundingFields(editing: boolean): Field[] {
   return [
     ...(editing ? [] : [codeField("Used internally to join this route to a matter. Never shown on a screen.")]),
     { kind: "text", name: "nameEn", label: "Name", required: true },
-    { kind: "text", name: "nameMs", label: "Name (Malay)" },
+    { kind: "hidden", name: "nameMs" },
     {
       kind: "switch",
       name: "organisationProcures",
@@ -147,7 +147,7 @@ function methodFields(editing: boolean): Field[] {
   return [
     ...(editing ? [] : [codeField("Used internally. Never shown on a screen.")]),
     { kind: "text", name: "nameEn", label: "Name", required: true },
-    { kind: "text", name: "nameMs", label: "Name (Malay)" },
+    { kind: "hidden", name: "nameMs" },
     {
       kind: "note",
       text: "Which value bands this method may be used in. The thresholds themselves are set on the approval matrix, not here.",
@@ -204,7 +204,7 @@ function contractFields(editing: boolean): Field[] {
   return [
     ...(editing ? [] : [codeField("Used internally. Never shown on a screen.")]),
     { kind: "text", name: "nameEn", label: "Name", required: true },
-    { kind: "text", name: "nameMs", label: "Name (Malay)" },
+    { kind: "hidden", name: "nameMs" },
     {
       kind: "select",
       name: "deliverableKind",
@@ -498,7 +498,7 @@ export function ChecklistItemDrawer({ methods, item }: { methods: Option[]; item
         ...(item ? [{ kind: "hidden", name: "sourcingMethodId" } as Field] : [{ kind: "select", name: "sourcingMethodId", label: "Method", required: true, placeholder: "Choose", options: methods } as Field]),
         ...(item ? [] : [{ kind: "text", name: "key", label: "Key", required: true, mono: true, hint: "Never shown." } as Field]),
         { kind: "textarea", name: "labelEn", label: "Item" },
-        { kind: "text", name: "labelMs", label: "Item (Malay)" },
+        { kind: "hidden", name: "labelMs" },
         { kind: "switch", name: "required", label: "Must be answered before the proposal is submitted" },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
@@ -536,7 +536,7 @@ export function ReasonDrawer({ methods, reason }: { methods: Option[]; reason?: 
         { kind: "hidden", name: "id" },
         ...(reason ? [] : [codeField("Never shown.")]),
         { kind: "text", name: "nameEn", label: "Reason", required: true },
-        { kind: "text", name: "nameMs", label: "Reason (Malay)" },
+        { kind: "hidden", name: "nameMs" },
         { kind: "select", name: "sourcingMethodCode", label: "Offered for", placeholder: "Every method that asks for a reason", options: methods },
         { kind: "text", name: "governingSource", label: "Source document" },
         PROVENANCE_FIELD,
@@ -560,7 +560,7 @@ export function BasisDrawer({ basis }: { basis?: { id: string; nameEn: string; n
         { kind: "hidden", name: "id" },
         ...(basis ? [] : [codeField("Never shown.")]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
-        { kind: "text", name: "nameMs", label: "Name (Malay)" },
+        { kind: "hidden", name: "nameMs" },
         { kind: "text", name: "standardFormLabel", label: "Standard contract form" },
         { kind: "text", name: "governingSource", label: "Source document" },
         PROVENANCE_FIELD,
@@ -585,7 +585,7 @@ export function TaxonomyDrawer({ taxonomy }: { taxonomy?: { id: string; nameEn: 
         { kind: "hidden", name: "id" },
         ...(taxonomy ? [] : [codeField("Never shown.")]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
-        { kind: "text", name: "nameMs", label: "Name (Malay)" },
+        { kind: "hidden", name: "nameMs" },
         { kind: "text", name: "governingSource", label: "Source document" },
         PROVENANCE_FIELD,
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
@@ -608,7 +608,7 @@ export function TaxonomyValueDrawer({ taxonomyId, taxonomy, value }: { taxonomyI
         { kind: "hidden", name: "taxonomyId" },
         ...(value ? [] : [codeField("Never shown.")]),
         { kind: "text", name: "nameEn", label: "Value", required: true },
-        { kind: "text", name: "nameMs", label: "Value (Malay)" },
+        { kind: "hidden", name: "nameMs" },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
         ...(value ? [{ kind: "switch", name: "retired", label: "Retired: no longer offered" } as Field] : []),
       ]}

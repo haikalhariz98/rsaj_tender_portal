@@ -48,7 +48,7 @@ function budgetCodeFields(units: Unit[], people: Person[], accounts: Account[]):
       orphanLabel: "A department no longer configured",
     },
     { kind: "text", name: "descriptionEn", label: "Description (EN)", required: true },
-    { kind: "text", name: "descriptionMs", label: "Description (BM)" },
+    { kind: "hidden", name: "descriptionMs" },
     {
       kind: "text",
       name: "accountCode",

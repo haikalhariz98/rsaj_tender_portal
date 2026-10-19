@@ -775,7 +775,7 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
   const v = {
     code,
     nameEn: r.text("nameEn", "Name", { required: true, max: 160 }),
-    nameMs: r.text("nameMs", "Name (Malay)", { required: true, max: 160 }),
+    nameMs: r.text("nameMs", "Name (Malay)", { max: 160 }),
     isCommittee: r.bool("isCommittee"),
     escalatesToCode,
     selfApprovalEscalatesToCode,

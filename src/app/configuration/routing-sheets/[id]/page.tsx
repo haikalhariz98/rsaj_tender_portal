@@ -52,7 +52,6 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
         eyebrow={<Link href="/configuration/routing-sheets">Routing sheets</Link>}
         title={t.labelEn}
         badge={retired ? <Badge tone="warn" dot>{org.today && retired > org.today ? `Retires ${formatDate(retired)}` : `Retired ${formatDate(retired)}`}</Badge> : undefined}
-        subtitle={t.labelMs ?? undefined}
         meta={[t.subject === "CERTIFICATE" ? (t.certificateKind ? KIND_WORDS[t.certificateKind].en : "Any certificate") : SUBJECT_WORDS[t.subject].en, t.template?.nameEn ?? "No printed sheet chosen"]}
         actions={
           <span className="flex flex-wrap items-center gap-2">
@@ -97,7 +96,7 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
               <tbody>
                 {t.checks.map((c) => (
                   <Tr key={c.id}>
-                    <Td label="Check"><CellStack title={`${c.order}. ${c.labelEn}`} sub={[CHECK_KIND_WORDS[c.kind].en, c.labelMs, c.targetDays ? `${c.targetDays} days printed` : null].filter(Boolean).join(" · ")} /></Td>
+                    <Td label="Check"><CellStack title={`${c.order}. ${c.labelEn}`} sub={[CHECK_KIND_WORDS[c.kind].en, c.targetDays ? `${c.targetDays} days printed` : null].filter(Boolean).join(" · ")} /></Td>
                     <Td label="Recorded by" className="text-ink-2">{officeName(c.officeCode)}</Td>
                     <Td>
                       <RowActions>

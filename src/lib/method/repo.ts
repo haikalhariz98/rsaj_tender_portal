@@ -78,7 +78,7 @@ export async function loadMethodConfig(organisationId: string, client: Tx = db) 
 
 export type LoadedMethodConfig = Awaited<ReturnType<typeof loadMethodConfig>>;
 
-export async function loadTermsBands(authorityMatrixId: string, client: Tx = db): Promise<(TermsBand & { id: string })[]> {
+export async function loadTermsBands(authorityMatrixId: string, client: Tx = db): Promise<(TermsBand & { id: string; labelMs: string | null })[]> {
   // In value order (UX 13, BD-24), by the same rule the lib reads them in.
   const rows = await client.termsBand.findMany({ where: { authorityMatrixId } });
   return rows.map((t) => ({
@@ -88,6 +88,7 @@ export async function loadTermsBands(authorityMatrixId: string, client: Tx = db)
     maxValue: num(t.maxValue),
     regime: t.regime,
     labelEn: t.labelEn,
+    labelMs: t.labelMs,
     retentionApplies: t.retentionApplies,
     defectsLiabilityApplies: t.defectsLiabilityApplies,
     insuranceNote: t.insuranceNote,

@@ -173,8 +173,8 @@ export default async function ReferenceDataPage() {
               const posture = fundingPosture(r);
               return (
                 <Tr key={r.code}>
-                  <Td label="Route" title={r.nameMs ? `${r.nameEn} — ${r.nameMs}` : r.nameEn}>
-                    <CellStack title={r.nameEn} sub={r.nameMs || undefined} />
+                  <Td label="Route">
+                    <CellStack title={r.nameEn} />
                   </Td>
                   <Td label="Posture">
                     <Chip tone={POSTURE_TONE[posture]} title={POSTURE_LABEL[posture]}>
@@ -250,8 +250,8 @@ export default async function ReferenceDataPage() {
           <tbody>
             {methods.map((m) => (
               <Tr key={m.code}>
-                <Td label="Method" title={m.nameMs ? `${m.nameEn} — ${m.nameMs}` : m.nameEn}>
-                  <CellStack title={m.nameEn} sub={m.nameMs || undefined} />
+                <Td label="Method">
+                  <CellStack title={m.nameEn} />
                 </Td>
                 <Td label="Bands">
                   <Bands method={m} />
@@ -309,7 +309,7 @@ export default async function ReferenceDataPage() {
           <tbody>
             {types.map((c) => (
               <Tr key={c.code}>
-                <Td label="Type" title={c.nameMs ? `${c.nameEn} — ${c.nameMs}` : c.nameEn}>
+                <Td label="Type">
                   <CellStack title={c.nameEn} sub={typeRow(c.code)?.deliverableKind ? `Default for this deliverable: ${DELIVERABLE_LABEL[typeRow(c.code)!.deliverableKind as DeliverableKind].toLowerCase()}` : "Default for this deliverable: none"} />
                 </Td>
                 <Td label="What it drives" className="text-ink-2">
@@ -411,7 +411,7 @@ export default async function ReferenceDataPage() {
             {reasons.map((r) => (
               <Tr key={r.id}>
                 <Td label="Reason">
-                  <CellStack title={r.nameEn} sub={r.nameMs || undefined} />
+                  <CellStack title={r.nameEn} />
                 </Td>
                 <Td label="Offered for" className="text-ink-2">{r.sourcingMethodCode ? (methodRow(r.sourcingMethodCode)?.nameEn ?? "A method no longer configured") : "Every method that asks"}</Td>
                 <Td label="Source">
@@ -454,7 +454,7 @@ export default async function ReferenceDataPage() {
             {bases.map((b) => (
               <Tr key={b.id}>
                 <Td label="Basis">
-                  <CellStack title={b.nameEn} sub={b.nameMs || undefined} />
+                  <CellStack title={b.nameEn} />
                 </Td>
                 <Td label="Standard contract form" className="text-ink-2">{b.standardFormLabel || "Not set"}</Td>
                 <Td label="Source">
@@ -497,7 +497,7 @@ export default async function ReferenceDataPage() {
             {taxonomies.map((t) => (
               <Tr key={t.id}>
                 <Td label="Classification">
-                  <CellStack title={t.nameEn} sub={t.nameMs || undefined} />
+                  <CellStack title={t.nameEn} />
                 </Td>
                 <Td label="Values">
                   <ul className="flex flex-col gap-1">

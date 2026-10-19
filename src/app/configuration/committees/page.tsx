@@ -133,7 +133,6 @@ export default async function CommitteesPage() {
                             {c.retiredOn && c.retiredOn <= now && <Badge>retired</Badge>}
                           </span>
                         }
-                        sub={c.nameMs ? <span title={c.nameMs}>{c.nameMs}</span> : undefined}
                       />
                     </Td>
                     <Td label="Acts by">
@@ -235,7 +234,6 @@ export default async function CommitteesPage() {
                             {retired && <Badge>retired</Badge>}
                           </span>
                         }
-                        sub={o.nameMs ?? undefined}
                       />
                     </Td>
                     <Td label="What it does">

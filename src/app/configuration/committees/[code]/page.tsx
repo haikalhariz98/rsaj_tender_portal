@@ -100,7 +100,6 @@ export default async function CommitteePage({
         title={committee.nameEn}
         actions={<HistoryButton entity="Committee" entityId={committee.id} label={committee.nameEn} />}
         badge={committee.isExternal ? <Badge tone="warn">External body</Badge> : undefined}
-        subtitle={committee.nameMs ?? undefined}
         meta={[
           ACTION_LABEL[committee.action] ?? "Act not set",
           formatBand(committee.valueScopeMin, committee.valueScopeMax),
@@ -253,7 +252,6 @@ export default async function CommitteePage({
                     value: committee.carriedLabelEn ? (
                       <span>
                         {committee.carriedLabelEn}
-                        {committee.carriedLabelMs ? ` · ${committee.carriedLabelMs}` : ""}
                       </span>
                     ) : (
                       <span className="text-ink-3">Not set — it reads “Carried”</span>

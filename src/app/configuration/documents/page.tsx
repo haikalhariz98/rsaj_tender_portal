@@ -129,7 +129,7 @@ export default async function DocumentsConfigPage() {
             {classes.map((c) => (
               <Tr key={c.id}>
                 <Td label="Class">
-                  <CellStack title={c.nameEn} sub={c.nameMs ?? undefined} />
+                  <CellStack title={c.nameEn} />
                 </Td>
                 <Td label="Classification">
                   {c.classification ? <Badge tone={classificationTone(c.classification)}>{classificationLabel(c.classification)}</Badge> : <Badge tone="warn">Not set</Badge>}

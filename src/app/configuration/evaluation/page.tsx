@@ -141,7 +141,7 @@ export default async function EvaluationConfigurationPage() {
               const retired = a.retiredOn != null && a.retiredOn <= now;
               return (
                 <Tr key={a.id}>
-                  <Td label="Aspect"><CellStack title={<span className="inline-flex items-center gap-2"><span>{a.labelEn}</span>{retired && <Badge>retired</Badge>}</span>} sub={a.labelMs ?? undefined} /></Td>
+                  <Td label="Aspect"><CellStack title={<span className="inline-flex items-center gap-2"><span>{a.labelEn}</span>{retired && <Badge>retired</Badge>}</span>} /></Td>
                   <Td label="Assesses">{ASPECT_KIND_LABEL[a.kind]}</Td>
                   <Td label="Required on">{a.requiredOnRoute ? ROUTE_LABEL[a.requiredOnRoute] : <span className="text-ink-3">Not required</span>}</Td>
                   <Td label="Source"><ProvenanceBadge value={a.provenance} /></Td>

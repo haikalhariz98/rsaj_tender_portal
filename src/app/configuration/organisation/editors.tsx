@@ -35,7 +35,7 @@ const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 function unitFields(kind: OrgUnitKind, people: Person[]): Field[] {
   const common: Field[] = [
     { kind: "text", name: "nameEn", label: "Name (EN)", required: true },
-    { kind: "text", name: "nameMs", label: "Name (BM)" },
+    { kind: "hidden", name: "nameMs" },
     {
       kind: "select",
       name: "headPersonId",
@@ -389,7 +389,7 @@ export function EditDetails({ details }: { details: Details }) {
       description="Shown across the portal and on reports. Issued documents keep their details."
       fields={[
         text("name", "As registered, e.g. Syarikat Contoh Sdn. Bhd."),
-        text("nameMs", "Used on Malay documents."),
+        { kind: "hidden", name: "nameMs" },
         text("shortName", "Shown at the top left and on report headers."),
         text("registrationNo", "SSM: 12 digits, e.g. 201901012345 (old form 1234567-A)."),
         text("taxIdentificationNo", "LHDN TIN, e.g. C1234567890."),

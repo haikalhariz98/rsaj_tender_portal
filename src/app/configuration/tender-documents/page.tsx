@@ -234,7 +234,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                 <tbody>
                   {k.bodies.map((b) => (
                     <Tr key={b.id}>
-                      <Td label="Body"><CellStack title={b.name} sub={[b.nameMs, b.governingSource, b.retired ? `Retired${b.retiredOn ? ` from ${formatDate(b.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ") || undefined} /></Td>
+                      <Td label="Body"><CellStack title={b.name} sub={[b.governingSource, b.retired ? `Retired${b.retiredOn ? ` from ${formatDate(b.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ") || undefined} /></Td>
                       <Td label="Stated with it">{b.statedWithIt}</Td>
                       <Td label="Source"><ProvenanceBadge value={b.provenance} /></Td>
                       <Td>

@@ -223,7 +223,7 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
       hint: "Cited in every resolution, so a route can be traced back to this row.",
     },
     { kind: "text", name: "labelEn", label: "Label", required: true },
-    { kind: "text", name: "labelMs", label: "Label (Malay)" },
+    { kind: "hidden", name: "labelMs" },
     {
       kind: "text",
       name: "domain",
@@ -598,7 +598,7 @@ function termsFields(): Field[] {
   return [
     { kind: "hidden", name: "authorityMatrixId" },
     { kind: "text", name: "labelEn", label: "Terms set", required: true, hint: "Which set of terms applies — never the retention or defects figures, which belong to the contract." },
-    { kind: "text", name: "labelMs", label: "Terms set (Malay)" },
+    { kind: "hidden", name: "labelMs" },
     {
       kind: "select",
       name: "regime",
@@ -636,6 +636,7 @@ export interface TermsBandValues {
   id: string;
   bandKey: string;
   labelEn: string;
+  labelMs: string | null;
   regime: string | null;
   minValue: number | null;
   maxValue: number | null;
@@ -675,6 +676,7 @@ export function EditTermsBand({ matrixId, band }: { matrixId: string; band: Term
         authorityMatrixId: matrixId,
         bandKey: band.bandKey,
         labelEn: band.labelEn,
+        labelMs: band.labelMs,
         regime: band.regime,
         minValue: band.minValue == null ? null : String(band.minValue),
         maxValue: band.maxValue == null ? null : String(band.maxValue),

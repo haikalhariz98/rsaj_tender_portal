@@ -43,7 +43,7 @@ function classFields(editing: boolean, offices: OfficeOption[], classification: 
       ? []
       : ([{ kind: "text", name: "code", label: "Code", required: true, mono: true }] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
-    { kind: "text", name: "nameMs", label: "Name (Malay)" },
+    { kind: "hidden", name: "nameMs" },
     {
       kind: "number",
       name: "retentionMonths",

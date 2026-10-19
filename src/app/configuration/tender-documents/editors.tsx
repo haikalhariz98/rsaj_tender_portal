@@ -73,7 +73,7 @@ export function PartDrawer({
         { kind: "text", name: "printedNumber", label: "Printed number", required: true, hint: "As the part is numbered when the documents are printed, e.g. 7a." },
         { kind: "number", name: "sortOrder", label: "Print order", min: 0, hint: "Parts print from the lowest." },
         { kind: "text", name: "labelEn", label: "Name", required: true },
-        { kind: "text", name: "labelMs", label: "Name in Malay" },
+        { kind: "hidden", name: "labelMs" },
         { kind: "select", name: "role", label: "What the part is", required: true, placeholder: "Choose", options: options.roles, hint: "Rules recognise a part by what it is, not by its name." },
         { kind: "select", name: "content", label: "Content", required: true, placeholder: "Choose", options: options.contents },
         { kind: "select", name: "source", label: "Where its content comes from", required: true, placeholder: "Choose", options: options.sources },

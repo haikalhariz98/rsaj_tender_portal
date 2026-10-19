@@ -217,7 +217,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
                     <tbody>
                       {s.factorOptions.map((x) => (
                         <Tr key={x.id}>
-                          <Td label="Option"><CellStack title={x.labelEn} sub={x.labelMs ?? undefined} /></Td>
+                          <Td label="Option"><CellStack title={x.labelEn} /></Td>
                           <Td numeric label="Percentage">{`${num(x.factorPct)}%`}</Td>
                           <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                           {draft && (
@@ -287,7 +287,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
                   const edge = (v: { toString(): string } | null, inc: boolean, floor: boolean) => (v == null ? "Open" : `${num(v)}${inc ? ", itself in" : ", itself out"}${floor ? ", judged exactly" : ""}`);
                   return (
                     <Tr key={b.id}>
-                      <Td label="Band"><CellStack title={b.labelEn} sub={b.labelMs ?? undefined} /></Td>
+                      <Td label="Band"><CellStack title={b.labelEn} /></Td>
                       <Td label="From">{edge(b.lower, b.lowerInclusive, b.lowerIsFloor)}</Td>
                       <Td label="To">{edge(b.upper, b.upperInclusive, b.upperIsFloor)}</Td>
                       <Td label="Means">{OUTCOME_LABEL[b.outcome]}</Td>

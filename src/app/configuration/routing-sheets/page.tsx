@@ -63,7 +63,7 @@ export default async function RoutingSheetsPage() {
                   <CellStack
                     title={<Link href={`/configuration/routing-sheets/${t.id}`} className="font-semibold">{t.labelEn}</Link>}
                     aside={t.retiredOn ? <Badge tone="warn">{org?.today && storedDay(t.retiredOn) > org.today ? `retires ${formatDate(t.retiredOn)}` : "retired"}</Badge> : undefined}
-                    sub={[t.labelMs, `${t._count.checks} check${t._count.checks === 1 ? "" : "s"}`, t._count.targets ? `${t._count.targets} target${t._count.targets === 1 ? "" : "s"}` : "no target", t.template?.nameEn ?? null, `${t._count.certificates + t._count.awardSheets} sheet${t._count.certificates + t._count.awardSheets === 1 ? "" : "s"} on it`].filter(Boolean).join(" · ")}
+                    sub={[`${t._count.checks} check${t._count.checks === 1 ? "" : "s"}`, t._count.targets ? `${t._count.targets} target${t._count.targets === 1 ? "" : "s"}` : "no target", t.template?.nameEn ?? null, `${t._count.certificates + t._count.awardSheets} sheet${t._count.certificates + t._count.awardSheets === 1 ? "" : "s"} on it`].filter(Boolean).join(" · ")}
                   />
                 </Td>
                 <Td label="Drawn over" className="text-ink-2">{t.subject === "CERTIFICATE" ? (t.certificateKind ? KIND_WORDS[t.certificateKind].en : "Any certificate") : SUBJECT_WORDS[t.subject].en}</Td>

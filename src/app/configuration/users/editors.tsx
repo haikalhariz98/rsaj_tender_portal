@@ -338,7 +338,7 @@ function officeFields(editing: boolean, offices: Office[]): Field[] {
           },
         ] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
-    { kind: "text", name: "nameMs", label: "Name (Malay)", required: true },
+    { kind: "hidden", name: "nameMs" },
     {
       kind: "switch",
       name: "isCommittee",
@@ -566,7 +566,7 @@ function delegationFields(
       options: capabilities.map((c) => ({ value: c.code, label: c.nameEn })),
     },
     { kind: "text", name: "reason", label: "Reason (EN)" },
-    { kind: "text", name: "reasonMs", label: "Reason (BM)" },
+    { kind: "hidden", name: "reasonMs" },
     {
       kind: "textarea",
       name: "holderRecommendation",

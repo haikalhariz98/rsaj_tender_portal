@@ -321,7 +321,7 @@ export default async function InvitationControlsPage() {
                   const raw = rawChannels.find((y) => y.id === x.id);
                   return (
                     <Tr key={x.id}>
-                      <Td label="Channel"><CellStack title={x.nameEn} sub={[raw?.nameMs, x.governingSource, x.retired].filter(Boolean).join(" · ") || undefined} /></Td>
+                      <Td label="Channel"><CellStack title={x.nameEn} sub={[x.governingSource, x.retired].filter(Boolean).join(" · ") || undefined} /></Td>
                       <Td label="Required">{x.required === "Not set" ? <Badge tone="warn" title="Publication is held back until this is set">Not set</Badge> : x.required}</Td>
                       <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                       <Td>
@@ -466,7 +466,7 @@ export default async function InvitationControlsPage() {
                         {cal.holidays.map((h) => (
                           <Tr key={h.id}>
                             <Td label="Day">{h.day}</Td>
-                            <Td label="Holiday"><CellStack title={h.name} sub={[h.nameMs, h.gazette].filter(Boolean).join(" · ") || undefined} /></Td>
+                            <Td label="Holiday"><CellStack title={h.name} sub={[h.gazette].filter(Boolean).join(" · ") || undefined} /></Td>
                             <Td label="Source"><ProvenanceBadge value={h.from.toUpperCase()} /></Td>
                             <Td><RowActions><RemoveHolidayDrawer id={h.id} name={h.name} /></RowActions></Td>
                           </Tr>

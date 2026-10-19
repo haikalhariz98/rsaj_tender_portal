@@ -134,7 +134,7 @@ export function GateRuleEditor({
         { kind: "select", name: "fundingRouteCode", label: "Funding route", required: true, placeholder: "Choose", options: routes, orphanLabel: "A route no longer configured" },
         { kind: "select", name: "committeeCode", label: "Committee", required: true, placeholder: "Choose", options: committees, orphanLabel: "A committee no longer configured" },
         { kind: "text", name: "subjectEn", label: "What is put to it", required: true, placeholder: "e.g. Project proposal and technical working paper" },
-        { kind: "text", name: "subjectMs", label: "What is put to it (Malay)" },
+        { kind: "hidden", name: "subjectMs" },
         { kind: "select", name: "act", label: "The committee's act", required: true, placeholder: "Choose", options: Object.entries(ACT_LABEL).map(([value, label]) => ({ value, label: `${label} (${value})` })) },
         { kind: "money", name: "aboveValue", label: "Applies to requisitions approved above", hint: "Strictly above. Empty: at any value." },
         { kind: "text", name: "governingSource", label: "Source document" },

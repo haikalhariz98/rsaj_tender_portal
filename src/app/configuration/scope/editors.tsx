@@ -45,7 +45,7 @@ export function EditScopePolicy({ values, qualifications, offices, lists }: { va
         { kind: "select", name: "panelContractKindTaxonomyCode", label: "List of contract kinds", placeholder: "Not set", options: lists },
         { kind: "select", name: "panelProjectStatusTaxonomyCode", label: "List of project statuses", placeholder: "Not set", options: lists },
         { kind: "text", name: "benchmarkLabelEn", label: "Opening benchmark row is called (English)" },
-        { kind: "text", name: "benchmarkLabelMs", label: "Opening benchmark row is called (Malay)" },
+        { kind: "hidden", name: "benchmarkLabelMs" },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
       values={values}
@@ -110,7 +110,7 @@ export function QualificationDrawer({ q }: { q?: { id: string; name: string; nam
         hidden("id"),
         ...(q ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A short key, not shown to officers. It cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
-        { kind: "text", name: "nameMs", label: "Name in Malay" },
+        { kind: "hidden", name: "nameMs" },
         { kind: "text", name: "governingSource", label: "Where it is required", hint: "The document that asks for it." },
         provenance("provenance", "Where this came from", true),
         ...(q ? [{ kind: "date", name: "retiredOn", label: "Retired from", hint: "From this day nobody counts as holding it." } as Field] : []),
@@ -161,7 +161,7 @@ export function TemplateDrawer({ t }: { t?: { id: string; name: string; nameMs: 
         hidden("id"),
         ...(t ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A short key, not shown to officers. It cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
-        { kind: "text", name: "nameMs", label: "Name in Malay" },
+        { kind: "hidden", name: "nameMs" },
         { kind: "select", name: "deliverableKind", label: "What the contract delivers", placeholder: "Any", options: DELIVERABLES },
         provenance("provenance", "Where this came from", true),
         ...(t ? [{ kind: "date", name: "retiredOn", label: "Retired from" } as Field] : []),
@@ -184,7 +184,7 @@ export function TemplateSectionDrawer({ templateId, templateName, section }: { t
         hidden("templateId"),
         { kind: "text", name: "number", label: "Number", required: true },
         { kind: "text", name: "titleEn", label: "Heading", required: true },
-        { kind: "text", name: "titleMs", label: "Heading in Malay" },
+        { kind: "hidden", name: "titleMs" },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
       values={{ id: section?.id ?? "", templateId, number: section?.number ?? "", titleEn: section?.title ?? "", titleMs: section?.titleMs ?? "", sortOrder: section?.sortOrder ?? "" }}
@@ -205,7 +205,7 @@ export function ColumnDrawer({ units, c }: { units: Option[]; c?: { id: string; 
         hidden("id"),
         ...(c ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A short key, not shown to officers. It cannot be changed." } as Field]),
         { kind: "text", name: "labelEn", label: "Heading", required: true },
-        { kind: "text", name: "labelMs", label: "Heading in Malay" },
+        { kind: "hidden", name: "labelMs" },
         { kind: "select", name: "orgUnitCode", label: "Unit whose officer verifies", placeholder: "Not tied to a unit", options: units },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
         provenance("provenance", "Where this came from", true),

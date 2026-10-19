@@ -71,7 +71,7 @@ export function ModelDrawer({ model }: { model?: { id: string; values: Values; l
         hidden("id"),
         ...(model ? [] : [codeField()]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
-        { kind: "text", name: "nameMs", label: "Name (Malay)" },
+        { kind: "hidden", name: "nameMs" },
         { kind: "select", name: "route", label: "Route", required: true, placeholder: "Choose", options: opts(EVALUATION_ROUTES, ROUTE_LABEL), hint: "An exercise pins a model of its contract basis's route." },
         ...sourceFields,
         { kind: "textarea", name: "notes", label: "Notes" },
@@ -185,7 +185,7 @@ export function StageDrawer({ modelId, stage, committees, offices }: { modelId: 
         ...(stage ? [] : [codeField()]),
         { kind: "number", name: "order", label: "Order", required: true, min: 1 },
         { kind: "text", name: "labelEn", label: "Name", required: true },
-        { kind: "text", name: "labelMs", label: "Name (Malay)" },
+        { kind: "hidden", name: "labelMs" },
         { kind: "select", name: "kind", label: "What the stage does", required: true, placeholder: "Choose", options: opts(STAGE_KINDS, STAGE_KIND_LABEL) },
         { kind: "select", name: "side", label: "Who evaluates it", required: true, placeholder: "Choose", options: opts(SIDES, SIDE_LABEL) },
         { kind: "number", name: "unlocksAfterOrder", label: "Opens after the stage of order", min: 1, hint: "Scores are refused until that stage is submitted." },
@@ -243,7 +243,7 @@ export function CriterionDrawer({ modelId, stageId, stageLabel, criterion, group
         { kind: "number", name: "order", label: "Order", required: true, min: 1 },
         { kind: "select", name: "parentCode", label: "In the group", placeholder: "None: at the top", options: groups },
         { kind: "text", name: "labelEn", label: "Name", required: true },
-        { kind: "text", name: "labelMs", label: "Name (Malay)" },
+        { kind: "hidden", name: "labelMs" },
         { kind: "select", name: "scale", label: "How it is judged", required: true, placeholder: "Choose", options: opts(CRITERION_SCALES, SCALE_LABEL) },
         { kind: "text", name: "maxMarks", label: "Most marks", hint: "Marks entered, or a group." },
         { kind: "select", name: "computedInput", label: "The figure it is worked from", placeholder: "None", options: opts(COMPUTED_INPUTS.filter((x) => x !== "NONE"), INPUT_LABEL) },
@@ -272,7 +272,7 @@ export function FactorDrawer({ modelId, stageId, stageLabel, factor }: { modelId
       title={factor ? `Edit ${factor.label}` : `Add a factor to ${stageLabel}`}
       description="The percentage of the base a bidder must hold, by how the contract is let."
       columns={2}
-      fields={[hidden("modelId"), hidden("stageId"), hidden("factorId"), ...(factor ? [] : [codeField()]), { kind: "text", name: "labelEn", label: "Name", required: true }, { kind: "text", name: "labelMs", label: "Name (Malay)" }, { kind: "text", name: "factorPct", label: "Percentage", required: true }, ...sourceFields]}
+      fields={[hidden("modelId"), hidden("stageId"), hidden("factorId"), ...(factor ? [] : [codeField()]), { kind: "text", name: "labelEn", label: "Name", required: true }, { kind: "hidden", name: "labelMs" }, { kind: "text", name: "factorPct", label: "Percentage", required: true }, ...sourceFields]}
       values={{ modelId, stageId, factorId: factor?.id ?? null, ...(factor?.values ?? {}) }}
       action={saveFactor}
       submitLabel={factor ? "Save" : "Add the factor"}
@@ -319,7 +319,7 @@ export function BandDrawer({ modelId, setId, setLabel, band }: { modelId: string
         hidden("setId"),
         hidden("bandId"),
         { kind: "text", name: "labelEn", label: "Name", required: true },
-        { kind: "text", name: "labelMs", label: "Name (Malay)" },
+        { kind: "hidden", name: "labelMs" },
         { kind: "text", name: "lower", label: "From" },
         { kind: "select", name: "lowerInclusive", label: "A value exactly on it is", placeholder: "Not set", options: edgeIn },
         { kind: "text", name: "upper", label: "To" },
@@ -355,7 +355,7 @@ export function AspectDrawer({ aspect }: { aspect?: { id: string; label: string;
         ...(aspect ? [] : [codeField()]),
         { kind: "select", name: "kind", label: "What it assesses", required: true, placeholder: "Choose", options: opts(ASPECT_KINDS, ASPECT_KIND_LABEL) },
         { kind: "text", name: "labelEn", label: "Name", required: true },
-        { kind: "text", name: "labelMs", label: "Name (Malay)" },
+        { kind: "hidden", name: "labelMs" },
         { kind: "select", name: "requiredOnRoute", label: "Required on", placeholder: "Not required", options: opts(EVALUATION_ROUTES, ROUTE_LABEL) },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
         ...sourceFields,

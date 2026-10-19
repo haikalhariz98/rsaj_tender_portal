@@ -142,7 +142,6 @@ function DetailsView({ details, logo, signInImage, signInDarkLogo, signInPage, t
             columns={2}
             items={[
               { label: DETAIL_LABEL.name, value: details.name },
-              { label: DETAIL_LABEL.nameMs, value: value(details.nameMs) },
               { label: DETAIL_LABEL.shortName, value: value(details.shortName) },
               { label: DETAIL_LABEL.registrationNo, value: value(details.registrationNo) },
               { label: DETAIL_LABEL.taxIdentificationNo, value: value(details.taxIdentificationNo) },
@@ -250,7 +249,6 @@ function StructureTree({
     ? flattenNodes(nodes).filter(
         (n) =>
           n.unit.nameEn.toLowerCase().includes(needle) ||
-          (n.unit.nameMs ?? "").toLowerCase().includes(needle) ||
           n.unit.code.toLowerCase().includes(needle),
       )
     : shown(nodes, collapsed);
@@ -410,7 +408,6 @@ function UnitPanel({
               <h2 className="text-[22px] leading-tight font-bold tracking-tight text-ink">{unit.nameEn}</h2>
               <Badge tone={KIND_TONE[unit.kind]}>{KIND_LABEL[unit.kind]}</Badge>
             </div>
-            {unit.nameMs && <p className="mt-1 text-[14px] text-ink-3">{unit.nameMs}</p>}
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <EditOrgUnit unit={unit} people={people} />

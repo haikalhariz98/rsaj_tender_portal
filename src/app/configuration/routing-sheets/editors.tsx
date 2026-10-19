@@ -32,7 +32,7 @@ function typeFields(editing: boolean, templates: Option[]): Field[] {
     { kind: "hidden", name: "id" },
     ...(editing ? [] : ([{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Small letters, digits and underscores. Set once." }] as Field[])),
     { kind: "text", name: "labelEn", label: "Name, as printed", required: true },
-    { kind: "text", name: "labelMs", label: "Name (Malay)" },
+    { kind: "hidden", name: "labelMs" },
     { kind: "select", name: "subject", label: "Drawn over", required: true, placeholder: "Choose", options: ROUTING_SUBJECTS.map((s) => ({ value: s, label: SUBJECT_WORDS[s].en })) },
     { kind: "select", name: "certificateKind", label: "For the certificate", placeholder: "Any kind", options: CERTIFICATE_KINDS.map((k) => ({ value: k, label: KIND_WORDS[k].en })) },
     { kind: "select", name: "templateId", label: "The printed sheet", placeholder: "None chosen", options: templates },
@@ -95,7 +95,7 @@ function checkFields(offices: Option[]): Field[] {
     { kind: "number", name: "order", label: "Place on the sheet", required: true, min: 1 },
     { kind: "select", name: "kind", label: "Kind of check", required: true, placeholder: "Choose", options: ROUTING_CHECK_KINDS.map((k) => ({ value: k, label: CHECK_KIND_WORDS[k].en })) },
     { kind: "text", name: "labelEn", label: "Label, as printed", required: true },
-    { kind: "text", name: "labelMs", label: "Label (Malay)" },
+    { kind: "hidden", name: "labelMs" },
     { kind: "select", name: "officeCode", label: "The office that records it", placeholder: "Any officer (shown so)", options: offices },
     { kind: "number", name: "targetDays", label: "Printed days for this stage", min: 1, hint: "Where the sheet prints a stage's days. With every stage's days set, their sum is shown beside the printed total." },
   ];
