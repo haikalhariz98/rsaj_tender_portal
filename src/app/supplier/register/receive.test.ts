@@ -226,7 +226,7 @@ describe("what a stranger can and cannot do", () => {
     const old = form({ [FORM_TOKEN_FIELD]: signFormToken(KEY, "register", new Date(Date.now() - 25 * 60 * 60 * 1000)) });
     for (const f of [noToken, other, forged, old]) {
       const r = await receiveApplication(f);
-      expect(r).toEqual({ ok: false, message: "This form is out of date, so nothing was sent. Reload the page and send it again." });
+      expect(r).toEqual({ ok: false, message: "This form is out of date. Nothing was sent. Reload and send again." }); // 0005, founder 2026-10-19: shortened
     }
     expect(h.created).toEqual([]);
     expect(h.transactions).toBe(0);
@@ -291,7 +291,7 @@ describe("the limits", () => {
     h.created = [];
     h.counts = [1, 3];
     const num = await send();
-    expect(day).toEqual({ ok: false, message: expect.stringMatching(/receiving a lot of applications/) });
+    expect(day).toEqual({ ok: false, message: expect.stringMatching(/Too many applications/) });
     expect(num).toEqual(day);
     expect(h.created).toEqual([]);
   });

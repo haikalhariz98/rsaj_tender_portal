@@ -24,7 +24,7 @@ export async function YourEligibility({ exerciseId }: { exerciseId: string }) {
     if (surfaceOf(process.env[SURFACE_ENV]) !== "public") return null;
     return (
       <Card className="mb-6">
-        <CardHeader icon={<ScaleIcon size={17} />} title="Do you qualify?" subtitle="Sign in to see, condition by condition, whether your company meets what this opportunity asks." actions={<ButtonLink href={SUPPLIER_SIGN_IN_PATH} variant="secondary" size="sm">Sign in</ButtonLink>} divided={false} />
+        <CardHeader icon={<ScaleIcon size={17} />} title="Do you qualify?" actions={<ButtonLink href={SUPPLIER_SIGN_IN_PATH} variant="secondary" size="sm">Sign in</ButtonLink>} divided={false} />
       </Card>
     );
   }
@@ -33,7 +33,7 @@ export async function YourEligibility({ exerciseId }: { exerciseId: string }) {
   const verdict = SUPPLIER_VERDICT[e.verdict];
   return (
     <Card className="mb-6">
-      <CardHeader icon={<ScaleIcon size={17} />} title="Do you qualify?" subtitle={`${actor.supplierName}, judged on ${formatDate(e.judgedOn)} by the same check the office uses.`} actions={<Badge tone={verdict.tone} dot>{verdict.text}</Badge>} />
+      <CardHeader icon={<ScaleIcon size={17} />} title="Do you qualify?" subtitle={`${actor.supplierName}, judged ${formatDate(e.judgedOn)}`} actions={<Badge tone={verdict.tone} dot>{verdict.text}</Badge>} />
       <CardBody className="flex flex-col gap-4">
         <p className="text-[13.5px] text-ink-2">{verdict.detail}</p>
         <ul className="divide-y divide-line/70 rounded-2xl border border-line">
@@ -48,7 +48,7 @@ export async function YourEligibility({ exerciseId }: { exerciseId: string }) {
           ))}
         </ul>
         <p className="text-[12.5px] text-ink-3">
-          Your documents and their dates are on <Link href="/supplier/company?tab=documents">Company</Link>. A document waiting for the office to check it does not count until it has been checked.
+          Your documents are under <Link href="/supplier/company?tab=documents">Company</Link>. An unchecked document does not count.
         </p>
       </CardBody>
     </Card>

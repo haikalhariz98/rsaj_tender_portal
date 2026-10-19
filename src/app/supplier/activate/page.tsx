@@ -22,7 +22,7 @@ export default async function SupplierActivatePage() {
 
   return (
     <>
-      <PageHeader title="Activate your account" subtitle="Use the code the procurement office gave you. Nothing is sent by email." />
+      <PageHeader title="Activate your account" subtitle="Use the code the office gave you. Not emailed." />
       <div className="max-w-xl">
         {closed || !token ? (
           <Callout tone="warn" title={closed?.title ?? "The portal's forms are closed"}>
@@ -36,8 +36,8 @@ export default async function SupplierActivatePage() {
                 formToken={token}
                 submitLabel="Set my password"
                 fields={[
-                  { name: "loginName", label: "Sign-in name", autoComplete: "username", autoFocus: true, icon: "person", hint: "As the procurement office gave it to you." },
-                  { name: "code", label: "Activation code", mono: true, hint: "Letters and digits, in groups. Spaces and dashes do not matter." },
+                  { name: "loginName", label: "Sign-in name", autoComplete: "username", autoFocus: true, icon: "person", hint: "As the office gave it to you" },
+                  { name: "code", label: "Activation code", mono: true, hint: "Letters and digits. Spaces and dashes do not matter." },
                   { name: "password", label: "New password", type: "password", autoComplete: "new-password", icon: "lock", reveal: true },
                   { name: "confirm", label: "New password, again", type: "password", autoComplete: "new-password", icon: "lock", reveal: true },
                 ]}

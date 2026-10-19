@@ -7,7 +7,7 @@ import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { loadMyExercises, loadMyNotices } from "@/lib/portal/bids/list-store";
-import { NOTICE_DELIVERY_STATEMENT, NOTICE_KIND_WORDS, unacknowledged } from "@/lib/portal/bids/notices";
+import { NOTICE_KIND_WORDS, unacknowledged } from "@/lib/portal/bids/notices";
 import { NO_PART_YET } from "@/lib/portal/bids/part";
 import { OPPORTUNITY_STATE, PORTAL_PATH } from "@/lib/portal/labels";
 
@@ -35,17 +35,16 @@ export async function ExercisesPanel({ actor }: { actor: SupplierActor }) {
   });
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<GlobeIcon size={17} />} title="Exercises you take part in" subtitle="Those your company has done something on, or that the procurement office has linked it to." divided={false} />
+      <CardHeader icon={<GlobeIcon size={17} />} title="Exercises you take part in" divided={false} />
       <DataList
         flat
         selectable={false}
         exportName="my-bids"
         searchPlaceholder="Search by title or reference"
-        emptyTitle="You are not taking part in any exercise yet"
-        emptyBody="Open an advertised opportunity, sign up for its briefing or ask for its documents, and it appears here."
+        emptyTitle="No exercises yet"
         views={[
           { id: "open", label: "Open" },
-          { id: "attention", label: "Waiting for you", emptyTitle: "Nothing waits for you", emptyBody: "An addendum to acknowledge appears here." },
+          { id: "attention", label: "Waiting for you", emptyTitle: "Nothing waits for you" },
           { id: "past", label: "Closed or awarded" },
         ]}
         rowAction={{ label: "Open", hrefTemplate: "/supplier/bids/{id}" }}
@@ -86,12 +85,10 @@ export async function NoticesPanel({ actor }: { actor: SupplierActor }) {
   }));
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<InboxIcon size={17} />} title="Notices" subtitle={NOTICE_DELIVERY_STATEMENT} divided={false} />
+      <CardHeader icon={<InboxIcon size={17} />} title="Notices" subtitle="Shown here, not emailed" divided={false} />
       {toAck > 0 && (
         <div className="px-5 pb-4 sm:px-6">
-          <Callout tone="warn" title={toAck === 1 ? "1 addendum waits for you to acknowledge it" : `${toAck} addenda wait for you to acknowledge them`}>
-            Open the notice to read it and acknowledge it.
-          </Callout>
+          <Callout tone="warn" title={toAck === 1 ? "1 addendum to acknowledge" : `${toAck} addenda to acknowledge`} />
         </div>
       )}
       <DataList
@@ -99,8 +96,7 @@ export async function NoticesPanel({ actor }: { actor: SupplierActor }) {
         selectable={false}
         exportName="my-notices"
         searchPlaceholder="Search the notices"
-        emptyTitle="You have no notices"
-        emptyBody="An addendum, a change of the closing, a cancellation or a notice of the outcome appears here when the office issues one to a company that bought the documents."
+        emptyTitle="No notices"
         columns={[
           { key: "notice", label: "Notice", mobile: "primary" },
           { key: "kind", label: "Kind", width: "190px", mobile: "meta" },

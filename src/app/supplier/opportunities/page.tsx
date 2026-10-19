@@ -82,13 +82,11 @@ export default async function SupplierOpportunitiesPage() {
             exportName="opportunities"
             searchPlaceholder={OPPORTUNITIES_SEARCH.en}
             emptyTitle={OPPORTUNITY_VIEWS.open.emptyTitle.en}
-            emptyBody={OPPORTUNITY_VIEWS.open.emptyBody.en}
             initialView="open"
             views={(["open", "closed", "cancelled"] as const).map((id) => ({
               id,
               label: OPPORTUNITY_VIEWS[id].label.en,
               emptyTitle: OPPORTUNITY_VIEWS[id].emptyTitle.en,
-              emptyBody: OPPORTUNITY_VIEWS[id].emptyBody.en,
             }))}
             rowAction={{ label: OPEN_ROW_ACTION.en, hrefTemplate: `${PORTAL_PATH.opportunities}/{id}` }}
             rowOpens

@@ -22,7 +22,7 @@ export default async function SupplierResetPage() {
 
   return (
     <>
-      <PageHeader title="Set a new password" subtitle="Use the reset code the procurement office gave you after checking who you are." />
+      <PageHeader title="Set a new password" subtitle="Use the reset code the office gave you." />
       <div className="max-w-xl">
         {closed || !token ? (
           <Callout tone="warn" title={closed?.title ?? "The portal's forms are closed"}>
@@ -37,7 +37,7 @@ export default async function SupplierResetPage() {
                 submitLabel="Set my password"
                 fields={[
                   { name: "loginName", label: "Sign-in name", autoComplete: "username", autoFocus: true, icon: "person" },
-                  { name: "code", label: "Reset code", mono: true, hint: "Letters and digits, in groups. Spaces and dashes do not matter." },
+                  { name: "code", label: "Reset code", mono: true, hint: "Letters and digits. Spaces and dashes do not matter." },
                   { name: "password", label: "New password", type: "password", autoComplete: "new-password", icon: "lock", reveal: true },
                   { name: "confirm", label: "New password, again", type: "password", autoComplete: "new-password", icon: "lock", reveal: true },
                 ]}

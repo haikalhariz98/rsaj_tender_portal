@@ -28,7 +28,7 @@ export const homeSubtitle = (organisation: string): Words =>
   w(`Tenders and quotations from ${organisation}`);
 
 export const OPEN_ACCESS_NOTE = w(
-  "You do not need an account to read opportunities and results, or to apply to join the supplier register.",
+  "No account needed to read opportunities or to apply.",
 );
 
 export interface HomeLink {
@@ -45,7 +45,7 @@ export const HOME_LINKS: readonly HomeLink[] = [
     href: PORTAL_PATH.opportunities,
     title: w("Opportunities"),
     text: w(
-      "Tenders and quotations that are advertised for anyone to bid for: what is wanted, when it closes, and what the documents cost.",
+      "Open tenders and quotations.",
     ),
     action: w("View opportunities"),
   },
@@ -54,7 +54,7 @@ export const HOME_LINKS: readonly HomeLink[] = [
     href: PORTAL_PATH.results,
     title: w("Results"),
     text: w(
-      "Exercises that have been awarded, and who won them.",
+      "Awarded exercises and who won.",
     ),
     action: w("View results"),
   },
@@ -63,7 +63,7 @@ export const HOME_LINKS: readonly HomeLink[] = [
     href: PORTAL_PATH.register,
     title: w("Register as a supplier"),
     text: w(
-      "Apply to join the supplier register. The procurement office reviews every application.",
+      "Apply to join the supplier register.",
     ),
     action: w("Apply to register"),
   },
@@ -71,39 +71,39 @@ export const HOME_LINKS: readonly HomeLink[] = [
 
 export const TAKE_PART_TITLE = w("How to take part");
 export const TAKE_PART_SUBTITLE = w(
-  "The same steps for every opportunity. Each opportunity's page gives the figures, places and times.",
+  "The same steps for every opportunity.",
 );
 
 export const TAKE_PART_STEPS: readonly { title: Words; text: Words }[] = [
   {
     title: w("Check you qualify"),
     text: w(
-      "An opportunity lists the registrations a bidder must hold. If you are not on the supplier register yet, apply first.",
+      "Check the registrations it asks for. Not registered? Apply first.",
     ),
   },
   {
     title: w("Buy the documents"),
     text: w(
-      "Buy them at the place, and during the dates, that the opportunity states. The fee and the ways to pay are stated there too.",
+      "Buy them where and when the opportunity states.",
     ),
   },
   {
     title: w("Attend any briefing, and read the addenda"),
     text: w(
-      "Where the opportunity lists a briefing or site visit, note its date and place. Any change to the documents is issued as an addendum and is listed on the same page.",
+      "Note any briefing or site visit. Read the addenda.",
     ),
   },
   {
     title: w("Submit your bid on paper"),
     text: w(
-      "Hand in your bid in a sealed envelope at the place the opportunity names, before its closing date and time. This portal does not take bids.",
+      "Hand in a sealed bid at the stated place before the closing.",
     ),
   },
 ];
 
 export const SIGN_IN_TITLE = w("Arrives with sign-in");
 export const SIGN_IN_SUBTITLE = w(
-  "These need to know who you are, so they wait for sign-in.",
+  "These wait for sign-in.",
 );
 
 // Phase 4e: My Projects and the announcements board are built, so nothing is left arriving with sign-in. The list stays (empty) so the home page and the navigation test keep one source.
@@ -113,14 +113,14 @@ export const SIGN_IN_ITEMS: readonly { href: string; title: Words; text: Words }
 export const SIGNED_IN_TITLE = w("With sign-in");
 export const SIGNED_IN_SUBTITLE = w("Sign in with your company's account to reach these.");
 export const SIGNED_IN_LINKS: readonly { key: "bids" | "projects" | "company" | "announcements"; href: string; title: Words; text: Words }[] = [
-  { key: "bids", href: PORTAL_PATH.bids, title: w("My Bids"), text: w("The exercises you take part in, and the notices issued to you.") },
-  { key: "projects", href: PORTAL_PATH.projects, title: w("My Projects"), text: w("The contracts you hold: the site diary, your claims, the certificates and your submissions.") },
+  { key: "bids", href: PORTAL_PATH.bids, title: w("My Bids"), text: w("Your exercises and notices.") },
+  { key: "projects", href: PORTAL_PATH.projects, title: w("My Projects"), text: w("Your contracts: diary, claims, certificates.") },
   { key: "company", href: PORTAL_PATH.company, title: w("Company"), text: w("Your registration, documents, bank details and eligibility.") },
-  { key: "announcements", href: PORTAL_PATH.announcements, title: w("Announcements"), text: w("What the procurement office has published for its suppliers.") },
+  { key: "announcements", href: PORTAL_PATH.announcements, title: w("Announcements"), text: w("Notices from the procurement office.") },
 ];
 
 export const SIGN_IN_REASON = w(
-  "This part of the portal arrives with sign-in. Until then, opportunities, results and registration are open to everyone.",
+  "Sign in to reach this part of the portal.",
 );
 export const SIGN_IN_BADGE = w("Arrives with sign-in");
 export const BACK_TO_PORTAL = w("Back to the supplier portal");
@@ -129,9 +129,9 @@ export const BACK_TO_PORTAL = w("Back to the supplier portal");
 
 export const OPPORTUNITIES_TITLE = w("Opportunities");
 export const opportunitiesSubtitle = (organisation: string): Words =>
-  w(`Tenders and quotations advertised by ${organisation}, open to any supplier that qualifies`);
+  w(`Advertised by ${organisation}`);
 export const OPPORTUNITIES_INFO = w(
-  "Only exercises that have been advertised are listed. Exercises that invite named suppliers are not shown here. Once an exercise is awarded it leaves this list and appears under Results.",
+  "Only advertised exercises are listed. Exercises that invite named suppliers are not shown. Awarded ones move to Results.",
 );
 
 export type OpportunityStateKey = "OPEN" | "CLOSED" | "AWARDED" | "CANCELLED";
@@ -143,21 +143,18 @@ export const OPPORTUNITY_STATE: Record<OpportunityStateKey, { label: Words; tone
   CANCELLED: { label: w("Cancelled"), tone: "warn" },
 };
 
-export const OPPORTUNITY_VIEWS: Record<"open" | "closed" | "cancelled", { label: Words; emptyTitle: Words; emptyBody: Words }> = {
+export const OPPORTUNITY_VIEWS: Record<"open" | "closed" | "cancelled", { label: Words; emptyTitle: Words }> = {
   open: {
     label: w("Open"),
-    emptyTitle: w("Nothing is open for bids right now"),
-    emptyBody: w("New opportunities appear here as soon as they are advertised. Closed ones are under Closed."),
+    emptyTitle: w("Nothing open now"),
   },
   closed: {
     label: w("Closed"),
-    emptyTitle: w("Nothing has closed yet"),
-    emptyBody: w("An exercise stays here after its closing until it is awarded."),
+    emptyTitle: w("Nothing closed yet"),
   },
   cancelled: {
     label: w("Cancelled"),
-    emptyTitle: w("Nothing has been cancelled"),
-    emptyBody: w("An advertised exercise that is withdrawn is listed here."),
+    emptyTitle: w("Nothing cancelled"),
   },
 };
 
@@ -170,14 +167,14 @@ export const OPPORTUNITY_COLUMNS = {
 export const OPPORTUNITIES_SEARCH = w("Search by title or reference");
 export const OPPORTUNITIES_ALL_TITLE = w("Advertised opportunities");
 export const OPPORTUNITIES_ALL_SUBTITLE = w(
-  "Search by title or reference. Open opportunities are listed by soonest closing.",
+  "Open ones by soonest closing.",
 );
 export const openCount = (n: number): Words => w(`${n} open`);
 export const OPEN_ROW_ACTION = w("View");
 export const NOT_SET_UP = {
   title: w("Opportunities are not available yet"),
   body: w(
-    "This organisation has not been set up in the system, so there is nothing to list. Please contact the procurement office.",
+    "Not set up in the system. Contact the procurement office.",
   ),
 };
 export const METHOD_NOT_STATED = w("Method not stated");
@@ -190,23 +187,23 @@ export const DETAIL = {
   closing: w("Closing date and time"),
   closingFact: (when: string): Words => w(`Closing date and time: ${when}`),
   saleDays: (from: string, until: string): Words => w(`${from} to ${until}`),
-  closingNote: w("Bids must be handed in before this time, at the place stated below."),
+  closingNote: w("Hand in before this time."),
   submissionPlace: w("Where to hand in your bid"),
   notStated: w("Not stated"),
   documents: w("Buying the documents"),
-  documentsSubtitle: w("What the documents cost, and where and when to buy them."),
+  documentsSubtitle: w("Cost, place and dates."),
   fee: w("Fee"),
   feeNotStated: w("The fee is not stated. Ask the procurement office."),
   buyAt: w("Buy at"),
   howToBuy: w("How to buy"),
-  boughtOnline: w("Online, through the supplier portal. Sign in and open My Bids to buy the documents."),
+  boughtOnline: w("Online. Sign in and open My Bids."),
   onSale: w("On sale"),
   payBy: w("Ways to pay"),
   inspect: w("Inspect the documents at"),
   hours: w("Hours"),
   briefings: w("Briefings and site visits"),
   briefingsSubtitle: w("Dates and places to note."),
-  noBriefings: w("No briefing or site visit is listed for this opportunity."),
+  noBriefings: w("No briefing or site visit listed."),
   mandatory: w("You must attend"),
   cancelledEvent: w("Cancelled"),
   whoMayBid: w("Who may bid"),
@@ -215,10 +212,10 @@ export const DETAIL = {
   holdOneOf: w("One of"),
   noRegistrations: w("No registration is stated for this opportunity."),
   restrictionTitle: w("Restriction on bidders"),
-  restrictionFallback: w("This opportunity is open only to a restricted set of bidders. See the notice for who may bid."),
+  restrictionFallback: w("Restricted bidders only. See the notice."),
   addenda: w("Addenda"),
-  addendaSubtitle: w("Changes issued to the documents. Read them before you bid."),
-  noAddenda: w("No addendum has been issued."),
+  addendaSubtitle: w("Read before you bid."),
+  noAddenda: w("No addenda issued."),
   addendumNumber: (n: number | null): Words => (n == null ? w("Addendum") : w(`Addendum ${n}`)),
   issuedOn: (day: string): Words => w(`Issued ${day}`),
   newClosing: (when: string): Words => w(`New closing: ${when}`),
@@ -226,7 +223,7 @@ export const DETAIL = {
   noticeSubtitle: w("The advertisement as it was published."),
   readNotice: w("Read the notice"),
   noNotice: w("The published notice is not available."),
-  paperOnly: w("Bids are handed in on paper. This portal does not take bids."),
+  paperOnly: w("Bids are handed in on paper."),
 };
 
 export type SaleStateKey = "NOT_YET" | "OPEN" | "ENDED";
@@ -234,17 +231,17 @@ export type SaleStateKey = "NOT_YET" | "OPEN" | "ENDED";
 export const SALE_STATE: Record<SaleStateKey, Words> = {
   NOT_YET: w("Sale has not opened yet"),
   OPEN: w("On sale now"),
-  ENDED: w("Sale has ended. Bids are still accepted until the closing."),
+  ENDED: w("Sale ended. Bids accepted until the closing."),
 };
 
 export const STATE_BANNER: Record<"CLOSED" | "AWARDED" | "CANCELLED", { title: Words; text: (when: string | null) => Words }> = {
   CLOSED: {
     title: w("This opportunity has closed"),
-    text: () => w("Bids are no longer accepted. The details below are as they were advertised."),
+    text: () => w("Bids are no longer accepted."),
   },
   AWARDED: {
     title: w("This opportunity has been awarded"),
-    text: () => w("See Results for who it was awarded to. The details below are as they were advertised."),
+    text: () => w("See Results for the winner."),
   },
   CANCELLED: {
     title: w("This opportunity has been cancelled"),
@@ -261,13 +258,13 @@ export const SITE_EVENT_KIND_WORDS: Record<"BRIEFING" | "SITE_VISIT", Words> = {
 
 export const RESULTS = {
   title: w("Results"),
-  subtitle: (organisation: string): Words => w(`Advertised tenders and quotations awarded by ${organisation}`),
+  subtitle: (organisation: string): Words => w(`Awarded by ${organisation}`),
   info: w(
-    "Only exercises that were advertised and then awarded are listed, with who won them and the day the award was issued. Exercises that invited named suppliers are not shown here.",
+    "Only advertised exercises that were awarded are listed. Exercises that invited named suppliers are not shown.",
   ),
   valueNotPublished: w("The awarded value is not published."),
   listTitle: w("Awarded exercises"),
-  listSubtitle: w("Search by title, reference or the company that won. The latest awards are first."),
+  listSubtitle: w("Latest first."),
   search: w("Search by title, reference or awardee"),
   columns: {
     exercise: w("Opportunity"),
@@ -278,16 +275,13 @@ export const RESULTS = {
   },
   awardeeNotStated: w("Not stated"),
   emptyTitle: w("No awards to show yet"),
-  emptyBody: w(
-    "An advertised opportunity appears here once it has been awarded. Open opportunities are under Opportunities.",
-  ),
   count: (n: number): Words => w(n === 1 ? "1 award" : `${n} awards`),
   viewResults: w("View results"),
   viewOpportunities: w("View opportunities"),
   notSetUp: {
     title: w("Results are not available yet"),
     body: w(
-      "This organisation has not been set up in the system, so there is nothing to list. Please contact the procurement office.",
+      "Not set up in the system. Contact the procurement office.",
     ),
   },
 };
@@ -297,18 +291,18 @@ export const RESULTS = {
 /// The public application form's words. The duplicate wording never says who holds a number.
 export const APPLY = {
   title: w("Register as a supplier"),
-  subtitle: (organisation: string): Words => w(`Apply to join the supplier register of ${organisation}`),
+  subtitle: (organisation: string): Words => w(`Supplier register of ${organisation}`),
   info: w(
-    "Sending this form does not register your company. It puts your application in front of the procurement office, which reviews every one.",
+    "Sending this form does not register your company. The procurement office reviews every application.",
   ),
   backToHome: w("Back to the supplier portal"),
   beforeTitle: w("Before you start"),
   beforeItems: [
-    w("You need the company's registered name, registration number, date incorporated and registered address, as on its certificate."),
-    w("You need a person we can reach: a name, and an email or a mobile number."),
-    w("Nothing is uploaded here, and we do not ask for bank details."),
+    w("Registered name, registration number, date incorporated and address, as on the certificate."),
+    w("A contact person: a name, and an email or mobile number."),
+    w("Nothing is uploaded here. No bank details are asked."),
     w(
-      "The procurement office uses what you enter to review your application. Your contact's details are never shown on the portal. If your company is later awarded an opportunity, its registered name appears on the Results page.",
+      "Contact details are never shown. If awarded, your company's registered name appears on Results.",
     ),
   ] satisfies Words[],
   companyTitle: w("The company"),
@@ -337,11 +331,11 @@ export const APPLY = {
     contactPhone: w("Telephone"),
     contactMobile: w("Mobile number"),
   },
-  bumiputeraHint: w("This is what you declare. The procurement office checks it against the certificate you send later. Leave it blank if your company makes no such claim."),
-  incorporatedHint: w("The day the company was incorporated, as its certificate states it."),
+  bumiputeraHint: w("Declared. Checked against the certificate you send later. Leave blank if none."),
+  incorporatedHint: w("As on the certificate."),
   mobileHint: (dialCode: string | null): Words => (dialCode ? w(`Without the ${dialCode}, which is added for you.`) : w("With the country code if it is not local.")),
   reachHintBoth: w("Give both an email address and a mobile number."),
-  emailNotVerifiedHint: w("Nothing is e-mailed from this portal, and the address is not checked."),
+  emailNotVerifiedHint: w("Not emailed. The address is not checked."),
   choose: w("Choose"),
   reachHint: w("Give an email or a telephone number, or both."),
   numberFormatHint: (example: string): Words => w(`For example ${example}.`),
@@ -353,31 +347,31 @@ export const APPLY = {
   stepSubFirst: w("Sent for checking"),
   stepSubLater: w("After the company is checked"),
   sending: w("Sending…"),
-  cantAccept: w("Something in this application could not be accepted, so nothing was sent. Check each field and send it again, or contact the procurement office."),
+  cantAccept: w("Nothing was sent. Check each field, or contact the procurement office."),
   nothingSent: w("Nothing was sent. Check the fields marked below and send it again."),
   tooLong: (label: string, max: number): Words => w(`${label} must be ${max} characters or fewer.`),
   closedTitle: w("Online applications are not open yet"),
   closedBody: w(
-    "The procurement office has not finished setting up the supplier register, so this form cannot take an application yet. Please come back later, or ask the procurement office.",
+    "The supplier register is not set up yet. Come back later, or ask the procurement office.",
   ),
-  noOrganisation: w("This organisation has not been set up in the system, so it cannot take applications. Please contact the procurement office."),
+  noOrganisation: w("Not set up in the system. Contact the procurement office."),
   closedMissing: w("Still to be set up:"),
   notOpenOnSubmit: w("Online applications are not open yet, so nothing was sent."),
-  tryAgainLater: w("Something went wrong on our side and nothing was sent. Please try again in a few minutes."),
+  tryAgainLater: w("Something went wrong. Nothing was sent. Try again in a few minutes."),
   sentTitle: w("Your application was sent"),
   sentNoReference: w("Your application was received."),
   referenceLabel: w("Your reference"),
   keepReference: w(
-    "Write this reference down and quote it whenever you contact the procurement office. There is no page to look up the status of an application.",
+    "Write this reference down. Quote it when you contact the procurement office.",
   ),
   nextTitle: w("What happens next"),
   nextItems: [
-    w("The procurement office sees your application in its review queue."),
+    w("The procurement office reviews your application."),
     w(
-      "Your company is not registered by this form. Once the office accepts it, you complete your registration online (your documents, bank details and declarations), and it is decided after the office has checked them. Contact the procurement office, quoting your reference, if you have a question.",
+      "Once accepted, you complete your registration online: documents, bank details and declarations. Quote your reference with any question.",
     ),
     w(
-      "When the office accepts your application it can open a portal account for your contact and hand them a one-time code, in person or by letter. Nothing is sent by email. With the account you sign in to follow where your registration stands.",
+      "The office then opens an account and hands your contact a one-time code. Not emailed.",
     ),
     w("Applying does not register your company or invite it to bid."),
   ] satisfies Words[],
@@ -386,7 +380,7 @@ export const APPLY = {
   faults: {
     NAME_REQUIRED: w("Enter the company's registered name."),
     REGISTRATION_NO_REQUIRED: w("Enter the company's registration number."),
-    FORMAT_MISMATCH: w("This registration number is not written the way we expect. Check it against the certificate."),
+    FORMAT_MISMATCH: w("Not in the expected form. Check it against the certificate."),
     ENTITY_TYPE_REQUIRED: w("Choose the type of company."),
     ENTITY_TYPE_NOT_LISTED: w("Choose one of the types of company in the list."),
     COUNTRY_REQUIRED: w("Choose the country."),
@@ -401,12 +395,12 @@ export const APPLY = {
     INCORPORATED_ON_NOT_A_DAY: w("This is not a date. Write it as year, month and day."),
     INCORPORATED_IN_FUTURE: w("The date incorporated cannot be after today."),
     EMAIL_REQUIRED: w("Enter the company's email address."),
-    EMAIL_NOT_VALID: w("This email address does not look right. Check it for a typing mistake."),
+    EMAIL_NOT_VALID: w("This email address does not look right."),
     CONTACT_NAME_REQUIRED: w("Enter the name of the person we can reach."),
     CONTACT_REACH_REQUIRED: w("Give an email address or a telephone number for the contact."),
     CONTACT_EMAIL_REQUIRED: w("Give an email address for the contact."),
     CONTACT_PHONE_REQUIRED: w("Give a mobile number for the contact."),
-    CONTACT_EMAIL_NOT_VALID: w("The contact's email address does not look right. Check it for a typing mistake."),
+    CONTACT_EMAIL_NOT_VALID: w("The contact's email address does not look right."),
   },
   /// What the register still lacks before it can take an application, in plain words.
   missing: {
@@ -417,13 +411,13 @@ export const APPLY = {
     numbering: w("the way application references are numbered"),
     notice: w("the notice about how personal details are used"),
     limits: w("how many applications the form takes"),
-    formKey: w("the portal's form key, which the operator sets on the server"),
+    formKey: w("the portal's form key"),
   },
   noticeTitle: w("How your details are used"),
-  noticeIntro: w("Please read this before you send the form. Sending it means you have read it."),
+  noticeIntro: w("Read this before you send. Sending means you have read it."),
   noticeEnglish: w("In English"),
   // The personal data notice is legal text held in both languages (PDPA); the heading stays. Founder 2026-10-19 removed the Malay UI, not this notice.
   noticeMalay: w("In Malay"),
-  formExpired: w("This form is out of date, so nothing was sent. Reload the page and send it again."),
-  busy: w("The form is receiving a lot of applications right now, so nothing was sent. Please try again later, or contact the procurement office."),
+  formExpired: w("This form is out of date. Nothing was sent. Reload and send again."),
+  busy: w("Too many applications right now. Nothing was sent. Try again later."),
 };

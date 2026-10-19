@@ -28,7 +28,7 @@ export default async function SupplierSignInPage({ searchParams }: { searchParam
 
   return (
     <>
-      <PageHeader title="Sign in" subtitle="To the supplier portal, with the account the procurement office opened for you." />
+      <PageHeader title="Sign in" />
       <div className="max-w-xl">
         {password === "set" && (
           <Callout tone="ok" className="mb-5">
@@ -62,7 +62,7 @@ export default async function SupplierSignInPage({ searchParams }: { searchParam
                       </ButtonLink>
                     </div>
                     <p className="text-center text-[13px] text-ink-2">
-                      Forgotten your password? Ask the procurement office for a reset code. They will ask how they can be sure it is you, and nothing is sent by email.
+                      Forgotten your password? Ask the procurement office for a reset code.
                     </p>
                     <p className="flex items-center justify-center gap-2 text-center text-[12.5px] text-ink-2">
                       <LockIcon size={14} className="shrink-0" />
@@ -75,7 +75,7 @@ export default async function SupplierSignInPage({ searchParams }: { searchParam
           </Card>
         )}
         <p className="mt-5 text-[13.5px] text-ink-2">
-          Not registered yet? <Link href="/supplier/register">Apply to join the supplier register</Link>. You get an account once the procurement office has accepted your application.
+          Not registered yet? <Link href="/supplier/register">Apply to join the supplier register</Link>.
         </p>
       </div>
     </>

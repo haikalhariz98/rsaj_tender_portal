@@ -29,7 +29,7 @@ export default async function SupplierAnnouncementsPage({ searchParams }: { sear
   const footer =
     pages > 1 ? (
       <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
-        <span>{`${board.page * BOARD_PAGE + 1}–${Math.min(board.total, (board.page + 1) * BOARD_PAGE)} of ${board.total}, pinned first, then newest first.`}</span>
+        <span>{`${board.page * BOARD_PAGE + 1}–${Math.min(board.total, (board.page + 1) * BOARD_PAGE)} of ${board.total}.`}</span>
         <span className="flex gap-2">
           {board.page > 0 && <ButtonLink href={`/supplier/announcements?page=${board.page}`} size="sm" variant="ghost">Previous</ButtonLink>}
           {board.page + 1 < pages && <ButtonLink href={`/supplier/announcements?page=${board.page + 2}`} size="sm" variant="ghost">Next</ButtonLink>}
@@ -55,23 +55,23 @@ export default async function SupplierAnnouncementsPage({ searchParams }: { sear
   );
   return (
     <>
-      <PageHeader title="Announcements" subtitle="What the procurement office has published for its suppliers, shown here and not sent." meta={[actor.supplierName, actor.displayName]} />
+      <PageHeader title="Announcements" subtitle="Shown here, not emailed" meta={[actor.supplierName, actor.displayName]} />
       {items.length === 0 ? (
         <Card>
-          <EmptyState title="Nothing has been announced" icon={<BellIcon size={22} />}>When the procurement office publishes an announcement, it appears here, with the important ones pinned at the top.</EmptyState>
+          <EmptyState title="Nothing announced" icon={<BellIcon size={22} />} />
         </Card>
       ) : (
         <div className="flex flex-col gap-6">
           {pinned.length > 0 && (
             <Card className="overflow-hidden">
-              <CardHeader icon={<BellIcon size={17} />} title="Pinned" subtitle="The office keeps these at the top until they are no longer needed." divided />
+              <CardHeader icon={<BellIcon size={17} />} title="Pinned" divided />
               <CardBody pad="none">{list(pinned)}</CardBody>
               {rest.length === 0 && footer}
             </Card>
           )}
           {rest.length > 0 && (
             <Card className="overflow-hidden">
-              <CardHeader icon={<BellIcon size={17} />} title={pinned.length ? "Other announcements" : "Announcements"} subtitle="Newest first." divided />
+              <CardHeader icon={<BellIcon size={17} />} title={pinned.length ? "Other announcements" : "Announcements"} divided />
               <CardBody pad="none">{list(rest)}</CardBody>
               {footer}
             </Card>

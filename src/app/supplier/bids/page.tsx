@@ -25,7 +25,7 @@ export default async function SupplierBidsPage({ searchParams }: { searchParams:
   ];
   return (
     <>
-      <PageHeader title="My Bids" subtitle={`${actor.supplierName}. The exercises you take part in, and the notices the procurement office has issued to you.`} meta={[actor.displayName]} />
+      <PageHeader title="My Bids" subtitle={actor.supplierName} meta={[actor.displayName]} />
       <Tabs initial={tab} label="My Bids" tabs={tabs} />
     </>
   );

@@ -56,4 +56,4 @@ export const STAFF_NOTICE_KIND_LABEL: Readonly<Record<StaffNoticeKind, Words>> =
 export const READ_WHEN_ACTED_ON: readonly StaffNoticeKind[] = ["BACKDATE_TO_CONFIRM"];
 export const markedReadByOpening = (kind: string): boolean => !(READ_WHEN_ACTED_ON as readonly string[]).includes(kind);
 
-export const NOTICE_DELIVERY_STATEMENT = "Shown in the portal; not sent — email is not connected (INT-09).";
+export const NOTICE_DELIVERY_STATEMENT = "Shown here, not emailed";

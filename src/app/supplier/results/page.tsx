@@ -67,7 +67,6 @@ export default async function SupplierResultsPage() {
             exportName="results"
             searchPlaceholder={RESULTS.search.en}
             emptyTitle={RESULTS.emptyTitle.en}
-            emptyBody={RESULTS.emptyBody.en}
             rowAction={{ label: OPEN_ROW_ACTION.en, hrefTemplate: `${PORTAL_PATH.opportunities}/{id}` }}
             rowOpens
             columns={columns}

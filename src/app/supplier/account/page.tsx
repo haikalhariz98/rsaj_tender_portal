@@ -70,7 +70,7 @@ export default async function SupplierAccountPage() {
 
   return (
     <>
-      <PageHeader title="Your account" subtitle={`${actor.supplierName}. Where your registration stands, and your sign-in.`} meta={[actor.displayName, actor.loginName]} />
+      <PageHeader title="Your account" subtitle={actor.supplierName} meta={[actor.displayName, actor.loginName]} />
 
       <div className="flex flex-col gap-5">
         {actor.mustChangePassword && (
@@ -84,14 +84,14 @@ export default async function SupplierAccountPage() {
             title={AUTH_WORDS.resetNoticeTitle.en}
             action={token ? <AccountButton path={SUPPLIER_AUTH_POSTS.acknowledgeReset} formToken={token} label="I have seen this" /> : undefined}
           >
-            This account&apos;s password was reset with a code from the procurement office. If that was not you, or you did not ask for it, tell the procurement office now.
+            Not you? Tell the procurement office now.
           </Callout>
         )}
 
         <Card>
           <CardHeader
             title="Your registration"
-            subtitle="What the procurement office has done with your application. Nothing is sent to you by email: this page is where you are told."
+            subtitle="Updates show here, not by email."
             actions={
               <>
                 {wizard === "OPEN" && <ButtonLink href="/supplier/registration" variant="primary" size="sm">Complete your registration</ButtonLink>}
@@ -102,7 +102,7 @@ export default async function SupplierAccountPage() {
           />
           <CardBody>
             {!status || !standing ? (
-              <p className="text-[13.5px] text-ink-3">Your registration could not be found. Contact the procurement office.</p>
+              <p className="text-[13.5px] text-ink-3">Registration not found. Contact the procurement office.</p>
             ) : (
               <div className="flex flex-col gap-5">
                 <KeyValues
@@ -113,7 +113,7 @@ export default async function SupplierAccountPage() {
                   ]}
                 />
                 {status.applications.length === 0 ? (
-                  <p className="text-[13.5px] text-ink-3">The procurement office has no application of yours on record yet.</p>
+                  <p className="text-[13.5px] text-ink-3">No application on record.</p>
                 ) : (
                   status.applications.map((a) => {
                     const words = applicationStatusWords(a, formatDate);
@@ -163,7 +163,7 @@ export default async function SupplierAccountPage() {
         <LastSignIn info={last} timeZone={zone} contact="the procurement office" />
 
         <Card>
-          <CardHeader icon={<LockIcon size={18} />} title="Change your password" subtitle={`${account ? `Last changed ${formatOrgDateTime(account.passwordChangedAt, zone)}. ` : ""}Changing it ends every other sign-in of yours.`} />
+          <CardHeader icon={<LockIcon size={18} />} title="Change your password" subtitle={`${account ? `Last changed ${formatOrgDateTime(account.passwordChangedAt, zone)}. ` : ""}Ends your other sign-ins.`} />
           <CardBody>
             <div className="max-w-md">
               {token ? (
@@ -188,7 +188,7 @@ export default async function SupplierAccountPage() {
           <CardHeader
             icon={<ShieldIcon size={18} />}
             title="Where you are signed in"
-            subtitle="If one of these is not yours, sign out everywhere and change your password."
+            subtitle="Not yours? Sign out everywhere."
             actions={token ? <AccountButton path={SUPPLIER_AUTH_POSTS.signOutEverywhere} formToken={token} label="Sign out everywhere" variant="destructive" icon="logout" /> : undefined}
           />
           <DataList columns={COLUMNS} rows={rows} toolbar={false} searchable={false} selectable={false} flat emptyTitle="No other sign-ins" />

@@ -208,7 +208,7 @@ describe("the pre-sale checks (FR-ADV-010)", () => {
         const cs = undatedChecks(phase);
         expect(cs).toHaveLength(1);
         expect(cs[0]).toMatchObject({ key: "ON_SALE", state: "BLOCK" });
-        expect(cs[0]!.detail).toContain("dates of the sale are not complete");
+        expect(cs[0]!.detail).toContain("Sale dates not set"); // 0005, founder 2026-10-19: shortened
       }
       // A cancelled exercise still says it was cancelled.
       expect(undatedChecks("CANCELLED")[0]!.detail).toContain("cancelled");

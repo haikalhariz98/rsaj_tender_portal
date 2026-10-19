@@ -20,7 +20,6 @@ export async function YourPart({ exerciseId }: { exerciseId: string }) {
       <CardHeader
         icon={<ClipboardIcon size={17} />}
         title="Your part"
-        subtitle="Sign up for a briefing, ask for the documents, inspect them and acknowledge addenda, as a signed-in supplier."
         divided={false}
         actions={<ButtonLink href={`/supplier/bids/${exerciseId}`} variant="secondary" size="sm">Open in My Bids</ButtonLink>}
       />

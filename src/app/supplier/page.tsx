@@ -4,12 +4,10 @@ import { ArrowRight, BellIcon, BuildingIcon, GlobeIcon, AwardIcon, InboxIcon, To
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   HOME_LINKS,
   HOME_TITLE,
-  OPEN_ACCESS_NOTE,
   PORTAL_PATH,
   SIGNED_IN_LINKS,
   SIGNED_IN_SUBTITLE,
@@ -40,9 +38,6 @@ export default async function SupplierHomePage() {
         }
       />
 
-      <Callout tone="info" className="mb-6">
-        {OPEN_ACCESS_NOTE.en}
-      </Callout>
 
       <div className="grid gap-5 md:grid-cols-3">
         {HOME_LINKS.map((link) => {

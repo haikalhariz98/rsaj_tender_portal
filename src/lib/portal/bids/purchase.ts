@@ -45,10 +45,10 @@ export interface BuyerFacts {
 
 /// The reading of the signed-in person's standing on the supplier record, in place of the officer sighting a letter of authority (SR-10). A reading, in words: PASS or BLOCK.
 export function buyerStandingCheck(b: BuyerFacts): PreSaleCheck {
-  if (!b.accountActive) return { key: "AUTHORITY", state: "BLOCK", detail: "Your portal account is not active, so you cannot buy documents for your company. Ask the procurement office." };
-  if (!b.contactCurrent) return { key: "AUTHORITY", state: "BLOCK", detail: "You are no longer a current contact of your company on the supplier register, so you cannot buy documents for it. Ask your company to update its record." };
+  if (!b.accountActive) return { key: "AUTHORITY", state: "BLOCK", detail: "Your portal account is not active. Ask the procurement office." };
+  if (!b.contactCurrent) return { key: "AUTHORITY", state: "BLOCK", detail: "You are no longer a current contact of your company. Ask it to update its record." };
   if (b.bar) return { key: "AUTHORITY", state: "BLOCK", detail: b.bar.en };
-  return { key: "AUTHORITY", state: "PASS", detail: `You are signed in as ${b.name}, a current contact of your company on the supplier register, so you may buy the documents for it.` };
+  return { key: "AUTHORITY", state: "PASS", detail: `You are signed in as ${b.name}, a current contact of your company.` };
 }
 
 /// Who reads the words: the buyer on the portal ("your company"), or the officer at the sale register and on the receipt ("the supplier"). Each is told the true thing in its own voice.
@@ -56,14 +56,14 @@ export type WordsFor = "BUYER" | "STAFF";
 
 /// Why a purchase of a restricted tender is refused, in words for the buyer. The supplier register is named, and nothing is "brought" to a counter.
 const RESTRICTION_REFUSAL: Readonly<Record<PurchaseRefusal, string>> = {
-  EVIDENCE_TYPE_NOT_SET: "The notice restricts who may tender, and the office has not set which document on the supplier register evidences that, so the documents cannot be sold to your company yet. Tell the procurement office.",
-  NONE_LODGED: "The notice restricts who may tender, and your company has no status document on the supplier register. Lodge it under Company, wait for an officer to verify it, and then buy the documents.",
-  NOT_VERIFIED: "The notice restricts who may tender, and your company's status document on the supplier register has not been verified by an officer yet. Once it is verified you can buy the documents.",
-  NOT_IN_ORDER: "The notice restricts who may tender, and your company's status document on the supplier register was found not in order. Lodge a corrected one under Company and wait for an officer to verify it.",
-  NOT_APPLICABLE: "The notice restricts who may tender, and your company's status document is recorded on the supplier register as not applicable, so it does not evidence the restriction. Ask the procurement office.",
-  NOT_YET_VALID: "The notice restricts who may tender, and your company's verified status document on the supplier register is not valid yet. It can evidence the restriction only once it is valid.",
-  EXPIRED: "The notice restricts who may tender, and your company's status document on the supplier register has expired. Lodge the renewal under Company and wait for an officer to verify it, and then buy the documents.",
-  EXPIRED_RENEWAL_WAITING: "The notice restricts who may tender, and your company's status document on the supplier register has expired. The renewal you lodged is waiting for an officer to verify it. Once it is verified you can buy the documents.",
+  EVIDENCE_TYPE_NOT_SET: "Restricted tender. The office has not set which document evidences it. Tell the procurement office.",
+  NONE_LODGED: "Restricted tender. Lodge your status document under Company, then buy once an officer verifies it.",
+  NOT_VERIFIED: "Restricted tender. Your status document is not yet verified by an officer.",
+  NOT_IN_ORDER: "Restricted tender. Your status document was found not in order. Lodge a corrected one under Company.",
+  NOT_APPLICABLE: "Restricted tender. Your status document is recorded as not applicable. Ask the procurement office.",
+  NOT_YET_VALID: "Restricted tender. Your verified status document is not valid yet.",
+  EXPIRED: "Restricted tender. Your status document has expired. Lodge the renewal under Company.",
+  EXPIRED_RENEWAL_WAITING: "Restricted tender. Your status document has expired. The renewal is waiting for an officer to verify it.",
 };
 
 /// The same refusals for the officer: who is refused is the supplier, and nothing is said to the officer about "lodging under Company".
@@ -112,7 +112,7 @@ export function onlinePurchaseChecks(counter: readonly PreSaleCheck[], buyer: Pr
     if (c.key === "AUTHORITY") continue;
     if (c.key === "RESTRICTION" && c.state === "BRING") {
       // Never passed on its own say-so: a restricted tender with no reading is stopped, not let through.
-      out.push(restriction ?? { key: "RESTRICTION", state: "BLOCK", detail: "The notice restricts who may tender, and the supplier register could not be read for your company's status document. Tell the procurement office." });
+      out.push(restriction ?? { key: "RESTRICTION", state: "BLOCK", detail: "Restricted tender. Your status document could not be read. Tell the procurement office." });
       continue;
     }
     out.push(c);

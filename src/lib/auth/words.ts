@@ -24,14 +24,14 @@ export const AUTH_WORDS = {
     en: "These are the organisation's own to choose. The operator sets them when creating the first administrator.",
   },
   codeFailed: {
-    en: "That did not work. Check the sign-in name and the code, and that the code has not been used or expired. If it still fails, ask the person who gave it to you.",
+    en: "Code not accepted. It may be used or expired. Ask whoever gave it.",
   },
   codeUsed: { en: "Your password is set. Sign in with it." },
-  passwordChanged: { en: "Your password is changed. Every other sign-in of yours has ended." },
+  passwordChanged: { en: "Password changed. Other sign-ins have ended." },
   signedOutEverywhere: { en: "You are signed out everywhere, this device included." },
   notSignedIn: { en: "You are not signed in." },
   portalFormsClosed: {
-    en: "This form is closed: the portal has not been set up to sign its forms. Tell the procurement office.",
+    en: "Form closed: the form key is not set. Tell the procurement office.",
   },
   formExpired: { en: "This form is out of date. Reload the page and try again." },
   wrongOrigin: { en: "That request did not come from this site, so it was refused." },

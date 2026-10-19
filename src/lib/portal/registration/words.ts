@@ -90,7 +90,7 @@ export function uploadFaultText(f: Finding<UploadFault>, kind: "document" | "sta
     case "TOO_LARGE":
       return w("That file is larger than the procurement office takes.");
     case "TYPE_NOT_ALLOWED":
-      return w("That kind of file is not accepted. Use a kind listed beside the button.");
+      return w("That kind of file is not accepted. Use one listed beside the upload button.");
     case "QUOTA_FILES":
       return w(`Your registration already holds as many files as it may (${s(f.data, "max")}). Remove one first.`);
     case "QUOTA_BYTES":

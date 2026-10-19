@@ -58,13 +58,13 @@ function onSale(phase: WindowPhase): PreSaleCheck {
     case "CLOSED_FOR_PURCHASE":
       return { key: "ON_SALE", state: "BLOCK", detail: "The last day of the sale has passed." };
     case "CLOSED":
-      return { key: "ON_SALE", state: "BLOCK", detail: "The closing has passed, so the documents are no longer sold." };
+      return { key: "ON_SALE", state: "BLOCK", detail: "The closing has passed. The documents are no longer sold." };
     case "CANCELLED":
       return { key: "ON_SALE", state: "BLOCK", detail: "This exercise was cancelled." };
     case "NOT_PUBLISHED":
       return { key: "ON_SALE", state: "BLOCK", detail: "This exercise has not been published." };
     case "UNKNOWN":
-      return { key: "ON_SALE", state: "BLOCK", detail: "The dates of the sale are not complete, so nothing can be asked for yet. Tell the procurement office." };
+      return { key: "ON_SALE", state: "BLOCK", detail: "Sale dates not set. Tell the procurement office." };
     default: {
       const never: never = phase;
       return never;
@@ -75,20 +75,20 @@ function onSale(phase: WindowPhase): PreSaleCheck {
 function register(r: SaleCheck): PreSaleCheck {
   const block = r.findings.find((f) => f.level === "block");
   if (block) {
-    if (block.code === "SALE_NOT_REGISTERED") return { key: "REGISTER", state: "BLOCK", detail: "Your company is not on the supplier register yet, so the documents cannot be sold to it. Finish your registration under Company." };
+    if (block.code === "SALE_NOT_REGISTERED") return { key: "REGISTER", state: "BLOCK", detail: "Your company is not on the supplier register. Finish registering under Company." };
     if (block.code === "BARRED") {
       const standing = String(block.data?.standing ?? "") as Standing;
       const label = STANDING_LABEL[standing]?.en.toLowerCase();
-      return { key: "REGISTER", state: "BLOCK", detail: `Your company is ${label ?? "barred"} on the supplier register, so the documents cannot be sold to it. Ask the procurement office.` };
+      return { key: "REGISTER", state: "BLOCK", detail: `Your company is ${label ?? "barred"} on the supplier register. Ask the procurement office.` };
     }
-    return { key: "REGISTER", state: "BLOCK", detail: "The supplier register does not allow the documents to be sold to your company. Ask the procurement office." };
+    return { key: "REGISTER", state: "BLOCK", detail: "The supplier register does not allow a sale to your company. Ask the procurement office." };
   }
   const lapse = r.findings.some((f) => f.code === "LAPSE_RULE_NOT_SET");
   return {
     key: "REGISTER",
     state: "PASS",
     detail: lapse
-      ? "Registered, not cancelled and not suspended. A document of yours has expired and the office has not set whether that suspends a supplier, so the office may ask you about it."
+      ? "Registered, not cancelled, not suspended. A document has expired and the office has not set whether that suspends you."
       : "Registered, not cancelled, not suspended and not blacklisted, on the supplier register.",
   };
 }
@@ -97,10 +97,10 @@ function attendance(i: PreSaleInput): PreSaleCheck | null {
   const mandatory = i.events.filter((e) => e.mandatory === true && !e.cancelled);
   if (i.permitted !== true || mandatory.length === 0) return null;
   const faults = attendanceFaults(i.partyId, i.events, i.permitted);
-  if (faults.length === 0) return { key: "ATTENDANCE", state: "PASS", detail: "You are on the attendance register of the briefing or site visit that the notice made mandatory." };
+  if (faults.length === 0) return { key: "ATTENDANCE", state: "PASS", detail: "You are on the attendance register of the required briefing or site visit." };
   const words = faults.map((f) => {
     const kind = KIND[String(f.data?.kind) as keyof typeof KIND] ?? "event";
-    return f.code === "EVENT_NOT_HELD" ? `The ${kind} the notice made mandatory has not been held yet, so its register is not complete.` : `The ${kind} the notice made mandatory has been held, and your company is not on its attendance register. Signing up online does not count as attending.`;
+    return f.code === "EVENT_NOT_HELD" ? `The required ${kind} has not been held yet.` : `The required ${kind} was held and your company is not on its register. Signing up online does not count as attending.`;
   });
   return { key: "ATTENDANCE", state: "BLOCK", detail: words.join(" ") };
 }
@@ -108,7 +108,7 @@ function attendance(i: PreSaleInput): PreSaleCheck | null {
 export function preSaleChecks(i: PreSaleInput): PreSaleCheck[] {
   const out: PreSaleCheck[] = [onSale(i.phase)];
   if (i.path === "INVITED") {
-    out.push(i.invited ? { key: "INVITED", state: "PASS", detail: "Your company is on the list of suppliers invited." } : { key: "INVITED", state: "BLOCK", detail: "This exercise invites named suppliers only, and your company is not on its list." });
+    out.push(i.invited ? { key: "INVITED", state: "PASS", detail: "Your company is on the list of suppliers invited." } : { key: "INVITED", state: "BLOCK", detail: "This exercise invites named suppliers only. Your company is not on its list." });
   }
   out.push(register(i.register));
   const a = attendance(i);
@@ -117,10 +117,10 @@ export function preSaleChecks(i: PreSaleInput): PreSaleCheck[] {
     out.push({
       key: "RESTRICTION",
       state: "BRING",
-      detail: `${i.restrictionLabel ? `${i.restrictionLabel}: ` : "The notice restricts who may tender. "}Bring the original, or a certified true copy, of your status certificate. The officer checks it at the counter.`,
+      detail: `${i.restrictionLabel ? `${i.restrictionLabel}: ` : "The notice restricts who may tender. "}Bring the original, or a certified true copy, of your status certificate.`,
     });
   }
-  out.push({ key: "AUTHORITY", state: "BRING", detail: "Bring proof that the person collecting the documents may receive them for your company, such as a letter naming them. The officer checks it at the counter." });
+  out.push({ key: "AUTHORITY", state: "BRING", detail: "Bring proof the collector may receive the documents, such as a letter naming them." });
   if (i.alreadyBought) out.push({ key: "ALREADY", state: "INFO", detail: "The documents have already been sold to your company." });
   return out;
 }
