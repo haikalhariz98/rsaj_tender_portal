@@ -213,16 +213,17 @@ function OpeningCard({ d, o, viewerPersonId, matrices, viewer }: { d: OpeningSec
         icon={<InboxIcon size={17} />}
         title={<span className="inline-flex flex-wrap items-center gap-2">{o.title}<Badge tone={o.phaseTone === "neutral" ? undefined : o.phaseTone} dot>{o.phase}</Badge></span>}
         subtitle={`${o.committee} · started ${o.started}${o.admittedBy ? ` · ${o.admittedBy}` : ""}`}
-        actions={
-          <span className="flex flex-wrap items-center gap-1">
-            {o.adjourn && <AdjournDrawer exerciseId={ex} openingId={o.id} allowed={o.adjourn} people={d.people} resume={false} />}
-            {o.resume && <AdjournDrawer exerciseId={ex} openingId={o.id} allowed={o.resume} people={d.people} resume />}
-          </span>
-        }
       >
-        {o.held && (
-          <CardBody>
-            <Callout tone="warn">{o.held}</Callout>
+        {/* The acts sit in the body, not the fold's summary: a control inside a summary would fold the card on a stray click. */}
+        {(o.held || o.adjourn || o.resume) && (
+          <CardBody className="flex flex-col gap-3">
+            {o.held && <Callout tone="warn">{o.held}</Callout>}
+            {(o.adjourn || o.resume) && (
+              <span className="flex flex-wrap items-center gap-1">
+                {o.adjourn && <AdjournDrawer exerciseId={ex} openingId={o.id} allowed={o.adjourn} people={d.people} resume={false} />}
+                {o.resume && <AdjournDrawer exerciseId={ex} openingId={o.id} allowed={o.resume} people={d.people} resume />}
+              </span>
+            )}
           </CardBody>
         )}
 
@@ -368,8 +369,16 @@ function LateCard({ d }: { d: OpeningSectionView }) {
   if (d.late.length === 0) return null;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<InboxIcon size={17} />} title="Late envelopes" subtitle="Admission is decided on Received." />
-      <ul className="divide-y divide-line/70 border-t border-line">
+      <CardHeader
+        collapsible
+        id="late-envelopes"
+        defaultOpen={startsOpen({ actNow: d.late.some((e) => !!e.startSupplementary?.allowed) })}
+        summary={`${d.late.length} late`}
+        icon={<InboxIcon size={17} />}
+        title="Late envelopes"
+        subtitle="Admission is decided on Received."
+      >
+      <ul className="divide-y divide-line/70">
         {d.late.map((e) => (
           <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 sm:px-6">
             <span className="min-w-0 flex-1">
@@ -381,6 +390,7 @@ function LateCard({ d }: { d: OpeningSectionView }) {
           </li>
         ))}
       </ul>
+      </CardHeader>
     </Card>
   );
 }

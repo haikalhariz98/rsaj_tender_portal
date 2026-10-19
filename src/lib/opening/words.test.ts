@@ -40,3 +40,25 @@ describe("opening finding texts", () => {
     expect(over).toEqual([]);
   });
 });
+
+// 0005 R15, 2026-10-20: "Before it can be finalised" lists every fault, one line each, so each is a refusal of 12 words or fewer.
+// A citation or a pointer to a setting in brackets is not counted.
+const FINALISE_FAULTS = [
+  "ONLINE_FINALISE_ELSEWHERE", "NOT_ONLINE", "ENVELOPE_UNOPENED", "ADMITTED_NOT_OPENED", "INITIAL_MISSING", "CHECKLIST_UNANSWERED", "CHECKLIST_NOT_JUDGED",
+  "VERDICT_UNSET", "WITHDRAWAL_UNRESOLVED", "PAGES_NOT_SET", "SIGNATURE_MISSING", "CONSEQUENCE_NOT_SET", "UNPURCHASED_CONSEQUENCE_NOT_SET",
+  "INELIGIBLE_CONSEQUENCE_NOT_SET", "VERDICT_UNDER_OTHER_SETTING", "VERDICT_NO_LONGER_STANDS", "READING_NOT_SET", "ESTIMATE_COPY_NOT_ANSWERED", "PERSON_REQUIRED",
+  "ADJOURNED", "NOT_UNSEALED", "SITTING_NOT_AUTHORISED",
+];
+/// R1: a pointer to the setting that clears a fault (a sentence with a path in it, or "Set it ...") is not counted.
+const withoutPointers = (t: string) => t.split(/(?<=\.)\s+/).filter((x) => !x.includes("›") && !/^Set it/.test(x)).join(" ").replace(/\([^)]*\)/g, "");
+describe("finalising faults", () => {
+  it("keeps each fault line at 12 words or fewer, not counting a bracketed pointer", () => {
+    const over = FINALISE_FAULTS.flatMap((code) =>
+      [{ code, level: "block" as const }, { code, level: "block" as const, data: { online: 1, required: 3, sitting: 1, n: 2, count: 2 } }]
+        .map((f) => [code, withoutPointers(openingFindingText(f))] as const)
+        .filter(([, t]) => words(t) > 12)
+        .map(([c, t]) => `${c} (${words(t)}): ${t}`),
+    );
+    expect([...new Set(over)]).toEqual([]);
+  });
+});
