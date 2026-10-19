@@ -42,7 +42,7 @@ describe("the estimate's audit rows: 'Withheld from view, held unencrypted (vers
   it("the version's words, its unknown-version words and the SEALED fault never say sealed (ruling 20cw (b), AC-63)", () => {
     const named = { WITHHELD_TEXT, "withheldVersion(3)": withheldVersion(3), 'scopeFaultText("SEALED")': scopeFaultText("SEALED") };
     expect(withheldVersion(3)).toBe("Withheld from view, held unencrypted (version 3)");
-    expect(scopeFaultText("SEALED")).toBe("The figure is withheld from view until the bids are opened.");
+    expect(scopeFaultText("SEALED")).toBe("The figure is withheld from view until it is disclosed, when the opening is finalised.");
     for (const [name, text] of Object.entries(named)) expect(text, name).not.toMatch(/\bsealed\b/i);
   });
   it("a copy really sealed under the exercise key keeps the word (ruling 20cw (b))", () => {

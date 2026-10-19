@@ -64,7 +64,7 @@ export function OwnerDocumentsButton({ owner, label, options, iconOnly = false, 
           <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && close()} onSubmit={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
             <aside role="dialog" aria-modal="true" aria-label={`Documents of ${label}`} className={drawerPanelClass("xl")}>
               <DrawerHeader icon={<FileIcon size={17} />} title="Documents" subtitle={label} onClose={close} />
-              <div className="min-h-0 flex-1 overflow-y-auto bg-sunken/50 px-6 py-5">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sunken/50 px-6 py-5">
                 {view === undefined ? (
                   <p className="text-[13px] text-ink-3">Loading…</p>
                 ) : view === null ? (

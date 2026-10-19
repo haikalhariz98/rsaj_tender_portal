@@ -33,7 +33,7 @@ export function NoticeDrawer({ title, subtitle, buttonLabel, text, empty }: { ti
               {title}
             </span>
             <DrawerHeader icon={<FileIcon size={17} />} title={title} subtitle={subtitle} onClose={() => setOpen(false)} />
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {text ? <p className="text-[14px] leading-relaxed whitespace-pre-wrap text-ink">{text}</p> : <p className="text-[13.5px] text-ink-3">{empty}</p>}
             </div>
           </aside>

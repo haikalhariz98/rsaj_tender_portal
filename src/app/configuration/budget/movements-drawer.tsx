@@ -98,7 +98,7 @@ export function MovementsDrawer({
               onClose={() => setOpen(false)}
             />
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               <div className="flex flex-col gap-5">
                 <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
                   <Figure label="Allocated" value={formatSen(figures.allocated)} />

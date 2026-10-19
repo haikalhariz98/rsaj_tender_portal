@@ -144,14 +144,17 @@ describe("the sealing screens and the acts' messages never overclaim (S15, F10)"
 /// Ruling 20cw (b): the estimate tab says what is true of a version. The figure is withheld from view and held unencrypted (F10), so "sealed" is said only of a copy sealed
 /// under the exercise key, and then the sentence names the key.
 describe("the estimate tab does not call a version sealed (20cw (b))", () => {
-  const path = "src/app/sourcing/[id]/scope/estimate-section.tsx";
+  const paths = ["src/app/sourcing/[id]/scope/estimate-section.tsx", "src/app/sourcing/[id]/scope/editors.tsx"];
   it("says sealed only beside the exercise key, the sealed set, or the sealed key", () => {
     const hits: string[] = [];
-    lex(readFileSync(join(root, path), "utf8"), { only: "comments" })
-      .split("\n")
-      .forEach((line, i) => {
-        if (/\bsealed\b/i.test(line) && !/under (?:its|the exercise's)? ?key|sealed copy|sealedKeyReady|sealed set|was sealed under/i.test(line)) hits.push(`line ${i + 1}: ${line.trim().slice(0, 100)}`);
-      });
+    for (const path of paths) {
+      lex(readFileSync(join(root, path), "utf8"), { only: "comments" })
+        .split("\n")
+        .forEach((line, i) => {
+          const words = line.replace(/\bsealed: true\b/g, "");
+          if (/\bsealed\b/i.test(words) && !/under (?:its|the exercise's|the new)? ?key|sealed copy|sealedKeyReady|sealed set|was sealed under/i.test(words)) hits.push(`${path} line ${i + 1}: ${line.trim().slice(0, 100)}`);
+        });
+    }
     expect(hits).toEqual([]);
   });
 });

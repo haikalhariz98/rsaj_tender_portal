@@ -10,7 +10,7 @@
  *   as read, the price as read (SULIT, shown to the people the prices are open to, C-4) and the completion period.
  *   A withdrawn envelope and a late one not admitted are never rows.
  * - The company estimate's benchmark row, only once disclosed (at finalising, OD-2 A); before that it
- *   reads "Sealed until the schedule is finalised" and no figure exists here.
+ *   reads "Withheld from view until the schedule is finalised" and no figure exists here.
  * - The closing-to-lock gap, as a finding (C-3 c), and the count's competition flag (FR-BID-011).
  * - Versions (OD-5): the main opening is version 1; each supplementary opening adds its offer at the
  *   next Bil. as version n + 1, and every earlier version is kept as it was frozen.

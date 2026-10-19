@@ -43,11 +43,11 @@ describe("openingCsv (SR-15, ruling 24)", () => {
   });
   it("gives a reader who may not read prices the words, never a figure, and a sealed estimate its words", () => {
     const withheld = sulitWithheld<string>("NOT_LOGGED", "exercise");
-    const r = openingCsv("schedule", opening({ rows: opening().rows.map((x) => ({ ...x, openingPrice: withheld })), benchmark: { sealed: true, text: "Sealed until the schedule is finalised" } }));
+    const r = openingCsv("schedule", opening({ rows: opening().rows.map((x) => ({ ...x, openingPrice: withheld })), benchmark: { sealed: true, text: "Withheld from view until the schedule is finalised" } }));
     if ("refusal" in r) throw new Error("refused");
     expect(r.csv).not.toMatch(/RM \d/);
     expect(r.csv).toContain("SULIT · withheld");
-    expect(r.csv).toContain("Sealed until the schedule is finalised");
+    expect(r.csv).toContain("Withheld from view until the schedule is finalised");
   });
   it("builds the Grand Summary titled by its print label, with the class from the schedule row", () => {
     const r = openingCsv("summary", opening());

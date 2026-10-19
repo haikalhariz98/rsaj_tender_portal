@@ -350,9 +350,9 @@ export function ReviseBqDrawer({ exerciseId, versionNo, allowed }: { exerciseId:
 /// The typed figure is checked once on this page, then saved; the form is emptied on every open and after saving.
 const FIGURE_CONFIRM = {
   fields: ["value"],
-  heading: "Check the figure before it is sealed",
+  heading: "Check the figure before it is saved",
   note: "Once saved, the figure is not shown again on any screen. Check it now. If it is wrong, change it.",
-  submitLabel: "Seal the figure",
+  submitLabel: "Save the figure",
 };
 
 export function PrepareEstimateDrawer({ exerciseId, people, allowed }: { exerciseId: string; people: Option[]; allowed: Allowed }) {
@@ -360,11 +360,11 @@ export function PrepareEstimateDrawer({ exerciseId, people, allowed }: { exercis
   return (
     <RecordEditor
       title="Prepare the company estimate"
-      description="Version 1, by one preparer. The figure is shown only while it is typed and once for checking, then sealed. The day is the organisation's day, set when it is saved."
+      description="Version 1, by one preparer. The figure is shown only while it is typed and once for checking, then withheld from view. The day is the organisation's day, set when it is saved."
       fields={[
         hidden("exerciseId"),
         actorField("CompanyEstimate.preparer", { name: "personId", people, hint: "You prepare it, signed in. An estimate has one preparer throughout." }),
-        { kind: "money", name: "value", label: "Company estimate", required: true, sealed: true, hint: "To the sen. Sealed on saving." },
+        { kind: "money", name: "value", label: "Company estimate", required: true, sealed: true, hint: "To the sen. Withheld from view on saving." },
       ]}
       values={{ exerciseId }}
       confirm={FIGURE_CONFIRM}
@@ -381,14 +381,14 @@ export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, vers
   return (
     <RecordEditor
       title={`Amend the estimate: version ${versionNo + 1}`}
-      description={`Only ${preparerName}, who prepared it, amends it. Earlier versions are kept, sealed. The reason is sealed with the figure.`}
+      description={`Only ${preparerName}, who prepared it, amends it. Earlier versions are kept, withheld from view and held unencrypted. The reason is withheld with the figure.`}
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),
         actorField("CompanyEstimateVersion.preparer", { name: "personId", label: "Amended by", hint: `Only the preparer, ${preparerName}, amends it, signed in.` }),
-        { kind: "money", name: "value", label: "New company estimate", required: true, sealed: true, hint: "To the sen. Sealed on saving." },
+        { kind: "money", name: "value", label: "New company estimate", required: true, sealed: true, hint: "To the sen. Withheld from view on saving." },
         ...(lodged ? [{ kind: "note" as const, text: AMEND_LODGED_NOTE }] : []),
-        { kind: "textarea", name: "reason", label: "Why it is amended", required: true, hint: "Sealed with the figure: it is not recorded in the audit trail or shown on any screen." },
+        { kind: "textarea", name: "reason", label: "Why it is amended", required: true, hint: "Withheld with the figure: it is not recorded in the audit trail or shown on any screen." },
       ]}
       values={{ exerciseId, estimateId }}
       confirm={FIGURE_CONFIRM}
@@ -456,7 +456,7 @@ export function VoidEstimateDrawer({ exerciseId, estimateId, preparerName, allow
   return (
     <RecordEditor
       title={`Void the company estimate prepared by ${preparerName}`}
-      description="For when its preparer cannot continue. Its versions are kept, sealed, and a new officer prepares a fresh estimate from version 1. Nothing is voided once it is lodged."
+      description="For when its preparer cannot continue. Its versions are kept, withheld from view and held unencrypted, and a new officer prepares a fresh estimate from version 1. Nothing is voided once it is lodged."
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),

@@ -128,7 +128,7 @@ function Drawer({ data, reload, onClose, onRecord }: { data: DrawerView | null |
           }
           onClose={onClose}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
           {data === undefined ? (
             <p className="text-[13px] text-ink-3">Loading…</p>
           ) : data === null ? (

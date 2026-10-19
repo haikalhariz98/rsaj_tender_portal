@@ -136,7 +136,7 @@ export function ReplaceDrawer(p: ReplaceDrawerProps) {
               {p.title}
             </span>
             <DrawerHeader icon={<FileIcon size={17} />} title={p.title} subtitle="The procurement office checks it before it counts." onClose={() => !busy && setOpen(false)} />
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {sent ? (
                 <Callout tone="ok" title="Sent to the procurement office">
                   Your {sent} was sent and is waiting for an officer to check it.{p.renewal ? " The one in force stays in force until then." : ""} Nothing is e-mailed: this page tells you when it has been checked.

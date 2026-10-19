@@ -364,7 +364,7 @@ export function RecordEditor({
 
               {/* A confirmation shows its body only when there is something to say (a refusal);
                   its hidden inputs still submit while the body is hidden. */}
-              <div className={confirmOnly && !state.message && unplaced.length === 0 && !identity && !review && !proposed ? "hidden" : "min-h-0 flex-1 overflow-y-auto px-6 py-5"}>
+              <div className={confirmOnly && !state.message && unplaced.length === 0 && !identity && !review && !proposed ? "hidden" : "min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5"}>
                 {proposed && (
                   <div className="mb-4">
                     <Callout tone="ok">{proposed}</Callout>

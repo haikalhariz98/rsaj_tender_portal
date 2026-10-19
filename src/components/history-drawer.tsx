@@ -88,7 +88,7 @@ export function HistoryButton({
               onClose={() => setOpen(false)}
             />
 
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {pending || entries == null ? (
                 <p className="text-[13px] text-ink-3">{say(WORDS.loading)}</p>
               ) : entries.length === 0 ? (

@@ -97,7 +97,7 @@ describe("the unpurchased rule set since the start (S-3, OD-4)", () => {
 });
 
 describe("the company estimate's card and the paper copy (S-5)", () => {
-  const card = (requires: boolean | null, state: Parameters<typeof estimateCardText>[0]["state"], copyCheck: Parameters<typeof estimateCardText>[0]["copyCheck"] = null) => estimateCardText({ requires, state, copyCheck, sealedText: "Sealed until the schedule is finalised" });
+  const card = (requires: boolean | null, state: Parameters<typeof estimateCardText>[0]["state"], copyCheck: Parameters<typeof estimateCardText>[0]["copyCheck"] = null) => estimateCardText({ requires, state, copyCheck, sealedText: "Withheld from view until the schedule is finalised" });
   it("none lodged: needed, not needed and not set read differently", () => {
     expect(card(true, null)).toEqual({ text: "The method needs a company estimate, and none is lodged.", tone: "warn" });
     expect(card(false, null)).toEqual({ text: "Not needed: the method does not need a company estimate, and none is lodged.", tone: "neutral" });

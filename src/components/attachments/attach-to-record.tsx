@@ -124,7 +124,7 @@ export function AttachToRecordButton({
               }}
             >
               <DrawerHeader title="Attach to a record" subtitle={title} onClose={close} />
-              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
                 <div className="flex flex-col gap-4">
                   {versionId == null && <Callout tone="err">Every version of this document is withdrawn, so it cannot be attached. Upload the file again as a new document.</Callout>}
                   {error && <Callout tone="err">{error}</Callout>}

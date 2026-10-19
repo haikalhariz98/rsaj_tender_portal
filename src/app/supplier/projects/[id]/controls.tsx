@@ -111,7 +111,7 @@ export function SubmitControl({ contractId, token, kinds, why, label = "Send a s
           <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("lg")}>
             <span id={heading} className="sr-only">Send a submission to the office</span>
             <DrawerHeader icon={<InboxIcon size={17} />} title="Send a submission" subtitle="It goes to the contract's Superintending Officer inside the portal, against the office's service level." onClose={() => !busy && setOpen(false)} />
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {error && (
                 <Callout tone="err" className="mb-3">
                   {error}
@@ -287,7 +287,7 @@ export function DisputeDiaryControl({ contractId, entryId, token, dayText }: { c
           <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
             <span id={heading} className="sr-only">Record a disagreement on the diary for {dayText}</span>
             <DrawerHeader icon={<FileIcon size={17} />} title="Record a disagreement" subtitle={`The diary for ${dayText}: what you and the responsible officer do not agree on. The entry goes to the Superintending Officer.`} onClose={() => !busy && setOpen(false)} />
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {error && <Callout tone="err" className="mb-3">{error}</Callout>}
               <Field label="What you disagree with" htmlFor={field} required>
                 <Textarea id={field} value={words} maxLength={4000} rows={6} autoFocus onChange={(e) => setWords(e.target.value)} />

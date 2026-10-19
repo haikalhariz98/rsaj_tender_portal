@@ -1,6 +1,4 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
-
 import { describe, expect, it } from "vitest";
 
 import { completenessConsequence } from "./completeness";
@@ -100,7 +98,7 @@ describe("the method's bid-receipt rules, frozen at publication (6.6 CR-2)", () 
 /// Every .ts/.tsx file under a directory.
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
-    const p = join(dir, n);
+    const p = dir + "/" + n;
     return statSync(p).isDirectory() ? files(p) : /\.tsx?$/.test(n) && !/\.test\.tsx?$/.test(n) ? [p] : [];
   });
 }

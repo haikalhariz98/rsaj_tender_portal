@@ -75,7 +75,7 @@ export function SignUpControl({ exerciseId, eventId, token, what, mode, defaultN
           <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
             <span id={heading} className="sr-only">Sign up for the {what}</span>
             <DrawerHeader icon={<CalendarIcon size={17} />} title={`Sign up for the ${what}`} subtitle="Tell the procurement office who your company will send." onClose={() => !busy && setOpen(false)} />
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {error && <Callout tone="err" className="mb-3">{error}</Callout>}
               <Field label="Who will you send?" htmlFor={field} required hint="The person's full name, as they will be known at the door.">
                 <Input id={field} value={name} maxLength={240} autoFocus onChange={(e) => setName(e.target.value)} />
@@ -216,7 +216,7 @@ export function RequestControl({ exerciseId, token, mode, defaultName, collector
           <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
             <span id={heading} className="sr-only">Ask for the tender documents</span>
             <DrawerHeader icon={<FileIcon size={17} />} title="Ask for the tender documents" subtitle="The office sells them to you, as it does at the counter." onClose={() => !busy && setOpen(false)} />
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {error && <Callout tone="err" className="mb-3">{error}</Callout>}
               {reasons.length > 0 && (
                 <Callout tone="err" title="The documents cannot be sold to your company at the moment" className="mb-3">

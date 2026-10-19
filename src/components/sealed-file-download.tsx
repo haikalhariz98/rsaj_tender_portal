@@ -131,7 +131,7 @@ export function SealedFileDownload({ openingId, fileId, label }: { openingId: st
         <div className={CONFIRM_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && close()}>
           <form role="dialog" aria-modal="true" aria-label={`Download ${label}`} className={confirmPanelClass()} onSubmit={submit} autoComplete="off" noValidate>
             <DrawerHeader title="Download for the opening check" subtitle={label} onClose={() => !busy && close()} />
-            <div className="flex flex-col gap-4 overflow-y-auto px-6 py-5">
+            <div className="flex flex-col gap-4 overflow-y-auto overscroll-contain px-6 py-5">
               <p className="text-[13px] text-ink-2">Asked every time: your sign-in password and the unseal passphrase you chose for this exercise. Neither is kept. The file is opened for you alone and every attempt is logged.</p>
               {refusal && <Callout tone="warn">{refusal}</Callout>}
               <Field label="Sign-in password" htmlFor={`${id}-password`} required error={missing.password}>

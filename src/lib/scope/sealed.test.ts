@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -18,7 +18,7 @@ const STORE = "src/lib/scope/estimate-store.ts";
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(join(root, dir))) {
-    const rel = join(dir, name);
+    const rel = dir + "/" + name;
     if (rel.startsWith("src/generated") || name === "node_modules") continue;
     const st = statSync(join(root, rel));
     if (st.isDirectory()) walk(rel, out);
@@ -27,7 +27,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const files = [...walk("src"), ...walk("prisma")].map((f) => relative(root, join(root, f)));
+const files = [...walk("src"), ...walk("prisma")].map((f) => relative(root, join(root, f)).split(sep).join("/"));
 const isTest = (f: string) => /\.test\.tsx?$/.test(f) || f.endsWith("/online-opening.fixture.ts"); // the fixture is a test helper that stands a scenario up through raw SQL (wave 3c step 4)
 
 /// Each raw call that names the versions table, or cannot be read, as "file · method · why" (read through rawCalls).

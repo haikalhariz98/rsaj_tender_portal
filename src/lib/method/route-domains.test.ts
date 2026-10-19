@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -131,7 +131,7 @@ describe("no exercise-route reader filters on awardId alone (source scan, ruling
   it("every `awardId: null` filter names a domain in the same object, or is an allowed wipe net", () => {
     const offenders: string[] = [];
     for (const f of files) {
-      const rel = relative(ROOT, f);
+      const rel = relative(ROOT, f).split(sep).join("/");
       const src = text(f);
       for (const hit of src.matchAll(/awardId:\s*(null|\{\s*equals:\s*null)/g)) {
         const obj = enclosing(src, hit.index!);
@@ -157,7 +157,7 @@ describe("no exercise-route reader filters on awardId alone (source scan, ruling
     const SPLIT = /(nameRoutesOf|tenderingRoutesOf|windowChangeRoutesOf|exerciseRoutesOf|routesByDomain)\(\s*(?:\w+\.)?$/;
     const offenders: string[] = [];
     for (const f of files) {
-      const rel = relative(ROOT, f);
+      const rel = relative(ROOT, f).split(sep).join("/");
       const src = text(f);
       const re = rel === "src/app/sourcing/page.tsx" ? /\b(?:ex|exercise|r)\.approvalInstances\b/g : /\b(?:ex|exercise)\.approvalInstances\b/g;
       for (const hit of src.matchAll(re)) {

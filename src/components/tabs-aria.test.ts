@@ -1,15 +1,25 @@
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
 
-/// N3 reviewer run 1, AC-63: the tab strip follows the APG tabs pattern. Each selected tab points at its panel and the panel is named by that tab.
-const src = readFileSync("src/components/tabs.tsx", "utf8");
+vi.mock("next/navigation", () => ({ usePathname: () => "/x", useRouter: () => ({ push: () => {}, replace: () => {} }), useSearchParams: () => new URLSearchParams() }));
 
+import { Tabs } from "./tabs";
+
+/// N3 reviewer run 1 and its review, AC-63: the tab strip follows the APG tabs pattern, proved on the rendered markup. The selected tab points at the panel, the panel is named by that tab.
 describe("Tabs links tab and panel", () => {
-  it("gives every tab an id and the selected one aria-controls", () => {
-    expect(src).toMatch(/role="tab"\s+id=\{`\$\{uid\}-tab-\$\{tab\.id\}`\}\s+aria-controls=\{selected \? `\$\{uid\}-panel` : undefined\}/);
+  const html = renderToStaticMarkup(createElement(Tabs, { label: "Sections", initial: "b", tabs: [{ id: "a", label: "Alpha", panel: "A body" }, { id: "b", label: "Beta", panel: "B body" }] }));
+  const attr = (tag: RegExp, name: string) => new RegExp(`${name}="([^"]*)"`).exec(tag.exec(html)?.[0] ?? "")?.[1];
+  it("the selected tab's aria-controls equals the panel's id", () => {
+    const controls = attr(/<[^>]*role="tab"[^>]*aria-selected="true"[^>]*>/, "aria-controls");
+    const panelId = attr(/<[^>]*role="tabpanel"[^>]*>/, "id");
+    expect(controls).toBeTruthy();
+    expect(controls).toBe(panelId);
   });
-  it("names the panel by the current tab, with an id from useId", () => {
-    expect(src).toMatch(/role="tabpanel" id=\{`\$\{uid\}-panel`\} aria-labelledby=\{current \? `\$\{uid\}-tab-\$\{current\.id\}` : undefined\}/);
-    expect(src).toContain("useId()");
+  it("the panel is labelled by the selected tab's id", () => {
+    const tabTag = /<[^>]*role="tab"[^>]*aria-selected="true"[^>]*>/;
+    expect(attr(/<[^>]*role="tabpanel"[^>]*>/, "aria-labelledby")).toBe(attr(tabTag, "id"));
+    expect(html).toContain("B body");
+    expect(html).not.toContain("A body");
   });
 });

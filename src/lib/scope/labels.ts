@@ -252,7 +252,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   OVERRIDE_NOT_PERMITTED: `No office may accept a late estimate: none is set. ${SET_IT}`,
   NOT_HOLDER: "That person does not hold the office that may accept a late estimate.",
   ALREADY_DISCLOSED: "The estimate is already disclosed.",
-  SEALED: "The figure is withheld from view until the bids are opened.",
+  SEALED: "The figure is withheld from view until it is disclosed, when the opening is finalised.",
   CUSTODY_NOT_SET: `Who holds the estimate's copies is not set. ${SET_IT}`,
   NOT_IN_CUSTODY: "That person does not hold the estimate's copies.",
   // pack.ts

@@ -111,7 +111,7 @@ export const OPENING_STATEMENT = {
 } as const;
 
 /// The benchmark row before disclosure (OD-2 A).
-export const SEALED_UNTIL_FINALISED = "Sealed until the schedule is finalised";
+export const SEALED_UNTIL_FINALISED = "Withheld from view until the schedule is finalised";
 /// 20c: what stands where a bidder's name would be, for a reader who is not a named opening officer, between the unseal and finalising of an online opening.
 export const NAMES_AT_FINALISING = "Shown when the schedule is finalised: until then only the named opening officers see who bid";
 

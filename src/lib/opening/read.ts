@@ -5,7 +5,7 @@
  * only: codes never reach the screen. A price as read is returned as a `Sulit<string>` under the registered SULIT key
  * `openingPrice` (C-4, Phase 3b): the caller asks once whether the reader may read the exercise's opening prices
  * and holds every price to the answer; the company estimate's figure is never read here —
- * before finalising it is "Sealed until the schedule is finalised", and after, only the frozen
+ * before finalising it is "Withheld from view until the schedule is finalised", and after, only the frozen
  * schedule carries it (ADR 0012, OD-2 A).
  */
 

@@ -137,7 +137,7 @@ export function BankDrawer(p: BankDrawerProps) {
               Change your bank details
             </span>
             <DrawerHeader icon={<LockIcon size={17} />} title="Change your bank details" subtitle="Payments keep going to the details now checked until an officer has checked these." onClose={() => !busy && setOpen(false)} />
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {sent != null ? (
                 <Callout tone="ok" title="Sent to the procurement office">
                   Your new bank details were sent and signed. They count for payment only once an officer has checked them against your bank statement; until then payments keep going to the details already checked. Nothing is e-mailed: this page tells you when they have been checked.

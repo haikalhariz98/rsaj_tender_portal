@@ -117,16 +117,14 @@ export function Meter({
   const over = threshold != null && percent >= threshold;
   const fill =
     tone === "err" ? "bg-rose-500" : tone === "warn" || over ? "bg-amber-500" : "bg-brand-500";
+  /// Named: a meter with its true figure (an overspent code reads 140%, never a clamped 100). Unnamed: no role, the visible value is the content, and the bar is hidden from a screen reader.
+  const shown = Math.round(Math.max(0, percent));
+  const meterProps = label
+    ? { role: "meter", "aria-label": label, "aria-valuemin": 0, "aria-valuemax": Math.max(100, shown), "aria-valuenow": shown, "aria-valuetext": `${shown}%` }
+    : {};
   return (
-    <div
-      role="meter"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(Math.max(0, Math.min(percent, 100)))}
-      className={cx("flex min-w-0 items-center gap-2.5", className)}
-    >
-      <span className="relative h-2 min-w-12 flex-1 overflow-hidden rounded-full bg-ink/[0.07]">
+    <div {...meterProps} className={cx("flex min-w-0 items-center gap-2.5", className)}>
+      <span aria-hidden="true" className="relative h-2 min-w-12 flex-1 overflow-hidden rounded-full bg-ink/[0.07]">
         <span
           className={cx("absolute inset-y-0 left-0 rounded-full", fill)}
           style={{ width: `${Math.max(0, Math.min(percent, 100))}%` }}

@@ -95,7 +95,7 @@ export function AllocationDetails({
               onClose={() => setOpen(false)}
             />
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               <div className="flex flex-col gap-5">
                 <div className="overflow-hidden rounded-2xl border border-line">
                   {lines.map((l, i) => (
@@ -270,7 +270,7 @@ export function TransferBetweenCodes({
             <form onSubmit={(e) => submit(formDataOf(e))} className="flex min-h-0 flex-1 flex-col">
               <DrawerHeader icon={<ChartIcon size={17} />} title="Transfer between codes" onClose={close} />
 
-              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
                 <div className="flex flex-col gap-4">
                   {state.message && <Callout tone="err">{state.message}</Callout>}
 
