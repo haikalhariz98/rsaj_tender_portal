@@ -21,24 +21,21 @@ export default async function NewRequisitionPage() {
       <PageHeader
         eyebrow={<Link href="/requisitions">Requisitions</Link>}
         title="New requisition"
-        subtitle="Saved as a draft with its own reference; endorse, check and submit it from its record."
       />
       {!org || !options ? (
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup before raising a requisition.</EmptyState>
+          <EmptyState title="No organisation set up" />
         </Card>
       ) : !org.today ? (
         <Callout
           tone="warn"
-          title="The organisation's time zone is not set"
+          title="Time zone not set. Set it to raise a requisition."
           action={
             <ButtonLink href="/configuration/organisation" size="sm">
               Set time zone
             </ButtonLink>
           }
-        >
-          A requisition is raised on the organisation&apos;s today, which is not assumed to be UTC. Set the zone first.
-        </Callout>
+        />
       ) : (
         <RequisitionForm mode="new" options={options} cancelHref="/requisitions" />
       )}

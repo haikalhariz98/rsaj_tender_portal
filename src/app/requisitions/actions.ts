@@ -295,7 +295,7 @@ export async function createRequisition(_prev: FormState, data: FormData): Promi
         ok: false,
         message:
           e.fault === "SERIES_MISSING"
-            ? "No numbering series for requisitions is configured, so no reference can be issued. Add the series keyed “requisition” under Configuration, Numbering."
+            ? "No requisition series set. An administrator adds one under Numbering."
             : "The requisitions numbering series is not valid. Correct it under Configuration, Numbering.",
       };
     }
@@ -325,7 +325,7 @@ export async function editDraft(_prev: FormState, data: FormData): Promise<FormS
     if (l.req.status !== "DRAFT") return { ok: false, message: `Only a draft can be edited. This one is ${STATUS_LABEL[l.req.status].toLowerCase()}.` };
     // Phase 3b: an edit changes the department estimate and what is made of it, so whoever may not read it may not change it, and is told why (logged in this transaction).
     const closed = await sulitWriteRefusal(tx, actor, { scope: "requisition", entity: "Requisition", id, label: l.req.reference }, ["estimatedValue"]);
-    if (closed) return { ok: false, message: `Nothing was saved: the department estimate is SULIT and is closed to you. ${closed}` };
+    if (closed) return { ok: false, message: `Not saved: the estimate is SULIT and closed to you. ${closed}` };
     // The requesting officer is set when the requisition is raised (attributed then): an edit keeps them.
     draft.requestingPersonId = l.req.requestingPersonId;
     if (!l.org.today) return NO_ZONE;
@@ -385,7 +385,7 @@ export async function recordEndorsement(_prev: FormState, data: FormData): Promi
     // The requester does not record an endorsement of their own requisition for someone else (F1), and neither does the officer who keyed the requisition for them
     // (Phase 2b review: a requisition recorded "for" a colleague is as much its keyer's as the colleague's).
     const keyedIt = (await earlierRecordersOf(tx, l.org.id, { requisitionId: l.req.id, otherStepIds: [] })).requesterRecorderIds;
-    if (act.recorderId && (act.recorderId === l.req.requestingPersonId || keyedIt.includes(act.recorderId))) return { ok: false, message: "You raised this requisition. Nobody records the endorsement of their own requisition for someone else." };
+    if (act.recorderId && (act.recorderId === l.req.requestingPersonId || keyedIt.includes(act.recorderId))) return { ok: false, message: "You raised this. Someone else must record the endorsement." };
     const policy = await loadPolicy(l.org.id, tx);
     if (!policy.endorsementTiers.includes(tier)) {
       return { ok: false, errors: { tier: policy.endorsementTiers.length === 0 ? endorsementFaultText({ code: "NOT_SET" }) : "The policy does not ask for this tier's endorsement." } };
@@ -511,7 +511,7 @@ export async function reopenDraft(_prev: FormState, data: FormData): Promise<For
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
-    if (l.req.status === "REJECTED") return { ok: false, message: "A rejected requisition goes where its rejection says. Choose where it goes next on its Approval tab, which records the choice and who made it." };
+    if (l.req.status === "REJECTED") return { ok: false, message: "Choose where it goes next on its Approval tab." };
     const fault = transitionFault(l.req.status, "DRAFT", { today: l.org.today });
     if (fault) return { ok: false, message: transitionFaultText(fault) };
     const from = l.req.status;
@@ -556,7 +556,7 @@ export async function changeFunding(_prev: FormState, data: FormData): Promise<F
   if (r.failed) return { ok: false, errors: r.errors };
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (["CANCELLED", "CLOSED", "FULFILLED"].includes(l.req.status)) return { ok: false, message: "This requisition can no longer change." };
-    if (l.req.status === "PENDING_APPROVAL") return { ok: false, message: "An approval is open on the current route. Recall it first, then change the funding route." };
+    if (l.req.status === "PENDING_APPROVAL") return { ok: false, message: "Approval is open. Recall it, then change the funding route." };
     if (code === l.req.fundingRouteCode) return { ok: false, errors: { fundingRouteCode: "That is already the funding route." } };
     const { lookups } = await loadLookups(l.org.id, tx);
     const route = lookups.fundingRoutes.find((x) => x.code === code) ?? null;
@@ -602,7 +602,7 @@ export async function recordExternalAuthority(_prev: FormState, data: FormData):
 // ---------------------------------------------------------------- budget
 
 const SOURCE_NOT_SET =
-  "Where the budget check comes from is not set, so no check can be run. Set the budget check source in Configuration, Requisition controls.";
+  "Budget check source not set. Set it under Requisition controls.";
 
 
 
@@ -627,7 +627,7 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
 
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const refusal = budgetCheckRefusal(l.req.status, l.req.budgetCodeId, l.org.today);
-    if (refusal?.code === "NOT_CHECKABLE") return { ok: false, message: "A budget check runs once the requisition is endorsed, and before it is submitted." };
+    if (refusal?.code === "NOT_CHECKABLE") return { ok: false, message: "Check the budget after endorsement, before submission." };
     // Checking one with no budget code would move it past where it can still be returned to add one.
     if (refusal?.code === "NO_BUDGET_CODE") return { ok: false, message: MISSING_BUDGET_CODE_TEXT[refusal.missing] };
     if (refusal) return NO_ZONE;
@@ -638,7 +638,7 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
     let asAt = today;
     if (controls.budgetCheckSource === "MANUAL_ERP_ENTRY") {
       const errors: Record<string, string> = {};
-      if (!typed.balanceAsAt) errors.balanceAsAt = "The balance as at the date is required: the verdict is read from it.";
+      if (!typed.balanceAsAt) errors.balanceAsAt = "Balance as at the date is required.";
       if (!typed.asAt) errors.asAt = "Give the date the finance system's figures are as at.";
       else if (storedDay(typed.asAt) > l.org.today!) errors.asAt = "The figures cannot be as at a date after today.";
       if (Object.keys(errors).length > 0) return { ok: false, errors };
@@ -706,7 +706,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
         return {
           ok: false,
           message: controls.budgetCheckSource
-            ? `The last budget check is older than the ${policy.budgetRecheckDays}-day re-check window, and its figures are entered by hand. Enter a fresh check from the finance system first.`
+            ? `Last budget check is over ${policy.budgetRecheckDays} days old. Enter a fresh one first.`
             : SOURCE_NOT_SET,
         };
       }
@@ -721,12 +721,12 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     }
     const disposition = overBudgetDisposition(verdict, controls.availabilityCheck, invoked);
     if (!disposition.proceed) {
-      const stale = check ? "The last check had gone stale and was re-run now: " : "";
+      const stale = check ? "Stale check re-run: " : "";
       const text = {
-        NO_BUDGET: "there is no budget on the budget code to check against, so it cannot be submitted.",
-        AMBIGUOUS: "the account code is not the budget code's account, so which budget line applies is unclear.",
-        INSUFFICIENT_FUNDS: "it is over budget, and the availability check is set to block. Invoke the over-budget route to send it to the over-budget approvers.",
-        INVOCATION_REQUIRED: "it is over budget, and the availability check is not set, so it does not proceed on its own. Invoke the over-budget route to send it to the over-budget approvers.",
+        NO_BUDGET: "no budget on the budget code. Cannot submit.",
+        AMBIGUOUS: "account code is not the budget code's account.",
+        INSUFFICIENT_FUNDS: "over budget, and the check blocks it. Invoke the over-budget route.",
+        INVOCATION_REQUIRED: "over budget, availability check not set. Invoke the over-budget route.",
       }[disposition.fault];
       return { ok: false, message: `${stale}${text.charAt(0).toUpperCase()}${text.slice(1)}` };
     }
@@ -862,9 +862,9 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
 
 
 const GATES_NOT_SET =
-  "Whether this requisition's funding route needs a committee gate is not set, so its gates cannot be determined. Set “Needs a committee gate” on the funding route under Configuration, Reference data, then check again.";
+  "Committee gate setting not set on the funding route. Set it under Reference data.";
 const GATE_RULE_MISSING =
-  "This requisition's funding route needs a committee gate, and no gate rule is in force for it. Add the rule under Configuration, Requisition controls, then check again.";
+  "Funding route needs a gate, but no gate rule is set. Add one under Requisition controls.";
 
 /// Determine the gates of a requisition approved before gates existed, or while the route's setting was unset.
 export async function checkCommitteeGates(_prev: FormState, data: FormData): Promise<FormState> {
@@ -877,7 +877,7 @@ export async function checkCommitteeGates(_prev: FormState, data: FormData): Pro
     if (l.req.gatesDeterminedOn) return { ok: false, message: "This requisition's committee gates are already determined." };
     if (!l.org.today) return NO_ZONE;
     const approved = l.req.approvalInstances.find((i) => i.status === "APPROVED");
-    if (!approved) return { ok: false, message: "This requisition has no approved route on record, so there is no approved value to judge its gates by." };
+    if (!approved) return { ok: false, message: "No approved route on record. Gates cannot be judged." };
     const found = await determineGates(tx, toAuditActor(actor), l, routedValue(approved));
     if (found.state === "NOT_SET") return { ok: false, message: GATES_NOT_SET };
     if (found.state === "RULE_MISSING") return { ok: false, message: GATE_RULE_MISSING };

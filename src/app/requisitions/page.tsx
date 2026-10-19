@@ -61,7 +61,7 @@ export default async function RequisitionsPage() {
     <>
       <PageHeader
         title="Requisitions"
-        subtitle="Requests to spend, raised here, checked and routed for approval."
+        info={{ title: "Requisitions", text: "Requests to spend, checked and routed for approval. Search by reference or finance-system number." }}
         meta={[
           `${counts.open} open`,
           `${counts.pending} pending approval`,
@@ -80,23 +80,19 @@ export default async function RequisitionsPage() {
         <Callout
           tone="warn"
           className="mb-6"
-          title="The organisation's time zone is not set"
+          title="Time zone not set. Requisitions cannot be recorded."
           action={
             <ButtonLink href="/configuration/organisation" size="sm">
               Set time zone
             </ButtonLink>
           }
-        >
-          Raising, endorsing, submitting and deciding a requisition all depend on today&apos;s date, which is not assumed
-          to be UTC. Until the zone is set, none of them can be recorded.
-        </Callout>
+        />
       )}
 
       <Card className="overflow-hidden">
         <CardHeader
           icon={<ClipboardIcon size={17} />}
           title="All requisitions"
-          subtitle="Newest first. Search finds a requisition by its reference or its finance-system numbers."
           divided={false}
         />
         <DataList
@@ -105,7 +101,6 @@ export default async function RequisitionsPage() {
           exportName="requisitions"
           searchPlaceholder="Search by title or number"
           emptyTitle="No requisitions yet"
-          emptyBody="Raise a requisition to start."
           views={[
             { id: "pending", label: "Pending approval" },
             { id: "drafts", label: "Drafts" },

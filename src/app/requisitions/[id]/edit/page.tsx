@@ -21,13 +21,13 @@ function backToDraft(status: string): string {
     case "REGISTERED":
     case "BUDGET_CHECKED":
     case "OVER_BUDGET":
-      return "To change them, return it as incomplete from the requisition, then reopen it as a draft.";
+      return "Return it as incomplete, then reopen as a draft.";
     case "RETURNED":
     case "RECALLED":
     case "REJECTED":
-      return "To change them, reopen it as a draft from the requisition.";
+      return "Reopen it as a draft.";
     case "PENDING_APPROVAL":
-      return "To change them, recall it from approval before anyone decides, then reopen it as a draft.";
+      return "Recall it before anyone decides, then reopen as a draft.";
     default:
       return "It can no longer be changed.";
   }
@@ -45,22 +45,19 @@ export default async function EditRequisitionPage(props: PageProps<"/requisition
   return (
     <>
       <RecordCrumb label={r.reference} />
-      <PageHeader eyebrow={<Link href={`/requisitions/${id}`}>{r.reference}</Link>} title={`Edit ${r.title}`} subtitle="Only a draft can be edited." />
+      <PageHeader eyebrow={<Link href={`/requisitions/${id}`}>{r.reference}</Link>} title={`Edit ${r.title}`} />
       {r.status !== "DRAFT" ? (
-        <Callout tone="warn" title="This requisition is no longer a draft">
-          Its fields are fixed once it is endorsed. {backToDraft(r.status)}
+        <Callout tone="warn" title="Fields are fixed once endorsed.">
+          {backToDraft(r.status)}
         </Callout>
       ) : estimate.state === "WITHHELD" ? (
-        <Callout tone="warn" title="The department estimate is SULIT and is closed to you">
-          Editing a requisition changes its estimate, so it is open only to those who may read it. {estimate.words.en}
+        <Callout tone="warn" title="Estimate is SULIT and closed to you">
+          {estimate.words.en}
         </Callout>
       ) : (
         <>
           {r.endorsements.length > 0 && (
-            <Callout tone="warn" className="mb-6" title="Saving withdraws the endorsements recorded">
-              {r.endorsements.length === 1 ? "One endorsement was" : `${r.endorsements.length} endorsements were`} given to the draft as
-              it stands. A change withdraws {r.endorsements.length === 1 ? "it" : "them"}, on the record, and the tiers endorse again.
-            </Callout>
+            <Callout tone="warn" className="mb-6" title={`Saving withdraws ${r.endorsements.length === 1 ? "the endorsement" : `${r.endorsements.length} endorsements`}. Tiers endorse again.`} />
           )}
           <RequisitionForm
             mode="edit"

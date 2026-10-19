@@ -135,7 +135,7 @@ export function approvalRouteLabel(status: keyof typeof APPROVAL_STATUS_LABEL | 
 }
 export const OPERATOR_LABEL = {
   GT: "Above the boundary — a value exactly on it stays in the lower band",
-  GTE: "At or above the boundary — a value exactly on it moves to the upper band",
+  GTE: "At or above: a value on the boundary moves up",
 } as const;
 
 const FIELD_NAME: Record<string, string> = {
@@ -230,9 +230,9 @@ export function fieldFaultText(f: FieldFault): string {
 export function endorsementFaultText(f: EndorsementFault, names: (id: string) => string = () => "That person"): string {
   switch (f.code) {
     case "NOT_SET":
-      return "No endorsement tiers are set, so nothing can be endorsed or submitted. Set them in Requisition controls.";
+      return "Endorsement tiers not set. Set them in Requisition controls.";
     case "TIER_NOT_ON_PATH":
-      return `The policy asks for a ${TIER_LABEL[f.tier]}'s endorsement, but the requesting unit has no ${f.tier.toLowerCase()} above it.`;
+      return `Policy needs a ${TIER_LABEL[f.tier]} endorsement, but the unit has none above it.`;
     case "NO_HEAD":
       return `The ${f.tier.toLowerCase()} on this requisition's path has no head recorded. Record one under Organisation.`;
     case "MISSING":
@@ -266,9 +266,9 @@ export function transitionFaultText(f: TransitionFault): string {
     case "NOT_ALLOWED":
       return `A ${STATUS_LABEL[f.from].toLowerCase()} requisition cannot become ${STATUS_LABEL[f.to].toLowerCase()}.`;
     case "TIME_ZONE_UNSET":
-      return "Set the organisation's time zone first: this act depends on today's date, and it is not assumed to be UTC.";
+      return "Time zone not set. An administrator sets it under Organisation.";
     case "FIELDS_INCOMPLETE":
-      return `${f.count} ${f.count === 1 ? "field needs" : "fields need"} attention before it can leave draft.`;
+      return `${f.count} ${f.count === 1 ? "field needs" : "fields need"} attention.`;
     case "ENDORSEMENTS_INCOMPLETE":
       return `${f.count} ${f.count === 1 ? "endorsement is" : "endorsements are"} outstanding.`;
     case "ENDORSEMENT_TIERS_NOT_SET":
@@ -282,9 +282,9 @@ export function transitionFaultText(f: TransitionFault): string {
     case "STEP_ALREADY_DECIDED":
       return "A step has already been decided, so it can no longer be recalled.";
     case "SUCCESSOR_REQUIRED":
-      return "A rejected requisition goes back for approval only on a route continued from an earlier step. Reopen it as a draft to send it again.";
+      return "Reopen it as a draft to send it again.";
     case "GATE_NOT_ENDED":
-      return "An approved requisition is closed without sourcing only when a committee gate has ended it.";
+      return "Closed without sourcing only after a committee gate ends it.";
   }
 }
 
@@ -301,36 +301,36 @@ export const DECIDER_FAULT_TEXT: Record<DeciderFault, string> = {
   NOT_PENDING: "This step is already decided.",
   OUT_OF_ORDER: "An earlier step is still pending. Steps are decided in order.",
   INACTIVE: "That person is recorded as having left.",
-  NOT_HOLDER: "That person does not hold this office for the requesting unit on that date, and holds no delegation of it.",
+  NOT_HOLDER: "Not the office holder or a delegate on that date.",
   DELEGATION_NOT_PERMITTED: "This step cannot be delegated, and that person acts only under a delegation.",
   OVER_CEILING: "The requisition's value is above the ceiling of the delegation that person acts under.",
   SELF_APPROVAL: "That person raised this requisition. Nobody decides their own.",
   SENT_IT: "That person sent this for approval. Nobody decides what they sent.",
   ENDORSED_IT:
-    "That person endorsed this requisition. An endorser may decide only a step of the office they hold directly for the unit they endorsed for — never as a delegate, and never another office's step.",
+    "Endorsers decide only their own office's step, never as a delegate.",
   ALREADY_DISCHARGED_A_STEP: "That person has already decided another step of this route.",
   FUTURE_DATE: "A decision cannot be dated after today.",
   BEFORE_SUBMISSION: "A decision cannot be dated before the requisition was submitted.",
-  DECLARED_CONFLICT: "That person declared a conflict of interest on this step and recused. The step was escalated to the office above.",
-  RECORDER_IS_REQUESTER: "You raised or sent this matter for decision. Nobody records the decision of their own matter, for themselves or on someone else's behalf.",
+  DECLARED_CONFLICT: "Declared a conflict and recused. Step escalated.",
+  RECORDER_IS_REQUESTER: "You raised this. Someone else must record the decision.",
   RECORDER_ENDORSED_IT: "You endorsed this matter. An endorser does not record its decision for someone else.",
-  RECORDER_DECIDED_ANOTHER_STEP: "You have already decided another step of this route. The same person does not record a second decision on it for someone else.",
-  RECORDER_DECLARED_CONFLICT: "You declared a conflict of interest on this step and recused. You do not record its decision for someone else.",
+  RECORDER_DECIDED_ANOTHER_STEP: "You already decided another step. Someone else records this one.",
+  RECORDER_DECLARED_CONFLICT: "You recused on this step. Someone else records it.",
 };
 
 /// Why a received requisition's commitment is not in the portal ledger, as a title.
 export const UNPOSTED_TITLE: Record<"HELD_IN_FINANCE" | "ROUTE_OFF" | "SOURCE_NOT_SET" | "UNEXPLAINED", string> = {
-  HELD_IN_FINANCE: "Commitment held in the finance system, not posted in the portal ledger",
-  ROUTE_OFF: "This funding route does not commit the organisation's budget",
-  SOURCE_NOT_SET: "No commitment posted: where the budget check comes from is not set",
-  UNEXPLAINED: "No commitment posted in the portal ledger",
+  HELD_IN_FINANCE: "Commitment held in finance system",
+  ROUTE_OFF: "Route does not commit the budget",
+  SOURCE_NOT_SET: "No commitment posted: check source not set",
+  UNEXPLAINED: "No commitment posted",
 };
 
 export const UNPOSTED_TEXT: Record<keyof typeof UNPOSTED_TITLE, string> = {
-  HELD_IN_FINANCE: "It was approved in the finance system, which holds its commitment. The portal's budget figures do not include it.",
-  ROUTE_OFF: "Approval on its funding route does not commit the organisation's own budget, so no commitment was posted for it.",
-  SOURCE_NOT_SET: "Nobody has said whether the budget is held in the portal ledger or the finance system, so the portal's figures may not include it. Set the source in Requisition controls.",
-  UNEXPLAINED: "The settings in force would post one, and none is on the ledger: it may have been received before they were set. The portal's figures do not include it.",
+  HELD_IN_FINANCE: "Portal budget figures exclude it.",
+  ROUTE_OFF: "Approval posts no commitment on this route.",
+  SOURCE_NOT_SET: "Portal figures may exclude it. Set the source in Requisition controls.",
+  UNEXPLAINED: "May predate current settings. Portal figures exclude it.",
 };
 
 /**
@@ -378,14 +378,14 @@ export function gateOutcomeLabel(record: { outcome: "CARRIED" | "NOT_CARRIED" | 
 
 export const GATE_CITATION_TEXT: Record<GateCitationFault, string> = {
   NOT_THIS_REQUISITION: "That matter was not tabled against this requisition.",
-  NOT_GATE_DOMAIN: "That matter was not tabled as a committee gate for a requisition. Table it with the matter “Committee gate” and this requisition's reference.",
+  NOT_GATE_DOMAIN: "Not tabled as a committee gate for this requisition.",
   OTHER_COMMITTEE: "That matter is before a different committee from the one this gate names.",
   OTHER_ACT: "The committee was asked for a different act from the one this gate needs.",
-  CITED_ON_ROUTE_STEP: "That decision discharges a step of the approval route. One decision answers one step or one gate, never both.",
+  CITED_ON_ROUTE_STEP: "Already discharges an approval step. One decision serves one.",
   ALREADY_CITED: "That matter is already cited against a gate.",
   WITHDRAWN: "That matter was withdrawn from the agenda.",
   DECIDED_BEFORE_GATE: "The committee decided that matter before the gate was determined.",
   GATE_PASSED: "This gate has already passed.",
   GATE_ENDED: "This gate has ended the requisition. Close it without sourcing.",
-  NOT_AFTER_RETURN: "The gate was returned for revision by a later decision. Only a matter decided after the return can move it: table the revised paper again.",
+  NOT_AFTER_RETURN: "Gate was returned. Table the revised paper again.",
 };

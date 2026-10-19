@@ -116,7 +116,7 @@ export function newerIssueNote(
   return {
     code: "NEWER_ISSUE_IN_FORCE",
     level: "info",
-    messageEn: `Routed under “${routedUnder.label}”, the issue in force on ${raisedOnText}, when the requisition was raised. “${inForceAtSubmission.label}” is in force on the day it was submitted; a requisition keeps the limits it was raised under.`,
+    messageEn: `Routed under “${routedUnder.label}”, in force on ${raisedOnText}, when raised. “${inForceAtSubmission.label}” is in force at submission.`,
   };
 }
 

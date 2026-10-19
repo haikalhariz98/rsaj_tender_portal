@@ -94,6 +94,6 @@ export function returnedRouteCitationNotes(route: {
       const committee = s.decidedByName?.trim() || s.roleLabel;
       // A stored day (midnight UTC of the day recorded), read as that day.
       const when = s.decidedOn ? ` of ${formatOrgDay(s.decidedOn, "UTC")}` : "";
-      return `The ${committee}'s decision${when} was cited on the returned route and cannot discharge this one; table the matter again.`;
+      return `The ${committee}'s decision${when} cannot discharge this route. Table the matter again.`;
     });
 }

@@ -21,6 +21,8 @@ import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { buttonClass, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
+import { MoreText } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
@@ -251,11 +253,11 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     else if (fieldFaults.length > 0) submitBlocker = fieldFaultText(fieldFaults[0]);
     else if (gate.faults.length > 0) submitBlocker = fundingFaultText(gate.faults[0]);
     else if (!lastCheck) submitBlocker = "Run the budget check first.";
-    else if (stale && controls.budgetCheckSource === "MANUAL_ERP_ENTRY") submitBlocker = "The last check is stale and was entered by hand. Enter a fresh check first.";
+    else if (stale && controls.budgetCheckSource === "MANUAL_ERP_ENTRY") submitBlocker = "Last check is stale. Enter a fresh one.";
     if (lastCheck) {
       const d = overBudgetDisposition(lastCheck.verdict, controls.availabilityCheck, false);
       if (!d.proceed && (d.fault === "NO_BUDGET" || d.fault === "AMBIGUOUS")) {
-        submitBlocker ??= d.fault === "NO_BUDGET" ? "No budget to check against on the budget code." : "The account is not the budget code's, so the budget line is unclear.";
+        submitBlocker ??= d.fault === "NO_BUDGET" ? "No budget on the budget code." : "Account is not the budget code's.";
       }
       if (lastCheck.verdict === "EXCEEDS") overBudget = { invocation: !d.proceed, controlNotSet: d.controlNotSet, auto: d.proceed };
       // A stale check is re-run on submission and may then find it over budget: offer
@@ -312,7 +314,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     : !today
       ? transitionFaultText({ code: "TIME_ZONE_UNSET" })
       : !controls.budgetCheckSource
-        ? "Where the budget check comes from is not set. Set it in Requisition controls."
+        ? "Budget check source not set. Set it in Requisition controls."
         : noBudgetCode
           ? MISSING_BUDGET_CODE_TEXT[noBudgetCode]
           : null;
@@ -472,7 +474,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             <Badge tone={sentBack ? "warn" : TONE[STATUS_TONE[r.status]]} dot>
               {sentBack ? SENT_BACK_LABEL : STATUS_LABEL[r.status]}
             </Badge>
-            {r.origin === "EXTERNAL" && <Badge tone="info">Received from the finance system</Badge>}
+            {r.origin === "EXTERNAL" && <InfoChip tone="info" detail="Numbers, budget figures and approval trail are stored as typed. The trail is not checked against the approval matrix.">From finance system</InfoChip>}
           </>
         }
         subtitle={`${unitName(r.requestingUnitCode)}${r.sectionUnitCode ? ` · ${unitName(r.sectionUnitCode)}` : ""} · raised by ${r.requestingPerson.name}`}
@@ -493,21 +495,17 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         <Callout
           tone="warn"
           className="mb-6"
-          title="The organisation's time zone is not set"
+          title="Time zone not set. Nothing can be recorded."
           action={
             <ButtonLink href={ORGANISATION_HREF} size="sm">
               Set time zone
             </ButtonLink>
           }
-        >
-          Endorsing, submitting and deciding depend on today&apos;s date, which is not assumed to be UTC. None of them can be recorded until the zone is set.
-        </Callout>
+        />
       )}
       {r.status === "OVER_BUDGET" && inst?.status === "RECALLED" && returnedAtApproval(inst.warnings) && (
-        <Callout tone="warn" className="mb-6" title="Returned at approval (budget): the budget no longer covers it">
-          When the final decision was recorded, the budget code was re-checked before committing, and another commitment had used the
-          balance since submission. The decision was not recorded; a fresh check is on the Budget and checks tab. Submit it again on the
-          over-budget route.
+        <Callout tone="warn" className="mb-6" title="Returned at approval: budget no longer covers it">
+          Decision not recorded. Submit again on the over-budget route.
           {returnedRouteCitationNotes({ returnedAtApproval: true, steps: inst.steps }).map((n) => (
             <span key={n} className="mt-1.5 block">
               {n}
@@ -516,9 +514,9 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         </Callout>
       )}
       {r.status === "REJECTED" && inst && (
-        <Callout tone="err" className="mb-6" title={awaitingChoice ? "Rejected: where it goes next is the officer's choice" : "Rejected"}>
+        <Callout tone="err" className="mb-6" title={awaitingChoice ? "Rejected. The officer chooses where it goes." : "Rejected"}>
           {inst.rejectionReason ? `“${inst.rejectionReason}” ` : ""}
-          {awaitingChoice ? (inst.rejectionChoices.length > 0 ? CHOICE_WHY_TEXT[awaitingChoice.why] : "It was rejected before rejection destinations were recorded, so the officer chooses where it goes. The choice is recorded as theirs, not as policy.") : null}
+          {awaitingChoice ? (inst.rejectionChoices.length > 0 ? CHOICE_WHY_TEXT[awaitingChoice.why] : "No destination was recorded.") : null}
         </Callout>
       )}
       {sentBack && (
@@ -532,11 +530,11 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             </ButtonLink>
           }
         >
-          {sentBack.reason ? `Rejected at approval and returned to whoever raised it: “${sentBack.reason}”` : "Rejected at approval and returned to whoever raised it. No reason was recorded."} Change it, then endorse and submit it again.
+          {sentBack.reason ? `“${sentBack.reason}”` : "No reason recorded."} Change, endorse and submit again.
         </Callout>
       )}
       {r.status === "CLOSED" && r.closedReason && (
-        <Callout tone="info" className="mb-6" title="Closed">
+        <Callout tone="warn" className="mb-6" title="Closed">
           {r.closedReason}
         </Callout>
       )}
@@ -546,13 +544,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         </Callout>
       )}
       {r.status === "CANCELLED" && (
-        <Callout tone="info" className="mb-6" title="Cancelled">
+        <Callout tone="warn" className="mb-6" title="Cancelled">
           {r.cancelReason || "No reason recorded."}
-        </Callout>
-      )}
-      {r.origin === "EXTERNAL" && (
-        <Callout tone="info" className="mb-6" title="Entered by hand from the finance system">
-          Its numbers, budget figures and approval trail are stored exactly as typed. The trail is not checked against the approval matrix.
         </Callout>
       )}
 
@@ -686,9 +679,9 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                   // Why the holders on file cannot decide it: the ruled conflicts, named early.
                   if (!open || !today || step.committeeCode || !step.roleCode) return null;
                   const d = deciderOptions(step);
-                  if (d.candidates === 0) return "Nobody holds this office for the requisition's department today, and nobody holds a delegation of it.";
+                  if (d.candidates === 0) return "Nobody holds this office or a delegation of it.";
                   if (d.eligible > 0) return null;
-                  return `Every holder of this office on file is barred from deciding it: ${d.barred.join("; ")}. Record a delegation to someone who is not.`;
+                  return `Every holder is barred: ${d.barred.join("; ")}. Record a delegation.`;
                 }}
                 today={today}
               />
@@ -704,7 +697,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 <CardHeader
                   icon={<GlobeIcon size={17} />}
                   title="Sourcing exercises"
-                  subtitle={approvedRoute && remaining != null ? (sumsShown && estimate.state === "GRANTED" ? `Approved for ${formatMoney(routedValue(approvedRoute))} · ${formatMoney(inExercises)} in live exercises · ${formatMoney(remaining)} left.` : estimate.state === "WITHHELD" ? "Approved. What it was approved for, what is in live exercises and what is left are made of the department estimate, which you may not read, so they are not shown." : `Approved for ${formatMoney(routedValue(approvedRoute))}. What is in live exercises and what is left are made of exercise estimates you may not read, so they are not shown.`) : "Opened once the requisition is approved."}
+                  subtitle={approvedRoute && remaining != null ? (sumsShown && estimate.state === "GRANTED" ? `Approved ${formatMoney(routedValue(approvedRoute))} · ${formatMoney(inExercises)} in exercises · ${formatMoney(remaining)} left` : estimate.state === "WITHHELD" ? "Approved. Amounts are SULIT." : `Approved ${formatMoney(routedValue(approvedRoute))}. Remaining is SULIT.`) : undefined}
                   actions={
                     exerciseFault ? (
                       <Blocked label="New exercise" reason={findingText(exerciseFault)} />
@@ -718,14 +711,12 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 {r.status === "SOURCING" && liveExercises === 0 && (
                   <div className="border-b border-line px-5 py-3 sm:px-6">
                     <Callout tone="warn" title="No live exercise">
-                      Every exercise on this requisition has been cancelled. It stays in sourcing — the portal has no path back to approved, nor to abandon an approved requisition — so open a new exercise against it.
+                      Every exercise is cancelled. Open a new one.
                     </Callout>
                   </div>
                 )}
                 {exercises.length === 0 ? (
-                  <EmptyState size="sm" title="No exercises">
-                    {exerciseFault ? findingText(exerciseFault) : "Open one to classify how this requisition is sourced."}
-                  </EmptyState>
+                  <EmptyState size="sm" title="No exercises" />
                 ) : (
                   <ul className="divide-y divide-line/70">
                     {exercises.map((x) => (
@@ -868,12 +859,10 @@ async function Overview({
         <CardHeader
           icon={<ClipboardIcon size={17} />}
           title="Line items"
-          subtitle={estimate.state === "GRANTED" ? linesSubtitle(r.lines.length, lineTotal) : `${r.lines.length} ${r.lines.length === 1 ? "line" : "lines"}. What they come to is the department estimate, which you may not read.`}
+          subtitle={estimate.state === "GRANTED" ? linesSubtitle(r.lines.length, lineTotal) : `${r.lines.length} ${r.lines.length === 1 ? "line" : "lines"}. Total is SULIT.`}
         />
         {r.lines.length === 0 ? (
-          <EmptyState size="sm" title="No lines">
-            A requisition needs at least one line before it can leave draft.
-          </EmptyState>
+          <EmptyState size="sm" title="No lines" />
         ) : (
           <Table minWidth={560}>
             <colgroup>
@@ -915,7 +904,7 @@ async function Overview({
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title="Endorsements"
-          subtitle="The heads of the tiers the policy names, before submission."
+          subtitle="Before submission"
           actions={
             // Offered while a tier is outstanding; once every tier has endorsed, the next
             // step is Mark endorsed, in the header.
@@ -933,15 +922,13 @@ async function Overview({
           <CardBody>
             <Callout
               tone="warn"
-              title="Endorsement tiers are not set"
+              title="Endorsement tiers not set. Nothing can be submitted."
               action={
                 <ButtonLink href={CONTROLS_HREF} size="sm">
                   Set tiers
                 </ButtonLink>
               }
-            >
-              The policy does not say whose endorsement a requisition needs, and none is assumed. Until the tiers are set, no requisition can be endorsed or submitted.
-            </Callout>
+            />
           </CardBody>
         ) : (
           <Table minWidth={560}>
@@ -1030,12 +1017,12 @@ function BudgetPanel({
   const stale = c && l.org.today && PRE_SUBMIT.includes(r.status) ? isStale(ageDay(c), recheckDays, l.org.today) : false;
   const noCheck =
     r.origin === "EXTERNAL"
-      ? { title: "No budget check was entered", body: "It was received already approved in the finance system, with no budget figures typed." }
+      ? { title: "No budget check entered" }
       : PRE_SUBMIT.includes(r.status)
-        ? { title: "Not checked yet", body: "Run Check budget before submitting it for approval." }
+        ? { title: "Not checked yet" }
         : ["DRAFT", "RETURNED"].includes(r.status)
-          ? { title: "No budget check yet", body: "The check can be run once the requisition is endorsed." }
-          : { title: "No budget check was recorded", body: "It left the stages where a check is run without one." };
+          ? { title: "Not checked. Endorse first." }
+          : { title: "No budget check recorded" };
   const settings: { label: string; value: React.ReactNode }[] = [
     {
       label: "Check source",
@@ -1043,20 +1030,20 @@ function BudgetPanel({
     },
     {
       label: "Re-checked on submission after",
-      value: recheckDays == null ? <span>Not set — a check never goes stale</span> : `${recheckDays} days`,
+      value: recheckDays == null ? <InfoChip outline detail="A check never goes stale.">Not set</InfoChip> : `${recheckDays} days`,
     },
     {
       label: "Over budget",
       value:
         controls.availabilityCheck === "advisory"
-          ? "Routes to the over-budget approvers with a warning"
+          ? "Routes to over-budget approvers, with a warning"
           : controls.availabilityCheck === "blocking"
             ? "Held until the over-budget route is invoked"
-            : <span>Control not set — held until the over-budget route is invoked</span>,
+            : <span className="inline-flex items-center gap-1.5">Held until invoked <InfoChip outline detail="The availability check is not set.">Not set</InfoChip></span>,
     },
     {
       label: "Commit on approval",
-      value: controls.commitOnApproval == null ? <Badge tone="warn">Not set</Badge> : controls.commitOnApproval ? "Yes, on the day it is approved" : "No",
+      value: controls.commitOnApproval == null ? <Badge tone="warn">Not set</Badge> : controls.commitOnApproval ? "Yes, on approval" : "No",
     },
   ];
   return (
@@ -1065,19 +1052,21 @@ function BudgetPanel({
         <CardHeader
           icon={<ChartIcon size={17} />}
           title="Latest budget check"
-          subtitle={c ? `${SOURCE_LABEL[c.source]} · as at ${formatDate(c.asAt)} · checked ${formatOrgDay(c.checkedAt, l.org.timeZone)}` : "Not checked yet."}
+          subtitle={c ? `${SOURCE_LABEL[c.source]} · as at ${formatDate(c.asAt)} · checked ${formatOrgDay(c.checkedAt, l.org.timeZone)}` : undefined}
           actions={c ? <Badge tone={TONE[VERDICT_TONE[c.verdict]]}>{VERDICT_LABEL[c.verdict]}</Badge> : undefined}
         />
         <CardBody className="flex flex-col gap-5">
           {r.origin === "EXTERNAL" && !r.commitmentMovementId && unposted && (
-            <Callout tone={unposted === "HELD_IN_FINANCE" || unposted === "ROUTE_OFF" ? "info" : "warn"} title={UNPOSTED_TITLE[unposted]}>
-              {UNPOSTED_TEXT[unposted]}
-            </Callout>
+            unposted === "HELD_IN_FINANCE" || unposted === "ROUTE_OFF" ? (
+              <div><InfoChip tone="info" detail={UNPOSTED_TEXT[unposted]}>{UNPOSTED_TITLE[unposted]}</InfoChip></div>
+            ) : (
+              <Callout tone="warn" title={UNPOSTED_TITLE[unposted]}>
+                {UNPOSTED_TEXT[unposted]}
+              </Callout>
+            )
           )}
           {!c ? (
-            <EmptyState size="sm" title={noCheck.title} action={PRE_SUBMIT.includes(r.status) ? checkAction : undefined}>
-              {noCheck.body}
-            </EmptyState>
+            <EmptyState size="sm" title={noCheck.title} action={PRE_SUBMIT.includes(r.status) ? checkAction : undefined} />
           ) : (
             <>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1090,25 +1079,20 @@ function BudgetPanel({
                   label={
                     <span className="inline-flex items-center gap-1.5">
                       Approved account <ProvenanceBadge value={c.approvedAccountProvenance} />
+                      <MoreText text={`${c.source === "PORTAL_LEDGER" ? "Committed plus spent on the ledger, which assumes what the term means." : "As the finance system shows it. Its meaning there is not confirmed."} The verdict reads the balance alone.`} />
                     </span>
                   }
                   value={money(c.approvedAccount)}
                 />
-                <Stat variant="inset" size="sm" tone="neutral" label="Projected balance" value={<SulitValue of={rm(money(c.projectedBalance))} />} hint={estimate.state === "GRANTED" ? `After ${formatRM(num(c.requestedAmount))}` : "What the requisition would leave is made of the department estimate, which you may not read."} />
+                <Stat variant="inset" size="sm" tone="neutral" label="Projected balance" value={<SulitValue of={rm(money(c.projectedBalance))} />} hint={estimate.state === "GRANTED" ? `After ${formatRM(num(c.requestedAmount))}` : "SULIT"} />
               </div>
-              <p className="text-[12.5px] text-ink-3">
-                {c.source === "PORTAL_LEDGER"
-                  ? "Approved account is committed plus spent on the ledger, which is an assumption about what the term means."
-                  : "Approved account is as the finance system shows it; what it means there is not yet confirmed."}{" "}
-                The verdict reads the balance alone, never the approved account.
-              </p>
               {c.outcome.includes("COST_CENTRE_OUTSIDE_OWNER") && (
-                <Callout tone="warn">The cost centre&apos;s unit is not the budget code&apos;s owning unit. This warns and does not block.</Callout>
+                <Callout tone="warn">Cost centre unit is not the budget code&apos;s owner. Warning only.</Callout>
               )}
               {identity === false && (
-                <Callout tone="err">Actual budget less approved account does not equal the balance on this ledger check. Report it: the ledger arithmetic should always close.</Callout>
+                <Callout tone="err">Actual budget less approved account does not equal the balance. Report it.</Callout>
               )}
-              {stale && <Callout tone="info">This check is older than the re-check window, so it is re-run on submission.</Callout>}
+              {stale && <Callout tone="warn">Check is stale. It re-runs on submission.</Callout>}
             </>
           )}
         </CardBody>
@@ -1118,7 +1102,7 @@ function BudgetPanel({
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title="Controls applied"
-          subtitle="As configured today. A submitted requisition's route keeps the settings it was judged under."
+          subtitle="As configured today"
           actions={
             <ButtonLink href={controls.budgetCheckSource ? BUDGET_HREF : CONTROLS_HREF} size="sm" variant="ghost">
               Configure
@@ -1132,7 +1116,7 @@ function BudgetPanel({
 
       {r.budgetChecks.length > 1 && (
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Earlier checks" subtitle="Every check is kept as it was." />
+          <CardHeader icon={<ClockIcon size={17} />} title="Earlier checks" />
           <Table minWidth={620}>
             <colgroup>
               <col style={{ width: "22%" }} />
@@ -1215,15 +1199,11 @@ async function ApprovalPanel({
     return (
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<RouteIcon size={17} />} title="Approval route" subtitle="Resolved and stored when the requisition is submitted." />
+          <CardHeader icon={<RouteIcon size={17} />} title="Approval route"  />
           <CardBody className="flex flex-col gap-4">
             {preview ? (
               <>
-                <p className="text-[13.5px] text-ink-2">
-                  {previewRefusal
-                    ? "If it were submitted today, it would be refused (below). The approval matrix in force on the day it was raised gives this route:"
-                    : "If it were submitted today, the approval matrix in force on the day it was raised would route it:"}
-                </p>
+                <p className="text-[13.5px] font-semibold text-ink-2">{previewRefusal ? "If submitted today: refused" : "If submitted today"}</p>
                 {preview.resolution.chain.length > 0 ? (
                   <ol className="flex flex-col gap-2">
                     {preview.resolution.chain.map((s, i) => (
@@ -1241,7 +1221,7 @@ async function ApprovalPanel({
                   </Callout>
                 ))}
                 {previewRefusal && <Callout tone="err">{previewRefusal}</Callout>}
-                {previewNote && <Callout tone="info">{previewNote}</Callout>}
+                {previewNote && <Callout tone="warn">{previewNote}</Callout>}
                 {preview.warnings.filter((w) => w.level !== "err").map((w) => (
                   <Callout key={w.messageEn} tone="warn">
                     {w.messageEn}
@@ -1249,9 +1229,7 @@ async function ApprovalPanel({
                 ))}
               </>
             ) : (
-              <EmptyState size="sm" title="Not submitted">
-                The route is resolved once the requisition is endorsed and its budget checked.
-              </EmptyState>
+              <EmptyState size="sm" title="Not submitted" />
             )}
           </CardBody>
         </Card>
@@ -1272,8 +1250,8 @@ async function ApprovalPanel({
           title="Approval route"
           subtitle={
             inst.checkedAgainstMatrix
-              ? `Opened ${openedOn} under ${inst.matrixLabel ?? "an issue no longer on file"}.`
-              : "As received from the finance system: not checked against the approval matrix."
+              ? `Opened ${openedOn} under ${inst.matrixLabel ?? "an issue no longer on file"}`
+              : undefined
           }
           actions={<Badge tone={routeTone(inst.status)}>{approvalRouteLabel(inst.status, inst.warnings)}</Badge>}
         />
@@ -1295,9 +1273,7 @@ async function ApprovalPanel({
             })}
           />
           {inst.supersedesInstanceId && (
-            <Callout tone="info" title="Continues a rejected route">
-              The route before this one was rejected and returned to an earlier step. The steps before that step keep the decisions taken on it; the rest are decided again.
-            </Callout>
+            <div><InfoChip tone="info" detail="The route before this one was rejected and returned to an earlier step. Earlier steps keep their decisions; the rest are decided again.">Continues a rejected route</InfoChip></div>
           )}
           {inst.status === "REJECTED" && inst.rejectionApplied && inst.rejectionSource && (
             <Callout tone="warn" title="Where the rejection sent it">
@@ -1316,31 +1292,29 @@ async function ApprovalPanel({
                 { label: "Value band", value: routeBand ?? "Band not recorded" },
                 {
                   label: "At the boundary",
-                  value: inst.boundaryOperator ? OPERATOR_LABEL[inst.boundaryOperator] : "Did not apply: this rule's band does not start or end at the boundary",
+                  value: inst.boundaryOperator ? OPERATOR_LABEL[inst.boundaryOperator] : "Did not apply",
                 },
                 {
                   label: "Funder's rules",
                   value: inst.fundingOverrideApplied
-                    ? `Superseded the approval matrix: ${inst.overrideMatrixLabel ?? "a rule set no longer on file"}`
+                    ? `Superseded the matrix: ${inst.overrideMatrixLabel ?? "a rule set no longer on file"}`
                     : warnings.some((w) => w.code === "GOV_OVERRIDE")
-                      ? "The funder's rules supersede on this route, but none applied — see the warnings"
-                      : "Did not apply when it was submitted",
+                      ? "Supersede, but none applied. See warnings."
+                      : "Did not apply",
                 },
                 {
                   label: "Over budget",
                   value:
                     inst.budgetVerdict === "EXCEEDS"
                       ? inst.overBudgetInvoked
-                        ? `Over-budget route invoked by the officer${inst.availabilityCheck == null ? " · control not set" : ""}`
-                        : "Routed to the over-budget approvers automatically, with a warning"
+                        ? `Invoked by the officer${inst.availabilityCheck == null ? " · control not set" : ""}`
+                        : "Routed automatically, with a warning"
                       : "Within budget",
                 },
               ]}
             />
           ) : (
-            <Callout tone="info" title="Not checked against the approval matrix">
-              This trail was typed in from the finance system. The portal did not route it and does not vouch for it.
-            </Callout>
+            <div><InfoChip tone="warn" detail="Typed in from the finance system. The portal did not route it and does not vouch for it.">Not checked against matrix</InfoChip></div>
           )}
           {warnings.length > 0 && (
             <ul className="flex flex-col gap-2">
@@ -1391,7 +1365,7 @@ async function ApprovalPanel({
                       </div>
                     ) : s.carriedFromStepId ? (
                       <div className="text-[12.5px] text-ink-2">
-                        {DECISION_LABEL[s.decision]} · {s.decidedByName ?? "Not recorded"} · {formatDate(s.decidedOn)} · decided on the earlier route and carried onto this one
+                        {DECISION_LABEL[s.decision]} · {s.decidedByName ?? "Not recorded"} · {formatDate(s.decidedOn)} · carried from the earlier route
                       </div>
                     ) : committee && record ? (
                       <div className="text-[12.5px] text-ink-2">
@@ -1428,7 +1402,7 @@ async function ApprovalPanel({
                       blocker={
                         blocker ??
                         (citable.length === 0
-                          ? `No decided matter before the ${s.roleLabel} is tabled against this requisition. Table it at a sitting, with this requisition's reference.`
+                          ? `No decided ${s.roleLabel} matter yet. Table it at a sitting.`
                           : null)
                       }
                     />
@@ -1443,24 +1417,33 @@ async function ApprovalPanel({
       {inst.status === "APPROVED" && gates}
 
       {inst.status === "APPROVED" && inst.checkedAgainstMatrix && (
-        <Callout tone={r.commitmentMovementId ? "ok" : "info"} title={r.commitmentMovementId ? "Budget committed on approval" : "No commitment written"}>
-          {r.commitmentMovementId
-            ? (estimate.state === "GRANTED" ? `A commitment of ${formatRM(num(r.estimatedValue))} was written against the budget code on the day it was approved.` : "A commitment was written against the budget code on the day it was approved. Its amount is the department estimate, which you may not read.")
-            : {
-                SETTING_NOT_SET: "Commit on approval was not set when it was approved, so no commitment was written.",
-                SETTING_OFF: "Commit on approval is set off, so approval wrote no commitment.",
-                ROUTE_NOT_SET: "Commitment not set for this funding route when it was approved, so no commitment was written.",
-                ROUTE_OFF: "This funding route does not commit the organisation's budget, so approval wrote no commitment.",
+        <div>
+          {r.commitmentMovementId ? (
+            <InfoChip tone="ok" detail="Written against the budget code on the day it was approved.">
+              {estimate.state === "GRANTED" ? `Committed ${formatRM(num(r.estimatedValue))}` : "Committed"}
+            </InfoChip>
+          ) : (
+            <InfoChip
+              tone="info"
+              detail={{
+                SETTING_NOT_SET: "Commit on approval was not set when it was approved.",
+                SETTING_OFF: "Commit on approval is off.",
+                ROUTE_NOT_SET: "Commitment was not set for this funding route when it was approved.",
+                ROUTE_OFF: "This funding route does not commit the budget.",
                 WRITE: "No commitment is on record.",
               }[approvalCommitment(inst.commitOnApproval, inst.routeCommitsBudget)]}
-        </Callout>
+            >
+              No commitment
+            </InfoChip>
+          )}
+        </div>
       )}
 
       <CommitteeMatters l={l} />
 
       {earlier.length > 0 && (
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Earlier routes" subtitle="Kept on record. A re-submission opens a new route." />
+          <CardHeader icon={<ClockIcon size={17} />} title="Earlier routes" />
           <ul className="divide-y divide-line/70">
             {earlier.map((e) => {
               const returned = e.status === "RECALLED" && returnedAtApproval(e.warnings);
@@ -1530,7 +1513,7 @@ function GatesCard({
   const actions = (
     <>
       {live && undetermined && <CheckGatesDrawer id={r.id} blocker={l.org.today ? null : transitionFaultText({ code: "TIME_ZONE_UNSET" })} />}
-      {r.status === "APPROVED" && ended && <CloseWithoutSourcingDrawer id={r.id} commitment={r.commitmentMovementId ? (estimate.state === "GRANTED" ? formatRM(num(r.estimatedValue)) : "its amount (the department estimate, which you may not read)") : null} />}
+      {r.status === "APPROVED" && ended && <CloseWithoutSourcingDrawer id={r.id} commitment={r.commitmentMovementId ? (estimate.state === "GRANTED" ? formatRM(num(r.estimatedValue)) : "its amount") : null} />}
     </>
   );
   return (
@@ -1538,7 +1521,7 @@ function GatesCard({
       <CardHeader
         icon={<ShieldIcon size={17} />}
         title="Committee gates"
-        subtitle="Between approval and the first sourcing exercise, outside the approval matrix. Placed here as an assumption, awaiting the customer's confirmation."
+        subtitle={<InfoChip tone="warn" detail="Between approval and the first sourcing exercise, outside the approval matrix. Placed here as an assumption, awaiting the customer's confirmation.">Assumed</InfoChip>}
         actions={actions}
       />
       {undetermined ? (
@@ -1558,9 +1541,7 @@ function GatesCard({
           </Callout>
         </CardBody>
       ) : view.gates.length === 0 ? (
-        <EmptyState size="sm" title="No committee gate">
-          {r.gateRequired === false ? "Its funding route has no committee gate." : "No gate rule applies at its approved value."} Determined {formatOrgDay(r.gatesDeterminedOn!, "UTC")}.
-        </EmptyState>
+        <EmptyState size="sm" title={r.gateRequired === false ? "Funding route has no gate" : "No gate at this value"} />
       ) : (
         <ul className="divide-y divide-line/70">
           {view.gates.map((g) => {
@@ -1594,7 +1575,7 @@ function GatesCard({
                   {open && (
                     <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
                       {citable.length === 0 ? (
-                        <Blocked label="Cite the decision" reason={reason?.text ?? "No matter is tabled for this gate yet."} noteId={`gate-note-${g.id}`} />
+                        <Blocked label="Cite the decision" reason={reason?.text ?? "No matter tabled for this gate."} noteId={`gate-note-${g.id}`} />
                       ) : (
                         <CiteGateDrawer
                           id={r.id}
@@ -1609,7 +1590,7 @@ function GatesCard({
                   )}
                 </div>
                 {cited.length === 0 ? (
-                  <div className="text-[12.5px] text-ink-3 sm:pl-9">No matter cited yet. Table it at a sitting as a committee gate, then cite the decision.</div>
+                  <div className="text-[12.5px] text-ink-3 sm:pl-9">No matter cited yet</div>
                 ) : (
                   <ul className="flex flex-col gap-2 text-[12.5px] text-ink-2 sm:pl-9">
                     {cited.map((d) => {
@@ -1646,7 +1627,7 @@ function CommitteeMatters({ l }: { l: LoadedRequisition }) {
   if (matters.length === 0) return null;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ShieldIcon size={17} />} title="Committee matters" subtitle="Tabled against this requisition at a sitting." />
+      <CardHeader icon={<ShieldIcon size={17} />} title="Committee matters" />
       <ul className="divide-y divide-line/70">
         {matters.map((d) => {
           const rec = recordOf(d);
@@ -1686,11 +1667,11 @@ function ChecksPanel({
   const label = route?.label?.trim() || "External authority";
   const postureText =
     gate.posture === "RECORDS_ONLY"
-      ? "The organisation does not procure on this route: no sourcing, evaluation or award"
+      ? "No sourcing, evaluation or award"
       : gate.posture === "ROUTE_SET_EXTERNALLY"
-        ? "The organisation procures; an external body decides the sourcing route"
+        ? "Procures; an external body sets the route"
         : gate.posture === "PROCURES"
-          ? "The organisation procures and chooses how"
+          ? "Procures and chooses how"
           : "Not set";
   return (
     <div className="flex flex-col gap-6">
@@ -1698,7 +1679,6 @@ function ChecksPanel({
         <CardHeader
           icon={<RouteIcon size={17} />}
           title="Funding gate"
-          subtitle="What the funding route decides."
         />
         <CardBody className="flex flex-col gap-4">
           <KeyValues
@@ -1709,19 +1689,18 @@ function ChecksPanel({
               {
                 label: "Sourcing permitted",
                 value:
-                  r.sourcingPermitted == null ? (gate.sourcingPermitted == null ? "Not set" : `${gate.sourcingPermitted ? "Yes" : "No"} — fixed when it is submitted`) : r.sourcingPermitted ? "Yes" : "No",
+                  r.sourcingPermitted == null ? (gate.sourcingPermitted == null ? "Not set" : `${gate.sourcingPermitted ? "Yes" : "No"} · fixed at submission`) : r.sourcingPermitted ? "Yes" : "No",
               },
               {
                 label: route?.requires ? label : "External authority",
-                value: route?.requires ? (r.externalAuthorityRef ? <span className="font-mono text-[13px]">{r.externalAuthorityRef}</span> : <Badge tone="warn">Not recorded</Badge>) : "Not required on this route",
+                value: route?.requires ? (r.externalAuthorityRef ? <span className="font-mono text-[13px]">{r.externalAuthorityRef}</span> : <Badge tone="warn">Not recorded</Badge>) : "Not required",
               },
             ]}
           />
           {inst?.status === "APPROVED" && inst.checkedAgainstMatrix && inst.fundingRouteCode !== r.fundingRouteCode && (
             <Callout tone="warn" title="Funding route changed after approval">
-              It was approved on the funding route &ldquo;{routeNameOf(inst.fundingRouteCode ?? "") ?? "a route no longer configured"}&rdquo;
-              {inst.fundingOverrideApplied ? ", under that funder's rule set" : ", under the approval matrix"}. The approval was not re-routed for the
-              new route{route && gate.supersedesAuthority ? ", whose funder's rules supersede the matrix — check whether it must be approved again" : ""}.
+              Approved on &ldquo;{routeNameOf(inst.fundingRouteCode ?? "") ?? "a route no longer configured"}&rdquo;. Not re-routed
+              {route && gate.supersedesAuthority ? ". Check whether it needs approval again." : "."}
             </Callout>
           )}
           {gate.faults.length > 0 && !["APPROVED", "CANCELLED", "CLOSED"].includes(r.status) && (
@@ -1809,17 +1788,11 @@ function HistoryPanel({
       <CardHeader
         icon={<ClockIcon size={17} />}
         title="History"
-        subtitle={
-          total > entries.length
-            ? `Showing the latest ${entries.length} of ${total} changes. Each change names who made it; any from before sign-in is not attributed.`
-            : "Every change to this requisition and what is under it. Each change names who made it; any from before sign-in is not attributed."
-        }
+        subtitle={total > entries.length ? `Latest ${entries.length} of ${total} changes` : undefined}
         divided={entries.length === 0}
       />
       {entries.length === 0 ? (
-        <EmptyState size="sm" title="No recorded changes">
-          Changes made through the portal appear here. Records loaded directly have no trail.
-        </EmptyState>
+        <EmptyState size="sm" title="No recorded changes" />
       ) : (
         <ul className="divide-y divide-line/70">
           {entries.map((e) => (

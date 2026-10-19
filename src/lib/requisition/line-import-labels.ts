@@ -8,7 +8,7 @@ export const LINE_UPLOAD_WORDS = {
   upload: { en: "Upload lines" },
   uploading: { en: "Reading the file…" },
   help: {
-    en: "Fill in the template and upload it, instead of typing each line. Nothing is saved until you press Save.",
+    en: "Or upload the filled template.",
   },
   confirmTitle: { en: "Replace the lines you have typed?" },
   replace: { en: "Replace lines" },
@@ -16,7 +16,7 @@ export const LINE_UPLOAD_WORDS = {
   problemsTitle: { en: "Some rows were left out" },
   nothingTitle: { en: "No lines were read" },
   fixHint: {
-    en: "Fix them in the file and upload it again, or add them by hand.",
+    en: "Fix the file and upload again.",
   },
   failed: { en: "The file could not be sent. Try again." },
   dismiss: { en: "Dismiss" },
@@ -27,5 +27,5 @@ export const linesRead = (count: number, name: string): Words => ({
 });
 
 export const confirmReplace = (typed: number, incoming: number, left: number): Words => ({
-  en: `The ${typed === 1 ? "line" : `${typed} lines`} on the form will be replaced by ${incoming} from the file.${left > 0 ? ` ${left} ${left === 1 ? "problem was" : "problems were"} found: those rows are not included.` : ""}`,
+  en: `Replaces ${typed === 1 ? "your line" : `your ${typed} lines`} with ${incoming} from the file.${left > 0 ? ` ${left} ${left === 1 ? "row" : "rows"} left out.` : ""}`,
 });

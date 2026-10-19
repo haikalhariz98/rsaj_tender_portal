@@ -84,14 +84,14 @@ const names = (fields: PrefillField[]) => fields.map((f) => FIELD_NAME[f]).join(
 
 /// What choosing the officer did, in words: only the fields it actually filled, and why any were not.
 function officerNoteText(note: PrefillResult | "no-unit"): string {
-  if (note === "no-unit") return "No unit is recorded for this officer, so nothing is filled in.";
-  if (!note.gave) return "Nothing could be filled in from this officer's unit.";
+  if (note === "no-unit") return "No unit on record. Nothing filled in.";
+  if (!note.gave) return "Nothing filled in from their unit.";
   const parts: string[] = [];
-  if (note.filled.length) parts.push(`Filled in from the officer's unit: ${names(note.filled)}.`);
-  if (note.otherDepartment) parts.push("The officer is in a different department from the one you chose, so section and cost centre were left alone.");
-  else if (note.kept.length) parts.push(`Kept as you chose: ${names(note.kept)}.`);
-  if (note.left.length) parts.push(`Left for you to choose: ${names(note.left)}.`);
-  return parts.join(" ") || "Your choices already match this officer's unit.";
+  if (note.filled.length) parts.push(`Filled from their unit: ${names(note.filled)}.`);
+  if (note.otherDepartment) parts.push("Different department: section and cost centre left alone.");
+  else if (note.kept.length) parts.push(`Kept: ${names(note.kept)}.`);
+  if (note.left.length) parts.push(`Yours to choose: ${names(note.left)}.`);
+  return parts.join(" ") || "Already matches their unit.";
 }
 
 export function RequisitionForm({
@@ -242,7 +242,7 @@ export function RequisitionForm({
       </Card>
 
       <Card>
-        <CardHeader icon={<RouteIcon size={17} />} title="Requester and budget" subtitle="Who is asking, and which budget pays for it." />
+        <CardHeader icon={<RouteIcon size={17} />} title="Requester and budget" />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {/* Founder, 2026-10-06: the officer comes first, and their unit fills in department, section and cost centre. */}
           {mode === "edit" ? (
@@ -255,7 +255,7 @@ export function RequisitionForm({
               required: true,
               value: officer,
               onChange: chooseOfficer,
-              hint: forAnother ? "Recorded for another officer, from their paper request: it is not signed by them." : "You, unless you are recording it for another officer.",
+              hint: forAnother ? "Recorded from their paper request. Not signed by them." : "You, unless recording for another.",
             })
           )}
           <div className="flex items-end pb-2 text-[13px] text-ink-3" aria-live="polite">
@@ -264,8 +264,8 @@ export function RequisitionForm({
           {forAnother && (
             <>
               <input type="hidden" name="requestingPersonId:onBehalf" value="on" />
-              {text("requestingPersonId:paperReference", "Paper reference", { hint: "The reference of the request form it came from." })}
-              {text("requestingPersonId:reason", "Why it is recorded for them", { hint: "Needed where there is no paper reference." })}
+              {text("requestingPersonId:paperReference", "Paper reference", { hint: "Reference of the paper request form." })}
+              {text("requestingPersonId:reason", "Why it is recorded for them", { hint: "Needed without a paper reference." })}
             </>
           )}
           {select("requestingUnitCode", "Requesting department", options.departments.map((d) => ({ value: d.code, label: d.name })), {
@@ -303,7 +303,7 @@ export function RequisitionForm({
             required: true,
             searchable: true,
             placeholder: account && budgetCodes.length === 0 ? "No budget code on this account" : "Choose",
-            hint: account ? "The budget line the check reads, on the chosen account." : "Choose the account code first to narrow this list.",
+            hint: account ? "Budget line the check reads." : "Choose the account code first.",
           })}
           {select("contractTypeCode", "Contract type", options.contractTypes.map((c) => ({ value: c.code, label: c.name })), { placeholder: "Not set" })}
           {select("siteCode", "Site", options.sites.map((s) => ({ value: s.code, label: s.name })), { placeholder: "None" })}
@@ -316,7 +316,6 @@ export function RequisitionForm({
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Line items"
-          subtitle="List each item. The estimated value is their total."
         />
         <CardBody className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -333,7 +332,7 @@ export function RequisitionForm({
               />
             </Field>
             <div className="flex items-end pb-2 text-[13px] text-ink-3" aria-live="polite">
-              {total == null ? "A line amount is not a figure yet, so there is no total." : "Worked out from the lines below."}
+              {total == null ? "A line amount is not a figure. No total." : "Worked out from the lines below."}
             </div>
           </div>
           {e.lines && <Callout tone="err">{e.lines}</Callout>}

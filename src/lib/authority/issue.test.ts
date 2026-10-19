@@ -87,7 +87,7 @@ describe("which day picks the issue a route runs under (FR-APR-020, ruling R2)",
   it("the route says when a newer issue is in force at submission, and is silent when it is the same", () => {
     const note = newerIssueNote({ id: "issue-1", label: "Issue 1" }, { id: "issue-2", label: "Issue 2" }, "28 Sep 2026");
     expect(note?.code).toBe("NEWER_ISSUE_IN_FORCE");
-    expect(note?.messageEn).toMatch(/“Issue 1”, the issue in force on 28 Sep 2026.*“Issue 2” is in force on the day it was submitted/);
+    expect(note?.messageEn).toMatch(/“Issue 1”, in force on 28 Sep 2026.*“Issue 2” is in force at submission/) // 0005, founder 2026-10-19: shortened;
     expect(newerIssueNote({ id: "issue-1", label: "Issue 1" }, { id: "issue-1", label: "Issue 1" }, "28 Sep 2026")).toBeNull();
     expect(newerIssueNote({ id: "issue-1", label: "Issue 1" }, null, "28 Sep 2026")).toBeNull();
   });
