@@ -259,6 +259,9 @@ export function accessReasonText(code: string): string | null {
   if (code === "SULIT" || code === "UNCLASSIFIED" || code === "THREAT") return DOWNLOAD_REFUSAL_TEXT[code].replace(/ The request was refused and logged\.$/, "");
   if (code === "DIGEST_MISMATCH") return "The stored file did not hash to its fingerprint.";
   if (code === "BYTES_MISSING") return "The stored file could not be found.";
+  // SEC-5 (release-scan.ts): a release refused on a failed or missing malware check.
+  if (code === "SCAN_ERROR") return "The file could not be checked for malware.";
+  if (code === "NOT_SCANNED") return "The file was not checked for malware.";
   return documentFaultText({ code, level: "block" });
 }
 

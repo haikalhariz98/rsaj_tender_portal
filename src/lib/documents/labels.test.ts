@@ -70,11 +70,15 @@ describe("saving the upload rules", () => {
 describe("the access log never shows a code", () => {
   it("reads every reason the routes log as words, and nothing for a plain download", () => {
     expect(accessReasonText("")).toBeNull();
-    for (const code of ["SULIT", "UNCLASSIFIED", "THREAT", "DIGEST_MISMATCH", "BYTES_MISSING", "TOO_LARGE", "TYPE_NOT_ALLOWED", "TYPES_NOT_SET", "DRIVER_NOT_BUILT"]) {
+    for (const code of ["SULIT", "UNCLASSIFIED", "THREAT", "DIGEST_MISMATCH", "BYTES_MISSING", "TOO_LARGE", "TYPE_NOT_ALLOWED", "TYPES_NOT_SET", "DRIVER_NOT_BUILT", "SCAN_ERROR", "NOT_SCANNED"]) {
       const t = accessReasonText(code)!;
       expect(t, code).not.toBe("This was refused.");
       expect(t.replace(/DOCUMENT_MAX_BYTES|DOCUMENT_STORE_DRIVER/g, ""), code).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
     }
+  });
+  it("reads a release refused on its malware check (SEC-5) in words", () => {
+    expect(accessReasonText("SCAN_ERROR")).toBe("The file could not be checked for malware.");
+    expect(accessReasonText("NOT_SCANNED")).toBe("The file was not checked for malware.");
   });
   it("the withdraw note says withdrawal does not stop downloads and names the way to", () => {
     expect(WITHDRAW_NOTE).toMatch(/does NOT stop/);
