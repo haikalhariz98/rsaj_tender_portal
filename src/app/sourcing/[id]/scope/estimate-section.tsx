@@ -15,8 +15,8 @@ type Data = NonNullable<Awaited<ReturnType<typeof estimateTab>>>;
 type Estimate = NonNullable<Data["live"]>;
 
 /**
- * Company estimate: a sealed record. This screen never holds the figure or an amendment
- * reason: the read model omits both, and every place they would show reads "Sealed". The
+ * Company estimate: a record whose figure is withheld from view. This screen never holds the figure or an amendment
+ * reason: the read model omits both, and every place they would show reads "Withheld from view, held unencrypted". The
  * figure is seen only in the browser while it is typed, then absent from every page,
  * response and address.
  */

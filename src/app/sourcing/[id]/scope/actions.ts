@@ -65,7 +65,7 @@ import type { AuditActor } from "@/lib/auth/types";
  * and names what blocks it, and where to fix it. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that).
  *
  * The estimate's acts hand back codes only, rendered as fixed sentences: never the typed
- * figure, never the reason (OD-1, ADR 0012). Their audit rows read "Sealed (version N)".
+ * figure, never the reason (OD-1, ADR 0012). Their audit rows read "Withheld from view, held unencrypted (version N)" (ruling 20cw (b)).
  */
 
 const GONE: FormState = { ok: false, message: scopeFaultText("EXERCISE_GONE") };

@@ -314,7 +314,7 @@ export async function exerciseHistory(l: LoadedExercise, withEntries = true) {
       action: e.action,
       at: e.at,
       reason: e.reason,
-      // 6.2: an estimate version's figure or reason reads "Sealed (version N)", whatever the row holds (ADR 0012).
+      // 6.2: an estimate version's figure or reason reads "Withheld from view, held unencrypted (version N)", whatever the row holds (ADR 0012, ruling 20cw (b)).
       changes: ((e.changes ?? []) as unknown as { field: string; before: string | null; after: string | null }[]).map((c) => historyChange(e.entity, c, versionInLabel(e.entityLabel))),
     })),
   };

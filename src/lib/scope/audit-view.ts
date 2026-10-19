@@ -2,7 +2,7 @@
  * What 6.2's audit rows record, as field changes. Pure, so the shape is tested once and
  * the actions and the demo write the same rows.
  *
- * The sealed-figure rule: an estimate version's row reads "Sealed (version N)" where the
+ * The sealed-figure rule: an estimate version's row reads "Withheld from view, held unencrypted (version N)" where the
  * figure and the amendment reason would be, and carries neither. `historyChange` applies the
  * same rule when the History tab renders any row of the estimate's entities, so even a row
  * written some other way never shows a figure.
@@ -16,7 +16,7 @@ import { storedDay } from "@/lib/dates";
 import { formatSen, type Sen } from "@/lib/money";
 
 import { itemAmount, type BqTotals } from "./bq";
-import { BQ_STATUS_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, sealedVersion, SCOPED_BY_LABEL } from "./labels";
+import { BQ_STATUS_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, SCOPED_BY_LABEL, WITHHELD_TEXT, withheldVersion } from "./labels";
 import type { BqItemKind, BqScopedBy, BqStatus, EstimateEventKind } from "./types";
 
 export const ENTITY = {
@@ -65,8 +65,8 @@ const named = (name: string | null | undefined) => (name ? name : null);
 export function estimateVersionAudit(i: { versionNo: number; preparerName: string; preparedOn: string }): FieldChange[] {
   return diffFields(null, {
     version: i.versionNo,
-    value: sealedVersion(i.versionNo),
-    ...(i.versionNo > 1 ? { reason: sealedVersion(i.versionNo) } : {}),
+    value: withheldVersion(i.versionNo),
+    ...(i.versionNo > 1 ? { reason: withheldVersion(i.versionNo) } : {}),
     preparedBy: named(i.preparerName),
     preparedOn: i.preparedOn,
   });
@@ -101,13 +101,14 @@ export function estimateStateAudit(before: string, after: string): FieldChange[]
 
 /**
  * How the History renders one change of a row: for the estimate's version entity, a field
- * named for the figure or the reason reads "Sealed (version N)" whatever the row holds.
+ * named for the figure or the reason reads "Withheld from view, held unencrypted (version N)" whatever the row holds. A row written before
+ * ruling 20cw (b) (AC-63) is relabelled here too: stored rows are never rewritten.
  */
 export function historyChange(entity: string, change: FieldChange, versionNo: number | null): FieldChange {
   if (entity !== ENTITY.estimateVersion) return change;
   if (!/^(value|reason|amount|figure)$/i.test(change.field)) return change;
-  const sealed = versionNo == null ? "Sealed" : sealedVersion(versionNo);
-  return { field: change.field, before: change.before == null ? null : sealed, after: change.after == null ? null : sealed };
+  const withheld = versionNo == null ? WITHHELD_TEXT : withheldVersion(versionNo);
+  return { field: change.field, before: change.before == null ? null : withheld, after: change.after == null ? null : withheld };
 }
 
 // ------------------------------------------------------------------ bill of quantities

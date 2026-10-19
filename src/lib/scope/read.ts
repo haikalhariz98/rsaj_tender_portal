@@ -6,7 +6,7 @@
  * button and a refused post give the same reason. Reads only.
  *
  * The estimate's view never holds its figure or an amendment reason: the client omits
- * them, and every place they would appear reads "Sealed" (OD-1, ADR 0012).
+ * them, and every place they would appear reads "Withheld from view, held unencrypted" (OD-1, ADR 0012, ruling 20cw (b)).
  */
 
 import { storedDay } from "@/lib/dates";
@@ -45,9 +45,9 @@ import {
   PROVISIONAL_CHIP,
   RATE_SOURCE_LABEL,
   SCOPED_BY_LABEL,
-  SEALED_TEXT,
   scopeFaultText,
   SCOPE_CONFIG_PATH,
+  WITHHELD_TEXT,
   SCOPE_STATE_BADGE,
   RATE_SCHEDULE_STATUS_LABEL,
   CSV_EXPORT_NOTE,
@@ -474,7 +474,7 @@ export async function estimateTab(organisationId: string, exerciseId: string) {
       retainedPlace: e.retainedPlace || null,
       retainedCopyDue: retainedCopyDue(facts),
       voidReason: e.state === "VOID" ? e.voidReason : null,
-      versions: e.versions.map((v) => ({ versionNo: v.versionNo, preparedOn: storedDay(v.preparedOn), preparer: v.preparer.name, value: SEALED_TEXT, reason: v.versionNo === 1 ? null : SEALED_TEXT })),
+      versions: e.versions.map((v) => ({ versionNo: v.versionNo, preparedOn: storedDay(v.preparedOn), preparer: v.preparer.name, value: WITHHELD_TEXT, reason: v.versionNo === 1 ? null : WITHHELD_TEXT })),
       events: e.events.map((x) => ({ id: x.id, kind: EVENT_KIND_LABEL[x.kind], by: x.person ? attributed.read({ entity: "EstimateEvent", id: x.id, slot: "person" }, x.person.name).en : null, capacity: x.capacity || null, versionNo: x.versionNo, copyNo: x.copyNo, note: x.kind === "VOIDED" || x.kind === "RETAINED" ? x.note || null : null, at: x.at })),
       lead: { badge: LEAD_STATE_BADGE[lead.state], text: leadTimeText(lead), configured: leadConfiguredText(policy.estimateLeadDays), reading: LEAD_READING },
       actions: {

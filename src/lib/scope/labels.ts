@@ -47,9 +47,10 @@ export const EVENT_KIND_LABEL: Readonly<Record<EstimateEventKind, string>> = {
   VOIDED: "Voided",
 };
 
-/// Where an estimate's figure or amendment reason would be: the same words everywhere.
-export const SEALED_TEXT = "Sealed";
-export const sealedVersion = (versionNo: number) => `Sealed (version ${versionNo})`;
+/// Where an estimate's figure or amendment reason would be: the same words everywhere. The figure is withheld from view and held unencrypted
+/// (ruling 20cw (b), AC-63), so it is never called sealed: only a copy sealed under the exercise key is.
+export const WITHHELD_TEXT = "Withheld from view, held unencrypted";
+export const withheldVersion = (versionNo: number) => `Withheld from view, held unencrypted (version ${versionNo})`;
 
 /// OD-7 and the BQ tab (OD-8).
 export const FIRM_NOT_STATED = "Not stated";
@@ -251,7 +252,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   OVERRIDE_NOT_PERMITTED: `No office may accept a late estimate: none is set. ${SET_IT}`,
   NOT_HOLDER: "That person does not hold the office that may accept a late estimate.",
   ALREADY_DISCLOSED: "The estimate is already disclosed.",
-  SEALED: "The figure is sealed until the bids are opened.",
+  SEALED: "The figure is withheld from view until the bids are opened.",
   CUSTODY_NOT_SET: `Who holds the estimate's copies is not set. ${SET_IT}`,
   NOT_IN_CUSTODY: "That person does not hold the estimate's copies.",
   // pack.ts

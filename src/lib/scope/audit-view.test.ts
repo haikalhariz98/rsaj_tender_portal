@@ -2,15 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 
-import { ENTITY, SCOPE_ENTITY_LABEL, bqExportAudit, bqFinalisedAudit, listValueLabel, panelAudit, type PanelAuditFacts, bqImportAudit, estimateEventAudit, estimateVersionAudit, historyChange, itemAudit, rateFromText, scopeTabledAudit, verificationAudit } from "./audit-view";
+import { ENTITY, SCOPE_ENTITY_LABEL, bqExportAudit, bqFinalisedAudit, listValueLabel, panelAudit, type PanelAuditFacts, bqImportAudit, estimateEventAudit, estimateVersionAudit, historyChange, itemAudit, rateFromText, scopeTabledAudit, sealedLodgementAudit, verificationAudit } from "./audit-view";
+import { scopeFaultText, WITHHELD_TEXT, withheldVersion } from "./labels";
 
-describe("the estimate's audit rows: 'Sealed (version N)', never the figure or the reason", () => {
+// Ruling 20cw (b), AC-63: a version's figure is withheld from view and held unencrypted, so its rows say so. "Sealed" is kept for a copy sealed under the exercise key.
+describe("the estimate's audit rows: 'Withheld from view, held unencrypted (version N)', never the figure or the reason", () => {
   it("an amendment's row contains neither the value's digits nor the reason text", () => {
     const rows = estimateVersionAudit({ versionNo: 2, preparerName: "Nurul Izzah Kamal", preparedOn: "2026-09-29" });
     expect(rows).toEqual([
       { field: "version", before: null, after: "2" },
-      { field: "value", before: null, after: "Sealed (version 2)" },
-      { field: "reason", before: null, after: "Sealed (version 2)" },
+      // Ruling 20cw (b), AC-63: the literal words, not the helper, so the row's text is pinned.
+      { field: "value", before: null, after: "Withheld from view, held unencrypted (version 2)" },
+      { field: "reason", before: null, after: "Withheld from view, held unencrypted (version 2)" },
       { field: "preparedBy", before: null, after: "Nurul Izzah Kamal" },
       { field: "preparedOn", before: null, after: "2026-09-29" },
     ]);
@@ -20,11 +23,30 @@ describe("the estimate's audit rows: 'Sealed (version N)', never the figure or t
   it("version 1 has no reason row", () => {
     expect(estimateVersionAudit({ versionNo: 1, preparerName: "A", preparedOn: "2026-09-20" }).map((c) => c.field)).toEqual(["version", "value", "preparedBy", "preparedOn"]);
   });
-  it("History renders any figure-shaped change of a version row as sealed, whatever it holds", () => {
-    expect(historyChange("CompanyEstimateVersion", { field: "value", before: null, after: "330000.00" }, 1)).toEqual({ field: "value", before: null, after: "Sealed (version 1)" });
-    expect(historyChange("CompanyEstimateVersion", { field: "reason", before: "x", after: "y" }, 3)).toEqual({ field: "reason", before: "Sealed (version 3)", after: "Sealed (version 3)" });
+  // Ruling 20cw (b), AC-63: the History says the figure is withheld, in the literal words.
+  it("History renders any figure-shaped change of a version row as withheld, whatever it holds", () => {
+    expect(historyChange("CompanyEstimateVersion", { field: "value", before: null, after: "330000.00" }, 1)).toEqual({ field: "value", before: null, after: "Withheld from view, held unencrypted (version 1)" });
+    expect(historyChange("CompanyEstimateVersion", { field: "reason", before: "x", after: "y" }, 3)).toEqual({ field: "reason", before: "Withheld from view, held unencrypted (version 3)", after: "Withheld from view, held unencrypted (version 3)" });
     expect(historyChange("CompanyEstimateVersion", { field: "preparedOn", before: null, after: "2026-09-29" }, 1)).toEqual({ field: "preparedOn", before: null, after: "2026-09-29" });
     expect(historyChange("BqItem", { field: "amount", before: null, after: "RM1.00" }, null)).toEqual({ field: "amount", before: null, after: "RM1.00" });
+  });
+  it("with no version known, the History still says withheld, never the figure (ruling 20cw (b), AC-63)", () => {
+    expect(WITHHELD_TEXT).toBe("Withheld from view, held unencrypted");
+    expect(historyChange("CompanyEstimateVersion", { field: "value", before: "330000.00", after: "336500.00" }, null)).toEqual({ field: "value", before: WITHHELD_TEXT, after: WITHHELD_TEXT });
+  });
+  it("a row stored before ruling 20cw (b) is relabelled on the History; the stored row is not rewritten (AC-63, J3)", () => {
+    const stored = { field: "value", before: null, after: "Sealed (version 2)" };
+    expect(historyChange("CompanyEstimateVersion", stored, 2)).toEqual({ field: "value", before: null, after: withheldVersion(2) });
+    expect(stored.after).toMatch(/^Sealed/);
+  });
+  it("the version's words, its unknown-version words and the SEALED fault never say sealed (ruling 20cw (b), AC-63)", () => {
+    const named = { WITHHELD_TEXT, "withheldVersion(3)": withheldVersion(3), 'scopeFaultText("SEALED")': scopeFaultText("SEALED") };
+    expect(withheldVersion(3)).toBe("Withheld from view, held unencrypted (version 3)");
+    expect(scopeFaultText("SEALED")).toBe("The figure is withheld from view until the bids are opened.");
+    for (const [name, text] of Object.entries(named)) expect(text, name).not.toMatch(/\bsealed\b/i);
+  });
+  it("a copy really sealed under the exercise key keeps the word (ruling 20cw (b))", () => {
+    expect(sealedLodgementAudit({ versionNo: 2, lodgedByName: "Nurul Izzah Kamal", superseded: 0 })).toContainEqual({ field: "copy", before: null, after: "Sealed under the exercise key" });
   });
   // Phase 2b (decisions log, 2026-10-07): the trail and the screen name the person and say how the act was recorded only from its attribution (signed, or recorded from
   // paper); the fixed words "recorded on behalf of, not signed" were written under every act and were true of some.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BQ_SCOPED_BY, BQ_ITEM_KINDS } from "./types";
-import { BQ_READABLE_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, LEAD_STATE_BADGE, leadTimeText, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, sealedVersion, signatoriesText, sharePercentText, estimateEmptyState, leadConfiguredText } from "./labels";
+import { BQ_READABLE_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, LEAD_STATE_BADGE, leadTimeText, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, withheldVersion, signatoriesText, sharePercentText, estimateEmptyState, leadConfiguredText } from "./labels";
 
 describe("every code has words, and no words are a code (AGENTS.md rule 5)", () => {
   it("each code renders a sentence that is not the code", () => {
@@ -49,8 +49,9 @@ describe("the statements the screens carry", () => {
     expect(BQ_READABLE_STATEMENT).toMatch(/unpriced/);
     expect(BQ_READABLE_STATEMENT).not.toMatch(/readable by anyone|until sign-in/);
   });
-  it("sealed rows and an unstated firm value", () => {
-    expect(sealedVersion(2)).toBe("Sealed (version 2)");
+  // Ruling 20cw (b), AC-63: a version's figure is withheld from view and held unencrypted, not sealed.
+  it("withheld version rows and an unstated firm value", () => {
+    expect(withheldVersion(2)).toBe("Withheld from view, held unencrypted (version 2)");
     expect(firmValueText(null)).toBe("Not stated");
   });
   it("closing not set reads 'Closing not set' (X-1)", () => {
