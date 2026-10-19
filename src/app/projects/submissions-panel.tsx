@@ -48,9 +48,9 @@ export function SubmissionsPanel({ review, judged, hrefOf, withContract, lang = 
         </Callout>
       )}
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClockIcon size={17} />} title={t(S.waitingTitle)} subtitle={sayWith(S.waitingSubtitle, lang, { overdue: overdueText, routing: t(S.routingStatement) })} divided={w.total > 0} />
+        <CardHeader icon={<ClockIcon size={17} />} title={t(S.waitingTitle)} subtitle={sayWith(S.waitingSubtitle, lang, { overdue: overdueText })} divided={w.total > 0} />
         {w.total === 0 ? (
-          <EmptyState size="sm" title={t(S.nothingWaits)}>{t(S.nothingWaitsBody)}</EmptyState>
+          <EmptyState size="sm" title={t(S.nothingWaits)} />
         ) : (
           <ul className="divide-y divide-line/70">
             {w.rows.map((r) => {
@@ -96,7 +96,6 @@ export function SubmissionsPanel({ review, judged, hrefOf, withContract, lang = 
           exportName="contractor-submissions-answered"
           searchPlaceholder={t(S.searchAnswered)}
           emptyTitle={t(S.nothingAnswered)}
-          emptyBody={t(S.nothingAnsweredBody)}
           stackBelow="xl"
           columns={[
             { key: "submission", label: t(S.colSubmission), mobile: "primary" },

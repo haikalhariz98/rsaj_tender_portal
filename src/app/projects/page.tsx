@@ -2,7 +2,6 @@ import { DataList, type Row } from "@/components/data-list";
 import { FileIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { CASE_PAGE, listCases, parseCaseListView, type CaseRow, type CaseRowView } from "@/lib/contract/case-load";
@@ -112,7 +111,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
     <>
       <PageHeader
         title={t(L.title)}
-        subtitle={t(L.subtitle)}
+        info={{ title: t(L.infoTitle), text: t(L.infoText) }}
         meta={[n(L.nAwarding, data.counts.awarding), n(L.nSigning, data.counts.signing), n(L.nOnSite, data.counts.on_site), n(L.nAwaitingConditions, awaiting), n(L.nReadyToSign, ready), <span key="delay" className="inline-flex flex-wrap items-center gap-1.5">
             {n(L.nInDelay, data.counts.delay)}
             {delay.assumed.size > 0 && (
@@ -124,9 +123,6 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
           </span>,
         ]}
       />
-      <Callout tone="info" className="mb-6" title={t(L.stillToComeTitle)}>
-        {t(L.stillToComeBody)}
-      </Callout>
       {commencedView ? (
         <CommencedCard rows={commenced} exposure={exposure} page={page} today={today} lang={lang} />
       ) : (
@@ -134,16 +130,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         <CardHeader
           icon={<FileIcon size={17} />}
           title={delayView ? t(L.casesInDelay) : rowView && rowView !== "delay" ? t(CASE_VIEW_WORDS[rowView]) : t(L.allCases)}
-          subtitle={
-            delayView ? (
-              <span className="inline-flex flex-wrap items-center gap-1.5">
-                {`${t(L.delaySubtitle)}${delay.assumed.size > 0 ? ` ${t(L.delayBasis)}` : ""}`}
-                {delay.assumed.size > 0 && <ProvenanceBadge value="ASSUMED" lang={lang} />}
-              </span>
-            ) : (
-              t(L.defaultSubtitle)
-            )
-          }
+          subtitle={delayView && delay.assumed.size > 0 ? <ProvenanceBadge value="ASSUMED" lang={lang} /> : undefined}
           actions={
             <span className="flex flex-wrap gap-2">
               <ButtonLink href="/projects?view=commenced" size="sm" variant="secondary">{n(L.commencedPending, commenced.length)}</ButtonLink>
@@ -173,7 +160,6 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
           exportName="cases"
           searchPlaceholder={t(L.search)}
           emptyTitle={t(delayView ? L.noneInDelay : rowView ? L.noneHere : L.noCasesYet)}
-          emptyBody={t(delayView ? L.noContractInDelay : rowView ? L.noCaseAtStage : L.startAward)}
           filters={[{ key: "stage", label: t(L.stage), order: [...Object.values(CASE_STAGE_WORDS).map((x) => t(x)), t(CASE_VIEW_WORDS.ended)] }]}
           rowAction={{ label: t(L.open), hrefTemplate: "/projects/{id}" }}
           rowOpens
@@ -308,7 +294,6 @@ function CommencedCard({ rows, exposure, page, today, lang }: { rows: Commenced[
         exportName="commenced-pending-approval"
         searchPlaceholder={t(L.commencedSearch)}
         emptyTitle={t(L.none)}
-        emptyBody={t(L.noCommenced)}
         stackBelow="xl"
         columns={[
           { key: "variation", label: t(L.colVariation), mobile: "primary" },

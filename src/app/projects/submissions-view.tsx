@@ -30,7 +30,6 @@ export async function SubmissionsView({ actor, waiting, answered, lang = "en" }:
     <>
       <PageHeader
         title={t(CASES_LIST_WORDS.title)}
-        subtitle={t(CASES_LIST_WORDS.subtitle)}
         meta={[n(S.nWaiting, counts.waiting), today ? n(S.nOverdue, counts.overdue) : t(S.overdueNotJudged), n(S.nAnswered, counts.answered)]}
         actions={<ButtonLink href="/projects" size="sm" variant="secondary">{t(CASES_LIST_WORDS.allContracts)}</ButtonLink>}
       />

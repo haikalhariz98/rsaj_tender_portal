@@ -507,6 +507,12 @@ const DECIDED_ABSENT = [
     match: /^(Your sign-in, your password.*|If one of these is not yours.*)$/,
     why: "0005, founder 2026-10-19: the account page subtitles were cut; Password only is a chip beside the name",
   },
+  // Note 0005, founder 2026-10-19 (minimal words): the Contracts list, its securities and submissions views.
+  {
+    screen: /^[/]projects$/,
+    match: /^(Every award from the day it is started.*|Still to come here|Possession of site.*|Newest first[.] A case begins.*|Every contract In Delay today.*|Planned progress between.*|Shown here, not sent|Expiry reminders are worked out.*|Contracts after award.*|Live ones first.*|Securities and policies are lodged.*|Submissions contractors sent.*|A contractor's programme, claim.*)$/,
+    why: "0005, founder 2026-10-19: the list subtitle, the Still-to-come callout, the view subtitles and the empty-state bodies were cut; the roadmap sentence is behind the information button, Not emailed and Assumed are chips",
+  },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
     screen: /^[/]projects$/,

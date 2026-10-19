@@ -1,7 +1,7 @@
 import { DataList, type Row } from "@/components/data-list";
 import { ShieldIcon } from "@/components/icons";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import { REGISTER_STATUS_TONE } from "@/lib/award/labels";
 import { INSURANCE_KIND_WORDS, REGISTER_STATUS_WORDS, CASES_LIST_WORDS, SECURITIES_VIEW_WORDS as V, SECURITY_KIND_WORDS } from "@/lib/contract/case-page-words";
@@ -86,12 +86,9 @@ export async function SecuritiesView({ actor, sv, pageParam, lang = "en" }: { ac
   const rows = order.map((o) => byId.get(o.id)).filter((r): r is Row => !!r);
   return (
     <>
-      <PageHeader title={t(V.title)} subtitle={t(V.subtitle)} meta={[sayWith(V.nLodgedNotVerified, lang, { count: String(counts.unverified) }), sayWith(V.nExpiring, lang, { count: String(counts.expiring) }), remindersText(offsets, lang)]} />
-      <Callout tone="info" className="mb-6" title={t(V.shownNotSentTitle)}>
-        {t(V.shownNotSentBody)}
-      </Callout>
+      <PageHeader title={t(V.title)} meta={[sayWith(V.nLodgedNotVerified, lang, { count: String(counts.unverified) }), sayWith(V.nExpiring, lang, { count: String(counts.expiring) }), remindersText(offsets, lang), <InfoChip key="ne" outline detail={t(V.notEmailedDetail)}>{t(V.notEmailed)}</InfoChip>]} />
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title={t(V.cardTitle)} subtitle={sayWith(V.cardSubtitle, lang, { unverified: String(counts.unverified), expiring: String(counts.expiring), reminders: remindersText(offsets, lang) })}
+        <CardHeader icon={<ShieldIcon size={17} />} title={t(V.cardTitle)} subtitle={t(V.cardSubtitle)}
           divided={false}
         />
         <div className="flex flex-wrap gap-1.5 px-5 pb-3 sm:px-6">
@@ -108,7 +105,6 @@ export async function SecuritiesView({ actor, sv, pageParam, lang = "en" }: { ac
           exportName="securities-expiring-or-not-verified"
           searchPlaceholder={t(V.search)}
           emptyTitle={t(view === "all" ? V.nothingLodgedYet : V.nothingInView)}
-          emptyBody={t(V.emptyBody)}
           columns={[
             { key: "what", label: t(V.colSecurity), sortable: false, mobile: "primary" },
             { key: "issuer", label: t(V.colIssuer), width: "22%", hideBelow: "xl" },
