@@ -21,6 +21,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/field";
 import { Tabs } from "@/components/tabs";
@@ -33,7 +34,7 @@ import {
   type Grant,
 } from "@/lib/people/capabilities";
 import { BEFORE_SUPERIOR_RULE, BEFORE_SUPERIOR_RULE_SHORT, delegationNotes, holderOf, statusOf, type Delegation } from "@/lib/people/delegation";
-import { REPORTING_LINE_NOT_SET, REPORTING_LINE_NOT_SET_WHY } from "@/lib/people/reporting-lines";
+import { REPORTING_LINE_NOT_SET } from "@/lib/people/reporting-lines";
 import type { Assignment, Office, Person, RosterFault } from "@/lib/people/types";
 
 import { setGrant } from "./actions";
@@ -146,7 +147,7 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
       <CardHeader
         icon={<UserIcon size={17} />}
         title="User register"
-        subtitle="Everyone on record, and how to reach them."
+        subtitle="Everyone on record"
         actions={<AddPerson offices={offices} authorityLevels={authorityLevels} units={units} />}
         divided={false}
       />
@@ -278,7 +279,7 @@ function AssignmentsList({ assignments, people, offices }: UsersData) {
       <CardHeader
         icon={<CalendarIcon size={17} />}
         title="Assignments"
-        subtitle="Who holds each role, and for how long. Ending one keeps it on record."
+        subtitle="Ending one keeps it on record"
         divided={false}
         actions={<AddAssignment people={people} offices={offices} />}
       />
@@ -347,7 +348,7 @@ function RolesList({ offices, people, holdings, grants }: UsersData) {
       <CardHeader
         icon={<ShieldIcon size={17} />}
         title="Roles"
-        subtitle="What a role is called in the portal, and the authority it carries."
+        subtitle="Role names and authority"
         actions={<AddOffice offices={offices} />}
         divided={false}
       />
@@ -448,7 +449,7 @@ function PermissionsPanel({ offices, capabilities, grants, product }: UsersData)
       <CardHeader
         icon={<GridIcon size={17} />}
         title="Permissions"
-        subtitle="Tick what each role may do. Approval routing is separate and comes from the approval matrix. The product's own permissions, below, are changed by a proposal that a second person decides."
+        subtitle="Approval routing is separate"
         actions={
           <div className="w-60">
             <Input
@@ -474,9 +475,7 @@ function PermissionsPanel({ offices, capabilities, grants, product }: UsersData)
         </Callout>
       )}
       {noCapabilities && (
-        <Callout tone="info" title="No capability has been set" className="mx-5 mt-4 sm:mx-6">
-          A capability is something a role may do. Until some exist there is nothing to tick in the first part of the grid.
-        </Callout>
+        <Callout tone="warn" title="No capability set. Nothing to tick." className="mx-5 mt-4 sm:mx-6" />
       )}
       {/* The grid scrolls sideways under a pinned capability column, so a new role adds
           a column rather than squeezing the others. On a phone it is a list instead:
@@ -665,16 +664,18 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload, l
 
   return (
     <div className="flex flex-col gap-5">
-      {notes.map((n) => (
-        <Callout key={n.code} tone="info" title={n.code === "REPORTING_LINES_NOT_SET" ? REPORTING_LINE_NOT_SET : "What the delegation rules check"}>
-          {n.en}
-        </Callout>
-      ))}
+      {notes.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {notes.map((n) => (
+            <InfoChip key={n.code} tone="warn" detail={n.en}>{n.code === "REPORTING_LINES_NOT_SET" ? REPORTING_LINE_NOT_SET : "Not fully checked"}</InfoChip>
+          ))}
+        </div>
+      )}
       <Card className="overflow-hidden">
         <CardHeader
           icon={<SwapIcon size={17} />}
           title="Delegation"
-          subtitle="One officer acting for another, for a period. Not the same as authority passing upward when a holder cannot act."
+          subtitle="One officer acting for another"
           actions={<AddDelegation people={people} offices={offices} capabilities={capabilities} upload={upload} />}
           divided={false}
         />
@@ -727,7 +728,7 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload, l
         <CardHeader
           icon={<ClockIcon size={17} />}
           title="Out of office"
-          subtitle="While someone is away their work is routed to the person covering."
+          subtitle="Work routes to the cover"
           divided={away.length > 0}
         />
         {away.length === 0 ? (
@@ -792,7 +793,7 @@ function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
     <div className="flex flex-col gap-5">
       {lines.length === 0 && (
         <Callout tone="warn" title={REPORTING_LINE_NOT_SET}>
-          {REPORTING_LINE_NOT_SET_WHY} Until they are recorded: a delegation is not checked to be to a direct subordinate, a pending step is not moved on an absence, and a step escalated by an officer names no immediate superior.
+          Delegations are not checked to a subordinate. Absent steps do not move.
         </Callout>
       )}
       {stuck.length > 0 && (
@@ -810,7 +811,7 @@ function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
         <CardHeader
           icon={<UserIcon size={17} />}
           title="Reporting lines"
-          subtitle="Who each person reports to. Left unset until the organisation records them: nothing is derived from a unit's head."
+          subtitle="Not derived from unit heads"
           actions={<AddReportingLine people={people} />}
           divided={false}
         />
@@ -844,8 +845,8 @@ function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
         />
       </Card>
       {lines.length > 0 && withoutLine.length > 0 && (
-        <Callout tone="info" title={`${withoutLine.length} ${withoutLine.length === 1 ? "person has" : "people have"} no reporting line in force`}>
-          {withoutLine.map((p) => p.name).join(", ")}. {REPORTING_LINE_NOT_SET} for them: a step held by them is not moved on their absence, and a delegation to them is not accepted until their line is recorded.
+        <Callout tone="warn" title={`${withoutLine.length} ${withoutLine.length === 1 ? "person has" : "people have"} no reporting line`}>
+          {withoutLine.map((p) => p.name).join(", ")}. Their steps do not move on absence. No delegation to them.
         </Callout>
       )}
     </div>

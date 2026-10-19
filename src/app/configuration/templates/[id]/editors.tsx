@@ -56,7 +56,7 @@ export function AddBlock({ templateId, offices }: { templateId: string; offices:
   return (
     <RecordEditor
       title="Add a signature block"
-      description="A block of the printed form, in its place in the printed order. A certificate pins the form at its first signature: a change here never moves one already signing."
+      description="A block in printed order. Signing certificates keep the pinned form."
       fields={blockFields(offices)}
       values={{ templateId }}
       showWhen={blockShow}
@@ -84,7 +84,7 @@ export function RemoveBlock({ templateId, id, label }: { templateId: string; id:
   return (
     <RecordEditor
       title={`Take ${label} off the form`}
-      description="Certificates already pinned to the form keep it; certificates pinned from now on sign without it."
+      description="Pinned certificates keep it. New ones sign without it."
       fields={[{ kind: "hidden", name: "templateId" }, { kind: "hidden", name: "id" }]}
       values={{ templateId, id }}
       destructive={{ reasonLabel: "Why it comes off" }}
@@ -115,7 +115,7 @@ function rowFields(): Field[] {
 
 export function AddRecipient({ templateId }: { templateId: string }) {
   return (
-    <RecordEditor title="Add a recipient" description="One row of the form's distribution list. Copies are made from the list pinned on each certificate when it is issued." fields={rowFields()} values={{ templateId }} action={saveDistributionRow} submitLabel="Add recipient" trigger={{ label: "Add recipient", icon: true }} />
+    <RecordEditor title="Add a recipient" description="A row of the distribution list. Copies follow the list pinned at issue." fields={rowFields()} values={{ templateId }} action={saveDistributionRow} submitLabel="Add recipient" trigger={{ label: "Add recipient", icon: true }} />
   );
 }
 
@@ -154,7 +154,7 @@ export function EditPageCount({ templateId, pageCount }: { templateId: string; p
   return (
     <RecordEditor
       title="Printed pages"
-      description="How many pages the printed form runs to, so a generated certificate can be checked against it. Blank: not recorded, and the certificate says so."
+      description="Pages the printed form runs to. Blank: not recorded, and the certificate says so."
       fields={[{ kind: "hidden", name: "templateId" }, { kind: "number", name: "pageCount", label: "Pages", min: 1, placeholder: "Not recorded" }]}
       values={{ templateId, pageCount: pageCount == null ? null : String(pageCount) }}
       action={savePageCount}
@@ -184,7 +184,7 @@ export function AddPrintedField({ templateId, values }: { templateId: string; va
   return (
     <RecordEditor
       title="Add a printed field"
-      description="A field of the printed form under its own label. A certificate pins the form at its first signature: a change here never moves one already signing."
+      description="A field of the printed form. Signing certificates keep the pinned form."
       fields={printedFields(values)}
       values={{ templateId }}
       showWhen={printedShow}

@@ -52,6 +52,7 @@ import type { Rule } from "@/lib/authority/types";
 import { destinationFor, REJECTION_DOMAINS, type DestinationRow, type RejectionKind } from "@/lib/authority/rejection";
 import { destinationText } from "@/lib/authority/rejection-labels";
 import { PageHeader } from "@/components/ui/page-header";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
@@ -130,7 +131,7 @@ export default async function ApprovalMatrixPage({
         <PageHeader
           title="Approval matrix"
           badge={<Badge tone="warn">Not set</Badge>}
-          subtitle="Who proposes, who recommends and who approves, at every value."
+          info={{ title: "Approval matrix", text: "Who proposes, who recommends and who approves, at every value." }}
         />
 
         <Card>
@@ -249,7 +250,7 @@ export default async function ApprovalMatrixPage({
             {selectedRoute && <Badge tone="info">{`Funder rule set · ${routeName(selectedRoute)}`}</Badge>}
           </>
         }
-        subtitle="Who proposes, who recommends and who approves, at every value."
+        info={{ title: "Approval matrix", text: "Who proposes, who recommends and who approves, at every value." }}
         meta={
           noRules
             ? ["Rules not supplied"]
@@ -343,32 +344,17 @@ export default async function ApprovalMatrixPage({
 
       <div className="flex flex-col gap-6">
         {editable ? (
-          <Callout tone="warn" title="This is a draft">
-            Nothing in it routes a matter until it is issued. Change the thresholds and rules
-            here, then issue it from a date. The simulator below still uses the issue in force.
-            {" "}
+          <Callout tone="warn" title="Draft. Nothing routes until issued.">
             {needsAdopting
-              ? "Nobody is on record as having made it, so someone must adopt it first, and then a different person issues it."
-              : `Made by ${makers!.names.join(", ")}. ${issuance ? issuance.en : "A person who did not make it issues it, with their password."}`}
+              ? "Nobody made it. Adopt it, then another person issues it."
+              : `Made by ${makers!.names.join(", ")}. ${issuance ? issuance.en : "Someone else issues it."}`}
           </Callout>
         ) : inForce && selectedRoute ? (
-          <Callout tone="info" title={`In force since ${formatDate(selected.effectiveFrom)}`}>
-            A funder&apos;s rule set. It routes only requisitions whose funding route is &ldquo;{routeName(selectedRoute)}&rdquo;, in place of the
-            organisation&apos;s limits, where it has a rule for the matter. Otherwise the organisation&apos;s limits route them, and
-            the approval trail says the funder&apos;s rules were not applied.
-          </Callout>
+          <div><InfoChip tone="ok" detail={`Routes only requisitions on the “${routeName(selectedRoute)}” funding route, in place of the organisation's limits, where it has a rule. Otherwise the limits route them and the trail says so.`}>{`In force since ${formatDate(selected.effectiveFrom)} · funder rules`}</InfoChip></div>
         ) : inForce ? (
-          <Callout tone="info" title={`In force since ${formatDate(selected.effectiveFrom)}`}>
-            These rules route every approval in the portal. Once issued, an issue cannot be changed,
-            so a decision can always be shown the rules it ran under. To change them, start a new
-            issue.
-          </Callout>
+          <div><InfoChip tone="ok" detail="Routes every approval. An issue cannot be changed. Start a new issue to change it.">{`In force since ${formatDate(selected.effectiveFrom)}`}</InfoChip></div>
         ) : (
-          <Callout tone="info" title={state.label}>
-            {selected.effectiveTo
-              ? `In force ${periodText(selected)}. Kept so decisions taken under it can be shown the rules they ran under.`
-              : `Issued to come into force on ${formatDate(selected.effectiveFrom)}.`}
-          </Callout>
+          <div><InfoChip detail={selected.effectiveTo ? "Kept so decisions can show the rules they ran under." : "Issued, not yet in force."}>{selected.effectiveTo ? `${state.label} · ${periodText(selected)}` : `${state.label} · from ${formatDate(selected.effectiveFrom)}`}</InfoChip></div>
         )}
 
         <Card>
@@ -391,7 +377,7 @@ export default async function ApprovalMatrixPage({
                 tone="neutral"
                 label="Quotation band"
                 value={formatValueBand(matrix.policy.quotationFloor, matrix.policy.tenderFloor)}
-                hint="Above the quotation floor, up to where the bands meet."
+                hint="Above the quotation floor, to where bands meet."
                 variant="inset"
                 size="sm"
               />
@@ -478,7 +464,7 @@ export default async function ApprovalMatrixPage({
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Three band families"
-            subtitle="Requisition approval, procurement method and contract terms, held separately. None reads another's edges."
+            subtitle="Held separately"
           />
           <CardBody className="grid gap-4 md:grid-cols-3">
             <div className="min-w-0 rounded-2xl border border-line/60 bg-sunken p-4">
@@ -533,7 +519,7 @@ export default async function ApprovalMatrixPage({
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Contract terms bands"
-            subtitle="Which terms set applies at a value — never the retention or defects figures."
+            subtitle="Which terms apply at a value"
             actions={editable ? <AddTermsBand matrixId={matrixId} /> : <Badge outline>{termsBands.length} {termsBands.length === 1 ? "band" : "bands"}</Badge>}
           />
           {termsBands.length === 0 ? (
@@ -596,7 +582,7 @@ export default async function ApprovalMatrixPage({
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Core routing"
-            subtitle="The chain every approval carries beneath it, by the office that approves."
+            subtitle="By the office that approves"
             actions={editable ? <AddCoreLevel matrixId={matrixId} offices={offices} /> : <Badge outline>{coreRows.length} {coreRows.length === 1 ? "office" : "offices"}</Badge>}
           />
           {coreRefusals.length > 0 && (
@@ -857,7 +843,7 @@ export default async function ApprovalMatrixPage({
             <CardHeader
               icon={<SlidersIcon size={17} />}
               title="When a matter is rejected"
-              subtitle="Where a matter goes when a step rejects it, by matter type. None ships: unset, the officer chooses and the choice is recorded as theirs. A committee step follows the committee's own not-carried outcome."
+              subtitle="By matter type. Unset: officer chooses."
             />
             <Table stack minWidth={720}>
               <colgroup>
@@ -914,7 +900,7 @@ export default async function ApprovalMatrixPage({
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Simulator"
-            subtitle="Resolve the approval route for a given case."
+            subtitle="Resolve a route for a case"
           />
           <CardBody>
             <AuthoritySimulator

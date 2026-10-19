@@ -66,7 +66,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
         eyebrow={<Link href="/configuration/evaluation">Evaluation models</Link>}
         title={label}
         badge={<Badge tone={MODEL_STATUS_TONE[m.status]} dot>{MODEL_STATUS_LABEL[m.status]}</Badge>}
-        subtitle={draft ? "A draft: change it here, then issue it. Issuing freezes it; a change after that is a new version." : m.status === "ISSUED" ? `Issued ${m.issuedAt ? formatOrgDay(m.issuedAt, org.timeZone) : ""}. It is read-only: exercises pin it as it was issued. A change is a new version.` : "Retired: no longer offered. Exercises that pinned it keep it."}
+        subtitle={draft ? "Draft · issuing freezes it" : m.status === "ISSUED" ? `Issued ${m.issuedAt ? formatOrgDay(m.issuedAt, org.timeZone) : ""} · read-only` : "Retired · pinned exercises keep it"}
         actions={
           <>
             <HistoryButton entity="EvaluationModel" entityId={m.id} label={label} />
@@ -85,10 +85,10 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
           <ul className="list-disc pl-5">{blocks.map((b, i) => <li key={i}>{b}</li>)}</ul>
         </Callout>
       )}
-      {draft && blocks.length === 0 && warnings.length > 0 && <Callout tone="info" title="It may be issued with">{warnings.join(" ")}</Callout>}
+      {draft && blocks.length === 0 && warnings.length > 0 && <Callout tone="warn" title="May be issued with:">{warnings.join(" ")}</Callout>}
 
       <Card className="my-6">
-        <CardHeader title="The model" subtitle="Its route decides which exercises may pin it: those whose contract basis takes the same route." />
+        <CardHeader title="The model" subtitle="Same route as the contract basis" />
         <CardBody>
           <KeyValues columns={3} items={[{ label: "Route", value: ROUTE_LABEL[m.route] }, { label: "Source", value: <span className="flex flex-wrap items-center gap-2"><ProvenanceBadge value={m.provenance} />{m.governingSource && <span className="text-[12.5px] text-ink-3">{m.governingSource}</span>}</span> }, { label: "Stages", value: String(m.stages.length) }]} />
           {m.notes && <p className="mt-4 text-[13px] whitespace-pre-line text-ink-2">{m.notes}</p>}
@@ -101,7 +101,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
       </div>
       {m.stages.length === 0 && (
         <Card className="mb-6">
-          <EmptyState title="No stages">A model is its stages, in order: add the first.</EmptyState>
+          <EmptyState title="No stages" />
         </Card>
       )}
       {m.stages.map((s) => {
@@ -245,7 +245,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
       </div>
       {m.bandSets.length === 0 && (
         <Card className="mb-6">
-          <EmptyState title="No band sets">A banded criterion places its worked figure in one of these.</EmptyState>
+          <EmptyState title="No band sets" />
         </Card>
       )}
       {m.bandSets.map((set) => (
@@ -265,7 +265,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
             divided={set.bands.length === 0}
           />
           {set.bands.length === 0 ? (
-            <EmptyState size="sm" title="No bands">A set without bands cannot be issued.</EmptyState>
+            <EmptyState size="sm" title="No bands" />
           ) : (
             <Table minWidth={640}>
               <colgroup>

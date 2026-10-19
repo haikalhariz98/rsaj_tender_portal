@@ -26,7 +26,7 @@ export function EditScopePolicy({ values, qualifications, offices, lists }: { va
   return (
     <RecordEditor
       title="Edit the scope and estimate policy"
-      description="Every value is the organisation's own choice. Leave one empty to leave it unset; a value set says where it came from."
+      description="Each value is the organisation's own. Empty stays unset."
       columns={2}
       fields={[
         { kind: "select", name: "specPanelUsed", label: "Specification panel used", placeholder: "Not set", options: [{ value: "yes", label: "Used" }, { value: "no", label: "Not used" }], hint: "Each exercise takes this when it is made and keeps it. Not used removes the panel and its signed form from the exercise and from submission." },
@@ -66,7 +66,7 @@ export function EditMethodRule({ id, name, raw, provenance: p }: { id: string; n
   return (
     <RecordEditor
       title={`Does ${name} need a company estimate?`}
-      description="Where it does, the documents cannot go for approval until the estimate is lodged. Not set blocks that check, naming this setting."
+      description="Documents cannot go for approval until the estimate is lodged. Not set blocks."
       fields={[
         hidden("id"),
         { kind: "select", name: "requiresCompanyEstimate", label: "Needs a company estimate", required: true, placeholder: "Choose", placeholderDisabled: true, options: [...TRI, { value: "unset", label: "Not set" }] },
@@ -86,7 +86,7 @@ export function EditBasisRule({ id, name, raw, provenance: p }: { id: string; na
   return (
     <RecordEditor
       title={`Is ${name} let on a bill of quantities?`}
-      description="Where it is, a finalised bill must go with the documents. Not set blocks that check, naming this setting."
+      description="A finalised bill must go with the documents. Not set blocks the check."
       fields={[
         hidden("id"),
         { kind: "select", name: "requiresBq", label: "Let on a bill of quantities", required: true, placeholder: "Choose", placeholderDisabled: true, options: [...TRI, { value: "unset", label: "Not set" }] },
@@ -128,7 +128,7 @@ export function HoldingDrawer({ qualificationCode, qualificationName, people, ho
   return (
     <RecordEditor
       title={holding ? `Edit ${holding.person}'s ${qualificationName}` : `Record who holds ${qualificationName}`}
-      description="Held from its first day to its last, both counted. A bill's preparer is judged on the day the bill is finalised."
+      description="Both days counted. A preparer is judged on the finalising day."
       fields={[
         hidden("id"),
         hidden("qualificationCode"),
@@ -227,7 +227,7 @@ export function EditMethodScopeRule({ id, name, raw, committees, acts }: { id: s
   return (
     <RecordEditor
       title={`Is the scope approved by a committee under ${name}?`}
-      description="Where it is, the finalised bill is tabled at a sitting of that committee and carried before the documents go for approval. Not set blocks that check, naming this setting; it is never read as No."
+      description="The finalised bill is tabled first. Not set blocks it."
       fields={[
         hidden("id"),
         { kind: "select", name: "scopeApprovalRequired", label: "Scope approved by a committee", required: true, placeholder: "Choose", placeholderDisabled: true, options: [...TRI, { value: "unset", label: "Not set" }] },
@@ -272,7 +272,7 @@ export function RateItemDrawer({ scheduleId, title, item }: { scheduleId: string
   return (
     <RecordEditor
       title={item ? `Edit item ${item.code}` : `Add an item to ${title}`}
-      description="An issued issue is never changed; its items are edited only while it is a draft."
+      description="An issued issue never changes. Items are edited in draft only."
       columns={2}
       fields={[
         hidden("scheduleId"),
@@ -314,7 +314,7 @@ export function IssueRateScheduleDrawer({ scheduleId, title, today, blocked }: {
   return (
     <RecordEditor
       title={`Issue ${title}`}
-      description="From the day it takes effect, lines priced from this schedule take its rates. The issue in force before it is superseded today; lines already priced from it keep what it said."
+      description="From the day it takes effect, lines take these rates. Priced lines keep theirs."
       fields={[
         hidden("scheduleId"),
         { kind: "date", name: "effectiveFrom", label: "Takes effect from", required: true, hint: "The organisation's day. After the day the current issue took effect." },
@@ -336,7 +336,7 @@ export function AdoptRateDraftDrawer({ scheduleId, title }: { scheduleId: string
   return (
     <RecordEditor
       title={`Adopt ${title}`}
-      description="Nobody is on record as having made this draft. Adopting it makes you its maker, so that a different person issues it. You cannot issue a draft you adopted."
+      description="Nobody made this draft. Adopting makes you its maker. You cannot then issue it."
       fields={[hidden("scheduleId")]}
       values={{ scheduleId }}
       action={adoptRateDraft}
@@ -352,7 +352,7 @@ export function DiscardRateIssueDrawer({ scheduleId, title }: { scheduleId: stri
   return (
     <RecordEditor
       title={`Discard the draft ${title}`}
-      description="The draft and its items are removed. Every row is kept in the history. An issued issue is never discarded."
+      description="Removes the draft and its items. History keeps every row."
       fields={[hidden("scheduleId")]}
       values={{ scheduleId }}
       danger

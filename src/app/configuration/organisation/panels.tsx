@@ -136,7 +136,7 @@ function DetailsView({ details, logo, signInImage, signInDarkLogo, signInPage, t
   return (
     <div className="flex flex-col gap-5">
       <Card>
-        <CardHeader title="Organisation details" subtitle="Carried on reports and letters, and shown across the portal." actions={<EditDetails details={details} />} />
+        <CardHeader title="Organisation details" subtitle="On reports and letters" actions={<EditDetails details={details} />} />
         <CardBody className="flex flex-col gap-5">
           <KeyValues
             columns={2}
@@ -153,9 +153,7 @@ function DetailsView({ details, logo, signInImage, signInDarkLogo, signInPage, t
               { label: DETAIL_LABEL.website, value: value(details.website) },
             ]}
           />
-          <Callout tone="info">
-            Documents already issued keep the details they were issued with. Changing them here does not rewrite those documents.
-          </Callout>
+          
         </CardBody>
       </Card>
       {/* Founder, 2026-10-08: the time zone is one of the organisation's settings, here with the others,
@@ -163,7 +161,7 @@ function DetailsView({ details, logo, signInImage, signInDarkLogo, signInPage, t
       <Card>
         <CardHeader
           title="Time zone"
-          subtitle="The zone the organisation keeps its dates in. Today, for a vote sheet or a tabling, is the day in this zone."
+          subtitle="Dates are judged in this zone"
           actions={<EditTimeZone timeZone={timeZone?.value ?? null} options={timeZoneOptions} />}
         />
         <CardBody>
@@ -264,7 +262,7 @@ function StructureTree({
       <CardHeader
         icon={<BuildingIcon size={17} />}
         title="Structure"
-        subtitle="Choose a unit to see who heads it."
+        subtitle="Choose a unit"
         actions={
           !hasCompany ? <AddOrgUnit kind="COMPANY" parent={null} people={people} /> : undefined
         }
@@ -520,7 +518,7 @@ function UnitPanel({
       <div className="grid gap-5 2xl:grid-cols-2">
         <Linked
           title="Cost centres"
-          subtitle="What this unit's spending is charged to."
+          subtitle="Charged to"
           action={<AddCostCentre units={units} sites={sites} people={people} unit={unit} variant="ghost" />}
           empty="No cost centre belongs to this unit."
           items={ownCentres.map((c) => ({
@@ -667,7 +665,7 @@ function CostCentresView({ costCentres, units, sites, people, on }: Organisation
       <CardHeader
         icon={<ChartIcon size={17} />}
         title="Cost centres"
-        subtitle="What spending is charged to, and who answers for it. Requisitions choose from this list."
+        subtitle="Charged to · who answers"
         actions={<AddCostCentre units={units} sites={sites} people={people} variant="primary" />}
         divided={false}
       />
@@ -735,7 +733,7 @@ function SitesView({ sites, costCentres, units, on }: OrganisationPanelData) {
       <CardHeader
         icon={<GlobeIcon size={17} />}
         title="Sites"
-        subtitle="Where the work happens, and which unit looks after it."
+        subtitle="Where work happens"
         actions={<AddSite units={units} variant="primary" />}
         divided={false}
       />

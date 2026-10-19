@@ -1,6 +1,7 @@
 import { permissionGate, requireStaff } from "@/app/_auth/actor";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -70,7 +71,7 @@ export default async function SecurityPage() {
   if (!gate.ok) {
     return (
       <>
-        <PageHeader title="Sign-in settings" subtitle="How long a session lasts, when an account is locked, and how long a password must be." />
+        <PageHeader title="Sign-in settings" info={{ title: "Sign-in settings", text: "How long a session lasts, when an account is locked, and how long a password must be." }} />
         <Callout tone="warn" title="Only an administrator manages the sign-in settings">
           {gate.message}
         </Callout>
@@ -91,7 +92,7 @@ export default async function SecurityPage() {
     <>
       <PageHeader
         title="Sign-in settings"
-        subtitle="How long a session lasts, when an account is locked, and how long a password must be."
+        info={{ title: "Sign-in settings", text: "How long a session lasts, when an account is locked, and how long a password must be." }}
         badge={unset.length > 0 ? <Badge tone="warn">{`${unset.length} not set`}</Badge> : <Badge tone="ok">All set</Badge>}
         actions={
           <>
@@ -103,18 +104,14 @@ export default async function SecurityPage() {
         }
       />
 
-      <Callout tone="warn" className="mb-5">
-        {AUTH_WORDS.secondFactorNotBuilt.en}
-      </Callout>
+      <div className="mb-5"><InfoChip tone="warn" detail={AUTH_WORDS.secondFactorNotBuilt.en}>Password only</InfoChip></div>
 
       {!policy && (
-        <Callout tone="warn" title="The organisation has no sign-in settings yet" className="mb-5">
-          Nobody can sign in until they are set. The first values are set by an operator on the server, with the bootstrap command; after that they are changed here, by a proposal that a second person decides.
-        </Callout>
+        <Callout tone="warn" title="No sign-in settings. Nobody can sign in. Contact the operator." className="mb-5" />
       )}
       {policy && unset.length > 0 && (
-        <Callout tone="warn" title="Sign-in is closed until these are set" className="mb-5">
-          {settingLabels(unset).join("; ")}. Each is the organisation&apos;s own to choose; the product ships none.
+        <Callout tone="warn" title="Sign-in closed. Not set:" className="mb-5">
+          {settingLabels(unset).join("; ")}.
         </Callout>
       )}
 

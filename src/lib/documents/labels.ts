@@ -189,7 +189,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   PANEL_NOT_USED: "This exercise does not use a specification panel, so nothing is attached to one.",
   BILL_NOT_ON_SCREEN: "This exercise does not build its bill of quantities on screen. The bill is a file under Tender documents.",
   SWITCH_NOT_SET: "Panel and on-screen bill settings not set. Set them under Scope first.",
-  PACK_FROZEN: "Tender documents frozen on submission. Change after return, or issue an addendum.",
+  PACK_FROZEN: "Frozen on submission. Change after return, or issue an addendum under Publishing on Tender documents.",
   NOT_APPROVED_FOR_TENDERING: "A publication's proof is attached once the exercise is approved for tendering, when it can be published.",
   WINDOW_NOT_PUBLISHED: "An attendance sheet is attached once the exercise is advertised or invited and the event is held.",
   ADDENDUM_ISSUED: "The addendum is issued on this signed copy and stands as issued. A further change is another addendum.",

@@ -442,7 +442,7 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
   return (
     <RecordEditor
       title={`What ${name} drives`}
-      description="The twelve behaviours the contract type sets downstream. Leave one unset where the sources are silent or conflict: it shows as not set, never as no."
+      description="Twelve behaviours the type sets. Unset shows as not set, never no."
       fields={[
         { kind: "hidden", name: "id" },
         t("pricingBasis"),
@@ -580,7 +580,7 @@ export function TaxonomyDrawer({ taxonomy }: { taxonomy?: { id: string; nameEn: 
   return (
     <RecordEditor
       title={taxonomy ? `Edit ${taxonomy.nameEn}` : "Add a classification"}
-      description="Another classification a contract carries — a report form, an evaluation type — derived from the contract type."
+      description="Another classification derived from the contract type."
       fields={[
         { kind: "hidden", name: "id" },
         ...(taxonomy ? [] : [codeField("Never shown.")]),
@@ -625,7 +625,7 @@ export function MappingDrawer({ types, taxonomies, values, bases }: { types: Opt
   return (
     <RecordEditor
       title="Add a mapping"
-      description="A contract type's value in another classification, optionally only when the basis or another classification's value says so."
+      description="A type's value in another classification, optionally per basis."
       fields={[
         { kind: "select", name: "contractTypeCode", label: "Contract type", required: true, placeholder: "Choose", options: types },
         { kind: "select", name: "taxonomyCode", label: "Classification", required: true, placeholder: "Choose", options: taxonomies },
@@ -663,7 +663,7 @@ export function ClassificationPolicyDrawer({ values }: { values: { dominanceShar
   return (
     <RecordEditor
       title="Mixed-scope classification"
-      description="The share of value the largest deliverable must strictly exceed for its type to be the default. Leave it empty for no default: the officer then chooses, with a reason."
+      description="Share the largest deliverable must exceed. Empty: the officer chooses, with a reason."
       fields={[
         { kind: "text", name: "dominanceSharePct", label: "Mixed-scope threshold (percent)", placeholder: "Not set", hint: "At least 50 and below 100." },
         {

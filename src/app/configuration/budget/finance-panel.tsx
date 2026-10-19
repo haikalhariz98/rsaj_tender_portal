@@ -220,7 +220,7 @@ export function FinancePanel({
         <CardHeader
           icon={<ChartIcon size={17} />}
           title="Reconciliation"
-          subtitle="Where the portal and Finance & Operations disagree on a code."
+          subtitle="Where the two disagree"
           actions={
             live.length > 0 ? (
               <Badge tone="warn">
@@ -289,7 +289,7 @@ export function FinancePanel({
           <CardHeader
             icon={<GlobeIcon size={17} />}
             title="Finance & Operations"
-            subtitle="How and how often the portal reconciles with Finance & Operations."
+            subtitle="How the portal reconciles"
           />
           <CardBody>
             <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -322,7 +322,7 @@ export function FinancePanel({
               <Field
                 label="Variance tolerance"
                 htmlFor="fin-varianceTolerance"
-                hint="How far apart the two may be before it counts as a disagreement. Empty means any difference counts."
+                hint="Gap that counts as disagreement. Empty: any."
                 error={state.errors?.varianceTolerance}
               >
                 <AffixInput

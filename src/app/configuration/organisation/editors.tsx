@@ -351,7 +351,7 @@ export function EditTimeZone({
   return (
     <RecordEditor
       title="Time zone"
-      description="The zone dates such as today are judged in: whether a vote sheet is dated in the future, the day a matter is tabled."
+      description="Dates such as today are judged in this zone."
       fields={[
         {
           kind: "select",
@@ -386,7 +386,7 @@ export function EditDetails({ details }: { details: Details }) {
   return (
     <RecordEditor
       title="Edit organisation details"
-      description="Shown across the portal and carried on reports and letters. Documents already issued keep the details they were issued with."
+      description="Shown across the portal and on reports. Issued documents keep their details."
       fields={[
         text("name", "As registered, e.g. Syarikat Contoh Sdn. Bhd."),
         text("nameMs", "Used on Malay documents."),

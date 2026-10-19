@@ -28,7 +28,7 @@ export function BodyDrawer({ body }: { body?: { id: string; name: string; values
   return (
     <RecordEditor
       title={body ? `Edit ${body.name}` : "Add a registration body"}
-      description="A body a bidder registers with. An exercise lists the registrations it requires from these; the notice prints the body's name and what the exercise states with it."
+      description="A body bidders register with. Exercises list the ones they require."
       columns={2}
       fields={[
         hidden("id"),
@@ -54,7 +54,7 @@ export function ClauseDrawer({ clause }: { clause?: { id: string; title: string;
   return (
     <RecordEditor
       title={clause ? `Edit ${clause.title}` : "Add a clause"}
-      description="A clause a template cites as {{clause:code}}. Its words are printed as written. A change to them raises its text version; documents already frozen keep the version they were frozen with."
+      description="A clause a template cites. A change raises its text version. Frozen documents keep theirs."
       columns={2}
       fields={[
         hidden("id"),

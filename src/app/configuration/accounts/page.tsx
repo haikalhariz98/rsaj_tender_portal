@@ -35,9 +35,9 @@ export default async function AccountsPage() {
   if (!gate.ok) {
     return (
       <>
-        <PageHeader title="Sign-in accounts" subtitle="Who can sign in, and how they get their first password." />
-        <Callout tone="warn" title="Only an administrator manages sign-in accounts">
-          {gate.message} Ask an administrator if somebody needs an account or a code.
+        <PageHeader title="Sign-in accounts" info={{ title: "Sign-in accounts", text: "Who can sign in, and how they get their first password." }} />
+        <Callout tone="warn" title="Only an administrator manages accounts">
+          {gate.message}
         </Callout>
       </>
     );
@@ -54,7 +54,7 @@ export default async function AccountsPage() {
     <>
       <PageHeader
         title="Sign-in accounts"
-        subtitle="Who can sign in, and how they get their first password."
+        info={{ title: "Sign-in accounts", text: "Who can sign in, and how they get their first password." }}
         actions={
           <>
             <ButtonLink href="/configuration/changes" variant="secondary" size="sm">
@@ -66,27 +66,20 @@ export default async function AccountsPage() {
       />
 
       {role && !role.safe && role.reason === "TEMPORARY_HELD" && (
-        <Callout tone="warn" title="This copy's database login can still make temporary tables" className="mb-5">
-          It runs as {RUNTIME_ROLE_WORDS[role.reason]}. Sign-in is not refused. The operator runs the role setup again as the README describes (Running in production), then restarts the app.
+        <Callout tone="warn" title="Database login too broad. Operator reruns role setup." className="mb-5">
+          Runs as {RUNTIME_ROLE_WORDS[role.reason]}.
         </Callout>
       )}
 
       {role && !role.safe && role.reason !== "TEMPORARY_HELD" && (
-        <Callout tone="warn" title="This copy is connected to its database with too much authority" className="mb-5">
-          It runs as {RUNTIME_ROLE_WORDS[role.reason]}.{" "}
-          {role.refuseSignIn
-            ? role.reason === "TRAIL_WRITABLE"
-              ? "Sign-in is refused until the operator brings the role's rights back into line and restarts the app."
-              : "Sign-in is refused until the operator sets the app's own role up."
-            : role.reason === "TRAIL_WRITABLE"
-              ? "This is allowed while developing only: a production copy refuses every sign-in like this. The operator brings the role's rights back into line as the README describes (Running in production), then restarts the app."
-              : "This is allowed while developing only: a production copy refuses every sign-in like this. The operator sets the app's own role up as the README describes (Running in production)."}
+        <Callout tone="warn" title={role.refuseSignIn ? "Sign-in refused: database login too broad. Contact the operator." : "Database login too broad. Production refuses sign-in. Contact the operator."} className="mb-5">
+          Runs as {RUNTIME_ROLE_WORDS[role.reason]}.
         </Callout>
       )}
 
       {view.codeSettingsUnset.length > 0 && (
-        <Callout tone="warn" title="Codes cannot be issued yet" className="mb-5">
-          The organisation has not set: {settingLabels(view.codeSettingsUnset).join("; ")}. These are its own to choose; the operator sets them when creating the first administrator.
+        <Callout tone="warn" title="Codes cannot be issued. Not set:" className="mb-5">
+          {settingLabels(view.codeSettingsUnset).join("; ")}.
         </Callout>
       )}
 
@@ -98,7 +91,7 @@ export default async function AccountsPage() {
 
       <Section
         title="Accounts"
-        blurb="A person has at most one account. A code is shown once, to the administrator who issues it, who hands it over by hand; nobody issues a code for their own account. For an administrator, or someone who holds or has held an office, a seat or a delegation, a second administrator issues it."
+        blurb="One account per person. A code is shown once, to the administrator who issues it, and never for their own account."
         empty="No account exists yet. Create one for a person on record, then issue an activation code."
         count={view.rows.length}
       >

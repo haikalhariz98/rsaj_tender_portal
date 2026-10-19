@@ -67,7 +67,7 @@ export default async function DocumentsConfigPage() {
             </Badge>
           ) : undefined
         }
-        subtitle="Classification, retention, upload rules and the files received."
+        info={{ title: "Documents", text: "Classification, retention, upload rules and the files received." }}
       />
 
       <Stats>
@@ -165,7 +165,7 @@ export default async function DocumentsConfigPage() {
       <Card className="mb-6 overflow-hidden">
         <CardHeader
           title="Upload rules"
-          subtitle="Which files the portal accepts and how large. Where either is not set, uploads are refused."
+          subtitle="Accepted files and size"
           actions={policy ? <EditStorePolicy policy={{ allowedMediaTypes: policy.allowedMediaTypes, maxBytes: policy.maxBytes?.toString() ?? null, onlineBidFileClassId: policy.onlineBidFileClassId, provenance: policy.provenance, notes: policy.notes }} sulitClasses={classes.filter((c) => c.classification === "SULIT").map((c) => ({ value: c.id, label: c.nameEn }))} /> : undefined}
           divided
         />
@@ -241,7 +241,7 @@ export default async function DocumentsConfigPage() {
               {staged.length > 0 && <Badge outline>{staged.length}</Badge>}
             </span>
           }
-          subtitle="Files uploaded but not attached to any record. Nothing is deleted from here: a file stays until it is attached."
+          subtitle="Uploaded, not attached. Kept until attached."
           divided={staged.length === 0}
         />
         {staged.length === 0 ? (
@@ -299,7 +299,7 @@ export default async function DocumentsConfigPage() {
               {holds.length > 0 && <Badge outline>{holds.length}</Badge>}
             </span>
           }
-          subtitle="A document on hold is never disposed of, whatever its retention says. A hold is placed from the document itself and released with a reason."
+          subtitle="Held documents are never disposed of"
           divided={holds.length === 0}
         />
         {holds.length === 0 ? (

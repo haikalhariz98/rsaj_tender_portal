@@ -48,9 +48,9 @@ export default async function ContractControlsPage() {
   if (!org) {
     return (
       <>
-        <PageHeader title="Contract controls" subtitle="How contracts are formed after award." />
+        <PageHeader title="Contract controls" info={{ title: "Contract controls", text: "How contracts are formed after award." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -90,7 +90,7 @@ export default async function ContractControlsPage() {
       <PageHeader
         title="Contract controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="The legal office, the signatory rows, controlled copies and the Contract Document's parts."
+        info={{ title: "Contract controls", text: "The legal office, the signatory rows, controlled copies and the Contract Document's parts." }}
         meta={[
           <span key="p" className="inline-flex items-center gap-1.5">
             Where these controls come from <ProvenanceBadge value={p?.provenance} />
@@ -105,7 +105,7 @@ export default async function ContractControlsPage() {
       />
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<ScaleIcon size={17} />} title="Forming a contract" subtitle="Frozen on each contract when its preparation starts. Unset refuses the start, naming the setting." />
+          <CardHeader icon={<ScaleIcon size={17} />} title="Forming a contract" subtitle="Frozen at preparation" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -121,9 +121,9 @@ export default async function ContractControlsPage() {
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader icon={<FileIcon size={17} />} title="Contract Document parts" subtitle="By basis, in the prescribed order. Copied into each contract's assembly when its preparation starts." actions={<AddDocumentPart bases={bases} />} divided={cfg.parts.length === 0} />
+          <CardHeader icon={<FileIcon size={17} />} title="Contract Document parts" subtitle="By basis, in order" actions={<AddDocumentPart bases={bases} />} divided={cfg.parts.length === 0} />
           {cfg.parts.length === 0 ? (
-            <EmptyState size="sm" title="Not set">No parts are configured, so no contract&apos;s preparation can start.</EmptyState>
+            <EmptyState size="sm" title="Not set" />
           ) : (
             <Table minWidth={640}>
               <colgroup>
@@ -159,9 +159,9 @@ export default async function ContractControlsPage() {
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader icon={<InboxIcon size={17} />} title="Who receives a controlled copy" subtitle="Each executed contract's copies go to these, as frozen when its preparation started." actions={<AddCopyRecipient />} divided={cfg.recipients.length === 0} />
+          <CardHeader icon={<InboxIcon size={17} />} title="Who receives a controlled copy" subtitle="Frozen when preparation started" actions={<AddCopyRecipient />} divided={cfg.recipients.length === 0} />
           {cfg.recipients.length === 0 ? (
-            <EmptyState size="sm" title="Not set">Nobody is set to receive a copy, so no contract&apos;s preparation can start.</EmptyState>
+            <EmptyState size="sm" title="Not set" />
           ) : (
             <Table minWidth={640}>
               <colgroup>

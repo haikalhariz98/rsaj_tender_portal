@@ -33,7 +33,7 @@ export function EditMethodPack({ id, name, raw, packKinds }: { id: string; name:
   return (
     <RecordEditor
       title={`Which documents does ${name} assemble?`}
-      description="An exercise moves into preparation only once its method says which documents it needs. Not set holds that move back, naming this setting; it is never read as none."
+      description="Preparation starts only once the method names its documents. Not set holds it back."
       fields={[
         hidden("id"),
         { kind: "select", name: "documentPackKind", label: "Documents assembled", required: true, placeholder: "Choose", placeholderDisabled: true, options: packKinds },
@@ -63,7 +63,7 @@ export function PartDrawer({
   return (
     <RecordEditor
       title={part ? `Edit ${part.label}` : "Add a part"}
-      description="A part of the documents an exercise assembles, for one kind of pack. Left on every basis it applies to all; a part for one basis replaces the every-basis part of the same role."
+      description="A part of the pack, per basis. A basis part replaces the every-basis part."
       columns={2}
       fields={[
         hidden("id"),
@@ -101,7 +101,7 @@ export function RetirePartDrawer({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`Retire ${label}`}
-      description="A pack started from this day does not take the part. Packs already started keep it, and it stays on record with its history. It can be restored."
+      description="New packs omit the part. Started packs keep it. It can be restored."
       fields={[hidden("id"), { kind: "date", name: "retiredOn", label: "Retired from", required: true }]}
       values={{ id }}
       destructive={{ reasonLabel: "Why it is retired" }}
@@ -118,7 +118,7 @@ export function RestorePartDrawer({ id, label }: { id: string; label: string }) 
   return (
     <RecordEditor
       title={`Restore ${label}`}
-      description="Packs started from now on take the part again. It is refused if another live part of the same role is already configured for the same pack and basis."
+      description="New packs take the part again. Refused if another live part has the same role."
       fields={[hidden("id")]}
       values={{ id }}
       reason={{ label: "Why it is restored" }}
@@ -136,7 +136,7 @@ export function EditTenderPolicy({ values, taxonomies = [] }: { values: Record<s
   return (
     <RecordEditor
       title="Edit the tender documents policy"
-      description="Every value is the organisation's own choice. Leave one empty to leave it unset; a figure set says where it came from."
+      description="Each value is the organisation's own. Empty stays unset."
       columns={2}
       fields={[
         { kind: "textarea", name: "restrictionStampTextEn", label: "Stamp wording, English", hint: "The wording stamped on a restricted tender, as it is to be printed. Nothing is stamped while this is empty." },
@@ -178,7 +178,7 @@ export function PartBidRulesDrawer({ id, label, values }: { id: string; label: s
   return (
     <RecordEditor
       title={`Online upload rules: ${label}`}
-      description="What a bidder may upload for this part when bids are submitted online. An online exercise cannot be published while a part the bidder returns has no file types or no largest size."
+      description="What a bidder may upload. An online exercise cannot publish without types and size."
       fields={[
         hidden("id"),
         { kind: "tokens", name: "bidAcceptedMediaTypes", label: "File types a bidder may upload", placeholder: "Not set", options: BID_PART_MEDIA_TYPES.map((t) => ({ value: t, label: mediaLabel(t) })), hint: "Only types the portal can recognise from the file itself. A file whose contents are another type is refused." },

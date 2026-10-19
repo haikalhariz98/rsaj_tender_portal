@@ -27,7 +27,7 @@ export function EditContractPolicy({ values, units, conditions, offices }: { val
   return (
     <RecordEditor
       title="Contract controls"
-      description="How this organisation forms contracts. Every setting starts unset; preparation does not start while one it needs is unset. A contract already in preparation keeps what was frozen for it."
+      description="Every setting starts unset. Preparation will not start on an unset one."
       fields={[
         { kind: "select", name: "legalOfficeCode", label: "The legal office that reviews contracts", placeholder: "Not set", options: units },
         { kind: "select", name: "signatoryCond", label: "The approval matrix's signatory rows for the contract agreement", placeholder: conditions.length ? "Not set" : "No signatory rows other than the award's instruments", options: conditions, hint: "Rows on the matter of who signs, set on the approval matrix." },
@@ -89,7 +89,7 @@ export function RetireContractRow({ entity, id, label, today }: { entity: string
   return (
     <RecordEditor
       title={`Retire ${label}`}
-      description="It stops being offered from the day given. Contracts already in preparation keep what was frozen for them."
+      description="No longer offered from the day given. Contracts in preparation keep it."
       fields={[hidden("entity"), hidden("id"), { kind: "date", name: "retiredOn", label: "Retired from", required: true }]}
       values={{ entity, id, retiredOn: today }}
       action={retireContractRow}

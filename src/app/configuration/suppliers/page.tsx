@@ -55,9 +55,9 @@ export default async function SupplierRegisterConfigPage() {
   if (!org) {
     return (
       <>
-        <PageHeader title="Supplier register" subtitle="Registration bodies' values, document types, the register's lists and its policy." />
+        <PageHeader title="Supplier register" info={{ title: "Supplier register", text: "Registration bodies' values, document types, the register's lists and its policy." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -90,7 +90,7 @@ export default async function SupplierRegisterConfigPage() {
       <PageHeader
         title="Supplier register"
         badge={switchesNotSet + listsEmpty.length + rulesNotSet + registrationNotSet > 0 ? <Badge tone="warn" dot>{switchesNotSet + listsEmpty.length + rulesNotSet + registrationNotSet} not set</Badge> : <Badge tone="ok" dot>Set</Badge>}
-        subtitle="Registration values, statutory document types, the register's lists and its notice."
+        info={{ title: "Supplier register", text: "Registration values, statutory document types, the register's lists and its notice." }}
         actions={
           <>
             {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="the register's policy" />}
@@ -106,7 +106,7 @@ export default async function SupplierRegisterConfigPage() {
         )}
 
         <Card>
-          <CardHeader icon={<SlidersIcon size={17} />} title="Policy" subtitle="What the supplier is told about how its documents are checked. Shown to the vendor once vendors can sign in (6.15b); kept here now so the words are decided." />
+          <CardHeader icon={<SlidersIcon size={17} />} title="Policy" subtitle="Shown once vendors sign in" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -125,7 +125,7 @@ export default async function SupplierRegisterConfigPage() {
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Online applications"
-            subtitle="The public form on the supplier portal. It stays closed until the notice about personal details is written in both languages and both limits are set. The applications themselves are kept apart from the register until an officer records the supplier."
+            subtitle="Closed until notice and limits set"
             actions={
               <span className="flex flex-wrap items-center gap-2">
                 {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="online applications" />}
@@ -150,7 +150,7 @@ export default async function SupplierRegisterConfigPage() {
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Registration online"
-            subtitle="What a supplier's own registration (documents, work codes, bank details, declarations) is judged by. Each setting not set keeps what it governs closed, and the supplier's screen says which."
+            subtitle="Not set keeps it closed"
             actions={
               <span className="flex flex-wrap items-center gap-2">
                 {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="registration online" />}
@@ -179,7 +179,7 @@ export default async function SupplierRegisterConfigPage() {
           <CardHeader
             icon={<FileIcon size={17} />}
             title={<span className="inline-flex items-center gap-2">Declarations{declTexts.length > 0 && <Badge outline>{declTexts.length}</Badge>}</span>}
-            subtitle="The wording a supplier reads and signs: the GIRO authorisation and the false-declaration acknowledgement. Versioned: the one in force is the highest version not withdrawn. None ships."
+            subtitle="Highest version in force applies"
             actions={<DeclarationTextDrawer />}
             divided={declTexts.length === 0}
           />
@@ -189,7 +189,7 @@ export default async function SupplierRegisterConfigPage() {
             </p>
           ))}
           {declTexts.length === 0 ? (
-            <EmptyState title="None configured">Add the wording of both declarations before a supplier can finish its registration.</EmptyState>
+            <EmptyState title="None configured" />
           ) : (
             <Table minWidth={760}>
               <colgroup>
@@ -234,7 +234,7 @@ export default async function SupplierRegisterConfigPage() {
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Standing"
-            subtitle="How expiry is banded, what a lapse does, how long a first blacklisting lasts, and what the register asks at a sale and an opening. Each rule not set holds back, or is read as not assessed, and says so."
+            subtitle="Not set holds back"
             actions={
               <span className="flex flex-wrap items-center gap-2">
                 {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="the standing rules" />}
@@ -267,12 +267,12 @@ export default async function SupplierRegisterConfigPage() {
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title={<span className="inline-flex items-center gap-2">Standing reasons{cfg.reasons.length > 0 && <Badge outline>{cfg.reasons.length}</Badge>}</span>}
-            subtitle="The maintained list an officer chooses from when suspending a supplier or asking for its blacklisting."
+            subtitle="For suspensions and blacklistings"
             actions={<StandingReasonDrawer />}
             divided={cfg.reasons.length === 0}
           />
           {cfg.reasons.length === 0 ? (
-            <EmptyState title="None configured">No supplier can be suspended, and no blacklisting asked for, until a reason is added.</EmptyState>
+            <EmptyState title="None configured" />
           ) : (
             <Table minWidth={640}>
               <colgroup>
@@ -311,12 +311,12 @@ export default async function SupplierRegisterConfigPage() {
           <CardHeader
             icon={<FileIcon size={17} />}
             title={<span className="inline-flex items-center gap-2">Document types{cfg.types.length > 0 && <Badge outline>{cfg.types.length}</Badge>}</span>}
-            subtitle="The statutory documents a supplier lodges. Each switch left not set holds back the act that needs it."
+            subtitle="Not set holds back the act"
             actions={<DocumentTypeDrawer bodies={bodyOptions} />}
             divided={cfg.types.length === 0}
           />
           {cfg.types.length === 0 ? (
-            <EmptyState title="None configured">No document can be lodged and no application decided until the document types are added.</EmptyState>
+            <EmptyState title="None configured" />
           ) : (
             // fix S-4 (b): within the 944px content column at 1280, so Edit and Retire stay in view; the type column wraps.
             <Table minWidth={900}>
@@ -363,7 +363,7 @@ export default async function SupplierRegisterConfigPage() {
         </Card>
 
         <Card id="values" className="scroll-mt-24 overflow-hidden">
-          <CardHeader icon={<BuildingIcon size={17} />} title="Registration bodies' values" subtitle="Grades, categories, specialisations, field codes, classes and permit types, under each body. The bodies themselves are configured under Tender documents." divided={cfg.bodies.length === 0} />
+          <CardHeader icon={<BuildingIcon size={17} />} title="Registration bodies' values" subtitle="By body" divided={cfg.bodies.length === 0} />
           {cfg.bodies.length === 0 ? (
             <EmptyState title="No registration body is configured" action={<Link href="/configuration/tender-documents">Tender documents</Link>}>Add the bodies first; their values are kept here.</EmptyState>
           ) : (
@@ -424,7 +424,7 @@ export default async function SupplierRegisterConfigPage() {
         </Card>
 
         <Card id="lists" className="scroll-mt-24 overflow-hidden">
-          <CardHeader icon={<SlidersIcon size={17} />} title="Lists" subtitle="The entity types, countries (with their dial codes), states and Bumiputera statuses an officer, or an applicant on the public form, chooses from." />
+          <CardHeader icon={<SlidersIcon size={17} />} title="Lists" subtitle="Chosen by officers and applicants" />
           <div className="divide-y divide-line/70">
             {SUPPLIER_LIST_KINDS.map((k) => {
               const rows = cfg.lists.filter((l) => l.list === k);

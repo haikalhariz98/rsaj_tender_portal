@@ -91,7 +91,7 @@ export default async function OrganisationPage({
     <>
       <PageHeader
         title="Organisation"
-        subtitle="The structure requisitions are raised from, and approvals are routed through."
+        info={{ title: "Organisation", text: "The structure requisitions are raised from, and approvals are routed through." }}
         badge={
           headless > 0 ? (
             <Badge tone="warn" dot>

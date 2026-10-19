@@ -107,7 +107,7 @@ export function RemoveTerm({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`Take ${label} out of the glossary`}
-      description="Refused while a form's text cites it. Certificates already pinned keep the wording they were pinned with."
+      description="Refused while a form cites it. Pinned certificates keep their wording."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       destructive={{ reasonLabel: "Why it comes out" }}

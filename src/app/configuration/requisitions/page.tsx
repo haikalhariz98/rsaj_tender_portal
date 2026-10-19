@@ -46,9 +46,9 @@ export default async function RequisitionControlsPage() {
   if (!org) {
     return (
       <>
-        <PageHeader title="Requisition controls" subtitle="Endorsement tiers and budget re-checks." />
+        <PageHeader title="Requisition controls" info={{ title: "Requisition controls", text: "Endorsement tiers and budget re-checks." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -76,7 +76,7 @@ export default async function RequisitionControlsPage() {
       <PageHeader
         title="Requisition controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="Endorsements, and where the budget check comes from."
+        info={{ title: "Requisition controls", text: "Endorsements, and where the budget check comes from." }}
         meta={[
           <span key="p" className="inline-flex items-center gap-1.5">
             Where these controls come from <ProvenanceBadge value={policy.provenance} />
@@ -92,7 +92,7 @@ export default async function RequisitionControlsPage() {
 
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<ShieldIcon size={17} />} title="Endorsement" subtitle="Whose endorsement a requisition needs before its budget is checked." />
+          <CardHeader icon={<ShieldIcon size={17} />} title="Endorsement" subtitle="Endorsement before the budget check" />
           <CardBody>
             <KeyValues
               items={[
@@ -115,7 +115,7 @@ export default async function RequisitionControlsPage() {
           <CardHeader
             icon={<ChartIcon size={17} />}
             title="Budget check"
-            subtitle="Where the figures come from and when they go stale."
+            subtitle="Figure source and staleness"
             actions={
               <>
                 <EditCheckSource source={controls.budgetCheckSource} />
@@ -175,7 +175,7 @@ export default async function RequisitionControlsPage() {
           <CardHeader
             icon={<ShieldIcon size={17} />}
             title="Committee gates"
-            subtitle="Committees an approved requisition must pass before its first sourcing exercise, by funding route. Outside the approval matrix; placed after approval as an assumption awaiting the customer's confirmation."
+            subtitle="By funding route"
             actions={<GateRuleEditor routes={routeOptions} committees={committeeOptions} />}
           />
           {gatedWithoutRule.length > 0 && (

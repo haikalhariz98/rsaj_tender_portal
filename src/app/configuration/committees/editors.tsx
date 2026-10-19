@@ -492,7 +492,7 @@ export function AddNotApprovedOutcome({ committees }: { committees: { id: string
   return (
     <RecordEditor
       title="Add a not-approved outcome"
-      description="What a matter voted down does next. None is shipped: these are your organisation's own options."
+      description="Your organisation's own options. None is shipped."
       fields={outcomeFields(false, committees)}
       action={saveNotApprovedOutcome}
       submitLabel="Add outcome"
@@ -555,7 +555,7 @@ export function EditQuorum({ id, name, quorum, provenance }: { id: string; name:
   return (
     <RecordEditor
       title={`Quorum of ${name}`}
-      description="The number of members a sitting needs before it can decide. Empty is not zero: a sitting cannot be certified quorate under an unset quorum. A change to the quorum is proposed here and decided by a second person; the sittings that already ran keep the quorum they were certified against."
+      description="Members needed to decide. Not set is not zero: no sitting is certified quorate."
       fields={[
         { kind: "hidden", name: "id" },
         { kind: "number", name: "quorum", label: "Quorum", min: 1, hint: "Leave empty to clear it." },
@@ -576,7 +576,7 @@ export function EditOpeningPanel({ id, name, values, units }: { id: string; name
   return (
     <RecordEditor
       title={`Opening panel of ${name}`}
-      description="How many members open bids for this body, and whether a unit's members may not sit on the panel. Each may be left not set: an unset size holds back starting an opening; an unset rule lets the panel be assigned with the warning that it was not checked, kept on the opening. An opening keeps the rules it started under."
+      description="Who opens bids, and who may not sit. Not set holds back the opening."
       columns={2}
       fields={[
         { kind: "hidden", name: "id" },

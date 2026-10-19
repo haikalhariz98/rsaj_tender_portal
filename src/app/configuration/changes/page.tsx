@@ -27,7 +27,7 @@ export default async function ChangesPage() {
   if (!mayReadQueue(actor.permissions)) {
     return (
       <>
-        <PageHeader title="Changes awaiting a second person" subtitle="Proposed by one person, decided by a different one. Nothing is applied until then." />
+        <PageHeader title="Changes awaiting a second person" info={{ title: "Changes awaiting a second person", text: "Proposed by one person, decided by a different one. Nothing is applied until then." }} />
         <Callout tone="warn" title="Only those who decide these changes read them">
           This queue is read by people who hold the permission to change the sign-in settings, to grant permissions to roles, or to manage sign-in accounts. Ask an administrator if a change is waiting on you.
         </Callout>
@@ -76,7 +76,7 @@ export default async function ChangesPage() {
 
   return (
     <>
-      <PageHeader title="Changes awaiting a second person" subtitle="Proposed by one person, decided by a different one. Nothing is applied until then." />
+      <PageHeader title="Changes awaiting a second person" info={{ title: "Changes awaiting a second person", text: "Proposed by one person, decided by a different one. Nothing is applied until then." }} />
 
       {stuck > 0 && (
         <Callout tone="warn" title={stuck === 1 ? "One change has nobody who could decide it" : `${stuck} changes have nobody who could decide them`} className="mb-5">
@@ -93,14 +93,14 @@ export default async function ChangesPage() {
       <Card className="mb-6 overflow-hidden">
         <CardHeader
           title="Waiting"
-          subtitle="Each is read as what it would do. How long a change may wait before someone is told is the organisation's to decide, and is not set: nothing sends a reminder."
+          subtitle="No reminder rule is set"
           divided={false}
         />
         <WaitingList rows={waiting} />
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader title="Decided" subtitle="The latest fifty. Every one stays on the record, with who decided it and when." divided={false} />
+        <CardHeader title="Decided" subtitle="Latest fifty, all kept" divided={false} />
         <DecidedList rows={decided} />
       </Card>
     </>

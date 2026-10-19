@@ -84,7 +84,7 @@ export default async function UsersPage({
     <>
       <PageHeader
         title="Users & roles"
-        subtitle="Officers, the offices they hold and what each may see."
+        info={{ title: "Users & roles", text: "Officers, the offices they hold and what each may see." }}
         meta={[
           `${roster.people.length} ${roster.people.length === 1 ? "person" : "people"}`,
           `${roster.offices.length} ${roster.offices.length === 1 ? "role" : "roles"}`,

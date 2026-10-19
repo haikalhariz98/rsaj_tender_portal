@@ -46,7 +46,7 @@ export const OUTCOME_TONE: Readonly<Record<SubmissionOutcome, "ok" | "warn">> = 
 /// Decisions log, 2026-10-09, ruling on 1924(B): the unit of a service level is ASSUMED to be calendar days (the three-state honesty of AGENTS.md: stated, observed or assumed). No document the customer holds says calendar or working days, so
 /// working days wait for the customer; until then the editor and the configuration page say the unit is an assumption.
 export const SERVICE_UNIT_ASSUMED = w("Calendar days (assumed)");
-export const SERVICE_UNIT_ASSUMED_NOTE = w("The unit is calendar days. That is an assumption, not a rule the customer has stated: a working-days unit waits for the customer.");
+export const SERVICE_UNIT_ASSUMED_NOTE = w("Calendar days: an assumption.");
 
 export const SERVICE_NOT_SET = w("Service level not set");
 

@@ -40,7 +40,9 @@ const NO_SETTINGS = normaliseSignInPage({});
 describe("the sign-in page's settings cards", () => {
   it("say, with nothing uploaded, that the logo for dark backgrounds is not set and what the page shows instead", () => {
     const host = draw({ image: null, darkLogo: null, settings: NO_SETTINGS });
-    expect(host.textContent).toContain("Logo for dark backgrounds: not set — the sign-in page shows your ordinary logo with a soft light halo");
+    // 0005, founder 2026-10-19: the callout is a chip with the same facts in its popover.
+    expect(host.textContent).toContain("Dark-background logo not set");
+    expect(host.textContent).toContain("The ordinary logo shows with a light halo");
   });
 
   it("show a logo for dark backgrounds that is set, on a dark ground, and not the 'not set' line", () => {

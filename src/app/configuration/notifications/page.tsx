@@ -34,7 +34,7 @@ export default async function NotificationsPage() {
             <Badge outline>{silent.length === 1 ? "1 switched off" : `${silent.length} switched off`}</Badge>
           ) : undefined
         }
-        subtitle="What the portal sends, to whom, and when reminders are issued."
+        info={{ title: "Notifications", text: "What the portal sends, to whom, and when reminders are issued." }}
       />
 
       <Stats>

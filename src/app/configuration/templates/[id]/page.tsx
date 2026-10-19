@@ -5,9 +5,10 @@ import { HistoryButton } from "@/components/history-drawer";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { FilesIcon, InboxIcon, PrinterIcon, ToolsIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Blocked } from "@/components/ui/blocked";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -61,15 +62,15 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
         eyebrow={<Link href="/configuration/templates">Templates</Link>}
         title={t.nameEn}
         badge={undecided ? <Badge tone="warn" dot>{`${undecided} block${undecided === 1 ? "" : "s"} undecided`}</Badge> : undefined}
-        subtitle="Signature order, recipients and printed form, pinned at a certificate's first signature."
+        info={{ title: "Signature order, recipients and printed form, pinned at a certificate's first signature.", text: "Signature order, recipients and printed form, pinned at a certificate's first signature." }}
         meta={[t.formCode || "No form code", t.revisionDate ? `Revision ${formatDate(t.revisionDate)}` : "No revision date", notAForm ? `Version ${t.bodyVersion} (its text)` : `Version ${t.bodyVersion} (its text, signature blocks, distribution list and printed form)`, t.pageCount == null ? "Printed pages not recorded" : `${t.pageCount} printed page${t.pageCount === 1 ? "" : "s"}`, `${t._count.certificates} certificate${t._count.certificates === 1 ? "" : "s"} printed on it`]}
       />
       <div className="flex flex-col gap-6">
-        {notAForm && <Callout tone="info" title="Not a certificate form">{notAForm}</Callout>}
+        {notAForm && <InfoChip tone="warn" detail={notAForm}>Not a certificate form</InfoChip>}
         <Card className="overflow-hidden">
-          <CardHeader icon={<ToolsIcon size={17} />} title="Signature blocks" subtitle="In printed order. A later block is refused until every earlier one is recorded; the block marked as dating the certificate gives it its date." actions={notAForm ? <Blocked label="Add block" reason={notAForm} /> : <AddBlock templateId={t.id} offices={offices} />} divided={t.signatureBlocks.length === 0} />
+          <CardHeader icon={<ToolsIcon size={17} />} title="Signature blocks" subtitle="In printed order" actions={notAForm ? <Blocked label="Add block" reason={notAForm} /> : <AddBlock templateId={t.id} offices={offices} />} divided={t.signatureBlocks.length === 0} />
           {t.signatureBlocks.length === 0 ? (
-            <EmptyState size="sm" title="Not set">No blocks: nothing printed on this form can be signed, so no certificate on it goes past its draft.</EmptyState>
+            <EmptyState size="sm" title="Not set" />
           ) : (
             <Table minWidth={640}>
               <colgroup>
@@ -116,9 +117,9 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader icon={<InboxIcon size={17} />} title="Distribution list" subtitle="Who receives the issued certificate. A conditional row is resolved from the contract on the day of issue; a mandatory copy not sent leaves the certificate not distributed." actions={notAForm ? <Blocked label="Add recipient" reason={notAForm} /> : <AddRecipient templateId={t.id} />} divided={t.distributionRows.length === 0} />
+          <CardHeader icon={<InboxIcon size={17} />} title="Distribution list" subtitle="Who receives it" actions={notAForm ? <Blocked label="Add recipient" reason={notAForm} /> : <AddRecipient templateId={t.id} />} divided={t.distributionRows.length === 0} />
           {t.distributionRows.length === 0 ? (
-            <EmptyState size="sm" title="Not set">No recipients: a certificate on this form could reach nobody, so its first signature is refused.</EmptyState>
+            <EmptyState size="sm" title="Not set" />
           ) : (
             <Table minWidth={640}>
               <colgroup>
@@ -165,7 +166,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
             divided={t.printedFields.length === 0}
           />
           {t.printedFields.length === 0 ? (
-            <EmptyState size="sm" title="No printed fields">The printed form&apos;s labels are not recorded: a certificate on it prints its text alone, and a routing sheet on it shows the portal&apos;s words.</EmptyState>
+            <EmptyState size="sm" title="No printed fields" />
           ) : (
             <Table minWidth={640}>
               <colgroup>

@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import { decimalText } from "@/lib/format";
 import { ButtonLink } from "@/components/ui/button";
@@ -6,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { AwardIcon, FileIcon, InboxIcon, ShieldIcon } from "@/components/icons";
 import { HistoryButton } from "@/components/history-drawer";
+import { NotSet } from "../records-ui";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -48,7 +48,7 @@ function Section({ title, subtitle, icon, count, action, empty, children }: { ti
   return (
     <Card className="overflow-hidden">
       <CardHeader icon={icon} title={<span className="inline-flex items-center gap-2">{title}{count > 0 && <Badge outline>{count}</Badge>}</span>} subtitle={subtitle} actions={action} divided={count === 0} />
-      {count === 0 ? <EmptyState size="sm" title="Not set">{empty}</EmptyState> : children}
+      {count === 0 ? <NotSet size="sm" text={empty} /> : children}
     </Card>
   );
 }
@@ -64,9 +64,9 @@ export default async function AwardControlsPage() {
   if (!org) {
     return (
       <>
-        <PageHeader title="Award controls" subtitle="How awards are made and what they read." />
+        <PageHeader title="Award controls" info={{ title: "Award controls", text: "How awards are made and what they read." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -113,7 +113,7 @@ export default async function AwardControlsPage() {
       <PageHeader
         title="Award controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="Instruments by band, their templates, who receives copies, and the letter variants."
+        info={{ title: "Award controls", text: "Instruments by band, their templates, who receives copies, and the letter variants." }}
         meta={[
           <span key="p" className="inline-flex items-center gap-1.5">
             Where these controls come from <ProvenanceBadge value={p.provenance} />
@@ -129,7 +129,7 @@ export default async function AwardControlsPage() {
 
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<AwardIcon size={17} />} title="Instruments and clocks" subtitle="Unset refuses what depends on it; nothing is assumed." />
+          <CardHeader icon={<AwardIcon size={17} />} title="Instruments and clocks" subtitle="Unset refuses what depends on it" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -177,7 +177,7 @@ export default async function AwardControlsPage() {
         </Card>
 
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Templates" subtitle="The documents are generated from these templates' text, set under Templates, and frozen when issued. The appointment letter's template comes from its variant." actions={<ButtonLink href="/configuration/templates" size="sm" variant="secondary">Open Templates</ButtonLink>} />
+          <CardHeader icon={<FileIcon size={17} />} title="Templates" subtitle="Frozen when issued" actions={<ButtonLink href="/configuration/templates" size="sm" variant="secondary">Open Templates</ButtonLink>} />
           <CardBody>
             <KeyValues
               columns={3}
@@ -190,7 +190,7 @@ export default async function AwardControlsPage() {
           </CardBody>
         </Card>
 
-        <Section title="Who receives copies" subtitle="Drawn onto each award when its instrument is issued, with the awardee's own copy. One that applies only to the regulated activity is on the list where the award says the works are that activity." icon={<InboxIcon size={17} />} count={c.recipientRows.length} action={<AddRecipient />} empty="Nobody is set to receive copies, so no instrument can be issued.">
+        <Section title="Who receives copies" subtitle="Drawn onto each award at issue" icon={<InboxIcon size={17} />} count={c.recipientRows.length} action={<AddRecipient />} empty="Nobody is set to receive copies, so no instrument can be issued.">
           <Table>
             <colgroup>
               <col />
@@ -223,7 +223,7 @@ export default async function AwardControlsPage() {
           </Table>
         </Section>
 
-        <Section title="Appointment-letter variants" subtitle="Chosen by the exercise's contract type and its contract terms band, never guessed. The terms band says whether retention and defects liability are asked." icon={<FileIcon size={17} />} count={c.variantRows.length} action={<AddVariant templates={templates} types={typeOptions} bands={bandOptions} />} empty="No variants are set, so no indent award can be issued.">
+        <Section title="Appointment-letter variants" subtitle="By contract type and terms band" icon={<FileIcon size={17} />} count={c.variantRows.length} action={<AddVariant templates={templates} types={typeOptions} bands={bandOptions} />} empty="No variants are set, so no indent award can be issued.">
           <Table>
             <colgroup>
               <col />
@@ -258,7 +258,7 @@ export default async function AwardControlsPage() {
           </Table>
         </Section>
 
-        <Section title="Conditions precedent" subtitle="What must be in place before work may start. A delay in one marked so does not earn the contractor more time." icon={<AwardIcon size={17} />} count={c.conditionKinds.length} action={<AddConditionKind />} empty="No conditions are set.">
+        <Section title="Conditions precedent" subtitle="Needed before work starts" icon={<AwardIcon size={17} />} count={c.conditionKinds.length} action={<AddConditionKind />} empty="No conditions are set.">
           <Table>
             <colgroup>
               <col />
@@ -288,7 +288,7 @@ export default async function AwardControlsPage() {
           </Table>
         </Section>
 
-        <Section title="Insurance requirements" subtitle="Which policies a contract must carry, and how long past completion and defects liability each must run. A contract type's own row takes the place of the general one." icon={<ShieldIcon size={17} />} count={c.requirementRows.length} action={<AddRequirement types={typeOptions} />} empty="No requirements are set, so the readiness gate's insurance item reads as not set.">
+        <Section title="Insurance requirements" subtitle="Required cover and period past completion" icon={<ShieldIcon size={17} />} count={c.requirementRows.length} action={<AddRequirement types={typeOptions} />} empty="No requirements are set, so the readiness gate's insurance item reads as not set.">
           <Table>
             <colgroup>
               <col />
@@ -321,7 +321,7 @@ export default async function AwardControlsPage() {
           </Table>
         </Section>
 
-        <Section title="Public liability bands" subtitle="By contract price, above the lower figure and up to and including the upper. A price that falls between bands is refused, never placed in one." icon={<ShieldIcon size={17} />} count={c.bandRows.length} action={<AddBand />} empty="No bands are set, so no public liability limit can be derived.">
+        <Section title="Public liability bands" subtitle="By contract price. Gaps are refused." icon={<ShieldIcon size={17} />} count={c.bandRows.length} action={<AddBand />} empty="No bands are set, so no public liability limit can be derived.">
           {gaps.length > 0 && (
             <div className="border-b border-line px-5 py-3 sm:px-6">
               <Callout tone="warn" title="The bands leave prices uncovered">
@@ -365,7 +365,7 @@ export default async function AwardControlsPage() {
           </Table>
         </Section>
 
-        <Section title="Approved issuers" subtitle="Banks and insurers on the regulator's list. A bond or policy from anyone else is not verified." icon={<ShieldIcon size={17} />} count={c.issuers.length} action={<AddIssuer />} empty="No issuers are listed, so no bond or policy can be verified.">
+        <Section title="Approved issuers" subtitle="Others are not verified" icon={<ShieldIcon size={17} />} count={c.issuers.length} action={<AddIssuer />} empty="No issuers are listed, so no bond or policy can be verified.">
           <Table>
             <colgroup>
               <col />
@@ -397,10 +397,6 @@ export default async function AwardControlsPage() {
             </tbody>
           </Table>
         </Section>
-
-        <Callout tone="info" title="Also read by awards">
-          Who signs each instrument is a set of rules on the <Link href="/configuration/approval-matrix">approval matrix</Link>. A contract type&apos;s contract numbering series is set under <Link href="/configuration/reference-data">Reference data</Link>, the indent number&apos;s format under Requisition controls&apos; formats, and the expiry reminders under <Link href="/configuration/notifications">Notifications</Link>.
-        </Callout>
       </div>
     </>
   );

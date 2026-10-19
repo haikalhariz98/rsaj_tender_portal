@@ -500,7 +500,7 @@ export function StartRevision({ fromId, fromLabel }: { fromId: string; fromLabel
   return (
     <RecordEditor
       title="Start a new issue"
-      description={`A draft copy of ${fromLabel} — every threshold, clause and rule. Change it, then issue it; ${fromLabel} stays in force until then and is kept afterwards.`}
+      description={`A draft copy of ${fromLabel}. It stays in force until the draft is issued.`}
       fields={[
         { kind: "hidden", name: "fromId" },
         {
@@ -577,7 +577,7 @@ export function AdoptDraft({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`Adopt ${label}`}
-      description="Nobody is on record as having made this draft. Adopting it makes you its maker, so that a different person issues it. You cannot issue a draft you adopted."
+      description="Nobody made this draft. Adopting makes you its maker. You cannot then issue it."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={adoptDraft}
@@ -712,7 +712,7 @@ export function DiscardDraft({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`Discard ${label}`}
-      description="The draft, its rules and its terms bands are removed. It never routed anything; the discard is on the record."
+      description="Removes the draft, its rules and terms bands. It never routed anything."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={discardDraft}
@@ -736,7 +736,7 @@ export function SetRejectionDestination({ domain, label, offices, current }: { d
   return (
     <RecordEditor
       title={`When a ${label.toLowerCase()} is rejected`}
-      description="Where the matter goes when a step rejects it. Routes already open keep the destination they opened with; a committee's own not-carried outcome still governs a committee step."
+      description="Where a rejected matter goes. Open routes keep theirs. Committees follow their own outcome."
       fields={[
         { kind: "hidden", name: "domain" },
         { kind: "select", name: "kind", label: "Where it goes", required: true, placeholder: "Choose", options: DESTINATION_OPTIONS },
@@ -779,7 +779,7 @@ export function EndRejectionDestination({ id, label }: { id: string; label: stri
   return (
     <RecordEditor
       title={`Clear: when a ${label.toLowerCase()} is rejected`}
-      description="From that day no destination is set, and the officer chooses where a rejected matter goes. Routes already open keep theirs."
+      description="No destination is set. The officer chooses. Open routes keep theirs."
       fields={[
         { kind: "hidden", name: "id" },
         { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, required: true },
@@ -828,7 +828,7 @@ export function AddCoreLevel({ matrixId, offices }: { matrixId: string; offices:
   return (
     <RecordEditor
       title="Add a core routing row"
-      description="The chain every approval by one office carries beneath it. With no offices added, the office approves alone."
+      description="The chain beneath every approval by one office. None: the office approves alone."
       fields={coreLevelFields(offices)}
       values={{ authorityMatrixId: matrixId }}
       action={saveCoreLevel}
@@ -866,7 +866,7 @@ export function RemoveCoreLevel({ id, officeName }: { id: string; officeName: st
   return (
     <RecordEditor
       title={`Remove the core routing for ${officeName}`}
-      description="Takes this row and every office beneath it off the draft. A rule that takes its chain from the core routing for this office will not issue until a row is recorded again."
+      description="Removes this row and all beneath it. Core-chain rules will not issue."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={removeCoreLevel}

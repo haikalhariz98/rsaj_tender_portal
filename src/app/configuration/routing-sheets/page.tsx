@@ -36,11 +36,11 @@ export default async function RoutingSheetsPage() {
   const edgeUndecided = live.filter((t) => t.upperEdgeInclusive == null).length;
   return (
     <>
-      <PageHeader title="Routing sheets" badge={untargeted ? <Badge tone="warn" dot>{`${untargeted} without a target`}</Badge> : undefined} subtitle="Each routing sheet's checks, and the targets elapsed days are judged against." />
+      <PageHeader title="Routing sheets" badge={untargeted ? <Badge tone="warn" dot>{`${untargeted} without a target`}</Badge> : undefined} info={{ title: "Routing sheets", text: "Each routing sheet's checks, and the targets elapsed days are judged against." }} />
       <Stats>
         <Stat label="Types in use" value={live.length || null} hint={live.length ? "Each starts a sheet on a certificate or an award" : "No sheet can start"} />
         <Stat label="Without a target" value={live.length ? untargeted : null} warn={untargeted > 0} hint={untargeted ? "Their sheets read \"Target not set\", never met" : "Every type has a target"} />
-        <Stat label="Band edge undecided" value={live.length ? edgeUndecided : null} hint="Only a percentage exactly on an edge is affected" />
+        <Stat label="Band edge undecided" value={live.length ? edgeUndecided : null} hint="Only a percentage on an edge" />
       </Stats>
       <Section title="Types" blurb="Open a type for its checks and targets. A sheet freezes its type when it starts: a change here never moves a running sheet." empty="No routing sheet type is configured, so no certificate can be sent for routing and no award keeps a routing sheet." count={types.length} action={<AddRoutingType templates={templateOptions} />}>
         <Table minWidth={640}>

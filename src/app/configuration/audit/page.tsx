@@ -1,5 +1,6 @@
 import { ClockIcon, FileIcon, ShieldIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -31,9 +32,9 @@ export default async function AuditTrailPage({ searchParams }: { searchParams: P
   if (!org) {
     return (
       <>
-        <PageHeader title="Audit trail" subtitle="Every change, with what it was before and after, and its export." />
+        <PageHeader title="Audit trail" info={{ title: "Audit trail", text: "Every change, with what it was before and after, and its export." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -64,33 +65,26 @@ export default async function AuditTrailPage({ searchParams }: { searchParams: P
     <>
       <PageHeader
         title="Audit trail"
-        subtitle="Every change, its before and after, recorded in the same act as the change."
-        meta={[`${count} ${count === 1 ? "entry" : "entries"}`, first ? `since ${formatOrgDay(first.at, org.timeZone)}` : "nothing recorded yet", `${exports.length} ${exports.length === 1 ? "export" : "exports"}`]}
+        info={{ title: "Audit trail", text: "Each export is a CSV with a SHA-256 digest, itself recorded. SULIT values are withheld. The digest proves the file is what the portal produced, not that the database was never altered." }}
+        meta={[<InfoChip key="online" tone="warn" detail={ONLINE_RECORDS_NOT_SHOWN_WORDS}>Online held back</InfoChip>, `${count} ${count === 1 ? "entry" : "entries"}`, first ? `since ${formatOrgDay(first.at, org.timeZone)}` : "nothing recorded yet", `${exports.length} ${exports.length === 1 ? "export" : "exports"}`]}
       />
       <div className="flex flex-col gap-6">
-        <Callout tone="info" title="What the digest proves, and what it does not">
-          Each export is a CSV file with a SHA-256 digest of its exact bytes, and the export is itself recorded on the trail. A SULIT value (a price as read, the company estimate, the figure on its paper copy, a withdrawal letter&rsquo;s quote) is not in the file: the change is listed with its values withheld. The digest proves that a file is the one the portal produced on that day. It does not prove the database was never altered: no screen or action edits or deletes an entry, but the database does not yet refuse one itself — that waits for sign-in.
-        </Callout>
-        {/* Ruling 20av: always shown, whether or not any record of an online submission exists, and with no number. */}
-        <Callout tone="info" title="Online submissions">
-          {ONLINE_RECORDS_NOT_SHOWN_WORDS}
-        </Callout>
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Export" subtitle="Every entry recorded on the organisation's days chosen, oldest first." />
+          <CardHeader icon={<FileIcon size={17} />} title="Export" subtitle="Oldest first" />
           <CardBody>
             {exportGate.ok ? (
               <AuditExportForm today={today} />
             ) : (
-              <Callout tone="info" title="For those who may read and export the trail">
+              <Callout tone="warn" title="Export not available to you">
                 {exportGate.message}
               </Callout>
             )}
           </CardBody>
         </Card>
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Exports on record" subtitle="Newest first. A file handed over can be checked against its digest here." actions={<Badge outline>{exports.length}</Badge>} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Exports on record" subtitle="Newest first" actions={<Badge outline>{exports.length}</Badge>} />
           {exports.length === 0 ? (
-            <EmptyState size="sm" title="No export yet">Nothing has been exported.</EmptyState>
+            <EmptyState size="sm" title="No export yet" />
           ) : (
             <Table minWidth={720}>
               <colgroup>
@@ -127,11 +121,11 @@ export default async function AuditTrailPage({ searchParams }: { searchParams: P
             <CardHeader
               icon={<ShieldIcon size={17} />}
               title="Back-dated signatures"
-              subtitle="A signature dated earlier than the day it was recorded is a recorded exception. The signer names who authorised it; it reads as the signer's claim until that person confirms it, in a signature of their own."
+              subtitle="Signer's claim until confirmed"
               actions={<Badge tone={unconfirmed > 0 ? "warn" : "ok"} outline>{unconfirmed} not confirmed</Badge>}
             />
             {backdated.length === 0 ? (
-              <EmptyState size="sm" title="No signature has been back-dated">Nothing is dated earlier than the day it was recorded.</EmptyState>
+              <EmptyState size="sm" title="No signature has been back-dated" />
             ) : (
               <Table minWidth={820}>
                 <colgroup>

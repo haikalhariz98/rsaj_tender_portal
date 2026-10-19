@@ -44,9 +44,9 @@ export default async function EvaluationConfigurationPage() {
   if (!org) {
     return (
       <>
-        <PageHeader title="Evaluation models" subtitle="How bids are evaluated: the models, their stages and figures, and the policy." />
+        <PageHeader title="Evaluation models" info={{ title: "Evaluation models", text: "How bids are evaluated: the models, their stages and figures, and the policy." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -72,7 +72,7 @@ export default async function EvaluationConfigurationPage() {
       <PageHeader
         title="Evaluation models"
         badge={holding > 0 ? <Badge tone="warn" dot>{`${holding} holding work back`}</Badge> : <Badge tone="ok" dot>Nothing holding work back</Badge>}
-        subtitle="Each model's stages, criteria, weights, pass marks and bands; aspects; the policy."
+        info={{ title: "Evaluation models", text: "Each model's stages, criteria, weights, pass marks and bands; aspects; the policy." }}
         actions={<ModelDrawer />}
       />
 
@@ -120,7 +120,7 @@ export default async function EvaluationConfigurationPage() {
         </Table>
       </Section>
 
-      <Section id="aspects" title="Aspects assessed" blurb="Each bidder is assessed on these, with a verdict and a narrative (FR-EVL-003). One required on a route is assessed on the aspects stage of every model of that route; a model freezes the aspects in force when it is issued." empty="No aspect is configured. A traditional model that has an aspects stage cannot be issued without the four the requirement names." count={c.aspects.length} action={<AspectDrawer />}>
+      <Section id="aspects" title="Aspects assessed" blurb="Each bidder is assessed on these, with a verdict and a narrative. One required on a route is assessed on the aspects stage of every model of that route; a model freezes the aspects in force when it is issued." empty="No aspect is configured. A traditional model that has an aspects stage cannot be issued without the four the requirement names." count={c.aspects.length} action={<AspectDrawer />}>
         <Table minWidth={680}>
           <colgroup>
             <col />
@@ -162,7 +162,7 @@ export default async function EvaluationConfigurationPage() {
       <Card id="policy" className="mb-6 scroll-mt-24">
         <CardHeader
           title="Evaluation policy"
-          subtitle="What the report is numbered from and produced on, how a score is shown and judged, and who checks and recommends the Kertas Cadangan. An evaluation keeps the policy it started under."
+          subtitle="Report numbering, scoring, checkers"
           actions={
             <>
               {p && <HistoryButton entity="EvaluationPolicy" entityId={p.id} label="the evaluation policy" />}

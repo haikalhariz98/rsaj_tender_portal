@@ -11,7 +11,7 @@ export function EditBidSealingPolicy({ values }: { values: Record<string, string
   return (
     <RecordEditor
       title="Edit the bid sealing policy"
-      description="Online sealed bids are off until this is set. Live bids need every condition below to be recorded, and each is checked again when a second person decides the change."
+      description="Online sealed bids stay off until set. Each condition is rechecked at decision."
       columns={1}
       fields={[
         { kind: "hidden", name: "attestedByPersonId" },

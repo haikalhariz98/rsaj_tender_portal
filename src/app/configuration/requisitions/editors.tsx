@@ -30,7 +30,7 @@ export function EditPolicy({
   return (
     <RecordEditor
       title="Edit requisition controls"
-      description="Nothing is proposed for you. A field left empty stays not set, and the screen says what that stops."
+      description="Nothing is proposed for you. Empty stays not set."
       fields={[
         { kind: "note", text: "Endorsement" },
         {
@@ -63,7 +63,7 @@ export function EditCheckSource({ source }: { source: string | null }) {
   return (
     <RecordEditor
       title="Where the budget check comes from"
-      description="The portal's own budget ledger, or figures typed in by hand from the finance system. Not set, no check can run."
+      description="The portal's ledger, or figures typed from finance. Not set: no check."
       fields={[
         {
           kind: "select",
@@ -97,7 +97,7 @@ export function EditErpFormat({
   return (
     <RecordEditor
       title={`${label}: format`}
-      description="A regular expression the whole number must match, with an example for the officer. Cleared, the number is not checked."
+      description="A pattern the whole number must match. Cleared: not checked."
       fields={[
         { kind: "hidden", name: "key" },
         { kind: "text", name: "pattern", label: "Pattern", mono: true },
@@ -128,7 +128,7 @@ export function GateRuleEditor({
   return (
     <RecordEditor
       title={rule ? "Edit committee gate" : "Add committee gate"}
-      description="A committee an approved requisition on this funding route must pass before its first sourcing exercise. Outside the approval matrix. A requisition already approved keeps the gates it was given."
+      description="A committee an approved requisition must pass first. Outside the approval matrix."
       fields={[
         { kind: "hidden", name: "id" },
         { kind: "select", name: "fundingRouteCode", label: "Funding route", required: true, placeholder: "Choose", options: routes, orphanLabel: "A route no longer configured" },

@@ -8,6 +8,7 @@ import { hiddenExercises } from "@/app/_auth/sulit";
 import { HistoryButton } from "@/components/history-drawer";
 import { ShieldCheckIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -96,7 +97,7 @@ export default async function BidSealingPage() {
       <PageHeader
         title="Bid sealing"
         badge={mode ? <Badge tone={mode === "LIVE" ? "ok" : "info"} dot>{mode === "LIVE" ? "Live" : "Demonstration"}</Badge> : <Badge tone="warn" dot>Not set</Badge>}
-        subtitle="Whether bids may be submitted online and sealed, and what is recorded first."
+        info={{ title: "Bid sealing", text: "Whether bids may be submitted online and sealed, and what is recorded first." }}
         actions={
           <>
             {row && <HistoryButton entity="BidSealingPolicy" entityId={row.id} label="the bid sealing policy" />}
@@ -105,13 +106,10 @@ export default async function BidSealingPage() {
         }
       />
       <div className="flex flex-col gap-6">
-        <Callout tone="info" title="Encrypted under the opening officers' keys; independent review pending">
-          The portal checks and scans a file before sealing it, so its server reads it once as it arrives. Who bid is not hidden from a person who can query the database. Whether bids are taken on paper or online for an exercise is set under{" "}
-          <Link href="/configuration/invitation">Invitation controls</Link>.
-        </Callout>
+        <div><InfoChip tone="warn" detail="Encrypted under the opening officers' keys. The server reads each file once as it arrives. Who bid is not hidden from database users.">Independent review pending</InfoChip></div>
 
         <Card id="switch" className="scroll-mt-24">
-          <CardHeader icon={<ShieldCheckIcon size={17} />} title="The switch" subtitle="Changed by one person and decided by a second." />
+          <CardHeader icon={<ShieldCheckIcon size={17} />} title="The switch" subtitle="One proposes, another decides" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -130,7 +128,7 @@ export default async function BidSealingPage() {
         </Card>
 
         <Card id="deployment" className="scroll-mt-24">
-          <CardHeader title="This copy of the system" subtitle="Set by whoever runs the system, not by the organisation. Read only." />
+          <CardHeader title="This copy of the system" subtitle="Set by the operator. Read only." />
           <CardBody>
             <KeyValues
               columns={2}
@@ -145,7 +143,7 @@ export default async function BidSealingPage() {
         </Card>
 
         <Card id="live" className="scroll-mt-24">
-          <CardHeader title="What live bids still need" subtitle="Every condition is checked again when the change is decided." />
+          <CardHeader title="What live bids still need" subtitle="Rechecked when decided" />
           <CardBody>
             {missing.length === 0 ? (
               <p className="text-[13px] text-ink-2">Every condition for live bids is recorded or present.</p>
@@ -160,7 +158,7 @@ export default async function BidSealingPage() {
         </Card>
 
         <Card id="pepper" className="scroll-mt-24 overflow-hidden">
-          <CardHeader title="Exercises that still need the sealing pepper" subtitle="Read only. The pepper is kept unchanged until none is listed." divided={pepperState !== "SOME"} />
+          <CardHeader title="Exercises that still need the sealing pepper" subtitle="Read only" divided={pepperState !== "SOME"} />
           <CardBody className="flex flex-col gap-2">
             <p className="text-[13px] text-ink-2">{PEPPER_LIST_WORDS.scope}</p>
             <p className="text-[13px] text-ink-2">{PEPPER_LIST_WORDS.restricted}</p>
@@ -199,11 +197,11 @@ export default async function BidSealingPage() {
           <Card id="taking" className="scroll-mt-24 overflow-hidden">
             <CardHeader
               title="Online exercises still taking bids"
-              subtitle="Published exercises keep the mode they were published with, whatever is set here. An incident is handled for each by extending its closing or cancelling it."
+              subtitle="Published exercises keep their mode."
               divided={taking.length === 0}
             />
             {taking.length === 0 ? (
-              <EmptyState title="None">No published online exercise is still taking bids.</EmptyState>
+              <EmptyState title="None" />
             ) : (
               <Table minWidth={560}>
                 <THead>

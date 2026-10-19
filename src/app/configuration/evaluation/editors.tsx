@@ -90,7 +90,7 @@ export function IssueModelDrawer({ id, label, blocks, warnings, blocked }: { id:
   return (
     <RecordEditor
       title={`Issue ${label}`}
-      description="Its stages, criteria, factors, band sets and the aspects in force are frozen on this version, and it is offered on an exercise's Window card. An issued version never changes: a change is a new version. Exercises pin it when they are published."
+      description="Frozen on this version. Exercises pin it when published. Changes are a new version."
       fields={[
         hidden("id"),
         ...(warnings.length ? [{ kind: "note", text: `It may be issued with: ${warnings.join(" ")}` } as Field] : []),
@@ -112,7 +112,7 @@ export function AdoptModelDraftDrawer({ id, label }: { id: string; label: string
   return (
     <RecordEditor
       title={`Adopt ${label}`}
-      description="Nobody is on record as having made this draft. Adopting it makes you its maker, so that a different person issues it. You cannot issue a draft you adopted."
+      description="Nobody made this draft. Adopting makes you its maker. You cannot then issue it."
       fields={[hidden("id")]}
       values={{ id }}
       action={adoptModelDraft}
@@ -128,7 +128,7 @@ export function RetireModelDrawer({ id, label }: { id: string; label: string }) 
   return (
     <RecordEditor
       title={`Retire ${label}`}
-      description="It is no longer offered on the Window card. Exercises that pinned it keep it: their evaluation runs from what they pinned."
+      description="No longer offered. Exercises that pinned it keep it."
       fields={[hidden("id")]}
       values={{ id }}
       action={retireModel}
@@ -144,7 +144,7 @@ export function DiscardDraftDrawer({ id, label }: { id: string; label: string })
   return (
     <RecordEditor
       title={`Discard ${label}`}
-      description="The draft and everything in it are removed. It was never issued, so no exercise pinned it. Its trail is kept."
+      description="Removes the draft. It was never pinned. Its trail is kept."
       fields={[hidden("id")]}
       values={{ id }}
       action={discardDraft}
@@ -160,7 +160,7 @@ export function NewVersionDrawer({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`New version of ${label}`}
-      description="A draft is started, copied from this version row by row. This version stays as issued; exercises that pinned it keep it."
+      description="Starts a draft copied row by row. This version stays as issued."
       fields={[hidden("id")]}
       values={{ id }}
       action={newModelVersion}
@@ -177,7 +177,7 @@ export function StageDrawer({ modelId, stage, committees, offices }: { modelId: 
   return (
     <RecordEditor
       title={stage ? `Edit ${stage.label}` : "Add a stage"}
-      description="A stage of the evaluation, in order. Its figures are the customer's: a pass mark says which side of it a figure exactly on it falls; a weight is what the stage carries in the composite. Leave what the stage does not use empty."
+      description="A stage in order. A pass mark decides an exact figure. Leave unused fields empty."
       columns={2}
       fields={[
         hidden("modelId"),
@@ -215,7 +215,7 @@ export function RemoveStageDrawer({ modelId, stageId, label }: { modelId: string
   return (
     <RecordEditor
       title={`Remove ${label}`}
-      description="The stage comes off the draft with its criteria and factors. The draft's trail keeps it."
+      description="Removes the stage with its criteria and factors."
       fields={[hidden("modelId"), hidden("stageId")]}
       values={{ modelId, stageId }}
       action={removeStage}
@@ -233,7 +233,7 @@ export function CriterionDrawer({ modelId, stageId, stageLabel, criterion, group
   return (
     <RecordEditor
       title={criterion ? `Edit ${criterion.label}` : `Add a criterion to ${stageLabel}`}
-      description="What is marked, passed or banded. A group holds criteria whose marks sum to its own. A banded criterion is worked from a figure and placed in one of the model's band sets."
+      description="What is marked, passed or banded. A group's criteria sum to its own marks."
       columns={2}
       fields={[
         hidden("modelId"),
@@ -270,7 +270,7 @@ export function FactorDrawer({ modelId, stageId, stageLabel, factor }: { modelId
   return (
     <RecordEditor
       title={factor ? `Edit ${factor.label}` : `Add a factor to ${stageLabel}`}
-      description="An option the minimum-capital test applies: the percentage of the base a bidder must hold, by how the contract is let (for example, materials supplied by the employer or by the contractor)."
+      description="The percentage of the base a bidder must hold, by how the contract is let."
       columns={2}
       fields={[hidden("modelId"), hidden("stageId"), hidden("factorId"), ...(factor ? [] : [codeField()]), { kind: "text", name: "labelEn", label: "Name", required: true }, { kind: "text", name: "labelMs", label: "Name (Malay)" }, { kind: "text", name: "factorPct", label: "Percentage", required: true }, ...sourceFields]}
       values={{ modelId, stageId, factorId: factor?.id ?? null, ...(factor?.values ?? {}) }}
@@ -292,7 +292,7 @@ export function BandSetDrawer({ modelId, set }: { modelId: string; set?: { id: s
   return (
     <RecordEditor
       title={set ? `Edit ${set.label}` : "Add a band set"}
-      description="Bands a worked figure is placed in, each with what a value in it means. The model's own: another model has its own."
+      description="Bands a worked figure falls in. Each model has its own."
       fields={[hidden("modelId"), hidden("setId"), ...(set ? [] : [codeField()]), { kind: "text", name: "nameEn", label: "Name", required: true }, ...sourceFields]}
       values={{ modelId, setId: set?.id ?? null, ...(set?.values ?? {}) }}
       action={saveBandSet}
@@ -312,7 +312,7 @@ export function BandDrawer({ modelId, setId, setLabel, band }: { modelId: string
   return (
     <RecordEditor
       title={band ? `Edit ${band.label}` : `Add a band to ${setLabel}`}
-      description="An edge left empty is open. Whether a value exactly on an edge is in this band is the customer's decision: say it for each edge given. A floor edge is judged exactly in sen (the minimum capital), never on a rounded ratio."
+      description="An empty edge is open. Say whether a value on each edge is in."
       columns={2}
       fields={[
         hidden("modelId"),
@@ -348,7 +348,7 @@ export function AspectDrawer({ aspect }: { aspect?: { id: string; label: string;
   return (
     <RecordEditor
       title={aspect ? `Edit ${aspect.label}` : "Add an aspect"}
-      description="An aspect each bidder is assessed on, with a verdict and a narrative (FR-EVL-003). Required on a route: a model of that route assesses it on its aspects stage. A model freezes the aspects in force when it is issued."
+      description="An aspect each bidder is assessed on. Models freeze the aspects at issue."
       columns={2}
       fields={[
         hidden("id"),
@@ -379,7 +379,7 @@ export function PolicyDrawer({ values, series, offices, templates }: { values: V
   return (
     <RecordEditor
       title="Evaluation policy"
-      description="Each setting left not set holds back the act it governs, and says so there: the report's reference, how a score is shown and judged, who checks and recommends the Kertas Cadangan, and the text the report and the paper are produced from. An evaluation keeps the policy it started under."
+      description="Not set holds back the act. An evaluation keeps its starting policy."
       columns={2}
       fields={[
         { kind: "select", name: "reportSeriesKey", label: "Report reference series", placeholder: "Not set", options: series },
@@ -411,7 +411,7 @@ export function BasisRouteDrawer({ id, label, values }: { id: string; label: str
   return (
     <RecordEditor
       title={`Evaluation route of ${label}`}
-      description="The route a contract on this basis is evaluated by. Not set: an exercise on it is not published, and the Window card says so."
+      description="The route a basis is evaluated by. Not set: exercises on it are not published."
       fields={[hidden("id"), { kind: "select", name: "evaluationRoute", label: "Evaluation route", placeholder: "Not set", options: opts(EVALUATION_ROUTES, ROUTE_LABEL) }, { kind: "select", name: "evaluationRouteProvenance", label: "Where this came from", placeholder: "Not set", options: PROVENANCE }]}
       values={{ id, ...values }}
       action={saveBasisRoute}
@@ -426,7 +426,7 @@ export function MethodModelDrawer({ id, label, value, models }: { id: string; la
   return (
     <RecordEditor
       title={`Usual model for ${label}`}
-      description="A suggestion only: the Window card names it, and the officer chooses. Nothing is pinned without that choice."
+      description="A suggestion only. The officer chooses."
       fields={[hidden("id"), { kind: "select", name: "defaultEvaluationModelCode", label: "Usual evaluation model", placeholder: "None", options: models }]}
       values={{ id, defaultEvaluationModelCode: value }}
       action={saveMethodModel}

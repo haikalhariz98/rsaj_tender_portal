@@ -27,7 +27,7 @@ describe("a method's bid-receipt rules", () => {
 describe("when a change to a method's bid-receipt rules applies (6.6 CR-2)", () => {
   it("Configuration › Invitation says it applies only to exercises published after it", async () => {
     const { BID_RULES_APPLY_TEXT } = await import("./config");
-    expect(BID_RULES_APPLY_TEXT).toMatch(/Applies only to exercises published after it/); // 0005, founder 2026-10-19
+    expect(BID_RULES_APPLY_TEXT).toMatch(/Applies to exercises published later/); // 0005, founder 2026-10-19: shortened, same meaning
     const { readFileSync } = await import("node:fs");
     for (const f of ["src/app/configuration/invitation/page.tsx", "src/app/configuration/invitation/editors.tsx"]) expect(readFileSync(f, "utf8")).toMatch(/\$\{BID_RULES_APPLY_TEXT\}/);
   });

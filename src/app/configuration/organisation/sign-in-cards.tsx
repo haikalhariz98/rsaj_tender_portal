@@ -3,7 +3,8 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { Chip } from "@/components/ui/badge";
+import { InfoChip } from "@/components/ui/info-chip";
 import { KeyValues } from "@/components/ui/stat";
 import { LOGO_MAX_BYTES, SIGN_IN_IMAGE_MAX_BYTES, SIGN_IN_IMAGE_SUGGESTED_WIDTH } from "@/lib/organisation/logo-limits";
 import { SIGN_IN_ICON_LABEL, SIGN_IN_ICONS, SIGN_IN_LABEL, signInIconOf, type SignInField, type SignInPageSettings } from "@/lib/organisation/sign-in-page";
@@ -66,11 +67,11 @@ function SignInWordsCard({ settings }: { settings: SignInPageSettings }) {
     <Card>
       <CardHeader
         title="Sign-in page: words and links"
-        subtitle="What people read beside the sign-in form. Nothing is filled in for you; anything left blank is not shown."
+        subtitle="Shown beside the sign-in form"
         actions={
           <RecordEditor
             title="Edit the sign-in page"
-            description="These show on the sign-in page, which anyone can open. Do not put anything here that is not for the public."
+            description="Public. Add nothing that is not for the public."
             fields={fields}
             values={{ ...settings }}
             action={saveSignInPage}
@@ -81,7 +82,7 @@ function SignInWordsCard({ settings }: { settings: SignInPageSettings }) {
         }
       />
       <CardBody className="flex flex-col gap-4">
-        {!anySet && <Callout tone="info">No words are set, so the sign-in page shows the form alone, with the neutral title &ldquo;Sign in&rdquo;.</Callout>}
+        {!anySet && <Chip tone="warn">Not set</Chip>}
         <KeyValues
           columns={2}
           items={WORDS.map((w) => {
@@ -102,12 +103,12 @@ function SignInImageCard({ image }: { image: SignInImageInfo | null }) {
   return (
     <ImageUploadCard
       title="Sign-in page: picture"
-      subtitle="The picture on the left of the sign-in page. The organisation's logo, above, is drawn over it."
+      subtitle="Left of the sign-in page"
       remove={
         image ? (
           <RecordEditor
             title="Remove the sign-in picture"
-            description="The left side of the sign-in page is drawn in the product's own colours until another picture is uploaded."
+            description="Until another is uploaded, the product's colours show."
             fields={[]}
             action={removeSignInImage}
             destructive={{ reasonLabel: "Why is the picture being removed?" }}
@@ -130,7 +131,7 @@ function SignInImageCard({ image }: { image: SignInImageInfo | null }) {
             </p>
           </div>
         ) : (
-          <p className="text-[13.5px] text-ink-3">No picture. The left side of the sign-in page is drawn in the product&rsquo;s own colours.</p>
+          <p className="text-[13.5px] text-ink-3">No picture</p>
         )
       }
       field={{
@@ -152,7 +153,7 @@ function SignInDarkLogoCard({ darkLogo }: { darkLogo: SignInDarkLogoInfo | null 
   return (
     <ImageUploadCard
       title="Sign-in page: logo for dark backgrounds"
-      subtitle="Optional. A version of your logo that reads on the shaded left side of the sign-in page, such as one in white, cropped close to the mark. It is shown as it is."
+      subtitle="Optional. For the shaded side."
       remove={
         darkLogo ? (
           <RecordEditor
@@ -180,7 +181,7 @@ function SignInDarkLogoCard({ darkLogo }: { darkLogo: SignInDarkLogoInfo | null 
             </p>
           </div>
         ) : (
-          <Callout tone="info">Logo for dark backgrounds: not set &mdash; the sign-in page shows your ordinary logo with a soft light halo, which reads less clearly if its lettering is dark.</Callout>
+          <InfoChip tone="warn" detail="The ordinary logo shows with a light halo. Dark lettering may read poorly.">Dark-background logo not set</InfoChip>
         )
       }
       field={{

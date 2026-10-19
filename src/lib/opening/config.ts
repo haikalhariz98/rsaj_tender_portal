@@ -170,4 +170,4 @@ export const OPENING_RULE_UNSET = {
 } as const;
 
 /// When a change applies: an opening reads the rules when it starts and keeps them; a change never reaches one already started.
-export const OPENING_RULES_APPLY_TEXT = "A change applies to openings started after it: an opening already started keeps the rules it started under.";
+export const OPENING_RULES_APPLY_TEXT = "Applies to openings started later.";

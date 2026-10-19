@@ -61,9 +61,9 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
   if (!org || !c) {
     return (
       <>
-        <PageHeader title="Scope and estimate" subtitle="How bills, specification panels and company estimates are judged." />
+        <PageHeader title="Scope and estimate" info={{ title: "Scope and estimate", text: "How bills, specification panels and company estimates are judged." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -93,7 +93,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
     columns: visibleRows(c.columns, (m) => m.retiredOn != null, showRetired),
   };
   const retiredCount = c.methods.filter((m) => m.retired).length + c.bases.filter((m) => m.retired).length + c.qualifications.filter((m) => m.retiredOn != null).length + c.templates.filter((m) => m.retiredOn != null).length + c.columns.filter((m) => m.retiredOn != null).length;
-  const emptyText = (all: readonly unknown[], shown: readonly unknown[], text: string) => (all.length > 0 && shown.length === 0 ? "Every row here is retired. Choose Show retired to see them." : text);
+  const emptyText = (all: readonly unknown[], shown: readonly unknown[], text: string) => (all.length > 0 && shown.length === 0 ? "All rows retired" : text);
   const leadUnset = p.estimateLeadDays == null;
 
   const policyValues: Record<string, string> = {
@@ -142,7 +142,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
       <PageHeader
         title="Scope and estimate"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} holding work back`}</Badge> : <Badge tone="ok" dot>Nothing holding work back</Badge>}
-        subtitle="How bills of quantities, specification panels and company estimates are judged."
+        info={{ title: "Scope and estimate", text: "How bills of quantities, specification panels and company estimates are judged." }}
         actions={
           <>
             {policyRow && <HistoryButton entity="ScopePolicy" entityId={policyRow.id} label="the scope and estimate policy" />}
@@ -167,7 +167,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
         )}
 
         <Card>
-          <CardHeader icon={<SlidersIcon size={17} />} title="Policy" subtitle="Unset is not zero and not a guess: it says what it leaves undecided. A value set says where it came from." />
+          <CardHeader icon={<SlidersIcon size={17} />} title="Policy" subtitle="Unset is not zero" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -222,7 +222,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
           </Table>
         </Section>
 
-        <Section id="scope-rules" title="Which methods need their scope approved by a committee" blurb="Where a method does, the finalised bill is tabled at a sitting of the committee named, under the act named, and the documents cannot go for approval until a matter under that act is carried. Not set holds that check back, naming this setting; it is never read as No." empty={emptyText(c.scopeRules, rows.scopeRules, "No sourcing methods are configured. Add them under Reference data.")} count={rows.scopeRules.length}>
+        <Section id="scope-rules" title="Which methods need their scope approved by a committee" blurb="Where a method does, the finalised bill is tabled at that committee, and the documents wait until a matter under the named act is carried. Not set holds the check back, never read as No." empty={emptyText(c.scopeRules, rows.scopeRules, "No sourcing methods are configured. Add them under Reference data.")} count={rows.scopeRules.length}>
           <Table minWidth={760}>
             <colgroup>
               <col style={{ width: "26%", minWidth: "200px" }} />
@@ -433,7 +433,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
 
         <Section
           title="Schedules of rates"
-          blurb="Issued issue by issue. A line of a bill priced from a schedule takes the rate of the issue in force that day and keeps it, with the issue it came from; a later issue never changes it. None ships with the product."
+          blurb="Issued issue by issue. A bill line takes the rate of the issue in force that day and keeps it. None ships."
           empty="No schedule of rates is configured, so every rate in a bill is entered."
           count={c.schedules.length}
           action={<StartRateIssueDrawer />}

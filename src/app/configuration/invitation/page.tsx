@@ -67,9 +67,9 @@ export default async function InvitationControlsPage() {
   if (!c) {
     return (
       <>
-        <PageHeader title="Invitation controls" subtitle="The rules for advertising, inviting, selling the documents and closing." />
+        <PageHeader title="Invitation controls" info={{ title: "Invitation controls", text: "The rules for advertising, inviting, selling the documents and closing." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -143,7 +143,7 @@ export default async function InvitationControlsPage() {
       <PageHeader
         title="Invitation controls"
         badge={<Badge tone={badge.tone} dot>{badge.text}</Badge>}
-        subtitle="The rules for advertising, inviting, selling the documents and closing."
+        info={{ title: "Invitation controls", text: "The rules for advertising, inviting, selling the documents and closing." }}
         actions={
           <>
             {row && <HistoryButton entity="WindowPolicy" entityId={row.id} label="the window rules" />}
@@ -159,9 +159,8 @@ export default async function InvitationControlsPage() {
         )}
 
         <Card id="rules" className="scroll-mt-24">
-          <CardHeader icon={<SlidersIcon size={17} />} title="The window rules" subtitle="The dates, the closing time, the advertisement day and what a notice, a letter and an addendum are written from." />
+          <CardHeader icon={<SlidersIcon size={17} />} title="The window rules" subtitle="Dates, times and written forms" />
           <CardBody>
-            <p className="mb-4 text-[12.5px] text-ink-3">Not set is not zero and not a guess: it says what it leaves undecided. A value set says where it came from.</p>
             <KeyValues
               columns={2}
               items={[
@@ -193,11 +192,11 @@ export default async function InvitationControlsPage() {
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Bid receipt, by sourcing method"
-            subtitle={`Who decides whether a late envelope is admitted, the fewest bids each method expects, and what follows from an incomplete bid. ${BID_RULES_APPLY_TEXT} The validity alerts are a notification rule.`}
+            subtitle={`${BID_RULES_APPLY_TEXT}`}
             divided={bidMethods.length === 0}
           />
           {bidMethods.length === 0 ? (
-            <EmptyState title="No method takes bids">Only a method whose tender documents are a tender or a quotation receives bids. Set a method&apos;s documents under Tender documents.</EmptyState>
+            <EmptyState title="No method takes bids" />
           ) : (
             <Table minWidth={760}>
               <colgroup>
@@ -238,7 +237,7 @@ export default async function InvitationControlsPage() {
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title={<span className="inline-flex flex-wrap items-center gap-2">Opening{openingNotSet > 0 && <Badge tone="warn">{openingNotSet} not set</Badge>}</span>}
-            subtitle={`How the schedule counts the tenderers invited, the Grand Summary's words, and, by method, the committee that opens the bids and what follows from a bid with no live purchase. ${OPENING_RULES_APPLY_TEXT}`}
+            subtitle={`${OPENING_RULES_APPLY_TEXT}`}
             actions={
               <span className="flex flex-wrap items-center gap-1">
                 {op && <HistoryButton iconOnly entity="OpeningPolicy" entityId={op.id} label="the opening policy" />}
@@ -259,7 +258,7 @@ export default async function InvitationControlsPage() {
             />
           </CardBody>
           {bidMethods.length === 0 ? (
-            <EmptyState title="No method takes bids">Only a method whose tender documents are a tender or a quotation has its bids opened.</EmptyState>
+            <EmptyState title="No method takes bids" />
           ) : (
             <Table minWidth={720}>
               <colgroup>
@@ -297,12 +296,12 @@ export default async function InvitationControlsPage() {
           <CardHeader
             icon={<FileIcon size={17} />}
             title={<span className="inline-flex items-center gap-2">Publication channels{c.channels.length > 0 && <Badge outline>{c.channels.length}</Badge>}</span>}
-            subtitle="Where an advertised exercise's notice appears. It is advertised only once every required channel carries it."
+            subtitle="Needs every required channel"
             actions={<ChannelDrawer />}
             divided={c.channels.length === 0}
           />
           {c.channels.length === 0 ? (
-            <EmptyState title="None configured">No exercise can be advertised until the channels are added and the required ones are named.</EmptyState>
+            <EmptyState title="None configured" />
           ) : (
             <Table minWidth={620}>
               <colgroup>
@@ -344,12 +343,12 @@ export default async function InvitationControlsPage() {
           <CardHeader
             icon={<FileIcon size={17} />}
             title={<span className="inline-flex items-center gap-2">The least document fee{c.floors.length > 0 && <Badge outline>{c.floors.length}</Badge>}</span>}
-            subtitle="The window's fee is refused below the least for its band. A band with none holds its publication back."
+            subtitle="Refused below the band's least"
             actions={<FloorDrawer regimes={(Object.keys(REGIME_LABEL) as (keyof typeof REGIME_LABEL)[]).filter((k) => !c.floors.some((f) => f.regime === k)).map((k) => ({ value: k, label: REGIME_LABEL[k] }))} />}
             divided={c.floors.length === 0}
           />
           {c.floors.length === 0 ? (
-            <EmptyState title="None configured">No fee can be judged, so no window can be published, until each band has its least fee.</EmptyState>
+            <EmptyState title="None configured" />
           ) : (
             <Table minWidth={560}>
               <colgroup>
@@ -391,13 +390,13 @@ export default async function InvitationControlsPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-[15px] font-bold text-ink">Holiday calendars</h2>
-              <p className="text-[12.5px] text-ink-3">A closing may not fall on a weekend day or a public holiday. A year not maintained in full blocks a closing in it.</p>
+              <p className="text-[12.5px] text-ink-3">Weekends and holidays block a closing.</p>
             </div>
             <CalendarDrawer />
           </div>
           {c.calendars.length === 0 && (
             <Card>
-              <EmptyState title="None configured">No closing can be checked, so no window can be published, until a calendar is added with its weekend days and each year&apos;s holidays.</EmptyState>
+              <EmptyState title="None configured" />
             </Card>
           )}
           {c.calendars.map((cal) => {
@@ -432,7 +431,7 @@ export default async function InvitationControlsPage() {
                   <span className="flex flex-wrap gap-2"><YearDrawer calendarId={cal.id} calendar={cal.name} /><ImportYearDrawer calendarId={cal.id} calendar={cal.name} /><HolidayDrawer calendarId={cal.id} calendar={cal.name} /></span>
                 </div>
                 {cal.years.length === 0 ? (
-                  <p className="px-5 py-4 text-[13px] text-ink-3 sm:px-6">No year is recorded: a closing in any year is refused until its public holidays are listed and the year is marked complete.</p>
+                  <p className="px-5 py-4 text-[13px] text-ink-3 sm:px-6">No year recorded. Closings are refused.</p>
                 ) : (
                   <ul className="divide-y divide-line/70">
                     {cal.years.map((y) => (

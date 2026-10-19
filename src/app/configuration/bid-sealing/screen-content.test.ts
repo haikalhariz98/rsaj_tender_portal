@@ -18,7 +18,8 @@ describe("the Bid sealing screen", () => {
     expect(page.match(/attested, not checked by the portal/g)?.length).toBeGreaterThanOrEqual(2);
     expect(page).toContain("Not set");
     expect(page).toContain("Where this comes from");
-    expect(page).toContain("independent review pending");
+    // 0005, founder 2026-10-19: the callout is a chip; the claim it guards (review pending) is still on the surface.
+    expect(page).toContain("Independent review pending");
   });
   it("keeps must-have 5's widened attested words (ruling 20ai)", () => {
     const editors = src("src/app/configuration/bid-sealing/editors.tsx");

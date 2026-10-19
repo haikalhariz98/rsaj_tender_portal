@@ -1,4 +1,3 @@
-import { AlertTriangle } from "@/components/icons";
 import { loadSeries } from "@/lib/numbering/load";
 import { patternFaults, periodFor, previewNext, serialFor } from "@/lib/numbering/series";
 import { organisationDay } from "@/lib/dates";
@@ -9,6 +8,7 @@ import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/c
 import { AddSeries, EditSeries } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Callout } from "@/components/ui/feedback";
 import { HistoryButton } from "@/components/history-drawer";
 import { requireStaff } from "@/app/_auth/actor";
@@ -42,7 +42,7 @@ export default async function NumberingPage() {
             </Badge>
           ) : undefined
         }
-        subtitle="How exercise, contract and certificate references are formed."
+        info={{ title: "Numbering", text: "How exercise, contract and certificate references are formed." }}
       />
 
       {!day && (
@@ -146,11 +146,7 @@ export default async function NumberingPage() {
         </Table>
       </Section>
 
-      <Callout tone="info" icon={<AlertTriangle size={18} />}>
-        A serial only ever moves forward. Where a matter is cancelled its reference is
-        not returned to the pool — the gap is recorded, because a missing reference is
-        evidence and a reused one is a defect.
-      </Callout>
+      <InfoChip detail="A cancelled matter's reference is not reused. The gap is recorded.">Serials only move forward</InfoChip>
     </>
   );
 }

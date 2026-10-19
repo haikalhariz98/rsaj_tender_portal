@@ -22,13 +22,11 @@ export default async function ConfigurationLayout({ children }: LayoutProps<"/co
     <div className="min-w-0">
       {waiting > 0 && (
         <Callout
-          tone="info"
+          tone="warn"
           className="mb-5"
-          title={`${waiting} ${waiting === 1 ? "change to configuration is" : "changes to configuration are"} waiting for a second person`}
-          action={mayReadQueue(actor.permissions) ? <ButtonLink href="/configuration/changes" variant="secondary" size="sm">See what is waiting</ButtonLink> : undefined}
-        >
-          A save on these screens is a proposal until a second person decides it. What is shown below is what is in force now.
-        </Callout>
+          title={`${waiting} ${waiting === 1 ? "change waits" : "changes wait"} for a second person. Shown is in force.`}
+          action={mayReadQueue(actor.permissions) ? <ButtonLink href="/configuration/changes" variant="secondary" size="sm">See changes</ButtonLink> : undefined}
+        />
       )}
       {children}
     </div>

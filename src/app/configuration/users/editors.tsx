@@ -21,7 +21,6 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, Dot, type Tone } from "@/components/ui/badge";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
-import { Callout } from "@/components/ui/feedback";
 import { Switch } from "@/components/ui/field";
 import { RecordEditor, type Field, type SaveAction } from "@/components/record-editor";
 import { actorField } from "@/lib/auth/actor-field";
@@ -201,7 +200,7 @@ export function EditPerson({
           <DrawerSection label="Capabilities" count={capabilities.length}>
             {capabilities.length === 0 ? (
               <p className="text-[12.5px] text-ink-3">
-                None. Capabilities come from the roles they hold, and they hold none yet.
+                None held.
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
@@ -639,12 +638,6 @@ function useDelegationSave(people: Person[]): SaveAction {
   );
 }
 
-const DELEGATION_NOTE = (
-  <Callout tone="info">
-    A delegation lapses on its end date without anyone having to withdraw it.
-  </Callout>
-);
-
 export function AddDelegation({
   people,
   offices,
@@ -664,7 +657,6 @@ export function AddDelegation({
       icon={<SwapIcon size={18} />}
       fields={delegationFields(people, offices, capabilities, upload)}
       columns={2}
-      sections={DELEGATION_NOTE}
       action={save}
       submitLabel="Save"
       trigger={{ label: "New delegation", icon: true }}
@@ -699,7 +691,6 @@ export function EditDelegation({
         ...delegationFields(people, offices, capabilities, upload, status, recommendationNote(delegation), delegation.jobholderPersonId == null),
       ]}
       columns={2}
-      sections={DELEGATION_NOTE}
       action={save}
       trigger={{ label: "Edit delegation", iconOnly: <PencilIcon size={15} /> }}
       size="lg"
@@ -725,7 +716,7 @@ export function EndAssignment({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`End ${label}`}
-      description="Choose the first day they no longer hold it; that day is not included. Decisions already signed under it keep resolving to the signatory."
+      description="The first day they no longer hold it. Signed decisions are kept."
       fields={[
         { kind: "hidden", name: "id" },
         { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, required: true, hint: "Today or later. To correct a period already past, use Edit." },

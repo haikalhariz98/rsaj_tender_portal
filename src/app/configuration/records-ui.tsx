@@ -4,6 +4,7 @@ import { AlertTriangle } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
+import { MoreText } from "@/components/ui/more-text";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { Stat as UiStat } from "@/components/ui/stat";
 
@@ -42,6 +43,24 @@ export function Stats({ children }: { children: ReactNode }) {
 
 /// One register: its title, count and add action, what it is for, and the list — or,
 /// where nothing is set, what that leaves undecided.
+/// An empty register: "Not set" with what that leaves undecided one press away, or the text itself
+/// where it is six words or fewer (note 0005, founder 2026-10-19).
+export function NotSet({ text, size = "md" }: { text: string; size?: "sm" | "md" }) {
+  if (text.split(/\s+/).length <= 6) return <EmptyState size={size} title={text} />;
+  return (
+    <EmptyState
+      size={size}
+      title={
+        <span className="inline-flex items-center gap-1">
+          Not set
+          <span className="sr-only">{text}</span>
+          <MoreText text={text} label="What this leaves undecided" />
+        </span>
+      }
+    />
+  );
+}
+
 export function Section({
   title,
   blurb,
@@ -68,13 +87,14 @@ export function Section({
           <span className="inline-flex items-center gap-2">
             {title}
             {count > 0 && <Badge outline>{count}</Badge>}
+            <span className="sr-only">{blurb}</span>
+            <MoreText text={blurb} label={`About ${title}`} />
           </span>
         }
-        subtitle={blurb}
         actions={action}
         divided={count === 0}
       />
-      {count === 0 ? <EmptyState title="Not set">{empty}</EmptyState> : children}
+      {count === 0 ? <NotSet text={empty} /> : children}
     </Card>
   );
 }

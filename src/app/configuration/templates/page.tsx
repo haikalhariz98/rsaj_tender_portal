@@ -188,11 +188,11 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
           icon={<ToolsIcon size={17} />}
           title="Forms the certificates need"
           actions={gaps ? <Badge tone="warn" dot>{`${gaps} without a written form`}</Badge> : <Badge tone="ok">Each has its written form</Badge>}
-          subtitle="The product writes no form: each is written, reviewed and issued with its form code by the organisation. A certificate whose form is not chosen is not raised; one whose form has no text can be raised and routed, and is refused at its first signature, naming the form."
+          subtitle="Written by the organisation"
           divided={needs.length === 0}
         />
         {needs.length === 0 ? (
-          <EmptyState size="sm" title="Nothing listed">No certificate kind is configured.</EmptyState>
+          <EmptyState size="sm" title="Nothing listed" />
         ) : (
           <Table minWidth={640}>
             <colgroup>
@@ -235,12 +235,12 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
       <CardHeader
         icon={<FilesIcon size={17} />}
         title="Typing corrections"
-        subtitle="Misprints in a controlled form, corrected when a certificate's text is rendered. The form's code and revision stay as printed, and only the form's own words change, never a merge field or its value. None ships: correcting a controlled form is a document-control decision."
+        subtitle="Corrected on render. None ships."
         actions={<AddCorrection forms={certificateForms} />}
         divided={corrections.length === 0}
       />
       {corrections.length === 0 ? (
-        <EmptyState size="sm" title="None">Every form&apos;s text is rendered exactly as written.</EmptyState>
+        <EmptyState size="sm" title="None" />
       ) : (
         <Table minWidth={640}>
           <colgroup>
@@ -280,12 +280,12 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
       <CardHeader
         icon={<InboxIcon size={17} />}
         title="Terms"
-        subtitle="One wording per concept, with the other wordings the source documents use. A form cites a term and prints its wording in the text's language; a search of the documents register for any wording finds the others. None ships: the glossary is the organisation's."
+        subtitle="One wording per concept. None ships."
         actions={<AddTerm />}
         divided={terms.length === 0}
       />
       {terms.length === 0 ? (
-        <EmptyState size="sm" title="None">No term is in the glossary: forms cite none, and a search finds only the words typed.</EmptyState>
+        <EmptyState size="sm" title="None" />
       ) : (
         <Table minWidth={640}>
           <colgroup>
@@ -334,7 +334,7 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
             </Badge>
           ) : undefined
         }
-        subtitle="The certificates, letters and routing sheets the portal issues."
+        info={{ title: "Templates", text: "The certificates, letters and routing sheets the portal issues." }}
       />
 
       <Tabs

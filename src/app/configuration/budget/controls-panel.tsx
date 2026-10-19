@@ -105,7 +105,7 @@ export function ControlsPanel({
           <CardHeader
             icon={<ShieldIcon size={17} />}
             title="Availability check"
-            subtitle="What the portal does when a requirement exceeds the balance on its code."
+            subtitle="When a requirement exceeds the balance"
             actions={
               /* The sample says "Restore defaults". This product ships none — a
                  threshold baked in here would be one customer's policy arriving as
@@ -132,7 +132,7 @@ export function ControlsPanel({
               <Field
                 label="Availability check"
                 htmlFor="ctl-availabilityCheck"
-                hint="Blocking holds the requirement until someone overrides it. Advisory shows a warning and lets the raiser continue."
+                hint="Blocking holds it. Advisory warns."
                 error={state.errors?.availabilityCheck}
               >
                 <Select
@@ -151,7 +151,7 @@ export function ControlsPanel({
               <Field
                 label="Warning threshold"
                 htmlFor="ctl-warningThresholdPercent"
-                hint="Utilisation at which a budget code is flagged as running low. Leave it empty and none is."
+                hint="Utilisation that flags a code. Empty: none."
                 error={state.errors?.warningThresholdPercent}
               >
                 <Suffixed
@@ -167,7 +167,7 @@ export function ControlsPanel({
               <Field
                 label="Over-commitment tolerance"
                 htmlFor="ctl-overCommitmentTolerancePercent"
-                hint="How far past the balance a requirement may go before the check bites."
+                hint="Allowed overspend before the check bites."
                 error={state.errors?.overCommitmentTolerancePercent}
               >
                 <Suffixed
@@ -183,7 +183,7 @@ export function ControlsPanel({
               <Field
                 label="May override the check"
                 htmlFor="ctl-overrideRoleCodes"
-                hint="Roles that can proceed past a failed check. Nobody, unless named here."
+                hint="Roles that may proceed. Nobody unless named."
               >
                 <RoleTokens roles={roles} chosen={overrides} onChange={(next) => { setOverrides(next); setDirty(true); }} />
               </Field>
@@ -204,8 +204,7 @@ export function ControlsPanel({
           <CardBody>
             {example == null ? (
               <p className="text-[13px] text-ink-3">
-                No budget code carries an allocation yet, so there is nothing to work
-                the check through.
+                Nothing allocated. No check to run.
               </p>
             ) : (
               <div className="flex flex-col gap-4">
@@ -282,14 +281,14 @@ export function ControlsPanel({
           <CardHeader
             icon={<SaveIcon size={17} />}
             title="Payment defaults"
-            subtitle="Applied to every certificate unless the contract says otherwise."
+            subtitle="Applied unless the contract says otherwise"
           />
           <CardBody>
             <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
               <Field
                 label="Advance recoupment rate"
                 htmlFor="ctl-advanceRecoupmentRatePercent"
-                hint="How much of each certificate goes to recovering an advance."
+                hint="Share of each certificate recovering an advance"
                 error={state.errors?.advanceRecoupmentRatePercent}
               >
                 <Suffixed
@@ -305,7 +304,7 @@ export function ControlsPanel({
               <Field
                 label="Minimum interim certificate"
                 htmlFor="ctl-minimumInterimCertificate"
-                hint="Below this, a certificate waits for the next one."
+                hint="Below this, it waits for the next certificate"
                 error={state.errors?.minimumInterimCertificate}
               >
                 <AffixInput

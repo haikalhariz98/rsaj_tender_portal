@@ -117,7 +117,7 @@ export function LogoCard({ logo }: { logo: LogoInfo | null }) {
         logo ? (
           <RecordEditor
             title="Remove the logo"
-            description="The product mark is shown at the top left again. Reports and letters carry no logo until another is uploaded."
+            description="Reports and letters carry no logo until another is uploaded."
             fields={[]}
             action={removeLogo}
             destructive={{ reasonLabel: "Why is the logo being removed?" }}

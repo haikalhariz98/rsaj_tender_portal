@@ -47,7 +47,7 @@ export function AddRoutingType({ templates }: { templates: Option[] }) {
   return (
     <RecordEditor
       title="Add a routing sheet type"
-      description="One kind of routing sheet. A sheet starts on a certificate when it is sent for routing, or on an award, and freezes the type as it stands then."
+      description="One kind of routing sheet. It freezes when a sheet starts."
       fields={typeFields(false, templates)}
       showWhen={{ certificateKind: { name: "subject", in: ["CERTIFICATE"] } }}
       action={saveRoutingType}

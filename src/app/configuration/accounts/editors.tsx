@@ -21,7 +21,7 @@ export function CreateAccount({ people }: { people: { id: string; name: string; 
   return (
     <RecordEditor
       title="Create a sign-in account"
-      description="For a person already on record. The account waits for an activation code: nobody can sign in with it until you issue one and hand it over."
+      description="Waits for an activation code. Nobody can sign in until you issue one."
       fields={[
         {
           kind: "select",
@@ -45,7 +45,7 @@ export function DisableAccount({ accountId, name, loginName }: { accountId: stri
   return (
     <RecordEditor
       title={`Disable ${name}'s account`}
-      description={`${loginName} will be signed out everywhere at once, and cannot sign in again until the account is put back.`}
+      description={`${loginName} is signed out everywhere until the account is put back.`}
       fields={[{ kind: "hidden", name: "accountId" }]}
       values={{ accountId }}
       action={disableAccountAction}
@@ -61,7 +61,7 @@ export function EnableAccount({ accountId, name }: { accountId: string; name: st
   return (
     <RecordEditor
       title={`Put ${name}'s account back`}
-      description="It returns to waiting for activation: issue a new code, and the person chooses a password of their own."
+      description="Returns to waiting for activation. Issue a new code."
       fields={[{ kind: "hidden", name: "accountId" }]}
       values={{ accountId }}
       action={enableAccountAction}

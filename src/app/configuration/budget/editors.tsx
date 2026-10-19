@@ -161,7 +161,7 @@ export function ReleaseCommitment({ id, reference }: { id: string; reference: st
   return (
     <RecordEditor
       title={`Release ${reference}`}
-      description="The money returns to the balance. The commitment stays on record, because it is part of how the balance moved."
+      description="The money returns to the balance. The commitment stays on record."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={releaseCommitment}
@@ -177,7 +177,7 @@ export function EndAllocation({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`End ${label}`}
-      description="The period closes today: from today it no longer counts. Today is the organisation's day, so its time zone must be set. A requisition already checked against it keeps showing the balance it saw."
+      description="Closes today in the organisation's time zone. Checked requisitions keep their balance."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={endAllocation}

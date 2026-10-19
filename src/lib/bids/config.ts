@@ -48,7 +48,7 @@ export const BID_RULE_FAULT_TEXT: Readonly<Record<BidRuleFault, string>> = {
 };
 
 /// When a change to a method's bid-receipt rules applies (6.6 CR-2): publication freezes them with the window.
-export const BID_RULES_APPLY_TEXT = "Applies only to exercises published after it. Earlier ones keep their frozen rules.";
+export const BID_RULES_APPLY_TEXT = "Applies to exercises published later.";
 
 /// How many of the methods' bid-receipt rules are not set: three per method that receives bids.
 export function bidRulesNotSet(methods: readonly { lateAdmissionCommitteeCode: string | null; minimumBids: number | null; completenessEliminates: boolean | null }[]): number {

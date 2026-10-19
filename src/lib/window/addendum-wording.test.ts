@@ -10,7 +10,8 @@ describe("the addendum is available", () => {
     // SR-06 (ruling 9): the Invitation tab is gone; an addendum is issued under Publishing on Tender documents.
     expect(startFaultText({ code: "PACK_APPROVED", level: "block" })).toMatch(/addendum, issued under Publishing on Tender documents/);
     expect(scopeFaultText("PACK_FROZEN")).toMatch(/addendum under Publishing on Tender documents/);
-    expect(EXIT_TEXT.PACK_FROZEN).toMatch(/addendum, issued under Publishing on Tender documents/);
+    // 0005, founder 2026-10-19: shortened; it still names where the addendum is issued.
+    expect(EXIT_TEXT.PACK_FROZEN).toMatch(/addendum under Publishing on Tender documents/);
     for (const t of [startFaultText({ code: "PACK_APPROVED", level: "block" }), scopeFaultText("PACK_FROZEN"), EXIT_TEXT.PACK_FROZEN]) expect(t).not.toMatch(/not yet available/);
   });
 });

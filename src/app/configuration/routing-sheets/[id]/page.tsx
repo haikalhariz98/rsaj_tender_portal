@@ -64,7 +64,7 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
       />
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="How elapsed time is judged" subtitle="Calendar days from the day received to the day the approving step decided (assumed; a question to the customer)." />
+          <CardHeader icon={<ClockIcon size={17} />} title="How elapsed time is judged" subtitle="Calendar days, received to decided. Assumed." />
           <CardBody>
             <KeyValues
               columns={2}
@@ -79,9 +79,9 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader icon={<RouteIcon size={17} />} title="Checks" subtitle="The sheet's internal steps, recorded in this order before the approval matrix's own steps. Each round of a resubmission records them again." actions={<AddCheck typeId={t.id} offices={offices} />} divided={t.checks.length === 0} />
+          <CardHeader icon={<RouteIcon size={17} />} title="Checks" subtitle="Internal steps, before the matrix steps" actions={<AddCheck typeId={t.id} offices={offices} />} divided={t.checks.length === 0} />
           {t.checks.length === 0 ? (
-            <EmptyState size="sm" title="None">No internal checks: the sheet shows the approval route&apos;s steps only.</EmptyState>
+            <EmptyState size="sm" title="None" />
           ) : (
             <Table minWidth={640}>
               <colgroup>
@@ -114,9 +114,9 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Targets" subtitle="The target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures." actions={<AddTarget typeId={t.id} />} divided={targets.length === 0} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Targets" subtitle="Calendar days, per band or flat" actions={<AddTarget typeId={t.id} />} divided={targets.length === 0} />
           {targets.length === 0 ? (
-            <EmptyState size="sm" title="Not set">No target: every sheet on this type reads &quot;Target not set&quot;, never met.</EmptyState>
+            <EmptyState size="sm" title="Not set" />
           ) : (
             <Table minWidth={640}>
               <colgroup>

@@ -34,7 +34,7 @@ export function EditWindowPolicy({ values, channels, calendars, templates }: { v
   return (
     <RecordEditor
       title="Edit the window rules"
-      description="Leave a value not set if it has not been decided: it then blocks the act it governs, naming itself. Nothing is defaulted. Say where each group of values comes from."
+      description="Not set blocks the act it governs. Nothing is defaulted."
       columns={2}
       fields={[
         { kind: "number", name: "minAdvertisementDays", label: "Minimum days from advertisement to closing", min: 0 },
@@ -78,7 +78,7 @@ export function ChannelDrawer({ channel }: { channel?: { id: string; name: strin
   return (
     <RecordEditor
       title={channel ? `Edit ${channel.name}` : "Add a publication channel"}
-      description="Where an advertised exercise's notice appears. Whether a channel is required is the organisation's to say: not set holds publication back, naming it."
+      description="Where the notice appears. Not set holds publication back."
       columns={2}
       fields={[
         hidden("id"),
@@ -122,7 +122,7 @@ export function FloorDrawer({ regimes, floor }: { regimes: Option[]; floor?: { i
   return (
     <RecordEditor
       title={floor ? `Edit the least fee for ${floor.label}` : "Set a least fee for a band"}
-      description="The window's document fee is refused below the least for its band. A band with none set holds publication back, naming it."
+      description="Fee refused below the band's least. No band value holds publication back."
       columns={2}
       fields={[
         hidden("id"),
@@ -166,7 +166,7 @@ export function CalendarDrawer({ calendar }: { calendar?: { id: string; name: st
   return (
     <RecordEditor
       title={calendar ? `Edit ${calendar.name}` : "Add a holiday calendar"}
-      description="A closing date may not fall on a weekend day or a public holiday of the calendar. Empty weekend days are not set, and block the check."
+      description="No closing on a weekend or public holiday. Empty weekend days block the check."
       columns={2}
       fields={[
         hidden("id"),
@@ -207,7 +207,7 @@ export function YearDrawer({ calendarId, calendar, year }: { calendarId: string;
   return (
     <RecordEditor
       title={year ? `${calendar}, ${year.year}` : `Say how a year of ${calendar} stands`}
-      description="A closing in a year not maintained in full is refused, naming this setting. Marking a year complete is the organisation's statement that every public holiday of it is listed."
+      description="A closing in an unmaintained year is refused. Marking complete says every holiday is listed."
       columns={2}
       fields={[
         hidden("calendarId"),
@@ -269,7 +269,7 @@ export function ImportYearDrawer({ calendarId, calendar }: { calendarId: string;
   return (
     <RecordEditor
       title={`Import a year's holidays into ${calendar}`}
-      description="Paste one holiday a line: the day (2026-12-25), the name, then optionally the name in Malay and the gazette reference, separated by commas. Every line is checked first, and nothing is taken from a list with a fault. Whether the year is then complete is said separately."
+      description="One holiday a line: day, name, optional Malay name, gazette reference."
       fields={[
         hidden("calendarId"),
         { kind: "number", name: "year", label: "Year", required: true },
@@ -291,7 +291,7 @@ export function EditMethodBidRule({ id, name, values, committees }: { id: string
   return (
     <RecordEditor
       title={`Bid receipt under ${name}`}
-      description={`Each may be left not set: it then holds back what it governs and says so. Late admission is never read as a refusal; an unset minimum is never read as met. ${BID_RULES_APPLY_TEXT}`}
+      description={`Not set holds back what it governs. ${BID_RULES_APPLY_TEXT}`}
       columns={2}
       fields={[
         hidden("id"),
@@ -317,7 +317,7 @@ export function EditMethodOpeningRule({ id, name, values, committees }: { id: st
   return (
     <RecordEditor
       title={`Opening under ${name}`}
-      description={`Each may be left not set: it then holds back what it governs and says so. ${OPENING_RULES_APPLY_TEXT}`}
+      description={`Not set holds back what it governs. ${OPENING_RULES_APPLY_TEXT}`}
       columns={2}
       fields={[
         hidden("id"),
@@ -340,7 +340,7 @@ export function EditOpeningPolicy({ values }: { values: Record<string, string> }
   return (
     <RecordEditor
       title="Edit the opening policy"
-      description={`How the schedule counts the tenderers invited, and the words the Grand Summary uses. A count not set holds finalising back; words not set read the product's own. ${OPENING_RULES_APPLY_TEXT}`}
+      description={`Count not set holds finalising back. Words not set use the product's. ${OPENING_RULES_APPLY_TEXT}`}
       columns={2}
       fields={[
         { kind: "select", name: "invitedCountReading", label: "The tenderers invited are", placeholder: "Not set", options: [{ value: "PURCHASERS", label: "The bidders who bought the documents" }, { value: "INVITEES", label: "The bidders sent a letter of invitation" }] },

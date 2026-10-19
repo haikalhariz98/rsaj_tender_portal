@@ -67,9 +67,9 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
   if (!c) {
     return (
       <>
-        <PageHeader title="Tender documents" subtitle="The parts each pack assembles and the figures it is judged by." />
+        <PageHeader title="Tender documents" info={{ title: "Tender documents", text: "The parts each pack assembles and the figures it is judged by." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -150,7 +150,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
       <PageHeader
         title="Tender documents"
         badge={holding > 0 ? <Badge tone="warn" dot>{`${holding} holding work back`}</Badge> : <Badge tone="ok" dot>Nothing holding work back</Badge>}
-        subtitle="The parts each pack assembles, the wording it carries and the figures it is judged by."
+        info={{ title: "Tender documents", text: "The parts each pack assembles, the wording it carries and the figures it is judged by." }}
         actions={
           <>
             {policyRow && <HistoryButton entity="TenderDocumentPolicy" entityId={policyRow.id} label="the tender documents policy" />}
@@ -175,7 +175,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
           <CardHeader
             icon={<FileIcon size={17} />}
             title="Policy"
-            subtitle="The wording and figures every pack is judged by."
+            subtitle="Wording and figures for every pack"
             actions={
               <span className="flex flex-wrap items-center gap-2">
                 <EditTenderPolicy values={policyValues} taxonomies={k?.taxonomyOptions ?? []} />
@@ -183,7 +183,6 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
             }
           />
           <CardBody>
-            <p className="mb-4 text-[12.5px] text-ink-3">Unset is not zero and not a guess: it says what it leaves undecided. A figure set says where it came from.</p>
             <KeyValues
               columns={2}
               items={[
@@ -212,12 +211,12 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                   {k.bodies.length > 0 && <Badge outline>{k.bodies.length}</Badge>}
                 </span>
               }
-              subtitle="The bodies a bidder registers with. Each exercise lists the registrations it requires from these, and its notice prints them."
+              subtitle="Exercises list the ones they require"
               actions={<BodyDrawer />}
               divided={k.bodies.length === 0}
             />
             {k.bodies.length === 0 ? (
-              <EmptyState title="None configured">An exercise cannot record who may bid until its registration bodies are added.</EmptyState>
+              <EmptyState title="None configured" />
             ) : (
               <Table minWidth={620}>
                 <colgroup>
@@ -262,12 +261,12 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                   {k.clauses.length > 0 && <Badge outline>{k.clauses.length}</Badge>}
                 </span>
               }
-              subtitle="Clauses a template cites. One every agreement carries can be left out only under a legal endorsement on the exercise."
+              subtitle="Endorsement can leave one out"
               actions={<ClauseDrawer />}
               divided={k.clauses.length === 0}
             />
             {k.clauses.length === 0 ? (
-              <EmptyState title="None configured">No clause is required in agreements until one is added here.</EmptyState>
+              <EmptyState title="None configured" />
             ) : (
               <Table minWidth={620}>
                 <colgroup>
@@ -311,11 +310,11 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                 {c.methods.length > 0 && <Badge outline>{c.methods.length}</Badge>}
               </span>
             }
-            subtitle="An exercise moves into preparation only once its method says which documents it needs. Not set holds that move back, naming this setting; it is never read as none."
+            subtitle="Not set holds preparation back"
             divided={c.methods.length === 0}
           />
           {c.methods.length === 0 ? (
-            <EmptyState title="Not set">No sourcing methods are configured. Add them under Reference data.</EmptyState>
+            <EmptyState title="Not set" />
           ) : (
             <Table minWidth={560}>
               <colgroup>
@@ -368,7 +367,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                     {count > 0 && <Badge outline>{count}</Badge>}
                   </span>
                 }
-                subtitle="In print order, for each contract basis. A part for one basis replaces the every-basis part of the same role."
+                subtitle="Print order, per contract basis"
                 divided={count === 0}
               />
               {count === 0 ? (

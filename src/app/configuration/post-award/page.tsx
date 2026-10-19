@@ -69,9 +69,9 @@ export default async function PostAwardControlsPage() {
   if (!org) {
     return (
       <>
-        <PageHeader title="Post-award controls" subtitle="How a contract is supervised after it is executed." />
+        <PageHeader title="Post-award controls" info={{ title: "Post-award controls", text: "How a contract is supervised after it is executed." }} />
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation is configured" />
         </Card>
       </>
     );
@@ -138,7 +138,7 @@ export default async function PostAwardControlsPage() {
       <PageHeader
         title="Post-award controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="Supervision, the delegation letters, interim payments and damages, and variations."
+        info={{ title: "Post-award controls", text: "Supervision, the delegation letters, interim payments and damages, and variations." }}
         actions={
           <>
             {p?.id && <HistoryButton entity="PostAwardPolicy" entityId={p.id} label="Post-award controls" />}
@@ -148,7 +148,7 @@ export default async function PostAwardControlsPage() {
       />
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<BuildingIcon size={17} />} title="Supervising a contract" subtitle="Read on every contract each time it is judged." />
+          <CardHeader icon={<BuildingIcon size={17} />} title="Supervising a contract" subtitle="Read when a contract is judged" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -160,7 +160,7 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Delegation letters" subtitle="The letter of delegation and its notification, by the contract type's kind of letters. Each delegation opens both as certificates on these forms." />
+          <CardHeader icon={<FileIcon size={17} />} title="Delegation letters" subtitle="By the contract type's letters" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -174,7 +174,7 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<WalletIcon size={17} />} title="Interim payment" subtitle="Read when a valuation is worked out, sent for approval and issued. A contract's own figure, from its baseline, wins where it has one." actions={<EditPaymentPolicy values={paymentValues} figures={PAYMENT_ROUTE_FIGURES.map((f) => ({ value: f, label: ROUTE_FIGURE_WORDS[f].en }))} remainders={WATERFALL_REMAINDERS.map((f) => ({ value: f, label: REMAINDER_WORDS[f].en }))} />} />
+          <CardHeader icon={<WalletIcon size={17} />} title="Interim payment" subtitle="A contract's own baseline figure wins" actions={<EditPaymentPolicy values={paymentValues} figures={PAYMENT_ROUTE_FIGURES.map((f) => ({ value: f, label: ROUTE_FIGURE_WORDS[f].en }))} remainders={WATERFALL_REMAINDERS.map((f) => ({ value: f, label: REMAINDER_WORDS[f].en }))} />} />
           <CardBody>
             <KeyValues
               columns={2}
@@ -190,7 +190,7 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Payment and damages certificates" subtitle="The form each prints on, and the routing sheet it goes on before it is signed." />
+          <CardHeader icon={<FileIcon size={17} />} title="Payment and damages certificates" subtitle="Form and routing sheet" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -212,7 +212,7 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Contractor submissions" subtitle={`Whether a contractor signs from its own portal account, and the service level a submission sent from the contractor's portal account is answered against, by kind, counted from the day it is sent. ${SERVICE_UNIT_ASSUMED_NOTE.en} Read when the submission is sent and frozen on it.`} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Contractor submissions" subtitle={`Answer times by kind. ${SERVICE_UNIT_ASSUMED_NOTE.en}`} />
           <CardBody>
             <KeyValues
               columns={2}
@@ -254,7 +254,7 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<ScaleIcon size={17} />} title="Variations" subtitle="Read when a variation is submitted, sent for approval and instructed. A setting changed later moves nothing already sent: each route keeps the reading it was sent on." actions={<EditVariationPolicy values={variationValues} bases={VARIATION_PCT_BASES.map((b) => ({ value: b, label: BASIS_WORDS[b].en }))} sums={VARIATION_BASES.map((b) => ({ value: b, label: BASE_WORDS[b].en }))} forms={SCHEDULE_FORMS.map((f) => ({ value: f, label: SCHEDULE_FORM_WORDS[f].en }))} committees={committees.map((x) => ({ value: x.id, label: x.nameEn }))} />} />
+          <CardHeader icon={<ScaleIcon size={17} />} title="Variations" subtitle="A change moves nothing already sent" actions={<EditVariationPolicy values={variationValues} bases={VARIATION_PCT_BASES.map((b) => ({ value: b, label: BASIS_WORDS[b].en }))} sums={VARIATION_BASES.map((b) => ({ value: b, label: BASE_WORDS[b].en }))} forms={SCHEDULE_FORMS.map((f) => ({ value: f, label: SCHEDULE_FORM_WORDS[f].en }))} committees={committees.map((x) => ({ value: x.id, label: x.nameEn }))} />} />
           <CardBody>
             <KeyValues
               columns={2}
@@ -270,7 +270,7 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Variation and adjustment certificates" subtitle="The form each prints on, and the routing sheet it goes on. The application is opened when its prior approval is approved, on its form where set." />
+          <CardHeader icon={<FileIcon size={17} />} title="Variation and adjustment certificates" subtitle="Form and routing sheet" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -292,7 +292,7 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Contract clocks" subtitle="How long each period under the contract runs. A screen with an unset clock says so rather than counting from a guess." />
+          <CardHeader icon={<ClockIcon size={17} />} title="Contract clocks" subtitle="Unset clock says so" />
           <CardBody>
             <KeyValues
               columns={2}

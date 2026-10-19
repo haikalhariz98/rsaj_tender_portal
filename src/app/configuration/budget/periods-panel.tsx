@@ -148,7 +148,7 @@ export function PeriodsPanel({
         <CardHeader
           icon={<CalendarIcon size={17} />}
           title={`${selected} · Periods`}
-          subtitle="Unspent allocation carried into the next year, up to the cap."
+          subtitle="Carried over, up to the cap"
           actions={
             <Switch
               checked={rollForward === true}

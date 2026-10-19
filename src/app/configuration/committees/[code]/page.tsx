@@ -27,6 +27,7 @@ import { loadRoster } from "@/lib/people/load";
 import { formatBand, formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { Avatar } from "@/components/ui/avatar";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
@@ -111,12 +112,12 @@ export default async function CommitteePage({
       />
 
       <div className="flex flex-col gap-6">
-        <Callout tone="info" title="Mandate">
+        <div className="rounded-2xl border border-line bg-surface px-5 py-4 text-[13.5px] text-ink-2">
           {committee.mandate}
           {committee.aliases.length > 0 && (
             <span className="mt-1 block text-[12.5px]">Also known as {committee.aliases.join(", ")}.</span>
           )}
-        </Callout>
+        </div>
 
         {faults.includes("QUORUM_EXCEEDS_VOTING_SEATS") && (
           <Callout tone="err" title="This quorum can never be met">
@@ -147,10 +148,9 @@ export default async function CommitteePage({
               }
             />
             {seats.length > 0 && (
-              <p className="border-b border-line/70 px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
-                The Secretary attends but never votes or counts toward quorum. This is a product assumption
-                awaiting the committee&apos;s terms of reference.
-              </p>
+              <div className="border-b border-line/70 px-5 py-2.5 sm:px-6">
+                <InfoChip tone="warn" detail="The Secretary attends but never votes or counts toward quorum. A product assumption awaiting the committee's terms of reference.">Secretary: assumed</InfoChip>
+              </div>
             )}
             {seats.length === 0 ? (
               <EmptyState size="sm" title="No membership set">
@@ -272,7 +272,7 @@ export default async function CommitteePage({
           <CardHeader
             icon={<UsersIcon size={17} />}
             title="Opening panel"
-            subtitle="Where a sourcing method names this body to open its bids: how many members open them, and who may not. An opening keeps the rules it started under."
+            subtitle="Opening size and conflicts"
             actions={
               <EditOpeningPanel
                 id={committee.id}
@@ -384,7 +384,7 @@ export default async function CommitteePage({
                 {committee.meetings.length > 0 && <Badge outline>{committee.meetings.length}</Badge>}
               </span>
             }
-            subtitle="Held and scheduled. Open one to take its register and record its decisions."
+            subtitle="Open one for its register"
 
             divided={false}
           />

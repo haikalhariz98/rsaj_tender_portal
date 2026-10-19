@@ -37,7 +37,7 @@ export function EditAwardPolicy({ values, templates, units, label = "Edit contro
   return (
     <RecordEditor
       title="Award controls"
-      description="How this organisation awards. Every setting starts unset; an unset one refuses what depends on it rather than assuming."
+      description="Every setting starts unset. An unset one refuses what depends on it."
       fields={[
         { kind: "select", name: "tenderInstrument", label: "Instrument in the tender band", placeholder: "Not set", options: INSTRUMENTS },
         { kind: "select", name: "quotationInstrument", label: "Instrument in the quotation band", placeholder: "Not set", options: INSTRUMENTS },
@@ -94,7 +94,7 @@ export function EditNonAwardPolicy({ values }: { values: Values }) {
   return (
     <RecordEditor
       title="Notices to unsuccessful tenderers"
-      description="Nothing in the organisation's documents tells an unsuccessful tenderer anything. Whether it is told is a policy decision, and it also decides whether a debrief opens the organisation to a challenge. Until both are answered, nothing is issued. The tenderer's own score is never part of a notice."
+      description="Policy not decided: nothing is issued. A tenderer's own score is never in a notice."
       fields={[
         { kind: "select", name: "nonAwardNotices", label: "Send unsuccessful tenderers a notice of the outcome", placeholder: "Not decided", options: YES_NO, hint: "A notice is shown in the supplier portal and is not sent: email is not connected." },
         { kind: "select", name: "debriefIncludesReason", label: "The notice carries the reason for non-award", placeholder: "Not decided (it carries none)", options: YES_NO, hint: "The officer writes the reason for each tenderer when issuing the notice." },
@@ -151,7 +151,7 @@ const variantFields = (editing: boolean, templates: Option[], types: Option[], b
 ];
 
 export function AddVariant({ templates, types, bands }: { templates: Option[]; types: Option[]; bands: Option[] }) {
-  return <RecordEditor title="Add an appointment-letter variant" description="Picked by the exercise's contract type and terms band. The most specific variant wins; two equally specific are refused." fields={variantFields(false, templates, types, bands)} action={saveVariant} submitLabel="Add variant" trigger={{ label: "Add variant", icon: true }} size="md" />;
+  return <RecordEditor title="Add an appointment-letter variant" description="Chosen by contract type and terms band. Most specific wins." fields={variantFields(false, templates, types, bands)} action={saveVariant} submitLabel="Add variant" trigger={{ label: "Add variant", icon: true }} size="md" />;
 }
 export function EditVariant({ id, values, name, templates, types, bands }: { id: string; values: Values; name: string; templates: Option[]; types: Option[]; bands: Option[] }) {
   return <RecordEditor title={`Edit ${name}`} fields={[hidden("id"), ...variantFields(true, templates, types, bands)]} values={{ id, ...values }} action={saveVariant} trigger={edit(name)} size="md" />;
@@ -208,7 +208,7 @@ const bandFields = (editing: boolean): Field[] => [
   NOTES,
 ];
 export function AddBand() {
-  return <RecordEditor title="Add a liability band" description="Above the lower figure, up to and including the upper. A band that would overlap another is refused." fields={bandFields(false)} action={saveBand} submitLabel="Add band" trigger={{ label: "Add band", icon: true }} size="md" />;
+  return <RecordEditor title="Add a liability band" description="Above the lower figure, up to the upper. Overlaps are refused." fields={bandFields(false)} action={saveBand} submitLabel="Add band" trigger={{ label: "Add band", icon: true }} size="md" />;
 }
 export function EditBand({ id, values, name }: { id: string; values: Values; name: string }) {
   return <RecordEditor title={`Edit ${name}`} fields={[hidden("id"), ...bandFields(true)]} values={{ id, ...values }} action={saveBand} trigger={edit(name)} size="md" />;
@@ -246,7 +246,7 @@ export function RetireRow({ entity, id, label, today }: { entity: string; id: st
   return (
     <RecordEditor
       title={`Retire ${label}`}
-      description="It stops being offered from the day given. Awards already made under it keep showing it."
+      description="Not offered from the day given. Existing awards keep it."
       fields={[hidden("entity"), hidden("id"), { kind: "date", name: "retiredOn", label: "Retired from", required: true }]}
       values={{ entity, id, retiredOn: today }}
       action={retireRow}

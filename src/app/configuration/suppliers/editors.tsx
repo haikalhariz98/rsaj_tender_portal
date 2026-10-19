@@ -33,7 +33,7 @@ export function ValueDrawer({ bodyId, bodyName, categories, value }: { bodyId: s
   return (
     <RecordEditor
       title={value ? `Edit ${value.name}` : `Add a value under ${bodyName}`}
-      description="A grade, category, specialisation, field code, class or permit type the body publishes. A grade's rank orders the grades (the higher, the more it covers); its ceiling is shown only and never compared with an estimate."
+      description="What the body publishes. Rank orders grades. Ceilings are shown, never compared."
       columns={2}
       fields={[
         hidden("id"),
@@ -67,7 +67,7 @@ export function DocumentTypeDrawer({ bodies, type }: { bodies: Option[]; type?: 
   return (
     <RecordEditor
       title={type ? `Edit ${type.name}` : "Add a document type"}
-      description="A statutory document a supplier lodges. Whether it expires, whether it is mandatory for every registration and whether it may be not applicable may each be left not set: each then holds back the act that needs it, naming itself."
+      description="A statutory document. Each switch left not set holds back the act that needs it."
       columns={2}
       fields={[
         hidden("id"),
@@ -106,7 +106,7 @@ export function ListValueDrawer({ list, listName, value }: { list: string; listN
   return (
     <RecordEditor
       title={value ? `Edit ${value.name}` : `Add to ${listName.toLowerCase()}`}
-      description="An entry an officer chooses when recording a supplier. A retired entry stays on the suppliers recorded with it."
+      description="Chosen when recording a supplier. A retired entry stays on records."
       fields={[
         hidden("id"),
         hidden("list"),
@@ -135,7 +135,7 @@ export function EditSupplierPolicy({ values }: { values: Record<string, string> 
   return (
     <RecordEditor
       title="Edit the register's policy"
-      description="What the supplier is told about how its documents are checked (shown to the vendor once it can sign in). Leave it not set if it has not been decided."
+      description="What the supplier is told about document checks. Not set if undecided."
       fields={[
         { kind: "textarea", name: "verificationNoticeEn", label: "Verification notice" },
         { kind: "textarea", name: "verificationNoticeMs", label: "Verification notice (Malay)" },
@@ -168,7 +168,7 @@ export function EditRegistrationSettings({ values, classes }: { values: Record<s
   return (
     <RecordEditor
       title="Edit registration online"
-      description="What a supplier's own registration is judged by. Each setting may be left not set: what it governs then stays closed and the supplier's screen names it. A setting made says where it comes from."
+      description="What a registration is judged by. Not set keeps what it governs closed."
       columns={2}
       fields={[
         { kind: "text", name: "helpEmail", label: "Help email", hint: "Shown on the supplier's registration. Blank: no line is shown." },
@@ -227,7 +227,7 @@ export function EditPortalIntake({ values }: { values: Record<string, string> })
   return (
     <RecordEditor
       title="Edit online applications"
-      description="The public form stays closed until the notice is set in both languages and both limits are set. Nothing is assumed: an applicant who is not told how their details are used cannot send the form."
+      description="The public form stays closed until the notice and both limits are set."
       columns={2}
       fields={[
         { kind: "textarea", name: "personalDataNoticeEn", label: "Notice about personal details", hint: "Say why the details are collected, that they are needed to review the application, who sees them, how long they are kept and how to ask for access or correction. Shown above the send button." },
@@ -252,7 +252,7 @@ export function StandingReasonDrawer({ reason }: { reason?: { id: string; name: 
   return (
     <RecordEditor
       title={reason ? `Edit ${reason.name}` : "Add a standing reason"}
-      description="A reason an officer gives for a suspension, or a blacklisting is asked for with. What it is given for is fixed once made; a retired reason stays on the records that used it."
+      description="Given for a suspension or blacklisting. Fixed once made. Retired reasons stay on records."
       fields={[
         hidden("id"),
         ...(reason
@@ -283,7 +283,7 @@ export function EditStandingRules({ values, suspensionReasons, documentTypes }: 
   return (
     <RecordEditor
       title="Edit the standing rules"
-      description="Each rule may be left not set: the act it governs then says so, and nothing is assumed. A rule set says where it comes from."
+      description="Not set: the act it governs says so. A rule set shows its source."
       columns={2}
       fields={[
         { kind: "number", name: "criticalDays", label: "Critical, within (days)", min: 0, hint: "A document this many days or fewer from its expiry is critical. Set all three bands, or none." },

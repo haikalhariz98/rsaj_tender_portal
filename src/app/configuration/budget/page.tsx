@@ -73,7 +73,7 @@ export default async function BudgetPage({
     <>
       <PageHeader
         title="Budget"
-        subtitle="Allocations, commitments and the balance a requirement is checked against."
+        info={{ title: "Budget", text: "Allocations, commitments and the balance a requirement is checked against." }}
         meta={[
           <>
             <CalendarIcon size={14} />

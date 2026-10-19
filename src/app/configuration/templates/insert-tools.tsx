@@ -18,7 +18,7 @@ export function InsertClause({ clauses }: { clauses: { code: string; title: stri
   const [done, setDone] = useState<string | null>(null);
 
   if (clauses.length === 0) {
-    return <p className="rounded-xl bg-sunken px-3.5 py-2.5 text-[13px] text-ink-2">No clause is configured, so there is none to insert. Add clauses under Configuration, Tender documents.</p>;
+    return <p className="rounded-xl bg-sunken px-3.5 py-2.5 text-[13px] text-ink-2">No clause configured.</p>;
   }
 
   const insert = () => {

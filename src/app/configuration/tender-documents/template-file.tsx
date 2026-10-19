@@ -5,7 +5,6 @@ import { useCallback } from "react";
 import { stage, STORED_NOT_FILED, useStagedRef } from "@/components/attachments/upload-actions";
 import { EMPTY_FORM_STATE, RecordEditor, type Field, type SaveAction } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
-import { Callout } from "@/components/ui/feedback";
 import { STAGED_FOR_TEMPLATE_FILE } from "@/lib/documents/staged-for";
 import type { UploadView } from "@/lib/documents/views";
 
@@ -41,7 +40,7 @@ export function TemplateFileDrawer({ id, label, current, upload }: { id: string;
   return (
     <RecordEditor
       title={`Template file for ${label}`}
-      description="The file an officer downloads from this part's line on an exercise's tender documents, fills in, and uploads back. A change to it is proposed here and a second person issues it. Choosing another file replaces it; the earlier one stays in the document store."
+      description="Downloaded from the exercise's tender documents. A second person issues a change."
       fields={[
         hidden("id"),
         ...(current ? ([{ kind: "note", text: `Now: ${current}.` }] as Field[]) : ([{ kind: "note", text: "No template file is set for this part. Its line says \"No template set\"." }] as Field[])),
@@ -57,7 +56,6 @@ export function TemplateFileDrawer({ id, label, current, upload }: { id: string;
         { kind: "select", name: "documentClassId", label: "Class of the file", required: true, placeholder: "Choose a class", options: upload.classes, hint: "A class that sets a classification: an unclassified file is never served." },
       ]}
       values={{ id }}
-      sections={<Callout tone="info">The file is kept with its fingerprint. A line shows its name and downloads exactly these bytes.</Callout>}
       action={save}
       submitLabel="Propose this file"
       trigger={{ label: current ? "Change template file" : "Set template file", className: ghost, ariaLabel: `${current ? "Change" : "Set"} the template file for ${label}` }}

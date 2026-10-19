@@ -52,7 +52,7 @@ export default async function CommitteesPage() {
       <PageHeader
         title="Committees"
         badge={<Badge outline>{committees.length}</Badge>}
-        subtitle="Membership, quorum and the decisions each body may take."
+        info={{ title: "Committees", text: "Membership, quorum and the decisions each body may take." }}
       />
 
       <Stats>
@@ -93,7 +93,7 @@ export default async function CommitteesPage() {
               {committees.length > 0 && <Badge outline>{committees.length}</Badge>}
             </span>
           }
-          subtitle="Who sits, how many must be present, and what each body may decide."
+          subtitle="Members, quorum, decisions"
           actions={<AddCommittee offices={offices} />}
           divided={committees.length === 0}
         />
@@ -196,7 +196,7 @@ export default async function CommitteesPage() {
               {liveOutcomes.length > 0 && <Badge outline>{liveOutcomes.length}</Badge>}
             </span>
           }
-          subtitle="What a matter voted down does next. A matter not carried must name one."
+          subtitle="Next step for a rejected matter"
           actions={<AddNotApprovedOutcome committees={committees.map((c) => ({ id: c.id, nameEn: c.nameEn }))} />}
           divided={outcomes.length === 0}
         />

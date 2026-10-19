@@ -119,7 +119,7 @@ export default async function ReferenceDataPage() {
       <PageHeader
         title="Reference data"
         badge={!readiness.complete ? <Badge tone="warn" dot>Incomplete</Badge> : undefined}
-        subtitle="Sourcing methods, contract types, funding routes and code lists."
+        info={{ title: "Reference data", text: "Sourcing methods, contract types, funding routes and code lists." }}
       />
 
       <Stats>
@@ -593,7 +593,7 @@ export default async function ReferenceDataPage() {
       <Card className="mb-6">
         <CardHeader
           title="Mixed scope"
-          subtitle="How an exercise whose scope mixes deliverables is classified."
+          subtitle="Classifies mixed-scope exercises"
           actions={<ClassificationPolicyDrawer values={{ dominanceSharePct: policy?.dominanceSharePct?.toString() ?? null, provenance: policy?.provenance ?? null, notes: policy?.notes ?? "" }} />}
         />
         <CardBody>
@@ -642,7 +642,7 @@ function RetiredEntries({
     <Card className="mt-6">
       <CardHeader
         title="Retired"
-        subtitle="No longer offered. Matters already run under them keep showing them."
+        subtitle="No longer offered"
       />
       <ul className="divide-y divide-line/70 px-6">
         {entries.map((e) => (

@@ -407,7 +407,7 @@ function UnitChart({
       <CardHeader
         icon={<GridIcon size={17} />}
         title="Utilisation by department"
-        subtitle="Committed and paid as a share of what each department was given."
+        subtitle="Committed and paid, by department"
       />
       {drawn.length === 0 ? (
         <EmptyState size="sm" title="Nothing to compare">

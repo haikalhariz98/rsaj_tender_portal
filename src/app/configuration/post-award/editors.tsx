@@ -24,7 +24,7 @@ export function EditPostAwardPolicy({ values, forms }: { values: Record<string, 
   return (
     <RecordEditor
       title="Post-award controls"
-      description="How this organisation supervises a contract after it is executed. Every setting starts unset, and the screens say what an unset one stops."
+      description="Every setting starts unset. Screens say what an unset one stops."
       size="lg"
       columns={2}
       fields={[
@@ -55,7 +55,7 @@ export function EditPaymentPolicy({ values, figures, remainders }: { values: Rec
   return (
     <RecordEditor
       title="Interim payment controls"
-      description="How an interim certificate is worked out and routed. Each setting starts unset, and a contract's own figure (from its baseline) wins where it has one."
+      description="A contract's own baseline figure wins. Each setting starts unset."
       size="lg"
       columns={2}
       fields={[
@@ -106,7 +106,7 @@ export function EditClockRule({ clock, label, values }: { clock: string; label: 
   return (
     <RecordEditor
       title={label}
-      description="How long the clock runs. Leave the length empty to remove it: the screens then say it is not set."
+      description="Empty removes it: screens then say it is not set."
       columns={2}
       fields={[
         { kind: "hidden", name: "clock" },
@@ -129,7 +129,7 @@ export function EditSubmissionServiceLevel({ kind, label, values }: { kind: stri
   return (
     <RecordEditor
       title={label}
-      description={`How many days the office has to answer a submission of this kind, counted from the day it is sent. ${SERVICE_UNIT_ASSUMED_NOTE.en} Leave it empty to remove it: the queue then shows no due day for this kind and says the service level is not set.`}
+      description={`Days to answer, from sending. ${SERVICE_UNIT_ASSUMED_NOTE.en} Empty: not set.`}
       columns={2}
       fields={[
         { kind: "hidden", name: "kind" },
@@ -151,7 +151,7 @@ export function EditContractorPortalSigning({ values }: { values: Record<string,
   return (
     <RecordEditor
       title="A contractor signs from its portal account"
-      description="Whether a contractor's own portal account may sign its block on a Variation Order Certificate or a Certificate of Adjustment of Contract Sum, and its notice that the statutory declaration is lodged. Who may bind a contractor's company is your policy. Leave it undecided and the portal refuses both, saying so; the contractor then signs on paper and an officer records it. Even when the answer is yes, only a contact an officer has marked as authorised to sign for the company can sign: that mark is set on the supplier's contacts."
+      description="Whether a contractor's portal account may sign these blocks. Undecided: the portal refuses."
       columns={2}
       fields={[
         { kind: "select", name: "contractorPortalSigning", label: "A contractor's portal account signs for it", placeholder: "Not decided", options: [{ value: "yes", label: "Yes: its account signs, with its password" }, { value: "no", label: "No: on paper only" }] },
@@ -171,7 +171,7 @@ export function EditVariationPolicy({ values, bases, sums, forms, committees }: 
   return (
     <RecordEditor
       title="Variation controls"
-      description="How a variation's percentage is read, which schedule form it produces, and who decides a funder's consent. Each setting starts unset, and the screens say what an unset one stops."
+      description="Each setting starts unset. Screens say what an unset one stops."
       size="lg"
       columns={2}
       fields={[

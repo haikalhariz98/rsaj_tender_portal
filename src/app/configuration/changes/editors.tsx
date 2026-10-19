@@ -70,7 +70,7 @@ export function ProposeSetting({
   return (
     <RecordEditor
       title={`Propose a change to: ${label}`}
-      description={`Now: ${current}. A second person decides the change; until then the setting stays as it is.`}
+      description={`Now: ${current}. A second person decides. Until then it stays.`}
       fields={[
         { kind: "hidden", name: "setting" },
         choices
@@ -107,7 +107,7 @@ export function ProposePermission({
   return (
     <RecordEditor
       title={`${permissionLabel}: ${roleName}`}
-      description={`Now: ${current}. Granted lets the role do it. Withheld says it may not. Undecided is the organisation not having decided, and is refused. A second person decides the change.`}
+      description={`Now: ${current}. Undecided is refused. A second person decides.`}
       fields={[
         { kind: "hidden", name: "permissionKey" },
         { kind: "hidden", name: "roleCode" },
@@ -185,7 +185,7 @@ export function ApplyChange({ changeId, facts }: { changeId: string; facts: Fact
   return (
     <RecordEditor
       title={`Apply: ${facts.title}`}
-      description="You are the second person. Applying it is your decision, and your password signs it. If what it was based on has changed since it was proposed, nothing is applied and it is marked out of date."
+      description="You are the second person. Your password signs the decision. Stale changes are not applied."
       identity={<ChangeFacts {...facts} />}
       fields={[{ kind: "hidden", name: "changeId" }, DECIDER, { kind: "textarea", name: "reason", label: "Note (optional)" }]}
       values={{ changeId }}
@@ -218,7 +218,7 @@ export function WithdrawChange({ changeId, facts }: { changeId: string; facts: F
   return (
     <RecordEditor
       title={`Withdraw: ${facts.title}`}
-      description="You proposed it, so you cannot decide it, but you can take it back. Nothing is changed. Your password signs the withdrawal."
+      description="You proposed it, so you cannot decide it. Withdrawing changes nothing."
       identity={<ChangeFacts {...facts} />}
       fields={[{ kind: "hidden", name: "changeId" }, DECIDER, { kind: "textarea", name: "reason", label: "Note (optional)" }]}
       values={{ changeId }}
