@@ -537,6 +537,12 @@ const DECIDED_ABSENT = [
     match: /^(The master record of the contract sum's movement.*|The revised contract sum is read only from issued adjustments.*|Each from its application to its Variation Order Certificate.*|Each approval on its own route.*|Certifies the measured variation.*|Work may proceed on the support.*|Never before the variation's approval.*|Supported \(with a cap where given\).*|Nothing configured decides where a refused variation goes.*)$/,
     why: "0005, founder 2026-10-19: Variations subtitles, drawer introductions and refusal sentences were cut to the consequence; the cumulative value and percentage figures are unchanged, voided certificates are a chip with a popover",
   },
+  // Note 0005, founder 2026-10-19 (minimal words): the Supervision tab and the certificate page.
+  {
+    screen: /^[/]projects[/][^/]+(?:[/]certificates[/][^/]+)?$/,
+    match: /^(The superior officer's or the S[.]O[.]'s endorsement of the diary.*|An office, not a person.*|One entry a day by the responsible officer.*|The pinned list, resolved on the day of issue.*|Copies are made from the pinned list.*|The sheet starts when the certificate is sent.*|Every act on a certificate records.*|As the module that raised it computed them.*)$/,
+    why: "0005, founder 2026-10-19: Supervision and certificate subtitles, drawer introductions, empty-state bodies and refusal sentences were cut; the routing-sheet empty state is Not sent for approval yet, the baseline notes are chips with popovers, and a superior officer recorded as named is a Not checked chip",
+  },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
     screen: /^[/]projects$/,

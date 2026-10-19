@@ -75,7 +75,7 @@ export function DelegationDrawer({ id, people, kinds, acts, letters, blocker }: 
         choose("kind", "Type of representative", kinds),
         by("SoDelegation.grantorPerson", "grantorPersonId", people, { named: "required" }),
         person("delegatePersonId", "Representative", people, "On record and active."),
-        { kind: "tokens", name: "scope", label: "What it covers", options: acts, hint: "Outside the scope, the representative is refused: the S.O. records it." },
+        { kind: "tokens", name: "scope", label: "What it covers", options: acts, hint: "Outside scope: the S.O. records it." },
         { kind: "switch", name: "competencyConfirmed", label: "The S.O. is satisfied of their competency", hint: "Required: the delegation is not made without it." },
         { kind: "textarea", name: "competencyNote", label: "On what that rests", placeholder: "Their qualification, experience and the works they will oversee" },
       ]}
@@ -92,7 +92,7 @@ export function RevokeDelegationDrawer({ id, delegationId, name, today }: { id: 
   return (
     <RecordEditor
       title={`Revoke the delegation to ${name}`}
-      description="From the day given, the representative is no longer recorded for anything under it. Its letters and everything recorded under it stay as they were."
+      description="Letters and records under it stay as they were."
       fields={[hidden("id"), hidden("delegationId"), { kind: "date", name: "on", label: "Revoked from", required: true }]}
       values={{ id, delegationId, on: today }}
       action={revokeDelegation}
@@ -125,7 +125,7 @@ export function SubmitProgrammeDrawer({ id, kinds, directions, today, blocker }:
   return (
     <RecordEditor
       title="Record a programme submitted"
-      description="The contractor's programme (or a service schedule) as submitted, with its planned progress: one line per point, oldest first, as a day and the cumulative percentage planned by it. Between two points the plan is read on a straight line."
+      description="One line per point: a day and the cumulative percentage. Read on a straight line between points."
       size="lg"
       fields={[
         hidden("id"),
@@ -147,7 +147,7 @@ export function ScrutinyDrawer({ id, programmeId, revision, people, today }: { i
   return (
     <RecordEditor
       title={`Scrutinise revision ${revision}`}
-      description="Whether the programme reflects a reasonable and realistic sequence for the works. Found unreasonable, it cannot be approved: it goes back for revision."
+      description="Found unreasonable, it goes back for revision."
       fields={[
         hidden("id"),
         hidden("programmeId"),
@@ -170,7 +170,7 @@ export function DecideProgrammeDrawer({ id, programmeId, revision, people, today
   return (
     <RecordEditor
       title={`Decide revision ${revision}`}
-      description="The Principal Representative (or the S.O.) approves it, making it the plan progress is judged against from that day, or returns it for revision with the reason."
+      description="Approving makes it the plan progress is judged against."
       fields={[hidden("id"), hidden("programmeId"), by("WorkProgramme.decidedBy", "personId", people, { dated: true }), { kind: "date", name: "on", label: "Decided on", required: true }, choose("decision", "Decision", decisions), { kind: "textarea", name: "note", label: "Note", hint: "Required when returned." }]}
       values={{ id, programmeId, on: today }}
       action={decideProgramme}
@@ -183,7 +183,7 @@ export function ProgressDrawer({ id, people, today, blocker }: { id: string; peo
   return (
     <RecordEditor
       title="Record progress"
-      description="The actual physical progress of the works on a day, as a cumulative percentage. Recorded progress never falls."
+      description="Cumulative percentage. It never falls."
       fields={[hidden("id"), by("ProgressRecord.recordedBy", "personId", people), { kind: "date", name: "day", label: "Day", required: true }, { kind: "text", name: "actualPct", label: "Actual progress (%)", required: true, placeholder: "e.g. 42.5" }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, day: today }}
       action={recordProgress}
@@ -199,14 +199,14 @@ export function DiaryEntryDrawer({ id, people, today, blocker }: { id: string; p
   return (
     <RecordEditor
       title="Write the day's diary"
-      description="One entry a day, by the responsible officer. An entry written after its day says why it was not written on the day."
+      description="A late entry says why."
       size="lg"
       fields={[
         hidden("id"),
         by("SiteDiaryEntry.officer", "personId", people),
         { kind: "date", name: "day", label: "Day", required: true },
         { kind: "text", name: "weather", label: "Weather" },
-        { kind: "textarea", name: "entry", label: "Entry", required: true, placeholder: "Work done, labour and plant on site, materials delivered, visitors, instructions given" },
+        { kind: "textarea", name: "entry", label: "Entry", required: true, placeholder: "Work, labour, plant, materials, visitors, instructions" },
         { kind: "textarea", name: "backdatedReason", label: "Why it was not written on the day", hint: "Only for a day before today." },
       ]}
       values={{ id, day: today }}
@@ -247,7 +247,7 @@ export function EndorseDrawer({ id, people, roles, today, blocker }: { id: strin
   return (
     <RecordEditor
       title="Endorse the diary at a site visit"
-      description="The superior officer or the S.O. endorses the diary over the days the visit covers. A superior officer is recorded as named: the reporting line is not checked (there are no reporting lines in the system yet)."
+      description="A superior officer is recorded as named: the reporting line is not checked."
       columns={2}
       fields={[hidden("id"), choose("role", "Endorsed as", roles), by("DiaryEndorsement.person", "personId", people), { kind: "date", name: "visitedOn", label: "Visited on", required: true }, { kind: "date", name: "coversFrom", label: "Covers from", required: true }, { kind: "date", name: "coversTo", label: "Covers to", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, visitedOn: today, coversTo: today }}
@@ -264,7 +264,7 @@ export function MeetingDrawer({ id, people, today, blocker }: { id: string; peop
   return (
     <RecordEditor
       title="Record a special site meeting"
-      description="Chaired by the S.O. once the contract is In Delay, with who attended and its minutes. The reading that called it is kept with it."
+      description="Keeps the reading that called it."
       size="lg"
       fields={[hidden("id"), by("SiteMeeting.chair", "personId", people), { kind: "date", name: "heldOn", label: "Held on", required: true }, { kind: "textarea", name: "attendees", label: "Attended by", placeholder: "One name a line" }, { kind: "textarea", name: "minutes", label: "Minutes", required: true }]}
       values={{ id, heldOn: today }}
@@ -293,7 +293,7 @@ export function DirectionDrawer({ id, people, causes, today, blocker }: { id: st
   return (
     <RecordEditor
       title="Direct a review of the programme"
-      description="A direction to review the completion date and submit a revised programme. A variation's direction is raised by the variation itself."
+      description="A variation's direction is raised by the variation."
       fields={[hidden("id"), choose("cause", "Called for by", causes), by("ProgrammeDirection.person", "personId", people), { kind: "date", name: "on", label: "Directed on", required: true }, { kind: "textarea", name: "note", label: "Direction", required: true }]}
       values={{ id, on: today }}
       action={recordDirection}
@@ -307,7 +307,7 @@ export function SelfHelpDrawer({ id, people, policies, today, blocker }: { id: s
   return (
     <RecordEditor
       title="Record a premium paid by the employer"
-      description="Where the contractor lets a required policy lapse, the S.O. may have the employer pay its premium. The amount waits as a deduction for the next interim certificate."
+      description="Waits as a deduction on the next interim certificate."
       columns={2}
       fields={[hidden("id"), choose("policyId", "Policy", policies), by("PendingDeduction.person", "personId", people), { kind: "money", name: "amount", label: "Premium paid", required: true }, { kind: "date", name: "paidOn", label: "Paid on", required: true }, { kind: "date", name: "extendedTo", label: "Cover extended to" }, { kind: "textarea", name: "note", label: "Why", required: true }]}
       values={{ id, paidOn: today }}
@@ -322,7 +322,7 @@ export function EarlyActionDrawer({ id, people, branches, today, blocker }: { id
   return (
     <RecordEditor
       title="Record the S.O.'s early-action decision"
-      description="One or more of the courses open to the S.O. once the contract is going wrong, with why. Each opens where it is recorded."
+      description="Each opens where it is recorded."
       fields={[hidden("id"), { kind: "tokens", name: "branches", label: "Decided to", options: branches }, by("EarlyActionDecision.person", "personId", people), { kind: "date", name: "on", label: "Decided on", required: true }, { kind: "textarea", name: "reason", label: "Why", required: true }]}
       values={{ id, on: today }}
       action={recordEarlyAction}
@@ -338,7 +338,7 @@ export function PartyDrawer({ id, kinds, blocker }: { id: string; kinds: Option[
   return (
     <RecordEditor
       title="Record a nominated party or assignee"
-      description="A nominated sub-contractor, a nominated supplier or an approved assignee paid through this contract's certificates. Totals only: the payment annexes that break each certificate down by party are not available yet."
+      description="Totals only."
       columns={2}
       fields={[
         hidden("id"),
@@ -361,7 +361,7 @@ export function RetirePartyDrawer({ id, partyId, name }: { id: string; partyId: 
   return (
     <RecordEditor
       title={`Retire ${name}`}
-      description="It is never deleted: a certificate that carried it still reads it."
+      description="Never deleted."
       fields={[hidden("id"), hidden("partyId")]}
       values={{ id, partyId }}
       action={retireParty}
@@ -377,7 +377,7 @@ export function HandoverDrawer({ id, people, sets, today, blocker }: { id: strin
   return (
     <RecordEditor
       title="Hand site records over"
-      description="The records as they stand today are handed to the Implementing Department; the versions handed over are pinned with the record."
+      description="Handed versions are pinned with the record."
       columns={2}
       fields={[hidden("id"), choose("recordsSet", "Records", sets), { kind: "date", name: "on", label: "Handed over on", required: true }, { kind: "text", name: "toLabel", label: "Handed to", required: true, placeholder: "The Implementing Department's office" }, { kind: "text", name: "receivedByName", label: "Received by", required: true }, by("SiteRecordsHandover.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, on: today }}

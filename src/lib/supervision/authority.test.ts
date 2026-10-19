@@ -65,7 +65,7 @@ describe("making a delegation", () => {
   it("the officer who keys the S.O.'s delegation from their letter is never its delegate (review of Phase 2b)", () => {
     // X is a staff officer with no authority: they record "the S.O. delegates to X". The S.O.'s powers would be granted by one person and received by the same.
     expect(codes(delegationFaults({ ...ok, recorderId: "lee" }, ctx))).toEqual(["RECORDER_IS_DELEGATE"]);
-    expect(supervisionFaultWords({ code: "RECORDER_IS_DELEGATE", level: "block" }).en).toMatch(/to yourself on their behalf/);
+    expect(supervisionFaultWords({ code: "RECORDER_IS_DELEGATE", level: "block" }).en).toMatch(/delegate to yourself/); // shortened by note 0005, founder 2026-10-19
     // Another officer keying it for the S.O. is as before; so is the S.O. delegating in their own session.
     expect(delegationFaults({ ...ok, recorderId: "clerk" }, ctx)).toEqual([]);
     expect(delegationFaults({ ...ok, recorderId: null }, ctx)).toEqual([]);

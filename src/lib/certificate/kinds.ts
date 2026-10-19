@@ -73,7 +73,7 @@ export function matterSigningFaults(kind: CertificateKind): Finding[] {
 
 export const matterFaultWords = (): Words =>
   w(
-    "A certificate approved on a contract matter is signed only once that matter is approved on its own route, and no approved matter is on record for it: it does not go to signing on its routing type alone.",
+    "Needs its matter approved on its own route first.",
     "Perakuan yang diluluskan melalui perkara kontrak hanya ditandatangani selepas perkara itu diluluskan pada laluannya sendiri, dan tiada perkara yang diluluskan direkodkan untuknya: ia tidak dihantar untuk tandatangan berdasarkan jenis penghalaannya sahaja.",
   );
 

@@ -41,28 +41,28 @@ export function certificateFaultWords(f: Finding): Words {
     case "TOTAL_EMPTY":
     case "TOTAL_TERM":
     case "RATIO":
-      return w("The figures handed in by the module that raised this certificate are not in the certificate's form (money as decimal strings, each figure once, totals made only of figures). Nothing was saved: the module's calculation must be put right.", "Angka yang diserahkan oleh modul yang membangkitkan perakuan ini tidak dalam bentuk perakuan. Tiada yang disimpan: pengiraan modul itu mesti dibetulkan.");
+      return w("Figures are not in the certificate's form. Nothing was saved.", "Angka yang diserahkan oleh modul yang membangkitkan perakuan ini tidak dalam bentuk perakuan. Tiada yang disimpan: pengiraan modul itu mesti dibetulkan.");
     // ------------------------------------------------ overrides
     case "OVERRIDE_NOT_IN_DRAFT":
       return w(`A computed figure is overridden only while the certificate is a draft. This one is ${STATUS_WORDS[d.status as CertificateStatus]?.en.toLowerCase() ?? "past its draft"}: its figures are frozen as they were sent on. If a figure is wrong, void it and raise it again.`, `Angka yang dikira hanya boleh diganti semasa perakuan masih draf. Angkanya kini dibekukan. Jika angka salah, batalkan dan bangkitkan semula.`);
     case "OVERRIDE_BELOW_FLOOR":
       return w(`Not below ${floorMoney(d.floor)}: ${s(d.why, "that part is not corrected here")}. Only the part above it may be overridden.`, `Tidak di bawah ${floorMoney(d.floor)}: bahagian itu tidak boleh diganti di sini.`);
     case "OVERRIDE_ROUTE_OPEN":
-      return w("Its figures went for approval on a route that is waiting for a decision or approved: they are frozen as they were sent. If a figure is wrong, refuse the route (or void the certificate) and raise it again.", "Angkanya telah dihantar untuk kelulusan: ia dibekukan seperti dihantar. Jika angka salah, tolak laluan itu (atau batalkan perakuan) dan bangkitkan semula.");
+      return w("Figures are frozen on an open route. Refuse the route or void the certificate to change them.", "Angkanya telah dihantar untuk kelulusan: ia dibekukan seperti dihantar. Jika angka salah, tolak laluan itu (atau batalkan perakuan) dan bangkitkan semula.");
     case "NO_FIGURES":
       return w("This certificate carries no computed figures, so there is nothing to override.", "Perakuan ini tiada angka yang dikira.");
     case "TOTAL_NOT_OVERRIDABLE":
-      return w("A total is never overridden: it is recomputed from its lines every time, so the certificate always balances. Override the line that is wrong instead, with its justification.", "Jumlah tidak boleh diganti: ia dikira semula daripada barisnya. Ganti baris yang salah, dengan justifikasi.");
+      return w("Totals cannot be overridden. Override the wrong line, with a justification.", "Jumlah tidak boleh diganti: ia dikira semula daripada barisnya. Ganti baris yang salah, dengan justifikasi.");
     case "UNKNOWN_FIELD":
       return w("That figure is not on this certificate.", "Angka itu tiada pada perakuan ini.");
     case "NOT_OVERRIDABLE":
-      return w("That figure is not one the module that computes it allows an officer to override.", "Angka itu tidak boleh diganti oleh pegawai.");
+      return w("That figure cannot be overridden.", "Angka itu tidak boleh diganti oleh pegawai.");
     case "OVERRIDE_VALUE":
       return w(d.type === "MONEY" ? "Give the amount in ringgit and sen, such as 12,500.00." : d.type === "PERCENT" ? "Give the percentage with at most four decimal places." : d.type === "DAYS" ? "Give a whole number of days." : d.type === "DATE" ? "Give a day." : "Give the words.", "Berikan nilai dalam bentuk angka itu.");
     case "SAME_AS_NOW":
       return w("That is the figure as it stands: nothing to override.", "Itu angka sedia ada: tiada yang diganti.");
     case "JUSTIFICATION_REQUIRED":
-      return w("An override needs its justification: say why the computed figure is not the one to certify.", "Penggantian memerlukan justifikasi.");
+      return w("Give a justification for the override.", "Penggantian memerlukan justifikasi.");
     case "PERSON_REQUIRED":
       return w("Name the officer it is recorded for: someone on record and active.", "Namakan pegawai yang direkodkan: seseorang yang berdaftar dan aktif.");
     // ------------------------------------------------ the form, at the first signature
@@ -89,7 +89,7 @@ export function certificateFaultWords(f: Finding): Words {
     case "FIELD_NO_VALUE":
       return w(`The form ${s(d.form, "")} prints ${s(d.fields, "a field")}, which this certificate has no value for (its baseline version or its figures do not hold it), so its text could never be issued. Nothing is pinned: put the form's text right under Configuration › Templates, or void the certificate and raise it again once the value exists.`, `Borang ${s(d.form, "")} mencetak ${s(d.fields, "medan")} yang tiada nilai pada perakuan ini, jadi teksnya tidak boleh dikeluarkan. Tiada yang disematkan: betulkan teks borang di Konfigurasi › Templat, atau batalkan perakuan dan bangkitkan semula apabila nilai itu wujud.`);
     case "SERIES_MISSING":
-      return w("No numbering series for certificates is configured, so no number can be given. Add the Certificates series under Configuration › Numbering.", "Tiada siri penomboran bagi perakuan dikonfigurasikan. Tambah siri Perakuan di Konfigurasi › Penomboran.");
+      return w("No certificate numbering series. Add it under Configuration › Numbering.", "Tiada siri penomboran bagi perakuan dikonfigurasikan. Tambah siri Perakuan di Konfigurasi › Penomboran.");
     case "SERIES_INVALID":
       return w("The certificate numbering series is not valid. Correct it under Configuration › Numbering.", "Siri penomboran perakuan tidak sah. Betulkan di Konfigurasi › Penomboran.");
     // ------------------------------------------------ signatures
@@ -114,7 +114,7 @@ export function certificateFaultWords(f: Finding): Words {
     case "REFUSAL_NOT_ALLOWED":
       return w(`A refusal to sign is not recorded on "${s(d.block, "this block")}": only a contractor's block the form allows it on.`, `Penolakan menandatangani tidak direkodkan pada "${s(d.block, "blok ini")}".`);
     case "REFUSAL_NOTE_REQUIRED":
-      return w("Say what the contractor's refusal was (its letter, or what was said, and when).", "Nyatakan penolakan kontraktor.");
+      return w("Say what the contractor's refusal was, and when.", "Nyatakan penolakan kontraktor.");
     case "INACTIVE":
       return w(`${s(d.name, "That person")} is not active on record.`, `${s(d.name, "Orang itu")} tidak aktif.`);
     case "SAME_PERSON":
@@ -124,10 +124,10 @@ export function certificateFaultWords(f: Finding): Words {
       const who = OFFICE_RULE_WORDS[d.rule as SignatureOfficeRule] ?? w("The contract's supervising officer", "Pegawai penyelia kontrak");
       const how =
         d.rule === "SO_REP"
-          ? w("A Principal S.O. Representative signs it once their delegation letter is issued and while it is not revoked: record the delegation under Team.", "Wakil Pegawai Penguasa Utama menandatanganinya setelah surat perwakilannya dikeluarkan dan selagi tidak dibatalkan: rekodkan perwakilan di Pasukan.")
+          ? w("Needs an issued, unrevoked delegation letter. Record it under Team.", "Wakil Pegawai Penguasa Utama menandatanganinya setelah surat perwakilannya dikeluarkan dan selagi tidak dibatalkan: rekodkan perwakilan di Pasukan.")
           : d.rule === "RECOMMENDING_OFFICER"
-            ? w("Who recommends depends on what the certificate certifies, and this version does not resolve it yet: nobody is assumed.", "Siapa yang mengesyorkan bergantung pada apa yang diperakukan, dan versi ini belum menentukannya: tiada sesiapa diandaikan.")
-            : w("The Superintending Officer's appointment is resolved when the contract is executed, or under Team for a contract executed before then.", "Penentuan pelantikan Pegawai Penguasa dibuat semasa kontrak dilaksanakan, atau di Pasukan bagi kontrak yang dilaksanakan sebelum itu.");
+            ? w("Recommender not resolved for this kind. Nobody is assumed.", "Siapa yang mengesyorkan bergantung pada apa yang diperakukan, dan versi ini belum menentukannya: tiada sesiapa diandaikan.")
+            : w("The Superintending Officer's appointment is not resolved. It resolves on execution, or under Team.", "Penentuan pelantikan Pegawai Penguasa dibuat semasa kontrak dilaksanakan, atau di Pasukan bagi kontrak yang dilaksanakan sebelum itu.");
       return w(
         `"${s(d.block, "This block")}" is signed by ${who.en.toLowerCase()}, and nobody holds that role on this contract today. ${how.en}`,
         `"${s(d.block, "Blok ini")}" ditandatangani oleh ${who.ms.toLowerCase()}, dan tiada sesiapa memegang peranan itu pada kontrak ini hari ini. ${how.ms}`,
@@ -157,11 +157,11 @@ export function certificateFaultWords(f: Finding): Words {
       return w(`Not after today (${day(d.day)} is later).`, `Tidak selepas hari ini.`);
     // ------------------------------------------------ the certificate's date
     case "NOT_DATED":
-      return w("The certificate is not dated yet: its date is the day of the authorising signature.", "Perakuan belum bertarikh.");
+      return w("Not dated yet. The date is the authorising signature day.", "Perakuan belum bertarikh.");
     case "NOT_EARLIER":
       return w(`A correction moves the date to an earlier day than ${day(d.day)}, never later.`, `Pembetulan memindahkan tarikh ke hari lebih awal daripada ${day(d.day)}.`);
     case "ISSUED_DATE_FINAL":
-      return w("The certificate is issued: its date went out in its text and is final. A wrong date is put right by a later certificate.", "Perakuan telah dikeluarkan: tarikhnya keluar bersama teksnya dan muktamad. Tarikh yang salah dibetulkan oleh perakuan kemudian.");
+      return w("Issued: the date is final. A later certificate corrects it.", "Perakuan telah dikeluarkan: tarikhnya keluar bersama teksnya dan muktamad. Tarikh yang salah dibetulkan oleh perakuan kemudian.");
     case "REASON_REQUIRED":
       return w("Give the reason.", "Berikan sebab.");
     // ------------------------------------------------ distribution
@@ -174,7 +174,7 @@ export function certificateFaultWords(f: Finding): Words {
     case "BEFORE_ISSUE":
       return w(`Not before ${day(d.day)}, the day the certificate was issued.`, `Tidak sebelum ${day(d.day)}, hari perakuan dikeluarkan.`);
     case "ACK_BEFORE_DESPATCH":
-      return w("A copy is acknowledged only after it has gone: record how and when it went first.", "Salinan diakui hanya selepas dihantar.");
+      return w("Record how and when it went first.", "Salinan diakui hanya selepas dihantar.");
     case "ALREADY_ACKNOWLEDGED":
       return w(`That copy was acknowledged on ${day(d.day)}.`, `Salinan itu diakui pada ${day(d.day)}.`);
     case "BEFORE_DESPATCH":
@@ -189,7 +189,7 @@ export function certificateFaultWords(f: Finding): Words {
     case "TYPE_OTHER_KIND":
       return w(`The routing sheet type ${s(d.type, "")} is for another kind of certificate.`, `Jenis helaian ${s(d.type, "")} bagi perakuan jenis lain.`);
     case "SHEET_CLOSED":
-      return w("The routing sheet is closed: its checks and the day received are recorded only while the document is on it.", "Helaian penghalaan ditutup: semakan dan hari diterima direkodkan hanya semasa dokumen berada padanya.");
+      return w("Routing sheet closed.", "Helaian penghalaan ditutup: semakan dan hari diterima direkodkan hanya semasa dokumen berada padanya.");
     case "RECEIVED_NOT_RECORDED":
       return w("Record the day the document was received before its checks.", "Rekodkan hari dokumen diterima sebelum semakannya.");
     case "UNKNOWN_CHECK":
@@ -212,22 +212,22 @@ export function certificateFaultWords(f: Finding): Words {
       return w(`The appointment route is ${d.state === "REJECTED" ? "refused" : "approved"}: the routing sheet records the paper's way to that decision, so nothing more is recorded on it. A resubmitted route opens a new round.`, `Laluan pelantikan telah ${d.state === "REJECTED" ? "ditolak" : "diluluskan"}: helaian penghalaan merekodkan perjalanan kertas hingga keputusan itu, jadi tiada lagi yang direkodkan padanya.`);
     // ------------------------------------------------ opening
     case "NO_BASELINE":
-      return w("The contract's baseline has no version in force today, so a certificate has nothing to read. Confirm the baseline on the contract's Baseline tab.", "Garis dasar kontrak tiada versi berkuat kuasa hari ini. Sahkan garis dasar di tab Garis dasar kontrak.");
+      return w("No baseline version in force. Confirm it on the Baseline tab.", "Garis dasar kontrak tiada versi berkuat kuasa hari ini. Sahkan garis dasar di tab Garis dasar kontrak.");
     case "SECTION_NOT_IN_BASELINE":
       return w("That section is not in the baseline version this certificate reads.", "Seksyen itu tiada dalam versi garis dasar yang dibaca oleh perakuan ini.");
     // ------------------------------------------------ moving the certificate
     case "NOT_DRAFT":
       return w("Only a draft is sent on.", "Hanya draf boleh dihantar.");
     case "NO_ROUTING_TYPE":
-      return w("This certificate has no routing sheet: the module that raised it sends it to no approval route. Send it to signing.", "Perakuan ini tiada helaian penghalaan. Hantar untuk ditandatangani.");
+      return w("No routing sheet. Send it to signing.", "Perakuan ini tiada helaian penghalaan. Hantar untuk ditandatangani.");
     case "ROUTED":
       return w("This certificate goes through its routing sheet first: send it for routing.", "Perakuan ini melalui helaian penghalaannya dahulu.");
     case "ROUTE_NOT_OPENED":
-      return w("No approval route is open for this certificate. The module that raised it opens its route on the approval matrix.", "Tiada laluan kelulusan dibuka bagi perakuan ini.");
+      return w("No approval route open.", "Tiada laluan kelulusan dibuka bagi perakuan ini.");
     case "ROUTE_PENDING":
       return w("Its approval route is still waiting for a decision (Approvals).", "Laluan kelulusannya masih menunggu keputusan.");
     case "ROUTE_REJECTED":
-      return w("Its approval route was refused. It goes on only on a resubmitted route, opened by the module that raised it.", "Laluan kelulusannya ditolak.");
+      return w("Route refused. Resubmit it.", "Laluan kelulusannya ditolak.");
     case "CHECKS_OUTSTANDING":
       return w(`The routing sheet's checks are not all recorded in this round: ${s(d.checks, "a check")} ${String(d.checks ?? "").includes(",") ? "are" : "is"} still open.`, `Semakan helaian belum lengkap: ${s(d.checks, "semakan")}.`);
     case "MATTER_NOT_APPROVED":
@@ -237,11 +237,11 @@ export function certificateFaultWords(f: Finding): Words {
       // 614-C1: a money-bearing kind never reaches signing without an approved route.
       return kindFaultWords(f);
     case "ROUTE_RECALLED":
-      return w("Its approval route was recalled before a decision. It goes on only on a new route, opened by the module that raised it.", "Laluan kelulusannya ditarik balik sebelum keputusan. Ia diteruskan hanya pada laluan baharu.");
+      return w("Route recalled. It needs a new route.", "Laluan kelulusannya ditarik balik sebelum keputusan. Ia diteruskan hanya pada laluan baharu.");
     case "VOID_REASON_REQUIRED":
       return w("Say why the certificate is void.", "Nyatakan sebab perakuan dibatalkan.");
     case "VOID_ROUTE_PENDING":
-      return w("Its approval route is still waiting for a decision. Refuse it on the route first (Approvals), then void the certificate.", "Laluan kelulusannya masih menunggu. Tolak dahulu, kemudian batalkan.");
+      return w("Route awaits a decision. Refuse it first, then void.", "Laluan kelulusannya masih menunggu. Tolak dahulu, kemudian batalkan.");
     case "VOID_WOULD_UNDO_STATUS": {
       // BD-613-114's condition: the status an issue wrote is not undone by a void (deferred to the run that decides how).
       const st = CONTRACT_STATUS_WORDS[d.status as ContractStatus] ?? { en: "where it stands", ms: "keadaannya" };
@@ -291,11 +291,11 @@ export function certificateFaultWords(f: Finding): Words {
     case "PRINTED_LABEL":
       return w("Give the field's label as the form prints it.", "Berikan label medan seperti dicetak pada borang.");
     case "PRINTED_BOUND_NEEDS_VALUE":
-      return w("A field the portal fills names the value it prints. Choose one, or mark the field as completed by hand.", "Medan yang diisi oleh portal menamakan nilai yang dicetaknya. Pilih satu, atau tandakan medan itu diisi dengan tangan.");
+      return w("Choose the value it prints, or mark it completed by hand.", "Medan yang diisi oleh portal menamakan nilai yang dicetaknya. Pilih satu, atau tandakan medan itu diisi dengan tangan.");
     case "PRINTED_VALUE_UNKNOWN":
       return w("That is not a value the portal fills on a certificate or its routing sheet.", "Itu bukan nilai yang diisi oleh portal pada perakuan atau helaian penghalaannya.");
     case "PRINTED_UNBOUND_HAS_VALUE":
-      return w("A field completed by hand on the paper names no value: the portal leaves it blank.", "Medan yang diisi dengan tangan tidak menamakan nilai: portal membiarkannya kosong.");
+      return w("A hand-completed field is left blank.", "Medan yang diisi dengan tangan tidak menamakan nilai: portal membiarkannya kosong.");
     case "PRINTED_ORDER":
       return w("Give the field's place on the form as a whole number from 0.", "Berikan kedudukan medan pada borang sebagai nombor bulat dari 0.");
     case "PAGE_COUNT":

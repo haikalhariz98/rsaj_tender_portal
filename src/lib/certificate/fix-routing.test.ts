@@ -73,9 +73,9 @@ describe("a recalled route is its own state (6.14 residual)", () => {
     const w = readFileSync(`${process.cwd()}/src/lib/certificate/write.ts`, "utf8");
     expect(w).toMatch(/if \(sheet\.routeState === "RECALLED"\) fs\.push\(\.\.\.one\("ROUTE_RECALLED"\)\);/);
     const page = readFileSync(`${process.cwd()}/src/app/projects/[id]/certificates/[certId]/page.tsx`, "utf8");
-    expect(page).toMatch(/sheet\.routeState === "RECALLED"\) reasons\.push\("Its approval route was recalled/);
+    expect(page).toMatch(/sheet\.routeState === "RECALLED"\) reasons\.push\("Route recalled/);
     const { certificateFaultWords } = await import("./fault-text");
-    expect(certificateFaultWords({ code: "ROUTE_RECALLED", level: "block" }).en).toMatch(/recalled before a decision/);
+    expect(certificateFaultWords({ code: "ROUTE_RECALLED", level: "block" }).en).toMatch(/recalled/); // shortened by note 0005, founder 2026-10-19
     expect(certificateFaultWords({ code: "ROUTE_RECALLED", level: "block" }).en).not.toMatch(/waiting/);
   });
 });

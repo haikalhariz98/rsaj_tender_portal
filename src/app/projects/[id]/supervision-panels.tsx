@@ -12,6 +12,7 @@ import { Blocked } from "@/components/ui/blocked";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { INSURANCE_KIND_LABEL } from "@/lib/award/labels";
@@ -161,7 +162,7 @@ export function OnSiteCard({ l, v }: { l: LoadedContract; v: SupervisionView }) 
   const d = v.delay ? delayWords(v.delay) : null;
   return (
     <Card>
-      <CardHeader icon={<BuildingIcon size={17} />} title={<Say words={P.onSite} />} subtitle="Possession, the date for completion and whether the contract is In Delay, judged today." actions={d ? <DelayTag d={d} /> : undefined} />
+      <CardHeader icon={<BuildingIcon size={17} />} title={<Say words={P.onSite} />} actions={d ? <DelayTag d={d} /> : undefined} />
       <CardBody>
         <KeyValues
           columns={2}
@@ -204,7 +205,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
     : !executed
       ? "Representatives are delegated once the contract is executed."
       : say(delegationFaults({ kind: "PRINCIPAL", grantorId: "", recorderId: null, delegate: null, competencyConfirmed: true, competencyNote: "x", scope: ["DIARY"] }, { so: v.so?.office ?? null, delegations: delegationFactsOf(v.s), today, variant, typeName: v.type?.nameEn ?? null, forms }).filter((f) => ["NO_SO", "VARIANT_NOT_SET", "FORMS_NOT_SET"].includes(f.code)));
-  const partyBlocker = executed ? null : "Nominated parties and assignees are recorded once the contract is executed.";
+  const partyBlocker = executed ? null : "Record after execution.";
   return (
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
@@ -212,12 +213,11 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
         <CardHeader
           icon={<UsersIcon size={17} />}
           title={<Say words={P.superintendingOfficer} />}
-          subtitle="An office, not a person: resolved from the approval matrix at the contract's sum and method. Whoever holds the office on a day is the S.O. that day."
           actions={resolve ? <ResolveSoDrawer id={c.id} blocker={resolve.blocker} office={resolve.office} from={formatDate(resolve.from)} /> : undefined}
           divided={v.s.soAssignments.length > 0}
         />
         {v.s.soAssignments.length === 0 ? (
-          <EmptyState size="sm" title="Not resolved">{executed ? "This contract was executed before supervision was recorded: resolve its S.O. here." : "The employer's signature resolves it when the contract is executed."}</EmptyState>
+          <EmptyState size="sm" title="Not resolved">{executed ? "Executed before supervision: resolve the S.O. here." : "Resolved on execution."}</EmptyState>
         ) : (
           <ul className="divide-y divide-line/70">
             {[...v.s.soAssignments].reverse().map((a) => {
@@ -245,10 +245,10 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
           <CardFooter className="text-[12.5px] text-ink-3">
             {reResolve.state === "NOT_SET" ? (
               <span>
-                Whether the S.O. changes when an adjustment moves the contract sum across a band is not set: <Link href="/configuration/post-award">Configuration › Post-award</Link>. Until it is, the office stays as resolved, and the S.O.&apos;s signature blocks say so.
+                S.O. change on a band move: not set. <Link href="/configuration/post-award">Configuration › Post-award</Link>
               </span>
             ) : (
-              <span>The S.O. stays as resolved when the contract sum moves (Configuration › Post-award).</span>
+              <span>S.O. stays as resolved when the sum moves.</span>
             )}
           </CardFooter>
         )}
@@ -294,7 +294,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<BuildingIcon size={17} />} title={<Say words={P.nominatedParties} />} subtitle="Paid through this contract's certificates. Payment annexes A1–A3 not available: totals only." actions={<PartyDrawer id={c.id} kinds={opts(CONTRACT_PARTY_KINDS, PARTY_KIND_WORDS)} blocker={partyBlocker} />} divided={v.s.contractParties.length > 0} />
+        <CardHeader icon={<BuildingIcon size={17} />} title={<Say words={P.nominatedParties} />} subtitle="Totals only" actions={<PartyDrawer id={c.id} kinds={opts(CONTRACT_PARTY_KINDS, PARTY_KIND_WORDS)} blocker={partyBlocker} />} divided={v.s.contractParties.length > 0} />
         {v.s.contractParties.length === 0 ? (
           <EmptyState size="sm" title="None recorded" />
         ) : (
@@ -356,7 +356,7 @@ async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract
   const open = openRevision(revs);
   const inForce = today ? programmeInForce(revs, today) : null;
   const d = v.delay ? delayWords(v.delay) : null;
-  const programmeBlocker = zone(today) ?? (!executed ? "A programme is recorded once the contract is executed." : open ? `Revision ${open.revision} is still open: decide it first.` : null);
+  const programmeBlocker = zone(today) ?? (!executed ? "Record after execution." : open ? `Revision ${open.revision} is still open: decide it first.` : null);
   return (
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
@@ -383,7 +383,7 @@ async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<CalendarIcon size={17} />} title={<Say words={P.programme} />} subtitle={inForce ? `Revision ${inForce.revision} is the plan in force today.` : "No revision is approved: progress is not judged against a plan."} actions={<SubmitProgrammeDrawer id={c.id} kinds={opts(PROGRAMME_KINDS, PROGRAMME_KIND_WORDS)} directions={v.s.programmeDirections.map((x) => ({ value: x.id, label: `${CAUSE_WORDS[x.cause].en}, ${formatDate(day(x.directedOn))}` }))} today={today} blocker={programmeBlocker} />} divided={revs.length > 0} />
+        <CardHeader icon={<CalendarIcon size={17} />} title={<Say words={P.programme} />} subtitle={inForce ? `Revision ${inForce.revision} is the plan in force today.` : "No revision approved. Progress is not judged."} actions={<SubmitProgrammeDrawer id={c.id} kinds={opts(PROGRAMME_KINDS, PROGRAMME_KIND_WORDS)} directions={v.s.programmeDirections.map((x) => ({ value: x.id, label: `${CAUSE_WORDS[x.cause].en}, ${formatDate(day(x.directedOn))}` }))} today={today} blocker={programmeBlocker} />} divided={revs.length > 0} />
         {revs.length === 0 ? (
           <EmptyState size="sm" title="None submitted" />
         ) : (
@@ -455,7 +455,7 @@ function DiarySection({ l, v, people, today, page, hidden }: { l: LoadedContract
         </Callout>
       )}
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClipboardIcon size={17} />} title={<Say words={P.siteDiary} />} subtitle="One entry a day by the responsible officer, attested at the end of the day by the officer and the contractor's agent. Newest first." actions={hidden.includes("DIARY") ? undefined : <DiaryEntryDrawer id={c.id} people={people} today={today} blocker={possessed(v, today)} />} divided={entries.length > 0} />
+        <CardHeader icon={<ClipboardIcon size={17} />} title={<Say words={P.siteDiary} />} actions={hidden.includes("DIARY") ? undefined : <DiaryEntryDrawer id={c.id} people={people} today={today} blocker={possessed(v, today)} />} divided={entries.length > 0} />
         {entries.length === 0 ? (
           <EmptyState size="sm" title="No entries" />
         ) : (
@@ -497,7 +497,7 @@ function DiarySection({ l, v, people, today, page, hidden }: { l: LoadedContract
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClipboardIcon size={17} />} title={<Say words={P.endorsements} />} subtitle="The superior officer's or the S.O.'s endorsement of the diary at a site visit, over the days it covers. A superior officer is recorded as named: the reporting line is not checked." actions={<EndorseDrawer id={c.id} people={people} roles={opts(DIARY_ENDORSERS, ENDORSER_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.diaryEndorsements.length > 0} />
+        <CardHeader icon={<ClipboardIcon size={17} />} title={<Say words={P.endorsements} />} subtitle={<InfoChip outline detail="A superior officer is recorded as named: the reporting line is not checked.">Not checked</InfoChip>} actions={<EndorseDrawer id={c.id} people={people} roles={opts(DIARY_ENDORSERS, ENDORSER_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.diaryEndorsements.length > 0} />
         {v.s.diaryEndorsements.length === 0 ? (
           <EmptyState size="sm" title="None recorded" />
         ) : (
@@ -528,7 +528,7 @@ function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; 
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden">
-        <CardHeader icon={<UsersIcon size={17} />} title={<Say words={P.specialSiteMeetings} />} subtitle="Chaired by the S.O. once the contract is In Delay." actions={hidden.includes("SO_ONLY") ? undefined : <MeetingDrawer id={c.id} people={people} today={today} blocker={zone(today) ?? (inDelay ? null : "The contract is not In Delay today: a special meeting is called by that reading.")} />} divided={v.s.siteMeetings.length > 0} />
+        <CardHeader icon={<UsersIcon size={17} />} title={<Say words={P.specialSiteMeetings} />} actions={hidden.includes("SO_ONLY") ? undefined : <MeetingDrawer id={c.id} people={people} today={today} blocker={zone(today) ?? (inDelay ? null : "Not In Delay today.")} />} divided={v.s.siteMeetings.length > 0} />
         {v.s.siteMeetings.length === 0 ? (
           <EmptyState size="sm" title="None recorded" />
         ) : (
@@ -546,7 +546,7 @@ function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; 
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<AlertTriangle size={17} />} title={<Say words={P.complianceObservations} />} subtitle="What was seen on site, by what it concerns." actions={hidden.includes("OBSERVATION") ? undefined : <ObservationDrawer id={c.id} people={people} areas={opts(COMPLIANCE_AREAS, AREA_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.complianceObservations.length > 0} />
+        <CardHeader icon={<AlertTriangle size={17} />} title={<Say words={P.complianceObservations} />} actions={hidden.includes("OBSERVATION") ? undefined : <ObservationDrawer id={c.id} people={people} areas={opts(COMPLIANCE_AREAS, AREA_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.complianceObservations.length > 0} />
         {v.s.complianceObservations.length === 0 ? (
           <EmptyState size="sm" title="None recorded" />
         ) : (
@@ -566,7 +566,7 @@ function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; 
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<CalendarIcon size={17} />} title={<Say words={P.directionsOnProgramme} />} subtitle="A direction to review the completion date and submit a revised programme. A variation's is raised by the variation." actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <DirectionDrawer id={c.id} people={people} causes={opts(DIRECTION_CAUSES.filter((x) => x !== "VARIATION"), CAUSE_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.programmeDirections.length > 0} />
+        <CardHeader icon={<CalendarIcon size={17} />} title={<Say words={P.directionsOnProgramme} />} actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <DirectionDrawer id={c.id} people={people} causes={opts(DIRECTION_CAUSES.filter((x) => x !== "VARIATION"), CAUSE_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.programmeDirections.length > 0} />
         {v.s.programmeDirections.length === 0 ? (
           <EmptyState size="sm" title="None recorded" />
         ) : (
@@ -589,7 +589,7 @@ function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; 
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.earlyAction} />} subtitle="The S.O.'s decision on the courses open once the contract is going wrong." actions={hidden.includes("SO_ONLY") ? undefined : <EarlyActionDrawer id={c.id} people={people} branches={opts(EARLY_ACTION_BRANCHES, BRANCH_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.earlyActionDecisions.length > 0} />
+        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.earlyAction} />} actions={hidden.includes("SO_ONLY") ? undefined : <EarlyActionDrawer id={c.id} people={people} branches={opts(EARLY_ACTION_BRANCHES, BRANCH_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.earlyActionDecisions.length > 0} />
         {v.s.earlyActionDecisions.length === 0 ? (
           <EmptyState size="sm" title="None recorded" />
         ) : (
@@ -609,7 +609,7 @@ function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; 
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.premiumsPaid} />} subtitle="Each is deducted on the next interim certificate raised." actions={hidden.includes("SO_ONLY") ? undefined : <SelfHelpDrawer id={c.id} people={people} policies={policies} today={today} blocker={zone(today) ?? (policies.length ? null : "No insurance policy is on this contract.")} />} divided={v.s.pendingDeductions.length > 0} />
+        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.premiumsPaid} />} actions={hidden.includes("SO_ONLY") ? undefined : <SelfHelpDrawer id={c.id} people={people} policies={policies} today={today} blocker={zone(today) ?? (policies.length ? null : "No insurance policy is on this contract.")} />} divided={v.s.pendingDeductions.length > 0} />
         {v.s.pendingDeductions.length === 0 ? (
           <EmptyState size="sm" title="None recorded" />
         ) : (
@@ -648,7 +648,7 @@ function RecordsSection({ l, v, people, today }: { l: LoadedContract; v: Supervi
   return (
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
-      <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="Site records" subtitle="The work programme as submitted, diary photographs, the pipe log and the as-built drawings." only={["PROGRAMME", "DIARY_PHOTO", "PIPE_LOG", "AS_BUILT"]} />
+      <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="Site records" only={["PROGRAMME", "DIARY_PHOTO", "PIPE_LOG", "AS_BUILT"]} />
       <Card className="overflow-hidden">
         <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.handedOver} />} subtitle={`To the Implementing Department, the versions handed over pinned with each. Live now: ${SITE_RECORDS_SETS.map((s) => `${RECORDS_SET_WORDS[s].en.toLowerCase()} ${live(s)}`).join(", ")}.`} actions={<HandoverDrawer id={c.id} people={people} sets={opts(SITE_RECORDS_SETS, RECORDS_SET_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.siteRecordsHandovers.length > 0} />
         {v.s.siteRecordsHandovers.length === 0 ? (

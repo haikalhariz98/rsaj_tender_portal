@@ -81,7 +81,7 @@ describe("every map over the kinds decides each Part B kind", () => {
 
   it("S5: the refusal's words, in English and Malay, never the money words", () => {
     const w = certificateFaultWords(matterSigningFaults("EOT")[0]);
-    expect(w.en).toBe("A certificate approved on a contract matter is signed only once that matter is approved on its own route, and no approved matter is on record for it: it does not go to signing on its routing type alone.");
+    expect(w.en).toBe("Needs its matter approved on its own route first."); // shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
     expect(w.ms).toBe("Perakuan yang diluluskan melalui perkara kontrak hanya ditandatangani selepas perkara itu diluluskan pada laluannya sendiri, dan tiada perkara yang diluluskan direkodkan untuknya: ia tidak dihantar untuk tandatangan berdasarkan jenis penghalaannya sahaja.");
     expect(w.en).not.toMatch(/money/);
   });

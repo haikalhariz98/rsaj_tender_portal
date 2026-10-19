@@ -45,7 +45,7 @@ export function targetText(sheet: Pick<Sheet, "target" | "type">): string {
     return `${days(t.days)} (${bandWords(t.band.pctMin, t.band.pctMax, sheet.type.upperEdgeInclusive, "phrase").en}, for this percentage)`;
   }
   if (t.state === "EDGE_UNDECIDED") return CERT_WORDS.edgeUndecided.en;
-  if (t.state === "NO_RATIO") return "Target not set: the type's targets are banded and no percentage was handed in with the figures";
+  if (t.state === "NO_RATIO") return "Target not set: banded targets need a percentage";
   if (t.state === "NO_BAND") return "Target not set: no band of the type covers this percentage";
   if (t.state === "OVERLAP") return "Target not set: two of the type's targets overlap";
   return CERT_WORDS.targetNotSet.en;
@@ -76,7 +76,7 @@ export function verdictText(sheet: Pick<Sheet, "target" | "type" | "verdict">): 
  */
 export function printedSheetWords(type: Pick<Sheet["type"], "printedForm">): { form: Words; labels: Words | null } {
   const p = type.printedForm;
-  if (p === undefined) return { form: w("Started before printed sheets were frozen with their type: none is recorded for it", "Dimulakan sebelum helaian bercetak dibekukan bersama jenisnya: tiada direkodkan"), labels: null };
+  if (p === undefined) return { form: w("Started before printed sheets were frozen: none recorded", "Dimulakan sebelum helaian bercetak dibekukan bersama jenisnya: tiada direkodkan"), labels: null };
   if (p === null) return { form: w("No printed sheet is named for its type", "Tiada helaian bercetak dinamakan bagi jenisnya"), labels: null };
   const f = fidelityLine({ name: p.name, formCode: p.formCode, revisionDate: p.revisionDate, pageCount: p.pageCount, bodyVersion: 0 }, 0);
   // The form's version is a certificate form's; a printed sheet is named by its code, revision and pages only.

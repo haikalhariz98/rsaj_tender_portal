@@ -179,7 +179,7 @@ function delayText(r: DelayReading): { title: Words; detail: Words; tone: "err" 
     case "ON_TRACK":
       return { tone: "ok", title: w("Not in delay"), detail: w(`On ${formatDate(r.day)} actual progress was ${r.actualPct}% against ${r.plannedPct}% planned: not below ${r.policyPct}% of the plan.`) };
     case "NOT_SET":
-      return { tone: "warn", title: w("Not judged: the percentage is not set"), detail: w("The share of planned progress below which a contract is In Delay is not set under Configuration › Post-award. It is never assumed.") };
+      return { tone: "warn", title: w("Not judged: the percentage is not set"), detail: w("In Delay threshold not set. See Configuration › Post-award.") };
     case "NOT_JUDGED": {
       const why: Record<typeof r.why, Words> = {
         NOT_POSSESSED: w("Possession of site is not recorded."),
@@ -215,7 +215,7 @@ export function supervisionFaultWords(f: Finding): Words {
         `On ${day(d.day)} the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract another S.O., ${String(d.other ?? "another office")}, not ${String(d.office ?? "the office")}, which was resolved from the Contract Date. A date correction does not change who supervises, so the Contract Date is not corrected.`,
       );
     case "NOT_EXECUTED":
-      return w("The contract is not executed yet: its S.O. is resolved at the employer's signature.");
+      return w("Not executed yet. The S.O. is resolved at signature.");
     case "ALREADY_RESOLVED":
       return w("This contract's S.O. is already resolved.");
     case "NO_SO":
@@ -231,7 +231,7 @@ export function supervisionFaultWords(f: Finding): Words {
         d.kind === "SO"
           ? `You act as the S.O.'s representative, and this is the S.O.'s own act (${String(d.office ?? "the office")}), so you cannot record it, not even for the S.O. The S.O. records it.`
           : d.kind === "PRINCIPAL"
-            ? `You act as a representative of the S.O., and this is the S.O.'s or the Principal Representative's act, so you cannot record it, not even for the S.O. The S.O. or a Principal Representative records it.`
+            ? `Only the S.O. or a Principal Representative can record this.`
             : `You act as the S.O.'s representative, and "${ACT_WORDS[d.act as SupervisionAct]?.en ?? "this act"}" is outside your delegation's scope, so you cannot record it, not even for the S.O. The S.O. records it, or a representative whose delegation covers it.`,
       );
     case "NOT_AUTHORISED":
@@ -244,13 +244,13 @@ export function supervisionFaultWords(f: Finding): Words {
     case "DELEGATE_IS_GRANTOR":
       return w("The S.O. does not delegate to themselves.");
     case "RECORDER_IS_DELEGATE":
-      return w("You cannot record the S.O.'s delegation to yourself on their behalf. Another officer records it, or the S.O. signs in and delegates.");
+      return w("You cannot delegate to yourself on their behalf. Another officer records it, or the S.O. delegates.");
     case "DELEGATE_INACTIVE":
       return w("Choose a delegate on record and active.");
     case "ALREADY_DELEGATED":
       return w("That person already has a delegation on this contract that is not revoked.");
     case "COMPETENCY_NOT_CONFIRMED":
-      return w("Record the S.O.'s satisfaction that the delegate has the ability and experience needed, and on what it rests.");
+      return w("Record the S.O.'s satisfaction with the delegate, and why.");
     case "SCOPE_EMPTY":
       return w("Choose what the delegation covers.");
     case "VARIANT_NOT_SET":
@@ -263,11 +263,11 @@ export function supervisionFaultWords(f: Finding): Words {
       return w(`Not before the delegation was made (${day(d.day)}).`);
     // ------------------------------------------------ possession
     case "NOT_STAMPED":
-      return w("Possession is recorded once the contract is fully executed: record its stamping first (Formation › Signing).");
+      return w("Record stamping first, under Formation › Signing.");
     case "ALREADY_POSSESSED":
       return w("Possession of site is recorded once.");
     case "NO_BASELINE_VERSION":
-      return w("The baseline has no version: possession writes a new one, so confirm the baseline first.");
+      return w("No baseline version. Confirm the baseline first.");
     case "BEFORE_CONTRACT_DATE":
       return w(`Not before the Contract Date (${day(d.day)}).`);
     case "BEFORE_LATEST_ACT":
@@ -286,7 +286,7 @@ export function supervisionFaultWords(f: Finding): Words {
     case "ALREADY_SCRUTINISED":
       return w("Its scrutiny is already recorded.");
     case "ANSWER_REQUIRED":
-      return w("Say whether it reflects a reasonable and realistic sequence with reasonable commencement and completion dates.");
+      return w("Say whether the sequence and dates are reasonable.");
     case "NOTE_REQUIRED":
       return w("Say what is wrong with it.");
     case "BEFORE_SUBMITTED":
@@ -296,7 +296,7 @@ export function supervisionFaultWords(f: Finding): Words {
     case "FOUND_UNREASONABLE":
       return w("Its scrutiny found it not reasonable: return it for revision instead.");
     case "NO_POINTS":
-      return w("Give its planned progress (at least one day and percentage): it is the baseline progress is measured against.");
+      return w("Give planned progress: at least one day and percentage.");
     case "BEFORE_SCRUTINY":
       return w(`Not before its scrutiny (${day(d.day)}).`);
     case "POINT_NOT_A_PERCENT":
@@ -309,7 +309,7 @@ export function supervisionFaultWords(f: Finding): Words {
       return w(`Line ${String(d.line ?? "")}: not before possession of site (${day(d.day)}).`);
     // ------------------------------------------------ diary, progress, records
     case "NOT_POSSESSED":
-      return w("Possession of site is not recorded yet: the site's records start from it (Site tab).");
+      return w("Possession of site not recorded. See the Site tab.");
     case "BEFORE_POSSESSION":
       return w(`Not before possession of site (${day(d.day)}).`);
     case "ALREADY_ENTERED":
@@ -339,9 +339,9 @@ export function supervisionFaultWords(f: Finding): Words {
     case "ALREADY_RECORDED":
       return w(`Progress is already recorded for ${day(d.day)}.`);
     case "FALLS":
-      return w("Actual progress is cumulative: it is not below an earlier day's, nor above a later day's.");
+      return w("Progress is cumulative: not below an earlier day's or above a later one's.");
     case "NOT_IN_DELAY":
-      return w("A special meeting follows an In Delay classification, and the contract is not In Delay on that day.");
+      return w("The contract is not In Delay that day.");
     case "MINUTES_REQUIRED":
       return w("Record the minutes.");
     case "NO_ATTENDEES":

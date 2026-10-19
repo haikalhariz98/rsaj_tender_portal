@@ -171,7 +171,7 @@ export async function decideCertificateStep(c: CertCtx, i: DecideInput) {
     value: inst.value == null ? 0n : senFromDecimal(inst.value),
   });
   if (check.faults.length) {
-    if (check.faults[0] === "COMMITTEE_STEP") throw new CertificateRefusal("Not decided: a committee's step is discharged by its decision, and a certificate is not tabled at a sitting.");
+    if (check.faults[0] === "COMMITTEE_STEP") throw new CertificateRefusal("Not decided. Cite the committee's decision.");
     const texts = check.faults.map((x) => certificateDeciderText(x, person?.name ?? null)).join(" ");
     throw new CertificateRefusal(`Not decided: ${texts}`, ["TIME_ZONE_UNSET", "NOT_PENDING", "OUT_OF_ORDER"].includes(check.faults[0]) ? undefined : { personId: texts });
   }

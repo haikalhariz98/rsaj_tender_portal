@@ -55,7 +55,7 @@ export function SendToSigningDrawer({ certId, blocker, routed }: { certId: strin
   return (
     <RecordEditor
       title="Send to signing"
-      description={routed ? "Its approval route is approved and every check of this round is recorded: the signature blocks open in printed order." : "This certificate has no routing sheet: the module that raised it sends it to no approval route. The figures freeze and the signature blocks open in printed order."}
+      description={routed ? "Opens once the route is approved and checks are recorded." : "No routing sheet. Signature blocks open in printed order."}
       fields={[hidden("certId")]}
       values={{ certId }}
       action={sendCertificateToSigning}
@@ -70,7 +70,7 @@ export function ReceivedDrawer({ certId, today, current }: { certId: string; tod
   return (
     <RecordEditor
       title="The day received"
-      description="The day the document reached the routing sheet. It starts the internal clock. Not in the future, not after the first check is recorded, and not after its approval route opened or anyone on it decided."
+      description="Starts the internal clock. Not in the future."
       fields={[hidden("certId"), { kind: "date", name: "receivedOn", label: "Received on", required: true }]}
       values={{ certId, receivedOn: current ?? today }}
       action={recordCertificateReceived}
@@ -83,7 +83,7 @@ export function CheckDrawer({ certId, defOrder, label, office, people, today, bl
   return (
     <RecordEditor
       title={label}
-      description={office ? `Recorded for a holder of ${office} on the day (or a delegate of the whole office).` : "No office is set for this check on its type: any officer may be named, and the sheet says so."}
+      description={office ? `Recorded for a holder of ${office} on the day (or a delegate of the whole office).` : "No office set for this check. Any officer may be named."}
       fields={[hidden("certId"), hidden("defOrder"), by("RoutingCheck.person", "personId", people), { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ certId, defOrder: String(defOrder), on: today }}
       action={recordCertificateCheck}
@@ -99,7 +99,7 @@ export function SignatureDrawer({ certId, block, people, today, blocker }: { cer
   if (own) {
     fields.push(hidden("personBlock"));
     fields.push(by("CertificateSignature.person", "personId", people, undefined, true));
-    fields.push({ kind: "date", name: "signedOn", label: "Signed on", hint: "Leave empty to date it today. A signed block is dated today unless back-dating is recorded; from paper, the day it was signed." });
+    fields.push({ kind: "date", name: "signedOn", label: "Signed on", hint: "Empty dates it today. From paper: the signing day." });
   } else {
     fields.push({ kind: "text", name: "name", label: "Full name as signed", required: true });
     fields.push({ kind: "text", name: "icNumber", label: "Identity-card number", hint: "Only the last four digits are kept." });
@@ -159,7 +159,7 @@ export function DespatchDrawer({ certId, copyId, label, today }: { certId: strin
   return (
     <RecordEditor
       title={`Send ${label}`}
-      description="How the copy went and the day it went. Not before the day the certificate was issued, not in the future."
+      description="Not before issue, not in the future."
       fields={[hidden("certId"), hidden("copyId"), { kind: "select", name: "method", label: "How it went", required: true, placeholder: "Choose", options: DELIVERY_METHODS.map((m) => ({ value: m, label: METHOD_WORDS[m].en })) }, { kind: "date", name: "despatchedOn", label: "Sent on", required: true }]}
       values={{ certId, copyId, despatchedOn: today }}
       action={despatchCertificateCopy}
@@ -172,7 +172,7 @@ export function AcknowledgeDrawer({ certId, copyId, label, today }: { certId: st
   return (
     <RecordEditor
       title={`Acknowledged: ${label}`}
-      description="The day the recipient acknowledged the copy. Not before it went, not in the future."
+      description="Not before it went, not in the future."
       fields={[hidden("certId"), hidden("copyId"), { kind: "date", name: "acknowledgedOn", label: "Acknowledged on", required: true }]}
       values={{ certId, copyId, acknowledgedOn: today }}
       action={acknowledgeCertificateCopy}
@@ -185,7 +185,7 @@ export function VoidDrawer({ certId, blocker }: { certId: string; blocker: strin
   return (
     <RecordEditor
       title="Void the certificate"
-      description="A certificate is voided only before it is issued. It keeps no number and leaves no gap; everything recorded on it is kept as it was."
+      description="Only before issue. Keeps no number; everything recorded is kept."
       fields={[hidden("certId")]}
       values={{ certId }}
       destructive={{ reasonLabel: "Why it is void" }}
@@ -225,7 +225,7 @@ export function DecideRouteStepDrawer({ certId, stepId, roleLabel, act, done, pe
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused" }] },
         by("ApprovalStep.decidedBy", "personId", people, undefined, true),
-        { kind: "date", name: "receivedOn", label: "Received on", hint: "The day it reached them. Optional: not recorded is shown as such." },
+        { kind: "date", name: "receivedOn", label: "Received on", hint: "Optional. Not recorded shows as such." },
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was sent for approval." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
@@ -242,7 +242,7 @@ export function ChooseRejectionDrawer({ certId, offered, steps, people }: { cert
   return (
     <RecordEditor
       title="Where the refusal sends it"
-      description="Nothing configured decides where a refused certificate goes, so the officer chooses: back to whoever raised it (it may be sent again on a new route), back to an earlier step (a new route continues from it), or the certificate ends (it is voided with the refusal as its reason). Recorded on the named officer's behalf."
+      description="No destination configured. The officer chooses."
       fields={[
         hidden("certId"),
         { kind: "select", name: "goesTo", label: "Where it goes", required: true, placeholder: "Choose", options: offered },

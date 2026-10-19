@@ -16,6 +16,8 @@ import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
+import { ButtonLink } from "@/components/ui/button";
 import { correctedAfter, TERM_FIELD } from "@/lib/contract/award-correction";
 import { BASELINE_FIELD_WORDS } from "@/lib/contract/labels";
 import { PageHeader } from "@/components/ui/page-header";
@@ -184,7 +186,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: historyTotal, panel: <HistoryPanel sulit={sulit} entries={history} total={historyTotal} timeZone={l.org.timeZone} /> },
   ];
 
-  const voidBlocker = cert.approvalInstances.some((i) => i.status === "PENDING") ? "Its approval route is still waiting for a decision: refuse it on the route first (Approvals)." : null;
+  const voidBlocker = cert.approvalInstances.some((i) => i.status === "PENDING") ? "Route awaits a decision. Refuse it on the route first." : null;
   return (
     <>
       <RecordCrumb label={cert.number ?? kind} parent={l.contract.number} />
@@ -215,11 +217,9 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
       />
       <div className="mb-6 flex flex-col gap-3">
         {!today && (
-          <Callout tone="warn" title="The organisation's time zone is not set">
-            Every act on a certificate records the organisation&apos;s day, and its date is the day of the authorising signature: none is assumed to be UTC.
-          </Callout>
+          <Callout tone="warn" title="Time zone not set. Dates cannot be judged." />
         )}
-        {l.contract.status === "CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its certificates are kept as they were; nothing more is recorded on them.</Callout>}
+        {l.contract.status === "CANCELLED" && <Callout tone="warn" title="The contract is cancelled" />}
         {/* ADR 0031 (run 1a): the acts' own table for this certificate's kind, so the page says what its acts would. */}
         {certStatusRefused && certStatusRefused.code !== "CONTRACT_CANCELLED" && <Callout tone="warn" title={statusCalloutTitle(l.contract.status as ContractStatus).en}>{actStatusText(certStatusRefused)}</Callout>}
         {/* 6.14 increment 2 (FR-CRT-012): a draft whose form could not be signed on yet says so from the start, by the first signature's own rule. */}
@@ -232,19 +232,15 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
         )}
         {status === "VOID" && (
           <Callout tone="warn" title="Void">
-            {cert.voidReason} It was never numbered, so it leaves no gap.
+            {cert.voidReason}
           </Callout>
         )}
         {/* 612-C1: a correction version written after execution carries the Contract Date, so it is not "before execution". */}
         {cert.baseline.contractDate == null && (
-          <Callout tone="info" title="Read from a baseline before execution">
-            {`This certificate reads baseline version ${cert.baseline.version}, recorded ${formatDate(day(cert.baseline.recordedOn))}, before the contract was executed (the first certificates may be raised before it is). A later version never changes it.`}
-          </Callout>
+          <div><InfoChip outline detail={`Reads baseline version ${cert.baseline.version}, recorded ${formatDate(day(cert.baseline.recordedOn))}, before the contract was executed. A later version never changes it.`}>Pre-execution baseline</InfoChip></div>
         )}
         {correctedAfter(cert.baseline.version ?? 0, l.contract.baselines).map((m) => (
-          <Callout key={m.version} tone="info" title="Its baseline was corrected after issue">
-            {`The award's recorded ${BASELINE_FIELD_WORDS[TERM_FIELD[m.term]].en.toLowerCase()} was corrected from ${m.from} to ${m.to} in baseline version ${m.version}, after this certificate read version ${cert.baseline.version}. It keeps the version it read.`}
-          </Callout>
+          <div key={m.version}><InfoChip tone="warn" detail={`The ${BASELINE_FIELD_WORDS[TERM_FIELD[m.term]].en.toLowerCase()} was corrected from ${m.from} to ${m.to} in baseline version ${m.version}, after this certificate read version ${cert.baseline.version}. It keeps the version it read.`}>Baseline corrected</InfoChip></div>
         ))}
       </div>
       <ActGate blocker={gates.acts}>
@@ -257,10 +253,10 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
 function signingBlocker(sheet: Sheet): string | null {
   const reasons: string[] = [];
   if (!sheet.date1) reasons.push("Record the day it was received first.");
-  if (sheet.routeState === "NONE") reasons.push("No approval route is open for it: the module that raised it opens one.");
+  if (sheet.routeState === "NONE") reasons.push("No approval route open.");
   if (sheet.routeState === "PENDING") reasons.push("Its approval route is waiting for a decision.");
-  if (sheet.routeState === "REJECTED") reasons.push("Its approval route was refused: it goes on only on a resubmitted route.");
-  if (sheet.routeState === "RECALLED") reasons.push("Its approval route was recalled before a decision: it goes on only on a new route.");
+  if (sheet.routeState === "REJECTED") reasons.push("Route refused. Resubmit it.");
+  if (sheet.routeState === "RECALLED") reasons.push("Route recalled. It needs a new route.");
   const open = sheet.current.checks.filter((c) => !c.recorded).map((c) => c.def.labelEn);
   if (open.length) reasons.push(`Still to record in this round: ${open.join(", ")}.`);
   return reasons.length ? reasons.join(" ") : null;
@@ -295,7 +291,7 @@ function FiguresPanel({ l, figures, people, today }: { l: LoadedCertificate; fig
   if (!figures || !snap) {
     return (
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="Figures" subtitle="As the module that raised it computed them." />
+        <CardHeader icon={<FileIcon size={17} />} title="Figures" />
         <EmptyState size="sm" title="No figures" />
       </Card>
     );
@@ -305,7 +301,7 @@ function FiguresPanel({ l, figures, people, today }: { l: LoadedCertificate; fig
       <CardHeader
         icon={<FileIcon size={17} />}
         title="Figures"
-        subtitle={`${snap.rule.en}, computed ${formatDate(snap.computedOn)}. ${draft ? "A line the calculation allows may be overridden while this is a draft, with its justification; totals are always recomputed from their lines." : "Frozen: nothing is overridden after the draft."}`}
+        subtitle={`${snap.rule.en}, computed ${formatDate(snap.computedOn)}${draft ? "" : ". Frozen"}`}
         actions={figures.overridden ? <Badge tone="warn">Overridden</Badge> : undefined}
         divided
       />
@@ -364,7 +360,7 @@ async function FinanceCard({ l, people, today }: { l: LoadedCertificate; people:
         <span className="min-w-0">
           <span className="block text-[13.5px] font-semibold text-ink">Paid by Finance</span>
           <span className="block text-[12.5px] break-words text-ink-3">
-            {paid ? <>{`${formatMoney(parseSen(paid.amount.toString()))}, batch ${paid.batchNo}, paid ${formatDate(day(paid.paidOn))}; `}<ActedBy entity="FinancePayment" id={paid.id} slot="person" name={paid.person.name} />.</> : issued ? "Not recorded yet: Finance returns its batch number and the day paid." : "Once issued, it goes to Accounts and Finance; the payment is recorded here."}
+            {paid ? <>{`${formatMoney(parseSen(paid.amount.toString()))}, batch ${paid.batchNo}, paid ${formatDate(day(paid.paidOn))}; `}<ActedBy entity="FinancePayment" id={paid.id} slot="person" name={paid.person.name} />.</> : issued ? "Not recorded yet." : "Goes to Finance once issued."}
           </span>
         </span>
         {!paid && issued && v != null && <FinancePaymentDrawer certId={cert.id} amount={formatMoney(parseSen(v))} people={people} today={today} blocker={blocker} />}
@@ -410,7 +406,7 @@ async function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people
         raisedWithoutFormWords({ kind: cert.kind, status }).en;
   // Who signed each block of the organisation's own, signed in or recorded from paper, is read from its attribution (Phase 2b). A block that is not a person's (the contractor's side) is named by an officer: it is not signed in, and says so.
   const signedBy = await loadAttributions(db, l.org.id, [{ entity: "CertificateSignature", slot: "person", ids: cert.signatures.filter((x) => x.personId).map((x) => x.id) }]);
-  const notOpen = status === "DRAFT" || status === "IN_ROUTING" ? "Signatures open once the certificate is sent to signing." : status === "VOID" ? "The certificate is void." : null;
+  const notOpen = status === "DRAFT" || status === "IN_ROUTING" ? "Opens when sent to signing." : status === "VOID" ? "The certificate is void." : null;
   const dateNow = certificateDateOf(blocks, signed);
   return (
     <Card className="overflow-hidden">
@@ -422,14 +418,14 @@ async function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people
         divided={blocks.length > 0}
       />
       {blocks.length === 0 ? (
-        <EmptyState size="sm" title="No signature blocks">{formName ? `${formName} has no blocks: add them in printed order under Configuration › Templates.` : "Nothing to sign until a form is chosen."}</EmptyState>
+        <EmptyState size="sm" title={formName ? "No signature blocks" : "No form chosen"} />
       ) : (
         <ul className="divide-y divide-line/70">
           {blocks.map((b) => {
             const s = cert.signatures.find((x) => x.blockOrder === b.blockOrder);
             const isNext = next?.blockOrder === b.blockOrder;
             const who = b.officeRule === "NAMED_OFFICE" ? officeName(b.officeCode) : OFFICE_RULE_WORDS[b.officeRule].en;
-            const delegation = !isPersonRule(b.officeRule) ? "Recorded from the paper, on the day it was signed." : b.delegable == null ? "Whether a delegate may sign it is not decided." : b.delegable ? "Or a delegate of the whole office." : "Never a delegate.";
+            const delegation = !isPersonRule(b.officeRule) ? "Recorded from paper, on the signing day." : b.delegable == null ? "Delegate signing not decided." : b.delegable ? "Or a delegate of the whole office." : "Never a delegate.";
             return (
               <li key={b.blockOrder} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                 <span className="min-w-0">
@@ -454,7 +450,7 @@ async function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people
                     <span className="block text-[12.5px] break-words text-ink-3">
                       {`${who}. ${delegation}${isSupervisedRule(b.officeRule) ? supervisedText(b.officeRule, supervised[b.officeRule]) : ""}`}
                       {b.officeRule === "SO" && reResolveUnset && (
-                        <span className="mt-1 block text-amber-800">Whether the Superintending Officer changes when an adjustment moves the contract sum across a band is not set under Configuration › Post-award: the office shown is the one resolved for this contract.</span>
+                        <span className="mt-1 block text-amber-800">S.O. change on a band move: not set. The office shown is the one resolved.</span>
                       )}
                     </span>
                   )}
@@ -480,7 +476,7 @@ async function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people
           columns={2}
           items={[
             { label: "Certificate date", value: cert.certificateDate ? <span className="flex flex-col gap-1"><span>{formatDate(day(cert.certificateDate))}</span>{cert.certificateDateCorrectedFrom && <Chip tone="info">{`Corrected from ${formatDate(day(cert.certificateDateCorrectedFrom))}: ${cert.certificateDateCorrectionReason}`}</Chip>}</span> : dim(dateNow.state === "NO_DATING_BLOCK" ? CERT_WORDS.notDatedBySignature.en : CERT_WORDS.dateWhenSigned.en) },
-            { label: "Certifies money", value: certifiesMoney(readComputedSnapshot(cert.computedSnapshot)) ? "Yes: a delegate with instruction authority only does not sign it" : "No" },
+            { label: "Certifies money", value: certifiesMoney(readComputedSnapshot(cert.computedSnapshot)) ? "Yes: not signed by an instruction-only delegate" : "No" },
           ]}
         />
       </CardBody>
@@ -510,15 +506,15 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
       <span className="flex flex-wrap items-center gap-2">
         {apgShort && step.act === "A" && <Chip tone="warn">{apgShort.en}</Chip>}
         {step.roleCode && <EscalateDrawer stepId={step.id} office={step.actingRoleLabel ?? step.roleLabel} mandatory={isMandatoryAct(step.act)} people={people} />}
-        {earlierDone ? <DecideRouteStepDrawer certId={cert.id} stepId={step.id} roleLabel={step.actingRoleLabel ?? step.roleLabel} act={ACT_LABEL[step.act] ?? "Acts"} done={ACT_DONE_LABEL[step.act] ?? "Done"} people={people} today={today} /> : <Blocked label="Record decision" reason="Steps are decided in order: the step before is not done." />}
+        {earlierDone ? <DecideRouteStepDrawer certId={cert.id} stepId={step.id} roleLabel={step.actingRoleLabel ?? step.roleLabel} act={ACT_LABEL[step.act] ?? "Acts"} done={ACT_DONE_LABEL[step.act] ?? "Done"} people={people} today={today} /> : <Blocked label="Record decision" reason="Decide the earlier step first." />}
       </span>
     );
   };
-  const apgCard = apgShort ? <Callout tone="warn" title="The guarantee is below the advance">{`${apgShort.en} The approving office decides with it in view.`}</Callout> : null;
+  const apgCard = apgShort ? <Callout tone="warn" title="The guarantee is below the advance">{apgShort.en}</Callout> : null;
   const choice = latest && latest.status === "REJECTED" && !latest.rejectionApplied && latest.rejectionChoices.length > 0 && live ? latest : null;
   const choiceCard = choice ? (
     <Callout tone="warn" title="Refused: where it goes is the officer's choice" action={<ChooseRejectionDrawer certId={cert.id} offered={choice.rejectionChoices.map((k) => ({ value: k, label: refusalKindText(k) }))} steps={choice.steps.filter((x) => x.sequence < (choice.steps.find((y) => y.decision === "REJECTED")?.sequence ?? 0)).map((x) => ({ value: String(x.sequence), label: `${x.sequence}. ${x.roleLabel}` }))} people={people} />}>
-      {`Refused${choice.rejectionReason ? `: ${choice.rejectionReason}` : ""}. Nothing configured decides where a refused certificate goes, so the officer chooses.`}
+      {`Refused${choice.rejectionReason ? `: ${choice.rejectionReason}` : ""}`}
     </Callout>
   ) : null;
   // 6.13 Part A step 4: the variation a variation's certificate belongs to (its approval is on the variation's page).
@@ -528,18 +524,11 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
       return (
         <Card>
           <CardHeader icon={<RouteIcon size={17} />} title="Routing sheet" />
-          <EmptyState size="sm" title="No routing sheet">
-            {KIND_ROUTE_DOMAIN[cert.kind] ? (
-              "This certificate has no routing sheet. Its approval route opens on the approval matrix when it is sent for approval (the header's button); its steps are decided here."
-            ) : VARIATION_APPROVED_KINDS.includes(cert.kind) ? (
-              <>
-                {"Its approval is the variation's own routes, decided on the variation's Approval tab; it is signed once they cover it. "}
-                {variationId && <Link className="font-medium text-brand-700 underline" href={`/projects/${l.contract.id}/variations/${variationId}?tab=approval`}>Open the variation</Link>}
-              </>
-            ) : (
-              `${CERT_WORDS.noRoute.en}. It goes from its draft straight to signing.`
-            )}
-          </EmptyState>
+          <EmptyState
+            size="sm"
+            title={KIND_ROUTE_DOMAIN[cert.kind] ? "Not sent for approval yet" : VARIATION_APPROVED_KINDS.includes(cert.kind) ? "Approved on the variation" : CERT_WORDS.noRoute.en}
+            action={VARIATION_APPROVED_KINDS.includes(cert.kind) && variationId ? <ButtonLink href={`/projects/${l.contract.id}/variations/${variationId}?tab=approval`} size="sm" variant="secondary">Open the variation</ButtonLink> : undefined}
+          />
         </Card>
       );
     }
@@ -557,7 +546,7 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
     return (
       <Card>
         <CardHeader icon={<RouteIcon size={17} />} title="Routing sheet" subtitle={cert.routingType?.labelEn} />
-        <EmptyState size="sm" title="Not started">{KIND_ROUTE_DOMAIN[cert.kind] ? "The sheet starts when the certificate is sent for approval: its type, checks and targets are frozen then, and its approval route opens on the matrix." : "The sheet starts when the certificate is sent for routing: its type, checks and targets are frozen then."}</EmptyState>
+        <EmptyState size="sm" title="Not sent for approval yet" />
       </Card>
     );
   }
@@ -572,7 +561,7 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
         headerAction={open ? <ReceivedDrawer certId={cert.id} today={today} current={sheet.date1} /> : undefined}
         checkAction={(def) => <CheckDrawer certId={cert.id} defOrder={def.order} label={def.labelEn} office={def.officeLabel} people={people} today={today} blocker={sheet.date1 ? null : "Record the day it was received first."} />}
         stepAction={stepAction}
-        routeNote={KIND_ROUTE_DOMAIN[cert.kind] ? "No approval route opened for this round: it opens on the approval matrix when the certificate is sent for approval (the header's button)." : "No approval route opened for this round: the module that raised the certificate opens it on the approval matrix."}
+        routeNote={KIND_ROUTE_DOMAIN[cert.kind] ? "Route opens when sent for approval." : "Route opened by the raising module."}
       />
     </div>
   );
@@ -601,12 +590,12 @@ function DistributionPanel({ l, today }: { l: LoadedCertificate; today: string |
       <CardHeader
         icon={<InboxIcon size={17} />}
         title="Distribution"
-        subtitle={issued ? "The pinned list, resolved on the day of issue into addressed copies." : "Copies are made from the pinned list when the certificate is issued."}
+        
         actions={issued ? <Badge tone={state.distributed ? "ok" : "warn"}>{state.distributed ? (state.awaitingAck ? `Distributed · ${state.awaitingAck} acknowledgement${state.awaitingAck === 1 ? "" : "s"} outstanding` : "Distributed") : `Not distributed: ${state.undespatchedMandatory} mandatory to send`}</Badge> : undefined}
         divided={cert.copies.length > 0}
       />
       {cert.copies.length === 0 ? (
-        <EmptyState size="sm" title={issued ? "No copies" : "Not issued yet"}>{issued ? "The list resolved to no copy." : "Nothing goes out before issue."}</EmptyState>
+        <EmptyState size="sm" title={issued ? "No copies" : "Not issued yet"} />
       ) : (
         <ul className="divide-y divide-line/70">
           {cert.copies.map((c) => (
@@ -670,7 +659,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
     return (
       <Card>
         <CardHeader icon={<PrinterIcon size={17} />} title="Print" />
-        <EmptyState size="sm" title="No text">{body ? `${body.name} has no text yet: it is written under Configuration › Templates.` : "No form is chosen for this certificate."}</EmptyState>
+        <EmptyState size="sm" title={body ? "No text yet" : "No form chosen"} />
       </Card>
     );
   }
@@ -741,7 +730,7 @@ const chipped = (sulit: Sulit<true>, field: string, value: string | null, entity
 function HistoryPanel({ sulit, entries, total, timeZone }: { sulit: Sulit<true>; entries: { id: string; entity: string; entityLabel: string; action: "CREATE" | "UPDATE" | "DELETE"; at: Date; reason: string; changes: unknown }[]; total: number; timeZone: string | null }) {
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<CheckIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this certificate. "}Each change names who made it; any from before sign-in is not attributed. Identity-card numbers are masked.`} divided={entries.length === 0} />
+      <CardHeader icon={<CheckIcon size={17} />} title="History" subtitle={total > entries.length ? `Latest ${entries.length} of ${total}` : undefined} divided={entries.length === 0} />
       {entries.length === 0 ? (
         <EmptyState size="sm" title="No recorded changes" />
       ) : (
