@@ -1,5 +1,6 @@
 "use client";
 
+import { refusalNotes } from "@/lib/opening/refusal-notes";
 import { useState, useTransition } from "react";
 
 import { SealedFileDownload } from "@/components/sealed-file-download";
@@ -202,7 +203,7 @@ function Confirmations({ exerciseId, col, viewer }: { exerciseId: string; col: C
 }
 
 /// A refusal that every column gives in the same words is said once under the matrix, and each button points at it (the 3c-7 rendered check: the same long reason in every cell of a narrow column).
-function Decision({ exerciseId, col, aids, notes }: { exerciseId: string; col: Col; aids: VerdictAids | undefined; notes: ReadonlyMap<string, string> }) {
+function Decision({ exerciseId, col, aids, notes }: { exerciseId: string; col: Col; aids: VerdictAids | undefined; notes: { idsFor: (reason: string) => string | undefined } }) {
   const bid = { id: col.openedBidId, listingNo: col.listingNo };
   const d = col.decision;
   return (
@@ -221,12 +222,12 @@ function Decision({ exerciseId, col, aids, notes }: { exerciseId: string; col: C
             size="sm"
           />
         ) : (
-          <Blocked label="Pass" reason={col.pass.reason} noteId={notes.get(col.pass.reason)} ariaLabel={`Carry No. ${col.listingNo} to evaluation`} />
+          <Blocked label="Pass" reason={col.pass.reason} noteId={notes.idsFor(col.pass.reason)} ariaLabel={`Carry No. ${col.listingNo} to evaluation`} />
         )}
         {col.reject.allowed && aids ? (
           <VerdictDrawer exerciseId={exerciseId} bid={bid} column={col} options={aids.options.filter((o) => o.value === "REJECT")} grounds={aids.grounds} reported={aids.reported} allowed={col.reject} />
         ) : (
-          <Blocked label="Reject" reason={col.reject.allowed ? "The grounds for this offer are not available." : col.reject.reason} noteId={notes.get(col.reject.allowed ? "The grounds for this offer are not available." : col.reject.reason)} ariaLabel={`Do not carry No. ${col.listingNo}`} />
+          <Blocked label="Reject" reason={col.reject.allowed ? "The grounds for this offer are not available." : col.reject.reason} noteId={notes.idsFor(col.reject.allowed ? "The grounds for this offer are not available." : col.reject.reason)} ariaLabel={`Do not carry No. ${col.listingNo}`} />
         )}
       </div>
     </div>
@@ -245,11 +246,10 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
       </div>
     ),
   }));
-  // Every refusal is said once, under the checklist, and each button points at it. A reason that another reason begins with is covered by the longer one, so the same sentence is never printed twice.
-  const refusals = [...new Set(view.columns.flatMap((c) => [c.pass, c.reject]).flatMap((a) => (a.allowed ? [] : [a.reason])))];
-  const covering = (r: string) => refusals.filter((x) => x.startsWith(r)).reduce((a, b) => (b.length > a.length ? b : a), r);
-  const noteTexts = [...new Set(refusals.map(covering))];
-  const sharedNotes = new Map(refusals.map((r) => [r, `matrix-refusal-${openingId}-${noteTexts.indexOf(covering(r))}`] as const));
+  // Every refusal is said once, under the checklist, and each button points at it: the lead the refusals share, then each different ending with the offers it is for (`refusalNotes`).
+  const asked = view.columns.flatMap((c) => [c.pass, c.reject].flatMap((a) => (a.allowed ? [] : [{ offer: `No. ${c.listingNo}`, reason: a.reason }])));
+  const refused = refusalNotes(asked, `matrix-refusal-${openingId}`);
+  const sharedNotes = { idsFor: refused.idsFor };
   const answerNotes = new Map(view.columns.map((c) => [c.openedBidId, c.answer] as const));
   const rows: MatrixRowSpec[] = [
     ...view.rows.map((r) => ({
@@ -292,7 +292,7 @@ export function OpeningMatrix({ exerciseId, openingId, view, viewer, verdicts }:
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {view.online && view.phase === "CHECKING" && !view.viewerIsNamedOfficer && <Callout tone="info">The answers and decisions are shown to you. The files, the bidders&apos; names and the acknowledgement days stay with the named opening officers until the opening is finalised.</Callout>}
-      {noteTexts.map((reason, i) => <p key={reason} id={`matrix-refusal-${openingId}-${i}`} className="text-[12.5px] text-ink-3">{reason}</p>)}
+      {refused.notes.map((n) => <p key={n.id} id={n.id} className="text-[12.5px] text-ink-3">{n.offers ? <><span className="font-semibold">{n.offers.join(", ")}: </span>{n.text}</> : n.text}</p>)}
       <Matrix caption="Opening checklist: one row for each item, one column for each offer read" corner="Checked at the opening" columns={columns} rows={rows} />
       <p className="text-[12.5px] text-ink-3">{`Decision: ${DECISION_STANDS_WORDS}.`}</p>
     </div>
