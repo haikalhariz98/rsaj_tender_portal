@@ -64,7 +64,7 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
         <Card className="mb-6 print:hidden">
           <CardHeader icon={<DownloadIcon size={17} />} title="Download your documents" subtitle={`The issued parts of version ${pack.packVersion}, as frozen when they were approved for tendering. Each download is logged against your company.`} />
           <CardBody>
-            {!token && <p className="mb-3 text-[13px] text-ink-2">Downloads are closed: the person who runs the portal has not set its form key.</p>}
+            {!token && <p className="mb-3 text-[13px] text-ink-2">Downloads closed. Tell the portal operator.</p>}
             <DataList
               flat
               selectable={false}

@@ -61,7 +61,7 @@ export default async function BidExercisePage({ params, searchParams }: { params
       />
       {(tab === "briefings" || tab === "addenda" || tab === "documents") && !token && (
         <Callout tone="warn" title="Sending is closed" className="mb-5">
-          The portal&apos;s forms are closed: the person who runs the portal has not set its form key. Nothing can be sent until they do.
+          The form key is not set. Tell the portal operator.
         </Callout>
       )}
       <Tabs initial={tab} label="Exercise" tabs={tabs} />

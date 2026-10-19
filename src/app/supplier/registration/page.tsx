@@ -117,7 +117,7 @@ export default async function SupplierRegistrationPage({ searchParams }: { searc
       </div>
       {!token && (
         <Callout tone="warn" title="This page is closed" className="mb-5">
-          The portal&apos;s forms are closed: the person who runs the portal has not set its form key. Nothing can be saved or sent until they do.
+          The form key is not set. Tell the portal operator.
         </Callout>
       )}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_21rem]">

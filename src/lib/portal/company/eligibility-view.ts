@@ -24,11 +24,11 @@ export interface ConditionView {
 
 /// The reasons that name a setting of the office's (a path through its configuration). The supplier cannot set them, so it is told the office has not.
 const OFFICE_SETTING: Readonly<Record<string, string>> = {
-  NO_DOCUMENT_TYPE_FOR_BODY: "The office has not finished setting up how this registration is recorded, so it cannot be checked yet.",
-  GRADE_RANK_NOT_SET: "The office has not set the order of the grades, so your grade cannot be compared with the one asked for yet.",
-  LAPSE_RULE_NOT_SET: "The office has not said what happens when a document expires, so your standing cannot be fully judged yet.",
-  CLOSING_DAY_RULE_NOT_SET: "Your certificate expires on the closing day, and the office has not said whether that day counts as valid.",
-  EVIDENCE_TYPE_NOT_SET: "The office has not said which document proves the restriction, so it cannot be checked yet.",
+  NO_DOCUMENT_TYPE_FOR_BODY: "Not checked: the office has not set how this registration is recorded.",
+  GRADE_RANK_NOT_SET: "Not checked: the office has not set the order of grades.",
+  LAPSE_RULE_NOT_SET: "Not checked: the office has not set what an expired document does.",
+  CLOSING_DAY_RULE_NOT_SET: "Your certificate expires on the closing day. The office has not set if that day counts.",
+  EVIDENCE_TYPE_NOT_SET: "Not checked: the office has not set which document proves the restriction.",
 };
 
 const RESULT_TONE: Readonly<Record<Result, ConditionView["tone"]>> = { PASS: "ok", FAIL: "err", NOT_ASSESSED: "warn", PASS_BY_PERMISSION: "info" };
@@ -47,8 +47,8 @@ export function conditionViews(rows: readonly ConditionRow[]): ConditionView[] {
 
 export const SUPPLIER_VERDICT: Readonly<Record<Verdict, { text: string; detail: string; tone: "ok" | "err" | "warn" }>> = {
   ELIGIBLE: { text: VERDICT_LABEL.ELIGIBLE.en, detail: "You meet every condition that could be checked.", tone: "ok" },
-  NOT_ELIGIBLE: { text: VERDICT_LABEL.NOT_ELIGIBLE.en, detail: "At least one condition is not met. The conditions below say which.", tone: "err" },
-  NOT_ASSESSED: { text: VERDICT_LABEL.NOT_ASSESSED.en, detail: "Something could not be checked, so no one can say yet that you qualify. The conditions below say what.", tone: "warn" },
+  NOT_ELIGIBLE: { text: VERDICT_LABEL.NOT_ELIGIBLE.en, detail: "At least one condition is not met.", tone: "err" },
+  NOT_ASSESSED: { text: VERDICT_LABEL.NOT_ASSESSED.en, detail: "Something could not be checked.", tone: "warn" },
 };
 
 /// The conditions that are not a pass, first: what a supplier needs to read to know what to do.

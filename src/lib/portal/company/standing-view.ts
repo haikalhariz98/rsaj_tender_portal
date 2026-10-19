@@ -35,9 +35,9 @@ export function standingView(r: Pick<StandingReading, "standing" | "notes" | "bl
     tone,
     lines,
     meaning: barred(r.standing)
-      ? "While this stands you are not eligible for an exercise. The eligibility view says so, and why."
+      ? "Not eligible for any exercise while this stands."
       : r.standing === "NOT_REGISTERED"
-        ? "You are not on the supplier register yet, so you are not eligible for an exercise."
-        : "Nothing about your standing stops you taking part.",
+        ? "Not eligible until you are on the register."
+        : "Nothing stops you taking part.",
   };
 }

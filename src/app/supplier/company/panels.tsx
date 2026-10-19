@@ -41,7 +41,7 @@ const Section = ({ children }: { children: React.ReactNode }) => <div className=
 
 export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
   const o = await loadOverviewTab(db, actor, formatDate);
-  if (!o) return <Callout tone="warn">Your company could not be found. Tell the procurement office.</Callout>;
+  if (!o) return <Callout tone="warn">Company not found. Tell the procurement office.</Callout>;
   const reading = bankReading(o.bank);
   const bankWords = BANK_READING_WORDS[reading];
   const registered = o.supplier.status === "REGISTERED";
@@ -51,20 +51,18 @@ export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
     <Section>
       {o.supplier.status === "REJECTED" && (
         <Callout
-          tone="neutral"
-          title="Your application was not accepted"
+          tone="warn"
+          title="Application not accepted"
           action={
             <ButtonLink href="/supplier/account" variant="secondary" size="sm">
               Read the reasons
             </ButtonLink>
           }
-        >
-          The procurement office did not accept your application. The reasons it gave are on your account page, and you can apply again.
-        </Callout>
+        />
       )}
-      {o.request && requestText && (
+      {o.request && requestText && requestText.tone === "warn" && (
         <Callout
-          tone={requestText.tone === "warn" ? "warn" : "info"}
+          tone="warn"
           title={requestText.title.en}
           action={
             <ButtonLink href="/supplier/company?tab=documents" variant="secondary" size="sm">
@@ -87,12 +85,12 @@ export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
         >
           {o.attention.expired > 0 ? `${o.attention.expired} of your documents ${o.attention.expired === 1 ? "has" : "have"} expired. ` : ""}
           {o.attention.critical > 0 ? `${o.attention.critical} ${o.attention.critical === 1 ? "expires" : "expire"} soon. ` : ""}
-          Send a current copy; the office checks it before it takes effect.
+          Send a current copy.
         </Callout>
       )}
 
       <Card>
-        <CardHeader title="Your registration" subtitle="As the procurement office has it on the supplier register." actions={<Badge tone={registered ? "ok" : "info"} dot>{registered ? "On the register" : o.supplier.status === "APPLICANT" ? "Application in progress" : "Not accepted"}</Badge>} />
+        <CardHeader title="Your registration" actions={<Badge tone={registered ? "ok" : "info"} dot>{registered ? "On the register" : o.supplier.status === "APPLICANT" ? "Application in progress" : "Not accepted"}</Badge>} />
         <CardBody>
           {o.company ? (
             <KeyValues
@@ -113,21 +111,21 @@ export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
                     <span className="flex flex-col gap-1">
                       <span>{bumiputeraWords(o.bumiputera!.reading).en}</span>
                       {o.bumiputera!.evidenceExpiry && <span className="text-[12.5px] text-ink-3">The document that evidences it expires on {formatDate(o.bumiputera!.evidenceExpiry)}.</span>}
-                      {o.bumiputera!.flagged && <span className="text-[12.5px] text-amber-800">Send the document that evidences it from Documents, or the claim does not count.</span>}
+                      {o.bumiputera!.flagged && <span className="text-[12.5px] text-amber-800">Send its evidence under Documents.</span>}
                     </span>
                   ),
                 },
               ]}
             />
           ) : (
-            <p className="text-[13.5px] text-ink-3">Your registration could not be found. Contact the procurement office.</p>
+            <p className="text-[13.5px] text-ink-3">Registration not found. Contact the procurement office.</p>
           )}
-          <p className="mt-4 text-[12.5px] text-ink-3">To correct any of these, contact the procurement office. Nothing here is checked against the registry automatically: an officer checks it.</p>
+          <p className="mt-4 text-[12.5px] text-ink-3">To correct these, contact the procurement office.</p>
         </CardBody>
       </Card>
 
       <Card>
-        <CardHeader title="Where you stand" subtitle="Your standing on the supplier register, and what it means for taking part." actions={o.standing ? <Badge tone={o.standing.tone} dot>{o.standing.title}</Badge> : undefined} />
+        <CardHeader title="Where you stand" actions={o.standing ? <Badge tone={o.standing.tone} dot>{o.standing.title}</Badge> : undefined} />
         <CardBody>
           {o.standing ? (
             <div className="flex flex-col gap-2 text-[13.5px] text-ink-2">
@@ -142,13 +140,13 @@ export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
               </p>
             </div>
           ) : (
-            <p className="text-[13.5px] text-ink-3">Your standing could not be judged: the organisation&apos;s time zone is not set. Tell the procurement office.</p>
+            <p className="text-[13.5px] text-ink-3">Not judged: time zone not set. Tell the procurement office.</p>
           )}
         </CardBody>
       </Card>
 
       <Card>
-        <CardHeader title="Your bank details" subtitle="Where payments to you go." actions={<Badge tone={bankWords.tone} dot>{bankWords.title}</Badge>} />
+        <CardHeader title="Your bank details" actions={<Badge tone={bankWords.tone} dot>{bankWords.title}</Badge>} />
         <CardBody>
           <p className="text-[13.5px] text-ink-2">{bankWords.detail}</p>
           <p className="mt-2">
@@ -168,7 +166,7 @@ const KIND_TONE = { ok: "ok", warn: "warn", err: "err", info: "info", neutral: "
 
 export async function DocumentsPanel({ actor, token, searchToken }: { actor: SupplierActor; token: string | null; searchToken: string | null }) {
   const tab = await loadDocumentsTab(db, actor);
-  if (!tab) return <Callout tone="warn">Your documents could not be found. Tell the procurement office.</Callout>;
+  if (!tab) return <Callout tone="warn">Documents not found. Tell the procurement office.</Callout>;
   const types = new Map(tab.types.map((t) => [t.id, t]));
   const bandsOk = tab.policy.criticalDays != null && tab.policy.warningDays != null && tab.policy.upcomingDays != null;
 
@@ -207,7 +205,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
         <Card>
           <CardHeader
             title="What the procurement office asked for"
-            subtitle={tab.request.resubmitBy ? `Answer by ${formatDate(tab.request.resubmitBy)}. After that day the application is rejected.` : "Answer what it asks below."}
+            subtitle={tab.request.resubmitBy ? `Answer by ${formatDate(tab.request.resubmitBy)} or it is rejected.` : undefined}
             actions={<Badge tone={tab.request.open ? "warn" : "neutral"} dot>{tab.request.open ? "Open" : "The date has passed"}</Badge>}
           />
           <CardBody className="flex flex-col gap-3">
@@ -223,7 +221,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
                 </li>
               ))}
             </ul>
-            <p className="text-[12.5px] text-ink-3">Send each one against its document below. Nothing is e-mailed to you: this page tells you when the office has checked what you sent.</p>
+            <p className="text-[12.5px] text-ink-3">Send each below. Answers are not emailed.</p>
           </CardBody>
         </Card>
       )}
@@ -231,23 +229,21 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
       <Card>
         <CardHeader
           title="Your documents"
-          subtitle={tab.notice ?? "An officer checks every document you send. A new copy takes effect only after the officer has checked it."}
+          subtitle={tab.notice ?? "An officer checks each copy."}
           divided
         />
         {!bandsOk && (
           <div className="border-b border-line px-5 py-3 sm:px-6">
-            <Callout tone="neutral">The procurement office has not set when to warn about a document expiring, so no warning bands are shown. Check each date yourself.</Callout>
+            <Callout tone="warn">Expiry warnings are not set. Check each date yourself.</Callout>
           </div>
         )}
         {!tab.reminderRule && (
           <div className="border-b border-line px-5 py-3 sm:px-6">
-            <Callout tone="neutral">The procurement office has not set up reminders before a document expires, so none are shown. Reminders are shown here only; nothing is e-mailed.</Callout>
+            <p className="text-[12.5px] text-ink-3">Reminders: <Badge>Not set</Badge></p>
           </div>
         )}
         {tab.rows.length === 0 ? (
-          <EmptyState size="sm" title={tab.today ? "No documents on record" : "Not judged: the organisation's time zone is not set"}>
-            {tab.today ? "The procurement office has not asked for a document, and none is on record for you." : "Tell the procurement office."}
-          </EmptyState>
+          <EmptyState size="sm" title={tab.today ? "No documents on record" : "Not judged: time zone not set"} />
         ) : (
           <div className="divide-y divide-line/70">
             {tab.rows.map((row) => {
@@ -262,7 +258,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <span className="text-[14.5px] font-semibold text-ink">{row.name}</span>
                         {row.mandatory === true && <Badge outline>Required</Badge>}
-                        {row.mandatory === null && <Badge tone="warn" outline>The office has not said if it is required</Badge>}
+                        {row.mandatory === null && <Badge tone="warn" outline>Required: not set</Badge>}
                         <Badge tone={KIND_TONE[words.tone]} dot>{words.text}</Badge>
                         {row.band && row.band.band !== "NONE" && row.band.band !== "NO_EXPIRY" && row.state === "VALID" && (
                           <Chip tone={EXPIRY_BAND_TONE[row.band.band] === "neutral" ? undefined : EXPIRY_BAND_TONE[row.band.band]}>
@@ -292,17 +288,17 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
 
                   {row.reminder && row.effective?.expiresOn && (
                     <p className="text-[13px] text-amber-800">
-                      Reminder: this expires on {formatDate(row.effective.expiresOn)}. That is the {row.reminder.offset}-day reminder, due {formatDate(row.reminder.dueOn)}. Reminders are shown here and not sent.
+                      Expires {formatDate(row.effective.expiresOn)}. {row.reminder.offset}-day reminder, due {formatDate(row.reminder.dueOn)}.
                     </p>
                   )}
                   {row.state === "EXPIRED" && row.effective?.expiresOn && <p className="text-[13px] text-rose-700">This expired on {formatDate(row.effective.expiresOn)}. Send a current copy.</p>}
-                  {row.state === "NOT_IN_ORDER" && !row.requested.length && <p className="text-[13px] text-amber-800">The office did not accept what was sent. Send a corrected copy, or contact the office.</p>}
+                  {row.state === "NOT_IN_ORDER" && !row.requested.length && <p className="text-[13px] text-amber-800">Not accepted. Send a corrected copy.</p>}
                   {row.pending && (
                     <p className="text-[13px] text-sky-800">
-                      A new copy was sent on {formatDate(row.pending.lodgedOn)} and is waiting for an officer to check it.{row.effective ? " The one above stays in force until then." : ""}
+                      New copy sent {formatDate(row.pending.lodgedOn)}, waiting for an officer.{row.effective ? " The one above stays in force." : ""}
                     </p>
                   )}
-                  {row.upcoming && <p className="text-[13px] text-sky-800">A new copy has been checked and takes over on {row.upcoming.validFrom ? formatDate(row.upcoming.validFrom) : "its first valid day"}.</p>}
+                  {row.upcoming && <p className="text-[13px] text-sky-800">New copy checked. Takes over {row.upcoming.validFrom ? formatDate(row.upcoming.validFrom) : "on its first valid day"}.</p>}
 
                   {row.requested.length > 0 && (
                     <ul className="flex flex-col gap-1.5 rounded-2xl bg-sunken/60 px-4 py-3">
@@ -325,12 +321,12 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
 
       {tab.supplier.status === "REGISTERED" && tab.types.some((t) => t.repeatable) && (
         <Card>
-          <CardHeader title="Add another document" subtitle="Some kinds of document can be given more than once, each with a title." divided={false} />
+          <CardHeader title="Add another document" divided={false} />
           <CardBody className="flex flex-wrap gap-3">
             {tab.types
               .filter((t) => t.repeatable)
               .map((t) => {
-                const row: DocumentRow = { typeId: t.id, name: t.name, hint: null, mandatory: null, state: "MISSING", effective: null, pending: null, upcoming: null, head: null, band: null, reminder: null, requested: [], replace: tab.supplier.status === "REGISTERED" && !tab.uploadClosed ? { allowed: true, reason: null } : { allowed: false, reason: tab.uploadClosed ?? "Your registration is with the procurement office. You can send a document here when the office asks for one." } };
+                const row: DocumentRow = { typeId: t.id, name: t.name, hint: null, mandatory: null, state: "MISSING", effective: null, pending: null, upcoming: null, head: null, band: null, reminder: null, requested: [], replace: tab.supplier.status === "REGISTERED" && !tab.uploadClosed ? { allowed: true, reason: null } : { allowed: false, reason: tab.uploadClosed ?? "Send documents when the procurement office asks." } };
                 const d = drawer(row);
                 return d ? <ReplaceDrawer key={t.id} {...d} buttonLabel={`Add: ${t.name}`} title={`Add: ${t.name}`} /> : null;
               })}
@@ -346,7 +342,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
 export async function BankPanel({ actor, token, searchToken }: { actor: SupplierActor; token: string | null; searchToken: string | null }) {
   const [tab, settings] = await Promise.all([loadBankTab(db, actor), loadRegistrationSettings(db, actor.organisationId)]);
   const supplier = await db.supplier.findFirst({ where: { id: actor.supplierId, organisationId: actor.organisationId }, select: { status: true } });
-  if (!settings || !supplier) return <Callout tone="warn">Your bank details could not be found. Tell the procurement office.</Callout>;
+  if (!settings || !supplier) return <Callout tone="warn">Bank details not found. Tell the procurement office.</Callout>;
   const [ctx, uploads] = await Promise.all([loadRegistrationContext(db, actor, settings, []), loadUploadSettings(db, actor.organisationId, settings)]);
   const reading = bankReading(tab.state);
   const words = BANK_READING_WORDS[reading];
@@ -362,22 +358,24 @@ export async function BankPanel({ actor, token, searchToken }: { actor: Supplier
         : ctx.today == null
           ? companyFaultText({ code: "TIME_ZONE_UNSET" }).en
           : ctx.banks.length === 0
-            ? "The procurement office has not set up the list of banks, so the bank details cannot be changed yet. Tell the procurement office."
+            ? "Bank list not set. Tell the procurement office."
             : ctx.accountTypes.length === 0
-              ? "The procurement office has not set up the list of account types, so the bank details cannot be changed yet. Tell the procurement office."
+              ? "Account types not set. Tell the procurement office."
               : !giro
-                ? "The procurement office has not written the GIRO authorisation text, so the bank details cannot be changed yet. Tell the procurement office."
+                ? "Authorisation text not set. Tell the procurement office."
                 : statementClosed;
   return (
     <Section>
-      <Callout tone={words.tone === "ok" ? "ok" : words.tone === "warn" ? "warn" : "info"} title={words.title}>
-        {words.detail}
-      </Callout>
+      {words.tone === "warn" && (
+        <Callout tone="warn" title={words.title}>
+          {words.detail}
+        </Callout>
+      )}
 
       <Card>
         <CardHeader
           title="Your bank details"
-          subtitle="Confidential. Only you and the officers who check them can read them, and every reading is logged."
+          subtitle="Confidential"
           actions={
             <BankDrawer
               token={token}
@@ -395,10 +393,10 @@ export async function BankPanel({ actor, token, searchToken }: { actor: Supplier
         />
         <CardBody className="flex flex-col gap-5">
           {tab.versions.length === 0 ? (
-            <p className="text-[13.5px] text-ink-3">The office has no bank details of yours on record.</p>
+            <p className="text-[13.5px] text-ink-3">No bank details on record.</p>
           ) : (
             tab.versions.map(({ row, summary }) => {
-              const state = row.version === tab.state.inForce?.version ? { text: "In force: payments go here", tone: "ok" as const } : row.verification === "NOT_CHECKED" ? { text: "Waiting for an officer to check it", tone: "info" as const } : { text: "Not accepted", tone: "warn" as const };
+              const state = row.version === tab.state.inForce?.version ? { text: "In force", tone: "ok" as const } : row.verification === "NOT_CHECKED" ? { text: "Waiting for an officer", tone: "info" as const } : { text: "Not accepted", tone: "warn" as const };
               return (
                 <div key={row.id} className="rounded-2xl border border-line p-4">
                   <div className="flex flex-wrap items-center gap-2">
@@ -441,7 +439,7 @@ export async function BankPanel({ actor, token, searchToken }: { actor: Supplier
                       <span className="font-semibold">What the office said:</span> {row.verificationNote}
                     </p>
                   )}
-                  {row.verification === "VERIFIED" && row.verifiedOn && <p className="mt-3 text-[12.5px] text-ink-3">Checked by an officer on {formatDate(row.verifiedOn)}.</p>}
+                  {row.verification === "VERIFIED" && row.verifiedOn && <p className="mt-3 text-[12.5px] text-ink-3">Checked {formatDate(row.verifiedOn)}.</p>}
                 </div>
               );
             })

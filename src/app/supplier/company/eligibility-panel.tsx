@@ -1,5 +1,6 @@
 import { DataList, type Column, type Row } from "@/components/data-list";
 import { Callout } from "@/components/ui/feedback";
+import { LeadWithMore } from "@/components/ui/more-text";
 import { Card, CardHeader } from "@/components/ui/card";
 import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
@@ -22,7 +23,7 @@ const ELIGIBILITY_COLUMNS: Column[] = [
 
 export async function EligibilityPanel({ actor }: { actor: SupplierActor }) {
   const tab = await loadEligibilityTab(db, actor);
-  if (!tab.today) return <Callout tone="warn">Your eligibility could not be judged: the organisation&apos;s time zone is not set. Tell the procurement office.</Callout>;
+  if (!tab.today) return <Callout tone="warn">Not judged: time zone not set. Tell the procurement office.</Callout>;
   const rows: Row[] = tab.rows.map((r) => ({
     id: r.id,
     cells: {
@@ -35,12 +36,9 @@ export async function EligibilityPanel({ actor }: { actor: SupplierActor }) {
   }));
   return (
     <Section>
-      <Callout tone="info" title="Judged by the same check the office uses">
-        This lists the opportunities open to everyone, and whether you meet what each asks: your registration and standing, the registrations and grades it names, and any restriction. &quot;Not assessed&quot; means something could not be checked, so no one can say yet that you qualify. Open an opportunity for every condition and the reason.
-      </Callout>
       <Card>
-        <CardHeader title="Opportunities open now" subtitle={tab.open > tab.rows.length ? `The ${ELIGIBILITY_PAGE} that close soonest, of ${tab.open} open.` : `${tab.open} open.`} divided={false} />
-        <DataList columns={ELIGIBILITY_COLUMNS} rows={rows} toolbar={false} searchable={false} selectable={false} flat emptyTitle={tab.ready ? "No opportunity is open now" : "The portal is not set up"} emptyBody={tab.ready ? "When the office advertises one, it is listed here with whether you meet what it asks." : "Tell the procurement office."} />
+        <CardHeader title="Opportunities open now" subtitle={<LeadWithMore lead={tab.open > tab.rows.length ? `${ELIGIBILITY_PAGE} of ${tab.open} open, soonest first` : `${tab.open} open`} more="Judged by the same check the office uses. Not assessed means something could not be checked. Open an opportunity for each condition." />} divided={false} />
+        <DataList columns={ELIGIBILITY_COLUMNS} rows={rows} toolbar={false} searchable={false} selectable={false} flat emptyTitle={tab.ready ? "No opportunity open" : "Not set up. Tell the procurement office."} />
       </Card>
     </Section>
   );

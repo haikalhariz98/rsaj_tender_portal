@@ -138,8 +138,8 @@ export function ReplaceDrawer(p: ReplaceDrawerProps) {
             <DrawerHeader icon={<FileIcon size={17} />} title={p.title} subtitle="The procurement office checks it before it counts." onClose={() => !busy && setOpen(false)} />
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {sent ? (
-                <Callout tone="ok" title="Sent to the procurement office">
-                  Your {sent} was sent and is waiting for an officer to check it.{p.renewal ? " The one in force stays in force until then." : ""} Nothing is e-mailed: this page tells you when it has been checked.
+                <Callout tone="ok" title="Sent for checking">
+                  {p.renewal ? "The current one stays in force. " : ""}Not emailed.
                 </Callout>
               ) : (
                 <div className="flex flex-col gap-1">
@@ -153,7 +153,7 @@ export function ReplaceDrawer(p: ReplaceDrawerProps) {
                       {answerWords(answer.status, answer.body)}
                     </Callout>
                   )}
-                  {p.renewal && <p className="text-[13px] text-ink-3">This is a renewal. It does not replace the one now in force until an officer has checked it.</p>}
+                  {p.renewal && <p className="text-[13px] text-ink-3">Renewal. The current one stays in force until checked.</p>}
                   {p.type.repeatable && !p.renewal && (
                     <Field label="Title" htmlFor={id("title")} required hint="So it can be told from the others" error={at(faults, "title")}>
                       <Input id={id("title")} value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
@@ -167,12 +167,12 @@ export function ReplaceDrawer(p: ReplaceDrawerProps) {
                       <Input id={id("authority")} value={authority} maxLength={160} onChange={(e) => setAuthority(e.target.value)} />
                     </Field>
                     {p.type.expires !== false && (
-                      <Field label="Expiry date" htmlFor={id("expires")} required={p.type.expires === true} hint={p.type.expires === null ? "The office has not said whether this expires. Give the date if it has one." : undefined} error={at(faults, "expiresOn")}>
+                      <Field label="Expiry date" htmlFor={id("expires")} required={p.type.expires === true} hint={p.type.expires === null ? "Give the date, if it has one" : undefined} error={at(faults, "expiresOn")}>
                         <Input id={id("expires")} type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
                       </Field>
                     )}
                     {p.type.recordsRate && (
-                      <Field label="Rate" htmlFor={id("rate")} required hint="A percentage from 0 to 100, for example 8 or 6.5" error={at(faults, "ratePercent")}>
+                      <Field label="Rate" htmlFor={id("rate")} required hint="Per cent, 0 to 100" error={at(faults, "ratePercent")}>
                         <AffixInput id={id("rate")} suffix="%" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} />
                       </Field>
                     )}
@@ -208,7 +208,7 @@ export function ReplaceDrawer(p: ReplaceDrawerProps) {
                     <FileInput id={id("file")} accept="application/pdf,image/png,image/jpeg,image/tiff" disabled={busy} onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
                   </Field>
                   <p className="flex items-center gap-2 text-[12.5px] text-ink-3">
-                    <Chip tone="warn">{NOT_SCANNED_LABEL}</Chip> Nothing scans a file yet, so every file shows this on both sides.
+                    <Chip tone="warn">{NOT_SCANNED_LABEL}</Chip>
                   </p>
                   {busy && (
                     <div className="mt-1.5">

@@ -55,7 +55,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       />
       {acting && !token && (
         <Callout tone="warn" title="Sending is closed" className="mb-5">
-          The portal&apos;s forms are closed: the person who runs the portal has not set its form key. Nothing can be sent until they do.
+          The form key is not set. Tell the portal operator.
         </Callout>
       )}
       <Tabs initial={tab} label="Contract" tabs={tabs} />

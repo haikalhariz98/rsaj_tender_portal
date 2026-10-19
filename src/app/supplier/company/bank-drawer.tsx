@@ -136,11 +136,11 @@ export function BankDrawer(p: BankDrawerProps) {
             <span id={heading} className="sr-only">
               Change your bank details
             </span>
-            <DrawerHeader icon={<LockIcon size={17} />} title="Change your bank details" subtitle="Payments keep going to the details now checked until an officer has checked these." onClose={() => !busy && setOpen(false)} />
+            <DrawerHeader icon={<LockIcon size={17} />} title="Change your bank details" subtitle="Payments stay on the checked details until an officer checks these." onClose={() => !busy && setOpen(false)} />
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {sent != null ? (
-                <Callout tone="ok" title="Sent to the procurement office">
-                  Your new bank details were sent and signed. They count for payment only once an officer has checked them against your bank statement; until then payments keep going to the details already checked. Nothing is e-mailed: this page tells you when they have been checked.
+                <Callout tone="ok" title="Sent for checking">
+                  Not emailed. The result shows on this page.
                 </Callout>
               ) : (
                 <div className="flex flex-col gap-1">
@@ -154,19 +154,17 @@ export function BankDrawer(p: BankDrawerProps) {
                       {faults.filter((f) => f.level === "block" && f.field == null).map((f) => f.message).join(" ")}
                     </Callout>
                   )}
-                  <p className="mb-2 text-[13px] text-ink-3">These details are confidential. The office checks them against your bank statement before any payment is made to the new account.</p>
-
                   <section aria-labelledby={id("h-b")} className="rounded-2xl border border-line p-4">
                     <h3 id={id("h-b")} className="text-[14.5px] font-bold text-ink">
                       Beneficiary
                     </h3>
                     <div className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
                       {text("beneficiaryName", { required: true })}
-                      {text("beneficiaryIdentityNo", { required: true, hint: "Your company number, or an identity card number for a sole proprietor." })}
+                      {text("beneficiaryIdentityNo", { required: true, hint: "Company number, or identity card number if a sole proprietor" })}
                       <div className="sm:col-span-2">{text("beneficiaryAddress", { required: true, area: true })}</div>
                       {text("beneficiaryContactPerson", { required: true })}
                       {text("beneficiaryTelephone", { required: true, type: "tel", inputMode: "tel" })}
-                      {text("beneficiaryEmail", { required: true, type: "email", inputMode: "email", hint: "Nothing is e-mailed from the portal." })}
+                      {text("beneficiaryEmail", { required: true, type: "email", inputMode: "email" })}
                       {text("beneficiaryFax")}
                       {text("beneficiaryTaxRegistrationNo")}
                     </div>
@@ -206,7 +204,7 @@ export function BankDrawer(p: BankDrawerProps) {
                         <FileInput id={id("statement")} accept="application/pdf,image/png,image/jpeg,image/tiff" disabled={busy} onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
                       </Field>
                       <p className="flex items-center gap-2 text-[12.5px] text-ink-3">
-                        <Chip tone="warn">{NOT_SCANNED_LABEL}</Chip> Nothing scans a file yet.
+                        <Chip tone="warn">{NOT_SCANNED_LABEL}</Chip>
                       </p>
                     </div>
                   </section>
@@ -231,7 +229,7 @@ export function BankDrawer(p: BankDrawerProps) {
                             <Input id={id("designation")} value={designation} maxLength={120} onChange={(e) => setDesignation(e.target.value)} />
                           </Field>
                         </div>
-                        <p className="mt-1 text-[12.5px] text-ink-3">Date: signed when you send, on the procurement office&apos;s day. You do not type it.</p>
+                        <p className="mt-1 text-[12.5px] text-ink-3">Dated the day you send.</p>
                         <div className="mt-2">
                           <Checkbox label="I have read this and I authorise it." checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
                           {at(faults, "giro.confirmed") && <p className="mt-1 text-[12.5px] font-medium text-rose-600">{at(faults, "giro.confirmed")}</p>}
@@ -239,14 +237,14 @@ export function BankDrawer(p: BankDrawerProps) {
                         </div>
                       </>
                     ) : (
-                      <Callout tone="warn" className="mt-2" title="The GIRO authorisation text is not set">
-                        The procurement office has to write it before you can change your bank details. Tell the procurement office.
+                      <Callout tone="warn" className="mt-2" title="Authorisation text not set">
+                        Tell the procurement office.
                       </Callout>
                     )}
                   </section>
 
                   <div className="mt-4">
-                    <Field label="Your password" htmlFor={id("password")} required hint="Asked again because the change is signed with it." error={at(faults, "password")}>
+                    <Field label="Your password" htmlFor={id("password")} required hint="Signs the change." error={at(faults, "password")}>
                       <Input id={id("password")} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
                     </Field>
                   </div>

@@ -36,10 +36,10 @@ export default async function SupplierCompanyPage({ searchParams }: { searchPara
 
   return (
     <>
-      <PageHeader title="Company" subtitle={`${actor.supplierName}. Your registration, your documents, your bank details and the exercises you qualify for.`} meta={[actor.displayName]} />
+      <PageHeader title="Company" subtitle={actor.supplierName} meta={[actor.displayName]} />
       {(tab === "documents" || tab === "bank") && !token && (
         <Callout tone="warn" title="Sending is closed" className="mb-5">
-          The portal&apos;s forms are closed: the person who runs the portal has not set its form key. Nothing can be sent until they do.
+          The form key is not set. Tell the portal operator.
         </Callout>
       )}
       <Tabs initial={tab} label="Company" tabs={tabs} />

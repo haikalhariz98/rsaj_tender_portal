@@ -195,12 +195,12 @@ function groupByTitle(docs: readonly CompanyDocument[]): { title: string; chain:
 /// A document waiting for the office's check is not renewed again (the chain would hold two unchecked links), except where the office's own request is about that very document.
 function replaceAllowed(t: DocumentTypeConfig, head: CompanyDocument | null, requested: readonly ItemView[], i: RowInput): { allowed: boolean; reason: string | null } {
   if (t.retired) return { allowed: false, reason: "The procurement office no longer asks for this document." };
-  if (i.supplierStatus === "REJECTED") return { allowed: false, reason: "Your registration was not accepted, so documents cannot be sent here." };
+  if (i.supplierStatus === "REJECTED") return { allowed: false, reason: "Registration not accepted. Documents cannot be sent." };
   if (i.uploadClosed) return { allowed: false, reason: i.uploadClosed };
   if (i.request && !i.request.open && requested.length > 0 && i.supplierStatus !== "REGISTERED") return { allowed: false, reason: "The date to answer the office has passed." };
   const asked = requested.some((it) => it.canAnswer);
-  if (i.supplierStatus !== "REGISTERED" && !asked) return { allowed: false, reason: "Your registration is with the procurement office. You can send a document when the office asks for one." };
-  if (head && head.verification === "NOT_CHECKED" && !requested.some((it) => it.canAnswer && it.documentId === head.id)) return { allowed: false, reason: "A document you sent is waiting for the office to check it. You can send another when it has been checked." };
+  if (i.supplierStatus !== "REGISTERED" && !asked) return { allowed: false, reason: "Send documents when the procurement office asks." };
+  if (head && head.verification === "NOT_CHECKED" && !requested.some((it) => it.canAnswer && it.documentId === head.id)) return { allowed: false, reason: "Waiting for an officer to check it. Send another once checked." };
   return { allowed: true, reason: null };
 }
 

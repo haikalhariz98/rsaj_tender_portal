@@ -17,26 +17,26 @@ type Data = Record<string, string | number | null>;
 const s = (d: Data | undefined, k: string): string => (d && d[k] != null ? String(d[k]) : "");
 
 const OWN: Readonly<Partial<Record<CompanyFault, (d: Data) => Words>>> = {
-  SUPPLIER_CLOSED: () => w("Your registration was not accepted, so documents cannot be sent here."),
-  NOT_ON_REGISTER: () => w("Your registration is with the procurement office. You can send a document here when the office asks for one."),
+  SUPPLIER_CLOSED: () => w("Registration not accepted. Documents cannot be sent."),
+  NOT_ON_REGISTER: () => w("Send documents when the procurement office asks."),
   TYPE_RETIRED: (d) => w(`The procurement office no longer asks for the ${s(d, "type")}.`),
   ALREADY_LODGED: (d) => w(`You already have a ${s(d, "type")}. Renew that one instead.`),
   RENEWS_NOTHING: () => w("That document is not on your record."),
-  RENEWS_SUPERSEDED: (d) => w(`The ${s(d, "type")} has been renewed since you opened this page. Reload the page to see the latest.`),
-  RENEWS_WAITING: (d) => w(`The ${s(d, "type")} you sent is waiting for the office to check it. You can send a new copy when it has been checked.`),
+  RENEWS_SUPERSEDED: (d) => w(`The ${s(d, "type")} has been renewed since you opened this page. Reload.`),
+  RENEWS_WAITING: (d) => w(`The ${s(d, "type")} is waiting for an officer to check it. Send a new copy once checked.`),
   RENEWAL_NOT_LATER: (d) => w(`The new ${s(d, "type")} must expire after the one it replaces, which expires on ${s(d, "expiresOn") ? formatDate(s(d, "expiresOn")) : "a later date"}.`),
   REQUEST_NOT_OPEN: () => w("The procurement office has no open request for more documents."),
-  REQUEST_LAPSED: () => w("The date to answer the procurement office has passed, so the request is closed."),
-  ITEM_NOT_FOUND: () => w("That is not one of the things the procurement office asked for."),
-  ITEM_WAITING: () => w("You have already sent this, and the office has not checked it yet. You can send it again if the office finds it not in order."),
+  REQUEST_LAPSED: () => w("The answer date has passed. The request is closed."),
+  ITEM_NOT_FOUND: () => w("The procurement office did not ask for that."),
+  ITEM_WAITING: () => w("Already sent, not yet checked. Send again only if not in order."),
   EXPIRY_NOT_TAKEN: (d) => w(`The ${s(d, "type")} does not expire, so no expiry date is asked for. Clear it.`),
   REFERENCE_REQUIRED: (d) => w(`Give the reference number of the ${s(d, "type")}.`),
   AUTHORITY_REQUIRED: (d) => w(`Say who issued the ${s(d, "type")}.`),
-  CHANGE_WAITING: () => w("A change to your bank details is waiting for the procurement office to check it. You can send another when it has been checked."),
+  CHANGE_WAITING: () => w("A bank change is waiting for an officer. Send another once checked."),
   // Ruling on 1875(3): the supplier's standing bars the act, in its own words (src/lib/portal/standing-gate.ts).
   SUPPLIER_STANDING_BARS: (d) => w(s(d, "en")),
-  NOT_REGISTERED_FOR_CHANGE: () => w("Your bank details are sent with your registration. You can change them here once you are on the supplier register."),
-  PASSWORD_REQUIRED: () => w("Enter your password to send the change. It is signed with it."),
+  NOT_REGISTERED_FOR_CHANGE: () => w("Bank details go with registration. Change them once registered."),
+  PASSWORD_REQUIRED: () => w("Enter your password to sign the change."),
   UPLOADS_CLOSED: () => w("Uploads are closed. Tell the procurement office."),
 };
 

@@ -84,10 +84,10 @@ export function bankReading(s: BankState): BankReading {
 }
 
 export const BANK_READING_WORDS: Readonly<Record<BankReading, { title: string; detail: string; tone: "ok" | "warn" | "info" | "neutral" }>> = {
-  NONE_SENT: { title: "No bank details on record", detail: "The procurement office has no bank details of yours, so payments cannot be made to you yet.", tone: "warn" },
-  IN_FORCE: { title: "Payments go to these details", detail: "An officer has checked them against your bank statement.", tone: "ok" },
-  IN_FORCE_CHANGE_WAITING: { title: "A change is waiting for the office", detail: "Payments still go to the details an officer checked before. The new details count only once an officer has checked them.", tone: "info" },
-  WAITING_FIRST: { title: "Waiting for the office to check them", detail: "An officer has not checked your bank details yet, so payments cannot be made to you until they have.", tone: "info" },
-  NOT_IN_ORDER_STILL_IN_FORCE: { title: "Your last change was not accepted", detail: "Payments still go to the details an officer checked before. The reason the office gave is below; send the details again with it put right.", tone: "warn" },
-  NOT_IN_ORDER: { title: "Your bank details were not accepted", detail: "Payments cannot be made to you until the details are put right and an officer has checked them. The reason the office gave is below.", tone: "warn" },
+  NONE_SENT: { title: "No bank details on record", detail: "Payments to you cannot be made yet.", tone: "warn" },
+  IN_FORCE: { title: "Payments go to these details", detail: "Checked by an officer.", tone: "ok" },
+  IN_FORCE_CHANGE_WAITING: { title: "A change is waiting for the office", detail: "Payments still go to the checked details.", tone: "info" },
+  WAITING_FIRST: { title: "Waiting for the office to check them", detail: "No payments until an officer checks them.", tone: "info" },
+  NOT_IN_ORDER_STILL_IN_FORCE: { title: "Your last change was not accepted", detail: "Payments still go to the checked details. Send them again, corrected.", tone: "warn" },
+  NOT_IN_ORDER: { title: "Your bank details were not accepted", detail: "No payments until corrected and checked. The reason is below.", tone: "warn" },
 };

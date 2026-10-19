@@ -68,7 +68,7 @@ export function requestWords(reading: RequestReading | undefined, resubmitBy: st
     return {
       title: w("You have answered the office"),
       detail: w(
-        "You sent a document for everything the office asked for. The office is checking them and decides what happens next. You do not need to do anything more unless it asks again.",
+        "The office is checking. Nothing more to send unless it asks.",
       ),
       tone: "info",
     };
@@ -78,7 +78,7 @@ export function requestWords(reading: RequestReading | undefined, resubmitBy: st
     return {
       title: w("The date to answer the office has passed"),
       detail: w(
-        `The date the office gave${resubmitBy ? ` (${day(resubmitBy)})` : ""} has passed and ${n} of the things it asked for ${n === 1 ? "was" : "were"} not sent. The application is rejected once the office records it. Contact the procurement office if you think this is wrong.`,
+        `${n} not sent${resubmitBy ? ` by ${day(resubmitBy)}` : ""}. Contact the procurement office if this is wrong.`,
       ),
       tone: "warn",
     };
@@ -87,7 +87,7 @@ export function requestWords(reading: RequestReading | undefined, resubmitBy: st
   return {
     title: w("The office has asked for more"),
     detail: w(
-      `${resubmitBy ? `Give the office what it asks for below by ${day(resubmitBy)}. After that day the application is rejected.` : "Give the office what it asks for below."}${count > 0 ? ` ${count} ${count === 1 ? "thing is" : "things are"} waiting for you.` : ""}`,
+      `${resubmitBy ? `Answer by ${day(resubmitBy)} or the application is rejected.` : "Answer what it asks below."}${count > 0 ? ` ${count} waiting.` : ""}`,
     ),
     tone: "warn",
   };
@@ -97,13 +97,13 @@ export function requestWords(reading: RequestReading | undefined, resubmitBy: st
 export function applicationStatusWords(a: Pick<StatusApplication, "status" | "resubmitBy" | "reading">, day: (d: string) => string): { title: Words; detail: Words; tone: StatusTone } {
   switch (a.status) {
     case "RECEIVED":
-      return { title: w("With the procurement office"), detail: w("It has been received and is waiting for the office to decide it. Nothing more is needed from you unless the office asks."), tone: "info" };
+      return { title: w("With the procurement office"), detail: w("Waiting for the office to decide."), tone: "info" };
     case "RESUBMISSION_REQUESTED":
       return requestWords(a.reading, a.resubmitBy, day);
     case "APPROVED":
       return { title: w("Approved"), detail: w("The office approved this application."), tone: "ok" };
     case "REJECTED":
-      return { title: w("Not accepted"), detail: w("The office did not accept this application. The reasons it gave are below."), tone: "neutral" };
+      return { title: w("Not accepted"), detail: w("The reasons are below."), tone: "neutral" };
   }
 }
 
@@ -125,9 +125,9 @@ export function supplierStatusWords(s: StatusSupplier, latest: (Pick<StatusAppli
   if (s.status === "REGISTERED") {
     return { title: w("Registered"), detail: s.registeredOn ? w(`On the supplier register since ${day(s.registeredOn)}.`) : w("On the supplier register."), tone: "ok" };
   }
-  if (s.status === "REJECTED") return { title: w("Application not accepted"), detail: w("Your company is not on the register. You can apply again."), tone: "neutral" };
-  if (latest?.status === "RESUBMISSION_REQUESTED" && latest.reading?.kind === "ANSWERED") return { title: w("With the procurement office"), detail: w("You have answered what the office asked for, and it is checking it."), tone: "info" };
+  if (s.status === "REJECTED") return { title: w("Application not accepted"), detail: w("You can apply again."), tone: "neutral" };
+  if (latest?.status === "RESUBMISSION_REQUESTED" && latest.reading?.kind === "ANSWERED") return { title: w("With the procurement office"), detail: w("The office is checking your answer."), tone: "info" };
   if (latest?.status === "RESUBMISSION_REQUESTED" && latest.reading?.kind === "DATE_PASSED") return { title: w("The date to answer has passed"), detail: requestWords(latest.reading, latest.resubmitBy ?? null, day).detail, tone: "warn" };
-  if (latest?.status === "RESUBMISSION_REQUESTED") return { title: w("Waiting for you"), detail: w("The office has asked for more before it can decide."), tone: "warn" };
+  if (latest?.status === "RESUBMISSION_REQUESTED") return { title: w("Waiting for you"), detail: w("The office needs more to decide."), tone: "warn" };
   return { title: w("Application in progress"), detail: w("Your company is not on the register yet."), tone: "info" };
 }
