@@ -1,6 +1,9 @@
 # Backlog N4: source-scan tests portable to Windows
 
 **Backlog row:** "Source-scan tests portable to Windows" (`docs/notes/backlog.md`, the row after "Code-review Considers").
+**Dev server:** no restart needed. N4 touches only tests, `src/lib/scan/files.ts` (imported by tests alone) and `scripts/`.
+No Next code, configuration or migration changes.
+
 **Scope:** one shared helper that turns every walker's paths into `/` paths, used by every scan test that builds paths with
 `path.join`. No assertion, allow-list or pinned-list changes. Nobody outside the programme is needed.
 
@@ -96,15 +99,20 @@ scope forbids.
 - For each test file, in `afterAll`, it writes `{ test, dirs: string[], files: string[] }` (sorted) to
   `coverage/scan-sets/<SCAN_SET_LABEL>/<test path with / as __>.json`. `/coverage` is already gitignored.
 - Paths are recorded with `/`, relative to `process.cwd()`. Only paths under the repo are kept, minus `node_modules/`,
-  `.next/` and `coverage/`. The Linux container has its own `node_modules`.
+  `.next/`, `coverage/`, `.claude/` and `.codex/`. The Linux container has its own `node_modules`. The two agent directories
+  are not product code, and `.claude/worktrees/` holds whole repo copies that come and go with other agents. A walker
+  starting at the repo root, such as `walkAll` at `auth-reach.test.ts:256`, would otherwise pick them up.
 - It records what tests **list and read**, not a walker's return value. A path a walker filters out before reading never
   appears. That is accepted, because every walker exists to read what it returns.
 
 **`vitest.config.mts`** is `mergeConfig` of `../../vitest.config.mts` with `test.setupFiles: ["scripts/scan-sets/record-setup.mts"]`.
 It must live in the repo: a config outside it cannot resolve `vitest/config`.
 
-**`compare.mjs <dirA> <dirB> [--ignore <path-prefix>]...`** compares each test file's `dirs` and `files` across the two runs.
+**`compare.mjs <dirA> <dirB> [--subset] [--ignore <path-prefix>]...`** compares each test file's `dirs` and `files` across the
+two runs.
 - It prints test files present on only one side, plus each added and removed path.
+- `--subset` compares only the test files present in `<dirB>`, and treats files missing from `<dirB>` as not run. Steps 2 and
+  3 use it for their partial runs. **Step 4's two full comparisons must not use it.**
 - It exits 1 on any difference.
 - Every `--ignore` used must appear in the log line with its reason. It is only for paths changed by non-N4 commits between
   the two runs.
@@ -156,7 +164,7 @@ This is about 50 files. Apply R1 to R7 to every test file in these paths that ca
 programme's, leave them, say so in the commit message, and carry them to step 4.
 
 **Tests:** run the recorder on Windows over the touched paths with label `windows-step2`, then run
-`compare.mjs coverage/scan-sets/linux-before coverage/scan-sets/windows-step2`. Entries absent from the partial run do not count.
+`compare.mjs coverage/scan-sets/linux-before coverage/scan-sets/windows-step2 --subset`.
 
 **Done when:**
 - For every touched test file, the Windows sets equal `linux-before`.
@@ -192,7 +200,8 @@ product-owner question and leave them. They pass on Windows today.
 
 **(c) Full proof.**
 - Record `linux-after` and `windows-after`, both full runs on the final tree.
-- Run `compare.mjs linux-before linux-after` and `compare.mjs linux-before windows-after`. Both must exit 0. Any `--ignore`
+- Run `compare.mjs linux-before linux-after` and `compare.mjs linux-before windows-after`, both without `--subset`. Both
+  must exit 0. Any `--ignore`
   must be justified by a non-N4 commit in `git log <step1>..HEAD`.
 
 **Done when:**
