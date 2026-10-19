@@ -29,11 +29,11 @@ export const SUBMISSION_KIND_WORDS: Readonly<Record<SubmissionKind, Words>> = {
 
 /// What sending each kind means, said on the form.
 export const SUBMISSION_KIND_HINT: Readonly<Record<SubmissionKind, Words>> = {
-  WORK_PROGRAMME: w("The programme of works, or a revision of it. The S.O.'s representative scrutinises it and the Principal Representative approves or returns it; the points are keyed by the office from what you send."),
-  INTERIM_CLAIM: w("A claim for an interim payment: the amount claimed and the day it is made up to. The office values the work and raises the certificate from its valuation."),
-  MATERIALS_ON_SITE: w("The unfixed materials on site you ask to be valued: each item, its quantity, where it is and its value. The office answers the three questions on each item at the valuation."),
-  DELAY_NOTICE: w("Written notice of a cause of delay, as the contract requires, with the day it arose. The office records the notice; an extension of time is claimed separately."),
-  DEFECTS_RECTIFIED: w("A report that the defects listed have been made good, for the office to inspect."),
+  WORK_PROGRAMME: w("The programme of works, or a revision of it."),
+  INTERIM_CLAIM: w("The amount claimed and the day it is made up to."),
+  MATERIALS_ON_SITE: w("Each unfixed item: quantity, place and value."),
+  DELAY_NOTICE: w("The cause of delay and the day it arose."),
+  DEFECTS_RECTIFIED: w("The listed defects have been made good."),
   STATUTORY_DECLARATION: w("Tell the office that the statutory declaration the contract requires before the final account has been lodged. This notice is signed with your password. It is not the declaration: that is made on paper before a Commissioner for Oaths and recorded by an officer, and only that lifts the block on final payment."),
 };
 
@@ -66,4 +66,4 @@ export function serviceWords(s: ServiceState, lang: Language = "en"): { text: st
 }
 
 /// Said on every screen that shows a routed submission or a notice of one: the delivery is a fact of the product.
-export const ROUTING_STATEMENT = "Routed inside the portal to the contract's Superintending Officer; not sent by email (INT-09).";
+export const ROUTING_STATEMENT = "Routed to the Superintending Officer in the portal. Not emailed.";

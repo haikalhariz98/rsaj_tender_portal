@@ -15,8 +15,8 @@ const n = (d: Data, k: string) => String(d[k] ?? "");
 
 const OWN: Readonly<Record<ProjectFault, (d: Data) => Words>> = {
   NOT_FOUND: () => w("That contract is not one you can open."),
-  CONTRACT_NOT_ACTIVE: () => w("This contract is not being administered at the moment, so nothing can be sent on it."),
-  DAY_NOT_KNOWN: () => w("The organisation's time zone is not set, so the day cannot be recorded. Tell the procurement office."),
+  CONTRACT_NOT_ACTIVE: () => w("Contract not being administered. Nothing can be sent."),
+  DAY_NOT_KNOWN: () => w("Time zone not set, so the day cannot be recorded. Tell the procurement office."),
   TITLE_REQUIRED: () => w("Give the submission a title."),
   TITLE_TOO_LONG: (d) => w(`The title is longer than ${n(d, "max")} characters.`),
   BODY_REQUIRED: () => w("Write what you are submitting."),
@@ -34,24 +34,24 @@ const OWN: Readonly<Record<ProjectFault, (d: Data) => Words>> = {
   LINE_VALUE_FORMAT: (d) => w(`Item ${n(d, "line")}'s value must be a figure in ringgit and sen.`),
   TOO_MANY_LINES: (d) => w(`A list holds at most ${n(d, "max")} items. Send the rest as another list.`),
   PASSWORD_REQUIRED: () => w("Enter your password to sign the notice."),
-  TOO_MANY_SUBMISSIONS: (d) => w(`This account has sent ${n(d, "max")} submissions in the last ${n(d, "minutes")} minutes, the most it may send in that time. Wait a while and send again, or call the office if something is urgent.`),
+  TOO_MANY_SUBMISSIONS: (d) => w(`Limit: ${n(d, "max")} submissions in the last ${n(d, "minutes")} minutes. Wait, or call the office if urgent.`),
   PORTAL_SIGNING_NOT_SET: () =>
     w(
-      "The procurement office has not yet decided whether a contractor may sign from the supplier portal, so this cannot be signed here. Sign it on paper and the office records it, or ask the office to decide (Configuration, Post-award controls).",
+      "The office has not yet decided whether a contractor may sign here. Sign on paper, or ask the office to decide.",
     ),
   PORTAL_SIGNING_OFF: () =>
     w(
-      "The procurement office takes a contractor's signature on paper only, so this cannot be signed here. Sign it on paper and the office records it.",
+      "The office takes a contractor's signature on paper only. Sign it on paper.",
     ),
   // Ruling on 1875(3): the supplier's standing bars the act, in its own words (src/lib/portal/standing-gate.ts).
   SUPPLIER_STANDING_BARS: (d) => w(n(d, "en")),
   SIGNER_NOT_AUTHORISED_NOT_SET: () =>
     w(
-      "The procurement office has not recorded that you may sign for your company, so this cannot be signed here. Ask the office to record who may sign for the company, or sign it on paper and the office records it.",
+      "The office has not recorded that you may sign for your company. Ask it to, or sign on paper.",
     ),
   SIGNER_NOT_AUTHORISED: () =>
     w(
-      "The procurement office has recorded that you do not sign for your company, so this cannot be signed here. The person who signs for the company can sign it, or it can be signed on paper and the office records it.",
+      "The office has recorded that you do not sign for your company. Another signatory can sign, or sign on paper.",
     ),
   ALREADY_ANSWERED: () => w("This submission has already been answered."),
   NOTE_REQUIRED: () => w("Say why it is returned, for the contractor to read."),
@@ -69,9 +69,9 @@ const OWN: Readonly<Record<ProjectFault, (d: Data) => Words>> = {
   BLOCK_SIGNED: () => w("The contractor's block on this certificate is already recorded."),
   BLOCK_IS_LAST: () =>
     w(
-      "Your block is the last on this form, and recording it issues the certificate. For now a certificate is not issued from the supplier portal: sign or dispute it on paper, and the office records it.",
+      "Your block is the last, and recording it issues the certificate. Sign or dispute it on paper.",
     ),
-  REFUSAL_NOT_ALLOWED: () => w("This form does not provide for the contractor to refuse to sign. Raise your dispute with the Superintending Officer in writing."),
+  REFUSAL_NOT_ALLOWED: () => w("The form has no refusal to sign. Dispute in writing with the Superintending Officer."),
   REFUSAL_NOTE_REQUIRED: () => w("Say what you dispute."),
   REFUSAL_NOTE_TOO_LONG: (d) => w(`The dispute is longer than ${n(d, "max")} characters.`),
 };

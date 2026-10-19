@@ -110,7 +110,7 @@ export function SubmitControl({ contractId, token, kinds, why, label = "Send a s
         <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && setOpen(false)}>
           <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("lg")}>
             <span id={heading} className="sr-only">Send a submission to the office</span>
-            <DrawerHeader icon={<InboxIcon size={17} />} title="Send a submission" subtitle="It goes to the contract's Superintending Officer inside the portal, against the office's service level." onClose={() => !busy && setOpen(false)} />
+            <DrawerHeader icon={<InboxIcon size={17} />} title="Send a submission" subtitle="Goes to the Superintending Officer in the portal." onClose={() => !busy && setOpen(false)} />
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {error && (
                 <Callout tone="err" className="mb-3">
@@ -175,14 +175,12 @@ export function SubmitControl({ contractId, token, kinds, why, label = "Send a s
                   </fieldset>
                 )}
                 {shape.signed && (
-                  <Field label="Your password" htmlFor={`${f}-pw`} required hint="The notice is signed with it. A wrong password counts towards locking your account.">
+                  <Field label="Your password" htmlFor={`${f}-pw`} required hint="Signs the notice. Wrong tries count towards locking.">
                     <Input id={`${f}-pw`} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
                   </Field>
                 )}
               </div>
-              <Callout tone="info" title="What happens next" className="mt-4">
-                The office answers it: taken up (recorded on the contract through its own act) or returned to you with the reason. You read the answer here, under Submissions.
-              </Callout>
+              <p className="mt-4 text-[13px] text-ink-2">The answer shows under Submissions.</p>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
               <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
@@ -240,7 +238,7 @@ export function AttestControl({ contractId, entryId, token, dayText, why }: { co
               <h2 id={heading} className="text-[16px] font-bold text-ink">Attest the diary for {dayText}?</h2>
               <p className="mt-2 text-[14px] text-ink-2">You are signing, as the contractor&apos;s agent, that the entry is accurate. It is dated today and cannot be taken back. If you do not agree with it, record a disagreement instead.</p>
               {error && <Callout tone="err" className="mt-3">{error}</Callout>}
-              <Field label="Your password" htmlFor={field} required className="mt-3" hint="The attestation is signed with it.">
+              <Field label="Your password" htmlFor={field} required className="mt-3" hint="Signs the attestation.">
                 <Input id={field} type="password" autoComplete="current-password" value={password} autoFocus onChange={(e) => setPassword(e.target.value)} />
               </Field>
             </div>
@@ -286,7 +284,7 @@ export function DisputeDiaryControl({ contractId, entryId, token, dayText }: { c
         <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && setOpen(false)}>
           <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
             <span id={heading} className="sr-only">Record a disagreement on the diary for {dayText}</span>
-            <DrawerHeader icon={<FileIcon size={17} />} title="Record a disagreement" subtitle={`The diary for ${dayText}: what you and the responsible officer do not agree on. The entry goes to the Superintending Officer.`} onClose={() => !busy && setOpen(false)} />
+            <DrawerHeader icon={<FileIcon size={17} />} title="Record a disagreement" subtitle={`The diary for ${dayText}.`} onClose={() => !busy && setOpen(false)} />
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {error && <Callout tone="err" className="mb-3">{error}</Callout>}
               <Field label="What you disagree with" htmlFor={field} required>
@@ -321,7 +319,7 @@ export function SignCertificateControl({ contractId, certificateId, token, label
     return (
       <span className="flex flex-col items-end gap-1">
         <Button variant="secondary" size="sm" disabled>Dispute</Button>
-        <Why>This form does not provide for the contractor to refuse to sign. Raise a dispute with the Superintending Officer in writing.</Why>
+        <Why>The form has no refusal to sign. Dispute in writing with the Superintending Officer.</Why>
       </span>
     );
   }
@@ -360,7 +358,7 @@ export function SignCertificateControl({ contractId, certificateId, token, label
                   <Textarea id={`${f}-note`} value={note} maxLength={2000} rows={4} autoFocus onChange={(e) => setNote(e.target.value)} />
                 </Field>
               )}
-              <Field label="Your password" htmlFor={`${f}-pw`} required className="mt-3" hint="The record is signed with it.">
+              <Field label="Your password" htmlFor={`${f}-pw`} required className="mt-3" hint="Signs the record.">
                 <Input id={`${f}-pw`} type="password" autoComplete="current-password" value={password} autoFocus={mode === "sign"} onChange={(e) => setPassword(e.target.value)} />
               </Field>
             </div>

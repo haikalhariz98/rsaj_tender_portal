@@ -34,7 +34,7 @@ export default async function SupplierProjectsPage() {
       cells: {
         contract: { kind: "stack", title: r.title, sub: `Contract ${r.number} · ${r.reference}`, monoSub: true },
         status: { kind: "badge", text: status, tone: r.status === "ACTIVE" ? "ok" : r.status === "CANCELLED" || r.status === "TERMINATED" ? "err" : undefined },
-        waiting: chips.length ? { kind: "chips", items: chips } : { kind: "text", text: "Nothing waits for you", dim: true },
+        waiting: chips.length ? { kind: "chips", items: chips } : { kind: "text", text: "Nothing waiting", dim: true },
       },
       sortKeys: { contract: r.title.toLowerCase() },
       search: `${r.title} ${r.number} ${r.reference} ${status}`,
@@ -43,22 +43,18 @@ export default async function SupplierProjectsPage() {
   });
   return (
     <>
-      <PageHeader title="My Projects" subtitle={`${actor.supplierName}. The contracts your company holds, and what each asks of you.`} meta={[actor.displayName]} />
-      <Callout tone="info" className="mb-5">
-        Your acts here are signed with your password and go to the contract&apos;s Superintending Officer inside the portal. Nothing is sent by email.
-      </Callout>
+      <PageHeader title="My Projects" subtitle={actor.supplierName} meta={[actor.displayName]} />
       <Card className="overflow-hidden">
-        <CardHeader icon={<ToolsIcon size={17} />} title="Contracts you hold" subtitle="Each is yours because its award names your company on the supplier register." divided={false} />
+        <CardHeader icon={<ToolsIcon size={17} />} title="Contracts you hold" divided={false} />
         <DataList
           flat
           selectable={false}
           exportName="my-projects"
           searchPlaceholder="Search by title, number or reference"
-          emptyTitle="No contract names your company yet"
-          emptyBody="When an award to your company is issued and the office links it to your register entry, its contract appears here."
+          emptyTitle="No contract yet"
           views={[
             { id: "active", label: "Active" },
-            { id: "attention", label: "Waiting for you", emptyTitle: "Nothing waits for you", emptyBody: "A diary entry to attest, a certificate to sign or a returned submission appears here." },
+            { id: "attention", label: "Waiting for you", emptyTitle: "Nothing waits for you" },
             { id: "other", label: "Other" },
           ]}
           rowAction={{ label: "Open", hrefTemplate: "/supplier/projects/{id}" }}

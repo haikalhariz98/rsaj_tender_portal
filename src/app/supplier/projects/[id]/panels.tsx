@@ -29,14 +29,14 @@ const NOTICE_KINDS: SubmissionKind[] = ["DELAY_NOTICE", "DEFECTS_RECTIFIED", "ST
 export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
   const o = await overviewTab(db, actor, ctx);
   const todo = [
-    ...(o.counts.toAttest ? [`${o.counts.toAttest} diary ${o.counts.toAttest === 1 ? "entry waits" : "entries wait"} for your agent's attestation (Site diary).`] : []),
-    ...(o.counts.toSign ? [`${o.counts.toSign} ${o.counts.toSign === 1 ? "certificate waits" : "certificates wait"} for your signature (Certificates).`] : []),
-    ...(o.counts.returned ? [`${o.counts.returned} ${o.counts.returned === 1 ? "submission was" : "submissions were"} returned to you with a note (Submissions).`] : []),
-    ...(o.counts.waiting ? [`${o.counts.waiting} ${o.counts.waiting === 1 ? "submission is" : "submissions are"} with the office, waiting for an answer.`] : []),
+    ...(o.counts.toAttest ? [`${o.counts.toAttest} diary ${o.counts.toAttest === 1 ? "entry" : "entries"} to attest.`] : []),
+    ...(o.counts.toSign ? [`${o.counts.toSign} ${o.counts.toSign === 1 ? "certificate" : "certificates"} to sign.`] : []),
+    ...(o.counts.returned ? [`${o.counts.returned} ${o.counts.returned === 1 ? "submission" : "submissions"} returned to you.`] : []),
+    ...(o.counts.waiting ? [`${o.counts.waiting} ${o.counts.waiting === 1 ? "submission" : "submissions"} with the office.`] : []),
   ];
   return (
     <div className="flex flex-col gap-6">
-      {o.closed && <Callout tone="warn" title="Nothing can be sent on this contract at the moment">{o.closed}</Callout>}
+      {o.closed && <Callout tone="warn" title="Sending closed">{o.closed}</Callout>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Diary entries to attest" value={o.counts.toAttest} tone={o.counts.toAttest ? "warn" : "brand"} />
         <Stat label="Certificates to sign" value={o.counts.toSign} tone={o.counts.toSign ? "warn" : "brand"} />
@@ -45,10 +45,10 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
       </div>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card>
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Waiting for you" subtitle="What the contract asks of your company now." />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Waiting for you" />
           <CardBody>
             {todo.length === 0 ? (
-              <p className="text-[14px] text-ink-2">Nothing waits for you on this contract.</p>
+              <p className="text-[14px] text-ink-2">Nothing waits for you.</p>
             ) : (
               <ul className="flex flex-col gap-2.5">
                 {todo.map((t) => (
@@ -71,7 +71,7 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
                 { label: "Contract sum", value: o.facts.contractSum },
                 { label: "Possession of the site", value: o.facts.possessionOn ?? "Not yet recorded" },
                 { label: "Date for completion", value: o.facts.dateForCompletion ?? "Not set on the baseline" },
-                { label: "Superintending Officer", value: o.facts.soOffice ?? "Not yet assigned: your submissions reach nobody until one is" },
+                { label: "Superintending Officer", value: o.facts.soOffice ?? "Not assigned. Submissions reach nobody." },
               ]}
             />
           </CardBody>
@@ -91,7 +91,6 @@ export async function ProgrammePanel({ actor, ctx, token }: Props) {
         <CardHeader
           icon={<CalendarIcon size={17} />}
           title="Programme in force"
-          subtitle="The latest revision the Principal S.O. Representative approved. Progress is measured against it."
           actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={["WORK_PROGRAMME"]} why={closed} label="Send a programme" />}
         />
         <CardBody>
@@ -116,15 +115,15 @@ export async function ProgrammePanel({ actor, ctx, token }: Props) {
               ]}
             />
           ) : (
-            <EmptyState title="No programme is in force" size="sm">Send your programme of works; the office keys its points and approves it.</EmptyState>
+            <EmptyState title="No programme in force" size="sm" />
           )}
-          {p.policyPct == null && p.inForce && <p className="mt-3 text-[12.5px] text-ink-3">In Delay against the plan is not judged: the office has not set the percentage. A lapsed completion date still is.</p>}
+          {p.policyPct == null && p.inForce && <p className="mt-3 text-[12.5px] text-ink-3">Delay not judged: percentage not set.</p>}
         </CardBody>
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader title="Revisions" subtitle="Every programme sent, newest first, with the office's decision." divided={p.revisions.length > 0} />
+        <CardHeader title="Revisions" divided={p.revisions.length > 0} />
         {p.revisions.length === 0 ? (
-          <EmptyState title="No revision recorded" size="sm">The office records each programme you send as a revision.</EmptyState>
+          <EmptyState title="No revision recorded" size="sm" />
         ) : (
           <ul className="divide-y divide-line/70">
             {p.revisions.map((r) => (
@@ -148,14 +147,14 @@ export async function DiaryPanel({ actor, ctx, token, page }: Props & { page?: s
   const pages = Math.ceil(d.total / DIARY_PAGE);
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<FileIcon size={17} />} title="Site diary" subtitle={`One entry a day by the responsible officer, attested by your agent at the end of the day. Newest first.${d.possessionOn ? ` The diary runs from ${d.possessionOn}.` : ""}`} divided={d.rows.length > 0} />
+      <CardHeader icon={<FileIcon size={17} />} title="Site diary" subtitle={d.possessionOn ? `From ${d.possessionOn}` : undefined} divided={d.rows.length > 0} />
       {d.closed && (
         <CardBody>
-          <Callout tone="warn" title="The diary cannot be attested at the moment">{d.closed}</Callout>
+          <Callout tone="warn" title="Attesting closed">{d.closed}</Callout>
         </CardBody>
       )}
       {d.rows.length === 0 ? (
-        <EmptyState title="No entries" size="sm">The diary starts on the day of possession. The responsible officer writes each day&apos;s entry.</EmptyState>
+        <EmptyState title="No entries" size="sm" />
       ) : (
         <ul className="divide-y divide-line/70">
           {d.rows.map((e) => (
@@ -203,13 +202,13 @@ export async function PaymentsPanel({ actor, ctx, token }: Props) {
       </div>
       {p.summary.paidUnfigured > 0n && (
         <Callout tone="warn" title={`${p.summary.paidUnfiguredText} paid on certificates without a figure on record`}>
-          Finance recorded a payment on a certificate whose certified figure is not on record, so that payment is shown here on its own and is not set against the sum certified. Ask the office for the certificate&apos;s figure.
+          Not set against the certified sum. Ask the office for the certificate&apos;s figure.
         </Callout>
       )}
       <Card className="overflow-hidden">
-        <CardHeader icon={<WalletIcon size={17} />} title="Payment certificates" subtitle="Each interim or advance payment certificate issued on this contract, the payment it recommended and what Finance paid on it." divided={p.rows.length > 0} />
+        <CardHeader icon={<WalletIcon size={17} />} title="Payment certificates" divided={p.rows.length > 0} />
         {p.rows.length === 0 ? (
-          <EmptyState title="No payment certificate has been issued" size="sm">An interim certificate is raised by the office from its valuation of your claim.</EmptyState>
+          <EmptyState title="No payment certificate issued" size="sm" />
         ) : (
           <ul className="divide-y divide-line/70">
             {p.rows.map((r) => (
@@ -228,9 +227,9 @@ export async function PaymentsPanel({ actor, ctx, token }: Props) {
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<InboxIcon size={17} />} title="Your claims and materials lists" subtitle="Sent to the office for its valuation. The answer is under Submissions." actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={CLAIM_KINDS} why={closed} label="Send a claim or list" />} divided={p.claims.length > 0} />
+        <CardHeader icon={<InboxIcon size={17} />} title="Your claims and materials lists" actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={CLAIM_KINDS} why={closed} label="Send a claim or list" />} divided={p.claims.length > 0} />
         {p.claims.length === 0 ? (
-          <EmptyState title="No claim sent yet" size="sm">Send an interim claim with the amount and the day it is made up to, or a list of the unfixed materials on site.</EmptyState>
+          <EmptyState title="No claim sent" size="sm" />
         ) : (
           <ul className="divide-y divide-line/70">
             {p.claims.map((c) => (
@@ -256,9 +255,9 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
   return (
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden">
-        <CardHeader icon={<CheckIcon size={17} />} title="Waiting for your signature" subtitle="Variation Order Certificates and Certificates of Adjustment of Contract Sum whose contractor's block is next in order. Sign, or dispute with your reason where the form allows it." divided={ready.length > 0} />
+        <CardHeader icon={<CheckIcon size={17} />} title="Waiting for your signature" divided={ready.length > 0} />
         {ready.length === 0 ? (
-          <EmptyState title="Nothing waits for your signature" size="sm">A certificate appears here when the office has signed the blocks before yours.</EmptyState>
+          <EmptyState title="Nothing to sign" size="sm" />
         ) : (
           <ul className="divide-y divide-line/70">
             {ready.map((r) => (
@@ -283,11 +282,11 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Your certificates"
-          subtitle={`The certificates issued to you on this contract, and the variation and adjustment certificates while they are being signed, newest first, with where your block stands on each. A certificate the office is still preparing is not shown.${c.total > c.rows.length ? ` The newest ${c.rows.length} of ${c.total} are shown: ask the office for an older one.` : ""}`}
+          subtitle={c.total > c.rows.length ? `Newest ${c.rows.length} of ${c.total}. Ask the office for older ones.` : undefined}
           divided={c.rows.length > 0}
         />
         {c.rows.length === 0 ? (
-          <EmptyState title="No certificate yet" size="sm">Certificates are raised by the office as the contract runs.</EmptyState>
+          <EmptyState title="No certificate yet" size="sm" />
         ) : (
           <ul className="divide-y divide-line/70">
             {c.rows.map((r) => (
@@ -328,22 +327,22 @@ export async function SubmissionsPanel({ actor, ctx, token }: Props) {
         <CardHeader
           icon={<InboxIcon size={17} />}
           title="Submissions"
-          subtitle={`Everything your company has sent on this contract, newest first, and the office's answer. ${ROUTING_STATEMENT}${s.total > s.rows.length ? ` The newest ${s.rows.length} of ${s.total} are shown: ask the office for an older one.` : ""}`}
+          subtitle={`${ROUTING_STATEMENT}${s.total > s.rows.length ? ` Newest ${s.rows.length} of ${s.total}.` : ""}`}
           actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={NOTICE_KINDS} why={s.closed} label="Send a notice" />}
           divided={s.rows.length > 0}
         />
         {s.signing && (
           <CardBody pad="tight">
-            <p className="text-[12.5px] text-amber-800">{`The notice that the statutory declaration is lodged cannot be signed here. ${s.signing}`}</p>
+            <p className="text-[12.5px] text-amber-800">{`That notice cannot be signed here. ${s.signing}`}</p>
           </CardBody>
         )}
         {unset > 0 && (
           <CardBody pad="tight">
-            <p className="text-[12.5px] text-ink-3">{`${SERVICE_NOT_SET.en} for ${unset === 6 ? "any kind" : `${unset} kind${unset === 1 ? "" : "s"}`} of submission: those show no due day. The office sets the service levels.`}</p>
+            <p className="text-[12.5px] text-ink-3">{`${SERVICE_NOT_SET.en} for ${unset === 6 ? "any kind" : `${unset} kind${unset === 1 ? "" : "s"}`}: no due day shown.`}</p>
           </CardBody>
         )}
         {s.rows.length === 0 ? (
-          <EmptyState title="Nothing sent yet" size="sm">A programme, a claim, a materials list, a notice of delay, a defects report or the notice that the statutory declaration is lodged appears here once sent.</EmptyState>
+          <EmptyState title="Nothing sent yet" size="sm" />
         ) : (
           <ul className="divide-y divide-line/70">
             {s.rows.map((r) => {
@@ -353,7 +352,7 @@ export async function SubmissionsPanel({ actor, ctx, token }: Props) {
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                     <span className="min-w-0">
                       <span className="block text-[14.5px] font-semibold text-ink">{r.title}</span>
-                      <span className="block text-[12.5px] text-ink-3">{[SUBMISSION_KIND_WORDS[r.kind].en, `sent ${r.sentOn}`, r.signed ? "signed with your password" : null, r.amount, r.aboutDay ? `day ${r.aboutDay}` : null, r.routedTo ? `routed to ${r.routedTo}` : "routed to nobody: no Superintending Officer was assigned"].filter(Boolean).join(" · ")}</span>
+                      <span className="block text-[12.5px] text-ink-3">{[SUBMISSION_KIND_WORDS[r.kind].en, `sent ${r.sentOn}`, r.signed ? "signed with your password" : null, r.amount, r.aboutDay ? `day ${r.aboutDay}` : null, r.routedTo ? `routed to ${r.routedTo}` : "not routed: no Superintending Officer assigned"].filter(Boolean).join(" · ")}</span>
                     </span>
                     <span className="flex flex-wrap items-center gap-2">
                       {r.outcome ? <Badge tone={OUTCOME_TONE[r.outcome]}>{`${OUTCOME_WORDS[r.outcome].en}${r.decidedOn ? ` ${r.decidedOn}` : ""}`}</Badge> : <Badge tone="info">With the office</Badge>}
