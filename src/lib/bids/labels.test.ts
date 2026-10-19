@@ -38,7 +38,7 @@ describe("the receipt time on the register (6.6 review S-1)", () => {
   });
   it("the officer's stated time and reason read as the officer's statement", () => {
     expect(officerStatement("17 Nov 2026 · 14:10:00", "Handed in at the counter during an outage")).toBe(
-      "The officer's statement: received 17 Nov 2026 · 14:10:00. Why it was recorded after the event: Handed in at the counter during an outage.",
+      "Officer's statement: received 17 Nov 2026 · 14:10:00. Reason recorded late: Handed in at the counter during an outage.", // 0005, founder 2026-10-19
     );
   });
   it("a statement with a part missing says so rather than leaving a gap", () => {
@@ -50,7 +50,7 @@ describe("the checklist card's words (6.6 review S-5)", () => {
   it("names the parts the approved documents mark mandatory, and says which a bidder returns is not set", async () => {
     const { CHECKLIST_RETURN_NOT_SET, CHECKLIST_TITLE } = await import("./labels");
     expect(CHECKLIST_TITLE).toBe("Parts the approved documents mark mandatory");
-    expect(CHECKLIST_RETURN_NOT_SET).toBe("Which of these a bidder returns is not set; the check at opening waits for it.");
+    expect(CHECKLIST_RETURN_NOT_SET).toBe("Return not set. The opening check waits for it."); // 0005, founder 2026-10-19
     const { readFileSync } = await import("node:fs");
     const tab = readFileSync("src/app/sourcing/[id]/bids/workspace.tsx", "utf8");
     expect(tab).toMatch(/title=\{CHECKLIST_TITLE\}/);

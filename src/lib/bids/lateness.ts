@@ -21,6 +21,6 @@ export function isLate(receivedAt: Date, closing: Date): boolean {
 
 /// The reading the screen shows beside the late flag, with where it came from.
 export const LATENESS_READING = {
-  text: "Judged on the server's clock to the second: an envelope recorded in the closing second is in time; from the next second it is late. Fractions of a second are dropped.",
+  text: "Judged on the server's clock to the second. The closing second is in time; the next is late.",
   provenance: "ASSUMED" as const,
 };

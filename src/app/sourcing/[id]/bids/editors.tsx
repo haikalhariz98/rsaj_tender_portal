@@ -38,9 +38,9 @@ const PROVENANCE_OPTIONS: Option[] = [
 const receiptFields = (people: Option[], bids: Option[]): Field[] => [
   hidden("exerciseId"),
   { kind: "select", name: "kind", label: "Envelope", required: true, placeholder: "Choose", options: KIND_OPTIONS },
-  { kind: "select", name: "parentEnvelopeId", label: "Alternative to", placeholder: "Not named on the envelope", options: bids, hint: "Only where the envelope names the bid it goes with." },
-  { kind: "select", name: "channel", label: "How it came", required: true, placeholder: "Choose", options: CHANNEL_OPTIONS, hint: "An envelope in the tender box is registered at the opening, not here." },
-  { kind: "textarea", name: "markings", label: "Markings, as written on the envelope", required: true, hint: "The tender's title, number and closing as the envelope shows them. A bidder is not named here unless the envelope names one; bidders are named at the opening." },
+  { kind: "select", name: "parentEnvelopeId", label: "Alternative to", placeholder: "Not named on the envelope", options: bids, hint: "Only if the envelope names it." },
+  { kind: "select", name: "channel", label: "How it came", required: true, placeholder: "Choose", options: CHANNEL_OPTIONS, hint: "Tender box envelopes are registered at opening." },
+  { kind: "textarea", name: "markings", label: "Markings, as written on the envelope", required: true, hint: "Title, number and closing as shown. Bidders are named at opening." },
   actorField("BidEnvelope.receivedBy", { name: "receivedByPersonId", people }),
 ];
 
@@ -50,8 +50,8 @@ export function ReceiveNowDrawer({ exerciseId, allowed, people, bids, noteId }: 
   return (
     <RecordEditor
       title="Record a receipt now"
-      description="The portal's clock stamps the envelope, to the second, when you save. That stamp alone decides whether it is in time; a late envelope is recorded, counted apart and goes to the committee for admission, never refused."
-      fields={[...receiptFields(people, bids), { kind: "note", text: "Record it as it is handed over. An envelope recorded after the closing second is late." }]}
+      description="The portal stamps the time on save. That alone decides lateness. Late envelopes go to the committee."
+      fields={[...receiptFields(people, bids), { kind: "note", text: "Record it as handed over. After closing it is late." }]}
       values={{ exerciseId }}
       showWhen={{ parentEnvelopeId: { name: "kind", in: ["ALTERNATIVE"] } }}
       action={recordReceiptNow}
@@ -68,7 +68,8 @@ export function ReceiveLaterDrawer({ exerciseId, allowed, people, bids, noteId }
   return (
     <RecordEditor
       title="Record a receipt after the event"
-      description="For an envelope received earlier and not recorded then. The portal still stamps it now, and that stamp decides lateness: recorded after the closing, it is late. The time you state, and why it is recorded now, are kept beside it and shown to the committee as your statement, never judged."
+      description="The portal stamps it now, and that stamp decides lateness."
+      more="The time you state, and why it is recorded now, are kept beside the stamp and shown to the committee as your statement, never judged."
       columns={2}
       fields={[
         ...receiptFields(people, bids),
@@ -92,7 +93,8 @@ export function WithdrawalDrawer({ exerciseId, allowed, people, envelopes, noteI
   return (
     <RecordEditor
       title="Record a withdrawal letter"
-      description="A bidder's letter withdrawing its bid, received before the closing. The portal stamps it now. Name the envelope where it was received over the counter or by post; one in the tender box is matched at the opening and is not opened. Attach the letter to the withdrawal afterwards: it is held SULIT."
+      description="Received before closing. Attach the letter afterwards: it is held SULIT."
+      more="Name the envelope where it was received over the counter or by post. One in the tender box is matched at the opening and is not opened."
       fields={[
         hidden("exerciseId"),
         { kind: "select", name: "envelopeId", label: "Envelope withdrawn", placeholder: "In the tender box: matched at the opening", options: envelopes },
@@ -114,7 +116,7 @@ export function LockBoxDrawer({ exerciseId, allowed, people, noteId }: { exercis
   return (
     <RecordEditor
       title="Record the tender box locked"
-      description="The box, its lock and its key remain the control. The portal records that it was locked, by whom, stamped now; it does not enforce it."
+      description="Records who locked it, stamped now. The box and key remain the control."
       fields={[
         hidden("exerciseId"),
         actorField("BoxEvent.person", { name: "personId", people, label: "Locked by", paper: false }),
@@ -134,7 +136,8 @@ export function CorrectDrawer({ exerciseId, envelope }: { exerciseId: string; en
   return (
     <RecordEditor
       title={`Correct the record of envelope ${envelope.sequence}`}
-      description="A clerical correction of the markings or how it came, before the closing, with a reason. The receiving officer is the officer who recorded it. The received time, the sequence, the late flag and the kind are never corrected, and nothing changes after the closing."
+      description="Markings and channel only, before closing, with a reason."
+      more="The receiving officer is the officer who recorded it. The received time, sequence, late flag and kind are never corrected, and nothing changes after the closing."
       fields={[
         hidden("exerciseId"),
         hidden("envelopeId"),
@@ -156,7 +159,7 @@ export function ReturnedDrawer({ exerciseId, envelopeId, sequence }: { exerciseI
   return (
     <RecordEditor
       title={`Envelope ${sequence} handed back unopened`}
-      description="The day the withdrawn envelope was handed back, unopened. Until then it is held unopened."
+      description="Day handed back unopened."
       fields={[hidden("exerciseId"), hidden("envelopeId"), { kind: "date", name: "returnedOn", label: "Handed back on", required: true }, { kind: "textarea", name: "returnNote", label: "To whom, and how" }]}
       values={{ exerciseId, envelopeId }}
       action={recordReturnedUnopened}
@@ -173,12 +176,12 @@ export function TableLateDrawer({ exerciseId, envelopeId, name, committee, sitti
   return (
     <RecordEditor
       title={`Table ${name.toLowerCase()} for admission`}
-      description={`A matter at a sitting of the ${committee ?? "committee"}, naming this envelope. Carried, it is admitted; not carried, it is not. It is decided there; tabling is by a holder of the committee's Secretariat office, who signs in and tables it.`}
+      description={`A matter for ${committee ?? "the committee"}. Carried means admitted. Only its Secretariat tables it.`}
       fields={[
         hidden("exerciseId"),
         hidden("envelopeId"),
-        { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: "Choose", options: sittings, hint: "Sittings of the committee that are scheduled or in progress." },
-        actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", people: holders, hint: holders.length === 0 ? "Nobody holds the Secretariat office." : "Only a holder of the Secretariat office can table." }),
+        { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: "Choose", options: sittings, hint: "Scheduled or in progress." },
+        actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", people: holders, hint: holders.length === 0 ? "Nobody holds the Secretariat office." : "Only the Secretariat can table." }),
       ]}
       values={{ exerciseId, envelopeId }}
       action={tableLateMatter}
@@ -195,13 +198,14 @@ export function ExtensionDrawer({ exerciseId, allowed, parties, people, expiry }
   return (
     <RecordEditor
       title="Record an extension of the bids' validity"
-      description={`On the recommended tenderer's written consent. The bids are valid until ${expiry ?? "a day not set"}; the new expiry must be later. Attach the consent to the extension, then apply it. Before evaluation is recorded in the portal, the tenderer you name is not checked against an evaluation.`}
+      description={`Valid until ${expiry ?? "a day not set"}. The new expiry must be later. Attach the tenderer's consent, then apply.`}
+      more="The recommended tenderer you name is recorded on your behalf and is not checked against an evaluation."
       columns={2}
       fields={[
         hidden("exerciseId"),
         { kind: "date", name: "toExpiry", label: "Valid until", required: true },
         { kind: "date", name: "consentReceivedOn", label: "Consent received on", required: true },
-        { kind: "select", name: "consentPartyId", label: "Recommended tenderer", required: true, placeholder: "Choose", options: parties, hint: "Named by you, recorded on your behalf, not yet checked against an evaluation." },
+        { kind: "select", name: "consentPartyId", label: "Recommended tenderer", required: true, placeholder: "Choose", options: parties, hint: "Not checked against an evaluation." },
         actorField("ValidityExtension.recordedBy", { name: "recordedByPersonId", people }),
         { kind: "textarea", name: "reason", label: "Why it is extended", required: true },
       ]}
@@ -219,7 +223,7 @@ export function ApplyExtensionDrawer({ exerciseId, extensionId, to, allowed }: {
   return (
     <RecordEditor
       title={`Apply the extension to ${to}`}
-      description="The bids are then valid until this day. It stands as applied, on the consent attached."
+      description="Bids are then valid until this day."
       fields={[hidden("exerciseId"), hidden("extensionId")]}
       values={{ exerciseId, extensionId }}
       action={applyValidityExtension}
@@ -236,7 +240,7 @@ export function BidAnswersDrawer({ exerciseId, allowed, values, needsReason }: {
   return (
     <RecordEditor
       title={needsReason ? "Record the bids' validity" : "Bid validity and alternatives"}
-      description={needsReason ? "The window is published without the validity on record. Record the days the tender documents state, once, with where the figure came from and why it is recorded now." : "As the tender documents state them. Prepared with the window and frozen once it is published. There is no default: left empty, the validity is not set and an award cannot be issued."}
+      description={needsReason ? "Validity not on record. Enter the days the documents state, with source and reason." : "Days the documents state. Left empty, no award can be issued."}
       fields={[
         hidden("exerciseId"),
         { kind: "number", name: "bidValidityDays", label: "Bids valid for (days from the closing day)", min: 1, required: needsReason },

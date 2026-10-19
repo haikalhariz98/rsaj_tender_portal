@@ -6,6 +6,7 @@ import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { KeyValues } from "@/components/ui/stat";
 import { CHECKLIST_RETURN_NOT_SET, CHECKLIST_TITLE, REGISTER_GAPS, REGISTER_STATEMENT, WITHDRAWAL_SULIT_LABEL } from "@/lib/bids/labels";
 import { bidsTab, type BidsTab } from "@/lib/bids/read";
@@ -44,9 +45,7 @@ export async function loadBids(scope: StaffActor, exerciseId: string, status: st
         <div className="flex flex-col gap-6">
           <Statement />
           <Card>
-            <EmptyState title="Envelopes are received once the exercise is published" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=documents&section=publishing`} variant="secondary" size="sm">Open Publishing</ButtonLink>}>
-              Bids are received after the exercise is advertised or invited. The company estimate&apos;s lodgement into the box, made earlier, is recorded here when it is lodged.
-            </EmptyState>
+            <EmptyState title="Opens once published" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=documents&section=publishing`} variant="secondary" size="sm">Open Publishing</ButtonLink>} />
           </Card>
           <ValidityCard d={d} />
         </div>
@@ -84,16 +83,12 @@ export async function loadBids(scope: StaffActor, exerciseId: string, status: st
 
 function Statement() {
   return (
-    <Callout tone="info" title={REGISTER_STATEMENT.title}>
-      <span className="flex flex-col gap-1.5">
-        <span>{REGISTER_STATEMENT.body}</span>
-        {REGISTER_GAPS.map((g) => (
-          <span key={g} className="text-ink-3">
-            {g}
-          </span>
-        ))}
-      </span>
-    </Callout>
+    <div className="flex flex-wrap items-center gap-2">
+      <InfoChip tone="neutral" detail={REGISTER_STATEMENT.body} label="About the register">Envelopes only</InfoChip>
+      <InfoChip tone="warn" detail={REGISTER_GAPS[0]} label="About reading access">Reading not restricted</InfoChip>
+      <InfoChip tone="warn" detail={REGISTER_GAPS[1]} label="About alerts">Not emailed</InfoChip>
+      <InfoChip tone="warn" detail={REGISTER_GAPS[2]} label="About the estimate">Estimate unencrypted</InfoChip>
+    </div>
   );
 }
 
@@ -111,7 +106,7 @@ function BidsPanel({ d, schedule }: { d: BidsTab; schedule: ReactNode }) {
         <CardHeader
           icon={<InboxIcon size={17} />}
           title="Envelope register"
-          subtitle={`${register.length} ${register.length === 1 ? "envelope" : "envelopes"} recorded: ${d.count.inTime} in time, ${d.count.late} late, ${d.count.withdrawn} withdrawn. ${d.count.fromBox > 0 ? `${d.count.fromBox} ${d.count.fromBox === 1 ? "was" : "were"} found in the box at opening, timed by its lock.` : "The box is counted at opening."}`}
+          subtitle={`${register.length} ${register.length === 1 ? "envelope" : "envelopes"}: ${d.count.inTime} in time, ${d.count.late} late, ${d.count.withdrawn} withdrawn${d.count.fromBox > 0 ? `, ${d.count.fromBox} from the box` : ""}`}
           divided={false}
         />
         {d.online.count > 0 && (
@@ -124,7 +119,7 @@ function BidsPanel({ d, schedule }: { d: BidsTab; schedule: ReactNode }) {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
-          <CardHeader icon={<ShieldIcon size={17} />} title="Tender box" subtitle="The box, its lock and its key remain the control." />
+          <CardHeader icon={<ShieldIcon size={17} />} title="Tender box" subtitle="Box and key remain the control" />
           <CardBody className="flex flex-col gap-4">
             <KeyValues
               items={[
@@ -137,7 +132,7 @@ function BidsPanel({ d, schedule }: { d: BidsTab; schedule: ReactNode }) {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Bids counted so far" subtitle="Envelopes recorded by an officer. The box is counted at opening." />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Bids counted so far" subtitle="Box counted at opening" />
           <CardBody className="flex flex-col gap-4">
             <KeyValues
               columns={2}
@@ -170,7 +165,7 @@ function LateCard({ d }: { d: BidsTab }) {
       <CardHeader
         icon={<ClockIcon size={17} />}
         title="Late envelopes"
-        subtitle={d.late.committee ? `Each is admitted or not by the ${d.late.committee}, as a matter at its sitting${d.late.committeeProvenance ? ` (${d.late.committeeProvenance.toLowerCase()})` : ""}. Never deleted, rejected or set aside.` : (d.late.unsetText ?? "")}
+        subtitle={d.late.committee ? `Admitted or not by the ${d.late.committee}${d.late.committeeProvenance ? ` (${d.late.committeeProvenance.toLowerCase()})` : ""}` : (d.late.unsetText ?? "")}
         actions={!d.late.committee && d.late.settable ? <ButtonLink href={SETTINGS_HREF} size="sm" variant="ghost">Set it</ButtonLink> : undefined}
       />
       {d.late.gate && (
@@ -180,7 +175,7 @@ function LateCard({ d }: { d: BidsTab }) {
       )}
       {d.late.rows.length === 0 ? (
         <CardBody className="border-t border-line">
-          <EmptyState size="sm" title="No late envelope">An envelope recorded after the closing second appears here, with its admission.</EmptyState>
+          <EmptyState size="sm" title="No late envelope" />
         </CardBody>
       ) : (
         <ul className="divide-y divide-line/70 border-t border-line">
@@ -206,7 +201,7 @@ function WithdrawalsCard({ d }: { d: BidsTab }) {
   if (d.withdrawals.length === 0) return null;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<FileIcon size={17} />} title="Withdrawals" subtitle="Each letter received before the closing, stamped when recorded. The letter and the words quoted from it are SULIT. A withdrawn envelope is never opened." />
+      <CardHeader icon={<FileIcon size={17} />} title="Withdrawals" subtitle="Letters and quotes are SULIT" />
       <ul className="divide-y divide-line/70 border-t border-line">
         {d.withdrawals.map((w) => (
           <li key={w.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -218,7 +213,7 @@ function WithdrawalsCard({ d }: { d: BidsTab }) {
             <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
               <Chip tone={w.letter === "Attached" ? "ok" : "warn"}>{`Letter: ${w.letter.toLowerCase()}`}</Chip>
               <Chip tone="neutral" title={WITHDRAWAL_SULIT_LABEL}>{WITHDRAWAL_SULIT_LABEL}</Chip>
-              <OwnerDocumentsButton owner={{ kind: "bidWithdrawal", id: w.id }} label={w.label} title="Withdrawal letter" subtitle="The bidder's letter, held SULIT: opened by the people the exercise is open to, and each opening is logged." options={{ only: ["WITHDRAWAL_LETTER"] }} />
+              <OwnerDocumentsButton owner={{ kind: "bidWithdrawal", id: w.id }} label={w.label} title="Withdrawal letter" subtitle="Held SULIT. Each opening is logged." options={{ only: ["WITHDRAWAL_LETTER"] }} />
             </div>
           </li>
         ))}
@@ -247,7 +242,7 @@ function ValidityCard({ d }: { d: BidsTab }) {
           columns={2}
           items={[
             { label: "Valid for", value: v.days == null ? <Badge tone="warn">Not set</Badge> : <span className="flex flex-wrap items-center gap-2">{`${v.days} days from the closing day`}{v.provenance && <FromBadge text={v.provenance} />}</span> },
-            { label: "Valid until", value: v.expiry ? <span className="flex flex-wrap items-center gap-2">{v.expiry}{v.state === "EXPIRED" ? <Chip tone="err">Expired</Chip> : v.state === "VALID" ? <Chip tone="ok">Valid</Chip> : null}</span> : v.state === "NOT_SET" ? "Not set" : v.state === "TIME_ZONE_UNSET" ? "Not counted: the organisation's time zone is not set" : "Not counted: no closing is recorded" },
+            { label: "Valid until", value: v.expiry ? <span className="flex flex-wrap items-center gap-2">{v.expiry}{v.state === "EXPIRED" ? <Chip tone="err">Expired</Chip> : v.state === "VALID" ? <Chip tone="ok">Valid</Chip> : null}</span> : v.state === "NOT_SET" ? "Not set" : v.state === "TIME_ZONE_UNSET" ? "Not judged: time zone not set" : "Not counted: no closing is recorded" },
             ...(v.recordedAfterPublication ? [{ label: "Recorded after publication", value: <span className="break-words">{v.recordedAfterPublication}</span> }] : []),
             ...(v.baseExpiry && v.baseExpiry !== v.expiry ? [{ label: "Before extension", value: v.baseExpiry }] : []),
             { label: "How expiry is counted", value: <span className="flex flex-col items-start gap-1.5"><span className="break-words">{v.reading.text}</span><FromBadge text={v.reading.provenance} /></span> },
@@ -255,7 +250,7 @@ function ValidityCard({ d }: { d: BidsTab }) {
           ]}
         />
         {v.alert && <Callout tone="warn">{v.alert}</Callout>}
-        {!d.publishedThroughWindow && <p className="text-[12.5px] text-ink-3">Validity is checked on the award only for an exercise published through its invitation window.</p>}
+        {!d.publishedThroughWindow && <p className="text-[12.5px] text-ink-3">Validity checked on award for window-published exercises only.</p>}
       </CardBody>
       {v.extensions.length > 0 && (
         <ul className="divide-y divide-line/70 border-t border-line">
@@ -268,7 +263,7 @@ function ValidityCard({ d }: { d: BidsTab }) {
               <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
                 <Chip tone={x.consent === "Attached" ? "ok" : "warn"}>{`Consent: ${x.consent.toLowerCase()}`}</Chip>
                 {x.applied ? <Chip tone="ok">{`Applied ${x.applied}`}</Chip> : <Chip tone="warn">Not applied</Chip>}
-                <OwnerDocumentsButton owner={{ kind: "validityExtension", id: x.id }} label={x.label} title="Consent to extend" subtitle="The recommended tenderer's written consent to extend its bid's validity." options={{ only: ["VALIDITY_CONSENT"] }} />
+                <OwnerDocumentsButton owner={{ kind: "validityExtension", id: x.id }} label={x.label} title="Consent to extend" subtitle="Tenderer's written consent" options={{ only: ["VALIDITY_CONSENT"] }} />
                 {x.apply && <ApplyExtensionDrawer exerciseId={d.exerciseId} extensionId={x.id} to={x.to} allowed={x.apply} />}
               </div>
             </li>
@@ -283,7 +278,7 @@ function ChecklistCard({ d }: { d: BidsTab }) {
   const c = d.checklist;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ClipboardIcon size={17} />} title={CHECKLIST_TITLE} subtitle="Checked against each bid at opening, never here. A missing document is reported, never a reason to refuse an envelope." />
+      <CardHeader icon={<ClipboardIcon size={17} />} title={CHECKLIST_TITLE} subtitle="Checked at opening, not here" />
       <CardBody className="flex flex-col gap-4 border-t border-line">
         {c.returnNotSet.length > 0 && (
           <Callout tone="warn">
@@ -297,7 +292,7 @@ function ChecklistCard({ d }: { d: BidsTab }) {
           ]}
         />
         {c.items.length === 0 ? (
-          <EmptyState size="sm" title="Nothing listed">No part of the approved documents is marked mandatory, and no addendum is issued.</EmptyState>
+          <EmptyState size="sm" title="Nothing listed" />
         ) : (
           <ol className="flex list-decimal flex-col gap-1 pl-5 text-[13.5px] text-ink-2">
             {c.items.map((i) => (

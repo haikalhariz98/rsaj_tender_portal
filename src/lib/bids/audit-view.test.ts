@@ -37,7 +37,7 @@ describe("a withdrawal letter's quote in the trail (6.6 CR-4)", () => {
   });
   it("the drawer steers away from naming the bidder, and the card's SULIT label covers the quote", async () => {
     const { WITHDRAWAL_QUOTE_HINT, WITHDRAWAL_SULIT_LABEL } = await import("./labels");
-    expect(WITHDRAWAL_QUOTE_HINT).toBe("Quote how the letter identifies the envelope (the tender's title, number and markings). Leave the company's name out; bidders are named at the opening.");
+    expect(WITHDRAWAL_QUOTE_HINT).toBe("Quote how the letter identifies the envelope. Leave the company's name out."); // 0005, founder 2026-10-19
     expect(WITHDRAWAL_SULIT_LABEL).toMatch(/SULIT.*letter.*quote/);
     const { readFileSync } = await import("node:fs");
     expect(readFileSync("src/app/sourcing/[id]/bids/editors.tsx", "utf8")).toMatch(/hint: WITHDRAWAL_QUOTE_HINT/);

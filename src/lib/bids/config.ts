@@ -48,7 +48,7 @@ export const BID_RULE_FAULT_TEXT: Readonly<Record<BidRuleFault, string>> = {
 };
 
 /// When a change to a method's bid-receipt rules applies (6.6 CR-2): publication freezes them with the window.
-export const BID_RULES_APPLY_TEXT = "A change applies only to exercises published after it: an exercise already advertised or invited keeps the rules frozen with its window.";
+export const BID_RULES_APPLY_TEXT = "Applies only to exercises published after it. Earlier ones keep their frozen rules.";
 
 /// How many of the methods' bid-receipt rules are not set: three per method that receives bids.
 export function bidRulesNotSet(methods: readonly { lateAdmissionCommitteeCode: string | null; minimumBids: number | null; completenessEliminates: boolean | null }[]): number {
@@ -71,7 +71,7 @@ export function invitationBadge(windowNotSet: number, bidNotSet: number): { tone
 
 /// What each setting holds back while it is not set, said beside "Not set".
 export const BID_RULE_UNSET = {
-  committee: "No late envelope can be tabled for admission, and an award on an exercise with one is held back.",
+  committee: "Late envelopes cannot be tabled. Awards on such exercises are held back.",
   minimum: "Whether competition is adequate is not judged; never read as met.",
   eliminates: "An opening cannot be finalised until it is set.",
 } as const;

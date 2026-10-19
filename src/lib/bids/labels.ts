@@ -72,7 +72,7 @@ export const COMPETITION_TEXT: Readonly<Record<Competition, string>> = {
   MET: "At least the method's minimum number of bids. Shown, never blocking.",
   BELOW_MINIMUM: "Fewer bids than the method's minimum. Shown to the committee, never blocking.",
   SINGLE: "Only one bid. It proceeds, and the committee is told.",
-  MINIMUM_NOT_SET: "The method's minimum number of bids is not set, so whether competition is adequate is not judged. Set it under Configuration › Invitation.",
+  MINIMUM_NOT_SET: "Minimum number of bids not set. Competition not judged. Set it under Configuration › Invitation.",
 };
 
 export const ALTERNATIVE_LABEL: Readonly<Record<AlternativeStatus, string>> = {
@@ -112,7 +112,7 @@ export const RECORDING_STAMP_LABEL = "Server's recording time";
 export const RECORDED_LATER_LABEL = "Recorded after the event";
 /// The officer's statement on an envelope recorded after the event, in the officer's own terms.
 export function officerStatement(stated: string | null, reason: string | null): string {
-  return `The officer's statement: received ${stated ?? "at a time not recorded"}. Why it was recorded after the event: ${reason ?? "not recorded"}.`;
+  return `Officer's statement: received ${stated ?? "at a time not recorded"}. Reason recorded late: ${reason ?? "not recorded"}.`;
 }
 
 /**
@@ -121,10 +121,10 @@ export function officerStatement(stated: string | null, reason: string | null): 
  * provenance); until then the card says so rather than calling the list what a bid must contain.
  */
 export const CHECKLIST_TITLE = "Parts the approved documents mark mandatory";
-export const CHECKLIST_RETURN_NOT_SET = "Which of these a bidder returns is not set; the check at opening waits for it.";
+export const CHECKLIST_RETURN_NOT_SET = "Return not set. The opening check waits for it.";
 
 /// The withdrawal drawer's hint (6.6 CR-4): quote what identifies the envelope, never who the bidder is.
-export const WITHDRAWAL_QUOTE_HINT = "Quote how the letter identifies the envelope (the tender's title, number and markings). Leave the company's name out; bidders are named at the opening.";
+export const WITHDRAWAL_QUOTE_HINT = "Quote how the letter identifies the envelope. Leave the company's name out.";
 /// What the Withdrawals card's SULIT label covers: the letter and the quote taken from it (6.6 CR-4).
 export const WITHDRAWAL_SULIT_LABEL = "SULIT: the letter and the quote from it";
 
@@ -140,17 +140,17 @@ const d = (f: Finding, k: string) => f.data?.[k] ?? null;
 /// A published exercise's committee, unset as frozen (CR-2): no "set it", since a later setting does not apply.
 const frozenCommitteeText = (source: unknown) =>
   source === "NOT_RECORDED"
-    ? "The committee that decides late admission was not recorded when this exercise's window was published, so it reads as not set; a later setting under Configuration › Invitation does not apply to it."
-    : "The committee that decides late admission was not set for this exercise's method when its window was published; a later setting under Configuration › Invitation does not apply to it.";
+    ? "Late-admission committee not recorded at publication. Not set; a later setting does not apply."
+    : "Late-admission committee not set at publication. A later setting does not apply.";
 const day = (v: unknown) => (typeof v === "string" && v ? formatDate(v) : "a day not recorded");
 
 export function bidFindingText(f: Finding): string {
   switch (f.code) {
     // ---- the exercise
     case "TIME_ZONE_UNSET":
-      return "The organisation's time zone is not set, so receipts cannot be dated. Set it under Configuration › Organisation.";
+      return "Time zone not set. Receipts cannot be dated.";
     case "CLOSING_NOT_SET":
-      return "The exercise has no closing recorded, so lateness cannot be judged. The closing is written when the documents are approved for tendering.";
+      return "No closing recorded. Lateness not judged.";
     case "NOT_PUBLISHED":
       return "The exercise is not advertised or invited yet: envelopes are received once it is published.";
     case "CANCELLED":
@@ -164,11 +164,11 @@ export function bidFindingText(f: Finding): string {
     case "MARKINGS_REQUIRED":
       return "Write the markings as they appear on the envelope.";
     case "CHANNEL_NOT_FOR_OFFICER":
-      return "An envelope in the tender box is registered at the opening, not here. Record envelopes handed over the counter, by post or by courier.";
+      return "Tender box envelopes are registered at opening. Record counter, post and courier envelopes here.";
     case "KIND_NOT_FOR_RECEIPT":
-      return "The company estimate is lodged from its own tab (Scope and estimate › Company estimate), never received as an envelope here.";
+      return "Lodge the company estimate on its own tab, not as an envelope.";
     case "ENTERED_NOT_BEFORE_RECORDING":
-      return "The stated time must be before now: an envelope received now is recorded with Record a receipt now.";
+      return "Stated time must be before now. For now, use Record a receipt now.";
     case "BEFORE_WINDOW":
       return "The stated time is before the exercise was published, when no bid could be received.";
     case "REASON_REQUIRED":
@@ -178,24 +178,24 @@ export function bidFindingText(f: Finding): string {
     case "PARENT_NOT_A_BID":
       return "The envelope named is not a bid on this exercise.";
     case "RECORDED_AFTER_CLOSING":
-      return "Recorded after the closing, so it is late. It is kept, counted apart and goes to the committee for admission.";
+      return "Recorded after closing, so late. Goes to the committee for admission.";
     case "STATED_BEFORE_CLOSING":
-      return "The officer states it was received before the closing; the server recorded it after, so it is late. The committee sees both and decides.";
+      return "Stated before closing, recorded after, so late. The committee sees both.";
     // ---- withdrawal
     case "AFTER_CLOSING":
       return "The closing has passed: a withdrawal is accepted only before it.";
     case "ENVELOPE_LATE":
-      return "That envelope arrived after the closing, so it cannot be withdrawn: its admission is for the committee.";
+      return "Arrived after closing, so cannot be withdrawn. The committee decides admission.";
     case "ALREADY_WITHDRAWN":
       return "That envelope is already withdrawn.";
     case "NOT_A_BID":
-      return "The company estimate is not a bid: it is never withdrawn, corrected or tabled for admission here.";
+      return "The company estimate is not a bid. It is never withdrawn or tabled here.";
     case "NOT_WITHDRAWN":
       return "Only a withdrawn envelope is handed back unopened.";
     case "ONLINE_NOTHING_TO_RETURN":
-      return "A bid submitted through the supplier portal was never handed in on paper, so there is nothing to hand back.";
+      return "Submitted online, so nothing to hand back.";
     case "ONLINE_WITHDRAWS_ITSELF":
-      return "A bid submitted through the supplier portal is withdrawn by its supplier in the portal, not by a letter recorded here.";
+      return "Submitted online. The supplier withdraws it in the portal.";
     case "ALREADY_RETURNED":
       return "It was already handed back.";
     case "DAY_IN_FUTURE":
@@ -206,13 +206,13 @@ export function bidFindingText(f: Finding): string {
     case "CORRECTION_CLOSED":
       return "The closing has passed: after it nothing on the register changes.";
     case "IMMUTABLE_FIELD":
-      return "The received time, the sequence, the late flag and the kind are never corrected. Only the markings, the channel and the receiving officer are.";
+      return "Received time, sequence, late flag and kind are never corrected.";
     case "NOTHING_CHANGED":
       return "Nothing was changed.";
     case "WITHDRAWN":
       return "The envelope is withdrawn and stands as it was recorded.";
     case "ONLINE_NOT_CORRECTED":
-      return "A bid submitted through the supplier portal is recorded by the system as it arrived, and is never corrected.";
+      return "Submitted online. Never corrected.";
     // ---- box
     case "BEFORE_CLOSING":
       return "The box is locked at or after the closing, not before.";
@@ -229,12 +229,12 @@ export function bidFindingText(f: Finding): string {
       const which = n === 1 ? "it" : "each";
       if (d(f, "committeeSet") === "no" && d(f, "asPublished")) return `${lead} ${frozenCommitteeText(d(f, "asPublished"))}`;
       return d(f, "committeeSet") === "no"
-        ? `${lead} The committee that decides it is not set: set it on the sourcing method under Configuration › Invitation, then table ${which} ${where}.`
+        ? `${lead} Committee not set: set it on the sourcing method under Configuration › Invitation, then table ${which} ${where}.`
         : `${lead} Table ${which} ${where}; it is decided at the sitting, either way.`;
     }
     case "COMMITTEE_NOT_SET":
       if (d(f, "asPublished")) return frozenCommitteeText(d(f, "asPublished"));
-      return "The committee that decides late admission is not set for this method. Set it under Configuration › Invitation; it is never read as a refusal.";
+      return "Late-admission committee not set. Set it under Configuration › Invitation.";
     case "NOT_LATE":
       return "The envelope was received in time: only a late one goes for admission.";
     case "ALREADY_TABLED":
@@ -247,11 +247,11 @@ export function bidFindingText(f: Finding): string {
       return "That sitting no longer takes matters.";
     // ---- validity
     case "VALIDITY_NOT_SET":
-      return `The bids' validity is not set on the window, so whether they are still valid cannot be judged. Record the days the tender documents state in ${RECEIVED_SECTION}.`;
+      return `Bid validity not set. Record the days in ${RECEIVED_SECTION}.`;
     case "BID_VALIDITY_EXPIRED":
-      return `The bids' validity expired on ${day(d(f, "expiry"))}. Record an extension, with the recommended tenderer's consent, in ${RECEIVED_SECTION}.`;
+      return `Bid validity expired on ${day(d(f, "expiry"))}. Record an extension, with consent, in ${RECEIVED_SECTION}.`;
     case "VALIDITY_NOT_JUDGED":
-      return d(f, "why") === "NO_CLOSING" ? "The exercise has no closing, so the bids' validity cannot be counted." : "The organisation's time zone is not set, so the bids' validity cannot be judged. Set it under Configuration › Organisation.";
+      return d(f, "why") === "NO_CLOSING" ? "The exercise has no closing, so the bids' validity cannot be counted." : "Time zone not set. Bid validity not judged.";
     case "NOT_CLOSED":
       return "The validity runs from the closing: it is extended only after the closing.";
     case "NOT_LATER":
@@ -265,7 +265,7 @@ export function bidFindingText(f: Finding): string {
     case "CONSENT_DAY_IN_FUTURE":
       return "The consent cannot be received after today.";
     case "PENDING_EXISTS":
-      return "An extension is already recorded and not yet applied: apply it, once its consent is attached, before recording another.";
+      return "Extension recorded, not applied. Apply it before recording another.";
     case "ALREADY_APPLIED":
       return "The extension is already applied.";
     case "CONSENT_REQUIRED":
@@ -275,7 +275,7 @@ export function bidFindingText(f: Finding): string {
       return "The closing has passed, so the estimate can no longer go into the box.";
     // ---- completeness
     case "CONSEQUENCE_NOT_SET":
-      return "What follows from an incomplete bid is not set for this method. Set it under Configuration › Invitation; an opening cannot be finalised until it is.";
+      return "Incomplete-bid outcome not set. Set it under Configuration › Invitation. Opening cannot finalise.";
     // ---- window answers
     case "WINDOW_NOT_EDITABLE":
       return "The window's answers are prepared before publication and frozen once it is published.";

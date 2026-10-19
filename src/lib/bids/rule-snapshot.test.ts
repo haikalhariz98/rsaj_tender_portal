@@ -86,10 +86,10 @@ describe("the method's bid-receipt rules, frozen at publication (6.6 CR-2)", () 
     expect(frozenUnsetText("NOT_RECORDED")).toMatch(/^Not recorded when the window was published/);
     expect(frozenUnsetText("AS_PUBLISHED")).toMatch(/^Not set when the window was published/);
     const gate = lateAdmissionFault(LATE, [], false, "NOT_RECORDED")!;
-    expect(bidFindingText(gate)).toMatch(/not recorded when this exercise's window was published/);
+    expect(bidFindingText(gate)).toMatch(/not recorded at publication/); // 0005, founder 2026-10-19
     expect(bidFindingText(gate)).not.toMatch(/set it on the sourcing method/);
     const unset = lateMatterFault({ exerciseCancelled: false, committeeCode: null, committeeSource: "AS_PUBLISHED", envelope: LATE[0], matters: [], sitting: { committeeCode: "X", frozen: false } });
-    expect(bidFindingText(unset[0])).toMatch(/was not set for this exercise's method when its window was published; a later setting .* does not apply/);
+    expect(bidFindingText(unset[0])).toMatch(/not set at publication\. A later setting does not apply/); // 0005, founder 2026-10-19
     // Before publication the old advice stands.
     expect(bidFindingText(lateAdmissionFault(LATE, [], false)!)).toMatch(/set it on the sourcing method under Configuration › Invitation/);
   });

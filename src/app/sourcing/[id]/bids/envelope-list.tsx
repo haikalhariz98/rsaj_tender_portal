@@ -59,7 +59,7 @@ export function EnvelopeList({ exerciseId, rows, late }: { exerciseId: string; r
       exportName="envelope-register"
       searchPlaceholder="Search by envelope or markings"
       emptyTitle="No envelope recorded"
-      emptyBody="Envelopes handed over the counter, by post or by courier are recorded here as they arrive. Envelopes in the tender box are registered at the opening."
+      emptyBody={undefined}
       views={[
         { id: "intime", label: "In time" },
         { id: "late", label: "Late" },

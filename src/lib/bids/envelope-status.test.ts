@@ -77,7 +77,7 @@ describe("a return is offered for a paper withdrawn envelope only", () => {
   it.each(["WITHDRAWN", "SUPERSEDED"] as const)("returnFaults refuses an online %s envelope, in words (nothing is handed back)", (status) => {
     const fs = returnFaults({ envelope: { status, returnedUnopenedOn: null, channel: "ONLINE" }, withdrawnOn: null, day: "2026-11-12", today: "2026-11-20", cancelled: false });
     expect(fs.map((f) => f.code)).toEqual(["ONLINE_NOTHING_TO_RETURN"]);
-    expect(bidFindingText(fs[0])).toMatch(/never handed in on paper/);
+    expect(bidFindingText(fs[0])).toMatch(/Submitted online, so nothing to hand back/); // 0005, founder 2026-10-19
   });
   it("a paper withdrawn envelope is still handed back", () => {
     expect(returnFaults({ envelope: { status: "WITHDRAWN", returnedUnopenedOn: null, channel: "COUNTER" }, withdrawnOn: null, day: "2026-11-12", today: "2026-11-20", cancelled: false })).toEqual([]);
@@ -89,7 +89,7 @@ describe("an officer's withdrawal letter cannot withdraw an online bid", () => {
     const base = { exercise: exercise(), now: new Date("2026-11-17T05:00:00Z"), markings: "Letter", personActive: true };
     const online = withdrawFaults({ ...base, envelope: { kind: "BID", late: false, status: "RECEIVED", withdrawn: false, channel: "ONLINE" } });
     expect(online.map((f) => f.code)).toEqual(["ONLINE_WITHDRAWS_ITSELF"]);
-    expect(bidFindingText(online[0])).toMatch(/withdrawn by its supplier in the portal/);
+    expect(bidFindingText(online[0])).toMatch(/The supplier withdraws it in the portal/); // 0005, founder 2026-10-19
     expect(withdrawFaults({ ...base, envelope: { kind: "BID", late: false, status: "RECEIVED", withdrawn: false, channel: "COUNTER" } })).toEqual([]);
   });
 });

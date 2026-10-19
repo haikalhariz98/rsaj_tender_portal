@@ -183,7 +183,7 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
     await act.write(tx, w.id);
     if (env) {
       const moved = await tx.bidEnvelope.updateMany({ where: { id: env.id, status: "RECEIVED" }, data: { status: "WITHDRAWN" } });
-      if (moved.count !== 1) return { ok: false, message: "The envelope changed while this was being saved. Reload and try again." };
+      if (moved.count !== 1) return { ok: false, message: "Envelope changed. Reload and try again." };
       await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE", diffFields(statusField("RECEIVED"), statusField("WITHDRAWN")));
     }
     return { ok: true, message: "Withdrawal recorded. Attach the letter to it in the Received section of Bids and opening." };
@@ -230,7 +230,7 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
     change[k] = typeof v === "string" ? v.trim() : v;
   }
   // The receiving officer is the officer who recorded the receipt, signed in (Phase 2b): a correction does not name another.
-  if (change.receivedByPersonId !== undefined) return { ok: false, message: "The receiving officer is the officer who recorded the receipt. It is not corrected to another person." };
+  if (change.receivedByPersonId !== undefined) return { ok: false, message: "The receiving officer cannot be changed." };
   if (r.failed) return { ok: false, errors: r.errors };
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
@@ -240,7 +240,7 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
     const fs = correctionFaults({ exercise: reg.exercise, now, envelope: { kind: env.kind, status: env.status, channel: env.channel, markings: env.markings, receivedByPersonId: env.receivedByPersonId }, change, reason, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
     // Only a paper envelope reaches here (an ONLINE one is refused above, ONLINE_NOT_CORRECTED), and a paper envelope always names its receiving officer (CHECK).
-    if (!person) return { ok: false, message: "That envelope names no receiving officer, so it is not corrected here." };
+    if (!person) return { ok: false, message: "No receiving officer to correct." };
     const next = { markings: change.markings ?? env.markings, channel: (change.channel ?? env.channel) as EnvelopeChannel, receivedByPersonId: person.id };
     await tx.bidEnvelope.update({ where: { id: env.id, organisationId: actor.organisationId }, data: { ...next, correctedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE",
@@ -323,7 +323,7 @@ export async function tableLateMatter(_prev: FormState, data: FormData): Promise
     await audit(tx, toAuditActor(actor), l.org.id, "CommitteeDecision", row.id, label(l, subject), "CREATE",
       diffFields(null, { matter: subject, envelope: lateMatterEnvelopeLabel(env.sequence, env.channel), sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!) }));
     await act.write(tx, row.id);
-    return { ok: true, message: `Tabled at ${s.meeting.reference}. It is decided there, at the sitting.` };
+    return { ok: true, message: `Tabled at ${s.meeting.reference}.` };
   });
   if (result.ok) {
     revalidatePath("/committees");
@@ -381,7 +381,7 @@ export async function recordValidityExtension(_prev: FormState, data: FormData):
     const row = await tx.validityExtension.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, fromExpiry: dayToDate(v.expiry!), toExpiry: dayToDate(toExpiry), reason, consentPartyId: party!.id, consentReceivedOn: dayToDate(consentOn), recordedByPersonId: person!.id } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.extension, row.id, label(l, `Validity extension to ${formatDate(toExpiry)}`), "CREATE", diffFields(null, extensionFields({ ...row, consentParty: party!.name, recordedBy: person!.name })), reason);
     await act.write(tx, row.id);
-    return { ok: true, message: "Extension recorded. Attach the tenderer's written consent to it, then apply it." };
+    return { ok: true, message: "Extension recorded. Attach the consent, then apply it." };
   });
 }
 
@@ -403,7 +403,7 @@ export async function applyValidityExtension(_prev: FormState, data: FormData): 
     if (fs.length) return refuse(fs);
     const appliedAt = new Date();
     const moved = await tx.validityExtension.updateMany({ where: { id: x.id, appliedAt: null }, data: { appliedAt } });
-    if (moved.count !== 1) return { ok: false, message: "The extension changed while this was being saved. Reload and try again." };
+    if (moved.count !== 1) return { ok: false, message: "Extension changed. Reload and try again." };
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.extension, x.id, label(l, `Validity extension to ${formatDate(storedDay(x.toExpiry))}`), "UPDATE", diffFields({ applied: null }, appliedFields(appliedAt, l.org.timeZone)));
     revalidatePath("/projects");
     return { ok: true };
@@ -428,7 +428,7 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
   const alternativesPermitted = alt === "yes" ? true : alt === "no" ? false : null;
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const w = await loadBidWindow(l.ex.id, tx);
-    if (!w) return { ok: false, message: "The window is not prepared yet. Fill in Notice and fee on Scope and estimate first." };
+    if (!w) return { ok: false, message: "Window not prepared. Fill in Notice and fee first." };
     const fs = bidFieldsFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, current: { days: w.bidValidityDays, alternativesPermitted: w.alternativesPermitted }, next: { days, provenance, alternativesPermitted }, reason, validityRequired: l.ex.openingRosterRequired });
     if (fs.length) return refuse(fs);
     // S-6: recorded after publication (BD-66-7's exit), the officer who records it is named, and the
