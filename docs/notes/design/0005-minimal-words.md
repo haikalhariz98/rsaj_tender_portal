@@ -101,7 +101,7 @@ applies to the longest branch of a conditional.
 | Success notice | `Callout tone="ok"` after the user's own action | 8 | "Sent to the committee." Then it goes away. |
 | Supplier next step (portal only) | one line per screen | 12 | Always visible. See §3.6. |
 
-**No paragraph anywhere on a working screen.** A paragraph is two or more sentences in one block, or one sentence over 20 words.
+**No paragraph anywhere on a working screen.** A paragraph is any block of text over 20 words, or over its element's budget, whichever is smaller. The budgets decide, not the sentence count: "Needs a second administrator. Ask another administrator to issue." is a refusal, not a paragraph.
 The only exceptions are the texts in §3.7, where the user is reading the text itself and not being told about the screen.
 
 ### 3.2 How to write within the budget
@@ -200,7 +200,7 @@ through a product-owner ruling.
 | Weather-claim three-year guidance | Spec ("the three-year guidance is displayed") | A field hint of 8 words or fewer, for example "Evidence covering the last three years." |
 | Nominated sub-contract rule | Spec ("displayed on the sub-contract record") | One line of 12 words or fewer on the record. |
 | Last known integration position and its age | Spec | A fact with its age ("As of 2 h ago"), and a `warn` chip when it is stale. |
-| Receipt digest in full, and what to compare it with | Ruling 0003 §20 (sealed bids) | The digest stays in full. The instruction is cut to "Compare with your receipt." |
+| Receipt digest in full, and what to compare it with | Ruling 0003 20s (sealed bids, My Bids after the opening) | The digest stays in full. The instruction is cut to "Compare with your receipt." |
 | "Must be re-tendered" when the opening cannot proceed | Ruling 0003 (ruling 21) | An `err` callout of 15 words or fewer. |
 | "Not scanned" on unscanned files | Ruling 0004 (OD-4) | A chip. |
 | "Setting not set" on a refused contractor upload or SULIT send | Ruling 0004 | A refusal of 12 words or fewer, naming the setting's label. |
