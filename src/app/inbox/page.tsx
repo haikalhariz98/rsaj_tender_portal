@@ -94,7 +94,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
               { key: "notice", label: t(I.colNotice), mobile: "primary" },
               { key: "what", label: t(I.colWhat), width: "210px", hideBelow: "md", mobile: "meta" },
               { key: "received", label: t(I.colReceived), width: "190px", sortable: true, mobile: "meta" },
-              { key: "status", label: t(I.colStatus), width: "100px", mobile: "meta" },
+              { key: "status", label: t(I.colStatus), width: "130px", mobile: "meta" },
             ]}
             rows={rows}
           />
