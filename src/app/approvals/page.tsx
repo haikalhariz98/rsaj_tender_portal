@@ -97,11 +97,10 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
       <CardHeader
         icon={<InboxIcon size={17} />}
         title="Waiting for you"
-        subtitle={<LeadWithMore lead="The steps you can decide, oldest first." more="A step is yours when you hold the office acting for it, or hold a delegation of the whole office. A step you raised or sent is listed so it is not lost, and is not counted: you cannot decide it. A committee's step is decided at its sitting." />}
         divided={false}
       />
       {mineRows.length === 0 ? (
-        <EmptyState title="Nothing is waiting for you">No open approval is waiting on an office you hold or hold a delegation of.</EmptyState>
+        <EmptyState title="Nothing waiting for you" />
       ) : (
         <DataList
           flat
@@ -109,7 +108,6 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
           exportName="my-steps"
           searchPlaceholder="Search by request or office"
           emptyTitle="Nothing here"
-          emptyBody="No step in this view."
           views={[
             { id: "delegate", label: "As a delegate" },
             { id: "escalated", label: "Escalated to me" },
@@ -128,12 +126,12 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
       <CardHeader
         icon={<RouteIcon size={17} />}
         title="By office"
-        subtitle={<LeadWithMore lead="Grouped by the office acting for each step." more={`Filter by office, or narrow to what was escalated or has nobody able to act. ${WAITING_RULE_TEXT}`} />}
+        subtitle={<LeadWithMore lead="How waiting is counted" more={WAITING_RULE_TEXT} />}
         actions={<MoveAwayButton waiting={nobody} />}
         divided={false}
       />
       {rows.length === 0 ? (
-        <EmptyState title="Nothing awaits a decision">No approval route is open.</EmptyState>
+        <EmptyState title="No open approvals" />
       ) : (
         <DataList
           flat
@@ -141,7 +139,6 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
           exportName="my-approvals"
           searchPlaceholder="Search by request or office"
           emptyTitle="Nothing here"
-          emptyBody="No step in this view."
           views={[
             { id: "escalated", label: "Escalated" },
             { id: "nobody", label: "Nobody able to act" },
@@ -159,18 +156,14 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     <>
       <PageHeader
         title="My approvals"
-        subtitle={
-          <LeadWithMore
-            lead="The steps waiting for you, and every open approval's next step by the office that decides it."
-            more="Nobody is told by email: email is not connected. What happens to a step, and who is told, appears in your inbox. A step whose office has nobody able to act is moved up where the reporting line says who is above the holders, and otherwise stays where it is and says why; it never passes down."
-          />
-        }
-        meta={[`${waiting} waiting for you`, `${all.length} ${all.length === 1 ? "step" : "steps"} open`, `${escalated} escalated`, `${nobody} with nobody able to act`]}
+        info={{
+          title: "My approvals",
+          text: "A step is yours when you hold its office or a delegation of it. Steps you raised are listed, not counted. Committees decide at the sitting. Not emailed: see your inbox.",
+        }}
+        meta={[`${waiting} for you`, `${all.length} open`, `${escalated} escalated`, `${nobody} stuck`]}
       />
       {w && !w.today && (
-        <Callout tone="warn" className="mb-6" title="The organisation's time zone is not set">
-          How long each step has waited is counted on the organisation&apos;s day, which is not assumed to be UTC. The days are not counted until the zone is set.
-        </Callout>
+        <Callout tone="warn" className="mb-6" title="Time zone not set. Waiting days are not counted." />
       )}
       <Tabs
         initial={tab}

@@ -52,12 +52,12 @@ describe("the report of a sweep", () => {
 
   it("counts, and does not name, the steps on records restricted to those named on them", () => {
     const words = reportWords({ moved: [{ stepId: "s1", matter: null, from: "A", to: "B" }], stayed: [] });
-    expect(words).toEqual(["1 more step is on records restricted to the people named on them, and is not listed here."]);
+    expect(words).toEqual(["1 more on restricted records, not listed."]);
     expect(words.join(" ")).not.toContain("A to B");
   });
 
   it("says plainly when nothing was waiting", () => {
-    expect(reportWords({ moved: [], stayed: [] })).toEqual(["No pending step was waiting on that office."]);
+    expect(reportWords({ moved: [], stayed: [] })).toEqual(["No pending step on that office."]);
   });
 });
 
@@ -74,8 +74,8 @@ describe("the automatic move waits for a superior who holds the office above (ru
   });
 
   it("says why in words that name the superior and the office, and no code", () => {
-    expect(destinationStayText(["Aminah"], "Head of Division")).toBe("Aminah is named as above the people who hold this office, but does not hold Head of Division, the office the step would move to, so it was not moved. An officer escalates it, with the reason, or the line is corrected.");
-    expect(destinationStayText(["Aminah", "Bala"], "Head of Division")).toContain("Aminah, Bala are named as above");
+    expect(destinationStayText(["Aminah"], "Head of Division")).toBe("Aminah does not hold Head of Division. Not moved. Escalate it, or correct the line.");
+    expect(destinationStayText(["Aminah", "Bala"], "Head of Division")).toContain("Aminah, Bala do not hold") // 0005, founder 2026-10-19: shortened;
     expect(destinationStayText(["Aminah", "Bala"], "Head of Division")).toContain("do not hold Head of Division");
   });
 });

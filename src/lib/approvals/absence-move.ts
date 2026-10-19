@@ -46,13 +46,13 @@ export function absenceVerdict(i: { holderIds: readonly string[]; lines: readonl
 export function stayText(why: AbsenceStay, names: readonly string[]): string {
   switch (why) {
     case "NO_HOLDER":
-      return "Nobody holds this office, so no one was marked absent. An officer escalates it, with the reason.";
+      return "Nobody holds this office. An officer escalates it.";
     case "LINES_NOT_SET":
-      return "Reporting line not set: nobody is named as the immediate superior, so the step was not moved. Record the reporting lines, or an officer escalates it.";
+      return "Reporting line not set. Not moved. Record the lines, or escalate.";
     case "LINE_NOT_SET_FOR":
-      return `Reporting line not set for ${names.join(", ")}, so who is above everyone who holds this office cannot be said, and the step was not moved.`;
+      return `Reporting line not set for ${names.join(", ")}. Not moved.`;
     case "NO_SUPERIOR_ON_LINE":
-      return "Everyone who holds this office is recorded as having nobody above them, so there is no immediate superior to move the step to.";
+      return "Nobody is above the holders, so there is nowhere to move it.";
   }
 }
 
@@ -64,7 +64,7 @@ export function superiorHoldsDestination(superiorIds: readonly string[], destina
 /// Why the step stays where the line's superior does not hold the office above. `superiorNames` are the people the holders' lines name.
 export function destinationStayText(superiorNames: readonly string[], officeLabel: string): string {
   const who = superiorNames.length === 0 ? "the superior the line names" : superiorNames.join(", ");
-  return `${who} ${superiorNames.length === 1 ? "is" : "are"} named as above the people who hold this office, but ${superiorNames.length === 1 ? "does" : "do"} not hold ${officeLabel}, the office the step would move to, so it was not moved. An officer escalates it, with the reason, or the line is corrected.`;
+  return `${who} ${superiorNames.length === 1 ? "does" : "do"} not hold ${officeLabel}. Not moved. Escalate it, or correct the line.`;
 }
 
 /// What the person who marked someone absent is told about the steps, once the sweep is done.
@@ -81,7 +81,7 @@ export function reportWords(r: AbsenceReport): string[] {
   for (const m of named(r.moved)) out.push(`Moved: ${m.matter} from ${m.from} to ${m.to}.`);
   for (const s of named(r.stayed)) out.push(`Stays: ${s.matter}. ${s.why}`);
   const h = hidden(r.moved) + hidden(r.stayed);
-  if (h > 0) out.push(`${h} more ${h === 1 ? "step is" : "steps are"} on records restricted to the people named on them, and ${h === 1 ? "is" : "are"} not listed here.`);
-  if (r.moved.length === 0 && r.stayed.length === 0) out.push("No pending step was waiting on that office.");
+  if (h > 0) out.push(`${h} more on restricted records, not listed.`);
+  if (r.moved.length === 0 && r.stayed.length === 0) out.push("No pending step on that office.");
   return out;
 }

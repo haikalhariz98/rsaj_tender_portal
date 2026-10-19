@@ -25,7 +25,7 @@ export function EscalateDrawer({
   return (
     <RecordEditor
       title={`Escalate the ${office}'s step`}
-      description="The step goes one level up, to the office the acting office escalates to, and the reason goes on the trail. It never passes down. The people who hold the new office are told in the portal (email is not connected), and the step appears in their My steps. Where reporting lines are recorded, the notice names the immediate superior."
+      description="Moves the step one level up. The reason goes on the trail."
       fields={[
         { kind: "hidden", name: "stepId" },
         {
@@ -37,14 +37,14 @@ export function EscalateDrawer({
           options: [
             {
               value: "NO_AVAILABLE_HOLDER",
-              label: mandatory ? "Nobody able to act holds the office — not for a mandatory step until the organisation rules" : "Nobody able to act holds the office",
+              label: mandatory ? "Nobody able to act (not for a mandatory step)" : "Nobody able to act",
               disabled: mandatory,
             },
-            { value: "CONFLICT_DECLARED", label: "A conflict of interest is declared, and the declarer recuses" },
+            { value: "CONFLICT_DECLARED", label: "Conflict of interest declared" },
           ],
         },
-        actorField("ApprovalStep.declaredBy", { name: "declaredByPersonId", people, hint: "You declare it, as the person who has the conflict and could decide the step. You cannot decide it afterwards." }),
-        { kind: "textarea", name: "reason", label: "Reason", hint: "What the conflict is, or why nobody can act." },
+        actorField("ApprovalStep.declaredBy", { name: "declaredByPersonId", people, hint: "You cannot decide this step afterwards." }),
+        { kind: "textarea", name: "reason", label: "Reason", hint: "The conflict, or why nobody can act." },
       ]}
       showWhen={{ declaredByPersonId: { name: "kind", in: ["CONFLICT_DECLARED"] } }}
       values={{ stepId }}

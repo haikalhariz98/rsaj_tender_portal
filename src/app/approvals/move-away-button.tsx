@@ -30,16 +30,16 @@ export function MoveAwayButton({ waiting }: { waiting: number }) {
           })
         }
       >
-        {pending ? "Moving…" : "Move steps held by people who are away"}
+        {pending ? "Moving…" : "Move absentees' steps"}
       </Button>
-      {waiting === 0 && <span className="text-[12px] text-ink-3">No step is waiting on an office whose holders are all away.</span>}
+      {waiting === 0 && <span className="text-[12px] text-ink-3">Nothing stuck.</span>}
       {refused && (
         <Callout tone="warn" title="Nothing was moved">
-          {refused} An officer who is not an administrator moves them from here.
+          {refused}
         </Callout>
       )}
       {words && !refused && (
-        <Callout tone="info" title="What the sweep did">
+        <Callout tone="ok" title="Done">
           <ul className="mt-1 flex list-disc flex-col gap-1 pl-5">
             {words.map((w, i) => (
               <li key={i}>{w}</li>
