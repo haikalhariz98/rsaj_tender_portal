@@ -34,6 +34,7 @@ import { attributeSeededRows } from "./demo-attribution";
 import { inboxDemoMissing, loadInboxDemo } from "./demo-inbox";
 import { checkResultsDemo, loadResultsDemo, resultsDemoState } from "./demo-results";
 import { loadOnlineDemo, onlineDemoUnsetWords } from "./demo-online";
+import { loadDemoSignInAndGrants } from "./demo-fresh-config";
 import { DEMO_PREFIX, DEMO_SWITCHES_RETIRED, DEMO_WIPE_RETIRED, demoIsLoaded, demoStarted } from "./demo-sign-in";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -822,6 +823,8 @@ async function load() {
   // Wave 3b step 18 (rulings 12c, 12d, 20z): the online sealed-bid demonstration, after every authored exercise is pinned on paper and before the Results fixture (which stays the last of the
   // demo's own data, and is written on paper whatever the channel). Only here, on a fresh database.
   await loadOnlineDemo(db, organisationId);
+  // AC-65: the sample sign-in settings and the three grants, written here, on a fresh database, and never by `demo:accounts` on a loaded one.
+  await loadDemoSignInAndGrants(db, { id: organisationId, name: org.name });
   // Ruling 4 (2026-10-06): one advertised quotation taken to an issued award, so the public Results page has a row;
   // last, on everything above (prisma/demo-results.ts). `npm run demo:results` applies it alone to a loaded database.
   await loadResultsDemo(db, organisationId, { determine: determineExercises });

@@ -343,4 +343,30 @@ describe("the demonstration where the deployment does not allow demonstration bi
     expect(second.out).toMatch(/shortest passphrase an opening officer may set/);
     expect(await counts(unsetClient!)).toEqual(before);
   });
+
+  // AC-65 (ruling 12c): `demo:accounts` writes accounts and no configuration. Where a grant or a list value the demonstration stands on is missing, it names it in words, with labels and not codes.
+  it("demo:accounts on a loaded database leaves the configuration tables as they were and names what is missing in words", { timeout: 1_000_000 }, async () => {
+    const c = unsetClient!;
+    const grants = ["supplierAccounts.manage", "announcements.publish", "sulit.read.creditorProfile"];
+    // A fresh load wrote the three grants (demo:load's own path). Take them away on this throwaway database so there is something missing to name.
+    await c.rolePermission.deleteMany({ where: { permissionKey: { in: grants } } });
+    const config = async () => ({
+      rolePermission: await c.rolePermission.count(),
+      supplierListValue: await c.supplierListValue.count(),
+      supplierDocumentType: await c.supplierDocumentType.count(),
+      securityPolicy: await c.securityPolicy.count(),
+      dialCodes: await c.supplierListValue.count({ where: { callingCode: { not: null } } }),
+    });
+    const before = await config();
+    const accounts = run([TSX, "scripts/demo-accounts.ts"], 600_000, unsetUrl, { DEMO_ACCOUNT_PASSWORD: ACCOUNT_PASSWORD });
+    expect(accounts.status, accounts.out).toBe(0);
+    expect(await config()).toEqual(before);
+    expect(accounts.out).toContain("nothing was written here");
+    expect(accounts.out).toContain("Read a supplier's bank details");
+    expect(accounts.out).toContain("Manage supplier accounts");
+    expect(accounts.out).toContain("Publish announcements to suppliers");
+    expect(accounts.out).toContain("Head of Contract & Procurement");
+    expect(accounts.out).not.toMatch(/HOD_CP|supplierAccounts\.manage|sulit\.read\.creditorProfile/);
+    expect(await c.staffAccount.count()).toBeGreaterThan(0);
+  });
 });

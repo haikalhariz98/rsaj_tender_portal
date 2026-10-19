@@ -7,12 +7,14 @@
  *
  * What it makes, and only where it is not already there (a second run adds nothing and changes no password):
  *
- * - The organisation's sign-in settings that are unset, filled with the SAMPLE values below. They are a demonstration's, not a recommendation: a customer
- *   chooses its own (the bootstrap command asks for each; Configuration is where they are kept). A setting already set is never changed.
  * - Two administrators, each a person of their own who holds no office (administration stays apart from transactions): `demo.admin1` and `demo.admin2`.
  *   Two, because the checks that need a second person cannot be shown with one.
  * - An ordinary account for every active person of the demonstration (ids prefixed `demo_`) who has none, signing in as `demo.<their name>`. A person who is
  *   not the demonstration's, whoever made them, is never given one: accounts for real people are made on Sign-in accounts, with a code, by an administrator.
+ *
+ * It writes accounts and nothing else (AC-65, ruling 12c): no configuration, on any database. The sign-in settings, the supplier register's lists and document types, the dial code and
+ * the permission grants the demonstration stands on are written by `npm run demo:load` on a fresh database. Where one is missing here, this prints a line in words saying what it is and
+ * where to set it (Configuration, by two people), and writes nothing for it.
  *
  * Every account has the one password in `DEMO_ACCOUNT_PASSWORD`, which this reads from the environment and never prints, stores in a file or puts in the
  * trail (only its hash is stored). Set it in your own `.env` (see `.env.example`). It must satisfy the organisation's shortest-password setting.
@@ -27,32 +29,16 @@ import { makeAdministratorConflict } from "../src/lib/auth/administration-guard"
 import { recordSignInEvent } from "../src/lib/auth/events";
 import { loginKeyOf } from "../src/lib/auth/identity";
 import { hashPassword, passwordFaults } from "../src/lib/auth/password";
-import { fillUnset, policyFault, settingLabels, unsetSettings } from "../src/lib/auth/policy";
+import { policyFault } from "../src/lib/auth/policy";
 import { loadSecurityPolicy } from "../src/lib/auth/policy-store";
-import type { AuditActor, SecurityPolicyValues } from "../src/lib/auth/types";
+import type { AuditActor } from "../src/lib/auth/types";
 import { db } from "../src/lib/db";
 import { ORGANISATION_CODE } from "../src/lib/org";
 import { DEMO_PREFIX, demoIsLoaded } from "../prisma/demo-sign-in";
-import { DEMO_ACCOUNT_MANAGER_ROLE, DEMO_DIAL_CODES, STEP_ONE_LISTS, STEP_TWO_TYPES } from "../prisma/demo-step-one";
+import { missingDemoConfigWords } from "../prisma/demo-fresh-config";
 import { COMPANY_DEMO_ACCOUNTS } from "../prisma/demo-company";
 import { MY_BIDS_DEMO_ACCOUNTS } from "../prisma/demo-my-bids";
 import { REGISTRATION_DEMO_ACCOUNTS } from "../prisma/demo-registration";
-
-/// SAMPLE values for a demonstration. Nothing in the product defaults to them: a customer's own are chosen, never inherited from here.
-const DEMO_POLICY: Partial<SecurityPolicyValues> = {
-  staffIdleMinutes: 30,
-  staffAbsoluteMinutes: 480,
-  supplierIdleMinutes: 30,
-  supplierAbsoluteMinutes: 480,
-  maxConcurrentSessions: 3,
-  concurrentSessionAction: "REVOKE_OLDEST",
-  maxFailedAttempts: 5,
-  lockoutMinutes: 15,
-  addressThrottleAttempts: 10,
-  addressThrottleMinutes: 30,
-  passwordMinLength: 12,
-  resetCodeValidityMinutes: 60,
-};
 
 const ADMINISTRATORS = [
   { loginName: "demo.admin1", name: "Demo Administrator One" },
@@ -86,30 +72,19 @@ async function main() {
   // open with the one published password).
   if (!(await demoIsLoaded(db as unknown as PrismaClient))) throw new Error("The demonstration is not loaded in this database, so no demonstration accounts are made: they all sign in with one published password. Run npm run demo:load first. For a real person, an administrator makes the account on Sign-in accounts.");
 
-  // The settings: fill what is unset with the sample values, and say so in the trail.
+  // The sign-in settings are read, never written here (AC-65). Where one the accounts need is not set, it is named in words and nothing is made.
   const existing = await loadSecurityPolicy(db, org.id);
-  const { values, filled } = fillUnset(existing, DEMO_POLICY);
-  const fault = policyFault(values);
-  if (fault) throw new Error(fault);
-  const unset = unsetSettings(values, "SIGN_IN", "SUPPLIER_SIGN_IN", "SET_PASSWORD", "ISSUE_CODE");
-  if (unset.length > 0) throw new Error(`These settings are unset and the demonstration has no sample for them: ${settingLabels(unset).join("; ")}.`);
-  const minLength = values.passwordMinLength as number;
+  const missing = await missingDemoConfigWords(db as unknown as PrismaClient, org);
+  const policy = existing ? policyFault(existing) : null;
+  if (policy) throw new Error(policy);
+  if (existing?.passwordMinLength == null || missing.some((m) => m.startsWith("Sign-in settings not set"))) {
+    console.log("No accounts were made. These settings are not set on this database (set them through Configuration, by two people; nothing was written here):");
+    for (const line of missing) console.log(`  ${line}`);
+    return;
+  }
+  const minLength = existing.passwordMinLength as number;
   const faults = passwordFaults(password, { loginName: "demo.admin1", minLength });
   if (faults.length > 0) throw new Error(`DEMO_ACCOUNT_PASSWORD will not do: ${faults[0].en}`);
-
-  if (filled.length > 0) {
-    const data = Object.fromEntries(filled.map((k) => [k, values[k]]));
-    await db.$transaction(async (tx) => {
-      await tx.securityPolicy.upsert({ where: { organisationId: org.id }, create: { organisationId: org.id, ...data }, update: data });
-      await writeAudit(
-        tx,
-        { organisationId: org.id, entity: "SecurityPolicy", entityId: org.id, entityLabel: `Security settings of ${org.name}`, reason: "Sample values filled in for the demonstration where they were unset", actor: ACTOR },
-        existing ? "UPDATE" : "CREATE",
-        existing ? diffFields(Object.fromEntries(filled.map((k) => [k, existing[k]])), data) : diffFields(null, data),
-      );
-    });
-    console.log(`Filled ${filled.length} unset sign-in setting${filled.length === 1 ? "" : "s"} with sample values: ${settingLabels(filled).join("; ")}.`);
-  }
 
   const made: { loginName: string; person: string; kind: string }[] = [];
   const taken = new Set((await db.staffAccount.findMany({ select: { loginKey: true } })).map((a) => a.loginKey));
@@ -159,59 +134,6 @@ async function main() {
   }
 
   // ---- Phase 4a: what the supplier portal needs to be tried, only where it is not already there. Everything is the demonstration's: invented, ASSUMED, and never a customer's.
-  const supplierNotes: string[] = [];
-  // The lists step one asks for (the states, the Bumiputera statuses to declare) and a dial code on the first country.
-  for (const l of STEP_ONE_LISTS) {
-    if (await db.supplierListValue.findFirst({ where: { organisationId: org.id, list: l.list, code: l.code }, select: { id: true } })) continue;
-    await db.$transaction(async (tx) => {
-      const row = await tx.supplierListValue.create({ data: { ...l, organisationId: org.id, provenance: "ASSUMED" }, select: { id: true } });
-      await writeAudit(tx, { organisationId: org.id, entity: "SupplierListValue", entityId: row.id, entityLabel: `${l.list === "STATE" ? "State" : "Bumiputera status"} · ${l.nameEn}`, reason: "A demonstration list entry, made by the demo accounts command", actor: ACTOR }, "CREATE", diffFields(null, { name: l.nameEn, nameInMalay: l.nameMs, whereItComesFrom: "Assumed" }));
-    });
-    supplierNotes.push(`${l.list === "STATE" ? "state" : "Bumiputera status"} "${l.nameEn}"`);
-  }
-  // CPD's two further documents, as document types (data, not code), where the demonstration was loaded before they existed.
-  for (const t of STEP_TWO_TYPES) {
-    if (await db.supplierDocumentType.findFirst({ where: { organisationId: org.id, code: t.code }, select: { id: true } })) continue;
-    await db.$transaction(async (tx) => {
-      const row = await tx.supplierDocumentType.create({ data: { ...t, valueKinds: [] as never, organisationId: org.id, governingSource: "Demo supplier register guide (invented)", provenance: "ASSUMED", sortOrder: 9 }, select: { id: true } });
-      await writeAudit(tx, { organisationId: org.id, entity: "SupplierDocumentType", entityId: row.id, entityLabel: `Supplier document type · ${t.nameEn}`, reason: "A demonstration document type, made by the demo accounts command", actor: ACTOR }, "CREATE", diffFields(null, { name: t.nameEn, nameInMalay: t.nameMs, whereItComesFrom: "Assumed" }));
-    });
-    supplierNotes.push(`document type "${t.nameEn}"`);
-  }
-  for (const [code, callingCode] of Object.entries(DEMO_DIAL_CODES)) {
-    const country = await db.supplierListValue.findFirst({ where: { organisationId: org.id, list: "COUNTRY", code, callingCode: null }, select: { id: true, nameEn: true } });
-    if (!country) continue;
-    await db.$transaction(async (tx) => {
-      await tx.supplierListValue.update({ where: { id: country.id }, data: { callingCode } });
-      await writeAudit(tx, { organisationId: org.id, entity: "SupplierListValue", entityId: country.id, entityLabel: `Country · ${country.nameEn}`, reason: "A demonstration dial code (invented), set by the demo accounts command", actor: ACTOR }, "UPDATE", diffFields({ dialCode: "Not set" }, { dialCode: callingCode }));
-    });
-    supplierNotes.push(`dial code ${callingCode} on "${country.nameEn}"`);
-  }
-  // The office that approves a supplier's registration in the demo's matrix may manage supplier accounts: an ASSUMED grant. The organisation decides this for itself; it is undecided until it does.
-  const officerRole = (await db.roleAssignment.count({ where: { roleCode: DEMO_ACCOUNT_MANAGER_ROLE, personId: { startsWith: DEMO_PREFIX } } })) > 0 ? DEMO_ACCOUNT_MANAGER_ROLE : null;
-  if (officerRole && !(await db.rolePermission.findFirst({ where: { organisationId: org.id, permissionKey: "supplierAccounts.manage", roleCode: officerRole }, select: { id: true } }))) {
-    await db.$transaction(async (tx) => {
-      const row = await tx.rolePermission.create({ data: { organisationId: org.id, permissionKey: "supplierAccounts.manage", roleCode: officerRole, decision: "GRANTED" }, select: { id: true } });
-      await writeAudit(tx, { organisationId: org.id, entity: "RolePermission", entityId: row.id, entityLabel: `Permission to manage supplier accounts · ${officerRole}`, reason: "A demonstration grant (assumed), made by the demo accounts command: the organisation decides this for itself", actor: ACTOR }, "CREATE", diffFields(null, { permission: "Manage supplier accounts", role: officerRole, decision: "Granted" }));
-    });
-    supplierNotes.push(`the permission to manage supplier accounts, granted (assumed) to the role ${officerRole}`);
-  }
-  // Phase 4e (FR-VND-014): the same office may publish announcements to the supplier board. An ASSUMED grant: who publishes is undecided by default, and the organisation decides.
-  if (officerRole && !(await db.rolePermission.findFirst({ where: { organisationId: org.id, permissionKey: "announcements.publish", roleCode: officerRole }, select: { id: true } }))) {
-    await db.$transaction(async (tx) => {
-      const row = await tx.rolePermission.create({ data: { organisationId: org.id, permissionKey: "announcements.publish", roleCode: officerRole, decision: "GRANTED" }, select: { id: true } });
-      await writeAudit(tx, { organisationId: org.id, entity: "RolePermission", entityId: row.id, entityLabel: `Permission to publish announcements · ${officerRole}`, reason: "A demonstration grant (assumed), made by the demo accounts command: the organisation decides this for itself", actor: ACTOR }, "CREATE", diffFields(null, { permission: "Publish announcements to suppliers", role: officerRole, decision: "Granted" }));
-    });
-    supplierNotes.push(`the permission to publish announcements, granted (assumed) to the role ${officerRole}`);
-  }
-  // Phase 4b: the same office may read a supplier's bank details (SULIT) and so check them. An ASSUMED grant: reading the creditor's profile is undecided by default, and the organisation decides who may.
-  if (officerRole && !(await db.rolePermission.findFirst({ where: { organisationId: org.id, permissionKey: "sulit.read.creditorProfile", roleCode: officerRole }, select: { id: true } }))) {
-    await db.$transaction(async (tx) => {
-      const row = await tx.rolePermission.create({ data: { organisationId: org.id, permissionKey: "sulit.read.creditorProfile", roleCode: officerRole, decision: "GRANTED" }, select: { id: true } });
-      await writeAudit(tx, { organisationId: org.id, entity: "RolePermission", entityId: row.id, entityLabel: `Permission to read a supplier's bank details · ${officerRole}`, reason: "A demonstration grant (assumed), made by the demo accounts command: the organisation decides this for itself", actor: ACTOR }, "CREATE", diffFields(null, { permission: "Read a supplier's bank details", role: officerRole, decision: "Granted" }));
-    });
-    supplierNotes.push(`the permission to read a supplier's bank details, granted (assumed) to the role ${officerRole}`);
-  }
   // A portal account for the primary contact of two demonstration suppliers, signing in with the same published password.
   const suppliers = [
     { id: `${DEMO_PREFIX}vnd1`, loginName: "demo.supplier1" },
@@ -248,19 +170,21 @@ async function main() {
     supplierMade.push(`${sp.loginName.padEnd(36)} supplier        ${waiting.supplier.reference} (registration part-way)`);
   }
 
-  if (made.length === 0 && supplierNotes.length === 0 && supplierMade.length === 0) {
-    console.log("Every account the demonstration needs is already there. Nothing was changed.");
-    return;
-  }
+  // Whatever else the demonstration stands on that this database does not have, said in words and not written (AC-65).
+  const stillMissing = missing.filter((m) => !m.startsWith("Sign-in settings not set"));
+  if (made.length === 0 && supplierMade.length === 0) console.log("Every account the demonstration needs is already there. Nothing was changed.");
   if (made.length > 0) {
     console.log(`Made ${made.length} account${made.length === 1 ? "" : "s"}. Each signs in with the password in DEMO_ACCOUNT_PASSWORD:`);
     for (const m of made) console.log(`  ${m.loginName.padEnd(36)} ${m.kind.padEnd(14)} ${m.person}`);
     console.log("\nOpen http://localhost:3000 (not 127.0.0.1: the session cookie is Secure) and sign in.");
   }
-  if (supplierNotes.length > 0) console.log(`\nSupplier register, for the portal: ${supplierNotes.join("; ")}.`);
   if (supplierMade.length > 0) {
     console.log(`\nMade ${supplierMade.length} supplier portal account${supplierMade.length === 1 ? "" : "s"} (same password). Suppliers sign in on the PUBLIC copy only: stop the server and start it again with PORTAL_SURFACE=public (npm run dev allows one server per folder), and open it in a private window or another browser profile (the cookie names are host-wide, and a staff cookie is refused on the public copy):`);
     for (const line of supplierMade) console.log(`  ${line}`);
+  }
+  if (stillMissing.length > 0) {
+    console.log("\nThese settings are not set on this database (set them through Configuration, by two people; nothing was written here):");
+    for (const line of stillMissing) console.log(`  ${line}`);
   }
 }
 
