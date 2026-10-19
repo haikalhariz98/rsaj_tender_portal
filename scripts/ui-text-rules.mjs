@@ -12,7 +12,12 @@ export const BUDGET = {
   editorIntro: 15,
   callout: 15,
   fieldHint: 8,
+  /// A paragraph on a screen that has been through minimal-words round 2 (0005 R14, R15): longer text is a MoreText.
+  paragraph: 20,
 };
+
+/// Screens already cut to the paragraph budget. A screen joins this list when its round-2 cut is done.
+export const PARAGRAPH_SCREENS = [/^src\/app\/sourcing\/\[id\]\/documents\/(?!print\/)/];
 
 /// Spec and ruling codes are configuration keys and never reach a screen (AGENTS.md rule 5, 0005 R2).
 /// Literal patterns only: money ("RM 1.2m"), percentages ("6.2%") and dates never match, and a
@@ -93,6 +98,10 @@ export function scanSource(file, source) {
       if (limitOf) {
         const t = attrText(attr(node, limitOf[0]));
         if (t != null && words(t) > limitOf[1]) add(node, limitOf[2], `${tag} ${limitOf[0]} is ${words(t)} words (limit ${limitOf[1]})`);
+      }
+      if (tag === "p" && ts.isJsxElement(node) && PARAGRAPH_SCREENS.some((r) => r.test(file.split("\\").join("/")))) {
+        const n = words(renderedText(node));
+        if (n > BUDGET.paragraph) add(node, "paragraph-length", `Paragraph is ${n} words (limit ${BUDGET.paragraph}): move the rest to a MoreText`);
       }
       if (tag === "Field") {
         const h = attrText(attr(node, "hint"));

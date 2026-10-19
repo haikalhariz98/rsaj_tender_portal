@@ -20,6 +20,7 @@ import { clauseFaults, liveClauses, overrideFaults } from "./clauses";
 import { readConditionsSnapshot } from "./conditions";
 import { ASSURANCE_KIND_LABEL, CONDITIONS_FROZEN_TEXT, conditionsFaultText, confirmFaultText, overrideFaultText, restrictionQuestion } from "./conditions-labels";
 import { eligibilityEditFault, eligibilityFaults, noticeFaults, registrationText } from "./eligibility";
+import { latestDay } from "./conditions-view";
 import { assuranceRequiredText, BEFORE_CONDITIONS_TEXT, frozenConditionsView, groupHeadings } from "./frozen-view";
 import { NOT_SET, yesNoNotSet } from "./labels";
 import { permitFaults, permitLabel } from "./permit";
@@ -136,6 +137,8 @@ export async function conditionsTab(organisationId: string, exerciseId: string) 
     /// The raw answer: the card is hidden only on an explicit no, never on an unanswered policy.
     policy: triOf(policy.assuranceRequired),
     provenance: provenance(policy.assuranceProvenance),
+    /// The day of the latest confirmation, for the folded card's one line.
+    latestOn: latestDay(confirmations.map((c) => c.confirmedOn)),
     policyNotSet: policy.assuranceRequired == null ? conditionsFaultText({ code: "ASSURANCE_POLICY_NOT_SET", level: "block" }) : null,
     rows: (["NO_AMBIGUITY", "DRAWINGS_COORDINATED"] as const).map((kind) => {
       const c = confirmations.find((x) => x.kind === kind) ?? null;

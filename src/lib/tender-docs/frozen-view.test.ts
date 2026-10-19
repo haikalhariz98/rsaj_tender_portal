@@ -59,7 +59,8 @@ describe("a frozen pack's conditions are read only from the snapshot", () => {
     const s = JSON.parse(JSON.stringify(conditionsSnapshot([part({})], { ...FROZEN_INPUT, assurance: { required: false, confirmations: [] } }, null)));
     const v = frozenConditionsView(readConditionsSnapshot(s)!, 1);
     // `policy` is the raw answer the screen hides the card by (founder, 2026-10-05: no card where the policy is No).
-    expect(v.assurance).toEqual({ required: "Not required (the organisation's decision)", policy: "no", rows: [] });
+    // `latestOn` is the folded card's one line (0005 R14, 2026-10-20).
+    expect(v.assurance).toEqual({ required: "Not required (the organisation's decision)", policy: "no", latestOn: null, rows: [] });
   });
   it("a pack frozen before the snapshot existed has none to read", () => {
     expect(readConditionsSnapshot(null)).toBeNull();

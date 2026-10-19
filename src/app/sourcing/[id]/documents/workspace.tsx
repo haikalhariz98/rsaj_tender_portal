@@ -6,10 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
+import { Disclosure } from "@/components/ui/disclosure";
+import { MoreText } from "@/components/ui/more-text";
 import { isMandatoryAct } from "@/components/ui/act";
 import { Stepper } from "@/components/ui/stepper";
 import { KeyValues } from "@/components/ui/stat";
 import { db } from "@/lib/db";
+import { startsOpen } from "@/lib/disclosure/open";
 import { formatDate } from "@/lib/format";
 import { ACT_DONE_LABEL, routedOnLabel } from "@/lib/labels";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
@@ -85,6 +88,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
   }));
   // A draft has no pack kind yet: it is recorded when the exercise moves into preparation.
   const notDecided = d.exercise.status === "Draft" && !d.pack;
+  const readyCount = (d.pack?.parts ?? []).filter((p) => p.state === "Ready").length;
   const hasBq = (d.pack?.parts ?? []).some((p) => p.source === "The bill of quantities, unpriced");
 
   // The primary action of the tab, by where the pack stands.
@@ -160,19 +164,25 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
             </Callout>
           )}
           {!d.pack && !d.start.allowed && <Callout tone="warn" title="Not started">{d.start.reason}</Callout>}
-          {d.facts.status === TENDERING_STATE_LABEL.APPROVED && <p className="text-[13px] text-ink-2">Frozen. Change by addendum under Publishing.</p>}
+          {d.facts.status === TENDERING_STATE_LABEL.APPROVED && <p className="text-[13px] text-ink-2">Frozen. Change by addendum under <ButtonLink href={`/sourcing/${exerciseId}?tab=documents&section=publishing`} variant="link" size="sm">Publishing</ButtonLink>.</p>}
         </CardBody>
         {d.pack && (
-          <div className="border-t border-line">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 sm:px-6">
-              <div className="min-w-[12rem] flex-1">
-                <p className="text-[14px] font-bold text-ink">Documents to issue</p>
-                <p className="text-[12.5px] text-ink-3">{hasBq ? "In print order. Ready when its file is uploaded or its text merges. Bill issued unpriced where built on screen." : "In print order. Ready when its file is uploaded or its text merges."}</p>
+          <div className="border-t border-line px-5 py-3 sm:px-6">
+            <Disclosure
+              id="documents-to-issue"
+              defaultOpen={startsOpen({ finding: readyCount < d.pack.parts.length, actNow: !!d.pack.newParts || !!d.pack.refresh })}
+              title={<span className="inline-flex items-center gap-1 text-[14px] font-bold text-ink">Documents to issue <MoreText label="How a part becomes ready" text={hasBq ? "Ready when its file is uploaded or its text merges. Bill issued unpriced where built on screen." : "Ready when its file is uploaded or its text merges."} /></span>}
+              summary={<>{readyCount} of {d.pack.parts.length} ready</>}
+            >
+              <div className="-mx-5 sm:-mx-6">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 pb-3 sm:px-6">
+                  <p className="min-w-[12rem] flex-1 text-[12.5px] text-ink-3">In print order.</p>
+                  {d.pack.newParts && <TakeNewPartsDrawer exerciseId={exerciseId} parts={d.pack.newParts.parts} confirmedParts={d.pack.newPartsKey ?? ""} />}
+                  {d.pack.refresh && <RefreshFlagsDrawer exerciseId={exerciseId} refresh={d.pack.refresh} confirmedChanges={d.pack.refreshKey ?? ""} />}
+                </div>
+                <PartsList exerciseId={exerciseId} parts={parts} />
               </div>
-              {d.pack.newParts && <TakeNewPartsDrawer exerciseId={exerciseId} parts={d.pack.newParts.parts} confirmedParts={d.pack.newPartsKey ?? ""} />}
-              {d.pack.refresh && <RefreshFlagsDrawer exerciseId={exerciseId} refresh={d.pack.refresh} confirmedChanges={d.pack.refreshKey ?? ""} />}
-            </div>
-            <PartsList exerciseId={exerciseId} parts={parts} />
+            </Disclosure>
           </div>
         )}
       </Card>
@@ -181,7 +191,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
 
       {d.pack && d.exercise.status !== "Draft" && <InspectionLogCard organisationId={scope.organisationId} exerciseId={exerciseId} />}
 
-      {(d.pack || routes.length > 0) && <RouteCard versionLabel={(() => { const v = d.versions.find((x) => x.submittedOn); return v ? `Version ${v.versionNo}` : null; })()} exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} />}
+      {(d.pack || routes.length > 0) && <RouteCard versionLabel={(() => { const v = d.versions.find((x) => x.submittedOn); return v ? `Version ${v.versionNo}` : null; })()} exerciseId={exerciseId} approvedOn={d.dates && "approvedOn" in d.dates ? (d.dates.approvedOn ?? null) : null} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} />}
 
       {d.versions.length > 1 && (
         <Accordion title="Versions" meta={`${d.versions.length} versions`}>
@@ -206,19 +216,19 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
 
 // ------------------------------------------------------------------ the route
 
-async function RouteCard({ exerciseId, routes, decide, proposed, today, versionLabel }: { versionLabel: string | null; exerciseId: string; routes: Route[]; decide: NonNullable<Data["route"]>["decide"] | null; proposed: Data["proposed"]; today: string | null }) {
+async function RouteCard({ exerciseId, routes, decide, proposed, today, versionLabel, approvedOn }: { approvedOn: string | null; versionLabel: string | null; exerciseId: string; routes: Route[]; decide: NonNullable<Data["route"]>["decide"] | null; proposed: Data["proposed"]; today: string | null }) {
   const inst = routes[0] ?? null;
   const earlier = routes.slice(1);
   const officeName = (code: string | null) => (code ? "an office no longer configured" : null);
   if (!inst) {
     return (
       <Card>
-        <CardHeader icon={<RouteIcon size={17} />} title="Approval for tendering" subtitle="Not submitted yet." />
-        <CardBody>
-          <p className="text-[13.5px] text-ink-2">
-            Submitting opens the route the approval matrix sets for this method and value. {IF_REFUSED_TEXT}
-          </p>
-        </CardBody>
+        <CardHeader
+          icon={<RouteIcon size={17} />}
+          title="Approval for tendering"
+          divided={false}
+          subtitle={<>Not submitted yet. <MoreText label="What submitting does" text={`Submitting opens the route the approval matrix sets for this method and value. ${IF_REFUSED_TEXT}`} /></>}
+        />
       </Card>
     );
   }
@@ -227,14 +237,21 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
   const warnings = ((inst.warnings as { code?: string; level: string; messageEn: string }[]) ?? []).filter((w) => !(inst.checkedAgainstMatrix && w.code && CHAIN_NOTE_CODES.has(w.code)));
   const people = decide?.people ?? [];
   const everyone = people.length ? people : (await db.person.findMany({ where: { organisationId: inst.organisationId, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name }));
+  // Open while the route is pending or sent back, or holds a finding; folded to its outcome once approved (0005 R14).
+  const decided = inst.status === "APPROVED";
+  const ruleLine = inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : null;
   return (
     <Card className="overflow-hidden">
       <CardHeader
+        collapsible
+        id="approval"
+        defaultOpen={startsOpen({ inProgress: !decided, finding: warnings.length > 0 })}
+        summary={decided ? `${ruleLine ? `${ruleLine} · ` : ""}Approved${approvedOn ? ` ${approvedOn}` : ""}` : undefined}
         icon={<RouteIcon size={17} />}
         title="Approval for tendering"
         subtitle={`${versionLabel ? `${versionLabel}, submitted` : "Submitted"} ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
         actions={<Badge tone={tenderingRouteTone(inst.status)}>{tenderingRouteLabel(inst.status, inst.warnings)}</Badge>}
-      />
+      >
       <CardBody className="flex flex-col gap-4">
         {/* The same helper the Overview's stepper reads, so the route is worded once. Decide and Escalate sit on the pending step below. */}
         <Stepper label="Approval for tendering" steps={tenderingStepperSteps(inst)} />
@@ -247,9 +264,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
           <FindingNote key={i} level={w.level}>{w.messageEn}</FindingNote>
         ))}
         {inst.status === "PENDING" && (
-          <p className="text-[12.5px] text-ink-3">
-            Steps are decided in order: each waits for the one before it. {IF_REFUSED_TEXT}
-          </p>
+          <span className="self-start"><MoreText label="How the steps are decided" text={`Steps are decided in order: each waits for the one before it. ${IF_REFUSED_TEXT}`} /></span>
         )}
       </CardBody>
       <RouteSteps
@@ -300,6 +315,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
           </Accordion>
         )}
       </CardBody>
+      </CardHeader>
     </Card>
   );
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { assuranceCardShown, CLAUSE_STATUS as S, clausesSummary, triOf } from "./conditions-view";
+import { formatDate } from "@/lib/format";
+import { assuranceCardShown, assuranceLine, CLAUSE_STATUS as S, clausesSummary, latestDay, triOf } from "./conditions-view";
 
 describe("the assurance card follows the policy, and an unanswered policy is not 'no'", () => {
   it("is hidden only where the organisation decided it is not required", () => {
@@ -49,5 +50,29 @@ describe("the mandatory clauses as one line", () => {
   it("clauses that are not required in every agreement are not counted as carried", () => {
     expect(line([S.notRequired, S.carried]).text).toBe("1 clause carried");
     expect(line([S.notRequired]).text).toMatch(/No clause is required in every agreement/);
+  });
+});
+
+describe("assuranceLine (0005 R14, 2026-10-20)", () => {
+  const rows = (...c: boolean[]) => c.map((confirmed) => ({ confirmed, notNeeded: false }));
+  it("folds to Confirmed {date} once every needed confirmation is in", () => {
+    expect(assuranceLine({ required: "Required by policy", rows: rows(true, true), latestOn: "3 Oct 2026" })).toEqual({ text: "Confirmed 3 Oct 2026", notSet: false, open: false });
+  });
+  it("opens while a confirmation is waiting, and counts them", () => {
+    expect(assuranceLine({ required: "Required by policy", rows: rows(true, false), latestOn: "3 Oct 2026" })).toEqual({ text: "1 of 2 confirmed", notSet: false, open: true });
+  });
+  it("says Not set, never a count, for an unanswered policy, and opens", () => {
+    expect(assuranceLine({ required: "Not set", rows: rows(false), latestOn: null })).toEqual({ text: null, notSet: true, open: true });
+  });
+  it("leaves a row that is not needed out of the count", () => {
+    expect(assuranceLine({ required: "Required by policy", rows: [{ confirmed: true, notNeeded: false }, { confirmed: false, notNeeded: true }], latestOn: "3 Oct 2026" }).open).toBe(false);
+    expect(assuranceLine({ required: "Required by policy", rows: [{ confirmed: false, notNeeded: true }], latestOn: null }).text).toBe("Nothing to confirm");
+  });
+});
+
+describe("latestDay", () => {
+  it("is null for none", () => expect(latestDay([])).toBeNull());
+  it("names the latest, whatever the order", () => {
+    expect(latestDay(["2026-10-03", "2026-10-05", "2026-10-01"])).toBe(formatDate("2026-10-05"));
   });
 });

@@ -63,3 +63,16 @@ describe("literal-text rules", () => {
     expect(scanSource("x.test.tsx", `export const a = "FR-EVL-014";`)).toEqual([]);
   });
 });
+
+describe("paragraph rule (0005 R14, 2026-10-20)", () => {
+  const long = Array.from({ length: 21 }, () => "word").join(" ");
+  const onTab = (source: string) => scanSource("src/app/sourcing/[id]/documents/x.tsx", source).map((v) => v.rule);
+  it("fails a paragraph over 20 words on a screen that has been cut", () => {
+    expect(onTab(`export const a = <p>${long}</p>;`)).toEqual(["paragraph-length"]);
+  });
+  it("passes 20 words, and leaves other screens and the print view alone", () => {
+    expect(onTab(`export const a = <p>${long.slice(5)}</p>;`)).toEqual([]);
+    expect(rules(`export const a = <p>${long}</p>;`)).toEqual([]);
+    expect(scanSource("src/app/sourcing/[id]/documents/print/page.tsx", `export const a = <p>${long}</p>;`)).toEqual([]);
+  });
+});

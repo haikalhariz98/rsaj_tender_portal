@@ -12,7 +12,7 @@ import { formatDate } from "@/lib/format";
 import { ASSURANCE_KIND_LABEL, restrictionQuestion } from "./conditions-labels";
 import type { ConditionsSnapshot } from "./conditions";
 import type { AssuranceKind } from "./assurance";
-import { CLAUSE_STATUS, triOf } from "./conditions-view";
+import { CLAUSE_STATUS, latestDay, triOf } from "./conditions-view";
 import { NOT_SET, yesNoNotSet } from "./labels";
 
 /// A body's name as it starts a line ("the Demo Companies Registry" is "The Demo Companies Registry" in a list).
@@ -58,6 +58,7 @@ export function frozenConditionsView(s: ConditionsSnapshot, versionNo: number) {
     assurance: {
       required: assuranceRequiredText(s.assurance.required),
       policy: triOf(s.assurance.required),
+      latestOn: latestDay(s.assurance.confirmations.map((c) => c.on)),
       rows: (s.assurance.required ? s.assurance.needed : []).map((kind) => {
         const c = s.assurance.confirmations.find((x) => x.kind === kind) ?? null;
         return { label: ASSURANCE_KIND_LABEL[kind as AssuranceKind] ?? "A confirmation", by: c ? c.person : null, on: c ? formatDate(c.on) : null };

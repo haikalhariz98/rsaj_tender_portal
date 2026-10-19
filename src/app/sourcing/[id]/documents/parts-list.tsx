@@ -6,6 +6,7 @@ import { DataList, type Row } from "@/components/data-list";
 import { OwnerDocumentsButton } from "@/components/attachments/owner-documents-button";
 import { Blocked } from "@/components/ui/blocked";
 import { buttonClass } from "@/components/ui/button";
+import { MoreText } from "@/components/ui/more-text";
 
 import { PickTemplateDrawer } from "./editors";
 
@@ -162,8 +163,8 @@ export function PartsList({ exerciseId, parts }: { exerciseId: string; parts: Pa
               <Blocked label="Replace" reason={replace.reason} noteId={why!.id} ariaLabel={`Replace for ${name}`} />
             )}
             {why && (
-              <span id={why.id} className="basis-full text-right text-[12.5px] leading-snug text-ink-3">
-                {why.text}
+              <span id={why.id} className="inline-flex basis-full items-center justify-end gap-1 text-[12.5px] leading-snug text-ink-3">
+                Why <MoreText label={`Why some acts on ${name} are unavailable`} text={why.text} />
               </span>
             )}
           </span>

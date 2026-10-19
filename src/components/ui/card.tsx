@@ -3,6 +3,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { ChevronDown } from "@/components/icons";
 
 import { cx } from "./cx";
+import { OpenOnHash } from "./open-on-hash";
 
 /// The one surface everything sits on: white, softly rounded, barely lifted.
 export function Card({
@@ -92,10 +93,11 @@ export function CardHeader({
   );
   if (!collapsible) return header;
   return (
-    <details open={defaultOpen} id={id} className="group/card min-w-0">
+    <details open={defaultOpen} id={id} className="group/card min-w-0 scroll-mt-24">
       <summary className="cursor-pointer list-none rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500 [&::-webkit-details-marker]:hidden group-open/card:border-b group-open/card:border-line">
         {header}
       </summary>
+      <OpenOnHash id={id} />
       {children}
     </details>
   );
