@@ -212,7 +212,9 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
     closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, timeZone) : null,
     statement: { reading: LATENESS_READING.text, provenance: PROVENANCE_WORD[LATENESS_READING.provenance] },
     /// Whose rules these are (CR-2): once published, the method's as they stood then.
-    rulesNote: reading.frozen ? "The method's late-admission committee, fewest bids and incomplete-bid rule as they stood when the window was published. A later change applies only to exercises published after it." : "The method's rules as they stand today. They are frozen with the window when it is published.",
+    // 0005 R15, 2026-10-20: the line says whose rules these are; what freezing means is behind the information button.
+    rulesNote: reading.frozen ? "As they stood when the window was published." : "As they stand today.",
+    rulesMore: reading.frozen ? "The method's late-admission committee, fewest bids and incomplete-bid rule as they stood when the window was published. A later change applies only to exercises published after it." : "The method's rules as they stand today. They are frozen with the window when it is published.",
     exerciseReason: receive.allowed ? null : receive.reason,
     acts: { receive, withdraw, lock, extend, answers },
     box: box.state === "NOT_LOCKED" ? { state: "NOT_LOCKED" as const, text: "Not locked yet" } : { state: box.state, text: `${box.state === "LOCKED" ? "Locked" : "Opened for the opening"} at ${time(box.at)} · ${lastBox ? attributed.read({ entity: "BoxEvent", id: lastBox.id, slot: "person" }, box.by).en : box.by}` },

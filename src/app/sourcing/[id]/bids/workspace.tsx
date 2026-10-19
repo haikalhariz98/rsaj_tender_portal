@@ -7,6 +7,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
+import { MoreText } from "@/components/ui/more-text";
 import { KeyValues } from "@/components/ui/stat";
 import { CHECKLIST_RETURN_NOT_SET, CHECKLIST_TITLE, REGISTER_GAPS, REGISTER_STATEMENT, WITHDRAWAL_SULIT_LABEL } from "@/lib/bids/labels";
 import { bidsTab, type BidsTab } from "@/lib/bids/read";
@@ -110,7 +111,10 @@ function BidsPanel({ d, schedule }: { d: BidsTab; schedule: ReactNode }) {
         />
         {d.online.count > 0 && (
           <CardBody className="border-t border-line">
-            <p className="text-[13px] text-ink-2">{`Online: ${d.online.count} ${d.online.count === 1 ? "bid" : "bids"} now standing, ${d.online.inTime} in time and ${d.online.late} late.${d.online.showsOrdinal ? ` ${d.online.ordinalNote}` : ""}`}</p>
+            <p className="flex flex-wrap items-center gap-1.5 text-[13px] text-ink-2">
+              {`Online: ${d.online.count} ${d.online.count === 1 ? "bid" : "bids"} now standing, ${d.online.inTime} in time and ${d.online.late} late.`}
+              {d.online.showsOrdinal && <MoreText label="Order of the bids" text={d.online.ordinalNote} />}
+            </p>
           </CardBody>
         )}
         <EnvelopeList exerciseId={d.exerciseId} rows={d.rows} late={d.late} />
@@ -125,7 +129,7 @@ function BidsPanel({ d, schedule }: { d: BidsTab; schedule: ReactNode }) {
                 { label: "Closing", value: d.closing ?? "Not set" },
                 { label: "The box", value: <span className="flex flex-wrap items-center gap-2">{d.box.state === "NOT_LOCKED" ? <Chip tone="warn">Not locked yet</Chip> : <Chip tone="ok">{d.box.state === "LOCKED" ? "Locked" : "Opened"}</Chip>}{d.box.state !== "NOT_LOCKED" && <span className="break-words">{d.box.text}</span>}</span> },
                 { label: "How lateness is judged", value: <span className="flex flex-col items-start gap-1.5"><span className="break-words">{d.statement.reading}</span><FromBadge text={d.statement.provenance} /></span> },
-                { label: "The method's rules", value: <span className="break-words">{d.rulesNote}</span> },
+                { label: "The method's rules", value: <span className="flex flex-wrap items-center gap-1.5 break-words">{d.rulesNote}<MoreText label="The method's rules" text={d.rulesMore} /></span> },
               ]}
             />
           </CardBody>
@@ -299,7 +303,7 @@ function ChecklistCard({ d }: { d: BidsTab }) {
             ))}
           </ol>
         )}
-        {c.notReturned.length > 0 && <p className="text-[12.5px] break-words text-ink-3">{`Not returned by a bidder, so not checked against a bid: ${c.notReturned.join(", ")}.`}</p>}
+        {c.notReturned.length > 0 && <span className="self-start"><InfoChip tone="warn" label="Not checked" detail={`Not returned by a bidder, so not checked against a bid: ${c.notReturned.join(", ")}.`}>{`Not checked ${c.notReturned.length}`}</InfoChip></span>}
         {c.notSet.length > 0 && <Callout tone="warn">{`Whether these parts are mandatory is not set: ${c.notSet.join(", ")}.`}</Callout>}
       </CardBody>
     </Card>
