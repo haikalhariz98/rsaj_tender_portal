@@ -1201,6 +1201,93 @@ None of them starts wave P: P1 to P7 stay held (AC-7).
       database; it waits for the founder.
   - Each item's scope, Done-when and risk are in the decisions log lines for AC-63.
 
+### Rulings of 2026-10-19, third set (AC-64 onward)
+
+- **AC-64. The configuration `npm run demo:accounts` wrote on the founder's database `perolehan` on 2026-10-19 stands, disclosed. It is a
+  breach of ruling 12c, not an ambiguity.** Code: no (data).
+  - The founder asked for tester accounts. The run made the 16 staff and 4 supplier accounts as designed. It also made ten audited
+    one-person configuration writes as the demo loader. The orchestrator's report named eight and left out the Bumiputera value and the
+    dial code. The ten writes, by audit id:
+    - supplier register values: the states "Demo State A", "Demo State B" and "Demo State C" (`cmver6vyf001gkokc886qbzap`,
+      `cmver6vyp001hkokcuorsjbzf`, `cmver6vyz001ikokcdc3kbvkn`), and the Bumiputera status "Bumiputera company"
+      (`cmver6vzb001jkokcveiydtoi`);
+    - document types: "LHDN tax clearance" (`cmver6vzp001kkokc8nqqg413`) and "Declaration of non-blacklisting (Surat Akuan Tidak
+      Disenaraihitam)" (`cmver6vzz001lkokcdncafuhs`);
+    - the dial code +999 on "Demo Country" (`cmver6w0f001mkokck9lwt1bb`);
+    - three grants to the role HOD_CP: manage supplier accounts (`cmver6w0x001okokck5b6p7yj`), publish announcements
+      (`cmver6w18001qkokcorwrpwtn`) and read a supplier's bank details, which is SULIT (`cmver6w1i001skokcpplk9zlh`).
+  - It is a breach because 12c already ruled that no additive step on a loaded database writes configuration. `demo:accounts` refuses
+    unless the demo is loaded, so every run of it is on a loaded database. The script was never brought into line with 12c.
+  - **Not undone now**, for 12c's reason: writing the earlier state back is itself a one-person configuration write. The organisation holds
+    invented demonstration data only, every row is ASSUMED, and History names the demo loader. No screen claims two people issued it.
+  - **The founder's review list** is one list: these ten writes plus 12c's three. The bank-details grant comes first, because it opens a
+    SULIT gate. He confirms, reverses or changes each through Configuration by the two-person path. The second person must be a second
+    real account. The 16 demonstration logins share one published password, so a change made and approved by two of them is not two
+    people (NFR-SEC-004). Nothing is deleted and the database is not reset. This goes in the hand-over.
+  - Also on the review list, not changed here: the document type's English name carries a Malay phrase on screen, against the founder's
+    English-only instruction of 2026-10-19.
+- **AC-65. `scripts/demo-accounts.ts` writes accounts only. It writes no configuration on any database.** Code: yes.
+  - On a fresh `demo:load`, the states, the Bumiputera values, both document types and the dial code are already written by
+    `prisma/demo-suppliers.ts`. The script's top-up of them exists only for older loads, and is removed.
+  - The three HOD_CP grants are written today only by `demo:accounts`. They move into `demo:load`'s fresh path (`demoStarted` false), each
+    audited as the demo loader and ASSUMED, as 12c allows. A fresh demo then behaves as it does today. `demo-additive.db.test.ts` and
+    the case-walk and online-demo harnesses run `demo:load` before `demo:accounts`, so they keep the grants.
+  - For each setting the demonstration needs that is missing, the script prints one line in words, naming the setting and where to set it
+    (Configuration, by two people). It writes nothing for that setting. Print labels, never codes: a role by its office's name, not
+    `HOD_CP`, and a permission by its label, not its key.
+  - The account writes (StaffAccount, SupplierAccount, and the demonstration administrator's own Person) stay as they are. If the builder
+    finds that any table the script writes is edited through Configuration's two-person path, that table follows this ruling too.
+  - New test: run on a loaded database where these settings are missing, the script leaves the configuration tables' row counts unchanged
+    and prints the missing settings in words. No existing test pins the removed writes (grep: none names the lists, the types or the
+    grants after `demo:accounts`). Any test found to pin them is updated citing AC-65, never deleted.
+  - English only: the moved code adds no Malay. The Malay names already in `prisma/demo-step-one.ts` are not touched here.
+- **AC-66. On the case's step bar, several steps showing "in progress" at once stands. `case-steps.ts` keeps its states.** Code: yes,
+  shared `Stepper` only.
+  - ADR 0037 decision 5, AC-36 and FR-CON-008 decided that the bar is parallel. A pending commencement, an unsigned contract and
+    outstanding conditions are three things that are each truly in progress at once. Showing one of them would hide two. Reversing this
+    now would be the oscillation AC-62 refused. With AC-67, a draft award can show a fourth.
+  - The legibility fix is visual only, in the shared `Stepper`. When `selected` is given, that step is marked as the one being viewed (for
+    example a brand-colour ring and an underlined label), distinct from the amber "in progress" dot. No new words and no `COMPONENT_WORDS`
+    entry, so nothing extends the ADR 0040 layer. The steppers that pass no `selected` render unchanged (C2). It is pinned in
+    `stepper.test.ts`.
+- **AC-67. Before signing on an award with no contract yet: the step bar must match the screen.** Code: yes.
+  - Today `projects/[id]/page.tsx` passes `beforeSigning: null` when there is no Contract row, so the bar says "Opens once the award is
+    issued". But AC-36 (amended F0-4) opens this stage before issue for the award's conditions and bond requirement, and the page renders
+    those panels. That is a dishonest line, and a bug.
+  - Fix: take the Before signing facts from the award's own reader (`av.before`) whether or not a Contract row exists. The step's state,
+    words and main button then follow the existing rules in `beforeSigningStep`.
+  - The main button is offered only where a panel there already offers its drawer, as a link to that panel (F0-2, the C5 pattern of
+    `CASE_ACTION_AT`). It adds no gate and invents no act (AC-20). If nothing there is due, there is no main button and the line says why.
+  - If the readiness gate cannot judge without a Contract row, the step reads "waiting" with true words, for example "Conditions are
+    checked once the award is issued". It must never say the stage is closed. Pin both cases in `case-steps.test.ts` and the page test.
+- **AC-68. Project on a contract on site has no main button. That is correct.** Code: no. This also answers log 2479 (2026-10-18).
+  - At most one main button, not at least one. A step's main button exists only where today's page offers that act's drawer (F0-2,
+    AC-20). On site, many acts run side by side (valuations, variations and the rest), and none is the next. Picking one would be a
+    guessed priority, and adding one would add an act.
+  - Log 2479 asked whether a link to the default step should be added when the viewed step has no action: no. Each step's label in the bar
+    is already a link to that step (`caseHref`), and a second link would be words the cut removes.
+- **AC-69. "Start the award" is offered only where the act would not refuse before reading the form.** Code: yes.
+  - On the exercise's Award tab, the primary "Start the award" is shown only when every check of `createAward` that does not depend on the
+    form's fields passes. Otherwise the tab shows the existing disabled button with the reason beside it (the `award-start-note` pattern
+    already in `sourcing/[id]/page.tsx`).
+  - The checks: the exercise open for an award, no live award, the openings' faults other than the awardee's naming, the evaluation's gate
+    with no awardee, the time zone, the instrument, and an issue in force.
+  - Rule 3: the page and the action ask the same pure functions in `src/lib/award`. Neither restates the other. Only the refusals that
+    depend on the awardee, the value or the period stay at click time.
+  - The SULIT closure of the recommendation (`recommendationClosed`) writes an access-log row when asked. The page must not add log writes
+    on every render just to decide a button. Use an existing check of the reader's grant that reads no SULIT field, if one exists. If
+    none does, that one refusal stays at click time, already logged (AC-37), and is recorded as a residual.
+  - The browser check's exact refusal text is not in the repository. The builder reproduces the case with an exercise under evaluation on
+    a scratch database and pins it in a test.
+- **AC-70. The founder's English-only instruction (2026-10-19) and the open questions of that day.** Code: words only, none blocking.
+  - The N1 Malay questions are withdrawn by the instruction, not ruled: Q1, the case page's English regions (log 2615), and the Malay half
+    of J4. How the Malay layer itself is removed is the work the founder asked for, and is not ruled here.
+  - R1-4 (a Skip to content link in the shell, with `main` as its target) and R2-1 (a name for each `Meter` caller) were held only
+    because they needed words in both languages. Both are unblocked and built in plain English. Neither blocks AC-65 to AC-69.
+  - J4, English half: Sealed against the estimate in `src/lib/evaluation/report.ts` and stays sealed in `src/lib/auth/sulit-access.ts`
+    make the overclaim ruled in 20cw (b), and are reworded to the same words (Withheld from view).
+  - The other 2026-10-19 questions (N2's exports, J3, J5, J7, N4's timeout) do not block AC-65 to AC-69. They stay open in the log.
+
 ## 5. Wave plan
 
 **Entry for every wave:**
