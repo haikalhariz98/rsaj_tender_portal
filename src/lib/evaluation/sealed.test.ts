@@ -1,12 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { ACTIVITY_ENTITIES } from "@/lib/dashboard/activity";
 
 import { EVALUATION_ENTITIES } from "./audit-view";
-import { toPosix } from "@/lib/scan/files";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * By source scan (plan §3 `sealed.test.ts`; FR-EVL-007, 014; E-3; ADR 0018):
@@ -27,9 +27,9 @@ function files(dir: string): string[] {
     return /\.tsx?$/.test(name) ? [toPosix(path)] : [];
   });
 }
-const all = files(join(root, "src")).map((p) => ({ path: relative(root, p), text: readFileSync(p, "utf8") }));
+const all = files(join(root, "src")).map((p) => ({ path: posixRelative(root, p), text: readFileSync(p, "utf8") }));
 const sources = all.filter((s) => !/\.test\.tsx?$/.test(s.path));
-const ACTION_DIR = join("src", "app", "sourcing", "[id]", "evaluation");
+const ACTION_DIR = toPosix(join("src", "app", "sourcing", "[id]", "evaluation"));
 const actionFiles = sources.filter((s) => s.path.startsWith(ACTION_DIR) && /actions\.ts$/.test(s.path));
 
 /// Every exported act of the evaluation's action files, with its body.
@@ -38,7 +38,7 @@ const acts = actionFiles.flatMap((f) => [...f.text.matchAll(/export async functi
 describe("the configured model is the model executed (FR-EVL-007, §13.4)", () => {
   it("nothing that evaluates reads the model's configuration rows: only the pinned snapshot", () => {
     const ROWS = /\.(evaluationModel|evaluationStage|evaluationCriterion|evaluationFactorOption|evaluationBandSet|evaluationBand|evaluationAspect)\.(find|count|aggregate)/;
-    const evaluates = sources.filter((s) => (s.path.startsWith(join("src", "lib", "evaluation")) && !/config/.test(s.path)) || s.path.startsWith(ACTION_DIR));
+    const evaluates = sources.filter((s) => (s.path.startsWith(toPosix(join("src", "lib", "evaluation"))) && !/config/.test(s.path)) || s.path.startsWith(ACTION_DIR));
     expect(evaluates.length).toBeGreaterThan(20);
     expect(evaluates.filter((s) => ROWS.test(s.text)).map((s) => s.path)).toEqual([]);
   });
@@ -49,6 +49,8 @@ describe("evaluation records never reach a broadcast surface (E-3, FR-EVL-014)",
   // 6.17 was removed; kept, not weakened).
   const BROADCAST = /^src\/(app\/page\.tsx|app\/sourcing\/page\.tsx|app\/awards\/page\.tsx|app\/requisitions\/|app\/approvals\/|app\/reports\/|app\/documents\/|lib\/certificate\/register\.ts|app\/configuration\/audit\/|lib\/dashboard|lib\/search)/;
   it("no loader of the dashboard, the lists, the activity feed or the audit export's screen reads a score, a result, a recommendation or the Kertas Cadangan", () => {
+    // N4: the surfaces are found by their "/" keys; a Windows run that matched none would check nothing.
+    expect(sources.filter((s) => BROADCAST.test(s.path)).length).toBeGreaterThan(10);
     const hits = sources.filter((s) => BROADCAST.test(s.path) && /evaluationScore|stageResult|recommendation\b|Recommendation\b|proposalPaper|ProposalPaper|correctedPrice|cprPercent|evaluatedPrice|recommendedPrice|reportSnapshot/.test(s.text)).map((s) => s.path);
     expect(hits).toEqual([]);
   });

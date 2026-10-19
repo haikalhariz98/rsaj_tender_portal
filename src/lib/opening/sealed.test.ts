@@ -1,12 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { ACTIVITY_ENTITIES } from "@/lib/dashboard/activity";
 
 import { OPENING_ENTITIES } from "./audit-view";
-import { toPosix } from "@/lib/scan/files";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * ADR 0017, C-4, FR-OPN-011 by source scan:
@@ -29,8 +29,8 @@ function files(dir: string): string[] {
     return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [toPosix(path)] : [];
   });
 }
-const sources = files(join(root, "src")).map((p) => ({ path: relative(root, p), text: readFileSync(p, "utf8") }));
-const ACTIONS = join("src", "app", "sourcing", "[id]", "opening", "actions.ts");
+const sources = files(join(root, "src")).map((p) => ({ path: posixRelative(root, p), text: readFileSync(p, "utf8") }));
+const ACTIONS = toPosix(join("src", "app", "sourcing", "[id]", "opening", "actions.ts"));
 const actions = readFileSync(join(root, ACTIONS), "utf8");
 
 /// Each call matching `re` with its argument text and the function it sits in.
@@ -53,7 +53,7 @@ describe("the offer is written only by the opening's acts (ADR 0017)", () => {
   it("only openEnvelope and recordAlternative create an offer, only correctAsRead changes what was read", () => {
     const creates = sources.flatMap((s) => calls(s.text, /openedBid\.(create|createMany|upsert)\(/g).map((c) => `${s.path}#${c.fn}`));
     // Wave 3b step 13 (plan 1.5f): the online unseal is the one other writer, in `commitUnseal`, and it writes the offer with its price NULL (ruling 20).
-    expect(creates.sort()).toEqual([`${ACTIONS}#openEnvelope`, `${ACTIONS}#recordAlternative`, join("src", "lib", "opening", "unseal-store.ts#commitUnseal")].sort());
+    expect(creates.sort()).toEqual([`${ACTIONS}#openEnvelope`, `${ACTIONS}#recordAlternative`, toPosix(join("src", "lib", "opening", "unseal-store.ts#commitUnseal"))].sort());
     const priced = sources.flatMap((s) => calls(s.text, /openedBid\.(update|updateMany)\(/g).filter((c) => /priceAsRead|completionPeriod|bidderNameAsRead/.test(c.text)).map((c) => `${s.path}#${c.fn}`));
     expect(priced).toEqual([`${ACTIONS}#correctAsRead`]);
   });
@@ -64,6 +64,8 @@ describe("a price as read never reaches a broadcast surface (C-4)", () => {
   // 6.17 was removed; kept, not weakened).
   const BROADCAST = /^src\/(app\/page\.tsx|app\/sourcing\/page\.tsx|app\/awards\/page\.tsx|app\/requisitions\/|app\/approvals\/|app\/reports\/|app\/documents\/|lib\/certificate\/register\.ts|app\/configuration\/audit\/|lib\/dashboard)/;
   it("no loader of the dashboard, the lists, the activity feed or the audit export's screen reads an offer", () => {
+    // N4: the surfaces are found by their "/" keys; a Windows run that matched none would check nothing.
+    expect(sources.filter((s) => BROADCAST.test(s.path)).length).toBeGreaterThan(10);
     const hits = sources.filter((s) => BROADCAST.test(s.path) && /openedBid|priceAsRead|openingPrice|OpenedBid/.test(s.text)).map((s) => s.path);
     expect(hits).toEqual([]);
   });
@@ -75,11 +77,11 @@ describe("a price as read never reaches a broadcast surface (C-4)", () => {
 describe("the box (OD-4, C-3, C-12)", () => {
   it("channel BOX is written only by the estimate's lodgement and the opening's registration of a box envelope", () => {
     const writers = sources.flatMap((s) => calls(s.text, /bidEnvelope\.(create|createMany|update|updateMany|upsert)\(/g).filter((c) => /channel:\s*"BOX"/.test(c.text)).map((c) => `${s.path}#${c.fn}`));
-    expect(writers.sort()).toEqual([`${ACTIONS}#registerBoxEnvelope`, `${join("src", "lib", "bids", "lodgement.ts")}#recordEstimateLodgement`].sort());
+    expect(writers.sort()).toEqual([`${ACTIONS}#registerBoxEnvelope`, `${toPosix(join("src", "lib", "bids", "lodgement.ts"))}#recordEstimateLodgement`].sort());
   });
   it("BOX_AT_OPENING is written only at opening", () => {
     const hits = sources.filter((s) => /receivedSource:\s*"BOX_AT_OPENING"|boxEnvelopeJudgement\(/.test(s.text)).map((s) => s.path);
-    expect(hits.sort()).toEqual([ACTIONS, join("src", "lib", "opening", "box.ts")].sort());
+    expect(hits.sort()).toEqual([ACTIONS, toPosix(join("src", "lib", "opening", "box.ts"))].sort());
   });
 });
 
@@ -107,6 +109,6 @@ describe("a finalised opening has no update path (FR-OPN-011)", () => {
 
 describe("the estimate's figure (ADR 0012)", () => {
   it("only the opening's estimate helper reads it, and nothing in src/app", () => {
-    expect(sources.filter((s) => /\breadSealedFigures\(/.test(s.text)).map((s) => s.path).sort()).toEqual([join("src", "lib", "opening", "estimate.ts"), join("src", "lib", "scope", "estimate-store.ts")].sort());
+    expect(sources.filter((s) => /\breadSealedFigures\(/.test(s.text)).map((s) => s.path).sort()).toEqual([toPosix(join("src", "lib", "opening", "estimate.ts")), toPosix(join("src", "lib", "scope", "estimate-store.ts"))].sort());
   });
 });

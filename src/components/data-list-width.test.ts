@@ -48,8 +48,8 @@ describe("only the Opening's offers use them (other lists unchanged)", () => {
   // The documents register's Library and Routing sheets, which gave their main column a minWidth (6.14 inc 2 code review S-1), went with the Documents menu (MN-02, AC-16).
   // Founder, 2026-10-05 (faithful): the sourcing list keeps its exercise column at least 260px.
   it("stackBelow=\"2xl\" and a column minWidth appear only on the offers list, the evaluation's lists and the sourcing list", () => {
-    expect(screens.filter((s) => /stackBelow="2xl"/.test(s.text)).map((s) => s.p.replaceAll("\\", "/").replace(/^.*?(?=src\/)/, "")).sort()).toEqual(["src/app/sourcing/[id]/evaluation/lists.tsx", "src/app/sourcing/[id]/opening/lists.tsx"]);
-    expect(screens.filter((s) => /\{ key: "[^"]+", label: [^}]*minWidth: "\d+px"/.test(s.text)).map((s) => s.p.replaceAll("\\", "/").replace(/^.*?(?=src\/)/, "")).sort()).toEqual(["src/app/sourcing/[id]/evaluation/lists.tsx", "src/app/sourcing/[id]/opening/lists.tsx", "src/app/sourcing/page.tsx"]);
+    expect(screens.filter((s) => /stackBelow="2xl"/.test(s.text)).map((s) => s.p.replace(/^.*?(?=src\/)/, "")).sort()).toEqual(["src/app/sourcing/[id]/evaluation/lists.tsx", "src/app/sourcing/[id]/opening/lists.tsx"]);
+    expect(screens.filter((s) => /\{ key: "[^"]+", label: [^}]*minWidth: "\d+px"/.test(s.text)).map((s) => s.p.replace(/^.*?(?=src\/)/, "")).sort()).toEqual(["src/app/sourcing/[id]/evaluation/lists.tsx", "src/app/sourcing/[id]/opening/lists.tsx", "src/app/sourcing/page.tsx"]);
   });
   it("the offers list: bidder at least 200px; the verdict column holds the badge", () => {
     const lists = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/opening/lists.tsx"), "utf8");

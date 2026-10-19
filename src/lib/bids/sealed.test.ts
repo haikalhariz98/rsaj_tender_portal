@@ -263,7 +263,7 @@ const SELECTS_NO_IDENTITY: Readonly<Record<string, string>> = {
 };
 
 describe("only the step 10 stores read the D9 identity columns (20a, step 12)", () => {
-  const touching = sources.filter((s) => !s.path.endsWith(".test.ts") && TOUCHES_ONLINE_TABLES.test(s.text)).map((s) => s.path.replace(/\\/g, "/")).sort();
+  const touching = sources.filter((s) => !s.path.endsWith(".test.ts") && TOUCHES_ONLINE_TABLES.test(s.text)).map((s) => s.path).sort();
 
   it("every file that reads the online tables is listed, with its reason", () => {
     expect(touching).toEqual([...Object.keys(MAY_SELECT_IDENTITY), ...Object.keys(SELECTS_NO_IDENTITY)].sort());
@@ -271,13 +271,13 @@ describe("only the step 10 stores read the D9 identity columns (20a, step 12)", 
   });
 
   it.each(Object.keys(SELECTS_NO_IDENTITY))("%s names no identity column", (path) => {
-    const text = sources.find((s) => s.path.replace(/\\/g, "/") === path)!.text;
+    const text = sources.find((s) => s.path === path)!.text;
     expect(text.split("\n").filter((l) => IDENTITY_TOKENS.test(l) && !l.trim().startsWith("*") && !l.trim().startsWith("//"))).toEqual([]);
   });
 
   it("no screen, route or other store reaches the identity columns through a relation either", () => {
     const viaRelation = sources
-      .filter((s) => !s.path.endsWith(".test.ts") && !(s.path.replace(/\\/g, "/") in MAY_SELECT_IDENTITY))
+      .filter((s) => !s.path.endsWith(".test.ts") && !(s.path in MAY_SELECT_IDENTITY))
       .filter((s) => /onlineBid\s*:\s*\{[^}]*(?:supplier|submittedBy|withdrawnBy)/s.test(s.text))
       .map((s) => s.path);
     expect(viaRelation).toEqual([]);
