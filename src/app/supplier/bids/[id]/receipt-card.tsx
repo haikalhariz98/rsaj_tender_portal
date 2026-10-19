@@ -3,12 +3,12 @@ import { Badge } from "@/components/ui/badge";
 import { Bi } from "@/components/ui/bilingual";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
+import { PrintButton } from "@/components/ui/print-button";
 import { KeyValues } from "@/components/ui/stat";
 import { RECEIPT_WORDS } from "@/lib/bids/online/receipt-words";
 import { BID_KIND_WORDS, SCREEN_WORDS } from "@/lib/bids/online/screen-words";
 import { DEMONSTRATION_WORDS } from "@/lib/sealing/switch";
 
-import { PrintButton } from "./print-button";
 
 /**
  * A supplier's receipt (SR-13, ADR 0036 D5, rulings 20j, 20an): what the portal told it when it submitted, in both languages. It carries the supplier's own submission number, never the
@@ -44,7 +44,7 @@ export function ReceiptCard({ data, actions }: { data: ReceiptData; actions?: bo
             <Badge tone={data.late ? "warn" : "ok"}>
               <Bi words={data.late ? SCREEN_WORDS.receiptLate : SCREEN_WORDS.receiptOnTime} inline />
             </Badge>
-            {actions !== false && <PrintButton />}
+            {actions !== false && <PrintButton words={SCREEN_WORDS.receiptPrint} />}
           </span>
         }
       />

@@ -249,3 +249,15 @@ export const EXPORT_AUDIT_FIELD_WORDS = {
 
 /// An enumerated value the export has no words for: said, never shown as its code.
 export const VALUE_NOT_KNOWN = w("Not known", "Tidak diketahui");
+
+/// The printable page's own words (N2). English only (founder, 2026-10-19: no Malay is added); the page renders nothing else.
+export const EXPORT_PAGE_WORDS = {
+  title: "Your data",
+  print: "Print",
+  download: "Download (JSON)",
+  nothing: "Nothing on record",
+  open: "Open file",
+  leftOutTitle: "What this record leaves out",
+  yourData: "Your data",
+  yourDataOpen: "View",
+} as const;

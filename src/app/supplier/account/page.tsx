@@ -14,7 +14,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { issueFormToken } from "@/lib/auth/form-secret";
 import { retentionStatement } from "@/lib/auth/policy";
 import { loadSecurityPolicy } from "@/lib/auth/policy-store";
-import { SUPPLIER_AUTH_POSTS } from "@/lib/auth/routes";
+import { SUPPLIER_AUTH_POSTS, SUPPLIER_DATA_EXPORT } from "@/lib/auth/routes";
 import { listOpenSupplierSessions, previousSupplierSignIn } from "@/lib/auth/supplier-session-store";
 import { describeUserAgent } from "@/lib/auth/user-agent";
 import { AUTH_WORDS } from "@/lib/auth/words";
@@ -23,6 +23,7 @@ import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { loadRegistrationStatus } from "@/lib/portal/registration-status-repo";
 import { loadWizardState } from "@/lib/portal/registration/draft-store";
 import { applicationChannelWords, applicationKindWords, applicationStatusWords, outcomeWords, supplierStatusWords } from "@/lib/portal/registration-status";
+import { EXPORT_PAGE_WORDS } from "@/lib/suppliers/data-export-words";
 
 import { requireSupplier } from "../../_auth/supplier";
 import { AccountButton } from "./account-buttons";
@@ -194,6 +195,17 @@ export default async function SupplierAccountPage() {
           <CardBody>
             <KeyValues items={[{ label: "Sign-in addresses", value: retentionStatement(policy?.signInDetailRetentionDays ?? null) }]} />
           </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title={EXPORT_PAGE_WORDS.yourData}
+            actions={
+              <ButtonLink href={SUPPLIER_DATA_EXPORT.page} prefetch={false} variant="secondary" size="sm">
+                {EXPORT_PAGE_WORDS.yourDataOpen}
+              </ButtonLink>
+            }
+          />
         </Card>
 
         <div>
