@@ -481,7 +481,7 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
               actions={<Badge tone={QUEUE_STATE_TONE[st]} dot>{QUEUE_STATE_LABEL[st].en}</Badge>}
             />
             <CardBody className="flex flex-col gap-4">
-              {a.submittedAt && <Callout tone="info" title="Sent by the supplier itself">The supplier completed and sent this registration from the portal on {formatOrgDateTime(a.submittedAt, l.org.timeZone)}. Its declaration is signed online. {extras.get(a.id)?.onlineDeclarationReplacesPaper === true ? "The organisation has said that stands in for the paper declaration." : extras.get(a.id)?.onlineDeclarationReplacesPaper === false ? "The organisation has said the paper declaration is still required." : "The organisation has not said whether that stands in for the paper declaration (Configuration, Supplier register, Policy), so the paper is still required until it does."}</Callout>}
+              {a.submittedAt && <InfoChip tone="info" detail={`Sent from the portal on ${formatOrgDateTime(a.submittedAt, l.org.timeZone)}. Declaration signed online. ${extras.get(a.id)?.onlineDeclarationReplacesPaper === true ? "The organisation accepts it in place of the paper declaration." : "The paper declaration is still required."}`}>Sent online</InfoChip>}
               <KeyValues
                 columns={3}
                 items={[
@@ -504,10 +504,10 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
                   <PaperDaysDrawer applicationId={a.id} values={{ declarationSignedOn: day(a.declarationSignedOn) ?? "", epaymentFormReceivedOn: day(a.epaymentFormReceivedOn) ?? "" }} />
                 </div>
               )}
-              {st === "WITH_APPROVAL" && <p className="text-[12.5px] text-ink-3">With approval: its route, below, decides it. A resubmission or a rejection is recorded once the route has refused it.</p>}
+              {st === "WITH_APPROVAL" && <p className="text-[12.5px] text-ink-3">With approval. The route decides.</p>}
               {isOpenNow && st !== "LAPSED" && st !== "WITH_APPROVAL" && submitBlocker && <p className="text-[12.5px] text-ink-3"><span className="font-semibold text-ink-2">Send for decision:</span> not yet — {submitBlocker}</p>}
-              {st === "LAPSED" && <Callout tone="err" title="The resubmission deadline has passed">It was due by {formatDate(day(a.resubmitBy))}. Recording the lapse rejects the application; a notice is shown, not sent.</Callout>}
-              {st === "ANSWERED" && <Callout tone="info" title="The supplier answered in time">The deadline ({formatDate(day(a.resubmitBy))}) has passed, and the supplier sent a document for every item the request asked for by then, so the application has not lapsed and is not rejected for it. Check what was sent, then approve it, ask again or reject it with reasons.</Callout>}
+              {st === "LAPSED" && <Callout tone="err" title={`Deadline passed ${formatDate(day(a.resubmitBy))}. Recording the lapse rejects it.`} />}
+              {st === "ANSWERED" && <Callout tone="warn" title={`Answered by the ${formatDate(day(a.resubmitBy))} deadline. Check, then decide.`} />}
             </CardBody>
             {a.decisions.length > 0 && (
               <div className="border-t border-line">
