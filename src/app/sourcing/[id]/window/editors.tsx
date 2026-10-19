@@ -46,7 +46,7 @@ export function TakeSaleModeDrawer({ exerciseId, take, setting }: { exerciseId: 
   return (
     <RecordEditor
       title="Take the organisation's setting"
-      description={`This exercise was made while the organisation had not said how its documents are sold. It takes what Configuration says now, once: ${setting}. From publication it is frozen, so a later change to the setting never changes how this exercise is judged.`}
+      description={`Takes the current setting once: ${setting}. Frozen from publication.`}
       fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       action={takeSaleMode}
@@ -63,7 +63,7 @@ export function TakeSubmissionChannelDrawer({ exerciseId, take, setting }: { exe
   return (
     <RecordEditor
       title="Take how bids are submitted"
-      description={`This exercise was made while the organisation had not said how bids are submitted. It takes what Configuration says now, once: ${setting}. From publication it is frozen, so a later change to the setting never changes how this exercise takes bids.`}
+      description={`Takes the current setting once: ${setting}. Frozen from publication.`}
       fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       action={takeSubmissionChannel}
@@ -79,7 +79,7 @@ export function EditWindowDrawer({ exerciseId, items, allowed, first, online = f
   return (
     <RecordEditor
       title={first ? "Fill in notice and fee" : "Edit notice and fee"}
-      description={`${online ? "What the notice states: the days of sale and the fee. The documents are bought online through the supplier portal, so there is no place or hour of sale to state." : "What the notice states: where the documents are inspected and bought, the days of sale, the fee and where tenders go."} The closing is not changed here: it was recorded when the documents were approved, and moves only by a closing change.`}
+      description={`${online ? "Days of sale and fee. Sold online, so no place or hour." : "Places, days of sale, fee and where tenders go."} Closing is not changed here.`}
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -93,11 +93,11 @@ export function EditWindowDrawer({ exerciseId, items, allowed, first, online = f
               { kind: "text", name: "submissionPlace", label: "Where tenders are submitted", required: true },
             ] satisfies Field[])),
         { kind: "date", name: "purchaseFromDay", label: "First day of sale", required: true, hint: "Not before the advertisement day." },
-        { kind: "date", name: "purchaseCloseDay", label: "Last day of sale", required: true, hint: "Judged against the closing by the cut-off set under Invitation controls." },
-        { kind: "money", name: "feeAmount", label: "Document fee", required: true, hint: "Entered, not worked out from the basis. Judged against the minimum for its band." },
+        { kind: "date", name: "purchaseCloseDay", label: "Last day of sale", required: true, hint: "Judged against the closing cut-off." },
+        { kind: "money", name: "feeAmount", label: "Document fee", required: true, hint: "Judged against the band's minimum." },
         ...(online ? [] : ([{ kind: "text", name: "feePaymentMethods", label: "How the fee is paid", required: true }] satisfies Field[])),
-        { kind: "textarea", name: "closingTimeReason", label: "Why the closing time is not the usual one", hint: "Only if the closing time differs from the default time set under Invitation controls." },
-        { kind: "select", name: "specialPermissionOffered", label: "Special permission", options: [{ value: "unset", label: "Not stated" }, { value: "yes", label: "Offered" }, { value: "no", label: "Not offered" }], hint: "Whether the notice offers special permission to a firm short of a grade or a field code. Not stated: none is granted on this exercise." },
+        { kind: "textarea", name: "closingTimeReason", label: "Why the closing time is not the usual one", hint: "Only if different from the default time." },
+        { kind: "select", name: "specialPermissionOffered", label: "Special permission", options: [{ value: "unset", label: "Not stated" }, { value: "yes", label: "Offered" }, { value: "no", label: "Not offered" }], hint: "For a firm short of a grade or field code. Not stated: none granted." },
       ]}
       values={{ exerciseId, specialPermissionOffered: "unset", ...(items ?? {}) }}
       action={saveWindow}
@@ -113,7 +113,7 @@ export function FeeLineDrawer({ exerciseId, allowed, kinds, line }: { exerciseId
   return (
     <RecordEditor
       title={line ? `Change ${line.label}` : "Add a cost to the fee's basis"}
-      description="The basis shows what the documents cost to produce. Give a quantity and a unit cost, or one amount. The line's amount is worked out by the portal."
+      description="Give a quantity and unit cost, or one amount."
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -139,7 +139,7 @@ export function ChooseEvaluationModelDrawer({ exerciseId, allowed, models, curre
   return (
     <RecordEditor
       title="Choose the evaluation model"
-      description="The model the bids are evaluated by: its stages, criteria, bands and aspects. Only issued versions are offered. Its route is judged against the contract basis when the window is published, and its content is pinned on the exercise then: nothing changes it after."
+      description="Issued versions only. Pinned on the exercise at publication."
       fields={[hidden("exerciseId"), { kind: "select", name: "evaluationModelId", label: "Evaluation model", required: true, placeholder: "Choose", options: models }]}
       values={{ exerciseId, evaluationModelId: current }}
       action={chooseEvaluationModel}
@@ -154,7 +154,7 @@ export function RemoveFeeLineDrawer({ exerciseId, lineId, label }: { exerciseId:
   return (
     <RecordEditor
       title={`Remove ${label}`}
-      description="The line comes off the fee's basis. The fee itself is not changed."
+      description="Fee unchanged."
       fields={[hidden("exerciseId"), hidden("lineId")]}
       values={{ exerciseId, lineId }}
       danger
@@ -174,11 +174,11 @@ export function ProposeInviteeDrawer({ exerciseId, allowed, withdrawsRoute }: { 
   return (
     <RecordEditor
       title="Propose a contractor for invitation"
-      description="The contractors proposed are the list the name is approved for."
+
       columns={2}
       fields={[
         hidden("exerciseId"),
-        ...(withdrawsRoute ? ([{ kind: "note", text: "The name approval already asked for or given no longer describes the list once it changes: it is withdrawn, and the name is asked for again with the new list." }] as Field[]) : []),
+        ...(withdrawsRoute ? ([{ kind: "note", text: "Changing the list withdraws the name approval. It is asked for again." }] as Field[]) : []),
         { kind: "text", name: "name", label: "Contractor", required: true },
         { kind: "text", name: "registrationNo", label: "Registration number", required: true, mono: true },
         { kind: "textarea", name: "address", label: "Address" },
@@ -199,7 +199,7 @@ export function RemoveInviteeDrawer({ exerciseId, partyId, name, withdrawsRoute 
   return (
     <RecordEditor
       title={`Take ${name} off the list`}
-      description={`${name} is no longer proposed for invitation.${withdrawsRoute ? " The name approval asked for or given is withdrawn, and the name is asked for again with the new list." : ""}`}
+      description={`${name} is no longer proposed.${withdrawsRoute ? " Name approval is withdrawn and asked for again." : ""}`}
       fields={[hidden("exerciseId"), hidden("partyId")]}
       values={{ exerciseId, partyId }}
       destructive={{ reasonLabel: "Why they are taken off" }}
@@ -218,7 +218,7 @@ export function RecordPublicationDrawer({ exerciseId, channels, people, today }:
   return (
     <RecordEditor
       title="Record a publication"
-      description={`Record where and when the notice appeared. ${RECORDED_AS_YOURS} Keep the proof (a cutting, a screen print) with the exercise's documents below.`}
+      description={`Where and when the notice appeared. ${RECORDED_AS_YOURS}`}
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -260,7 +260,7 @@ export function PublishDrawer({ exerciseId, label, allowed, rows, notes, noteId 
   return (
     <RecordEditor
       title={label}
-      description="Every rule is judged again as this is saved. What is stated and every rule it was judged under are then kept with the window, and later changes to the settings do not rewrite them."
+      description="Every rule is judged again as this is saved."
       fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       sections={
@@ -308,7 +308,7 @@ export function DeliveryDrawer({
   return (
     <RecordEditor
       title={`How ${who} was told`}
-      description={`The portal sends nothing: record how the ${what} reached ${who}, as the officer did it.`}
+      description={`Not emailed. Record how the ${what} reached ${who}.`}
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -344,7 +344,8 @@ export function RequestChangeDrawer({ exerciseId, kind, allowed, closing, lastDa
   return (
     <RecordEditor
       title={label}
-      description={`The closing now stands at ${closing}. ${kind === "EXTENSION" ? "An extension" : "A correction"} is decided on the route the approval matrix sets for a change to the window, and applied when its last step is recorded. Every date rule is judged again on the new dates, and the original and the new closing are both kept.`}
+      description={`Closing now ${closing}. Both closings are kept.`}
+      more={`${kind === "EXTENSION" ? "An extension" : "A correction"} is decided on the approval matrix's route for a window change, and applied when its last step is recorded. Every date rule is judged again on the new dates.`}
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -368,7 +369,8 @@ export function RequestCancellationDrawer({ exerciseId, allowed, reference, note
   return (
     <RecordEditor
       title={`Cancel ${reference}`}
-      description="A published exercise is cancelled on the route the approval matrix sets for a change to the window. Once approved it is ended: it cannot be reopened, and a replacement is a new exercise. Everyone holding the documents is told."
+      description="Goes for approval. Once approved it ends and cannot be reopened."
+      more="Cancelled on the approval matrix's route for a window change. A replacement is a new exercise. Everyone holding the documents is told."
       fields={[
         hidden("exerciseId"),
         { kind: "textarea", name: "reason", label: "Why", required: true },
@@ -389,7 +391,8 @@ export function WindowDecisionDrawer({ exerciseId, stepId, office, done, people,
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
-      description={`On ${what}. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for the requisition's department, or a delegation of it. A refusal means the change is not made; it may be asked for again.`}
+      description={`On ${what}. Signed with the holder's password.`}
+      more="A decision from paper is recorded for them by someone else and is not signed. The decider must hold the requisition department's office, or a delegation of it. A refusal means the change is not made; it may be asked for again."
       fields={[
         hidden("exerciseId"),
         hidden("stepId"),
@@ -439,7 +442,7 @@ export function RecordSaleDrawer({
   return (
     <RecordEditor
       title="Record a sale of the documents"
-      description={`The set is sold at ${fee}, as the window states it. The day of sale is today. ${RECORDED_AS_YOURS}`}
+      description={`Sold at ${fee}, today. ${RECORDED_AS_YOURS}`}
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -454,9 +457,9 @@ export function RecordSaleDrawer({
               { kind: "text", name: "fax", label: "Fax" },
               { kind: "text", name: "email", label: "Email" },
             ] as Field[])),
-        { kind: "select", name: "supplierId", label: "Supplier on the register", placeholder: "Not named", options: suppliers, hint: `The register's supplier this contractor is: type to search${suppliersTotal > suppliers.length ? ` the first ${suppliers.length} of ${suppliersTotal} by name; any other is named by its register reference below` : ""}. Named, a contractor not yet linked is linked to it as the sale is recorded (audited), and its registration and standing are read from the register. Needed where the register is required for a sale. A contractor already linked keeps its link.` },
-        ...(suppliersTotal > suppliers.length ? [{ kind: "text", name: "supplierReference", label: "Or its register reference", mono: true, hint: "Exactly as the register shows it, for a supplier not in the list above." } as Field] : []),
-        { kind: "textarea", name: "linkReason", label: "Why they are the same company", hint: "Only where the contractor's registration number differs from the register's." },
+        { kind: "select", name: "supplierId", label: "Supplier on the register", placeholder: "Not named", options: suppliers, hint: `Type to search${suppliersTotal > suppliers.length ? ` (first ${suppliers.length} of ${suppliersTotal})` : ""}. Links an unlinked contractor.` },
+        ...(suppliersTotal > suppliers.length ? [{ kind: "text", name: "supplierReference", label: "Or its register reference", mono: true, hint: "As the register shows it." } as Field] : []),
+        { kind: "textarea", name: "linkReason", label: "Why they are the same company", hint: "Only if the registration number differs." },
         { kind: "text", name: "collectedBy", label: "Collected by", required: true, hint: "The representative who took the set." },
         { kind: "select", name: "authoritySighted", label: "Proof of the representative's authority sighted", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not answered refuses the sale." },
         ...(restricted
@@ -465,11 +468,11 @@ export function RecordSaleDrawer({
               { kind: "date", name: "restrictionCertValidUntil", label: "Certificate valid until" },
             ] as Field[])
           : []),
-        { kind: "select", name: "registrationCheck", label: "Registration with the regulator", placeholder: "Not checked", options: [{ value: "FAILED", label: "Checked: failed" }], hint: "For a contractor linked to the supplier register, this is read from the register and what is chosen here is not used. Otherwise a registration cannot be shown as clear: it is carried with the sale as not checked." },
-        { kind: "select", name: "suspensionCheck", label: "Suspension", placeholder: "Not checked", options: [{ value: "FAILED", label: "Checked: suspended" }], hint: "Read from the supplier register for a linked contractor; otherwise carried as not checked." },
+        { kind: "select", name: "registrationCheck", label: "Registration with the regulator", placeholder: "Not checked", options: [{ value: "FAILED", label: "Checked: failed" }], hint: "Linked: read from the register. Otherwise not checked." },
+        { kind: "select", name: "suspensionCheck", label: "Suspension", placeholder: "Not checked", options: [{ value: "FAILED", label: "Checked: suspended" }], hint: "Linked: read from the register. Otherwise not checked." },
         { kind: "textarea", name: "checkNote", label: "Note on the checks" },
         { kind: "text", name: "paymentMethod", label: "How the fee was paid", required: true },
-        { kind: "text", name: "financeReceiptNo", label: "Finance receipt number", mono: true, hint: "Typed as it reads on finance's receipt: the portal never makes one. Leave empty if not yet to hand: the sale then shows among the receipts to collect." },
+        { kind: "text", name: "financeReceiptNo", label: "Finance receipt number", mono: true, hint: "As on finance's receipt. Empty: shows in receipts to collect." },
         actorField("DocumentSale.issuedBy", { name: "issuedByPersonId", people }),
       ]}
       values={{ exerciseId }}
@@ -489,7 +492,7 @@ export function RecordPurchaseReceiptDrawer({ exerciseId, purchaseId, name }: { 
   return (
     <RecordEditor
       title={`Receipt number for ${name}`}
-      description="The number on finance's receipt, typed as it reads. Recording it pays the online purchase and releases the documents to the buyer. The portal never makes a number up, and a number already on another sale is refused."
+      description="Records payment and releases the documents to the buyer."
       fields={[hidden("exerciseId"), hidden("purchaseId"), { kind: "text", name: "financeReceiptNo", label: "Receipt number", required: true, mono: true }, actorField("DocumentSale.issuedBy", { name: "issuedByPersonId" })]}
       values={{ exerciseId, purchaseId }}
       action={recordPurchaseReceipt}
@@ -504,7 +507,7 @@ export function VoidSaleDrawer({ exerciseId, saleId, name }: { exerciseId: strin
   return (
     <RecordEditor
       title={`Void the sale to ${name}`}
-      description="A sale recorded in error. The row stays on the register, marked void, with its reason. It cannot be voided once the window has closed."
+      description="Stays on the register, marked void. Not possible after closing."
       fields={[hidden("exerciseId"), hidden("saleId")]}
       values={{ exerciseId, saleId }}
       destructive={{ reasonLabel: "Why the sale is void" }}
@@ -521,7 +524,7 @@ export function RecordReceiptDrawer({ exerciseId, saleId, name }: { exerciseId: 
   return (
     <RecordEditor
       title={`Receipt number for ${name}`}
-      description="The number on finance's receipt, typed as it reads. The portal never makes one up, and a number already on another sale is refused."
+      description="A number already used on another sale is refused."
       fields={[hidden("exerciseId"), hidden("saleId"), { kind: "text", name: "financeReceiptNo", label: "Receipt number", required: true, mono: true }]}
       values={{ exerciseId, saleId }}
       action={recordReceipt}
@@ -540,7 +543,7 @@ export function ScheduleEventDrawer({ exerciseId, allowed, mandatoryOffered, inC
   return (
     <RecordEditor
       title="Schedule a briefing or site visit"
-      description="Its day, time and place together: the notice states them. Events are scheduled while the window is being prepared."
+      description="The notice states day, time and place."
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -549,8 +552,8 @@ export function ScheduleEventDrawer({ exerciseId, allowed, mandatoryOffered, inC
         { kind: "text", name: "time", label: "Time", required: true, placeholder: "10:00", hint: "24-hour, the organisation's clock." },
         { kind: "text", name: "place", label: "Place", required: true },
         ...(mandatoryOffered
-          ? ([{ kind: "select", name: "mandatory", label: "Attendance mandatory", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "If mandatory, the documents are sold only to a contractor who attended. Not answered holds the window back." }] as Field[])
-          : ([{ kind: "note", text: "Not mandatory: whether attendance may be made mandatory is not set, or not permitted, under Invitation controls." }] as Field[])),
+          ? ([{ kind: "select", name: "mandatory", label: "Attendance mandatory", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Mandatory: documents sold only to attendees." }] as Field[])
+          : ([{ kind: "note", text: "Not mandatory: not permitted or not set under Invitation controls." }] as Field[])),
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
       values={{ exerciseId }}
@@ -566,7 +569,7 @@ export function SetMandatoryDrawer({ exerciseId, eventId, label, current }: { ex
   return (
     <RecordEditor
       title={`Is attendance at the ${label.toLowerCase()} mandatory?`}
-      description="If mandatory, the documents are sold only to a contractor who attended. It may be answered only while the window is being prepared."
+      description="Mandatory: documents sold only to attendees."
       fields={[hidden("exerciseId"), hidden("eventId"), { kind: "select", name: "mandatory", label: "Attendance mandatory", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE }]}
       values={{ exerciseId, eventId, mandatory: current }}
       action={setEventMandatory}
@@ -639,7 +642,7 @@ export function AddendumDrawer({ exerciseId, allowed, draft, closingChanges }: {
   return (
     <RecordEditor
       title={draft ? `Edit ${draft.label}` : "Draft an addendum"}
-      description="What changes in the documents. It takes its number when it is issued. The signed copy is attached to the draft before it can be issued."
+      description="Takes its number when issued. Attach the signed copy first."
       fields={[
         hidden("exerciseId"),
         hidden("addendumId"),
@@ -660,7 +663,7 @@ export function VoidAddendumDrawer({ exerciseId, addendumId, label }: { exercise
   return (
     <RecordEditor
       title={`Void ${label}`}
-      description="A draft that is not going out. It never takes a number, and the issued addenda run on without a gap."
+      description="Never takes a number."
       fields={[hidden("exerciseId"), hidden("addendumId")]}
       values={{ exerciseId, addendumId }}
       destructive={{ reasonLabel: "Why the draft is voided" }}
@@ -678,7 +681,8 @@ export function IssueAddendumDrawer({ exerciseId, addendumId, label, allowed, re
   return (
     <RecordEditor
       title={`Issue ${label}`}
-      description="It takes the next number and its text is frozen from the template. Its recipients are the register as it stands now; later purchasers receive it with the documents. Nothing is sent: delivery is recorded copy by copy."
+      description="Takes the next number. Goes to the register as it stands now. Not emailed."
+      more="Its text is frozen from the template. Later purchasers receive it with the documents. Delivery is recorded copy by copy."
       fields={[hidden("exerciseId"), hidden("addendumId")]}
       values={{ exerciseId, addendumId }}
       sections={<Facts rows={[["Goes to", recipients]]} />}

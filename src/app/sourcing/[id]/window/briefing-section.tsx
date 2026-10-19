@@ -34,13 +34,13 @@ export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
   const invited = d.pathKey === "INVITED";
   const people = c.people;
   const sheet = d.events.length > 0 && (
-    <OwnerAttachments owner={{ kind: "exercise", id: c.exerciseId }} only={["ATTENDANCE_SHEET"]} title="Attendance sheets" subtitle="The signed sheet from each briefing or site visit, kept with the exercise." />
+    <OwnerAttachments owner={{ kind: "exercise", id: c.exerciseId }} only={["ATTENDANCE_SHEET"]} title="Attendance sheets" subtitle="Signed sheet per briefing or visit" />
   );
   if (d.events.length === 0) {
     return (
       <Card>
         <EmptyState size="sm" title="No briefing or site visit">
-          {d.schedule.allowed ? "Schedule one while the window is being prepared: the notice states its day, time and place." : "None is scheduled. Briefing and site visit on Scope and estimate says when one can be added."}
+          {d.schedule.allowed ? "None scheduled" : "None scheduled. Add on Scope and estimate."}
         </EmptyState>
       </Card>
     );
@@ -48,8 +48,8 @@ export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
   return (
     <div className="flex flex-col gap-6">
       {!d.mandatoryOffered && (
-        <Callout tone="info" title="Attendance is not mandatory">
-          Whether attendance may be made mandatory is not set, or not permitted, under Invitation controls. No event is mandatory, and no sale is refused for missing one.
+        <Callout tone="warn" title="Attendance not mandatory">
+          Not permitted or not set under Invitation controls. No sale is refused for missing one.
         </Callout>
       )}
       {d.events.map((e) => {
@@ -74,12 +74,12 @@ export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
                 <Chip tone={e.attendance.startsWith("Mandatory") ? "brand" : e.attendance === "Not answered" ? "warn" : "neutral"}>{e.attendance}</Chip>
                 {e.attendance === "Not answered" && <span className="text-[12.5px] text-ink-3">Answer it before the window can be published.</span>}
               </div>
-              {cancelled && <Callout tone="neutral">{e.cancelled}. {published ? "The published notice stated it: the purchasers are told by an addendum." : ""}</Callout>}
+              {cancelled && <Callout tone="neutral">{e.cancelled}. {published ? "Tell purchasers by addendum." : ""}</Callout>}
               {!cancelled && (
                 <div className="flex flex-wrap items-center gap-2">
                   {d.schedule.allowed && d.mandatoryOffered && <SetMandatoryDrawer exerciseId={c.exerciseId} eventId={e.id} label={label} current={e.attendance === "Not answered" ? "unset" : e.attendance.startsWith("Mandatory") ? "yes" : "no"} />}
                   {!e.held && published && <MarkHeldDrawer exerciseId={c.exerciseId} eventId={e.id} label={label} today={c.today} />}
-                  {!e.held && !published && <span className="text-[12.5px] text-ink-3">It is recorded as held once the window is published.</span>}
+                  {!e.held && !published && <span className="text-[12.5px] text-ink-3">Held is recorded after publishing.</span>}
                   {e.held && <RecordAttendanceDrawer exerciseId={c.exerciseId} eventId={e.id} label={label} parties={options} invited={invited} people={people} />}
                   {!e.held && <CancelEventDrawer exerciseId={c.exerciseId} eventId={e.id} label={label} published={published} />}
                 </div>
@@ -88,7 +88,7 @@ export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
             {e.signUps.length > 0 && (
               <div className="border-b border-line px-5 py-3 sm:px-6">
                 <p className="text-[13px] font-semibold text-ink">Signed up online</p>
-                <p className="text-[12.5px] text-ink-3">Suppliers that told the office who they would send, from their portal accounts. This is not attendance: only the register below counts.</p>
+                <p className="text-[12.5px] text-ink-3">Planned attendees. Not attendance.</p>
                 <ul className="mt-2 flex flex-col gap-1 text-[13px] text-ink-2">
                   {e.signUps.map((s) => (
                     <li key={`${s.supplier}-${s.at}`} className={s.withdrawn ? "text-ink-3 line-through" : undefined}>

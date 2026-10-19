@@ -254,7 +254,7 @@ function evaluationShown(d: WindowData, ex: Loaded["ex"], tz: string | null) {
     model: e.model ? { name: name(e.model), route: EVALUATION_ROUTE_LABEL[e.model.route] } : null,
     basisRoute: !ex.contractBasisCode ? "No contract basis" : basisRoute ? EVALUATION_ROUTE_LABEL[basisRoute] : "Not set for this basis",
     pinned: ex.evaluationModelPinnedAt ? formatOrgDateTime(ex.evaluationModelPinnedAt, tz) : null,
-    before: published && !ex.evaluationModelSnapshot ? "Published before evaluation models existed. It is not evaluated here: cancel it and replace it with a new exercise to evaluate it." : null,
+    before: published && !ex.evaluationModelSnapshot ? "Published before evaluation models existed. Cancel and replace to evaluate." : null,
     suggested: suggested && suggested.id !== e.model?.id ? `The method's usual model is ${name(suggested)}.` : null,
     options: e.models.filter((m) => !basisRoute || m.route === basisRoute).map((m) => ({ value: m.id, label: `${name(m)} (${EVALUATION_ROUTE_LABEL[m.route]})` })),
     current: ex.evaluationModelId ?? null,
@@ -331,7 +331,7 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
     status: ex.status,
     phase: PHASE_LABEL[phase],
     open: phase === "OPEN_FOR_PURCHASE" ? { allowed: true as const } : { allowed: false as const, reason: windowFindingText({ code: "SALE_CLOSED", level: "block", data: { phase } }) },
-    restricted: ex.restrictedTender === true ? { label: d.tender.restrictionLabel ?? "Restricted", asks: "The original or a certified copy of the purchaser's status certificate, and the day it is valid until." } : null,
+    restricted: ex.restrictedTender === true ? { label: d.tender.restrictionLabel ?? "Restricted", asks: "Original or certified copy of the status certificate, and its expiry day." } : null,
     fee: money(w?.feeAmount),
     requests,
     // SR-10 (ruling 16): an exercise sold online is bought through the portal; its register does not offer a counter sale.

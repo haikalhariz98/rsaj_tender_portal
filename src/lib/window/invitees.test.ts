@@ -16,7 +16,7 @@ describe("the proposed list against the approved one", () => {
   it("a route approved with no invitee rows approved no list", () => {
     expect(inviteeListFault(null, reg("A1"))?.code).toBe("LIST_NOT_RECORDED");
     expect(inviteeListFault([], reg("A1"))?.code).toBe("LIST_NOT_RECORDED");
-    expect(windowFindingText({ code: "LIST_NOT_RECORDED", level: "block" })).toMatch(/Request the name's approval again with the list/);
+    expect(windowFindingText({ code: "LIST_NOT_RECORDED", level: "block" })).toMatch(/Request the name's approval again/); // 0005, founder 2026-10-19
   });
   it("a party added or removed is another list", () => {
     expect(inviteeListFault(reg("A1", "B2"), reg("A1", "B2", "C3"))).toMatchObject({ code: "LIST_CHANGED", data: { added: 1, removed: 0 } });

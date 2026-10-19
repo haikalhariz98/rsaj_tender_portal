@@ -125,7 +125,7 @@ describe("the scope policy's specification panel may not read the permit list", 
   });
   it("the refusal is a fixed sentence saying why and where", () => {
     expect(CONFIG_FAULT_TEXT.PERMIT_LIST).toBe(
-      "That list is the permit list named under Configuration, Tender documents. Permits are chosen on each exercise and no exercise is classified in it, so the specification panel would find no value there. Choose another list, or name a different permit list there first.",
+      "That is the permit list named under Configuration, Tender documents. The panel would find no value in it. Choose another list, or name a different permit list there first.", // 0005, founder 2026-10-19
     );
   });
 });

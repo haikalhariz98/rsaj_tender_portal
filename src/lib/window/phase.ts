@@ -81,7 +81,7 @@ export function tableDocumentAvailability(phase: WindowPhase): TableAvailability
  * the availability in words beside it, never a blank page; null where it may be printed.
  */
 export function tablePrintRefusal(availability: TableAvailability): string | null {
-  return availability === "AVAILABLE" ? null : "It is printed only while it is available for inspection, from publication to the closing.";
+  return availability === "AVAILABLE" ? null : "Printed only from publication to closing.";
 }
 
 /**
@@ -91,8 +91,8 @@ export function tablePrintRefusal(availability: TableAvailability): string | nul
 export function sinceApprovedLines(i: { closing: string | null; closingChanges: number; addendaIssued: number }): string[] {
   const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
   return [
-    i.closingChanges > 0 ? `The closing has been changed ${i.closingChanges} ${plural(i.closingChanges, "time", "times")} since approval; it now stands at ${i.closing ?? "a time not set"}.` : "The closing is as approved.",
-    i.addendaIssued > 0 ? `${i.addendaIssued} ${plural(i.addendaIssued, "addendum has", "addenda have")} been issued since approval. This text is as approved and does not include ${plural(i.addendaIssued, "it", "them")}.` : "No addendum has been issued since approval.",
+    i.closingChanges > 0 ? `Closing changed ${i.closingChanges} ${plural(i.closingChanges, "time", "times")} since approval. Now ${i.closing ?? "not set"}.` : "The closing is as approved.",
+    i.addendaIssued > 0 ? `${i.addendaIssued} ${plural(i.addendaIssued, "addendum", "addenda")} issued since approval. Not included in this text.` : "No addendum has been issued since approval.",
   ];
 }
 

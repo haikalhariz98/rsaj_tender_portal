@@ -106,9 +106,9 @@ export function tableAvailabilityText(a: TableAvailability, cancelledOn: string 
 export const NOTIFIED_LABEL: Record<NotifiedState, string> = { NO_RECIPIENTS: "No purchasers to notify", COMPLETE: "Every recipient notified", OUTSTANDING: "Not every recipient notified yet" };
 export const CHANGE_ROUTE_TEXT: Record<ChangeRouteState, string> = {
   RESOLVED: "Resolved",
-  NO_METHOD_KEY: "This method is not tied to any approval rule, so nobody can be shown as approving a change to its window. Set its approval matrix method under Reference data.",
-  NO_RULE: "No approval rule says who approves a change to the invitation window for this method. Add one to the approval matrix (domain for window changes), then ask again.",
-  HAS_COMMITTEE_STEP: "The route for a change to the invitation window includes a committee step, which cannot yet be discharged for a window change. Change the rule so that offices decide it.",
+  NO_METHOD_KEY: "Method has no approval rule for window changes. Set it under Reference data.",
+  NO_RULE: "No approval rule covers window changes for this method. Add one to the approval matrix.",
+  HAS_COMMITTEE_STEP: "Route has a committee step, which cannot yet decide a window change. Let offices decide.",
 };
 
 /// The policy's settings, as the configuration screen names them.
@@ -137,84 +137,84 @@ export function windowFindingText(f: Finding): string {
   switch (f.code) {
     // ---- the clock and the organisation
     case "TIME_ZONE_UNSET":
-      return "The organisation's time zone is not set, so no day can be judged. Set it under Configuration, Organisation.";
+      return "Time zone not set. Days cannot be judged.";
 
     case "WINDOW_ITEMS_NOT_PREPARED":
       return d.online
-        ? `Prepare the notice and fee on Scope and estimate: the days of sale and the fee (${d.count} items not written yet).`
-        : `Prepare the notice and fee on Scope and estimate: where the documents are inspected and bought, the hours, the days of sale, how the fee is paid and the fee (${d.count} items not written yet).`;
+        ? `Prepare days of sale and fee on Scope and estimate (${d.count} items missing).`
+        : `Prepare the notice and fee on Scope and estimate (${d.count} items missing).`;
     case "ONLINE_NEEDS_RELEASE":
-      return `Documents cannot be sold online while the organisation's release of documents online is ${d.setting ?? "not set to Yes"}: a buyer would pay and be handed nothing. Set "Release the documents online after payment" to Yes under Configuration, Invitation.`;
+      return `Online sale blocked: release online is ${d.setting ?? "not set to Yes"}. Set "Release the documents online after payment" to Yes under Configuration, Invitation.`;
     case "NOTHING_TO_TAKE":
-      return "How this exercise's documents are sold is already set, so there is nothing to take.";
+      return "Sale mode already set.";
     case "SETTING_NOT_SET":
-      return "The organisation has not set how documents are sold. Set it under Configuration, Invitation, and an exercise takes it from there.";
+      return "Sale mode not set. Set it under Configuration, Invitation.";
     case "SALE_MODE_NOT_SET":
-      return "How this exercise's documents are sold (at the counter, or online) is not set, because the organisation had not set it when the exercise was made. Take the organisation's setting under Notice and fee on Scope and estimate; if it is not set either, set it under Configuration, Invitation."
+      return "Sale mode (counter or online) not set. Take the organisation's setting under Notice and fee on Scope and estimate."
     case "BID_VALIDITY_NOT_SET":
-      return "The number of days the bids stay valid is not set. Enter it under Notice and fee on Scope and estimate.";
+      return "Bid validity days not set. Enter them under Notice and fee.";
 
     // ---- the advertisement day and channels (FR-ADV-001, OD-3)
     case "RULE_NOT_SET":
       return `Not set: ${SETTING_LABEL[d.setting as PolicySetting] ?? "a rule of the window"}. Set it under ${SETTINGS}.`;
     case "CHANNELS_NOT_SET":
-      return `No publication channel is required for an advertised exercise, so none can be advertised. Add the channels and say which are required under ${SETTINGS}.`;
+      return `No required publication channel. Set channels under ${SETTINGS}.`;
     case "CHANNEL_REQUIREMENT_NOT_SET":
-      return `Whether ${d.channel ?? "a channel"} is required for an advertised exercise is not set. Say so under ${SETTINGS}.`;
+      return `${d.channel ?? "A channel"} required or not is not set. Set it under ${SETTINGS}.`;
     case "CHANNEL_MISSING":
-      return `Not yet published through ${d.channel ?? "a required channel"}: an advertised exercise is published through every required channel. Record its publication.`;
+      return `Not yet published through ${d.channel ?? "a required channel"}. Record its publication.`;
     case "NAMED_CHANNEL_NOT_REQUIRED":
       return `The advertisement day is taken from ${d.channel ? `${d.channel}` : "a named channel"}, which is not a required channel. Name a required channel, or change the rule, under ${SETTINGS}.`;
     case "PUBLICATION_IN_FUTURE":
-      return `The publication through ${d.channel ?? "a channel"} is recorded on ${day(d.day)}, after today. Record a publication once it has appeared.`;
+      return `Publication through ${d.channel ?? "a channel"} is dated ${day(d.day)}, after today.`;
     case "PUBLIC_CHANNEL_ON_INVITED":
-      return "An exercise by invitation is not published on any public channel. Remove the publications recorded for it.";
+      return "An invitation exercise has no public channel. Remove its publications.";
 
     // ---- the closing (FR-ADV-004–007, OD-7)
     case "CALENDAR_NOT_SET":
-      return `No holiday calendar is chosen, so a closing date cannot be checked against weekends and public holidays. Choose one under ${SETTINGS}.`;
+      return `No holiday calendar. Closing date not checked. Choose one under ${SETTINGS}.`;
     case "WEEKEND_NOT_SET":
       return `The weekend days of ${d.calendar ?? "the holiday calendar"} are not set. Set them under ${SETTINGS}.`;
     case "CALENDAR_NOT_MAINTAINED":
-      return `The public holidays of ${d.year ?? "the closing's year"} in ${d.calendar ?? "the holiday calendar"} are not maintained in full, so the closing date cannot be checked. Complete that year under ${SETTINGS}.`;
+      return `Public holidays of ${d.year ?? "the closing's year"} are incomplete. Complete them under ${SETTINGS}.`;
     case "CLOSING_ON_WEEKEND":
-      return `The closing date must not fall on a weekend or a public holiday${cite(d.source)}: ${day(d.day)} is a ${WEEKDAY[Number(d.weekday)] ?? "weekend day"}. Choose another closing date.`;
+      return `Closing date falls on a weekend or public holiday${cite(d.source)}: ${day(d.day)} is a ${WEEKDAY[Number(d.weekday)] ?? "weekend day"}.`;
     case "PUBLIC_HOLIDAY":
-      return `The closing date must not fall on a weekend or a public holiday${cite(d.source)}: ${day(d.day)} is ${d.holiday ?? "a public holiday"} in ${d.calendar ?? "the holiday calendar"}. Choose another closing date.`;
+      return `Closing date falls on a weekend or public holiday${cite(d.source)}: ${day(d.day)} is ${d.holiday ?? "a public holiday"} in ${d.calendar ?? "the holiday calendar"}.`;
     case "CLOSING_TOO_SOON":
-      return `The closing date must be at least ${d.min} days after the advertisement date${cite(d.source)}: it is ${d.days} days after ${day(d.advertisedOn)}. Move the closing later.`;
+      return `Closing must be at least ${d.min} days after the advertisement${cite(d.source)}: it is ${d.days} days after ${day(d.advertisedOn)}.`;
     case "BELOW_TARGET":
-      return `The closing date is ${d.days} days after the advertisement date, below the target of ${d.target} days.`;
+      return `Closing is ${d.days} days after the advertisement, below the ${d.target}-day target.`;
     case "NEAR_NEWSPAPER_DAY":
-      return `The closing date is close to the newspaper's day: a newspaper later than expected by ${Number(d.margin) + 1} day${Number(d.margin) + 1 === 1 ? "" : "s"} would breach the minimum (margin set: ${d.warn} days).`;
+      return `Closing is near the newspaper date: ${Number(d.margin) + 1} day${Number(d.margin) + 1 === 1 ? "" : "s"} late would breach the minimum.`;
     case "ADVERTISEMENT_DAY_NOT_KNOWN":
-      return "The advertisement date is not known yet, so the days to the closing are checked at publication.";
+      return "Advertisement date unknown. Checked at publication.";
     case "TIME_NOT_DEFAULT":
-      return `The closing time ${d.time} is not the default ${d.default}. Give the reason for another time, or correct the closing.`;
+      return `Closing time ${d.time} is not the default ${d.default}. Give a reason.`;
     case "TIME_DIFFERS":
       return `The closing time ${d.time} differs from the default ${d.default}: ${d.reason}`;
     case "PURCHASE_CLOSE_NOT_SET":
-      return "The last day the documents are sold is not set. Set it on the window.";
+      return "Last day of sale not set.";
     case "PURCHASE_CUTOFF_TOO_LATE":
-      return `The last day of sale must be at least ${d.cutoff} days before the closing date${cite(d.source)}: ${day(d.day)} is too late for a closing on ${day(d.closingDay)}.`;
+      return `Last day of sale must be ${d.cutoff} days before closing${cite(d.source)}: ${day(d.day)} is too late for ${day(d.closingDay)}.`;
     case "PURCHASE_CLOSE_IN_PAST":
       return `The last day of sale, ${day(d.day)}, has passed.`;
 
     // ---- the notice's items (FR-ADV-003) and publication
     case "NOT_APPROVED_FOR_TENDERING":
-      return "The exercise is published only once its tender documents are approved for tendering, with the start and closing recorded.";
+      return "Publish only after approval for tendering.";
     case "NO_TENDER_DOCUMENTS":
-      return "This exercise assembles no tender or quotation documents, so it has no invitation window.";
+      return "No tender documents, so no invitation window.";
     case "PATH_NOT_SET":
-      return "The sourcing method does not say whether it is advertised or goes to named invitees (it says both, or neither). Set it on the method under Reference data.";
+      return "Method says both or neither: advertised or by invitation. Set it under Reference data.";
     case "PATH_CHANGED":
-      return `The method now says the exercise is ${d.now === "INVITED" ? "by invitation" : "advertised"}, but its window was prepared ${d.was === "INVITED" ? "by invitation" : "for advertisement"}. Correct the method, or cancel and replace the exercise.`;
+      return `Method now says ${d.now === "INVITED" ? "by invitation" : "advertised"}, but the window was prepared ${d.was === "INVITED" ? "by invitation" : "for advertisement"}. Correct it, or cancel and replace.`;
     case "RESTRICTION_NOT_ANSWERED":
-      return "Whether the tender is restricted is not answered. Answer it on the Tender documents tab.";
+      return "Restricted or not unanswered. Answer on Tender documents.";
     case "STAMP_NOT_SET":
-      return "The tender is restricted, but the stamp's words are not set in the language the text is issued in. Set them under Configuration, Tender documents.";
+      return "Restricted stamp words not set in the issue language. Set them under Configuration, Tender documents.";
     case "ELIGIBILITY_MISSING":
-      return "The registrations a contractor must hold are not stated (the notice's item a). State them on the Tender documents tab.";
+      return "Required registrations not stated. State them on Tender documents.";
     case "INSPECTION_PLACE_MISSING":
       return "Where the Tender Table Document is inspected is not stated (item b).";
     case "PURCHASE_PLACE_MISSING":
@@ -226,33 +226,33 @@ export function windowFindingText(f: Finding): string {
     case "PURCHASE_DAYS_OUT_OF_ORDER":
       return "The first day of sale is after the last.";
     case "PURCHASE_FROM_BEFORE_ADVERTISEMENT":
-      return `The documents cannot be sold before the advertisement: the first day of sale, ${day(d.day)}, is before ${day(d.advertisedOn)}.`;
+      return `First day of sale ${day(d.day)} is before the advertisement ${day(d.advertisedOn)}.`;
     case "PAYMENT_METHODS_MISSING":
       return "How the fee is paid is not stated (item d).";
     case "SUBMISSION_PLACE_MISSING":
       return "Where tenders are submitted is not stated (item g).";
     case "CLOSING_NOT_SET":
-      return "The closing is not recorded. It is recorded when the tender documents are approved for tendering.";
+      return "Closing not recorded.";
     case "BEFORE_TENDERING_START":
-      return `The exercise would be published on ${day(d.day)}, before tendering starts on ${day(d.start)}. Publish on or after the start.`;
+      return `Publishing ${day(d.day)} is before tendering starts ${day(d.start)}.`;
     case "TEMPLATE_NOT_SET":
       return `No template is chosen for the ${instrumentOf(d.instrument)}. ${TEMPLATE_SETTING}`;
     case "TEMPLATE_TEXT_NOT_SET":
       return `Template text not configured for the ${instrumentOf(d.instrument)}. ${TEMPLATE_SETTING}`;
     case "TEMPLATE_LANGUAGE_NOT_SET":
-      return `The ${instrumentOf(d.instrument)}'s template has text in both languages and does not say which is issued. Say so under Configuration, Templates.`;
+      return `The ${instrumentOf(d.instrument)} template has two languages and no issue language. Set it under Configuration, Templates.`;
     case "TEMPLATE_INCOMPLETE":
-      return `The text names fields with nothing recorded for them: ${d.fields}. Record them, or change the template.`;
+      return `Fields with nothing recorded: ${d.fields}.`;
     case "TEMPLATE_UNKNOWN_FIELD":
-      return `The text names fields the portal does not fill here: ${d.fields}. Correct the template under Configuration, Templates.`;
+      return `Fields not filled here: ${d.fields}. Correct the template.`;
 
     // ---- the fee (FR-ADV-008, OD-6)
     case "FEE_NOT_SET":
       return "The document fee is not set (item d).";
     case "REGIME_NOT_DETERMINED":
-      return "The exercise's band is not determined, so its fee floor cannot be read. Save the exercise's classification again.";
+      return "Band not determined, so no fee floor. Save the classification again.";
     case "FLOOR_NOT_SET":
-      return `No fee floor is set for the ${d.regime ?? "exercise's"} band. Set it under ${SETTINGS}.`;
+      return `No fee floor for the ${d.regime ?? "exercise's"} band. Set it under ${SETTINGS}.`;
     case "BELOW_FLOOR":
       return `The fee ${money(d.fee)} is below the floor of ${money(d.floor)} for this band. Raise the fee.`;
     case "FEE_BELOW_COST":
@@ -266,19 +266,19 @@ export function windowFindingText(f: Finding): string {
 
     // ---- invitees and the name (FR-ADV-002, FR-MTD-008, OD-4)
     case "NAME_NOT_REQUESTED":
-      return "The invitee list's approval has not been asked for. Request the name's approval on the Name approval tab.";
+      return "List approval not asked for. Request it on Name approval.";
     case "NAME_NOT_APPROVED":
       return "The invitee list's approval is still in progress.";
     case "NAME_REJECTED":
       return "The invitee list's approval was refused. Change the list and ask again.";
     case "LIST_NOT_RECORDED":
-      return "The approved name route holds no invitee list (it was approved before lists were recorded), so it approves no list. Request the name's approval again with the list.";
+      return "Approved route holds no invitee list. Request the name's approval again.";
     case "LIST_CHANGED":
-      return `The invitee list has changed since it was approved (${d.added ?? 0} added, ${d.removed ?? 0} removed). Request the name's approval again.`;
+      return `Invitee list changed since approval (${d.added ?? 0} added, ${d.removed ?? 0} removed). Ask again.`;
     case "NO_INVITEES":
       return "No contractor is proposed for invitation. Add the invitees.";
     case "LIST_FROZEN":
-      return "The letters of invitation are issued, so the list stands. To invite others, cancel the exercise and open a replacement.";
+      return "Letters issued, so the list stands: cancel the exercise and open a replacement.";
     case "EXERCISE_NOT_OPEN":
       return "The exercise is cancelled, so its list stands as it was.";
     case "DUPLICATE":
@@ -286,13 +286,13 @@ export function windowFindingText(f: Finding): string {
     case "NOT_A_PROPOSED_INVITEE":
       return "That contractor is not on the proposed list.";
     case "PARTY_HAS_RECORDS":
-      return "That contractor has a letter, a sale or an attendance recorded, so it stays on the exercise.";
+      return "Contractor has a letter, sale or attendance, so it stays.";
     case "NAME_REQUIRED":
       return "Give the contractor's name.";
     case "REGISTRATION_REQUIRED":
       return "Give the contractor's registration number.";
     case "NOT_INVITED_PATH":
-      return "This exercise is advertised, not by invitation: its contractors come by buying the documents.";
+      return "Advertised, not by invitation. Contractors buy the documents.";
 
     // ---- citing a committee decision on a name route (OD-12)
     case "NOT_THIS_EXERCISE":
@@ -316,15 +316,15 @@ export function windowFindingText(f: Finding): string {
     case "EVENT_AFTER_CLOSING":
       return `The ${kindOf(d.kind)} is at or after the closing.`;
     case "MANDATORY_NOT_PERMITTED":
-      return `The ${kindOf(d.kind)} is marked mandatory, but mandatory attendance is ${d.permitted === "no" ? "not permitted" : "not set"}. Mark it not mandatory, or set the policy under ${SETTINGS}.`;
+      return `${kindOf(d.kind)} is mandatory, but mandatory attendance is ${d.permitted === "no" ? "not permitted" : "not set"}. Set the policy under ${SETTINGS}.`;
     case "MANDATORY_NOT_ANSWERED":
       return `Whether attendance at the ${kindOf(d.kind)} is mandatory is not answered. Answer it.`;
     case "MANDATORY_NOT_OFFERED":
       return `Not mandatory: mandatory attendance ${d.permitted === "no" ? "is not permitted" : "not set"}.`;
     case "ATTENDANCE_REQUIRED":
-      return `Attendance at the ${kindOf(d.kind)} held on ${day(d.heldOn)} is mandatory, and this contractor is not on its attendance register.`;
+      return `${kindOf(d.kind)} of ${day(d.heldOn)} is mandatory and this contractor did not attend.`;
     case "EVENT_NOT_HELD":
-      return `Attendance at the ${kindOf(d.kind)} is mandatory, and it is not recorded as held yet. Record it held, with its attendance, first.`;
+      return `${kindOf(d.kind)} is mandatory and not yet held. Record it held first.`;
     case "ALREADY_HELD":
       return "The event is already recorded as held.";
     case "EVENT_CANCELLED":
@@ -336,9 +336,9 @@ export function windowFindingText(f: Finding): string {
 
     // ---- sales (FR-ADV-009–012, OD-9, OD-11)
     case "SALE_CLOSED":
-      return d.phase === "NOT_PUBLISHED" || d.phase === "PUBLISHED" ? "The documents are not on sale yet: the sale opens on its first day, once the exercise is published." : d.phase === "UNKNOWN" ? "Whether the documents are on sale cannot be told: the organisation's time zone or the window's days are not set." : "The documents are no longer on sale.";
+      return d.phase === "NOT_PUBLISHED" || d.phase === "PUBLISHED" ? "Not on sale yet. Opens on the first day of sale." : d.phase === "UNKNOWN" ? "Cannot tell if on sale: time zone or sale days not set." : "The documents are no longer on sale.";
     case "CERT_NOT_SHOWN":
-      return "The tender is restricted: the original or a certified copy of the purchaser's status certificate must be shown.";
+      return "Restricted: show the original or a certified copy of the status certificate.";
     case "CERT_EXPIRY_NOT_RECORDED":
       return "Record the day the status certificate shown is valid until.";
     case "CERT_EXPIRED":
@@ -348,9 +348,9 @@ export function windowFindingText(f: Finding): string {
     case "AUTHORITY_NOT_SIGHTED":
       return "The representative's proof of authority to receive the documents must be sighted.";
     case "REGISTRATION_NOT_CHECKED":
-      return "Registration not checked against the supplier register: no supplier is named for the contractor at this sale. Carried with the sale to the opening and the evaluation.";
+      return "Registration not checked: no supplier is named for the contractor at this sale. Carried to opening and evaluation.";
     case "SUSPENSION_NOT_CHECKED":
-      return "Suspension not checked against the supplier register: no supplier is named for the contractor at this sale. Carried with the sale to the opening and the evaluation.";
+      return "Suspension not checked: no supplier is named for the contractor at this sale. Carried to opening and evaluation.";
     case "REGISTRATION_FAILED":
       return "The contractor's registration is recorded as cancelled, so the documents are not sold.";
     case "SUSPENDED":
@@ -361,7 +361,7 @@ export function windowFindingText(f: Finding): string {
     case "TAKEN":
       return "That receipt number is already recorded on another sale.";
     case "RECEIPT_NOT_RECORDED":
-      return "No finance receipt number yet: the sale is listed for reconciliation until one is recorded.";
+      return "No finance receipt number yet. Listed for reconciliation.";
     case "COLLECTOR_REQUIRED":
       return "Give the name of whoever collected the documents.";
     case "PAYMENT_METHOD_REQUIRED":
@@ -381,7 +381,7 @@ export function windowFindingText(f: Finding): string {
     case "EXERCISE_CANCELLED":
       return "The exercise is cancelled, so its records stand.";
     case "ENVELOPE_HELD":
-      return "This purchaser holds a bid envelope on the register, so the sale it was bought with stands.";
+      return "Purchaser holds a bid envelope, so the sale stands.";
     case "REASON_REQUIRED":
       return "Give the reason.";
 
@@ -432,18 +432,18 @@ export function windowFindingText(f: Finding): string {
       return `${d.award ? `Award ${d.award}` : "An award"} stands on this exercise. Cancel the award first, from its own record.`;
     // 6.7 (C-9): a cancellation waits for the opening in progress to be adjourned.
     case "OPENING_NOT_ADJOURNED":
-      return "The bids are being opened. Adjourn the opening first, on Bids and opening; an opening in progress is never cancelled mid-sitting.";
+      return "Bids are being opened. Adjourn the opening first.";
     // ---- what may be written when (edit.ts)
     case "NOT_IN_PREPARATION":
-      return "The window is prepared once the exercise is in preparation. Move it into preparation first.";
+      return "Move the exercise into preparation first.";
     case "WINDOW_PUBLISHED":
-      return "The window is published, so this stands as published. A change now is an addendum, or a change to the closing.";
+      return "Published. Change by addendum or closing change.";
     case "WINDOW_NOT_PREPARED":
-      return "The window is not prepared yet. Fill in Notice and fee on Scope and estimate first.";
+      return "Window not prepared. Fill in Notice and fee first.";
     case "CHANNEL_RETIRED":
       return "That channel is retired or no longer configured.";
     case "CHANNEL_ALREADY_RECORDED":
-      return "A publication is already recorded on that channel. Remove it first to record another.";
+      return "Already recorded on that channel. Remove it first.";
     case "PUBLICATION_BEFORE_APPROVAL":
       return `A publication on ${day(d.day)} would be before the approval for tendering on ${day(d.approvedOn)}.`;
     case "PERSON_REQUIRED":
@@ -451,7 +451,7 @@ export function windowFindingText(f: Finding): string {
     case "NOT_INVITED":
       return "Only an invitee whose letter of invitation was issued is sold the documents.";
     case "PUBLISH_NOT_READY":
-      return "The invitation is not ready to publish: see what Publishing on Tender documents says blocks it.";
+      return "Not ready to publish. See Publishing on Tender documents.";
     default: {
       // SR-13: the sealing refusals have their words beside the rule (`publishSealingWords`).
       if (SEALING_CODES.has(f.code)) return publishSealingWords(f);

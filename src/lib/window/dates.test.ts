@@ -72,7 +72,7 @@ describe("two weeks from the advertisement day (FR-ADV-004, worked example)", ()
   it("advertised Tuesday 3 November with a minimum of 14: closing Monday the 16th (D+13) is refused, citing the source", () => {
     const f = of(base({ closingAt: klAt("2026-11-16"), purchaseCloseDay: "2026-11-13" }), "CLOSING_TOO_SOON")!;
     expect(f).toMatchObject({ level: "block", data: { days: 13, min: 14 } });
-    expect(windowFindingText(f)).toBe("The closing date must be at least 14 days after the advertisement date (SK002 7.4.2(g)): it is 13 days after 3 November 2026. Move the closing later.");
+    expect(windowFindingText(f)).toBe("Closing must be at least 14 days after the advertisement (SK002 7.4.2(g)): it is 13 days after 3 November 2026."); // 0005, founder 2026-10-19: rule and clause kept, the instruction cut
   });
   it("Tuesday the 17th (D+14) passes", () => {
     expect(blocks(base({ closingAt: klAt("2026-11-17"), purchaseCloseDay: "2026-11-15" }))).toEqual([]);
@@ -97,11 +97,11 @@ describe("weekends and public holidays (FR-ADV-005, OD-7)", () => {
   it("Saturday 21 November is refused with the rule and its configured source", () => {
     const f = of(base({ closingAt: klAt("2026-11-21"), purchaseCloseDay: "2026-11-19" }), "CLOSING_ON_WEEKEND")!;
     expect(f.level).toBe("block");
-    expect(windowFindingText(f)).toMatch(/^The closing date must not fall on a weekend or a public holiday \(SK002 7\.4\.2\(g\)\): 21 November 2026 is a Saturday/);
+    expect(windowFindingText(f)).toMatch(/^Closing date falls on a weekend or public holiday \(SK002 7\.4\.2\(g\)\): 21 November 2026 is a Saturday/); // 0005, founder 2026-10-19
   });
   it("with no source recorded, no citation is invented", () => {
     const f = of(base({ closingAt: klAt("2026-11-21"), purchaseCloseDay: "2026-11-19", policy: { ...SPEC_POLICY, dateRuleSource: "" } }), "CLOSING_ON_WEEKEND")!;
-    expect(windowFindingText(f)).toMatch(/^The closing date must not fall on a weekend or a public holiday: 21 November 2026/);
+    expect(windowFindingText(f)).toMatch(/^Closing date falls on a weekend or public holiday: 21 November 2026/); // 0005, founder 2026-10-19
   });
   it("a public holiday of the calendar is refused, naming it", () => {
     const f = of(base({ closingAt: klAt("2026-12-25"), purchaseCloseDay: "2026-12-23" }), "PUBLIC_HOLIDAY")!;

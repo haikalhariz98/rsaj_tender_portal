@@ -38,7 +38,7 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
     return (
       <Card>
         <EmptyState size="sm" title="No addendum">
-          {d.draft.allowed ? "A change to the documents during the window is made by an addendum. Draft one here: it is numbered when issued and goes to everyone on the sale register." : d.windowClosed ? "None was issued. The window has closed." : d.draft.reason}
+          {d.draft.allowed ? "No addenda issued" : d.windowClosed ? "None issued. Window closed." : d.draft.reason}
         </EmptyState>
       </Card>
     );
@@ -56,7 +56,7 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
             <CardHeader
               icon={<FileIcon size={17} />}
               title={`${a.number} · ${a.title}`}
-              subtitle={a.issuedOn ? `Issued ${a.issuedOn}.` : draft ? "Not issued: it takes its number when it is issued." : (a.voidReason ?? "")}
+              subtitle={a.issuedOn ? `Issued ${a.issuedOn}.` : draft ? "Not issued" : (a.voidReason ?? "")}
               actions={
                 <span className="flex flex-wrap items-center gap-2">
                   <Badge tone={tone(a.status)}>{a.status}</Badge>
@@ -69,7 +69,7 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
                 columns={2}
                 items={[
                   { label: "What it changes", value: <span className="break-words whitespace-pre-line">{a.whatChanged}</span> },
-                  { label: "Signed copy", value: <span className="flex flex-wrap items-center gap-2"><Chip tone={a.signedCopy === "Attached" ? "ok" : draft ? "warn" : "neutral"}>{a.signedCopy}</Chip>{a.attach && <OwnerDocumentsButton owner={{ kind: "addendum", id: a.id }} label={a.title} title="Signed copy" subtitle="The addendum as signed, kept against it. It must be attached before the addendum can be issued." options={{ only: ["ADDENDUM_SIGNED"] }} />}</span> },
+                  { label: "Signed copy", value: <span className="flex flex-wrap items-center gap-2"><Chip tone={a.signedCopy === "Attached" ? "ok" : draft ? "warn" : "neutral"}>{a.signedCopy}</Chip>{a.attach && <OwnerDocumentsButton owner={{ kind: "addendum", id: a.id }} label={a.title} title="Signed copy" subtitle="Attach before issuing" options={{ only: ["ADDENDUM_SIGNED"] }} />}</span> },
                   ...(a.closingChange ? [{ label: "Announces", value: a.closingChange }] : []),
                 ]}
               />
@@ -83,7 +83,7 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <AddendumDrawer exerciseId={c.exerciseId} allowed={d.draft} closingChanges={d.closingChanges} draft={{ id: a.id, label: a.title, title: a.title, whatChanged: a.whatChanged }} />
                   <VoidAddendumDrawer exerciseId={c.exerciseId} addendumId={a.id} label={a.title} />
-                  {a.issue && <IssueAddendumDrawer exerciseId={c.exerciseId} addendumId={a.id} label={a.title} allowed={a.issue} recipients={d.willGoTo === 0 ? "Nobody has bought the documents yet: there are no purchasers to notify" : `${d.willGoTo} ${d.willGoTo === 1 ? "purchaser" : "purchasers"} on the sale register`} />}
+                  {a.issue && <IssueAddendumDrawer exerciseId={c.exerciseId} addendumId={a.id} label={a.title} allowed={a.issue} recipients={d.willGoTo === 0 ? "No purchasers to notify" : `${d.willGoTo} ${d.willGoTo === 1 ? "purchaser" : "purchasers"} on the sale register`} />}
                   {a.issue && !a.issue.allowed && <span className="max-w-xl text-[12.5px] text-ink-3">{a.issue.reason}</span>}
                 </div>
               )}
@@ -91,7 +91,7 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
             {a.status === "Issued" && a.acknowledgedOnline.length > 0 && (
               <div className="border-t border-line px-5 py-3 sm:px-6">
                 <p className="text-[13px] font-semibold text-ink">Acknowledged online</p>
-                <p className="text-[12.5px] text-ink-3">Suppliers that said they had read it, from their portal accounts. This is not a record of delivery: the line per recipient below is what an officer recorded of each copy.</p>
+                <p className="text-[12.5px] text-ink-3">Read in the portal. Not a delivery record.</p>
                 <ul className="mt-2 flex flex-col gap-1 text-[13px] text-ink-2">
                   {a.acknowledgedOnline.map((x) => (
                     <li key={`${x.supplier}-${x.at}`}>{x.supplier} <span className="text-ink-3">· {x.at}</span></li>
@@ -101,7 +101,7 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
             )}
             {a.status === "Issued" && (
               a.recipients.length === 0 ? (
-                <p className="border-t border-line px-5 py-3 text-[13px] text-ink-3 sm:px-6">No purchasers to notify: it goes to anyone who buys the documents from now on, with the documents.</p>
+                <p className="border-t border-line px-5 py-3 text-[13px] text-ink-3 sm:px-6">No purchasers to notify. Later buyers receive it with the documents.</p>
               ) : (
                 <DeliveryList
                   items={a.recipients.map((r) => ({

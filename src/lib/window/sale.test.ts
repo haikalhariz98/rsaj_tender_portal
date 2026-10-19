@@ -42,7 +42,7 @@ describe("a sale that passes", () => {
     const fs = saleFaults(ok);
     expect(codes(fs, "block")).toEqual([]);
     expect(codes(fs, "warn")).toEqual(["REGISTRATION_NOT_CHECKED", "SUSPENSION_NOT_CHECKED"]);
-    expect(windowFindingText(fs[0])).toBe("Registration not checked against the supplier register: no supplier is named for the contractor at this sale. Carried with the sale to the opening and the evaluation.");
+    expect(windowFindingText(fs[0])).toBe("Registration not checked: no supplier is named for the contractor at this sale. Carried to opening and evaluation."); // 0005, founder 2026-10-19
   });
 });
 

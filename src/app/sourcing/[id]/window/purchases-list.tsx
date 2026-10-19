@@ -21,7 +21,7 @@ export interface AwaitingPurchase {
  * finance counter all the same, the officer records the finance receipt here and the documents are released. A try that failed on the payment simulator is said as such: it is a simulated failure, never a finance
  * matter. The list is client-side because a row's act opens a drawer.
  */
-export function PurchasesList({ exerciseId, purchases, onlinePayment }: { exerciseId: string; purchases: AwaitingPurchase[]; onlinePayment: boolean }) {
+export function PurchasesList({ exerciseId, purchases }: { exerciseId: string; purchases: AwaitingPurchase[] }) {
   const byId = new Map(purchases.map((p) => [p.id, p]));
   const rows: Row[] = purchases.map((p) => ({
     id: p.id,
@@ -41,7 +41,7 @@ export function PurchasesList({ exerciseId, purchases, onlinePayment }: { exerci
       exportName="online-purchases-awaiting-payment"
       searchPlaceholder="Search by supplier or buyer"
       emptyTitle="No online purchase is waiting for payment"
-      emptyBody={onlinePayment ? "A purchase appears here after a supplier presses Buy documents and before it pays on the simulator." : "A purchase appears here after a supplier presses Buy documents and before the office records its payment."}
+      emptyBody={undefined}
       stackBelow="xl"
       actionsWidth={160}
       columns={[

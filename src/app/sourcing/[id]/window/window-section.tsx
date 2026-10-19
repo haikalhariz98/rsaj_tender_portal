@@ -76,7 +76,7 @@ export function windowHeader(d: WindowTab, c: WindowContext): { actions: ReactNo
   const pre = c.status === "APPROVED_FOR_TENDERING";
   const tab = tabActs({ ...d.actions, closing: d.dates.closing, lastDayOfSale: d.dates.lastDayOfSale === "Not set" ? null : d.dates.lastDayOfSale }, c);
   if (!pre) return tab;
-  const publish = !d.hasWindow ? { allowed: false as const, reason: "The window's items are not prepared yet. Prepare the window below first." } : d.actions.publish;
+  const publish = !d.hasWindow ? { allowed: false as const, reason: "Window items not prepared." } : d.actions.publish;
   if (!publish.allowed) notes.push([d.actions.publishLabel, publish.reason]);
   return {
     actions: (
@@ -119,7 +119,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
         <CardHeader
           icon={<ClockIcon size={17} />}
           title="The window"
-          subtitle={`${d.path}. ${live || c.status === "CANCELLED" ? "The status is worked out from the dates, never typed." : "Prepared here, then published."}`}
+          subtitle={d.path}
           actions={phaseBadge}
         />
         <CardBody className="flex flex-col gap-4">
@@ -137,7 +137,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
               { label: "The estimate's lead time", value: <span className={d.lead.warn ? "text-amber-800" : undefined}>{d.lead.text}</span> },
             ]}
           />
-          {d.pathChanged && <Callout tone="warn" title="The method has changed since the window was prepared">The method now calls for the other way of tendering. Check the method before the window is published.</Callout>}
+          {d.pathChanged && <Callout tone="warn" title="Method changed since the window was prepared">Check the method before publishing.</Callout>}
           {d.frozenRules && <p className="text-[12.5px] text-ink-3">{d.frozenRules}</p>}
           {d.replaces && (
             <p className="text-[12.5px] text-ink-3">
@@ -189,7 +189,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
             <CardHeader
               icon={<SlidersIcon size={17} />}
               title="Channels and publications"
-              subtitle={d.advertisementDay?.day && d.advertisementDay.day !== "Not known yet" ? `Advertised on ${d.advertisementDay.day}: the day is worked out from the publications under the rule below.` : "The notice is advertised only once every required channel carries it."}
+              subtitle={d.advertisementDay?.day && d.advertisementDay.day !== "Not known yet" ? `Advertised on ${d.advertisementDay.day}` : "Needs every required channel"}
               actions={
                 !live && c.status !== "CANCELLED" && d.hasWindow ? (
                   <RecordPublicationDrawer exerciseId={c.exerciseId} channels={d.channels.filter((x) => !x.publication).map((x) => ({ value: x.id, label: x.name }))} people={c.people} today={c.today} />
@@ -198,9 +198,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
               divided={d.channels.length === 0}
             />
             {d.channels.length === 0 ? (
-              <EmptyState size="sm" title="No publication channel is configured" action={<ButtonLink href={SETTINGS_HREF} size="sm" variant="secondary">Open Invitation controls</ButtonLink>}>
-                An advertised exercise cannot be published until the channels, and which are required, are set.
-              </EmptyState>
+              <EmptyState size="sm" title="No publication channel set" action={<ButtonLink href={SETTINGS_HREF} size="sm" variant="secondary">Open Invitation controls</ButtonLink>} />
             ) : (
               <Table minWidth={720}>
                 <colgroup>
@@ -239,14 +237,14 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
             )}
           </Card>
           {d.hasWindow && (
-            <OwnerAttachments owner={{ kind: "exercise", id: c.exerciseId }} only={["PUBLICATION_PROOF"]} title="Proofs of publication" subtitle="A cutting, a screen print or a photograph of the board, kept with the exercise." collapseWhenEmpty={false} />
+            <OwnerAttachments owner={{ kind: "exercise", id: c.exerciseId }} only={["PUBLICATION_PROOF"]} title="Proofs of publication" subtitle="Cutting, screen print or photograph" collapseWhenEmpty={false} />
           )}
         </>
       ) : invited ? (
         <InviteesCard d={d} c={c} />
       ) : (
         <Card>
-          <EmptyState title="The way of tendering is not set">The method says both a public advertisement and a list of invited contractors, or neither. Correct the method before the window is prepared.</EmptyState>
+          <EmptyState title="Way of tendering not set">Method says both or neither advertisement and invitation. Correct the method.</EmptyState>
         </Card>
       )}
 
@@ -256,7 +254,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
 
       {d.notice && (
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="The notice" subtitle={d.notice.template ? `Frozen when published, from ${d.notice.template}.` : "As it would read if published now. It is frozen when it is published."} />
+          <CardHeader icon={<FileIcon size={17} />} title="The notice" subtitle={d.notice.template ? `From ${d.notice.template}` : "Draft until published"} />
           <CardBody>
             <details className="text-[13.5px]">
               <summary className="cursor-pointer font-semibold text-ink-3">Read the notice</summary>
@@ -290,7 +288,7 @@ function RulesUsed({ d }: { d: WindowTab }) {
         </Callout>
       )}
       <Accordion title="Rules used" meta={unset.length ? `${unset.length} not set` : `${rows.length} settings`}>
-        <p className="border-b border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">Each value is the organisation&apos;s setting, with where it comes from. Not set blocks the act it governs.</p>
+
         <ul className="divide-y divide-line/70">
           {rows.map((r) => (
             <li key={r.label} className="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
@@ -321,7 +319,7 @@ export function WindowItemsCard({ d, c }: { d: WindowTab; c: WindowContext }) {
       <CardHeader
         icon={<FileIcon size={17} />}
         title="Notice and fee"
-        subtitle={d.actions.save.allowed ? "What the notice states, and what a set of the documents costs and why." : d.actions.save.reason}
+        subtitle={d.actions.save.allowed ? undefined : d.actions.save.reason}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {d.channel.mode == null && <TakeSubmissionChannelDrawer exerciseId={c.exerciseId} take={d.channel.take} setting={d.channel.setting} />}
@@ -331,14 +329,14 @@ export function WindowItemsCard({ d, c }: { d: WindowTab; c: WindowContext }) {
         }
       />
       {!d.items ? (
-        <EmptyState size="sm" title="Not prepared yet">{d.sale.physical ? "The window has no items yet: where the documents are inspected and bought, the days of sale and the fee." : "The window has no items yet: the days of sale and the fee."}</EmptyState>
+        <EmptyState size="sm" title="Not prepared yet" />
       ) : (
         <CardBody className="flex flex-col gap-4">
           <KeyValues
             columns={2}
             items={[
-              { label: "How bids are submitted", value: d.channel.mode == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">{`The organisation's setting is: ${d.channel.setting}. Take it above; publication is refused until this is set.`}</span></span> : d.channel.words },
-              { label: "How the documents are sold", value: d.sale.mode == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">{`The organisation's setting is: ${d.sale.setting}. Take it above; publication is refused until this is set.`}</span></span> : d.sale.words },
+              { label: "How bids are submitted", value: d.channel.mode == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">{`Setting: ${d.channel.setting}`}</span></span> : d.channel.words },
+              { label: "How the documents are sold", value: d.sale.mode == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">{`Setting: ${d.sale.setting}`}</span></span> : d.sale.words },
               // SR-10 (ruling 16): the places, the hours and how the fee is paid describe a sale at a counter. An exercise sold online does not show them (the columns stay).
               ...(d.sale.physical
                 ? [
@@ -350,7 +348,7 @@ export function WindowItemsCard({ d, c }: { d: WindowTab; c: WindowContext }) {
                 : []),
               { label: "Document fee", value: <span className="font-semibold tabular-nums">{d.fee.amount}</span> },
               ...(d.sale.physical ? [{ label: "How the fee is paid", value: d.items.feePaymentMethods || "Not recorded" }] : []),
-              ...(d.fee.floor == null ? [{ label: "The least the fee may be", value: <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">No minimum is set for this band, so the window cannot be published.</span></span> }] : []),
+              ...(d.fee.floor == null ? [{ label: "The least the fee may be", value: <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">Blocks publishing.</span></span> }] : []),
               ...(d.items.closingTimeReason ? [{ label: "Why the closing time differs", value: d.items.closingTimeReason }] : []),
               { label: "Special permission", value: d.items.specialPermissionOffered === "yes" ? "Offered" : d.items.specialPermissionOffered === "no" ? "Not offered" : <span className="text-ink-3">Not stated: none is granted on this exercise</span> },
               ...(d.registrations.length ? [{ label: `Registrations asked of a ${d.bid.bidder}`, value: d.registrations.join("; ") }] : []),
@@ -363,7 +361,7 @@ export function WindowItemsCard({ d, c }: { d: WindowTab; c: WindowContext }) {
           <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
             <div>
               <p className="text-[13.5px] font-semibold text-ink">What a set costs to make</p>
-              <p className="text-[12.5px] text-ink-3">The fee is entered, not worked out from this.</p>
+              
             </div>
             <FeeLineDrawer exerciseId={c.exerciseId} allowed={d.actions.save} kinds={FEE_COST_KINDS.map((k) => ({ value: k, label: FEE_COST_KIND_LABEL[k] }))} />
           </div>
@@ -425,7 +423,7 @@ function EvaluationModelCard({ d, c }: { d: WindowTab; c: WindowContext }) {
       <CardHeader
         icon={<SlidersIcon size={17} />}
         title="Evaluation model"
-        subtitle={e.pinned ? "Pinned when the window was published: the bids are evaluated by it as it stood then." : "The model the bids will be evaluated by. Its content is pinned when the window is published."}
+        subtitle={e.pinned ? "Pinned when published." : "Pinned when published."}
         actions={e.pinned ? <Badge tone="ok">Pinned</Badge> : <ChooseEvaluationModelDrawer exerciseId={c.exerciseId} allowed={e.choose} models={e.options} current={e.current} />}
       />
       <CardBody className="flex flex-col gap-3">
@@ -443,7 +441,7 @@ function EvaluationModelCard({ d, c }: { d: WindowTab; c: WindowContext }) {
           />
         )}
         {!e.pinned && !e.before && e.suggested && <p className="text-[12.5px] text-ink-3">{e.suggested}</p>}
-        {!e.pinned && !e.before && e.choose.allowed && e.options.length === 0 && <p className="text-[12.5px] text-ink-3">No issued model takes the basis&apos;s route. Models are issued under Configuration › Evaluation models.</p>}
+        {!e.pinned && !e.before && e.choose.allowed && e.options.length === 0 && <p className="text-[12.5px] text-ink-3">No issued model fits this basis. Issue one under Evaluation models.</p>}
       </CardBody>
     </Card>
   );
@@ -461,12 +459,12 @@ function InviteesCard({ d, c }: { d: WindowTab; c: WindowContext }) {
         <CardHeader
           icon={<UsersIcon size={17} />}
           title="Invitees and letters of invitation"
-          subtitle={frozen ? "The list is frozen: the exercise is invited. The way out is cancelling and a replacement exercise." : "The contractors proposed. The name is approved for exactly this list, and letters go to those on it."}
+          subtitle={frozen ? "Frozen: invited. Cancel and replace to change." : "Name approved for exactly this list"}
           actions={frozen ? undefined : <ProposeInviteeDrawer exerciseId={c.exerciseId} allowed={inv.edit} withdrawsRoute={hasRoute} />}
           divided={inv.proposed.length === 0}
         />
         {inv.proposed.length === 0 ? (
-          <EmptyState size="sm" title="Nobody proposed yet">Propose the contractors to invite. The name is then sent for approval with that list.</EmptyState>
+          <EmptyState size="sm" title="Nobody proposed" />
         ) : (
           <Table minWidth={720}>
             <colgroup>
@@ -507,7 +505,7 @@ function InviteesCard({ d, c }: { d: WindowTab; c: WindowContext }) {
         )}
         {letters.length > 0 && (
           <p className="border-t border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">
-            A letter&apos;s text is frozen when it is issued, from the configured template. Delivery is recorded by the officer; the portal sends nothing.
+            Frozen when issued. Not emailed.
           </p>
         )}
       </Card>
@@ -543,9 +541,9 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
   return (
     <>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClockIcon size={17} />} title="The closing, and its changes" subtitle="The closing set when the documents were approved, and every change since. A change is kept beside the closing it replaced." divided={nothing} />
+        <CardHeader icon={<ClockIcon size={17} />} title="The closing, and its changes" subtitle="Set at approval, with every change since." divided={nothing} />
         {nothing ? (
-          <EmptyState size="sm" title="The closing is not set">It is recorded when the tender documents are approved for tendering.</EmptyState>
+          <EmptyState size="sm" title="Closing not set" />
         ) : (
           <>
             {d.history.length > 0 && (
@@ -577,7 +575,7 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
                 </div>
                 {ch.notices.length > 0 && (
                   <DeliveryList
-                    caption="Purchasers told of the extension. Delivery is recorded by the officer; the portal sends nothing."
+                    caption="Purchasers told of the extension. Not emailed."
                     items={ch.notices.map((n) => ({ id: n.id, who: n.recipient, delivery: n, action: <NoticeDeliveryDrawer exerciseId={c.exerciseId} id={n.id} who={n.recipient} what="notice of the extension" values={n.raw} /> }))}
                   />
                 )}
@@ -594,7 +592,7 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
                 </div>
                 {x.notices.length > 0 && (
                   <DeliveryList
-                    caption="Holders of the documents told of the cancellation. Delivery is recorded by the officer; the portal sends nothing."
+                    caption="Holders told of the cancellation. Not emailed."
                     items={x.notices.map((n) => ({ id: n.id, who: n.recipient, delivery: n, action: <NoticeDeliveryDrawer exerciseId={c.exerciseId} id={n.id} who={n.recipient} what="notice of the cancellation" values={n.raw} /> }))}
                   />
                 )}
@@ -648,7 +646,7 @@ function ChangeRouteCard({ c, inst }: { c: WindowContext; inst: Route }) {
       <CardHeader
         icon={<RouteIcon size={17} />}
         title="Approval of the change"
-        subtitle={`Asked ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
+        subtitle={`Asked ${formatDate(inst.openedAt)} · ${inst.matrixLabel ?? "Issue no longer on file"}`}
         actions={<Badge tone={inst.status === "REJECTED" ? "warn" : routeTone(inst.status)}>{changeRouteLabel(inst.status, inst.warnings)}</Badge>}
       />
       <CardBody className="flex flex-col gap-4">
@@ -665,7 +663,7 @@ function ChangeRouteCard({ c, inst }: { c: WindowContext; inst: Route }) {
           </Callout>
         ))}
       </CardBody>
-      {inst.status === "PENDING" && <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">Steps are decided in order: each waits for the one before it. If refused: the change is not made, and it may be asked for again.</p>}
+      {inst.status === "PENDING" && <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">If refused, the change is not made.</p>}
       {inst.status === "REJECTED" && (
         <div className="border-t border-line px-5 py-3 sm:px-6">
           <Callout tone="warn" title="Refused: the change was not made">

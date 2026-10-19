@@ -26,8 +26,8 @@ import type { Finding } from "@/lib/window/types";
 
 export const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
 export const CHANGED: FormState = { ok: false, message: "The exercise changed while this was being saved. Reload and try again." };
-export const NO_ZONE: FormState = { ok: false, message: "The organisation's time zone is not set, so nothing on the window can be dated. Set it under Configuration, Organisation." };
-export const NO_WINDOW: FormState = { ok: false, message: "The window is not prepared yet. Fill in Notice and fee on Scope and estimate first." };
+export const NO_ZONE: FormState = { ok: false, message: "Time zone not set. Set it under Organisation." };
+export const NO_WINDOW: FormState = { ok: false, message: "Window not prepared. Fill in Notice and fee first." };
 
 export class Refusal extends Error {
   constructor(readonly state: FormState) {

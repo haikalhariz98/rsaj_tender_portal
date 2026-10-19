@@ -27,7 +27,7 @@ export function RequestsList({ requests }: { requests: RequestRow[] }) {
       exportName="online-requests"
       searchPlaceholder="Search by supplier or collector"
       emptyTitle="No supplier has asked online"
-      emptyBody="A supplier's request for the documents from its portal account appears here."
+      emptyBody={undefined}
       views={[
         { id: "waiting", label: "Waiting for a sale" },
         { id: "refused", label: "Refused" },

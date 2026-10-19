@@ -120,7 +120,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     const w = d.window;
     if (!w) return NO_WINDOW;
     // SR-10 (ruling 16, G3): an exercise sold online is bought through the supplier portal; the counter sale is offered only on an exercise pinned to the counter.
-    if (l.ex.saleMode === "ONLINE") return { ok: false, message: "Not sold: the documents of this exercise are bought online through the supplier portal, not at the counter. Where a buyer paid at the finance counter, record the receipt against its online purchase." };
+    if (l.ex.saleMode === "ONLINE") return { ok: false, message: "Not sold: bought online. Record counter payments against the online purchase." };
     await lockSaleRows(tx, w.id);
     const person = await activePerson(tx, l.org.id, personId);
     if (!person) return { ok: false, errors: { issuedByPersonId: windowFindingText({ code: "PERSON_REQUIRED", level: "block" }) } };
@@ -264,7 +264,7 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
     if (!s || s.voidedAt) return { ok: false, message: "That sale is not live on this exercise." };
     if (s.financeReceiptNo) return { ok: false, message: "A receipt number is already recorded on this sale." };
     // SR-10 (ruling 17): a simulated payment is never a finance receipt, so no receipt number is recorded against it, whatever finance holds.
-    if (s.paymentChannel === "SIMULATED") return { ok: false, message: "This sale was paid on the payment simulator. A simulated payment is not a finance receipt, so no receipt number can be recorded against it." };
+    if (s.paymentChannel === "SIMULATED") return { ok: false, message: "Simulated payment: not a finance receipt, so no receipt number." };
     const taken = !!(await tx.documentSale.findFirst({ where: { organisationId: l.org.id, financeReceiptNo: number, NOT: { id: s.id } }, select: { id: true } }));
     const fs = manualFeeReceipt.check({ number, recordedOn: l.org.today }, { pattern: null, today: l.org.today, taken });
     if (fs.length) return { ok: false, errors: { financeReceiptNo: fs.map((code) => windowFindingText({ code, level: "block" })).join(" ") } };
@@ -355,7 +355,7 @@ export async function scheduleEvent(_prev: FormState, data: FormData): Promise<F
     if (!d.window) return NO_WINDOW;
     const startsAt = instantAt(storedDay(on), time, l.org.timeZone);
     if (!l.org.timeZone) return NO_ZONE;
-    if (!startsAt) return { ok: false, errors: { time: isClockTime(time) ? "That time does not occur on that day in the organisation's time zone (the clocks go forward). Give another time." : "Give the time on the 24-hour clock, such as 10:00." } };
+    if (!startsAt) return { ok: false, errors: { time: isClockTime(time) ? "That time does not occur that day (clocks go forward). Give another." : "Give the time on the 24-hour clock, such as 10:00." } };
     const ev = { kind, startsAt, place, mandatory: tri(mandatory), cancelled: false };
     const blocks = eventFaults(ev, d.policy.mandatoryAttendancePermitted, l.ex.closingAt).filter((f) => f.code === "MANDATORY_NOT_PERMITTED" || f.code === "EVENT_AFTER_CLOSING");
     if (blocks.length) return refuse(blocks, "Not scheduled:");

@@ -182,7 +182,7 @@ export async function removeFeeLine(_prev: FormState, data: FormData): Promise<F
 async function withdrawNameRoutes(tx: Parameters<Parameters<typeof inWindow>[2]>[0], actor: AuditActor, l: Parameters<Parameters<typeof inWindow>[2]>[1], why: string) {
   const routes = nameRoutesOf(l.ex.approvalInstances);
   for (const inst of routesWithdrawnByListChange(routes)) {
-    const warning = { code: WITHDRAWN_ON_CHANGE, level: "warn", messageEn: `${why} The route no longer describes the invitee list, so it was withdrawn.` };
+    const warning = { code: WITHDRAWN_ON_CHANGE, level: "warn", messageEn: `${why} Route withdrawn: the invitee list changed.` };
     const moved = await tx.approvalInstance.updateMany({ where: { id: inst.id, status: inst.status }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, actor, l.org.id, "ApprovalInstance", inst.id, label(l, exerciseRouteMatter(NAME_APPROVAL_DOMAIN).auditNoun), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), why);

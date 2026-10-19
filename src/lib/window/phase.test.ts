@@ -108,12 +108,12 @@ describe("what stands now, and the verb before the closing", () => {
 describe("printing the Tender Table Document (FR-DOC-010)", () => {
   it("prints only while available; otherwise refuses, saying when it is printed", () => {
     expect(tablePrintRefusal("AVAILABLE")).toBeNull();
-    for (const a of ["NOT_YET", "WITHDRAWN", "UNKNOWN"] as const) expect(tablePrintRefusal(a)).toMatch(/printed only while it is available for inspection, from publication to the closing/);
+    for (const a of ["NOT_YET", "WITHDRAWN", "UNKNOWN"] as const) expect(tablePrintRefusal(a)).toMatch(/Printed only from publication to closing/); // 0005, founder 2026-10-19
   });
   it("names a closing moved and addenda issued since approval", () => {
     expect(sinceApprovedLines({ closing: null, closingChanges: 0, addendaIssued: 0 })).toEqual(["The closing is as approved.", "No addendum has been issued since approval."]);
     const [a, b] = sinceApprovedLines({ closing: "21 Oct 2026 · 15:00", closingChanges: 1, addendaIssued: 2 });
-    expect(a).toBe("The closing has been changed 1 time since approval; it now stands at 21 Oct 2026 · 15:00.");
-    expect(b).toContain("2 addenda have been issued since approval");
+    expect(a).toBe("Closing changed 1 time since approval. Now 21 Oct 2026 · 15:00."); // 0005, founder 2026-10-19
+    expect(b).toContain("2 addenda issued since approval"); // 0005, founder 2026-10-19
   });
 });

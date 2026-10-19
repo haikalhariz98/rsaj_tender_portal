@@ -24,7 +24,7 @@ describe("the sale form's supplier choice is bounded (residual 6)", () => {
   });
 
   it("the shared Select (it searches past seven options), and a reference field once the list is cut", () => {
-    expect(editors).toMatch(/kind: "select", name: "supplierId", label: "Supplier on the register"[^\n]*type to search/);
+    expect(editors).toMatch(/kind: "select", name: "supplierId", label: "Supplier on the register"[^\n]*type to search/i); // 0005, founder 2026-10-19: hint opens with a capital
     expect(editors).toMatch(/suppliersTotal > suppliers\.length \? \[\{ kind: "text", name: "supplierReference"/);
   });
 

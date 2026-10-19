@@ -57,14 +57,14 @@ import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester
  * change is not made; it may be asked for again.
  */
 
-const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in force, so nobody can be shown as approving a change. Issue one under Configuration, Approval matrix." };
+const NO_ISSUE: FormState = { ok: false, message: "No approval matrix in force. Issue one under Approval matrix." };
 
 /// The change's route, resolved now with the requester in mind, and opened with its steps (audited).
 async function openChangeRoute(tx: Tx, actor: AuditActor, l: LockedWindow, cond: WindowChangeCond, what: string, act: PreparedAct): Promise<{ id: string } | FormState> {
   const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, l.ex, tx);
   if (!issue || !ctx) return NO_ISSUE;
   const method = cfg.config.methods.find((m) => m.code === l.ex.sourcingMethodCode) ?? null;
-  if (!method) return { ok: false, message: "The exercise's method is no longer configured, so nobody can be shown as approving a change." };
+  if (!method) return { ok: false, message: "Method no longer set, so no approver can be shown." };
   const value = parseSen(l.ex.estimatedValue.toString());
   const [roster, delegations] = [await loadRoster(l.org.code, tx), await loadDelegations(l.org.code, tx)];
   const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];

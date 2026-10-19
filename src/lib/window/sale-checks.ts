@@ -67,7 +67,7 @@ export function onlineRestrictionOfSale(snapshot: unknown, checks: unknown): { t
     return { text: c.detail, warn: c.state !== "PASS" };
   }
   const kept = onlineRestrictionOf(checks);
-  return kept ? { text: "Verified on the supplier register when the documents were bought. The document's details were not kept with this sale.", warn: kept.warn } : null;
+  return kept ? { text: "Verified on the register at purchase. Document details not kept.", warn: kept.warn } : null;
 }
 
 export function saleChecks(

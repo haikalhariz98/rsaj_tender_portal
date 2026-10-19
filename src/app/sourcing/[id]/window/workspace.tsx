@@ -38,7 +38,7 @@ function NotYet({ c, what }: { c: WindowContext; what: string }) {
   if (stage === "no_window") {
     return (
       <Card>
-        <EmptyState title="This exercise has no invitation window">This exercise assembles no tender or quotation documents, so there is nothing to advertise, invite, sell or schedule.</EmptyState>
+        <EmptyState title="This exercise has no invitation window">No tender documents, so nothing to publish.</EmptyState>
       </Card>
     );
   }
@@ -46,7 +46,7 @@ function NotYet({ c, what }: { c: WindowContext; what: string }) {
     return (
       <Card>
         <EmptyState title={`${what} opens once the exercise is in preparation`} action={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=overview`} variant="secondary" size="sm">Open the Overview</ButtonLink>}>
-          Move the exercise into preparation first. Its notice, fee and briefings are prepared on Scope and estimate, and advertising or inviting follows approval for tendering.
+          Move to preparation first.
         </EmptyState>
       </Card>
     );

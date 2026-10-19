@@ -178,7 +178,7 @@ export function configFaultText(f: Finding & { line?: number }): string {
     case "CALENDAR_UNKNOWN":
       return "That holiday calendar is no longer configured.";
     case "TIME_ZONE_NOT_SET":
-      return "The organisation's time zone is not set, so whether that channel or calendar is retired cannot be judged today. Set the time zone under Configuration, Organisation.";
+      return "Time zone not set. Retirement cannot be judged.";
     case "TEMPLATE_UNKNOWN":
       return "That template is no longer configured.";
     case "PAYMENT_METHOD_TOO_LONG":
@@ -188,11 +188,11 @@ export function configFaultText(f: Finding & { line?: number }): string {
     case "PAYMENT_METHOD_REPEATED":
       return "A payment method is listed twice. Give each once.";
     case "ONLINE_NEEDS_RELEASE":
-      return "Documents cannot be sold online while the release of documents online is not set to Yes: a buyer would pay and be handed nothing. Set \"Release the documents online after payment\" to Yes first, or sell at the counter.";
+      return "Online sale blocked: release online is not Yes. Set it to Yes, or sell at the counter.";
     case "SIMULATOR_NOT_ALLOWED":
       return SIMULATOR_NOT_ALLOWED_WORDS;
     case "CHANNEL_ONLINE_NOT_ALLOWED":
-      return "Bids cannot be set to be submitted online while online submission is not allowed: the organisation's bid sealing policy is not set to a mode this copy of the system allows. Set the bid sealing policy under Configuration, Bid sealing first, or leave bids on paper.";
+      return "Online bids blocked: bid sealing policy does not allow it. Set it under Bid sealing, or use paper.";
     case "REGIME_UNKNOWN":
       return "Choose the band the floor applies to.";
     case "FLOOR_EXISTS":

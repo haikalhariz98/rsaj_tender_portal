@@ -4,6 +4,7 @@ import { FileIcon, InboxIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import type { saleRegister } from "@/lib/window/read";
 
 import { RecordSaleDrawer } from "./editors";
@@ -39,25 +40,20 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
     <div className="flex flex-col gap-6">
       {d.reconciliation.length > 0 && (
         <Callout tone="warn" title={`${d.reconciliation.length} ${d.reconciliation.length === 1 ? "sale has" : "sales have"} no finance receipt number yet`}>
-          The number is typed in from finance&apos;s receipt. Until then the sale stays on the list of receipts to collect: {d.reconciliation.map((r) => `${r.purchaser} (sold ${r.soldOn}, ${r.amount})`).join("; ")}.
+          Receipts to collect: {d.reconciliation.map((r) => `${r.purchaser} (sold ${r.soldOn}, ${r.amount})`).join("; ")}.
         </Callout>
       )}
       {d.simulatedNoMoney.length > 0 && (
-        <Callout tone="info" title={`Simulated, no money received: ${d.simulatedNoMoney.length} ${d.simulatedNoMoney.length === 1 ? "sale" : "sales"}`}>
-          These were paid on the payment simulator, so no money moved and there is no finance receipt to wait for. They are listed here so that no one takes them for takings: {d.simulatedNoMoney.map((r) => `${r.purchaser} (sold ${r.soldOn}, ${r.amount})`).join("; ")}.
-        </Callout>
+        <div className="flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
+          <InfoChip tone="info" detail="Simulated. No money moved and no finance receipt is due. Not takings." label="About Demo">Demo</InfoChip>
+          <span>{d.simulatedNoMoney.length} simulated {d.simulatedNoMoney.length === 1 ? "sale" : "sales"}, no money received: {d.simulatedNoMoney.map((r) => `${r.purchaser} (sold ${r.soldOn}, ${r.amount})`).join("; ")}.</span>
+        </div>
       )}
-      {d.online && (
-        <Callout tone="info" title="These documents are bought online">
-          {d.onlinePayment
-            ? "A supplier buys them through the portal and pays on the demonstration payment simulator; the sale appears below the moment it is paid. A simulated payment is never a finance receipt: it carries no receipt number, is not among the receipts to collect and never reaches a finance export."
-            : "A supplier buys them through the portal. Online payment is not switched on, so the buyer pays at the finance counter and you record the receipt against its purchase below; the documents are then released."}
-        </Callout>
-      )}
+
       {d.online && (
         <Card className="overflow-hidden">
-          <CardHeader icon={<InboxIcon size={17} />} title="Bought online, awaiting payment" subtitle={`${d.awaitingPayment.length} ${d.awaitingPayment.length === 1 ? "purchase waits" : "purchases wait"} for payment. Record the finance receipt of one that paid at the counter.`} />
-          <PurchasesList exerciseId={c.exerciseId} purchases={d.awaitingPayment} onlinePayment={d.onlinePayment} />
+          <CardHeader icon={<InboxIcon size={17} />} title="Bought online, awaiting payment" subtitle={`${d.awaitingPayment.length} waiting`} actions={d.onlinePayment ? <InfoChip tone="info" detail="Simulated payment. No money moves. Never a finance receipt, and it never reaches a finance export." label="About Demo">Demo</InfoChip> : <InfoChip tone="info" detail="Online payment is not switched on. The buyer pays at the finance counter. Record the receipt against the purchase to release the documents." label="About counter payment">Pay at counter</InfoChip>} />
+          <PurchasesList exerciseId={c.exerciseId} purchases={d.awaitingPayment} />
         </Card>
       )}
       <Card className="overflow-hidden">
@@ -70,16 +66,17 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
         />
         <CardBody className="flex flex-col gap-3 border-t border-line">
           {d.rows.some((r) => r.simulated) && (
-            <Callout tone="warn" title="Some sales were paid on the payment simulator">
-              A sale marked Simulated payment is a demonstration: no money moved and it is not a finance receipt. It carries no receipt number and is not counted among the receipts to collect.
-            </Callout>
+            <div className="flex items-center gap-2 text-[13px] text-ink-2">
+              <InfoChip tone="info" detail="Some sales were paid on the simulator. No money moved and they are not finance receipts. No receipt number." label="About Demo">Demo</InfoChip>
+              <span>Some sales are simulated.</span>
+            </div>
           )}
-          <Callout tone="warn" title="Registration and suspension are checked only for a linked contractor">
-            A contractor linked to the supplier register is checked against it at the sale, and its eligibility is kept with the sale. One not linked cannot be checked here: its sale carries that warning on to bid receipt and evaluation. Link a contractor from its supplier&apos;s record under Suppliers.
+          <Callout tone="warn" title="Only linked contractors are checked">
+            Unlinked sales carry this warning to bid receipt.
           </Callout>
           {d.restricted && (
-            <Callout tone="info" title={`${d.restricted.label}`}>
-              {d.restricted.asks} A sale is refused if the certificate is not shown or has expired.
+            <Callout tone="warn" title={`${d.restricted.label}`}>
+              {d.restricted.asks} Refused if not shown or expired.
             </Callout>
           )}
         </CardBody>
@@ -90,7 +87,7 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
           <CardHeader
             icon={<InboxIcon size={17} />}
             title="Asked for online"
-            subtitle="Suppliers that asked for the documents from their portal accounts. A request sells nothing and takes no payment: record the sale above, naming the supplier, and the request reads as sold."
+            subtitle="Record the sale to mark sold"
           />
           <RequestsList requests={d.requests} />
         </Card>
