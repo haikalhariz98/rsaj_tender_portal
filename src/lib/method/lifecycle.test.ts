@@ -309,6 +309,7 @@ describe("whatever goes in, the flow reads as one flow (every status × pack × 
             for (const on of onSets)
               for (const path of ["ADVERTISED", "INVITED", null] as const) cases.push(base({ status, packKind, windowPhase, awards, routes, on, path }));
 
+  // N4: the sweep takes about 4.5 s alone but 10 to 12 s under a full Windows run; 120_000 is the Linux gate's own testTimeout.
   it("at most one current step, nothing done after it, unique keys, rejected only as a cancelled exercise's last step, no codes", () => {
     for (const c of cases) {
       const steps = exerciseFlow(c);
@@ -322,7 +323,7 @@ describe("whatever goes in, the flow reads as one flow (every status × pack × 
       for (const s of steps) expect(`${s.label} ${s.sub ?? ""}`, tag).not.toMatch(/[A-Z]{2,}_[A-Z]/);
       expect(steps.length, tag).toBeGreaterThan(0);
     }
-  });
+  }, 120_000);
   it("a live exercise always has a stage in hand or a finished award", () => {
     for (const c of cases.filter((x) => x.status !== "CANCELLED")) {
       const steps = exerciseFlow(c);

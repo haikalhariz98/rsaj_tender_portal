@@ -1,8 +1,8 @@
 # Runs the full vitest suite in a Linux container, as the gate the build uses.
 #
-# Why: the source-scan tests compare file paths written with "/" and were built on Linux;
-# on Windows they read paths with "\" and fail (backlog: make them portable). Linux node
-# modules live in their own Docker volume so they never collide with the Windows ones.
+# Why: this is the Linux gate the build uses. The source-scan tests now return "/" paths on every
+# platform (backlog N4), so `npm test` is green on Windows too; this script stays as the Linux gate.
+# Linux node modules live in their own Docker volume so they never collide with the Windows ones.
 # Needs Docker Desktop and the working tree checked out with LF endings
 # (git config core.autocrlf false).
 #
