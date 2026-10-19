@@ -29,7 +29,7 @@ import { MatterRefusal } from "./route-write";
 import { MatterChanged } from "./write";
 
 const GONE: FormState = { ok: false, message: "That contract no longer exists." };
-const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration › Organisation first: every act here records the organisation's day, never UTC's." };
+const NO_ZONE: FormState = { ok: false, message: "Time zone not set. Set it under Configuration › Organisation." };
 const CANCELLED: FormState = { ok: false, message: "The contract is cancelled: it is kept as it was." };
 
 export class ActRefusal extends Error {

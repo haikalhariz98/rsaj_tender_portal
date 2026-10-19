@@ -135,7 +135,7 @@ export function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<Re
         divided={entries.length === 0}
       />
       {entries.length === 0 ? (
-        <EmptyState size="sm" title="No recorded changes">Changes made through the portal appear here.</EmptyState>
+        <EmptyState size="sm" title="No recorded changes" />
       ) : (
         <ul className="divide-y divide-line/70">
           {entries.map((e) => (

@@ -525,6 +525,12 @@ const DECIDED_ABSENT = [
     match: /^(Set by the signatory rules on the approval matrix.*|The committee's part and the approver's.*|Resolved when the award is sent for approval.*|Each document is printed from the text frozen.*|The documents are generated from the configured templates.*|The pre-award routing sheet around.*|Decided for this contract.*|All three, cumulatively.*|The customer's conditions precedent.*|Drawn from the configured recipients.*)$/,
     why: "0005, founder 2026-10-19: card subtitles, drawer introductions, refusal sentences and the info callouts on the Award stage tabs were cut; the rule label and clause stay on the approval panel, the issued and draft state is a chip with a popover",
   },
+  // Note 0005, founder 2026-10-19 (minimal words): the Payments tab of the case page.
+  {
+    screen: /^[/]projects[/][^/]+$/,
+    match: /^(Where interim certificates were issued before.*|The rate is the baseline's, never typed.*|Eligibility and the percentage are not checked.*|Held three ways on every interim certificate.*|The letter of intention to impose damages.*|The latest decision governs[.].*|What no rule computes.*|No documented advance payment procedure.*)$/,
+    why: "0005, founder 2026-10-19: Payments subtitles, drawer introductions and refusal sentences were cut to what blocks and what to do; the advance gap is a Not checked chip with its detail in a popover, the product codes B1 and B2 no longer show",
+  },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
     screen: /^[/]projects$/,

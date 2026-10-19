@@ -65,7 +65,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
     return (
       <Card>
         <CardHeader icon={<RouteIcon size={17} />} title={<Say words={P.routingSheet} />} />
-        <EmptyState size="sm" title="Not judged">Set the organisation&apos;s time zone first.</EmptyState>
+        <EmptyState size="sm" title="Not judged" />
       </Card>
     );
   }

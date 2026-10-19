@@ -466,7 +466,7 @@ function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: Pan
       <Card className="overflow-hidden">
         <CardHeader icon={<ClockIcon size={17} />} title="Daywork" subtitle="Labour and plant time checked and agreed with the contractor the same day; the substantiation's clock read when each record is made." actions={hidden.includes("VALUATION") ? undefined : <DayworkDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={blockedBy ?? (instructed ? null : variationFaultText({ code: "INSTRUCTION_NOT_ISSUED", level: "block" }))} />} divided={v.dayworkRecords.length > 0} />
         {v.dayworkRecords.length === 0 ? (
-          <EmptyState size="sm" title="None recorded">Daywork is recorded once the instruction is issued.</EmptyState>
+          <EmptyState size="sm" title="None recorded" />
         ) : (
           <ul className="divide-y divide-line/70">
             {v.dayworkRecords.map((d) => {
@@ -583,7 +583,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: { id: string; ent
     <Card className="overflow-hidden">
       <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this variation and what is under it. "}Each change names who made it; any from before sign-in is not attributed.`} divided={entries.length === 0} />
       {entries.length === 0 ? (
-        <EmptyState size="sm" title="No changes yet">Its record is written when it is first saved.</EmptyState>
+        <EmptyState size="sm" title="No changes yet" />
       ) : (
         <ul className="divide-y divide-line/70">
           {entries.map((e) => (

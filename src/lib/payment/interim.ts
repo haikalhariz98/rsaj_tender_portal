@@ -159,7 +159,7 @@ export function interimCertificate(i: InterimInput): InterimResult {
     : i.lad.state === "EXCUSED"
       ? [{ key: "ladNote", labelEn: "Liquidated damages", labelMs: "Ganti rugi tertentu", type: "TEXT", value: `None: the delay is excusable or its entitlement pending (${i.lad.reason.trim() || "reason recorded with the decision"})`, valueMs: `Tiada: kelewatan boleh dimaafkan atau haknya belum diputuskan (${i.lad.reason.trim() || "sebab direkodkan bersama keputusan"})`, overridable: false }]
       : i.lad.state === "NOTHING_TO_CHARGE"
-        ? [{ key: "ladNote", labelEn: "Liquidated damages", labelMs: "Ganti rugi tertentu", type: "TEXT", value: "None this certificate: every day of the window to its valuation day is charged already, or the window has not begun", valueMs: "Tiada bagi perakuan ini: setiap hari tempoh hingga hari penilaiannya telah dikenakan, atau tempoh belum bermula", overridable: false }]
+        ? [{ key: "ladNote", labelEn: "Liquidated damages", labelMs: "Ganti rugi tertentu", type: "TEXT", value: "None this certificate: already charged, or the window has not begun", valueMs: "Tiada bagi perakuan ini: setiap hari tempoh hingga hari penilaiannya telah dikenakan, atau tempoh belum bermula", overridable: false }]
         : [];
   const others = i.others.map((o, n) => m(`other${n + 1}`, `Other deduction: ${o.label}`, `Potongan lain: ${o.label}`, o.amount, true));
   const lines: FigureLine[] = [
@@ -203,7 +203,7 @@ export function interimCertificate(i: InterimInput): InterimResult {
   const snapshot: ComputedSnapshot = {
     version: 1,
     computedOn: i.computedOn,
-    rule: { en: "Interim valuation: gross value less retention and previous payments, less the deductions", ms: "Penilaian interim: nilai kasar tolak wang tahanan dan bayaran terdahulu, tolak potongan" },
+    rule: { en: "Gross value less retention, previous payments and deductions", ms: "Penilaian interim: nilai kasar tolak wang tahanan dan bayaran terdahulu, tolak potongan" },
     lines,
     totals,
     routingRatio: null,
@@ -244,7 +244,7 @@ function scopeFigureLines(scopes: readonly ScopeFigure[], rounding: Sen, credit:
         ? { en: `None: the delay is excusable or its entitlement pending (${x.reason?.trim() || "reason recorded with the decision"})`, ms: `Tiada: kelewatan boleh dimaafkan atau haknya belum diputuskan (${x.reason?.trim() || "sebab direkodkan bersama keputusan"})` }
         : x.state === "CLOSED_BY_EXTENSION"
           ? { en: `None: the decision was closed by the extension of time ${x.reason ?? ""}, and the new date for completion is not past`.replace("  ", " "), ms: `Tiada: keputusan ditutup oleh lanjutan masa ${x.reason ?? ""}, dan tarikh siap baharu belum berlalu`.replace("  ", " ") }
-          : { en: "None this certificate: every day of the window to its valuation day is charged already, or the window has not begun", ms: "Tiada bagi perakuan ini: setiap hari tempoh hingga hari penilaiannya telah dikenakan, atau tempoh belum bermula" };
+          : { en: "None this certificate: already charged, or the window has not begun", ms: "Tiada bagi perakuan ini: setiap hari tempoh hingga hari penilaiannya telah dikenakan, atau tempoh belum bermula" };
     out.push({ key: `ladNote${sfx(n)}`, labelEn: note.en, labelMs: note.ms, type: "TEXT", value: text.en, valueMs: text.ms, overridable: false });
     if (x.waived !== 0n) out.push(m(`ladAmount${sfx(n)}`, `${note.en}: waived, returned`, `${note.ms}: dikecualikan, dikembalikan`, x.amount));
   });

@@ -55,7 +55,7 @@ export function CalendarDrawer({ id, people, today, current }: { id: string; peo
   return (
     <RecordEditor
       title={current ? "Change the valuation day" : "Record the valuation day"}
-      description="The day of each month agreed with the contractor for the joint site valuation (in a shorter month, its last day). The parties are notified as the notification rules say: nothing is sent yet."
+      description="Day of the month; a shorter month uses its last day. Not emailed."
       fields={[hidden("id"), { kind: "number", name: "dayOfMonth", label: "Day of the month", required: true, hint: "1 to 31." }, { kind: "date", name: "agreedOn", label: "Agreed on", required: true }, { kind: "text", name: "agreedWith", label: "Agreed with, for the contractor", required: true }, by("PaymentCalendar.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, dayOfMonth: current ? String(current.dayOfMonth) : null, agreedWith: current?.agreedWith ?? null, agreedOn: today }}
       action={recordValuationCalendar}
@@ -86,7 +86,7 @@ export function MainWorksDrawer({ id, valuationId, current }: { id: string; valu
   return (
     <RecordEditor
       title="Main contractor's work, to date"
-      description="The value of the work the main contractor has executed to date, as valued jointly (the main works, valued as one figure). Each certificate deducts what was certified before."
+      description="Main works as one figure. Each certificate deducts what was certified before."
       fields={[hidden("id"), hidden("valuationId"), { kind: "money", name: "mainWorks", label: "Work executed to date", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, valuationId, mainWorks: current }}
       action={recordMainWorks}
@@ -100,10 +100,10 @@ export function JointValuationDrawer({ id, valuationId, answers, today, recorded
   return (
     <RecordEditor
       title="The joint valuation"
-      description="Who valued the work and materials together on site, the method as explained to the contractor, and whether the contractor agrees. A dissent says what is disputed."
+      description="A dissent says what is disputed."
       size="lg"
       columns={2}
-      fields={[hidden("id"), hidden("valuationId"), { kind: "date", name: "jointOn", label: "Valued jointly on", required: true }, choose("contractorAnswer", "The contractor's answer", answers), { kind: "textarea", name: "participants", label: "Who took part", required: true, hint: "One per line: at least the valuer and the contractor's representative." }, { kind: "textarea", name: "valuationMethod", label: "How it was valued", required: true }, { kind: "textarea", name: "dissent", label: "What the contractor disputes" }]}
+      fields={[hidden("id"), hidden("valuationId"), { kind: "date", name: "jointOn", label: "Valued jointly on", required: true }, choose("contractorAnswer", "The contractor's answer", answers), { kind: "textarea", name: "participants", label: "Who took part", required: true, hint: "One per line: valuer and contractor's representative." }, { kind: "textarea", name: "valuationMethod", label: "How it was valued", required: true }, { kind: "textarea", name: "dissent", label: "What the contractor disputes" }]}
       values={{ id, valuationId, jointOn: today }}
       showWhen={{ dissent: { name: "contractorAnswer", in: ["DISSENT"] } }}
       action={recordJointValuation}
@@ -117,7 +117,7 @@ export function MaterialDrawer({ id, valuationId, today }: { id: string; valuati
   return (
     <RecordEditor
       title="A material on site"
-      description="A line of the contractor's materials-on-site list, submitted on or before the valuation day (a later list goes to the next cycle). It is valued only where all three answers are yes and it is not formwork or other temporary works; the allowance's percentage is the contract's or the organisation's, never typed here."
+      description="Valued only if all three answers are yes. Allowance percentage is not typed here."
       size="lg"
       columns={2}
       fields={[
@@ -161,7 +161,7 @@ export function PartyLineDrawer({ id, valuationId, partyId, name, assignee, toda
   return (
     <RecordEditor
       title={`${name} on this valuation`}
-      description={assignee ? "What the assignee's claim or invoice makes due on this certificate (by the cut-off). Totals only: the payment annexes are not available (B1)." : "Its work or supply valued to date (part of the gross value), and what is due to it on this certificate. Totals only: the payment annexes are not available (B1)."}
+      description={assignee ? "Due on this certificate. Totals only" : "Value to date, and what is due on this certificate. Totals only"}
       fields={[hidden("id"), hidden("valuationId"), hidden("partyId"), ...(assignee ? [] : [{ kind: "money", name: "value", label: "Valued to date", required: true } as Field]), { kind: "money", name: "due", label: "Due on this certificate", required: true }, { kind: "date", name: "submittedOn", label: "Its valuation or claim submitted on", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, valuationId, partyId, value: current?.value ?? null, due: current?.due ?? null, submittedOn: today }}
       action={recordPartyLine}
@@ -175,7 +175,7 @@ export function DeductionDrawer({ id, valuationId, kinds }: { id: string; valuat
   return (
     <RecordEditor
       title="A deduction"
-      description="A deduction the certificate makes that no rule computes: premiums and social security or workers' wages the employer paid, the costs of the contractor's failure to comply with instructions, up to three other permitted deductions, or the signed rounding on the damages line (which says why). Retention, earlier payments, the advance and the damages are computed, never keyed."
+      description="Deductions no rule computes. Retention, advance and damages are computed, never keyed."
       fields={[hidden("id"), hidden("valuationId"), choose("deduction", "Deduction", kinds), { kind: "text", name: "label", label: "What it is", hint: "For another permitted deduction." }, { kind: "text", name: "amount", label: "Amount", required: true, hint: "A rounding may be below nothing (−0.20)." }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, valuationId }}
       showWhen={{ label: { name: "deduction", in: ["OTHER"] } }}
@@ -221,7 +221,7 @@ export function HoldValuationDrawer({ id, valuationId }: { id: string; valuation
   return (
     <RecordEditor
       title="Hold to the next cycle"
-      description="Below the certificate's minimum, the valuation is held: no certificate is raised, and the next cycle's valuation values the work to date again."
+      description="Held to the next cycle; no certificate is raised."
       fields={[hidden("id"), hidden("valuationId")]}
       values={{ id, valuationId }}
       action={holdValuation}
@@ -236,7 +236,7 @@ export function WithdrawValuationDrawer({ id, valuationId }: { id: string; valua
   return (
     <RecordEditor
       title="Withdraw the valuation"
-      description="Closed without a certificate, its lines kept with it. Another valuation may then be opened."
+      description="Another valuation may then be opened."
       fields={[hidden("id"), hidden("valuationId")]}
       values={{ id, valuationId }}
       action={withdrawValuation}
@@ -254,7 +254,7 @@ export function ReleaseDrawer({ id, release, label, people, today, blocker }: { 
   return (
     <RecordEditor
       title={label}
-      description="Released from what the latest issued interim certificate holds, per tier, and paid through the next interim certificate (it comes off the retention held). Once each."
+      description="Paid through the next interim certificate. Once each."
       fields={[hidden("id"), hidden("release"), { kind: "date", name: "releasedOn", label: "Released on", required: true }, by("RetentionRelease.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, release, releasedOn: today }}
       action={releaseRetention}
@@ -306,7 +306,7 @@ export function PostDrawer({ id, warningId, today }: { id: string; warningId: st
   return (
     <RecordEditor
       title="Sent by registered post"
-      description="The consignment reference and the day it was posted: the contractor's response window runs from it (assumed: from posting)."
+      description="The contractor's response window runs from posting."
       fields={[hidden("id"), hidden("warningId"), { kind: "text", name: "consignmentRef", label: "Consignment reference", required: true }, { kind: "date", name: "postedOn", label: "Posted on", required: true }]}
       values={{ id, warningId, postedOn: today }}
       action={recordWarningPost}
@@ -318,17 +318,17 @@ export function PostDrawer({ id, warningId, today }: { id: string; warningId: st
 
 export function NonCompletionDrawer({ id, people, outcomes, scopes, sections, pack, blocker, windowFrom, replaces }: { id: string; people: Option[]; outcomes: Option[]; scopes: Option[]; sections: Option[]; pack: { item: string; label: string }[]; blocker: string | null; windowFrom: string | null; replaces: { id: string; text: string } | null }) {
   const lad = ["LAD_APPLIES"];
-  const packFields: Field[] = pack.flatMap((p) => [{ kind: "textarea", name: `pack_${p.item}`, label: p.label, hint: "Write it; or mark it not required and say why here." } as Field, { kind: "switch", name: `pack_${p.item}_notRequired`, label: "Not required (the text above says why)" } as Field]);
+  const packFields: Field[] = pack.flatMap((p) => [{ kind: "textarea", name: `pack_${p.item}`, label: p.label, hint: "Write it, or say why not required." } as Field, { kind: "switch", name: `pack_${p.item}_notRequired`, label: "Not required (the text above says why)" } as Field]);
   const show = Object.fromEntries(["scope", "sectionRef", "eotClause", "ladClause", "insuranceExpiry", "expectedCompletion", "windowFrom", "windowUntil", ...pack.flatMap((p) => [`pack_${p.item}`, `pack_${p.item}_notRequired`])].map((n) => [n, { name: "decisionOutcome", in: lad }]));
   return (
     <RecordEditor
       title="The non-completion decision"
-      description="Once the date for completion has passed. Damages apply only where the causes of delay give no ground for an extension of time: the Certificate of Non-Completion is raised, with its particulars as in the contract, the insurance extended to the expected completion, the submission pack, and the window damages run over (entered here, an assumed reading: from the day after the date for completion to completion). Otherwise the delay is recorded as excusable or its entitlement pending, with its reasons, and the interim certificates go on without a damages line. Until the extension-of-time module, this decision records the entitlement itself."
+      description="Damages apply only where no extension of time is due. Otherwise record the delay as excusable or pending, with its reason."
       size="xl"
       columns={2}
       fields={[
         hidden("id"),
-        ...(replaces ? ([hidden("replacesId"), { kind: "readonly", name: "replacing", label: "Replaces the decision in force", text: replaces.text }, { kind: "textarea", name: "replaceReason", label: "Why it is replaced", required: true, hint: "Kept with both decisions; the earlier is kept and linked." }] as Field[]) : []),
+        ...(replaces ? ([hidden("replacesId"), { kind: "readonly", name: "replacing", label: "Replaces the decision in force", text: replaces.text }, { kind: "textarea", name: "replaceReason", label: "Why it is replaced", required: true, hint: "Both decisions are kept." }] as Field[]) : []),
         choose("decisionOutcome", "Decision", outcomes),
         by("NonCompletion.person", "personId", people),
         { kind: "textarea", name: "decisionReason", label: "Reasons", required: true, hint: "Shown on the certificates it governs." },
@@ -356,7 +356,7 @@ export function CloseWindowDrawer({ id, decisionId, today }: { id: string; decis
   return (
     <RecordEditor
       title="Completed: close the damages window"
-      description="The day the works were completed: the first day damages no longer run. Certificates already issued keep what they charged."
+      description="The first day damages no longer run. Issued certificates keep what they charged."
       fields={[hidden("id"), hidden("decisionId"), { kind: "date", name: "windowUntil", label: "Completed on", required: true }]}
       values={{ id, decisionId, windowUntil: today }}
       action={closeLadWindow}
@@ -382,7 +382,7 @@ export function OpeningDrawer({ id, people, groups, values, existing, blocker }:
   return (
     <RecordEditor
       title="Opening position"
-      description="The last interim certificate issued before this system (or not from a valuation here), and the figures to date, as the next certificate continues from them. Entered once, before the first valuation raised here; corrected with a reason until then. Money as on the certificates; nil is 0.00."
+      description="Entered once, before the first valuation here. Corrected with a reason until then."
       size="xl"
       columns={2}
       fields={[

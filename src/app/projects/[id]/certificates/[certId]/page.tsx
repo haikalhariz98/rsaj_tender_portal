@@ -296,7 +296,7 @@ function FiguresPanel({ l, figures, people, today }: { l: LoadedCertificate; fig
     return (
       <Card>
         <CardHeader icon={<FileIcon size={17} />} title="Figures" subtitle="As the module that raised it computed them." />
-        <EmptyState size="sm" title="No figures">This certificate carries no computed figures (a letter or a notice).</EmptyState>
+        <EmptyState size="sm" title="No figures" />
       </Card>
     );
   }
@@ -743,7 +743,7 @@ function HistoryPanel({ sulit, entries, total, timeZone }: { sulit: Sulit<true>;
     <Card className="overflow-hidden">
       <CardHeader icon={<CheckIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this certificate. "}Each change names who made it; any from before sign-in is not attributed. Identity-card numbers are masked.`} divided={entries.length === 0} />
       {entries.length === 0 ? (
-        <EmptyState size="sm" title="No recorded changes">Changes made through the portal appear here.</EmptyState>
+        <EmptyState size="sm" title="No recorded changes" />
       ) : (
         <ul className="divide-y divide-line/70">
           {entries.map((e) => (

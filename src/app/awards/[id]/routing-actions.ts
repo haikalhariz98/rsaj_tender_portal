@@ -21,7 +21,7 @@ import { attributionRefusalState, beginAct } from "@/app/_auth/act";
  */
 
 const GONE: FormState = { ok: false, message: "That award no longer exists." };
-const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration › Organisation first: every act here records the organisation's day, never UTC's." };
+const NO_ZONE: FormState = { ok: false, message: "Time zone not set. Set it under Configuration › Organisation." };
 
 async function inAwardSheet(scope: Reader, awardId: string, now: Date, fn: (tx: Parameters<Parameters<typeof withLockedAwardFor>[2]>[0], l: Parameters<Parameters<typeof withLockedAwardFor>[2]>[1], today: string) => Promise<void>): Promise<FormState> {
   let result: FormState | null;

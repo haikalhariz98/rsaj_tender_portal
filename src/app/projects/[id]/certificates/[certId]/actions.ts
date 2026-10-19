@@ -33,7 +33,7 @@ import type { OrgScope } from "@/lib/org-scope";
  */
 
 const GONE: FormState = { ok: false, message: "That certificate no longer exists." };
-const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration › Organisation first: every act here records the organisation's day, never UTC's." };
+const NO_ZONE: FormState = { ok: false, message: "Time zone not set. Set it under Configuration › Organisation." };
 const CANCELLED: FormState = { ok: false, message: "The contract is cancelled: its certificates are kept as they were." };
 
 /// Lock, refuse a cancelled contract or an unset zone, then run the act.

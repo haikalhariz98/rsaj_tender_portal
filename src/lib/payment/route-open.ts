@@ -45,7 +45,7 @@ export async function submitForApproval(c: CertCtx, act: ActWriter) {
   const state = submitStateFaults({ domain, status: cert.status, latest: latest ? { status: latest.status, applied: latest.rejectionApplied, choices: latest.rejectionChoices } : null });
   if (state.length) refuse(state);
   const person = await c.tx.person.findFirst({ where: { id: act.subjectPersonId, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
-  if (!person) throw new CertificateRefusal("Not sent for approval.", { personId: "Choose someone on record and active: who sends it (they may not decide it)." });
+  if (!person) throw new CertificateRefusal("Not sent for approval.", { personId: "Choose who sends it. They may not decide it." });
 
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const figures = snap ? applyOverrides(snap, cert.overrides) : null;

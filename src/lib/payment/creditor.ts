@@ -55,8 +55,8 @@ export function creditorStandingWords(s: CreditorStanding): { en: string; ms: st
     case "NOT_ENTERED":
       return { en: "No bank details have been entered, so payments are refused.", ms: "Tiada butiran bank dimasukkan, jadi bayaran ditolak.", payable: false };
     case "AWAITING_CHECK":
-      return { en: "The bank details are waiting for an officer to check them, so payments are refused until they do.", ms: "Butiran bank menunggu pegawai menyemaknya, jadi bayaran ditolak sehingga itu.", payable: false };
+      return { en: "Bank details await checking; payments are refused until checked.", ms: "Butiran bank menunggu pegawai menyemaknya, jadi bayaran ditolak sehingga itu.", payable: false };
     case "NOT_IN_ORDER":
-      return { en: "The bank details were checked and found not in order, so payments are refused until the supplier sends corrected ones.", ms: "Butiran bank telah disemak dan didapati tidak teratur, jadi bayaran ditolak sehingga pembekal menghantar yang telah dibetulkan.", payable: false };
+      return { en: "Bank details not in order; payments are refused until corrected.", ms: "Butiran bank telah disemak dan didapati tidak teratur, jadi bayaran ditolak sehingga pembekal menghantar yang telah dibetulkan.", payable: false };
   }
 }

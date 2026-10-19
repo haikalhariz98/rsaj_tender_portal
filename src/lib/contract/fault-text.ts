@@ -43,7 +43,7 @@ export function contractFaultWords(f: Finding): Words {
     case "AWARD_NOT_LIVE":
       return w("The award is not issued or accepted, so its contract is not prepared.");
     case "NO_TIME_ZONE":
-      return w("Set the organisation's time zone under Configuration › Organisation first: every act here records the organisation's day, never UTC's.");
+      return w("Time zone not set. Set it under Configuration › Organisation.");
     case "BASIS_NOT_SET":
       return w("The exercise names no contract basis, so the order of the Contract Document and its checks are not known. The basis is chosen on the sourcing exercise.");
     case "BASIS_BQ_NOT_SET":

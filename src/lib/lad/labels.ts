@@ -41,7 +41,7 @@ export const LAD_FAULT_WORDS: Readonly<Record<string, (d: Data) => Words>> = {
   WAIVED_REQUIRED: (d) => w(`Give the amount waived, more than nothing and not more than the LAD amount (${money(d.amount)}).`),
   NO_LAD_AMOUNT: (d) => w(`No damages are charged or chargeable to ${day(d.day)} on this decision.`),
   WAIVER_REASON_REQUIRED: () => w("Say why the damages are waived."),
-  WAIVER_SETTING_NOT_SET: () => w("Approved, not applied: when an approved waiver reaches the money is not set (Configuration › Post-award controls)."),
+  WAIVER_SETTING_NOT_SET: () => w("Approved, not applied. Timing not set in Configuration › Post-award controls."),
   WAIVER_AT_FINAL: () => w("Approved, applied in the final account (the setting says so)."),
   OPENING_DAMAGES_NOT_CREDITED: (d) => w(`Damages were charged before the system to ${day(d.day)}, with no rate on record here: any of those days an extension of time now reaches are not returned by this certificate. Return them by hand, with the paper record.`),
   WAIVER_NOT_APPLIED_MOVED: (d) => w(`The waiver ${s(d.waiver, "")} is not applied: ${s(d.moved, "its basis moved")}. Send it again at the new amount.`),
