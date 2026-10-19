@@ -160,9 +160,9 @@ export function variationFaultWords(f: Finding): Words {
   switch (f.code) {
     // ------------------------------------------------ the percentage and the route (OD-A2, OD-A3)
     case "VARIATION_BASIS_NOT_SET":
-      return w("What a variation's percentage is of is not set (this variation alone, or every approved variation with it): set it under Configuration › Post-award controls, Variations. Nothing is assumed.", "Asas peratus perubahan kerja belum ditetapkan: tetapkan di Konfigurasi › Kawalan selepas setuju terima, Perubahan kerja.");
+      return w("Percentage basis not set. Set it under Configuration › Post-award controls, Variations.", "Asas peratus perubahan kerja belum ditetapkan: tetapkan di Konfigurasi › Kawalan selepas setuju terima, Perubahan kerja.");
     case "VARIATION_BASE_NOT_SET":
-      return w("The sum a variation's percentage is taken over is not set (the original or the revised contract sum): set it under Configuration › Post-award controls, Variations. Nothing is assumed.", "Harga asas peratus perubahan kerja belum ditetapkan: tetapkan di Konfigurasi › Kawalan selepas setuju terima, Perubahan kerja.");
+      return w("Percentage base not set. Set it under Configuration › Post-award controls, Variations.", "Harga asas peratus perubahan kerja belum ditetapkan: tetapkan di Konfigurasi › Kawalan selepas setuju terima, Perubahan kerja.");
     case "VARIATION_VALUE_NOT_POSITIVE":
       return w(`The value to approve must be above nothing (it is ${money(d.value)}).`, "Nilai yang hendak diluluskan mesti melebihi sifar.");
     case "VARIATION_BASE_NOT_POSITIVE":
@@ -175,19 +175,19 @@ export function variationFaultWords(f: Finding): Words {
     case "FIELD_REQUIRED":
       return w(`Say ${field(d.field).en}.`, `Nyatakan ${field(d.field).ms}.`);
     case "ESTIMATE_ZERO":
-      return w("The estimated amount cannot be nothing: an addition is above nothing, a reduction below it.", "Anggaran amaun tidak boleh sifar.");
+      return w("The estimate cannot be zero.", "Anggaran amaun tidak boleh sifar.");
     case "REDUCTION_NOT_OMISSION":
-      return w("A reduction of the contract sum is an omission: its estimate is below nothing (write it with a minus).", "Pengurangan harga kontrak ialah pengurangan: anggarannya di bawah sifar.");
+      return w("A reduction is an omission. Write the estimate with a minus.", "Pengurangan harga kontrak ialah pengurangan: anggarannya di bawah sifar.");
     case "OMISSION_IS_REDUCTION":
-      return w("An omission (an estimate below nothing) is a reduction of the contract sum: record it as exempt for that reason. Any other variation is an addition, above nothing.", "Pengurangan (anggaran di bawah sifar) ialah pengurangan harga kontrak: rekodkannya sebagai dikecualikan atas sebab itu.");
+      return w("An omission is exempt. Any other variation is an addition above nothing.", "Pengurangan (anggaran di bawah sifar) ialah pengurangan harga kontrak: rekodkannya sebagai dikecualikan atas sebab itu.");
     case "REVIEW_NOT_RECORDED":
-      return w("A variation the implementing department originates is reviewed by an S.O.'s Representative before it is submitted: record the review first.", "Perubahan kerja daripada jabatan pelaksana disemak oleh Wakil P.P. sebelum dikemukakan: rekodkan semakan dahulu.");
+      return w("Record the S.O.'s Representative review before submitting.", "Perubahan kerja daripada jabatan pelaksana disemak oleh Wakil P.P. sebelum dikemukakan: rekodkan semakan dahulu.");
     case "REVIEWER_NOT_REPRESENTATIVE":
-      return w("Whoever is recorded as reviewing it is not the S.O. nor a representative whose delegation in force covers variation applications.", "Penyemak bukan P.P. atau wakil yang perwakilannya meliputi permohonan perubahan kerja.");
+      return w("The reviewer must be the S.O. or a Representative covering variation applications.", "Penyemak bukan P.P. atau wakil yang perwakilannya meliputi permohonan perubahan kerja.");
     case "ORIGINATOR_NOT_REPRESENTATIVE":
-      return w("On this path the originator is the S.O. or a representative whose delegation in force covers variation applications: they are not.", "Pemula bukan P.P. atau wakil yang perwakilannya meliputi permohonan perubahan kerja.");
+      return w("The originator must be the S.O. or a Representative covering variation applications.", "Pemula bukan P.P. atau wakil yang perwakilannya meliputi permohonan perubahan kerja.");
     case "ALLOCATION_NOT_CONFIRMED":
-      return w("A Specialist representative confirms that the allocation for it is available before it is submitted: record the confirmation.", "Wakil Pakar mengesahkan peruntukan tersedia sebelum dikemukakan: rekodkan pengesahan.");
+      return w("Record the Specialist representative's allocation confirmation first.", "Wakil Pakar mengesahkan peruntukan tersedia sebelum dikemukakan: rekodkan pengesahan.");
     case "PRINCIPAL_NOT_RECORDED":
       return w("A Specialist representative's application passes through a Principal Representative: record who it passed through.", "Permohonan Wakil Pakar melalui Wakil Utama: rekodkan melalui siapa.");
     case "NOT_DRAFT":
@@ -196,12 +196,12 @@ export function variationFaultWords(f: Finding): Words {
       return w("The S.O. decides only an application submitted to them and not exempt.", "P.P. hanya memutuskan permohonan yang dikemukakan dan tidak dikecualikan.");
     case "SO_ORIGINATED":
       return d.who === "officer"
-        ? w("The officer entering this decision originated the variation, so cannot record the Superintending Officer's decision on it: someone who did not originate it records it, or the Superintending Officer signs it.", "Pegawai yang memasukkan keputusan ini ialah pemula perubahan kerja, maka tidak boleh merekodkan keputusan Pegawai Penguasa mengenainya: orang lain yang bukan pemula merekodkannya, atau Pegawai Penguasa menandatanganinya sendiri.")
-        : w("The Superintending Officer originated this variation and does not decide it: a variation is originated by the implementing department or the Superintending Officer's Representative, and decided by a Superintending Officer who did not originate it.", "Pegawai Penguasa ialah pemula perubahan kerja ini dan tidak memutuskannya: perubahan kerja dimulakan oleh jabatan pelaksana atau Wakil Pegawai Penguasa, dan diputuskan oleh Pegawai Penguasa yang bukan pemulanya.");
+        ? w("You originated this variation, so cannot record the decision. Another person records it, or the Superintending Officer signs.", "Pegawai yang memasukkan keputusan ini ialah pemula perubahan kerja, maka tidak boleh merekodkan keputusan Pegawai Penguasa mengenainya: orang lain yang bukan pemula merekodkannya, atau Pegawai Penguasa menandatanganinya sendiri.")
+        : w("The Superintending Officer originated this variation. A different officer decides it.", "Pegawai Penguasa ialah pemula perubahan kerja ini dan tidak memutuskannya: perubahan kerja dimulakan oleh jabatan pelaksana atau Wakil Pegawai Penguasa, dan diputuskan oleh Pegawai Penguasa yang bukan pemulanya.");
     case "SO_KEYED_ORIGINATION":
       return d.who === "officer"
-        ? w("The officer entering this decision keyed the variation's origination, so cannot record the Superintending Officer's decision on it: someone who did not key it records it, or the Superintending Officer signs it.", "Pegawai yang memasukkan keputusan ini memasukkan permulaan perubahan kerja, maka tidak boleh merekodkan keputusan Pegawai Penguasa mengenainya: orang lain yang tidak memasukkannya merekodkannya, atau Pegawai Penguasa menandatanganinya sendiri.")
-        : w("The Superintending Officer keyed this variation's origination and does not decide it: it is decided by a Superintending Officer who neither originated nor keyed it.", "Pegawai Penguasa memasukkan permulaan perubahan kerja ini dan tidak memutuskannya: ia diputuskan oleh Pegawai Penguasa yang bukan pemula dan tidak memasukkannya.");
+        ? w("You keyed the origination, so cannot record the decision. Another person records it, or the Superintending Officer signs.", "Pegawai yang memasukkan keputusan ini memasukkan permulaan perubahan kerja, maka tidak boleh merekodkan keputusan Pegawai Penguasa mengenainya: orang lain yang tidak memasukkannya merekodkannya, atau Pegawai Penguasa menandatanganinya sendiri.")
+        : w("The Superintending Officer keyed this variation. A different officer decides it.", "Pegawai Penguasa memasukkan permulaan perubahan kerja ini dan tidak memutuskannya: ia diputuskan oleh Pegawai Penguasa yang bukan pemula dan tidak memasukkannya.");
     case "DECISION_REQUIRED":
       return w("Say whether the S.O. supports it.", "Nyatakan sama ada P.P. menyokongnya.");
     case "NOT_SUPPORTED_REASON":
@@ -224,13 +224,13 @@ export function variationFaultWords(f: Finding): Words {
     case "ALREADY_CERTIFIED":
       return w("Its Variation Order Certificate is issued: it is certified.", "Perakuan Perubahan Kerjanya telah dikeluarkan.");
     case "EXEMPT_NO_PRIOR":
-      return w("It is exempt from prior approval, so it has no prior approval or increase to send: it goes straight to the S.O.'s instruction.", "Ia dikecualikan daripada kelulusan terdahulu: terus kepada arahan P.P.");
+      return w("Exempt from prior approval. It goes straight to the S.O.'s instruction.", "Ia dikecualikan daripada kelulusan terdahulu: terus kepada arahan P.P.");
     case "PRIOR_ALREADY_APPROVED":
       return w("Its prior approval is obtained already.", "Kelulusan terdahulunya telah diperoleh.");
     case "PRIOR_NOT_APPROVED":
       return w("Its prior approval is not obtained yet.", "Kelulusan terdahulunya belum diperoleh.");
     case "ORDER_NOT_RAISED":
-      return w("Raise its Variation Order Certificate from the measurement first: the value sent is the certificate's.", "Bangkitkan Perakuan Perubahan Kerjanya dahulu.");
+      return w("Raise the Variation Order Certificate first.", "Bangkitkan Perakuan Perubahan Kerjanya dahulu.");
     case "NO_INCREASE":
       return w(`The certificate's net (${money(d.net)}) is within what is approved (${money(d.approved)}): no increase is needed.`, "Nilai bersih perakuan dalam had yang diluluskan: tiada tambahan diperlukan.");
     case "VALUE_REQUIRED":
@@ -248,7 +248,7 @@ export function variationFaultWords(f: Finding): Words {
     case "ALREADY_COMMENCED":
       return w(`Commencement pending approval is recorded already (${day(d.day)}).`, "Permulaan sementara menunggu kelulusan telah direkodkan.");
     case "SUPPORT_NOT_SO":
-      return w("Work commences pending approval only on the support of the S.O. or an S.O.'s Representative in force: the person named is neither.", "Kerja dimulakan hanya atas sokongan P.P. atau Wakil P.P.");
+      return w("Only the S.O. or a Representative in force can support commencement.", "Kerja dimulakan hanya atas sokongan P.P. atau Wakil P.P.");
     case "BEFORE_SUPPORTED":
       return w(`It cannot commence before the S.O. supported it (${day(d.day)}).`, "Tidak boleh dimulakan sebelum disokong.");
     case "ALREADY_CLOSED":
@@ -258,7 +258,7 @@ export function variationFaultWords(f: Finding): Words {
     case "CLOSE_APPROVED":
       return w("It is approved: an approved variation is undone only by another variation, an omission.", "Ia telah diluluskan: hanya dibatalkan oleh perubahan kerja lain (pengurangan).");
     case "CLOSE_INSTRUCTED":
-      return w("Its instruction is raised: void it first if it is not issued; an issued instruction stands.", "Arahannya telah dibangkitkan.");
+      return w("Instruction raised. Void it first if not issued.", "Arahannya telah dibangkitkan.");
     case "CLOSE_REASON_REQUIRED":
       return w("Say why it is closed.", "Nyatakan sebab ia ditutup.");
     // ------------------------------------------------ the instruction
@@ -275,22 +275,22 @@ export function variationFaultWords(f: Finding): Words {
     case "CONFIRMED_BEFORE_ORAL":
       return w(`The contractor's confirmation cannot be before the oral instruction (${day(d.day)}).`, "Pengesahan kontraktor tidak boleh sebelum arahan lisan.");
     case "OBJECTION_BEFORE_CONFIRMATION":
-      return w("An objection follows the contractor's written confirmation: record the confirmation first, and the objection on or after it.", "Bantahan selepas pengesahan bertulis kontraktor.");
+      return w("Record the confirmation first, then the objection.", "Bantahan selepas pengesahan bertulis kontraktor.");
     case "OBJECTION_ONLY_ON_MISMATCH":
       return w("An objection is recorded only where the confirmation does not match the instruction intended.", "Bantahan hanya jika pengesahan tidak sepadan.");
     // ------------------------------------------------ measurement and daywork
     case "INSTRUCTION_NOT_ISSUED":
       return w("The S.O.'s instruction is not issued: measurement and daywork follow it.", "Arahan P.P. belum dikeluarkan.");
     case "ORDER_RAISED":
-      return w("A Variation Order Certificate is raised from these measurements: they are frozen with it (void it first to change them).", "Perakuan Perubahan Kerja telah dibangkitkan daripada ukuran ini.");
+      return w("Frozen by a Variation Order Certificate. Void it first to change them.", "Perakuan Perubahan Kerja telah dibangkitkan daripada ukuran ini.");
     case "HEADING_NOT_INSTRUCTION":
       return w(`Every item is measured under the instruction's own description, word for word: “${d.heading ?? ""}”.`, "Setiap butiran diukur di bawah keterangan arahan, perkataan demi perkataan.");
     case "ITEM_ALREADY_MEASURED":
       return w(`Item ${d.item ?? ""} is measured already under this instruction: items are never merged; measure a new item under its own reference.`, "Butiran ini telah diukur: butiran tidak digabungkan.");
     case "CONTRACT_ITEM_REQUIRED":
-      return w("A contract rate cites the item of the bill or schedule of rates it comes from.", "Kadar kontrak menyebut butiran asalnya.");
+      return w("Cite the bill or schedule item.", "Kadar kontrak menyebut butiran asalnya.");
     case "AGREED_RATE_NOT_APPROVED":
-      return w("A rate not in the contract is used only once its own approval route is approved: send the variation for approval to use agreed rates first.", "Kadar yang tiada dalam kontrak hanya digunakan selepas kelulusannya.");
+      return w("Rates not in the contract need their own approval first.", "Kadar yang tiada dalam kontrak hanya digunakan selepas kelulusannya.");
     case "ADJUSTMENT_CONTRACT_RATE_ONLY":
       return w("The contract's percentage adjustment applies to a contract rate only.", "Pelarasan peratus hanya bagi kadar kontrak.");
     case "QUANTITY_NOT_POSITIVE":
@@ -300,7 +300,7 @@ export function variationFaultWords(f: Finding): Words {
     case "ADJUSTMENT_OUT_OF_RANGE":
       return w("The percentage adjustment cannot take the rate to nothing or below.", "Pelarasan peratus tidak boleh menjadikan kadar sifar.");
     case "RECORDS_REQUIRED":
-      return w("Work that will be covered up is measured during execution with detailed records: describe the records.", "Kerja yang akan ditutup diukur dengan rekod terperinci.");
+      return w("Describe the records for work to be covered up.", "Kerja yang akan ditutup diukur dengan rekod terperinci.");
     case "ALREADY_REMOVED":
       return w("That item is removed already.", "Butiran itu telah dikeluarkan.");
     case "BEFORE_WORKED":
@@ -320,9 +320,9 @@ export function variationFaultWords(f: Finding): Words {
       return w(`The certificate's net (${money(d.net)}) is beyond what is approved (${money(d.approved)}): send the variation for approval of the increase.`, "Nilai bersih perakuan melebihi yang diluluskan: hantar untuk kelulusan tambahan.");
     // ------------------------------------------------ the adjustment of the contract sum
     case "TRIGGERS_NOT_SET":
-      return w("The contract's type does not say what its contract sum may be adjusted by: set its adjustment triggers under Configuration › Reference data, Contract types.", "Jenis kontrak tidak menyatakan pencetus pelarasan: tetapkan di Konfigurasi › Data rujukan, Jenis kontrak.");
+      return w("Contract type has no adjustment triggers. Set them under Configuration › Reference data.", "Jenis kontrak tidak menyatakan pencetus pelarasan: tetapkan di Konfigurasi › Data rujukan, Jenis kontrak.");
     case "NO_LINES":
-      return w("Add at least one line: an issued Variation Order Certificate, or another adjustment with its basis.", "Tambah sekurang-kurangnya satu baris.");
+      return w("Add a certificate or an adjustment with its basis.", "Tambah sekurang-kurangnya satu baris.");
     case "TRIGGER_NOT_ALLOWED":
       return w(`The contract's type does not provide for an adjustment by ${(TRIGGER_WORDS[d.trigger as AdjustmentTrigger] ?? w("that trigger", "")).en.toLowerCase()}.`, "Jenis kontrak tidak memperuntukkan pelarasan sebegini.");
     case "AMOUNT_NOT_POSITIVE":
@@ -338,7 +338,7 @@ export function variationFaultWords(f: Finding): Words {
     case "REVISED_NOT_POSITIVE":
       return w(`The revised contract sum would be ${money(d.revised)}.`, "Harga kontrak disemak tidak melebihi sifar.");
     case "PRIOR_ADJUSTMENTS_MOVED":
-      return w("Another adjustment of the contract sum was issued after this one was raised, so its earlier adjustments and revised sum no longer stand: void it and raise it again.", "Pelarasan lain telah dikeluarkan selepas ini dibangkitkan: batalkan dan bangkitkan semula.");
+      return w("A later adjustment was issued. Void this one and raise it again.", "Pelarasan lain telah dikeluarkan selepas ini dibangkitkan: batalkan dan bangkitkan semula.");
     case "VARIATION_ROUTE_ON_BASE":
       return w(`${d.variation ?? "A variation"} has a route waiting whose percentage was read over the revised contract sum: decide it before this adjustment moves that sum.`, "Laluan perubahan kerja yang dibaca atas harga disemak masih menunggu: putuskannya dahulu.");
     case "MONEY_NEEDS_APPROVED_ROUTE":
@@ -350,28 +350,28 @@ export function variationFaultWords(f: Finding): Words {
     case "TEMPLATE_NOT_SET":
       return templateNotSetWords(d);
     case "NO_BASELINE":
-      return w("No baseline version of the contract is in force today: confirm the baseline on the contract's Baseline tab first.", "Tiada versi garis dasar kontrak berkuat kuasa hari ini.");
+      return w("No baseline version in force. Confirm it on the Baseline tab.", "Tiada versi garis dasar kontrak berkuat kuasa hari ini.");
     case "NOT_EXECUTED":
       return w("The contract is not executed: a variation is recorded on an executed contract.", "Kontrak belum dilaksanakan.");
     // ------------------------------------------------ tabling and citing
     case "NOT_COMMITTEE_STEP":
       return w("That is not a committee's step on the variation's open route.", "Itu bukan langkah jawatankuasa pada laluan terbuka.");
     case "FUNDER_COMMITTEE_NOT_SET":
-      return w("Which committee decides a funder's consent is not set: set it under Configuration › Post-award controls, Variations.", "Jawatankuasa persetujuan penyandang dana belum ditetapkan.");
+      return w("Funder's consent committee not set. See Configuration › Post-award controls.", "Jawatankuasa persetujuan penyandang dana belum ditetapkan.");
     case "CONSENT_NOT_REQUIRED":
       return w("It does not affect a funder's assets: no consent is tabled.", "Ia tidak melibatkan aset penyandang dana.");
     case "CONSENT_ALREADY":
-      return w("The funder's consent is tabled already and not refused: it is decided at that sitting.", "Persetujuan telah dibentangkan.");
+      return w("Funder's consent already tabled.", "Persetujuan telah dibentangkan.");
     case "OTHER_COMMITTEE":
-      return w("That sitting is of another committee than the one the step (or the consent) needs.", "Persidangan itu bagi jawatankuasa lain.");
+      return w("Wrong committee for this step.", "Persidangan itu bagi jawatankuasa lain.");
     case "SITTING_FROZEN":
       return w("That sitting no longer takes matters (it is minuted or cancelled).", "Persidangan itu tidak lagi menerima perkara.");
     case "ALREADY_TABLED":
-      return w("This step's matter is tabled already and waits for the committee: cite its decision once it is decided.", "Perkara langkah ini telah dibentangkan dan menunggu jawatankuasa.");
+      return w("Already tabled. Cite the committee's decision once made.", "Perkara langkah ini telah dibentangkan dan menunggu jawatankuasa.");
     case "NOT_TABLED_YET":
       return w("Nothing is tabled from this variation for this step's committee yet: table it first.", "Belum ada perkara dibentangkan bagi langkah ini.");
     case "NOT_DECIDED_YET":
-      return w("The committee has not decided the matter tabled for this step yet: cite it once it is decided.", "Jawatankuasa belum memutuskan perkara ini.");
+      return w("Committee has not decided yet. Cite it once made.", "Jawatankuasa belum memutuskan perkara ini.");
     default:
       return w("It cannot be done as things stand.", "Ia tidak boleh dilakukan.");
   }

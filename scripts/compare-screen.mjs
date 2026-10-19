@@ -531,6 +531,12 @@ const DECIDED_ABSENT = [
     match: /^(Where interim certificates were issued before.*|The rate is the baseline's, never typed.*|Eligibility and the percentage are not checked.*|Held three ways on every interim certificate.*|The letter of intention to impose damages.*|The latest decision governs[.].*|What no rule computes.*|No documented advance payment procedure.*)$/,
     why: "0005, founder 2026-10-19: Payments subtitles, drawer introductions and refusal sentences were cut to what blocks and what to do; the advance gap is a Not checked chip with its detail in a popover, the product codes B1 and B2 no longer show",
   },
+  // Note 0005, founder 2026-10-19 (minimal words): the Variations tab and a variation's own page.
+  {
+    screen: /^[/]projects[/][^/]+(?:[/]variations[/][^/]+)?$/,
+    match: /^(The master record of the contract sum's movement.*|The revised contract sum is read only from issued adjustments.*|Each from its application to its Variation Order Certificate.*|Each approval on its own route.*|Certifies the measured variation.*|Work may proceed on the support.*|Never before the variation's approval.*|Supported \(with a cap where given\).*|Nothing configured decides where a refused variation goes.*)$/,
+    why: "0005, founder 2026-10-19: Variations subtitles, drawer introductions and refusal sentences were cut to the consequence; the cumulative value and percentage figures are unchanged, voided certificates are a chip with a popover",
+  },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
     screen: /^[/]projects$/,

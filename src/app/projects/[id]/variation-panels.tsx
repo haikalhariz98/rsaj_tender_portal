@@ -71,7 +71,7 @@ function PositionCard({ l, v }: { l: LoadedContract; v: VariationView }) {
   const basis = v.policy?.variationPctBasis ?? null;
   return (
     <Card>
-      <CardHeader icon={<ScaleIcon size={17} />} title={<Say words={P.contractSumAndVariations} />} subtitle="The revised contract sum is read only from issued adjustments of the contract sum, never from a variation. The cumulative is every approved variation's value, worked out, never keyed." />
+      <CardHeader icon={<ScaleIcon size={17} />} title={<Say words={P.contractSumAndVariations} />} subtitle="Revised sum is read from issued adjustments" />
       <CardBody className="flex flex-col gap-4">
         {v.refused && <AdjustmentRefusedCallout l={l} refused={v.refused} />}
         <KeyValues
@@ -152,7 +152,6 @@ function VariationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
         <CardHeader
           icon={<FileIcon size={17} />}
           title={<Say words={P.variations} />}
-          subtitle="Each from its application to its Variation Order Certificate. A variation is opened to see and record its application, approval, instruction, measurement and certificate."
           actions={hidden.includes("VARIATION_APPLICATION") ? undefined : <VariationRecordDrawer id={l.contract.id} people={people} origins={VARIATION_ORIGINS.map((o) => ({ value: o, label: ORIGIN_WORDS[o].en }))} exemptions={VARIATION_EXEMPTIONS.map((e) => ({ value: e, label: EXEMPTION_WORDS[e].en }))} blocker={blocker} />}
           divided={false}
         />
@@ -162,7 +161,6 @@ function VariationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
           exportName="variations"
           searchPlaceholder="Search by number, description or stage"
           emptyTitle="No variations yet"
-          emptyBody="A variation is recorded here by its originator, then submitted."
           views={[
             { id: "open", label: "Open" },
             { id: "pending", label: "Commenced pending approval" },
@@ -215,7 +213,7 @@ function AdjustmentsSection({ l, v, people, today, hidden }: { l: LoadedContract
         <CardHeader
           icon={<WalletIcon size={17} />}
           title={<Say words={P.adjustmentsOfContractSum} />}
-          subtitle="The master record of the contract sum's movement: section 1.1 the variations' issued certificates, 1.2 the other adjustments by their trigger, each with its basis; routed on its own page and signed by the S.O. An interim certificate reads the revised sum from the issued ones only."
+          subtitle="Movement of the contract sum"
           actions={
             hidden.includes("VALUATION") ? undefined : (
             <AdjustmentDrawer
@@ -230,7 +228,7 @@ function AdjustmentsSection({ l, v, people, today, hidden }: { l: LoadedContract
           }
         />
         {v.adjustments.length === 0 ? (
-          <EmptyState size="sm" title="None raised">{free.length ? `${free.length} issued Variation Order Certificate${free.length === 1 ? " waits" : "s wait"} to adjust the contract sum.` : "An adjustment is raised from issued Variation Order Certificates and other adjustments the contract provides for."}</EmptyState>
+          <EmptyState size="sm" title="None raised">{free.length ? `${free.length} issued Variation Order Certificate${free.length === 1 ? " waits" : "s wait"} to adjust the contract sum.` : "Raised from issued Variation Order Certificates"}</EmptyState>
         ) : (
           <ul className="divide-y divide-line/70">
             {[...v.adjustments].reverse().map((a) => {
@@ -265,7 +263,7 @@ export function VariationSummaryCard({ l, v }: { l: LoadedContract; v: Variation
   const open = v.facts.filter((f) => !["CLOSED", "CERTIFIED"].includes(stageOf(f))).length;
   return (
     <Card>
-      <CardHeader icon={<ScaleIcon size={17} />} title={<Say words={P.variations} />} subtitle="From the variations' records and the issued adjustments only." actions={<ButtonLink href={`/projects/${l.contract.id}?tab=variations&section=variations`} size="sm" variant="secondary">Open variations</ButtonLink>} />
+      <CardHeader icon={<ScaleIcon size={17} />} title={<Say words={P.variations} />} actions={<ButtonLink href={`/projects/${l.contract.id}?tab=variations&section=variations`} size="sm" variant="secondary">Open variations</ButtonLink>} />
       <CardBody className="flex flex-col gap-4">
         {v.refused && <AdjustmentRefusedCallout l={l} refused={v.refused} />}
         <KeyValues

@@ -240,7 +240,7 @@ export async function decideVariationStep(c: VariationCtx, v: VariationRow, i: D
     value: inst.value == null ? 0n : senFromDecimal(inst.value),
   });
   if (check.faults.length) {
-    if (check.faults[0] === "COMMITTEE_STEP") throw new VariationRefusal("Not decided: a committee's step is discharged only by citing its decision on the matter tabled from this variation.");
+    if (check.faults[0] === "COMMITTEE_STEP") throw new VariationRefusal("Not decided. Cite the committee's decision.");
     const texts = check.faults.map((x) => certificateDeciderText(x, person?.name ?? null)).join(" ");
     throw new VariationRefusal(`Not decided: ${texts}`, ["TIME_ZONE_UNSET", "NOT_PENDING", "OUT_OF_ORDER"].includes(check.faults[0]) ? undefined : { personId: texts });
   }
@@ -266,7 +266,7 @@ export async function citeVariationDecision(c: VariationCtx, v: VariationRow, st
   const step = inst.steps.find((s) => s.id === stepId);
   if (!step || !step.committeeCode) return refuse("Not cited:", [{ code: "NOT_COMMITTEE_STEP", level: "block" }]);
   if (step.decision !== "PENDING") throw new VariationRefusal("Not cited: this step is already decided.");
-  if (!inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE")) throw new VariationRefusal("Not cited: steps are decided in order, and the step before this one is not done.");
+  if (!inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE")) throw new VariationRefusal("Not cited. Decide the earlier step first.");
   const matter = v.matters.find((m) => m.id === decisionId);
   const field = (msg: string) => new VariationRefusal("Not cited.", { committeeDecisionId: msg });
   if (!matter) throw field("That matter was not tabled from this variation.");
@@ -342,7 +342,7 @@ async function sendRefused(c: VariationCtx, v: VariationRow, a: VariationRow["ap
     return;
   }
   if (kind === "TERMINATE") {
-    if (!refusalKinds(factsOf(v), a.event as VariationEvent).includes("TERMINATE")) throw new VariationRefusal("Not recorded: the variation stands approved, so a refused route for its increase, agreed rates or re-measurement ends that route only: send it back instead.");
+    if (!refusalKinds(factsOf(v), a.event as VariationEvent).includes("TERMINATE")) throw new VariationRefusal("Not recorded. The variation stands approved; send it back instead.");
     const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: { not: "CLOSED" } }, data: { status: "CLOSED", closedOn: dayToDate(c.today), closedReason: `Its approval route was refused and the variation ends: ${reason}` } });
     if (moved.count !== 1) throw new VariationRefusal("The variation changed while this was being saved. Reload and try again.");
     await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "Variation", entityId: v.id, entityLabel: variationLabel(c.l, v), reason }, "UPDATE", diffFields({ stage: "open" }, { stage: "closed", closedOn: c.today }));

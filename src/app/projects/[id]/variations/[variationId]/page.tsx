@@ -15,6 +15,7 @@ import { ActGate } from "@/components/act-gate";
 import { Blocked } from "@/components/ui/blocked";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
@@ -191,9 +192,9 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
       />
       <div className="mb-6 flex flex-col gap-3">
         <HiddenNote hidden={hidden} />
-        {!today && <Callout tone="warn" title="The organisation's time zone is not set">Every act on a variation records the organisation&apos;s day: none is assumed to be UTC.</Callout>}
+        {!today && <Callout tone="warn" title="Time zone not set. Dates cannot be judged." />}
         {vv.refused && <AdjustmentRefusedCallout l={l} refused={vv.refused} />}
-        {statusRefused?.code === "CONTRACT_CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its variations are kept as they were; nothing more is recorded on them.</Callout>}
+        {statusRefused?.code === "CONTRACT_CANCELLED" && <Callout tone="warn" title="The contract is cancelled" />}
         {statusRefused && statusRefused.code !== "CONTRACT_CANCELLED" && <Callout tone="warn" title={statusCalloutTitle(l.contract.status as ContractStatus).en}>{actStatusText(statusRefused)}</Callout>}
         {stage === "CLOSED" && <Callout tone="warn" title="Closed">{`${v.closedReason} (${formatDate(day(v.closedOn))}).`}</Callout>}
         {commencedPending(f) && <Callout tone="warn" title="Commenced pending approval">{`Work commenced on ${formatDate(day(v.commencedOn))} on the support of ${v.commencedSupport?.name ?? "the S.O."}. Its estimate (${formatMoney(f.estimate)}) is in the contract's exposure until it is approved, and its work is not valued until then.`}</Callout>}
@@ -242,7 +243,7 @@ function ApplicationPanel({ l, v, f, vv, people, hidden, priorReading, editBlock
         <CardHeader
           icon={<FileIcon size={17} />}
           title="The application"
-          subtitle="What the variation is, why, its estimate and the answers its path needs. The number, the percentage, the cumulative and the new contract sum are worked out, never typed."
+          
           actions={v.status === "DRAFT" && !hidden.includes("VARIATION_APPLICATION") ? <VariationRecordDrawer id={l.contract.id} people={people} origins={VARIATION_ORIGINS.map((o) => ({ value: o, label: ORIGIN_WORDS[o].en }))} exemptions={VARIATION_EXEMPTIONS.map((e) => ({ value: e, label: EXEMPTION_WORDS[e].en }))} values={editValues} blocker={editBlocker} /> : undefined}
         />
         <CardBody>
@@ -267,7 +268,7 @@ function ApplicationPanel({ l, v, f, vv, people, hidden, priorReading, editBlock
       </Card>
       {v.exemption == null && (
         <Card>
-          <CardHeader icon={<ScaleIcon size={17} />} title="Its percentage and the new contract sum" subtitle={frozen ? "As frozen when it was sent for prior approval: the application is opened from these figures when its approval is approved." : "As they would be read now. They are frozen with its route when it is sent for prior approval."} />
+          <CardHeader icon={<ScaleIcon size={17} />} title="Its percentage and the new contract sum" subtitle={frozen ? "Frozen at sending" : "As read now"} />
           <CardBody>
             {frozenFigures ? (
               <KeyValues columns={2} items={frozenFigures.map((x) => ({ label: x.label, value: x.value }))} />
@@ -288,7 +289,7 @@ function ApplicationPanel({ l, v, f, vv, people, hidden, priorReading, editBlock
         </Card>
       )}
       <Card>
-        <CardHeader icon={<ToolsIcon size={17} />} title="The S.O.'s decision" subtitle="Supported (with a cap where given) or not supported, with the reason. A variation exempt from prior approval goes straight to the instruction." />
+        <CardHeader icon={<ToolsIcon size={17} />} title="The S.O.'s decision"  />
         <CardBody>
           <KeyValues
             columns={2}
@@ -346,7 +347,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
         const st = inst.steps.find((x) => x.sequence === sequence);
         if (!st || inst.status !== "PENDING" || st.decision !== "PENDING" || blockedBy || routeId !== inst.id) return null;
         const earlierDone = inst.steps.filter((x) => x.sequence < st.sequence).every((x) => x.decision === "DONE");
-        if (!earlierDone) return <Blocked label="Record decision" reason="Steps are decided in order: the step before is not done." />;
+        if (!earlierDone) return <Blocked label="Record decision" reason="Decide the earlier step first." />;
         if (st.committeeCode) {
           const ms = matters(st.committeeCode);
           return (
@@ -388,7 +389,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
         <CardHeader
           icon={<RouteIcon size={17} />}
           title="Its approvals"
-          subtitle={v.exemption ? `Exempt from prior approval (${EXEMPTION_WORDS[v.exemption as VariationExemption].en.toLowerCase()}): no committee and no approval tiers${v.exemption === "REMEASUREMENT" ? "; the re-measurement itself is approved on its own route at its certificate's value" : ""}.` : "Each approval on its own route on the approval matrix: prior approval to instruct it, an increase of its approved value, the use of rates not in the contract. A committee's recommendation or approval on a route is a committee's step: tabled from here and cited from its decision."}
+          subtitle={v.exemption ? `Exempt from prior approval (${EXEMPTION_WORDS[v.exemption as VariationExemption].en.toLowerCase()})${v.exemption === "REMEASUREMENT" ? "; approved at its certificate's value" : ""}` : ""}
           actions={<SendVariationDrawer id={l.contract.id} variationId={v.id} events={open.map((x) => ({ value: x.e, label: EVENT_WORDS[x.e].en }))} people={people} blocker={sendBlocker} label="Send for approval" />}
         />
         <CardBody>
@@ -404,7 +405,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
       </Card>
       {choice && (
         <Callout tone="warn" title="Refused: where it goes is the officer's choice" action={<ChooseVariationRefusalDrawer id={l.contract.id} variationId={v.id} offered={choice.choices.map((k) => ({ value: k, label: REJECTION_KIND_LABEL[k as RejectionKind] }))} steps={(v.approvals.find((a) => a.approvalInstance.id === choice.id)?.approvalInstance.steps ?? []).filter((x) => x.decision !== "REJECTED").map((x) => ({ value: String(x.sequence), label: `${x.sequence}. ${x.roleLabel}` }))} people={people} />}>
-          Nothing configured decides where a refused variation goes, so the officer chooses: back to whoever sent it (it may be sent again), back to an earlier step, or the variation ends.
+          No destination configured.
         </Callout>
       )}
       {cards.length === 0 ? <Card><EmptyState size="sm" title="Not sent for approval yet">{v.exemption ? "An exempt variation needs no prior approval." : "Sent once the S.O. supports it."}</EmptyState></Card> : cards}
@@ -426,7 +427,7 @@ function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: Pan
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ToolsIcon size={17} />} title="The S.O.'s instruction" subtitle="Never before the variation's approval (or its exemption) and the funder's consent where it needs one. Dated by the S.O.'s signature on its page." actions={!ins && v.status === "SUPPORTED" && !hidden.includes("INSTRUCTION") ? <InstructionDrawer id={l.contract.id} variationId={v.id} description={v.description} people={people} blocker={insBlocker} /> : undefined} />
+        <CardHeader icon={<ToolsIcon size={17} />} title="The S.O.'s instruction"  actions={!ins && v.status === "SUPPORTED" && !hidden.includes("INSTRUCTION") ? <InstructionDrawer id={l.contract.id} variationId={v.id} description={v.description} people={people} blocker={insBlocker} /> : undefined} />
         <CardBody>
           {ins ? (
             <KeyValues
@@ -443,7 +444,7 @@ function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: Pan
               ]}
             />
           ) : (
-            <p className="text-[13px] text-ink-3">{v.status === "SUPPORTED" ? (insBlocker ? insBlocker : "Not raised yet.") : "Not yet: it follows the variation's approval (or exemption)."}</p>
+            <p className="text-[13px] text-ink-3">{v.status === "SUPPORTED" ? (insBlocker ? insBlocker : "Not raised yet.") : "Follows the approval."}</p>
           )}
           {ins?.oralIssuedOn && <div className="mt-3"><OralLoopDrawer id={l.contract.id} variationId={v.id} values={{ contractorConfirmedOn: day(ins.contractorConfirmedOn), confirmationMatches: ins.confirmationMatches == null ? null : ins.confirmationMatches ? "yes" : "no", objectedOn: day(ins.objectedOn), objectionNote: ins.objectionNote }} /></div>}
         </CardBody>
@@ -452,7 +453,7 @@ function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: Pan
         <OwnerAttachments
           owner={{ kind: "variationInstruction", id: ins.id }}
           title="Plans and sketches"
-          subtitle="Attached to the S.O.'s instruction through the document store, when it is issued or after. Not required at issue."
+          
           only={["INSTRUCTION_SKETCH"]}
           required={{ INSTRUCTION_SKETCH: false }}
           statuses={{ INSTRUCTION_SKETCH: { text: sketchesLine([]).en, tone: "neutral" } }}
@@ -460,11 +461,11 @@ function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: Pan
       )}
       {v.exemption == null && v.status === "SUPPORTED" && !v.commencedOn && stageOf(f) !== "APPROVED" && (
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Commenced pending approval" subtitle="Work may proceed on the support of the S.O. or an S.O.'s Representative while the approval is obtained; it is listed with its estimate and age until approved." actions={hidden.includes("INSTRUCTION") ? undefined : <CommenceDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={commenceBlocker} />} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Commenced pending approval"  actions={hidden.includes("INSTRUCTION") ? undefined : <CommenceDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={commenceBlocker} />} />
         </Card>
       )}
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClockIcon size={17} />} title="Daywork" subtitle="Labour and plant time checked and agreed with the contractor the same day; the substantiation's clock read when each record is made." actions={hidden.includes("VALUATION") ? undefined : <DayworkDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={blockedBy ?? (instructed ? null : variationFaultText({ code: "INSTRUCTION_NOT_ISSUED", level: "block" }))} />} divided={v.dayworkRecords.length > 0} />
+        <CardHeader icon={<ClockIcon size={17} />} title="Daywork"  actions={hidden.includes("VALUATION") ? undefined : <DayworkDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={blockedBy ?? (instructed ? null : variationFaultText({ code: "INSTRUCTION_NOT_ISSUED", level: "block" }))} />} divided={v.dayworkRecords.length > 0} />
         {v.dayworkRecords.length === 0 ? (
           <EmptyState size="sm" title="None recorded" />
         ) : (
@@ -513,7 +514,7 @@ function MeasurementPanel({ l, v, people, today, hidden, blockedBy }: { l: Loade
         divided={items.length > 0}
       />
       {items.length === 0 ? (
-        <EmptyState size="sm" title="Nothing measured">{ins ? "Measure each item as the work is executed; work to be covered up, with detailed records." : "No instruction issued yet."}</EmptyState>
+        <EmptyState size="sm" title={ins ? "Nothing measured" : "No instruction yet"} />
       ) : (
         <ul className="divide-y divide-line/70">
           {items.map((m) => (
@@ -550,7 +551,7 @@ async function OrderPanel({ l, v, f, vv, people, hidden, blockedBy }: Omit<Panel
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<WalletIcon size={17} />} title="The Variation Order Certificate" subtitle="Certifies the measured variation, addition or omission, under the valuation clause chosen, its description the instruction's word for word. Signed by the S.O. after the recommending officer, never by an officer who may only instruct. The contract sum moves only by an issued adjustment of the contract sum." actions={!order && !hidden.includes("VALUATION") ? <OrderDrawer id={l.contract.id} variationId={v.id} description={ins?.description ?? ""} clauses={clauses} people={people} blocker={raiseBlocker} /> : undefined} />
+        <CardHeader icon={<WalletIcon size={17} />} title="The Variation Order Certificate" actions={!order && !hidden.includes("VALUATION") ? <OrderDrawer id={l.contract.id} variationId={v.id} description={ins?.description ?? ""} clauses={clauses} people={people} blocker={raiseBlocker} /> : undefined} />
         <CardBody>
           {order ? (
             <KeyValues
@@ -561,7 +562,7 @@ async function OrderPanel({ l, v, f, vv, people, hidden, blockedBy }: Omit<Panel
                 { label: "Valued under", value: order.valuationClauseTitle },
                 { label: "Its value is covered", value: coverage.length ? <span className="text-amber-800">{say(coverage)}</span> : v.exemption && v.exemption !== "REMEASUREMENT" ? `Exempt from prior approval (${EXEMPTION_WORDS[v.exemption as VariationExemption].en.toLowerCase()}): signed by the S.O.` : "Yes, by the variation's approved routes" },
                 { label: "The contractor", value: dispute ? <span className="flex flex-col items-start gap-1"><Chip tone="err">Disputed</Chip><span className="text-[12.5px] text-ink-3">{`${dispute.name} refused to sign on ${formatDate(dispute.on)}: ${dispute.note}. Recorded for resolution; it does not stop the issue or the payment.`}</span></span> : order.certificate.status === "ISSUED" ? "Signed" : dim("Not signed yet") },
-                { label: "On an adjustment of the contract sum", value: adjustedOn ? `${adjustedOn.number ?? "In progress"} (${CERT_WORDS[adjustedOn.status as CertificateStatus].en.toLowerCase()})` : order.certificate.status === "ISSUED" ? dim("Not yet: raise one on the contract's Variations tab") : dim("Once issued") },
+                { label: "On an adjustment of the contract sum", value: adjustedOn ? `${adjustedOn.number ?? "In progress"} (${CERT_WORDS[adjustedOn.status as CertificateStatus].en.toLowerCase()})` : order.certificate.status === "ISSUED" ? dim("Not raised") : dim("Once issued") },
               ]}
             />
           ) : (
@@ -569,7 +570,7 @@ async function OrderPanel({ l, v, f, vv, people, hidden, blockedBy }: Omit<Panel
           )}
         </CardBody>
       </Card>
-      {v.orders.filter((o) => o.certificate.status === "VOID").length > 0 && <Callout tone="info" title="Earlier certificates voided">{v.orders.filter((o) => o.certificate.status === "VOID").length} raised and voided before issue; their items are free again.</Callout>}
+      {v.orders.filter((o) => o.certificate.status === "VOID").length > 0 && <InfoChip outline detail="Raised and voided before issue. Their items are free again.">{`${v.orders.filter((o) => o.certificate.status === "VOID").length} voided`}</InfoChip>}
     </div>
   );
 }
@@ -581,7 +582,7 @@ const ENTITY: Readonly<Record<string, string>> = Object.fromEntries(VARIATION_EN
 function HistoryPanel({ entries, total, timeZone }: { entries: { id: string; entity: string; entityLabel: string; action: string; at: Date; reason: string; changes: unknown }[]; total: number; timeZone: string | null }) {
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this variation and what is under it. "}Each change names who made it; any from before sign-in is not attributed.`} divided={entries.length === 0} />
+      <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={total > entries.length ? `Latest ${entries.length} of ${total}` : undefined} divided={entries.length === 0} />
       {entries.length === 0 ? (
         <EmptyState size="sm" title="No changes yet" />
       ) : (
