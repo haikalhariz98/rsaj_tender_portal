@@ -92,14 +92,13 @@ export const RETURN_LABEL = { NOT_WITHDRAWN: "", HELD_UNOPENED: "Held unopened",
 /// The §0.1 statement the tab opens with.
 export const REGISTER_STATEMENT = {
   title: "The portal records envelopes, not offers",
-  body: "Nothing priced is held before opening: no price, sum, period or document from a bid is entered here, and the box and its key remain the control. Bids are not submitted electronically: the electronic tender box arrives in Phase 3, with sign-in.",
+  body: "Nothing priced is held before opening: no price, sum, period or document from a bid is entered here, and the box and its key remain the control.",
 };
 
 /// What the register cannot claim (§0.1), said on the tab.
 export const REGISTER_GAPS = [
-  "Reading the register is not restricted by who is signed in: that comes with the rules for a restricted exercise.",
   "No alert is sent: there is no delivery yet. Alerts are shown here.",
-  "The company estimate is held plain in the database, never shown before opening; sealed storage arrives with the electronic tender box.",
+  "The company estimate is held plain in the database and never shown before opening.",
 ];
 
 /**
@@ -247,11 +246,11 @@ export function bidFindingText(f: Finding): string {
       return "That sitting no longer takes matters.";
     // ---- validity
     case "VALIDITY_NOT_SET":
-      return `Bid validity not set. Record the days in ${RECEIVED_SECTION}.`;
+      return `Bid validity not set on the window. Record the days in ${RECEIVED_SECTION}.`;
     case "BID_VALIDITY_EXPIRED":
       return `Bid validity expired on ${day(d(f, "expiry"))}. Record an extension, with consent, in ${RECEIVED_SECTION}.`;
     case "VALIDITY_NOT_JUDGED":
-      return d(f, "why") === "NO_CLOSING" ? "The exercise has no closing, so the bids' validity cannot be counted." : "Time zone not set. Bid validity not judged.";
+      return d(f, "why") === "NO_CLOSING" ? "The exercise has no closing, so the bids' validity cannot be counted." : "Bid validity not judged: time zone not set.";
     case "NOT_CLOSED":
       return "The validity runs from the closing: it is extended only after the closing.";
     case "NOT_LATER":

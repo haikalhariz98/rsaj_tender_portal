@@ -543,6 +543,12 @@ const DECIDED_ABSENT = [
     match: /^(The superior officer's or the S[.]O[.]'s endorsement of the diary.*|An office, not a person.*|One entry a day by the responsible officer.*|The pinned list, resolved on the day of issue.*|Copies are made from the pinned list.*|The sheet starts when the certificate is sent.*|Every act on a certificate records.*|As the module that raised it computed them.*)$/,
     why: "0005, founder 2026-10-19: Supervision and certificate subtitles, drawer introductions, empty-state bodies and refusal sentences were cut; the routing-sheet empty state is Not sent for approval yet, the baseline notes are chips with popovers, and a superior officer recorded as named is a Not checked chip",
   },
+  // Note 0005, founder 2026-10-19 (minimal words): the sourcing exercise (header, Scope, Window, Documents, Bids, Appendix) and its list, new and edit pages.
+  {
+    screen: /^[/]sourcing(?:[/][^/]+(?:[/]appendix|[/]edit)?|[/]new)?$/,
+    match: /^(This exercise is hidden from everyone else.*|Restricted to the people named on it|Restricted to its named people|The name is approved for a list, and invitation is held to it|The contract's particulars, stated for the tender.*|These documents are bought online|Some sales were paid on the payment simulator|Registration and suspension are checked only for a linked contractor|The portal records envelopes, not offers|Every named officer is needed|Its panel is picked when the opening starts|Simulated, no money received.*|Online submissions|Earlier record|Priced figures are SULIT|Not filled in yet|Attendance is not mandatory|What is being bought, and how it is approved.*|Online bids are sealed to a key.*|Who will open the bids.*|Each letter received before the closing.*)$/,
+    why: "0005, founder 2026-10-19: sourcing card subtitles, drawer introductions, empty-state bodies and the info callouts were cut to what the user needs to act; the restricted, demonstration, not-emailed and SULIT facts are chips with popovers, and the key-custody consequence lines stay",
+  },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
     screen: /^[/]projects$/,

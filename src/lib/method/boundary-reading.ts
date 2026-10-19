@@ -20,4 +20,4 @@ export function boundaryCountNote(withheldRows: number): string | null {
 }
 
 /// The filter's own explanation, always shown: it considers only the exercises whose estimate the reader may read.
-export const BOUNDARY_VIEW_ABOUT = "Exercises whose estimate is exactly on the boundary between two bands. Only exercises whose estimate you may read are considered: saying a withheld estimate is on the boundary would state it, so those are not counted here.";
+export const BOUNDARY_VIEW_ABOUT = "Estimate exactly on a band boundary. A withheld estimate is not counted, as saying so would state it.";

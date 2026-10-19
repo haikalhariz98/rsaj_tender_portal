@@ -29,7 +29,7 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
   const header = (
     <>
       <RecordCrumb label={ex.reference} />
-      <PageHeader eyebrow={<Link href={`/sourcing/${ex.id}`}>{ex.reference}</Link>} title={`Edit ${ex.title}`} subtitle="A draft's value, method, scope, contract type and basis; bands are judged again on save." />
+      <PageHeader eyebrow={<Link href={`/sourcing/${ex.id}`}>{ex.reference}</Link>} title={`Edit ${ex.title}`}  />
     </>
   );
   if (ex.status !== "DRAFT") {
@@ -49,8 +49,8 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
     return (
       <>
         {header}
-        <Callout tone="warn" title="This exercise's value is SULIT and withheld from you" action={<ButtonLink href={`/sourcing/${ex.id}`} size="sm">Back to the exercise</ButtonLink>}>
-          {estimate.words.en} The edit form shows the estimate and the amounts made from it, so it is not offered to someone who may not read them.
+        <Callout tone="warn" title="Value is SULIT and withheld" action={<ButtonLink href={`/sourcing/${ex.id}`} size="sm">Back to the exercise</ButtonLink>}>
+          {estimate.words.en} Editing is not offered.
         </Callout>
       </>
     );
@@ -72,7 +72,7 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
           id: req.id,
           reference: req.reference,
           title: req.title,
-          approved: reqEstimate.state === "WITHHELD" ? "What the requisition's approval covers, and what its other exercises leave, are made of the department estimate, which is closed to you." : approved ? `The requisition's approval covers ${formatMoney(approved.value)}; its other live exercises hold ${formatMoney(others)}, leaving ${formatMoney(subtractSen(approved.value, others))}.` : "",
+          approved: reqEstimate.state === "WITHHELD" ? "Approved and remaining values are SULIT." : approved ? `The requisition's approval covers ${formatMoney(approved.value)}; other live exercises hold ${formatMoney(others)}, leaving ${formatMoney(subtractSen(approved.value, others))}.` : "",
         }}
         options={options}
         initial={{

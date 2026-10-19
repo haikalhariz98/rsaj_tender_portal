@@ -37,7 +37,7 @@ export function MoveToPreparationDrawer({ id, blocker, summary }: { id: string; 
   return (
     <RecordEditor
       title="Move to preparation"
-      description="These are fixed from here and recorded as they stand today."
+      description="Fixed from here."
       fields={[hidden("id")]}
       values={{ id }}
       sections={
@@ -72,7 +72,8 @@ export function CancelExerciseDrawer({ id, blocker }: { id: string; blocker?: st
   return (
     <RecordEditor
       title="Cancel this exercise"
-      description="The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step. It stays on record, its value no longer counts against the requisition, and an open name approval is withdrawn."
+      description="Its value no longer counts against the requisition. An open name approval is withdrawn."
+      more="The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step. The exercise stays on record."
       fields={[hidden("id")]}
       values={{ id }}
       action={cancelExercise}
@@ -90,7 +91,7 @@ export function SubmitProposalDrawer({ id, blocker }: { id: string; blocker: str
   return (
     <RecordEditor
       title="Submit the proposal for review"
-      description="Contract & Procurement review it, comment and adjust before the name is sent for approval. Its items are fixed while it is with them."
+      description="Contract & Procurement review it before the name is sent for approval."
       fields={[hidden("id")]}
       values={{ id }}
       action={submitProposal}
@@ -105,7 +106,7 @@ export function ReviewProposalDrawer({ id, people, today }: { id: string; people
   return (
     <RecordEditor
       title="Record Contract & Procurement's review"
-      description="Reviewed, or returned for amendment with what to change. The reviewer signs in and records their own review."
+      description="Review, or return with what to change."
       fields={[
         hidden("id"),
         {
@@ -136,7 +137,7 @@ export function ProposalAnswersDrawer({ id, items, answers }: { id: string; item
   return (
     <RecordEditor
       title="Prepare the proposal"
-      description="Every required item must be answered before it can be submitted for review."
+      description="Answer every required item first."
       fields={[hidden("id"), ...items.map((i) => ({ kind: "textarea" as const, name: `item_${i.key}`, label: i.required ? `${i.label} (required)` : i.label }))]}
       values={{ id, ...Object.fromEntries(items.map((i) => [`item_${i.key}`, answers[i.key] ?? ""])) }}
       action={saveProposalAnswers}
@@ -152,7 +153,8 @@ export function RequestNameApprovalDrawer({ id, blocker }: { id: string; blocker
   return (
     <RecordEditor
       title="Send the name for approval"
-      description="The route is resolved now under the approval matrix in force and kept with the rules it was judged under. The invitee list is recorded with it: the name is approved for exactly that list, and the letters go only to those on it."
+      description="Approved for exactly the invitee list. Letters go only to those on it."
+      more="The route is resolved now under the approval matrix in force and kept with the rules it was judged under."
       fields={[hidden("id")]}
       values={{ id }}
       action={requestNameApproval}
@@ -168,7 +170,7 @@ export function RecallNameDrawer({ id, blocker }: { id: string; blocker: string 
   return (
     <RecordEditor
       title="Recall the name approval"
-      description="Withdraws the name from approval before anyone has decided. The route is kept on record as recalled, the invitee list is unchanged, and the name can be sent again."
+      description="Withdraws the name from approval. It can be sent again."
       fields={[hidden("id")]}
       values={{ id }}
       action={recallNameApproval}
@@ -182,13 +184,13 @@ export function RecallNameDrawer({ id, blocker }: { id: string; blocker: string 
 
 /// A committee step of the name route is discharged by the committee's own decision on this exercise, cited, never by a person (FR-MTD-008).
 export function CiteNameDecisionDrawer({ id, stepId, committee, matters }: { id: string; stepId: string; committee: string; matters: (Option & { disabled?: boolean })[] }) {
-  if (matters.length === 0) return <Blocked label="Cite decision" reason={`No matter on this exercise has been tabled before the ${committee} for the approval of the name yet. Table it at a sitting first.`} />;
-  if (matters.every((m) => m.disabled)) return <Blocked label="Cite decision" reason={`The ${committee} has not decided the matter tabled on this exercise yet.`} />;
+  if (matters.length === 0) return <Blocked label="Cite decision" reason={`Nothing tabled before ${committee} for this name. Table it first.`} />;
+  if (matters.every((m) => m.disabled)) return <Blocked label="Cite decision" reason={`${committee} has not decided the tabled matter.`} />;
   return (
     <RecordEditor
       title={`Cite the ${committee}'s decision`}
-      description="A committee's step is discharged by its decision on the approval of the name for this exercise, as the sitting recorded it. Until it is cited, the invitation is held back."
-      fields={[hidden("id"), hidden("stepId"), { kind: "select", name: "committeeDecisionId", label: "The matter", required: true, placeholder: "Choose", options: matters, hint: "A matter not decided yet is listed but cannot be chosen." }]}
+      description="Cites the committee's decision. Invitation is held back until then."
+      fields={[hidden("id"), hidden("stepId"), { kind: "select", name: "committeeDecisionId", label: "The matter", required: true, placeholder: "Choose", options: matters, hint: "Undecided matters cannot be chosen." }]}
       values={{ id, stepId }}
       action={citeNameDecision}
       submitLabel="Cite decision"
@@ -221,7 +223,8 @@ export function NameDecisionDrawer({
   return (
     <RecordEditor
       title={`Record ${roleLabel}'s decision`}
-      description={`The ${act.toLowerCase()} step of the name approval. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for the requisition's department, or a delegation of it.`}
+      description={`The ${act.toLowerCase()} step. Signed with the holder's password.`}
+      more="A decision from paper is recorded for them by someone else and is not signed. The decider must hold the requisition department's office, or a delegation of it."
       fields={[
         hidden("id"),
         hidden("stepId"),
@@ -237,7 +240,7 @@ export function NameDecisionDrawer({
           ],
         },
         actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true }),
-        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was requested. A signed decision is dated today unless back-dating is recorded." },
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was requested." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
       values={{ id, stepId, decidedOn: today }}
@@ -253,7 +256,7 @@ export function ChooseTaxonomyDrawer({ id, taxonomyCode, taxonomy, candidates }:
   return (
     <RecordEditor
       title={`Choose the ${taxonomy.toLowerCase()}`}
-      description="The mapping gives more than one value for this contract type. Choose once: the choice is stored and kept while the type and basis stay as they are."
+      description="Several values fit. Choose once. Kept while type and basis stay."
       fields={[hidden("id"), hidden("taxonomyCode"), { kind: "select", name: "valueCode", label: taxonomy, required: true, placeholder: "Choose", options: candidates }]}
       values={{ id, taxonomyCode }}
       action={chooseTaxonomyValue}
@@ -279,11 +282,11 @@ export function EditDetailsDrawer({ id, people, personInChargeId, workCode, bloc
   return (
     <RecordEditor
       title="Edit details"
-      description="Who is in charge of this exercise, and its work code. Either may be left blank."
+      description="Either may be left blank."
       fields={[
         hidden("id"),
         { kind: "select", name: "personInChargeId", label: "Person in charge", placeholder: "Not named", options: people, orphanLabel: "Someone no longer on record" },
-        { kind: "text", name: "workCode", label: "Work code", hint: "As your organisation writes it, up to 100 characters." },
+        { kind: "text", name: "workCode", label: "Work code", hint: "Up to 100 characters." },
       ]}
       values={{ id, personInChargeId: personInChargeId ?? "", workCode: workCode ?? "" }}
       action={saveExerciseDetails}
@@ -298,7 +301,8 @@ export function AddParticipantDrawer({ id, people }: { id: string; people: Optio
   return (
     <RecordEditor
       title="Name a participant"
-      description="Who may see this exercise when its method restricts it. Anyone who is able to decide a step of a route for it, anyone who has decided one, and the members of the committee a matter of it is tabled to are named by that, and need not be named here. The list is on the record."
+      description="Who may see it when restricted. Kept on record."
+      more="Anyone able to decide a step of a route for it, anyone who has decided one, and the members of the committee a matter of it is tabled to need not be named here."
       fields={[
         hidden("id"),
         { kind: "select", name: "personId", label: "Person", required: true, placeholder: "Choose", options: people },
@@ -317,7 +321,7 @@ export function RemoveParticipantDrawer({ id, participantId, name }: { id: strin
   return (
     <RecordEditor
       title={`Remove ${name}`}
-      description="They are taken off the named list. The change is on the record."
+      description="Taken off the named list."
       fields={[hidden("id"), hidden("participantId")]}
       values={{ id, participantId }}
       action={removeParticipant}
@@ -334,11 +338,11 @@ export function NameChoiceDrawer({ id, kinds, steps, people }: { id: string; kin
   return (
     <RecordEditor
       title="Where the refused name goes next"
-      description="No destination applied to this refusal, so the officer chooses. The choice is recorded as yours — it is not the organisation's policy."
+      description="No destination applied. Recorded as your choice, not policy."
       fields={[
         { kind: "hidden", name: "id" },
         { kind: "select", name: "kind", label: "Where it goes", required: true, placeholder: "Choose", options: kinds },
-        { kind: "select", name: "returnToSeq", label: "The step it returns to", required: true, placeholder: "Choose", options: steps, hint: "The route continues from this step; the steps before it keep their decisions." },
+        { kind: "select", name: "returnToSeq", label: "The step it returns to", required: true, placeholder: "Choose", options: steps, hint: "Earlier steps keep their decisions." },
         actorField("ApprovalInstance.rejectionChosenBy", { name: "personId", people }),
         { kind: "textarea", name: "reason", label: "Why it goes there" },
       ]}

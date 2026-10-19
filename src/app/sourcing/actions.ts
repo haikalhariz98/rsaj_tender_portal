@@ -82,7 +82,7 @@ import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester
  */
 
 const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
-const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in force, so the exercise's bands cannot be determined. Issue one under Configuration, Approval matrix." };
+const NO_ISSUE: FormState = { ok: false, message: "No approval matrix in force. Issue one under Approval matrix." };
 
 
 function refresh(id?: string, requisitionId?: string) {
@@ -163,7 +163,7 @@ function readForm(r: FormReader, data: FormData, id: string | null): FormValues 
   const title = r.text("title", "Title", { required: true, max: 240 });
   const value = r.money("estimatedValue", "Estimated value", { required: true });
   const scope = readScope(data);
-  if (scope.bad) r.reject("scope", "Every scope line needs what is delivered and an amount, to at most two decimal places.");
+  if (scope.bad) r.reject("scope", "Each scope line needs a deliverable and an amount (two decimals at most).");
   const meeting = r.date("coordinationMeetingOn", "Coordination meeting");
   if (!value) return null;
   return {
@@ -373,7 +373,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
         ok: false,
         message:
           e.fault === "SERIES_MISSING"
-            ? "No numbering series for sourcing exercises is configured, so no reference can be issued. Add the series keyed “exercise” under Configuration, Numbering."
+            ? "No numbering series for exercises. Add one under Configuration, Numbering."
             : "The sourcing exercises numbering series is not valid. Correct it under Configuration, Numbering.",
       };
     }
@@ -406,7 +406,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
     // Changing an exercise changes the estimate and the amounts made from it: whoever may not read the estimate (ADR 0034 D14) may not change it, and the refusal is logged.
     const readable = await sulitExerciseValue(actor, { id: ex.id, reference: ex.reference }, "estimatedValue", true);
-    if (readable.state === "WITHHELD") return { ok: false, message: `The estimated value is SULIT and withheld from you, so this exercise cannot be changed by you. ${readable.words.en}` };
+    if (readable.state === "WITHHELD") return { ok: false, message: `Value is SULIT and withheld. You cannot change this exercise. ${readable.words.en}` };
     // The override is whoever made it: the officer saving it now where it is new or changed, and otherwise whoever made it before, not whoever edits the draft next.
     const overrideChanged = ex.contractTypeCode !== v.draft.contractTypeCode || ex.contractTypeOverrideReason !== v.draft.typeReason || !ex.overriddenByPersonId;
     v.draft.typePersonId = overrideChanged ? act.subjectPersonId : ex.overriddenByPersonId;
@@ -419,7 +419,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     // or would be named by the act of restricting it: refused before anything is written (`namingRefusal`, Phase 3a review).
     if (ev.method?.restrictedAccess) {
       const refused = await namingRefusal(tx, actor, ex.id, [], { selfAllowed: true });
-      if (refused) return { ok: false, message: `Not saved: the method chosen restricts this exercise to the people named on it. ${refused}` };
+      if (refused) return { ok: false, message: `Not saved: the method restricts this exercise to named people. ${refused}` };
     }
     const on = dayToDate(l.org.today);
     const methodChanged = ex.sourcingMethodCode !== v.draft.methodCode;
@@ -910,7 +910,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
           : null
         : ex.dossierReference;
       if (ev.method!.requiresDossier && !dossierReference) {
-        return { ok: false, message: "Not moved into preparation: the method keeps a justification dossier but names no numbering series for it. Set one on the method under Reference data." };
+        return { ok: false, message: "Not moved: the method has no dossier numbering series. Set one under Reference data." };
       }
       const after = {
         status: "DOCUMENTS_IN_PREPARATION" as const,
@@ -934,7 +934,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
     });
   } catch (e) {
     if (e instanceof NumberingError) {
-      return { ok: false, message: `The numbering series for the justification dossier is ${e.fault === "SERIES_MISSING" ? "not configured" : "not valid"}. Set it under Configuration, Numbering.` };
+      return { ok: false, message: `Dossier numbering series ${e.fault === "SERIES_MISSING" ? "not set" : "not valid"}. Set it under Numbering.` };
     }
     throw e;
   }
@@ -954,7 +954,7 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
     if (t.length > 0) return t[0].code === "CANCEL_REASON_REQUIRED" ? { ok: false, errors: { reason: findingText(t[0]) } } : refuse(t, "Not cancelled:");
     // A live award holds its value against the requisition and names this exercise: it is cancelled first.
     const live = exerciseCancelBlockedBy(await tx.award.findMany({ where: { exerciseId: ex.id }, select: { reference: true, status: true } }));
-    if (live) return { ok: false, message: `Not cancelled: award ${live.reference} stands on this exercise. Cancel the award first, from its own record.` };
+    if (live) return { ok: false, message: `Not cancelled: award ${live.reference} stands. Cancel it first.` };
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: ex.status }, data: { status: "CANCELLED", cancelReason: reason } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     // Stage C security audit: an officer's forwarded shares are not kept for an exercise that has ended.
@@ -1008,7 +1008,7 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
       if (refused) return { ok: false, errors: { personInChargeId: refused } };
       if (ex.restricted) {
         const facts = (await exerciseAccessFacts(tx, l.org.id, [ex.id])).get(ex.id);
-        if (facts && namedAfterChangingPersonInCharge(facts.named, person?.id ?? null).length === 0) return { ok: false, errors: { personInChargeId: "This exercise is restricted to the people named on it, and the person in charge is the last of them. Name someone else first: an exercise nobody can see could not be opened or corrected." } };
+        if (facts && namedAfterChangingPersonInCharge(facts.named, person?.id ?? null).length === 0) return { ok: false, errors: { personInChargeId: "Restricted, and the person in charge is the last named. Name someone else first." } };
       }
     }
     await tx.sourcingExercise.update({ where: { id: ex.id, organisationId: actor.organisationId }, data: { personInChargeId: person?.id ?? null, workCode } });
@@ -1061,7 +1061,7 @@ export async function removeParticipant(_prev: FormState, data: FormData): Promi
     if (ex.restricted) {
       const facts = (await exerciseAccessFacts(tx, l.org.id, [ex.id])).get(ex.id);
       const stillNamed = facts ? namedAfterRemovingParticipant(facts.named, p.personId) : [];
-      if (stillNamed.length === 0) return { ok: false, message: "This exercise is restricted to the people named on it, and this is the last of them. Name someone else first: an exercise nobody can see could not be opened or corrected." };
+      if (stillNamed.length === 0) return { ok: false, message: "Restricted, and this is the last named person. Name someone else first." };
     }
     await tx.exerciseParticipant.delete({ where: { id: p.id, exercise: { organisationId: actor.organisationId } } });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseParticipant", p.id, `${ex.reference} · ${p.person.name}`, "DELETE", snapshotFields({ person: p.person.name, capacity: p.capacity }), reason);

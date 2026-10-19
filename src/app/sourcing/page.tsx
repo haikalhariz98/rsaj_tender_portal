@@ -95,9 +95,8 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
            not as a notice across the top. Brought up to date: bids, opening and evaluation are recorded here now. */
         info={{
           title: "What is recorded here",
-          text: "An exercise is classified here: its value bands, sourcing method, contract type and basis, and who approves the name and the appointment. Its tender documents and its window (advertisement or invitation, sale of the documents, briefings and addenda) are prepared and recorded here, and so are the bids received on paper, their opening and their evaluation. Suppliers cannot submit bids online yet: that waits for the supplier portal, which needs sign-in.",
+          text: "Exercises are classified here, with their tender documents, window, bids, opening and evaluation.",
         }}
-        subtitle="Exercises opened on approved requisitions: value band, method, contract type and basis."
         meta={[
           // The state's own label, as the dashboard counts it: one name for one state.
           ...(["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "ADVERTISED", "INVITED"] as const).map((s) => `${rows.filter((r) => r.status === s).length} ${EXERCISE_STATUS_LABEL[s].toLowerCase()}`),
@@ -121,7 +120,6 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
         exportName="sourcing-exercises"
         searchPlaceholder="Search by title or reference"
         emptyTitle="No sourcing exercises yet"
-        emptyBody="Open one from an approved requisition."
         initialView={view}
         views={[
           { id: "drafts", label: EXERCISE_STATUS_LABEL.DRAFT },
@@ -131,10 +129,9 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           {
             id: "soon",
             label: `Closing within ${CLOSING_SOON_DAYS} days`,
-            about: `Published exercises closing today or in the next ${CLOSING_SOON_DAYS - 1} days, in the organisation's time. A closing that has already passed, even earlier today, is not counted.`,
+            about: `Closing today or in the next ${CLOSING_SOON_DAYS - 1} days. Past closings are not counted.`,
             emptyTitle: `Nothing closes within ${CLOSING_SOON_DAYS} days`,
-            emptyBody: "Pick another view, or show all records.",
-          },
+                      },
           { id: "boundary", label: "On the boundary", about: BOUNDARY_VIEW_ABOUT },
           { id: "name", label: `${TERM.nameApproval} in progress` },
         ]}
@@ -146,7 +143,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           // at least 260px (the table scrolls in its card rather than squeeze it) and the others are narrower.
           { key: "title", label: "Exercise", minWidth: "260px", sortable: true, mobile: "primary" },
           { key: "method", label: "Method and contract type", width: "18%", hideBelow: "2xl" },
-          { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, sulit: true, sulitLabel: "SULIT. Shown to the people named on each exercise and to the roles the organisation has chosen; withheld from everyone else. Not exported.", mobile: "meta" },
+          { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, sulit: true, sulitLabel: "SULIT. Shown to people named on the exercise and chosen roles. Not exported.", mobile: "meta" },
           { key: "window", label: "Closing", width: "168px", hideBelow: "lg", mobile: "meta" },
           { key: "status", label: "Status", width: "200px", sortable: true, mobile: "meta" },
           { key: "checks", label: "Band and checks", width: "168px", hideBelow: "2xl", mobile: "meta" },

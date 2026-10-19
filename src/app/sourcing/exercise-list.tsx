@@ -26,7 +26,7 @@ export function ExerciseList({ footer, ...list }: { footer?: ReactNode } & Compo
       <CardHeader
         icon={<GlobeIcon size={17} />}
         title={chosen ? chosen.label : "All exercises"}
-        subtitle={chosen?.about ?? "Listed by the day each exercise was opened, newest first, until you sort by a column. Search finds an exercise by its reference or its requisition's."}
+        subtitle={chosen?.about}
         divided={false}
       />
       <DataList {...list} onViewChange={choose} />

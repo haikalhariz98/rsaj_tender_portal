@@ -165,7 +165,7 @@ export function findingText(f: Finding): string {
     case "NO_APPROVED_ROUTE":
       return "Requisition has no approved route.";
     case "EXCEEDS_APPROVED_VALUE":
-      return `With the other live exercises: ${money(d.combined)}, above the ${money(d.approved)} approved. Reduce this exercise's value, cancel a sibling exercise, or cancel this exercise.`;
+      return `With the other live exercises: ${money(d.combined)}, above the ${money(d.approved)} approved. Reduce this exercise's value, cancel a sibling exercise, or cancel this exercise. The requisition stays as approved.`;
     case "SPLIT_ACROSS_REGIME":
       return `Combined value (${money(d.combined)}) is in a different band. Check the work is not split.`;
     case "REQUISITION_BAND_CHANGED":

@@ -22,6 +22,7 @@ describe("exercises may not outgrow their requisition's approval (ruling R-16)",
     expect(text).toMatch(/cancel a sibling exercise/);
     // 0005, founder 2026-10-19: the third exit is cut to "cancel this exercise"; the requisition is never offered for cancelling.
     expect(text).toMatch(/or cancel this exercise\./);
+    expect(text).toMatch(/The requisition stays as approved/);
     // 6.1 has no path to abandon a requisition: the exits never read as cancelling it (ruling on BD-1).
     expect(text).not.toMatch(/cancel (the|this) requisition/i);
   });

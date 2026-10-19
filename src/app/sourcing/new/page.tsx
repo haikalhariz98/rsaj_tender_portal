@@ -44,7 +44,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
     <PageHeader
       eyebrow={<Link href="/sourcing">Sourcing</Link>}
       title="New sourcing exercise"
-      subtitle="Value band, method, contract type and basis; the rest follows on its record."
+
     />
     </>
   );
@@ -85,7 +85,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       cells: {
         title: { kind: "link", text: x.q.title, href: `/sourcing/new?requisition=${x.q.id}`, sub: x.q.reference },
         approved: x.approved ? sulitCell(gates.get(x.q.id)!, () => ({ kind: "text" as const, text: formatMoney(x.approved!.value) })) : { kind: "text", text: "No approved route" },
-        open: x.partHidden ? { kind: "text", text: "Not shown: part is in a restricted exercise" } : x.remaining != null ? sulitCell(gates.get(x.q.id)!, () => ({ kind: "text" as const, text: formatMoney(x.remaining!) })) : { kind: "text", text: "—" },
+        open: x.partHidden ? { kind: "text", text: "Part restricted" } : x.remaining != null ? sulitCell(gates.get(x.q.id)!, () => ({ kind: "text" as const, text: formatMoney(x.remaining!) })) : { kind: "text", text: "—" },
       },
     });
     const open = judged.filter((x) => !x.fault || x.fault.code === "TIME_ZONE_UNSET");
@@ -98,14 +98,14 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       <>
         {header}
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Approved requisitions" subtitle="Choose the requisition the exercise is opened against." divided={false} />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Approved requisitions" divided={false} />
           <DataList
             flat
             selectable={false}
             exportName="approved-requisitions"
             searchPlaceholder="Search by title or reference"
             emptyTitle="No requisition is open to an exercise"
-            emptyBody="An exercise is opened against an approved requisition with value still to source."
+
             rowAction={{ label: "Open exercise", hrefTemplate: "/sourcing/new?requisition={id}" }}
             rowOpens
             columns={columns("Still to source")}
@@ -165,7 +165,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
             reference: l.req.reference,
             title: l.req.title,
             // Founder, 2026-10-05: said only where part of the requisition is already in another exercise.
-            approved: estimate.state === "WITHHELD" ? `What the requisition was approved for, and what is left to source, are made of the department estimate, which you may not read. ${estimate.words.en}` : partHidden ? "Part of this requisition is in an exercise restricted to its named people, so what is left to source is not shown." : approved && remaining != null && remaining < approved.value ? `${formatMoney(approved.value - remaining)} of this requisition is already in other exercises; ${formatMoney(remaining)} is still to source.` : "",
+            approved: estimate.state === "WITHHELD" ? `Approved and remaining values are SULIT. ${estimate.words.en}` : partHidden ? "Part is in a restricted exercise. Remaining value not shown." : approved && remaining != null && remaining < approved.value ? `${formatMoney(approved.value - remaining)} already in other exercises; ${formatMoney(remaining)} still to source.` : "",
           }}
           options={options}
           initial={{ title: l.req.title, estimatedValue: estimate.state === "GRANTED" && !partHidden && remaining != null && remaining > 0n ? plainAmount(remaining) : "", contractTypeCode: "" }}

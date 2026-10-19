@@ -108,7 +108,7 @@ export function ExerciseForm({
         if (n !== seq.current) return;
         setPreview(body.ok ? { result: body.result, proposedMethodCode: body.proposedMethodCode ?? null, matrixLabel: body.matrixLabel } : { message: body.message ?? body.error ?? "The bands could not be determined." });
       } catch {
-        if (n === seq.current) setPreview({ message: "The bands could not be determined just now." });
+        if (n === seq.current) setPreview({ message: "Bands not determined. Try again." });
       }
     }, 350);
     return () => clearTimeout(t);
@@ -176,11 +176,11 @@ export function ExerciseForm({
         </Card>
 
         <Card>
-          <CardHeader icon={<RouteIcon size={17} />} title="Sourcing method" subtitle="The regime proposes one; another needs a reason." />
+          <CardHeader icon={<RouteIcon size={17} />} title="Sourcing method" />
           <CardBody className="grid gap-4 sm:grid-cols-2">
             {select("sourcingMethodCode", "Method", options.methods.map((m) => ({ value: m.code, label: m.name })), {
               required: true,
-              hint: r ? `${r.proposed}${overridden ? " This is an override." : ""}` : undefined,
+              hint: r ? `${r.proposed}${overridden ? " Override." : ""}` : undefined,
             })}
             {proposedCode && v.sourcingMethodCode !== proposedCode && (
               <div className="flex items-end pb-1">
@@ -190,7 +190,7 @@ export function ExerciseForm({
               </div>
             )}
             {overridden && text("methodReason", "Why a different method", { area: true, required: true })}
-            {options.routeSetExternally && text("externalRouteNote", "What the external body decided", { area: true, required: true, hint: "An external body sets the sourcing route on this requisition's funding route." })}
+            {options.routeSetExternally && text("externalRouteNote", "What the external body decided", { area: true, required: true, hint: "Set by an external body." })}
             {method && (method.requiresJustification || method.requiresDossier) &&
               text("justificationText", "Justification", { area: true, required: method.requiresJustification, hint: method.justificationPrompt || undefined })}
             {method?.requiresDossier && (
@@ -211,12 +211,12 @@ export function ExerciseForm({
                 {text("coordinationScopeNote", "Scope the meeting fixed", { area: true, hint: SCOPE_NOTE_HINT })}
               </>
             )}
-            {method && !method.requiresFreshSourcing && text("parentContractRef", "Parent contract", { required: true, mono: true, hint: "The contract this is called off. Its remaining capacity is not tracked until contracts are in the portal." })}
+            {method && !method.requiresFreshSourcing && text("parentContractRef", "Parent contract", { required: true, mono: true, hint: "Capacity not tracked." })}
           </CardBody>
         </Card>
 
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Contract type and basis" subtitle="The type is derived from what is delivered; the basis is always chosen." />
+          <CardHeader icon={<FileIcon size={17} />} title="Contract type and basis" />
           <CardBody className="grid gap-4 sm:grid-cols-2">
             {select("contractTypeCode", "Contract type", options.types.map((t) => ({ value: t.code, label: t.name })), {
               placeholder: r?.contractType.name && !typeChosen ? `As derived: ${r.contractType.name}` : "As derived",
@@ -228,8 +228,8 @@ export function ExerciseForm({
             })}
             {typeChosen && (
               <>
-                {text("contractTypeOverrideReason", "Why this type", { area: true, hint: "Required where it is not the derived type." })}
-                <ActAttributionFields spec={actorField("SourcingExercise.overriddenBy", { name: "overriddenByPersonId", hint: "The type is overridden by you, in Contract & Procurement. It is attributed to you from your sign-in." })} errors={e} />
+                {text("contractTypeOverrideReason", "Why this type", { area: true, hint: "Needed if not the derived type." })}
+                <ActAttributionFields spec={actorField("SourcingExercise.overriddenBy", { name: "overriddenByPersonId", hint: "Recorded as you, in Contract & Procurement." })} errors={e} />
               </>
             )}
           </CardBody>

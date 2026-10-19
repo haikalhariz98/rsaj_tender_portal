@@ -749,7 +749,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
               <Badge tone={PHASE_TONE[windowGateNow.phase]}>{PHASE_LABEL[windowGateNow.phase]}</Badge>
             )}
             {restricted && (
-              <InfoChip tone="warn" detail="Visible only to the people named on it, plus its route, evaluation and opening members. Access is logged." label="About Restricted">
+              <InfoChip tone="warn" detail="Hidden from lists, counts and search. Open to the people named, the person in charge, the proposal reviewer, evaluation and opening members, route deciders and committee members it is tabled to. Access is logged." label="About Restricted">
                 Restricted
               </InfoChip>
             )}

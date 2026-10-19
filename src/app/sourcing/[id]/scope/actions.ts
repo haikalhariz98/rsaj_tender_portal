@@ -467,7 +467,7 @@ export async function savePanel(_prev: FormState, data: FormData): Promise<FormS
     const listed = async (taxonomyCode: string | null, code: string | null, field: string) => {
       if (!code) return null;
       const ok = taxonomyCode ? await tx.taxonomyValue.findFirst({ where: { code, taxonomy: { organisationId: l.org.id, code: taxonomyCode } }, select: { id: true } }) : null;
-      if (!ok) throw new Refusal({ ok: false, errors: { [field]: "That is not on the configured list. Choose one from it, or specify it in words." } });
+      if (!ok) throw new Refusal({ ok: false, errors: { [field]: "Not on the list. Choose one, or specify it in words." } });
       return code;
     };
     const kind = await listed(policy.panelContractKindTaxonomyCode, contractKindCode, "contractKindCode");
@@ -764,7 +764,7 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
         // The database's own wall: the closing passed, or the key stopped being the live one, between the read and the write.
         if (sealedSqlState(e) === "PA018") {
           refusedAs.code = "LODGEMENT_REFUSED_BY_DATABASE";
-          throw new Refusal({ ok: false, message: `Nothing was saved: ${SEALED_LODGEMENT_WORDS.LODGEMENT_CLOSED} If the closing has not passed, the exercise's key changed while this was being lodged: try again.` });
+          throw new Refusal({ ok: false, message: `Not saved: ${SEALED_LODGEMENT_WORDS.LODGEMENT_CLOSED} If closing has not passed, the key changed: try again.` });
         }
         throw e;
       }
@@ -1025,7 +1025,7 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
       bqImportAudit({ file: stored.originalFilename, documentTitle: stored.document.title, versionNo: doc.versionNo, sha256: doc.sha256, sections: parsed.sections.length, lines: parsed.lineCount, replacedLines: replace ? existingLines : 0, mismatches: parsed.keyedMismatches.length, priced: parsed.priced }));
     revalidatePath("/configuration/documents");
     const warns = [...parsed.faults.filter((f) => f.level !== "block").map(csvFaultText), ...parsed.keyedMismatches.slice(0, 5).map(keyedMismatchText)];
-    return { ok: true, message: [`Imported ${parsed.lineCount} ${parsed.lineCount === 1 ? "line" : "lines"} in ${parsed.sections.length} ${parsed.sections.length === 1 ? "section" : "sections"}; the file is kept with version ${v.versionNo}.`, ...warns].join(" ") };
+    return { ok: true, message: [`Imported ${parsed.lineCount} ${parsed.lineCount === 1 ? "line" : "lines"} in ${parsed.sections.length} ${parsed.sections.length === 1 ? "section" : "sections"}. File kept with version ${v.versionNo}.`, ...warns].join(" ") };
   }, { bq: actor });
 }
 
