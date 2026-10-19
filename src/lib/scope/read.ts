@@ -200,7 +200,7 @@ export async function scopeTab(organisationId: string, exerciseId: string, viewe
       verify: verifyPanelFault(state) ? judged([verifyPanelFault(state)!]) : judged(pFaults),
       reverify: state === "SCAN_GONE",
       options: { contractKinds: listOf(policy.panelContractKindTaxonomyCode), projectStatuses: listOf(policy.panelProjectStatusTaxonomyCode), bills: versions.filter((v) => v.status === "FINALISED").map((v) => ({ value: v.id, label: `Version ${v.versionNo}` })), people, columns: inForce.map((c) => ({ value: c.code, label: c.labelEn })) },
-      statement: "Each verification says whether the person signed in to give it or it was recorded from their paper.",
+      statement: "Signed in, or recorded from paper.",
     },
     approval: await approvalView(a, people, viewerPersonId),
   };
@@ -243,7 +243,7 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
   if (reasons.length === 0 && committee) {
     // The tabler is the signed-in person (FR-CTE-006, Phase 3d): judged for the reader. Called with no reader, any holder will do.
     const t = checkTabling({ secretariatRoleCode: committee.secretariatRoleCode, tabledByPersonId: viewerPersonId ?? holders[0]?.id ?? null, holderIdsOnDate: holders.map((h) => h.id), tablingDay: org.today });
-    if (!t.ok) reasons.push(holders.length === 0 && t.fault !== "SECRETARIAT_NOT_SET" && t.fault !== "TIME_ZONE_UNSET" ? "Nobody holds the committee's Secretariat office today, so nobody may table the scope. Assign the office under Configuration, Users & roles." : TABLING_FAULT_MESSAGE[t.fault]);
+    if (!t.ok) reasons.push(holders.length === 0 && t.fault !== "SECRETARIAT_NOT_SET" && t.fault !== "TIME_ZONE_UNSET" ? "Nobody holds the Secretariat office, so nobody may table scope." : TABLING_FAULT_MESSAGE[t.fault]);
   }
   const OUTCOME: Record<string, string> = { PENDING: "Waiting for the decision", CARRIED: "Carried", NOT_CARRIED: "Not carried", DEFERRED: "Deferred" };
   // The configured act in words (overrides BD-62-16): tabling writes it, and only it.
@@ -409,7 +409,7 @@ export async function bqTab(organisationId: string, exerciseId: string, figures:
       revise: off ?? judged(reviseFaults(versions, ex.status, "given")),
     },
     options: { templates: templates.map((t) => ({ value: t.code, label: t.nameEn })), people, scopedBy: Object.entries(SCOPED_BY_LABEL).map(([value, label]) => ({ value, label })), kinds: Object.entries(ITEM_KIND_LABEL).map(([value, label]) => ({ value, label })), scheduleItems },
-    schedulesNote: org.today == null ? scopeFaultText("TIME_ZONE_NOT_SET") : inForce.length === 0 ? "No schedule of rates is in force today, so every rate is entered. Schedules are issued under Configuration, Scope and estimate." : `In force today: ${inForce.map((i) => `${i.label}, ${issueText(i.issueNo)} (from ${formatDate(i.effectiveFrom!)})`).join("; ")}.`,
+    schedulesNote: org.today == null ? scopeFaultText("TIME_ZONE_NOT_SET") : inForce.length === 0 ? "No rate schedule in force. Enter every rate." : `In force today: ${inForce.map((i) => `${i.label}, ${issueText(i.issueNo)} (from ${formatDate(i.effectiveFrom!)})`).join("; ")}.`,
     csv: {
       importNote: CSV_IMPORT_NOTE,
       exportNote: CSV_EXPORT_NOTE,

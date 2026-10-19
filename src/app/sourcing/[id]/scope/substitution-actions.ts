@@ -95,7 +95,7 @@ export async function releaseShareForSubstitution(_prev: FormState, data: FormDa
   if (!waiting) return GONE;
   const { pending } = await loadPendingSubstitution(db, actor.organisationId, exerciseId);
   if (pending.state === "AMBIGUOUS") return refuse("AMBIGUOUS", AMBIGUOUS_SUBSTITUTION_WORDS);
-  if (pending.state === "NONE") return refuse("NOTHING_WAITING", "No substitution is waiting on this exercise, so there is no share to release.");
+  if (pending.state === "NONE") return refuse("NOTHING_WAITING", "No substitution is waiting.");
   if (pending.departing.personId !== actor.personId) return refuse("DEPARTING_MUST_RELEASE", SUBSTITUTION_WORDS.DEPARTING_MUST_RELEASE);
   if (!pending.incoming.hasKey) return refuse("INCOMING_KEY_NOT_SET", SUBSTITUTION_WORDS.INCOMING_KEY_NOT_SET);
 
@@ -118,7 +118,7 @@ export async function releaseShareForSubstitution(_prev: FormState, data: FormDa
       const p = again.pending;
       if (p.state !== "PENDING" || again.keyId === null || p.departing.officerKeyId !== unlocked.officerKeyId || p.departing.personId !== actor.personId) {
         refusedCode = "CHANGED";
-        return { ok: false, message: "Nothing was saved: the substitution changed while you were typing. Reload and look again." };
+        return { ok: false, message: "Not saved: the substitution changed. Reload." };
       }
       const openingStarted = (await tx.opening.count({ where: { exerciseId } })) > 0;
       const change = rosterChange({ status: l.ex.status, closing: l.ex.closingAt, now, openingStarted });
@@ -137,7 +137,7 @@ export async function releaseShareForSubstitution(_prev: FormState, data: FormDa
       await audit(tx, who, l.org.id, "SourcingExercise", exerciseId, label("Exercise key"), "UPDATE", diffFields({ keyHeldBy: p.departing.name }, { keyHeldBy: p.incoming.name }), "A substitution was completed");
       await logCeremonyEvent(tx, { organisationId: l.org.id, exerciseId, kind: "SUBSTITUTION_RELEASE", staffPersonId: actor.personId, recordId: moved.releaseId, at: now });
       await act.write(tx, moved.releaseId, { document: { entity: "ExerciseOpeningOfficer", id: p.departing.rosterRowId }, roleCode: roster.seatLabelSnapshot });
-      return { ok: true, message: `Your share is released to ${p.incoming.name}, and the live copy of yours is destroyed. A database backup taken before now still holds it, and could be opened with your passphrase together with every other officer's. They now hold it, and every named officer is again needed to open the bids.` };
+      return { ok: true, message: `Share released to ${p.incoming.name}. Your live copy is destroyed. A backup taken before now still holds it.` };
     });
     if (!out.ok && refusedCode) await logCeremonyRefusal(db, { organisationId: actor.organisationId, exerciseId, kind: "SUBSTITUTION_RELEASE", staffPersonId: actor.personId, reasonCode: refusedCode });
     return out;

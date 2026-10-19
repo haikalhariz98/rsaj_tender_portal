@@ -23,7 +23,7 @@ export function KeyDatesDrawer({ exerciseId, allowed, values, usualClosingTime }
   return (
     <RecordEditor
       title={entered ? "Change the proposed dates" : "Propose the dates"}
-      description="When tendering starts and closes. The notice states them, and they read Proposed until the approving step records them. They can be changed until the documents are submitted."
+      description="Read Proposed until approved. Changeable until documents are submitted."
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -45,8 +45,8 @@ export function NameOfficerDrawer({ exerciseId, allowed, candidates, needed }: {
   return (
     <RecordEditor
       title="Name an opening officer"
-      description={`${needed} Each holds a seat on the opening committee, and the same person cannot be named twice. Being named lets them see this exercise and open its bids.`}
-      fields={[hidden("exerciseId"), { kind: "select", name: "personId", label: "Officer", required: true, placeholder: candidates.length ? "Choose" : "Nobody holds a seat on the committee", options: candidates, hint: "Only people who hold a seat on the opening committee today are listed." }]}
+      description={`${needed} Every named officer is needed to open the bids.`}
+      fields={[hidden("exerciseId"), { kind: "select", name: "personId", label: "Officer", required: true, placeholder: candidates.length ? "Choose" : "Nobody holds a seat on the committee", options: candidates, hint: "Opening committee seat holders only" }]}
       values={{ exerciseId }}
       action={nameOpeningOfficer}
       submitLabel="Name the officer"
@@ -60,7 +60,7 @@ export function RemoveOfficerDrawer({ exerciseId, officerId, name }: { exerciseI
   return (
     <RecordEditor
       title={`Take ${name} off`}
-      description="They are no longer named to open the bids. The change is on the record, and the exercise cannot be submitted until the number is made up again."
+      description="Submission is blocked until the number is made up again."
       fields={[hidden("exerciseId"), hidden("officerId")]}
       values={{ exerciseId, officerId }}
       action={removeOpeningOfficer}
@@ -77,7 +77,7 @@ export function SubstituteOfficerDrawer({ exerciseId, officerId, name, candidate
   return (
     <RecordEditor
       title={`Replace ${name}`}
-      description={controlled ? "The documents are submitted, so this is a controlled change: say what authority it is made under and why. The replacement faces the same checks. It cannot be done after the closing." : "The replacement faces the same checks as any officer named. The change is on the record."}
+      description={controlled ? "Controlled change: give the authority and why. Not possible after closing." : undefined}
       fields={[
         hidden("exerciseId"),
         hidden("officerId"),

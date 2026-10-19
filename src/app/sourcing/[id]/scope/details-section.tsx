@@ -130,14 +130,14 @@ function DossierCard({ p }: { p: DetailsProps }) {
       <CardHeader
         icon={<FileIcon size={17} />}
         title={flags.requiresDossier && flags.requiresCoordinationRecord ? "Justification dossier and coordination record" : flags.requiresCoordinationRecord ? "Emergency coordination record" : "Justification dossier"}
-        subtitle="Kept against the exercise. Change them with Edit on the exercise's header, while it is a draft."
+        subtitle="Change with Edit while a draft."
       />
       <CardBody className="flex flex-col gap-4">
         <KeyValues columns={2} items={rows} />
         <OwnerAttachments
           owner={{ kind: "exercise", id: ex.id }}
           title={flags.requiresDossier && flags.requiresCoordinationRecord ? "Dossier evidence and coordination scope" : flags.requiresDossier ? "Dossier evidence" : "Coordination meeting scope"}
-          subtitle={flags.requiresDossier ? "Kept against the exercise. A direct appointment is sent for approval only with its dossier evidence attached." : "Kept against the exercise: the document that fixed the scope at the coordination meeting."}
+          subtitle={flags.requiresDossier ? "Needs dossier evidence before approval." : "The scope document from the coordination meeting."}
           only={exercisePurposes(flags)}
           required={{ DOSSIER_EVIDENCE: flags.requiresDossier, COORDINATION_SCOPE: flags.requiresCoordinationRecord }}
         />
@@ -159,7 +159,7 @@ function DetailsCard({ p }: { p: DetailsProps }) {
         title="Details & compliance"
         subtitle={
           <>
-            Who may bid, and the exercise&apos;s own details.{" "}
+            Eligibility and details{" "}
             <span className="sr-only">The registrations, the restriction and the permit are fixed once the documents go for approval. The work code and the person in charge stay open until an award goes for approval.</span>
             <MoreText text="The registrations, the restriction and the permit are fixed once the documents go for approval. The work code and the person in charge stay open until an award goes for approval." label="When these can change" />
           </>
@@ -187,7 +187,7 @@ function DetailsCard({ p }: { p: DetailsProps }) {
         </ul>
 
         {c == null ? (
-          <p className="text-[13px] text-ink-3">This exercise issues no tender documents, so there are no registrations, restriction or permit to state.</p>
+          <p className="text-[13px] text-ink-3">No tender documents, so none to state.</p>
         ) : (
           <>
             <div>
@@ -195,7 +195,7 @@ function DetailsCard({ p }: { p: DetailsProps }) {
               {live ? (
                 live.eligibility.groups.length === 0 ? (
                   <p className="rounded-2xl border border-dashed border-line px-4 py-3 text-[13px] text-ink-2">
-                    <Badge tone="warn">Not set</Badge> <span className="ml-1">No registration is recorded, so the notice has no eligibility block.</span>
+                    <Badge tone="warn">Not set</Badge> <span className="ml-1">No registration recorded.</span>
                   </p>
                 ) : (
                   <ul className="divide-y divide-line/70 rounded-2xl border border-line">
@@ -264,7 +264,7 @@ function DetailsCard({ p }: { p: DetailsProps }) {
             {live && live.edit.allowed && <Findings items={[...live.eligibility.findings, ...live.restriction.findings, ...live.permit.findings].filter((f) => f.level !== "block").map((f) => ({ ...f, text: f.text.split(DETAILS_PLACE).join("here") }))} />}
             {(frozen || before) && (
               <p className="text-[12.5px] text-ink-3">
-                {frozen ? `As frozen with version ${frozen.frozen.version}, judged ${frozen.frozen.judgedOn}. They change only in a new version, after a return.` : `Version ${before!.version} was frozen before they were recorded with it.`}{" "}
+                {frozen ? `Frozen with version ${frozen.frozen.version}, judged ${frozen.frozen.judgedOn}.` : `Version ${before!.version} predates them.`}{" "}
                 <Link href={`/sourcing/${ex.id}?tab=documents`}>Open the Tender documents</Link>
               </p>
             )}

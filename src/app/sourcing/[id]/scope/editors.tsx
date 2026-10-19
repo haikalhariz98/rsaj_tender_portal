@@ -68,17 +68,17 @@ export function EditPanelDrawer({
   return (
     <RecordEditor
       title={isNew ? "Set up the specification panel" : "Edit the specification panel"}
-      description={clearsVerifications ? "The panel is verified. Changing any fact clears its verifications, which are kept on record, and it goes back to a draft." : "The facts the signed form certifies."}
+      description={clearsVerifications ? "Verified. Changing a fact clears the verifications and returns it to draft." : undefined}
       columns={2}
       fields={[
         hidden("exerciseId"),
         ...(kinds.length > 0
           ? [{ kind: "select", name: "contractKindCode", label: "Contract kind", placeholder: "Specify it in words instead", options: kinds } as Field]
-          : [{ kind: "note", text: "The list of contract kinds is not set, so the kind is specified in words. It is set under Configuration, Scope and estimate." } as Field]),
+          : [{ kind: "note", text: "Contract kinds not set. Describe the kind in words." } as Field]),
         { kind: "text", name: "contractKindOther", label: "Contract kind, in words", hint: "Used where it is not on the list." },
         ...(statuses.length > 0
           ? [{ kind: "select", name: "projectStatusCode", label: "Project status", placeholder: "Specify it in words instead", options: statuses } as Field]
-          : [{ kind: "note", text: "The list of project statuses is not set, so the status is specified in words." } as Field]),
+          : [{ kind: "note", text: "Project statuses not set. Describe the status in words." } as Field]),
         { kind: "text", name: "projectStatusOther", label: "Project status, in words", hint: "Used where it is not on the list." },
         { kind: "text", name: "currentRevisionNo", label: "Current revision number" },
         { kind: "date", name: "currentRevisionOn", label: "Current revision date" },
@@ -100,12 +100,12 @@ export function VerifyColumnDrawer({ exerciseId, column, columnLabel, people }: 
   return (
     <RecordEditor
       title={`Record who verified: ${columnLabel}`}
-      description="You sign the verification with your own password, in this column's capacity, against the panel as it stands now. Editing the panel later clears it. The signed paper form is still attached below."
+      description="Signed with your own password. Editing the panel later clears it."
       fields={[
         hidden("exerciseId"),
         hidden("columnCode"),
         actorField("SpecPanelVerification.person", { name: "personId", people, dated: true }),
-        { kind: "date", name: "verifiedOn", label: "Verified on", hint: "Leave empty for today. A signed verification is dated today unless back-dating is recorded, and is never dated after today." },
+        { kind: "date", name: "verifiedOn", label: "Verified on", hint: "Empty means today. Never after today." },
         { kind: "text", name: "note", label: "Note" },
       ]}
       values={{ exerciseId, columnCode: column }}
@@ -122,7 +122,8 @@ export function MarkVerifiedDrawer({ exerciseId, verify, scans, reverify = false
   return (
     <RecordEditor
       title={reverify ? "Verify the panel again" : "Mark the panel verified"}
-      description={`${reverify ? "The scan the panel was verified on is no longer live. Verifying again records the scans attached now in its place, and the trail keeps the earlier ones. " : ""}Every column is verified by a named person, and ${scans === 1 ? "the signed form is" : "the signed forms are"} attached and filed as SULIT. The panel is frozen as it stands; editing it later clears its verifications.`}
+      description={`${reverify ? "Verified scan is no longer live. " : ""}Freezes the panel. Editing it later clears the verifications.`}
+      more={`Every column is verified by a named person, and ${scans === 1 ? "the signed form is" : "the signed forms are"} attached and filed as SULIT.${reverify ? " Verifying again records the scans attached now. The trail keeps the earlier ones." : ""}`}
       fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       action={markPanelVerified}
@@ -140,12 +141,12 @@ export function StartBqDrawer({ exerciseId, templates, allowed }: { exerciseId: 
   return (
     <RecordEditor
       title="Start the bill of quantities"
-      description="A draft is started: its sections and lines are entered by hand, and its amounts are worked out from the quantities and rates, never typed."
+      description="Amounts are worked out from quantity and rate."
       fields={[
         hidden("exerciseId"),
         ...(templates.length > 0
           ? [{ kind: "select", name: "templateCode", label: "Start from a template", placeholder: "No template: add the sections myself", options: templates, hint: "A template brings its section headings, no lines." } as Field]
-          : [{ kind: "note", text: "No bill templates are configured, so the sections are added by hand. Templates are set under Configuration, Scope and estimate." } as Field]),
+          : [{ kind: "note", text: "No bill templates set. Add sections by hand." } as Field]),
       ]}
       values={{ exerciseId }}
       action={startBq}
@@ -161,7 +162,7 @@ export function EditBqHeaderDrawer({ exerciseId, versionId, raw, scopedBy, peopl
   return (
     <RecordEditor
       title="Edit the bill's header"
-      description="Who scoped the work, the scope statement and how the bill was measured."
+
       fields={[
         hidden("exerciseId"),
         hidden("versionId"),
@@ -169,7 +170,7 @@ export function EditBqHeaderDrawer({ exerciseId, versionId, raw, scopedBy, peopl
         { kind: "textarea", name: "scopeStatement", label: "Scope statement" },
         { kind: "select", name: "followsStandard", label: "Follows the measurement standard", placeholder: "Not answered yet", options: YES_NO },
         { kind: "textarea", name: "departuresText", label: "Departures from the standard", hint: "Required when the bill does not follow it." },
-        { kind: "select", name: "preparerPersonId", label: "Prepared by", placeholder: "Not named", options: people, hint: "The officer the bill is prepared by: a designation, checked against their qualification when the bill is finalised. Who edits it is in the History." },
+        { kind: "select", name: "preparerPersonId", label: "Prepared by", placeholder: "Not named", options: people, hint: "Checked against their qualification at finalising." },
         {
           kind: "select",
           name: "provisionalExcludedFromFirm",
@@ -179,7 +180,7 @@ export function EditBqHeaderDrawer({ exerciseId, versionId, raw, scopedBy, peopl
             { value: "yes", label: "Left out of the firm value" },
             { value: "no", label: "Counted in the firm value" },
           ],
-          hint: "Not stated leaves the firm value unstated, and does not stop the bill being finalised.",
+          hint: "Not stated leaves the firm value unstated.",
         },
       ]}
       values={{ exerciseId, versionId, ...raw }}
@@ -216,7 +217,7 @@ export function RemoveSectionDrawer({ exerciseId, versionId, section, lines }: {
   return (
     <RecordEditor
       title={`Remove section ${section.number}, ${section.title}`}
-      description={`${lines === 0 ? "It has no lines." : `Its ${lines === 1 ? "line goes" : `${lines} lines go`} with it.`} This is a draft: what is removed is kept in full in the audit trail.`}
+      description={`${lines === 0 ? "It has no lines." : `Its ${lines === 1 ? "line goes" : `${lines} lines go`} with it.`} Kept in the audit trail.`}
       fields={[hidden("exerciseId"), hidden("versionId"), hidden("sectionId")]}
       values={{ exerciseId, versionId, sectionId: section.id }}
       action={removeBqSection}
@@ -257,7 +258,7 @@ export function ItemDrawer({
   return (
     <RecordEditor
       title={item ? `Edit line ${item.label}` : "Add a line"}
-      description="The amount is worked out from the quantity and the rate, to the sen. It is never typed."
+      description="Amount is worked out, never typed."
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -268,12 +269,12 @@ export function ItemDrawer({
         { kind: "textarea", name: "description", label: "Description", required: true },
         { kind: "text", name: "unit", label: "Unit", placeholder: "e.g. m, m³, item" },
         { kind: "select", name: "kind", label: "Kind of line", required: true, placeholder: "Choose", options: kinds },
-        { kind: "text", name: "quantity", label: "Quantity", hint: "Up to three decimal places. Prime cost and provisional sums have none." },
+        { kind: "text", name: "quantity", label: "Quantity", hint: "Up to three decimal places." },
         ...(scheduleOptions.length > 0
-          ? [{ kind: "select", name: "scheduleItem", label: "Rate from a schedule", placeholder: "No: the rate is entered below", options: scheduleOptions, hint: "The rate of the issue in force today, kept with the line. A later issue never changes it." } as Field]
+          ? [{ kind: "select", name: "scheduleItem", label: "Rate from a schedule", placeholder: "No: the rate is entered below", options: scheduleOptions, hint: "Rate in force today, kept with the line." } as Field]
           : []),
-        { kind: "money", name: "rate", label: "Rate", hint: scheduleOptions.length > 0 ? "Entered by hand. Ignored where a schedule item is chosen above." : undefined },
-        { kind: "switch", name: "provisional", label: "Provisional quantity", hint: "Measured work only: the quantity may change when it is measured on site." },
+        { kind: "money", name: "rate", label: "Rate", hint: scheduleOptions.length > 0 ? "Ignored if a schedule item is chosen." : undefined },
+        { kind: "switch", name: "provisional", label: "Provisional quantity", hint: "Quantity may change on site." },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
       values={{ exerciseId, versionId, itemId: item?.id ?? "", sectionId, ...(item ? item.raw : {}), provisional: item?.raw.provisional ?? false }}
@@ -289,7 +290,7 @@ export function RemoveItemDrawer({ exerciseId, versionId, itemId, label }: { exe
   return (
     <RecordEditor
       title={`Remove line ${label}`}
-      description="This is a draft: the line is kept in full in the audit trail."
+      description="Kept in the audit trail."
       fields={[hidden("exerciseId"), hidden("versionId"), hidden("itemId")]}
       values={{ exerciseId, versionId, itemId }}
       action={removeBqItem}
@@ -307,7 +308,7 @@ export function FinaliseBqDrawer({ exerciseId, versionId, versionNo, allowed, su
   return (
     <RecordEditor
       title={`Finalise version ${versionNo}`}
-      description="The version is frozen with its totals, the standard it follows and the preparer's qualification as they stand today. A finalised version is never changed: it is revised."
+      description="Freezes the version. A finalised version is never changed."
       fields={[hidden("exerciseId"), hidden("versionId")]}
       values={{ exerciseId, versionId }}
       sections={
@@ -333,7 +334,7 @@ export function ReviseBqDrawer({ exerciseId, versionNo, allowed }: { exerciseId:
   return (
     <RecordEditor
       title={`Start a revision of version ${versionNo}`}
-      description="A new draft is copied from the finalised version. It replaces it only when it is finalised."
+      description="Replaces the finalised version only when finalised."
       fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       reason={{ label: "Why the bill is revised" }}
@@ -351,7 +352,7 @@ export function ReviseBqDrawer({ exerciseId, versionNo, allowed }: { exerciseId:
 const FIGURE_CONFIRM = {
   fields: ["value"],
   heading: "Check the figure before it is saved",
-  note: "Once saved, the figure is not shown again on any screen. Check it now. If it is wrong, change it.",
+  note: "Not shown again once saved. Check it now.",
   submitLabel: "Save the figure",
 };
 
@@ -360,10 +361,10 @@ export function PrepareEstimateDrawer({ exerciseId, people, allowed }: { exercis
   return (
     <RecordEditor
       title="Prepare the company estimate"
-      description="Version 1, by one preparer. The figure is shown only while it is typed and once for checking, then withheld from view. The day is the organisation's day, set when it is saved."
+      description="Version 1. The figure is withheld once saved."
       fields={[
         hidden("exerciseId"),
-        actorField("CompanyEstimate.preparer", { name: "personId", people, hint: "You prepare it, signed in. An estimate has one preparer throughout." }),
+        actorField("CompanyEstimate.preparer", { name: "personId", people, hint: "One preparer throughout." }),
         { kind: "money", name: "value", label: "Company estimate", required: true, sealed: true, hint: "To the sen. Withheld from view on saving." },
       ]}
       values={{ exerciseId }}
@@ -381,14 +382,15 @@ export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, vers
   return (
     <RecordEditor
       title={`Amend the estimate: version ${versionNo + 1}`}
-      description={`Only ${preparerName}, who prepared it, amends it. Earlier versions are kept, withheld from view and held unencrypted. The reason is withheld with the figure.`}
+      description={`Only ${preparerName} amends it. Earlier versions and the reason are withheld.`}
+      more="Earlier versions are kept, withheld from view and held unencrypted in the database."
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),
         actorField("CompanyEstimateVersion.preparer", { name: "personId", label: "Amended by", hint: `Only the preparer, ${preparerName}, amends it, signed in.` }),
         { kind: "money", name: "value", label: "New company estimate", required: true, sealed: true, hint: "To the sen. Withheld from view on saving." },
         ...(lodged ? [{ kind: "note" as const, text: AMEND_LODGED_NOTE }] : []),
-        { kind: "textarea", name: "reason", label: "Why it is amended", required: true, hint: "Withheld with the figure: it is not recorded in the audit trail or shown on any screen." },
+        { kind: "textarea", name: "reason", label: "Why it is amended", required: true, hint: "Withheld with the figure." },
       ]}
       values={{ exerciseId, estimateId }}
       confirm={FIGURE_CONFIRM}
@@ -408,10 +410,10 @@ export function LodgeEstimateDrawer({ exerciseId, estimateId, versionNo, allowed
       title={relodge ? `Lodge version ${versionNo} again` : `Lodge version ${versionNo}`}
       description={
         relodge
-          ? "The key this version was sealed under has changed, so the sealed copy can no longer be opened. You lodge the same version again, sealed under the new key. Only the officer who lodged it can."
+          ? "Key changed: the sealed copy cannot be opened. Lodge the same version again. Only the officer who lodged it can."
           : online
-            ? "A sealed copy of this version is lodged under the exercise's key. The version itself is still held unencrypted in the database. Lodging is a custody event, recorded as yours."
-            : "The version goes into the sealed set as the lodged copy. Lodging is a custody event, recorded as yours."
+            ? "Lodges a sealed copy under the exercise's key. The version itself stays unencrypted in the database."
+            : "Goes into the sealed set as the lodged copy."
       }
       fields={[
         hidden("exerciseId"),
@@ -456,7 +458,8 @@ export function VoidEstimateDrawer({ exerciseId, estimateId, preparerName, allow
   return (
     <RecordEditor
       title={`Void the company estimate prepared by ${preparerName}`}
-      description="For when its preparer cannot continue. Its versions are kept, withheld from view and held unencrypted, and a new officer prepares a fresh estimate from version 1. Nothing is voided once it is lodged."
+      description="Starts a fresh estimate from version 1. Nothing is voided once lodged."
+      more="Earlier versions are kept, withheld from view and held unencrypted."
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),
@@ -488,8 +491,8 @@ export function TableScopeDrawer({
   if (!table.allowed.allowed || !table.versionId) return <Blocked label="Table the scope" reason={table.allowed.allowed ? (file ? "There is no uploaded bill of quantities to table." : "There is no finalised bill to table.") : table.allowed.reason} primary />;
   return (
     <RecordEditor
-      title={file ? `Table version ${table.versionNo} of the uploaded bill of quantities for scope approval` : `Table version ${table.versionNo} of the bill for scope approval`}
-      description={`A matter at a sitting of the ${table.committee ?? "committee"}, naming this version, under the act the sourcing method sets (${table.act ?? "not set"}). It is decided there; tabling is by a holder of the committee's Secretariat office, who signs in and tables it.`}
+      title={`Table version ${table.versionNo} for scope approval`}
+      description={`A matter for ${table.committee ?? "the committee"} (${table.act ?? "act not set"}). Only its Secretariat tables it.`}
       fields={[
         hidden("exerciseId"),
         hidden("versionId"),
@@ -514,7 +517,7 @@ export function TakeSettingsDrawer({ exerciseId, take, rows }: { exerciseId: str
   return (
     <RecordEditor
       title="Take the organisation's setting"
-      description="This exercise was made while the organisation had not set these. It takes what Configuration says now, once. From the first submission of its tender documents they are frozen, so a later change to the setting never changes how this exercise is judged."
+      description="Takes the current setting once. Frozen on first submission."
       fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       sections={

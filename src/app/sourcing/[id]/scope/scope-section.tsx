@@ -41,7 +41,7 @@ export function ScopeSection({ d }: { d: Data }) {
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title="How this exercise is prepared"
-          subtitle="Fixed from the organisation's setting when the exercise was made, and frozen when its tender documents are first submitted."
+          subtitle="Frozen when tender documents are first submitted."
           actions={unsetPins && switches.take ? <TakeSettingsDrawer exerciseId={exercise.id} take={switches.take} rows={[["Specification panel", `${panelWords}, organisation's setting: ${switches.panel.setting}`], ["Bill of quantities", `${billWords}, organisation's setting: ${switches.bill.setting === "Used" ? "Built on screen" : switches.bill.setting === "Not used" ? "An uploaded Excel file" : "Not set"}`]]} /> : undefined}
         />
         <CardBody className="flex flex-col gap-4">
@@ -54,8 +54,8 @@ export function ScopeSection({ d }: { d: Data }) {
           />
           {unsetPins && (
             <Callout tone="warn" title="Submission waits for this">
-              {switches.panel.pin == null && "Whether this exercise uses a specification panel is not set. "}
-              {switches.bill.pin == null && "Whether it builds its bill of quantities on screen is not set. "}
+              {switches.panel.pin == null && "Specification panel not set. "}
+              {switches.bill.pin == null && "Bill of quantities mode not set. "}
               The tender documents cannot be submitted until they are. Take the organisation&apos;s setting here; if the organisation has not set them, set them under{" "}
               <Link href={switches.configHref} className="font-semibold">Configuration, Scope and estimate</Link>, where a second person issues the change.
             </Callout>
@@ -68,12 +68,12 @@ export function ScopeSection({ d }: { d: Data }) {
         <CardHeader
           icon={<UsersIcon size={17} />}
           title={readOnly ? "Earlier specification panel" : "Specification panel"}
-          subtitle={readOnly ? "Kept as it was recorded. This exercise does not use a specification panel, so nothing more is recorded on it." : panel.statement}
+          subtitle={readOnly ? "Kept as recorded. No specification panel." : panel.statement}
           actions={<Badge tone={STATE_TONE[panel.state]} dot>{panel.stateLabel}</Badge>}
         />
         {panel.id == null ? (
           <EmptyState size="sm" title="The panel has not been started" action={<EditPanelDrawer exerciseId={exercise.id} isNew raw={panel.raw} kinds={panel.options.contractKinds} statuses={panel.options.projectStatuses} bills={panel.options.bills} clearsVerifications={false} />}>
-            Record its contract kind, status and revisions; then who verified each column of the signed form, and attach the form itself.
+            Record kind, status and revisions, then who verified each column.
           </EmptyState>
         ) : (
           <CardBody className="flex flex-col gap-5">
@@ -107,7 +107,7 @@ export function ScopeSection({ d }: { d: Data }) {
               <p className="mb-2 text-[12px] font-semibold text-ink-3">Verification, column by column</p>
               {columnsUnset ? (
                 <EmptyState size="sm" title="The panel's columns are not set" action={<ButtonLink href={SCOPE_CONFIG_PATH} size="sm" variant="secondary">Set them under Configuration</ButtonLink>}>
-                  The signed form&apos;s verification columns are configuration. Until they are set nothing can be verified.
+                  Verification columns not set. Nothing can be verified.
                 </EmptyState>
               ) : (
                 <ul className="divide-y divide-line/70 rounded-2xl border border-line">
@@ -150,7 +150,7 @@ export function ScopeSection({ d }: { d: Data }) {
         <OwnerAttachments
           owner={{ kind: "specificationPanel", id: panel.id }}
           title={readOnly ? "Earlier signed panel form" : "Signed panel form"}
-          subtitle="Scanned and filed as SULIT. A verified panel stands only while the scan it was verified on is live; another scan attached later counts once the panel is verified again."
+          subtitle="Filed as SULIT. Verification stands only for the scan it was made on."
           only={["SPEC_PANEL_FORM"]}
           required={{ SPEC_PANEL_FORM: true }}
         />
@@ -159,7 +159,7 @@ export function ScopeSection({ d }: { d: Data }) {
         <Card>
           <CardHeader icon={<ShieldIcon size={17} />} title="Signed panel form" subtitle="Scanned and filed as SULIT." />
           <EmptyState size="sm" title="Start the panel to attach its form">
-            The scan is filed against the panel, so the panel is saved first.
+            Save the panel first.
           </EmptyState>
         </Card>
       ))}
@@ -168,7 +168,7 @@ export function ScopeSection({ d }: { d: Data }) {
         <CardHeader
           icon={<ScaleIcon size={17} />}
           title="Scope approval"
-          subtitle={approval.fileMode ? "Whether the uploaded bill of quantities' scope is approved by the committee the sourcing method names, read from the decision at its sitting. A replaced file is a new version and is approved in its own right." : "Whether the finalised bill's scope is approved by the committee the sourcing method names, read from the decision at its sitting."}
+          subtitle={approval.fileMode ? "Committee approval of the scope, from its sitting. A replaced file needs its own." : "Committee approval of the scope, from its sitting."}
           actions={<Badge tone={approval.badge.tone} dot>{approval.badge.label}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">

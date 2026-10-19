@@ -38,11 +38,9 @@ export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
   if (!ex.openingRosterRequired) {
     return (
       <Card>
-        <CardHeader icon={<UsersIcon size={17} />} title="Opening officers" subtitle="Who will open the bids." />
+        <CardHeader icon={<UsersIcon size={17} />} title="Opening officers" />
         <CardBody>
-          <Callout tone="info" title="Its panel is picked when the opening starts">
-            This exercise was made before opening officers were named on the exercise. Its panel is drawn from the opening committee&apos;s seats when the opening starts, as it was when it was made.
-          </Callout>
+          <p className="text-[13.5px] text-ink-2">Panel is drawn when the opening starts.</p>
         </CardBody>
       </Card>
     );
@@ -63,19 +61,19 @@ export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
     <div className="flex flex-col gap-6">
       {!roster.input.committee && (
         <Callout tone="warn" title={roster.input.committeeCode ? "The opening committee is not configured" : "The method names no opening committee"} action={<ButtonLink href="/configuration/reference-data" size="sm" variant="secondary">Open Reference data</ButtonLink>}>
-          Opening officers are drawn from the committee the method names. Until it is set, nobody can be named, and the documents cannot be submitted.
+          Nobody can be named. Documents cannot be submitted.
         </Callout>
       )}
       {roster.input.committee && size == null && (
         <Callout tone="warn" title="The number of opening officers is not set" action={<ButtonLink href="/configuration/committees" size="sm" variant="secondary">Open Committees</ButtonLink>}>
-          It is the panel size of {roster.input.committee.name}, set under {SETTING_AT.committee}. Until it is set, nobody can be named and the documents cannot be submitted.
+          Panel size of {roster.input.committee.name} is set under {SETTING_AT.committee}. Nobody can be named until then.
         </Callout>
       )}
       <Card className="overflow-hidden">
         <CardHeader
           icon={<UsersIcon size={17} />}
           title="Opening officers"
-          subtitle="Who will open the bids. They are named before the documents are submitted."
+          subtitle="Named before documents are submitted"
           actions={
             <span className="flex flex-wrap items-center gap-2">
               {size != null && <Badge tone={complete ? "ok" : "warn"}>{`${roster.rows.length} of ${size} named`}</Badge>}
@@ -93,7 +91,7 @@ export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
             ]}
           />
           {roster.rows.length === 0 ? (
-            <EmptyState size="sm" title="Nobody is named yet">{acts.name.allowed ? "Name the officers who will open the bids. Each must hold a seat on the opening committee." : acts.name.reason}</EmptyState>
+            <EmptyState size="sm" title="Nobody named">{acts.name.allowed ? null : acts.name.reason}</EmptyState>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-line">
               <OfficersList

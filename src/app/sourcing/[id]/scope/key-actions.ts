@@ -48,7 +48,7 @@ async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, e
 /// What the database refused at a write or the commit, said in words. Anything else is a defect and is thrown.
 function refusedByDatabase(e: unknown): FormState | null {
   const code = sealedSqlState(e);
-  if (code === "PA017") return { ok: false, message: "Nothing was saved: the closing has passed, or this exercise does not take bids online, or a key change was not recorded with it. Reload and try again." };
+  if (code === "PA017") return { ok: false, message: "Not saved: closing has passed, or the exercise is not online. Reload." };
   if (code === "PA019") return { ok: false, message: `Nothing was saved: ${PEPPER_WRAP_WORDS.PEPPER_NOT_SET}` };
   if (code === "PA014") return { ok: false, message: "Nothing was saved: a sealed record never changes once written. Reload and try again." };
   return null;
@@ -171,7 +171,7 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
       // Not a re-key: the key and every bid sealed to it stay as they are. The departing officer now releases their share to this key.
       await audit(tx, toAuditActor(actor), l.org.id, "OfficerExerciseKey", officerKeyId, labelOf(l, `Share · ${mine!.name}`), "CREATE", diffFields(null, { officer: mine!.name, seat: mine!.seatLabel, replacedEarlierShare: own ? "yes" : "no", wrappedWithPepper: wrapped.pepperId ? "yes" : "no", forSubstitutionOf: waiting.departing.name }), reason);
       await act.write(tx, officerKeyId, { document: { entity: "ExerciseOpeningOfficer", id: row.id }, roleCode: mine!.seatLabel });
-      return { ok: true, message: `Your share is set. ${waiting.departing.name} has now to release their share to you, with their own passphrase. Until they do, the opening cannot start. Every named officer is needed to open the bids, and a forgotten passphrase cannot be recovered.` };
+      return { ok: true, message: `Share set. ${waiting.departing.name} must release theirs before opening can start.` };
     }
 
     let madeFingerprint: string | null = null;
@@ -206,10 +206,10 @@ export async function setOfficerShare(_prev: FormState, data: FormData): Promise
     );
     await act.write(tx, officerKeyId, { document: { entity: "ExerciseOpeningOfficer", id: row.id }, roleCode: mine!.seatLabel });
 
-    if (madeFingerprint) return { ok: true, message: "Your share is set. Every named officer has now set theirs, so the key is made. Every named officer is needed to open the bids, and a forgotten passphrase cannot be recovered." };
+    if (madeFingerprint) return { ok: true, message: "Share set. The key is made." };
     const after = await loadCeremony(tx, l.org.id, exerciseId);
     const n = after.state.missing.length;
-    return { ok: true, message: `Your share is set. ${n === 0 ? "At least two opening officers must be named before the key can be made." : n === 1 ? "One officer has still to set theirs." : `${n} officers have still to set theirs.`} Every named officer is needed to open the bids, and a forgotten passphrase cannot be recovered.` };
+    return { ok: true, message: `Share set. ${n === 0 ? "Name at least two opening officers." : n === 1 ? "One officer still to set theirs." : `${n} officers still to set theirs.`}` };
   });
   if (refusal.code) await refuse("SHARE_SET", refusal.code);
   return out;
@@ -252,7 +252,7 @@ export async function rekeyExercise(_prev: FormState, data: FormData): Promise<F
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseSealingKey", changed.made.keyId, labelOf(l, "Exercise key"), "CREATE", diffFields(null, { keyFingerprint: changed.made.fingerprint, officersHoldingShares: changed.made.officerCount, replacesFingerprint: changed.from.fingerprint, draftsDiscarded: changed.discarded }), reason);
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, labelOf(l, "Key change"), "UPDATE", diffFields({ publishedKeyFingerprint: changed.from.fingerprint }, { publishedKeyFingerprint: changed.made.fingerprint }), reason);
     await act.write(tx, changed.changeId, { document: { entity: "SourcingExercise", id: exerciseId }, roleCode: mine!.seatLabel });
-    return { ok: true, message: `The key is changed. ${changed.discarded === 0 ? "No supplier had a part waiting." : `${changed.discarded} part${changed.discarded === 1 ? "" : "s"} suppliers had uploaded under the old key ${changed.discarded === 1 ? "was" : "were"} discarded and recorded.`} A company estimate lodged under the old key must be lodged again.` };
+    return { ok: true, message: `Key changed. ${changed.discarded === 0 ? "No supplier uploads discarded." : `${changed.discarded} supplier upload${changed.discarded === 1 ? "" : "s"} discarded.`} Lodge the company estimate again.` };
   });
   if (refusal.code) await logCeremonyRefusal(db, { organisationId: actor.organisationId, exerciseId, kind: "KEY_RETIRED", staffPersonId: actor.personId, reasonCode: refusal.code });
   return out;
@@ -290,5 +290,5 @@ export async function checkUnlock(_prev: FormState, data: FormData): Promise<For
   if (!unlocked.ok) return { ok: false, message: unlockRefusalWords(unlocked) };
   zero(unlocked.privateKey);
   await logSealedGranted({ organisationId: actor.organisationId, exerciseId, kind: "UNLOCK_CHECK", staffPersonId: actor.personId, recordId: unlocked.officerKeyId, at: new Date() });
-  return { ok: true, message: "Your passphrase unlocks your key for this exercise. Nothing was opened and no share was released." };
+  return { ok: true, message: "Passphrase unlocks your key. Nothing opened." };
 }

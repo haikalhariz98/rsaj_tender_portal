@@ -59,7 +59,7 @@ describe("the worked example, read from CSV", () => {
     expect(q.faults).toEqual([]);
     expect(q.keyedMismatches).toEqual([{ line: 3, keyed: sen("228091.00"), computed: sen("228091.20") }]);
     expect(bqTotals(q.sections.flatMap((s) => s.items), true).total).toBe(sen("317973.70"));
-    expect(keyedMismatchText(q.keyedMismatches[0])).toMatch(/^Line 3: the file says .*228,091\.00.*228,091\.20.*ignored\.$/);
+    expect(keyedMismatchText(q.keyedMismatches[0])).toMatch(/^Line 3: file says .*228,091\.00.*228,091\.20.*ignored\.$/); // 0005, founder 2026-10-19: cut to what the figures are
   });
   it("round trips: exported priced, read back, the same lines and totals", () => {
     const frozen: FrozenBq = { versionNo: 1, sections: p.sections };
@@ -135,7 +135,7 @@ describe("parseBqCsv: every rule refuses on its own, with its line, and nothing 
     expect(one("1,A,1.1,Pipe,m,,1000000000000000,,,").faults).toEqual([{ code: "TOO_LARGE", level: "block", line: 2, data: { field: "quantity" } }]);
     expect(one("1,A,1.1,Pipe,m,,,10000000000000000.00,,").faults).toEqual([{ code: "TOO_LARGE", level: "block", line: 2, data: { field: "rate" } }]);
     expect(one("1,A,1.1,Pipe,m,,2,9999999999999999.99,,").faults).toEqual([{ code: "TOO_LARGE", level: "block", line: 2, data: { field: "amount" } }]);
-    expect(csvFaultText({ code: "TOO_LARGE", level: "block", line: 2, data: { field: "amount" } })).toBe("Line 2: Quantity times rate is too large to record: a line's amount holds at most 16 digits before the decimal point.");
+    expect(csvFaultText({ code: "TOO_LARGE", level: "block", line: 2, data: { field: "amount" } })).toBe("Line 2: Amount too large: at most 16 digits before the decimal point."); // 0005, founder 2026-10-19
     expect(blocks(one("1,A,1.1,Pipe,m,,1,2.00,,maybe").faults)).toEqual(["PROVISIONAL_UNKNOWN"]);
     expect(blocks(one("1,A,1.1,Pipe,m,Prime cost sum,1,2.00,,Yes").faults)).toEqual(["PROVISIONAL_NOT_MEASURED"]);
     // An amount that is not an amount is not compared; it warns and is ignored.
@@ -231,14 +231,14 @@ describe("import bounds: what the editor takes, and what one import records", ()
     expect(parseBqCsv(`${H}\n${row({ sec: "x".repeat(20), title: "t".repeat(300), item: "i".repeat(40), desc: "d".repeat(4000), unit: "u".repeat(40) })}`).faults).toEqual([]);
     const over = parseBqCsv(`${H}\n${row({ sec: "x".repeat(21), title: "t".repeat(301), item: "i".repeat(41), desc: "d".repeat(4001), unit: "u".repeat(41) })}`);
     expect(over.faults.map((f) => [f.code, f.data?.column])).toEqual([["TEXT_TOO_LONG", "Section"], ["TEXT_TOO_LONG", "Section title"], ["TEXT_TOO_LONG", "Item"], ["TEXT_TOO_LONG", "Description"], ["TEXT_TOO_LONG", "Unit"]]);
-    expect(csvFaultText(over.faults[0])).toBe("Line 2: The section number is longer than 20 characters, the most the bill takes. Shorten it in the file.");
+    expect(csvFaultText(over.faults[0])).toBe("Line 2: section number exceeds 20 characters. Shorten it."); // 0005, founder 2026-10-19
   });
   it(`at most ${BQ_CSV_MAX_LINES} lines in one import: exactly that many is taken, one more is refused`, () => {
     const lines = (n: number) => [H, ...Array.from({ length: n }, () => row())].join("\n");
     expect(parseBqCsv(lines(BQ_CSV_MAX_LINES)).faults).toEqual([]);
     const over = parseBqCsv(lines(BQ_CSV_MAX_LINES + 1));
     expect(over.faults).toEqual([{ code: "TOO_MANY_LINES", level: "block", line: 1, data: { lines: BQ_CSV_MAX_LINES + 1, max: BQ_CSV_MAX_LINES } }]);
-    expect(csvFaultText(over.faults[0])).toMatch(/^Line 1: The file has 2,001 lines; one import takes at most 2,000\. Nothing was imported\./);
+    expect(csvFaultText(over.faults[0])).toMatch(/^Line 1: 2,001 lines; one import takes at most 2,000\. Nothing imported\./); // 0005, founder 2026-10-19
   });
 });
 

@@ -54,7 +54,7 @@ export const withheldVersion = (versionNo: number) => `Withheld from view, held 
 
 /// OD-7 and the BQ tab (OD-8).
 export const FIRM_NOT_STATED = "Not stated";
-export const BQ_READABLE_STATEMENT = "Priced rates, amounts and totals are SULIT: they are read by the people named on the exercise and the roles the organisation has chosen, and every reading is logged. The bill issued to tenderers is unpriced.";
+export const BQ_READABLE_STATEMENT = "Rates, amounts and totals are SULIT: read only by people named on the exercise and chosen roles. Every reading is logged. Tenderers get an unpriced bill.";
 export const NOT_SET = "Not set";
 /// Where a configured value came from (the three-state honesty of AGENTS.md).
 export const PROVENANCE_LABEL: Readonly<Record<"STATED" | "OBSERVED" | "ASSUMED", string>> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
@@ -64,7 +64,7 @@ export const NO_LIMIT = "No limit set";
 /// "3 of 6", which reads as three of six having done it.
 export const signatoriesText = (people: number, limit: number | null) => (limit == null ? `${people} · ${NO_LIMIT}` : `${people} (at most ${limit})`);
 /// The lead-time reading (OD-3), shown with it.
-export const LEAD_READING = "Ready when the last version was made on or before the closing day less the lead (an assumed reading).";
+export const LEAD_READING = "Ready when the last version is made by closing day less the lead (assumed).";
 
 const money = (s: Sen | null | undefined) => (s == null ? NOT_SET : formatSen(s));
 export const firmValueText = (s: Sen | null) => (s == null ? FIRM_NOT_STATED : formatSen(s));
@@ -83,7 +83,7 @@ export function leadTimeText(l: { state: LeadState; lastPermittedDay?: string; l
     case "CLOSING_NOT_SET":
       return "Closing not set: the closing date is recorded when the tender documents are approved.";
     case "TIME_ZONE_NOT_SET":
-      return "The organisation's time zone is not set, so the closing day is not known. Set it under Configuration, Organisation.";
+      return "Time zone not set. Closing day unknown.";
   }
 }
 
@@ -107,17 +107,17 @@ export function sharePercentText(exact: string): string {
 /// needed (with where that came from), not set (never read as "not needed"), or needed.
 export type EstimateEmpty = "NOT_NEEDED" | "RULE_NOT_SET" | "METHOD_GONE" | "NEEDED";
 export function estimateEmptyState(rule: { required: boolean | null; provenance: string | null } | null, voidedBefore: boolean): { state: EstimateEmpty; title: string; body: string } {
-  if (rule == null) return { state: "METHOD_GONE", title: "No company estimate yet", body: "The exercise's sourcing method is no longer configured, so whether an estimate is needed is not known. Configure it under Configuration, Reference data." };
+  if (rule == null) return { state: "METHOD_GONE", title: "No company estimate yet", body: "Sourcing method no longer set. Estimate need unknown." };
   if (rule.required == null) return { state: "RULE_NOT_SET", title: "Whether one is needed is not set", body: `Whether this sourcing method needs a company estimate is not set. ${SET_IT}` };
   if (rule.required === false) {
     const how = rule.provenance ? (PROVENANCE_LABEL as Record<string, string>)[rule.provenance]?.toLowerCase() : null;
-    return { state: "NOT_NEEDED", title: `Not needed for this method${how ? ` (${how})` : ""}`, body: "The sourcing method does not ask for a company estimate. One can still be prepared if the department wants it." };
+    return { state: "NOT_NEEDED", title: `Not needed for this method${how ? ` (${how})` : ""}`, body: "Method asks for no company estimate. One may still be prepared." };
   }
   return { state: "NEEDED", title: "No company estimate yet", body: voidedBefore ? "The earlier estimate was voided. A new officer prepares a fresh one from version 1." : "Prepare it before the tender documents go for approval: this sourcing method asks for one." };
 }
 
 /// Said on the Amend drawer for an estimate already lodged: the lodged copy is then behind.
-export const AMEND_LODGED_NOTE = "This estimate is already lodged. Amending it makes a new version, and the new version has to be lodged again before the documents go for approval.";
+export const AMEND_LODGED_NOTE = "Already lodged. Amending makes a new version to lodge again.";
 
 /// The lead-time state as a short badge, and how seriously it reads.
 export const LEAD_STATE_BADGE: Readonly<Record<LeadState, { label: string; tone: "ok" | "warn" | "err" | "neutral" }>> = {
@@ -133,11 +133,11 @@ export const LEAD_STATE_BADGE: Readonly<Record<LeadState, { label: string; tone:
 const CSV_COLUMN_WORDS: Readonly<Record<string, string>> = { Section: "section number", "Section title": "section title", Item: "item reference", Description: "description", Unit: "unit" };
 
 /// A figure past its column's precision (Decimal(18, 3) quantities, Decimal(18, 2) money): fixed sentences, never the figure.
-const TOO_LARGE_TEXT = "The figure is too large to record: an amount holds at most 16 digits before the decimal point.";
+const TOO_LARGE_TEXT = "Too large: at most 16 digits before the decimal point.";
 const SIZE_TEXT: Readonly<Record<string, string>> = {
   quantity: "The quantity is too large to record: at most 15 digits before the decimal point.",
   rate: "The rate is too large to record: at most 16 digits before the decimal point.",
-  amount: "Quantity times rate is too large to record: a line's amount holds at most 16 digits before the decimal point.",
+  amount: "Amount too large: at most 16 digits before the decimal point.",
 };
 
 export type ScopeCode =
@@ -193,7 +193,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   // bq.ts
   NOT_DRAFT: "Only a draft is changed or finalised. Start a revision to change a finalised bill.",
   EXERCISE_CANCELLED: "The exercise is cancelled, so its scope, bill and estimate are not changed.",
-  PACK_FROZEN: "The exercise's tender documents were submitted on this bill and panel, so neither changes now. They change once the documents are returned for amendment; after approval for tendering, a change is an addendum under Publishing on Tender documents, or cancel the exercise.",
+  PACK_FROZEN: "Documents submitted on this bill and panel. Change after a return, or by addendum.",
   NO_ITEMS: "The bill has no lines. Add its sections and lines first.",
   ITEM_INCOMPLETE: (d) => `${d.count === 1 ? "One line has" : d.count != null ? `${d.count} lines have` : "Some lines have"} no description, quantity or rate${d.first ? ` (the first is ${d.first})` : ""}. Complete ${d.count === 1 ? "it" : "them"} before finalising.`,
   SCOPED_BY_NOT_SET: "Say who scoped the work.",
@@ -202,8 +202,8 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   DEPARTURES_REQUIRED: "The bill does not follow the measurement standard: state its departures.",
   PREPARER_REQUIRED: "Name who prepared the bill.",
   QUALIFICATION_NOT_SET: `The qualification a bill's preparer must hold is not set. ${SET_IT}`,
-  PREPARER_NOT_QUALIFIED: (d) => `The preparer does not hold ${d.qualification ?? "the configured qualification"} on ${d.on ? formatDate(String(d.on)) : "today"}. Record their qualification under Configuration, Scope and estimate (Qualifications), or name a qualified preparer.`,
-  TIME_ZONE_NOT_SET: "The organisation's time zone is not set, so today is not known. Set it under Configuration, Organisation.",
+  PREPARER_NOT_QUALIFIED: (d) => `Preparer lacks ${d.qualification ?? "the qualification"} on ${d.on ? formatDate(String(d.on)) : "today"}. Record it under Configuration, Scope and estimate, or name another.`,
+  TIME_ZONE_NOT_SET: "Time zone not set. Today unknown.",
   DRAFT_EXISTS: "A revision is already being drafted. Finalise it, or carry on editing it.",
   ALREADY_STARTED: "The bill is already started. Edit its draft, or start a revision of the finalised version.",
   NOTHING_FINALISED: "A revision follows a finalised version. Finalise the draft first.",
@@ -213,18 +213,18 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   COLUMN_UNVERIFIED: (d) => `${d.column ?? "A column"} is not verified yet. Record who verified it.`,
   OVER_SIGNATORY_LIMIT: (d) => (d.signatories != null && d.limit != null ? `${d.signatories} people verified the panel; the form allows ${d.limit}.` : "More people verified the panel than the form allows.") + " Clear a verification and record it under a person already named.",
   LIMIT_NOT_SET: `No signatory limit is set, so the number of verifiers is not checked. ${SET_IT}`,
-  LISTS_NOT_SET: `The lists of contract kinds and project statuses are not set, so each is specified in words. ${SET_IT}`,
+  LISTS_NOT_SET: `Contract kinds and project statuses not set. Describe in words. ${SET_IT}`,
   KIND_NOT_SET: "Choose the contract kind, or specify it.",
   STATUS_NOT_SET: "Choose the project status, or specify it.",
-  BQ_NOT_NAMED: "The contract basis is let on a bill of quantities: name the finalised bill the panel certifies.",
+  BQ_NOT_NAMED: "Name the finalised bill the panel certifies.",
   // Two findings share this code: the panel's (names a bill that is not the finalised one) and the
   // documents' readiness (no finalised bill). Only the readiness one carries `started`.
   BQ_NOT_FINALISED: (d) =>
     d.started == null
       ? "The bill the panel names is not the finalised one. Name the finalised version."
       : d.started === 0
-        ? "The bill of quantities is not started. Start and finalise it under Scope and estimate, Bill of quantities."
-        : "The bill of quantities has no finalised version yet. Finalise it under Scope and estimate, Bill of quantities.",
+        ? "Bill of quantities not started. Start and finalise it."
+        : "Bill of quantities has no finalised version. Finalise it.",
   SCAN_REQUIRED: "Attach the signed panel form, scanned and filed as SULIT, before marking the panel verified.",
   COLUMN_UNKNOWN: "That column is not configured. Choose one from the panel form.",
   ALREADY_VERIFIED: "That column is already verified. Edit the panel to clear its verifications first.",
@@ -236,14 +236,14 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   // estimate.ts
   NOT_POSITIVE: "Give the estimate as an amount above zero, to the sen.",
   PERSON_REQUIRED: "Name the person.",
-  SECOND_PREPARER: "An estimate has one preparer. If they cannot continue, void this estimate before it is lodged and a new officer prepares a fresh one.",
+  SECOND_PREPARER: "One preparer only. If they cannot continue, void it before lodging.",
   AFTER_CLOSING: "The closing date has passed, so the estimate is not amended.",
   CLOSING_NOT_SET: "Closing not set: amendments are checked against the closing date once the tender documents are approved.",
   DISCLOSED: "The estimate was disclosed at opening, so it is not changed.",
   VOID: "This estimate is void. Prepare a fresh one.",
-  LIVE_ESTIMATE_EXISTS: "This exercise already has an estimate that is not void. Amend it, or void it before it is lodged.",
+  LIVE_ESTIMATE_EXISTS: "An estimate already exists. Amend it, or void it before lodging.",
   ALREADY_VOID: "This estimate is already void.",
-  AFTER_LODGEMENT: "A lodged estimate is not voided: it stands as lodged and is amended only by its preparer before closing.",
+  AFTER_LODGEMENT: "Lodged estimates stand. Only the preparer amends, before closing.",
   ALREADY_LODGED: "The current version is already lodged.",
   NOT_LODGED: "Lodge the estimate first.",
   PLACE_REQUIRED: "Say where the retained copy is kept.",
@@ -258,45 +258,45 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   // pack.ts
   BASIS_NOT_CHOSEN: "Choose the exercise's contract basis by editing the exercise.",
   BASIS_BQ_NOT_SET: `Whether the contract basis is let on a bill of quantities is not set. ${SET_IT}`,
-  BQ_REVISION_OPEN: "A revision of the bill is being drafted; the finalised version is the one that goes with the documents.",
-  SPEC_PANEL_SWITCH_NOT_SET: "Whether this exercise uses a specification panel is not set. Take the organisation's setting under Scope and estimate, Scope; if the organisation has not set it, set it under Configuration, Scope and estimate.",
-  BILL_SWITCH_NOT_SET: "Whether this exercise builds its bill of quantities on screen is not set. Take the organisation's setting under Scope and estimate, Scope; if the organisation has not set it, set it under Configuration, Scope and estimate.",
+  BQ_REVISION_OPEN: "Revision in draft. The finalised version goes with the documents.",
+  SPEC_PANEL_SWITCH_NOT_SET: "Specification panel is not set. Take the organisation's setting under Scope and estimate, Scope.",
+  BILL_SWITCH_NOT_SET: "Bill of quantities on screen is not set. Take the organisation's setting under Scope and estimate, Scope.",
   PANEL_NOT_VERIFIED: "The specification panel is not verified. Complete it under Scope and estimate, Scope.",
-  PANEL_SCAN_GONE: "The scan of the signed form the panel was verified on has been withdrawn or taken off, so the panel no longer counts as verified. A scan attached since does not count by itself: make sure a SULIT scan of the signed form is attached, then use Mark verified on the panel to verify it again.",
-  PANEL_BILL_SUPERSEDED: (d) => `The specification panel was verified on version ${d.panelVersion ?? "?"} of the bill, which is no longer the finalised one${d.current != null ? ` (version ${d.current} is)` : ""}. Edit the panel under Scope and estimate, Scope to name the current bill, then verify it again.`,
+  PANEL_SCAN_GONE: "Verified scan withdrawn, so the panel is not verified. Attach a SULIT scan, then verify again.",
+  PANEL_BILL_SUPERSEDED: (d) => `Panel verified on bill version ${d.panelVersion ?? "?"}, no longer the finalised one${d.current != null ? ` (version ${d.current} is)` : ""}. Name the current bill, then verify again.`,
   METHOD_NOT_CONFIGURED: "The exercise's sourcing method is no longer configured. Configure it under Configuration, Reference data.",
   ESTIMATE_RULE_NOT_SET: `Whether this sourcing method needs a company estimate is not set. ${SET_IT}`,
   ESTIMATE_NOT_LODGED: "The company estimate is not lodged. Prepare and lodge it under Scope and estimate, Company estimate.",
   ESTIMATE_BEHIND: "The estimate was amended after it was lodged. Lodge the current version.",
   SCOPE_RULE_NOT_SET: `Whether this sourcing method needs its scope approved by a committee is not set. ${SET_IT}`,
-  SCOPE_COMMITTEE_NOT_SET: `This sourcing method needs its scope approved by a committee, and which committee is not set. ${SET_IT}`,
-  SCOPE_ACT_NOT_SET: `This sourcing method needs its scope approved by a committee, and the act the committee discharges on it is not set, so nothing is tabled and no decision reads as approval. ${SET_IT}`,
+  SCOPE_COMMITTEE_NOT_SET: `Scope needs committee approval. Committee not set. ${SET_IT}`,
+  SCOPE_ACT_NOT_SET: `The act the committee discharges on scope is not set, so nothing is tabled. ${SET_IT}`,
   SCOPE_NOT_APPROVED: (d) => `The scope is not approved: ${scopeStateText((d.state as ScopeApprovalState) ?? "NOT_TABLED", d.file === 1)} See Scope and estimate, Scope.`,
   // SR-08, SR-09 and the take-the-setting act
-  ALREADY_SUBMITTED: "The tender documents have been submitted on this exercise, so its switches are frozen. They change only if the exercise is cancelled and made again.",
+  ALREADY_SUBMITTED: "Documents submitted. Switches frozen.",
   NOTHING_TO_TAKE: "Both switches are already set on this exercise, so there is nothing to take.",
-  SETTING_NOT_SET: (d) => `The organisation has not set "${d.switch ?? "this switch"}". Set it under Configuration, Scope and estimate; it is a proposal a second person issues. Then take it here.`,
-  PANEL_NOT_USED: "This exercise does not use a specification panel, so nothing is recorded on it. An earlier panel stays readable.",
+  SETTING_NOT_SET: (d) => `The organisation has not set "${d.switch ?? "this switch"}". Set it under Configuration, Scope and estimate.`,
+  PANEL_NOT_USED: "No specification panel. An earlier one stays readable.",
   PANEL_SWITCH_NOT_SET: "Whether this exercise uses a specification panel is not set. Take the organisation's setting first.",
-  BILL_NOT_ON_SCREEN: "This exercise does not build its bill of quantities on screen. The bill is an uploaded file under Tender documents. An earlier bill stays readable.",
-  BILL_SWITCH_NOT_SET_ACT: "Whether this exercise builds its bill of quantities on screen is not set. Take the organisation's setting first.",
+  BILL_NOT_ON_SCREEN: "Bill is an uploaded file under Tender documents. An earlier bill stays readable.",
+  BILL_SWITCH_NOT_SET_ACT: "Bill of quantities mode not set. Take the organisation's setting.",
   SWITCH_INVALID: "Choose used or not used.",
   NO_BILL_FILE: "There is no bill of quantities file to table. Upload it under Tender documents first.",
   // scope-matter.ts
-  SCOPE_NOT_REQUIRED: "This sourcing method does not ask for its scope to be approved by a committee, so nothing is tabled.",
+  SCOPE_NOT_REQUIRED: "Method needs no committee scope approval.",
   VERSION_NOT_FINALISED: "Only the finalised bill is tabled. Finalise the draft first.",
   OTHER_EXERCISE: "That bill belongs to another exercise.",
-  OTHER_COMMITTEE: "That sitting is of another committee. Scope is tabled at a sitting of the committee the sourcing method names.",
-  OTHER_ACT: "Scope is tabled under the act the sourcing method names, and no other. Change the act under Configuration, Scope and estimate if it is wrong.",
-  SITTING_CLOSED: "That sitting is minuted or cancelled, so nothing more is tabled at it. Choose a sitting that is scheduled or in progress, or schedule one under Committees.",
+  OTHER_COMMITTEE: "Wrong committee. Table scope at the method's committee.",
+  OTHER_ACT: "Scope is tabled under the method's act only.",
+  SITTING_CLOSED: "Sitting is minuted or cancelled. Choose a scheduled one.",
   SCOPE_ALREADY_WAITING: (d) =>
-    `This version is already tabled${d.sitting ? ` at ${d.sitting}` : ""} and waiting for the decision.${d.tabledUnderEarlierRule ? " It was tabled under the rule configured then; to table it under today's, withdraw it from that sitting first." : ""}`,
+    `This version is already tabled${d.sitting ? ` at ${d.sitting}` : ""} and waiting for the decision.${d.tabledUnderEarlierRule ? " Tabled under an earlier rule. Withdraw it to use today's." : ""}`,
   SCOPE_ALREADY_APPROVED: "The scope of this version is already approved.",
-  SCOPE_RETURNED: "The committee returned this version. Start a revision of the bill, finalise it, and table the new version.",
-  SCOPE_ENDED: "The committee ended this matter, so this version is not tabled again. Revise the bill and table the new version, or cancel the exercise.",
+  SCOPE_RETURNED: "Committee returned this version. Revise, finalise and table it again.",
+  SCOPE_ENDED: "Committee ended this matter. Revise and table a new version, or cancel.",
   // rates.ts
-  SCHEDULE_NOT_IN_FORCE: (d) => `No issue of ${d.schedule ?? "that schedule"} is in force on ${d.on ? formatDate(String(d.on)) : "today"}. Issue one under Configuration, Scope and estimate, or enter the rate.`,
-  ITEM_NOT_IN_ISSUE: (d) => `Issue ${d.issue ?? ""} of ${d.schedule ?? "the schedule"} has no item ${d.item ?? "of that code"}. Choose an item of the issue in force.`,
+  SCHEDULE_NOT_IN_FORCE: (d) => `No issue of ${d.schedule ?? "that schedule"} is in force on ${d.on ? formatDate(String(d.on)) : "today"}. Enter the rate.`,
+  ITEM_NOT_IN_ISSUE: (d) => `Issue ${d.issue ?? ""} of ${d.schedule ?? "the schedule"} has no item ${d.item ?? "of that code"}.`,
   ISSUE_FROZEN: "This issue is issued, so it is not changed. Start a new issue of the schedule.",
   LABEL_REQUIRED: "Name the schedule.",
   ITEM_CODE_REQUIRED: "Give the item's code.",
@@ -304,9 +304,9 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   RATE_NEGATIVE: "A rate is not below zero.",
   ISSUE_NO_ITEMS: "The issue has no items. Add them before issuing it.",
   EFFECTIVE_REQUIRED: "Give the day the issue takes effect from.",
-  EFFECTIVE_NOT_AFTER_CURRENT: (d) => `Issue ${d.issue ?? ""} took effect on ${d.current ? formatDate(String(d.current)) : "an earlier day"}. A new issue takes effect after that day.`,
+  EFFECTIVE_NOT_AFTER_CURRENT: (d) => `Issue ${d.issue ?? ""} took effect on ${d.current ? formatDate(String(d.current)) : "an earlier day"}. Start the new one later.`,
   ISSUER_REQUIRED: "Name who issued it.",
-  ISSUE_DRAFT_EXISTS: "A draft issue of this schedule is already open. Carry on with it, or issue it first.",
+  ISSUE_DRAFT_EXISTS: "A draft issue is already open. Continue it or issue it.",
   // the acts
   NO_ORGANISATION: "No organisation is configured. Run npm run setup first.",
   EXERCISE_GONE: "That exercise no longer exists.",
@@ -314,9 +314,9 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   PERSON_UNKNOWN: "Choose someone on record and active.",
   CHANGED: "The record changed while this was being saved. Reload and try again.",
   QUANTITY_INVALID: "Give the quantity as a number, to three decimal places at most.",
-  SECTION_NUMBER_REPEATED: (d) => `Section ${d.numbers ?? ""} is used more than once in this version. Give each section its own number, or move the lines into one section and remove the other.`,
+  SECTION_NUMBER_REPEATED: (d) => `Section ${d.numbers ?? ""} is used more than once. Give each its own number.`,
   RATE_INVALID: "Give the rate as an amount, to the sen.",
-  TIMED_OUT: "Nothing was saved: this took longer than one save is allowed, so all of it was undone. Try again; for an import, a shorter file goes through.",
+  TIMED_OUT: "Not saved: took too long, all undone. Try again, or use a shorter file.",
   TOO_LARGE: (d) => SIZE_TEXT[d.field as string] ?? TOO_LARGE_TEXT,
   VALUE_INVALID: "Give the estimate as an amount, to the sen.",
   PROVENANCE_REQUIRED: "Say where this comes from: stated, observed or assumed.",
@@ -327,9 +327,9 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   FILE_NOT_CSV: "The file stored is not a CSV file. Upload the bill as a .csv file.",
   FILE_UNREADABLE: "The stored file could not be read back. Upload it again.",
   FILE_REFUSED: "The file was not imported. Correct it and upload it again.",
-  DRAFT_NOT_EMPTY: "The draft already has lines. Tick “Replace the draft's lines” to import over them, or remove them first.",
+  DRAFT_NOT_EMPTY: "Draft has lines. Tick “Replace the draft's lines”, or remove them.",
   NO_DRAFT: "A file is imported into a draft. Start the bill, or a revision of it, first.",
-  NO_OPEN_SITTING: (d) => `No sitting of the ${d.committee ?? "committee"} is scheduled or in progress. Schedule one under Committees, then table the scope there.`,
+  NO_OPEN_SITTING: (d) => `No ${d.committee ?? "committee"} sitting scheduled. Schedule one under Committees.`,
 };
 
 /// Why the import button is off (csv.ts `importBlock`), in the words shown beside it.
@@ -358,23 +358,23 @@ export const SCOPE_STATE_TEXT: Readonly<Record<ScopeApprovalState, string>> = {
   COMMITTEE_NOT_SET: `which committee approves the scope is not set. ${SET_IT}`,
   ACT_NOT_SET: `the act the committee discharges on the scope is not set, so no decision reads as approval. ${SET_IT}`,
   NO_FINALISED_BILL: "there is no finalised bill to table yet. Finalise the bill of quantities first.",
-  NO_BILL_PART: "the sourcing method asks for the scope to be approved, and these tender documents have no bill of quantities part to upload the file to. Add the part under Configuration, Tender documents, then use Take newly configured parts on the Tender documents tab of a draft, or set under Configuration, Scope and estimate that this method does not need its scope approved.",
+  NO_BILL_PART: "the scope needs approval, and these tender documents have no bill of quantities part to upload the file to. Add the part under Configuration, Tender documents, or set under Configuration, Scope and estimate that this method needs no scope approval.",
   NOT_TABLED: "the finalised bill has not been tabled. Table it at a sitting of the committee.",
   PENDING: "the finalised bill is tabled and waiting for the committee's decision.",
   DEFERRED: "the committee deferred it. Table it again at a later sitting.",
   APPROVED: "approved by the committee.",
   RETURNED: "the committee returned it. Revise the bill, finalise the revision and table it.",
-  ENDED: "the committee ended the matter. Revise the bill and table the new version, or cancel the exercise.",
-  OUTCOME_NOT_RECORDED: "the committee did not carry it and no outcome was recorded, so it cannot be read either way. Table it again.",
+  ENDED: "the committee ended the matter. Revise and table a new version, or cancel.",
+  OUTCOME_NOT_RECORDED: "the committee did not carry it and recorded no outcome. Table it again.",
 };
 
 /// SR-09: the same states where the bill is an uploaded file rather than built on screen.
 const SCOPE_FILE_STATE_TEXT: Partial<Record<ScopeApprovalState, string>> = {
   NO_FINALISED_BILL: "no bill of quantities file is uploaded yet. Upload it under Tender documents.",
-  NOT_TABLED: "the uploaded bill of quantities has not been tabled. Table it at a sitting of the committee.",
+  NOT_TABLED: "the uploaded bill has not been tabled. Table it at a sitting.",
   PENDING: "the uploaded bill of quantities is tabled and waiting for the committee's decision.",
   RETURNED: "the committee returned it. Upload the revised file and table that version.",
-  ENDED: "the committee ended the matter. Upload the revised file and table that version, or cancel the exercise.",
+  ENDED: "the committee ended the matter. Upload a revised file and table it, or cancel.",
 };
 
 /// The words for a scope state; `file`: the bill is an uploaded file (SR-09).
@@ -434,7 +434,7 @@ export function scopeRuleMovedNote(i: { decided: boolean; tabled: string; now: s
   const then = `This matter was tabled under the rule configured then: ${i.tabled}.`;
   const now = i.now ? ` Configuration now says: ${i.now}.` : " Configuration now leaves the committee or its act not set.";
   const exit = i.decided
-    ? " The decision stands as it was taken; the rule configured today applies to what is tabled next."
+    ? " The decision stands. Today's rule applies to what is tabled next."
     : ` It is decided under the rule it was tabled under. To table the bill under today's rule instead, withdraw it${i.sitting ? ` from ${i.sitting}` : ""} and table it again.`;
   return then + now + exit;
 }
@@ -451,8 +451,8 @@ const CSV_TEXT: Readonly<Record<BqCsvFault, (d: Record<string, string | number |
   NOT_UTF8: () => "The file is not UTF-8 text. Save it from the spreadsheet as “CSV UTF-8”.",
   EMPTY_FILE: () => "The file is empty.",
   UNTERMINATED_QUOTE: () => "A quoted cell is never closed.",
-  STRAY_QUOTE: () => "A quote mark sits inside a cell that is not quoted. Quote the whole cell, doubling the quote inside it.",
-  NO_HEADER: () => `The first row is not a header. It names the columns: ${["Section", "Section title", "Item", "Description", "Unit", "Kind", "Quantity", "Rate", "Amount", "Provisional"].join(", ")}.`,
+  STRAY_QUOTE: () => "A quote mark sits in an unquoted cell. Quote the whole cell.",
+  NO_HEADER: () => `First row is not a header. Columns: ${["Section", "Section title", "Item", "Description", "Unit", "Kind", "Quantity", "Rate", "Amount", "Provisional"].join(", ")}.`,
   COLUMN_MISSING: (d) => `The header has no ${d.column ?? "required"} column.`,
   COLUMN_REPEATED: (d) => `The header names ${d.column ?? "a column"} twice.`,
   COLUMN_UNKNOWN: (d) => `The column “${d.column ?? ""}” is not one the bill reads, so it is ignored.`,
@@ -461,14 +461,14 @@ const CSV_TEXT: Readonly<Record<BqCsvFault, (d: Record<string, string | number |
   SECTION_REQUIRED: () => "Give the line's section number.",
   SECTION_TITLE_DIFFERS: (d) => `Section ${d.section ?? ""} is given another title${d.first ? ` on line ${d.first}` : ""}. Use one title per section.`,
   DESCRIPTION_REQUIRED: () => "Give the line's description.",
-  KIND_UNKNOWN: (d) => `“${d.kind ?? ""}” is not a kind of line. Use Measured work, Prime cost sum or Provisional sum, or leave it blank for measured work.`,
+  KIND_UNKNOWN: (d) => `“${d.kind ?? ""}” is not a line kind. Use Measured work, Prime cost sum or Provisional sum.`,
   QUANTITY_INVALID: (d) => `“${d.quantity ?? ""}” is not a quantity: a number, to three decimal places at most.`,
   TOO_LARGE: (d) => SIZE_TEXT[d.field as string] ?? TOO_LARGE_TEXT,
-  TEXT_TOO_LONG: (d) => `The ${CSV_COLUMN_WORDS[String(d.column)] ?? "text"} is longer than ${Number(d.max ?? 0).toLocaleString("en-GB")} characters, the most the bill takes. Shorten it in the file.`,
-  FORMULA_LIKE_CELL: (d) => `${d.columns ?? "A cell"}: starts with = + - or @, which a spreadsheet may read as a formula. It is read as text here, and the file is kept exactly as received; open it with care.`,
-  TOO_MANY_LINES: (d) => `The file has ${Number(d.lines ?? 0).toLocaleString("en-GB")} lines; one import takes at most ${Number(d.max ?? 0).toLocaleString("en-GB")}. Nothing was imported. Import the bill in a file of that length or less, and enter the rest of its lines on the draft.`,
+  TEXT_TOO_LONG: (d) => `${CSV_COLUMN_WORDS[String(d.column)] ?? "Text"} exceeds ${Number(d.max ?? 0).toLocaleString("en-GB")} characters. Shorten it.`,
+  FORMULA_LIKE_CELL: (d) => `${d.columns ?? "A cell"}: starts with = + - or @, which a spreadsheet may read as a formula. Read as text here.`,
+  TOO_MANY_LINES: (d) => `${Number(d.lines ?? 0).toLocaleString("en-GB")} lines; one import takes at most ${Number(d.max ?? 0).toLocaleString("en-GB")}. Nothing imported.`,
   RATE_INVALID: (d) => `“${d.rate ?? ""}” is not a rate: an amount to the sen, not below zero.`,
-  AMOUNT_INVALID: (d) => `“${d.amount ?? ""}” is not an amount, so it is not compared. Amounts are worked out from quantity and rate.`,
+  AMOUNT_INVALID: (d) => `“${d.amount ?? ""}” is not an amount. Not compared.`,
   PROVISIONAL_UNKNOWN: (d) => `“${d.provisional ?? ""}” is not Yes or No.`,
   PROVISIONAL_NOT_MEASURED: () => "Only measured work is marked provisional. Prime cost and provisional sums are their own kinds.",
 };
@@ -484,11 +484,11 @@ export function csvFaultText(f: Finding & { line?: number }): string {
 
 /// A typed amount that is not the one worked out: reported and ignored.
 export const keyedMismatchText = (m: { line: number; keyed: Sen; computed: Sen | null }) =>
-  `Line ${m.line}: the file says ${formatSen(m.keyed)}; quantity times rate is ${m.computed == null ? "not worked out (a quantity or rate is missing)" : formatSen(m.computed)}. The file's amount is ignored.`;
+  `Line ${m.line}: file says ${formatSen(m.keyed)}; quantity times rate is ${m.computed == null ? "not worked out" : formatSen(m.computed)}. File amount ignored.`;
 
 /// The Bill of quantities section's words for import and export.
-export const CSV_IMPORT_NOTE = "The file is kept with this version of the bill, as received. Amounts are worked out from quantity and rate; an Amount column is only compared, and differences are listed.";
-export const CSV_EXPORT_NOTE = "Built by the portal from the bill's lines only, and recorded in its history. The unpriced file has no rate or amount column.";
+export const CSV_IMPORT_NOTE = "Kept as received. An Amount column is only compared.";
+export const CSV_EXPORT_NOTE = "Built from the lines. No rate or amount column.";
 
 /// A scope matter's bill version, as the sitting names it beside the exercise's reference.
 export const scopeMatterRecordNote = (v: { versionNo: number; status: BqStatus }) =>

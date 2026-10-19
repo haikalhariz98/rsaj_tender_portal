@@ -78,7 +78,7 @@ describe("the unqualified-preparer refusal points to where qualifications are se
 describe("an estimate refusal is rendered from its code alone (refuseCodes passes no data)", () => {
   it("TOO_LARGE reads as a fixed sentence with no figure", () => {
     const t = scopeFaultText("TOO_LARGE");
-    expect(t).toBe("The figure is too large to record: an amount holds at most 16 digits before the decimal point.");
+    expect(t).toBe("Too large: at most 16 digits before the decimal point."); // 0005, founder 2026-10-19
     expect(t).not.toMatch(/\d{3,}/);
   });
 });

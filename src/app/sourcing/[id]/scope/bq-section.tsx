@@ -33,9 +33,9 @@ export function BqSection({ d }: { d: Data }) {
       <div className="flex flex-col gap-6">
         <Callout tone="neutral" title="Priced figures are SULIT">{d.statement}</Callout>
         <Card>
-          <CardHeader icon={<ScaleIcon size={17} />} title="Bill of quantities" subtitle="Sections of measured work, prime cost sums and provisional sums, each priced from a quantity and a rate." />
+          <CardHeader icon={<ScaleIcon size={17} />} title="Bill of quantities" subtitle="Measured work, prime cost and provisional sums." />
           <EmptyState size="sm" title="No bill of quantities yet" action={<StartBqDrawer exerciseId={exerciseId} templates={d.options.templates} allowed={d.actions.start} />}>
-            Start a draft, then enter its sections and lines by hand or import them from a CSV file. It is finalised, with its preparer&apos;s qualification checked, before the documents go for approval.
+            Start a draft. Finalise before documents go for approval.
           </EmptyState>
         </Card>
       </div>
@@ -51,7 +51,7 @@ export function BqSection({ d }: { d: Data }) {
     <div className="flex flex-col gap-6">
       {d.readOnly && (
         <Callout tone="info" title="Earlier record">
-          This exercise does not build its bill of quantities on screen, so this bill is kept as it was recorded and nothing more is entered on it. The bill of quantities is an uploaded file under Tender documents.
+          Kept as recorded. The bill is an uploaded file under Tender documents.
         </Callout>
       )}
       <Callout tone="neutral" title="Priced figures are SULIT">{d.statement}</Callout>
@@ -67,7 +67,7 @@ export function BqSection({ d }: { d: Data }) {
           title={
             `Version ${v.versionNo}`
           }
-          subtitle={v.header.revisionReason ? `A revision: ${v.header.revisionReason}` : "The header says who scoped and prepared the bill, and how it was measured."}
+          subtitle={v.header.revisionReason ? `A revision: ${v.header.revisionReason}` : "Who scoped, prepared and measured."}
           actions={<Badge tone={draft ? "info" : "ok"} dot>{v.status}</Badge>}
         />
         <CardBody>
@@ -111,7 +111,7 @@ export function BqSection({ d }: { d: Data }) {
         <Card>
           <CardHeader icon={<FileIcon size={17} />} title="Sections and lines" actions={editable ? <SectionDrawer exerciseId={exerciseId} versionId={v.id} /> : undefined} />
           <EmptyState size="sm" title="No sections yet">
-            A bill is made of sections, each with its lines. {editable ? "Add the first section, or import a CSV file under More." : ""}
+            A bill is made of sections, each with its lines. {editable ? "Add a section, or import under More." : ""}
           </EmptyState>
         </Card>
       ) : (
@@ -205,18 +205,18 @@ export function BqSection({ d }: { d: Data }) {
             {v.totals.state === "GRANTED" ? (
               <>
                 <Stat label="Total" value={v.totals.value.total} hint={`Builders' works ${v.totals.value.buildersWorks}`} icon={<ScaleIcon size={16} />} />
-                <Stat label="Firm value" value={dash(v.totals.value.firmValue)} hint={v.header.provisionalLeftOut === "Not stated" ? "Not stated: whether provisional quantities are left out is not said" : `Provisional quantities ${v.header.provisionalLeftOut === "Yes" ? "left out" : "counted in"}`} tone={v.totals.value.firmValue === "Not stated" ? "warn" : "brand"} icon={<ShieldIcon size={16} />} />
+                <Stat label="Firm value" value={dash(v.totals.value.firmValue)} hint={v.header.provisionalLeftOut === "Not stated" ? "Not stated" : `Provisional quantities ${v.header.provisionalLeftOut === "Yes" ? "left out" : "counted in"}`} tone={v.totals.value.firmValue === "Not stated" ? "warn" : "brand"} icon={<ShieldIcon size={16} />} />
                 <Stat label="Provisional quantities" value={v.totals.value.provisionalQuantities} hint={`${v.totals.value.provisionalShare} of the total`} icon={<SlidersIcon size={16} />} />
                 <Stat label="Prime cost sums" value={v.totals.value.primeCostSums} icon={<FilesIcon size={16} />} />
                 <Stat label="Provisional sums" value={v.totals.value.provisionalSums} icon={<ToolsIcon size={16} />} />
               </>
             ) : (
-              <Stat label="Totals" value={<SulitValue of={v.totals} />} hint="The bill's total and the sums that make it up are SULIT." icon={<ScaleIcon size={16} />} />
+              <Stat label="Totals" value={<SulitValue of={v.totals} />} hint="Total and sums are SULIT." icon={<ScaleIcon size={16} />} />
             )}
           </div>
 
           <Card>
-            <CardHeader icon={<FileIcon size={17} />} title="CSV and schedules of rates" subtitle="Import the department's bill into the draft, or export a version, built by the portal. Rates may be taken from a schedule in force." />
+            <CardHeader icon={<FileIcon size={17} />} title="CSV and schedules of rates" subtitle="Import into the draft, or export a version." />
             <CardBody className="flex flex-col gap-5">
               <div className="flex flex-col gap-2">
                 <p className="text-[12px] font-semibold text-ink-3">Import</p>
@@ -240,15 +240,15 @@ export function BqSection({ d }: { d: Data }) {
           <OwnerAttachments
             owner={{ kind: "bqVersion", id: v.id }}
             title={`Files version ${v.versionNo} was imported from`}
-            subtitle="Kept as received, with the class the officer chose. Lines imported from a file stand on it: it is replaced only by importing again."
+            subtitle="Kept as received. Replaced only by importing again."
             only={["BQ_IMPORT_SOURCE"]}
             collapseWhenEmpty
-            attachedBy={{ BQ_IMPORT_SOURCE: "Attached by Import from CSV, above, in the same step as the lines." }}
+            attachedBy={{ BQ_IMPORT_SOURCE: "Attached by Import from CSV." }}
             statuses={{ BQ_IMPORT_SOURCE: { text: "None: entered by hand", tone: "neutral" } }}
           />
 
           <Card className="overflow-hidden">
-            <CardHeader icon={<ClipboardIcon size={17} />} title="Versions" subtitle="A finalised version is never changed. A revision is a new draft that replaces it when it is finalised." divided={false} />
+            <CardHeader icon={<ClipboardIcon size={17} />} title="Versions" subtitle="Finalised versions never change. Revise with a new draft." divided={false} />
             <DataList
               flat
               selectable={false}

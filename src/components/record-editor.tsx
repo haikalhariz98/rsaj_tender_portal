@@ -12,6 +12,7 @@ import { PlusIcon, SaveIcon } from "@/components/icons";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { Callout } from "@/components/ui/feedback";
+import { MoreText } from "@/components/ui/more-text";
 import { AffixInput, Checkbox, Field, FileInput, Input, Select, Switch, Textarea } from "@/components/ui/field";
 import { REASON_HINT } from "@/lib/labels";
 import { splitValues } from "@/lib/ui/select-logic";
@@ -140,6 +141,7 @@ export type SaveAction = (prev: FormState, data: FormData) => Promise<FormState>
 export function RecordEditor({
   title,
   description,
+  more,
   icon,
   fields,
   columns = 1,
@@ -161,6 +163,9 @@ export function RecordEditor({
 }: {
   title: string;
   description?: string;
+  /// Detail behind an information button after the description (note 0005 §3.3, founder 2026-10-19): the consequence stays on the
+  /// surface, the background moves here. Also in the page as screen-reader text, so it is heard once.
+  more?: string;
   /// Shown left of the title, as the prototype's drawer head has it.
   icon?: ReactNode;
   fields: Field[];
@@ -358,7 +363,20 @@ export function RecordEditor({
               <DrawerHeader
                 icon={icon}
                 title={title}
-                subtitle={description}
+                subtitle={
+                  description || more ? (
+                    <>
+                      {description}
+                      {more && (
+                        <>
+                          {" "}
+                          <span className="sr-only">{more}</span>
+                          <MoreText text={more} label="More detail" />
+                        </>
+                      )}
+                    </>
+                  ) : undefined
+                }
                 onClose={() => setOpen(false)}
               />
 

@@ -23,32 +23,30 @@ import { WindowItemsCard, type WindowContext } from "../window/window-section";
  * Only the section named is read, so a sibling's data is never loaded.
  */
 
-function NoWindow({ c, kind }: { c: WindowContext; kind: "notice" | "briefing" }) {
+function NoWindow({ c }: { c: WindowContext }) {
   if (c.noPack) {
     return (
       <Card>
-        <EmptyState title="This exercise has no invitation window">This exercise assembles no tender or quotation documents, so there is no notice to state and nothing to advertise, invite or schedule.</EmptyState>
+        <EmptyState title="No invitation window" />
       </Card>
     );
   }
   return (
     <Card>
-      <EmptyState title={kind === "notice" ? "The notice and fee are filled in once the exercise is in preparation" : "A briefing or site visit is scheduled once the exercise is in preparation"} action={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=overview`} variant="secondary" size="sm">Open the Overview</ButtonLink>}>
-        Move the exercise into preparation first. Then the notice&apos;s items, the fee, the bids&apos; validity and any briefing or site visit are prepared here, before the documents go for approval.
-      </EmptyState>
+      <EmptyState title="Not in preparation yet" action={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=overview`} variant="secondary" size="sm">Open Overview</ButtonLink>} />
     </Card>
   );
 }
 
 export async function NoticeSection({ scope, c }: { scope: Reader; c: WindowContext }) {
-  if (c.noPack || c.status === "DRAFT") return <NoWindow c={c} kind="notice" />;
+  if (c.noPack || c.status === "DRAFT") return <NoWindow c={c} />;
   const [w, v] = await Promise.all([windowTab(scope.organisationId, c.exerciseId, await hiddenExercises(scope)), bidAnswers(scope.organisationId, c.exerciseId)]);
   if (!w || !v) return GONE;
   return (
     <div className="flex flex-col gap-6">
       {!w.hasWindow && (
-        <Callout tone="info" title="Not filled in yet">
-          The notice&apos;s items, the fee and the bids&apos; validity are filled in before the documents go for approval, and they are checked again when the exercise is published.
+        <Callout tone="warn" title="Notice not filled in">
+          Needed before documents go for approval.
         </Callout>
       )}
       <WindowItemsCard d={w} c={c} />
@@ -56,7 +54,7 @@ export async function NoticeSection({ scope, c }: { scope: Reader; c: WindowCont
         <CardHeader
           icon={<ClockIcon size={17} />}
           title="Bid validity"
-          subtitle="How long a bid stays valid, as the tender documents state it. There is no default."
+          subtitle="Days a bid stays valid. No default."
           actions={<BidAnswersDrawer exerciseId={c.exerciseId} allowed={v.allowed} values={v.values} needsReason={v.needsReason} />}
         />
         <CardBody className="flex flex-col gap-3 border-t border-line">
@@ -75,24 +73,24 @@ export async function NoticeSection({ scope, c }: { scope: Reader; c: WindowCont
 }
 
 export async function BriefingPrepSection({ scope, c }: { scope: Reader; c: WindowContext }) {
-  if (c.noPack || c.status === "DRAFT") return <NoWindow c={c} kind="briefing" />;
+  if (c.noPack || c.status === "DRAFT") return <NoWindow c={c} />;
   const [w, b] = await Promise.all([windowTab(scope.organisationId, c.exerciseId, await hiddenExercises(scope)), briefingTab(scope.organisationId, c.exerciseId)]);
   if (!w || !b) return GONE;
   const published = isPublished(c.status as ExerciseStatus);
   // An event belongs to the window, which is saved first; the server refuses it otherwise.
-  const schedule = b.schedule.allowed && !w.hasWindow ? { allowed: false as const, reason: "Fill in the notice and fee first: an event is added to the window." } : b.schedule;
+  const schedule = b.schedule.allowed && !w.hasWindow ? { allowed: false as const, reason: "Fill in the notice and fee first." } : b.schedule;
   return (
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden">
         <CardHeader
           icon={<UsersIcon size={17} />}
           title="Briefing and site visit"
-          subtitle="The notice states each one's day, time and place."
+
           actions={<ScheduleEventDrawer exerciseId={c.exerciseId} allowed={schedule} mandatoryOffered={b.mandatoryOffered} inCard />}
           divided={b.events.length === 0}
         />
         {b.events.length === 0 ? (
-          <EmptyState size="sm" title="None scheduled">{schedule.allowed ? "Schedule a tender briefing or a site visit if the notice is to state one." : schedule.reason}</EmptyState>
+          <EmptyState size="sm" title="None scheduled">{schedule.allowed ? null : schedule.reason}</EmptyState>
         ) : (
           <ul className="divide-y divide-line/70">
             {b.events.map((e) => {

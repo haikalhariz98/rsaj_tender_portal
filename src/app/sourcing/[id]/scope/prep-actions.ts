@@ -79,7 +79,7 @@ export async function saveKeyDates(_prev: FormState, data: FormData): Promise<Fo
   return inExercise(actor, exerciseIdOf(data), async (tx, l) => {
     const ex = l.ex;
     if (ex.status !== "DRAFT" && ex.status !== "DOCUMENTS_IN_PREPARATION") return { ok: false, message: DATES_LOCKED_TEXT };
-    if (ex.packKindSnapshot === "NONE") return { ok: false, message: "This exercise assembles no tender documents, so it has no tendering dates to propose." };
+    if (ex.packKindSnapshot === "NONE") return { ok: false, message: "No tender documents, so no dates to propose." };
     const judged = approvalDatesFault({ startOn, closingDay, closingTime, timeZone: l.org.timeZone, today: l.org.today });
     if (judged.faults.length) {
       const where = (code: string) => (code === "CLOSING_TIME_NOT_VALID" ? "closingTime" : code === "START_IN_PAST" || code === "DATES_REQUIRED" ? "startOn" : "closingDay");
@@ -102,7 +102,7 @@ export async function saveKeyDates(_prev: FormState, data: FormData): Promise<Fo
 
 // ------------------------------------------------------------------ the opening officers (SR-07)
 
-const NOT_PINNED: FormState = { ok: false, message: "This exercise was made before opening officers were named on it: its panel is still picked when the opening starts." };
+const NOT_PINNED: FormState = { ok: false, message: "Panel is picked when the opening starts." };
 
 /**
  * Wave 3b step 8 (ADR 0036 D3, D11). The exercise key is split across the named officers, so the roster and the key move together. Once an online exercise is published its
@@ -110,7 +110,7 @@ const NOT_PINNED: FormState = { ok: false, message: "This exercise was made befo
  * never changes the key. Before publication a roster change retires the key and shreds every share of it in the same transaction, and the key is made again at once when every remaining
  * officer already has a share. Every roster change also shreds the exercise's outstanding unseal releases (20bc).
  */
-const ONLINE_PUBLISHED: FormState = { ok: false, message: "This exercise is published and takes bids online, so its opening officers are fixed together with its key. An officer cannot be added or taken off now. An officer who cannot take part is replaced by a substitution, which hands their share to the person named in their place, until the closing. After it, or if that is not possible, the exercise must be re-tendered." };
+const ONLINE_PUBLISHED: FormState = { ok: false, message: "Officers are fixed with the key. Replace by substitution until closing, else re-tender." };
 const onlinePublished = (ex: { submissionChannel: string | null; publishedKeyFingerprint: string | null }) => ex.submissionChannel === "ONLINE" && ex.publishedKeyFingerprint !== null;
 
 async function keyAfterRosterChange(tx: Tx, actor: StaffActor, l: LockedExercise, reason: string) {
@@ -143,7 +143,7 @@ export async function nameOpeningOfficer(_prev: FormState, data: FormData): Prom
     if (onlinePublished(ex)) return ONLINE_PUBLISHED;
     const change = rosterChange({ status: ex.status, closing: ex.closingAt, now: new Date(), openingStarted: (await tx.opening.count({ where: { exerciseId: ex.id } })) > 0 });
     if (change.fault) return { ok: false, message: openingFindingText({ code: change.fault, level: "block" }) };
-    if (change.change !== "FREE") return { ok: false, message: "The documents are already submitted, so the officers are replaced by a controlled change with its authority and reason, not added to." };
+    if (change.change !== "FREE") return { ok: false, message: "Documents submitted. Replace officers by controlled change." };
     const roster = await loadOpeningRoster(ex, l.org, tx);
     const officer = await officerFacts(tx, l.org.id, personId);
     if (!officer) return { ok: false, errors: { personId: "Choose someone on record." } };
@@ -177,7 +177,7 @@ export async function removeOpeningOfficer(_prev: FormState, data: FormData): Pr
     if (onlinePublished(ex)) return ONLINE_PUBLISHED;
     const change = rosterChange({ status: ex.status, closing: ex.closingAt, now: new Date(), openingStarted: (await tx.opening.count({ where: { exerciseId: ex.id } })) > 0 });
     if (change.fault) return { ok: false, message: openingFindingText({ code: change.fault, level: "block" }) };
-    if (change.change !== "FREE") return { ok: false, message: "The documents are already submitted. An officer is replaced, with the authority and reason, not taken off." };
+    if (change.change !== "FREE") return { ok: false, message: "Documents submitted. Replace the officer, with authority and reason." };
     // Who may take an officer off is who may name one: the roster decides who opens the classified figures.
     const notAllowed = await namingOthersRefusal(tx, actor, ex.id);
     if (notAllowed) return { ok: false, message: notAllowed };
@@ -246,7 +246,7 @@ export async function substituteOpeningOfficer(_prev: FormState, data: FormData)
       // No key change (a bid may be sealed to it already). The unseal releases are shredded all the same (20bc), and the exercise says what has still to happen.
       await shredExerciseReleases(tx, { organisationId: l.org.id, exerciseId: ex.id, now });
       await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", ex.id, labelOf(l, "Exercise key"), "UPDATE", diffFields({ keyHeldBy: departing.person.name }, { keyHeldBy: `${departing.person.name}, until they release it to ${officer.name}` }), `A substitution was started: ${reason}`);
-      return { ok: true, message: `${officer.name} is named in place of ${departing.person.name}. ${officer.name} now sets their own share, and then ${departing.person.name} releases theirs to them, with their own passphrase. Until then the opening cannot start.` };
+      return { ok: true, message: `${officer.name} replaces ${departing.person.name}. Opening cannot start until the share is handed over.` };
     }
     await keyAfterRosterChange(tx, actor, l, `An opening officer was replaced: ${reason}`);
     return { ok: true };

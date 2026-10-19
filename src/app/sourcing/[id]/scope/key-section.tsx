@@ -56,7 +56,7 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
       ? "Not made: at least two opening officers must be named"
       : `Not made: ${facts.state.missing.length === 1 ? "one officer has" : `${facts.state.missing.length} officers have`} still to set their share`
     : facts.state.stale
-      ? "Out of date: the officers named have changed, so each must set their share again"
+      ? "Out of date: each officer must set their share again"
       : "Made, and held by every named officer";
   const tone = facts.liveKey && !facts.state.stale ? "ok" : "warn";
   const heldBy = new Set(facts.shareHolderRowIds);
@@ -67,7 +67,7 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
       <CardHeader
         icon={<ShieldIcon size={17} />}
         title="Sealing key"
-        subtitle="Online bids are sealed to a key that only all the named opening officers can open together."
+
         actions={
           <span className="flex flex-wrap items-center gap-2">
             <Badge tone={tone}>{facts.liveKey && !facts.state.stale ? "Key made" : "Key not ready"}</Badge>
@@ -90,8 +90,8 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
             { label: "Shortest passphrase", value: minLength == null ? <Badge tone="warn">Not set</Badge> : `${minLength} characters` },
           ]}
         />
-        <Callout tone="info" title="Every named officer is needed">
-          The bids can be opened only when every named officer takes part with their own passphrase. A forgotten passphrase cannot be recovered by anyone. Before any bid is submitted the key is made again; once a bid has been submitted, the exercise is re-tendered.
+        <Callout tone="warn" title="Every named officer is needed to open">
+          No substitution after closing. A lost share means re-tender.
         </Callout>
         {pending.state === "PENDING" && (
           <Callout tone="warn" title="A substitution is waiting">

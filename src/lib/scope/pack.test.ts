@@ -34,7 +34,7 @@ describe("packFaults: what 6.4 enforces when the documents go for approval (OD-4
   it("a panel verified on a bill since superseded blocks, naming both versions and the way out", () => {
     const f = judge({ bq: [{ status: "SUPERSEDED", versionNo: 1 }, { status: "FINALISED", versionNo: 2 }], panelBill: { versionNo: 1, status: "SUPERSEDED" } });
     expect(f).toEqual([{ code: "PANEL_BILL_SUPERSEDED", level: "block", data: { panelVersion: 1, current: 2 } }]);
-    expect(scopeFaultText(f[0])).toBe("The specification panel was verified on version 1 of the bill, which is no longer the finalised one (version 2 is). Edit the panel under Scope and estimate, Scope to name the current bill, then verify it again.");
+    expect(scopeFaultText(f[0])).toBe("Panel verified on bill version 1, no longer the finalised one (version 2 is). Name the current bill, then verify again."); // 0005, founder 2026-10-19: both versions and the way out kept
     // Whose scan has gone too: both are said.
     expect(codes(judge({ panel: "SCAN_GONE", panelBill: { versionNo: 1, status: "SUPERSEDED" } }))).toEqual(["PANEL_SCAN_GONE", "PANEL_BILL_SUPERSEDED"]);
     // On the current finalised bill, or naming none (a basis not let on a bill): nothing to say.

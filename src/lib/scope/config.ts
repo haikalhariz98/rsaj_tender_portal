@@ -83,7 +83,7 @@ export const CONFIG_FAULT_TEXT: Readonly<Record<ConfigFault, string>> = {
   UNKNOWN_QUALIFICATION: "That qualification is not configured. Add it under Qualifications first.",
   UNKNOWN_OFFICE: "That is not an office. Choose one from Users & roles.",
   UNKNOWN_LIST: "That list is not configured. Add it under Configuration, Reference data.",
-  PERMIT_LIST: "That list is the permit list named under Configuration, Tender documents. Permits are chosen on each exercise and no exercise is classified in it, so the specification panel would find no value there. Choose another list, or name a different permit list there first.",
+  PERMIT_LIST: "That is the permit list. Panels find no value in it. Choose another list.",
   PERIOD_REVERSED: "The last day cannot be before the first.",
 };
 

@@ -14,6 +14,6 @@ describe("a transaction that ran out of time", () => {
     expect(transactionTimedOut(null)).toBe(false);
   });
   it("is refused in a fixed sentence that says nothing was saved", () => {
-    expect(scopeFaultText("TIMED_OUT")).toMatch(/^Nothing was saved/);
+    expect(scopeFaultText("TIMED_OUT")).toMatch(/^Not saved/); // 0005, founder 2026-10-19: "Not saved" says the same
   });
 });

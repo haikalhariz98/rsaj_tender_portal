@@ -31,7 +31,7 @@ export function EstimateSection({ d }: { d: Data }) {
           <CardHeader
             icon={<ShieldIcon size={17} />}
             title={<span className="inline-flex flex-wrap items-center gap-2">Company estimate <Chip tone="err">{d.badge}</Chip></span>}
-            subtitle="Prepared by one officer, amended with reasons, lodged into the sealed set before the bids are opened."
+            subtitle="Lodged into the sealed set before the bids open."
           />
           <EmptyState
             size="sm"
@@ -52,7 +52,7 @@ export function EstimateSection({ d }: { d: Data }) {
 
       {d.voided.length > 0 && (
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Voided estimates" subtitle="Kept on record. Their figures stay withheld from view." />
+          <CardHeader icon={<ClockIcon size={17} />} title="Voided estimates" subtitle="Figures withheld." />
           <CardBody>
             <ul className="divide-y divide-line/70 rounded-2xl border border-line">
               {d.voided.map((v) => (
@@ -80,7 +80,7 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title={<span className="inline-flex flex-wrap items-center gap-2">Company estimate <Chip tone="err">{d.badge}</Chip></span>}
-          subtitle="The figure is never shown here. What is recorded is who, when and how many versions."
+          subtitle="Figure withheld. Who, when and versions only."
           actions={<Badge tone={lodged ? "ok" : "info"} dot>{e.state}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">
@@ -89,11 +89,11 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
           )}
           {e.relodge && (
             <Callout tone="warn">
-              The key this estimate was sealed under has changed, so version {e.lodgedVersionNo} no longer counts as lodged and an opening cannot start. The officer who lodged it lodges the same version again, with a reason. Nothing is done for them.
+              Key changed: version {e.lodgedVersionNo} is no longer lodged, so opening cannot start. Lodge it again, with a reason.
             </Callout>
           )}
           {e.online && !lodged && !e.sealedKeyReady && (
-            <Callout tone="info">This exercise takes bids online, so a sealed copy of the estimate is lodged under its key. The estimate itself is still held unencrypted in the database. The key does not exist yet: every named opening officer sets their own share first, under Scope and estimate, Opening officers.</Callout>
+            <Callout tone="warn">No key yet. Opening officers set their shares first. The estimate is unencrypted.</Callout>
           )}
           {(e.lead.badge.tone === "err" || e.lead.badge.tone === "warn") && !closed && <Callout tone={e.lead.badge.tone}>{e.lead.text}</Callout>}
           <KeyValues
@@ -124,7 +124,7 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
             <h3 id="estimate-lead" className="flex flex-wrap items-center gap-2 text-[13.5px] font-semibold text-ink">
               Lead time <Badge tone={e.lead.badge.tone} dot>{e.lead.badge.label}</Badge>
             </h3>
-            <p className="text-[12.5px] text-ink-3">How long before closing the last version has to be made.</p>
+            <p className="text-[12.5px] text-ink-3">Days before closing.</p>
             <p className="text-[13.5px] text-ink">{e.lead.text}</p>
             <p className="text-[13.5px] text-ink">{e.lead.configured}</p>
             <p className="text-[12.5px] text-ink-3">{e.lead.reading}</p>
@@ -132,7 +132,7 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
 
           <section aria-labelledby="estimate-versions" className="flex flex-col gap-2">
             <h3 id="estimate-versions" className="text-[13.5px] font-semibold text-ink">Versions</h3>
-            <p className="text-[12.5px] text-ink-3">Each is kept, with its figure withheld from view. A version made after the first needs a reason, withheld in the same way. They are held unencrypted in the database.</p>
+            <p className="text-[12.5px] text-ink-3">Figures and reasons withheld.</p>
             <div className="overflow-hidden rounded-2xl border border-line">
               <DataList
                 flat

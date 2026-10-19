@@ -31,7 +31,7 @@ type Allowed = { allowed: true } | { allowed: false; reason: string };
 
 /// What the chosen file would add, read in the browser with the server's own rule.
 function Preview({ parsed }: { parsed: ParsedBqCsv | null }) {
-  if (!parsed) return <p className="text-[13px] text-ink-3">Choose a file to see what it holds before anything is stored.</p>;
+  if (!parsed) return <p className="text-[13px] text-ink-3">Choose a file to preview it.</p>;
   const blocks = parsed.faults.filter((f) => f.level === "block");
   const notices = importNotices(parsed);
   const s = importSummary(parsed);
@@ -49,7 +49,7 @@ function Preview({ parsed }: { parsed: ParsedBqCsv | null }) {
       ) : (
         <Callout tone="ok" title="Ready to import">
           {s.lines} {s.lines === 1 ? "line" : "lines"} in {s.sections} {s.sections === 1 ? "section" : "sections"}.{" "}
-          {s.priced ? `Total ${formatSen(s.total)}${s.incompleteLines ? `; ${s.incompleteLines} without a rate or quantity yet` : ""}.` : "The file has no Rate column: rates are entered after it is imported."}
+          {s.priced ? `Total ${formatSen(s.total)}${s.incompleteLines ? `; ${s.incompleteLines} without a rate or quantity yet` : ""}.` : "No Rate column. Enter rates after import."}
         </Callout>
       )}
       {(notices.mismatches.length > 0 || notices.amountFaults.length > 0) && (
@@ -174,11 +174,11 @@ export function ImportCsvDrawer({
       fields={[
         { kind: "file", name: "file", label: "The bill as a CSV file", required: true, accept: ".csv,text/csv", hint: `Columns: Section, Section title, Item, Description, Unit, Kind, Quantity, Rate, Amount, Provisional. Saved from a spreadsheet as “CSV UTF-8”.${upload.capText ? ` ${upload.capText}` : ""}` },
         { kind: "text", name: "title", label: "Title", required: true, hint: "What the kept file is called in lists." },
-        { kind: "select", name: "documentClassId", label: "Class", required: true, placeholder: "Choose a class", options: upload.classes, hint: "Decides its classification and how long it is kept. A priced bill may be SULIT to the organisation; choose accordingly." },
+        { kind: "select", name: "documentClassId", label: "Class", required: true, placeholder: "Choose a class", options: upload.classes, hint: "Sets classification and retention. A priced bill may be SULIT." },
         actorField("DocumentVersion.recordedBy", { name: "recordedByPersonId", people: upload.people }),
-        { kind: "date", name: "receivedOn", label: "Received on", hint: "The day the department's bill was received. Leave it blank if it is not known." },
-        ...(draft.lines === 0 && draft.sections > 0 ? [{ kind: "note" as const, text: `The draft's ${draft.sections} empty ${draft.sections === 1 ? "section is" : "sections are"} removed and the file's sections take their place. Each removal is kept in the history.` }] : []),
-        ...(draft.lines > 0 ? [{ kind: "switch" as const, name: "replace", label: `Replace the draft's ${draft.lines} ${draft.lines === 1 ? "line" : "lines"}`, hint: "Each removed line is kept in the history. Without this, a draft that has lines is not imported into." }] : []),
+        { kind: "date", name: "receivedOn", label: "Received on", hint: "Blank if unknown." },
+        ...(draft.lines === 0 && draft.sections > 0 ? [{ kind: "note" as const, text: `${draft.sections} empty ${draft.sections === 1 ? "section is" : "sections are"} replaced by the file's. Removals are kept in the history.` }] : []),
+        ...(draft.lines > 0 ? [{ kind: "switch" as const, name: "replace", label: `Replace the draft's ${draft.lines} ${draft.lines === 1 ? "line" : "lines"}`, hint: "Removed lines are kept in the history." }] : []),
       ]}
       values={{ title: `Bill of quantities, version ${draft.versionNo}, as received` }}
       sections={

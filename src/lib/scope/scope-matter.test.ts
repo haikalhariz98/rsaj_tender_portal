@@ -222,7 +222,7 @@ describe("62-C1: a scope matter is judged under the committee and act written on
     // While it waits, the version is not tabled twice; the refusal names withdrawal as the way out.
     const f = scopeCitationFault({ ...citation, matters: [waiting] });
     expect(codes(f)).toEqual(["SCOPE_ALREADY_WAITING"]);
-    expect(scopeFaultText(f[0])).toBe("This version is already tabled at SIT/1 and waiting for the decision. It was tabled under the rule configured then; to table it under today's, withdraw it from that sitting first.");
+    expect(scopeFaultText(f[0])).toBe("This version is already tabled at SIT/1 and waiting for the decision. Tabled under an earlier rule. Withdraw it to use today's."); // 0005, founder 2026-10-19
     // Withdrawn, then tabled again under today's rule: nothing stands in the way.
     expect(codes(scopeCitationFault({ ...citation, matters: [{ ...waiting, withdrawn: true }] }))).toEqual([]);
     // The re-tabled matter, under today's rule, is what the version waits on, with nothing moved.
@@ -267,7 +267,7 @@ describe("62-C1: a scope matter is judged under the committee and act written on
     const waiting = scopeApproval(rule, [v1], [matter("d1", { committeeCode: "BOARD", committeeName: "Board" })]);
     expect(scopeApprovalLine(waiting, "Technical Committee")).toBe("Version 1 of the bill: tabled at SIT/1, waiting for the Board's decision.");
     expect(scopeRuleMovedNote({ decided: true, tabled: scopeRuleWords("Recommend", "Board")!, now: scopeRuleWords("Approve", "Technical Committee"), sitting: "SIT/1" })).toBe(
-      "This matter was tabled under the rule configured then: Recommend by the Board. Configuration now says: Approve by the Technical Committee. The decision stands as it was taken; the rule configured today applies to what is tabled next.",
+      "This matter was tabled under the rule configured then: Recommend by the Board. Configuration now says: Approve by the Technical Committee. The decision stands. Today's rule applies to what is tabled next.",
     );
     expect(scopeRuleMovedNote({ decided: false, tabled: "Recommend by the Board", now: null, sitting: "SIT/1" })).toBe(
       "This matter was tabled under the rule configured then: Recommend by the Board. Configuration now leaves the committee or its act not set. It is decided under the rule it was tabled under. To table the bill under today's rule instead, withdraw it from SIT/1 and table it again.",

@@ -34,12 +34,12 @@ export function KeyDatesSection({ l, keyDates: k, people, detailsBlocker, timeZo
   const edit = open ? ({ allowed: true } as const) : ({ allowed: false, reason: DATES_LOCKED_TEXT } as const);
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ClipboardIcon size={17} />} title="Key dates & person in charge" subtitle="When tendering starts and closes, and who is looking after it." />
+      <CardHeader icon={<ClipboardIcon size={17} />} title="Key dates & person in charge" subtitle="Start, closing and officer." />
       <CardBody>
         <ul className="divide-y divide-line/70 rounded-2xl border border-line">
           {k.start.state === "NOT_APPLICABLE" ? (
             <Row title="Tendering window" value={<span className="text-ink-3">{k.start.text}</span>}>
-              <span className="text-[12.5px] text-ink-3">This exercise issues no tender documents, so there is no start, closing or briefing to set.</span>
+              <span className="text-[12.5px] text-ink-3">No tender documents, so no dates to set.</span>
             </Row>
           ) : (
             <>
@@ -89,7 +89,7 @@ export function KeyDatesSection({ l, keyDates: k, people, detailsBlocker, timeZo
             action={<EditDetailsDrawer id={ex.id} people={people} personInChargeId={ex.personInChargeId} workCode={ex.workCode} blocker={detailsBlocker} what="person in charge" />}
           />
           <Row title="Requested by" value={<span className="break-words">{l.req.requestingPerson?.name ?? "Not recorded"}</span>}>
-            <span className="text-[12.5px] text-ink-3">Named on the requisition, who asked for it; not necessarily who looks after the exercise.</span>
+            <span className="text-[12.5px] text-ink-3">Requester, not necessarily the officer in charge.</span>
           </Row>
         </ul>
       </CardBody>
