@@ -53,7 +53,7 @@ describe("where a supplier's own bid stands, from the opening's start (20s)", ()
   it("listed, in time, unsealed and still not opened reads as listed and not opened, whose words ask the supplier to contact the organisation", () => {
     expect(s({ unsealed: true })).toBe("LISTED_NOT_OPENED");
     const words = myBidOpenedWords({ state: "LISTED_NOT_OPENED", digest: D("a"), organisationName: "Jabatan Kerja Raya Negeri" }).detail;
-    expect(words.en).toMatch(/still not shown as opened, contact Jabatan Kerja Raya Negeri now/);
+    expect(words.en).toMatch(/stays unopened after unsealing, contact Jabatan Kerja Raya Negeri now/); // 0005, founder 2026-10-19: shortened
   });
 });
 
@@ -76,7 +76,7 @@ describe("the words of each state (20s, 20j, ruling 25)", () => {
   it("listed and opened ask the supplier to compare the digest with the receipt it kept", () => {
     for (const state of ["LISTED_NOT_OPENED", "OPENED", "LATE_IN_ROLL"] as const) {
       const w = myBidOpenedWords({ state, digest, organisationName: ORG }).detail;
-      expect(w.en).toMatch(/Compare it with the receipt you printed or saved when you submitted/);
+      expect(w.en).toMatch(/Compare with your receipt/); // 0005, founder 2026-10-19: shortened
     }
   });
 
@@ -89,9 +89,9 @@ describe("the words of each state (20s, 20j, ruling 25)", () => {
   // Security audit 8: the supplier may hold other receipts that are in the list, so the words speak of this submission only.
   it("NOT_IN_ROLL speaks of this submission, names the organisation from configuration and asks the supplier to contact it now, quoting its receipt", () => {
     const w = myBidOpenedWords({ state: "NOT_IN_ROLL", digest, organisationName: ORG });
-    expect(w.detail.en).toMatch(/^This submission is not in the list/);
+    expect(w.detail.en).toMatch(/^Not in the list frozen at the opening/); // 0005, founder 2026-10-19: shortened
     expect(w.detail.en).not.toMatch(/None of your receipts/);
-    expect(w.detail.en).toMatch(new RegExp(`Contact ${ORG} now, quoting the receipt you kept`));
+    expect(w.detail.en).toMatch(new RegExp(`Contact ${ORG} now with your receipt`));
     expect(myBidOpenedWords({ state: "NOT_IN_ROLL", digest, organisationName: "Pejabat Lain" }).detail.en).toMatch(/Contact Pejabat Lain now/);
     expect(myBidOpenedWords({ state: "NOT_IN_ROLL", digest, organisationName: "  " }).detail).toMatchObject({ en: expect.stringMatching(/Contact the procurement office now/) });
   });

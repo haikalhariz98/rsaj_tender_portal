@@ -21,7 +21,7 @@ const NOT_PUBLISHED = w("The exercise is not open for bids.");
 const NOT_INVITED = w("This exercise invites named suppliers only, and your company is not on its list.");
 
 const STAMP_STALE = w(
-  "Your submission waited too long behind other work on this exercise, so it was not taken and nothing was recorded. Submit again: the time stamped when you submit again decides whether it is late.",
+  "Not taken: it waited too long behind other work. Nothing was recorded. Submit again.",
 );
 const NOT_TAKEN = w("Your submission was not taken and nothing was recorded. Try again.");
 
@@ -41,12 +41,12 @@ export const SUBMIT_FAULT_WORDS: Readonly<Record<SubmitFault, Words>> = {
   ),
   NOT_ON_INVITEE_LIST: NOT_INVITED,
   LIVE_BID_HELD: w(
-    "Your company already has a bid standing on this exercise, so a second bid is not taken. Up to the closing, replace it to change it.",
+    "Your company already has a bid standing. Replace it to change it, before the closing.",
   ),
   REPLACE_AFTER_CLOSING: w("The closing has passed, so a bid can no longer be replaced."),
   NOTHING_TO_REPLACE: w("The submission named is not one of your company's bids that still stands."),
   REPLACE_KIND_CHANGED: w(
-    "A bid is replaced by a bid, and an alternative by an alternative. To add an alternative, submit it as an alternative.",
+    "A bid replaces a bid, an alternative an alternative. To add an alternative, submit one.",
   ),
   ALTERNATIVES_NOT_STATED: w(
     "Whether alternative bids are permitted is not stated for this exercise, so no alternative is taken. Contact the procurement office.",
@@ -58,10 +58,10 @@ export const SUBMIT_FAULT_WORDS: Readonly<Record<SubmitFault, Words>> = {
     "The submission named is an alternative. An alternative goes with a bid, not with another alternative.",
   ),
   LATE_CLOSED: w(
-    "The opening has started, so no further bid is taken: a late bid is taken only until the opening starts.",
+    "The opening has started. No further bid is taken.",
   ),
   PRICE_INVALID: w(
-    "Write the price as an amount in ringgit and sen, above zero, with at most two decimal places and no commas.",
+    "Price: an amount above zero, up to two decimals, no commas.",
   ),
   PERIOD_INVALID: w("Write the completion period as a whole number, at least 1."),
   UNIT_NOT_SET: w("Choose the unit of the completion period."),
@@ -73,11 +73,11 @@ export const SUBMIT_FAULT_WORDS: Readonly<Record<SubmitFault, Words>> = {
     "A file was uploaded for a part the bidder does not return on this exercise.",
   ),
   DUPLICATE_PART: w(
-    "Two files were named for one part. Each part takes one file: remove one of them, then submit again. Nothing was submitted.",
+    "Two files for one part. Remove one and submit again. Nothing was submitted.",
   ),
   NO_FILES: w("Upload at least one part before submitting."),
   TOO_MANY_SUBMISSIONS: w(
-    `Your company has made ${MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE} submissions on this exercise, the most taken. Nothing new was submitted, and your last submission stands as it is.`,
+    `The limit is ${MAX_SUBMISSIONS_PER_SUPPLIER_PER_EXERCISE} submissions. Nothing new was submitted. Your last submission stands.`,
   ),
   STAMP_STALE,
   NOT_TAKEN,
@@ -92,7 +92,7 @@ export const WITHDRAW_FAULT_WORDS: Readonly<Record<WithdrawFault, Words>> = {
     "Only your own alternatives linked to this bid can be withdrawn with it.",
   ),
   STAMP_STALE: w(
-    "Your withdrawal waited too long behind other work on this exercise, so it was not taken and nothing was recorded. Withdraw again: the time stamped when you withdraw again decides whether it is in time.",
+    "Not taken: it waited too long behind other work. Nothing was recorded. Withdraw again.",
   ),
   NOT_TAKEN: w("Your withdrawal was not taken and nothing was recorded. Try again."),
 };
@@ -119,7 +119,7 @@ export const PART_UPLOAD_FAULT_WORDS: Readonly<Record<PartUploadFault, Words>> =
     "That kind of file is not accepted for this part. The type is read from the file itself, not from its name.",
   ),
   OFFICE_REFUSED: w(
-    "That Office file holds macros, embedded objects or a link to a template outside it, is protected by a password, or cannot be read with certainty, so it is not accepted.",
+    "Not accepted: the Office file holds macros, embedded objects, an outside link or a password, or cannot be read with certainty.",
   ),
   SIZE_NOT_SET: w("The largest file for that part is not set yet. Contact the procurement office."),
   TOO_LARGE: w("The file is larger than this part allows."),
@@ -131,7 +131,7 @@ export const PART_UPLOAD_FAULT_WORDS: Readonly<Record<PartUploadFault, Words>> =
   THREAT: w("The file was found to hold a threat, so it was not taken."),
   SCAN_ERROR: w("The file could not be scanned for malware, so it was not taken. Try again later."),
   TOO_MANY_DRAFT_FILES: w(
-    `Your company holds ${MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE} uploaded parts not yet submitted on this exercise, the most held at once. Discard one, or submit, before uploading another.`,
+    `The limit is ${MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE} unsubmitted uploads. Discard one, or submit, before another.`,
   ),
 };
 
@@ -154,7 +154,7 @@ export function submissionWarningWords(warning: SubmissionWarning): Words {
 
 /// The upload's BUSY answer (20e): the deployment's limit on uploads at once, or one upload of the company's own still in flight.
 export const UPLOAD_BUSY_WORDS: Words = w(
-  "The portal is busy with other uploads. Try again in a moment. Only the time your bid is submitted decides whether it is late, not the time of an upload.",
+  "The portal is busy. Try again. Only the time your bid is submitted decides whether it is late.",
 );
 
 /// The answers of the part upload and discard routes that are not a rule's refusal (step 9): the rate limit, a request the portal could not read, nothing found. Rate
@@ -162,11 +162,11 @@ export const UPLOAD_BUSY_WORDS: Words = w(
 export type PartRouteNotice = "RATE_LIMITED" | "NO_LENGTH" | "UNREADABLE" | "FIELDS_DISAGREE" | "NOT_FOUND" | "STORE_CLOSED" | "NOT_TAKEN" | "FILE_NOT_DRAFT";
 export const PART_ROUTE_WORDS: Readonly<Record<PartRouteNotice, Words>> = {
   RATE_LIMITED: w(
-    "You have uploaded a great many files in the last minute, so this one was not taken. Wait a minute and try again. Only the time your bid is submitted decides whether it is late, not the time of an upload.",
+    "Too many uploads in the last minute. Wait a minute and try again.",
   ),
   NO_LENGTH: w("The upload did not say how large it is, so it was not read."),
   UNREADABLE: w("That upload could not be read. Nothing was taken. Try again."),
-  FIELDS_DISAGREE: w("The page did not say clearly which exercise and which part the file is for, so it was not taken. Reload the page and try again."),
+  FIELDS_DISAGREE: w("The page did not say which part the file is for. Reload and try again."),
   NOT_FOUND: w("That is not something you can open."),
   STORE_CLOSED: w("Uploads are closed: the portal's file store is not set up. Contact the procurement office."),
   NOT_TAKEN: w("The file was not taken. Nothing was recorded. Try again."),
@@ -180,10 +180,10 @@ export type ActRouteNotice =
   | "WRONG_PASSWORD" | "LOCKED" | "THROTTLED" | "ACT_CLOSED";
 export const ACT_ROUTE_WORDS: Readonly<Record<ActRouteNotice, Words>> = {
   SUBMIT_RATE_LIMITED: w(
-    "You have tried to submit a great many times in the last minute, so this one was not taken. Wait a minute and try again. The time stamped when your submission is accepted decides whether it is late.",
+    "Too many tries in the last minute. Wait a minute and try again.",
   ),
   WITHDRAW_RATE_LIMITED: w(
-    "You have tried to withdraw a great many times in the last minute, so this one was not taken. Wait a minute and try again. The time stamped when your withdrawal is accepted decides whether it is in time.",
+    "Too many tries in the last minute. Wait a minute and try again.",
   ),
   UNREADABLE: w("That request could not be read. Nothing was done. Reload the page and try again."),
   NOT_FOUND: w("That is not something you can open."),
@@ -191,6 +191,6 @@ export const ACT_ROUTE_WORDS: Readonly<Record<ActRouteNotice, Words>> = {
   LOCKED: w("This account is locked after too many wrong passwords. Try again later."),
   THROTTLED: w("Too many attempts just now. Wait a few minutes and try again."),
   ACT_CLOSED: w(
-    "This cannot be done at the moment: the procurement office has not finished setting up supplier sign-in. Tell the procurement office.",
+    "Signing is closed: sign-in is not set up. Tell the procurement office.",
   ),
 };

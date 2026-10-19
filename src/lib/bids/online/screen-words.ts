@@ -12,14 +12,14 @@ export const SCREEN_WORDS = {
   tab: w("Your bid"),
   submitTitle: w("Submit your bid"),
   submitSubtitle: w(
-    "Upload each part, state your price and completion period, and enter your password. Your files are sealed as they arrive and stay sealed until the opening.",
+    "Upload each part, state your price and period, enter your password.",
   ),
   backToExercise: w("Back to the exercise"),
   openSubmitPage: w("Submit or replace a bid"),
   closes: w("Closes"),
   notSet: w("Not set"),
   sendingClosed: w(
-    "Sending is closed: the person who runs the portal has not set its form key. Nothing can be sent until they do.",
+    "Sending closed: the form key is not set. Tell the portal operator.",
   ),
   pastClosingTitle: w("The closing time has passed"),
   closedTitle: w("Bids cannot be submitted now"),
@@ -28,13 +28,13 @@ export const SCREEN_WORDS = {
   // ---- what sealing does, and does not (D13)
   limitsTitle: w("How your bid is protected"),
   limits: w(
-    "Each file is sealed as it arrives and is kept only in sealed form. It can be opened only by all the opening officers named for this exercise, together, at the opening. The portal reads your files and your password at the moment you send them, so the portal itself has to be trusted: sealing protects what is stored, not a portal that has been compromised. The closing time is kept by the portal's clock, not by the sealing.",
+    "Each file is sealed on arrival and opens only with all the named opening officers together. The portal reads your files and password as you send them, so it must be trusted: sealing protects what is stored. The portal's clock keeps the closing time.",
   ),
 
   // ---- a key changed under a waiting draft (step 8's review)
   discardedTitle: w("Files you had uploaded can no longer be used"),
   discardedOne: w(
-    "The procurement office changed this exercise's sealing key after you uploaded a file that you had not yet submitted. A file is sealed to the key that was live when it arrived, so it cannot be used with the new key. Upload it again before you submit.",
+    "The sealing key changed after you uploaded a file you had not submitted. Upload it again before you submit.",
   ),
   discardedSealedTo: w("Sealed to the key with fingerprint"),
   discardedNow: w("The key now live has fingerprint"),
@@ -43,7 +43,7 @@ export const SCREEN_WORDS = {
   // ---- the key's fingerprint and its history (the opportunity page)
   keyTitle: w("The sealing key for this exercise"),
   keySubtitle: w(
-    "Your bid is sealed to this key. The fingerprint is printed on every receipt, so compare it with the one you are shown here.",
+    "Compare this fingerprint with your receipt.",
   ),
   keyLive: w("Fingerprint now"),
   keyNone: w("No sealing key is published for this exercise yet."),
@@ -56,15 +56,15 @@ export const SCREEN_WORDS = {
   // ---- the parts
   partsTitle: w("Parts of your bid"),
   partsSubtitle: w(
-    "Each part takes one file. The type is read from the file itself, not from its name.",
+    "One file per part.",
   ),
   partRequired: w("Required"),
   partOptional: w("Optional"),
   partAccepts: w("Accepts"),
   partLargest: w("Largest file"),
-  partNoTypes: w("The file types for this part are not set yet."),
-  partNoSize: w("The largest file for this part is not set yet."),
-  partNone: w("This exercise has no part for a bidder to return."),
+  partNoTypes: w("File types not set."),
+  partNoSize: w("Largest file not set."),
+  partNone: w("No part to return."),
   partNotUploaded: w("No file uploaded"),
   partUploaded: w("Uploaded"),
   partChoose: w("Choose a file"),
@@ -75,7 +75,7 @@ export const SCREEN_WORDS = {
   partRemoved: w("The file was removed."),
   partFileName: w("File"),
   partDraftNote: w(
-    "A file you uploaded earlier. Its name is kept sealed, so only the time is shown here.",
+    "Uploaded earlier. Only the time is shown.",
   ),
 
   // ---- what is being submitted
@@ -87,21 +87,21 @@ export const SCREEN_WORDS = {
   kindParent: w("The bid this alternative goes with"),
   kindNoParent: w("Not tied to a bid"),
   replaceNote: w(
-    "A replacement takes only the files you upload for it, so upload every part again. The submission it replaces is not opened.",
+    "A replacement takes only the files you upload now. Upload every part again.",
   ),
   alternativesNotConsideredTitle: w("This exercise does not permit alternative bids"),
   alternativesNotConsidered: w(
-    "An alternative is still taken and recorded, but it will be marked as not considered. Think before you submit one.",
+    "Taken and recorded, but marked not considered.",
   ),
-  alternativesNotStated: w("Whether alternative bids are permitted is not stated for this exercise."),
+  alternativesNotStated: w("Alternatives: not stated for this exercise."),
 
   // ---- declared fields
   declareTitle: w("What you declare"),
   declareSubtitle: w(
-    "These two figures are sealed with your files and are read at the opening.",
+    "Sealed with your files, read at the opening.",
   ),
   price: w("Price"),
-  priceHint: w("The figure only, with up to two decimal places and no separators."),
+  priceHint: w("Figure only, up to two decimals."),
   period: w("Completion period"),
   periodHint: w("A whole number from 1."),
   unit: w("Counted in"),
@@ -112,16 +112,16 @@ export const SCREEN_WORDS = {
   // ---- the act
   passwordTitle: w("Your password"),
   password: w("Password"),
-  passwordHint: w("Entered again for this act. Nothing is submitted without it."),
+  passwordHint: w("Entered again to submit."),
   submitButton: w("Submit bid"),
   replaceButton: w("Submit replacement"),
   submitting: w("Submitting…"),
   stampNote: w(
-    "The time stamped when the portal accepts your submission decides whether it is late, not the time of an upload.",
+    "The time the portal accepts it decides if it is late.",
   ),
   warningsTitle: w("Please note"),
   notReached: w(
-    "That did not reach the portal, so nothing is known to have been done. Check your connection, look at Your bid for a new receipt, and try again only if there is none.",
+    "Not confirmed. Check Your bid for a receipt before trying again.",
   ),
   signedOut: w("You are no longer logged in. Log in again, then try again."),
   secondTab: w("The page is out of date. Reload it and try again."),
@@ -134,7 +134,7 @@ export const SCREEN_WORDS = {
   receiptOnTime: w("Received in time"),
   receiptLate: w("Received after the closing"),
   receiptLateNote: w(
-    "A late submission is kept, sealed, and goes to the committee, which decides whether to admit it.",
+    "Kept sealed. The committee decides whether to admit it.",
   ),
   receiptKey: w("Sealing key fingerprint"),
   receiptDigest: w("Receipt digest"),
@@ -148,10 +148,10 @@ export const SCREEN_WORDS = {
   // ---- the Your bid tab
   listTitle: w("Your submissions"),
   listSubtitle: w(
-    "Each submission has its own number, counted from your first. Only the standing ones are opened.",
+    "Only standing submissions are opened.",
   ),
   listEmptyTitle: w("You have not submitted a bid"),
-  listEmptyBody: w("When you submit one, its receipt is kept here."),
+  listEmptyBody: w(""),
   submission: w("Submission"),
   colNumber: w("No."),
   colKind: w("Kind"),
@@ -170,18 +170,18 @@ export const SCREEN_WORDS = {
   hideReceipt: w("Hide the receipt"),
   notConsidered: w("Not considered"),
   rollMissing: w(
-    "The opening has started, but the list of bids it froze is not recorded here yet, so nothing is said of this submission. Check again later.",
+    "The opening has started but its list is not recorded yet. Check again later.",
   ),
 
   // ---- withdrawing
   withdraw: w("Withdraw"),
   withdrawTitle: w("Withdraw this submission"),
   withdrawBody: w(
-    "A withdrawn submission is not opened. This cannot be undone, but you may submit again before the closing.",
+    "It will not be opened. You may submit again before the closing.",
   ),
   withdrawAlternatives: w("Alternatives that go with it"),
   withdrawAlternativesNote: w(
-    "Tick the ones to withdraw as well. An alternative you leave unticked stays, and is no longer tied to this bid.",
+    "Tick any to withdraw too. Others stay, untied from this bid.",
   ),
   withdrawButton: w("Withdraw submission"),
   withdrawing: w("Withdrawing…"),
@@ -193,7 +193,7 @@ export const SCREEN_WORDS = {
 
   // ---- demonstration
   demonstrationNote: w(
-    "Bids made here are for trying the system out. They are not tenders and will not be awarded.",
+    "Demo bids are not tenders and will not be awarded.",
   ),
 } as const satisfies Record<string, Words>;
 

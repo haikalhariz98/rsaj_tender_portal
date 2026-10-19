@@ -35,7 +35,7 @@ export function SubmissionsList({ reference, title, supplierName, demonstration,
       toolbar={false}
       exportName="my-online-bids"
       emptyTitle={SCREEN_WORDS.listEmptyTitle.en}
-      emptyBody={SCREEN_WORDS.listEmptyBody.en}
+      
       actionsPlacement="below"
       stackBelow="xl"
       columns={[

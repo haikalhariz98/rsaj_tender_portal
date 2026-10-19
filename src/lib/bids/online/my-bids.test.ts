@@ -67,7 +67,7 @@ describe("from the opening's start, the four states and the digest in full (20s)
     const [v] = view([row({ id: "a", sequence: 12, receiptDigest: "d".repeat(64) })], { opening: started(roll([{ sequence: 12, receiptDigest: digest, late: false }])) });
     expect(v.opening!.digest).toBe(digest);
     expect(v.opening!.detail.en).toContain(digest);
-    expect(v.opening!.detail.en).toMatch(/Compare it with the receipt you printed or saved/);
+    expect(v.opening!.detail.en).toMatch(/Compare with your receipt/); // 0005, founder 2026-10-19: instruction cut, digest stays in full
   });
 
   it("late in the roll, not in the roll (naming the organisation), opened, and replaced or withdrawn (not opened, as expected)", () => {
@@ -78,8 +78,8 @@ describe("from the opening's start, the four states and the digest in full (20s)
     expect(out.gone.detail.en).toContain("Perbadanan Contoh");
     // Stage C security audit nit: the list holds no digest for it, but the supplier's own recorded one is shown with words that say so (S11).
     expect(out.gone.digest).toBe("2".repeat(64));
-    expect(out.gone.detail.en).toContain("The receipt digest recorded when you submitted it is");
-    expect(out.gone.detail.en).toContain("The opening's list holds none for it");
+    expect(out.gone.detail.en).toContain("The digest recorded when you submitted is"); // 0005, founder 2026-10-19: shortened
+    expect(out.gone.detail.en).toContain("The opening's list holds none");
     expect(out.opened.headline.en).toBe("Opened; the result follows the evaluation");
     expect(out.old.headline.en).toBe("Not opened, as expected");
   });

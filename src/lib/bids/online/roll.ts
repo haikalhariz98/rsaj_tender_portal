@@ -56,44 +56,44 @@ export function myBidOpenedWords(i: { state: MyBidOpeningState; digest: string |
   const shown = i.digest ? w(`Its receipt digest is ${i.digest}.`) : w("No receipt digest is recorded for it.");
   // NOT_IN_ROLL: the digest is the one recorded when the supplier submitted it (the opening's list holds none for it), which is what it needs to complain with (S11).
   const notListed = i.digest
-    ? w(`The receipt digest recorded when you submitted it is ${i.digest}. The opening's list holds none for it.`)
+    ? w(`The digest recorded when you submitted is ${i.digest}. The opening's list holds none.`)
     : w("The opening's list holds no digest for it.");
-  const compare = w("Compare it with the receipt you printed or saved when you submitted.");
+  const compare = w("Compare with your receipt.");
   const out = (headline: Words, detail: Words) => ({ headline, detail, digest: i.digest });
   switch (i.state) {
     case "LISTED_NOT_OPENED":
       return out(
         w("Listed at the opening, not opened yet"),
         w(
-          `Your bid is in the list frozen when the opening started. ${shown.en} ${compare.en} If the bids have been unsealed and yours is still not shown as opened, contact ${org.en} now, quoting your receipt.`,
+          `${shown.en} ${compare.en} If it stays unopened after unsealing, contact ${org.en} now with your receipt.`,
         ),
       );
     case "OPENED":
       return out(
         w("Opened; the result follows the evaluation"),
         w(
-          `Your bid was opened. ${shown.en} ${compare.en} Nothing of what was read, nor how it compares, is shown here.`,
+          `Your bid was opened. ${shown.en} ${compare.en}`,
         ),
       );
     case "LATE_IN_ROLL":
       return out(
         w("Received after the closing, so not opened at the main opening"),
         w(
-          `Your bid was received after the closing. It is kept, sealed, and goes to the committee, which decides whether to admit it; if it is admitted, it is opened at a further opening. ${shown.en} ${compare.en}`,
+          `Kept sealed. The committee decides whether to admit it. ${shown.en} ${compare.en}`,
         ),
       );
     case "NOT_IN_ROLL":
       return out(
         w("This submission is not in the opening's list"),
         w(
-          `This submission is not in the list frozen when the opening started. Contact ${org.en} now, quoting the receipt you kept. ${notListed.en}`,
+          `Not in the list frozen at the opening. Contact ${org.en} now with your receipt. ${notListed.en}`,
         ),
       );
     case "REPLACED_OR_WITHDRAWN":
       return out(
         w("Not opened, as expected"),
         w(
-          `This submission was replaced or withdrawn before the closing, so it was not opened, as expected. ${shown.en}`,
+          `Replaced or withdrawn before the closing. ${shown.en}`,
         ),
       );
   }

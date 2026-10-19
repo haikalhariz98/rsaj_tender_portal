@@ -40,7 +40,7 @@ describe("the receipt's words (20j)", () => {
   it("say it records what the portal told the supplier, and never call it signed or proof", () => {
     // Ruling 20ab: in English and Malay; neither language calls it signed, proof or verified.
     expect(RECEIPT_WORDS.title).toEqual({ en: "Your receipt" });
-    expect(RECEIPT_WORDS.meaning.en).toMatch(/records what the portal told you/);
+    expect(RECEIPT_WORDS.meaning.en).toMatch(/submission number, the server's time stamp/); // 0005, founder 2026-10-19: shortened
     for (const w of Object.values(RECEIPT_WORDS)) {
       expect(w.en).not.toMatch(/\b(signed|signature|proof|proves|verified)\b/i);
     }
