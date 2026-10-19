@@ -134,8 +134,13 @@ export function matrixMinWidth(columnCount: number): number; // HEAD_WIDTH + COL
     - `matrixMinWidth(4) <= 1037`, computed from named numbers. Each number's source line is asserted present by reading
       `app-shell.tsx` (`lg:pl-68`, `lg:px-8`) and `card.tsx` (`sm:px-6`).
     - `matrixMinWidth(0) === matrixMinWidth(1)`.
-  - In `matrix-screen.test.ts`, render a four-offer matrix. Assert that no cell holds an element with `whitespace-nowrap` or a fixed
-    `w-[`/`min-w-[` wider than `COLUMN_MIN`. If an existing pin forbids this, update it citing AC-63.
+  - In `matrix-screen.test.ts`, render a four-offer matrix. jsdom does no layout, so assert only what markup can show:
+    - no cell holds a fixed `w-[`/`min-w-[` wider than `COLUMN_MIN`;
+    - every long text node (a refusal, a file name, the `SHA-256` line) sits in an element that wraps (`break-words`, `break-all` or
+      `whitespace-normal`).
+    - The shared `Button` (`src/components/ui/button.tsx:10`) is `whitespace-nowrap max-w-full` by design. Short control labels (Pass,
+      Reject, Download, Confirm) are exempt by name. Do not change `Button` for N3.
+    - If an existing pin forbids this, update it citing AC-63.
 - **Done when:**
   - Those tests pass, and `npx vitest run src/components/ui src/app/sourcing/[id]/opening` passes.
   - If no rendered look was possible, the log says so in one line, together with the product-owner question J5.
@@ -145,7 +150,9 @@ export function matrixMinWidth(columnCount: number): number; // HEAD_WIDTH + COL
 - **The runs.** Run `ui-guidelines-reviewer` twice, as two reports:
   - (i) `src/app/sourcing/**`, the exercise page, opening and matrix first;
   - (ii) `src/app/projects/**`.
-  - The orchestrator launches it if this agent cannot.
+  - Launch `ui-guidelines-reviewer` if you can. If you cannot, read `.claude/agents/ui-guidelines-reviewer.md`, apply its checklist
+    under the brief below, and record in section 6 that this run was self-applied. Step 5 is a different agent, so run 2 stays
+    independent.
 - **The brief.** Give it the same brief for this run and for step 5:
   - The product is desktop only (1280 and 1440). Rules about 390 px, 44 px mobile targets and 16 px mobile inputs do not apply, and are
     not findings.
