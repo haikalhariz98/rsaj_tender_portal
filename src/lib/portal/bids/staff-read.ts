@@ -2,6 +2,7 @@ import type { Tx } from "@/lib/audit/record";
 import { formatOrgDateTime } from "@/lib/format";
 
 import { requestState, type RequestState } from "./checks";
+import { inOrder } from "@/lib/series";
 
 /**
  * What the officers' screens show of the supplier-side records of My Bids (Phase 4d): who signed up online for an event, who acknowledged an addendum online, what documents were asked for and what became of
@@ -109,11 +110,10 @@ export interface InspectionLog {
 
 export async function inspectionLogOf(client: Tx, organisationId: string, windowId: string, timeZone: string | null): Promise<InspectionLog> {
   const where = { organisationId, windowId };
-  const [total, bySupplier, rows] = await Promise.all([
-    client.tenderInspectionEvent.count({ where }),
-    client.tenderInspectionEvent.groupBy({ by: ["supplierId"], where }),
-    client.tenderInspectionEvent.findMany({ where, orderBy: [{ viewedAt: "desc" }, { id: "desc" }], select: { id: true, kind: true, documentVersion: true, viewedAt: true, supplier: { select: { reference: true, registeredName: true } } } }),
-  ]);
+  const [total, bySupplier, rows] = await inOrder(
+    () => client.tenderInspectionEvent.count({ where }),
+    () => client.tenderInspectionEvent.groupBy({ by: ["supplierId"], where }),
+    () => client.tenderInspectionEvent.findMany({ where, orderBy: [{ viewedAt: "desc" }, { id: "desc" }], select: { id: true, kind: true, documentVersion: true, viewedAt: true, supplier: { select: { reference: true, registeredName: true } } } }));
   return {
     total,
     suppliers: bySupplier.length,

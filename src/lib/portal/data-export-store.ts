@@ -17,6 +17,7 @@ import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
 import { buildSupplierExport, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportLists, type SupplierExport, type SupplierExportSource } from "@/lib/suppliers/data-export";
 import { inColumns } from "@/lib/suppliers/data-export-fields";
 import { standingOf } from "@/lib/suppliers/standing-repo";
+import { inOrder } from "@/lib/series";
 
 /**
  * A signed-in supplier's export of its own data (N2, the PDPA right of access, ruling 1875(8); plan docs/notes/plans/backlog-n2.md step 2). Every read names the SESSION's supplier and
@@ -62,14 +63,14 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
     if (!settings || !supplier) return null;
     const reference = String(supplier.reference ?? "");
 
-    const [lists, contacts, declarations, documents, standingChanges, applications] = await Promise.all([
-      tx.supplierListValue.findMany({ where: { organisationId: actor.organisationId, list: { in: Object.values(LIST_KINDS) } }, select: { list: true, code: true, nameEn: true } }),
+    const [lists, contacts, declarations, documents, standingChanges, applications] = await inOrder(
+      () => tx.supplierListValue.findMany({ where: { organisationId: actor.organisationId, list: { in: Object.values(LIST_KINDS) } }, select: { list: true, code: true, nameEn: true } }),
       // As `loadContactsSummary`: the contacts not retired, the primary first.
-      tx.supplierContact.findMany({ where: { ...own, retiredOn: null }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }], select: { ...inColumns("SupplierContact"), account: { select: { ...inColumns("SupplierAccount"), id: true } } } }),
+      () => tx.supplierContact.findMany({ where: { ...own, retiredOn: null }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }], select: { ...inColumns("SupplierContact"), account: { select: { ...inColumns("SupplierAccount"), id: true } } } }),
       // As `loadDeclarationsSummary`: every declaration signed on one of the supplier's applications.
-      tx.registrationDeclaration.findMany({ where: { organisationId: actor.organisationId, application: { supplierId: actor.supplierId } }, orderBy: [{ signedAt: "asc" }, { kind: "asc" }], select: inColumns("RegistrationDeclaration") }),
+      () => tx.registrationDeclaration.findMany({ where: { organisationId: actor.organisationId, application: { supplierId: actor.supplierId } }, orderBy: [{ signedAt: "asc" }, { kind: "asc" }], select: inColumns("RegistrationDeclaration") }),
       // As `loadDocumentsTab` and `companyDocument`: every document of the supplier, with its codes and its live files (attached, not withdrawn).
-      tx.supplierDocument.findMany({
+      () => tx.supplierDocument.findMany({
         where: own,
         orderBy: [{ lodgedOn: "asc" }, { id: "asc" }],
         select: {
@@ -79,17 +80,16 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
         },
       }),
       // Conservative reading (decisions log 2026-10-19): only what stands today, as the portal's standing reading does. A withdrawn change, or one not yet in effect, is left out; with no organisation day nothing is.
-      settings.org.today ? tx.standingEvent.findMany({ where: { ...own, withdrawnAt: null, effectiveOn: { lte: dayToDate(settings.org.today) } }, orderBy: [{ effectiveOn: "asc" }, { recordedAt: "asc" }], select: inColumns("StandingEvent") }) : Promise.resolve([]),
+      () => settings.org.today ? tx.standingEvent.findMany({ where: { ...own, withdrawnAt: null, effectiveOn: { lte: dayToDate(settings.org.today) } }, orderBy: [{ effectiveOn: "asc" }, { recordedAt: "asc" }], select: inColumns("StandingEvent") }) : Promise.resolve([]),
       // As `loadRegistrationStatus` (which reads outside this transaction): the supplier's applications, newest first, each with its outcomes and the items asked for.
-      tx.supplierApplication.findMany({
+      () => tx.supplierApplication.findMany({
         where: own,
         orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }],
         select: {
           ...inColumns("SupplierApplication"),
           decisions: { orderBy: { decidedAt: "desc" }, select: { ...inColumns("ApplicationDecision"), items: { orderBy: { id: "asc" }, select: inColumns("ResubmissionItem") } } },
         },
-      }),
-    ]);
+      }));
 
     // A supplier reading its own contacts: granted as its own record, and logged (NFR-AUD-004), as the staff page logs the same fields.
     if (contacts.length > 0) await writeSupplierSulitEvent(tx, actor, { scope: "supplier", entity: "Supplier", entityId: actor.supplierId, entityLabel: reference, fields: [...CONTACT_FIELDS], decision: OWN_RECORD });
@@ -110,11 +110,10 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
 
     // Purchases and downloads, and the online bid receipts, grouped by exercise. An exercise the supplier may not see today (the restricted-exercise visibility) is left out whole, as the
     // portal answers it "not found".
-    const [purchases, downloads, receipts] = await Promise.all([
-      tx.documentPurchase.findMany({ where: own, orderBy: { createdAt: "asc" }, select: { ...inColumns("DocumentPurchase"), window: { select: { exerciseId: true } }, attempts: { orderBy: { attemptNo: "asc" }, select: inColumns("PaymentAttempt") } } }),
-      tx.purchaseDownload.findMany({ where: own, orderBy: { downloadedAt: "asc" }, select: { ...inColumns("PurchaseDownload"), window: { select: { exerciseId: true } } } }),
-      loadOwnBidReceipts(tx, actor),
-    ]);
+    const [purchases, downloads, receipts] = await inOrder(
+      () => tx.documentPurchase.findMany({ where: own, orderBy: { createdAt: "asc" }, select: { ...inColumns("DocumentPurchase"), window: { select: { exerciseId: true } }, attempts: { orderBy: { attemptNo: "asc" }, select: inColumns("PaymentAttempt") } } }),
+      () => tx.purchaseDownload.findMany({ where: own, orderBy: { downloadedAt: "asc" }, select: { ...inColumns("PurchaseDownload"), window: { select: { exerciseId: true } } } }),
+      () => loadOwnBidReceipts(tx, actor));
     const exerciseIds = [...new Set([...purchases.map((p) => p.window.exerciseId), ...downloads.map((d) => d.window.exerciseId), ...receipts.map((r) => r.exerciseId)])];
     const seen = new Map<string, string>();
     for (const id of exerciseIds) {

@@ -8,6 +8,7 @@ import type { OrgUnit } from "@/lib/organisation/types";
 
 import { custodyList, viewFault, type RoleHolding } from "./estimate";
 import { loadScopePolicy } from "./repo";
+import { inOrder } from "@/lib/series";
 
 /**
  * Who may read the company estimate's figure once it is disclosed (FR-EST-008, ADR 0012, Phase 3a). The rules are `custodyList` and `viewFault`
@@ -67,10 +68,9 @@ export async function estimateAccessFor(client: Tx, reader: Reader & { organisat
   const audit = policy.estimateAuditRoleCode;
   if (custodian == null || audit == null) return done(estimateFigureAccess(actor, "CUSTODY_NOT_SET", await evaluationReader()));
 
-  const [assignments, units] = await Promise.all([
-    client.roleAssignment.findMany({ where: { roleCode: { in: [custodian, audit] }, person: { organisationId: reader.organisationId } }, select: { personId: true, roleCode: true, scope: true, effectiveFrom: true, effectiveTo: true } }),
-    client.orgUnit.findMany({ where: { organisationId: reader.organisationId } }),
-  ]);
+  const [assignments, units] = await inOrder(
+    () => client.roleAssignment.findMany({ where: { roleCode: { in: [custodian, audit] }, person: { organisationId: reader.organisationId } }, select: { personId: true, roleCode: true, scope: true, effectiveFrom: true, effectiveTo: true } }),
+    () => client.orgUnit.findMany({ where: { organisationId: reader.organisationId } }));
   const holders: RoleHolding[] = assignments.map((a) => ({ personId: a.personId, roleCode: a.roleCode, scope: a.scope, from: storedDay(a.effectiveFrom), to: a.effectiveTo ? storedDay(a.effectiveTo) : null }));
   // The unit that asked for the estimate: its section, else its requesting unit, up to the root. An office held for a department counts only on this path.
   const unit = ex.requisition.sectionUnitCode || ex.requisition.requestingUnitCode;

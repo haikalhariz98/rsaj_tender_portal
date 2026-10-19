@@ -72,7 +72,7 @@ import { holdersFor } from "@/lib/requisition/holders";
 import { instrumentFor } from "@/lib/award/instrument";
 import { awardStartRefusal } from "@/lib/award/start-gate";
 import { recommendationClosedText, startRefusalText } from "@/lib/award/start-text";
-import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
+import { sulitWriteDecision } from "@/lib/auth/sulit-store";
 import { RECOMMENDATION_FIELDS } from "@/lib/evaluation/recommendation-fields";
 import { exerciseCancelBlockedBy } from "@/lib/award/status";
 import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, awardFindingText, DOSSIER_EVIDENCE_NEEDED, INSTRUMENT_SHORT } from "@/lib/award/labels";
@@ -312,9 +312,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       issueInForce: issue != null && ctx != null,
     });
     let note = refusal ? startRefusalText(refusal) : null;
-    // The recommendation is SULIT: an officer it is closed to is refused by the act, so the button says so here (the decision is logged on each load that asks it, as AC-37 (d) does).
+    // The recommendation is SULIT: an officer it is closed to is refused by the act, so the button says so here. Asked without logging or reading any SULIT field (`sulitWriteDecision`).
     if (!note && g.gate.applies) {
-      const closed = await sulitWriteRefusal(db, actor, { scope: "evaluation", exerciseId: ex.id }, RECOMMENDATION_FIELDS);
+      const closed = (await sulitWriteDecision(db, actor, { scope: "evaluation", exerciseId: ex.id }, RECOMMENDATION_FIELDS))?.refusal;
       if (closed) note = recommendationClosedText(closed, "No award can be opened");
     }
     return { note, evaluation: g.gate.applies ? evaluationFindings({ facts: g.gate }).map(awardFindingText) : [], opening: openingGateFaults(openingFacts).map(openingFindingText) };

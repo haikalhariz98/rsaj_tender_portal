@@ -6,6 +6,7 @@ import type { Roster } from "./roster";
 import type { Assignment, Office, Person } from "./types";
 import { loadIssue } from "@/lib/authority/load";
 import { routedOffices } from "@/lib/authority/resolve";
+import { inOrder } from "@/lib/series";
 
 /**
  * Load the roster.
@@ -32,20 +33,19 @@ export async function loadRoster(organisationCode: string, client: Tx = db): Pro
   });
   if (!organisation) return EMPTY;
 
-  const [people, offices, issue] = await Promise.all([
-    client.person.findMany({
+  const [people, offices, issue] = await inOrder(
+    () => client.person.findMany({
       where: { organisationId: organisation.id },
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
       include: { roleAssignments: true },
     }),
-    client.authorityRole.findMany({
+    () => client.authorityRole.findMany({
       where: { organisationId: organisation.id },
       orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
     }),
     // The organisation's issue in force today, read as the resolver reads it, so an
     // office the core routing puts beneath an approver counts as routed (6.9 C3).
-    loadIssue(organisationCode, new Date(), undefined, null, client),
-  ]);
+    () => loadIssue(organisationCode, new Date(), undefined, null, client));
 
   const routed = new Set<string>(issue ? routedOffices(issue.matrix) : []);
 

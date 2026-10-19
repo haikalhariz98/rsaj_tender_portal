@@ -31,6 +31,7 @@ import { eligiblePersonIds } from "./eligibility";
 import { loadGrants } from "./permission-store";
 import { organisationDay } from "@/lib/dates";
 import type { Fault, PermissionKey, StaffActor } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * The life of an editor's save held for a second person (ADR 0034 D15, Phase 5). The rules of the editor are the editor's own and are not restated here: the
@@ -124,7 +125,7 @@ export const appliedReason = (proposerName: string, reason: string): string => (
 
 /// Who could decide an editor's save, besides `exceptPersonId`: holders of the deciding permission, and not an administrator account where the editor is kept from one.
 async function deciders(client: Tx, actor: StaffActor, op: EditOperation, now: Date, exceptPersonId: string): Promise<string[]> {
-  const [candidates, grants] = await Promise.all([loadCandidates(client, actor.organisationId), loadGrants(client, actor.organisationId)]);
+  const [candidates, grants] = await inOrder(() => loadCandidates(client, actor.organisationId), () => loadGrants(client, actor.organisationId));
   const usable = op.administratorMay ? candidates : candidates.filter((c) => !c.isAdministrator);
   return eligiblePersonIds(op.decidePermission, usable, grants, organisationDay(now, actor.organisationTimeZone)).filter((p) => p !== exceptPersonId);
 }

@@ -21,6 +21,7 @@ import { FormReader } from "@/lib/validate";
 
 import { stampNow } from "../../suppliers/shared";
 import { deploymentOrganisation } from "@/lib/portal/deployment";
+import { inOrder } from "@/lib/series";
 
 const closed = (): ApplyState => ({ ok: false, message: APPLY.notOpenOnSubmit.en });
 
@@ -126,10 +127,9 @@ export async function receiveApplication(data: FormData): Promise<ApplyState> {
           // The series row is the lock: issuing takes it, and the counts below are read while it is held.
           const issued = await issueReference(tx, org.id, PORTAL_APPLICATION_SERIES_KEY, dayToDate(today));
           const since = new Date(now.getTime() - DAY_MS);
-          const [lastDay, forNumber] = await Promise.all([
-            tx.portalApplication.count({ where: { organisationId: org.id, receivedAt: { gte: since } } }),
-            tx.portalApplication.count({ where: { organisationId: org.id, registrationNoKey: key, receivedAt: { gte: since } } }),
-          ]);
+          const [lastDay, forNumber] = await inOrder(
+            () => tx.portalApplication.count({ where: { organisationId: org.id, receivedAt: { gte: since } } }),
+            () => tx.portalApplication.count({ where: { organisationId: org.id, registrationNoKey: key, receivedAt: { gte: since } } }));
           const capacity = portalCapacity({ lastDay, forNumber }, limits);
           if (capacity === "NOT_SET") throw new Turned(closed());
           // Alike for both limits, so the form never says that this particular number has been sent before.

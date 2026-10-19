@@ -19,6 +19,7 @@ import { contractorSigningFaultOf } from "./signing-store";
 import { amountSen, dueDayOf, KIND_SHAPE, SUBMISSION_WINDOW_MINUTES, submissionFaults, submissionFloodFault, type LineInput } from "./submission";
 import { ProjectRefused, type ProjectFinding, type SubmissionKind } from "./types";
 import { supplierHoldsContract } from "./visibility";
+import { inOrder } from "@/lib/series";
 
 /**
  * A contractor sends a submission from its portal account (Phase 4e; spec section 5.3; 6.14 OD-6, BD-614-31). One transaction under the contract's lock (requisition, exercise, award,
@@ -85,10 +86,9 @@ export async function sendSubmission(actor: SupplierActor, i: SendSubmissionInpu
     const flood = submissionFloodFault(recent);
     if (flood) return refuse([flood], 429);
 
-    const [setting, s] = await Promise.all([
-      tx.contractorSubmissionSetting.findUnique({ where: { organisationId_kind: { organisationId: actor.organisationId, kind: i.kind } }, select: { serviceLevelDays: true } }),
-      loadSupervision(l.contract.id, tx),
-    ]);
+    const [setting, s] = await inOrder(
+      () => tx.contractorSubmissionSetting.findUnique({ where: { organisationId_kind: { organisationId: actor.organisationId, kind: i.kind } }, select: { serviceLevelDays: true } }),
+      () => loadSupervision(l.contract.id, tx));
     const so = await soOfficeOn(l, s, today, tx);
     const serviceLevelDays = setting?.serviceLevelDays ?? null;
     const dueOn = dueDayOf(today, serviceLevelDays);

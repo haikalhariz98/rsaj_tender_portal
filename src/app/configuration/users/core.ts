@@ -42,6 +42,7 @@ import { delegationPersonsToCheck, delegationWhat, holdingGrows, officeWhat } fr
 import { assertCanHold, HoldingRefused } from "@/lib/auth/administration-guard";
 import type { AuditActor, StaffActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
+import { inOrder } from "@/lib/series";
 
 const PATH = "/configuration/users";
 
@@ -619,11 +620,10 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
       await act.write(tx, delegationId);
       if (recommendationVersionId) await attachRecommendation(tx, toAuditActor(actor), orgId, delegationId, recommendationVersionId);
       // FR-APR-011: the delegate is told in the portal, once for these terms (a delegation changed to other terms is told again).
-      const [parties, office, caps] = await Promise.all([
-        tx.person.findMany({ where: { organisationId: orgId, id: { in: [fromPersonId, toPersonId, ...(jobholderPersonId ? [jobholderPersonId] : [])] } }, select: { id: true, name: true } }),
-        tx.authorityRole.findFirst({ where: { organisationId: orgId, code: roleCode }, select: { nameEn: true } }),
-        capabilityCodes.length > 0 ? tx.capability.findMany({ where: { organisationId: orgId, code: { in: capabilityCodes } }, select: { nameEn: true } }) : Promise.resolve([]),
-      ]);
+      const [parties, office, caps] = await inOrder(
+        () => tx.person.findMany({ where: { organisationId: orgId, id: { in: [fromPersonId, toPersonId, ...(jobholderPersonId ? [jobholderPersonId] : [])] } }, select: { id: true, name: true } }),
+        () => tx.authorityRole.findFirst({ where: { organisationId: orgId, code: roleCode }, select: { nameEn: true } }),
+        () => capabilityCodes.length > 0 ? tx.capability.findMany({ where: { organisationId: orgId, code: { in: capabilityCodes } }, select: { nameEn: true } }) : Promise.resolve([]));
       await writeNotices(
         tx,
         orgId,

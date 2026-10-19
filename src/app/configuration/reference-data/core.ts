@@ -14,6 +14,7 @@ import { PERMIT_LIST_MAPPING_FAULT_TEXT, permitListMappingFaults } from "@/lib/m
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
+import { inOrder } from "@/lib/series";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/reference-data";
@@ -196,11 +197,10 @@ export async function saveSourcingMethod(_prev: FormState, data: FormData): Prom
   // under the organisation's lock, so two saves cannot both become a band's default.
   return db.$transaction(async (tx): Promise<FormState> => {
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
-    const [others, series, before] = await Promise.all([
-      tx.sourcingMethod.findMany({ where: { organisationId: orgId, OR: [{ retiredOn: null }, { retiredOn: { gt: new Date() } }], ...(id ? { NOT: { id } } : {}) } }),
-      tx.numberingSeries.findMany({ where: { organisationId: orgId }, select: { key: true } }),
-      id ? tx.sourcingMethod.findUnique({ where: { id, organisationId: actor.organisationId } }) : Promise.resolve(null),
-    ]);
+    const [others, series, before] = await inOrder(
+      () => tx.sourcingMethod.findMany({ where: { organisationId: orgId, OR: [{ retiredOn: null }, { retiredOn: { gt: new Date() } }], ...(id ? { NOT: { id } } : {}) } }),
+      () => tx.numberingSeries.findMany({ where: { organisationId: orgId }, select: { key: true } }),
+      () => id ? tx.sourcingMethod.findUnique({ where: { id, organisationId: actor.organisationId } }) : Promise.resolve(null));
     if (id && !before) return { ok: false, message: "That sourcing method no longer exists." };
     if (!id && (await tx.sourcingMethod.findFirst({ where: { organisationId: orgId, code: v.code } }))) return { ok: false, errors: { code: "Code is already in use." } };
     const faults = methodConfigFaults(v, others, series.map((x) => x.key));

@@ -11,6 +11,7 @@ import { holdersFor, type Holders } from "@/lib/requisition/holders";
 import { supplierHolders } from "@/lib/suppliers/route";
 
 import { committeeRosterIds, routePeople, type NamingSeat, type RoutePeople } from "./routed-people";
+import { inOrder } from "@/lib/series";
 
 /**
  * Who a route names, read (product owner, 2026-10-08, rulings on log lines 1711 and the amendment of 1526). The rules are `routed-people.ts`; this reads what they judge,
@@ -73,12 +74,11 @@ export async function routePeopleOf(client: Tx, organisationId: string, where: P
     const today = org ? todayIn(now, org.timeZone) : null;
     if (today) {
       const on = dayToDate(today);
-      const [assignments, delegationRows, units, people] = await Promise.all([
-        client.roleAssignment.findMany({ where: { person: { organisationId } }, select: { id: true, personId: true, roleCode: true, scope: true, effectiveFrom: true, effectiveTo: true } }),
-        client.delegation.findMany({ where: { organisationId }, select: { id: true, fromPersonId: true, jobholderPersonId: true, toPersonId: true, roleCode: true, capabilityCodes: true, valueCeiling: true, noSubDelegation: true, effectiveFrom: true, effectiveTo: true } }),
-        client.orgUnit.findMany({ where: { organisationId } }),
-        client.person.findMany({ where: { organisationId }, select: { id: true, isActive: true } }),
-      ]);
+      const [assignments, delegationRows, units, people] = await inOrder(
+        () => client.roleAssignment.findMany({ where: { person: { organisationId } }, select: { id: true, personId: true, roleCode: true, scope: true, effectiveFrom: true, effectiveTo: true } }),
+        () => client.delegation.findMany({ where: { organisationId }, select: { id: true, fromPersonId: true, jobholderPersonId: true, toPersonId: true, roleCode: true, capabilityCodes: true, valueCeiling: true, noSubDelegation: true, effectiveFrom: true, effectiveTo: true } }),
+        () => client.orgUnit.findMany({ where: { organisationId } }),
+        () => client.person.findMany({ where: { organisationId }, select: { id: true, isActive: true } }));
       // Holders are found by `holdersFor`, which reads only the assignments in force and the delegations: the rest of a roster is not needed.
       const roster = { people: [], offices: [], assignments } as unknown as Roster;
       const delegations: Delegation[] = delegationRows.map((d) => ({ id: d.id, fromPersonId: d.fromPersonId, jobholderPersonId: d.jobholderPersonId, toPersonId: d.toPersonId, roleCode: d.roleCode, capabilityCodes: d.capabilityCodes, valueCeiling: d.valueCeiling?.toString() ?? null, reason: "", reasonMs: "", noSubDelegation: d.noSubDelegation, effectiveFrom: d.effectiveFrom, effectiveTo: d.effectiveTo }));
@@ -121,10 +121,9 @@ export async function committeeMembersOf(client: Tx, organisationId: string, exe
   const committeeIds = [...new Set(matters.map((m) => m.meeting.committeeId))];
   const seatRows = await client.committeeMember.findMany({ where: { committeeId: { in: committeeIds } }, select: { committeeId: true, personId: true, seatRoleCode: true, effectiveFrom: true, effectiveTo: true } });
   const officeCodes = [...new Set(seatRows.flatMap((s) => (s.seatRoleCode ? [s.seatRoleCode] : [])))];
-  const [assignments, people] = await Promise.all([
-    officeCodes.length ? client.roleAssignment.findMany({ where: { person: { organisationId }, roleCode: { in: officeCodes } }, select: { personId: true, roleCode: true, effectiveFrom: true, effectiveTo: true } }) : Promise.resolve([]),
-    client.person.findMany({ where: { organisationId, isActive: true }, select: { id: true } }),
-  ]);
+  const [assignments, people] = await inOrder(
+    () => officeCodes.length ? client.roleAssignment.findMany({ where: { person: { organisationId }, roleCode: { in: officeCodes } }, select: { personId: true, roleCode: true, effectiveFrom: true, effectiveTo: true } }) : Promise.resolve([]),
+    () => client.person.findMany({ where: { organisationId, isActive: true }, select: { id: true } }));
   const active = new Set(people.map((p) => p.id));
   const seatsOf = (committeeId: string): NamingSeat[] => seatRows.filter((s) => s.committeeId === committeeId);
   for (const m of matters) {

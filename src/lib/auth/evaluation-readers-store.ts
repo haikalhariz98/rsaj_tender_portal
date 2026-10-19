@@ -4,6 +4,7 @@ import { evaluationOfficeHeld, evaluationReaderCodes, type EvaluationReaderBasis
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import type { RoleHolding } from "@/lib/scope/estimate";
+import { inOrder } from "@/lib/series";
 
 /**
  * Whether a reader reads each of these exercises' evaluations as the Secretariat or as Internal Audit (product owner, 2026-10-08, decisions log line 1735). The rule is
@@ -27,11 +28,10 @@ export async function evaluationOfficeBases(
   const today = todayIn(now, reader.organisationTimeZone);
   if (codes.length === 0 || !today) return out;
   // Every holding of the two offices is read, not only the reader's own: the nearest unit with a holder wins, so another person's holding of the office for the unit shadows theirs.
-  const [assignments, units, exercises] = await Promise.all([
-    client.roleAssignment.findMany({ where: { roleCode: { in: codes }, person: { organisationId: reader.organisationId } }, select: { personId: true, roleCode: true, scope: true, effectiveFrom: true, effectiveTo: true } }),
-    client.orgUnit.findMany({ where: { organisationId: reader.organisationId } }),
-    client.sourcingExercise.findMany({ where: { id: { in: [...exerciseIds] }, organisationId: reader.organisationId }, select: { id: true, requisition: { select: { sectionUnitCode: true, requestingUnitCode: true } } } }),
-  ]);
+  const [assignments, units, exercises] = await inOrder(
+    () => client.roleAssignment.findMany({ where: { roleCode: { in: codes }, person: { organisationId: reader.organisationId } }, select: { personId: true, roleCode: true, scope: true, effectiveFrom: true, effectiveTo: true } }),
+    () => client.orgUnit.findMany({ where: { organisationId: reader.organisationId } }),
+    () => client.sourcingExercise.findMany({ where: { id: { in: [...exerciseIds] }, organisationId: reader.organisationId }, select: { id: true, requisition: { select: { sectionUnitCode: true, requestingUnitCode: true } } } }));
   const holders: RoleHolding[] = assignments.map((a) => ({ personId: a.personId, roleCode: a.roleCode, scope: a.scope, from: storedDay(a.effectiveFrom), to: a.effectiveTo ? storedDay(a.effectiveTo) : null }));
   const day = dayToDate(today);
   for (const ex of exercises) {

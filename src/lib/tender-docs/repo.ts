@@ -30,6 +30,7 @@ import type { PermitList } from "./permit";
 import type { InsuranceTailPolicy } from "./appendix";
 import type { PinnedFile } from "./freeze";
 import type { ConfiguredPart, DocumentLanguage, PackKind, PackPartFacts, PartRole, Provenance, TemplateFacts } from "./types";
+import { inOrder } from "@/lib/series";
 
 const dec = (v: { toString(): string } | null | undefined): Sen | null => (v == null ? null : senFromDecimal(v));
 const pct = (v: { toString(): string } | null | undefined): string | null => (v == null ? null : v.toString());
@@ -317,12 +318,11 @@ export async function loadClauses(organisationId: string, client: Tx = db): Prom
 
 /// Where each configured taxonomy is in use (mapping rows, exercises classified, policies naming it): what a permit list must not be (C2).
 export async function loadTaxonomyUses(organisationId: string, client: Tx = db) {
-  const [taxonomies, mappings, exerciseValues, scope] = await Promise.all([
-    client.classificationTaxonomy.findMany({ where: { organisationId }, select: { code: true } }),
-    client.taxonomyMapping.findMany({ where: { organisationId }, select: { taxonomyCode: true, whenTaxonomyCode: true } }),
-    client.exerciseTaxonomyValue.findMany({ where: { exercise: { organisationId } }, select: { taxonomyCode: true } }),
-    client.scopePolicy.findUnique({ where: { organisationId }, select: { panelContractKindTaxonomyCode: true, panelProjectStatusTaxonomyCode: true } }),
-  ]);
+  const [taxonomies, mappings, exerciseValues, scope] = await inOrder(
+    () => client.classificationTaxonomy.findMany({ where: { organisationId }, select: { code: true } }),
+    () => client.taxonomyMapping.findMany({ where: { organisationId }, select: { taxonomyCode: true, whenTaxonomyCode: true } }),
+    () => client.exerciseTaxonomyValue.findMany({ where: { exercise: { organisationId } }, select: { taxonomyCode: true } }),
+    () => client.scopePolicy.findUnique({ where: { organisationId }, select: { panelContractKindTaxonomyCode: true, panelProjectStatusTaxonomyCode: true } }));
   return taxonomyUses(
     taxonomies.map((t) => t.code),
     mappings,

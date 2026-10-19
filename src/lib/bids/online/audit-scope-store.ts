@@ -2,6 +2,7 @@ import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 
 import { openingFactsFor, type SealedAuditFacts } from "./audit-mask";
+import { inOrder } from "@/lib/series";
 
 /**
  * What the audit mask is judged on (ADR 0036 D9, 20c; wave 3b step 12): for each online-bid record named by a set of audit rows, its exercise, whether that exercise's main opening is
@@ -34,13 +35,12 @@ export async function sealedAuditFactsFor(
   const exerciseOf = new Map<string, string>([...openedBids.map((b) => [`OpenedBid:${b.id}`, b.exerciseId] as const), ...envelopes.map((e) => [`BidEnvelope:${e.id}`, e.exerciseId] as const), ...bids.map((b) => [`OnlineBid:${b.id}`, b.exerciseId] as const), ...files.map((f) => [`OnlineBidFile:${f.id}`, f.exerciseId] as const), ...partBids.map((b) => [`OnlineBidPart:${b.id}`, b.exerciseId] as const)]);
   const exerciseIds = [...new Set(exerciseOf.values())];
   const [openings, officers, exercises, supplementary] = exerciseIds.length
-    ? await Promise.all([
-        client.opening.findMany({ where: { exerciseId: { in: exerciseIds }, kind: "MAIN" }, select: { exerciseId: true, unsealedAt: true, finalisedAt: true } }),
-        client.exerciseOpeningOfficer.findMany({ where: { organisationId, exerciseId: { in: exerciseIds }, endedAt: null }, select: { exerciseId: true, personId: true } }),
-        client.sourcingExercise.findMany({ where: { organisationId, id: { in: exerciseIds } }, select: { id: true, submissionChannel: true } }),
+    ? await inOrder(
+        () => client.opening.findMany({ where: { exerciseId: { in: exerciseIds }, kind: "MAIN" }, select: { exerciseId: true, unsealedAt: true, finalisedAt: true } }),
+        () => client.exerciseOpeningOfficer.findMany({ where: { organisationId, exerciseId: { in: exerciseIds }, endedAt: null }, select: { exerciseId: true, personId: true } }),
+        () => client.sourcingExercise.findMany({ where: { organisationId, id: { in: exerciseIds } }, select: { id: true, submissionChannel: true } }),
         // 20ax: the supplementary openings, each with the envelope its admission names, so a late bid is judged by the opening that opens it.
-        client.opening.findMany({ where: { exerciseId: { in: exerciseIds }, kind: "SUPPLEMENTARY" }, select: { exerciseId: true, unsealedAt: true, finalisedAt: true, admissionDecision: { select: { bidEnvelopeId: true } } } }),
-      ])
+        () => client.opening.findMany({ where: { exerciseId: { in: exerciseIds }, kind: "SUPPLEMENTARY" }, select: { exerciseId: true, unsealedAt: true, finalisedAt: true, admissionDecision: { select: { bidEnvelopeId: true } } } }),)
     : [[], [], [], []];
   return (row) => {
     const exerciseId = exerciseOf.get(`${row.entity}:${row.entityId}`);
@@ -56,9 +56,8 @@ export async function sealedAuditFactsFor(
 /// What the History's fixed sentence (20av) is judged on: whether the exercise takes bids online and whether its main opening has started. Asked the same way for every reader and whatever
 /// records exist, so the answer says nothing about any bid.
 export async function exerciseOnlineFacts(organisationId: string, exerciseId: string, client: Pick<Tx, "opening" | "sourcingExercise"> = db): Promise<{ online: boolean; started: boolean }> {
-  const [ex, main] = await Promise.all([
-    client.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId }, select: { submissionChannel: true } }),
-    client.opening.count({ where: { exerciseId, organisationId, kind: "MAIN" } }),
-  ]);
+  const [ex, main] = await inOrder(
+    () => client.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId }, select: { submissionChannel: true } }),
+    () => client.opening.count({ where: { exerciseId, organisationId, kind: "MAIN" } }));
   return { online: ex?.submissionChannel === "ONLINE", started: main > 0 };
 }

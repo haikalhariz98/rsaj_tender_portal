@@ -15,6 +15,7 @@ import { lockSupplierRow } from "./lock";
 import { documentFacts, typeFacts } from "./repo";
 import { standing, type StandingEventFacts, type StandingEventKind, type StandingReading } from "./standing";
 import type { RegistrationValueKind } from "./types";
+import { inOrder } from "@/lib/series";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
@@ -43,11 +44,10 @@ export type SupplierPolicyFacts = Awaited<ReturnType<typeof supplierPolicyOf>>;
 
 /// Where one supplier stands on `today`, from its events and its mandatory documents.
 export async function standingOf(supplierId: string, organisationId: string, today: string, client: Tx = db, policy?: SupplierPolicyFacts): Promise<{ reading: StandingReading; status: string } | null> {
-  const [s, types, pol] = await Promise.all([
-    client.supplier.findFirst({ where: { id: supplierId, organisationId }, select: { status: true, registeredOn: true, documents: true, standingEvents: true } }),
-    client.supplierDocumentType.findMany({ where: { organisationId } }),
-    policy ? Promise.resolve(policy) : supplierPolicyOf(organisationId, client),
-  ]);
+  const [s, types, pol] = await inOrder(
+    () => client.supplier.findFirst({ where: { id: supplierId, organisationId }, select: { status: true, registeredOn: true, documents: true, standingEvents: true } }),
+    () => client.supplierDocumentType.findMany({ where: { organisationId } }),
+    () => policy ? Promise.resolve(policy) : supplierPolicyOf(organisationId, client));
   if (!s) return null;
   const mandatory = documentStates(types.map(typeFacts), s.documents.map(documentFacts), today)
     .filter((x) => x.mandatory)
@@ -65,13 +65,12 @@ export async function eligibilityOf(supplierId: string, exerciseId: string, org:
   const policy = await supplierPolicyOf(org.id, client);
   const st = await standingOf(supplierId, org.id, org.today, client, policy);
   if (!st) return null;
-  const [supplier, ex, bodies, types, permissions] = await Promise.all([
-    client.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { reference: true, documents: { include: { values: { include: { registrationValue: { select: { rank: true } } } } } } } }),
-    client.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { closingAt: true, restrictedTender: true, window: { select: { advertisementDay: true } }, registrationRequirements: { orderBy: [{ alternativeGroup: "asc" }, { sortOrder: "asc" }], include: { needs: { orderBy: { id: "asc" }, include: { registrationValue: { select: { rank: true } } } } } } } }),
-    client.registrationBody.findMany({ where: { organisationId: org.id }, select: { id: true, code: true } }),
-    client.supplierDocumentType.findMany({ where: { organisationId: org.id }, select: { id: true, bodyId: true } }),
-    client.specialPermission.findMany({ where: { exerciseId, party: { vendorId: supplierId }, grantedOn: { not: null } }, select: { requirementId: true, relaxes: true } }),
-  ]);
+  const [supplier, ex, bodies, types, permissions] = await inOrder(
+    () => client.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { reference: true, documents: { include: { values: { include: { registrationValue: { select: { rank: true } } } } } } } }),
+    () => client.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { closingAt: true, restrictedTender: true, window: { select: { advertisementDay: true } }, registrationRequirements: { orderBy: [{ alternativeGroup: "asc" }, { sortOrder: "asc" }], include: { needs: { orderBy: { id: "asc" }, include: { registrationValue: { select: { rank: true } } } } } } } }),
+    () => client.registrationBody.findMany({ where: { organisationId: org.id }, select: { id: true, code: true } }),
+    () => client.supplierDocumentType.findMany({ where: { organisationId: org.id }, select: { id: true, bodyId: true } }),
+    () => client.specialPermission.findMany({ where: { exerciseId, party: { vendorId: supplierId }, grantedOn: { not: null } }, select: { requirementId: true, relaxes: true } }));
   if (!ex) return null;
   const typesOfBody: Record<string, string[]> = {};
   for (const b of bodies) typesOfBody[b.code] = types.filter((t) => t.bodyId === b.id).map((t) => t.id);

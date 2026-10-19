@@ -7,6 +7,7 @@ import type { EventFacts } from "@/lib/window/types";
 
 import { preSaleChecks, undatedChecks, type PreSaleCheck } from "./checks";
 import { isInvited, type BidContext } from "./context-store";
+import { inOrder } from "@/lib/series";
 
 /**
  * What the pre-sale checks are judged on, for the signed-in supplier (FR-VND-012, FR-ADV-010, Phase 4d): the register's reading of THIS supplier now (the reading `recordSale` uses, taken without its lock),
@@ -39,14 +40,13 @@ export async function loadSaleFacts(tx: Tx, actor: Pick<SupplierActor, "supplier
     const [sale, requests] = await Promise.all([sold, asked]);
     return shaped(undatedChecks(ctx.phase), sale, requests, null);
   }
-  const [events, sale, requests, policy, register, windowRow] = await Promise.all([
-    tx.siteEvent.findMany({ where: { windowId: window.id, organisationId: actor.organisationId }, select: { id: true, kind: true, startsAt: true, place: true, mandatory: true, heldOn: true, cancelledAt: true, attendance: { select: { partyId: true } } } }),
-    sold,
-    asked,
-    tx.tenderDocumentPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { restrictionLabelEn: true } }),
-    readRegister(tx, { id: ctx.org.id, timeZone: ctx.org.timeZone, today }, actor.supplierId, ctx.ex.id),
-    tx.exerciseWindow.findUniqueOrThrow({ where: { id: window.id, organisationId: actor.organisationId }, select: { publishedAt: true, policySnapshot: true } }),
-  ]);
+  const [events, sale, requests, policy, register, windowRow] = await inOrder(
+    () => tx.siteEvent.findMany({ where: { windowId: window.id, organisationId: actor.organisationId }, select: { id: true, kind: true, startsAt: true, place: true, mandatory: true, heldOn: true, cancelledAt: true, attendance: { select: { partyId: true } } } }),
+    () => sold,
+    () => asked,
+    () => tx.tenderDocumentPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { restrictionLabelEn: true } }),
+    () => readRegister(tx, { id: ctx.org.id, timeZone: ctx.org.timeZone, today }, actor.supplierId, ctx.ex.id),
+    () => tx.exerciseWindow.findUniqueOrThrow({ where: { id: window.id, organisationId: actor.organisationId }, select: { publishedAt: true, policySnapshot: true } }));
   // The attendance rule is the one the window was published under, never today's configuration (what the notice stated).
   const live = await tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { mandatoryAttendancePermitted: true } });
   const permitted = mandatoryPermittedFor(windowRow, live?.mandatoryAttendancePermitted ?? null).permitted;

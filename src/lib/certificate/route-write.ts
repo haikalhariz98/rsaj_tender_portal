@@ -41,6 +41,7 @@ import { certificateLabel, loadCertificate } from "./repo";
 import { certificateDeciderText } from "./route-words";
 import { CertificateRefusal, voidCertificate, type CertCtx } from "./write";
 import { routeRequesterId } from "@/lib/approvals/requester";
+import { inOrder } from "@/lib/series";
 
 /// Where a certificate's refused route may go (FR-APR-016): every kind the engine knows.
 export const CERTIFICATE_SUPPORTS: readonly RejectionKind[] = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
@@ -121,7 +122,7 @@ export async function openCertificateRoute(c: CertCtx, o: OpenRouteInput): Promi
 
 /// The office's holders for the certificate's contract (its requisition's unit) on a day, as the engine reads them.
 async function holdersOn(c: CertCtx, roleCode: string, day: string) {
-  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await inOrder(() => loadRoster(c.l.org.code, c.tx), () => loadDelegations(c.l.org.code, c.tx), () => c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } }));
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
   return { holders: holdersFor(roleCode, unitPath, roster, delegations, day), roster };
 }

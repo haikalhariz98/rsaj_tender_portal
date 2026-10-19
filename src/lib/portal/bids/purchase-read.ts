@@ -14,6 +14,7 @@ import { failedTriesExhausted, FAILED_TRIES_WORDS } from "./limits";
 import type { PaymentReason } from "./payment-say";
 import { buyerStandingCheck, judgePurchase, onlinePurchaseChecks, PAID_CHANNEL_WORDS, restrictionPurchaseCheck, type PaidChannel, type PurchaseState, type WordsFor } from "./purchase";
 import { loadSaleFacts } from "./sale-facts";
+import { inOrder } from "@/lib/series";
 
 /**
  * What the signed-in supplier sees of buying the documents online (SR-10): whether it can buy and why not, where its purchase stands, how it was paid, and what a failed try said. Reads only,
@@ -45,35 +46,33 @@ export interface OnlineView {
 export type BuyerActor = Pick<SupplierActor, "supplierId" | "organisationId" | "accountId" | "displayName">;
 
 export async function buyerCheckOf(tx: Tx, actor: BuyerActor, now: Date): Promise<PreSaleCheck> {
-  const [account, bar] = await Promise.all([
-    tx.supplierAccount.findFirst({ where: { id: actor.accountId, organisationId: actor.organisationId, supplierId: actor.supplierId }, select: { status: true, contact: { select: { retiredOn: true } } } }),
-    portalStandingBarOf(tx, actor, "TRANSACT", now),
-  ]);
+  const [account, bar] = await inOrder(
+    () => tx.supplierAccount.findFirst({ where: { id: actor.accountId, organisationId: actor.organisationId, supplierId: actor.supplierId }, select: { status: true, contact: { select: { retiredOn: true } } } }),
+    () => portalStandingBarOf(tx, actor, "TRANSACT", now));
   return buyerStandingCheck({ name: actor.displayName, accountActive: account?.status === "ACTIVE", contactCurrent: !!account && account.contact.retiredOn == null, bar });
 }
 
 /// Ruling 17a: the restricted tender's check for an online purchase, from the supplier register. Null where the counter's checks carry no restriction (the tender is not restricted, or the organisation's day is unknown).
 export async function restrictionCheckOf(tx: Tx, actor: BuyerActor, ctx: BidContext, counter: readonly PreSaleCheck[], by: WordsFor = "BUYER"): Promise<PreSaleCheck | null> {
-  if (!counter.some((c) => c.key === "RESTRICTION" && c.state === "BRING") || !ctx.org.today) return null;
-  const [reading, tender] = await Promise.all([
-    restrictionForPurchase(tx, { id: actor.organisationId }, actor.supplierId, { today: ctx.org.today, closingDay: ctx.ex.closingAt && ctx.org.timeZone ? dayIn(ctx.ex.closingAt, ctx.org.timeZone) : null }),
-    tx.tenderDocumentPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { restrictionLabelEn: true } }),
-  ]);
+  const today = ctx.org.today;
+  if (!counter.some((c) => c.key === "RESTRICTION" && c.state === "BRING") || !today) return null;
+  const [reading, tender] = await inOrder(
+    () => restrictionForPurchase(tx, { id: actor.organisationId }, actor.supplierId, { today, closingDay: ctx.ex.closingAt && ctx.org.timeZone ? dayIn(ctx.ex.closingAt, ctx.org.timeZone) : null }),
+    () => tx.tenderDocumentPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { restrictionLabelEn: true } }));
   return restrictionPurchaseCheck(reading, tender?.restrictionLabelEn?.trim() || null, by);
 }
 
 export async function loadOnlineView(tx: Tx, actor: BuyerActor, ctx: BidContext): Promise<OnlineView | null> {
   const window = ctx.ex.window;
   if (!window || ctx.ex.saleMode !== "ONLINE") return null;
-  const [facts, buyer, policy, purchase] = await Promise.all([
-    loadSaleFacts(tx, actor, ctx),
-    buyerCheckOf(tx, actor, ctx.now),
-    tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true, paymentSimulatorOn: true, simulatedPaymentMethods: true } }),
-    tx.documentPurchase.findUnique({
+  const [facts, buyer, policy, purchase] = await inOrder(
+    () => loadSaleFacts(tx, actor, ctx),
+    () => buyerCheckOf(tx, actor, ctx.now),
+    () => tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true, paymentSimulatorOn: true, simulatedPaymentMethods: true } }),
+    () => tx.documentPurchase.findUnique({
       where: { windowId_supplierId: { windowId: window.id, supplierId: actor.supplierId } },
       select: { organisationId: true, state: true, createdAt: true, paidAt: true, paidChannel: true, paidMethod: true, paidReference: true, amount: true, attempts: { orderBy: { attemptNo: "desc" }, take: 1, select: { outcome: true, method: true, failureText: true } }, _count: { select: { attempts: { where: { outcome: "FAILED" } } } } },
-    }),
-  ]);
+    }));
   const mine = purchase && purchase.organisationId === actor.organisationId ? purchase : null;
   const checks = onlinePurchaseChecks(facts.checks, buyer, await restrictionCheckOf(tx, actor, ctx, facts.checks));
   const reading = gatewayReading({ simulatorOn: policy?.paymentSimulatorOn ?? null, methods: policy?.simulatedPaymentMethods ?? [] }, simulatorAllowedByDeployment());

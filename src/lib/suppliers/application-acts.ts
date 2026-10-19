@@ -20,6 +20,7 @@ import { decisionFaults } from "./review";
 import { blocking } from "./types";
 import { activePerson, audit, CHANGED, GONE, label, Refusal, type LockedSupplier } from "./write";
 import type { AuditActor } from "@/lib/auth/types";
+import { inOrder } from "@/lib/series";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
@@ -100,7 +101,7 @@ export async function recordOutcome(tx: Tx, actor: AuditActor, l: LockedSupplier
   const a = await tx.supplierApplication.findFirst({ where: { id: applicationId, supplierId }, include: appInclude });
   if (!a) return GONE;
   const person = await activePerson(tx, l.org.id, personId);
-  const [docs, types] = await Promise.all([tx.supplierDocument.findMany({ where: { supplierId }, select: { id: true, typeLabelSnapshot: true, reference: true } }), tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id }, select: { id: true, nameEn: true } })]);
+  const [docs, types] = await inOrder(() => tx.supplierDocument.findMany({ where: { supplierId }, select: { id: true, typeLabelSnapshot: true, reference: true } }), () => tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id }, select: { id: true, nameEn: true } }));
   const fs = decisionFaults(
     { outcome: outcome === "RESUBMIT" ? "RESUBMIT" : "REJECT", remarks, resubmitBy, items: outcome === "RESUBMIT" ? items : [], personActive: !!person },
     { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING"), answeredOnTime: (await answeredOnTimeIds(tx, l.org.id, [a.id])).has(a.id) },

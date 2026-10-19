@@ -22,6 +22,7 @@ import { attentionCount, documentRows, requestView, type ExpiryPolicy } from "./
 import { conditionViews, failingFirst } from "./eligibility-view";
 import { standingView } from "./standing-view";
 import type { CompanyDocument, OpenRequestFacts } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * What the supplier's own Company workspace reads (Phase 4c). Every read names the SESSION's supplier and organisation (`actor`): nothing here takes a supplier from a request, and no row of
@@ -89,13 +90,12 @@ async function supplierOf(client: Tx, actor: SupplierActor) {
 export async function loadDocumentsTab(client: Tx, actor: SupplierActor) {
   const settings = await loadRegistrationSettings(client, actor.organisationId);
   const today = settings?.org.today ?? null;
-  const [supplier, config, docRows, request, uploads] = await Promise.all([
-    supplierOf(client, actor),
-    loadSupplierConfig(actor.organisationId, client),
-    client.supplierDocument.findMany({ where: { supplierId: actor.supplierId, organisationId: actor.organisationId }, include: DOCUMENT_INCLUDE, orderBy: [{ lodgedOn: "asc" }, { id: "asc" }] }),
-    loadOpenRequest(client, actor),
-    settings ? loadUploadSettings(client, actor.organisationId, settings) : null,
-  ]);
+  const [supplier, config, docRows, request, uploads] = await inOrder(
+    () => supplierOf(client, actor),
+    () => loadSupplierConfig(actor.organisationId, client),
+    () => client.supplierDocument.findMany({ where: { supplierId: actor.supplierId, organisationId: actor.organisationId }, include: DOCUMENT_INCLUDE, orderBy: [{ lodgedOn: "asc" }, { id: "asc" }] }),
+    () => loadOpenRequest(client, actor),
+    () => settings ? loadUploadSettings(client, actor.organisationId, settings) : null);
   if (!supplier || !settings) return null;
   const docs = docRows.map(companyDocument);
   const policy: ExpiryPolicy = {
@@ -137,12 +137,11 @@ export async function loadOverviewTab(client: Tx, actor: SupplierActor, day: (d:
   const supplier = await supplierOf(client, actor);
   if (!supplier || !settings) return null;
   const stage = supplier.status === "REGISTERED" ? "REGISTER" : "APPLICATION";
-  const [company, documents, standing, bank] = await Promise.all([
-    loadCompanySummary(client, { organisationId: actor.organisationId, supplierId: actor.supplierId }, stage),
-    loadDocumentsTab(client, actor),
-    today ? standingOf(actor.supplierId, actor.organisationId, today, client) : null,
-    loadBankState(client, actor),
-  ]);
+  const [company, documents, standing, bank] = await inOrder(
+    () => loadCompanySummary(client, { organisationId: actor.organisationId, supplierId: actor.supplierId }, stage),
+    () => loadDocumentsTab(client, actor),
+    () => today ? standingOf(actor.supplierId, actor.organisationId, today, client) : null,
+    () => loadBankState(client, actor));
   // The evidence document of the Bumiputera status, with its expiry: the one in force of the type the organisation named.
   const policyRow = await client.supplierPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { restrictionEvidenceTypeId: true } });
   const evidenceTypeId = policyRow?.restrictionEvidenceTypeId ?? null;
@@ -184,7 +183,9 @@ export async function loadBankTab(client: Tx, actor: SupplierActor) {
   const state = bankState(rows.map((r) => ({ version: r.version, sent: true, verification: r.verification })));
   const shown = rows.filter((r) => r.version === state.inForce?.version || r.version === state.waiting?.version || r.version === state.notInOrder?.version);
   for (const r of shown) await writeSupplierSulitEvent(client, actor, creditorEventRow({ id: r.id, label: "Creditor's profile" }, CREDITOR_PROFILE_FIELDS, OWN_RECORD));
-  const summaries = await Promise.all(shown.map(async (r) => ({ row: r, summary: await creditorSummaryOf(client, actor.organisationId, r) })));
+  const summaries: { row: (typeof shown)[number]; summary: Awaited<ReturnType<typeof creditorSummaryOf>> }[] = [];
+  // One at a time: the client may be a transaction, which holds a single connection.
+  for (const r of shown) summaries.push({ row: r, summary: await creditorSummaryOf(client, actor.organisationId, r) });
   return { state, versions: summaries };
 }
 

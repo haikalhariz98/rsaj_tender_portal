@@ -21,6 +21,7 @@ import { markPurchasePaid, PurchaseBarred, PurchaseNotAwaiting } from "./purchas
 import { loadSaleFacts } from "./sale-facts";
 import { auditActorOf } from "./signup-store";
 import { BidRefused, type BidFinding } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * Buying the tender documents online, and paying for them on the payment simulator (SR-10, rulings 16 and 17 as amended). Each act is one transaction: the exercise and its
@@ -56,7 +57,7 @@ export async function startPurchase(actor: SupplierActor, i: { exerciseId: strin
     if (standing?.state === "AWAITING_PAYMENT") return { outcome: "STANDS", purchaseId: standing.id };
 
     const facts = await loadSaleFacts(tx, actor, ctx);
-    const [buyer, policy] = await Promise.all([buyerCheckOf(tx, actor, now), tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true } })]);
+    const [buyer, policy] = await inOrder(() => buyerCheckOf(tx, actor, now), () => tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true } }));
     const checks = onlinePurchaseChecks(facts.checks, buyer, await restrictionCheckOf(tx, actor, ctx, facts.checks));
     const judged = judgePurchase({ saleMode: ctx.ex.saleMode, releaseOnline: policy?.electronicDocumentRelease ?? null, feeSet: window.feeAmount != null, checks, alreadyBought: facts.sale != null || standing?.state === "PAID", purchaseStands: false });
     if (judged.outcome === "FAULTS") return refuse(judged.faults.map((code: PurchaseFault): BidFinding => ({ code, level: "block" })));

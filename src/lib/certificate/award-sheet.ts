@@ -27,6 +27,7 @@ import { awardSheetFaults, checkFaults, freezeRoutingType, latestRouteState, rea
 import type { Finding } from "./types";
 import { CertificateRefusal } from "./write";
 import type { AuditActor } from "@/lib/auth/types";
+import { inOrder } from "@/lib/series";
 
 const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new CertificateRefusal(refusalText(lead, fs));
@@ -59,7 +60,7 @@ async function audit(tx: Tx, actor: AuditActor, l: LoadedAward, entity: string, 
 }
 
 export async function loadAwardSheetRows(awardId: string, client: Tx): Promise<AwardSheetRows> {
-  const [sheet, checks] = await Promise.all([client.awardRoutingSheet.findUnique({ where: { awardId } }), client.routingCheck.findMany({ where: { awardId }, orderBy: [{ iteration: "asc" }, { defOrder: "asc" }] })]);
+  const [sheet, checks] = await inOrder(() => client.awardRoutingSheet.findUnique({ where: { awardId } }), () => client.routingCheck.findMany({ where: { awardId }, orderBy: [{ iteration: "asc" }, { defOrder: "asc" }] }));
   return { sheet, checks };
 }
 
@@ -103,7 +104,7 @@ export async function recordAwardCheck(tx: Tx, actor: AuditActor, l: LoadedAward
   const person = await tx.person.findFirst({ where: { id: act.subjectPersonId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
   let holders: { holderIds: string[]; delegateIds: string[] } | null = null;
   if (slot?.def.officeCode) {
-    const [roster, delegations, units] = await Promise.all([loadRoster(l.org.code, tx), loadDelegations(l.org.code, tx), tx.orgUnit.findMany({ where: { organisationId: l.org.id } })]);
+    const [roster, delegations, units] = await inOrder(() => loadRoster(l.org.code, tx), () => loadDelegations(l.org.code, tx), () => tx.orgUnit.findMany({ where: { organisationId: l.org.id } }));
     const asOf = on <= today ? on : today;
     const path = pathTo(units as unknown as OrgUnit[], l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(asOf)).reverse().map((u) => u.code);
     const h = holdersFor(slot.def.officeCode, path, roster, delegations, asOf);

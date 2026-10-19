@@ -16,6 +16,7 @@ import { exerciseIdNotHidden } from "@/lib/auth/sulit-store";
 import { markedReadByOpening } from "./kinds";
 import type { NoticeDraft } from "./notices";
 import { INBOX_PAGE_SIZE, type InboxCursor } from "./paging";
+import { inOrder } from "@/lib/series";
 
 /// Returns how many notices were newly written (a retry returns 0).
 export async function writeNotices(tx: Tx, organisationId: string, raisedByPersonId: string | null, drafts: readonly NoticeDraft[]): Promise<number> {
@@ -72,7 +73,7 @@ export async function loadInboxPage(
 /// How many notices the person has, and how many are unread: the real totals, whatever page is shown.
 export async function inboxTotals(client: Tx, viewer: { organisationId: string; personId: string }, hidden: readonly string[]): Promise<{ total: number; unread: number }> {
   const where = OWN(viewer.organisationId, viewer.personId, hidden);
-  const [total, unread] = await Promise.all([client.staffNotice.count({ where }), client.staffNotice.count({ where: { ...where, readAt: null } })]);
+  const [total, unread] = await inOrder(() => client.staffNotice.count({ where }), () => client.staffNotice.count({ where: { ...where, readAt: null } }));
   return { total, unread };
 }
 

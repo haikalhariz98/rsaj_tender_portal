@@ -35,6 +35,7 @@ import { makerCheckerFault } from "@/lib/auth/maker-checker";
 import { eligibleFor } from "@/lib/auth/eligibility-store";
 import { permissionHeldThrough } from "@/lib/auth/permission-store";
 import type { OrgScope } from "@/lib/org-scope";
+import { inOrder } from "@/lib/series";
 
 /// A recommender proposes or recommends. Approving is the approver's act, set on
 /// the rule itself; a recommender step saying "approve" would put two approvers in
@@ -699,12 +700,11 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
     });
     if (!source) return { ok: false, message: "That issue no longer exists." };
 
-    const [labels, drafts] = await Promise.all([
-      tx.authorityMatrix.findMany({ where: { organisationId: orgId }, select: { label: true } }),
+    const [labels, drafts] = await inOrder(
+      () => tx.authorityMatrix.findMany({ where: { organisationId: orgId }, select: { label: true } }),
       // Partitioned by route: a funder's draft rule set and the organisation's own draft
       // are not competing versions of one thing.
-      tx.authorityMatrix.count({ where: { organisationId: orgId, issuedAt: null, fundingRouteCode: source.fundingRouteCode } }),
-    ]);
+      () => tx.authorityMatrix.count({ where: { organisationId: orgId, issuedAt: null, fundingRouteCode: source.fundingRouteCode } }));
     if (labels.some((l) => l.label === label)) return { ok: false, errors: { label: "An issue with that label already exists." } };
     // One draft at a time: two would be two competing versions of what comes next.
     if (drafts > 0) return { ok: false, message: "A draft issue already exists. Issue or finish that one first." };

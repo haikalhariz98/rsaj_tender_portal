@@ -15,6 +15,7 @@ export { draftOf, emptyDraftView, type DraftDocumentView, type DraftView, type F
 import type { CreditorInput, RegistrationContext, RegistrationStep, StepFault } from "./types";
 import { CREDITOR_FIELDS, EMPTY_CREDITOR } from "./types";
 import { creditorTrailChanges } from "./creditor";
+import { inOrder } from "@/lib/series";
 
 /**
  * A signed-in supplier's registration draft, read and saved (Phase 4b, steps 2 to 5). The supplier is the SESSION's (`actor.supplierId`), never anything a request names, and every
@@ -31,8 +32,8 @@ const fileOf = (v: { id: string; originalFilename: string; byteSize: bigint; med
 /// The draft as the page shows it and the rules judge it. Reads only.
 export async function loadDraftView(client: Tx, actor: Pick<SupplierActor, "organisationId" | "supplierId">): Promise<DraftView> {
   const where = { supplierId: actor.supplierId, organisationId: actor.organisationId };
-  const [row, profile] = await Promise.all([
-    client.registrationDraft.findFirst({
+  const [row, profile] = await inOrder(
+    () => client.registrationDraft.findFirst({
       where,
       include: {
         documents: {
@@ -45,12 +46,11 @@ export async function loadDraftView(client: Tx, actor: Pick<SupplierActor, "orga
         },
       },
     }),
-    client.creditorProfile.findFirst({
+    () => client.creditorProfile.findFirst({
       where: { ...where, submittedAt: null },
       orderBy: { version: "desc" },
       include: { attachments: { where: { purpose: "SUPPLIER_BANK_STATEMENT", detachedAt: null }, orderBy: [{ attachedAt: "asc" }, { id: "asc" }], select: { version: { select: versionSelect } } } },
-    }),
-  ]);
+    }));
   const base = emptyDraftView();
   if (!row && !profile) return base;
   return {

@@ -49,6 +49,7 @@ import { currentRequestFacts } from "@/app/_auth/cookies";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, lockOrganisation, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { routeRequesterId } from "@/lib/approvals/requester";
+import { inOrder } from "@/lib/series";
 
 /**
  * The staff-side supplier register's acts (plan 6.15 §4.1, increment a1; ADR 0019). An officer records a
@@ -622,14 +623,13 @@ export async function verifyDocument(_prev: FormState, data: FormData): Promise<
 
 /// The application's file as approval judges it, read under the supplier's lock.
 async function fileOf(tx: Tx, l: LockedSupplier, a: { id: string; channel: ApplicationChannel; kind: string; status: FileFacts["status"]; lapsedRecordedAt: Date | null; resubmitBy: Date | null; declarationSignedOn: Date | null; routes: { status: string }[]; attachments: { purpose: string; detachedAt: Date | null; version: { withdrawnAt: Date | null } }[] }) {
-  const [types, docs, st, extras] = await Promise.all([
-    tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id } }),
-    tx.supplierDocument.findMany({ where: { supplierId: l.supplier.id } }),
+  const [types, docs, st, extras] = await inOrder(
+    () => tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id } }),
+    () => tx.supplierDocument.findMany({ where: { supplierId: l.supplier.id } }),
     // FR-TRM-017 (fix S-2): a blacklisting in effect stops the approval, on the locked rows.
-    l.org.today ? standingOf(l.supplier.id, l.org.id, l.org.today, tx) : Promise.resolve(null),
+    () => l.org.today ? standingOf(l.supplier.id, l.org.id, l.org.today, tx) : Promise.resolve(null),
     // Phase 4b (FR-VND-006, BD-613-44): how it came in, the declaration its supplier signed online and whether that stands in for the paper, and whether its bank details were checked.
-    reviewFacts(tx, l.org.id, l.supplier.id, a),
-  ]);
+    () => reviewFacts(tx, l.org.id, l.supplier.id, a));
   // Phase 4c: a deadline that passed on a request the supplier answered online in time is not a lapse.
   const answered = (await answeredOnTimeIds(tx, l.org.id, [a.id])).has(a.id);
   const f = fileFacts(

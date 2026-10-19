@@ -11,6 +11,7 @@ import { loadBidContext } from "./context-store";
 import { lockExerciseSide } from "./lock";
 import { auditActorOf } from "./signup-store";
 import { BidRefused, type BidFinding } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * A supplier acknowledges an addendum it holds a copy of (FR-VND-013, Phase 4d). One transaction: the exercise and window locked, the exercise read as this supplier may see it, the rules judged on the locked
@@ -33,10 +34,9 @@ export async function acknowledgeAddendum(actor: SupplierActor, i: { exerciseId:
       if (bar) return refuse([standingBarFinding(bar)]);
       const addendum = await tx.addendum.findFirst({ where: { id: i.addendumId, organisationId: actor.organisationId, windowId: ctx.ex.window.id }, select: { id: true, number: true, title: true, status: true } });
       if (!addendum) return refuse([{ code: "ADDENDUM_NOT_FOUND", level: "block" }], 404);
-      const [copy, already] = await Promise.all([
-        ctx.parties.length ? tx.addendumRecipient.findFirst({ where: { addendumId: addendum.id, organisationId: actor.organisationId, partyId: { in: ctx.parties.map((p) => p.id) } }, select: { id: true } }) : Promise.resolve(null),
-        tx.addendumAcknowledgement.findUnique({ where: { addendumId_supplierId: { addendumId: addendum.id, supplierId: actor.supplierId } }, select: { acknowledgedOn: true } }),
-      ]);
+      const [copy, already] = await inOrder(
+        () => ctx.parties.length ? tx.addendumRecipient.findFirst({ where: { addendumId: addendum.id, organisationId: actor.organisationId, partyId: { in: ctx.parties.map((p) => p.id) } }, select: { id: true } }) : Promise.resolve(null),
+        () => tx.addendumAcknowledgement.findUnique({ where: { addendumId_supplierId: { addendumId: addendum.id, supplierId: actor.supplierId } }, select: { acknowledgedOn: true } }));
       const faults = acknowledgeFaults({ addendum, phase: ctx.phase, holdsCopy: copy != null, alreadyAcknowledged: already != null });
       if (faults.some((f) => f.level === "block")) {
         // The day it was acknowledged goes with the refusal of a second one.

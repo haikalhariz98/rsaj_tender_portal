@@ -27,6 +27,7 @@ import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { activePerson, audit, CHANGED, notes, NO_ORG, refuse, Refusal, stampNow } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { routeRequesterId } from "@/lib/approvals/requester";
+import { inOrder } from "@/lib/series";
 
 /**
  * The register's acts that touch an exercise too (plan 6.15 §4.2, OD-9, FR-ADV-017): linking a party,
@@ -187,12 +188,11 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const party = await tx.exerciseParty.findUniqueOrThrow({ where: { id: partyId, organisationId: actor.organisationId }, select: { id: true, name: true, vendorId: true, specialPermissions: { select: { requirementId: true, relaxes: true, grantedOn: true, routes: { select: { status: true, createdAt: true } } } } } });
     if (!party.vendorId) return { ok: false, message: "Link the party to the register first: a special permission is read by its eligibility." };
-    const [w, reqs, bodyRows, person] = await Promise.all([
-      tx.exerciseWindow.findUnique({ where: { exerciseId: l.ex.id }, select: { specialPermissionOffered: true } }),
-      tx.exerciseRegistrationRequirement.findMany({ where: { exerciseId: l.ex.id }, select: { id: true, bodyLabelSnapshot: true, qualifiers: true } }),
-      tx.registrationBody.findMany({ where: { organisationId: l.org.id, retiredOn: null }, select: { id: true, labelEn: true } }),
-      activePerson(tx, l.org.id, personId),
-    ]);
+    const [w, reqs, bodyRows, person] = await inOrder(
+      () => tx.exerciseWindow.findUnique({ where: { exerciseId: l.ex.id }, select: { specialPermissionOffered: true } }),
+      () => tx.exerciseRegistrationRequirement.findMany({ where: { exerciseId: l.ex.id }, select: { id: true, bodyLabelSnapshot: true, qualifiers: true } }),
+      () => tx.registrationBody.findMany({ where: { organisationId: l.org.id, retiredOn: null }, select: { id: true, labelEn: true } }),
+      () => activePerson(tx, l.org.id, personId));
     const fs = specialPermissionFaults({ requirementId, relaxes, grantingBodyIds: bodies, internalApproval, existingClassConfirmed, goodRecordConfirmed, personActive: !!person }, { today: l.org.today, offered: w?.specialPermissionOffered ?? null, requirementIds: reqs.map((x) => x.id), bodyIds: bodyRows.map((b) => b.id), existing: party.specialPermissions.map((p) => ({ requirementId: p.requirementId, relaxes: p.relaxes, granted: p.grantedOn != null, route: routeState(p.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))) })) });
     const grantedOn = granted ? storedDay(granted) : null;
     const grant = internalApproval ? [] : grantFaults({ grantedOn, personActive: !!person }, { today: l.org.today, offered: w?.specialPermissionOffered ?? null, granted: false, internalApproval: false, route: "NONE", approvedOn: null }).filter((f) => f.code.startsWith("GRANTED"));

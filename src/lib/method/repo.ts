@@ -26,6 +26,7 @@ import type { EvaluationContext, ExerciseDraft, MethodConfig } from "./evaluate"
 import { classificationTaxonomies } from "./taxonomy";
 import type { ContractTypeRow, DeliverableKind, ExerciseStatus, Method, TermsBand } from "./types";
 import type { ApprovedRoute } from "./value";
+import { inOrder } from "@/lib/series";
 
 const num = (v: { toString(): string } | null): number | null => (v == null ? null : Number(v.toString()));
 
@@ -43,15 +44,14 @@ export type ExerciseOrg = NonNullable<Awaited<ReturnType<typeof exerciseOrg>>>;
 export async function loadMethodConfig(organisationId: string, client: Tx = db) {
   const where = { organisationId };
   const orderBy = [{ sortOrder: "asc" as const }, { nameEn: "asc" as const }];
-  const [methods, reasons, types, bases, taxonomies, mappings, policy] = await Promise.all([
-    client.sourcingMethod.findMany({ where, orderBy, include: { checklistItems: { orderBy: { sortOrder: "asc" } } } }),
-    client.justificationReason.findMany({ where, orderBy }),
-    client.contractType.findMany({ where, orderBy }),
-    client.contractBasis.findMany({ where, orderBy }),
-    client.classificationTaxonomy.findMany({ where, orderBy, include: { values: { orderBy: { sortOrder: "asc" } } } }),
-    client.taxonomyMapping.findMany({ where }),
-    client.classificationPolicy.findUnique({ where }),
-  ]);
+  const [methods, reasons, types, bases, taxonomies, mappings, policy] = await inOrder(
+    () => client.sourcingMethod.findMany({ where, orderBy, include: { checklistItems: { orderBy: { sortOrder: "asc" } } } }),
+    () => client.justificationReason.findMany({ where, orderBy }),
+    () => client.contractType.findMany({ where, orderBy }),
+    () => client.contractBasis.findMany({ where, orderBy }),
+    () => client.classificationTaxonomy.findMany({ where, orderBy, include: { values: { orderBy: { sortOrder: "asc" } } } }),
+    () => client.taxonomyMapping.findMany({ where }),
+    () => client.classificationPolicy.findUnique({ where }));
   // 6.4 increment 2: the regulator-permit list is a list, not a classification (FR-DOC-006).
   const permitList = (await client.tenderDocumentPolicy.findUnique({ where: { organisationId }, select: { regulatorPermitTaxonomyCode: true } }))?.regulatorPermitTaxonomyCode ?? null;
   const config: MethodConfig = {
@@ -105,10 +105,9 @@ export async function loadTermsBands(authorityMatrixId: string, client: Tx = db)
 export async function loadBandIssue(organisationCode: string, on: Date, client: Tx = db) {
   const issue = await loadIssue(organisationCode, on, undefined, null, client);
   if (!issue) return null;
-  const [terms, meta] = await Promise.all([
-    loadTermsBands(issue.id, client),
-    client.authorityMatrix.findUniqueOrThrow({ where: { id: issue.id }, select: { boundaryProvenance: true, boundarySource: true } }),
-  ]);
+  const [terms, meta] = await inOrder(
+    () => loadTermsBands(issue.id, client),
+    () => client.authorityMatrix.findUniqueOrThrow({ where: { id: issue.id }, select: { boundaryProvenance: true, boundarySource: true } }));
   return { ...issue, terms, boundaryProvenance: meta.boundaryProvenance as Provenance, boundarySource: meta.boundarySource };
 }
 
@@ -225,11 +224,10 @@ export async function evaluationContext(
   client: Tx = db,
 ) {
   const on = org.today ? dayToDate(org.today) : new Date();
-  const [issue, cfg, route] = await Promise.all([
-    loadBandIssue(org.code, on, client),
-    loadMethodConfig(org.id, client),
-    req.fundingRouteCode ? client.fundingRoute.findFirst({ where: { organisationId: org.id, code: req.fundingRouteCode } }) : Promise.resolve(null),
-  ]);
+  const [issue, cfg, route] = await inOrder(
+    () => loadBandIssue(org.code, on, client),
+    () => loadMethodConfig(org.id, client),
+    () => req.fundingRouteCode ? client.fundingRoute.findFirst({ where: { organisationId: org.id, code: req.fundingRouteCode } }) : Promise.resolve(null));
   if (!issue) return { issue: null, cfg, ctx: null, on };
   const supersedes = req.fundingSupersedesAuthority === true;
   const override = supersedes && req.fundingRouteCode ? await loadOverrideMatrix(org.code, req.fundingRouteCode, on, client) : null;

@@ -91,6 +91,7 @@ import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 import { routeRequesterId } from "@/lib/approvals/requester";
+import { inOrder } from "@/lib/series";
 
 /**
  * Writes for requisitions.
@@ -413,7 +414,7 @@ export async function recordEndorsement(_prev: FormState, data: FormData): Promi
 
 /// The context `transitionFault` needs to let a draft go, read from the locked row.
 async function leaveDraftContext(tx: Tx, l: LoadedRequisition): Promise<TransitionContext> {
-  const [policy, { lookups, formats }] = await Promise.all([loadPolicy(l.org.id, tx), loadLookups(l.org.id, tx)]);
+  const [policy, { lookups, formats }] = await inOrder(() => loadPolicy(l.org.id, tx), () => loadLookups(l.org.id, tx));
   const on = l.org.today ? dayToDate(l.org.today) : new Date();
   const fields = blocking(requisitionFaults(draftOf(l.req), lookups, formats, on));
   const endorsements = endorsementFaults(
@@ -682,7 +683,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     if (fault) return { ok: false, message: transitionFaultText(fault) };
     const todayStr = l.org.today!;
     const today = dayToDate(todayStr);
-    const [policy, controls, { lookups, formats }] = await Promise.all([loadPolicy(l.org.id, tx), loadControls(l.org.id, tx), loadLookups(l.org.id, tx)]);
+    const [policy, controls, { lookups, formats }] = await inOrder(() => loadPolicy(l.org.id, tx), () => loadControls(l.org.id, tx), () => loadLookups(l.org.id, tx));
     // Configuration read inside the same locked transaction as the write (code review, item 8).
     const [roster, delegations] = [await loadRoster(actor.organisationCode, tx), await loadDelegations(actor.organisationCode, tx)];
 

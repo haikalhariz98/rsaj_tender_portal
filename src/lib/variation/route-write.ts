@@ -62,6 +62,7 @@ import { edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLa
 import type { Finding, VariationEvent } from "./types";
 import { linkedVia, type CiteVia } from "@/lib/committee/cite-via";
 import { routeRequesterId } from "@/lib/approvals/requester";
+import { inOrder } from "@/lib/series";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
 export class VariationRefusal extends Error {
@@ -106,7 +107,7 @@ export async function matrixToday(c: VariationCtx) {
 
 /// The office's holders for the contract (its requisition's unit) on a day, as the engine reads them.
 async function holdersOn(c: VariationCtx, roleCode: string, day: string) {
-  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await inOrder(() => loadRoster(c.l.org.code, c.tx), () => loadDelegations(c.l.org.code, c.tx), () => c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } }));
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
   return { holders: holdersFor(roleCode, unitPath, roster, delegations, day), roster, delegations, unitPath };
 }
@@ -128,7 +129,7 @@ export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: Se
   if (!m) return refuse("Not sent for approval:", [{ code: "NO_MATRIX", level: "block", data: { day: c.today } }]);
   const contractValue = BigInt(i.reading.den);
   const domain = routeDomainOf(i.event, regimeOf(m.issue.matrix, contractValue));
-  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await inOrder(() => loadRoster(c.l.org.code, c.tx), () => loadDelegations(c.l.org.code, c.tx), () => c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } }));
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, dayToDate(c.today)).reverse().map((u) => u.code);
   const holdersOf = (code: string) => holdersFor(code, unitPath, roster, delegations, c.today);
   const people = new Map(roster.people.map((p) => [p.id, p]));

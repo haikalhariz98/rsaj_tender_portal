@@ -17,6 +17,7 @@ import { outcomesOffered, type DecisionOutcome } from "./matter";
 import { assessQuorum } from "./quorum";
 import type { Seat } from "./sitting";
 import { secretariatHoldersOn } from "./tabling";
+import { inOrder } from "@/lib/series";
 
 /**
  * Sittings, loaded. Reads only; every rule is in the pure modules beside this, and
@@ -134,14 +135,13 @@ export async function loadSitting(scope: OrgScope, id: string, client: Tx = db, 
   });
   if (!meeting) return null;
 
-  const [roster, outcomes] = await Promise.all([
-    preloaded ?? loadRoster(scope.organisationCode),
-    client.notApprovedOutcome.findMany({
+  const [roster, outcomes] = await inOrder(
+    () => preloaded ?? loadRoster(scope.organisationCode),
+    () => client.notApprovedOutcome.findMany({
       where: { organisationId: orgId },
       orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
       include: { _count: { select: { decisions: true } } },
-    }),
-  ]);
+    }));
 
   const c = meeting.committee;
   const snapshot = meeting.status === "MINUTED" && isRegisterSnapshot(meeting.registerSnapshot) ? meeting.registerSnapshot : null;

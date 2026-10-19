@@ -5,6 +5,7 @@ import type { RegistrationValueKind } from "@/lib/suppliers/types";
 
 import { currentDeclarationText, type StoredDeclarationText } from "./declaration";
 import type { DeclarationKind, DocumentTypeConfig, RegistrationContext } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * The organisation's configuration, read for a signed-in supplier's registration (Phase 4b): the facts `RegistrationContext` hands the pure rules, and the settings the routes judge an
@@ -56,9 +57,9 @@ export function typeConfig(t: { id: string; nameEn: string; nameMs: string | nul
 }
 
 export async function loadRegistrationSettings(client: Tx, organisationId: string): Promise<RegistrationSettings | null> {
-  const [org, policy] = await Promise.all([
-    client.organisation.findUnique({ where: { id: organisationId }, select: { id: true, name: true, timeZone: true } }),
-    client.supplierPolicy.findUnique({
+  const [org, policy] = await inOrder(
+    () => client.organisation.findUnique({ where: { id: organisationId }, select: { id: true, name: true, timeZone: true } }),
+    () => client.supplierPolicy.findUnique({
       where: { organisationId },
       select: {
         verificationNoticeEn: true,
@@ -71,8 +72,7 @@ export async function loadRegistrationSettings(client: Tx, organisationId: strin
         supplierBankStatementClassId: true,
         onlineDeclarationReplacesPaper: true,
       },
-    }),
-  ]);
+    }));
   if (!org) return null;
   return {
     org: { id: org.id, name: org.name, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) },
@@ -97,17 +97,16 @@ export async function loadRegistrationSettings(client: Tx, organisationId: strin
 export async function loadRegistrationContext(client: Tx, actor: Pick<SupplierActor, "organisationId" | "supplierId" | "displayName">, settings: RegistrationSettings, chosenValueIds: readonly string[]): Promise<RegistrationContext> {
   const orgId = actor.organisationId;
   const today = settings.org.today;
-  const [supplier, types, bodies, chosen, available, lists, texts, formats] = await Promise.all([
-    client.supplier.findFirst({ where: { id: actor.supplierId, organisationId: orgId }, select: { registrationNoKey: true } }),
-    client.supplierDocumentType.findMany({ where: { organisationId: orgId }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
-    client.registrationBody.findMany({ where: { organisationId: orgId }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], select: { id: true, labelEn: true, retiredOn: true } }),
-    chosenValueIds.length ? client.registrationValue.findMany({ where: { organisationId: orgId, id: { in: [...chosenValueIds] } }, select: { id: true, bodyId: true, kind: true, code: true, nameEn: true, retiredOn: true } }) : Promise.resolve([]),
+  const [supplier, types, bodies, chosen, available, lists, texts, formats] = await inOrder(
+    () => client.supplier.findFirst({ where: { id: actor.supplierId, organisationId: orgId }, select: { registrationNoKey: true } }),
+    () => client.supplierDocumentType.findMany({ where: { organisationId: orgId }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
+    () => client.registrationBody.findMany({ where: { organisationId: orgId }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], select: { id: true, labelEn: true, retiredOn: true } }),
+    () => chosenValueIds.length ? client.registrationValue.findMany({ where: { organisationId: orgId, id: { in: [...chosenValueIds] } }, select: { id: true, bodyId: true, kind: true, code: true, nameEn: true, retiredOn: true } }) : Promise.resolve([]),
     // Which body and kind have a live value: one row each, however many thousands of codes they hold.
-    client.registrationValue.groupBy({ by: ["bodyId", "kind"], where: { organisationId: orgId, OR: [{ retiredOn: null }, ...(today ? [{ retiredOn: { gt: new Date(`${today}T00:00:00Z`) } }] : [])] } }),
-    client.supplierListValue.findMany({ where: { organisationId: orgId, list: { in: ["BANK", "ACCOUNT_TYPE"] } }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { list: true, code: true, nameEn: true, retiredOn: true } }),
-    client.declarationText.findMany({ where: { organisationId: orgId }, select: { id: true, kind: true, version: true, bodyEn: true, bodyMs: true, issuedOn: true, retiredOn: true } }),
-    client.codeFormat.findMany({ where: { organisationId: orgId, key: { in: [BANK_ACCOUNT_NO_FORMAT_KEY, SWIFT_FORMAT_KEY] } }, select: { key: true, pattern: true } }),
-  ]);
+    () => client.registrationValue.groupBy({ by: ["bodyId", "kind"], where: { organisationId: orgId, OR: [{ retiredOn: null }, ...(today ? [{ retiredOn: { gt: new Date(`${today}T00:00:00Z`) } }] : [])] } }),
+    () => client.supplierListValue.findMany({ where: { organisationId: orgId, list: { in: ["BANK", "ACCOUNT_TYPE"] } }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { list: true, code: true, nameEn: true, retiredOn: true } }),
+    () => client.declarationText.findMany({ where: { organisationId: orgId }, select: { id: true, kind: true, version: true, bodyEn: true, bodyMs: true, issuedOn: true, retiredOn: true } }),
+    () => client.codeFormat.findMany({ where: { organisationId: orgId, key: { in: [BANK_ACCOUNT_NO_FORMAT_KEY, SWIFT_FORMAT_KEY] } }, select: { key: true, pattern: true } }));
   const stored: StoredDeclarationText[] = texts.map((t) => ({ id: t.id, kind: t.kind as DeclarationKind, version: t.version, bodyEn: t.bodyEn, bodyMs: t.bodyMs, issuedOn: storedDay(t.issuedOn), retiredOn: t.retiredOn ? storedDay(t.retiredOn) : null }));
   const entries = (list: "BANK" | "ACCOUNT_TYPE") => lists.filter((l) => l.list === list && live(l, today)).map((l) => ({ code: l.code, nameEn: l.nameEn }));
   const noticeEn = settings.policy.verificationNoticeEn;

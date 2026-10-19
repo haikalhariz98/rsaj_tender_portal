@@ -32,6 +32,7 @@ import { EXECUTED_STATUSES, type CreditorFacts } from "./eligibility";
 import { OPENING_GROUP_WORDS } from "./labels";
 import { assumedGroups, openingAsIssued, openingReconciles, openingReleaseRow, releaseState, type OpeningProvenance } from "./opening";
 import type { Finding, KeyedDeductionKind, PackItem, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
+import { inOrder } from "@/lib/series";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const pct = (v: { toString(): string } | null | undefined) => decimalText(v);
@@ -88,11 +89,10 @@ export async function loadPayment(contractId: string, client: Tx = db): Promise<
 
 /// The organisation's settings the payment acts read: the policy, the forms and routing sheets per kind, the clocks.
 export async function loadPaymentConfig(organisationId: string, client: Tx = db) {
-  const [policy, kinds, clocks] = await Promise.all([
-    client.postAwardPolicy.findUnique({ where: { organisationId } }),
-    client.certificateKindSetting.findMany({ where: { organisationId }, include: { template: { select: { id: true, nameEn: true } }, routingType: { select: { id: true, labelEn: true, retiredOn: true } } } }),
-    client.contractClockRule.findMany({ where: { organisationId } }),
-  ]);
+  const [policy, kinds, clocks] = await inOrder(
+    () => client.postAwardPolicy.findUnique({ where: { organisationId } }),
+    () => client.certificateKindSetting.findMany({ where: { organisationId }, include: { template: { select: { id: true, nameEn: true } }, routingType: { select: { id: true, labelEn: true, retiredOn: true } } } }),
+    () => client.contractClockRule.findMany({ where: { organisationId } }));
   return { policy, kinds, clocks };
 }
 export type PaymentConfig = Awaited<ReturnType<typeof loadPaymentConfig>>;

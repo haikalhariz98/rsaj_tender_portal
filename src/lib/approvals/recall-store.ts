@@ -18,6 +18,7 @@ import { holdersFor } from "@/lib/requisition/holders";
 import { supplierHolders } from "@/lib/suppliers/route";
 
 import { nextStep } from "./queue";
+import { inOrder } from "@/lib/series";
 
 /// The active people who could decide a step today: those who hold the office acting for it for the unit, and the delegates of the whole office.
 export async function deciderIdsOfStep(
@@ -27,7 +28,7 @@ export async function deciderIdsOfStep(
 ): Promise<string[]> {
   const office = i.actingRoleCode ?? i.roleCode;
   if (!office || !i.today) return [];
-  const [roster, delegations] = await Promise.all([loadRoster(actor.organisationCode, tx), loadDelegations(actor.organisationCode, tx)]);
+  const [roster, delegations] = await inOrder(() => loadRoster(actor.organisationCode, tx), () => loadDelegations(actor.organisationCode, tx));
   const on = dayToDate(i.today);
   let path: string[] = [];
   if (i.unitCode) {
@@ -54,9 +55,9 @@ export async function committeeStandingOf(
   routeOpenedOn: Date,
 ): Promise<{ awaiting: number; decided: number }> {
   const since = dayToDate(routeOpenedOn.toISOString().slice(0, 10));
-  const [awaiting, decided] = await Promise.all([
-    client.committeeDecision.count({ where: { ...matter, domain, outcome: "PENDING", withdrawnAt: null } }),
-    client.committeeDecision.count({
+  const [awaiting, decided] = await inOrder(
+    () => client.committeeDecision.count({ where: { ...matter, domain, outcome: "PENDING", withdrawnAt: null } }),
+    () => client.committeeDecision.count({
       where: {
         ...matter,
         domain,
@@ -64,8 +65,7 @@ export async function committeeStandingOf(
         withdrawnAt: null,
         OR: [{ tabledAt: { gte: since } }, { tabledAt: null, decisionDate: { gte: since } }],
       },
-    }),
-  ]);
+    }));
   return { awaiting, decided };
 }
 

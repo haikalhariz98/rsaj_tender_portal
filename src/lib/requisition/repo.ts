@@ -20,6 +20,7 @@ import { sentBackBy } from "@/lib/requisition/sent-back";
 import { gateFinding, gatesFor, gateState, type GateFinding, type GateMatter, type GateRuleRow, type GateState } from "@/lib/requisition/gate";
 import { SPLIT_KEYS, UNSET_POLICY, type Provenance, type RequisitionPolicy, type SplitKey } from "@/lib/requisition/types";
 import type { AuditActor } from "@/lib/auth/types";
+import { inOrder } from "@/lib/series";
 
 export const num = (v: { toString(): string } | null | undefined): number | null => (v == null ? null : amountOf(v));
 
@@ -48,10 +49,9 @@ export async function loadPolicy(organisationId: string, client: Tx = db): Promi
 
 /// The settings a requisition reads from other screens: budget and finance.
 export async function loadControls(organisationId: string, client: Tx = db) {
-  const [budget, finance] = await Promise.all([
-    client.budgetSettings.findUnique({ where: { organisationId } }),
-    client.financeIntegration.findUnique({ where: { organisationId } }),
-  ]);
+  const [budget, finance] = await inOrder(
+    () => client.budgetSettings.findUnique({ where: { organisationId } }),
+    () => client.financeIntegration.findUnique({ where: { organisationId } }));
   return {
     availabilityCheck: budget?.availabilityCheck ?? null,
     commitOnApproval: budget?.commitOnApproval ?? null,
@@ -62,17 +62,16 @@ export async function loadControls(organisationId: string, client: Tx = db) {
 /// The lists a requisition's fields are looked up against, and the code formats.
 export async function loadLookups(organisationId: string, client: Tx = db) {
   const where = { organisationId };
-  const [units, costCentres, accountCodes, sites, budgetCodes, people, fundingRoutes, formats, contractTypes] = await Promise.all([
-    client.orgUnit.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
-    client.costCentre.findMany({ where, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
-    client.accountCode.findMany({ where, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
-    client.site.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
-    client.budgetCode.findMany({ where, orderBy: { code: "asc" } }),
-    client.person.findMany({ where, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true, jobTitle: true, orgUnitCode: true } }),
-    client.fundingRoute.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
-    client.codeFormat.findMany({ where }),
-    client.contractType.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
-  ]);
+  const [units, costCentres, accountCodes, sites, budgetCodes, people, fundingRoutes, formats, contractTypes] = await inOrder(
+    () => client.orgUnit.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
+    () => client.costCentre.findMany({ where, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
+    () => client.accountCode.findMany({ where, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
+    () => client.site.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
+    () => client.budgetCode.findMany({ where, orderBy: { code: "asc" } }),
+    () => client.person.findMany({ where, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true, jobTitle: true, orgUnitCode: true } }),
+    () => client.fundingRoute.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
+    () => client.codeFormat.findMany({ where }),
+    () => client.contractType.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }));
   const lookups: LoadedLookups = {
     units: units.map((u) => ({ ...u, kind: u.kind as OrgUnitKind, provenance: u.provenance as Provenance })),
     costCentres,

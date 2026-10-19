@@ -14,6 +14,7 @@ import { loadNonAwardPolicy } from "@/lib/portal/bids/non-award-store";
 import { issueFaults, nonAwardFaultText, outcomeText, policySnapshot, reasonToFreeze, unsuccessfulPartyIds } from "@/lib/portal/bids/non-award";
 import type { Reader } from "@/lib/auth/sulit-store";
 import { FormReader } from "@/lib/validate";
+import { inOrder } from "@/lib/series";
 
 /**
  * The notice of non-award (FR-AWD-010, policy D7, Phase 4d): an officer issues it to one unsuccessful tenderer, from the exercise's Award tab, after the award was issued. A separate act: the award's own issue is not touched.
@@ -63,11 +64,10 @@ export async function issueNonAwardNotice(_prev: FormState, data: FormData): Pro
     const person = await tx.person.findFirst({ where: { id: act.subjectPersonId, organisationId: actor.organisationId, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, message: "The officer issuing the notice is not an active person on record." };
     const policy = await loadNonAwardPolicy(tx, actor.organisationId);
-    const [bids, existing, party] = await Promise.all([
-      tx.openedBid.findMany({ where: { exerciseId: a.exerciseId, organisationId: actor.organisationId }, select: { partyId: true } }),
-      tx.nonAwardNotice.findUnique({ where: { awardId_partyId: { awardId: a.id, partyId } }, select: { id: true } }),
-      tx.exerciseParty.findFirst({ where: { id: partyId, exerciseId: a.exerciseId, organisationId: actor.organisationId }, select: { id: true, name: true } }),
-    ]);
+    const [bids, existing, party] = await inOrder(
+      () => tx.openedBid.findMany({ where: { exerciseId: a.exerciseId, organisationId: actor.organisationId }, select: { partyId: true } }),
+      () => tx.nonAwardNotice.findUnique({ where: { awardId_partyId: { awardId: a.id, partyId } }, select: { id: true } }),
+      () => tx.exerciseParty.findFirst({ where: { id: partyId, exerciseId: a.exerciseId, organisationId: actor.organisationId }, select: { id: true, name: true } }));
     if (!party) return { ok: false, message: "That tenderer is not on this exercise." };
     const faults = issueFaults({ policy, award: { status: a.status, awardeePartyId: a.awardeePartyId }, partyId, unsuccessful: unsuccessfulPartyIds(bids, a.awardeePartyId), alreadyIssued: existing != null, reason });
     const blocks = faults.filter((f) => f.level === "block");

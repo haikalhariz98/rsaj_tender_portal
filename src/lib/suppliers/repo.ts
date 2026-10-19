@@ -16,6 +16,7 @@ import { REGISTRATION_NO_FORMAT_KEY } from "./types";
 import { isAnsweredOnTime } from "./review";
 import { cancellationEnded } from "./standing";
 import { deeperDisplaced } from "./documents";
+import { inOrder } from "@/lib/series";
 
 export const supplierOrg = exerciseOrg;
 export type SupplierOrg = NonNullable<Awaited<ReturnType<typeof supplierOrg>>>;
@@ -46,16 +47,15 @@ export function documentFacts(d: { id: string; typeId: string; typeLabelSnapshot
 
 /// The register's configuration: bodies with their values, document types, lists, policy and the number format.
 export async function loadSupplierConfig(organisationId: string, client: Tx = db) {
-  const [bodies, types, lists, policy, format, reasons, expiryRule] = await Promise.all([
-    client.registrationBody.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], include: { values: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { code: "asc" }] } } }),
-    client.supplierDocumentType.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
-    client.supplierListValue.findMany({ where: { organisationId }, orderBy: [{ list: "asc" }, { sortOrder: "asc" }, { nameEn: "asc" }] }),
-    client.supplierPolicy.findUnique({ where: { organisationId } }),
-    client.codeFormat.findFirst({ where: { organisationId, key: REGISTRATION_NO_FORMAT_KEY } }),
+  const [bodies, types, lists, policy, format, reasons, expiryRule] = await inOrder(
+    () => client.registrationBody.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], include: { values: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { code: "asc" }] } } }),
+    () => client.supplierDocumentType.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
+    () => client.supplierListValue.findMany({ where: { organisationId }, orderBy: [{ list: "asc" }, { sortOrder: "asc" }, { nameEn: "asc" }] }),
+    () => client.supplierPolicy.findUnique({ where: { organisationId } }),
+    () => client.codeFormat.findFirst({ where: { organisationId, key: REGISTRATION_NO_FORMAT_KEY } }),
     // a2: the maintained list of standing reasons, and the expiry reminder rule (shown, never sent).
-    client.standingReason.findMany({ where: { organisationId }, orderBy: [{ appliesTo: "asc" }, { sortOrder: "asc" }, { nameEn: "asc" }] }),
-    client.notificationRule.findFirst({ where: { organisationId, eventKey: SUPPLIER_EXPIRY_EVENT }, select: { id: true, nameEn: true, reminderOffsetDays: true, isActive: true } }),
-  ]);
+    () => client.standingReason.findMany({ where: { organisationId }, orderBy: [{ appliesTo: "asc" }, { sortOrder: "asc" }, { nameEn: "asc" }] }),
+    () => client.notificationRule.findFirst({ where: { organisationId, eventKey: SUPPLIER_EXPIRY_EVENT }, select: { id: true, nameEn: true, reminderOffsetDays: true, isActive: true } }));
   const listName = (kind: SupplierListKind, code: string) => lists.find((l) => l.list === kind && l.code === code)?.nameEn ?? null;
   const live = (r: { retiredOn: Date | null }, today: string | null) => r.retiredOn == null || (today != null && storedDay(r.retiredOn) > today);
   return {
@@ -293,32 +293,31 @@ export async function listSuppliers(organisationId: string, page = 0, today: str
   const openRequest: Prisma.SupplierWhereInput = { organisationId: org.id, standingRequests: { some: { event: { is: null }, withdrawnAt: null } } };
   const lapseUnset: Prisma.SupplierWhereInput | null = today && autoSuspendOnLapse !== true ? { organisationId: org.id, status: "REGISTERED", documents: { some: lapsedMandatoryWhere(today, displaced) } } : null;
   const standingWhere: Prisma.SupplierWhereInput | null = barredWhere ? { organisationId: org.id, OR: [barredWhere, openRequest, ...(lapseUnset ? [lapseUnset] : [])] } : null;
-  const [suppliers, registered, unsynced, queue, queueTotal, soonest, expiringTotal, barred, requested, lapsed, standingTotal, barredCount] = await Promise.all([
-    client.supplier.findMany({
+  const [suppliers, registered, unsynced, queue, queueTotal, soonest, expiringTotal, barred, requested, lapsed, standingTotal, barredCount] = await inOrder(
+    () => client.supplier.findMany({
       where,
       orderBy: [{ registeredName: "asc" }, { id: "asc" }],
       skip: at * SUPPLIERS_PAGE,
       take: SUPPLIERS_PAGE,
       select: { ...listedSupplier, applications: { where: OPEN_APPLICATION, orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }], take: 1, select: { id: true, kind: true, status: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } } } } },
     }),
-    client.supplier.count({ where: { ...where, status: "REGISTERED" } }),
-    client.supplier.count({ where: { ...where, status: "REGISTERED", erpVendorCode: null } }),
-    client.supplierApplication.findMany({
+    () => client.supplier.count({ where: { ...where, status: "REGISTERED" } }),
+    () => client.supplier.count({ where: { ...where, status: "REGISTERED", erpVendorCode: null } }),
+    () => client.supplierApplication.findMany({
       where: { ...where, ...OPEN_APPLICATION },
       orderBy: [{ receivedOn: "asc" }, { createdAt: "asc" }],
       take: SUPPLIERS_PAGE,
       select: { id: true, kind: true, status: true, channel: true, receivedOn: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } }, supplier: { select: { id: true, reference: true, registeredName: true } } },
     }),
-    client.supplierApplication.count({ where: { ...where, ...OPEN_APPLICATION } }),
+    () => client.supplierApplication.count({ where: { ...where, ...OPEN_APPLICATION } }),
     // Soonest expiry first: each supplier by its earliest expiring document in force.
-    expiringDoc ? client.supplierDocument.groupBy({ by: ["supplierId"], where: expiringDoc, _min: { expiresOn: true }, orderBy: [{ _min: { expiresOn: "asc" } }, { supplierId: "asc" }], take: SUPPLIERS_PAGE }) : Promise.resolve([]),
-    expiringDoc ? client.supplier.count({ where: { organisationId: org.id, documents: { some: expiringDoc } } }) : Promise.resolve(0),
-    barredWhere ? client.supplier.findMany({ where: barredWhere, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
-    barredWhere ? client.supplier.findMany({ where: openRequest, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
-    lapseUnset ? client.supplier.findMany({ where: lapseUnset, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
-    standingWhere ? client.supplier.count({ where: standingWhere }) : Promise.resolve(0),
-    barredWhere ? client.supplier.count({ where: barredWhere }) : Promise.resolve(null),
-  ]);
+    () => expiringDoc ? client.supplierDocument.groupBy({ by: ["supplierId"], where: expiringDoc, _min: { expiresOn: true }, orderBy: [{ _min: { expiresOn: "asc" } }, { supplierId: "asc" }], take: SUPPLIERS_PAGE }) : Promise.resolve([]),
+    () => expiringDoc ? client.supplier.count({ where: { organisationId: org.id, documents: { some: expiringDoc } } }) : Promise.resolve(0),
+    () => barredWhere ? client.supplier.findMany({ where: barredWhere, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
+    () => barredWhere ? client.supplier.findMany({ where: openRequest, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
+    () => lapseUnset ? client.supplier.findMany({ where: lapseUnset, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
+    () => standingWhere ? client.supplier.count({ where: standingWhere }) : Promise.resolve(0),
+    () => barredWhere ? client.supplier.count({ where: barredWhere }) : Promise.resolve(null));
   const expiringRows = soonest.length ? await client.supplier.findMany({ where: { id: { in: soonest.map((g) => g.supplierId) } }, select: watchedSelect }) : [];
   const expiring = soonest.map((g) => expiringRows.find((x) => x.id === g.supplierId)!).filter(Boolean);
   const standing = [...new Map([...barred, ...requested, ...lapsed].map((x) => [x.id, x])).values()].sort((a, b) => a.registeredName.localeCompare(b.registeredName) || a.id.localeCompare(b.id));

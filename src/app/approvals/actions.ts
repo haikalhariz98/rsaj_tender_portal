@@ -37,6 +37,7 @@ import { writeNotices } from "@/lib/inbox/store";
 import { loadReportingLines } from "@/lib/people/reporting-line-store";
 import { superiorsNote } from "@/lib/people/reporting-lines";
 import { attributionRefusalState, beginAct, type PreparedAct } from "@/app/_auth/act";
+import { inOrder } from "@/lib/series";
 
 /**
  * Escalate a pending person step (FR-APR-009, FR-APR-010, FR-APR-012; rulings CO-6,
@@ -202,12 +203,11 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
         ? await tx.requisition.findUniqueOrThrow({ where: { id: requisitionId, organisationId: actor.organisationId }, select: { organisationId: true, sectionUnitCode: true, requestingUnitCode: true, organisation: { select: { timeZone: true } } } })
         : { organisationId: inst.organisationId, sectionUnitCode: "", requestingUnitCode: "", organisation: await tx.organisation.findUniqueOrThrow({ where: { id: inst.organisationId }, select: { timeZone: true } }) };
       const today = todayIn(new Date(), req.organisation.timeZone);
-      const [roles, units, roster, delegations] = await Promise.all([
-        tx.authorityRole.findMany({ where: { organisationId: req.organisationId }, select: { code: true, nameEn: true, escalatesToCode: true } }),
-        tx.orgUnit.findMany({ where: { organisationId: req.organisationId } }),
-        loadRoster(actor.organisationCode, tx),
-        loadDelegations(actor.organisationCode, tx),
-      ]);
+      const [roles, units, roster, delegations] = await inOrder(
+        () => tx.authorityRole.findMany({ where: { organisationId: req.organisationId }, select: { code: true, nameEn: true, escalatesToCode: true } }),
+        () => tx.orgUnit.findMany({ where: { organisationId: req.organisationId } }),
+        () => loadRoster(actor.organisationCode, tx),
+        () => loadDelegations(actor.organisationCode, tx));
       const office = actingOffice(step);
       const on = today ? dayToDate(today) : new Date();
       const unitPath = requisitionId ? pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code) : [];

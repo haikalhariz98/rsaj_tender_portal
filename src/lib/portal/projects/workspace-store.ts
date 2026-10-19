@@ -24,6 +24,7 @@ import { blocksOf } from "./list-store";
 import { serviceState, type ServiceState } from "./submission";
 import type { SubmissionKind, SubmissionOutcome } from "./types";
 import { projectFaultText } from "./words";
+import { inOrder } from "@/lib/series";
 
 /**
  * What each tab of one contract's My Projects workspace reads (Phase 4e). One loader per tab, so a tab loads only its own slice and never a sibling's. Reads only, in the caller's client. Each
@@ -52,14 +53,13 @@ export interface OverviewView {
 
 export async function overviewTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<OverviewView> {
   const today = ctx.org.today;
-  const [possession, baselines, assignments, entries, certs, submissions] = await Promise.all([
-    client.possession.findUnique({ where: { contractId: ctx.contract.id }, select: { possessionOn: true } }),
-    client.contractBaseline.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, version: { not: null } }, select: { id: true, version: true, reason: true, recordedOn: true, dateForCompletion: true } }),
-    client.contractSoAssignment.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId }, select: { id: true, roleCode: true, roleLabel: true, effectiveOn: true, recordedAt: true } }),
-    client.siteDiaryEntry.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId }, select: { day: true, agentAttestedOn: true, officerAttestedOn: true, disagreement: true } }),
-    client.certificate.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, status: "SIGNING", kind: { in: ["VARIATION", "SUM_ADJUSTMENT"] } }, select: { kind: true, status: true, templateRevision: true, signatures: { select: { blockOrder: true } } } }),
-    client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId }, select: { outcome: true } }),
-  ]);
+  const [possession, baselines, assignments, entries, certs, submissions] = await inOrder(
+    () => client.possession.findUnique({ where: { contractId: ctx.contract.id }, select: { possessionOn: true } }),
+    () => client.contractBaseline.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, version: { not: null } }, select: { id: true, version: true, reason: true, recordedOn: true, dateForCompletion: true } }),
+    () => client.contractSoAssignment.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId }, select: { id: true, roleCode: true, roleLabel: true, effectiveOn: true, recordedAt: true } }),
+    () => client.siteDiaryEntry.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId }, select: { day: true, agentAttestedOn: true, officerAttestedOn: true, disagreement: true } }),
+    () => client.certificate.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, status: "SIGNING", kind: { in: ["VARIATION", "SUM_ADJUSTMENT"] } }, select: { kind: true, status: true, templateRevision: true, signatures: { select: { blockOrder: true } } } }),
+    () => client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId }, select: { outcome: true } }));
   const inForce = today ? baselineFor(baselines.map((b) => ({ ...b, recordedOn: day(b.recordedOn) })), today) : null;
   const so = today ? soOn(assignments.map((a) => ({ ...a, effectiveOn: storedDay(a.effectiveOn) })), today) : null;
   const possessionOn = day(possession?.possessionOn);
@@ -109,11 +109,10 @@ export interface ProgrammeView {
 
 export async function programmeTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<ProgrammeView> {
   const today = ctx.org.today;
-  const [s, policy, baselines] = await Promise.all([
-    loadSupervision(ctx.contract.id, client),
-    loadPostAwardPolicy(actor.organisationId, client),
-    client.contractBaseline.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, version: { not: null } }, select: { id: true, version: true, reason: true, recordedOn: true, dateForCompletion: true } }),
-  ]);
+  const [s, policy, baselines] = await inOrder(
+    () => loadSupervision(ctx.contract.id, client),
+    () => loadPostAwardPolicy(actor.organisationId, client),
+    () => client.contractBaseline.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, version: { not: null } }, select: { id: true, version: true, reason: true, recordedOn: true, dateForCompletion: true } }));
   const revisions = revisionsOf(s);
   const inForce = today ? programmeInForce(revisions, today) : null;
   const latestRow = today ? [...s.progressRecords].filter((p) => storedDay(p.day) <= today).sort((a, b) => (storedDay(a.day) < storedDay(b.day) ? 1 : -1))[0] ?? null : null;
@@ -171,10 +170,9 @@ export async function diaryTab(client: Tx, actor: Who, ctx: ProjectContext, aske
   const where = { contractId: ctx.contract.id, organisationId: actor.organisationId };
   const total = await client.siteDiaryEntry.count({ where });
   const page = pageOf(askedPage, total, DIARY_PAGE);
-  const [entries, possession] = await Promise.all([
-    client.siteDiaryEntry.findMany({ where, orderBy: [{ day: "desc" }, { id: "asc" }], skip: page * DIARY_PAGE, take: DIARY_PAGE, include: { officer: { select: { name: true } } } }),
-    client.possession.findUnique({ where: { contractId: ctx.contract.id }, select: { possessionOn: true } }),
-  ]);
+  const [entries, possession] = await inOrder(
+    () => client.siteDiaryEntry.findMany({ where, orderBy: [{ day: "desc" }, { id: "asc" }], skip: page * DIARY_PAGE, take: DIARY_PAGE, include: { officer: { select: { name: true } } } }),
+    () => client.possession.findUnique({ where: { contractId: ctx.contract.id }, select: { possessionOn: true } }));
   const closed = actGate("SUPERVISION", ctx.contract.status);
   const rows: DiaryRow[] = entries.map((e) => {
     const d = storedDay(e.day);
@@ -211,14 +209,13 @@ export interface PaymentsView {
 }
 
 export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<PaymentsView> {
-  const [certs, claims] = await Promise.all([
-    client.certificate.findMany({
+  const [certs, claims] = await inOrder(
+    () => client.certificate.findMany({
       where: { contractId: ctx.contract.id, organisationId: actor.organisationId, status: "ISSUED", kind: { in: ["INTERIM_PAYMENT", "ADVANCE_PAYMENT"] } },
       orderBy: [{ kind: "asc" }, { sequence: "asc" }],
       select: { id: true, kind: true, number: true, sequence: true, certificateDate: true, issueSnapshot: true, financePayment: { select: { paidOn: true, amount: true, batchNo: true } } },
     }),
-    client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId, kind: { in: ["INTERIM_CLAIM", "MATERIALS_ON_SITE"] } }, orderBy: { submittedAt: "desc" }, select: { id: true, title: true, amount: true, aboutDay: true, submittedOn: true, outcome: true, kind: true } }),
-  ]);
+    () => client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId, kind: { in: ["INTERIM_CLAIM", "MATERIALS_ON_SITE"] } }, orderBy: { submittedAt: "desc" }, select: { id: true, title: true, amount: true, aboutDay: true, submittedOn: true, outcome: true, kind: true } }));
   const rows = certs.map((c) => {
     const figure = figureOf(c.issueSnapshot, PAID_FIGURE[c.kind] ?? null);
     const recommended: Sen | null = figure == null ? null : senFromDecimal(figure);
@@ -281,16 +278,15 @@ async function signingClosed(client: Tx, who: Who): Promise<string | null> {
 
 export async function certificatesTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<{ rows: CertificateRow[]; total: number; signing: string | null }> {
   const where = readable(ctx.contract.id, actor.organisationId);
-  const [total, signing, certs] = await Promise.all([
-    client.certificate.count({ where }),
-    signingClosed(client, actor),
-    client.certificate.findMany({
+  const [total, signing, certs] = await inOrder(
+    () => client.certificate.count({ where }),
+    () => signingClosed(client, actor),
+    () => client.certificate.findMany({
       where,
       orderBy: [{ openedAt: "desc" }, { id: "asc" }],
       take: CERTIFICATES_SHOWN,
       select: { id: true, kind: true, number: true, status: true, openedOn: true, certificateDate: true, templateRevision: true, signatures: { select: { blockOrder: true, blockKind: true, name: true, signedOn: true, refused: true, refusalNote: true, signedBySupplierAccountId: true } } },
-    }),
-  ]);
+    }));
   const rows: CertificateRow[] = certs.map((c) => {
     const block = contractorBlock({ kind: c.kind, status: c.status, blocks: blocksOf(c.templateRevision), signedOrders: c.signatures.map((s) => s.blockOrder) });
     const sig = c.signatures.find((s) => s.blockKind === "CONTRACTOR") ?? null;
@@ -336,12 +332,11 @@ export const SUBMISSIONS_SHOWN = 200;
 export async function submissionsTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<{ rows: SubmissionRow[]; total: number; closed: string | null; signing: string | null; serviceLevels: Record<string, number | null> }> {
   const today = ctx.org.today;
   const where = { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId };
-  const [total, signing, rows, settings] = await Promise.all([
-    client.contractorSubmission.count({ where }),
-    signingClosed(client, actor),
-    client.contractorSubmission.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: SUBMISSIONS_SHOWN, include: { lines: { orderBy: { sortOrder: "asc" } } } }),
-    client.contractorSubmissionSetting.findMany({ where: { organisationId: actor.organisationId }, select: { kind: true, serviceLevelDays: true } }),
-  ]);
+  const [total, signing, rows, settings] = await inOrder(
+    () => client.contractorSubmission.count({ where }),
+    () => signingClosed(client, actor),
+    () => client.contractorSubmission.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: SUBMISSIONS_SHOWN, include: { lines: { orderBy: { sortOrder: "asc" } } } }),
+    () => client.contractorSubmissionSetting.findMany({ where: { organisationId: actor.organisationId }, select: { kind: true, serviceLevelDays: true } }));
   return {
     total,
     signing,

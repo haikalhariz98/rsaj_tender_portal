@@ -22,6 +22,7 @@ import {
   type SulitDecision,
 } from "./sulit-access";
 import type { StaffActor } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * SULIT access and restricted exercises, read and written (ADR 0034 D14, Phase 3a). The rules are pure, in `sulit-access.ts`; this reads the
@@ -77,10 +78,9 @@ export async function exerciseAccessFacts(client: Tx, organisationId: string, id
   });
   // What the exercise's routes and sittings name, worked out now for all of the exercises at once (ruling of 2026-10-08 on log line 1711): never a list anyone keeps.
   const found = rows.map((r) => r.id);
-  const [routes, committees] = await Promise.all([
-    routePeopleOf(client, organisationId, { OR: [{ exerciseId: { in: found } }, { specialPermission: { exerciseId: { in: found } } }] }),
-    committeeMembersOf(client, organisationId, found),
-  ]);
+  const [routes, committees] = await inOrder(
+    () => routePeopleOf(client, organisationId, { OR: [{ exerciseId: { in: found } }, { specialPermission: { exerciseId: { in: found } } }] }),
+    () => committeeMembersOf(client, organisationId, found));
   const routedOf = (exerciseId: string, pick: "holderIds" | "deciderIds") => [...new Set(routes.filter((x) => x.exerciseId === exerciseId).flatMap((x) => x.people[pick]))];
   for (const r of rows) {
     out.set(r.id, {
@@ -248,10 +248,9 @@ export async function routedNamedFacts(client: Tx, organisationId: string, froms
     ...(instances.length ? [{ id: { in: instances } }] : []),
   ];
   if (or.length === 0) return out;
-  const [routes, requesters] = await Promise.all([
-    routePeopleOf(client, organisationId, { OR: or }),
-    requisitions.length ? client.requisition.findMany({ where: { id: { in: requisitions }, organisationId }, select: { id: true, requestingPersonId: true } }) : Promise.resolve([]),
-  ]);
+  const [routes, requesters] = await inOrder(
+    () => routePeopleOf(client, organisationId, { OR: or }),
+    () => requisitions.length ? client.requisition.findMany({ where: { id: { in: requisitions }, organisationId }, select: { id: true, requestingPersonId: true } }) : Promise.resolve([]));
   const requesterOf = new Map(requesters.map((r) => [r.id, r.requestingPersonId]));
   const match = (f: RoutedFrom, r: RoutedInstance) =>
     f.kind === "requisition" ? r.requisitionId === f.id : f.kind === "variation" ? r.variationId === f.id : f.kind === "contractMatter" ? r.matterId === f.id : f.kind === "certificate" ? r.certificateId === f.id : r.instanceId === f.id;
@@ -344,6 +343,17 @@ export type WriteSubject =
   | { scope: "requisition" | "contract" | "supplier"; entity: string; id: string; label: string };
 
 export async function sulitWriteRefusal(client: Tx, actor: SulitReader, subject: WriteSubject, fields: readonly string[]): Promise<string | null> {
+  const asked = await sulitWriteDecision(client, actor, subject, fields);
+  if (!asked) return null;
+  await writeSulitEvents(client, actor, [asked.row]);
+  return asked.refusal;
+}
+
+/**
+ * The same decision as `sulitWriteRefusal`, asked without recording it: no SULIT field is read and nothing is written. A page that shows a control disabled for this reason asks this one (AC-69); the act
+ * itself asks `sulitWriteRefusal`, which logs. Null: the subject is not the organisation's, or the actor is the system, so there is nothing to refuse.
+ */
+export async function sulitWriteDecision(client: Tx, actor: SulitReader, subject: WriteSubject, fields: readonly string[]): Promise<{ refusal: string | null; row: SulitEventRow } | null> {
   if (actor.system) return null;
   const permission = await organisationPermissionState(client, actor);
   let decision: SulitDecision;
@@ -360,8 +370,7 @@ export async function sulitWriteRefusal(client: Tx, actor: SulitReader, subject:
     decision = decisionForFields(actor, subject.scope, fields, { restricted: false, named: null, routed }, permission).decision;
     row = { scope: subject.scope, entity: subject.entity, entityId: subject.id, entityLabel: subject.label, fields: [...fields], decision };
   }
-  await writeSulitEvents(client, actor, [row]);
-  return decision.state === "WITHHELD" ? refusalWords(decision.basis, subject.scope).en : null;
+  return { refusal: decision.state === "WITHHELD" ? refusalWords(decision.basis, subject.scope).en : null, row };
 }
 
 /// The organisation's day is not known without a time zone: custody is judged on it, so an unset zone is said, not guessed.

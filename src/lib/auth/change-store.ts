@@ -43,6 +43,7 @@ import type { RequestFacts } from "./request";
 import { revokeAccountSessions } from "./session-store";
 import type { Fault, StaffActor } from "./types";
 import type { WriteExtra } from "./act-begin";
+import { inOrder } from "@/lib/series";
 
 /**
  * The life of a two-person change, against the database (ADR 0034 D15, Phase 2c). The rules are pure (`configuration-change.ts`, and `eligibility.ts`);
@@ -110,11 +111,10 @@ export async function readLive(tx: Tx, organisationId: string, change: ParsedCha
     case "SECURITY_POLICY":
       return { kind: change.kind, policy: await loadSecurityPolicy(tx, organisationId) };
     case "PERMISSION_GRANT": {
-      const [row, role] = await Promise.all([
-        tx.rolePermission.findUnique({ where: { organisationId_permissionKey_roleCode: { organisationId, permissionKey: change.payload.permissionKey, roleCode: change.payload.roleCode } }, select: { decision: true } }),
+      const [row, role] = await inOrder(
+        () => tx.rolePermission.findUnique({ where: { organisationId_permissionKey_roleCode: { organisationId, permissionKey: change.payload.permissionKey, roleCode: change.payload.roleCode } }, select: { decision: true } }),
         // A committee is not a role a person signs in as, so a permission is never granted to one.
-        tx.authorityRole.findFirst({ where: { organisationId, code: change.payload.roleCode, isCommittee: false }, select: { id: true } }),
-      ]);
+        () => tx.authorityRole.findFirst({ where: { organisationId, code: change.payload.roleCode, isCommittee: false }, select: { id: true } }));
       const decision: PermissionChoice = row?.decision ?? "UNDECIDED";
       return { kind: change.kind, decision, roleExists: role != null };
     }

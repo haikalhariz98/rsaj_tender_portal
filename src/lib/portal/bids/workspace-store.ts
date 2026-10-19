@@ -24,6 +24,7 @@ import { loadSaleFacts } from "./sale-facts";
 import { signUpFaults, signUpState, windowFault, withdrawFaults, type SignUpState } from "./signup";
 import { bidStanding, type BidStanding } from "./standing";
 import { bidFaultText } from "./words";
+import { inOrder } from "@/lib/series";
 
 /**
  * What each tab of one exercise's My Bids workspace reads (Phase 4d). One loader per tab, so a tab loads only its own slice and never a sibling's. Reads only, in the caller's client. Each takes the
@@ -61,12 +62,11 @@ export async function briefingsTab(client: Tx, actor: Who, ctx: BidContext): Pro
   const window = ctx.ex.window;
   if (!window) return { rows: [], mandatoryPermitted: null };
   const partyIds = ctx.parties.map((p) => p.id);
-  const [events, mine, row, live] = await Promise.all([
-    client.siteEvent.findMany({ where: { windowId: window.id, organisationId: actor.organisationId }, orderBy: { startsAt: "asc" }, select: { id: true, kind: true, startsAt: true, place: true, mandatory: true, heldOn: true, cancelledAt: true, attendance: { select: { partyId: true } } } }),
-    client.siteEventRegistration.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, event: { windowId: window.id } }, select: { eventId: true, representative: true, endedAt: true } }),
-    client.exerciseWindow.findUniqueOrThrow({ where: { id: window.id, organisationId: actor.organisationId }, select: { publishedAt: true, policySnapshot: true } }),
-    client.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { mandatoryAttendancePermitted: true } }),
-  ]);
+  const [events, mine, row, live] = await inOrder(
+    () => client.siteEvent.findMany({ where: { windowId: window.id, organisationId: actor.organisationId }, orderBy: { startsAt: "asc" }, select: { id: true, kind: true, startsAt: true, place: true, mandatory: true, heldOn: true, cancelledAt: true, attendance: { select: { partyId: true } } } }),
+    () => client.siteEventRegistration.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, event: { windowId: window.id } }, select: { eventId: true, representative: true, endedAt: true } }),
+    () => client.exerciseWindow.findUniqueOrThrow({ where: { id: window.id, organisationId: actor.organisationId }, select: { publishedAt: true, policySnapshot: true } }),
+    () => client.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { mandatoryAttendancePermitted: true } }));
   const permitted = mandatoryPermittedFor(row, live?.mandatoryAttendancePermitted ?? null).permitted;
   const rows: BriefingRow[] = events.map((e) => {
     const reg = mine.find((m) => m.eventId === e.id) ?? null;
@@ -117,15 +117,14 @@ export async function addendaTab(client: Tx, actor: Who, ctx: BidContext): Promi
   const window = ctx.ex.window;
   if (!window) return { addenda: [], notices: [] };
   const partyIds = ctx.parties.map((p) => p.id);
-  const [addenda, acks, all] = await Promise.all([
-    client.addendum.findMany({
+  const [addenda, acks, all] = await inOrder(
+    () => client.addendum.findMany({
       where: { windowId: window.id, organisationId: actor.organisationId, status: "ISSUED" },
       orderBy: { number: "asc" },
       select: { id: true, number: true, title: true, whatChanged: true, status: true, issuedOn: true, closingChange: { select: { toClosingAt: true, appliedAt: true } }, recipients: { where: { partyId: { in: partyIds } }, select: { withDocuments: true } } },
     }),
-    client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, addendum: { windowId: window.id } }, select: { addendumId: true, acknowledgedOn: true } }),
-    loadMyNotices(client, actor, ctx.now),
-  ]);
+    () => client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, addendum: { windowId: window.id } }, select: { addendumId: true, acknowledgedOn: true } }),
+    () => loadMyNotices(client, actor, ctx.now));
   const rows: AddendumRow[] = addenda.map((a) => {
     const ack = acks.find((x) => x.addendumId === a.id) ?? null;
     const faults = acknowledgeFaults({ addendum: a, phase: ctx.phase, holdsCopy: a.recipients.length > 0, alreadyAcknowledged: ack != null }).filter((f) => f.level === "block");
@@ -207,11 +206,10 @@ export interface OutcomeView {
 
 export async function outcomeTab(client: Tx, actor: Who, ctx: BidContext): Promise<OutcomeView> {
   const partyIds = ctx.parties.map((p) => p.id);
-  const [opened, awards, notices] = await Promise.all([
-    partyIds.length ? client.openedBid.count({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, partyId: { in: partyIds } } }) : Promise.resolve(0),
-    client.award.findMany({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId }, select: { status: true, awardeePartyId: true } }),
-    partyIds.length ? client.nonAwardNotice.findMany({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, partyId: { in: partyIds } }, orderBy: [{ issuedAt: "desc" }, { id: "desc" }], select: { issuedOn: true, outcomeText: true, reasonText: true, award: { select: { status: true } } } }) : Promise.resolve([]),
-  ]);
+  const [opened, awards, notices] = await inOrder(
+    () => partyIds.length ? client.openedBid.count({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, partyId: { in: partyIds } } }) : Promise.resolve(0),
+    () => client.award.findMany({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId }, select: { status: true, awardeePartyId: true } }),
+    () => partyIds.length ? client.nonAwardNotice.findMany({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, partyId: { in: partyIds } }, orderBy: [{ issuedAt: "desc" }, { id: "desc" }], select: { issuedOn: true, outcomeText: true, reasonText: true, award: { select: { status: true } } } }) : Promise.resolve([]));
   const issued = awards.find((a) => isIssuedAward(a.status));
   const closed = ctx.ex.closingAt != null && ctx.now.getTime() >= ctx.ex.closingAt.getTime();
   // The same test `toPublicResult` applies, so the screen points to Results only where the award really is there.
@@ -254,14 +252,13 @@ export async function overviewTab(client: Tx, actor: Who, ctx: BidContext): Prom
   const partyIds = ctx.parties.map((p) => p.id);
   const standing = await outcomeTab(client, actor, ctx);
   const [events, registrations, copies, acks, sale, requests] = window
-    ? await Promise.all([
-        client.siteEvent.findMany({ where: { windowId: window.id, organisationId: actor.organisationId }, select: { id: true, kind: true, startsAt: true, heldOn: true, cancelledAt: true } }),
-        client.siteEventRegistration.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, event: { windowId: window.id } }, select: { eventId: true, endedAt: true } }),
-        partyIds.length ? client.addendumRecipient.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds }, addendum: { windowId: window.id, status: "ISSUED" } }, select: { addendumId: true } }) : Promise.resolve([]),
-        client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, addendum: { windowId: window.id } }, select: { addendumId: true } }),
-        partyIds.length ? client.documentSale.findFirst({ where: { windowId: window.id, organisationId: actor.organisationId, partyId: { in: partyIds }, voidedAt: null }, select: { financeReceiptNo: true } }) : Promise.resolve(null),
-        client.documentRequest.findMany({ where: { windowId: window.id, organisationId: actor.organisationId, supplierId: actor.supplierId }, orderBy: { requestedAt: "desc" }, take: 1, select: { refusedAt: true, endedAt: true } }),
-      ])
+    ? await inOrder(
+        () => client.siteEvent.findMany({ where: { windowId: window.id, organisationId: actor.organisationId }, select: { id: true, kind: true, startsAt: true, heldOn: true, cancelledAt: true } }),
+        () => client.siteEventRegistration.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, event: { windowId: window.id } }, select: { eventId: true, endedAt: true } }),
+        () => partyIds.length ? client.addendumRecipient.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds }, addendum: { windowId: window.id, status: "ISSUED" } }, select: { addendumId: true } }) : Promise.resolve([]),
+        () => client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, addendum: { windowId: window.id } }, select: { addendumId: true } }),
+        () => partyIds.length ? client.documentSale.findFirst({ where: { windowId: window.id, organisationId: actor.organisationId, partyId: { in: partyIds }, voidedAt: null }, select: { financeReceiptNo: true } }) : Promise.resolve(null),
+        () => client.documentRequest.findMany({ where: { windowId: window.id, organisationId: actor.organisationId, supplierId: actor.supplierId }, orderBy: { requestedAt: "desc" }, take: 1, select: { refusedAt: true, endedAt: true } }),)
     : [[], [], [], [], null, []];
 
   const todo: string[] = [];

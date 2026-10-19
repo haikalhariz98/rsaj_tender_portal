@@ -8,6 +8,7 @@ import { discardedNotices, partViews, standingChoices, submissionViews, type Dis
 import { uploadGateFaults } from "./parts";
 import { loadDoorFacts } from "./upload-store";
 import { PART_UPLOAD_FAULT_WORDS } from "./words";
+import { inOrder } from "@/lib/series";
 
 /**
  * What a supplier's screens for an online bid read (SR-13, ADR 0036 D5 to D8; build plan step 11): the exercise as this supplier may see it, the parts and the files waiting for them, its
@@ -49,13 +50,12 @@ export async function loadBidScreen(client: Tx, actor: Pick<SupplierActor, "supp
   });
   const orgId = actor.organisationId;
   const mine = { exerciseId: ctx.ex.id, organisationId: orgId, supplierId: actor.supplierId };
-  const [window, bids, drafts, discardedFiles, opening] = await Promise.all([
-    client.exerciseWindow.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: orgId }, select: { alternativesPermitted: true } }),
-    client.onlineBid.findMany({ where: mine, select: { id: true, kind: true, status: true, parentOnlineBidId: true, receiptDigest: true, key: { select: { fingerprint: true } }, envelope: { select: { sequence: true, receivedAt: true, late: true } } } }),
-    client.onlineBidFile.findMany({ where: { ...mine, state: "DRAFT", keyId: door.key?.id ?? "none" }, select: { id: true, packPartId: true, uploadedAt: true } }),
-    client.onlineBidFile.findMany({ where: { ...mine, state: "DISCARDED", ...(door.key ? { keyId: { not: door.key.id } } : {}) }, select: { id: true, key: { select: { fingerprint: true } } } }),
-    client.opening.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: orgId, kind: "MAIN" }, select: { startedAt: true, unsealedAt: true, receiptRoll: true } }),
-  ]);
+  const [window, bids, drafts, discardedFiles, opening] = await inOrder(
+    () => client.exerciseWindow.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: orgId }, select: { alternativesPermitted: true } }),
+    () => client.onlineBid.findMany({ where: mine, select: { id: true, kind: true, status: true, parentOnlineBidId: true, receiptDigest: true, key: { select: { fingerprint: true } }, envelope: { select: { sequence: true, receivedAt: true, late: true } } } }),
+    () => client.onlineBidFile.findMany({ where: { ...mine, state: "DRAFT", keyId: door.key?.id ?? "none" }, select: { id: true, packPartId: true, uploadedAt: true } }),
+    () => client.onlineBidFile.findMany({ where: { ...mine, state: "DISCARDED", ...(door.key ? { keyId: { not: door.key.id } } : {}) }, select: { id: true, key: { select: { fingerprint: true } } } }),
+    () => client.opening.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: orgId, kind: "MAIN" }, select: { startedAt: true, unsealedAt: true, receiptRoll: true } }));
 
   // A file the supplier discarded itself is not one the key change took: its own granted discard is in the sealed access log.
   const own = discardedFiles.length

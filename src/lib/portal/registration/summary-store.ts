@@ -14,6 +14,7 @@ import { parseRate } from "./documents";
 import type { SummaryCreditor, SummaryDeclaration, SummaryDocument, SummaryRecord } from "./summary";
 import type { DeclarationKind, RegistrationContext } from "./types";
 import { valueLabel } from "./values";
+import { inOrder } from "@/lib/series";
 
 /**
  * The rows the registration summary is made of, read (Phase 4b). `registrationSummary` (pure) is given a `SummaryRecord`; these gather its parts for the signed-in supplier's step 5, and for the
@@ -31,12 +32,11 @@ const nameOf = (lists: { list: string; code: string; nameEn: string }[], kind: S
 
 /// The company as the office accepted it: identity, address in parts, the Bumiputera reading (declared, with the evidence document's state), and whether the number fits the configured form.
 export async function loadCompanySummary(client: Tx, scope: SummaryScope, stage: "APPLICATION" | "REGISTER"): Promise<SummaryRecord["company"] | null> {
-  const [s, lists, format, policy] = await Promise.all([
-    client.supplier.findFirst({ where: { id: scope.supplierId, organisationId: scope.organisationId } }),
-    client.supplierListValue.findMany({ where: { organisationId: scope.organisationId, list: { in: ["ENTITY_TYPE", "COUNTRY", "STATE", "BUMIPUTERA_STATUS"] } }, select: { list: true, code: true, nameEn: true } }),
-    client.codeFormat.findFirst({ where: { organisationId: scope.organisationId, key: REGISTRATION_NO_FORMAT_KEY }, select: { pattern: true } }),
-    client.supplierPolicy.findUnique({ where: { organisationId: scope.organisationId }, select: { restrictionEvidenceTypeId: true } }),
-  ]);
+  const [s, lists, format, policy] = await inOrder(
+    () => client.supplier.findFirst({ where: { id: scope.supplierId, organisationId: scope.organisationId } }),
+    () => client.supplierListValue.findMany({ where: { organisationId: scope.organisationId, list: { in: ["ENTITY_TYPE", "COUNTRY", "STATE", "BUMIPUTERA_STATUS"] } }, select: { list: true, code: true, nameEn: true } }),
+    () => client.codeFormat.findFirst({ where: { organisationId: scope.organisationId, key: REGISTRATION_NO_FORMAT_KEY }, select: { pattern: true } }),
+    () => client.supplierPolicy.findUnique({ where: { organisationId: scope.organisationId }, select: { restrictionEvidenceTypeId: true } }));
   if (!s) return null;
   const evidenceTypeId = policy?.restrictionEvidenceTypeId ?? null;
   const evidenceDocs = evidenceTypeId ? await client.supplierDocument.findMany({ where: { supplierId: s.id, typeId: evidenceTypeId, notApplicable: false }, orderBy: { lodgedOn: "desc" }, select: { reference: true, verification: true } }) : [];
@@ -173,11 +173,10 @@ export async function loadCreditorRows(client: Tx, scope: SummaryScope): Promise
 
 /// A creditor row as the summary reads it: the bank and the account type by their names, the statement by its file names.
 export async function creditorSummaryOf(client: Tx, organisationId: string, row: CreditorRow): Promise<SummaryCreditor> {
-  const [lists, owner] = await Promise.all([
-    client.supplierListValue.findMany({ where: { organisationId, list: { in: ["BANK", "ACCOUNT_TYPE"] } }, select: { list: true, code: true, nameEn: true } }),
+  const [lists, owner] = await inOrder(
+    () => client.supplierListValue.findMany({ where: { organisationId, list: { in: ["BANK", "ACCOUNT_TYPE"] } }, select: { list: true, code: true, nameEn: true } }),
     // The supplier the profile belongs to is read from the profile itself, in this organisation (never from the caller).
-    client.creditorProfile.findFirst({ where: { id: row.id, organisationId }, select: { supplier: { select: { registrationNoKey: true } } } }),
-  ]);
+    () => client.creditorProfile.findFirst({ where: { id: row.id, organisationId }, select: { supplier: { select: { registrationNoKey: true } } } }));
   const v = row.values;
   return {
     beneficiaryName: v.beneficiaryName ?? "",

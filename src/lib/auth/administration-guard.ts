@@ -2,6 +2,7 @@ import type { Tx } from "@/lib/audit/record";
 
 import { administrationConflict, holdingsInWords, type HoldingKind, type Holdings } from "./administration-conflict";
 import type { Fault } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * The I/O half of the administration rule (ADR 0034 D9, Phase 2a): reads what the rule in `administration-conflict.ts` needs, under a lock on
@@ -21,12 +22,11 @@ export async function lockPersons(tx: Tx, personIds: readonly string[]): Promise
 /// What a person holds that has not ended. A period whose end is today or earlier has ended.
 export async function holdingsOf(tx: Tx, personId: string, now: Date): Promise<Holdings> {
   const live = { OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] };
-  const [offices, seats, delegations] = await Promise.all([
-    tx.roleAssignment.count({ where: { personId, ...live } }),
-    tx.committeeMember.count({ where: { personId, ...live } }),
+  const [offices, seats, delegations] = await inOrder(
+    () => tx.roleAssignment.count({ where: { personId, ...live } }),
+    () => tx.committeeMember.count({ where: { personId, ...live } }),
     // AND, because both halves are an OR and one would overwrite the other as keys of one object.
-    tx.delegation.count({ where: { AND: [{ OR: [{ fromPersonId: personId }, { toPersonId: personId }] }, live] } }),
-  ]);
+    () => tx.delegation.count({ where: { AND: [{ OR: [{ fromPersonId: personId }, { toPersonId: personId }] }, live] } }));
   return { offices, seats, delegations };
 }
 
@@ -39,20 +39,19 @@ export async function holdingsOf(tx: Tx, personId: string, now: Date): Promise<H
  */
 export async function holdingHistoryFor(tx: Tx, personIds: readonly string[]): Promise<Map<string, Holdings>> {
   const ids = [...new Set(personIds)];
-  const [offices, seats, delegations, trail] = await Promise.all([
-    tx.roleAssignment.findMany({ where: { personId: { in: ids } }, select: { id: true, personId: true } }),
-    tx.committeeMember.findMany({ where: { personId: { in: ids } }, select: { id: true, personId: true } }),
-    tx.delegation.findMany({ where: { OR: [{ fromPersonId: { in: ids } }, { toPersonId: { in: ids } }] }, select: { id: true, fromPersonId: true, toPersonId: true } }),
+  const [offices, seats, delegations, trail] = await inOrder(
+    () => tx.roleAssignment.findMany({ where: { personId: { in: ids } }, select: { id: true, personId: true } }),
+    () => tx.committeeMember.findMany({ where: { personId: { in: ids } }, select: { id: true, personId: true } }),
+    () => tx.delegation.findMany({ where: { OR: [{ fromPersonId: { in: ids } }, { toPersonId: { in: ids } }] }, select: { id: true, fromPersonId: true, toPersonId: true } }),
     // Every audit row of a holding that names the person in any of its changes, before or after (a creation names them after, a move away names them before).
-    tx.$queryRaw<{ entity: string; entityId: string; personId: string }[]>`
+    () => tx.$queryRaw<{ entity: string; entityId: string; personId: string }[]>`
       SELECT DISTINCT a."entity", a."entityId", v.p AS "personId"
       FROM "AuditEntry" a
       CROSS JOIN LATERAL jsonb_array_elements(a."changes") c
       CROSS JOIN LATERAL (VALUES (c->>'before'), (c->>'after')) v(p)
       WHERE a."entity" IN ('RoleAssignment', 'CommitteeMember', 'Delegation')
         AND c->>'field' IN ('personId', 'fromPersonId', 'toPersonId')
-        AND v.p = ANY(${ids}::text[])`,
-  ]);
+        AND v.p = ANY(${ids}::text[])`);
   const found = new Map<string, { RoleAssignment: Set<string>; CommitteeMember: Set<string>; Delegation: Set<string> }>(ids.map((id) => [id, { RoleAssignment: new Set(), CommitteeMember: new Set(), Delegation: new Set() }]));
   for (const r of offices) found.get(r.personId)?.RoleAssignment.add(r.id);
   for (const r of seats) if (r.personId) found.get(r.personId)?.CommitteeMember.add(r.id);

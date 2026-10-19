@@ -10,6 +10,7 @@ import { partChips, type PartChip, type PartFacts } from "./part";
 import { sortNotices, type PortalNotice } from "./notices";
 import { windowFault } from "./signup";
 import { supplierSees } from "./visibility";
+import { inOrder } from "@/lib/series";
 
 /**
  * What the My Bids list reads (Phase 4d): the exercises the signed-in supplier takes part in, with its own part in each, and the notices it is shown. Reads only, in the caller's client. Every read names the
@@ -35,27 +36,25 @@ export async function loadMyExercises(client: Tx, actor: Pick<SupplierActor, "su
   const org = await exerciseOrg(actor.organisationId, client);
   if (!org) return [];
   const own = { organisationId: actor.organisationId, supplierId: actor.supplierId };
-  const [parties, signUps, requests, acks, inspections] = await Promise.all([
-    client.exerciseParty.findMany({ where: { organisationId: actor.organisationId, vendorId: actor.supplierId }, select: { id: true, exerciseId: true } }),
-    client.siteEventRegistration.findMany({ where: own, select: { endedAt: true, event: { select: { cancelledAt: true, window: { select: { exerciseId: true } } } } } }),
-    client.documentRequest.findMany({ where: own, select: { refusedAt: true, endedAt: true, window: { select: { exerciseId: true } } } }),
-    client.addendumAcknowledgement.findMany({ where: own, select: { addendumId: true, addendum: { select: { window: { select: { exerciseId: true } } } } } }),
-    client.tenderInspectionEvent.findMany({ where: own, select: { window: { select: { exerciseId: true } } }, distinct: ["windowId"] }),
-  ]);
+  const [parties, signUps, requests, acks, inspections] = await inOrder(
+    () => client.exerciseParty.findMany({ where: { organisationId: actor.organisationId, vendorId: actor.supplierId }, select: { id: true, exerciseId: true } }),
+    () => client.siteEventRegistration.findMany({ where: own, select: { endedAt: true, event: { select: { cancelledAt: true, window: { select: { exerciseId: true } } } } } }),
+    () => client.documentRequest.findMany({ where: own, select: { refusedAt: true, endedAt: true, window: { select: { exerciseId: true } } } }),
+    () => client.addendumAcknowledgement.findMany({ where: own, select: { addendumId: true, addendum: { select: { window: { select: { exerciseId: true } } } } } }),
+    () => client.tenderInspectionEvent.findMany({ where: own, select: { window: { select: { exerciseId: true } } }, distinct: ["windowId"] }));
   const partyIds = parties.map((p) => p.id);
   const ids = new Set<string>([...parties.map((p) => p.exerciseId), ...signUps.map((s) => s.event.window.exerciseId), ...requests.map((r) => r.window.exerciseId), ...acks.map((a) => a.addendum.window.exerciseId), ...inspections.map((i) => i.window.exerciseId)]);
   if (ids.size === 0) return [];
 
-  const [exercises, sales, recipients, opened, notices] = await Promise.all([
-    client.sourcingExercise.findMany({
+  const [exercises, sales, recipients, opened, notices] = await inOrder(
+    () => client.sourcingExercise.findMany({
       where: { organisationId: actor.organisationId, id: { in: [...ids] }, status: { in: [...ROW_STATUSES] } },
       select: { id: true, reference: true, title: true, status: true, restricted: true, closingAt: true, awards: { select: { status: true } }, window: { select: { path: true, publishedAt: true, purchaseFromDay: true, purchaseCloseDay: true } } },
     }),
-    partyIds.length ? client.documentSale.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds }, voidedAt: null }, select: { window: { select: { exerciseId: true } } } }) : Promise.resolve([]),
-    partyIds.length ? client.addendumRecipient.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds }, addendum: { status: "ISSUED" } }, select: { addendumId: true, addendum: { select: { window: { select: { exerciseId: true } } } } } }) : Promise.resolve([]),
-    partyIds.length ? client.openedBid.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { exerciseId: true }, distinct: ["exerciseId"] }) : Promise.resolve([]),
-    partyIds.length ? client.nonAwardNotice.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { exerciseId: true, award: { select: { status: true } } } }) : Promise.resolve([]),
-  ]);
+    () => partyIds.length ? client.documentSale.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds }, voidedAt: null }, select: { window: { select: { exerciseId: true } } } }) : Promise.resolve([]),
+    () => partyIds.length ? client.addendumRecipient.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds }, addendum: { status: "ISSUED" } }, select: { addendumId: true, addendum: { select: { window: { select: { exerciseId: true } } } } } }) : Promise.resolve([]),
+    () => partyIds.length ? client.openedBid.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { exerciseId: true }, distinct: ["exerciseId"] }) : Promise.resolve([]),
+    () => partyIds.length ? client.nonAwardNotice.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { exerciseId: true, award: { select: { status: true } } } }) : Promise.resolve([]));
 
   const count = <T>(xs: readonly T[], of: (x: T) => string, id: string) => xs.filter((x) => of(x) === id).length;
   const acked = new Set(acks.map((a) => a.addendumId));
@@ -112,16 +111,15 @@ export async function loadMyNotices(client: Tx, actor: Pick<SupplierActor, "supp
   const byExercise = new Map(mine.map((p) => [p.exerciseId, p.exercise]));
   const notified = mine.filter((p) => p.sales.length > 0 || p.letters.length > 0).map((p) => p.exerciseId);
 
-  const [recipients, acks, changes, cancellations, nonAward] = await Promise.all([
-    client.addendumRecipient.findMany({
+  const [recipients, acks, changes, cancellations, nonAward] = await inOrder(
+    () => client.addendumRecipient.findMany({
       where: { organisationId: actor.organisationId, partyId: { in: partyIds }, addendum: { status: "ISSUED" } },
       select: { addendumId: true, addendum: { select: { number: true, title: true, whatChanged: true, issuedOn: true, window: { select: { exerciseId: true } } } } },
     }),
-    client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId }, select: { addendumId: true, acknowledgedOn: true } }),
-    notified.length ? client.closingChange.findMany({ where: { organisationId: actor.organisationId, appliedAt: { not: null }, window: { exerciseId: { in: notified } } }, select: { id: true, kind: true, fromClosingAt: true, toClosingAt: true, appliedAt: true, window: { select: { exerciseId: true, exercise: { select: { id: true } } } } } }) : Promise.resolve([]),
-    notified.length ? client.windowCancellation.findMany({ where: { organisationId: actor.organisationId, appliedAt: { not: null }, window: { exerciseId: { in: notified } } }, select: { id: true, feeRefund: true, appliedAt: true, window: { select: { exerciseId: true } } } }) : Promise.resolve([]),
-    client.nonAwardNotice.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { id: true, exerciseId: true, outcomeText: true, reasonText: true, issuedOn: true, award: { select: { status: true } } } }),
-  ]);
+    () => client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId }, select: { addendumId: true, acknowledgedOn: true } }),
+    () => notified.length ? client.closingChange.findMany({ where: { organisationId: actor.organisationId, appliedAt: { not: null }, window: { exerciseId: { in: notified } } }, select: { id: true, kind: true, fromClosingAt: true, toClosingAt: true, appliedAt: true, window: { select: { exerciseId: true, exercise: { select: { id: true } } } } } }) : Promise.resolve([]),
+    () => notified.length ? client.windowCancellation.findMany({ where: { organisationId: actor.organisationId, appliedAt: { not: null }, window: { exerciseId: { in: notified } } }, select: { id: true, feeRefund: true, appliedAt: true, window: { select: { exerciseId: true } } } }) : Promise.resolve([]),
+    () => client.nonAwardNotice.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { id: true, exerciseId: true, outcomeText: true, reasonText: true, issuedOn: true, award: { select: { status: true } } } }));
   const org = await exerciseOrg(actor.organisationId, client);
   const tz = org?.timeZone ?? null;
   const ackOn = new Map(acks.map((a) => [a.addendumId, storedDay(a.acknowledgedOn)]));

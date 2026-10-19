@@ -27,6 +27,7 @@ import { readFormationSnapshot } from "./preparation";
 import { phaseOf } from "./status";
 import type { LoadedContract } from "./repo";
 import type { BaselineReason, BaselineSource, LadKind, PeriodUnit, Provenance } from "./types";
+import { inOrder } from "@/lib/series";
 
 const dec = (v: { toString(): string } | null | undefined) => (v == null ? null : v.toString());
 const senOrNull = (v: { toString(): string } | null | undefined) => (v == null ? null : parseSen(v.toString()));
@@ -37,13 +38,12 @@ export const pctString = (v: { toString(): string } | null | undefined) => decim
 // ------------------------------------------------------------------ configuration
 
 export async function loadContractConfig(organisationId: string, client: Tx = db) {
-  const [policy, parts, recipients, units, bases] = await Promise.all([
-    client.contractPolicy.findUnique({ where: { organisationId } }),
-    client.contractDocumentPart.findMany({ where: { organisationId }, orderBy: [{ contractBasisCode: "asc" }, { sortOrder: "asc" }, { code: "asc" }] }),
-    client.controlledCopyRecipient.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
-    client.orgUnit.findMany({ where: { organisationId }, select: { code: true, nameEn: true, effectiveFrom: true, effectiveTo: true }, orderBy: [{ code: "asc" }, { effectiveFrom: "desc" }] }),
-    client.contractBasis.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
-  ]);
+  const [policy, parts, recipients, units, bases] = await inOrder(
+    () => client.contractPolicy.findUnique({ where: { organisationId } }),
+    () => client.contractDocumentPart.findMany({ where: { organisationId }, orderBy: [{ contractBasisCode: "asc" }, { sortOrder: "asc" }, { code: "asc" }] }),
+    () => client.controlledCopyRecipient.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
+    () => client.orgUnit.findMany({ where: { organisationId }, select: { code: true, nameEn: true, effectiveFrom: true, effectiveTo: true }, orderBy: [{ code: "asc" }, { effectiveFrom: "desc" }] }),
+    () => client.contractBasis.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }));
   /// A unit's name on a day: the row in force then (M-2), never merely the first row with the code.
   const unitName = (code: string | null, today: string) => unitInForce(code, units, today)?.nameEn ?? null;
   return { policy, parts, recipients, units, bases, unitName };
@@ -66,7 +66,7 @@ function gateOn(a: GateAward, contractTypeCode: string | null, requirements: Awa
 
 /// The readiness gate as the award's Conditions tab shows it (FR-CON-008), on the rows given.
 export async function contractGate(l: LoadedAward, client: Tx = db) {
-  const [config, tender] = await Promise.all([loadAwardConfig(l.org.id, client), frozenTenderOf(l.ex.id, l.org.timeZone, client)]);
+  const [config, tender] = await inOrder(() => loadAwardConfig(l.org.id, client), () => frozenTenderOf(l.ex.id, l.org.timeZone, client));
   return gateOn(l.award, l.ex.contractTypeCode, config.requirements, tender);
 }
 
@@ -76,9 +76,9 @@ export async function contractGate(l: LoadedAward, client: Tx = db) {
  * same gate function the contract's own record uses.
  */
 export async function endorsedPhases(organisationId: string, take: number, client: Tx = db): Promise<Map<string, "AWAITING_CONDITIONS" | "READY_TO_SIGN" | "LEGALLY_ENDORSED">> {
-  const [config, rows] = await Promise.all([
-    loadAwardConfig(organisationId, client),
-    client.contract.findMany({
+  const [config, rows] = await inOrder(
+    () => loadAwardConfig(organisationId, client),
+    () => client.contract.findMany({
       where: { organisationId, status: "LEGALLY_ENDORSED" },
       orderBy: [{ numberedOn: "desc" }, { number: "desc" }],
       take,
@@ -97,8 +97,7 @@ export async function endorsedPhases(organisationId: string, take: number, clien
           },
         },
       },
-    }),
-  ]);
+    }));
   const out = new Map<string, "AWAITING_CONDITIONS" | "READY_TO_SIGN" | "LEGALLY_ENDORSED">();
   const org = await client.organisation.findUnique({ where: { id: organisationId }, select: { timeZone: true } });
   const tenders = await frozenTendersOf(rows.map((r) => r.award.exerciseId), org?.timeZone ?? null, client);
@@ -123,16 +122,15 @@ export const liveOf = (c: LoadedContract["contract"], purpose: string) => c.atta
  */
 export async function baselineInputsOf(l: LoadedAward, client: Tx = db): Promise<BaselineInputs> {
   const { award: a, ex, org } = l;
-  const [tender, pack, policy, type] = await Promise.all([
-    frozenTenderOf(ex.id, org.timeZone, client),
-    client.tenderPack.findFirst({
+  const [tender, pack, policy, type] = await inOrder(
+    () => frozenTenderOf(ex.id, org.timeZone, client),
+    () => client.tenderPack.findFirst({
       where: { exerciseId: ex.id, status: "APPROVED", frozenAt: { not: null } },
       orderBy: { versionNo: "desc" },
       select: { versionNo: true, appendix: { select: { firstInterimMinimum: true, subsequentInterimMinimum: true, honourCertificateDays: true, sections: { orderBy: { sortOrder: "asc" } } } }, bqVersion: { select: { versionNo: true, totalsSnapshot: true, status: true } } },
     }),
-    client.tenderDocumentPolicy.findUnique({ where: { organisationId: org.id }, select: { firstCertificateFloor: true, firstCertificatePct: true, firstCertificateProvenance: true } }),
-    ex.contractTypeCode ? client.contractType.findFirst({ where: { organisationId: org.id, code: ex.contractTypeCode }, select: { nameEn: true, defectsLiabilityApplies: true } }) : Promise.resolve(null),
-  ]);
+    () => client.tenderDocumentPolicy.findUnique({ where: { organisationId: org.id }, select: { firstCertificateFloor: true, firstCertificatePct: true, firstCertificateProvenance: true } }),
+    () => ex.contractTypeCode ? client.contractType.findFirst({ where: { organisationId: org.id, code: ex.contractTypeCode }, select: { nameEn: true, defectsLiabilityApplies: true } }) : Promise.resolve(null));
   const band = isBandSnapshot(ex.bandSnapshot) ? ex.bandSnapshot.terms : null;
   const cls = isClassificationSnapshot(ex.classificationSnapshot) ? ex.classificationSnapshot : null;
   const frozenDlp = cls?.contractType.profile.find((p) => p.key === "defectsLiabilityApplies")?.value;

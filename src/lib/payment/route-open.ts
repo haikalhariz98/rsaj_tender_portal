@@ -31,6 +31,7 @@ import { paymentRefusal } from "./labels";
 import { KIND_ROUTE_DOMAIN, resolveCertificateRouteUnder } from "./route";
 import { routeValueOf, submitStateFaults } from "./route-state";
 import type { Finding, PaymentRouteFigure } from "./types";
+import { inOrder } from "@/lib/series";
 
 const refuse = (fs: readonly Finding[]): never => {
   throw new CertificateRefusal(paymentRefusal("Not sent for approval:", fs));
@@ -60,7 +61,7 @@ export async function submitForApproval(c: CertCtx, act: ActWriter) {
   const override = supersedes && c.l.req.fundingRouteCode ? await loadOverrideMatrix(c.l.org.code, c.l.req.fundingRouteCode, on, c.tx) : null;
   const ctx = { dal: issue.matrix, override, supersedes };
   // The absence rule and the sender's own office, on the requisition's unit, today (as the appointment's route reads them).
-  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await inOrder(() => loadRoster(c.l.org.code, c.tx), () => loadDelegations(c.l.org.code, c.tx), () => c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } }));
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, on).reverse().map((u) => u.code);
   const holdersOf = (code: string) => holdersFor(code, unitPath, roster, delegations, c.today);
   const people = new Map(roster.people.map((p) => [p.id, p]));

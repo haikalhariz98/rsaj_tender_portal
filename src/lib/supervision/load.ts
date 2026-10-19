@@ -21,6 +21,7 @@ import { assumedDelayIds, inDelay, inDelayIds, type DelayReading } from "./delay
 import { programmeInForce, type PointIn, type RevisionFacts } from "./programme";
 import { soOn } from "./so";
 import type { DelegateKind, Finding, ProgrammeDecision, SupervisionAct } from "./types";
+import { inOrder } from "@/lib/series";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
@@ -144,15 +145,14 @@ export async function actsByPerson(s: SupervisionRows, contractId: string, clien
   const sigs = await client.certificateSignature.findMany({ where: { certificate: { contractId } }, select: { personId: true, signedOn: true } });
   // 6.13 Part A steps 3 and 4: the acts recorded for a representative under their delegation (a valuation; a
   // variation's origination, review, commencement support, instruction, measurement, daywork, order and adjustment).
-  const [valuations, variations, instructions, measurements, dayworks, orders, adjustments] = await Promise.all([
-    client.interimValuation.findMany({ where: { contractId }, select: { personId: true, valuationDate: true } }),
-    client.variation.findMany({ where: { contractId }, select: { originatorPersonId: true, recordedOn: true, reviewedByPersonId: true, reviewedOn: true, commencedSupportPersonId: true, commencedOn: true } }),
-    client.variationInstruction.findMany({ where: { variation: { contractId } }, select: { personId: true, certificate: { select: { openedOn: true } } } }),
-    client.variationMeasurement.findMany({ where: { variation: { contractId } }, select: { personId: true, measuredOn: true } }),
-    client.dayworkRecord.findMany({ where: { variation: { contractId } }, select: { personId: true, workedOn: true } }),
-    client.variationCertificate.findMany({ where: { variation: { contractId } }, select: { personId: true, certificate: { select: { openedOn: true } } } }),
-    client.sumAdjustment.findMany({ where: { contractId }, select: { personId: true, certificate: { select: { openedOn: true } } } }),
-  ]);
+  const [valuations, variations, instructions, measurements, dayworks, orders, adjustments] = await inOrder(
+    () => client.interimValuation.findMany({ where: { contractId }, select: { personId: true, valuationDate: true } }),
+    () => client.variation.findMany({ where: { contractId }, select: { originatorPersonId: true, recordedOn: true, reviewedByPersonId: true, reviewedOn: true, commencedSupportPersonId: true, commencedOn: true } }),
+    () => client.variationInstruction.findMany({ where: { variation: { contractId } }, select: { personId: true, certificate: { select: { openedOn: true } } } }),
+    () => client.variationMeasurement.findMany({ where: { variation: { contractId } }, select: { personId: true, measuredOn: true } }),
+    () => client.dayworkRecord.findMany({ where: { variation: { contractId } }, select: { personId: true, workedOn: true } }),
+    () => client.variationCertificate.findMany({ where: { variation: { contractId } }, select: { personId: true, certificate: { select: { openedOn: true } } } }),
+    () => client.sumAdjustment.findMany({ where: { contractId }, select: { personId: true, certificate: { select: { openedOn: true } } } }));
   return [
     ...valuations.map((x) => ({ personId: x.personId, day: storedDay(x.valuationDate) })),
     ...variations.flatMap((x) => [{ personId: x.originatorPersonId, day: storedDay(x.recordedOn) }, { personId: x.reviewedByPersonId, day: day(x.reviewedOn) }, { personId: x.commencedSupportPersonId, day: day(x.commencedOn) }]),

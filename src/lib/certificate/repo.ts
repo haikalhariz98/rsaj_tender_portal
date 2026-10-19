@@ -24,6 +24,7 @@ import type { Term } from "./terms";
 import type { CheckDef, TypeNow } from "./routing-sheet";
 import type { OfficeHolders } from "./signature";
 import type { Block, CertificateKind, DistributionRow, SignedBlock } from "./types";
+import { inOrder } from "@/lib/series";
 
 export const certificateInclude = {
   signatures: { include: { person: { select: { id: true, name: true } } }, orderBy: { blockOrder: "asc" as const } },
@@ -178,7 +179,7 @@ export { checksOf, routesOf } from "./sheet-rows";
  * `instructionOnly` is false: increment 1 has no delegation scope (6.13 adds it).
  */
 export async function officeHolders(l: LoadedContract, roleCode: string, day: string, client: Tx = db): Promise<OfficeHolders> {
-  const [roster, delegations, units] = await Promise.all([loadRoster(l.org.code, client), loadDelegations(l.org.code, client), client.orgUnit.findMany({ where: { organisationId: l.org.id } })]);
+  const [roster, delegations, units] = await inOrder(() => loadRoster(l.org.code, client), () => loadDelegations(l.org.code, client), () => client.orgUnit.findMany({ where: { organisationId: l.org.id } }));
   const unitPath = pathTo(units as unknown as OrgUnit[], l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
   const h = holdersFor(roleCode, unitPath, roster, delegations, day);
   return { holderIds: h.holderIds, delegates: h.delegates.map((d) => ({ personId: d.personId, delegationId: d.delegation.id, instructionOnly: false })) };
@@ -201,9 +202,8 @@ export const CERTIFICATES_PAGE = 100;
 /// A contract's certificates, newest first, bounded (the contract's Documents tab).
 export async function certificatesOfContract(contractId: string, page = 0, client: Tx = db) {
   const where = { contractId };
-  const [rows, total] = await Promise.all([
-    client.certificate.findMany({ where, orderBy: [{ openedAt: "desc" }, { id: "asc" }], skip: page * CERTIFICATES_PAGE, take: CERTIFICATES_PAGE, select: { id: true, kind: true, number: true, sequence: true, status: true, certificateDate: true, openedOn: true, issuedAt: true, copies: { select: { mandatory: true, ackRequired: true, despatchedOn: true, acknowledgedOn: true } } } }),
-    client.certificate.count({ where }),
-  ]);
+  const [rows, total] = await inOrder(
+    () => client.certificate.findMany({ where, orderBy: [{ openedAt: "desc" }, { id: "asc" }], skip: page * CERTIFICATES_PAGE, take: CERTIFICATES_PAGE, select: { id: true, kind: true, number: true, sequence: true, status: true, certificateDate: true, openedOn: true, issuedAt: true, copies: { select: { mandatory: true, ackRequired: true, despatchedOn: true, acknowledgedOn: true } } } }),
+    () => client.certificate.count({ where }));
   return { rows, total };
 }

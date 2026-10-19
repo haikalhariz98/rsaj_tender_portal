@@ -57,6 +57,7 @@ import { closeMatter, markSent, matterLabel, writeApprovalOfRecord } from "./wri
 import { linkedVia, type CiteVia } from "@/lib/committee/cite-via";
 import type { AuditActor } from "@/lib/auth/types";
 import { routeRequesterId } from "@/lib/approvals/requester";
+import { inOrder } from "@/lib/series";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
 export class MatterRefusal extends Error {
@@ -89,7 +90,7 @@ export async function matterSeriesSet(tx: Tx, organisationId: string): Promise<b
 }
 
 async function unitPathOf(c: MatterCtx, day: string) {
-  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await inOrder(() => loadRoster(c.l.org.code, c.tx), () => loadDelegations(c.l.org.code, c.tx), () => c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } }));
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
   return { roster, delegations, unitPath };
 }

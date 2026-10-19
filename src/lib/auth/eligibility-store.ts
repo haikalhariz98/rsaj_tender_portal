@@ -5,6 +5,7 @@ import { organisationDay } from "@/lib/dates";
 import { eligiblePersonIds, type Candidate } from "./eligibility";
 import { loadGrants } from "./permission-store";
 import type { PermissionKey } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * Who could do an act that needs a permission, read from the database (Phase 2c): the people with an active sign-in account, judged by `eligiblePersonIds`.
@@ -20,6 +21,6 @@ export async function loadCandidates(client: Tx, organisationId: string): Promis
 }
 
 export async function eligibleFor(client: Tx, input: { organisationId: string; timeZone: string | null; now: Date }, key: PermissionKey): Promise<string[]> {
-  const [candidates, grants] = await Promise.all([loadCandidates(client, input.organisationId), loadGrants(client, input.organisationId)]);
+  const [candidates, grants] = await inOrder(() => loadCandidates(client, input.organisationId), () => loadGrants(client, input.organisationId));
   return eligiblePersonIds(key, candidates, grants, organisationDay(input.now, input.timeZone));
 }

@@ -43,6 +43,7 @@ import type { AwardFacts, RouteStepFact, TemplateRow } from "./evaluate";
 import { LIVE_STATUSES } from "./status";
 import { UNSET_AWARD_POLICY, type AwardPolicy, type AwardStatus, type DocumentLanguage, type InstrumentKind, type PeriodUnit, type Provenance } from "./types";
 import type { Variant } from "./variant";
+import { inOrder } from "@/lib/series";
 
 const dec = (v: { toString(): string } | null | undefined) => (v == null ? null : v.toString());
 const senOrNull = (v: { toString(): string } | null | undefined) => (v == null ? null : parseSen(v.toString()));
@@ -190,21 +191,20 @@ export async function loadAwardPolicy(organisationId: string, client: Tx = db): 
 export async function loadAwardConfig(organisationId: string, client: Tx = db) {
   const where = { organisationId };
   const order = [{ sortOrder: "asc" as const }, { code: "asc" as const }];
-  const [policy, recipients, variants, templates, conditionKinds, requirements, bands, issuers, expiring, indentFormat, expiredRule, units] = await Promise.all([
-    loadAwardPolicy(organisationId, client),
-    client.distributionRecipient.findMany({ where, orderBy: order }),
-    client.appointmentLetterVariant.findMany({ where, orderBy: order }),
-    client.documentTemplate.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
-    client.conditionPrecedentKind.findMany({ where, orderBy: order }),
-    client.insuranceRequirement.findMany({ where, orderBy: order }),
-    client.liabilityBand.findMany({ where, orderBy: order }),
-    client.approvedIssuer.findMany({ where, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
-    client.notificationRule.findFirst({ where: { organisationId, eventKey: "security.expiring", isActive: true } }),
-    client.codeFormat.findFirst({ where: { organisationId, key: "erp_indent_no" } }),
+  const [policy, recipients, variants, templates, conditionKinds, requirements, bands, issuers, expiring, indentFormat, expiredRule, units] = await inOrder(
+    () => loadAwardPolicy(organisationId, client),
+    () => client.distributionRecipient.findMany({ where, orderBy: order }),
+    () => client.appointmentLetterVariant.findMany({ where, orderBy: order }),
+    () => client.documentTemplate.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
+    () => client.conditionPrecedentKind.findMany({ where, orderBy: order }),
+    () => client.insuranceRequirement.findMany({ where, orderBy: order }),
+    () => client.liabilityBand.findMany({ where, orderBy: order }),
+    () => client.approvedIssuer.findMany({ where, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    () => client.notificationRule.findFirst({ where: { organisationId, eventKey: "security.expiring", isActive: true } }),
+    () => client.codeFormat.findFirst({ where: { organisationId, key: "erp_indent_no" } }),
     // Read whether on or off (AC-42): a rule that is off is the organisation's decision, not an absent one.
-    client.notificationRule.findFirst({ where: { organisationId, eventKey: "award.indent.expired" } }),
-    client.orgUnit.findMany({ where, select: { code: true, nameEn: true } }),
-  ]);
+    () => client.notificationRule.findFirst({ where: { organisationId, eventKey: "award.indent.expired" } }),
+    () => client.orgUnit.findMany({ where, select: { code: true, nameEn: true } }));
   const unitNames = new Map(units.map((u) => [u.code, u.nameEn]));
   return {
     policy,
@@ -320,15 +320,14 @@ export const latestRoute = (award: AwardRow) => award.approvalInstances.find((i)
 export async function awardFacts(l: LoadedAward, client: Tx = db) {
   const { org, award, ex, req } = l;
   const on = org.today ? dayToDate(org.today) : new Date();
-  const [{ issue, cfg, ctx }, config, siblings, roster, delegations, units, contractType] = await Promise.all([
-    evaluationContext(org, req, ex, client),
-    loadAwardConfig(org.id, client),
-    client.award.findMany({ where: { exercise: { requisitionId: req.id }, status: { in: [...LIVE_STATUSES] }, NOT: { id: award.id } }, select: { awardedValue: true } }),
-    loadRoster(org.code, client),
-    loadDelegations(org.code, client),
-    client.orgUnit.findMany({ where: { organisationId: org.id } }),
-    ex.contractTypeCode ? client.contractType.findFirst({ where: { organisationId: org.id, code: ex.contractTypeCode } }) : Promise.resolve(null),
-  ]);
+  const [{ issue, cfg, ctx }, config, siblings, roster, delegations, units, contractType] = await inOrder(
+    () => evaluationContext(org, req, ex, client),
+    () => loadAwardConfig(org.id, client),
+    () => client.award.findMany({ where: { exercise: { requisitionId: req.id }, status: { in: [...LIVE_STATUSES] }, NOT: { id: award.id } }, select: { awardedValue: true } }),
+    () => loadRoster(org.code, client),
+    () => loadDelegations(org.code, client),
+    () => client.orgUnit.findMany({ where: { organisationId: org.id } }),
+    () => ex.contractTypeCode ? client.contractType.findFirst({ where: { organisationId: org.id, code: ex.contractTypeCode } }) : Promise.resolve(null));
   const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
   // 6.5 (X-9): the window's phase now and any pending change, for the gate.
   const exerciseWindow = windowGate(ex, await client.exerciseWindow.findUnique({ where: { exerciseId: ex.id }, select: { purchaseFromDay: true, purchaseCloseDay: true } }), new Date(), org.timeZone);

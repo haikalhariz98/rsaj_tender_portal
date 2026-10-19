@@ -19,6 +19,7 @@ import type { SupplierStatus } from "@/lib/suppliers/types";
 import { bankChangeFaults, bankState, type BankChangeInput } from "./bank";
 import { CompanyRefused } from "./errors";
 import { waitingUsage } from "./replace-store";
+import { inOrder } from "@/lib/series";
 
 /**
  * A registered supplier changes its bank details (Phase 4c; the CPD rulings of 2026-10-07 and the addendum: a change is a new version, ONE officer checks it, and the version in force stays in
@@ -152,11 +153,10 @@ export async function sendBankChange(actor: SupplierActor, i: BankChangeUpload, 
 export async function judge(tx: Tx, actor: SupplierActor, change: BankChangeInput, passwordGiven = true) {
   const settings = await loadRegistrationSettings(tx, actor.organisationId);
   if (!settings) throw new CompanyRefused([{ code: "NOT_REGISTERED_FOR_CHANGE", level: "block" }]);
-  const [supplier, ctx, rows] = await Promise.all([
-    tx.supplier.findFirst({ where: { id: actor.supplierId, organisationId: actor.organisationId }, select: { status: true } }),
-    loadRegistrationContext(tx, actor, settings, []),
-    tx.creditorProfile.findMany({ where: { supplierId: actor.supplierId, organisationId: actor.organisationId }, select: { version: true, submittedAt: true, verification: true } }),
-  ]);
+  const [supplier, ctx, rows] = await inOrder(
+    () => tx.supplier.findFirst({ where: { id: actor.supplierId, organisationId: actor.organisationId }, select: { status: true } }),
+    () => loadRegistrationContext(tx, actor, settings, []),
+    () => tx.creditorProfile.findMany({ where: { supplierId: actor.supplierId, organisationId: actor.organisationId }, select: { version: true, submittedAt: true, verification: true } }));
   return bankChangeFaults(change, ctx, {
     supplierStatus: (supplier?.status ?? "REJECTED") as SupplierStatus,
     bank: bankState(rows.map((r) => ({ version: r.version, sent: r.submittedAt != null, verification: r.verification }))),

@@ -4,6 +4,7 @@ import { formatDate } from "@/lib/format";
 import type { Provenance } from "@/lib/window/types";
 
 import { awardStands, carriesReason, nonAwardSetting, nonAwardSettingWords, unsuccessfulPartyIds, type NonAwardPolicy, type NonAwardSetting } from "./non-award";
+import { inOrder } from "@/lib/series";
 
 /**
  * What the award page shows of the notices of non-award (FR-AWD-010, policy D7, Phase 4d), and the policy they are issued under. Reads only. The tenderers are the parties named on the exercise's opened bids,
@@ -41,10 +42,9 @@ export async function loadNonAwardPanel(client: Tx, organisationId: string, awar
   const bids = await client.openedBid.findMany({ where: { exerciseId: award.exerciseId, organisationId }, select: { partyId: true } });
   const ids = unsuccessfulPartyIds(bids, award.awardeePartyId);
   if (ids.length === 0) return { ...base, rows: [] };
-  const [parties, notices] = await Promise.all([
-    client.exerciseParty.findMany({ where: { id: { in: ids }, organisationId }, select: { id: true, name: true, vendor: { select: { reference: true, registeredName: true } } }, orderBy: { name: "asc" } }),
-    client.nonAwardNotice.findMany({ where: { awardId: award.id, exerciseId: award.exerciseId, organisationId, partyId: { in: ids } }, select: { id: true, partyId: true, issuedOn: true, reasonText: true, issuedBy: { select: { name: true } } } }),
-  ]);
+  const [parties, notices] = await inOrder(
+    () => client.exerciseParty.findMany({ where: { id: { in: ids }, organisationId }, select: { id: true, name: true, vendor: { select: { reference: true, registeredName: true } } }, orderBy: { name: "asc" } }),
+    () => client.nonAwardNotice.findMany({ where: { awardId: award.id, exerciseId: award.exerciseId, organisationId, partyId: { in: ids } }, select: { id: true, partyId: true, issuedOn: true, reasonText: true, issuedBy: { select: { name: true } } } }));
   return {
     ...base,
     rows: parties.map((p) => {

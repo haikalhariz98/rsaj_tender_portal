@@ -7,6 +7,7 @@ import { formatMoney, senFromDecimal } from "@/lib/money";
 
 import { serviceState, type ServiceState } from "./submission";
 import type { SubmissionKind, SubmissionOutcome } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * The review queue of contractors' submissions, as the officers read it on the Contracts list's "Submissions waiting" view and each contract's Submissions tab (AC-16; first the Documents register, 6.14 OD-6, BD-614-31; Phase 4e): every submission of the organisation, the ones
@@ -56,11 +57,10 @@ const scopeWhere = (organisationId: string, scope: ReviewScope) => ({
 /// overdue). No day (the time zone not set): nothing is judged overdue.
 export async function reviewCounts(client: Tx, organisationId: string, today: string | null, scope: ReviewScope = {}): Promise<{ waiting: number; overdue: number; answered: number }> {
   const base = scopeWhere(organisationId, scope);
-  const [waiting, overdue, answered] = await Promise.all([
-    client.contractorSubmission.count({ where: { ...base, outcome: null } }),
-    today ? client.contractorSubmission.count({ where: { ...base, outcome: null, dueOn: { lt: dayToDate(today) } } }) : Promise.resolve(0),
-    client.contractorSubmission.count({ where: { ...base, outcome: { not: null } } }),
-  ]);
+  const [waiting, overdue, answered] = await inOrder(
+    () => client.contractorSubmission.count({ where: { ...base, outcome: null } }),
+    () => today ? client.contractorSubmission.count({ where: { ...base, outcome: null, dueOn: { lt: dayToDate(today) } } }) : Promise.resolve(0),
+    () => client.contractorSubmission.count({ where: { ...base, outcome: { not: null } } }));
   return { waiting, overdue, answered };
 }
 
@@ -75,15 +75,14 @@ export interface ReviewQueue {
 
 /// The queue as the officers read it: each list paged in the database (4e review fix: it was one capped read, and the counts came from the cap).
 export async function loadReviewQueue(client: Tx, organisationId: string, today: string | null, pages: { waiting?: string; answered?: string } = {}, scope: ReviewScope = {}, lang: Language = "en"): Promise<ReviewQueue> {
-  const [counts, settings] = await Promise.all([reviewCounts(client, organisationId, today, scope), client.contractorSubmissionSetting.findMany({ where: { organisationId }, select: { kind: true, serviceLevelDays: true } })]);
+  const [counts, settings] = await inOrder(() => reviewCounts(client, organisationId, today, scope), () => client.contractorSubmissionSetting.findMany({ where: { organisationId }, select: { kind: true, serviceLevelDays: true } }));
   const waitingPage = pageOf(pages.waiting, counts.waiting, REVIEW_PAGE);
   const answeredPage = pageOf(pages.answered, counts.answered, REVIEW_PAGE);
   const base = scopeWhere(organisationId, scope);
   const include = { contract: { select: { number: true, award: { select: { awardeeName: true } } } }, decidedBy: { select: { name: true } }, lines: { orderBy: { sortOrder: "asc" as const } } };
-  const [waitingRows, answeredRows] = await Promise.all([
-    client.contractorSubmission.findMany({ where: { ...base, outcome: null }, orderBy: [{ submittedAt: "asc" }, { id: "asc" }], skip: waitingPage * REVIEW_PAGE, take: REVIEW_PAGE, include }),
-    client.contractorSubmission.findMany({ where: { ...base, outcome: { not: null } }, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], skip: answeredPage * REVIEW_PAGE, take: REVIEW_PAGE, include }),
-  ]);
+  const [waitingRows, answeredRows] = await inOrder(
+    () => client.contractorSubmission.findMany({ where: { ...base, outcome: null }, orderBy: [{ submittedAt: "asc" }, { id: "asc" }], skip: waitingPage * REVIEW_PAGE, take: REVIEW_PAGE, include }),
+    () => client.contractorSubmission.findMany({ where: { ...base, outcome: { not: null } }, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], skip: answeredPage * REVIEW_PAGE, take: REVIEW_PAGE, include }));
   const set = new Set(settings.filter((s) => s.serviceLevelDays != null).map((s) => s.kind as SubmissionKind));
   const view = (r: (typeof waitingRows)[number]): ReviewRow => {
     const sentDay = storedDay(r.submittedOn);

@@ -26,6 +26,7 @@ import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor, StaffActor } from "@/lib/auth/types";
 import { routeRequesterId } from "@/lib/approvals/requester";
+import { inOrder } from "@/lib/series";
 
 /**
  * A supplier's standing (FR-VND-010, FR-TRM-017, plan 6.15 §4.2, increment a2; FR-ADV-010 and 615-C2): suspended by an officer
@@ -46,10 +47,9 @@ async function lockedStanding(tx: Tx, l: LockedSupplier) {
   const today = l.org.today!;
   const policy = await supplierPolicyOf(l.org.id, tx);
   const st = (await standingOf(l.supplier.id, l.org.id, today, tx, policy))!;
-  const [s, requests] = await Promise.all([
-    tx.supplier.findUniqueOrThrow({ where: { id: l.supplier.id, organisationId: l.org.id }, select: { registeredOn: true, documents: true, standingEvents: true } }),
-    tx.standingRequest.findMany({ where: { supplierId: l.supplier.id }, include: { routes: { include: { steps: true } }, event: { select: { id: true } } } }),
-  ]);
+  const [s, requests] = await inOrder(
+    () => tx.supplier.findUniqueOrThrow({ where: { id: l.supplier.id, organisationId: l.org.id }, select: { registeredOn: true, documents: true, standingEvents: true } }),
+    () => tx.standingRequest.findMany({ where: { supplierId: l.supplier.id }, include: { routes: { include: { steps: true } }, event: { select: { id: true } } } }));
   const requestFacts = (r: (typeof requests)[number]): RequestFacts => {
     const routes = r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }));
     const newest = [...r.routes].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];

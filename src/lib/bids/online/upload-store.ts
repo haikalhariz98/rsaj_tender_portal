@@ -19,6 +19,7 @@ import { isPublished } from "@/lib/window/phase";
 
 import { storedScan, uploadGateFaults } from "./parts";
 import type { BidPartRule, OnlineBidRules, OnlineSubmissionMode, PartUploadFault, SubmissionChannel } from "./types";
+import { inOrder } from "@/lib/series";
 
 /**
  * The part upload's reads and writes (ADR 0036 D5, D6; step 9). The route judges the rules (`parts.ts`) and reads the body; this file reads the exercise as the signed-in
@@ -80,11 +81,10 @@ export async function loadDoorFacts(tx: Tx, actor: Pick<SupplierActor, "supplier
   if (!ex) return null;
   const status = ctx.ex.status as ExerciseStatus;
   const partyIds = ctx.parties.map((p) => p.id);
-  const [key, sales, opening] = await Promise.all([
-    tx.exerciseSealingKey.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, retiredAt: null }, select: { id: true, publicKey: true, fingerprint: true } }),
-    ctx.ex.window && partyIds.length ? tx.documentSale.findMany({ where: { windowId: ctx.ex.window.id, organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { voidedAt: true, paymentChannel: true } }) : Promise.resolve([]),
-    tx.opening.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, kind: "MAIN" }, select: { startedAt: true } }),
-  ]);
+  const [key, sales, opening] = await inOrder(
+    () => tx.exerciseSealingKey.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, retiredAt: null }, select: { id: true, publicKey: true, fingerprint: true } }),
+    () => ctx.ex.window && partyIds.length ? tx.documentSale.findMany({ where: { windowId: ctx.ex.window.id, organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { voidedAt: true, paymentChannel: true } }) : Promise.resolve([]),
+    () => tx.opening.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, kind: "MAIN" }, select: { startedAt: true } }));
   const simulator = simulatorAllowedByDeployment();
   return {
     ctx,

@@ -4,6 +4,7 @@ import { dayIn } from "@/lib/dates";
 import { standingOf } from "@/lib/suppliers/standing-repo";
 
 import { portalStandingBar, type PortalActKind, type StandingBar } from "./standing-gate";
+import { inOrder } from "@/lib/series";
 
 /// What is said where the organisation's day cannot be known, so the standing cannot be judged: the act is refused rather than let through.
 export const STANDING_NOT_JUDGED: StandingBar = {
@@ -17,10 +18,9 @@ export const STANDING_NOT_JUDGED: StandingBar = {
  * and never let through. A supplier the register does not know is refused too: nothing of it can be judged.
  */
 export async function portalStandingBarOf(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, kind: PortalActKind, now: Date = new Date()): Promise<StandingBar | null> {
-  const [org, supplier] = await Promise.all([
-    tx.organisation.findUnique({ where: { id: actor.organisationId }, select: { timeZone: true } }),
-    tx.supplier.findFirst({ where: { id: actor.supplierId, organisationId: actor.organisationId }, select: { status: true } }),
-  ]);
+  const [org, supplier] = await inOrder(
+    () => tx.organisation.findUnique({ where: { id: actor.organisationId }, select: { timeZone: true } }),
+    () => tx.supplier.findFirst({ where: { id: actor.supplierId, organisationId: actor.organisationId }, select: { status: true } }));
   if (!supplier) return STANDING_NOT_JUDGED;
   if (supplier.status === "REJECTED") return portalStandingBar({ status: "REJECTED", standing: "NOT_REGISTERED", kind });
   if (!org?.timeZone) return STANDING_NOT_JUDGED;

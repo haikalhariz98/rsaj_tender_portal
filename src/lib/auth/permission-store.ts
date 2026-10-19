@@ -5,6 +5,7 @@ import { inForceOn } from "@/lib/effective";
 import { permissionRefusal, permissionState, resolvePermissions, type HeldAssignment, type PermissionState, type StoredGrant } from "./permissions";
 import type { Office, PermissionKey } from "./types";
 import type { Words } from "./words";
+import { inOrder } from "@/lib/series";
 
 /**
  * Product permissions, read (ADR 0034 D8, Phase 2a). The pure rules are in `permissions.ts`; this reads what they judge, in the caller's
@@ -33,7 +34,7 @@ export async function heldNow(
   input: { organisationId: string; personId: string; isAdministrator: boolean; timeZone: string | null; now: Date },
 ): Promise<HeldNow> {
   const today = organisationDay(input.now, input.timeZone);
-  const [assignments, grants] = await Promise.all([loadAssignments(client, input.personId), loadGrants(client, input.organisationId)]);
+  const [assignments, grants] = await inOrder(() => loadAssignments(client, input.personId), () => loadGrants(client, input.organisationId));
   const offices = today ? assignments.filter((a) => inForceOn(a, today)).map((a) => ({ roleCode: a.roleCode, scope: a.scope })) : [];
   return { offices, permissions: resolvePermissions({ isAdministrator: input.isAdministrator, assignments, grants, today }) };
 }
@@ -44,7 +45,7 @@ export async function heldNow(
  */
 export async function permissionHeldThrough(client: Tx, input: { organisationId: string; personId: string; isAdministrator: boolean; timeZone: string | null; now: Date }, key: PermissionKey): Promise<string | null> {
   const today = organisationDay(input.now, input.timeZone);
-  const [assignments, grants] = await Promise.all([loadAssignments(client, input.personId), loadGrants(client, input.organisationId)]);
+  const [assignments, grants] = await inOrder(() => loadAssignments(client, input.personId), () => loadGrants(client, input.organisationId));
   const state = permissionState(key, { isAdministrator: input.isAdministrator, assignments, grants, today });
   return state.state === "ROLE" ? (state.roleCodes[0] ?? null) : null;
 }
@@ -58,11 +59,10 @@ export async function explainRefusal(
   key: PermissionKey,
 ): Promise<{ state: PermissionState; words: Words }> {
   const today = organisationDay(input.now, input.timeZone);
-  const [assignments, grants, roles] = await Promise.all([
-    loadAssignments(client, input.personId),
-    loadGrants(client, input.organisationId),
-    client.authorityRole.findMany({ where: { organisationId: input.organisationId }, select: { code: true, nameEn: true } }),
-  ]);
+  const [assignments, grants, roles] = await inOrder(
+    () => loadAssignments(client, input.personId),
+    () => loadGrants(client, input.organisationId),
+    () => client.authorityRole.findMany({ where: { organisationId: input.organisationId }, select: { code: true, nameEn: true } }));
   const names = new Map(roles.map((r) => [r.code, r.nameEn]));
   const state = permissionState(key, { isAdministrator: input.isAdministrator, assignments, grants, today });
   return { state, words: permissionRefusal(key, state, (code) => names.get(code) ?? "a role the organisation has retired") };
