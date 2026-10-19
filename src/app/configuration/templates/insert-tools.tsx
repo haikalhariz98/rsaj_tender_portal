@@ -57,7 +57,7 @@ export function InsertClause({ clauses }: { clauses: { code: string; title: stri
         </Button>
       </div>
       <p className="text-[12.5px] text-ink-3" role="status">
-        {done ?? "It is written at the cursor, as a paragraph of its own. The agreement then carries the clause's words as configured."}
+        {done ?? "Written at the cursor, as its own paragraph. The agreement carries the clause's words as configured."}
       </p>
     </div>
   );

@@ -7,6 +7,7 @@ import { RecordEditor, type FormState } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
+import { MoreText } from "@/components/ui/more-text";
 import { Field, FileInput } from "@/components/ui/field";
 import { LOGO_MAX_BYTES } from "@/lib/organisation/logo-limits";
 
@@ -110,7 +111,8 @@ export function LogoCard({ logo }: { logo: LogoInfo | null }) {
       title="Logo"
       subtitle={
         <>
-          Replaces the product mark at the top left. The sign-in page draws it with a soft halo on its photograph; for the best result, add a white or light version under &ldquo;Sign-in page: logo for dark backgrounds&rdquo;, below.
+          Replaces the product mark.{" "}
+          <MoreText label="About the logo" text="On the sign-in photograph it gets a soft halo. Add a light version under Sign-in page: logo for dark backgrounds." />
         </>
       }
       remove={

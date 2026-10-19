@@ -9,6 +9,7 @@ import { Badge, Chip, type Tone } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 
@@ -240,12 +241,7 @@ export default async function CommitteesPage() {
                     <Td>
                       <RowActions>
                         {o._count.decisions > 0 ? (
-                          <span
-                            className="text-[12px] whitespace-nowrap text-ink-3"
-                            title="Recorded decisions cite this outcome, so it cannot be changed. Retire it and add a new one."
-                          >
-                            In use
-                          </span>
+                          <InfoChip outline detail="Cited by recorded decisions. Retire it and add a new one.">In use</InfoChip>
                         ) : (
                           <EditNotApprovedOutcome
                             outcome={o}
@@ -270,11 +266,11 @@ export default async function CommitteesPage() {
 function ReturnsTo({ kind, stage }: { kind: "LOOP" | "TERMINAL"; stage: string | null }) {
   const state = loopKeyState(kind, stage);
   if (state === "KEY") return <p className="mt-1 text-[12.5px] text-ink-3">{LOOP_KEY_LABEL[stage as LoopStageKey]}</p>;
-  if (state === "NONE") return <p className="mt-1 text-[12.5px] text-ink-3">To no stage of the evaluation: it opens nothing.</p>;
+  // 0005 R15, 2026-10-20: one chip; the long sentence is its detail.
+  if (state === "NONE") return <p className="mt-1"><InfoChip detail="No stage of the evaluation is chosen. Edit it to choose one.">Opens nothing</InfoChip></p>;
   return (
-    <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-3">
-      <Badge tone="warn">Typed before</Badge>
-      <span>A stage typed before the evaluation existed: it opens nothing. Edit it to choose one of the evaluation&apos;s stages.</span>
+    <p className="mt-1">
+      <InfoChip tone="warn" detail="Typed before the evaluation existed. Edit it to choose a stage.">Opens nothing</InfoChip>
     </p>
   );
 }

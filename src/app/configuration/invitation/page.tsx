@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { HistoryButton } from "@/components/history-drawer";
 import { ClockIcon, FileIcon, SlidersIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
+import { MoreText } from "@/components/ui/more-text";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -480,7 +481,9 @@ export default async function InvitationControlsPage() {
           })}
         </div>
         <p className="text-[12.5px] text-ink-3">
-          Closing and publication are judged against these as they stand at the time; what a published window was judged under is kept with it. <ButtonLink href="/configuration/audit" variant="link" size="sm">See every change in the audit trail</ButtonLink>
+          Judged as they stand at the time.{" "}
+          <MoreText label="About these limits" text="Closing and publication are judged against these as they stand at the time; what a published window was judged under is kept with it." />{" "}
+          <ButtonLink href="/configuration/audit" variant="link" size="sm">See every change in the audit trail</ButtonLink>
         </p>
       </div>
     </>

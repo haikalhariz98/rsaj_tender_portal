@@ -3,6 +3,7 @@ import Link from "next/link";
 import { HistoryButton } from "@/components/history-drawer";
 import { BuildingIcon, FileIcon, SlidersIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
+import { MoreText } from "@/components/ui/more-text";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -435,7 +436,17 @@ export default async function SupplierRegisterConfigPage() {
                     <ListValueDrawer list={k} listName={LIST_KIND_LABEL[k].en} />
                   </div>
                   {rows.length === 0 ? (
-                    <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">{k === "BUMIPUTERA_STATUS" ? "Not set: the declared Bumiputera status is not asked on the form. List only statuses that are a claim: a value on this list is read as a claim and expects an evidence document, and a blank answer is how no claim is made." : k === "BANK" || k === "ACCOUNT_TYPE" ? "Not set: a signed-in supplier cannot finish the bank-details step of its registration until this list has an entry. Recording a supplier is not held up by it." : "Not set: no supplier can be recorded until it has an entry."}</p>
+                    <p className="flex flex-wrap items-center gap-2 px-5 pb-4 text-[13px] text-ink-3 sm:px-6">
+                      <Badge tone="warn">Not set</Badge>
+                      <span>{k === "BUMIPUTERA_STATUS" ? "Status is not asked on the form." : k === "BANK" || k === "ACCOUNT_TYPE" ? "Bank details cannot be finished." : "No supplier can be recorded."}</span>
+                      {k === "BUMIPUTERA_STATUS" ? (
+                        <MoreText label="About this list" text="The declared Bumiputera status is not asked on the form. List only statuses that are a claim: a value on this list is read as a claim and expects an evidence document, and a blank answer is how no claim is made." />
+                      ) : k === "BANK" || k === "ACCOUNT_TYPE" ? (
+                        <MoreText label="About this list" text="A signed-in supplier cannot finish the bank-details step of its registration until this list has an entry. Recording a supplier is not held up by it." />
+                      ) : (
+                        <MoreText label="About this list" text="No supplier can be recorded until it has an entry." />
+                      )}
+                    </p>
                   ) : (
                     <Table minWidth={560}>
                       <colgroup>
