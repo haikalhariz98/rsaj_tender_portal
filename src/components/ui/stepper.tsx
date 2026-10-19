@@ -25,6 +25,10 @@ const DOT: Record<StepState, string> = {
   parked: "border-2 border-dashed border-line-2 bg-surface text-ink-3",
 };
 
+/// The step being viewed (`selected`): a brand ring round the dot and an underlined label, set apart from the amber of an in-progress step. No words, so nothing for a screen reader to add: `aria-current` already says it.
+const VIEWED_DOT = "outline-2 outline-offset-2 outline-brand-600";
+const VIEWED_LABEL = "underline decoration-brand-600 decoration-2 underline-offset-4";
+
 /**
  * A flow's steps at a glance, left to right (founder, 2026-10-05: an approval should read like
  * "Submitted → Head of Department → Chief Executive → Approved", not as its rule). Wide screens
@@ -41,6 +45,7 @@ export function Stepper({ steps, label, selected }: { steps: StepperStep[]; labe
       {steps.map((s, i) => {
         const last = i === steps.length - 1;
         const reached = s.state === "done";
+        const viewed = selected !== undefined && s.key === selected;
         return (
           <li
             key={s.key}
@@ -56,11 +61,11 @@ export function Stepper({ steps, label, selected }: { steps: StepperStep[]; labe
                 )}
               />
             )}
-            <span aria-hidden="true" className={cx("relative z-10 grid size-8 shrink-0 place-items-center rounded-full text-[13px] font-bold", s.state === "rejected" && s.tone === "warn" ? "bg-amber-500 text-white" : DOT[s.state])}>
+            <span aria-hidden="true" className={cx("relative z-10 grid size-8 shrink-0 place-items-center rounded-full text-[13px] font-bold", s.state === "rejected" && s.tone === "warn" ? "bg-amber-500 text-white" : DOT[s.state], viewed && VIEWED_DOT)}>
               {s.state === "done" ? <CheckIcon size={16} strokeWidth={2.5} /> : s.state === "rejected" ? <XIcon size={16} strokeWidth={2.5} /> : i + 1}
             </span>
             <span className="min-w-0 sm:px-2">
-              <span className={cx("block text-[13.5px] leading-snug font-semibold break-words", s.state === "waiting" || s.state === "parked" ? "text-ink-3" : "text-ink")}>
+              <span className={cx("block text-[13.5px] leading-snug font-semibold break-words", viewed && VIEWED_LABEL, s.state === "waiting" || s.state === "parked" ? "text-ink-3" : "text-ink")}>
                 {s.href ? (
                   <Link href={s.href} className="rounded-sm underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
                     {s.label}

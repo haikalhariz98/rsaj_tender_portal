@@ -46,6 +46,19 @@ describe("Stepper", () => {
     expect(count(render(steps, "none"), "aria-current")).toBe(0);
   });
 
+  it("with selected, sets the viewed step apart from the other in-progress steps, and draws nothing extra without it (AC-66)", () => {
+    const steps: StepperStep[] = [
+      { key: "x", label: "Before signing", state: "current" },
+      { key: "y", label: "Signing", state: "current" },
+    ];
+    const html = render(steps, "y");
+    expect(count(html, "outline-brand-600")).toBe(1);
+    expect(count(html, "decoration-brand-600")).toBe(1);
+    expect(html).toMatch(/outline-brand-600[^]*Signing/);
+    expect(render(steps)).not.toContain("outline-brand-600");
+    expect(render(steps, "none")).not.toContain("decoration-brand-600");
+  });
+
   it("draws a step with an href as a link, and others as plain text", () => {
     const html = render([
       { key: "x", label: "Award", state: "done", href: "/projects/a1?stage=award" },
