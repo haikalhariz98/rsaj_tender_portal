@@ -30,7 +30,7 @@ function fieldsOf(offices: Option[], officerLabels: Record<string, string>): Rec
     officers: OFFICER_FIELDS.map((k) => ({ kind: "select", name: k, label: officerLabels[k], placeholder: "Not set", options: offices }) as Field),
     pc: [
       { kind: "select", name: "pcSumWorksApply", label: "Prime cost sum work", placeholder: "Not set", options: [{ value: "yes", label: "Yes, the contractor may tender for some" }, { value: "no", label: "None" }] },
-      { kind: "textarea", name: "pcSumWorksText", label: "Which work", hint: "Say which prime cost sum work the contractor may tender for." },
+      { kind: "textarea", name: "pcSumWorksText", label: "Which work", hint: "Which work may be tendered." },
     ],
     insurance: [
       { kind: "money", name: "tplMinimum", label: "Minimum third-party liability insurance" },
@@ -43,7 +43,7 @@ function fieldsOf(offices: Option[], officerLabels: Record<string, string>): Rec
     lad: [
       { kind: "select", name: "ladKind", label: "Liquidated damages are stated as", placeholder: "Not set", options: LAD_KINDS },
       { kind: "money", name: "ladAmount", label: "Amount a day" },
-      { kind: "text", name: "ladPct", label: "Percentage of the contract sum a day", hint: `${pctHint(PCT_COLUMN.ladPct)} It is applied at award, to the awarded sum.` },
+      { kind: "text", name: "ladPct", label: "Percentage of the contract sum a day", hint: `${pctHint(PCT_COLUMN.ladPct)} Applied at award.` },
     ],
     sectional: [{ kind: "select", name: "sectionalCompletion", label: "Sectional completion", placeholder: "Not set", options: [{ value: "yes", label: "Applies" }, { value: "no", label: "Does not apply" }] }],
     dlp: [
@@ -51,7 +51,7 @@ function fieldsOf(offices: Option[], officerLabels: Record<string, string>): Rec
       { kind: "number", name: "dlpMonths", label: "Months", min: 1 },
     ],
     interim: [
-      { kind: "money", name: "firstInterimMinimum", label: "Minimum for the first interim certificate", hint: "Entered here as the tender states it. The policy's rule is worked out at award, not against the department's bill." },
+      { kind: "money", name: "firstInterimMinimum", label: "Minimum for the first interim certificate", hint: "As the tender states it." },
       { kind: "money", name: "subsequentInterimMinimum", label: "Minimum for later interim certificates" },
       { kind: "number", name: "honourCertificateDays", label: "Days to honour a certificate", min: 1 },
     ],
@@ -95,7 +95,7 @@ export function AppendixDrawer({
   return (
     <RecordEditor
       title={title}
-      description="Every field here is required: Save asks for any left empty and saves nothing until each is entered."
+      description="Every field is required."
       columns={group === "all" ? 2 : 1}
       fields={[hidden("exerciseId"), hidden("group"), ...shown, ...carried]}
       values={{ ...values, exerciseId, group }}
@@ -113,7 +113,7 @@ export function LimitDrawer({ exerciseId, holders, limit, allowed }: { exerciseI
   return (
     <RecordEditor
       title={limit ? `Variation limit of ${limit.holder}` : "Add a variation limit"}
-      description="How much of a variation an office or committee may approve. Leave the limit empty to leave it not set."
+      description="Empty limit stays Not set."
       fields={[hidden("exerciseId"), hidden("id"), { kind: "select", name: "holderCode", label: "Office or committee", required: true, placeholder: "Choose", options: holders }, { kind: "money", name: "limit", label: "Limit" }]}
       values={{ exerciseId, id: limit?.id ?? "", ...(limit?.raw ?? {}) }}
       action={saveVariationLimit}
@@ -129,7 +129,7 @@ export function RemoveLimitDrawer({ exerciseId, id, holder, allowed }: { exercis
   return (
     <RecordEditor
       title={`Remove the limit of ${holder}`}
-      description="Taken off the Appendix. The change is kept in the history."
+      description="Kept in the history."
       fields={[hidden("exerciseId"), hidden("id")]}
       values={{ exerciseId, id }}
       danger
@@ -147,7 +147,7 @@ export function SectionDrawer({ exerciseId, section, allowed }: { exerciseId: st
   return (
     <RecordEditor
       title={section ? `Edit the section ${section.description}` : "Add a section"}
-      description="A section that is completed separately, with its own liquidated damages."
+
       fields={[
         hidden("exerciseId"),
         hidden("id"),
@@ -172,7 +172,7 @@ export function RemoveSectionDrawer({ exerciseId, id, description, allowed }: { 
   return (
     <RecordEditor
       title={`Remove the section ${description}`}
-      description="Taken off the Appendix. The change is kept in the history."
+      description="Kept in the history."
       fields={[hidden("exerciseId"), hidden("id")]}
       values={{ exerciseId, id }}
       danger

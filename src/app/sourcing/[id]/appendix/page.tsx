@@ -7,6 +7,7 @@ import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { MoreText } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { APPENDIX_CARD, appendixCopy, NOT_SET } from "@/lib/tender-docs/labels";
@@ -40,7 +41,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
       eyebrow={<Link href={back}>Back to the tender documents</Link>}
       title="Appendix to the Conditions of Contract"
       badge={extra?.badge}
-      subtitle={extra?.subtitle ?? "The contract's particulars, stated for the tender and frozen with it."}
+      subtitle={extra?.subtitle}
       meta={[<span key="ref" className="font-mono text-[12.5px]">{d.exercise.reference}</span>, d.exercise.title]}
       actions={extra?.actions}
       actionsNote={extra?.note}
@@ -87,20 +88,20 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
 
       <div className="flex flex-col gap-6">
         {/* SR-12: no "Still to enter" list. Each card shows its fields entered or Not set, and Save names any required field left empty. */}
-        {complete && <Callout tone="ok" title={copy.completeTitle}>{copy.completeBody}</Callout>}
+
 
         <Card id={APPENDIX_CARD.officers} className="scroll-mt-24">
-          <CardHeader icon={<FileIcon size={17} />} title="Officers empowered" subtitle="Who the contract names to act for the employer." actions={drawer("officers", "Edit the officers empowered")} />
+          <CardHeader icon={<FileIcon size={17} />} title="Officers empowered" actions={drawer("officers", "Edit the officers empowered")} />
           <CardBody>
             <KeyValues columns={2} items={a.officers.map((o) => ({ label: o.label, value: val(o.value) }))} />
           </CardBody>
         </Card>
 
         <Card id={APPENDIX_CARD.variationLimits} className="scroll-mt-24 overflow-hidden">
-          <CardHeader icon={<ScaleIcon size={17} />} title="Variation limits" subtitle="How much of a variation each office or committee may approve." actions={<LimitDrawer exerciseId={id} holders={a.holders} allowed={allowed} />} divided={a.variationLimits.length === 0} />
+          <CardHeader icon={<ScaleIcon size={17} />} title="Variation limits" actions={<LimitDrawer exerciseId={id} holders={a.holders} allowed={allowed} />} divided={a.variationLimits.length === 0} />
           {(a.hints[APPENDIX_CARD.variationLimits] ?? []).length > 0 && <div className="flex flex-col gap-2 px-5 pb-3 sm:px-6">{hint(APPENDIX_CARD.variationLimits)}</div>}
           {a.variationLimits.length === 0 ? (
-            <EmptyState size="sm" title="No limits entered">Add the offices and committees that may approve a variation, with the most each may approve.</EmptyState>
+            <EmptyState size="sm" title="No limits entered" />
           ) : (
             <ul className="divide-y divide-line/70">
               {a.variationLimits.map((v) => (
@@ -120,14 +121,14 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
         </Card>
 
         <Card id={APPENDIX_CARD.primeCost} className="scroll-mt-24">
-          <CardHeader icon={<FileIcon size={17} />} title="Prime cost sum work" subtitle="Work the contractor may tender for under a prime cost sum." actions={drawer("pc", "Edit prime cost sum work")} />
+          <CardHeader icon={<FileIcon size={17} />} title="Prime cost sum work" actions={drawer("pc", "Edit prime cost sum work")} />
           <CardBody>
             <KeyValues columns={1} items={[{ label: "Prime cost sum work", value: val(a.primeCostSums.value) }]} />
           </CardBody>
         </Card>
 
         <Card id={APPENDIX_CARD.insurance} className="scroll-mt-24">
-          <CardHeader icon={<ShieldIcon size={17} />} title="Insurance" subtitle="The least cover the contractor must hold." actions={drawer("insurance", "Edit the insurance")} />
+          <CardHeader icon={<ShieldIcon size={17} />} title="Insurance" actions={drawer("insurance", "Edit the insurance")} />
           <CardBody className="flex flex-col gap-4">
             <KeyValues
               columns={2}
@@ -144,23 +145,23 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
         </Card>
 
         <Card id={APPENDIX_CARD.lad} className="scroll-mt-24">
-          <CardHeader icon={<ClockIcon size={17} />} title="Liquidated damages" subtitle="What the contractor pays for each day of delay." actions={drawer("lad", "Edit liquidated damages")} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Liquidated damages" actions={drawer("lad", "Edit liquidated damages")} />
           <CardBody className="flex flex-col gap-4">
             <KeyValues columns={2} items={[{ label: "Stated as", value: val(a.lad.kind) }, { label: "Rate", value: val(a.lad.value) }]} />
-            {a.lad.helper && <Callout tone="info">{a.lad.helper} It is never worked out against the exercise&apos;s value or an estimate.</Callout>}
+            {a.lad.helper && <p className="flex items-center gap-1 text-[13px] text-ink-2">{a.lad.helper} <MoreText text="Never worked out against the exercise's value or an estimate." label="About this figure" /></p>}
             {hint(APPENDIX_CARD.lad)}
             {a.lad.suggestion && <p className="text-[12.5px] text-ink-3">{a.lad.suggestion}</p>}
           </CardBody>
         </Card>
 
         <Card id={APPENDIX_CARD.sectional} className="scroll-mt-24 overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Sectional completion" subtitle="Whether parts of the work are completed, and paid for delay, separately." actions={<span className="flex flex-wrap items-center gap-2">{drawer("sectional", "Edit sectional completion")}<SectionDrawer exerciseId={id} allowed={allowed} /></span>} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Sectional completion" actions={<span className="flex flex-wrap items-center gap-2">{drawer("sectional", "Edit sectional completion")}<SectionDrawer exerciseId={id} allowed={allowed} /></span>} />
           <CardBody>
             <KeyValues columns={1} items={[{ label: "Sectional completion", value: val(a.sectional.value === "Yes" ? "Applies" : a.sectional.value === "No" ? "Does not apply" : a.sectional.value) }]} />
           </CardBody>
           {(a.hints[APPENDIX_CARD.sectional] ?? []).length > 0 && <div className="flex flex-col gap-2 px-5 pb-3 sm:px-6">{hint(APPENDIX_CARD.sectional)}</div>}
           {a.sectional.value === "Yes" && a.sectional.sections.length === 0 && (
-            <EmptyState size="sm" title="No sections entered">Sectional completion applies, so each section is entered with its liquidated damages. Use Add a section above.</EmptyState>
+            <EmptyState size="sm" title="No sections entered" />
           )}
           {a.sectional.sections.length > 0 && (
             <ul className="divide-y divide-line/70 border-t border-line">
@@ -181,10 +182,10 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
         </Card>
 
         <Card id={APPENDIX_CARD.dlp} className="scroll-mt-24">
-          <CardHeader icon={<ClockIcon size={17} />} title="Defects liability period" subtitle="How long the contractor puts right defects after completion." actions={a.dlp.hidden ? undefined : drawer("dlp", "Edit the defects liability period")} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Defects liability period" actions={a.dlp.hidden ? undefined : drawer("dlp", "Edit the defects liability period")} />
           <CardBody>
             {a.dlp.hidden ? (
-              <Callout tone="neutral">{a.dlp.hidden}</Callout>
+              <p className="text-[13px] text-ink-2">{a.dlp.hidden}</p>
             ) : (
               <div className="flex flex-col gap-3">
                 <KeyValues columns={1} items={[{ label: "Defects liability period", value: val(a.dlp.value) }]} />
@@ -196,7 +197,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
         </Card>
 
         <Card id={APPENDIX_CARD.interim} className="scroll-mt-24">
-          <CardHeader icon={<ScaleIcon size={17} />} title="Interim certificates" subtitle="What may be certified, and how soon a certificate is honoured." actions={drawer("interim", "Edit the interim certificates")} />
+          <CardHeader icon={<ScaleIcon size={17} />} title="Interim certificates" actions={drawer("interim", "Edit the interim certificates")} />
           <CardBody className="flex flex-col gap-4">
             <KeyValues
               columns={2}
@@ -217,7 +218,8 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
               ]}
             />
             <p className="border-t border-line pt-3 text-[12.5px] text-ink-3">
-              {a.interim.suggestion ?? "The policy sets no rule for the first certificate's minimum: it is entered above as the tender states it."} It is stated here in words and worked out at award, from the builders&apos; works value; it is not worked out against the department&apos;s bill.
+              {a.interim.suggestion ?? "No policy rule for the first certificate's minimum."}
+              <MoreText text="Entered as the tender states it. Worked out at award from the builders' works value, not against the department's bill." label="About this figure" />
             </p>
           </CardBody>
         </Card>
