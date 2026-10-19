@@ -43,9 +43,9 @@ describe("configurationGaps", () => {
     const r = configurationGaps({ status: "IN_PROGRESS", rules: set, secretariatRoleCode: "SEC", matters, assessment })!;
     expect(r.affectedMatterIds).toEqual(["d6"]);
     expect(r.agendaCount).toBe(3);
-    expect(r.title).toBe("This committee's configuration stops 1 of 3 matters from being decided");
+    expect(r.title).toBe("Committee set-up blocks 1 of 3 matters");
     expect(r.gaps.map((g) => g.key)).toEqual(["ALTERNATE_FOR_RECUSED"]);
-    expect(r.gaps[0].text).toContain("It stops “Renewal of the security services contract”.");
+    expect(r.gaps[0].text).toContain("Blocks “Renewal of the security services contract”.");
     expect(r.gaps[0].text).not.toContain("cleaning");
   });
 
@@ -85,9 +85,9 @@ describe("configurationGaps", () => {
     // Counted once each, though two gaps stop them.
     expect(r.affectedMatterIds).toEqual(["a", "b"]);
     expect(r.agendaCount).toBe(3);
-    expect(r.title).toBe("This committee's configuration stops 2 of 3 matters from being decided");
+    expect(r.title).toBe("Committee set-up blocks 2 of 3 matters");
     expect(r.gaps.map((g) => g.key)).toEqual(["QUORUM", "VOTING_RULE"]);
-    expect(r.gaps[0].text).toContain("It stops every matter not yet decided: “A” and “B”.");
+    expect(r.gaps[0].text).toContain("Blocks every undecided matter: “A” and “B”.");
   });
 
   it("every matter on the agenda stopped: says all, and the one", () => {
@@ -95,12 +95,12 @@ describe("configurationGaps", () => {
       status: "SCHEDULED", rules: { quorum: null, votingRule: set.votingRule }, secretariatRoleCode: "SEC",
       matters: [pending("a"), pending("b")], assessment: assessed({ a: ["QUORUM_UNCONFIGURED"], b: ["QUORUM_UNCONFIGURED"] }),
     })!;
-    expect(all.title).toBe("This committee's configuration stops all 2 matters on the agenda from being decided");
+    expect(all.title).toBe("Committee set-up blocks all 2 matters");
     const one = configurationGaps({
       status: "SCHEDULED", rules: { quorum: null, votingRule: set.votingRule }, secretariatRoleCode: "SEC",
       matters: [pending("a")], assessment: assessed({ a: ["QUORUM_UNCONFIGURED"] }),
     })!;
-    expect(one.title).toBe("This committee's configuration stops the one matter on the agenda from being decided");
+    expect(one.title).toBe("Committee set-up blocks the one matter");
   });
 
   it("nothing tabled yet: an unset quorum warns for what is to come, and counts nothing", () => {
@@ -109,8 +109,8 @@ describe("configurationGaps", () => {
       matters: [], assessment: assessed({}),
     })!;
     expect(r.affectedMatterIds).toEqual([]);
-    expect(r.title).toBe("This committee's configuration will stop any matter tabled at this sitting from being decided");
-    expect(r.gaps[0].text).not.toContain("It stops");
+    expect(r.title).toBe("Committee set-up will block any matter tabled");
+    expect(r.gaps[0].text).not.toContain("Blocks");
   });
 
   it("an unset Secretariat stops tabling, and only the matters not yet tabled", () => {
@@ -119,15 +119,15 @@ describe("configurationGaps", () => {
       matters: [pending("a")], assessment: assessed({ a: [] }),
     })!;
     expect(onlySec.affectedMatterIds).toEqual([]);
-    expect(onlySec.title).toBe("This committee's configuration stops anyone tabling a matter at this sitting");
+    expect(onlySec.title).toBe("Committee set-up blocks tabling");
 
     const untabled = configurationGaps({
       status: "SCHEDULED", rules: set, secretariatRoleCode: null,
       matters: [pending("a", "A"), pending("b", "B")], assessment: assessed({ a: [], b: ["NOT_TABLED"] }),
     })!;
     expect(untabled.affectedMatterIds).toEqual(["b"]);
-    expect(untabled.title).toBe("This committee's configuration stops 1 of 2 matters from being decided");
-    expect(untabled.gaps[0].text).toContain("It stops “B”.");
+    expect(untabled.title).toBe("Committee set-up blocks 1 of 2 matters");
+    expect(untabled.gaps[0].text).toContain("Blocks “B”.");
   });
 
   it("the alternate question is a gap only where a matter raises it", () => {

@@ -242,7 +242,7 @@ async function inSittingAfterContract(scope: OrgScope, actor: AuditActor, meetin
   const roster = await loadRoster(scope.organisationCode);
   const result = await withLockedContract(scope.organisationId, variation.contractId, async (tx, l): Promise<FormState | null> => {
     const refused = actStatusFault("VARIATION", l.contract.status as ContractStatus);
-    if (refused) return { ok: false, message: refused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its variations are kept as they were, and their matters are not decided." : actStatusText(refused) };
+    if (refused) return { ok: false, message: refused.code === "CONTRACT_CANCELLED" ? "Contract cancelled. Its variations are kept, undecided." : actStatusText(refused) };
     await tx.$queryRaw`SELECT id FROM "Variation" WHERE id = ${variation.id} FOR UPDATE`;
     const s = await lockSittingIn(tx, scope, meetingId, roster);
     if (!s) return null;
@@ -699,7 +699,7 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
       const lines = [
         ...change.newFaults.map((f) => attendanceFaultText(s.names[f.personId] ?? "Someone", f.fault)),
         ...change.newlyIneligible.map(
-          (v) => `${s.names[v.personId] ?? "Someone"} has voted on “${subject(v.matterId)}”, and that vote would no longer count. A vote cannot be withdrawn.`,
+          (v) => `${s.names[v.personId] ?? "Someone"} has voted on “${subject(v.matterId)}”. That vote would stop counting.`,
         ),
         ...(change.brokenDecisions.length === 0
           ? []
@@ -707,7 +707,7 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
             ? [
                 // Ruling §9.1: a late arrival cannot be recorded until per-matter presence
                 // exists; it goes in the minutes instead.
-                `${name}'s arrival can't be recorded yet: ${change.brokenDecisions.map((id) => `“${subject(id)}”`).join(" and ")} ${change.brokenDecisions.length === 1 ? "is" : "are"} already decided, and presence per matter is not built, so recording it would count ${name} as present on a matter they did not vote on. Note the arrival in the minutes.`,
+                `${name}'s arrival cannot be recorded: ${change.brokenDecisions.map((id) => `“${subject(id)}”`).join(" and ")} already decided. Note it in the minutes.`,
               ]
             : change.brokenDecisions.map((id) => `“${subject(id)}” is decided, and would no longer follow from the register.`)),
       ];
@@ -820,7 +820,7 @@ async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader
     // closed to would test a guess at it. They may table the matter without an amount, which the citation accepts; they may not state one. Logged in this transaction.
     if (requisitionId && amount != null && input.typedBy) {
       const closed = await sulitWriteRefusal(tx, input.typedBy, { scope: "requisition", entity: "Requisition", id: requisitionId, label: requisitionReference ?? matterRef }, ["estimatedValue"]);
-      if (closed) r.reject("amount", `A requisition's gate matter's amount is its department estimate, which is closed to you, so it cannot be stated here. Leave it blank. ${closed}`);
+      if (closed) r.reject("amount", `The amount is closed to you. Leave it blank. ${closed}`);
     }
   }
   // An exercise matter links to its exercise the same way (6.11): by the exercise's
@@ -895,7 +895,7 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
 
   return inSitting(actor, meetingId, async (tx, s) => {
     if (act.intent.mode === "RECORDED_ON_BEHALF" && !actor.system && !secretariatHoldersOn(s.roster, s.meeting.committee.secretariatRoleCode, s.today).some((h) => h.id === actor.personId)) {
-      return { ok: false, message: "A member declares their own recusal. It is recorded for them only by a holder of the committee's Secretariat office." };
+      return { ok: false, message: "Members declare their own recusal. Only the Secretariat holder records it for them." };
     }
     const decision = s.meeting.decisions.find((d) => d.id === decisionId);
     if (!decision) return { ok: false, message: "That matter no longer exists." };
@@ -914,7 +914,7 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
         MATTER_WITHDRAWN: "The matter was withdrawn from the agenda.",
         NOT_A_VOTING_MEMBER: "Only a voting member or an alternate can declare a recusal.",
         ALREADY_RECUSED: "This member has already recused.",
-        ALREADY_VOTED: "This member has already voted on the matter. A recusal is declared before voting, and a vote cannot be withdrawn.",
+        ALREADY_VOTED: "Already voted. A recusal must come before voting.",
       }[check.fault];
       return check.fault === "SITTING_CLOSED" || check.fault === "MATTER_DECIDED" || check.fault === "MATTER_WITHDRAWN"
         ? { ok: false, message }
@@ -929,7 +929,7 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
       return {
         ok: false,
         errors: {
-          personId: `${who} ${change.newlyIneligible.length === 1 ? "has" : "have"} already voted in this member's seat on the matter, and that vote would no longer count. A recusal is declared before anyone votes in the seat.`,
+          personId: `${who} already voted in this seat. Recusal must come before voting.`,
         },
       };
     }

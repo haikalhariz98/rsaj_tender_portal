@@ -21,7 +21,7 @@ describe("6.8: the first-stage matter and the negotiation at a sitting", () => {
     expect(SITTING_TABLED_MATTER_KINDS).not.toContain("EVALUATION_STAGE");
     expect(sittingTablesDomain(EVALUATION_STAGE_DOMAIN)).toBe(false);
     expect(recordTabledText("EVALUATION_STAGE")).toBe(STAGE_ONE_TABLED_TEXT);
-    expect(recordTabledText(EVALUATION_STAGE_DOMAIN)).toMatch(/Stages section of Evaluation/);
+    expect(recordTabledText(EVALUATION_STAGE_DOMAIN)).toMatch(/Evaluation, Stages/) // 0005, founder 2026-10-19: shortened;
   });
   it("a negotiation is never tabled: its refusal names its route", () => {
     expect(sittingTablesDomain(NEGOTIATION_DOMAIN)).toBe(false);

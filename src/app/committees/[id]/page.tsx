@@ -17,10 +17,10 @@ import { Badge, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, Meter } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import { fieldLabel } from "@/lib/audit/diff";
 import { assessQuorum } from "@/lib/committee/quorum";
-import { ProvenanceBadge } from "@/components/ui/provenance";
 import { minutingChecks } from "@/lib/committee/assess-sitting";
 import { configurationGaps } from "@/lib/committee/gaps";
 import {
@@ -200,6 +200,7 @@ export default async function SittingPage({
             Committee set-up
           </Link>,
           formatDate(m.meetingDate),
+          ...(s.fromSnapshot ? [<InfoChip key="snap" tone="neutral" detail="Shown from the register frozen at minuting: seats, holders, quorum and voting rule that day. Later committee changes do not rewrite it.">As minuted</InfoChip>] : []),
           quorumFact,
           votingRule ? (
             VOTING_RULE_LABEL[votingRule]
@@ -218,30 +219,17 @@ export default async function SittingPage({
         <Callout
           tone="warn"
           className="mb-6"
-          title="The organisation's time zone is not set"
+          title="Time zone not set. Nothing can start, be tabled or voted."
           action={
             <ButtonLink href={ORGANISATION_HREF} size="sm">
               Set time zone
             </ButtonLink>
           }
-        >
-          Whether a sitting&apos;s day has come, the tabling day and the date on a voting sheet all depend on it,
-          and it is not assumed to be UTC. Until it is set, this sitting cannot start, matters cannot be tabled
-          and votes cannot be recorded.
-        </Callout>
+        />
       )}
       <ConfigurationGaps s={s} />
-      {s.fromSnapshot && (
-        <Callout tone="info" className="mb-6" title="As minuted">
-          This sitting is shown from the register frozen when it was minuted: the seats, holders, quorum and
-          voting rule as they stood on the day. Later changes to the committee do not rewrite it.
-        </Callout>
-      )}
       {m.status === "MINUTED" && !s.fromSnapshot && (
-        <Callout tone="warn" className="mb-6" title="Minuted before registers were frozen">
-          No register snapshot was taken for this sitting, so its seats and holders are shown as the
-          committee is configured today. Each decision still shows the quorum and rule it was recorded under.
-        </Callout>
+        <Callout tone="warn" className="mb-6" title="No register snapshot. Seats shown as configured today." />
       )}
 
       <Tabs
@@ -415,7 +403,7 @@ async function AgendaPanel({ s, prefill, notLinked, hiddenMatters, matterGates }
             present:
               d.presentVoters == null && d.recusedCount == null
                 ? "Not recorded"
-                : `${d.presentVoters ?? "Not recorded"} counted toward quorum · ${d.recusedCount ?? "not recorded"} recused among those present`,
+                : `${d.presentVoters ?? "Not recorded"} counted · ${d.recusedCount ?? "not recorded"} recused`,
             rule: d.votingRule
               ? `${VOTING_RULE_LABEL[d.votingRule]}${d.votingRuleProvenance ? ` (${PROVENANCE_LABEL[d.votingRuleProvenance]})` : ""}`
               : d.outcome === "DEFERRED"
@@ -480,30 +468,23 @@ async function AgendaPanel({ s, prefill, notLinked, hiddenMatters, matterGates }
             open && assessment.blockers.includes("ALTERNATE_FOR_RECUSED_UNCONFIGURED") ? (
               <Callout
                 tone="warn"
-                title="Whether an alternate may vote for a recused member is not set"
+                title="Alternate voting for a recused member: not set"
                 action={
                   <ButtonLink href={`/configuration/committees/${m.committee.code}`} size="sm">
                     Set it
                   </ButtonLink>
                 }
-              >
-                A member with an alternate has recused on this matter. The committee&apos;s configuration does not
-                say whether an alternate may vote in their place, and the system will not assume it.
-              </Callout>
+              />
             ) : noOutcomes ? (
               <Callout
                 tone="err"
-                title="The votes do not carry this matter, and it cannot be recorded yet"
+                title="Not carried, and no not-approved outcome is set"
                 action={
                   <ButtonLink href={OUTCOMES_HREF} size="sm">
-                    Configure outcomes
+                    Add outcome
                   </ButtonLink>
                 }
-              >
-                A matter not carried must say what happens next, and no not-approved outcome is configured
-                for this committee. Add one under Configuration, Committees, Not-approved outcomes. The
-                sitting cannot be minuted until this matter is recorded.
-              </Callout>
+              />
             ) : notLinked.has(d.id) ? (
               // Founder, 2026-10-05: the outcome was recorded, and the record's own rule would not take it.
               <Callout tone="warn" title={AUTO_LINK_WORDS.noteTitle.en}>
@@ -560,15 +541,7 @@ async function AgendaPanel({ s, prefill, notLinked, hiddenMatters, matterGates }
           </CardBody>
         )}
         {m.decisions.length === 0 && (
-          <EmptyState size="sm" title="Nothing tabled">
-            {m.status === "CANCELLED"
-              ? "This sitting was cancelled; nothing was tabled."
-              : m.status === "MINUTED"
-                ? "Nothing was tabled at this sitting."
-                : s.secretariat.code
-              ? `Matters are tabled by a holder of the ${s.secretariat.office?.nameEn ?? "Secretariat"} office.`
-              : "No Secretariat office is set for this committee, so nobody may table a matter."}
-          </EmptyState>
+          <EmptyState size="sm" title={m.status === "CANCELLED" || m.status === "MINUTED" || s.secretariat.code ? "Nothing tabled" : "Nothing tabled. No Secretariat office set."} />
         )}
       </Card>
       {matters}
@@ -608,9 +581,9 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
       alternate: false,
       contested: v.contested,
       note: v.contested
-        ? `${v.contestedHolderIds.map((id) => s.names[id] ?? "Not on record").join(" and ")} both hold ${v.officeLabel ?? "this office"} on the sitting date. The system will not pick one, so neither can be recorded in this seat.`
+        ? `${v.contestedHolderIds.map((id) => s.names[id] ?? "Not on record").join(" and ")} both hold ${v.officeLabel ?? "this office"}. Neither can be recorded.`
         : v.vacant
-          ? "Nobody holds this office on the sitting date."
+          ? "Nobody holds this office."
           : undefined,
     })),
     ...a.alternates.map((v) => ({
@@ -634,9 +607,7 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
   if (m.status === "CANCELLED") {
     return (
       <Card>
-        <EmptyState size="sm" title="No register">
-          This sitting was cancelled; no register was taken.
-        </EmptyState>
+        <EmptyState size="sm" title="No register. Sitting cancelled." />
       </Card>
     );
   }
@@ -665,8 +636,8 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
           title="Register"
           subtitle={
             a.registerTaken
-              ? `${a.present.voterIds.length} voting ${a.present.voterIds.length === 1 ? "member" : "members"} present, judged on the seats in force on ${formatDate(m.meetingDate)}`
-              : `The sitting has not started: the register is taken when it starts. Members on the seats in force on ${formatDate(m.meetingDate)}.`
+              ? `${a.present.voterIds.length} voting ${a.present.voterIds.length === 1 ? "member" : "members"} present`
+              : "Taken when the sitting starts"
           }
         />
         <ul className="divide-y divide-line/70">
@@ -682,14 +653,14 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
                   {line.note && <div className="text-[12px] text-amber-700">{line.note}</div>}
                   {line.contested && (
                     <Link href={ROLE_ASSIGNMENTS_HREF} className="text-[12px] font-semibold text-brand-700">
-                      Fix the role assignments
+                      Fix roles
                     </Link>
                   )}
                 </div>
                 {line.assumption && (
-                  <span title="The Secretary never votes or counts toward quorum. A product assumption awaiting the committee's terms of reference.">
-                    <ProvenanceBadge value="ASSUMED" />
-                  </span>
+                  <InfoChip tone="warn" detail="The Secretary never votes or counts toward quorum. Assumed until the committee's terms of reference say otherwise.">
+                    Assumed
+                  </InfoChip>
                 )}
                 {editable && line.personId ? (
                   <>
@@ -736,20 +707,20 @@ function MinutesPanel({ s }: { s: LoadedSitting }) {
   const m = s.meeting;
   // Founder, 2026-10-05: the minutes are two files, the minutes and the signed copy, each uploaded
   // and downloaded on its line. Minutes typed before uploads existed are still shown, as typed.
-  const minuted = m.minutedAt ? `Minuted on ${formatOrgDay(m.minutedAt, s.timeZone)}.` : m.status === "CANCELLED" ? `Cancelled: ${m.cancelledReason}` : "Not minuted yet.";
+  const minuted = m.minutedAt ? `Minuted ${formatOrgDay(m.minutedAt, s.timeZone)}` : m.status === "CANCELLED" ? `Cancelled: ${m.cancelledReason}` : "Not minuted";
   return (
     <div className="flex flex-col gap-6">
       <OwnerAttachments
         compact
         owner={{ kind: "meeting", id: m.id }}
         title="Minutes"
-        subtitle={`${minuted} Upload the minutes once the sitting has started, and the signed copy once it is minuted.`}
+        subtitle={minuted}
         only={["SITTING_MINUTES", "SIGNED_MINUTES"]}
         required={{ SITTING_MINUTES: !m.minutes.trim(), SIGNED_MINUTES: true }}
       />
       {m.minutes.trim() && (
         <Card>
-          <CardHeader icon={<CalendarIcon size={17} />} title="Minutes as typed" subtitle="Written in the portal before minutes were uploaded as a file." />
+          <CardHeader icon={<CalendarIcon size={17} />} title="Minutes as typed" subtitle="Typed before uploads" />
           <CardBody>
             <p className="text-[14px] leading-relaxed whitespace-pre-line text-ink">{m.minutes}</p>
           </CardBody>
@@ -834,15 +805,13 @@ function HistoryPanel({
         title="History"
         subtitle={
           total > entries.length
-            ? `Showing the latest ${entries.length} of ${total} changes. Each change names who made it; any from before sign-in is not attributed.`
-            : "Every change to this sitting and what is under it. Each change names who made it; any from before sign-in is not attributed."
+            ? `Latest ${entries.length} of ${total} changes`
+            : undefined
         }
         divided={entries.length === 0}
       />
       {entries.length === 0 ? (
-        <EmptyState size="sm" title="No recorded changes">
-          Changes made through the portal appear here. Records loaded directly have no trail.
-        </EmptyState>
+        <EmptyState size="sm" title="No recorded changes" />
       ) : (
         <ul className="divide-y divide-line/70">
           {entries.map((e) => (

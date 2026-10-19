@@ -49,10 +49,10 @@ const BLOCKER_OF: Record<ConfigurationGapKey, MatterBlocker> = {
 
 const WHAT: Record<ConfigurationGapKey, string> = {
   ALTERNATE_FOR_RECUSED:
-    "The committee has not said whether an alternate may vote in place of a recused member, so a matter where a member with an alternate recuses cannot be decided",
-  QUORUM: "No quorum is set, so no sitting can be certified quorate and no matter decided",
-  VOTING_RULE: "No voting rule is set, and none is assumed, so no matter can be carried or voted down",
-  SECRETARIAT: "No Secretariat office is set, so nobody may table a matter",
+    "Alternate for a recused member: not set",
+  QUORUM: "Quorum: not set",
+  VOTING_RULE: "Voting rule: not set",
+  SECRETARIAT: "Secretariat office: not set",
 };
 
 const quoted = (s: string) => `“${s}”`;
@@ -100,8 +100,8 @@ export function configurationGaps(i: {
       matterIds.length === 0
         ? ""
         : matterIds.length === pending.length && pending.length > 1
-          ? ` It stops every matter not yet decided: ${subjectList(matterIds.map((id) => subjectOf.get(id)!))}.`
-          : ` It stops ${subjectList(matterIds.map((id) => subjectOf.get(id)!))}.`;
+          ? ` Blocks every undecided matter: ${subjectList(matterIds.map((id) => subjectOf.get(id)!))}.`
+          : ` Blocks ${subjectList(matterIds.map((id) => subjectOf.get(id)!))}.`;
     return { key, text: `${WHAT[key]}.${which}`, matterIds };
   });
 
@@ -115,13 +115,13 @@ export function configurationGaps(i: {
     title =
       n === total
         ? total === 1
-          ? "This committee's configuration stops the one matter on the agenda from being decided"
-          : `This committee's configuration stops all ${total} matters on the agenda from being decided`
-        : `This committee's configuration stops ${n} of ${total} ${mattersWord(total)} from being decided`;
+          ? "Committee set-up blocks the one matter"
+          : `Committee set-up blocks all ${total} matters`
+        : `Committee set-up blocks ${n} of ${total} ${mattersWord(total)}`;
   } else if (present.every((k) => k === "SECRETARIAT")) {
-    title = "This committee's configuration stops anyone tabling a matter at this sitting";
+    title = "Committee set-up blocks tabling";
   } else {
-    title = "This committee's configuration will stop any matter tabled at this sitting from being decided";
+    title = "Committee set-up will block any matter tabled";
   }
 
   return { title, gaps, affectedMatterIds, agendaCount: total };

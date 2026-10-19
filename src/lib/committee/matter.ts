@@ -189,8 +189,8 @@ function describe(
   switch (first) {
     case undefined:
       return computed === "CARRIED"
-        ? `Carried — ${tally.setuju} setuju, ${tally.tidakSetuju} tidak setuju.`
-        : `Not carried — ${tally.setuju} setuju, ${tally.tidakSetuju} tidak setuju.`;
+        ? `Carried — ${tally.setuju} agree, ${tally.tidakSetuju} disagree.`
+        : `Not carried — ${tally.setuju} agree, ${tally.tidakSetuju} disagree.`;
     case "SITTING_NOT_STARTED":
       return "The sitting has not started, so no register has been taken. Quorum and votes are counted once it is in progress.";
     case "NOT_TABLED":

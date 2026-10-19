@@ -24,7 +24,7 @@ describe("domains tabled only from their record (6.2 OD-9)", () => {
     expect(sittingTablesDomain(SCOPE_DOMAIN)).toBe(false);
     expect(sittingTablesDomain("committee_gate")).toBe(true);
     expect(sittingTablesDomain("appointment")).toBe(true);
-    expect(RECORD_TABLED_DOMAIN_TEXT).toMatch(/Scope and estimate, Scope/);
+    expect(RECORD_TABLED_DOMAIN_TEXT).toMatch(/Scope and estimate/) // 0005, founder 2026-10-19: shortened;
   });
 });
 
@@ -66,8 +66,8 @@ describe("domains no sitting decides: window change and award signatory (6.6 rev
     expect(sittingTablesDomain(WINDOW_CHANGE_DOMAIN)).toBe(false);
     expect(sittingTablesDomain(SIGNATORY_DOMAIN)).toBe(false);
     // SR-06 (ruling 9): the Invitation tab is gone; the window change is approved from Publishing on Tender documents.
-    expect(recordTabledText(WINDOW_CHANGE_DOMAIN)).toMatch(/approved on its own route, from the exercise's Tender documents, under Publishing; that route takes no committee step/);
-    expect(recordTabledText(SIGNATORY_DOMAIN)).toMatch(/office the approval matrix names for the award/);
+    expect(recordTabledText(WINDOW_CHANGE_DOMAIN)).toMatch(/Approve it under Tender documents, Publishing/) // 0005, founder 2026-10-19: shortened;
+    expect(recordTabledText(SIGNATORY_DOMAIN)).toMatch(/approval matrix names the office/) // 0005, founder 2026-10-19: shortened;
   });
   it("the drawer's domain options, as built from the labels, leave out every domain a sitting does not table", async () => {
     const matters = (await import("@/lib/labels.json")).default as Record<string, unknown>;

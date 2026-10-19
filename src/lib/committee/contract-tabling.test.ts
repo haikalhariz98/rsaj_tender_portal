@@ -20,10 +20,10 @@ describe("a contract matter is tabled from its record, never at a sitting", () =
     expect(SITTING_TABLED_MATTER_KINDS).not.toContain("CONTRACT");
     expect(MATTER_KINDS).toContain("CONTRACT");
   });
-  it("asked at a sitting, it says where it is tabled, in English and Malay", () => {
+  it("asked at a sitting, it says where it is tabled", () => {
     expect(recordTabledText("CONTRACT")).toBe(CONTRACT_TABLED_WORDS.en);
     expect(CONTRACT_TABLED_WORDS).toEqual({
-      en: "A contract matter (an extension of time, a period extension, a waiver of damages, a termination, a nomination, a nominated-sum increase or a loss-and-expense claim) is tabled from the matter itself, on its contract, which names the matter and the step the committee decides on.",
+      en: "Table a contract matter from the matter itself, on its contract.", // 0005, founder 2026-10-19: cut
     });
   });
   it("the sitting's act takes the kind from SITTING_TABLED_MATTER_KINDS, so a CONTRACT matter is refused there", () => {

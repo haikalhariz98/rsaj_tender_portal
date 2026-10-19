@@ -91,7 +91,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
     <>
       <PageHeader
         title="Committee sittings"
-        subtitle="Sittings, their registers, the matters tabled, each member's vote and the minutes."
+        info={{ title: "Committee sittings", text: "Registers, tabled matters, votes and minutes. A sitting tables the items waiting for its committee when scheduled." }}
         meta={[
           `${upcoming} upcoming`,
           `${awaiting} awaiting minutes`,
@@ -106,11 +106,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
         <CardHeader
           icon={<CalendarIcon size={17} />}
           title="Sittings"
-          subtitle={
-            committees.length === 0
-              ? "No committee is configured, so nothing can sit."
-              : "Newest first. Open a sitting to take its register and record its decisions."
-          }
+          subtitle={committees.length === 0 ? "No committee set" : undefined}
           divided={false}
         />
         <DataList
@@ -119,11 +115,6 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
           exportName="sittings"
           searchPlaceholder="Search sittings"
           emptyTitle="No sittings recorded"
-          emptyBody={
-            committees.length === 0
-              ? "Configure a committee under Configuration, Committees before scheduling a sitting."
-              : "Schedule a sitting to begin."
-          }
           views={[
             { id: "upcoming", label: "Upcoming" },
             { id: "awaiting", label: "Awaiting minutes" },
@@ -219,7 +210,6 @@ async function WaitingToBeTabled({ actor, waiting }: { actor: StaffActor; waitin
         exportName="waiting-to-be-tabled"
         searchPlaceholder={W.search.en}
         emptyTitle={W.emptyTitle.en}
-        emptyBody={W.emptyBody.en}
         filters={[
           { key: "committee", label: W.committee.en },
           { key: "kind", label: W.kind.en },

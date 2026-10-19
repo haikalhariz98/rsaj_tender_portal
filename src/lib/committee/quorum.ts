@@ -149,8 +149,8 @@ export function assessDecision(input: {
 function describe(blockers: DecisionBlocker[], tally: VoteTally, mandatory: boolean): string {
   if (blockers.length === 0) {
     return tally.carried
-      ? `Carried — ${tally.setuju} setuju, ${tally.tidakSetuju} tidak setuju.`
-      : `Not carried — ${tally.setuju} setuju, ${tally.tidakSetuju} tidak setuju.`;
+      ? `Carried — ${tally.setuju} agree, ${tally.tidakSetuju} disagree.`
+      : `Not carried — ${tally.setuju} agree, ${tally.tidakSetuju} disagree.`;
   }
   if (blockers.includes("QUORUM_UNCONFIGURED")) {
     return "Cannot be certified: no quorum has been set for this committee.";

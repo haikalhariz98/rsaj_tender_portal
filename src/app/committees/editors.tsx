@@ -91,7 +91,7 @@ export function EditSitting({ meeting }: { meeting: { id: string; meetingDate: D
   return (
     <RecordEditor
       title="Edit sitting"
-      description="The date can change only before the sitting starts."
+      description="Date can change only before the sitting starts."
       fields={[
         { kind: "hidden", name: "meetingId" },
         { kind: "date", name: "meetingDate", label: "Date", required: true },
@@ -108,7 +108,7 @@ export function StartSitting({ meetingId }: { meetingId: string }) {
   return (
     <RecordEditor
       title="Start the sitting"
-      description="Once started, the register is taken and votes can be recorded against tabled matters."
+      description="Opens the register and voting."
       fields={[{ kind: "hidden", name: "meetingId" }, { kind: "hidden", name: "to" }]}
       values={{ meetingId, to: "IN_PROGRESS" }}
       action={changeStatus}
@@ -145,7 +145,7 @@ export function MinuteSitting({
   return (
     <RecordEditor
       title="Mark as minuted"
-      description="Minuting freezes the sitting: its register, votes and outcomes can no longer change."
+      description="Freezes the register, votes and outcomes."
       fields={[
         { kind: "hidden", name: "meetingId" },
         { kind: "hidden", name: "to" },
@@ -163,7 +163,7 @@ export function CancelSitting({ meetingId }: { meetingId: string }) {
   return (
     <RecordEditor
       title="Cancel the sitting"
-      description="A sitting that has decided a matter cannot be cancelled."
+      description="Not possible once a matter is decided."
       fields={[{ kind: "hidden", name: "meetingId" }, { kind: "hidden", name: "to" }]}
       values={{ meetingId, to: "CANCELLED" }}
       action={changeStatus}
@@ -234,7 +234,7 @@ export function RecordAttendanceEditor({
                 name: "standingInForSeatId",
                 label: "Standing in for",
                 placeholder: "Not standing in",
-                hint: "An alternate covers a seat only while its holder is absent. Nobody stands in for the chairman.",
+                hint: "Only while the holder is absent. Not for the chairman.",
                 options: seats.map((s) => ({ value: s.seatId, label: s.label })),
               },
             ] as Field[])
@@ -271,7 +271,7 @@ export function TableMatter({
   return (
     <RecordEditor
       title="Table a matter"
-      description="Tabled by you, as the signed-in holder of the committee's Secretariat office on the tabling date. Nobody tables a matter for another."
+      description="Tabled in your name as Secretariat holder."
       fields={[
         { kind: "hidden", name: "meetingId" },
         { kind: "text", name: "subject", label: "Subject", required: true },
@@ -292,7 +292,7 @@ export function TableMatter({
           options: SITTING_TABLED_MATTER_KINDS.map((k) => ({ value: k, label: MATTER_KIND_LABEL[k] })),
         },
         { kind: "text", name: "matterRef", label: "Record reference", mono: true },
-        { kind: "money", name: "amount", label: "Amount", hint: "SULIT: a requisition's amount is its department estimate, shown only to those entitled to it, so it is filled in only for them. It may be left blank." },
+        { kind: "money", name: "amount", label: "Amount", hint: "SULIT. May be left blank." },
         {
           kind: "select",
           name: "dependsOnDecisionId",
@@ -300,7 +300,7 @@ export function TableMatter({
           placeholder: "Depends on no other matter",
           options: otherMatters.map((m) => ({ value: m.id, label: m.subject })),
         },
-        actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", hint: holders.length === 0 ? "Nobody holds the Secretariat office." : "Only a holder of the Secretariat office can table." }),
+        actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", hint: holders.length === 0 ? "Nobody holds the Secretariat office." : "Only the Secretariat holder can table." }),
       ]}
       values={{ ...prefill, meetingId }}
       defaultOpen={!!prefill}
@@ -322,7 +322,7 @@ export function DeclareRecusal({
   return (
     <RecordEditor
       title="Declare a recusal"
-      description="The member stands aside from this matter only: its vote and its quorum. The rest of the sitting is unaffected."
+      description="Applies to this matter only: its vote and quorum."
       fields={[
         { kind: "hidden", name: "decisionId" },
         // The member declares their own recusal, signed in; the Secretariat records it for them from the sitting.
@@ -365,7 +365,7 @@ export function RecordOutcome({
         <span className="text-[12.5px] text-ink-3">{blocker}</span>
         <RecordEditor
           title="Defer the matter"
-          description="Deferring is not a decision: the matter is carried to a later sitting. Say why."
+          description="Carries the matter to a later sitting. Say why."
           fields={[
             { kind: "hidden", name: "decisionId" },
             { kind: "hidden", name: "outcome" },
@@ -388,8 +388,8 @@ export function RecordOutcome({
       title="Record the outcome"
       description={
         suggested
-          ? `The votes come to: ${suggested}. Carried and Not carried must follow from them; Deferred needs only a note.`
-          : "Deferred needs only a note. Carried and Not carried must follow from the recorded votes."
+          ? `Votes come to ${suggested}. The outcome must follow them.`
+          : "Carried or not carried must follow the votes."
       }
       fields={[
         { kind: "hidden", name: "decisionId" },
@@ -428,7 +428,7 @@ export function WithdrawMatter({ decisionId, subject }: { decisionId: string; su
   return (
     <RecordEditor
       title="Withdraw from the agenda"
-      description={`“${subject}” leaves the agenda before the sitting opens. It stays on record as withdrawn, with the reason, and nothing is voted or decided on it. Once the sitting opens, a matter is deferred instead.`}
+      description={`“${subject}” leaves the agenda and stays on record as withdrawn.`}
       fields={[{ kind: "hidden", name: "decisionId" }]}
       values={{ decisionId }}
       action={withdrawMatter}

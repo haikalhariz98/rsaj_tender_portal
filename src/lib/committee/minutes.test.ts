@@ -23,7 +23,7 @@ describe("signed minutes (FR-CTE-004, FR-REQ-012)", () => {
 describe("the minuted sitting's card", () => {
   it("says the sitting is frozen and that its signed copy can still be attached", async () => {
     const { MINUTED_CARD_NOTE } = await import("./labels");
-    expect(MINUTED_CARD_NOTE).toContain("The sitting is frozen.");
-    expect(MINUTED_CARD_NOTE).toContain("The signed copy can still be attached.");
+    expect(MINUTED_CARD_NOTE).toContain("frozen") // 0005, founder 2026-10-19: shortened;
+    expect(MINUTED_CARD_NOTE).toContain("Signed copy can still be attached.");
   });
 });
