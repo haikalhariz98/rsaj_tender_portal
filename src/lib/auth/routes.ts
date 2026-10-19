@@ -76,6 +76,9 @@ export const SUPPLIER_PROJECTS_POSTS = {
 } as const;
 export const SUPPLIER_PROJECTS_POST_PATHS: readonly string[] = Object.values(SUPPLIER_PROJECTS_POSTS);
 
+/// A signed-in supplier's export of its own data (N2, the PDPA right of access): a printable page, and the same content as one JSON file. Both are reads and write one export row each; neither reads an id.
+export const SUPPLIER_DATA_EXPORT = { page: "/supplier/account/data", file: "/supplier/account/data/file" } as const;
+
 /// The two session cookies (ADR 0034 D4). Names only, so the proxy can know them without importing anything that touches the database or `next/headers`.
 /// `__Host-` ties each to one exact host with no Domain. A staff cookie means nothing to the public copy, and a supplier cookie nothing to the staff copy.
 export const STAFF_COOKIE = "__Host-perolehan-staff";

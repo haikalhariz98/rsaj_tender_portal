@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_POST_PATHS, SUPPLIER_PROJECTS_PAGE, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_PROJECTS_POSTS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
+import { SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECTS_PAGE, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_PROJECTS_POSTS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { lex } from "@/lib/scan/source";
 
 /**
@@ -32,7 +32,7 @@ const PORTAL = walk(path.join(SRC, "app", "supplier")).map((f) => ({ file: rel(f
 // Phase 4c: the Company workspace's two uploads are held by the section below (`app/supplier/company/`).
 // Phase 4d: My Bids' three JSON posts are held by the section further down (`app/supplier/bids/`), as the registration's and the Company workspace's are: this first section is for the doors a stranger reaches.
 // Phase 4e: My Projects' three JSON posts are held by their own section (`app/supplier/projects/`).
-const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/") && !f.file.startsWith("app/supplier/bids/") && !f.file.startsWith("app/supplier/projects/"));
+const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/") && !f.file.startsWith("app/supplier/bids/") && !f.file.startsWith("app/supplier/projects/") && !f.file.startsWith("app/supplier/account/data/"));
 // Wave 3a (SR-10): the one GET under a dynamic segment (`app/supplier/bids/[id]/download`) is a read of a released file, held by its own test below; the others are the JSON posts.
 // Wave 3b step 9 (plan section 1.5): the part upload is a multipart post, guarded by `supplierUploadPost` like the registration's and the Company workspace's uploads, so it is held by its own test below.
 const BIDS_UPLOAD = "app/supplier/bids/part/route.ts";
@@ -44,6 +44,8 @@ const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.
 const PROJECTS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && (f.file.startsWith("app/supplier/projects") || f.file.startsWith("app/supplier/announcements")));
 const COMPANY_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/company/"));
 const REGISTRATION_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/registration/"));
+// N2: the supplier's export of its own data is one GET at a literal path, held by its own test below.
+const DATA_EXPORT_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/account/data/"));
 const PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file));
 
 /// The text of a handler's POST function with strings and comments blanked.
@@ -179,6 +181,21 @@ describe("the registration wizard's handlers (Phase 4b)", () => {
     // The parsers of the bodies read none either.
     const api = lex(read("lib/portal/registration/api.ts"), { only: "comments" });
     expect(api).not.toMatch(/["'](?:supplierId|organisationId|accountId|supplierAccountId|signedOn|signedAt|receivedOn)["']/);
+  });
+
+  it("the export of the supplier's own data is one GET at its literal path that asks the portal's guard first with its own purpose, and a HEAD that reads nothing (N2)", () => {
+    expect(DATA_EXPORT_HANDLERS.map((f) => `/${f.file.replace(/^app\//, "").replace(/\/route\.ts$/, "")}`)).toEqual([SUPPLIER_DATA_EXPORT.file]);
+    const f = DATA_EXPORT_HANDLERS[0];
+    expect(methods(f.src)).toEqual(["GET", "HEAD"]);
+    const code = lex(f.src);
+    const get = code.slice(code.search(/export\s+async\s+function\s+GET\b/));
+    expect(get.slice(get.search(/\bawait\b/)).startsWith("await supplierGet(request, ")).toBe(true);
+    expect(f.src).toMatch(/await supplierGet\(request, "data-export"\)/);
+    expect(get).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+    expect(bodyOf(f.src, "HEAD")).not.toMatch(/\bawait\b|\bdb\./);
+    // The supplier is the session's: nothing is read from the request but the guard's token.
+    expect(lex(f.src, { only: "comments" })).not.toMatch(/searchParams|\.get\(\s*["'](?:supplierId|organisationId|accountId)["']\s*\)/);
+    expect(f.src).not.toMatch(/^\s*["']use server["']/m);
   });
 
   it("hold no server action", () => {

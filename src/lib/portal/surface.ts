@@ -1,4 +1,4 @@
-import { isSignInPath, SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_POST_PATHS, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_POST_PATHS } from "@/lib/auth/routes";
+import { isSignInPath, SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_POST_PATHS } from "@/lib/auth/routes";
 
 /**
  * Which door a running copy of the product is the front of.
@@ -25,7 +25,7 @@ export function surfaceOf(value: string | undefined | null): Surface {
 
 /// The public routes. One literal path each, or one id segment: nothing is matched by prefix.
 // Phase 4b: the registration wizard's page and its two reads (a code search and a file), served on the public copy and answering a supplier only (each asks who is signed in).
-const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", "/supplier/bids", "/supplier/company", "/supplier/projects", SUPPLIER_ANNOUNCEMENTS_PAGE, ...SUPPLIER_AUTH_PAGES, ...SUPPLIER_REGISTRATION_GET_PATHS]);
+const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", "/supplier/bids", "/supplier/company", "/supplier/projects", SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_DATA_EXPORT.page, SUPPLIER_DATA_EXPORT.file, ...SUPPLIER_AUTH_PAGES, ...SUPPLIER_REGISTRATION_GET_PATHS]);
 const OPPORTUNITY = /^\/supplier\/opportunities\/[A-Za-z0-9_-]+$/;
 /// Phase 4d: one exercise in My Bids, and the two pages that open its tender documents. One id segment each; the posts are literal paths (`SUPPLIER_BIDS_POST_PATHS`), so a post to a path like these is refused.
 const BID_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+(?:\/(?:table-document|documents|pay|submit|download))?$/;
