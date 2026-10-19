@@ -40,7 +40,7 @@ export function SendForRoutingDrawer({ certId, typeLabel, blocker }: { certId: s
   return (
     <RecordEditor
       title="Send for routing"
-      description={`Starts its routing sheet (${typeLabel}) as the type stands today: its checks and targets are frozen on the certificate. The figures freeze too: nothing is overridden after this.`}
+      description={`Starts the routing sheet (${typeLabel}). Checks, targets and figures freeze.`}
       fields={[hidden("certId")]}
       values={{ certId }}
       action={sendCertificateForRouting}
@@ -83,7 +83,7 @@ export function CheckDrawer({ certId, defOrder, label, office, people, today, bl
   return (
     <RecordEditor
       title={label}
-      description={office ? `Recorded for a holder of ${office} on the day (or a delegate of the whole office).` : "No office set for this check. Any officer may be named."}
+      description={office ? `For a holder of ${office}, or a delegate.` : "No office set for this check. Any officer may be named."}
       fields={[hidden("certId"), hidden("defOrder"), by("RoutingCheck.person", "personId", people), { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ certId, defOrder: String(defOrder), on: today }}
       action={recordCertificateCheck}
@@ -116,7 +116,7 @@ export function SignatureDrawer({ certId, block, people, today, blocker }: { cer
   return (
     <RecordEditor
       title={block.labelEn}
-      description={own ? `Dated the day this is recorded${block.datesCertificate ? ", and that day is the certificate's date" : ""}. The first signature pins the form: its order and recipients do not move after it.` : `Dated the day signed on paper${block.datesCertificate ? ", which is the certificate's date" : ""}.`}
+      description={own ? `Dated today${block.datesCertificate ? ", and that day is the certificate's date" : ""}. The first signature pins the form.` : `Dated the day signed on paper${block.datesCertificate ? ", which is the certificate's date" : ""}.`}
       fields={fields}
       values={{ certId, blockOrder: String(block.blockOrder), signedOn: own ? null : today, personBlock: own ? "yes" : "no" }}
       showWhen={block.refusalAllowed ? { refusalNote: { name: "refused", in: ["yes"] } } : undefined}
@@ -132,7 +132,7 @@ export function OverrideDrawer({ certId, fieldKey, label, computed, people }: { 
   return (
     <RecordEditor
       title={`Override: ${label}`}
-      description={`As computed: ${computed}. An override is an exception: it needs its justification and the officer it is recorded for, and both figures stay on the certificate. Totals are recomputed from the lines.`}
+      description={`As computed: ${computed}. An override needs a justification and the officer. Totals are recomputed.`}
       fields={[hidden("certId"), hidden("fieldKey"), { kind: "text", name: "value", label: "Overridden to", required: true }, { kind: "textarea", name: "justification", label: "Justification", required: true }, by("CertificateOverride.person", "personId", people)]}
       values={{ certId, fieldKey }}
       action={overrideCertificateFigure}
@@ -145,7 +145,7 @@ export function CorrectDateDrawer({ certId, current }: { certId: string; current
   return (
     <RecordEditor
       title="Correct the certificate's date"
-      description={`Now ${current}. Corrected while the certificate is being signed, so the day it is issued with is the corrected one; once issued it is final. A correction moves it to an earlier day, never later or into the future, never before a block signed before the dating block, and never before the certificate was opened or its route approved. The reason is kept beside it.`}
+      description={`Now ${current}. Earlier days only; the reason is kept. Final once issued.`}
       fields={[hidden("certId"), { kind: "date", name: "correctedDay", label: "Corrected day", required: true }]}
       values={{ certId }}
       reason={{ label: "Why" }}
@@ -204,7 +204,7 @@ export function SendForApprovalDrawer({ certId, figure, people, blocker, again }
   return (
     <RecordEditor
       title={again ? "Send for approval again" : "Send for approval"}
-      description={`Opens its approval route on the approval matrix in force today, routed on ${figure}. The figures go as they stand (any override included) and freeze: nothing is overridden while the route waits or once it is approved. Where it has a routing sheet, the sheet starts too. You send it, signed in as yourself: you may not decide it afterwards.`}
+      description={`Routed on ${figure} under the matrix in force today. Figures freeze. You may not decide it afterwards.`}
       fields={[hidden("certId"), by("ApprovalInstance.submittedBy", "personId", people)]}
       values={{ certId }}
       action={sendCertificateForApproval}
@@ -219,7 +219,7 @@ export function DecideRouteStepDrawer({ certId, stepId, roleLabel, act, done, pe
   return (
     <RecordEditor
       title={`Record ${roleLabel}'s decision`}
-      description={`The ${act.toLowerCase()} step of the certificate's approval route. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for the contract's department, or a delegation of it, and may not be who sent it for approval.`}
+      description={`The ${act.toLowerCase()} step. The holder signs in with their password. A paper decision is recorded for them, not signed.`}
       fields={[
         hidden("certId"),
         hidden("stepId"),
@@ -264,7 +264,7 @@ export function FinancePaymentDrawer({ certId, amount, people, today, blocker }:
   return (
     <RecordEditor
       title="Paid by Finance"
-      description={`What Finance returns once it has paid the certificate: its batch number and the day paid. The amount is the certificate's own (${amount}), never keyed.`}
+      description={`Batch number and day paid. The amount is the certificate's own (${amount}).`}
       fields={[hidden("certId"), { kind: "text", name: "batchNo", label: "Batch number", required: true }, { kind: "date", name: "paidOn", label: "Paid on", required: true }, by("FinancePayment.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ certId, paidOn: today }}
       action={recordCertificatePayment}

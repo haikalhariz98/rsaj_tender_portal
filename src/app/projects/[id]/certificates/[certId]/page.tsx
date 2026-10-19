@@ -337,7 +337,7 @@ function FiguresPanel({ l, figures, people, today }: { l: LoadedCertificate; fig
       {snap.routingRatio && (
         <CardBody className="border-t border-line/70">
           {/* 614-C5: the ratio from the figures as they stand, overrides included: the one the routing target is judged on. */}
-          <p className="text-[12.5px] text-ink-3">{ratio ? `${snap.routingRatio.labelEn}: ${ratioPercentText(ratio)}% (${formatMoney(ratio.num)} of ${formatMoney(ratio.den)}; judged on the exact amounts as they stand, overrides included, never the rounded figure).` : `${snap.routingRatio.labelEn}: not worked out, as the figures stand (a figure it needs is not computed).`}</p>
+          <p className="text-[12.5px] text-ink-3">{ratio ? `${snap.routingRatio.labelEn}: ${ratioPercentText(ratio)}% (${formatMoney(ratio.num)} of ${formatMoney(ratio.den)})` : `${snap.routingRatio.labelEn}: not worked out`}</p>
         </CardBody>
       )}
     </Card>
@@ -399,9 +399,9 @@ async function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people
   const signed = signedOf(cert);
   const next = nextBlock(blocks, signed);
   const subtitle = pinned
-    ? `In the printed order of ${pinned.nameEn}${pinned.formCode ? ` (${pinned.formCode})` : ""}, as pinned at the first signature on ${formatDate(pinned.pinnedOn)}. A later revision of the form does not move it.`
+    ? `Printed order of ${pinned.nameEn}${pinned.formCode ? ` (${pinned.formCode})` : ""}, pinned ${formatDate(pinned.pinnedOn)}`
     : formName
-      ? `In the printed order of ${formName} as it stands now. The first signature pins the form: its order and recipients do not move after it.`
+      ? `Printed order of ${formName}. Pinned at the first signature.`
       : // BD-613-103 / S-6: raised without a form, its own words (a void one is given no advice); never the raise's.
         raisedWithoutFormWords({ kind: cert.kind, status }).en;
   // Who signed each block of the organisation's own, signed in or recorded from paper, is read from its attribution (Phase 2b). A block that is not a person's (the contractor's side) is named by an officer: it is not signed in, and says so.

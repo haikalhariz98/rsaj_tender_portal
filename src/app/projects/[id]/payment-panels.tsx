@@ -347,7 +347,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
           <span className="flex flex-wrap items-center gap-2">
             {a?.minimum.state === "BELOW" && <HoldValuationDrawer id={c.id} valuationId={x.id} />}
             <WithdrawValuationDrawer id={c.id} valuationId={x.id} />
-            <RaiseCertificateDrawer id={c.id} valuationId={x.id} blocker={blocker} summary={fig ? `Payment recommended ${formatMoney(fig.recommended)}: gross ${formatMoney(fig.gross)} less retention and earlier certificates (${formatMoney(fig.less)}) less deductions (${formatMoney(fig.deductions)}).` : ""} />
+            <RaiseCertificateDrawer id={c.id} valuationId={x.id} blocker={blocker} summary={fig ? `Payment recommended ${formatMoney(fig.recommended)}: gross ${formatMoney(fig.gross)} less retention and earlier certificates (${formatMoney(fig.less)}) and deductions (${formatMoney(fig.deductions)}).` : ""} />
           </span>
         }
         divided
@@ -462,7 +462,7 @@ function PreviewFigures({ a }: { a: Assembled | null }) {
   const text = (type: string, value: string | null) => (value == null ? "Not computed" : type === "MONEY" ? formatMoney(parseSen(value)) : type === "PERCENT" ? `${value}%` : type === "DAYS" ? `${value} days` : type === "DATE" ? formatDate(value) : value);
   return (
     <>
-      <CardHeader title={<Say words={P.certificateAsItStands} />} subtitle={`${snap.rule.en}. Every total is worked out from its lines, never keyed; nothing here is saved until the certificate is raised.${a.minimum.state === "BELOW" ? ` Below the ${a.minimum.first ? "first certificate's" : "certificate's"} minimum (${formatMoney(a.minimum.minimum)}): hold it to the next cycle.` : ""}`} divided className="border-t border-line/70" />
+      <CardHeader title={<Say words={P.certificateAsItStands} />} subtitle={`${snap.rule.en}.${a.minimum.state === "BELOW" ? ` Below the ${a.minimum.first ? "first certificate's" : "certificate's"} minimum (${formatMoney(a.minimum.minimum)}): held to the next cycle.` : ""}`} divided className="border-t border-line/70" />
       <ul className="divide-y divide-line/70">
         {e.lines.map((f) => (
           <li key={f.key} className={f.type === "TEXT" ? "flex flex-col gap-1 px-5 py-2.5 sm:px-6" : "flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:px-6"}>
@@ -479,7 +479,7 @@ function PreviewFigures({ a }: { a: Assembled | null }) {
       </ul>
       {a.waterfall && !a.waterfall.sufficient && (
         <CardBody className="border-t border-line/70">
-          <p className="text-[12.5px] text-ink-3">{`Not enough for everyone due: the nominated tier is paid pro rata on the payment recommended × (each one's due ÷ the tier's ${formatMoney(a.waterfall.nominatedDue)}) (assumed reading, a question to the customer), then the assignees in turn, then the contractor (${formatMoney(a.waterfall.contractor)}).`}</p>
+          <p className="text-[12.5px] text-ink-3">{`Not enough for everyone due. Paid pro rata: nominated tier (${formatMoney(a.waterfall.nominatedDue)}), then assignees, then the contractor (${formatMoney(a.waterfall.contractor)}). Assumed reading.`}</p>
         </CardBody>
       )}
     </>
@@ -641,12 +641,12 @@ function DamagesSection({ l, v, people, today, hidden }: { l: LoadedContract; v:
   const readingText =
     !reading ? "Not judged without the organisation's time zone."
     : reading.state === "NOT_DUE" ? (completion ? `Not due: the date for completion is ${formatDate(completion)}.` : "Not due: no completion date yet.")
-    : reading.state === "DECISION_REQUIRED" ? `Past the date for completion (${formatDate(completion)}) with no non-completion decision: an interim certificate is refused until it is recorded.`
+    : reading.state === "DECISION_REQUIRED" ? `Past the date for completion (${formatDate(completion)}) with no decision. Interim certificates are refused.`
     : reading.state === "CNC_NOT_ISSUED" ? "Damages apply. Certificate of Non-Completion not issued."
     : reading.state === "RATE_NOT_SET" ? "No baseline rate. Interim certificates are refused."
     : reading.state === "EXCUSED" ? `No damages: excusable or pending (${reading.reason}).`
     : reading.state === "NOTHING_TO_CHARGE" ? "Damages apply."
-    : `Damages run: ${reading.days} days not yet charged up to today at ${formatMoney(reading.rate)} a day (${formatMoney(reading.amount)}), for the next interim certificate.`;
+    : `Damages run: ${reading.days} days at ${formatMoney(reading.rate)} a day (${formatMoney(reading.amount)}), for the next certificate.`;
   return (
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">

@@ -296,10 +296,10 @@ export function actStatusWords(f: Finding): Words {
       return { en: "The contract is not executed yet: this is recorded once it is." };
     case "CONTRACT_TERMINATED":
       return {
-        en: "The contract is terminated: only the termination's own consequences are recorded on it (its case and notices, renomination, the final payment on termination and its converse decision, bond claims, rectification, debts, the release of a security or the design guarantee bond, a claim on the design guarantee bond, where the originals are held, and its close).",
+        en: "The contract is terminated: only termination consequences, debts, releases, a claim on the design guarantee bond, where the originals are held, and its close are recorded.",
       };
     case "CONTRACT_CLOSED":
-      return { en: "The contract is closed: it is kept as it was, except what survives the close (the design guarantee bond's release and a claim on the design guarantee bond, debts, and where the originals are held)." };
+      return { en: "The contract is closed: only debts, the release of or a claim on the design guarantee bond, and where the originals are held are recorded." };
     case "NOT_IN_STATUS": {
       const s = CONTRACT_STATUS_WORDS[f.data?.status as ContractStatus] ?? { en: "where it stands" };
       return { en: `Not recorded while the contract stands at “${s.en}”.` };

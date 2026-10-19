@@ -51,7 +51,7 @@ export function ResolveSoDrawer({ id, blocker, office, from }: { id: string; blo
   return (
     <RecordEditor
       title="Resolve the Superintending Officer"
-      description={`For a contract executed before supervision was recorded: the office the approval matrix in force on the Contract Date gives at this contract's sum and method, taking effect from the Contract Date (${from}) so that no day of the contract is without an S.O. A contract executed since resolves it at the employer's signature.`}
+      description={`From the approval matrix on the Contract Date (${from}), so no day is without an S.O.`}
       fields={[hidden("id"), { kind: "readonly", name: "office", label: "The matrix gives", text: office ?? "No single office: see why beside the button" }, { kind: "readonly", name: "from", label: "Takes effect from", text: from }]}
       values={{ id }}
       action={resolveSuperintendingOfficer}
@@ -67,7 +67,7 @@ export function DelegationDrawer({ id, people, kinds, acts, letters, blocker }: 
   return (
     <RecordEditor
       title="Delegate to a representative"
-      description={`The S.O. names a representative, the kind, and what the delegation covers, once satisfied of their competency. It is made by the letter pair for this contract type (${letters}), opened here as two certificates to be signed and issued: the delegation holds from the letter's date. A representative never delegates further.`}
+      description={`Opens two certificates for this contract type (${letters}). The delegation holds from the letter's date. A representative never delegates further.`}
       size="lg"
       columns={2}
       fields={[
@@ -110,7 +110,7 @@ export function PossessionDrawer({ id, people, today, blocker, startRule }: { id
   return (
     <RecordEditor
       title="Record possession of site"
-      description={`Once, on a fully executed contract. The Date of Possession starts the contract period: a new baseline version carries it and the date for completion from it, and the contract becomes active. Start of work: ${startRule}.`}
+      description={`Once, when fully executed. Starts the contract period and makes it active. Start of work: ${startRule}.`}
       fields={[hidden("id"), { kind: "date", name: "possessionOn", label: "Date of possession", required: true }, by("Possession.recordedBy", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, possessionOn: today }}
       action={recordPossession}
@@ -234,7 +234,7 @@ export function DisputeDrawer({ id, entryId, label }: { id: string; entryId: str
   return (
     <RecordEditor
       title="Record a disagreement"
-      description={`${label}: where the officer and the contractor's agent do not agree on the entry, what they disagree on is recorded and the entry goes to the S.O.`}
+      description={`${label}: disagreement is recorded and goes to the S.O.`}
       fields={[hidden("id"), hidden("entryId"), { kind: "textarea", name: "disagreement", label: "What they disagree on", required: true }]}
       values={{ id, entryId }}
       action={disputeDiary}

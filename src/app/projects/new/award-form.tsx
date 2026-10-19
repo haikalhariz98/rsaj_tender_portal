@@ -7,6 +7,7 @@ import type { FormState } from "@/components/record-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
@@ -42,17 +43,17 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, r
         </Callout>
       )}
       <Card>
-        <CardHeader title="The exercise" subtitle="As classified. The award reads these from the exercise's record." />
+        <CardHeader title="The exercise" subtitle="As classified" />
         <CardBody>
           <KeyValues columns={2} items={exercise.facts.map((f) => ({ label: f.label, value: f.value }))} />
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="The awardee" subtitle={parties ? "One of the bidders the opening carried to evaluation. Its name, number and address are kept as written; its link to the supplier register is its bidder's." : "As registered: the name, number and address are kept as written. With no bidder, the award is linked to the supplier register from the supplier's record."} />
+        <CardHeader title="The awardee" subtitle={parties ? "A bidder carried to evaluation" : "As registered"} />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {parties && (
             <div className="sm:col-span-2">
-              <Field label="Bidder carried to evaluation" required htmlFor="awardeePartyId" hint="The award is compared as this bidder, never by the words typed below (6.7)." error={err("awardeePartyId")}>
+              <Field label="Bidder carried to evaluation" required htmlFor="awardeePartyId" hint="Compared as this bidder." error={err("awardeePartyId")}>
                 <Select
                   id="awardeePartyId"
                   name="awardeePartyId"
@@ -78,7 +79,7 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, r
               <div className="flex flex-col gap-2 sm:col-span-2">
                 <p className="flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
                   <span className="font-semibold">On the supplier register:</span>
-                  {reg ? <><span className="break-words">{reg.supplier}</span><Badge tone={reg.tone} dot>{reg.words}</Badge></> : <span className="text-ink-3">Not linked: the bidder is linked from the supplier&apos;s record</span>}
+                  {reg ? <><span className="break-words">{reg.supplier}</span><Badge tone={reg.tone} dot>{reg.words}</Badge></> : <span className="text-ink-3">Not linked</span>}
                 </p>
                 {reg?.warning && <Callout tone="warn" title="The bidder's supplier is barred on the register">{reg.warning}</Callout>}
               </div>
@@ -98,12 +99,10 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, r
         </CardBody>
       </Card>
       {recommended && (
-        <Callout tone="info" title={`Pre-filled from evaluation version ${recommended.version}'s recommendation`}>
-          The awardee is the recommended tenderer and cannot differ: another tenderer is the committee&apos;s decision not to carry the appointment, and a new evaluation version. The value and period may differ, each with its reason; the award then shows it differs from the recommendation.
-        </Callout>
+        <div><InfoChip outline detail="The awardee is the recommended tenderer and cannot differ. The value and period may differ, each with its reason.">{`Pre-filled from evaluation version ${recommended.version}`}</InfoChip></div>
       )}
       <Card>
-        <CardHeader title="Value and period" subtitle="Within what the requisition's approval covers, and in the exercise's band." />
+        <CardHeader title="Value and period" subtitle="Within the requisition's approval" />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <Field label="Awarded value" required htmlFor="awardedValue" hint={valueHint} error={err("awardedValue")}>
             <Input id="awardedValue" name="awardedValue" inputMode="decimal" value={v.awardedValue ?? ""} onChange={set("awardedValue")} />

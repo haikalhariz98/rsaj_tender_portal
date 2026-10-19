@@ -109,7 +109,7 @@ export function SoDecisionDrawer({ id, variationId, people, decisions, today, de
   return (
     <RecordEditor
       title="The S.O.'s decision"
-      description={`Supported (with a cap no higher than the estimate, where the S.O. gives one) or not supported, with the reason. ${destinationSet ? "Goes where the configured destination says." : "No destination configured. Say where it goes."}`}
+      description={`Supported (cap no higher than the estimate) or not, with the reason. ${destinationSet ? "Goes where the configured destination says." : "No destination configured. Say where it goes."}`}
       fields={[
         hidden("id"),
         hidden("variationId"),
@@ -371,7 +371,7 @@ export function OrderDrawer({ id, variationId, description, clauses, people, blo
 
 export function AdjustmentDrawer({ id, orders, triggers, directions, people, blocker }: { id: string; orders: Option[]; triggers: Option[]; directions: Option[]; people: Option[]; blocker: string | null }) {
   const other = (n: number): Field[] => [
-    { kind: "note", text: `Other adjustment ${n} (optional): a trigger the contract's type provides for, with the basis of its calculation.` },
+    { kind: "note", text: `Other adjustment ${n} (optional), with its basis.` },
     { kind: "select", name: `other${n}Trigger`, label: "Trigger", placeholder: "None", options: triggers },
     { kind: "select", name: `other${n}Direction`, label: "Addition or omission", placeholder: "Choose", options: directions },
     { kind: "money", name: `other${n}Amount`, label: "Amount (RM)" },

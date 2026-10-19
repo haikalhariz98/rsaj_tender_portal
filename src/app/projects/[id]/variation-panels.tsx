@@ -180,7 +180,7 @@ function VariationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
         />
         {pages > 1 && (
           <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
-            <span>{`Variations ${pg * VARIATION_PAGE + 1}–${Math.min(all.length, (pg + 1) * VARIATION_PAGE)} of ${all.length}, newest first. Search and the views look within this page; the figures above count them all.`}</span>
+            <span>{`${pg * VARIATION_PAGE + 1}–${Math.min(all.length, (pg + 1) * VARIATION_PAGE)} of ${all.length} · Search covers this page`}</span>
             <span className="flex gap-2">
               {pg > 0 && <ButtonLink href={`/projects/${l.contract.id}?tab=variations&section=variations&page=${pg - 1}`} size="sm" variant="ghost">Previous</ButtonLink>}
               {pg + 1 < pages && <ButtonLink href={`/projects/${l.contract.id}?tab=variations&section=variations&page=${pg + 1}`} size="sm" variant="ghost">Next</ButtonLink>}

@@ -83,6 +83,6 @@ describe("S8 (Run 1a fix round): an unset defects liability period is said to be
     for (const status of CONTRACT_STATUSES.filter((s) => s !== "PRACTICALLY_COMPLETE")) expect(contractStage({ status }, NO_STAGE_FACTS).notSet, status).toEqual([]);
   });
   it("the not-set words, in English and Malay, say what is not known and never claim a stage", () => {
-    expect(NOT_SET_WORDS.DLP.en).toBe("The defects liability period is not set for this contract, so whether it is in defects liability or goes straight to its final account is not known.");
+    expect(NOT_SET_WORDS.DLP.en).toBe("Defects liability period not set. Stage cannot be judged."); // shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
   });
 });

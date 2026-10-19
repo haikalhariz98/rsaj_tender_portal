@@ -21,11 +21,11 @@ const gate = (v: unknown) => GATE_WORDS[String(v)] ?? w("a condition");
 const lower = (x: Words): Words => ({ en: x.en.charAt(0).toLowerCase() + x.en.slice(1) });
 
 const SIGNATORY_TEXT: Record<string, Words> = {
-  SIGNATORY_UNRESOLVED: w("No signatory rule on the approval matrix covers the contract agreement at this sum, so nobody may sign it. Add the rule on the approval matrix; the portal does not route round the gap."),
-  SIGNATORY_NOT_FOR_INSTRUMENT: w("The signatory rule that matches names another condition, so it is not read as covering the contract agreement. Give the rule the contract agreement's condition on the approval matrix."),
-  SIGNATORY_AMBIGUOUS: w("More than one signatory rule matches the contract agreement at this sum. Correct the overlapping rules on the approval matrix."),
-  SIGNATORY_GAP: w("The signatory rule that matches is recorded as a known gap. A contract signatory cannot be an assumption: record the rule on the approval matrix."),
-  SIGNATORY_BOUNDARY_UNDECIDED: w("The signatory rule has an edge on the boundary and nobody has decided whether it follows the boundary switch. Decide it on the approval matrix."),
+  SIGNATORY_UNRESOLVED: w("No signatory rule covers this sum. Add one on the approval matrix."),
+  SIGNATORY_NOT_FOR_INSTRUMENT: w("Signatory rule names another condition. Set the agreement's condition on the matrix."),
+  SIGNATORY_AMBIGUOUS: w("Two signatory rules overlap. Correct them on the approval matrix."),
+  SIGNATORY_GAP: w("Signatory rule is a known gap. Record the rule on the approval matrix."),
+  SIGNATORY_BOUNDARY_UNDECIDED: w("Signatory rule sits on a boundary. Decide it on the approval matrix."),
 };
 
 const PERSON_TEXT: Record<string, Words> = {
@@ -45,25 +45,25 @@ export function contractFaultWords(f: Finding): Words {
     case "NO_TIME_ZONE":
       return w("Time zone not set. Set it under Configuration › Organisation.");
     case "BASIS_NOT_SET":
-      return w("The exercise names no contract basis, so the order of the Contract Document and its checks are not known. The basis is chosen on the sourcing exercise.");
+      return w("Exercise has no contract basis. Choose it on the sourcing exercise.");
     case "BASIS_BQ_NOT_SET":
       return w(`Whether a contract on ${d.basis ?? "this basis"} is let on a bill of quantities is not set, so which checks apply is not known. Set it under Configuration › Scope and estimate.`);
     case "NO_DOCUMENT_PARTS":
       return w(`No Contract Document parts are configured for ${d.basis ?? "this basis"}, so the document cannot be assembled in its prescribed order. Add them under Configuration › Contract controls.`);
     case "LEGAL_OFFICE_NOT_SET":
-      return w("The legal office that reviews contracts is not set. Set it under Configuration › Contract controls.");
+      return w("Legal office not set. See Configuration › Contract controls.");
     case "LEGAL_OFFICE_UNKNOWN":
-      return w("The legal office set under Configuration › Contract controls is not a unit of the organisation's structure in force today (it has ended, or has not started yet). Choose a unit in force there.");
+      return w("Legal office is not a unit in force today (it has ended, or has not started yet). Choose one under Configuration › Contract controls.");
     case "SIGNATORY_COND_NOT_SET":
-      return w("The approval matrix condition that names the contract agreement's signatory is not set. Set it under Configuration › Contract controls.");
+      return w("Signatory condition not set. See Configuration › Contract controls.");
     case "STAMP_NOT_SET":
-      return w("The words stamped on a controlled copy are not set. Set them under Configuration › Contract controls.");
+      return w("Copy stamp words not set. See Configuration › Contract controls.");
     case "NO_COPY_RECIPIENTS":
-      return w("Nobody is set to receive a controlled copy. Add the recipients under Configuration › Contract controls.");
+      return w("No copy recipients. See Configuration › Contract controls.");
 
     // ------------------------------------------------ assembly, reconciliation, checks
     case "NO_PARTS":
-      return w("The assembly has no parts: none were configured for the basis when preparation started.");
+      return w("No parts configured for the basis.");
     case "CANCELLED_WITHOUT_STATEMENT":
       return w(`${d.part ?? "A part"} is cancelled by the alternative proposal without saying what it cancels. State it on the part.`);
     case "COMPARISON_NOT_RECORDED":
@@ -87,9 +87,9 @@ export function contractFaultWords(f: Finding): Words {
     case "BEFORE_PREPARATION":
       return w("The day is before preparation started.");
     case "NO_RATE_COMPARED":
-      return w("Compare at least one tendered rate with the estimate's before recording the check complete.");
+      return w("Compare at least one rate first.");
     case "FRONT_LOADING_NOTE_REQUIRED":
-      return w("Say what was done about the rates listed (or, with no ratio set, how they were judged).");
+      return w("Say what was done about the listed rates.");
 
     // ------------------------------------------------ legal review
     case "NOT_IN_PREPARATION":
@@ -99,13 +99,13 @@ export function contractFaultWords(f: Finding): Words {
     case "REVIEW_OPEN":
       return w("The contract is already with the legal office: record its decision first.");
     case "NO_SUBMISSION_DOCUMENTS":
-      return w("Attach what goes to the legal office (the Conditions of Contract, the signed Letter of Acceptance, the bill or schedule) first: each submission pins them.");
+      return w("Attach what goes to the legal office first.");
     case "FORMATION_INCOMPLETE":
       return w(`Formation is not complete: ${d.count ?? "some"} item${d.count === 1 ? "" : "s"} of the assembly, the reconciliation or the checks remain. See Formation.`);
     case "NO_OPEN_REVIEW":
       return w("Nothing is with the legal office.");
     case "COMMENTS_REQUIRED":
-      return w("A return needs the legal office's comments: type them, or attach them as the legal office's comments.");
+      return w("A return needs the legal office's comments.");
     case "BEFORE_SUBMISSION":
       return w("The decision cannot be before the day it was sent.");
 
@@ -115,9 +115,9 @@ export function contractFaultWords(f: Finding): Words {
     case "GATE_NOT_MET":
       return d.item
         ? w(`Not ready to sign: ${gate(d.item).en} — ${d.state === "NOT_SET" ? "not set" : "not met"}.`)
-        : w("The readiness gate is not met (the instrument returned, the bond and the insurances verified): the conditions for an interim certificate before signature.");
+        : w("Readiness gate not met.");
     case "NO_RESOLUTION":
-      return w("No company resolution or other proof of signing authority is on file. Attach it under Signing.");
+      return w("No proof of signing authority. Attach it under Signing.");
     case "ALREADY_SIGNED":
       return w("The contractor's signature is already recorded.");
     case "SIGNATORY":
@@ -149,7 +149,7 @@ export function contractFaultWords(f: Finding): Words {
       return t ? w(/^[A-Z]/.test(t) ? t : `The officer named ${t}`) : w("The officer named may not sign.");
     }
     case "NO_ISSUE_IN_FORCE":
-      return w("No approval matrix is issued and in force today, so the contract agreement's signatory cannot be resolved and nobody may sign for the employer. Issue one under Configuration › Approval matrix.");
+      return w("No approval matrix in force. Issue one under Configuration › Approval matrix.");
     case "SIGNATORY_NOT_RESOLVED":
       return SIGNATORY_TEXT[String(d.fault)] ?? w("The contract agreement's signatory is not resolved on the approval matrix.");
     case "SO_UNRESOLVED":
@@ -170,7 +170,7 @@ export function contractFaultWords(f: Finding): Words {
         ? w(`The contractor's signature was witnessed on ${day(d.signedOn)}: the employer signs after it, so the Contract Date cannot be before that day.`)
         : w(`The contractor signed on ${day(d.signedOn)}: the employer signs after the contractor, so the Contract Date cannot be before that day.`);
     case "READY_DAY_NOT_FROZEN":
-      return w("The day the contract was first ready to sign was not frozen with the signature, so no earlier day can be judged: the Contract Date stands as recorded.");
+      return w("Ready-to-sign day not frozen. The Contract Date stands.");
     case "REASON_REQUIRED":
       return w("Give the reason.");
     case "NOT_EXECUTED":
@@ -180,7 +180,7 @@ export function contractFaultWords(f: Finding): Words {
     case "DAY_REQUIRED":
       return w("Record the day it was stamped.");
     case "REFERENCE_REQUIRED":
-      return w("Record the stamping reference LHDN gave: the contract is not fully executed without it.");
+      return w("Record the LHDN stamping reference.");
     case "BEFORE_CONTRACT_DATE":
       return w("The day cannot be before the Contract Date.");
     // ------------------------------------------------ the S.O. moved with a corrected Contract Date (6.13A residual): worded once, in supervision
@@ -203,7 +203,7 @@ export function contractFaultWords(f: Finding): Words {
     case "STAMP_NOT_FROZEN":
       return w("No controlled-copy stamp was frozen when this contract's preparation started.");
     case "CONSULTANT_NOT_ANSWERED":
-      return w("Say whether a consulting engineer is engaged on this contract first: their copy depends on it.");
+      return w("Say whether a consulting engineer is engaged.");
     case "NOT_A_RECIPIENT":
       return w("That recipient is not on this contract's list.");
     case "ALREADY_HOLDS_ONE":
@@ -239,9 +239,9 @@ export function contractFaultWords(f: Finding): Words {
     case "NO_DRAFT":
       return w("The baseline has no draft: it is built when preparation starts.");
     case "ALREADY_VERSIONED":
-      return w("The baseline already has a version: change it by a correction, with a reason.");
+      return w("Baseline has a version. Correct it, with a reason.");
     case "VERSIONED":
-      return w("The baseline has a version, so its draft no longer changes: record a correction, with a reason.");
+      return w("Baseline has a version. Record a correction, with a reason.");
     case "CANCELLED":
       return w("The contract is cancelled.");
     case "NO_VERSION":
@@ -259,7 +259,7 @@ export function contractFaultWords(f: Finding): Words {
     case "DLP_REQUIRED_BY_TYPE":
       return w("The contract type carries a defects liability period, yet none is stated.");
     case "DLP_BEHAVIOUR_NOT_SET":
-      return w("Whether the contract type carries a defects liability period was not set when preparation started: the period is not checked against it.");
+      return w("Defects liability not set for the contract type. Not checked.");
     case "LAD_UNIT_NOT_DAILY":
       return w(`Liquidated damages are stated ${d.unit ? `"${d.unit}"` : "with no unit"}, not a day: no daily rate is read from it.`);
     case "LAD_PCT_NOT_VALID":
@@ -272,24 +272,24 @@ export function contractFaultWords(f: Finding): Words {
     case "BUILDERS_WORKS_NOT_POSITIVE":
       return w("The prime cost and provisional sums are the whole contract sum or more.");
     case "RETENTION_STATED_BUT_BAND_SAYS_NONE":
-      return w("The Letter of Acceptance states retention, but the exercise's terms band says none applies: the band's answer is used.");
+      return w("Letter states retention; the band says none. The band's answer is used.");
     case "PROVENANCE_NOT_CHOSEN":
       return w(`${field(d.group === "sums" ? "sums" : d.group).en}: choose where it came from (stated, observed or assumed). There is no default.`);
     case "STATED_ELSEWHERE":
       return w(`${field(d.group).en} is stated by the award, the Appendix or the bill, so it is not keyed here.`);
     // ------------------------------------------------ 612-C1: the award's recorded terms corrected after issue
     case "AWARD_NOT_ISSUED":
-      return w("The award is not issued yet: its terms are edited on the award itself until the instrument is issued.");
+      return w("Not issued yet. Edit the terms on the award.");
     case "AWARD_CANCELLED":
       return w("The award is cancelled: its record is kept as it was.");
     case "NO_BASELINE_VERSION":
-      return w("The baseline has no version yet: the correction writes a new version, so confirm the baseline first.");
+      return w("No baseline version. Confirm the baseline first.");
     case "NOT_AWARD_SOURCED": {
       const t = AWARD_TERM_WORDS[d.term as AwardTerm] ?? w("That term");
       return w(`${t.en} in the baseline is not taken from the Letter of Acceptance, so it is not the award's to correct: an entered value is corrected on the Baseline tab, and one the Appendix or the bill states is kept as stated.`);
     }
     case "VALUE_NOT_VALID":
-      return w("The corrected value is not a valid figure: an amount above zero, whole months (0 for none), percentages up to 100, or a period of at least one.");
+      return w("Not a valid figure for this field.");
     case "STATED_NOT_CORRECTED": {
       // Ruling Q1 (BD-612-23, ADR 0021 Amendment 1): kept as stated. 612-C1 (6.13 Part A step 0, a faithful
       // change as ruled): a value the Letter of Acceptance states, recorded wrongly, is corrected at its source by

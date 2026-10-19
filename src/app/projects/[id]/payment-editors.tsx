@@ -70,7 +70,7 @@ export function OpenValuationDrawer({ id, people, today, triggers, blocker, warn
   return (
     <RecordEditor
       title="Open a valuation"
-      description={`On the agreed valuation day, or on a claim from the contractor (the issue period then runs from the day the claim was received). One valuation at a time.${warning ? ` ${warning}` : ""}`}
+      description={`On the agreed day, or on a claim. One valuation at a time.${warning ? ` ${warning}` : ""}`}
       fields={[hidden("id"), choose("trigger", "What started it", triggers), { kind: "date", name: "claimReceivedOn", label: "Claim received on", hint: "For a claim only." }, { kind: "date", name: "valuationDate", label: "Valuation day", required: true }, by("InterimValuation.person", "personId", people)]}
       values={{ id, valuationDate: today }}
       showWhen={{ claimReceivedOn: { name: "trigger", in: ["CLAIM"] } }}
@@ -206,7 +206,7 @@ export function RaiseCertificateDrawer({ id, valuationId, blocker, summary }: { 
   return (
     <RecordEditor
       title="Raise the interim payment certificate"
-      description={`${summary} The certificate opens as a draft on the baseline in force today, with every figure and the readings it rests on frozen; the valuation's lines freeze with it. It then goes for approval from the certificate.`}
+      description={`${summary} Opens as a draft; goes for approval from the certificate.`}
       fields={[hidden("id"), hidden("valuationId")]}
       values={{ id, valuationId }}
       action={raiseInterimCertificate}
@@ -269,7 +269,7 @@ export function AdvanceDrawer({ id, people, parties, guarantees, parts, blocker 
   return (
     <RecordEditor
       title="Apply for an advance payment"
-      description={`No documented procedure states who may have an advance, how much, or how it is recouped (B2): eligibility and the percentage are not checked. It rests on an Advance Payment Guarantee verified in the register, and on the recoupment schedule entered here, which must recoup the whole advance. Its certificate opens as a draft and goes for approval on the approval matrix. ${PAYEE_BANK_UNCHECKED.advance.en}`}
+      description={`Not checked: no procedure sets eligibility or the percentage. Needs a verified Advance Payment Guarantee and a schedule recouping the whole advance. ${PAYEE_BANK_UNCHECKED.advance.en}`}
       size="lg"
       columns={2}
       fields={[hidden("id"), choose("advanceFor", "For", parts), { kind: "select", name: "partyId", label: "The nominated sub-contractor", placeholder: parties.length ? "Choose" : "None recorded on Team", options: parties }, { kind: "money", name: "amount", label: "Amount", required: true }, choose("securityId", "Advance Payment Guarantee", guarantees), { kind: "textarea", name: "schedule", label: "Recoupment schedule", required: true, hint: "One line per interim certificate: \"certificate number | amount\"." }, by("AdvancePayment.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
@@ -289,7 +289,7 @@ export function WarningDrawer({ id, people, today, blocker, completion }: { id: 
   return (
     <RecordEditor
       title="Warning of liquidated damages"
-      description={`The standard letter of the intention to impose damages, before they are imposed: the clauses as in the contract, the extended date for completion, and the rate per day from the baseline (never typed). It opens as a certificate; once issued it is sent by registered post, and the contractor's reasons are awaited for the organisation's response window.${completion ? ` The date for completion is ${completion}.` : ""}`}
+      description={`Opens as a certificate, sent by registered post. The rate is from the baseline.${completion ? ` Date for completion: ${completion}.` : ""}`}
       size="lg"
       columns={2}
       fields={[hidden("id"), { kind: "text", name: "eotClause", label: "Extension-of-time clause", required: true }, { kind: "text", name: "ladClause", label: "Damages (non-completion) clause", required: true }, { kind: "date", name: "extendedCompletion", label: "Extended date for completion", required: true, hint: "The date for completion where none is extended." }, by("LadWarning.person", "personId", people)]}

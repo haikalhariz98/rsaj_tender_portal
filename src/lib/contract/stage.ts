@@ -103,7 +103,7 @@ export type NotSetFact = "DLP";
 
 export const NOT_SET_WORDS: Readonly<Record<NotSetFact, Words>> = {
   DLP: w(
-    "The defects liability period is not set for this contract, so whether it is in defects liability or goes straight to its final account is not known.",
+    "Defects liability period not set. Stage cannot be judged.",
   ),
 };
 

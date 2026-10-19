@@ -197,8 +197,8 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
         {statusRefused?.code === "CONTRACT_CANCELLED" && <Callout tone="warn" title="The contract is cancelled" />}
         {statusRefused && statusRefused.code !== "CONTRACT_CANCELLED" && <Callout tone="warn" title={statusCalloutTitle(l.contract.status as ContractStatus).en}>{actStatusText(statusRefused)}</Callout>}
         {stage === "CLOSED" && <Callout tone="warn" title="Closed">{`${v.closedReason} (${formatDate(day(v.closedOn))}).`}</Callout>}
-        {commencedPending(f) && <Callout tone="warn" title="Commenced pending approval">{`Work commenced on ${formatDate(day(v.commencedOn))} on the support of ${v.commencedSupport?.name ?? "the S.O."}. Its estimate (${formatMoney(f.estimate)}) is in the contract's exposure until it is approved, and its work is not valued until then.`}</Callout>}
-        {!EXECUTED_STATUSES.includes(l.contract.status) && <Callout tone="info" title="The contract is not executed">{variationFaultText({ code: "NOT_EXECUTED", level: "block" })}</Callout>}
+        {commencedPending(f) && <Callout tone="warn" title="Commenced pending approval">{`Commenced ${formatDate(day(v.commencedOn))} on the support of ${v.commencedSupport?.name ?? "the S.O."}. Estimate ${formatMoney(f.estimate)} counts as exposure until approved.`}</Callout>}
+        {!EXECUTED_STATUSES.includes(l.contract.status) && <Callout tone="warn" title="The contract is not executed">{variationFaultText({ code: "NOT_EXECUTED", level: "block" })}</Callout>}
       </div>
       <ActGate blocker={gate}>
         <Tabs initial={tab} label="Variation" tabs={tabs} />
@@ -509,7 +509,7 @@ function MeasurementPanel({ l, v, people, today, hidden, blockedBy }: { l: Loade
       <CardHeader
         icon={<ScaleIcon size={17} />}
         title="Measured items"
-        subtitle={ins ? `Under the instruction's heading, “${ins.description}”, one item each, never merged. Net so far ${formatMoney(total)}.` : "Measured under the instruction once it is issued."}
+        subtitle={ins ? `Under “${ins.description}”. Net so far ${formatMoney(total)}.` : "Measured under the instruction once it is issued."}
         actions={hidden.includes("VALUATION") ? undefined : <MeasurementDrawer id={l.contract.id} variationId={v.id} heading={ins?.description ?? ""} people={people} sources={RATE_SOURCES.map((x) => ({ value: x, label: RATE_SOURCE_WORDS[x].en }))} directions={ADJUSTMENT_DIRECTIONS.map((x) => ({ value: x, label: DIRECTION_WORDS[x].en }))} today={today} blocker={blocker} />}
         divided={items.length > 0}
       />
@@ -561,7 +561,7 @@ async function OrderPanel({ l, v, f, vv, people, hidden, blockedBy }: Omit<Panel
                 { label: "Net value", value: `${formatMoney(orderNetOf(order) < 0n ? -orderNetOf(order) : orderNetOf(order))}, ${DIRECTION_WORDS[orderNetOf(order) < 0n ? "OMISSION" : "ADDITION"].en.toLowerCase()}` },
                 { label: "Valued under", value: order.valuationClauseTitle },
                 { label: "Its value is covered", value: coverage.length ? <span className="text-amber-800">{say(coverage)}</span> : v.exemption && v.exemption !== "REMEASUREMENT" ? `Exempt from prior approval (${EXEMPTION_WORDS[v.exemption as VariationExemption].en.toLowerCase()}): signed by the S.O.` : "Yes, by the variation's approved routes" },
-                { label: "The contractor", value: dispute ? <span className="flex flex-col items-start gap-1"><Chip tone="err">Disputed</Chip><span className="text-[12.5px] text-ink-3">{`${dispute.name} refused to sign on ${formatDate(dispute.on)}: ${dispute.note}. Recorded for resolution; it does not stop the issue or the payment.`}</span></span> : order.certificate.status === "ISSUED" ? "Signed" : dim("Not signed yet") },
+                { label: "The contractor", value: dispute ? <span className="flex flex-col items-start gap-1"><Chip tone="err">Disputed</Chip><span className="text-[12.5px] text-ink-3">{`${dispute.name} refused to sign on ${formatDate(dispute.on)}: ${dispute.note}. It does not stop issue or payment.`}</span></span> : order.certificate.status === "ISSUED" ? "Signed" : dim("Not signed yet") },
                 { label: "On an adjustment of the contract sum", value: adjustedOn ? `${adjustedOn.number ?? "In progress"} (${CERT_WORDS[adjustedOn.status as CertificateStatus].en.toLowerCase()})` : order.certificate.status === "ISSUED" ? dim("Not raised") : dim("Once issued") },
               ]}
             />

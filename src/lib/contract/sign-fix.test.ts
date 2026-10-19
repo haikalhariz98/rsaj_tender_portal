@@ -57,7 +57,7 @@ describe("the executed snapshot freezes the signature days", () => {
   });
   it("the days are required by the rule (S-4), and the drawer says so", () => {
     expect(readFileSync(path.join(__dirname, "contract-date.ts"), "utf8")).toMatch(/signed: \{ contractor: string \| null; witness: string \| null \} \}/);
-    expect(readFileSync(path.join(__dirname, "../../app/projects/[id]/editors.tsx"), "utf8")).toContain("nor before the contractor signed");
+    expect(readFileSync(path.join(__dirname, "../../app/projects/[id]/editors.tsx"), "utf8")).toContain("not before the contractor signed"); // shortened by note 0005, founder 2026-10-19
   });
   it("the signature act freezes them and the correction act passes them", () => {
     const src = readFileSync(path.join(__dirname, "../../app/projects/[id]/actions.ts"), "utf8");
@@ -79,7 +79,7 @@ describe("no approval-matrix issue in force refuses the RSAJ signature (R-4)", (
   it("an issue in force: clear", () => expect(signFaults(clear)).toEqual([]));
   it("none in force: refused, NO_ISSUE_IN_FORCE, the signatory unresolved", () => {
     expect(codes(signFaults({ ...clear, issueInForce: false, signatory: null }))).toEqual(["NO_ISSUE_IN_FORCE"]);
-    expect(contractFaultWords({ code: "NO_ISSUE_IN_FORCE", level: "block" }).en).toMatch(/^No approval matrix is issued and in force today/);
+    expect(contractFaultWords({ code: "NO_ISSUE_IN_FORCE", level: "block" }).en).toMatch(/^No approval matrix in force/); // shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
   });
   it("no condition frozen is said first; the issue is then not asked", () => {
     expect(codes(signFaults({ ...clear, issueInForce: false, signatory: null, signatoryCond: null }))).toEqual(["SIGNATORY_COND_NOT_FROZEN"]);

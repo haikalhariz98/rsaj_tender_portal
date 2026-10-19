@@ -80,7 +80,7 @@ export function StartPreparationDrawer({ id, blocker, frozen }: { id: string; bl
   return (
     <RecordEditor
       title="Start preparing the contract"
-      description={`Freezes what this contract is formed under, as configured today: ${frozen}. A later change to the configuration does not move it. Builds the baseline's draft from the award, the tender Appendix and the bill.`}
+      description={`Freezes the formation basis: ${frozen}. Builds the baseline draft.`}
       fields={[hidden("id")]}
       values={{ id }}
       action={startPreparation}
@@ -236,7 +236,7 @@ export function SubmitLegalDrawer({ id, office, people, blocker, documents }: { 
   return (
     <RecordEditor
       title={`Send to ${office}`}
-      description={`A new iteration, pinning the versions now attached to go: ${documents}. No limit on iterations and no timeout.`}
+      description={`Pins the versions now attached: ${documents}.`}
       fields={[hidden("id"), by("LegalReview.submittedBy", "personId", people)]}
       values={{ id }}
       action={submitLegal}
@@ -272,7 +272,7 @@ export function WcCheckDrawer({ id, policyId, label, people, today }: { id: stri
   return (
     <RecordEditor
       title="Record the uncovered-wages check"
-      description={`${label}: the uncovered wages the contractor declares, checked before signature. Recorded, not judged: no basis compares the wages with the sum insured (D4).`}
+      description={`${label}: uncovered wages declared, checked before signature. Not judged.`}
       fields={[hidden("id"), hidden("policyId"), by("InsurancePolicy.wcCheckedBy", "personId", people), { kind: "date", name: "checkedOn", label: "Checked on", required: true }, { kind: "money", name: "declaredWages", label: "Declared uncovered wages", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, policyId, checkedOn: today }}
       action={recordWcCheck}
@@ -308,7 +308,7 @@ export function RsajSignatureDrawer({ id, office, people, blocker, contractDate 
   return (
     <RecordEditor
       title="Record the signature for the employer"
-      description={`Executes the contract. Signed by the holder of ${office} on the day, or a delegate where the rule allows. The Contract Date is not asked for: it is the day this is recorded, ${contractDate}. A signature recorded late is corrected afterwards, with a reason.`}
+      description={`Signed by the holder of ${office}, or a delegate. Contract Date is today, ${contractDate}. A late signature is corrected afterwards.`}
       fields={[hidden("id"), by("ContractSignature.person", "personId", people)]}
       values={{ id }}
       action={recordRsajSignature}
@@ -323,7 +323,7 @@ export function CorrectDateDrawer({ id, current }: { id: string; current: string
   return (
     <RecordEditor
       title="Correct the Contract Date"
-      description={`To an earlier day than ${current} only, never before the day the contract was first ready to sign, nor before the contractor signed (or its witness). Audited, with the reason; the screen says it was corrected and from what.`}
+      description={`Earlier than ${current} only, not before the contractor signed. Audited, with the reason.`}
       fields={[hidden("id"), { kind: "date", name: "contractDate", label: "The day it was signed", required: true }]}
       values={{ id }}
       reason={{ label: "Why the day differs from signing" }}
@@ -559,7 +559,7 @@ export function AwardTermDrawer({ id, term, label, current }: { id: string; term
   return (
     <RecordEditor
       title={`Correct the award's term: ${label}`}
-      description={`Recorded as ${current}. Use this only where the award recorded the term wrongly from the signed letter: the award's record is corrected and a new baseline version written, still from the Letter of Acceptance and shown "corrected from". The issued letter, earlier versions and any certificate that read one stay as they were. A change to the terms themselves is a variation, not a correction. Recorded without a second approver until sign-in.`}
+      description={`Recorded as ${current}. Only for a term recorded wrongly from the signed letter. A change to the terms is a variation.`}
       fields={[hidden("id"), hidden("term"), ...TERM_FIELDS[term]]}
       values={{ id, term }}
       reason={{ label: "Why it was recorded wrongly" }}

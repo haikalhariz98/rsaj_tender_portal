@@ -37,7 +37,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<AwardIcon size={17} />} title={<Say words={P.theAward} />} subtitle={`${INSTRUMENT_LABEL[kind]}. The band, method and contract type are the exercise's, shown as it records them.`} />
+        <CardHeader icon={<AwardIcon size={17} />} title={<Say words={P.theAward} />} subtitle={`${INSTRUMENT_LABEL[kind]}`} />
         <CardBody>
           <KeyValues
             columns={2}
@@ -130,8 +130,8 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
         />
         <CardBody>
           {award.termCorrections.length > 0 && (
-            <Callout tone="info" title="Recorded terms corrected after issue" className="mb-4">
-              {`${award.termCorrections.map((x) => `${AWARD_TERM_WORDS[x.term as AwardTerm].en} corrected from ${x.beforeText} to ${x.afterText} on ${formatDate(x.recordedOn)} (${x.reason})`).join("; ")}. Each was recorded wrongly from the signed letter and corrected on the contract's Baseline tab, which wrote a new baseline version; the issued letter is unchanged and shows the terms as issued.`}
+            <Callout tone="warn" title="Recorded terms corrected after issue" className="mb-4">
+              {`${award.termCorrections.map((x) => `${AWARD_TERM_WORDS[x.term as AwardTerm].en} corrected from ${x.beforeText} to ${x.afterText} on ${formatDate(x.recordedOn)} (${x.reason})`).join("; ")}`}
             </Callout>
           )}
           <KeyValues

@@ -526,7 +526,7 @@ async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: Loaded
   }
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ShieldIcon size={17} />} title={t(P.securitiesAndInsurances)} subtitle={`The contract's register, read-only here: lodging and checking sit with the people named on the exercise. ${remindersText(offsets)}, shown and not sent.`} divided={c.securities.length + c.policies.length === 0} />
+      <CardHeader icon={<ShieldIcon size={17} />} title={t(P.securitiesAndInsurances)} subtitle={`Read-only here. ${remindersText(offsets)}, not emailed.`} divided={c.securities.length + c.policies.length === 0} />
       {c.securities.length + c.policies.length === 0 ? (
         <EmptyState size="sm" title="Nothing lodged" />
       ) : (

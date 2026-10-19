@@ -44,7 +44,7 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
   const header = (
     <>
       <RecordCrumb label="New award" />
-      <PageHeader eyebrow={<Link href="/projects">Contracts</Link>} title="New award" subtitle="Opened on an exercise in preparation; the exercise's band decides the instrument." />
+      <PageHeader eyebrow={<Link href="/projects">Contracts</Link>} title="New award" />
     </>
   );
   if (!l) {
@@ -52,9 +52,7 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
       <>
         {header}
         <Card>
-          <EmptyState title="Start from the exercise" action={<ButtonLink href="/sourcing" size="sm">Open Sourcing</ButtonLink>}>
-            An award is opened from an exercise&apos;s Award tab, once the exercise is in preparation.
-          </EmptyState>
+          <EmptyState title="Start from the exercise" action={<ButtonLink href="/sourcing" size="sm">Open Sourcing</ButtonLink>} />
         </Card>
       </>
     );
@@ -137,7 +135,7 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
     { label: "Estimate", value: estimate.state === "GRANTED" ? formatMoney(parseSen(ex.estimatedValue.toString())) : `SULIT · withheld. ${estimate.words.en}` },
     { label: "Instrument", value: "kind" in instrument ? INSTRUMENT_LABEL[instrument.kind] : "Not set" },
     // 64-C4 (6.4 Q-1 B): the terms open as the frozen tender Appendix states them.
-    ...(tender ? [{ label: "Letter's terms", value: `Opened from the tender Appendix (documents version ${tender.packVersion}); a percentage is worked out on the awarded value` }] : []),
+    ...(tender ? [{ label: "Letter's terms", value: `Tender Appendix, documents version ${tender.packVersion}` }] : []),
   ];
   return (
     <>
@@ -145,7 +143,7 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
       <AwardForm
         exercise={{ id: ex.id, facts }}
         cancelHref={`/sourcing/${ex.id}?tab=award`}
-        valueHint={headroom == null ? "The requisition has no approved value on record, so nothing can be awarded against it." : reqEstimate.state === "WITHHELD" ? "What the requisition's approval covers is made of the department estimate, which is closed to you, so the most that can be awarded is not stated. In ringgit, to at most two decimal places." : `Up to ${formatMoney(headroom)}: what the requisition's approval covers${siblings.length ? ", less its other awards" : ""}. In ringgit, to at most two decimal places.`}
+        valueHint={headroom == null ? "No approved value on the requisition." : reqEstimate.state === "WITHHELD" ? "Maximum not shown: the estimate is closed to you. Ringgit, up to two decimals." : `Up to ${formatMoney(headroom)}${siblings.length ? ", less its other awards" : ""}. Ringgit, up to two decimals.`}
         dossier={dossierEvidenceMissing(method, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: dossierEvidence })}
         parties={carried ? carried.map((p) => { const r = register.get(p.id); return { ...p, register: r ? { supplier: r.supplier, words: r.standing.words.en, tone: r.standing.tone, warning: r.standing.warning?.en ?? null } : null }; }) : undefined}
         recommended={evaluation.gate.applies && recommended ? { partyId: recommended.party.id, name: recommended.party.name, registrationNo: recommended.party.registrationNo, address: recommended.party.address, value: senToDecimalString(recommended.price), valueText: formatMoney(recommended.price), period: recommended.period ? String(recommended.period.value) : "", unit: recommended.period?.unit ?? "", version: evaluation.version! } : undefined}
