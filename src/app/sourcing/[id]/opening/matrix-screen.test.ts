@@ -39,8 +39,9 @@ describe("the SR-14 matrix on screen", () => {
     expect(html).not.toContain("/api/opening/filed-file");
     expect(html).toContain("Confirm this column");
     expect(html).toContain('data-options="REJECT"');
-    // Present is disabled for the part with no file, and only for it.
-    expect(html.match(/disabled=""[^>]*title="[^"]*"[^>]*>Present/g)?.length).toBe(1);
+    // Present is unavailable for the part with no file, and only for it. It stays focusable (aria-disabled) and
+    // its reason is its description (N3 review item 4, 2026-10-20), not a native title.
+    expect(html.match(/aria-disabled="true"[^>]*aria-describedby="[^"]+"[^>]*>Present/g)?.length).toBe(1);
   });
 
   it("a reader whose names are held reads that the day is held, never 'not acknowledged', and gets no file control", () => {

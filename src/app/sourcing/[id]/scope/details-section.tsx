@@ -160,7 +160,6 @@ function DetailsCard({ p }: { p: DetailsProps }) {
         subtitle={
           <>
             Eligibility and details{" "}
-            <span className="sr-only">The registrations, the restriction and the permit are fixed once the documents go for approval. The work code and the person in charge stay open until an award goes for approval.</span>
             <MoreText text="The registrations, the restriction and the permit are fixed once the documents go for approval. The work code and the person in charge stay open until an award goes for approval." label="When these can change" />
           </>
         }

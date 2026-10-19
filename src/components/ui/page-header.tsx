@@ -80,9 +80,6 @@ export function PageHeader({
           </h1>
           {info && (
             <>
-              <span className="sr-only">
-                {info.title}. {info.text}
-              </span>
               <MoreText text={info.text} title={info.title} variant="note" label={info.title} />
             </>
           )}
@@ -148,7 +145,6 @@ function Subtitle({ children }: { children: ReactNode }) {
   if (!cut) return <>{children}</>;
   return (
     <>
-      <span className="sr-only">{children}</span>
       <span aria-hidden="true">{text}…</span> <MoreText text={children} />
     </>
   );

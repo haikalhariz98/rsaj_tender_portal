@@ -3,8 +3,10 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { useSay } from "@/components/i18n/language-context";
 import { shellCountsAction } from "@/app/_auth/shell-counts";
 import { isSignInPath } from "@/lib/auth/routes";
+import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 
 import type { ShellOrganisation, ShellUser } from "@/lib/shell";
 
@@ -34,6 +36,7 @@ export function AppShell({
 }) {
   // Closed by the sidebar itself on every link and workspace switch (`onNavigate`),
   // by the scrim, and by Escape.
+  const say = useSay();
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -75,6 +78,12 @@ export function AppShell({
 
   return (
     <div className="relative min-h-dvh">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-surface focus:px-4 focus:py-2.5 focus:font-semibold focus:text-brand-700 focus:shadow-pop print:hidden"
+      >
+        {say(COMPONENT_WORDS.skipToContent)}
+      </a>
       {/* The sidebar itself is fixed to the viewport; this strip is the same surface
           running the whole height of the page, so a long page, a full-page capture or
           overscroll never shows the canvas under it. */}
@@ -112,7 +121,7 @@ export function AppShell({
           signOut={signOut}
           signInHref={portalOnly ? "/supplier/sign-in" : "/sign-in"}
         />
-        <main className="min-w-0 flex-1 px-4 pt-7 pb-16 sm:px-6 lg:px-8 print:p-0">
+        <main id="main" tabIndex={-1} className="min-w-0 outline-none flex-1 px-4 pt-7 pb-16 sm:px-6 lg:px-8 print:p-0">
           <div className="mx-auto w-full max-w-[1400px]">
             {children}
           </div>

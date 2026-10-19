@@ -10,6 +10,7 @@ import { w, type Words } from "@/lib/contract/labels";
 export const COMPONENT_WORDS = {
   // Drawers and the editor
   close: w("Close"),
+  skipToContent: w("Skip to content"),
   cancel: w("Cancel"),
   save: w("Save"),
   saving: w("Saving…"),

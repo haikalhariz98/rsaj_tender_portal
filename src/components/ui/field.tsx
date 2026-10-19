@@ -192,7 +192,7 @@ export function FileInput({
             aria-valuenow={progressPercent(loaded[0], loaded[1])}
             className="h-1.5 w-full overflow-hidden rounded-full bg-sunken"
           >
-            <div className="h-full rounded-full bg-brand-600 transition-[width]" style={{ width: `${progressPercent(loaded[0], loaded[1])}%` }} />
+            <div className="h-full origin-left rounded-full bg-brand-600 transition-transform" style={{ transform: `scaleX(${progressPercent(loaded[0], loaded[1]) / 100})` }} />
           </div>
           <p className="mt-1 text-[12.5px] text-ink-3" aria-live="polite">
             {progressText(loaded[0], loaded[1])}

@@ -2,7 +2,7 @@
 
 import { useSay } from "@/components/i18n/language-context";
 import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { InfoIcon } from "@/components/icons";
 
@@ -16,8 +16,8 @@ const CLOSE_DELAY = 200;
 /// popover stays open while the pointer is over it), on keyboard focus, and on tap or
 /// click, which pins it until a second tap, an outside tap or Escape.
 ///
-/// The full text is also in the page as screen-reader-only text (see PageHeader), so the
-/// popover is hidden from assistive technology: it is heard once, not twice.
+/// The full text is in the page as screen-reader-only text rendered here, so the popover is
+/// hidden from assistive technology: it is heard once, and callers add no copy of their own.
 export function MoreText({
   text,
   title,
@@ -36,12 +36,12 @@ export function MoreText({
   const say = useSay();
   const [open, setOpen] = useState(false);
   const [above, setAbove] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
   const pinned = useRef(false);
   const keyboard = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLSpanElement>(null);
   const pop = useRef<HTMLSpanElement>(null);
-  const id = useId();
 
   const clear = () => clearTimeout(timer.current);
   const close = useCallback(() => {
@@ -56,7 +56,12 @@ export function MoreText({
     const p = pop.current?.getBoundingClientRect();
     const b = root.current?.getBoundingClientRect();
     if (p && b && p.bottom > window.innerHeight - 8 && b.top > p.height + 16) setAbove(true);
-    return () => setAbove(false);
+    // Flip to the button's right edge when the popover would run past the window's right side.
+    if (p && b && p.right > window.innerWidth - 8 && b.right - p.width >= 8) setAlignRight(true);
+    return () => {
+      setAbove(false);
+      setAlignRight(false);
+    };
   }, [open]);
 
   // Outside tap or click closes a pinned popover; Escape closes whatever is open.
@@ -66,13 +71,16 @@ export function MoreText({
       if (!root.current?.contains(e.target as Node)) close();
     };
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      close();
     };
     document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", key);
+    // Capture phase, and stopped: Escape closes this popover first, not the drawer around it.
+    document.addEventListener("keydown", key, true);
     return () => {
       document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", key);
+      document.removeEventListener("keydown", key, true);
     };
   }, [open, close]);
 
@@ -91,12 +99,10 @@ export function MoreText({
   };
 
   return (
-    <span ref={root} className={cx("-my-1 inline-block align-middle", variant === "note" && "relative")} onPointerEnter={hoverIn} onPointerLeave={hoverOut}>
+    <span ref={root} className="relative -my-1 inline-block align-middle" onPointerEnter={hoverIn} onPointerLeave={hoverOut}>
       <button
         type="button"
         aria-label={label ?? say(COMPONENT_WORDS.showFullDescription)}
-        aria-expanded={open}
-        aria-controls={id}
         className={cx(
           iconButtonClass("sm", false, "size-6 hover:text-brand-700 focus-visible:text-brand-700"),
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500",
@@ -125,14 +131,18 @@ export function MoreText({
       >
         <InfoIcon size={16} />
       </button>
+      <span className="sr-only">
+        {title ? `${title}. ` : ""}
+        {text}
+      </span>
       {open && (
         <span
           ref={pop}
-          id={id}
           aria-hidden="true"
           className={cx(
-            "absolute left-0 z-30 block w-max max-w-[min(36rem,calc(100vw-2rem))] p-3 text-left text-[13.5px] leading-snug font-normal tracking-normal shadow-pop",
+            "absolute z-30 block w-max max-w-[min(36rem,calc(100vw-2rem))] p-3 text-left text-[13.5px] leading-snug font-normal tracking-normal shadow-pop",
             variant === "note" ? "rounded-xl bg-ink p-4 text-white" : "rounded-2xl border border-line bg-surface text-ink-2",
+            alignRight ? "right-0" : "left-0",
             above ? "bottom-full mb-2" : "top-full mt-2",
           )}
         >
@@ -151,8 +161,7 @@ export function MoreText({
 export function LeadWithMore({ lead, more }: { lead: string; more: string }) {
   return (
     <>
-      {lead} <span className="sr-only">{more}</span>
-      <MoreText text={more} />
+      {lead} <MoreText text={more} />
     </>
   );
 }

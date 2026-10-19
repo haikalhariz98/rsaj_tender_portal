@@ -50,6 +50,10 @@ html,
 body {
   height: 100%;
 }
+/* The sticky top bar is 64px, so a focused control scrolled into view clears it. */
+html {
+  scroll-padding-top: 5rem;
+}
 body {
   background: var(--color-canvas);
   color: var(--color-ink);
@@ -61,6 +65,21 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
+}
+
+/* Reduced motion: no transitions, animated scroll or nudges (the spinner keeps its own rule). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .active\:translate-y-px:active,
+  .hover\:-translate-y-0\.5:hover {
+    translate: none !important;
+    transform: none !important;
+  }
 }
 
 @layer base {

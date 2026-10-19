@@ -82,7 +82,7 @@ function useScrollStrip<T extends HTMLElement>(currentSelector: string, keyOf: s
     // The scroll event that follows (onScroll) measures again.
   }, [el, currentSelector, keyOf]);
 
-  const scroll = (dir: -1 | 1) => el?.scrollBy({ left: dir * Math.max(120, el.clientWidth * 0.6), behavior: "smooth" });
+  const scroll = (dir: -1 | 1) => el?.scrollBy({ left: dir * Math.max(120, el.clientWidth * 0.6), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   // Edge fades say there are more items off-screen. A mask rather than an overlay, so it
   // needs no colour matched to what is behind and never intercepts a click.
   const mask: CSSProperties | undefined =
