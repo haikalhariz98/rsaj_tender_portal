@@ -1,4 +1,3 @@
-import { Accordion } from "@/components/accordion";
 import { periodText } from "@/lib/effective-text";
 import { gapMatters, gapTitle } from "@/lib/authority/gaps";
 import { AuthoritySimulator } from "@/components/authority-simulator";
@@ -46,7 +45,7 @@ import type { Regime } from "@/lib/method/types";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/button";
-import { Callout, Note } from "@/components/ui/feedback";
+import { Callout } from "@/components/ui/feedback";
 import { MoreText } from "@/components/ui/more-text";
 import { cx } from "@/components/ui/cx";
 import type { Rule } from "@/lib/authority/types";
@@ -56,6 +55,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { InfoChip } from "@/components/ui/info-chip";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Disclosure } from "@/components/ui/disclosure";
+import { startsOpen } from "@/lib/disclosure/open";
 import { EmptyState } from "@/components/ui/feedback";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { ActionsCol, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -80,10 +81,10 @@ function stateOf(issue: IssueSummary, on: Date): { label: string; tone: "ok" | "
 export default async function ApprovalMatrixPage({
   searchParams,
 }: {
-  searchParams: Promise<{ issue?: string }>;
+  searchParams: Promise<{ issue?: string; section?: string }>;
 }) {
   const actor = await requireStaff();
-  const { issue: requested } = await searchParams;
+  const { issue: requested, section } = await searchParams;
   // The vocabulary this customer has configured. Which funding routes override the
   // matrix is a property of the route, not of its name.
   const on = new Date();
@@ -238,6 +239,13 @@ export default async function ApprovalMatrixPage({
   const gaps = gapList.length;
   const committees = new Set(matrix.rules.map((r) => r.committeeCode).filter(Boolean)).size;
 
+  // 0005 R13, 2026-10-20: every card but the value bands folds to one line. Open only for a fault, or when the address points at it.
+  const assumedTerms = termsBands.filter((t) => t.provenance === "ASSUMED").length;
+  const assumedCore = coreRows.filter((l) => l.provenance === "ASSUMED").length;
+  const noun = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const assumedChip = (n: number) => (n > 0 ? <Badge tone="warn">{n} Assumed</Badge> : null);
+  const destinationsSet = REJECTION_DOMAINS.filter((d) => destinationFor(destinations, d, on).set).length;
+
   return (
     <>
       <PageHeader
@@ -359,7 +367,6 @@ export default async function ApprovalMatrixPage({
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Value bands"
-            subtitle="Thresholds applied to every routing decision."
           />
           <CardBody className="flex flex-col gap-6">
             <div className="grid gap-4 md:grid-cols-3">
@@ -367,7 +374,6 @@ export default async function ApprovalMatrixPage({
                 tone="neutral"
                 label="Below the quotation floor"
                 value={`≤ ${formatValueBand(null, matrix.policy.quotationFloor).replace("≤ ", "")}`}
-                hint="Matters valued at or below the quotation floor."
                 variant="inset"
                 size="sm"
               />
@@ -375,7 +381,6 @@ export default async function ApprovalMatrixPage({
                 tone="neutral"
                 label="Quotation band"
                 value={formatValueBand(matrix.policy.quotationFloor, matrix.policy.tenderFloor)}
-                hint="Above the quotation floor, to where bands meet."
                 variant="inset"
                 size="sm"
               />
@@ -383,7 +388,6 @@ export default async function ApprovalMatrixPage({
                 tone="neutral"
                 label="Tender band"
                 value={formatValueBand(matrix.policy.tenderFloor, null)}
-                hint="Above the point where the bands meet."
                 variant="inset"
                 size="sm"
               />
@@ -404,17 +408,26 @@ export default async function ApprovalMatrixPage({
                 {
                   label: "A value exactly on the boundary",
                   value: (
-                    <span>{boundarySentence(matrix.policy.boundaryInclusive ? "GT" : "GTE", String(matrix.policy.boundaryValue), boundaryMeta.boundaryProvenance)}</span>
+                    <span className="inline-flex flex-wrap items-center gap-1">
+                      <span>{matrix.policy.boundaryInclusive ? "Quotation band" : "Tender band"}</span>
+                      <MoreText
+                        label="About the boundary"
+                        text={`${boundarySentence(matrix.policy.boundaryInclusive ? "GT" : "GTE", String(matrix.policy.boundaryValue), boundaryMeta.boundaryProvenance)} The boundary is a policy choice. The other reading gives a different committee, approver and award instrument. Only this exact value is affected; a percentage band edge follows the same setting.`}
+                      />
+                    </span>
                   ),
                 },
                 {
                   // ADR 0024 Amendment 1 (6.13 Part A step 1): percentage band edges follow the same switch.
                   label: "A percentage exactly on a band edge",
-                  // BD-613-5 ruling: the line carries the boundary ruling's provenance, as the side it reads is that ruling's.
+                  // 0005 R14, 2026-10-20: the side is the boundary ruling's, shown once; the example and the exact-ratio rule sit behind the button.
                   value: (
-                    <span className="flex flex-col items-start gap-1">
-                      <span>{matrix.policy.boundaryInclusive ? "Falls in the band the edge closes: up to and including it (a variation of exactly 10.00% sits in the band ending at 10%)." : "Falls in the band the edge opens: from it upwards (a variation of exactly 10.00% sits in the band starting at 10%)."} Judged on the exact ratio of the two amounts, never a rounded figure.</span>
-                      <ProvenanceBadge value={boundaryMeta.boundaryProvenance} />
+                    <span className="inline-flex flex-wrap items-center gap-1">
+                      <span>Same side as the boundary</span>
+                      <MoreText
+                        label="About percentage edges"
+                        text={`${matrix.policy.boundaryInclusive ? "Falls in the band the edge closes: up to and including it (a variation of exactly 10.00% sits in the band ending at 10%)." : "Falls in the band the edge opens: from it upwards (a variation of exactly 10.00% sits in the band starting at 10%)."} Judged on the exact ratio of the two amounts, never a rounded figure.`}
+                      />
                     </span>
                   ),
                 },
@@ -435,37 +448,29 @@ export default async function ApprovalMatrixPage({
                   value: (
                     <span className="flex flex-col">
                       <span className="tabular-nums">{formatValueBand(null, matrix.policy.requisitionBoundary).replace("≤ ", "")}</span>
-                      <span className="text-[12.5px] text-ink-3">Shown for reference: who approves a requisition is set by the requisition rules below.</span>
+                      <span><MoreText label="About the requisition boundary" text="Shown for reference: who approves a requisition is set by the requisition rules below." /></span>
                     </span>
                   ),
                 },
               ]}
             />
-
-            <Note>
-              Exactly{" "}
-              <span className="font-semibold tabular-nums">
-                {formatValueBand(null, matrix.policy.boundaryValue).replace("≤ ", "")}
-              </span>{" "}
-              sits in the{" "}
-              <span className="font-semibold">
-                {matrix.policy.boundaryInclusive ? "quotation" : "tender"}
-              </span>{" "}
-              band.{" "}
-              <MoreText
-                label="About the boundary"
-                text="The boundary is a policy choice. The other reading gives a different committee, approver and award instrument. Only this exact value is affected; a percentage band edge follows the same setting."
-              />
-            </Note>
           </CardBody>
         </Card>
 
         <Card>
           <CardHeader
+            collapsible
+            id="band-families"
+            defaultOpen={startsOpen({}, { id: "band-families", target: section })}
             icon={<SlidersIcon size={17} />}
             title="Three band families"
-            subtitle="Held separately"
-          />
+            summary={
+              <>
+                <span>{noun(requisitionRules.length + 3 + termsBands.length, "row", "rows")}</span>
+                {termsBands.length === 0 && <Badge tone="warn">Not set</Badge>}
+              </>
+            }
+          >
           <CardBody className="grid gap-4 md:grid-cols-3">
             <div className="min-w-0 rounded-2xl border border-line/60 bg-sunken p-4">
               <h4 className="text-[13px] font-semibold text-ink-2">Requisition approval</h4>
@@ -507,6 +512,7 @@ export default async function ApprovalMatrixPage({
               )}
             </div>
           </CardBody>
+          </CardHeader>
         </Card>
 
         {consistency.map((f, i) => (
@@ -519,9 +525,18 @@ export default async function ApprovalMatrixPage({
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Contract terms bands"
-            subtitle="Which terms apply at a value"
-            actions={editable ? <AddTermsBand matrixId={matrixId} /> : <Badge outline>{termsBands.length} {termsBands.length === 1 ? "band" : "bands"}</Badge>}
-          />
+            collapsible
+            id="terms-bands"
+            defaultOpen={startsOpen({}, { id: "terms-bands", target: section })}
+            summary={
+              <>
+                <span>{noun(termsBands.length, "band", "bands")}</span>
+                {termsBands.length === 0 && <Badge tone="warn">Not set</Badge>}
+                {assumedChip(assumedTerms)}
+              </>
+            }
+          >
+          {editable && <div className="flex justify-end px-5 pt-4 sm:px-6"><AddTermsBand matrixId={matrixId} /></div>}
           {termsBands.length === 0 ? (
             <EmptyState size="sm" title="No terms bands set" />
           ) : (
@@ -573,15 +588,26 @@ export default async function ApprovalMatrixPage({
               </tbody>
             </Table>
           )}
+          </CardHeader>
         </Card>
 
         <Card className="overflow-hidden">
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Core routing"
-            subtitle="By the office that approves"
-            actions={editable ? <AddCoreLevel matrixId={matrixId} offices={offices} /> : <Badge outline>{coreRows.length} {coreRows.length === 1 ? "office" : "offices"}</Badge>}
-          />
+            collapsible
+            id="core-routing"
+            defaultOpen={startsOpen({ finding: coreRefusals.length > 0 }, { id: "core-routing", target: section })}
+            summary={
+              <>
+                <span>{noun(coreRows.length, "office", "offices")}</span>
+                {coreRows.length === 0 && <Badge tone="warn">Not set</Badge>}
+                {coreRefusals.length > 0 && <Badge tone="err">{noun(coreRefusals.length, "fault", "faults")}</Badge>}
+                {assumedChip(assumedCore)}
+              </>
+            }
+          >
+          {editable && <div className="flex justify-end px-5 pt-4 sm:px-6"><AddCoreLevel matrixId={matrixId} offices={offices} /></div>}
           {coreRefusals.length > 0 && (
             <div className="px-5 pb-4 sm:px-6">
               <Callout tone="err" title={coreRefusals.length === 1 ? "One rule or row would stop this issue being issued" : `${coreRefusals.length} rules or rows would stop this issue being issued`}>
@@ -659,25 +685,35 @@ export default async function ApprovalMatrixPage({
               </tbody>
             </Table>
           )}
+          </CardHeader>
         </Card>
 
         <Card>
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Routing rules"
-            subtitle="Rules grouped by decision type."
-            actions={<Badge outline>{matrix.rules.length} rules</Badge>}
-          />
+            collapsible
+            id="routing-rules"
+            defaultOpen={startsOpen({ finding: refusedDomains.size > 0 }, { id: "routing-rules", target: section })}
+            summary={
+              <>
+                <span>{noun(matrix.rules.length, "rule", "rules")}</span>
+                {matrix.rules.length === 0 && <Badge tone="warn">Not set</Badge>}
+                {assumedChip(gaps)}
+              </>
+            }
+          >
           <CardBody className="flex flex-col gap-3">
             {domains.length === 0 && (
               <EmptyState size="sm" title={selectedRoute ? "No funder rules supplied" : "No rules yet"} />
             )}
-            {domains.map(([domain, rules], i) => (
-              <Accordion
+            {domains.map(([domain, rules]) => (
+              <Disclosure
                 key={domain}
+                boxed
                 title={matterLabel(domain)}
-                meta={`${rules.length} ${rules.length === 1 ? "rule" : "rules"}`}
-                defaultOpen={i === 0 || refusedDomains.has(domain)}
+                summary={noun(rules.length, "rule", "rules")}
+                defaultOpen={startsOpen({ finding: refusedDomains.has(domain) })}
               >
                 <Table stack minWidth={editable ? 920 : 820}>
                   <colgroup>
@@ -813,9 +849,10 @@ export default async function ApprovalMatrixPage({
                     })}
                   </tbody>
                 </Table>
-              </Accordion>
+              </Disclosure>
             ))}
           </CardBody>
+          </CardHeader>
         </Card>
 
         {gaps > 0 && (
@@ -833,8 +870,16 @@ export default async function ApprovalMatrixPage({
             <CardHeader
               icon={<SlidersIcon size={17} />}
               title="When a matter is rejected"
-              subtitle="By matter type. Unset: officer chooses."
-            />
+              collapsible
+              id="rejection-destinations"
+              defaultOpen={startsOpen({}, { id: "rejection-destinations", target: section })}
+              summary={
+                <>
+                  <span>{destinationsSet} of {REJECTION_DOMAINS.length} set</span>
+                  {destinationsSet < REJECTION_DOMAINS.length && <Badge tone="warn">Not set</Badge>}
+                </>
+              }
+            >
             <Table stack minWidth={720}>
               <colgroup>
                 <col style={{ width: "24%" }} />
@@ -882,6 +927,7 @@ export default async function ApprovalMatrixPage({
                 })}
               </tbody>
             </Table>
+            </CardHeader>
           </Card>
         )}
 
@@ -890,8 +936,10 @@ export default async function ApprovalMatrixPage({
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Simulator"
-            subtitle="Resolve a route for a case"
-          />
+            collapsible
+            id="simulator"
+            defaultOpen={startsOpen({}, { id: "simulator", target: section })}
+          >
           <CardBody>
             <AuthoritySimulator
               domains={[...byDomain.keys()]
@@ -908,6 +956,7 @@ export default async function ApprovalMatrixPage({
               fundingRoutes={fundingRoutes.map((r) => ({ code: r.code, label: r.nameEn }))}
             />
           </CardBody>
+          </CardHeader>
         </Card>
         )}
       </div>
