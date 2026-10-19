@@ -43,6 +43,7 @@ import {
   RemovePublicationDrawer,
   WindowDecisionDrawer,
 } from "./editors";
+import { Disclosure } from "@/components/ui/disclosure";
 
 type Route = LoadedExercise["ex"]["approvalInstances"][number];
 export type Person = { value: string; label: string };
@@ -256,10 +257,9 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
         <Card>
           <CardHeader icon={<FileIcon size={17} />} title="The notice" subtitle={d.notice.template ? `From ${d.notice.template}` : "Draft until published"} />
           <CardBody>
-            <details className="text-[13.5px]">
-              <summary className="cursor-pointer font-semibold text-ink-3">Read the notice</summary>
-              <p className="mt-3 break-words whitespace-pre-line text-ink-2">{d.notice.text}</p>
-            </details>
+            <Disclosure title="Read the notice">
+              <p className="break-words whitespace-pre-line text-ink-2">{d.notice.text}</p>
+            </Disclosure>
           </CardBody>
         </Card>
       )}

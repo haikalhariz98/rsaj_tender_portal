@@ -25,6 +25,7 @@ import { INVITED_READING_LABEL, UNPURCHASED_LABEL } from "@/lib/opening/labels";
 import { CalendarDrawer, ChannelDrawer, EditMethodBidRule, EditMethodOpeningRule, EditOpeningPolicy, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
+import { Disclosure } from "@/components/ui/disclosure";
 
 export const dynamic = "force-dynamic";
 
@@ -447,8 +448,7 @@ export default async function InvitationControlsPage() {
                   </ul>
                 )}
                 {cal.holidays.length > 0 && (
-                  <details className="border-t border-line">
-                    <summary className="cursor-pointer px-5 py-3 text-[13px] font-semibold text-ink-3 sm:px-6">{cal.holidays.length} public {cal.holidays.length === 1 ? "holiday" : "holidays"}</summary>
+                  <Disclosure className="border-t border-line px-5 py-3 sm:px-6" title={`${cal.holidays.length} public ${cal.holidays.length === 1 ? "holiday" : "holidays"}`}>
                     <Table minWidth={560}>
                       <colgroup>
                         <col style={{ width: 140 }} />
@@ -473,7 +473,7 @@ export default async function InvitationControlsPage() {
                         ))}
                       </tbody>
                     </Table>
-                  </details>
+                  </Disclosure>
                 )}
               </Card>
             );

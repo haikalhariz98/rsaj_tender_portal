@@ -13,6 +13,7 @@ import type { scopeTab } from "@/lib/scope/read";
 import { NOT_SET, SCOPE_CONFIG_PATH } from "@/lib/scope/labels";
 
 import { EditPanelDrawer, MarkVerifiedDrawer, TableScopeDrawer, TakeSettingsDrawer, VerifyColumnDrawer } from "./editors";
+import { Disclosure } from "@/components/ui/disclosure";
 
 type Data = NonNullable<Awaited<ReturnType<typeof scopeTab>>>;
 
@@ -124,14 +125,13 @@ export function ScopeSection({ d }: { d: Data }) {
                 </ul>
               )}
               {panel.cleared.length > 0 && (
-                <details className="mt-3 text-[13px] text-ink-2">
-                  <summary className="cursor-pointer font-semibold text-ink-3">Cleared verifications ({panel.cleared.length})</summary>
-                  <ul className="mt-2 flex flex-col gap-1 pl-4">
+                <Disclosure className="mt-3" title={`Cleared verifications (${panel.cleared.length})`}>
+                  <ul className="flex flex-col gap-1 pl-4 text-[13px] text-ink-2">
                     {panel.cleared.map((c, i) => (
                       <li key={i}>{c.column}, by {c.by}: cleared on {c.clearedOn} when the panel was edited.</li>
                     ))}
                   </ul>
-                </details>
+                </Disclosure>
               )}
             </div>
           </CardBody>

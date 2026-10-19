@@ -12,6 +12,7 @@ import type { addendaTab } from "@/lib/window/read";
 import { DeliveryList } from "./common";
 import { AddendumDeliveryDrawer, AddendumDrawer, IssueAddendumDrawer, VoidAddendumDrawer } from "./editors";
 import type { WindowContext } from "./window-section";
+import { Disclosure } from "@/components/ui/disclosure";
 
 type Addenda = NonNullable<Awaited<ReturnType<typeof addendaTab>>>;
 
@@ -73,10 +74,9 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
                 ]}
               />
               {a.text && (
-                <details className="text-[13.5px]">
-                  <summary className="cursor-pointer font-semibold text-ink-3">Read the addendum as issued</summary>
-                  <p className="mt-3 break-words whitespace-pre-line text-ink-2">{a.text}</p>
-                </details>
+                <Disclosure title="Read the addendum as issued">
+                  <p className="break-words whitespace-pre-line text-ink-2">{a.text}</p>
+                </Disclosure>
               )}
               {draft && (
                 <div className="flex flex-wrap items-center gap-2">

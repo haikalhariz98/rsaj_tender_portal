@@ -8,6 +8,7 @@ import { BID_KIND_WORDS, BID_STATUS_WORDS, SCREEN_WORDS } from "@/lib/bids/onlin
 
 import { ReceiptCard, type ReceiptData } from "./receipt-card";
 import { WithdrawControl } from "./withdraw-control";
+import { Disclosure } from "@/components/ui/disclosure";
 
 /**
  * The supplier's own submissions on one exercise (SR-13, ADR 0036 D7, rulings 20s, 20an; build plan step 11): each with its own number, the stamp, the status and the receipt digest in full.
@@ -65,10 +66,9 @@ export function SubmissionsList({ reference, title, supplierName, demonstration,
               </ToneNote>
             )}
             {v.openingListMissing && <Note><Bi words={SCREEN_WORDS.rollMissing} /></Note>}
-            <details className="rounded-xl border border-line bg-surface px-4 py-3 print:border-0 print:p-0">
-              <summary className="cursor-pointer text-[13.5px] font-semibold text-ink print:hidden"><Bi words={SCREEN_WORDS.showReceipt} inline /></summary>
-              <div className="mt-3"><ReceiptCard data={data} /></div>
-            </details>
+            <Disclosure boxed className="bg-surface print:border-0 print:p-0" title={<Bi words={SCREEN_WORDS.showReceipt} inline />}>
+              <ReceiptCard data={data} />
+            </Disclosure>
             {v.status === "SUBMITTED" && (
               <div className="flex flex-wrap items-center justify-end gap-2 print:hidden">
                 <WithdrawControl onlineBidId={v.id} token={token} linked={v.linked} allowed={v.withdraw} />

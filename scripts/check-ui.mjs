@@ -69,6 +69,12 @@ for (const file of MIGRATED.flatMap(files).filter((f) => /\.tsx?$/.test(f))) {
     (counts[key] ??= []).push(v);
   }
   const lines = source.split("\n");
+  // Note 0005 R12: a fold is the shared Disclosure or CardHeader collapsible, never a raw details element.
+  if (slash(file).startsWith("src/app/")) {
+    lines.forEach((line, i) => {
+      if (/<details\b/.test(line)) problems.push(`${file}:${i + 1}  raw <details> — use Disclosure or CardHeader collapsible (src/components/ui)`);
+    });
+  }
   lines.forEach((line, i) => {
     for (const cls of FORBIDDEN) {
       if (new RegExp(`className=[{"'\`][^>]*\\b${cls}(__|--|\\b)`).test(line)) {
