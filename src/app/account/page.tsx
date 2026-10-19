@@ -5,6 +5,8 @@ import { LastSignIn } from "@/components/auth/last-sign-in";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
+import { LeadWithMore } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { loadAccountView } from "@/lib/auth/account-view";
@@ -45,11 +47,10 @@ export default async function AccountPage() {
     <>
       <PageHeader
         title="Your account"
-        subtitle="Your sign-in, your password and where you are signed in."
-        meta={[actor.personName, view.loginName]}
+        meta={[actor.personName, view.loginName, <InfoChip key="pw" outline detail="No second sign-in step is built.">Password only</InfoChip>]}
         actions={
           <ButtonLink href="/" variant="secondary" size="sm" icon={<BackIcon size={15} />}>
-            Back to the dashboard
+            Dashboard
           </ButtonLink>
         }
       />
@@ -79,7 +80,7 @@ export default async function AccountPage() {
         <LastSignIn info={view.last} timeZone={zone} />
 
         <Card>
-          <CardHeader icon={<LockIcon size={18} />} title="Change your password" subtitle={`Last changed ${formatOrgDateTime(view.passwordChangedAt, zone)}. Changing it ends every other sign-in of yours.`} />
+          <CardHeader icon={<LockIcon size={18} />} title="Change your password" subtitle={<LeadWithMore lead={`Last changed ${formatOrgDateTime(view.passwordChangedAt, zone)}`} more="Changing it ends every other sign-in of yours." />} />
           <CardBody>
             <div className="max-w-md">
               <AuthForm
@@ -100,7 +101,6 @@ export default async function AccountPage() {
           <CardHeader
             icon={<ShieldIcon size={18} />}
             title="Where you are signed in"
-            subtitle="If one of these is not yours, sign out everywhere and change your password."
             actions={
               <form action={signOutEverywhereAction}>
                 <Button type="submit" variant="destructive" size="sm" icon={<LogOutIcon size={15} />}>

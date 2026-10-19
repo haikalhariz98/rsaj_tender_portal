@@ -37,19 +37,19 @@ export const AUTH_WORDS = {
   wrongOrigin: { en: "That request did not come from this site, so it was refused." },
   resetNoticeTitle: { en: "Your password was reset" },
   resetNoticeBody: {
-    en: "This account's password was reset by someone else: with a one-time code from an administrator, or by an operator on the server. If that was not you, or you did not ask for it, tell an administrator now.",
+    en: "Someone else reset it. If you did not ask, tell an administrator now.",
   },
   mustChangeTitle: { en: "Choose a new password" },
-  mustChangeBody: { en: "This account must have a new password before anything else is done with it." },
+  mustChangeBody: { en: "Set a new password before anything else." },
   previousTitle: { en: "Your last sign-in" },
-  previousFirst: { en: "This is the first time this account has signed in." },
+  previousFirst: { en: "First sign-in on this account." },
   addressUnknown: { en: "address not known" },
-  noFailures: { en: "Nobody has tried and failed to sign in to your account since." },
+  noFailures: { en: "No failed sign-ins since." },
   secondFactorNotBuilt: {
-    en: "Second sign-in step not built — approvers sign in with a password only (NFR-SEC-005 not met).",
+    en: "Password only. No second sign-in step.",
   },
   addressesNotRecorded: {
-    en: "Source addresses are not recorded: this copy has not been told how many proxies sit in front of it, so a request's address cannot be trusted. The limit on failed sign-ins from one address is therefore not applied, and only the lock on each account holds back guessing, until it is set.",
+    en: "Not recorded. Only each account's lock limits guessing.",
   },
   // The staff sign-in page (founder's mock-up, 2026-10-07). Product wording: nothing here names an organisation.
   welcomeTo: { en: "Welcome to" },

@@ -491,6 +491,22 @@ const DECIDED_ABSENT = [
     match: /^(Delivery|Open my steps)$/,
     why: "GN-05 (AC-14): the Delivery box and the Open my steps button are removed from the Inbox; the shell's My approvals item opens the same list",
   },
+  // Note 0005, founder 2026-10-19 (minimal words): explanatory sentences cut from the dashboard, the Inbox and the account page. Each was explanation, not a field: the figures, states and warnings stay.
+  {
+    screen: /^[/]$/,
+    match: /^(Matters routed to a committee.*|Open approval routes.*|These will report here.*|Progress, certified value.*|Committees scheduled to sit.*|Requisitions, sittings and awards.*)$/,
+    why: "0005, founder 2026-10-19: card subtitles and empty-state bodies on the dashboard were cut; the lists, counts and Not built yet badge stay, and the waiting rule is behind the information button",
+  },
+  {
+    screen: /^[/]inbox$/,
+    match: /^(What has been told to you.*|Notices appear here.*|Newest first.*)$/,
+    why: "0005, founder 2026-10-19: the Inbox subtitle became the information button and a Not emailed chip",
+  },
+  {
+    screen: /^[/]account$/,
+    match: /^(Your sign-in, your password.*|If one of these is not yours.*)$/,
+    why: "0005, founder 2026-10-19: the account page subtitles were cut; Password only is a chip beside the name",
+  },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
     screen: /^[/]projects$/,

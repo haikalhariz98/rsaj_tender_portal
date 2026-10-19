@@ -17,7 +17,7 @@ export function LastSignIn({ info, timeZone, contact = "an administrator" }: { i
   const failed = info.failedSince ?? 0;
   return (
     <Card>
-      <CardHeader icon={<ClockIcon size={18} />} title={AUTH_WORDS.previousTitle.en} subtitle={`Check that this was you. If it was not, change your password and tell ${contact}.`} />
+      <CardHeader icon={<ClockIcon size={18} />} title={AUTH_WORDS.previousTitle.en} subtitle={`Not you? Tell ${contact}.`} />
       <CardBody>
         {info.previous ? (
           <div className="flex flex-col gap-4">
@@ -29,8 +29,8 @@ export function LastSignIn({ info, timeZone, contact = "an administrator" }: { i
               ]}
             />
             {failed > 0 ? (
-              <Callout tone="warn" title={failed === 1 ? "1 failed attempt to sign in to your account since then" : `${failed} failed attempts to sign in to your account since then`}>
-                Someone entered a wrong password for this account, or it was locked while they tried. If you did not do this, change your password now.
+              <Callout tone="warn" title={failed === 1 ? "1 failed sign-in since then" : `${failed} failed sign-ins since then`}>
+                Not you? Change your password now.
               </Callout>
             ) : (
               <p className="text-[13.5px] text-ink-3">{AUTH_WORDS.noFailures.en}</p>

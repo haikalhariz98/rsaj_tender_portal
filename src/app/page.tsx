@@ -63,7 +63,6 @@ const COMING = [
   {
     icon: <ToolsIcon size={17} />,
     title: D.projectHealth,
-    body: D.projectHealthBody,
   },
 ];
 
@@ -188,7 +187,6 @@ export default async function Dashboard() {
               exportName="committee-matters-waiting"
               searchPlaceholder={t(D.searchMatters)}
               emptyTitle={t(D.committeeEmptyTitle)}
-              emptyBody={t(D.committeeEmptyBody)}
               views={[{ id: "financial", label: t(D.financialItems) }]}
               filters={[
                 { key: "type", label: t(D.type) },
@@ -240,7 +238,7 @@ export default async function Dashboard() {
             <CardHeader
               icon={<ClockIcon size={17} />}
               title={t(D.awaitingTitle)}
-              subtitle={<LeadWithMore lead={t(D.awaitingLead)} more={`${t(D.awaitingMore)} ${t(WAITING_RULE_WORDS)}`} />}
+              subtitle={<LeadWithMore lead={t(D.awaitingLead)} more={t(WAITING_RULE_WORDS)} />}
               divided={false}
               actions={
                 <ButtonLink href="/approvals" variant="ghost" size="sm">
@@ -254,7 +252,6 @@ export default async function Dashboard() {
               selectable={false}
               exportName="requisitions-awaiting-approval"
               emptyTitle={t(D.awaitingEmptyTitle)}
-              emptyBody={t(D.awaitingEmptyBody)}
               rowAction={{ label: t(D.open), hrefTemplate: "/requisitions/{id}" }}
               rowOpens
               columns={[
@@ -280,7 +277,6 @@ export default async function Dashboard() {
             <CardHeader
               icon={<SparkleIcon size={17} />}
               title={t(D.onTheWay)}
-              subtitle={t(D.onTheWaySubtitle)}
             />
             <CardBody className="grid gap-5 md:grid-cols-2">
               {COMING.map((c) => (
@@ -290,7 +286,6 @@ export default async function Dashboard() {
                     <Badge tone="warn">{t(D.notBuiltYet)}</Badge>
                   </div>
                   <div className="mt-2.5 text-[14px] font-bold text-ink">{t(c.title)}</div>
-                  <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{t(c.body)}</p>
                 </div>
               ))}
             </CardBody>
@@ -302,7 +297,6 @@ export default async function Dashboard() {
             <CardHeader
               icon={<CalendarIcon size={17} />}
               title={t(D.upcomingTitle)}
-              subtitle={t(D.upcomingSubtitle)}
             />
             {data.upcoming.length === 0 ? (
               <EmptyState size="sm" title={t(D.nothingScheduled)} />
@@ -332,11 +326,9 @@ export default async function Dashboard() {
           </Card>
 
           <Card>
-            <CardHeader icon={<ClockIcon size={17} />} title={t(D.recentTitle)} subtitle={t(D.recentSubtitle)} />
+            <CardHeader icon={<ClockIcon size={17} />} title={t(D.recentTitle)} />
             {data.activity.length === 0 ? (
-              <EmptyState size="sm" title={t(D.nothingMoved)}>
-                {t(D.nothingMovedBody)}
-              </EmptyState>
+              <EmptyState size="sm" title={t(D.nothingMoved)} />
             ) : (
               <ol className="px-6 py-4">
                 {data.activity.map((a) => {

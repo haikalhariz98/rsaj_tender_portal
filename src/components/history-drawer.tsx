@@ -92,9 +92,7 @@ export function HistoryButton({
               {pending || entries == null ? (
                 <p className="text-[13px] text-ink-3">{say(WORDS.loading)}</p>
               ) : entries.length === 0 ? (
-                <EmptyState size="sm" title={say(WORDS.nothingRecorded)}>
-                  {say(WORDS.noChangeRecorded)}
-                </EmptyState>
+                <EmptyState size="sm" title={say(WORDS.noChangeRecorded)} />
               ) : (
                 <ol className="relative flex flex-col gap-5 border-l border-line pl-5">
                   {entries.map((e) => (

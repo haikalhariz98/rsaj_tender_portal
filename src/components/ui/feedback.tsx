@@ -8,7 +8,8 @@ import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 
 import { cx } from "./cx";
 
-/// Nothing to show. Says what would be here and, where there is one, the way forward.
+/// Nothing to show: a title of six words or fewer and, where there is a next step, the action button (note 0005 §3.1).
+/// `children` is kept for bodies not yet cut; a new use passes none.
 export function EmptyState({
   title,
   children,
@@ -28,7 +29,7 @@ export function EmptyState({
     <div
       className={cx(
         "flex flex-col items-center text-center",
-        size === "sm" ? "px-6 py-8" : "px-6 py-14",
+        size === "sm" ? "px-6 py-6" : "px-6 py-10",
         className,
       )}
     >
@@ -62,8 +63,10 @@ const CALLOUT: Record<Exclude<Tone, "brand">, { box: string; icon: ReactNode }> 
   err: { box: "border-rose-200 bg-rose-50 text-rose-900 [&_.ico]:text-rose-600", icon: <XIcon size={18} /> },
 };
 
-/// A message that belongs to the screen rather than to one field: a gap in policy,
-/// a rule that is assumed rather than stated, a warning before an action.
+/// A message that belongs to the screen rather than to one field. Reserved for `warn` (the user must act, or
+/// the action has a consequence they cannot see) and `err` (something is wrong now), 15 words at most, title
+/// included. A state belongs in a chip and an explanation in a popover (note 0005 §3.4); `ok` is the brief
+/// notice after the user's own act.
 export function Callout({
   tone = "info",
   title,
@@ -83,7 +86,7 @@ export function Callout({
   return (
     <div
       role={tone === "err" || tone === "warn" ? "alert" : "note"}
-      className={cx("flex flex-wrap gap-x-3 gap-y-2.5 rounded-2xl border px-4 py-3.5 text-[13.5px]", c.box, className)}
+      className={cx("flex flex-wrap gap-x-3 gap-y-2.5 rounded-xl border px-3.5 py-2.5 text-[13px]", c.box, className)}
     >
       <span className="ico mt-px shrink-0">{icon ?? c.icon}</span>
       <div className="min-w-[min(100%,16rem)] flex-1 basis-0 leading-relaxed">

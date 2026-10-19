@@ -15,8 +15,9 @@ const Fact = ({ children }: { children: ReactNode }) => (
 /// Each fact on its own, except that the last two are one unit once there are three or more.
 const groupFacts = (facts: ReactNode[]): ReactNode[][] => (facts.length >= 3 ? [...facts.slice(0, -2).map((f) => [f]), facts.slice(-2)] : facts.map((f) => [f]));
 
-/// The head of every screen: a large friendly title, a sentence under it, an
-/// optional row of facts, and the screen's actions on the right.
+/// The head of every screen: a title, an optional fact under it (none, or 8 words at most:
+/// never a description of the screen), a row of facts, and the screen's actions on the right.
+/// What the screen covers goes in `info`, behind the button beside the title (note 0005).
 export function PageHeader({
   title,
   badge,
@@ -88,7 +89,7 @@ export function PageHeader({
           {badge}
         </div>
         {subtitle && (
-          <p className="relative mt-1.5 max-w-[70ch] text-[15px] text-ink-2">
+          <p className="relative mt-1 max-w-[70ch] text-[14px] text-ink-2">
             <Subtitle>{subtitle}</Subtitle>
           </p>
         )}

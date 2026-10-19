@@ -6,7 +6,7 @@ import { InboxIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { Card, CardHeader } from "@/components/ui/card";
-import { LeadWithMore } from "@/components/ui/more-text";
+import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import type { Words } from "@/lib/contract/labels";
 import { db } from "@/lib/db";
@@ -55,8 +55,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader
         title={t(I.title)}
-        subtitle={<LeadWithMore lead={t(I.lead)} more={t(I.more)} />}
-        meta={[sayWith(I.unreadCount, lang, { count: String(totals.unread) }), sayWith(totals.total === 1 ? I.noticeCount : I.noticesCount, lang, { count: String(totals.total) })]}
+        info={{ title: t(I.infoTitle), text: t(I.more) }}
+        meta={[sayWith(I.unreadCount, lang, { count: String(totals.unread) }), sayWith(totals.total === 1 ? I.noticeCount : I.noticesCount, lang, { count: String(totals.total) }), <InfoChip key="ne" outline detail={t(I.notEmailedDetail)}>{t(I.notEmailed)}</InfoChip>]}
       />
       <Card className="overflow-hidden">
         <CardHeader
@@ -76,7 +76,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           divided={false}
         />
         {rows.length === 0 ? (
-          <EmptyState title={t(I.emptyTitle)}>{t(I.emptyBody)}</EmptyState>
+          <EmptyState title={t(I.emptyTitle)} />
         ) : (
           <DataList
             flat
@@ -84,7 +84,6 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             exportName="inbox"
             searchPlaceholder={t(I.searchNotices)}
             emptyTitle={t(I.listEmptyTitle)}
-            emptyBody={t(I.listEmptyBody)}
             views={[
               { id: "unread", label: t(I.unread) },
               { id: "read", label: t(I.read) },

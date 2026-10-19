@@ -3,12 +3,14 @@ import type { Language } from "@/lib/i18n/language";
 import { say } from "@/lib/i18n/say";
 import type { Words } from "@/lib/contract/labels";
 
-import { Badge, type Tone } from "./badge";
+import type { Tone } from "./badge";
+import { InfoChip } from "./info-chip";
 
 /**
- * Where a configured fact came from. One badge and one vocabulary everywhere: a
+ * Where a configured fact came from. One chip and one vocabulary everywhere: a
  * written rule, an observed habit and an assumption must never render alike, and a
- * fact nobody has sourced is "Not set" — not any of the three.
+ * fact nobody has sourced is "Not set" — not any of the three. The detail sits in a
+ * popover beside the chip (note 0005 §3.3), never in a native title a keyboard cannot reach.
  *
  * `lang` is optional and English by default; a converted screen passes the language it reads in (NFR-LNG-001, ADR 0040).
  */
@@ -18,21 +20,21 @@ const PROVENANCE: Record<string, { label: Words; tone: Tone; hint: Words }> = {
   ASSUMED: { label: C.provAssumed, tone: "warn", hint: C.provAssumedHint },
 };
 
-/// The badge's word for a provenance, for text that cannot hold the badge (a list's search and CSV export).
+/// The chip's word for a provenance, for text that cannot hold the chip (a list's search and CSV export).
 export const provenanceLabel = (value: string | null | undefined, lang: Language = "en"): string => say((value ? PROVENANCE[value]?.label : undefined) ?? C.provNotSet, lang);
 
 export function ProvenanceBadge({ value, lang = "en" }: { value: string | null | undefined; lang?: Language }) {
   const p = value ? PROVENANCE[value] : undefined;
   if (!p) {
     return (
-      <Badge outline title={say(C.provNotSetHint, lang)}>
+      <InfoChip outline detail={say(C.provNotSetHint, lang)}>
         {say(C.provNotSet, lang)}
-      </Badge>
+      </InfoChip>
     );
   }
   return (
-    <Badge tone={p.tone} title={say(p.hint, lang)}>
+    <InfoChip tone={p.tone} detail={say(p.hint, lang)}>
       {say(p.label, lang)}
-    </Badge>
+    </InfoChip>
   );
 }

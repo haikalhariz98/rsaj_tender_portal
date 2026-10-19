@@ -29,9 +29,9 @@ export default async function ConfirmBackdatingPage(props: PageProps<"/inbox/[id
   const refusal = confirmRefusal(a, actor);
   return (
     <>
-      <PageHeader title="Confirm a back-dated signature" subtitle="A signature dated earlier than recorded names you as authorising it." meta={[a.signerName]} actions={<ButtonLink href="/inbox" size="sm" variant="secondary">Back to the inbox</ButtonLink>} />
+      <PageHeader title="Confirm a back-dated signature" meta={[a.signerName]} actions={<ButtonLink href="/inbox" size="sm" variant="secondary">Back to the inbox</ButtonLink>} />
       <Card className="mb-6">
-        <CardHeader title="What was signed" subtitle="As the signer recorded it." />
+        <CardHeader title="What was signed" />
         <CardBody>
           <KeyValues
             columns={2}
@@ -47,11 +47,11 @@ export default async function ConfirmBackdatingPage(props: PageProps<"/inbox/[id
       </Card>
       {a.alreadyConfirmed ? (
         <Callout tone="ok" title="You have confirmed this">
-          You confirmed this back-dating on {a.confirmedOn}. It reads as confirmed by you wherever the signature is shown.
+          Confirmed on {a.confirmedOn}.
         </Callout>
       ) : (
         <Callout tone="warn" title="Not confirmed yet" action={refusal ? <Blocked label="Confirm the back-dating" reason={refusal} primary /> : <ConfirmBackdating attributionId={a.id} signerName={a.signerName} whatWords={a.whatWords} effectiveOn={a.effectiveOn} />}>
-          Until you confirm it, the signature reads &ldquo;back-dated; {a.signerName} names {actor.personName} as authorising it, not confirmed&rdquo;. Confirm it only if you did authorise the earlier date.
+          Confirm only if you authorised the earlier date.
         </Callout>
       )}
     </>

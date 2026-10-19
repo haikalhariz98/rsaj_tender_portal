@@ -708,7 +708,7 @@ export function DataList({
             ) : undefined
           }
         >
-          {narrowed ? (views.find((v) => v.id === view)?.emptyBody ?? say(WORDS.noMatch)) : emptyBody}
+          {narrowed ? (views.find((v) => v.id === view)?.emptyBody) : emptyBody}
         </EmptyState>
       ) : (
         <>

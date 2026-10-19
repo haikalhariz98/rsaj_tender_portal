@@ -14,7 +14,7 @@ const flagged: Column[] = [{ key: "name", label: "Name" }, { key: "value", label
 describe("a SULIT column and the list's export", () => {
   it("an ordinary list offers Export", () => {
     expect(canExport(plain)).toBe(true);
-    expect(html(plain)).toContain("Download this view as CSV");
+    expect(html(plain)).toContain("Download CSV");
   });
   it("a flagged column is left out of the download, which says so; search and sort stay", () => {
     // Founder, 2026-10-04: a list with a SULIT column downloads its other columns. The guard
@@ -22,7 +22,7 @@ describe("a SULIT column and the list's export", () => {
     expect(canExport(flagged)).toBe(true);
     expect(exportColumns(flagged).map((c) => c.key)).toEqual(["name"]);
     const out = html(flagged);
-    expect(out).toContain("Download this view as CSV (SULIT columns left out)");
+    expect(out).toContain("Download CSV (SULIT left out)");
     expect(out).toContain("Search this list");
     expect(out).toContain("<button");
   });
