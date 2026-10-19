@@ -9,7 +9,7 @@ describe("Tabs links tab and panel", () => {
     expect(src).toMatch(/role="tab"\s+id=\{`\$\{uid\}-tab-\$\{tab\.id\}`\}\s+aria-controls=\{selected \? `\$\{uid\}-panel` : undefined\}/);
   });
   it("names the panel by the current tab, with an id from useId", () => {
-    expect(src).toContain('role="tabpanel" id={`${uid}-panel`} aria-labelledby={current ? `${uid}-tab-${current.id}` : undefined}');
+    expect(src).toMatch(/role="tabpanel" id=\{`\$\{uid\}-panel`\} aria-labelledby=\{current \? `\$\{uid\}-tab-\$\{current\.id\}` : undefined\}/);
     expect(src).toContain("useId()");
   });
 });
