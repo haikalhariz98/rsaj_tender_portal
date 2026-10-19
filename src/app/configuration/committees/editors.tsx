@@ -169,6 +169,7 @@ export function AddCommittee({ offices }: { offices: OfficeOption[] }) {
     <RecordEditor
       title="Add a committee"
       description="A body that must sit before a procurement decision can be made."
+      more="Quorum: leave empty where none is set. An unset quorum cannot certify a sitting, and is changed later on the committee's own page by a change a second person decides. Recusal: where unset, a matter where a member with an alternate recuses cannot be decided; Yes is not available yet."
       fields={committeeFields(false, offices)}
       action={saveCommittee}
       submitLabel="Add committee"
@@ -208,6 +209,7 @@ export function EditCommittee({ committee, offices }: { committee: CommitteeValu
   return (
     <RecordEditor
       title={`Edit ${committee.nameEn}`}
+      more="Quorum: leave empty where none is set. An unset quorum cannot certify a sitting, and is changed later on the committee's own page by a change a second person decides. Recusal: where unset, a matter where a member with an alternate recuses cannot be decided; Yes is not available yet."
       fields={[{ kind: "hidden", name: "id" }, ...committeeFields(true, offices)]}
       action={saveCommittee}
       trigger={{ label: `Edit ${committee.nameEn}`, iconOnly: <PencilIcon size={15} /> }}

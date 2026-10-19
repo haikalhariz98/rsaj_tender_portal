@@ -104,6 +104,7 @@ export function AddDocumentClass({ offices }: { offices: OfficeOption[] }) {
     <RecordEditor
       title="Add a document class"
       description="A kind of document, and what the organisation must do with it."
+      more="Once a classification is set, it is not taken away or lowered by one person."
       fields={classFields(false, offices)}
       action={saveDocumentClass}
       submitLabel="Add class"
@@ -139,6 +140,7 @@ export function EditDocumentClass({ row, offices }: { row: DocumentClass; office
   return (
     <RecordEditor
       title={`Edit ${row.nameEn}`}
+      more="Once a classification is set, it is not taken away or lowered by one person."
       fields={[{ kind: "hidden", name: "id" }, ...classFields(true, offices, row.classification)]}
       action={saveDocumentClass}
       trigger={{ label: `Edit ${row.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
@@ -168,6 +170,7 @@ export function EditStorePolicy({ policy, sulitClasses }: { policy: { allowedMed
     <RecordEditor
       title="Upload rules"
       description="Which files the portal accepts, and how large."
+      more="Excel workbooks and Word documents apply to staff uploads only: suppliers are not offered them. Leave a limit empty and uploads are refused until it is set."
       fields={[
         {
           kind: "tokens",

@@ -25,7 +25,7 @@ export function EditBidSealingPolicy({ values }: { values: Record<string, string
             { value: "LIVE", label: "Live: bids taken online are real" },
             { value: "unset", label: "Not set: no exercise can be published for online bids" },
           ],
-          hint: "Live needs all attestations and a scanner.",
+          hint: "Live needs attestations, scanner and pepper.",
         },
         { kind: "text", name: "cryptoReviewReference", label: "The outside cryptography review (reference)", hint: "Leave empty if it is not recorded." },
         { kind: "text", name: "procedureAmendmentReference", label: "The amendment of the bid procedure (reference)", hint: "The amendment allowing online bids." },

@@ -12,7 +12,7 @@ import { MAX_DRAFT_FILES_PER_SUPPLIER_PER_EXERCISE, MAX_SUBMISSIONS_PER_SUPPLIER
 
 import type { PartUploadFault, SubmissionWarning, SubmitFault, WithdrawFault } from "./types";
 
-const PAPER_ONLY = w("Bids on this exercise are handed in on paper, not through the portal.");
+const PAPER_ONLY = w("Bids on this exercise are handed in on paper.");
 const NOT_ALLOWED = w(
   "This copy of the system does not take online bids at the moment. Contact the procurement office.",
 );

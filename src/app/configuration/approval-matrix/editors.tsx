@@ -155,7 +155,7 @@ export function AddMatrix({
     <RecordEditor
       title={title}
       description="A draft is editable and routes nothing. Add its rules, then issue it."
-      more={BOUNDARY_HELP}
+      more={`${BOUNDARY_HELP} A funder's issue routes matters on that funding route alone and never replaces the organisation's own issue.`}
       fields={matrixFields(routes)}
       action={saveMatrix}
       submitLabel="Create draft"
@@ -190,7 +190,7 @@ export function EditMatrix({ matrix, routes }: { matrix: MatrixValues; routes: {
     <RecordEditor
       title={`Edit ${matrix.label}`}
       description="A draft. Nothing here is in force until it is issued."
-      more={BOUNDARY_HELP}
+      more={`${BOUNDARY_HELP} A funder's issue routes matters on that funding route alone and never replaces the organisation's own issue.`}
       fields={[{ kind: "hidden", name: "id" }, ...matrixFields(routes)]}
       action={saveMatrix}
       trigger={{ label: "Edit thresholds", className: buttonClass("secondary", "sm") }}
@@ -359,6 +359,7 @@ export function AddRule({
     <RecordEditor
       title="Add a rule"
       description="Who proposes, who recommends and who approves, at one band of value."
+      more={`Contract type: only for matters routed with one (${contractTypeDomainWords()}); on any other the save refuses it. A rule for one type is preferred to one for any type. Chain: Generated puts the core routing first and this rule may only strengthen it; As entered makes the chain below the whole chain; Not set warns the chain was not checked.`}
       fields={ruleFields(offices, contractTypes)}
       values={{ authorityMatrixId: matrixId }}
       action={saveRule}
@@ -410,6 +411,7 @@ export function EditRule({
   return (
     <RecordEditor
       title={`Edit ${rule.labelEn}`}
+      more={`Contract type: only for matters routed with one (${contractTypeDomainWords()}); on any other the save refuses it. A rule for one type is preferred to one for any type. Chain: Generated puts the core routing first and this rule may only strengthen it; As entered makes the chain below the whole chain; Not set warns the chain was not checked.`}
       fields={[{ kind: "hidden", name: "id" }, ...ruleFields(offices, contractTypes)]}
       action={saveRule}
       showWhen={RULE_SHOW_WHEN}

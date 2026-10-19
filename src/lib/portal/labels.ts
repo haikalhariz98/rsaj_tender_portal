@@ -352,7 +352,7 @@ export const APPLY = {
   tooLong: (label: string, max: number): Words => w(`${label} must be ${max} characters or fewer.`),
   closedTitle: w("Online applications are not open yet"),
   closedBody: w(
-    "The supplier register is not set up yet. Come back later, or ask the procurement office.",
+    "Not set up yet. Come back later or ask the office.",
   ),
   noOrganisation: w("Not set up in the system. Contact the procurement office."),
   closedMissing: w("Still to be set up:"),

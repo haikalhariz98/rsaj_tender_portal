@@ -119,8 +119,8 @@ export default async function CommitteePage({
         </div>
 
         {faults.includes("QUORUM_EXCEEDS_VOTING_SEATS") && (
-          <Callout tone="err" title="This quorum can never be met">
-            Quorum {committee.quorum}, voting {voting.length === 1 ? "seat" : "seats"} {voting.length}.
+          <Callout tone="err" title="Quorum can never be met">
+            {`Quorum ${committee.quorum}; ${voting.length} voting ${voting.length === 1 ? "seat" : "seats"}. Secretary and alternates excluded.`}
           </Callout>
         )}
 

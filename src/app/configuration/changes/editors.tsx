@@ -143,7 +143,7 @@ export function ProposeAdministrator({ accountId, name, direction }: { accountId
       description={
         grant
           ? "A second administrator decides it. Their sessions end when applied."
-          : "A second administrator decides it. Their sessions end when applied."
+          : "A second administrator decides it. The only active administrator cannot be removed."
       }
       fields={[{ kind: "hidden", name: "accountId" }, { kind: "hidden", name: "direction" }, WHY_PROPOSED, PROPOSER]}
       values={{ accountId, direction }}

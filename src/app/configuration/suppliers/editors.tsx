@@ -228,6 +228,7 @@ export function EditPortalIntake({ values }: { values: Record<string, string> })
     <RecordEditor
       title="Edit online applications"
       description="The public form stays closed until the notice and both limits are set."
+      more="The per-number limit stops one number being sent over and over. The cost: anyone can send a company's number that many times and turn that company away online for 24 hours. It can still apply on paper, and the busy message sends it to the office."
       columns={2}
       fields={[
         { kind: "textarea", name: "personalDataNoticeEn", label: "Notice about personal details", hint: "Say why collected, who sees, retention, access." },

@@ -27,6 +27,7 @@ export function EditScopePolicy({ values, qualifications, offices, lists }: { va
     <RecordEditor
       title="Edit the scope and estimate policy"
       description="Each value is the organisation's own. Empty stays unset."
+      more="The estimate custodian reads the figure once the opening has disclosed it, with the estimate's preparer and the auditing office. Held for a department, it counts for that department's estimates only. While either office is unset, nobody reads it."
       columns={2}
       fields={[
         { kind: "select", name: "specPanelUsed", label: "Specification panel used", placeholder: "Not set", options: [{ value: "yes", label: "Used" }, { value: "no", label: "Not used" }], hint: "Taken when an exercise is made." },

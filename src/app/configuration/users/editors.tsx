@@ -655,6 +655,7 @@ export function AddDelegation({
       title="New delegation"
       description="Delegation"
       icon={<SwapIcon size={18} />}
+      more="Naming capabilities limits the delegation to those tasks. It does not carry an approval step. Empty hands over the whole role, a larger act."
       fields={delegationFields(people, offices, capabilities, upload)}
       columns={2}
       action={save}

@@ -90,8 +90,8 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
             { label: "Shortest passphrase", value: minLength == null ? <Badge tone="warn">Not set</Badge> : `${minLength} characters` },
           ]}
         />
-        <Callout tone="warn" title="Every named officer is needed to open">
-          No substitution after closing.
+        <Callout tone="warn" title="Every named officer is needed">
+          No substitution after closing. A lost share means re-tender.
         </Callout>
         {pending.state === "PENDING" && (
           <Callout tone="warn" title="A substitution is waiting">
