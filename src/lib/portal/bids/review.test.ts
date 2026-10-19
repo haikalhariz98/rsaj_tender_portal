@@ -102,7 +102,7 @@ describe("S6: the words are true of an online exercise, and say simulated when i
     const t = releaseText("READY", { saleMode: "ONLINE", simulated: true });
     expect(t.short).toContain("simulated");
     expect(t.detail).toContain("No money moved"); // 0005, founder 2026-10-19: shortened
-    expect(releaseText("READY", online).detail).toContain("Payment recorded");
+    expect(releaseText("READY", online).detail).toContain("Payment recorded"); // 0005, founder 2026-10-19: shortened
   });
 });
 

@@ -78,7 +78,7 @@ export function requestWords(reading: RequestReading | undefined, resubmitBy: st
     return {
       title: w("The date to answer the office has passed"),
       detail: w(
-        `${n} not sent${resubmitBy ? ` by ${day(resubmitBy)}` : ""}. Contact the procurement office if this is wrong.`,
+        `${n} not sent${resubmitBy ? ` by ${day(resubmitBy)}` : ""}. It will be rejected. Contact the procurement office if wrong.`,
       ),
       tone: "warn",
     };

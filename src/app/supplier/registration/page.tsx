@@ -112,12 +112,13 @@ export default async function SupplierRegistrationPage({ searchParams }: { searc
         subtitle={actor.supplierName}
         meta={[view.lastSavedAt ? `Last saved ${formatOrgDateTime(view.lastSavedAt, zone)}` : "Nothing saved yet"]}
       />
+      <p className="mb-4 text-[14px] text-ink-2">Finish each step, then send to the procurement office.</p>
       <div className="mb-6">
         <Stepper steps={steps} label="Registration steps" />
       </div>
       {!token && (
         <Callout tone="warn" title="This page is closed" className="mb-5">
-          The form key is not set. Tell the portal operator.
+          The form key is not set. Tell the procurement office.
         </Callout>
       )}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_21rem]">

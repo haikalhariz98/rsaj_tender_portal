@@ -98,7 +98,7 @@ export async function BriefingsPanel({ actor, ctx, token }: Props) {
                   <p className="text-[13.5px] text-ink-2">{r.when}</p>
                   <p className="text-[13.5px] text-ink-2">{r.place}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {r.mandatory && <InfoChip tone="warn" detail="The notice makes attendance a condition of buying the documents.">Attendance required</InfoChip>}
+                    {r.mandatory && <Badge tone="warn">Attend to buy the documents</Badge>}
                     {r.cancelled && <Badge tone="err">Cancelled</Badge>}
                     {r.held && !r.cancelled && <Badge>Held</Badge>}
                     {r.signUp === "SIGNED_UP" && <Badge tone="ok" dot>You are signed up{r.representative ? `: ${r.representative}` : ""}</Badge>}
@@ -229,7 +229,7 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
           {d.online?.state === "PAID" && d.online.purchase?.paid && (
             <p className="flex flex-wrap items-center gap-2 text-[13.5px] text-ink-2">
               <span className="font-semibold text-ink">Paid</span> {d.online.purchase.paid.on}, {d.online.purchase.paid.amount}.
-              {d.online.purchase.paid.channel === "SIMULATED" ? <InfoChip tone="warn" detail={`Simulated payment by ${d.online.purchase.paid.method}, reference ${d.online.purchase.paid.reference}. No money moved. Not a receipt of ${ctx.org.name}.`}>Demo</InfoChip> : <span>{d.online.purchase.paid.channelWords}.</span>}
+              {d.online.purchase.paid.channel === "SIMULATED" ? <><InfoChip tone="warn" detail={`Simulated payment by ${d.online.purchase.paid.method}, reference ${d.online.purchase.paid.reference}. No money moved. Not a receipt of ${ctx.org.name}.`}>Demo</InfoChip><span>No money moved.</span></> : <span>{d.online.purchase.paid.channelWords}.</span>}
             </p>
           )}
           {d.bought && !d.online && (

@@ -81,7 +81,7 @@ describe("a document's band and reminder, from the configuration only (FR-VND-00
     expect(row.effective?.id).toBe("a");
     expect(row.pending?.id).toBe("b");
     expect(row.replace.allowed).toBe(false);
-    expect(row.replace.reason).toMatch(/aiting for an officer to check it/);
+    expect(row.replace.reason).toMatch(/aiting for an officer to check it/); // 0005, founder 2026-10-19: shortened
   });
   it("a chain renewed twice with a link waiting between is read to its end (615-C7, on the supplier's own page)", () => {
     const a = doc({ id: "a", typeId: "t-reg", expiresOn: "2026-10-20" });
@@ -186,7 +186,7 @@ describe("the office's request and the supplier's answers (FR-VND-007)", () => {
     expect(rowsOf([wizard], { request: requestView(only, [wizard], TODAY), supplierStatus: "APPLICANT" }).find((r) => r.typeId === "t-works")!.replace.allowed).toBe(true);
     const pending = doc({ id: "p", typeId: "t-works", supersedesId: "w", verification: "NOT_CHECKED", verifiedOn: null, lodgedOn: "2026-10-05" });
     const row = rowsOf([wizard, pending], { request: requestView(only, [wizard, pending], TODAY), supplierStatus: "APPLICANT" }).find((r) => r.typeId === "t-works")!;
-    expect(row.replace).toMatchObject({ allowed: false, reason: expect.stringMatching(/aiting for an officer to check it/) });
+    expect(row.replace).toMatchObject({ allowed: false, reason: expect.stringMatching(/aiting for an officer to check it/) }); // 0005, founder 2026-10-19: shortened
   });
   it("an applicant whose date has passed is told so, and not that it must wait to be asked", () => {
     const rows = rowsOf([works], { request: requestView(request, [works], "2026-10-21"), supplierStatus: "APPLICANT" });

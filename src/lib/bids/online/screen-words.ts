@@ -19,7 +19,7 @@ export const SCREEN_WORDS = {
   closes: w("Closes"),
   notSet: w("Not set"),
   sendingClosed: w(
-    "Sending closed: the form key is not set. Tell the portal operator.",
+    "Sending closed: the form key is not set. Tell the procurement office.",
   ),
   pastClosingTitle: w("The closing time has passed"),
   closedTitle: w("Bids cannot be submitted now"),

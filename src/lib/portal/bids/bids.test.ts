@@ -228,7 +228,7 @@ describe("the tender documents: when they are released online", () => {
     expect(releaseState({ simulatorAllowed: true, setting: null, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("NOT_SET");
     expect(releaseState({ simulatorAllowed: true, setting: false, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("OFF");
     expect(releaseWords.NOT_SET.detail).toContain("not set"); // 0005, founder 2026-10-19: shortened
-    expect(releaseWords.OFF.detail).not.toContain("not set");
+    expect(releaseWords.OFF.detail).not.toContain("not set"); // 0005, founder 2026-10-19: shortened
   });
   it("needs a sale that stands and a recorded payment receipt", () => {
     expect(releaseState({ simulatorAllowed: true, setting: true, sale: null, phase: "OPEN_FOR_PURCHASE" })).toBe("NO_SALE");

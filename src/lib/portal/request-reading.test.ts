@@ -45,7 +45,7 @@ describe("what the supplier is told of it", () => {
     expect(t.title.en).toBe("The date to answer the office has passed");
     expect(t.title.en + t.detail.en).not.toMatch(/answered the office|do not need to do anything/i);
     expect(t.detail.en).toContain("D(2026-10-20)");
-    expect(t.detail.en).toMatch(/2 not sent/);
+    expect(t.detail.en).toMatch(/2 not sent/); // 0005, founder 2026-10-19: shortened
     expect(t.tone).toBe("warn");
     // The account page reads the same words.
     expect(applicationStatusWords({ status: "RESUBMISSION_REQUESTED", resubmitBy: BY, reading }, day).title.en).toBe(t.title.en);
@@ -55,7 +55,7 @@ describe("what the supplier is told of it", () => {
     const reading = readRequest(items([answer("a", "NOT_IN_ORDER")], [answer("b", "VERIFIED")]), BY, "2026-10-12");
     const t = requestWords(reading, BY, day);
     expect(t.title.en).toBe("The office has asked for more");
-    expect(t.detail.en).toMatch(/1 waiting/);
+    expect(t.detail.en).toMatch(/1 waiting/); // 0005, founder 2026-10-19: shortened
     expect(t.tone).toBe("warn");
     expect(supplierStatusWords({ status: "APPLICANT", registeredOn: null }, { status: "RESUBMISSION_REQUESTED", resubmitBy: BY, reading }, day).title.en).toBe("Waiting for you");
   });

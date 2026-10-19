@@ -291,7 +291,7 @@ describe("the limits", () => {
     h.created = [];
     h.counts = [1, 3];
     const num = await send();
-    expect(day).toEqual({ ok: false, message: expect.stringMatching(/Too many applications/) });
+    expect(day).toEqual({ ok: false, message: expect.stringMatching(/Too many applications/) }); // 0005, founder 2026-10-19: shortened
     expect(num).toEqual(day);
     expect(h.created).toEqual([]);
   });

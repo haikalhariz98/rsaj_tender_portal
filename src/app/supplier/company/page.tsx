@@ -39,7 +39,7 @@ export default async function SupplierCompanyPage({ searchParams }: { searchPara
       <PageHeader title="Company" subtitle={actor.supplierName} meta={[actor.displayName]} />
       {(tab === "documents" || tab === "bank") && !token && (
         <Callout tone="warn" title="Sending is closed" className="mb-5">
-          The form key is not set. Tell the portal operator.
+          The form key is not set. Tell the procurement office.
         </Callout>
       )}
       <Tabs initial={tab} label="Company" tabs={tabs} />

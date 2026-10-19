@@ -288,7 +288,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
 
                   {row.reminder && row.effective?.expiresOn && (
                     <p className="text-[13px] text-amber-800">
-                      Expires {formatDate(row.effective.expiresOn)}. {row.reminder.offset}-day reminder, due {formatDate(row.reminder.dueOn)}.
+                      Expires {formatDate(row.effective.expiresOn)}. {row.reminder.offset}-day reminder, due {formatDate(row.reminder.dueOn)}. Not emailed.
                     </p>
                   )}
                   {row.state === "EXPIRED" && row.effective?.expiresOn && <p className="text-[13px] text-rose-700">This expired on {formatDate(row.effective.expiresOn)}. Send a current copy.</p>}

@@ -79,7 +79,7 @@ describe("from the opening's start, the four states and the digest in full (20s)
     // Stage C security audit nit: the list holds no digest for it, but the supplier's own recorded one is shown with words that say so (S11).
     expect(out.gone.digest).toBe("2".repeat(64));
     expect(out.gone.detail.en).toContain("The digest recorded when you submitted is"); // 0005, founder 2026-10-19: shortened
-    expect(out.gone.detail.en).toContain("The opening's list holds none");
+    expect(out.gone.detail.en).toContain("The opening's list holds none"); // 0005, founder 2026-10-19: shortened
     expect(out.opened.headline.en).toBe("Opened; the result follows the evaluation");
     expect(out.old.headline.en).toBe("Not opened, as expected");
   });
