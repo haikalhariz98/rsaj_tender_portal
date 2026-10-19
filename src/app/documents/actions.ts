@@ -362,7 +362,7 @@ export async function verifyVersion(_prev: FormState, data: FormData): Promise<F
   revalidatePath("/", "layout");
   return ok
     ? { ok: true, message: `The fingerprint matches what was stored. ${FINGERPRINT_STATEMENT}` }
-    : { ok: false, message: "The stored file does not match its fingerprint. This has been logged; report it to whoever runs the portal." };
+    : { ok: false, message: "File does not match its fingerprint. Logged. Tell the portal operator." };
 }
 
 // ------------------------------------------------------------------ reads for the client islands

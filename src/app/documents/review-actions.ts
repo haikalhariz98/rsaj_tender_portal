@@ -29,7 +29,7 @@ import { FormReader } from "@/lib/validate";
  */
 
 const GONE: FormState = { ok: false, message: "That submission no longer exists." };
-const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration, Organisation first: the day of the answer is the organisation's, never UTC's." };
+const NO_ZONE: FormState = { ok: false, message: "Time zone not set. An administrator sets it under Organisation." };
 
 export async function answerContractorSubmission(_prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
@@ -65,7 +65,7 @@ export async function answerContractorSubmission(_prev: FormState, data: FormDat
       if (who) return { ok: false, message: `Not answered: ${supervisionFaultText(who)}` };
       const now = new Date();
       const moved = await tx.contractorSubmission.updateMany({ where: { id: s.id, outcome: null }, data: { outcome, outcomeNote: note.trim(), decidedByPersonId: act.subjectPersonId, decidedOn: dayToDate(today), decidedAt: now } });
-      if (moved.count !== 1) return { ok: false, message: "This submission was answered a moment ago by someone else. Reload to see the answer." };
+      if (moved.count !== 1) return { ok: false, message: "Already answered by someone else. Reload to see it." };
       await act.write(tx, s.id);
       const label = contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } });
       await writeAudit(

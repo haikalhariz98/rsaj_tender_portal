@@ -15,7 +15,7 @@ import type { AccessKind, AttachmentPurpose, DisposalMethod, DocumentStatus, Fin
 
 /// Said once on every panel and on the drawer (plan §4). Nothing claims "restricted" or "secure".
 export const ACCESS_STATEMENT =
-  "Stored and listed. A document that is not SULIT opens for signed-in staff who can open the record it hangs on; one restricted to its named people reads as not there to anyone else. A SULIT one opens only for the people that record names and the roles the organisation has chosen. Every download, and every refusal, is logged.";
+  "Listed to staff who can open the record. SULIT: named people and chosen roles only. Every download and refusal is logged.";
 
 /// What a fingerprint proves, and what it does not (OD-9).
 export const FINGERPRINT_STATEMENT =
@@ -179,33 +179,33 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   START_FIRST: "The minutes are uploaded once the sitting has started.",
   SITTING_CANCELLED: "The sitting was cancelled, so nothing is attached to it.",
   EXERCISE_CANCELLED: "The exercise is cancelled, so nothing more is attached to it.",
-  ROUTE_OPEN: "The award's appointment route is open and was sent on this evidence. Wait for its decision, or withdraw it, before changing the dossier.",
-  AWARD_APPROVED: "An award on this exercise is approved on this evidence. To change the dossier, cancel that award and open another, which is judged afresh.",
+  ROUTE_OPEN: "Award route is open on this evidence. Wait for the decision, or withdraw it.",
+  AWARD_APPROVED: "Award approved on this evidence. Cancel that award to change the dossier.",
   AWARD_NOT_ISSUED: "The awardee's returned documents are attached once the instrument is issued.",
   AWARD_CANCELLED: "The award is cancelled, so nothing more is attached to it.",
   DELEGATION_ENDED: "The delegation has ended, so nothing more is attached to it.",
-  DELEGATION_ZONE_UNSET: "The organisation's time zone is not set, so today cannot be told and whether the delegation has ended cannot be judged. Set it under Configuration › Organisation, then attach or change its documents.",
-  BQ_FINALISED: "This version of the bill is finalised and keeps the file it was imported from. To import another, start a revision of the bill.",
+  DELEGATION_ZONE_UNSET: "Time zone not set, so the delegation cannot be judged. Set it under Organisation.",
+  BQ_FINALISED: "Bill finalised with its imported file. Start a revision to import another.",
   PANEL_NOT_USED: "This exercise does not use a specification panel, so nothing is attached to one.",
   BILL_NOT_ON_SCREEN: "This exercise does not build its bill of quantities on screen. The bill is a file under Tender documents.",
-  SWITCH_NOT_SET: "Whether this exercise uses a specification panel, and whether it builds its bill on screen, is not set. Take the organisation's setting under Scope and estimate, Scope, first.",
-  PACK_FROZEN: "The tender documents were submitted on this and stand as they were frozen. A change waits until they are returned for amendment, and is made then (a pack's part on its next version); after approval for tendering a change is an addendum, issued under Publishing on Tender documents.",
+  SWITCH_NOT_SET: "Panel and on-screen bill settings not set. Set them under Scope first.",
+  PACK_FROZEN: "Tender documents frozen on submission. Change after return, or issue an addendum.",
   NOT_APPROVED_FOR_TENDERING: "A publication's proof is attached once the exercise is approved for tendering, when it can be published.",
   WINDOW_NOT_PUBLISHED: "An attendance sheet is attached once the exercise is advertised or invited and the event is held.",
   ADDENDUM_ISSUED: "The addendum is issued on this signed copy and stands as issued. A further change is another addendum.",
   ADDENDUM_VOID: "The addendum was voided before it was issued, so nothing more is attached to it.",
   EXTENSION_APPLIED: "The extension was applied on this consent and stands as applied. A further extension is recorded as another one.",
-  OPENING_NOT_FINALISED: "The signed schedule carries the company estimate's row, so its scan is attached only once the opening is finalised and the estimate disclosed.",
-  EVALUATION_CLOSED: "This evaluation version was superseded or closed, so it keeps what it has. Attach to the version in force, on the Evaluation tab.",
-  REPORT_ISSUED: "The report was issued listing the drawings attached then, and stands as issued. A change is made in a new evaluation version.",
+  OPENING_NOT_FINALISED: "Attach once the opening is finalised and the company estimate disclosed.",
+  EVALUATION_CLOSED: "Evaluation version closed. Attach to the version in force.",
+  REPORT_ISSUED: "Report issued as listed. Change it in a new evaluation version.",
   REPORT_NOT_ISSUED: "The signed report is attached once the report is issued, on the Evaluation tab.",
-  PROPOSAL_NOT_SIGNED: "The signed Kertas Cadangan is attached once its checking and recommending officers are both recorded, on the Evaluation tab.",
-  MEETING_CLOSED: "The meeting was closed on its minutes and the tenderer's confirmation, and stands as closed. A further meeting is recorded as another round.",
-  DOCUMENT_RENEWED: "This document has been renewed, so it keeps the scan it was lodged with. Attach the renewal's scan to the renewal, on the supplier's Documents tab.",
-  APPLICATION_DECIDED: "The application is decided and stands on what it was decided on. A further application is opened on the supplier's Applications tab.",
+  PROPOSAL_NOT_SIGNED: "Attach the signed proposal once both officers are recorded.",
+  MEETING_CLOSED: "Meeting closed. Record a further meeting as another round.",
+  DOCUMENT_RENEWED: "Document renewed. Attach the scan to the renewal.",
+  APPLICATION_DECIDED: "Application decided. Open a further application instead.",
   CONTRACT_CANCELLED: "The contract was cancelled with its award and keeps what it has.",
   CONTRACT_NOT_IN_PREPARATION: "Nothing is kept on the contract until its preparation starts, on the contract's Formation tab.",
-  LEGAL_REVIEW_PENDING: "The contract is with the legal office on what was sent. If it comes back for amendment, attach the amended papers then.",
+  LEGAL_REVIEW_PENDING: "With the legal office. Attach amended papers if it comes back.",
   LEGALLY_ENDORSED: "The legal office endorsed the contract on what was sent, which is kept as it was.",
   LEGAL_NOT_SUBMITTED: "The legal office's comments are kept once the contract has been sent for review.",
   CONTRACT_NOT_EXECUTED: "This is kept once the contract is executed, by the RSAJ signature on the Formation tab.",
@@ -233,22 +233,22 @@ export function exitWords(x: { exit: OwnerExit; act?: ContractAct; status?: Cont
 }
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
-  ACCEPTED_ON_IT: "The award was accepted on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
-  GRANTED_ON_IT: "The delegation stands on this recommendation, so it is not taken off. To correct it, attach a new version, with the reason.",
-  VERIFIED_ON_IT: "The specification panel was verified on this scan, so it is not taken off. To correct it, attach a new version, with the reason. Nobody verified the panel on the new version, so the panel then needs to be verified again.",
-  IMPORTED_FROM_IT: "Lines of the bill were imported from this file, so it is not taken off. To correct the bill, import the corrected file into the draft, replacing its lines: the new file then takes this one's place.",
-  WITHDRAWN_ON_IT: "The withdrawal was recorded on this letter, so it is not taken off. To correct it, attach a new version, with the reason.",
-  SCHEDULE_ON_IT: "Evaluation and the award stand on this signed schedule, so it is not taken off. To correct it, attach a new version, with the reason.",
-  CPR_ON_IT: "The contractor performance percentage was entered from this report, so it is not taken off. To correct it, attach a new version, with the reason.",
-  DOCUMENT_VERIFIED_ON_IT: "The document was verified on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
-  SENT_ON_IT: "The application was sent for decision on this signed declaration, so it is not taken off. To correct it, attach a new version, with the reason.",
-  RESOLUTION_ON_IT: "The contractor's signature was recorded on this company resolution, so it is not taken off. To correct it, attach a new version, with the reason.",
-  RETURNED_ON_IT: "The legal office's return was recorded on these comments, so they are not taken off. To correct them, attach a new version, with the reason.",
+  ACCEPTED_ON_IT: "Award accepted on this scan. Attach a new version, with a reason.",
+  GRANTED_ON_IT: "Delegation stands on this recommendation. Attach a new version, with a reason.",
+  VERIFIED_ON_IT: "Panel verified on this scan. Attach a new version; the panel is then verified again.",
+  IMPORTED_FROM_IT: "Bill lines were imported from this file. Import a corrected file into the draft.",
+  WITHDRAWN_ON_IT: "Withdrawal recorded on this letter. Attach a new version, with a reason.",
+  SCHEDULE_ON_IT: "Evaluation and award stand on this signed schedule. Attach a new version, with a reason.",
+  CPR_ON_IT: "Performance percentage entered from this report. Attach a new version, with a reason.",
+  DOCUMENT_VERIFIED_ON_IT: "Document verified on this scan. Attach a new version, with a reason.",
+  SENT_ON_IT: "Application sent on this declaration. Attach a new version, with a reason.",
+  RESOLUTION_ON_IT: "Signature recorded on this resolution. Attach a new version, with a reason.",
+  RETURNED_ON_IT: "Return recorded on these comments. Attach a new version, with a reason.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {
-  SULIT: "This document is SULIT. It is opened only by the people the record it hangs on names and the roles the organisation has chosen, and you are not among them. The request was refused and logged.",
-  UNCLASSIFIED: "This document's classification is not set, so it is not opened in the portal. Set its classification first. The request was refused and logged.",
+  SULIT: "SULIT. Only the people the record names, and chosen roles, can open it. The request was refused and logged.",
+  UNCLASSIFIED: "Classification not set, so it is not opened. Set it first. The request was refused and logged.",
   THREAT: "Malware was found in this file, so it is not opened. The request was refused and logged.",
 };
 
@@ -264,27 +264,27 @@ export function accessReasonText(code: string): string | null {
 
 /// Said on the withdraw form (BD-DS-18): withdrawal marks a version, it does not close access.
 export const WITHDRAW_NOTE =
-  "Withdrawing marks this version as withdrawn, with your reason, and keeps the file. It does NOT stop the file being downloaded. To stop downloads, set the document's classification to SULIT.";
+  "Marks this version withdrawn. It does NOT stop downloads: set the class to SULIT.";
 
 /// Said on the detach form: what taking a document off a record does and does not do.
 export const DETACH_NOTE =
-  "This takes the document off this record only. The file and every version stay stored and listed, and the record shows it was taken off, when and why.";
+  "Takes it off this record only. Every version stays stored.";
 
 /// Said on the classification form: what recording one does.
 export const RECLASSIFY_NOTE =
-  "Setting a classification, or raising it, is recorded with your reason. Raising it to SULIT stops the document being opened in the portal. No classification is lowered by one person, and a set one is never taken away.";
+  "Recorded with your reason. SULIT stops portal opening. One person cannot lower it.";
 
 /// The way out of a refused lowering (BD-DS-11 as ruled): never a second person faked.
 export const REUPLOAD_EXIT =
-  "If it belongs at a lower classification, upload it again as a new document under the right class, then withdraw the old version, with the reason.";
+  "Upload it again under the right class, then withdraw the old version.";
 
 /// Said on the form that lowers a classification (Phase 5a, ADR 0034 D15): lowering is proposed by one person and decided by another.
 export const LOWER_NOTE =
-  "Lowering a classification can release a document to a wider readership, so it is not done by one person. It is proposed here, with your reason, and a second person who holds the permission to decide corrections applies it, under Configuration, Changes waiting. Nothing changes until then.";
+  "Needs a second person to apply it. Nothing changes until then.";
 
 /// Said on a class's classification field once it is set.
 export const CLASS_CLASSIFICATION_HINT =
-  "Taken by each document when it is filed. SULIT and not set are listed but never opened in the portal. Once set, it is not taken away, and it is not lowered by one person: lowering is proposed on its own form and decided by a second person.";
+  "Once set, only raised. Lowering needs two people.";
 
 /// A classification choice as a form lists it: its label, and where it is not offered, why.
 export function classificationChoiceText(c: { value: SecurityClass | null; allowed: boolean; refusal: Finding | null }): string {
@@ -305,7 +305,7 @@ export function classificationChoiceText(c: { value: SecurityClass | null; allow
 
 /// Said on the new-version form: the new version moves the pin, the old one stays.
 export const NEW_VERSION_NOTE =
-  "Upload the corrected file. This record then points at the new version; the old version stays stored and the change is recorded with your reason.";
+  "The record points at the new version. The old one stays.";
 
 /// Why a staff upload of an Office file (a ZIP the portal tried to read as a workbook or Word document) was refused, and what to do instead (ruling 12a). The supplier portal takes no Office file at all and says so in its own words.
 export function officeRefusalText(reason: string): string {
@@ -330,55 +330,55 @@ export function documentFaultText(f: Finding): string {
   switch (f.code) {
     // media.ts
     case "TYPES_NOT_SET":
-      return "No file types are allowed yet. Set the allowed types under Configuration, Documents, Upload rules.";
+      return "No file types allowed. Set them under Configuration, Documents, Upload rules.";
     case "TYPE_NOT_RECOGNISED":
-      return "The portal cannot tell what this file is from its contents. Upload it as a PDF, or as a PNG, JPEG or TIFF image.";
+      return "File type not recognised. Upload a PDF, PNG, JPEG or TIFF.";
     case "ARCHIVE_NOT_ACCEPTED":
-      return "This file is a ZIP archive, which the portal does not accept. Save it as a PDF and upload that.";
+      return "ZIP archives are not accepted. Save it as a PDF.";
     case "OFFICE_FILE_REFUSED":
       return officeRefusalText(String(d.reason));
     case "MARKUP_NEVER_ACCEPTED":
-      return "Web pages and SVG drawings are never accepted. Save it as a PDF and upload that.";
+      return "Web pages and SVG are never accepted. Save it as a PDF.";
     case "TYPE_NOT_ALLOWED":
-      return `This file is ${withArticle(mediaLabel(String(d.sniffed)))}, which the organisation's upload rules do not allow. The allowed types are set under Configuration, Documents, Upload rules.`;
+      return `File is ${withArticle(mediaLabel(String(d.sniffed)))}, not an allowed type. Allowed types are set under Upload rules.`;
     case "NAME_WITHOUT_TYPE":
-      return `The file's contents are ${withArticle(mediaLabel(String(d.sniffed)))}, but its name does not say so. Rename it with the matching extension and upload it again.`;
+      return `File is ${withArticle(mediaLabel(String(d.sniffed)))} but its name says otherwise. Rename it with the right extension.`;
     case "DECLARED_TYPE_MISMATCH":
-      return `The file's contents are ${withArticle(mediaLabel(String(d.sniffed)))}, but it was sent as ${withArticle(mediaLabel(String(d.declared)))}. It was not stored. Check it is the file you meant, and give it its right name.`;
+      return `File is ${withArticle(mediaLabel(String(d.sniffed)))}, sent as ${withArticle(mediaLabel(String(d.declared)))}. Not stored. Check the file and its name.`;
     // limits.ts
     case "SIZE_NOT_SET":
-      return "No largest file size is set, so nothing is accepted. Set it under Configuration, Documents, Upload rules.";
+      return "No largest file size set. Set it under Configuration, Documents, Upload rules.";
     case "CEILING_NOT_SET":
-      return "The deployment's largest upload (DOCUMENT_MAX_BYTES) is not set, so nothing is accepted. Whoever runs the portal sets it.";
+      return "Largest upload (DOCUMENT_MAX_BYTES) not set. The portal operator sets it.";
     case "CEILING_INVALID":
-      return "The deployment's largest upload (DOCUMENT_MAX_BYTES) is not a whole number of bytes. Whoever runs the portal corrects it.";
+      return "Largest upload (DOCUMENT_MAX_BYTES) is not a whole number. The portal operator corrects it.";
     case "EMPTY":
       return "The file is empty.";
     case "TOO_LARGE":
       return d.cap ? `The file is larger than the ${formatBytes(String(d.cap))} allowed${d.from === "CEILING" ? " by this deployment" : ""}. It was not stored.` : "The file is larger than allowed. It was not stored.";
     case "NAME_TOO_LONG":
-      return `The file's name is ${d.length ?? "more"} characters long, and a name may have at most ${d.max ?? 255}. It was not stored. Rename the file with a shorter name and upload it again.`;
+      return `File name is ${d.length ?? "too"} characters, over the ${d.max ?? 255} limit. Not stored. Shorten the name.`;
     // concurrency.ts
     case "BUSY":
-      return "The portal is busy with other files. Nothing was stored or logged. Wait a few seconds and try again.";
+      return "Portal busy. Nothing stored. Wait a few seconds and retry.";
     // request-guard.ts
     case "NOT_SAME_ORIGIN":
     case "UPLOAD_HEADER_MISSING":
-      return "This upload did not come from the portal's own page, so it was refused. Open the portal, and upload from its screen.";
+      return "Upload refused: not from the portal's own page. Upload from its screen.";
     case "LENGTH_INVALID":
       return "The upload's declared length is not a number. It was not read.";
     // versioning.ts
     case "IDENTICAL_TO_VERSION_N":
       return `This file is identical to version ${d.n}. Nothing was added.`;
     case "DOCUMENT_WITHDRAWN":
-      return "Every version of this document is withdrawn, so it takes no more. Upload the file as a new document.";
+      return "Every version is withdrawn. Upload the file as a new document.";
     case "ALREADY_WITHDRAWN":
       return "This version is already withdrawn.";
     // received.ts
     case "RECEIVED_ON_INVALID":
       return "The received day is not a date.";
     case "TIME_ZONE_UNSET":
-      return "Set the organisation's time zone under Configuration, Organisation before typing a received day: it is judged against today, which is not assumed to be UTC. Or leave the day blank.";
+      return "Time zone not set. Set it under Configuration, Organisation, or leave the day blank.";
     case "RECEIVED_ON_FUTURE":
       return "The received day cannot be after today.";
     // attach.ts
@@ -387,9 +387,9 @@ export function documentFaultText(f: Finding): string {
     case "PURPOSE_NOT_FOR_METHOD": {
       const what = PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document";
       if (d.reason === "METHOD_NOT_CONFIGURED")
-        return `${what} is not kept on this exercise: its sourcing method is no longer configured, so it keeps no document. Configure the method under Configuration, Reference data, or attach the document to another record.`;
+        return `${what} not kept here: the sourcing method is no longer configured. Configure it, or attach elsewhere.`;
       const why = d.purpose === "DOSSIER_EVIDENCE" ? "does not keep a justification dossier" : d.purpose === "COORDINATION_SCOPE" ? "does not record a coordination meeting" : "does not ask for it";
-      return `${what} is not kept on this exercise: its sourcing method ${why}. Attach it to an exercise whose method asks for it, or, while the exercise is a draft, change its method.`;
+      return `${what} not kept here: the method ${why}. Attach elsewhere, or change the draft's method.`;
     }
     case "OWNER_NOT_READY":
     case "OWNER_FROZEN":
@@ -397,21 +397,21 @@ export function documentFaultText(f: Finding): string {
     case "VERSION_WITHDRAWN":
       return "That version is withdrawn, so it is not attached. Attach a version that stands.";
     case "CLASS_NOT_SET":
-      return "Choose the document's class. If none is offered, add one under Configuration, Documents.";
+      return "Choose a class. If none is offered, add one under Documents.";
     case "CLASSES_NOT_CONFIGURED":
-      return "No document classes are configured, so nothing can be filed. Add one under Configuration, Documents.";
+      return "No document classes. An administrator adds one under Documents.";
     case "CLASS_UNKNOWN":
       return "That document class is not configured. Choose one from the list.";
     case "CLASSIFICATION_NOT_SET":
-      return "This document's classification is not set, so it is listed but not opened in the portal. Set it on the document, or on its class under Configuration, Documents.";
+      return "Classification not set, so it is not opened in the portal. Set it on the document or its class.";
     case "CLASSIFICATION_BELOW_PURPOSE":
       return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is kept ${classificationLabel(d.required as SecurityClass)}, and this document is ${d.classification ? classificationLabel(d.classification as SecurityClass) : "not classified"}. Raise its classification to ${classificationLabel(d.required as SecurityClass)} on the document, or upload it again under a class classified ${classificationLabel(d.required as SecurityClass)}.`;
     case "ALREADY_ATTACHED":
       return "That document is already attached here.";
     case "BILL_IS_ONE_FILE":
-      return "The bill of quantities is one file, and one is already uploaded. Use Replace to put a corrected file in its place.";
+      return "The bill is one file, already uploaded. Use Replace for a corrected file.";
     case "ATTACHED_BY_OWNER_ACT":
-      return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is attached by importing it on the bill of quantities, which reads it in the same step. Import it there.`;
+      return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is attached by the bill import. Import it there.`;
     case "RELIED_ON":
       return RELIANCE_TEXT[d.by as Reliance] ?? "Something was decided on this attachment, so it is not taken off.";
     case "ALREADY_DETACHED":
@@ -422,14 +422,14 @@ export function documentFaultText(f: Finding): string {
       return "That version is the one already attached.";
     // classification.ts
     case "NOT_A_LOWERING":
-      return "This form lowers a classification. To set or raise one, use the classification form.";
+      return "This form only lowers. Use the classification form to set or raise.";
     case "UNCHANGED":
       return "That is already its classification.";
     case "CANNOT_UNSET":
-      return "A classification, once set, is not taken away. Choose Public, Internal or SULIT.";
+      return "A set classification is never removed. Choose Public, Internal or SULIT.";
     case "DOWNGRADE_FROM_SULIT":
     case "DOWNGRADE_FROM_INTERNAL":
-      return `Lowering it${d.from ? ` from ${classificationLabel(d.from as SecurityClass)}` : ""}${d.to ? ` to ${classificationLabel(d.to as SecurityClass)}` : ""} is not done by one person: it is proposed with “Lower the classification” and decided by a second person. ${REUPLOAD_EXIT}`;
+      return `Lowering${d.from ? ` from ${classificationLabel(d.from as SecurityClass)}` : ""}${d.to ? ` to ${classificationLabel(d.to as SecurityClass)}` : ""} needs a second person. Propose it with “Lower the classification”. ${REUPLOAD_EXIT}`;
     case "BELOW_CLASS_CLASSIFICATION":
       return `Its class is now classified ${classificationLabel(d.classification as SecurityClass)}, so it is not set lower than that by one person: that is proposed with “Lower the classification” and decided by a second person. Set it to ${classificationLabel(d.classification as SecurityClass)} or higher. ${REUPLOAD_EXIT}`;
     case "CLASS_CLASSIFICATION_UNSET":
@@ -438,14 +438,14 @@ export function documentFaultText(f: Finding): string {
       return `Lowering a class's classification${d.from ? ` from ${classificationLabel(d.from as SecurityClass)}` : ""}${d.to ? ` to ${classificationLabel(d.to as SecurityClass)}` : ""} is not done by one person: it is proposed with “Lower the classification” and decided by a second person. To file documents at a lower classification, use or add a class classified that way, upload them again under it, then withdraw the old versions, with the reason.`;
     // hold.ts
     case "ALREADY_ON_HOLD":
-      return "A legal hold already stands on this document. Release it first to record a different reason.";
+      return "Already on legal hold. Release it first to record a different reason.";
     case "NOT_ON_HOLD":
       return "No legal hold stands on this document.";
     // retention.ts
     case "RETENTION_NOT_SET":
-      return "Its retention is not set, so it is never disposed of. Set the period and what starts it on the class.";
+      return "Retention not set, so never disposed of. Set the period and trigger on the class.";
     case "RETENTION_PERIOD_INVALID":
-      return `Its retention period of ${d.months} months is not a period, so it is never disposed of. A period is at least one month: correct it on the class.`;
+      return `Retention of ${d.months} months is not a period, so never disposed of. Correct it on the class.`;
     case "TRIGGER_NOT_REACHED":
       return "What starts its retention has not happened yet.";
     case "RETENTION_RUNNING":
@@ -460,12 +460,12 @@ export function documentFaultText(f: Finding): string {
       return "Whose authority a disposal needs is not set on its class.";
     // policy.ts
     case "TYPE_NOT_RECOGNISABLE":
-      return "Only types the portal can recognise from a file's contents may be allowed: PDF, PNG, JPEG and TIFF.";
+      return "Allowed types are limited to PDF, PNG, JPEG and TIFF.";
     case "SIZE_INVALID":
       return "The largest file size must be a whole number of bytes above zero.";
     // the upload and the acts
     case "NO_ORGANISATION":
-      return "No organisation is configured. Run npm run setup first.";
+      return "No organisation configured.";
     case "NO_FILE":
       return "Choose a file to upload.";
     case "TITLE_REQUIRED":
@@ -481,9 +481,9 @@ export function documentFaultText(f: Finding): string {
     case "REQUEST_UNREADABLE":
       return "The upload could not be read. Try again.";
     case "DRIVER_UNKNOWN":
-      return "The deployment's document store driver (DOCUMENT_STORE_DRIVER) is not one the portal has. Whoever runs the portal corrects it.";
+      return "Document store driver (DOCUMENT_STORE_DRIVER) unknown. The portal operator corrects it.";
     case "DRIVER_NOT_BUILT":
-      return "The deployment's document store driver (DOCUMENT_STORE_DRIVER) is not built yet. Whoever runs the portal sets it to postgres.";
+      return "Document store driver (DOCUMENT_STORE_DRIVER) not built. The portal operator sets postgres.";
     case "REASON_REQUIRED":
       return "Give the reason.";
     default:

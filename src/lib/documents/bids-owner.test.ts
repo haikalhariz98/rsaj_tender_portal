@@ -29,7 +29,7 @@ describe("a bid withdrawal as an attachment owner", () => {
     expect(reliedOn("WITHDRAWAL_LETTER", withdrawal(), 2)).toBeNull();
     const f = detachFault({ purpose: "WITHDRAWAL_LETTER", owner: withdrawal(), reason: "wrong scan", reliedOn: "WITHDRAWN_ON_IT" });
     expect(f.map((x) => x.code)).toEqual(["RELIED_ON"]);
-    expect(documentFaultText(f[0])).toMatch(/withdrawal was recorded on this letter/);
+    expect(documentFaultText(f[0])).toMatch(/Withdrawal recorded on this letter/);
   });
   it("is frozen with a cancelled exercise", () => {
     expect(ownerState("WITHDRAWAL_LETTER", withdrawal("CANCELLED"))).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });

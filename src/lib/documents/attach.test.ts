@@ -36,14 +36,14 @@ describe("attaching: an exercise keeps only what its sourcing method asks for", 
     expect(attach("DOSSIER_EVIDENCE", dossierOnly)).toEqual([]);
     const f = attach("DOSSIER_EVIDENCE", scopeOnly);
     expect(f).toEqual([{ code: "PURPOSE_NOT_FOR_METHOD", level: "block", data: { purpose: "DOSSIER_EVIDENCE", reason: "METHOD_DOES_NOT_ASK" } }]);
-    expect(documentFaultText(f[0])).toMatch(/^Dossier evidence is not kept on this exercise: its sourcing method does not keep a justification dossier\./);
+    expect(documentFaultText(f[0])).toMatch(/^Dossier evidence not kept here: the method does not keep a justification dossier\./);
     expect(codes(attach("DOSSIER_EVIDENCE", neither))).toEqual(["PURPOSE_NOT_FOR_METHOD"]);
   });
   it("the coordination scope document only where the method records a coordination meeting", () => {
     expect(attach("COORDINATION_SCOPE", scopeOnly)).toEqual([]);
     const f = attach("COORDINATION_SCOPE", dossierOnly);
     expect(codes(f)).toEqual(["PURPOSE_NOT_FOR_METHOD"]);
-    expect(documentFaultText(f[0])).toMatch(/its sourcing method does not record a coordination meeting/);
+    expect(documentFaultText(f[0])).toMatch(/the method does not record a coordination meeting/);
     expect(codes(attach("COORDINATION_SCOPE", neither))).toEqual(["PURPOSE_NOT_FOR_METHOD"]);
   });
   it("a method no longer configured keeps nothing, and says so rather than claiming it asks for nothing", () => {
@@ -85,7 +85,7 @@ describe("attaching: the owner must be ready and not frozen, with the way out na
     expect(open).toEqual([{ code: "OWNER_FROZEN", level: "block", data: { exit: "ROUTE_OPEN" } }]);
     const approved = attachFault({ purpose: "DOSSIER_EVIDENCE", owner: exercise({ awardApproved: true }), version: live, documentClass: internal });
     expect(approved[0].data?.exit).toBe("AWARD_APPROVED");
-    expect(documentFaultText(approved[0])).toMatch(/cancel that award and open another/);
+    expect(documentFaultText(approved[0])).toMatch(/Cancel that award/);
     expect(attachFault({ purpose: "DOSSIER_EVIDENCE", owner: exercise({ status: "DRAFT" }), version: live, documentClass: internal })).toEqual([]);
   });
   it("the coordination scope document is display only: attachable while the route is open, not once cancelled", () => {
@@ -146,7 +146,7 @@ describe("detaching (with a reason) and re-pinning a new version (OD-8)", () => 
     expect(awardReliance("DECLARATION", accepted)).toBe("ACCEPTED_ON_IT");
     const f = detachFault({ purpose: "DECLARATION", owner: accepted, reason: "Wrong page", reliedOn: awardReliance("DECLARATION", accepted) });
     expect(codes(f)).toEqual(["RELIED_ON"]);
-    expect(documentFaultText(f[0])).toMatch(/attach a new version/);
+    expect(documentFaultText(f[0])).toMatch(/Attach a new version/);
   });
   it("an award accepted before scans were required relied on none: a scan comes off as a correction, with its reason", () => {
     const legacy = award({ status: "ACCEPTED", scansRequired: false });
@@ -246,7 +246,7 @@ describe("6.2 Q-1: the signed specification panel form, on its panel, SULIT", ()
     expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "DRAFT", ...onS1 }), 1, "s1")).toBeNull();
     const f = detachFault({ purpose: "SPEC_PANEL_FORM", owner: panel({ status: "VERIFIED" }), reason: "wrong file", reliedOn: "VERIFIED_ON_IT" });
     expect(codes(f)).toEqual(["RELIED_ON"]);
-    expect(documentFaultText(f[0])).toMatch(/^The specification panel was verified on this scan/);
+    expect(documentFaultText(f[0])).toMatch(/^Panel verified on this scan/);
     // BD-62-26: the words say a new version leaves the panel to be verified again, never that it carries the verification over.
     expect(documentFaultText(f[0])).toMatch(/new version.*verified again/);
   });
@@ -304,7 +304,7 @@ describe("6.2 Q-3: a bill's imported CSV, on the bill version, attached only by 
   it("is refused from anywhere but the import, naming where to import it", () => {
     const f = attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), version: live, documentClass: internal });
     expect(f).toEqual([{ code: "ATTACHED_BY_OWNER_ACT", level: "block", data: { purpose: "BQ_IMPORT_SOURCE" } }]);
-    expect(documentFaultText(f[0])).toMatch(/importing it on the bill of quantities/);
+    expect(documentFaultText(f[0])).toMatch(/attached by the bill import/);
     expect(attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), version: live, documentClass: internal, byOwnerAct: true })).toEqual([]);
   });
   it("takes any classification the officer chose (doc-store OD-7): no purpose floor", () => {
@@ -318,14 +318,14 @@ describe("6.2 Q-3: a bill's imported CSV, on the bill version, attached only by 
     expect(ownerState("BQ_IMPORT_SOURCE", bq({ exerciseStatus: "CANCELLED" }))).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
     const f = attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq({ status: "FINALISED" }), version: live, documentClass: internal, byOwnerAct: true });
     expect(codes(f)).toEqual(["OWNER_FROZEN"]);
-    expect(documentFaultText(f[0])).toMatch(/start a revision/);
+    expect(documentFaultText(f[0])).toMatch(/Start a revision/);
   });
   it("every imported file is relied on, even beside another: replaced by a new version, never simply taken off", () => {
     expect(reliedOn("BQ_IMPORT_SOURCE", bq(), 1)).toBe("IMPORTED_FROM_IT");
     expect(reliedOn("BQ_IMPORT_SOURCE", bq(), 2)).toBe("IMPORTED_FROM_IT");
     const f = detachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), reason: "wrong file", reliedOn: "IMPORTED_FROM_IT" });
     expect(codes(f)).toEqual(["RELIED_ON"]);
-    expect(documentFaultText(f[0])).toMatch(/^Lines of the bill were imported from this file/);
+    expect(documentFaultText(f[0])).toMatch(/^Bill lines were imported from this file/);
   });
   it("is never re-pinned to another version: the bill is corrected by importing again", () => {
     const f = repinFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } });

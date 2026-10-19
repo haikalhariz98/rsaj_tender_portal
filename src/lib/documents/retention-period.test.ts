@@ -53,7 +53,7 @@ describe("a retention period is at least one whole month", () => {
     const f = disposalFault({ retention: rule({ retentionMonths: 0 }), triggerDay: "2000-01-01" }, [], [], "2999-12-31");
     expect(f.map((x) => x.code)).toEqual(["RETENTION_PERIOD_INVALID"]);
     const t = documentFaultText(f[0]);
-    expect(t).toBe("Its retention period of 0 months is not a period, so it is never disposed of. A period is at least one month: correct it on the class.");
+    expect(t).toBe("Retention of 0 months is not a period, so never disposed of. Correct it on the class.");
     expect(t).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
     expect(retentionText({ state: "PERIOD_INVALID", months: 0 })).toBe("Not a period (0 months): never disposed of until it is corrected on the class");
   });

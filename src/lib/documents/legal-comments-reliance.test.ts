@@ -34,7 +34,7 @@ describe("the legal office's comments a return was recorded on", () => {
     const by = reliedOnAttachment({ detachedAt: null, version: { withdrawnAt: null } }, () => reliedOn("LEGAL_COMMENTS", f, 1, "v1"));
     const fs = detachFault({ purpose: "LEGAL_COMMENTS", owner: f, reason: "Wrong file", reliedOn: by });
     expect(fs.map((x) => x.code)).toEqual(["RELIED_ON"]);
-    expect(documentFaultText(fs[0])).toBe("The legal office's return was recorded on these comments, so they are not taken off. To correct them, attach a new version, with the reason.");
+    expect(documentFaultText(fs[0])).toBe("Return recorded on these comments. Attach a new version, with a reason.");
   });
   it("S-2: the replacement attachNewVersion makes (now, after the decision) descends from it and is protected too", () => {
     // The predecessor was closed by the repin; the replacement is version 2 of the same document, attached after the decision.

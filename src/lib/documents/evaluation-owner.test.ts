@@ -46,7 +46,7 @@ describe("the evaluation version as an owner", () => {
     expect(ownerState("SIGNED_REPORT", evaluation("ISSUED", false, "EVALUATED"))).toEqual({ state: "OPEN" });
     expect(ownerState("SIGNED_PROPOSAL_PAPER", evaluation("ISSUED", false, "EVALUATED"))).toEqual({ state: "NOT_READY", exit: "PROPOSAL_NOT_SIGNED" });
     expect(ownerState("SIGNED_PROPOSAL_PAPER", evaluation("ISSUED", true, "EVALUATED"))).toEqual({ state: "OPEN" });
-    expect(EXIT_TEXT.PROPOSAL_NOT_SIGNED).toMatch(/checking and recommending/);
+    expect(EXIT_TEXT.PROPOSAL_NOT_SIGNED).toMatch(/both officers/);
   });
   it("a superseded or cancelled version keeps what it has; a cancelled exercise freezes all", () => {
     expect(ownerState("SIGNED_REPORT", evaluation("SUPERSEDED"))).toEqual({ state: "FROZEN", exit: "EVALUATION_CLOSED" });
@@ -75,7 +75,7 @@ describe("a bidder as an owner", () => {
     expect(reliedOn("COMMUNICATION", bidder("85.5"), 1)).toBeNull();
     const f = detachFault({ purpose: "CPR_REPORT", owner: bidder("85.5"), reason: "wrong file", reliedOn: "CPR_ON_IT" });
     expect(f.map((x) => x.code)).toEqual(["RELIED_ON"]);
-    expect(documentFaultText(f[0])).toMatch(/performance percentage was entered from this report/);
+    expect(documentFaultText(f[0])).toMatch(/Performance percentage entered from this report/);
   });
   it("is frozen once its version is no longer open", () => {
     expect(ownerState("COMMUNICATION", bidder(null, "ISSUED"))).toEqual({ state: "FROZEN", exit: "EVALUATION_CLOSED" });

@@ -29,12 +29,13 @@ describe("a document's classification: every lowering is refused", () => {
     for (const [from, to] of [["SULIT", "INTERNAL"], ["SULIT", "PUBLIC"], ["INTERNAL", "PUBLIC"]] as const) {
       const t = documentFaultText(reclassifyFault(from, to, "x")[0]);
       expect(t).toContain(REUPLOAD_EXIT);
-      expect(t).toMatch(/upload it again as a new document under the right class, then withdraw the old version/);
-      expect(t).toMatch(/decided by a second person/);
+      // 0005, founder 2026-10-19: refusal shortened.
+      expect(t).toMatch(/Upload it again under the right class, then withdraw the old version/);
+      expect(t).toMatch(/needs a second person/);
       expect(t).not.toMatch(NO_CODE);
     }
     expect(documentFaultText(reclassifyFault("INTERNAL", "PUBLIC", "x")[0])).toBe(
-      `Lowering it from Internal to Public is not done by one person: it is proposed with “Lower the classification” and decided by a second person. ${REUPLOAD_EXIT}`,
+      `Lowering from Internal to Public needs a second person. Propose it with “Lower the classification”. ${REUPLOAD_EXIT}`,
     );
   });
 
@@ -152,7 +153,7 @@ describe("the screens offer only the allowed choices, the rest with the reason",
   it("a SULIT document can be changed no way at all: the action is disabled, saying why and the way out", () => {
     const f = classificationForm("SULIT", "SULIT");
     expect(f.classificationChoices.every((c) => c.disabled)).toBe(true);
-    expect(f.classificationLocked).toMatch(/^Lowering it from SULIT is not done by one person/);
+    expect(f.classificationLocked).toMatch(/^Lowering from SULIT needs a second person/);
     expect(f.classificationLocked).toContain(REUPLOAD_EXIT);
   });
 });
@@ -199,6 +200,6 @@ describe("a lowering that a second person decides", () => {
 
   it("says in words, never a code, what a form that lowers refuses", () => {
     const t = documentFaultText(reclassifyFault("PUBLIC", "SULIT", "x", undefined, { viaSecondPerson: true })[0]);
-    expect(t).toBe("This form lowers a classification. To set or raise one, use the classification form.");
+    expect(t).toBe("This form only lowers. Use the classification form to set or raise.");
   });
 });

@@ -51,7 +51,7 @@ describe("the paper's received day (NFR-AUD-005)", () => {
     const f = receivedOnFault("2026-09-30", null);
     expect(f?.code).toBe("TIME_ZONE_UNSET");
     expect(documentFaultText(f!)).toMatch(/Configuration, Organisation/);
-    expect(documentFaultText(f!)).toMatch(/not assumed to be UTC/);
+    expect(documentFaultText(f!)).toMatch(/Time zone not set/);
   });
   it("a day that is not a date is refused", () => {
     expect(receivedOnFault("2026-02-30", "2026-10-01")?.code).toBe("RECEIVED_ON_INVALID");

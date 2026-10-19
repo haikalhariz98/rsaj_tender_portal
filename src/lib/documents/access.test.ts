@@ -119,7 +119,8 @@ describe("reclassifying a document (NFR-SEC-002)", () => {
     const f = reclassifyFault("SULIT", "INTERNAL", "Declassified");
     expect(f.map((x) => x.code)).toEqual(["DOWNGRADE_FROM_SULIT"]);
     const text = documentFaultText(f[0]);
-    expect(text).toMatch(/new document/);
+    // 0005, founder 2026-10-19: refusal shortened; it still names what blocks and the way out.
+    expect(text).toMatch(/Upload it again/);
     expect(text).toMatch(/withdraw/);
     expect(reclassifyFault("SULIT", "PUBLIC", "x").map((x) => x.code)).toEqual(["DOWNGRADE_FROM_SULIT"]);
   });

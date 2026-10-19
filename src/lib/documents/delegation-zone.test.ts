@@ -29,10 +29,11 @@ describe("a delegation's documents with no time zone set (66-C2)", () => {
     expect(ownerState("HOLDER_RECOMMENDATION", unjudged)).toEqual({ state: "FROZEN", exit: "DELEGATION_ZONE_UNSET" });
     const attach = attachFault({ purpose: "HOLDER_RECOMMENDATION", owner: unjudged, version: { withdrawnAt: null }, documentClass: { classification: "SULIT" }, documentClassification: "SULIT" });
     expect(attach.map((f) => f.code)).toContain("OWNER_FROZEN");
-    expect(attach.map(documentFaultText).join(" ")).toMatch(/time zone is not set, so today cannot be told.*Configuration › Organisation/);
+    expect(attach.map(documentFaultText).join(" ")).toMatch(/Time zone not set.*Organisation/);
     expect(detachFault({ purpose: "HOLDER_RECOMMENDATION", owner: unjudged, reason: "Wrong file", reliedOn: null }).map((f) => f.code)).toContain("OWNER_FROZEN");
     expect(repinFault({ purpose: "HOLDER_RECOMMENDATION", owner: unjudged, reason: "Clearer scan", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } }).map((f) => f.code)).toContain("OWNER_FROZEN");
-    expect(EXIT_TEXT.DELEGATION_ZONE_UNSET).toMatch(/^The organisation's time zone is not set, so today cannot be told/);
+    // 0005, founder 2026-10-19: the refusal is shortened; it still says the time zone is not set.
+    expect(EXIT_TEXT.DELEGATION_ZONE_UNSET).toMatch(/^Time zone not set, so the delegation cannot be judged/);
   });
 
   it("an open delegation with the zone set stays open, an ended one stays frozen as before", () => {
