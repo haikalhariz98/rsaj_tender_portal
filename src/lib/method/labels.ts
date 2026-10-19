@@ -91,11 +91,11 @@ export const TYPE_STATE_LABEL: Record<ContractTypeState, string> = {
 
 export const DERIVATION_TEXT: Record<DerivationState, string> = {
   DERIVED: "Derived from the deliverable test.",
-  MIXED_NO_DOMINANT: "Mixed scope with no deliverable above the dominance threshold, so no type is derived. Choose one, with a reason.",
-  THRESHOLD_NOT_SET: "Mixed scope, and no dominance threshold is set, so there is no default for mixed scope. Choose a type, with a reason — or set the threshold under Reference data.",
-  NO_TYPE_FOR_KIND: "No contract type is configured as the default for this deliverable. Choose one, with a reason — or set a deliverable on a type under Reference data.",
-  SEVERAL_TYPES_FOR_KIND: "More than one contract type is configured as the default for this deliverable, so none is derived. Choose one, or correct the types under Reference data.",
-  NO_SCOPE: "What is delivered is not chosen, so no type can be derived.",
+  MIXED_NO_DOMINANT: "No deliverable dominates. Choose a type, with a reason.",
+  THRESHOLD_NOT_SET: "Mixed scope and no dominance threshold set. Choose a type, with a reason.",
+  NO_TYPE_FOR_KIND: "No default type for this deliverable. Choose one, with a reason.",
+  SEVERAL_TYPES_FOR_KIND: "Several default types for this deliverable. Choose one.",
+  NO_SCOPE: "Deliverable not chosen. No type derived.",
 };
 
 export const TAXONOMY_STATE_LABEL: Record<TaxonomyState, string> = {
@@ -108,22 +108,22 @@ export const TAXONOMY_STATE_LABEL: Record<TaxonomyState, string> = {
 
 export const TERMS_STATE_TEXT: Record<TermsState, string> = {
   APPLIES: "Applies",
-  NONE_IN_REGIME: "Not applicable: the terms bands on the approval matrix cover other bands, not this one.",
-  NO_BAND_FOR_VALUE: "Terms bands are set for this band, but none covers this value — a gap in the terms bands.",
-  NOT_SET: "Not set: no contract terms bands are set on the issue in force.",
+  NONE_IN_REGIME: "Not applicable",
+  NO_BAND_FOR_VALUE: "No terms band covers this value.",
+  NOT_SET: "Not set",
 };
 
 export const APPOINTMENT_STATE_TEXT: Record<AppointmentState, string> = {
   RESOLVED: "Resolved",
-  DEPENDS_ON_METHOD: "The approver depends on the method: no single method is proposed in this band.",
-  NO_METHOD_KEY: "This method is not tied to any approval rule, so nobody can be shown as approving its appointment. Set its approval matrix method under Reference data.",
-  NO_RULE: "No approval rule matches this method at this value. Add a rule for it to the approval matrix, or record a known gap.",
+  DEPENDS_ON_METHOD: "Approver depends on the method.",
+  NO_METHOD_KEY: "Method has no approval rule. Set it under Reference data.",
+  NO_RULE: "No approval rule matches this method at this value.",
 };
 
 export const NAME_STATE_TEXT: Record<NameApprovalState, string> = {
   NOT_REQUIRED: "Not required for this method.",
-  NO_METHOD_KEY: "This method asks for name approval but is not tied to any approval rule. Set its approval matrix method under Reference data.",
-  NO_RULE: "No approval rule for the name matches this method. Add one to the approval matrix.",
+  NO_METHOD_KEY: "Name approval has no rule. Set the method under Reference data.",
+  NO_RULE: "No name approval rule matches this method.",
   RESOLVED: "Resolved",
 };
 
@@ -163,24 +163,24 @@ export function findingText(f: Finding): string {
   switch (f.code) {
     // value.ts — ruling R-16
     case "NO_APPROVED_ROUTE":
-      return "The requisition has no approved route on record, so there is no approved value to open an exercise against.";
+      return "Requisition has no approved route.";
     case "EXCEEDS_APPROVED_VALUE":
-      return `Together with the requisition's other live exercises this comes to ${money(d.combined)}, above the ${money(d.approved)} its approval covered. Reduce this exercise's value, cancel a sibling exercise, or cancel this exercise and raise a separate requisition for the difference. The requisition itself stays as approved.`;
+      return `With the other live exercises: ${money(d.combined)}, above the ${money(d.approved)} approved. Reduce this exercise's value, cancel a sibling exercise, or cancel this exercise.`;
     case "SPLIT_ACROSS_REGIME":
-      return `This exercise's value is in a different band from the requisition's live exercises together (${money(d.combined)}). Check that the work is not being split below a threshold.`;
+      return `Combined value (${money(d.combined)}) is in a different band. Check the work is not split.`;
     case "REQUISITION_BAND_CHANGED":
-      return `On its own value this exercise would be approved under “${d.ownRule ?? "another requisition band"}”, not “${d.approvedRule ?? "the band"}” the requisition was approved under. The requisition's approval stands; the difference is recorded.`;
+      return `On its own value: “${d.ownRule ?? "another requisition band"}”, not “${d.approvedRule ?? "the band"}”. Difference recorded.`;
     case "REQUISITION_BAND_NOT_CHECKED":
-      return "The requisition's approval was received from outside and not checked against the approval matrix, so whether this exercise stays in its requisition band is not assessed.";
+      return "Requisition approval not checked against the matrix. Band not assessed.";
     // bands.ts, boundary.ts
     case "BOUNDARY_NOT_RULED":
-      return `This value is exactly where the quotation and tender bands meet. ${boundarySentence(d.operator === "GTE" ? "GTE" : "GT", d.value == null ? null : String(d.value), d.provenance === "OBSERVED" ? "OBSERVED" : "ASSUMED")} It is recorded as an exception until the ruling is written into the approval matrix.`;
+      return `Value is on the quotation and tender boundary. ${boundarySentence(d.operator === "GTE" ? "GTE" : "GT", d.value == null ? null : String(d.value), d.provenance === "OBSERVED" ? "OBSERVED" : "ASSUMED")} Recorded as an exception.`;
     case "TERMS_NOT_SET":
-      return "No contract terms bands are set on the approval matrix in force, so which terms set applies is not set.";
+      return "No contract terms bands in force. Terms not set.";
     case "TERMS_NO_BAND":
-      return "Terms bands are set for this band, but none covers this value.";
+      return "No terms band covers this value.";
     case "TERMS_OVERLAP":
-      return "More than one contract terms band covers this value; the first by order is shown. Correct the bands on the approval matrix.";
+      return "Several terms bands cover this value. First shown.";
     case "APPOINTMENT_NO_RULE":
       return APPOINTMENT_STATE_TEXT.NO_RULE;
     case "APPOINTMENT_NO_METHOD_KEY":
@@ -190,20 +190,20 @@ export function findingText(f: Finding): string {
     case "TENDER_NOT_ABOVE_QUOTATION":
       return "The tender floor must be above the quotation floor.";
     case "TENDER_FLOOR_NOT_BOUNDARY":
-      return "The quotation and tender bands meet at the tender floor, so the boundary must be the same figure. Set it to the tender floor, or move the floor.";
+      return "Boundary must equal the tender floor.";
     case "BOUNDARY_SOURCE_REQUIRED":
-      return "A boundary ruling recorded as stated must cite the document that states it.";
+      return "A stated boundary must cite its document.";
     case "SWITCH_GOVERNS_NO_REGIME":
-      return "The boundary is not the tender floor, so the boundary setting governs no band edge. Correct it on a new issue.";
+      return "Boundary is not the tender floor. Correct it on a new issue.";
     case "BOUNDARY_UNDECIDED":
-      return `“${d.label}” has an edge on the boundary and nobody has decided whether it follows the boundary setting.`;
+      return `“${d.label}” has an edge on the boundary. Not decided whether it follows the setting.`;
     case "REGIME_RULE_DISAGREE":
-      return `“${d.label}” has an edge on the boundary and does not follow the boundary setting, so a value exactly on the boundary would fall in a different band from its method band.`;
+      return `“${d.label}” does not follow the boundary setting. A boundary value lands in another band.`;
     // eligibility.ts
     case "METHODS_NOT_SET":
-      return "No sourcing method is configured. Add the methods under Configuration, Reference data.";
+      return "No sourcing method set. Add them in Reference data.";
     case "SOURCING_NOT_PERMITTED":
-      return "Under this requisition's funding route the organisation does not procure, so no sourcing exercise can be opened.";
+      return "Funding route does not procure. No exercise can open.";
     case "METHOD_REQUIRED":
       return "Choose a sourcing method.";
     case "METHOD_UNKNOWN":
@@ -229,7 +229,7 @@ export function findingText(f: Finding): string {
       return "Name approval was refused.";
     // proposal.ts
     case "ITEMS_NOT_SET":
-      return "This method asks for a proposal, but no proposal items are configured for it. Add them under Reference data.";
+      return "No proposal items set. Add them in Reference data.";
     case "ITEM_EMPTY":
       return `“${d.item}” is empty.`;
     case "NOT_DRAFT":
@@ -237,28 +237,28 @@ export function findingText(f: Finding): string {
     case "NOT_SUBMITTED":
       return "The proposal has not been submitted for review.";
     case "NOT_REVIEWED":
-      return "The proposal must be reviewed by Contract & Procurement before the name is sent for approval.";
+      return "Contract & Procurement must review the proposal first.";
     case "REVIEWER_REQUIRED":
       return "Name who reviewed it.";
     case "FUTURE_DATE":
       return "The date cannot be after today.";
     case "TIME_ZONE_UNSET":
-      return "Set the organisation's time zone under Configuration, Organisation first. Today's date decides this act, and it is not assumed to be UTC.";
+      return "Time zone not set. Set it under Organisation.";
     // justification.ts
     case "REASONS_NOT_SET":
-      return "This method needs a reason code, and no justification reasons are configured. Add them under Configuration, Reference data.";
+      return "No justification reasons set. Add them in Reference data.";
     case "REASON_REQUIRED":
       return "Choose the reason for the direct appointment.";
     case "REASON_UNKNOWN":
       return "That reason is not offered for this method.";
     case "EVIDENCE_NOT_ATTACHED":
-      return "Supporting evidence is not attached to the dossier. Attach it to the exercise's dossier evidence; the evidence note records what exists, and it is not a pass.";
+      return "Supporting evidence not attached to the dossier.";
     case "DOSSIER_UNNUMBERED":
-      return "The justification dossier has no reference yet. It is numbered when the exercise moves into preparation.";
+      return "Dossier numbered on moving to preparation.";
     case "COORDINATION_RECORD_REQUIRED":
-      return "An emergency needs its trigger and the date of the coordination meeting that fixed the scope.";
+      return "Emergency needs its trigger and coordination meeting date.";
     case "SCOPE_DOCUMENT_NOT_ATTACHED":
-      return "The scope document from the coordination meeting is not attached. Attach it to the exercise.";
+      return "Coordination meeting scope document not attached.";
     // contract-type.ts
     case "SCOPE_REQUIRED":
       return "Choose what is delivered.";
@@ -282,24 +282,24 @@ export function findingText(f: Finding): string {
     case "REQUISITION_NOT_APPROVED":
       return "Only an approved requisition can have a sourcing exercise.";
     case "FULLY_IN_EXERCISES":
-      return "The requisition's live exercises already hold all of its approved value. Reduce or cancel one of them to open another.";
+      return "Live exercises hold all approved value. Reduce or cancel one.";
     case "SOURCING_NOT_RECORDED":
-      return "Whether this requisition's funding route lets the organisation procure was not recorded when it was submitted, so no exercise can be opened.";
+      return "Funding route procurement not recorded. No exercise can open.";
     // exercise.ts — the committee gate (FR-REQ-012, ruling C2)
     case "GATES_NOT_DETERMINED":
       return d.why === "NOT_SET"
-        ? "Whether this requisition's funding route needs a committee gate before sourcing is not set, so no exercise can be opened. Set “Needs a committee gate” on the funding route under Configuration, Reference data, then check the committee gates."
+        ? "Committee gate not set on the funding route. No exercise can open."
         : d.why === "RULE_MISSING"
-          ? "This requisition's funding route needs a committee gate, and no gate rule is in force for it, so no exercise can be opened. Add the gate rule under Configuration, Requisition controls, then check the committee gates."
-          : "This requisition's committee gates have not been checked, so no exercise can be opened. Check the committee gates on its Approval tab.";
+          ? "No committee gate rule in force. No exercise can open."
+          : "Committee gates not checked. Check them on its Approval tab.";
     case "GATE_AWAITING":
-      return `The ${d.committee ?? "committee"} has not yet passed this requisition at its gate. Table it at a sitting and cite the decision on the requisition's Approval tab.`;
+      return `${d.committee ?? "Committee"} has not passed this requisition. Table it, then cite the decision.`;
     case "GATE_RETURNED":
-      return `The ${d.committee ?? "committee"} returned this requisition for revision at its gate. Revise the paper, table it again, and cite the new decision.`;
+      return `${d.committee ?? "Committee"} returned this requisition. Revise, table again, cite the decision.`;
     case "GATE_ENDED":
-      return `The ${d.committee ?? "committee"} ended this requisition at its gate, so it is not sourced. Close it without sourcing from its Approval tab.`;
+      return `${d.committee ?? "Committee"} ended this requisition. Close it from its Approval tab.`;
     case "GATE_OUTCOME_NOT_RECORDED":
-      return `The ${d.committee ?? "committee"} did not carry the matter, and its decision records no outcome saying whether it loops back or ends. Table the matter again.`;
+      return `${d.committee ?? "Committee"} did not carry it and recorded no outcome. Table it again.`;
     case "TERMINAL":
       return "A cancelled exercise stays cancelled.";
     case "NOT_ALLOWED":
@@ -322,51 +322,51 @@ export function findingText(f: Finding): string {
       return "The sourcing method does not say which tender documents it assembles. Set its document pack under Configuration, Tender documents, Sourcing methods.";
     case "NOT_BY_THIS_ACT":
       return d.act === "SUBMISSION"
-        ? "The exercise goes for approval for tendering only by submitting its tender documents, on the Tender documents tab."
+        ? "Submit the tender documents for approval on the Tender documents tab."
         : d.act === "APPROVAL"
-          ? "The exercise is approved for tendering only by the approving step of its route, which records the start and closing."
+          ? "Approved for tendering only by its route's approving step."
           : d.act === "PUBLICATION"
-            ? "The exercise is advertised or invited only by publishing it under Publishing on Tender documents, once every check there passes."
+            ? "Publish under Publishing on Tender documents once checks pass."
             : d.act === "WINDOW_CANCELLATION"
-              ? "An advertised or invited exercise is cancelled only through a cancellation approved under Publishing on Tender documents, which records the reason, the refund and who is told."
+              ? "Cancel under Publishing on Tender documents, through an approved cancellation."
               : d.act === "UNSEAL"
-                ? "The tender box is opened only on the second of two authorisations by present panel members, on the Opening tab."
+                ? "Two present panel members must authorise, on the Opening tab."
                 : d.act === "OPENING_FINALISED"
-                  ? "The exercise is opened only by finalising its main opening, on the Opening tab, once every check there passes."
+                  ? "Finalise the main opening on the Opening tab once checks pass."
                   : d.act === "EVALUATION_STARTED"
-                    ? "The evaluation starts only on the Evaluation tab, once every check there passes."
+                    ? "Start the evaluation on the Evaluation tab once checks pass."
                     : d.act === "REPORT_ISSUED"
-                      ? "The exercise is evaluated only by issuing the evaluation report, on the Evaluation tab, once every check there passes."
+                      ? "Issue the evaluation report on the Evaluation tab once checks pass."
                       : d.act === "EVALUATION_REOPENED"
-                        ? "An evaluated exercise is reopened only by a new evaluation version: a committee's decision not carried that returns it to evaluation, or a supplementary opening finalised."
+                        ? "Reopened only by a new evaluation version."
                         : "The exercise returns to preparation only when its route for tendering is rejected.";
     case "PACK_NOT_READY":
-      return "The tender documents are not ready: see what the Tender documents tab says blocks them.";
+      return "Tender documents not ready. See the Tender documents tab.";
     case "DATES_REQUIRED":
       return "Record the tendering start and closing date with the approving decision.";
     case "PUBLISH_NOT_READY":
-      return "The invitation is not ready to publish: see what Publishing on Tender documents says blocks it.";
+      return "Not ready to publish. See Publishing on Tender documents.";
     case "UNSEAL_NOT_AUTHORISED":
-      return "The tender box is opened only once two different panel members present have each authorised it at this sitting.";
+      return "Opens only once two different panel members present have authorised.";
     case "OPENING_NOT_READY":
-      return "The opening is not ready to finalise: see what the Opening tab says blocks it.";
+      return "Opening not ready. See the Opening tab.";
     case "EVALUATION_NOT_READY":
-      return "The evaluation cannot start: see what the Evaluation tab says blocks it.";
+      return "Evaluation cannot start. See the Evaluation tab.";
     case "REPORT_NOT_READY":
-      return "The evaluation report is not ready to issue: see what the Evaluation tab says blocks it.";
+      return "Report not ready. See the Evaluation tab.";
     case "DETERMINATION_CHANGED":
-      return `Since it was last saved, the configuration now gives a different result for ${d.changes}. Open Edit and save it again, so the change is recorded, then move it.`;
+      return `Configuration changed for ${d.changes}. Open Edit and save again.`;
     case "NAME_EXERCISE_CANCELLED":
       return "A cancelled exercise's name is not sent for approval.";
     case "NAME_LIST_FROZEN":
-      return "The exercise is published, so its invitee list stands as approved. To invite others, cancel the exercise and open a replacement.";
+      return "Published, so the list stands: cancel the exercise and open a replacement.";
     case "NAME_NO_INVITEES":
-      return "No contractor is proposed for invitation, so there is no list to approve. Add the invitees under Publishing on Tender documents first.";
+      return "No invitees proposed. Add the invitees under Publishing first.";
     case "NAME_NOT_ASKED":
       return "This exercise's method does not ask for name approval.";
     // actions
     case "NAME_REJECTION_UNRESOLVED":
-      return "The name was refused and where it goes next is the officer's choice. Record the choice on the Name approval tab first.";
+      return "Name refused. Record the officer's choice on the Name approval tab.";
     case "NAME_ALREADY_REQUESTED":
       return "Name approval is already requested.";
     case "NAME_ROUTE_UNAVAILABLE":
@@ -388,9 +388,9 @@ export function findingTextFor(f: Finding, amountsWithheld: boolean): string {
   if (!amountsWithheld) return findingText(f);
   switch (f.code) {
     case "EXCEEDS_APPROVED_VALUE":
-      return "Together with the requisition's other live exercises this comes to more than its approval covered (the amounts are SULIT and withheld from you). Reduce this exercise's value, cancel a sibling exercise, or cancel this exercise and raise a separate requisition for the difference. The requisition itself stays as approved.";
+      return "With the other live exercises, above the approved value (amounts are SULIT). Reduce or cancel an exercise.";
     case "SPLIT_ACROSS_REGIME":
-      return "This exercise's value is in a different band from the requisition's live exercises together (the amounts are SULIT and withheld from you). Check that the work is not being split below a threshold.";
+      return "Combined value is in a different band (amounts are SULIT). Check the work is not split.";
     default:
       return findingText(f);
   }
@@ -409,5 +409,5 @@ export function evidenceChip(count: number, what: "dossier" | "scope"): { text: 
   return { text: what === "dossier" ? "Not attached" : "Scope document not attached", tone: "warn" };
 }
 
-export const EVIDENCE_NOTE_HINT = "What exists and where. The documents themselves are attached to the exercise's dossier evidence; this note is not a pass.";
-export const SCOPE_NOTE_HINT = "What the meeting fixed. The scope document itself is attached to the exercise.";
+export const EVIDENCE_NOTE_HINT = "What exists and where.";
+export const SCOPE_NOTE_HINT = "What the meeting fixed.";

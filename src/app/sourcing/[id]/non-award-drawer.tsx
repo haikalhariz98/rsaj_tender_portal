@@ -14,11 +14,11 @@ export function IssueNoticeDrawer({ id, partyId, name, carriesReason, linked }: 
   return (
     <RecordEditor
       title={`Notice of the outcome to ${name}`}
-      description={`Tells ${name} that its bid was not successful and that the award went to another tenderer. It states no price, score or rank. It is shown in the portal and is not sent: email is not connected.${linked ? "" : " This tenderer is not linked to a supplier's register entry, so it cannot see the notice in the portal until the office links it."}`}
+      description={`States no price, score or rank. Shown in the portal, not emailed.${linked ? "" : " Not linked to a register entry, so the tenderer cannot see it."}`}
       fields={[
         { kind: "hidden", name: "id" },
         { kind: "hidden", name: "partyId" },
-        ...(carriesReason ? [{ kind: "textarea" as const, name: "reason", label: "The reason for non-award", required: true, hint: "In your own words, as the organisation's debrief allows. It is shown to this tenderer only." }] : []),
+        ...(carriesReason ? [{ kind: "textarea" as const, name: "reason", label: "The reason for non-award", required: true, hint: "Shown to this tenderer only." }] : []),
         actorField("NonAwardNotice.issuedBy", { name: "issuedByPersonId" }),
       ]}
       values={{ id, partyId }}

@@ -1,4 +1,5 @@
 import { InboxIcon } from "@/components/icons";
+import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
@@ -6,7 +7,6 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { loadEarlierNotices, loadNonAwardPanel } from "@/lib/portal/bids/non-award-store";
-import { NOTICE_DELIVERY_STATEMENT } from "@/lib/portal/bids/notices";
 
 import { IssueNoticeDrawer } from "./non-award-drawer";
 
@@ -22,28 +22,28 @@ export async function NonAwardPanel({ actor, award }: { actor: Pick<StaffActor, 
         <CardHeader
           icon={<InboxIcon size={17} />}
           title="Notices to unsuccessful tenderers"
-          subtitle={NOTICE_DELIVERY_STATEMENT}
+          subtitle="In the portal, not emailed"
           actions={p.setting === "ON" ? <Badge tone="ok">Issued on request</Badge> : p.setting === "OFF" ? <Badge>Decided against</Badge> : <Badge tone="warn">Not decided</Badge>}
         />
         <CardBody className="flex flex-col gap-3">
           {p.setting !== "NOT_SET" && <p className="text-[14px] text-ink-2">{p.words}</p>}
           {p.provenance && p.setting !== "NOT_SET" && <ProvenanceBadge value={p.provenance} />}
-          {p.setting === "NOT_SET" && <Callout tone="warn">Whether tenderers are told the outcome is a policy of the organisation (D7). Until it is set under Configuration, Awards, nothing is issued and the portal shows tenderers no notice.</Callout>}
+          {p.setting === "NOT_SET" && <Callout tone="warn" title="Notice policy not set" action={<ButtonLink href="/configuration/awards" size="sm" variant="secondary">Set policy</ButtonLink>}>Nothing is issued to tenderers.</Callout>}
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Tenderers" subtitle="Those whose bid was opened and did not win." />
+        <CardHeader title="Tenderers" subtitle="Bid opened, not awarded" />
         {!p.awardStands ? (
           <CardBody>
-            <p className="text-[14px] text-ink-2">The award has not been issued, so nobody is yet an unsuccessful tenderer.</p>
+            <p className="text-[14px] text-ink-2">Award not issued</p>
           </CardBody>
         ) : !p.awardeeNamed ? (
           <CardBody>
-            <Callout tone="warn">This award does not name which tenderer of the exercise it went to, so the unsuccessful tenderers cannot be told apart. Link the award to its bidder first.</Callout>
+            <Callout tone="warn">Award names no tenderer. Link it to its bidder first.</Callout>
           </CardBody>
         ) : p.rows.length === 0 ? (
           <CardBody>
-            <p className="text-[14px] text-ink-2">No other tenderer had a bid opened on this exercise.</p>
+            <p className="text-[14px] text-ink-2">No other opened bids</p>
           </CardBody>
         ) : (
           <ul className="divide-y divide-line/70">
@@ -52,7 +52,7 @@ export async function NonAwardPanel({ actor, award }: { actor: Pick<StaffActor, 
                 <div className="min-w-0">
                   <div className="font-semibold break-words text-ink">{r.name}</div>
                   <div className="text-[12.5px] break-words text-ink-3">
-                    {r.supplier ? `On the register as ${r.supplier}` : "Not linked to a supplier's register entry: it cannot see a notice in the portal"}
+                    {r.supplier ? `On the register as ${r.supplier}` : "Not linked to the register"}
                     {r.notice ? ` · Notice issued ${r.notice.issuedOn} by ${r.notice.issuedBy}${r.notice.reasonText ? `. Reason: ${r.notice.reasonText}` : ""}` : ""}
                   </div>
                 </div>
@@ -76,7 +76,7 @@ export async function EarlierNoticesPanel({ actor, exerciseId, awards }: { actor
   if (notices.length === 0) return null;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<InboxIcon size={17} />} title="Earlier notices to tenderers" subtitle="Issued under an award that was later cancelled. They no longer apply and are kept on record." />
+      <CardHeader icon={<InboxIcon size={17} />} title="Earlier notices to tenderers" subtitle="Award cancelled" />
       <ul className="divide-y divide-line/70">
         {awards.map((a) => {
           const mine = notices.filter((n) => n.awardId === a.id);

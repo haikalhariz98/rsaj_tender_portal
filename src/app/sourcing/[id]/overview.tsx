@@ -159,7 +159,7 @@ function RequisitionSummaryCard({ p }: { p: OverviewProps }) {
       <CardHeader
         icon={<FileIcon size={17} />}
         title="Requisition summary"
-        subtitle="What is being bought, and how it is approved. Read only: the details are kept under Scope and estimate."
+        subtitle="Read only"
         actions={
           p.draft ? (
             <ButtonLink href={`/sourcing/${ex.id}/edit`} variant="secondary" size="sm">
@@ -180,13 +180,13 @@ function RequisitionSummaryCard({ p }: { p: OverviewProps }) {
               value: (
                 <span className="flex flex-col items-start gap-0.5">
                   <span>{decided?.contractType.nameEn ?? p.typeName(ex.contractTypeCode) ?? NOT_SET}</span>
-                  {overridden && <span className="text-[12.5px] text-ink-3">{`Worked out from what is delivered: ${derivationState === "DERIVED" ? (derivedName ?? NOT_SET) : derivationState ? DERIVATION_TEXT[derivationState] : NOT_SET}`}</span>}
-                  {overridden && <span className="text-[12.5px] text-ink-3">{`${TYPE_STATE_LABEL[state!]} · ${ex.contractTypeOverrideReason || "no reason recorded"}`}{p.overriddenBy ? <> · <ActedBy entity="SourcingExercise" id={ex.id} slot="overriddenBy" name={p.overriddenBy} /></> : null}</span>}
-                  {!state && <span className="text-[12.5px] text-ink-3">Choose or derive one before documents go into preparation.</span>}
+                  {overridden && <span className="text-[12.5px] text-ink-3">{`Derived: ${derivationState === "DERIVED" ? (derivedName ?? NOT_SET) : derivationState ? DERIVATION_TEXT[derivationState] : NOT_SET}`}</span>}
+                  {overridden && <span className="text-[12.5px] text-ink-3">{`${TYPE_STATE_LABEL[state!]} · ${ex.contractTypeOverrideReason || "No reason"}`}{p.overriddenBy ? <> · <ActedBy entity="SourcingExercise" id={ex.id} slot="overriddenBy" name={p.overriddenBy} /></> : null}</span>}
+                  {!state && <span className="text-[12.5px] text-ink-3">Not chosen</span>}
                 </span>
               ),
             },
-            { label: "Contract basis", value: basis ? `${basis.nameEn}${basis.standardFormLabel ? ` · ${basis.standardFormLabel}` : ""}` : "Not chosen: required before documents go into preparation" },
+            { label: "Contract basis", value: basis ? `${basis.nameEn}${basis.standardFormLabel ? ` · ${basis.standardFormLabel}` : ""}` : "Not chosen" },
             ...(ex.methodReason ? [{ label: "Why this method", value: ex.methodReason }] : []),
             ...(ex.externalRouteNote ? [{ label: "What the external body decided", value: ex.externalRouteNote }] : []),
             ...(flags && !flags.requiresFreshSourcing ? [{ label: "Parent contract", value: <span className="flex flex-col items-start gap-1"><span>{ex.parentContractRef ?? "Not recorded"}</span><Chip tone="warn">Capacity not tracked</Chip></span> }] : []),
@@ -196,7 +196,7 @@ function RequisitionSummaryCard({ p }: { p: OverviewProps }) {
         <div className="border-t border-line pt-4">
           <p className="mb-2 text-[12px] font-semibold text-ink-3">What is delivered</p>
           {ex.scopeParts.length === 0 ? (
-            <p className="text-[13.5px] text-ink-2">Not chosen yet: no contract type can be derived until it is.</p>
+            <p className="text-[13.5px] text-ink-2">Not chosen</p>
           ) : (
             <ul className="flex flex-col gap-1.5 text-[13.5px]">
               {ex.scopeParts.map((s) => (
@@ -215,13 +215,13 @@ function RequisitionSummaryCard({ p }: { p: OverviewProps }) {
 
         <div className="border-t border-line pt-4">
           <p className="mb-2 text-[12px] font-semibold text-ink-3">Who approves the appointment</p>
-          {p.bands ? <RouteList route={p.bands.appointment} hideCoreNotice /> : <p className="text-[13.5px] text-ink-2">Not determined: the bands are determined when the exercise is saved under an issue of the limits in force.</p>}
+          {p.bands ? <RouteList route={p.bands.appointment} hideCoreNotice /> : <p className="text-[13.5px] text-ink-2">Not determined</p>}
         </div>
 
         {/* FR-MTD-003: a value exactly on a boundary is said on the card itself, with where the ruling comes from. */}
         {/* Not said to a reader who may not read the estimate: the boundary is configuration, so "exactly on it" is the estimate. */}
         {bands?.boundary.onBoundary && p.estimate.state !== "WITHHELD" && (
-          <Callout tone="info" title="The value is on a boundary">
+          <Callout tone="warn" title="Value is on a boundary">
             <span className="flex flex-col items-start gap-1">
               <span>{boundarySentence(bands.boundary.operator, String(bands.boundary.value), bands.boundary.provenance)}</span>
               <ProvenanceBadge value={bands.boundary.provenance} />
@@ -261,8 +261,8 @@ function RulesUsed({ p }: { p: OverviewProps }) {
           <>
             <p className="text-[12.5px] text-ink-3">{`Determined ${formatDate(ex.determinedAt)} under ${bands.matrixLabel}.`}</p>
             <div className="grid gap-4 md:grid-cols-3">
-              <Stat variant="inset" size="sm" tone="neutral" label="Requisition band" value={<span className="text-[17px] whitespace-normal">{ex.requisitionRuleLabel ?? "Not checked"}</span>} hint={ex.requisitionRuleLabel ? "The rule the requisition was approved under." : "The requisition's approval was received from outside and not checked against the approval matrix."} />
-              <Stat variant="inset" size="sm" tone="neutral" label="Method band" value={<span className="text-[17px] whitespace-normal">{REGIME_LABEL[bands.regime]}</span>} hint={bands.proposed.method ? `Proposed: ${bands.proposed.method}.` : "No single method is proposed in this regime."} />
+              <Stat variant="inset" size="sm" tone="neutral" label="Requisition band" value={<span className="text-[17px] whitespace-normal">{ex.requisitionRuleLabel ?? "Not checked"}</span>} hint={ex.requisitionRuleLabel ? undefined : "Not checked against the matrix"} />
+              <Stat variant="inset" size="sm" tone="neutral" label="Method band" value={<span className="text-[17px] whitespace-normal">{REGIME_LABEL[bands.regime]}</span>} hint={bands.proposed.method ? `Proposed: ${bands.proposed.method}.` : "No method proposed"} />
               <Stat
                 variant="inset"
                 size="sm"
@@ -271,9 +271,9 @@ function RulesUsed({ p }: { p: OverviewProps }) {
                 value={<span className={bands.terms.label ? "text-[17px] whitespace-normal" : "text-[17px] whitespace-normal text-ink-4"}>{bands.terms.label ?? (bands.terms.state === "NONE_IN_REGIME" ? "Not applicable" : NOT_SET)}</span>}
                 hint={
                   bands.terms.label
-                    ? `Retention: ${bands.terms.retentionApplies == null ? "not set" : bands.terms.retentionApplies ? "applies" : "does not apply"}. Defects liability: ${bands.terms.defectsLiabilityApplies == null ? "not set" : bands.terms.defectsLiabilityApplies ? "applies" : "does not apply"}.`
+                    ? `Retention: ${bands.terms.retentionApplies == null ? "not set" : bands.terms.retentionApplies ? "yes" : "no"}. Defects liability: ${bands.terms.defectsLiabilityApplies == null ? "not set" : bands.terms.defectsLiabilityApplies ? "yes" : "no"}.`
                     : bands.terms.state === "NOT_SET" || bands.terms.state === "NO_BAND_FOR_VALUE"
-                      ? <>{TERMS_STATE_TEXT[bands.terms.state as keyof typeof TERMS_STATE_TEXT]} <Link href="/configuration/approval-matrix">Set them on the approval matrix</Link>.</>
+                      ? <>{TERMS_STATE_TEXT[bands.terms.state as keyof typeof TERMS_STATE_TEXT]} <Link href="/configuration/approval-matrix">Open matrix</Link></>
                       : TERMS_STATE_TEXT[bands.terms.state as keyof typeof TERMS_STATE_TEXT]
                 }
               />
@@ -285,7 +285,7 @@ function RulesUsed({ p }: { p: OverviewProps }) {
             )}
           </>
         ) : (
-          <p className="text-[13.5px] text-ink-2">Not determined: the bands are determined when the exercise is saved under an issue of the limits in force.</p>
+          <p className="text-[13.5px] text-ink-2">Not determined</p>
         )}
       </section>
 
@@ -297,7 +297,7 @@ function RulesUsed({ p }: { p: OverviewProps }) {
             { label: "Largest deliverable's share", value: ex.dominantSharePct && Number(ex.dominantSharePct.toString()) < 100 ? `${pct(ex.dominantSharePct.toString())}%` : "One deliverable" },
             {
               label: TERM.mixedThreshold,
-              value: decided ? (decided.policy.dominanceSharePct ? `Above ${pct(decided.policy.dominanceSharePct)}% · as recorded` : "Not set: no default for mixed scope") : config.policy.dominanceSharePct ? `Above ${pct(config.policy.dominanceSharePct)}%` : "Not set: no default for mixed scope",
+              value: decided ? (decided.policy.dominanceSharePct ? `Above ${pct(decided.policy.dominanceSharePct)}% · as recorded` : "Not set") : config.policy.dominanceSharePct ? `Above ${pct(config.policy.dominanceSharePct)}%` : "Not set",
             },
             { label: "Requester's indication", value: p.requesterType ?? "None" },
           ]}
@@ -306,7 +306,7 @@ function RulesUsed({ p }: { p: OverviewProps }) {
 
       <section aria-label="What the type drives" className="flex flex-col gap-3 border-t border-line pt-5">
         <h4 className="text-[13px] font-bold text-ink">What the type drives</h4>
-        <p className="text-[12.5px] text-ink-3">{decided ? "As recorded when it moved into preparation." : "Enforced where each behaviour lives, in later modules."}</p>
+        {decided && <p className="text-[12.5px] text-ink-3">As recorded</p>}
         {profile ? (
           <>
             <KeyValues columns={2} items={profile.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: behaviourText(b.value, b.offices, b.key) }))} />
@@ -318,13 +318,13 @@ function RulesUsed({ p }: { p: OverviewProps }) {
             )}
           </>
         ) : (
-          <EmptyState size="sm" title="No contract type yet">Choose or derive one to see its behaviours.</EmptyState>
+          <EmptyState size="sm" title="No contract type yet" />
         )}
       </section>
 
       <section aria-label="Other classifications" className="flex flex-col gap-3 border-t border-line pt-5">
         <h4 className="text-[13px] font-bold text-ink">Other classifications</h4>
-        <p className="text-[12.5px] text-ink-3">Derived from the type and basis rather than asked again. The basis itself is always chosen.</p>
+
         {ignored.length > 0 && permitList && (
           <Callout tone="warn" action={<ButtonLink href="/configuration/reference-data" size="sm">Open Reference data</ButtonLink>}>
             {ignoredMappingsText(ignored.length, permitList.nameEn)}
@@ -359,14 +359,14 @@ function RulesUsed({ p }: { p: OverviewProps }) {
             })}
           </ul>
         ) : (
-          <EmptyState size="sm" title="No classifications configured">Other classifications and their mappings are set under Reference data.</EmptyState>
+          <EmptyState size="sm" title="No classifications set" action={<ButtonLink href="/configuration/reference-data" size="sm" variant="secondary">Reference data</ButtonLink>} />
         )}
       </section>
 
       {(blocking.length > 0 || others.length > 0 || superseded.length > 0) && (
         <section aria-label="Checks" className="flex flex-col gap-2 border-t border-line pt-5">
           <h4 className="text-[13px] font-bold text-ink">{live ? "Checks, as they stand today" : ex.determinedAt ? `Checks, as recorded on ${formatDate(ex.determinedAt)}` : "Checks, as recorded"}</h4>
-          <p className="text-[12.5px] text-ink-3">{blocking.length ? "What must be put right before documents go into preparation, and what is recorded with it." : "Recorded with the exercise."}</p>
+
           {[...blocking, ...others].map((f, i) => (
             <Callout key={i} tone={tone(f.level)}>
               {findingTextFor(f, p.estimate.state === "WITHHELD")}

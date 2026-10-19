@@ -26,6 +26,8 @@ import { sulitFieldOf } from "@/lib/sulit-trail";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
+import { MoreText } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { fieldLabel } from "@/lib/audit/diff";
@@ -40,8 +42,8 @@ import { dossierEvidenceMissing } from "@/lib/method/justification";
 import { transitionFault } from "@/lib/method/exercise";
 import {
   APPOINTMENT_STATE_TEXT,
-  boundarySentence,
   CANCELLED_ASSUMPTION,
+  boundarySentence,
   TERM,
   DELIVERABLE_LABEL,
   DERIVATION_TEXT,
@@ -360,7 +362,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // The same rule the cancel action enforces: a live award stands on the exercise.
   const liveAward = exerciseCancelBlockedBy(awards);
   // A published exercise is cancelled on its approval route, asked for under Publishing on Tender documents (FR-ADV-016).
-  const cancelBlocker = liveAward ? `award ${liveAward.reference} stands on this exercise — cancel the award first.` : published ? "A published exercise is cancelled from Tender documents, under Publishing: it goes to approval with a reason and an answer on the fees." : null;
+  const cancelBlocker = liveAward ? `Award ${liveAward.reference} stands. Cancel it first.` : published ? "Cancel from Tender documents, under Publishing." : null;
   const unavailable: [string, string | null][] = [
     ["Submit proposal", draft && method?.requiresProposal && ex.proposalState === "DRAFT" ? submitBlocker : null],
     ["Request name approval", canAskName ? nameBlocker : null],
@@ -422,9 +424,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             ],
             notes: [
               ...(method?.requiresDossier ? ["The justification dossier is numbered now."] : []),
-              ...(openName ? ["The name approval in progress stays open: it gates invitation, not preparation."] : method?.requiresNameApproval && !approvedName ? ["The name has not been sent for approval yet; it can be requested in preparation."] : []),
-              ...(ex.restricted ? ["Restricted: only the people named on it can see it."] : []),
-              ...(req.status === "APPROVED" ? [`This is the requisition's first exercise to move: ${req.reference} goes into sourcing.`] : []),
+              ...(openName ? ["Name approval is open."] : method?.requiresNameApproval && !approvedName ? ["Name not yet sent for approval."] : []),
+              ...(req.status === "APPROVED" ? [`${req.reference} goes into sourcing.`] : []),
             ],
           }}
         />
@@ -578,14 +579,12 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                   ) : ex.proposalState ? <Badge tone={ex.proposalState === "REVIEWED" ? "ok" : "info"}>{PROPOSAL_STATE_LABEL[ex.proposalState]}</Badge> : undefined}
                 />
                 {proposal.rows.length === 0 ? (
-                  <EmptyState size="sm" title="No proposal items are configured" action={<ButtonLink href="/configuration/reference-data" size="sm">Add them</ButtonLink>}>
-                    This method asks for a proposal, but no items are set for it.
-                  </EmptyState>
+                  <EmptyState size="sm" title="No proposal items set" action={<ButtonLink href="/configuration/reference-data" size="sm">Add items</ButtonLink>} />
                 ) : (
                   <>
                     {ex.proposalState && ex.proposalState !== "DRAFT" && (
                       <p className="border-b border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
-                        {proposal.fromRecord ? "As submitted: the items and answers as they stood then." : "Submitted before the portal kept a copy of the items: shown with the items in force today."}
+                        {proposal.fromRecord ? "As submitted." : "Items as in force today."}
                       </p>
                     )}
                     <ol className="divide-y divide-line/70">
@@ -680,22 +679,15 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       lazy: true,
       panel: tab !== "access" ? null : (
         <Card className="overflow-hidden">
-          <CardHeader icon={<UsersIcon size={17} />} title="Named participants" subtitle={restricted ? "Restricted by its method: only the people named on it can see it." : "Not restricted by its method."} actions={ex.status !== "CANCELLED" && !namingBlock ? <AddParticipantDrawer id={ex.id} people={activePeople.filter((p) => !ex.participants.some((x) => x.personId === p.value))} /> : undefined} />
+          <CardHeader icon={<UsersIcon size={17} />} title="Named participants" subtitle={restricted ? "Restricted" : "Not restricted"} actions={ex.status !== "CANCELLED" && !namingBlock ? <AddParticipantDrawer id={ex.id} people={activePeople.filter((p) => !ex.participants.some((x) => x.personId === p.value))} /> : undefined} />
           <CardBody className="flex flex-col gap-4">
             {namingBlock && ex.status !== "CANCELLED" && (
-              <Callout tone="info" title="Naming people here is for the people named on it">
+              <Callout tone="warn" title="Cannot name people">
                 {namingBlock}
               </Callout>
             )}
-            {restricted && (
-              <Callout tone="warn" title="Restricted to the people named on it">
-                This exercise is hidden from everyone else: it is left out of the lists, the counts, the search and the dashboard, and opening it by its address says it does not exist. Each time someone is turned away, or reads a classified figure on it, the portal logs it. Besides the people named here, it is open to the person in charge, the proposal&apos;s reviewer and the members of its evaluation team and opening panel. It is also open to whoever is able to decide a step of a route on it, whoever has decided one, and the members of the committee a matter of it is tabled to: they are listed below, and nobody has to name them.
-              </Callout>
-            )}
             {ex.participants.length === 0 ? (
-              <EmptyState size="sm" title="Nobody named">
-                {restricted ? "Name who may see it." : "Participants may still be named."}
-              </EmptyState>
+              <EmptyState size="sm" title="Nobody named" />
             ) : (
               <ul className="divide-y divide-line/70 rounded-2xl border border-line">
                 {ex.participants.map((p) => (
@@ -756,7 +748,11 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             {published && (
               <Badge tone={PHASE_TONE[windowGateNow.phase]}>{PHASE_LABEL[windowGateNow.phase]}</Badge>
             )}
-            {restricted && <Badge tone="warn">Restricted to its named people</Badge>}
+            {restricted && (
+              <InfoChip tone="warn" detail="Visible only to the people named on it, plus its route, evaluation and opening members. Access is logged." label="About Restricted">
+                Restricted
+              </InfoChip>
+            )}
           </>
         }
         meta={[
@@ -776,22 +772,22 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       <div className="mb-6 flex flex-col gap-3">
         {ex.status === "CANCELLED" && (
           <Callout tone="info" title="Cancelled">
-            {ex.cancelReason || "No reason recorded."} {CANCELLED_ASSUMPTION}
+            {ex.cancelReason || "No reason recorded."} <InfoChip tone="warn" detail={CANCELLED_ASSUMPTION} label="About Assumed">Assumed</InfoChip>
           </Callout>
         )}
         {ex.classificationLockedAt && (
-          <Callout tone="info" title="Classification locked by its award">
-            Since {formatOrgDay(ex.classificationLockedAt, org.timeZone)} the contract type is fixed: it changes only by a controlled change, which arrives with the post-award modules.
+          <Callout tone="warn" title="Contract type locked by its award">
+            Since {formatOrgDay(ex.classificationLockedAt, org.timeZone)}.
           </Callout>
         )}
         {draft && !today && (
-          <Callout tone="warn" title="The organisation's time zone is not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>
-            Saving, reviewing and moving the exercise depend on today&apos;s date, which is not assumed to be UTC.
+          <Callout tone="warn" title="Time zone not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>
+            Dates cannot be judged.
           </Callout>
         )}
         {draft && !issue && (
-          <Callout tone="warn" title="No approval matrix is in force" action={<ButtonLink href="/configuration/approval-matrix" size="sm">Open the approval matrix</ButtonLink>}>
-            The bands cannot be judged until an issue of the limits is in force.
+          <Callout tone="warn" title="No approval matrix in force" action={<ButtonLink href="/configuration/approval-matrix" size="sm">Open matrix</ButtonLink>}>
+            Bands cannot be judged.
           </Callout>
         )}
       </div>
@@ -859,7 +855,7 @@ function AwardTab({ notices, exerciseId, status, packKind, window, awards, dossi
         </Callout>
       )}
       <Card>
-        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? "Its approval, instrument, return and securities are on the award's own record." : exerciseOpenForAward(status, packKind, window) ? "The exercise is open for an award." : awardOpenRefusal(packKind, status, window)} />
+        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? undefined : exerciseOpenForAward(status, packKind, window) ? "Open for award" : undefined} />
         <CardBody>
           {live ? (
             <div className="flex flex-col gap-4">
@@ -892,7 +888,7 @@ function AwardTab({ notices, exerciseId, status, packKind, window, awards, dossi
                 </Callout>
               )}
               <EmptyState size="sm" title="Not awarded yet" action={<ButtonLink href={`/projects/new?exercise=${exerciseId}`} size="sm" variant="primary">Start the award</ButtonLink>}>
-                {dossier ? DOSSIER_EVIDENCE_NEEDED.short : "Record the awardee and the awarded value; the award is then sent for the appointment's approval."}
+                {dossier ? DOSSIER_EVIDENCE_NEEDED.short : null}
               </EmptyState>
             </div>
           )}
@@ -948,16 +944,17 @@ async function NamePanel({
   const chosenBy = await routeActed(db, l.org.id, nameRoutesOf(ex.approvalInstances));
   return (
     <div className="flex flex-col gap-6">
-      <Callout tone="info" title="The name is approved for a list, and invitation is held to it">
-        The letters of invitation go only to the contractors on the list the name was approved for. Changing the list withdraws the approval until the name is asked for again, and once the exercise is invited the list is frozen. Where the route has a committee step, it is discharged by citing the committee&apos;s decision.
-      </Callout>
+      <p className="flex items-center gap-1 text-[12.5px] font-semibold text-ink-3">
+        Invitation is held to the approved list
+        <MoreText text="Letters go only to the contractors on the list the name was approved for. Changing the list withdraws the approval. The list is frozen once invited. A committee step is cited from the committee's decision." label="About the invitee list" />
+      </p>
       {list && list.invited && (
         <Card className="overflow-hidden">
-          <CardHeader icon={<UsersIcon size={17} />} title="The invitee list" subtitle={list.frozen ? "Frozen: the exercise is invited." : list.route ? `${list.route.label}. ${list.route.state}` : "Proposed under Publishing on Tender documents. The name is asked for with this list."} actions={<Link href={`/sourcing/${ex.id}?tab=documents&section=publishing`} className="text-[13px] font-semibold">Open Publishing</Link>} />
+          <CardHeader icon={<UsersIcon size={17} />} title="The invitee list" subtitle={list.frozen ? "Frozen" : list.route ? `${list.route.label}. ${list.route.state}` : "Proposed"} actions={<Link href={`/sourcing/${ex.id}?tab=documents&section=publishing`} className="text-[13px] font-semibold">Open Publishing</Link>} />
           <CardBody className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="mb-2 text-[12px] font-semibold text-ink-3">As it stands</p>
-              {list.proposed.length === 0 ? <p className="text-[13.5px] text-ink-3">Nobody is proposed yet.</p> : (
+              {list.proposed.length === 0 ? <p className="text-[13.5px] text-ink-3">Nobody proposed</p> : (
                 <ul className="flex flex-col gap-1.5 text-[13.5px]">
                   {list.proposed.map((p) => (
                     <li key={p.registrationNo} className="flex flex-wrap items-center gap-2"><span className="font-semibold text-ink">{p.name}</span><span className="text-ink-3">{p.registrationNo}</span>{p.onRoute === false && <Chip tone="warn">Not on the approved list</Chip>}</li>
@@ -967,7 +964,7 @@ async function NamePanel({
             </div>
             <div>
               <p className="mb-2 text-[12px] font-semibold text-ink-3">As the name was asked for</p>
-              {list.asked.length === 0 ? <p className="text-[13.5px] text-ink-3">{list.route ? "No list was recorded with this route: it approves no names, so it is asked for again with the list." : "Not asked for yet."}</p> : (
+              {list.asked.length === 0 ? <p className="text-[13.5px] text-ink-3">{list.route ? "No list recorded" : "Not asked for"}</p> : (
                 <ul className="flex flex-col gap-1.5 text-[13.5px]">
                   {list.asked.map((p) => (
                     <li key={p.registrationNo} className="flex flex-wrap items-center gap-2"><span className="font-semibold text-ink">{p.name}</span><span className="text-ink-3">{p.registrationNo}</span>{!p.stillProposed && <Chip tone="warn">No longer proposed</Chip>}</li>
@@ -980,11 +977,11 @@ async function NamePanel({
       )}
       {!inst ? (
         <Card>
-          <CardHeader icon={<RouteIcon size={17} />} title={TERM.nameApproval} subtitle="Not requested yet." />
+          <CardHeader icon={<RouteIcon size={17} />} title={TERM.nameApproval} subtitle="Not requested" />
           <CardBody className="flex flex-col gap-3">
             {preview ? (
               <>
-                <p className="text-[13.5px] text-ink-2">If it were requested today, the approval matrix would route it:</p>
+                <p className="text-[13.5px] text-ink-2">Would route to:</p>
                 <ol className="flex flex-col gap-1.5">
                   {preview.map((s, i) => (
                     <li key={i} className="flex items-center gap-2 text-[13.5px]">
@@ -996,7 +993,7 @@ async function NamePanel({
                 </ol>
               </>
             ) : (
-              <p className="text-[13.5px] text-ink-2">{previewText ?? "Requested once the exercise is ready."}</p>
+              <p className="text-[13.5px] text-ink-2">{previewText ?? "Not ready to request"}</p>
             )}
           </CardBody>
         </Card>
@@ -1005,7 +1002,7 @@ async function NamePanel({
           <CardHeader
             icon={<RouteIcon size={17} />}
             title={TERM.nameApproval}
-            subtitle={`Requested ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
+            subtitle={`Requested ${formatDate(inst.openedAt)} · ${inst.matrixLabel ?? "Issue no longer on file"} · ${inst.ruleLabel ?? "Rule no longer on file"} · ${inst.ruleClause || "No clause"}`}
             actions={<Badge tone={routeTone(inst.status)}>{nameRouteLabel(inst.status, inst.warnings)}</Badge>}
           />
           {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
@@ -1019,9 +1016,8 @@ async function NamePanel({
           )}
           {inst.status === "PENDING" && (
             <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
-              Steps are decided in order: each waits for the one before it.{" "}
               {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance }, false, returnTargetBeforeNext(inst))}
-              {inst.supersedesInstanceId ? " This route continues a refused one from an earlier step; the steps before it keep their decisions." : ""}
+              {inst.supersedesInstanceId ? " Continues a refused route." : ""}
             </p>
           )}
           {inst.status === "REJECTED" && (() => {
@@ -1040,7 +1036,7 @@ async function NamePanel({
                 <div className="border-t border-line px-5 py-3 sm:px-6">
                   <Callout
                     tone="warn"
-                    title="Where the refused name goes next is the officer's choice"
+                    title="Officer chooses where it goes next"
                     action={
                       <NameChoiceDrawer
                         id={ex.id}
@@ -1059,7 +1055,7 @@ async function NamePanel({
           })()}
           {inst.checkedAgainstMatrix && (
             <p className="border-t border-line px-5 py-2.5 text-[12.5px] break-words text-ink-3 sm:px-6">
-              Chain beneath the approver: {routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n }; }).en}
+              Chain below approver: {routeCoreText(inst, (c) => { const n = officeName(c) ?? "Office no longer set"; return { en: n }; }).en}
             </p>
           )}
           <RouteSteps
@@ -1071,7 +1067,7 @@ async function NamePanel({
               const m = matters.find((x) => x.id === s.committeeDecisionId);
               return (
                 <>
-                  {DECISION_LABEL[s.decision]} · {s.decidedByName ?? "The committee"} · the committee&apos;s decision
+                  {DECISION_LABEL[s.decision]} · {s.decidedByName ?? "The committee"} · committee decision
                   {m ? <>, <Link href={`/committees/${m.meetingId}`}>{m.meeting.reference}</Link>: {m.subject}</> : ", cited from its sitting"} · {formatDate(s.decidedOn)}
                 </>
               );
@@ -1098,7 +1094,7 @@ async function NamePanel({
       )}
       {earlier.length > 0 && (
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Earlier routes" subtitle="Kept on record." />
+          <CardHeader icon={<ClockIcon size={17} />} title="Earlier routes" />
           <ul className="divide-y divide-line/70">
             {earlier.map((e) => (
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
@@ -1310,7 +1306,7 @@ function HistoryPanel({
       <CardHeader
         icon={<ClockIcon size={17} />}
         title="History"
-        subtitle={total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. Each change names who made it; any from before sign-in is not attributed.` : "Every change to this exercise and what is under it. Each change names who made it; any from before sign-in is not attributed."}
+        subtitle={total > entries.length ? `Latest ${entries.length} of ${total}` : undefined}
         divided={entries.length === 0}
       />
       {onlineNote && (
@@ -1321,9 +1317,7 @@ function HistoryPanel({
         </div>
       )}
       {entries.length === 0 ? (
-        <EmptyState size="sm" title="No recorded changes">
-          Changes made through the portal appear here. Records loaded directly have no trail.
-        </EmptyState>
+        <EmptyState size="sm" title="No recorded changes" />
       ) : (
         <ul className="divide-y divide-line/70">
           {entries.map((e) => (
