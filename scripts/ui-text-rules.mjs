@@ -17,7 +17,7 @@ export const BUDGET = {
 };
 
 /// Screens already cut to the paragraph budget. A screen joins this list when its round-2 cut is done.
-export const PARAGRAPH_SCREENS = [/^src\/app\/sourcing\/\[id\]\/(?:documents|opening|bids|briefing)\/(?!print\/)/];
+export const PARAGRAPH_SCREENS = [/^src\/app\/sourcing\/\[id\]\/(?:documents|opening|bids|briefing|scope)\/(?!print\/)/];
 
 /// Spec and ruling codes are configuration keys and never reach a screen (AGENTS.md rule 5, 0005 R2).
 /// Literal patterns only: money ("RM 1.2m"), percentages ("6.2%") and dates never match, and a

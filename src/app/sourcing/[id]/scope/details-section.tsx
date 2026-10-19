@@ -222,8 +222,9 @@ function DetailsCard({ p }: { p: DetailsProps }) {
                 <Registrations groups={before.groups} />
               ) : null}
               {live && (
-                <p className="mt-2 text-[12.5px] text-ink-3">
-                  The notice states each registration must be valid from the day tendering starts to the closing day: the days proposed when the documents are submitted. The contract type&apos;s registration test: {live.eligibility.typeTest}.
+                <p className="mt-2 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-3">
+                  {`Registration test for the contract type: ${live.eligibility.typeTest}.`}
+                  <MoreText label="How long a registration must be valid" text="The notice states each registration must be valid from the day tendering starts to the closing day: the days proposed when the documents are submitted." />
                 </p>
               )}
             </div>
