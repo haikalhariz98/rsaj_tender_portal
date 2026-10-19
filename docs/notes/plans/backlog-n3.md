@@ -245,3 +245,7 @@ Report (i), `src/app/sourcing/**`, and report (ii), `src/app/projects/**`. Both 
 | R1-7 | n/a | `src/components/data-list-width.test.ts:50-51` | shared test | fixed in `5ea085cb`: it failed on Windows only (backslash paths made `slice(indexOf("src/"))` return `x`). Path separators are normalised, assertions unchanged |
 
 No screen-owner Must or Should is open.
+
+### Step 4 (2026-10-19)
+
+Step 4 found no screen-owner Must or Should to fix. R1-6 is the only screen-owned row and is carried by the brief (Malay outside N1's slice). No screen file under `src/app/sourcing/**` or `src/app/projects/**` was changed, so there is no per-area commit. This note is the only change.
