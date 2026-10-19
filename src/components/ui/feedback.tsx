@@ -102,12 +102,15 @@ export function Meter({
   threshold,
   tone,
   showValue = true,
+  label,
   className,
 }: {
   percent: number | null;
   threshold?: number | null;
   tone?: "brand" | "warn" | "err";
   showValue?: boolean;
+  /// What is measured, for a screen reader (the bar alone says nothing). Absent: the meter is announced by its value only.
+  label?: string;
   className?: string;
 }) {
   if (percent == null) return <span className="text-[12px] text-ink-3"><Say words={COMPONENT_WORDS.notSet} /></span>;
@@ -115,7 +118,14 @@ export function Meter({
   const fill =
     tone === "err" ? "bg-rose-500" : tone === "warn" || over ? "bg-amber-500" : "bg-brand-500";
   return (
-    <div className={cx("flex min-w-0 items-center gap-2.5", className)}>
+    <div
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(Math.max(0, Math.min(percent, 100)))}
+      className={cx("flex min-w-0 items-center gap-2.5", className)}
+    >
       <span className="relative h-2 min-w-12 flex-1 overflow-hidden rounded-full bg-ink/[0.07]">
         <span
           className={cx("absolute inset-y-0 left-0 rounded-full", fill)}
