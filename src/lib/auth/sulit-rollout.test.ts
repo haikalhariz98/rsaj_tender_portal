@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -16,6 +16,7 @@ import { SULIT_FIELDS } from "@/lib/sulit-fields";
 
 import { sulitGranted, sulitWithheld } from "./sulit-access";
 import { sulitHistoryValue } from "./sulit-history";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * The rollout of the SULIT rule across the modules (Phase 3b), as small pure checks and as scans of the source. The scans match on the path with `/` whatever the platform,
@@ -147,7 +148,7 @@ describe("the award's findings that quote the department estimate", () => {
 // ------------------------------------------------------------------ the scans
 
 const root = process.cwd();
-const posix = (p: string) => p.split(sep).join("/");
+const posix = (p: string) => toPosix(p);
 function sources(dir: string, pattern: RegExp): string[] {
   return readdirSync(join(root, dir)).flatMap((name) => {
     const p = join(dir, name);

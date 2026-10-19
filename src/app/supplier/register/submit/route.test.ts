@@ -12,6 +12,7 @@ vi.mock("../receive", () => ({
 }));
 
 import { POST } from "./route";
+import { toPosix } from "@/lib/scan/files";
 
 /// What a browser sends with a form posted from a page of the same origin. Phase 4a: the route passes the Origin guard, so a test that means to be let in says where it came from.
 const SAME_ORIGIN = { "sec-fetch-site": "same-origin", origin: "http://portal.example", host: "portal.example" };
@@ -73,7 +74,7 @@ describe("the public registration route", () => {
 });
 
 describe("the portal's own folder", () => {
-  const files = (dir: string): string[] => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? files(join(dir, f)) : [join(dir, f)]));
+  const files = (dir: string): string[] => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? files(join(dir, f)) : [toPosix(join(dir, f))]));
   it("holds no server action: the public copy refuses every one, so the form posts to a route", () => {
     const offenders = files(join(process.cwd(), "src", "app", "supplier"))
       .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\./.test(f))

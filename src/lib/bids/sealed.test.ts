@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * ADR 0016 (6.6 OD-1, OD-2): the register records envelopes, never offers, and names no bidder
@@ -24,10 +25,10 @@ function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return files(path);
-    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [toPosix(path)] : [];
   });
 }
-const sources = [...files(join(root, "src", "app")), ...files(join(root, "src", "lib"))].map((p) => ({ path: relative(root, p), text: readFileSync(p, "utf8") }));
+const sources = [...files(join(root, "src", "app")), ...files(join(root, "src", "lib"))].map((p) => ({ path: posixRelative(root, p), text: readFileSync(p, "utf8") }));
 
 describe("the register holds no offer (ADR 0016)", () => {
   it.each(["BidEnvelope", "BidWithdrawal", "BoxEvent", "ValidityExtension"])("%s has no money, price, sum, period, score or content column", (model) => {
@@ -103,7 +104,7 @@ describe("no bidder is named before opening (OD-2)", () => {
     const writes = sources.flatMap((s) => envelopeWrites(s.text).map(({ w, at }) => ({ path: s.path, w, fn: within(s.text, at) })));
     expect(writes.length).toBeGreaterThan(0);
     const naming = writes.filter((x) => /\bpartyId\b|\bparty\s*:/.test(x.w));
-    expect(naming.map((x) => `${x.path}#${x.fn}`)).toEqual([join("src", "app", "sourcing", "[id]", "opening", "actions.ts") + "#openEnvelope", join("src", "lib", "opening", "unseal-store.ts") + "#commitUnseal"]);
+    expect(naming.map((x) => `${x.path}#${x.fn}`)).toEqual([toPosix(join("src", "app", "sourcing", "[id]", "opening", "actions.ts")) + "#openEnvelope", toPosix(join("src", "lib", "opening", "unseal-store.ts")) + "#commitUnseal"]);
   });
 });
 
@@ -138,7 +139,7 @@ describe("an envelope is never deleted, rejected or set aside (FR-BID-003)", () 
     expect(hits).toEqual([]);
   });
   it("the bids screens offer no Delete or Reject", () => {
-    const screens = sources.filter((s) => s.path.includes(join("sourcing", "[id]", "bids")) && s.path.endsWith(".tsx"));
+    const screens = sources.filter((s) => s.path.includes(toPosix(join("sourcing", "[id]", "bids"))) && s.path.endsWith(".tsx"));
     expect(screens.length).toBeGreaterThan(0);
     for (const s of screens) expect(s.text, s.path).not.toMatch(/>\s*(Delete|Reject)[^<]*</);
   });

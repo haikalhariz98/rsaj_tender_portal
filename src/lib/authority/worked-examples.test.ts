@@ -5,6 +5,7 @@ import { parseSen } from "@/lib/money";
 import { DAL_FIXTURE } from "./dal-fixture";
 import { resolveApproval } from "./resolve";
 import type { ResolveQuery } from "./types";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * Spec §6.9.3: the worked routing examples the engine must reproduce, as regression
@@ -140,7 +141,7 @@ describe("the Appendix B fixture is for tests only (C5)", () => {
     const walk = (dir: string): string[] =>
       readdirSync(dir).flatMap((f) => {
         const p = join(dir, f);
-        return statSync(p).isDirectory() ? (f === "generated" || f === "migrations" ? [] : walk(p)) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [p] : [];
+        return statSync(p).isDirectory() ? (f === "generated" || f === "migrations" ? [] : walk(p)) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [toPosix(p)] : [];
       });
     const importers = [...walk(join(process.cwd(), "src")), ...walk(join(process.cwd(), "prisma"))].filter((f) => !f.endsWith("dal-fixture.ts") && readFileSync(f, "utf8").includes("dal-fixture"));
     expect(importers).toEqual([]);

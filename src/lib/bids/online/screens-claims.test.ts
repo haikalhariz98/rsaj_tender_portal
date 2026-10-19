@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { lex } from "@/lib/scan/source";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Wave 3b step 19 (ruling 20j, 20s, 20ab): the cross-cutting scan of `words.test.ts` extended from the words constants to the components and pages that render them, with the
@@ -35,10 +36,10 @@ function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return files(path);
-    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [toPosix(path)] : [];
   });
 }
-const posix = (p: string) => relative(root, p).split(sep).join("/");
+const posix = (p: string) => posixRelative(root, p);
 
 /// The claims a file makes, with the allowed phrases taken out first. A line is reported with its place.
 export function claims(text: string, allowed: readonly RegExp[]): string[] {

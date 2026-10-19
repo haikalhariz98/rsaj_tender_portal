@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { closing, lex } from "@/lib/scan/source";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Organisation isolation (ADR 0034 D10, sign-in programme Phase 1c): the actor's organisation scopes every query.
@@ -37,12 +38,12 @@ import { closing, lex } from "@/lib/scan/source";
 
 const ROOT = process.cwd();
 const SRC = path.join(ROOT, "src");
-const rel = (f: string) => path.relative(ROOT, f).split(path.sep).join("/");
+const rel = (f: string) => posixRelative(ROOT, f);
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {
     const p = path.join(dir, n);
     if (statSync(p).isDirectory()) return n === "generated" ? [] : walk(p);
-    return /\.(ts|tsx)$/.test(n) ? [p] : [];
+    return /\.(ts|tsx)$/.test(n) ? [toPosix(p)] : [];
   });
 
 /// Where the constant may be read, and why. A file listed that no longer reads it fails too, so the list cannot go stale.

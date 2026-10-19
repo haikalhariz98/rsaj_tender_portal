@@ -8,6 +8,7 @@ import { closing, lex } from "@/lib/scan/source";
 
 import { custodyItemLabel, estimateEventLabel, formationCheckLabel, historyEntityLabel, historyValueWords, policyLabel, reconciliationLabel, RECORD_TYPE_WORDS, securityLabel } from "./entity-labels";
 import { auditCsv } from "./export";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 612-C2 (ruled at 6.13 planning; AGENTS.md rule 5): History and the export read a trail row's record through
@@ -75,7 +76,7 @@ function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
     if (rel === path.join("src", "generated")) return [];
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [rel] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [toPosix(rel)] : [];
   });
 }
 
@@ -103,7 +104,7 @@ describe("no audit writer builds a label or a value from a code (the scan)", () 
   const scanned = [...files("src"), ...files("prisma")].map((file) => ({ file, src: readFileSync(path.join(ROOT, file), "utf8") }));
   it("covers the app, the libraries and the demo", () => {
     const names = scanned.map((s) => s.file);
-    for (const f of ["src/app/projects/[id]/actions.ts", "src/app/awards/actions.ts", "src/app/suppliers/actions.ts", "prisma/demo-contracts.ts", "prisma/demo-award.ts", "prisma/demo-suppliers.ts", "src/lib/method/fixture.ts"]) expect(names).toContain(path.normalize(f));
+    for (const f of ["src/app/projects/[id]/actions.ts", "src/app/awards/actions.ts", "src/app/suppliers/actions.ts", "prisma/demo-contracts.ts", "prisma/demo-award.ts", "prisma/demo-suppliers.ts", "src/lib/method/fixture.ts"]) expect(names).toContain(toPosix(path.normalize(f)));
   });
   it("finds none", () => {
     expect(scanned.flatMap((s) => codeWords(s.file, s.src))).toEqual([]);

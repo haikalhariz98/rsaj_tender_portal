@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * A restricted exercise is hidden from everyone not named on it (FR-MTD-007, ADR 0034 D14, Phase 3a), and the hiding is not done screen by screen: it is
@@ -20,12 +21,12 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
 const SRC = path.join(ROOT, "src");
-const rel = (f: string) => path.relative(ROOT, f).split(path.sep).join("/");
+const rel = (f: string) => posixRelative(ROOT, f);
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {
     const p = path.join(dir, n);
     if (statSync(p).isDirectory()) return n === "generated" ? [] : walk(p);
-    return /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [p] : [];
+    return /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [toPosix(p)] : [];
   });
 
 /// A read of exercises: the exercise table queried, or one of the loaders that reads an exercise (or its tab) by id.

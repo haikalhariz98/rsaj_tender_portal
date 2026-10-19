@@ -1,11 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { LATE_TABLED_TEXT } from "@/lib/committee/labels";
 
 import { bidFindingText, RECEIVED_SECTION } from "./labels";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * 6.7 review S-2: since 6.7 (OD-8) the register is the Received section of the "Bids and opening" tab;
@@ -17,7 +18,7 @@ function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return files(path);
-    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [toPosix(path)] : [];
   });
 }
 
@@ -35,7 +36,7 @@ describe("the register is named as the Received section of Bids and opening (S-2
   it("no source in src/app or src/lib names a 'Bids received tab'", () => {
     const hits = [...files(join(root, "src", "app")), ...files(join(root, "src", "lib")), ...files(join(root, "src", "components"))]
       .filter((p) => /Bids received tab/i.test(readFileSync(p, "utf8")))
-      .map((p) => relative(root, p));
+      .map((p) => posixRelative(root, p));
     expect(hits).toEqual([]);
   });
   it("the late-admission hold, the validity holds, the committee's refusal name the section", () => {

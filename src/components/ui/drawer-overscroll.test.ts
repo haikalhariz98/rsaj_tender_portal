@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { CONFIRM_SCRIM, DRAWER_SCRIM, confirmPanelClass, drawerPanelClass } from "./drawer";
+import { toPosix } from "@/lib/scan/files";
 
 /// N3 reviewer run 1 and its review, AC-63: a modal never scrolls the page behind it. overscroll-behavior only works on a scroll container, so the rule is on the scrolling body.
 describe("drawers and confirmation boxes contain overscroll", () => {
@@ -18,7 +19,7 @@ describe("drawers and confirmation boxes contain overscroll", () => {
   it("every scrolling body inside a drawer or confirmation is overscroll-contain", () => {
     const walk = (d: string): string[] => readdirSync(d).flatMap((n) => {
       const p = join(d, n);
-      return statSync(p).isDirectory() ? walk(p) : p.endsWith(".tsx") ? [p] : [];
+      return statSync(p).isDirectory() ? walk(p) : p.endsWith(".tsx") ? [toPosix(p)] : [];
     });
     const offenders: string[] = [];
     for (const f of walk("src")) {

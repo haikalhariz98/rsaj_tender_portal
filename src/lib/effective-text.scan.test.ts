@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Source scan (65-C1): every form field and every refusal for an effective-dated end day
@@ -15,11 +16,11 @@ function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return files(path);
-    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [toPosix(path)] : [];
   });
 }
 
-const sources = files(ROOT).map((path) => ({ path: relative(ROOT, path), text: readFileSync(path, "utf8") }));
+const sources = files(ROOT).map((path) => ({ path: posixRelative(ROOT, path), text: readFileSync(path, "utf8") }));
 
 describe("effective-dated end days on forms", () => {
   it("every end-day date field is labelled END_DAY_LABEL", () => {

@@ -9,6 +9,7 @@ import { variationFaultWords } from "@/lib/variation/labels";
 
 import { formNeedFault, noFormFault, raiseFormFault } from "./form-needs";
 import { KIND_WORDS } from "./labels";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 6.14 increment 2 intake 1 (BD-613-96): one form rule at raise, `raiseFormFault`. Only TEMPLATE_NOT_SET refuses at raise
@@ -59,7 +60,7 @@ describe("FORM_NOT_SET is retired (source scan)", () => {
     readdirSync(path.join(ROOT, dir)).flatMap((f) => {
       const rel = path.join(dir, f);
       if (rel === path.normalize("src/generated")) return [];
-      return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [rel] : [];
+      return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [toPosix(rel)] : [];
     });
   it("no product file raises or words it; the schedule-form and routing-sheet refusals stay their own (not merged, with the reason)", () => {
     const hits = [...files("src"), ...files("prisma")].filter((f) => /["']FORM_NOT_SET["']/.test(readFileSync(path.join(ROOT, f), "utf8")));

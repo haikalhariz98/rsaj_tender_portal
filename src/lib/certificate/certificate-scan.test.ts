@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { closing, enclosingFn, lex, rawCalls, spans } from "@/lib/scan/source";
 
 import { BOUND_FIELDS } from "./fields";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * Source scans for the certificate core (6.14 increment 1), extending 6.12's lock-order and single-writer
@@ -32,7 +33,7 @@ const REPO = "src/lib/certificate/repo.ts";
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [rel] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [toPosix(rel)] : [];
   });
 }
 
@@ -72,7 +73,7 @@ function writes(models: string[], ops = "update|updateMany|upsert|create|createM
   return out;
 }
 
-const P = (f: string) => path.normalize(f);
+const P = (f: string) => toPosix(path.normalize(f));
 const DEMO = P("prisma/demo-certificates.ts");
 /// 6.13 Part A: the supervision demo opens a delegation's letter pair as drafts, as the delegation act does.
 const DEMO_SUPERVISION = P("prisma/demo-supervision.ts");

@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { lex, spans } from "@/lib/scan/source";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * The two-person rules are held where they are written (ADR 0034 D15, Phase 2c; threat model F7 and B12). A source scan, in the manner of
@@ -23,11 +24,11 @@ const walk = (dir: string, out: string[] = []): string[] => {
     if (statSync(p).isDirectory()) {
       if (name === "generated" || name === "node_modules") continue;
       walk(p, out);
-    } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(p);
+    } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(toPosix(p));
   }
   return out;
 };
-const rel = (p: string) => path.relative(ROOT, p).split(path.sep).join("/");
+const rel = (p: string) => posixRelative(ROOT, p);
 const FILES = [...walk(path.join(ROOT, "src")), ...walk(path.join(ROOT, "prisma")), ...walk(path.join(ROOT, "scripts"))].map((p) => ({ file: rel(p), text: readFileSync(p, "utf8") }));
 const SRC = FILES.filter((f) => f.file.startsWith("src/") && !f.file.startsWith("src/lib/test-db/") && !f.file.startsWith("src/lib/test-support/"));
 const read = (file: string) => FILES.find((f) => f.file === file)!.text;

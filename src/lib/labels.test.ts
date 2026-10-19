@@ -7,6 +7,7 @@ import { actLabel } from "@/components/ui/act";
 
 import { AUTHORITY_ACTS } from "./authority/types";
 import { ACT_LABEL, actWithCode, condLabel, hasMatterLabel, matterLabel, routedOnLabel } from "./labels";
+import { toPosix } from "@/lib/scan/files";
 
 describe("an authority act reads as words with its DAL code (ruling CO-9, FR-APR-003)", () => {
   it("names every act and shows the manual's code beside it", () => {
@@ -43,7 +44,7 @@ describe("one act vocabulary: the grammar's list and the words agree", () => {
 describe("every product matter-domain constant has a label (6.6 review S-4)", () => {
   /// Every `export const X_DOMAIN = "…"` the product declares, found by scanning src/lib, so a new one without words fails here.
   const domains = (() => {
-    const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : /\.ts$/.test(n) && !/\.test\.ts$/.test(n) ? [join(dir, n)] : []));
+    const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : /\.ts$/.test(n) && !/\.test\.ts$/.test(n) ? [toPosix(join(dir, n))] : []));
     return [...new Set(walk("src/lib").flatMap((f) => [...readFileSync(f, "utf8").matchAll(/export const [A-Z_]+_DOMAIN = "([a-z_]+)"/g)].map((m) => m[1])))].sort();
   })();
   it("the scan finds the domains, the late-admission one included", async () => {

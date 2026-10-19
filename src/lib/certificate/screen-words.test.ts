@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { certificateFaultWords } from "./fault-text";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 6.14 inc 1 fix S-2: the printed routing sheet's own words stay off the product's screens. "DATE (1)",
@@ -28,7 +29,7 @@ const SCREENS = [
   "src/lib/nav.ts",
   "src/lib/certificate/sheet-words.ts",
   "src/lib/certificate/labels.ts",
-  ...readdirSync(path.join(ROOT, "src/app/configuration/routing-sheets"), { recursive: true }).map(String).filter((f) => /\.tsx?$/.test(f)).map((f) => `src/app/configuration/routing-sheets/${f}`),
+  ...readdirSync(path.join(ROOT, "src/app/configuration/routing-sheets"), { recursive: true }).map((f) => toPosix(String(f))).filter((f) => /\.tsx?$/.test(f)).map((f) => `src/app/configuration/routing-sheets/${f}`),
 ];
 
 describe("the printed sheet's labels stay off the screens (S-2)", () => {

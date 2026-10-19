@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { lex, spans } from "@/lib/scan/source";
 
 import { OPERATIONS } from "./operations";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Every Configuration editor but the sign-in ones proposes, and nothing in a screen's own action writes a configuration table (sign-in programme Phase 5b, the plan's
@@ -22,7 +23,7 @@ const ROOT = process.cwd();
 const CONFIG = path.join(ROOT, "src", "app", "configuration");
 const read = (f: string) => readFileSync(f, "utf8");
 const exportsOf = (src: string) => [...src.matchAll(/^export async function (\w+)\(/gm)].map((m) => m[1]);
-const walk = (dir: string, ext: RegExp): string[] => readdirSync(dir).flatMap((n) => (statSync(path.join(dir, n)).isDirectory() ? walk(path.join(dir, n), ext) : ext.test(n) ? [path.join(dir, n)] : []));
+const walk = (dir: string, ext: RegExp): string[] => readdirSync(dir).flatMap((n) => (statSync(path.join(dir, n)).isDirectory() ? walk(path.join(dir, n), ext) : ext.test(n) ? [toPosix(path.join(dir, n))] : []));
 
 const WRITE = /\.(?:create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)\s*\(/;
 
@@ -136,15 +137,15 @@ describe("a proposal asks first, and an editor is reached only by the machinery"
 
   it("nothing imports an editor's core but its own section's actions and registry fragment", () => {
     const offenders: string[] = [];
-    for (const f of walk(path.join(ROOT, "src"), /\.(ts|tsx)$/).filter((x) => !/\.test\.tsx?$/.test(x) && !x.includes(`${path.sep}generated${path.sep}`))) {
-      const rel = path.relative(CONFIG, f).split(path.sep).join("/");
+    for (const f of walk(path.join(ROOT, "src"), /\.(ts|tsx)$/).filter((x) => !/\.test\.tsx?$/.test(x) && !x.includes("/generated/"))) {
+      const rel = posixRelative(CONFIG, f);
       const owner = /^([\w-]+)\/([\w-]*)(actions|operations)\.ts$/.exec(rel);
       for (const x of read(f).matchAll(/(?:from\s+|import\(\s*)["']([^"']+)["']/g)) {
         const spec = x[1];
         if (!/(?:^|\/)(?:[\w-]+-)?core$/.test(spec)) continue;
         // A section's own action file and registry fragment reach their own core, written relative to themselves.
         if (owner && spec.startsWith("./")) continue;
-        offenders.push(`${path.relative(ROOT, f)} imports ${spec}`);
+        offenders.push(`${posixRelative(ROOT, f)} imports ${spec}`);
       }
     }
     expect(offenders).toEqual([]);
@@ -154,6 +155,6 @@ describe("a proposal asks first, and an editor is reached only by the machinery"
     const clients = walk(path.join(ROOT, "src"), /\.tsx$/).filter((f) => /^\s*["']use client["']/.test(read(f)));
     expect(clients.length).toBeGreaterThan(20);
     const reaching = clients.filter((f) => /_editors\/operations|(?:^|[/-])core["']|\/operations["']/m.test(read(f)));
-    expect(reaching.map((f) => path.relative(ROOT, f))).toEqual([]);
+    expect(reaching.map((f) => posixRelative(ROOT, f))).toEqual([]);
   });
 });

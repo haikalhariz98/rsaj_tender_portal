@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * F1, held in the source (ADR 0034 D12, Phase 2b; the threat model's section E, Phase 2): no actor's person is read from a form or a request body except through
@@ -19,12 +20,12 @@ function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(p);
+    else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(toPosix(p));
   }
   return out;
 }
 
-const FILES = walk(path.join(ROOT, "src", "app")).map((p) => ({ file: path.relative(ROOT, p).split(path.sep).join("/"), text: readFileSync(p, "utf8") }));
+const FILES = walk(path.join(ROOT, "src", "app")).map((p) => ({ file: posixRelative(ROOT, p), text: readFileSync(p, "utf8") }));
 
 /// A read of a form field or a body key whose name says it is a person: `data.get("xPersonId")`, `r.text("personId", ...)`, `r.optionalText("headPersonId")`.
 const READ = /\.(?:get|getAll|text|optionalText|choice)\(\s*"([A-Za-z]*[Pp]erson(?!al)[A-Za-z]*)"/g;
@@ -117,7 +118,7 @@ describe("no actor's person is read from a form except through beginAct", () => 
   it("every decision of an approval step, and every delegation, judges the person recording it as well as the person it is for (a requester does not record the approver's approval; an officer does not record a delegation to themselves)", () => {
     const wrong: string[] = [];
     const all = [...walk(path.join(ROOT, "src", "app")), ...walk(path.join(ROOT, "src", "lib"))]
-      .map((p) => ({ file: path.relative(ROOT, p).split(path.sep).join("/"), text: readFileSync(p, "utf8") }))
+      .map((p) => ({ file: posixRelative(ROOT, p), text: readFileSync(p, "utf8") }))
       .filter((f) => !/\/page\.tsx$/.test(f.file));
     for (const f of all) {
       for (const m of f.text.matchAll(/\b(?:deciderFaults|faultsIn|delegationFaults)\(/g)) {

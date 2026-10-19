@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 // NFR-LNG-001 (ADR 0040): switching language must lose no entered data, so nothing in the tree is keyed on the language. A `key` that changes on
 // the switch remounts its subtree and throws its state (a half-typed drawer) away. The switch refreshes the page in place instead.
@@ -12,7 +13,7 @@ function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = path.join(dir, name);
     if (statSync(full).isDirectory()) return sources(full);
-    return /\.tsx$/.test(name) ? [full] : [];
+    return /\.tsx$/.test(name) ? [toPosix(full)] : [];
   });
 }
 
@@ -60,7 +61,7 @@ describe("no key in the app or the shared components mentions the language", () 
     const offenders = files.flatMap((file) =>
       keyExpressions(readFileSync(file, "utf8"))
         .filter((k) => MENTIONS_LANGUAGE.test(k))
-        .map((k) => `${path.relative(ROOT, file).replaceAll("\\", "/")}: key={${k}}`),
+        .map((k) => `${posixRelative(ROOT, file)}: key={${k}}`),
     );
     expect(offenders.filter((o) => !DOCUMENT_LANGUAGE_KEYS.has(o))).toEqual([]);
   });

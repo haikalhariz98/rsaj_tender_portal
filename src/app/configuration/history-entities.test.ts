@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * BD-614-34 as ruled: every entity a History button asks for is on Configuration history's allow-list, so a button
@@ -12,7 +13,7 @@ const walk = (dir: string): string[] =>
   readdirSync(join(ROOT, dir)).flatMap((n) => {
     const p = join(dir, n);
     if (statSync(join(ROOT, p)).isDirectory()) return n === "generated" ? [] : walk(p);
-    return /\.tsx?$/.test(n) && !/\.test\.tsx?$/.test(n) ? [p] : [];
+    return /\.tsx?$/.test(n) && !/\.test\.tsx?$/.test(n) ? [toPosix(p)] : [];
   });
 
 describe("History buttons ask only for allow-listed entities", () => {

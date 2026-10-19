@@ -7,6 +7,7 @@ import { lex } from "@/lib/scan/source";
 
 import { wholeWordPattern } from "./terms";
 import { jsPatternOf, PARITY_ALIASES, parityCorpus, removedAliasesInUse, saysAlias } from "./terms.oracle";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 614b-C2 (BD-613-93): the alias in-use check runs in the database (`wholeWordPattern`, term-use.ts); the in-memory rule
@@ -65,11 +66,11 @@ describe("the oracle is imported only by tests (614b-C2)", () => {
     readdirSync(path.join(ROOT, dir)).flatMap((f) => {
       const rel = path.join(dir, f);
       if (rel === path.normalize("src/generated")) return [];
-      return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) ? [rel] : [];
+      return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) ? [toPosix(rel)] : [];
     });
   it("no file in src or prisma but a test imports terms.oracle", () => {
     const importers = [...files("src"), ...files("prisma")]
-      .filter((f) => !/\.test\.tsx?$/.test(f) && !f.endsWith(path.normalize("certificate/terms.oracle.ts")))
+      .filter((f) => !/\.test\.tsx?$/.test(f) && !f.endsWith(toPosix(path.normalize("certificate/terms.oracle.ts"))))
       .map((f) => ({ f, src: readFileSync(path.join(ROOT, f), "utf8") }))
       // Only a file naming it is lexed; the lexed text (comments blanked) must still name it.
       .filter(({ src }) => src.includes("terms.oracle") && /terms\.oracle/.test(lex(src, { only: "comments" })))

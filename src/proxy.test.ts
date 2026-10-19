@@ -5,9 +5,10 @@ import { STAFF_COOKIE, SUPPLIER_COOKIE } from "@/lib/auth/routes";
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 import { config, proxy } from "./proxy";
+import { posixRelative } from "@/lib/scan/files";
 
 // Next's own matcher compiler (the build uses it); it ships no type declarations, so it is loaded by require and typed here.
 const { getMiddlewareMatchers } = createRequire(import.meta.url)("next/dist/build/analysis/get-page-static-info") as {
@@ -153,7 +154,7 @@ describe("the proxy's matcher (a proxied body is buffered whole and cut at 10 MB
       for (const name of readdirSync(dir)) {
         const full = join(dir, name);
         if (statSync(full).isDirectory()) walk(full);
-        else if (name === "route.ts" && readFileSync(full, "utf8").includes("supplierUploadPost")) uploads.push("/" + relative(root, dir).split(sep).join("/"));
+        else if (name === "route.ts" && readFileSync(full, "utf8").includes("supplierUploadPost")) uploads.push("/" + posixRelative(root, dir));
       }
     };
     walk(root);

@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { isServerModule, lex, spans } from "@/lib/scan/source";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * NFR-SEC-004, the sweep (the product owner's ruling of 2026-10-07, applied in Phase 3d and completed in its review fix): an administrator account does no transactional,
@@ -20,9 +21,9 @@ const APP = path.join(process.cwd(), "src", "app");
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {
     const p = path.join(dir, n);
-    return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [p] : [];
+    return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [toPosix(p)] : [];
   });
-const rel = (f: string) => path.relative(APP, f).split(path.sep).join("/");
+const rel = (f: string) => posixRelative(APP, f);
 
 /// Not a procurement matter: an administrator's own configuration, a person's own account and inbox, and sign-in.
 const OUTSIDE = (file: string) => /^(configuration|account|sign-in|inbox|_auth)\//.test(file);

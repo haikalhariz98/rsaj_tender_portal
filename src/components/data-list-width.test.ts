@@ -7,6 +7,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { DataList, minTableWidth, type Column, type Row } from "./data-list";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 6.7 review S-1: the shared DataList keeps a list's flexing column from being squeezed (a column's
@@ -39,7 +40,7 @@ describe("only the Opening's offers use them (other lists unchanged)", () => {
     return readdirSync(dir).flatMap((name) => {
       const path = join(dir, name);
       if (statSync(path).isDirectory()) return files(path);
-      return /\.tsx$/.test(name) ? [path] : [];
+      return /\.tsx$/.test(name) ? [toPosix(path)] : [];
     });
   }
   const screens = files(join(process.cwd(), "src", "app")).map((p) => ({ p, text: readFileSync(p, "utf8") }));

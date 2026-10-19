@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { lex, spans } from "@/lib/scan/source";
 
 import { ACT_SLOTS, slotKey } from "./act-slots";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Every act's person slot is written through `beginAct` (ADR 0034 D12, Phase 2b, closes F1). The registry (`act-slots.ts`) says which slots there are; this
@@ -36,12 +37,12 @@ function walk(dir: string, out: string[] = []): string[] {
     if (statSync(p).isDirectory()) {
       if (name === "generated" || name === "node_modules") continue;
       walk(p, out);
-    } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(p);
+    } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(toPosix(p));
   }
   return out;
 }
 
-const FILES = walk(SRC).map((p) => ({ file: path.relative(ROOT, p).split(path.sep).join("/"), text: readFileSync(p, "utf8") }));
+const FILES = walk(SRC).map((p) => ({ file: posixRelative(ROOT, p), text: readFileSync(p, "utf8") }));
 const ACT_SOURCES = FILES.filter((f) => /\b(?:beginAct(?:From)?|writeAlso)\(/.test(f.text) && !f.file.endsWith("src/app/_auth/act.ts"));
 
 /// The text of each call of `name(` in a source, to its closing parenthesis.

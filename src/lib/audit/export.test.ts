@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { actorDisplayName } from "./actor";
 import { auditCsv, entriesOnDays, EXPORT_NEEDS_AUDIT_READ_TEXT, exportFault, exportMayBeMadeBy, recordTypeLabel, sha256Hex, type ExportRow } from "./export";
+import { toPosix } from "@/lib/scan/files";
 
 const row = (id: string, at: string, over: Partial<ExportRow> = {}): ExportRow => ({
   id,
@@ -95,7 +96,7 @@ describe("the trail is immutable in the application (FR-APR-015)", () => {
   const files = (dir: string): string[] =>
     readdirSync(dir).flatMap((f) => {
       const p = join(dir, f);
-      return statSync(p).isDirectory() ? (f === "generated" ? [] : files(p)) : /\.tsx?$/.test(f) ? [p] : [];
+      return statSync(p).isDirectory() ? (f === "generated" ? [] : files(p)) : /\.tsx?$/.test(f) ? [toPosix(p)] : [];
     });
   it("no source under src/ updates, upserts or deletes an audit entry", () => {
     const offenders = files(join(process.cwd(), "src")).filter((f) => /auditEntry\s*\.\s*(update|updateMany|upsert|delete|deleteMany)\s*\(/.test(readFileSync(f, "utf8")));

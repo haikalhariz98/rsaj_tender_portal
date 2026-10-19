@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { closing, enclosingFn, lex, spans } from "@/lib/scan/source";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 6.14 increment 2: who writes the printed form, the typing corrections and the terms, and in what lock order (the
@@ -24,7 +25,7 @@ function walk(dir: string): string[] {
   return readdirSync(join(ROOT, dir)).flatMap((n) => {
     const p = join(dir, n);
     if (statSync(join(ROOT, p)).isDirectory()) return n === "generated" || n === "node_modules" ? [] : walk(p);
-    return /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [p] : [];
+    return /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [toPosix(p)] : [];
   });
 }
 

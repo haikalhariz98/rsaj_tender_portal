@@ -3,12 +3,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { dataListRegions, isSulitField, SULIT_FIELDS, SULIT_SCOPES, sulitFieldsIn, unflaggedSulitFields } from "./sulit-fields";
+import { toPosix } from "@/lib/scan/files";
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) return sources(p);
-    return /\.tsx$/.test(name) ? [p] : [];
+    return /\.tsx$/.test(name) ? [toPosix(p)] : [];
   });
 }
 

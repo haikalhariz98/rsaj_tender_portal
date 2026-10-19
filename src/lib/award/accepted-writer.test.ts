@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { awardTransition } from "./status";
+import { posixRelative } from "@/lib/scan/files";
 
 /**
  * BD-DS-2 (ruled 2026-10-01): an award reaches ACCEPTED only through
@@ -30,10 +31,10 @@ function sources(dir: string): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) {
-      if (relative(ROOT, p).replace(/\\/g, "/") === "src/generated") continue;
+      if (posixRelative(ROOT, p) === "src/generated") continue;
       out.push(...sources(p));
     } else if (/\.(ts|tsx)$/.test(name) && !/\.test\.ts$/.test(name)) {
-      out.push(relative(ROOT, p).replace(/\\/g, "/"));
+      out.push(posixRelative(ROOT, p));
     }
   }
   return out;

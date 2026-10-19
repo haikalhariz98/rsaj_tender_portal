@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { lex } from "@/lib/scan/source";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * A screen never says by itself that an act was "recorded on behalf of, not signed" (ADR 0034 D12, Phase 2b, F1): that is true of some acts and false of others,
@@ -24,7 +25,7 @@ function walk(dir: string, out: string[] = []): string[] {
     if (statSync(p).isDirectory()) {
       if (name === "generated" || name === "node_modules") continue;
       walk(p, out);
-    } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(p);
+    } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(toPosix(p));
   }
   return out;
 }
@@ -35,7 +36,7 @@ const FIXED = /(?:recorded|Recorded)(?: by [a-z ]+)?,? on (?:their|the [a-z]+'s)
 function counts(): Map<string, number> {
   const out = new Map<string, number>();
   for (const p of [...walk(path.join(ROOT, "src", "app")), ...walk(path.join(ROOT, "src", "components")), ...walk(path.join(ROOT, "src", "lib"))]) {
-    const file = path.relative(ROOT, p).split(path.sep).join("/");
+    const file = posixRelative(ROOT, p);
     if (file.startsWith("src/lib/auth/")) continue;
     // Comments are blanked, strings kept: the words in a comment explain, the words in a string are shown.
     const text = lex(readFileSync(p, "utf8"), { only: "comments" });

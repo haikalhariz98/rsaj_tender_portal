@@ -16,6 +16,7 @@ import { RECEIVED_WORDS } from "./received";
 import { myBidOpenedWords } from "./roll";
 import { BID_KIND_WORDS, BID_STATUS_WORDS, SCREEN_WORDS, typesWords, UNIT_WORDS } from "./screen-words";
 import { ACT_ROUTE_WORDS, PART_UPLOAD_FAULT_WORDS, submissionWarningWords, PART_ROUTE_WORDS, SUBMIT_FAULT_WORDS, UPLOAD_BUSY_WORDS, WITHDRAW_FAULT_WORDS } from "./words";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Ruling 20j and 20s (build plan step 5): no words constant, receipt or My Bids state calls the receipt, or anything about a bid, "signed" or "proof" (or
@@ -70,13 +71,13 @@ describe("no words call a receipt or a bid signed, proof or verified, in either 
 
   it("every string literal in the online-bid and sealing sources", () => {
     const dirs = ["src/lib/bids/online", "src/lib/sealing"].map((d) => path.join(process.cwd(), d));
-    const files = dirs.flatMap((d) => readdirSync(d).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts")).map((n) => path.join(d, n)));
+    const files = dirs.flatMap((d) => readdirSync(d).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts")).map((n) => toPosix(path.join(d, n))));
     expect(files.length).toBeGreaterThan(15);
     const hits: string[] = [];
     for (const f of files) {
       const code = lex(readFileSync(f, "utf8"), { only: "comments" });
       code.split("\n").forEach((line, i) => {
-        if (forbidden(line)) hits.push(`${path.relative(process.cwd(), f)}:${i + 1}`);
+        if (forbidden(line)) hits.push(`${posixRelative(process.cwd(), f)}:${i + 1}`);
       });
     }
     expect(hits).toEqual([]);
