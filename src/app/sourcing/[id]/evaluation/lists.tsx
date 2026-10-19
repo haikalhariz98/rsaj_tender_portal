@@ -22,7 +22,7 @@ export function BiddersList({ exerciseId, c, people }: { exerciseId: string; c: 
     id: b.id,
     search: `${b.listingNo} ${b.bidder} ${b.registrationNo}`,
     sortKeys: { bid: b.listingNo },
-    note: [b.excluded, b.carried ? "Carried from the version before: its scores are labelled so." : null].filter(Boolean).join(" ") || undefined,
+    note: [b.excluded, b.carried ? "Carried from the earlier version." : null].filter(Boolean).join(" ") || undefined,
     cells: {
       // A blind reader is shown the pseudonym where the opening's number would stand, and no price (ruling of 2026-10-08 on log line 1751).
       bid: { kind: "stack", title: c.blind ? b.bidder : `No. ${b.listingNo}`, sub: b.registrationNo || undefined },
@@ -44,7 +44,6 @@ export function BiddersList({ exerciseId, c, people }: { exerciseId: string; c: 
       stackBelow="2xl"
       exportName="evaluation-bidders"
       emptyTitle="No bid"
-      emptyBody="No bid was carried to evaluation."
       actionsPlacement="below"
       columns={[
         { key: "bid", label: "Bid", width: "120px", sortable: true, mobile: "primary" },
@@ -179,7 +178,6 @@ export function MeetingsList({ exerciseId, c, people }: { exerciseId: string; c:
       stackBelow="2xl"
       exportName="evaluation-meetings"
       emptyTitle="No meeting"
-      emptyBody="No clarification or negotiation is recorded."
       actionsPlacement="below"
       columns={[
         { key: "meeting", label: "Meeting", minWidth: "220px", mobile: "primary" },
@@ -285,7 +283,6 @@ export function RankingList({ c }: { c: EvaluationCurrent }) {
       stackBelow="2xl"
       exportName="evaluation-ranking"
       emptyTitle="No bid in the running"
-      emptyBody="No bid is in the running after the stages submitted."
       columns={[
         { key: "rank", label: "Rank", width: "80px", sortable: true, mobile: "meta" },
         { key: "bid", label: "Bid", minWidth: "220px", mobile: "primary" },

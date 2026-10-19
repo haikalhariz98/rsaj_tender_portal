@@ -23,25 +23,25 @@ describe("the version a matter was tabled on (M-3)", () => {
     const f = tabledVersionFault({ applies: true, tabledOn: 1, inForce: 2 })!;
     expect(f.code).toBe("TABLED_ON_EARLIER_VERSION");
     const text = evaluationFindingText(f);
-    expect(text).toContain("tabled on evaluation version 1");
-    expect(text).toContain("version 2 is in force now");
-    expect(text).toContain("Table the appointment again");
+    expect(text).toContain("Tabled on version 1");
+    expect(text).toContain("version 2 is in force");
+    expect(text).toContain("Table again once");
   });
   it("no version in force now (closed): refused, saying it is no longer in force", () => {
     const f = tabledVersionFault({ applies: true, tabledOn: 1, inForce: null })!;
-    expect(evaluationFindingText(f)).toContain("which is no longer in force");
+    expect(evaluationFindingText(f)).toContain("no longer in force");
   });
   it("no version recorded on the matter: refused, never assumed to stand", () => {
     const f = tabledVersionFault({ applies: true, tabledOn: null, inForce: 1 })!;
     expect(f.code).toBe("TABLED_VERSION_NOT_RECORDED");
-    expect(evaluationFindingText(f)).toMatch(/cannot be told/);
+    expect(evaluationFindingText(f)).toMatch(/not recorded/);
   });
   it("an exercise not evaluated in the portal: nothing judged (CO-3)", () => {
     expect(tabledVersionFault({ applies: false, tabledOn: null, inForce: null })).toBeNull();
   });
   it("the loop's words say the decision stands and nothing opens", () => {
-    expect(evaluationFindingText({ code: "LOOP_ON_EARLIER_VERSION", level: "info", data: { tabled: 1 } })).toMatch(/version 1, which is no longer in force, so no new evaluation version opens/);
-    expect(evaluationFindingText({ code: "LOOP_VERSION_NOT_RECORDED", level: "info" })).toMatch(/no new evaluation version opens/);
+    expect(evaluationFindingText({ code: "LOOP_ON_EARLIER_VERSION", level: "info", data: { tabled: 1 } })).toMatch(/version 1, no longer in force. No new version opens/);
+    expect(evaluationFindingText({ code: "LOOP_VERSION_NOT_RECORDED", level: "info" })).toMatch(/No new version opens/);
   });
 });
 

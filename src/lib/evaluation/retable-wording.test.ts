@@ -14,6 +14,6 @@ describe("re-tabling a deferred first stage (re-review 5)", () => {
     const src = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/evaluation/editors.tsx"), "utf8");
     const drawer = src.slice(src.indexOf("export function TableStageOneDrawer"), src.indexOf("export function AssessDrawer"));
     expect(drawer).not.toMatch(/later/);
-    expect(drawer).toMatch(/table it again at a sitting/);
+    expect(drawer).toMatch(/Table it at a sitting/) // 0005, founder 2026-10-19: wording shortened; the drawer still promises only what the rule allows;
   });
 });

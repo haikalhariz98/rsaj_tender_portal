@@ -52,7 +52,7 @@ export const EVALUATION_ENTITY_LABEL: Readonly<Record<string, string>> = {
   EvaluationMeeting: "Evaluation meeting",
   TendererCommunication: "Communication with a tenderer",
   Recommendation: "Recommendation",
-  ProposalPaper: "Kertas Cadangan",
+  ProposalPaper: "Proposal paper",
   EvaluationModel: "Evaluation model",
   EvaluationStage: "Model stage",
   EvaluationCriterion: "Model criterion",

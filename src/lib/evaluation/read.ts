@@ -284,7 +284,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   // What may be done with the report, judged by findings that name stages and ceilings: held back with the figures.
   const reportActs = {
     issue: e.state === "OPEN" ? allowedOf([...openActFaults({ exerciseStatus: ex.status, state: e.state }), ...issueFaults]) : { allowed: false as const, reason: "The report is issued." },
-    render: p ? { allowed: false as const, reason: "The Kertas Cadangan is produced." } : allowedOf([...issuedActFaults({ exerciseStatus: ex.status, state: e.state }), ...(c.policy?.proposalTemplate ? [] : [{ code: "TEMPLATE_NOT_SET", level: "block" as const }]), ...(c.policy?.checkerRoleCode ? [] : [{ code: "CHECKER_NOT_SET", level: "block" as const }]), ...(c.policy?.recommenderRoleCode ? [] : [{ code: "RECOMMENDER_NOT_SET", level: "block" as const }])]),
+    render: p ? { allowed: false as const, reason: "Proposal paper already produced." } : allowedOf([...issuedActFaults({ exerciseStatus: ex.status, state: e.state }), ...(c.policy?.proposalTemplate ? [] : [{ code: "TEMPLATE_NOT_SET", level: "block" as const }]), ...(c.policy?.checkerRoleCode ? [] : [{ code: "CHECKER_NOT_SET", level: "block" as const }]), ...(c.policy?.recommenderRoleCode ? [] : [{ code: "RECOMMENDER_NOT_SET", level: "block" as const }])]),
     sign: issuedAct,
   };
 

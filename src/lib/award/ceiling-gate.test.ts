@@ -63,9 +63,10 @@ describe("an awarded value differing from the recommendation, against the quotat
 
   it("the refusal names the ceiling and which side an exact value falls, in words, never a code", () => {
     const [gt] = evaluationFindings({ facts: facts(issued(quotation("GT"))), awardeePartyId: "p1", award: at("300000.01") });
-    expect(awardFindingText(gt)).toBe("The awarded value differs from the recommendation and is above this quotation's ceiling of RM300,000 (a value exactly on it is still a quotation): the award cannot be made at that value. Award at the recommended price or at a value within the ceiling.");
+    // 0005, founder 2026-10-19: the refusal is shortened; it still names the ceiling and which side an exact value falls.
+    expect(awardFindingText(gt)).toBe("Value above the quotation ceiling of RM300,000 (exactly on it is a quotation). Award at the recommended price or within the ceiling.");
     const [gte] = evaluationFindings({ facts: facts(issued(quotation("GTE"))), awardeePartyId: "p1", award: at("300000.00") });
-    expect(awardFindingText(gte)).toMatch(/a value exactly on it is a tender/);
+    expect(awardFindingText(gte)).toMatch(/exactly on it is a tender/);
     expect(awardFindingText({ code: "BOUNDARY_NOT_RECORDED", level: "block" })).toMatch(/not recorded/); // wording shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
     for (const f of [gt, gte]) expect(awardFindingText(f)).not.toMatch(/[A-Z]{3,}_[A-Z]/);
   });

@@ -57,7 +57,7 @@ describe("the opaque key", () => {
 describe("the words", () => {
   it("say what is held back and why, in plain English with no code", () => {
     expect(BLIND_NOTICE.body).toMatch(/froze anonymised scoring/);
-    expect(BLIND_NOTICE.body).toMatch(/opening panel has seen the names/);
+    expect(BLIND_NOTICE.body).toMatch(/opening panel member has seen the names/);
     for (const w of [BLIND_FIGURE, BLIND_TEXT, BLIND_NOTICE.title, BLIND_NOTICE.body]) expect(w).not.toMatch(/[A-Z]{3,}_[A-Z_]+/);
   });
 });

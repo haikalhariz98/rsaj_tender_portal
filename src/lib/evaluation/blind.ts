@@ -21,8 +21,8 @@ export const BLIND_TEXT = "Held back while the scoring is blind: it may name the
 
 /// Why, in words, for the notice at the head of the tab.
 export const BLIND_NOTICE = {
-  title: "Names and prices are held back from you while the technical scoring is open",
-  body: "This version froze anonymised scoring, and you are on its evaluation team. Each bid is called Bidder n, a number that is not the opening's listing number, and its price is withheld, until the technical scoring stage is submitted. A bid's name is shown only for a criterion that needs the named contractor, and each such reveal is logged. A team member who sat on the opening panel has seen the names there.",
+  title: "Blind scoring",
+  body: "This version froze anonymised scoring. Bids are called Bidder n and prices are withheld until technical scoring is submitted. Names show only where a criterion needs the contractor, and each reveal is logged. An opening panel member has seen the names there.",
 } as const;
 
 /// Whether this reader is read blind: the version holds identities back, and they are on its evaluation team.

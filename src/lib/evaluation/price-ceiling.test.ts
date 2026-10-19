@@ -36,13 +36,13 @@ describe("the price recommended at against the ceiling (Q1)", () => {
     expect(recommendedCeilingFault(RM("500000.00"), quotation("GT"))).toBeNull();
     const f = recommendedCeilingFault(RM("500000.01"), quotation("GT"))!;
     expect(f.code).toBe("PRICE_ABOVE_CEILING");
-    expect(evaluationFindingText(f)).toBe("The price this bid would be recommended at is above this quotation's ceiling of RM500,000 (a price exactly on it is still a quotation): this bid cannot be recommended on that price.");
+    expect(evaluationFindingText(f)).toBe("Price above the quotation ceiling of RM500,000 (exactly on it is a quotation). It cannot be recommended.");
   });
   it("GTE: one sen below may be recommended; exactly on the ceiling may not", () => {
     expect(recommendedCeilingFault(RM("499999.99"), quotation("GTE"))).toBeNull();
     const f = recommendedCeilingFault(RM("500000.00"), quotation("GTE"))!;
     expect(f.code).toBe("PRICE_ABOVE_CEILING");
-    expect(evaluationFindingText(f)).toContain("(a price exactly on it is a tender)");
+    expect(evaluationFindingText(f)).toContain("(exactly on it is a tender)");
   });
   it("a tender is never judged against a ceiling", () => {
     expect(recommendedCeilingFault(RM("99999999.99"), tender)).toBeNull();
@@ -63,8 +63,8 @@ describe("closing a negotiation round (Q1)", () => {
     const fs = closeMeetingFaults({ ...c, priceBefore: RM("480000.00"), priceAfter: RM("500000.01"), ceiling: quotation("GT") });
     expect(codes(fs)).toEqual([]);
     expect(warns(fs)).toEqual(["PRICE_RAISED", "PRICE_ABOVE_CEILING_AT_ROUND"]);
-    expect(evaluationFindingText(fs[1])).toContain("above this quotation's ceiling of RM500,000");
-    expect(evaluationFindingText(fs[1])).toContain("this bid cannot be recommended on this price");
+    expect(evaluationFindingText(fs[1])).toContain("above the ceiling of RM500,000");
+    expect(evaluationFindingText(fs[1])).toContain("It cannot be recommended");
   });
   it("a raise that stays under the ceiling: the PRICE_RAISED warning only", () => {
     expect(warns(closeMeetingFaults({ ...c, priceBefore: RM("480000.00"), priceAfter: RM("490000.00"), ceiling: quotation("GT") }))).toEqual(["PRICE_RAISED"]);

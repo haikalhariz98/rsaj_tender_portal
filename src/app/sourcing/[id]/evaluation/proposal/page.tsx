@@ -15,7 +15,7 @@ import { reportFromSnapshot } from "@/lib/evaluation/report";
 import { ESTIMATE_WITHHELD_WORDS, statesEstimateFigures } from "@/lib/evaluation/report-view";
 import { estimateCustodyForHistory } from "@/lib/opening/read";
 import { fieldsOfScope } from "@/lib/sulit-fields";
-import { formatDate, formatOrgDateTime } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitGate } from "@/app/_auth/sulit";
@@ -43,9 +43,7 @@ export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/eva
         <RecordCrumb label={ex.reference} />
         <PageHeader eyebrow={<Link href={back}>Back to the report</Link>} title="Nothing to print" />
         <Card>
-          <EmptyState title="No Kertas Cadangan is produced" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>}>
-            It is printed once produced from the issued report: only its frozen text.
-          </EmptyState>
+          <EmptyState title="No proposal paper produced" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>} />
         </Card>
       </>
     );
@@ -55,7 +53,7 @@ export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/eva
   const gate = await sulitGate(actor, { scope: "evaluation", id, label: ex.reference }, fieldsOfScope("evaluation"));
   const report = reportFromSnapshot(p.evaluation.reportSnapshot);
   const estimateAccess = gate.state === "GRANTED" && report && statesEstimateFigures(report) ? await estimateCustodyForHistory(actor, id) : null;
-  const textWithheld = gate.state === "WITHHELD" ? gate.words.en : report && statesEstimateFigures(report) && estimateAccess?.state !== "GRANTED" ? `The paper states the saving against the company estimate, so it is withheld from you. ${ESTIMATE_WITHHELD_WORDS}` : null;
+  const textWithheld = gate.state === "WITHHELD" ? gate.words.en : report && statesEstimateFigures(report) && estimateAccess?.state !== "GRANTED" ? `Saving against the estimate withheld. ${ESTIMATE_WITHHELD_WORDS}` : null;
   const roles = await db.authorityRole.findMany({ where: { organisationId: org.id, code: { in: [p.checkerRoleCode, p.recommenderRoleCode] } }, select: { code: true, nameEn: true } });
   const office = (code: string) => roles.find((r) => r.code === code)?.nameEn ?? "An office no longer configured";
   return (
@@ -65,9 +63,7 @@ export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/eva
         <Link href={back}>Back to the report</Link>
         <PrintButton icon={<PrinterIcon size={15} />} />
       </div>
-      <Callout tone={p.evaluation.state === "ISSUED" ? "info" : "warn"} className="mb-5 print:hidden">
-        {p.evaluation.state === "ISSUED" ? `Frozen ${formatOrgDateTime(p.frozenAt, org.timeZone)} from report ${p.evaluation.reportReference}.` : `Produced from version ${p.evaluation.version}'s report, which no longer stands.`}
-      </Callout>
+      {p.evaluation.state !== "ISSUED" && <Callout tone="warn" className="mb-5 print:hidden">{`Version ${p.evaluation.version}'s report no longer stands.`}</Callout>}
       <article className="mx-auto max-w-[900px] rounded-card border border-line bg-surface px-6 py-10 shadow-card sm:px-12 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
         <p className="mb-4 flex flex-wrap items-center gap-2 text-[12px] text-ink-3"><SulitTag /></p>
         {textWithheld ? (

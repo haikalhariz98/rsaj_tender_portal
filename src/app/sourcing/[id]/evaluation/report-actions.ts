@@ -38,9 +38,9 @@ import { beginAct } from "@/app/_auth/act";
 
 const templateOf = (t: { id: string; code: string; nameEn: string; bodyEn: string | null; bodyMs: string | null; primaryLanguage: "MS" | "EN" | null; bodyVersion: number } | null | undefined): TemplateFacts | null => (t ? { id: t.id, code: t.code, nameEn: t.nameEn, bodyEn: t.bodyEn, bodyMs: t.bodyMs, primaryLanguage: t.primaryLanguage, bodyVersion: t.bodyVersion } : null);
 const tFaults = (t: { state: "OK" | "NOT_SET" | "NO_TEXT" | "NO_LANGUAGE"; missing: string[]; unknown: string[] }, instrument: "REPORT" | "PROPOSAL") => ({ ...t, missing: t.missing.length ? [evaluationFieldsInWords(instrument, t.missing)] : [], unknown: t.unknown.length ? [evaluationFieldsInWords(instrument, t.unknown)] : [] });
-const SERIES_MISSING = "Not issued: the report's numbering series is not configured. Configure it under Configuration › Numbering, with the key named under Configuration › Evaluation models, Policy.";
-const SERIES_INVALID = "Not issued: the report's numbering series is not valid. Correct it under Configuration › Numbering.";
-const CHANGED_EVALUATION = { ok: false, message: "The evaluation changed while this was being saved. Reload and try again." } as const;
+const SERIES_MISSING = "Not issued. Numbering series not set. Set it under Configuration › Numbering.";
+const SERIES_INVALID = "Not issued. Numbering series invalid. Correct it under Configuration › Numbering.";
+const CHANGED_EVALUATION = { ok: false, message: "Evaluation changed. Reload and try again." } as const;
 
 /// Form the recommendation (FR-EVL-004, 018; OD-6 A): a bid in the running after every stage, justified where not top-ranked.
 export async function formRecommendation(_prev: FormState, data: FormData): Promise<FormState> {
@@ -72,7 +72,7 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
     const row = await tx.recommendation.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, price: senToDecimalString(price), completionPeriod: b.period?.value ?? null, completionUnit: b.period?.unit ?? null, topRanked: rf.topRanked, justification: rf.topRanked ? "" : justification, formedByPersonId: person!.id, formedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.recommendation, row.id, evLabel(l, e!.version, "Recommendation"), "CREATE", diffFields(null, recommendationFields({ bidder: `No. ${b.listingNo}, ${b.bidderName}`, price, period: periodWords(b.period), topRanked: rf.topRanked, justification: rf.topRanked ? "" : justification, by: person!.name })));
     await act.write(tx, row.id);
-    return { ok: true, message: "Recommendation formed. Issue the report on the Report section." };
+    return { ok: true, message: "Recommendation formed." };
   });
 }
 
@@ -152,7 +152,7 @@ export async function issueReport(_prev: FormState, data: FormData): Promise<For
     await act.write(tx, e!.id);
     await moveExercise(tx, l.ex, "EVALUATED", { today, via: "REPORT_ISSUED", reportFaults: 0 });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "EVALUATED" }));
-    return { ok: true, message: `Report ${reference} issued. Produce the Kertas Cadangan on this section next.` };
+    return { ok: true, message: `Report ${reference} issued.` };
   });
 }
 
@@ -185,9 +185,9 @@ export async function renderProposalPaper(_prev: FormState, data: FormData): Pro
     const fs = renderFaults({ rendered: e!.proposalPaper != null, checkerRoleCode: c.policy?.checkerRoleCode ?? null, recommenderRoleCode: c.policy?.recommenderRoleCode ?? null, template: tFaults(rendered, "PROPOSAL"), personActive: !!person, reportIssuedOn: issuedOn });
     if (fs.length) return refuse(fs, "Not produced:");
     const row = await tx.proposalPaper.create({ data: { organisationId: l.org.id, evaluationId: e!.id, templateId: template!.id, templateCode: template!.code, templateBodyVersion: template!.bodyVersion, language: rendered.language!, renderedText: rendered.text!, frozenAt: now, renderedByPersonId: person!.id, checkerRoleCode: c.policy!.checkerRoleCode!, recommenderRoleCode: c.policy!.recommenderRoleCode! } });
-    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.proposal, row.id, evLabel(l, e!.version, "Kertas Cadangan"), "CREATE", diffFields(null, { produced: `${template!.nameEn}, text version ${template!.bodyVersion}`, language: rendered.language === "MS" ? "Malay" : "English", checkedBy: office(c.policy?.checkerRoleCode), recommendedBy: office(c.policy?.recommenderRoleCode), producedBy: person!.name }));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.proposal, row.id, evLabel(l, e!.version, "Proposal paper"), "CREATE", diffFields(null, { produced: `${template!.nameEn}, text version ${template!.bodyVersion}`, language: rendered.language === "MS" ? "Malay" : "English", checkedBy: office(c.policy?.checkerRoleCode), recommendedBy: office(c.policy?.recommenderRoleCode), producedBy: person!.name }));
     await act.write(tx, row.id);
-    return { ok: true, message: "Produced and frozen. Record its checking and its recommending officer." };
+    return { ok: true, message: "Produced. Record the checker and recommender." };
   });
 }
 
@@ -228,9 +228,9 @@ export async function recordProposalSigner(_prev: FormState, data: FormData): Pr
     if (fs.length) return refuse(fs, "Not recorded:");
     const write = role === "CHECKER" ? { checkedByPersonId: person!.id, checkedOn: day, checkedRecordedAt: now } : { recommendedByPersonId: person!.id, recommendedOn: day, recommendedRecordedAt: now };
     const done = await tx.proposalPaper.updateMany({ where: { id: p!.id, ...(role === "CHECKER" ? { checkedByPersonId: null } : { recommendedByPersonId: null }) }, data: write });
-    if (done.count !== 1) throw new Refusal({ ok: false, message: "The Kertas Cadangan changed while this was being saved. Reload and try again." });
+    if (done.count !== 1) throw new Refusal({ ok: false, message: "Proposal paper changed. Reload and try again." });
     const office = c.roster.offices.find((o) => o.code === roleCode)?.nameEn ?? "An office no longer configured";
-    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.proposal, p!.id, evLabel(l, e!.version, "Kertas Cadangan"), "UPDATE", diffFields(null, signerFields({ role, name: person!.name, office, day: storedDay(day) })));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.proposal, p!.id, evLabel(l, e!.version, "Proposal paper"), "UPDATE", diffFields(null, signerFields({ role, name: person!.name, office, day: storedDay(day) })));
     await act.write(tx, p!.id);
     return { ok: true, message: "Recorded." };
   });

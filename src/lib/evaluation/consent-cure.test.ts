@@ -26,8 +26,8 @@ describe("the validity's consent, as it stands (re-review 2)", () => {
     const r = consentCheck([x("e1", "A", "2026-12-31")], "B");
     expect(r.faults.map((f) => f.code)).toEqual(["CONSENT_NOT_FROM_RECOMMENDED"]);
     const text = evaluationFindingText(r.faults[0]);
-    expect(text).toContain("stands on an extension to 31 Dec 2026 consented to by Syarikat A");
-    expect(text).toContain("Record an extension to a later day on the recommended tenderer's consent, attach the consent and apply it");
+    expect(text).toContain("Validity rests on Syarikat A's consent to 31 Dec 2026");
+    expect(text).toContain("Record their consent on Received");
   });
   it("B's extension, then A's to a later day: A's is the one in force and blocks", () => {
     const r = consentCheck([x("e1", "B", "2026-12-31"), x("e2", "A", "2027-03-31")], "B");

@@ -25,7 +25,7 @@ describe("the pending reasons, gathered (re-review 8)", () => {
   });
   it("other reasons once each, with a capital, in the order found", () => {
     const fs: Finding[] = [{ code: "BALANCES_NOT_ENTERED", level: "block", data: { listingNo: 2 } }, { code: "ESTIMATE_SEALED", level: "block" }, { code: "ESTIMATE_SEALED", level: "block" }, score(2, "Method")];
-    expect(pendingSentences(fs)).toEqual(["Bid No. 2's three monthly balances are not all entered.", "The company estimate is still sealed, so nothing is computed against it.", "No. 2 has no score on Method."]);
+    expect(pendingSentences(fs)).toEqual(["Bid No. 2's three monthly balances are not all entered.", "Estimate still sealed. Nothing computed against it.", "No. 2 has no score on Method."]);
   });
   it("two bids are two sentences", () => {
     expect(pendingSentences([aspect(1, "A"), aspect(2, "A"), aspect(1, "B")])).toEqual(["No. 1 is not assessed on A and B.", "No. 2 is not assessed on A."]);

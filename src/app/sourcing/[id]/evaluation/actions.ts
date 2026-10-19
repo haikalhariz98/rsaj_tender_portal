@@ -297,7 +297,7 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.bidder, b.id, evLabel(l, e!.version, `Bid No. ${b.listingNo}`), "UPDATE",
       diffFields(b.correctedPrice != null ? correctionFields({ price: b.correctedPrice, reason: "", by: "", excluded: b.excludedReason }) : { correctedPrice: null }, correctionFields({ price: sen, reason, by: person!.name, excluded: reasonExcluded })), reason);
     await act.write(tx, b.id);
-    return { ok: true, message: reasonExcluded ? "Corrected. On the corrected price the bid is above the exercise's quotation ceiling and is excluded." : "Corrected." };
+    return { ok: true, message: reasonExcluded ? "Corrected. Above the quotation ceiling: excluded." : "Corrected." };
   });
 }
 
@@ -473,6 +473,6 @@ export async function logCommunication(_prev: FormState, data: FormData): Promis
     const row = await tx.tendererCommunication.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, direction, channel, sentOn: direction === "TO_TENDERER" ? on : null, receivedOn: direction === "FROM_TENDERER" ? on : null, subject, content, recordedByPersonId: person!.id, recordedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.communication, row.id, evLabel(l, e!.version, `Communication · bid No. ${b.listingNo}`), "CREATE", diffFields(null, communicationFields({ direction, channel, on: day, subject, content, by: person!.name })));
     await act.write(tx, row.id);
-    return { ok: true, message: "Recorded. Attach the letter itself to the tenderer's record if you have it." };
+    return { ok: true, message: "Recorded." };
   });
 }

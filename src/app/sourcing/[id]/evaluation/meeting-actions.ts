@@ -45,7 +45,7 @@ import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester
  * the price before and after. Closed, a meeting is frozen. No meeting once the recommendation is formed.
  */
 
-const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in force, so nobody can be shown as approving a negotiation. Issue one under Configuration › Approval matrix." };
+const NO_ISSUE: FormState = { ok: false, message: "No approval matrix in force. Issue one under Configuration › Approval matrix." };
 
 /// Record that a clarification or negotiation meeting was held with a bidder.
 export async function openMeeting(_prev: FormState, data: FormData): Promise<FormState> {
@@ -94,7 +94,7 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
     const row = await tx.evaluationMeeting.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, kind, round, heldOn, place, approvalInstanceId: kind === "NEGOTIATION" ? request!.approvalInstanceId : null, openedByPersonId: person!.id, openedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.meeting, row.id, evLabel(l, e!.version, `${kind === "CLARIFICATION" ? "Clarification" : "Negotiation"} with bid No. ${b.listingNo}, round ${round}`), "CREATE", diffFields(null, meetingFields({ kind, round, heldOn: storedDay(heldOn), place, by: person!.name })));
     await act.write(tx, row.id);
-    return { ok: true, message: "Recorded as held. Attach the tenderer's written confirmation to it, then close it with its minutes." };
+    return { ok: true, message: "Recorded. Attach the confirmation, then close it." };
   });
 }
 
@@ -172,7 +172,7 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
     const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, l.ex, tx);
     if (!issue || !ctx) return NO_ISSUE;
     const method = cfg.config.methods.find((m) => m.code === l.ex.sourcingMethodCode) ?? null;
-    if (!method) return { ok: false, message: "The exercise's method is no longer configured, so nobody can be shown as approving a negotiation." };
+    if (!method) return { ok: false, message: "Method no longer configured. No approver can be shown." };
     const value = parseSen(l.ex.estimatedValue.toString());
     const roster = await loadRoster(actor.organisationCode, tx);
     const delegations = await loadDelegations(actor.organisationCode, tx);
@@ -235,7 +235,7 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.negotiation, n.id, label, "CREATE", diffFields(null, { negotiationWith: `Bid No. ${b.listingNo}`, why: reason, askedBy: person!.name }), reason);
     await act.write(tx, n.id);
     await act.writeAlso(tx, "ApprovalInstance.submittedBy", instance.id);
-    return { ok: true, message: "Asked for. The negotiation is held once its approval is recorded." };
+    return { ok: true, message: "Asked for. Awaiting approval." };
   });
 }
 
@@ -306,11 +306,11 @@ export async function recordNegotiationDecision(_prev: FormState, data: FormData
     const routeLabel = `${l.ex.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`;
     if (decision === "REJECTED") {
       await closeRejected(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, NEGOTIATION_REFUSED_DECIDED_BY);
-      return { ok: true, message: "Refused: the negotiation is not held. It may be asked for again." };
+      return { ok: true, message: "Refused. It may be asked for again." };
     }
     if (!full.steps.every((s) => s.id === step.id || s.decision === "DONE")) return { ok: true };
     await tx.approvalInstance.update({ where: { id: full.id, organisationId: actor.organisationId }, data: { status: "APPROVED", closedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
-    return { ok: true, message: "Approved: the negotiation may be held. Record each round on Meetings and letters." };
+    return { ok: true, message: "Approved. Record each round on Meetings and letters." };
   });
 }

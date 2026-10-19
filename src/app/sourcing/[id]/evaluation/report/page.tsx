@@ -51,9 +51,7 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
         <RecordCrumb label={ex.reference} />
         <PageHeader eyebrow={<Link href={back}>Back to the report</Link>} title="Nothing to print" />
         <Card>
-          <EmptyState title="No report is issued" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>}>
-            The evaluation report is printed once it is issued: only its frozen copy is printed.
-          </EmptyState>
+          <EmptyState title="No report issued" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>} />
         </Card>
       </>
     );
@@ -65,9 +63,8 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
         <RecordCrumb label={ex.reference} />
         <PageHeader eyebrow={<Link href={back}>Back to the report</Link>} title="Evaluation report" />
         <Card>
-          <EmptyState title="The report is SULIT and is withheld from you" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>}>
+          <EmptyState title="Report withheld: SULIT" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>}>
             <SulitWithheld words={gate.words.en} compact />
-            <span className="mt-2 block">{gate.words.en}</span>
           </EmptyState>
         </Card>
       </>
@@ -83,9 +80,7 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
         <Link href={back}>Back to the report</Link>
         <PrintButton icon={<PrinterIcon size={15} />} />
       </div>
-      <Callout tone={row.state === "ISSUED" ? "info" : "warn"} className="mb-5 print:hidden">
-        {row.state === "ISSUED" ? `As issued ${r.issuedOn}: the copy frozen then, never recomputed.` : `Version ${r.version}'s report, as issued ${r.issuedOn}. It no longer stands: a later version superseded it, or the exercise was cancelled.`}
-      </Callout>
+      {row.state !== "ISSUED" && <Callout tone="warn" className="mb-5 print:hidden">{`Version ${r.version}'s report, issued ${r.issuedOn}, no longer stands.`}</Callout>}
       <ReportArticle r={shown} estimateWithheld={estimateWithheld} issuedBy={<ActedBy entity="Evaluation" id={row.id} slot="issuedBy" name={r.issuedBy} />} />
     </>
   );
@@ -124,7 +119,7 @@ function ReportArticle({ r, issuedBy, estimateWithheld }: { r: ReportSnapshot; i
         ))}
       </dl>
       {estimateWithheld ? (
-        <p className="mb-6 text-[13.5px] text-ink-3">{`The text of the report states the saving against the company estimate, so it is withheld from you. ${estimateWithheld}`}</p>
+        <p className="mb-6 text-[13.5px] text-ink-3">{`Saving against the estimate withheld. ${estimateWithheld}`}</p>
       ) : (
         <div className="mb-6 text-[13.5px] whitespace-pre-line text-ink">{r.text.body}</div>
       )}
@@ -199,7 +194,7 @@ function ReportArticle({ r, issuedBy, estimateWithheld }: { r: ReportSnapshot; i
       {c?.rows?.length ? (
         <Table>
           <THead>
-            <Th>Bil.</Th>
+            <Th>No.</Th>
             <Th>Bidder</Th>
             <Th numeric>Price as read</Th>
           </THead>
@@ -246,7 +241,7 @@ function ReportArticle({ r, issuedBy, estimateWithheld }: { r: ReportSnapshot; i
       {e.length ? e.map((x) => <p key={x.label} className="mb-2 text-[13.5px]">{`${x.label}${x.day ? `, ${x.day}` : ""}: ${x.attendees.join("; ") || "nobody recorded"}`}</p>) : <p className="text-[13px] text-ink-3">No site visit.</p>}
 
       <H2>{label("F")}</H2>
-      {f.length ? <ul className="list-disc pl-5 text-[13.5px]">{f.map((x) => <li key={`${x.title}-${x.versionNo}`}>{`${x.title}, version ${x.versionNo}`}</li>)}</ul> : <p className="text-[13px] text-ink-3">No drawing attached. Drawings are SULIT: they are downloaded by the people the evaluation is open to, and each download is logged.</p>}
+      {f.length ? <ul className="list-disc pl-5 text-[13.5px]">{f.map((x) => <li key={`${x.title}-${x.versionNo}`}>{`${x.title}, version ${x.versionNo}`}</li>)}</ul> : <p className="text-[13px] text-ink-3">No drawing attached.</p>}
     </article>
   );
 }

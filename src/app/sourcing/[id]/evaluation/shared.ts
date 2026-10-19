@@ -40,7 +40,7 @@ export const GONE_BIDDER: FormState = { ok: false, message: "That bid is not in 
 export async function inEvaluation(actor: StaffActor, exerciseId: string, fn: (tx: Tx, l: LockedWindow, c: EvaluationContext) => Promise<FormState>): Promise<FormState> {
   return inWindow(actor, exerciseId, async (tx, l) => {
     const refusal = await sulitWriteRefusal(tx, actor, { scope: "evaluation", exerciseId: l.ex.id }, fieldsOfScope("evaluation"));
-    if (refusal) return { ok: false, message: `Nothing was saved: the evaluation is SULIT and is closed to you. ${refusal}` };
+    if (refusal) return { ok: false, message: `Nothing saved. The evaluation is SULIT and closed to you. ${refusal}` };
     await lockOpeningRows(tx, l.ex.id);
     await lockEvaluationRows(tx, l.ex.id);
     return fn(tx, l, await loadEvaluationContext(l, tx));

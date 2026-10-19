@@ -13,7 +13,7 @@
 
 import type { ReportSnapshot } from "./report";
 
-export const ESTIMATE_WITHHELD_WORDS = "Worked out from the company estimate, which, once the opening has disclosed it, is read only by its preparer, the offices that hold its copies and audit it, and the people the evaluation is open to.";
+export const ESTIMATE_WITHHELD_WORDS = "Worked out from the company estimate. Read only by its custodians and the people the evaluation is open to.";
 
 export interface ReportForReader {
   report: ReportSnapshot;

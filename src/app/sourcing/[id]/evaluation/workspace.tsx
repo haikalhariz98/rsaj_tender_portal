@@ -5,11 +5,12 @@ import { FileIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons
 import { Badge, Chip, SulitTag, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import { bidInSentence } from "@/lib/evaluation/anonymise";
 import { BLIND_NOTICE } from "@/lib/evaluation/blind";
 import { EVALUATION_STATEMENT } from "@/lib/evaluation/labels";
+import { InfoChip } from "@/components/ui/info-chip";
 import { evaluationTabView, openDetail, type EvaluationCurrent, type EvaluationSurface, type EvaluationTabView } from "@/lib/evaluation/read";
 import { sulitGate } from "@/app/_auth/sulit";
 import { estimateCustodyForHistory } from "@/lib/opening/read";
@@ -43,9 +44,9 @@ export interface EvaluationTabPanel {
 
 function Statement() {
   return (
-    <Callout tone="info" title={EVALUATION_STATEMENT.title}>
-      {EVALUATION_STATEMENT.body}
-    </Callout>
+    <div className="flex justify-end">
+      <InfoChip tone="neutral" detail={EVALUATION_STATEMENT.body} label={EVALUATION_STATEMENT.title}>SULIT</InfoChip>
+    </div>
   );
 }
 
@@ -68,13 +69,13 @@ export async function loadEvaluationTab(actor: StaffActor, exerciseId: string, s
     // FR-EVL-020 (ruling of 2026-10-08 on log line 1751): a member of the evaluation team is read blind while the version holds its bidders' identities back.
     readerPersonId: actor.personId || null,
   });
-  if (!v) return { panel: <Card><EmptyState title="This exercise could not be found">Its organisation may no longer be configured.</EmptyState></Card>, actions: null, notes: [] };
+  if (!v) return { panel: <Card><EmptyState title="Exercise not found" /></Card>, actions: null, notes: [] };
   const h = v.header;
   if (!h.applies) {
-    return { actions: null, notes: [], panel: <Card><EmptyState title="Not evaluated here">An exercise is evaluated in the portal once it was published through its invitation window with tender or quotation documents. This one was not.</EmptyState></Card> };
+    return { actions: null, notes: [], panel: <Card><EmptyState title="Not evaluated here" /></Card> };
   }
   if (h.neverPinned) {
-    return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement /><Card><EmptyState title="Published before evaluation models existed">It has no pinned model, and none is pinned later. To evaluate it here, cancel it from Tender documents, under Publishing, and publish a replacement.</EmptyState></Card></div> };
+    return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement /><Card><EmptyState title="No evaluation model pinned" /></Card></div> };
   }
   const startNote: [string, string][] = h.start && !h.start.allowed.allowed ? [["Start the evaluation", h.start.allowed.reason]] : [];
   const actions = h.start ? <StartEvaluationDrawer exerciseId={exerciseId} allowed={h.start.allowed} people={h.people} carried={h.start.carried} /> : null;
@@ -87,9 +88,7 @@ export async function loadEvaluationTab(actor: StaffActor, exerciseId: string, s
           <Statement />
           <ModelCard v={v} />
           <Card>
-            <EmptyState title="Not started" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids&section=schedule`} variant="secondary" size="sm">Open the schedule</ButtonLink>}>
-              {h.start?.allowed.allowed ? "The opening's schedule is finalised: start the evaluation from the header." : `Evaluation opens when the opening's schedule is finalised. ${h.start && !h.start.allowed.allowed ? h.start.allowed.reason : ""}`}
-            </EmptyState>
+            <EmptyState title="Not started" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids&section=schedule`} variant="secondary" size="sm">Open schedule</ButtonLink>} />
           </Card>
         </div>
       ),
@@ -102,7 +101,7 @@ export async function loadEvaluationTab(actor: StaffActor, exerciseId: string, s
     return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement /><Withheld v={v} s={v.current} words={d.state === "WITHHELD" ? d.words.en : ""} /></div> };
   }
   const body = section === "overview" ? <Overview v={v} c={c} /> : section === "stages" ? <Stages v={v} c={c} /> : section === "aspects" ? <Aspects v={v} c={c} /> : section === "meetings" ? <Meetings v={v} c={c} /> : section === "recommendation" ? <Recommendation v={v} c={c} /> : <Report v={v} c={c} />;
-  return { actions, notes: startNote, panel: <div className="flex flex-col gap-6"><Statement />{c.blind && <Callout tone="info" title={BLIND_NOTICE.title}>{BLIND_NOTICE.body}</Callout>}{body}</div> };
+  return { actions, notes: startNote, panel: <div className="flex flex-col gap-6"><Statement />{c.blind && <div className="flex justify-end"><InfoChip tone="warn" detail={BLIND_NOTICE.body} label="About blind scoring">{BLIND_NOTICE.title}</InfoChip></div>}{body}</div> };
 }
 
 /// The evaluation as a reader it is withheld from sees it: where it stands and who is on the team, and in place of the bids, scores, prices and letters the lock with
@@ -112,17 +111,16 @@ function Withheld({ v, s, words }: { v: EvaluationTabView; s: EvaluationSurface;
     <>
       <ModelCard v={v} />
       <Card>
-        <CardHeader title={`Version ${s.version}`} subtitle={s.open ? "In progress." : s.state} actions={<Badge tone={s.open ? "brand" : "ok"}>{s.state}</Badge>} />
+        <CardHeader title={`Version ${s.version}`} actions={<Badge tone={s.open ? "brand" : "ok"}>{s.state}</Badge>} />
         <CardBody>
           <KeyValues columns={2} items={s.team.map((t) => ({ label: t.label, value: t.members.length ? t.members.map((m) => m.name).join("; ") : <Badge tone="warn">Nobody appointed</Badge> }))} />
         </CardBody>
       </Card>
       <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title="The evaluation" subtitle="Scores, prices, the ranking, what was said to a tenderer and the recommendation are SULIT." />
+        <CardHeader icon={<ShieldIcon size={17} />} title="The evaluation" />
         <CardBody>
           <SulitWithheld words={words} compact />
-          <p className="mt-2 text-[13px] text-ink-3">{words}</p>
-          {s.report.issued && <p className="mt-2 text-[13px] text-ink-3">{`The report is issued as ${s.report.issued.reference}.`}</p>}
+                    {s.report.issued && <p className="mt-2 text-[13px] text-ink-3">{`The report is issued as ${s.report.issued.reference}.`}</p>}
         </CardBody>
       </Card>
     </>
@@ -133,7 +131,7 @@ function ModelCard({ v }: { v: EvaluationTabView }) {
   const m = v.header.model!;
   return (
     <Card>
-      <CardHeader icon={<SlidersIcon size={17} />} title="The evaluation model" subtitle={m.pinnedAt ? `Pinned when the exercise was published, ${m.pinnedAt}: the evaluation runs from it as it stood then.` : "Pinned when the exercise was published."} actions={<Badge tone={v.header.phase.tone} dot>{v.header.phase.label}</Badge>} />
+      <CardHeader icon={<SlidersIcon size={17} />} title="The evaluation model" subtitle={m.pinnedAt ? `Pinned ${m.pinnedAt}` : undefined} actions={<Badge tone={v.header.phase.tone} dot>{v.header.phase.label}</Badge>} />
       <CardBody>
         <KeyValues columns={3} items={[{ label: "Model", value: m.name }, { label: "Route", value: m.route }, { label: "Stages", value: String(m.stages) }]} />
       </CardBody>
@@ -146,7 +144,7 @@ function Overview({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
     <>
       <ModelCard v={v} />
       <Card className="overflow-hidden">
-        <CardHeader title={`Version ${c.version}`} subtitle={c.open ? "In progress: scores, inputs, meetings and the recommendation are recorded on this version." : c.state} actions={<Badge tone={c.open ? "brand" : "ok"}>{c.state}</Badge>} divided={v.header.versions.length <= 1} />
+        <CardHeader title={`Version ${c.version}`} actions={<Badge tone={c.open ? "brand" : "ok"}>{c.state}</Badge>} divided={v.header.versions.length <= 1} />
         {v.header.versions.length > 1 && (
           <CardBody className="border-t border-line">
             <ul className="flex flex-col gap-2 text-[13px]">
@@ -162,24 +160,22 @@ function Overview({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
         )}
       </Card>
       <Card>
-        <CardHeader icon={<UsersIcon size={17} />} title="The team" subtitle="Appointed on both sides. Only a member appointed to a stage's side scores or submits it." actions={<AppointMemberDrawer exerciseId={v.exerciseId} allowed={c.act} people={v.header.people} />} />
+        <CardHeader icon={<UsersIcon size={17} />} title="The team" actions={<AppointMemberDrawer exerciseId={v.exerciseId} allowed={c.act} people={v.header.people} />} />
         <CardBody>
           <KeyValues columns={2} items={c.team.map((t) => ({ label: t.label, value: t.members.length ? t.members.map((m) => `${m.name} (from ${m.appointedOn})`).join("; ") : <Badge tone="warn">Nobody appointed</Badge> }))} />
         </CardBody>
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader title="The bids evaluated" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Carried from the opening. A price is corrected only before the first stage is submitted. <SulitTag /></span>} />
+        <CardHeader title="The bids evaluated" subtitle={<SulitTag />} />
         <BiddersList exerciseId={v.exerciseId} c={c} people={v.header.people} />
       </Card>
       {c.cprInputs && c.blind && (
-        <Callout tone="info" title="Contractor performance reports are not listed while the scoring is blind">
-          Each report names its contractor. They are opened for the criterion that needs the named contractor, and that reveal is logged.
-        </Callout>
+        <InfoChip tone="neutral" detail="Each report names its contractor. They open for the criterion that needs the named contractor, and the reveal is logged." label="About performance reports">Reports held while blind</InfoChip>
       )}
       {c.cprInputs &&
         !c.blind &&
         c.bidders.filter((b) => !b.excluded).map((b) => (
-          <OwnerAttachments key={b.id} owner={{ kind: "evaluationBidder", id: b.id }} only={["CPR_REPORT"]} title={`Contractor performance report, bid No. ${b.listingNo}`} subtitle="The percentage is entered from this report, not from a register. SULIT: downloadable to the people the evaluation is open to, and every download is logged." />
+          <OwnerAttachments key={b.id} owner={{ kind: "evaluationBidder", id: b.id }} only={["CPR_REPORT"]} title={`Contractor performance report, bid No. ${b.listingNo}`} subtitle="SULIT" />
         ))}
     </>
   );
@@ -192,7 +188,7 @@ function Stages({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
         <Card key={s.code} className="overflow-hidden">
           <CardHeader
             title={<span className="inline-flex flex-wrap items-center gap-2"><span>{`${s.order}. ${s.label}`}</span><Chip tone="info">{s.kindLabel}</Chip></span>}
-            subtitle={[s.sideLabel, s.passMark ? `pass mark ${s.passMark}` : null, s.submitted ?? s.locked ?? (s.kind === "RECOMMENDATION" ? "Formed on the Recommendation section." : s.kind === "COMMITTEE_DECISION" ? "Each bid is tabled at a sitting of the committee, which decides it there." : "Open")].filter(Boolean).join(" · ")}
+            subtitle={[s.sideLabel, s.passMark ? `pass mark ${s.passMark}` : null, s.submitted ?? s.locked ?? (s.kind === "RECOMMENDATION" ? "Formed on Recommendation" : s.kind === "COMMITTEE_DECISION" ? "Decided at a sitting" : "Open")].filter(Boolean).join(" · ")}
             actions={
               c.open && !s.submitted && !s.locked ? (
                 s.kind === "SHORTLIST" ? (
@@ -211,10 +207,10 @@ function Stages({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
 }
 
 function Aspects({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
-  if (!c.aspects) return <Card><EmptyState title="No aspects stage">The pinned model assesses no aspects.</EmptyState></Card>;
+  if (!c.aspects) return <Card><EmptyState title="No aspects stage" /></Card>;
   return (
     <Card className="overflow-hidden">
-      <CardHeader title={c.aspects.stage} subtitle={c.aspects.submitted ? "Submitted: the verdicts stand." : "A verdict and a narrative for each bid in the running, on each aspect. Submitted on the Stages section."} />
+      <CardHeader title={c.aspects.stage} subtitle={c.aspects.submitted ? "Submitted" : undefined} />
       <AspectsList exerciseId={v.exerciseId} a={c.aspects} open={c.open} people={v.header.people} blind={c.blind} />
     </Card>
   );
@@ -224,18 +220,18 @@ function Meetings({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
   return (
     <>
       <Card className="overflow-hidden">
-        <CardHeader title="Clarifications and negotiations" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Each held, then closed on its minutes and the tenderer&apos;s written confirmation. <SulitTag /></span>} actions={c.open ? <OpenMeetingDrawer exerciseId={v.exerciseId} bidders={c.allBidders} people={v.header.people} allowed={c.recommendation.formed ? { allowed: false, reason: "The recommendation is formed: no meeting after it." } : c.act} /> : undefined} />
+        <CardHeader title="Clarifications and negotiations" subtitle={<SulitTag />} actions={c.open ? <OpenMeetingDrawer exerciseId={v.exerciseId} bidders={c.allBidders} people={v.header.people} allowed={c.recommendation.formed ? { allowed: false, reason: "The recommendation is formed: no meeting after it." } : c.act} /> : undefined} />
         <MeetingsList exerciseId={v.exerciseId} c={c} people={v.header.people} />
       </Card>
       {c.meetings.map((m) => (
-        <OwnerAttachments key={m.id} owner={{ kind: "evaluationMeeting", id: m.id }} only={["TENDERER_CONFIRMATION", "MEETING_MINUTES"]} title={`${m.kind}, round ${m.round}, ${bidInSentence(m.ref)}: its papers`} subtitle="The tenderer's written confirmation is attached before the meeting is closed." collapseWhenEmpty={!!m.closed} />
+        <OwnerAttachments key={m.id} owner={{ kind: "evaluationMeeting", id: m.id }} only={["TENDERER_CONFIRMATION", "MEETING_MINUTES"]} title={`${m.kind}, round ${m.round}, ${bidInSentence(m.ref)}: its papers`} subtitle="Needed before closing." collapseWhenEmpty={!!m.closed} />
       ))}
       <Card className="overflow-hidden">
-        <CardHeader title="Negotiations asked for" subtitle="A negotiation is held only once its route is approved." actions={c.open ? <RequestNegotiationDrawer exerciseId={v.exerciseId} bidders={c.runningBidders} people={v.header.people} allowed={c.recommendation.formed ? { allowed: false, reason: "The recommendation is formed." } : c.act} /> : undefined} />
+        <CardHeader title="Negotiations asked for" actions={c.open ? <RequestNegotiationDrawer exerciseId={v.exerciseId} bidders={c.runningBidders} people={v.header.people} allowed={c.recommendation.formed ? { allowed: false, reason: "The recommendation is formed." } : c.act} /> : undefined} />
         <NegotiationsList exerciseId={v.exerciseId} c={c} people={v.header.people} today={v.header.today} />
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader title="Letters, emails and faxes" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Recorded, never sent from here. <SulitTag /></span>} actions={c.open ? <LogCommunicationDrawer exerciseId={v.exerciseId} bidders={c.allBidders} people={v.header.people} allowed={c.act} /> : undefined} />
+        <CardHeader title="Letters, emails and faxes" subtitle={<SulitTag />} actions={c.open ? <LogCommunicationDrawer exerciseId={v.exerciseId} bidders={c.allBidders} people={v.header.people} allowed={c.act} /> : undefined} />
         <CommunicationsList c={c} />
       </Card>
     </>
@@ -247,12 +243,12 @@ function Recommendation({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }
   return (
     <>
       <Card className="overflow-hidden">
-        <CardHeader title="The bids in the running, ranked" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.composite ? `By ${r.composite}, highest first; a tie by the lower price.` : "By evaluated price, lowest first."} <SulitTag /></span>} actions={c.open && !r.formed ? <RecommendDrawer exerciseId={v.exerciseId} bidders={r.ranked.map((x) => ({ value: x.id, label: c.blind ? `Rank ${x.rank}: ${x.bidder}` : `Rank ${x.rank}: No. ${x.listingNo}, ${x.bidder}` }))} topId={r.topId} allowed={r.form} people={v.header.people} /> : undefined} />
-        {r.incomplete.length > 0 && <p className="border-t border-line px-5 py-3 text-[13px] text-ink-3 sm:px-6">{`Still to complete: ${r.incomplete.join(", ")}.`}</p>}
+        <CardHeader title="The bids in the running, ranked" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.composite ? `By ${r.composite}, highest first` : "Lowest price first"} <SulitTag /></span>} actions={c.open && !r.formed ? <RecommendDrawer exerciseId={v.exerciseId} bidders={r.ranked.map((x) => ({ value: x.id, label: c.blind ? `Rank ${x.rank}: ${x.bidder}` : `Rank ${x.rank}: No. ${x.listingNo}, ${x.bidder}` }))} topId={r.topId} allowed={r.form} people={v.header.people} /> : undefined} />
+        {r.incomplete.length > 0 && <p className="border-t border-line px-5 py-3 text-[13px] text-ink-3 sm:px-6">{`Incomplete: ${r.incomplete.join(", ")}.`}</p>}
         <RankingList c={c} />
       </Card>
       <Card>
-        <CardHeader title="The recommendation" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.formed ? `Formed ${r.formed.formedAt} · ${r.formed.formedActed}.` : "Not formed yet."} <SulitTag /></span>} />
+        <CardHeader title="The recommendation" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.formed ? `Formed ${r.formed.formedAt} · ${r.formed.formedActed}` : "Not formed"} <SulitTag /></span>} />
         <CardBody>
           {r.formed ? (
             <KeyValues
@@ -267,7 +263,7 @@ function Recommendation({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }
               ]}
             />
           ) : (
-            <p className="text-[13px] text-ink-3">{r.form.allowed ? "Every stage is complete: form it from the ranking's header." : r.form.reason}</p>
+            <p className="text-[13px] text-ink-3">{r.form.allowed ? "Ready to form." : r.form.reason}</p>
           )}
         </CardBody>
       </Card>
@@ -280,18 +276,18 @@ function Report({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
   return (
     <>
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="The evaluation report" subtitle={r.issued ? `Issued ${r.issued.issuedAt ?? ""}${r.issued.issuedBy ? ` by ${r.issued.issuedBy}` : ""}. Frozen: a later version supersedes it, nothing edits it.` : "Issued once, frozen, its reference drawn from the configured series."} actions={r.issued ? <ButtonLink href={`/sourcing/${v.exerciseId}/evaluation/report`} variant="secondary" size="sm">Print the report</ButtonLink> : c.open ? <IssueReportDrawer exerciseId={v.exerciseId} allowed={r.issue} people={v.header.people} /> : undefined} />
+        <CardHeader icon={<FileIcon size={17} />} title="The evaluation report" subtitle={r.issued ? `Issued ${r.issued.issuedAt ?? ""}${r.issued.issuedBy ? ` by ${r.issued.issuedBy}` : ""}` : "Not issued"} actions={r.issued ? <ButtonLink href={`/sourcing/${v.exerciseId}/evaluation/report`} variant="secondary" size="sm">Print the report</ButtonLink> : c.open ? <IssueReportDrawer exerciseId={v.exerciseId} allowed={r.issue} people={v.header.people} /> : undefined} />
         <CardBody>
           {r.issued ? (
-            <KeyValues columns={2} items={[{ label: "Reference", value: <span className="font-mono text-[13px]">{r.issued.reference}</span> }, { label: "Text", value: r.issued.template ?? "—" }, { label: "Annexes", value: r.issued.annexes.map((a) => `${a.key}. ${a.label}`).join("; ") }, ...(r.issued.stale ? [{ label: "Stands?", value: <Badge tone="err">No: a late tender was opened since</Badge> }] : [])]} />
+            <KeyValues columns={2} items={[{ label: "Reference", value: <span className="font-mono text-[13px]">{r.issued.reference}</span> }, { label: "Text", value: r.issued.template ?? "—" }, { label: "Annexes", value: r.issued.annexes.map((a) => `${a.key}. ${a.label}`).join("; ") }, ...(r.issued.stale ? [{ label: "Stands?", value: <Badge tone="err">No: late tender opened since</Badge> }] : [])]} />
           ) : (
-            <p className="text-[13px] text-ink-3">{r.issue.allowed ? "Nothing holds it back: issue it from this card's header." : r.issue.reason}</p>
+            <p className="text-[13px] text-ink-3">{r.issue.allowed ? "Ready to issue." : r.issue.reason}</p>
           )}
         </CardBody>
       </Card>
       {r.issued && (
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Kertas Cadangan" subtitle={r.proposal ? `Produced and frozen ${r.proposal.frozenAt}.` : "Produced from the issued report through the configured template, then checked and recommended by the two offices' holders."} actions={r.proposal ? <ButtonLink href={`/sourcing/${v.exerciseId}/evaluation/proposal`} variant="secondary" size="sm">Print the paper</ButtonLink> : <RenderProposalDrawer exerciseId={v.exerciseId} allowed={r.render} people={v.header.people} />} />
+          <CardHeader icon={<FileIcon size={17} />} title="Proposal paper" subtitle={r.proposal ? `Frozen ${r.proposal.frozenAt}.` : "Not produced"} actions={r.proposal ? <ButtonLink href={`/sourcing/${v.exerciseId}/evaluation/proposal`} variant="secondary" size="sm">Print the paper</ButtonLink> : <RenderProposalDrawer exerciseId={v.exerciseId} allowed={r.render} people={v.header.people} />} />
           {r.proposal && (
             <CardBody className="flex flex-col gap-4">
               <KeyValues
@@ -305,7 +301,7 @@ function Report({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
           )}
         </Card>
       )}
-      <OwnerAttachments owner={{ kind: "evaluation", id: c.id }} title="The evaluation's documents" subtitle="The signed report and paper, and the drawings annex F lists. SULIT: downloadable to the people the evaluation is open to, and every download is logged." />
+      <OwnerAttachments owner={{ kind: "evaluation", id: c.id }} title="The evaluation's documents" subtitle="SULIT" />
     </>
   );
 }
