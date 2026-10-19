@@ -15,7 +15,10 @@ HELD for CPD**.
    version (AC-7; scope register row 26).
 2. The log records CPD's answers to the R-1 items in §7, or records that the founder keeps the stated default for each.
 3. The product owner has reviewed ADR 0038 and ADR 0039 as "proposed, held", and has ruled on the questions in §6, or adopted their
-   defaults. **Met on 2026-10-19 (AC-49 to AC-60).** Items 1 and 2 are the founder's, and are open.
+   defaults. **Met on 2026-10-19 (AC-49 to AC-60) for P1, P2, P4, P5 and P7.** Designing AC-50 and AC-55 raised four further
+   questions (§6, "Open"). Each is designed to its default, and each gates only the step named there: the AC-50 reading gates P3, and
+   the three AC-55 questions gate P6. Item 3 is met for P3 and P6 once the product owner rules them or adopts their defaults. Items 1
+   and 2 are the founder's, and are open.
 
 If CPD declines Part 2, this plan is closed unbuilt, and wave V may start (AC-35, AC-48).
 
@@ -61,7 +64,7 @@ the ADR text is the acceptance criterion.
 ## 2. Data model: declarations only (one migration per step, written at that step)
 
 Every table carries `organisationId`. Every act writes its audit row, with before and after, in the same transaction. The lock order is
-supplier (only the D6 request approval), then contract, then submission, then document. The names and shapes below are the contract
+supplier (only the D6 request approval), then contract, then submission, then the pinned `WorkProgramme` row (P6), then document. The names and shapes below are the contract
 between the data-modeler and the engineers. A builder who needs to change one raises it with the architect first.
 
 ```prisma
@@ -540,7 +543,8 @@ reach a screen.
      today.
   2. Read the form: the points through `readPoints`, the source file (an attachment id of the pinned revision) and, when points
      exist, a reason.
-  3. Lock the contract, then the submission, then the pinned `WorkProgramme` row.
+  3. Lock the contract, then the submission, then the pinned `WorkProgramme` row (`SELECT ... FOR UPDATE`). The recommendation and
+     the answer on a pinned row take the same three locks in the same order, as `lockedRevision` locks the row today.
   4. Run `pinnedPointsFaults` and `pointFaults(points, possessionOn)` on the locked rows.
   5. Guarded write on `scrutinisedOn IS NULL AND decision IS NULL`. Replace the `ProgrammePoint` rows whole. One audit UPDATE row on
      `WorkProgramme` with the planned progress before and after and the file's name, the reason as its note.
@@ -602,12 +606,15 @@ Each question was designed to the default shown, and each is now ruled. The ADRs
 
 Also ruled: a WORK_PROGRAMME type cannot be issued with higher approval NONE (AC-56), and the departures from §6.3 (AC-60).
 
-**Open, from designing AC-55** (logged as product-owner questions on 2026-10-20; the design takes the default shown):
-- A contractor's work programme send is refused while another programme revision is open (`submitFaults` OPEN_REVISION, kept).
-- The points act keeps today's authority need (a staff TRANSACTION act, LEAD or REVIEWER on the team), not a stricter one.
-- A recommendation to approve a work programme is refused while it has no points (an added check, closing a dead end).
-- A non-member reads the answer and SHARED comments on its own revisions (the reading of AC-50 that lets AC-28's submitter notice be
-  opened).
+**Open, from designing AC-50 and AC-55** (logged as product-owner questions on 2026-10-20; the design takes the default shown). Each
+gates only the step named, under entry gate item 3:
+- **Gates P6.** A contractor's work programme send is refused while another programme revision is open (`submitFaults`
+  OPEN_REVISION, kept).
+- **Gates P6.** The points act keeps today's authority need (a staff TRANSACTION act, LEAD or REVIEWER on the team), not a stricter
+  one.
+- **Gates P6.** A recommendation to approve a work programme is refused while it has no points (an added check, closing a dead end).
+- **Gates P3.** A non-member reads the answer and SHARED comments on its own revisions (the reading of AC-50 that lets AC-28's
+  submitter notice be opened).
 
 ## 7. R-1: what the founder must obtain from CPD before P1
 
@@ -639,7 +646,8 @@ second account that can issue configuration. CPD's answers decide the values; no
   stores, and a scan pins the list.
 - **Replacing the attachment CHECKs whole** can drop an existing owner. The migration test lists every owner before and after.
 - **Concurrent answers.** The guarded update is backed by the write-once trigger.
-- **Lock order.** It is pinned by a scan, as for the award locks.
+- **Lock order.** It is pinned by a scan, as for the award locks. The scan's list includes the pinned `WorkProgramme` row after the
+  submission (P6).
 - **CAD formats** in `src/lib/documents/media.ts` must be checked before drawings types are offered.
 - **Configuration files** are shared with any concurrent builder. P2 runs only when nobody holds `src/app/configuration/**`.
 - **The claim day drives the `InterimValuation` CLAIM trigger.** P6 tests both sources.

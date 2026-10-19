@@ -127,7 +127,8 @@ Proposed, held for CPD; the amendments of AC-61 are folded in before acceptance.
 code. Entry gate items 1 and 2 (CPD's written sign-off and the R-1 answers) are the founder's; item 3 is met.
 - **The AC-61 amendments were folded in on 2026-10-20**, into both ADRs and the plan, with AC-55's open point designed: staff enter a
   pinned programme's planned progress through `enterProgrammePoints` (ADR 0039 D9, plan P6). The plan's §6 now lists four questions
-  that design raised. The ADRs and the plan carry no Malay (founder, 2026-10-19).
+  that design raised: one gates P3 and three gate P6, each designed to its default. Item 3 stays met for P1, P2, P4, P5 and P7. The
+  ADRs and the plan carry no Malay (founder, 2026-10-19).
 - **ADR 0038** (`docs/notes/architecture/0038-contract-teams-and-access-to-the-project-exchange.md`) and **ADR 0039**
   (`docs/notes/architecture/0039-project-submissions-revisions-and-review.md`) are both Proposed, held for CPD.
 - **The Part 2 build plan** is `docs/notes/plans/wave-p-build-plan.md`. It gives the §6.3 tables as declarations (§2), the pure contracts

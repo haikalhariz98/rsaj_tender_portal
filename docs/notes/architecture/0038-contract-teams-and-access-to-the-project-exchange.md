@@ -126,6 +126,7 @@ notice into the exchange, so a contract issued after go-live, with no contractor
   only to a reader with the right that reads a contact's details. Any other decider sees the designation, the role and "Restricted".
 
 **D7. Lock order.** When an act takes more than one lock, it takes them in this order: supplier, then contract, then submission, then
+the pinned `WorkProgramme` row (ADR 0039 D9, taken by the points act and by the recommendation and answer on a pinned programme), then
 document. Only the staff approval of a member request (D6) takes the supplier row. Every contractor act starts at the contract lock,
 as ADR 0034's Phase 4e record already requires ("supplier acts take the contract's canonical lock and never the supplier row").
 

@@ -170,7 +170,7 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
     for a reason, and the before is never lost). Nothing downstream reads the points before approval: `programmeInForce` reads
     approved rows only.
   - **Locks.** Contract, then submission, then the pinned `WorkProgramme` row (`SELECT ... FOR UPDATE`, as `lockedRevision` does
-    today). The write is guarded on `scrutinisedOn IS NULL AND decision IS NULL`. If the guard moves nothing, the act is refused
+    today). The recommendation and the answer on a pinned row take the same locks in the same order (D14). The write is guarded on `scrutinisedOn IS NULL AND decision IS NULL`. If the guard moves nothing, the act is refused
     as changed.
   - **Audit.** One UPDATE row on `WorkProgramme`, in the same transaction, with the planned progress before and after, written as the
     direct act writes it ("N% by day"), and the file it came from.
@@ -291,7 +291,9 @@ letter: 1 → A, 26 → Z, 27 → AA, 52 → AZ, 53 → BA. The letter is never 
 
 **D14. Audit and locks.**
 - Every act writes its audit row, with before and after, in its own transaction.
-- The lock order is contract, then submission, then document (ADR 0038 D7). Contractor acts never take the supplier row.
+- The lock order is contract, then submission, then the pinned `WorkProgramme` row, then document (ADR 0038 D7). The points act, and
+  the recommendation and the answer on a pinned programme, take the row lock as `lockedRevision` does today. Contractor acts never
+  take the supplier row.
 - A multi-file send stages each file through the upload route first, as ADR 0011 D5 requires. The send act then pins the staged
   versions, so the 60-second `storeUpload` transaction never holds the contract lock.
 
