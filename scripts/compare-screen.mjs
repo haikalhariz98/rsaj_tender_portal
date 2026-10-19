@@ -348,7 +348,7 @@ const ALLOWED_EXTRA = [
   // Wave 3c step 5 (SR-14, rulings 22, 23, 20c, 20cl, 20cm): the opening checklist is a matrix, one row for each item and one column for each offer read, under which the checklist result, the decision and
   // the officers' confirmations sit, with the file download of an opening-check part in its cell (named officers before finalising, the filed copy after). The sample has no matrix.
   /^(Checked at the opening|Checklist result|Decision|Confirmations|Confirm this column|Pass|Reject|Download|Opened at the opening)$/,
-  // Wave 3c step 5 (SR-15 "Where: Received", ruling 20ct): once an opening is finalised, Received shows the schedule of tenders (Jadual Tawaran) and the Grand Summary with their two downloads, through the
+  // Wave 3c step 5 (SR-15 "Where: Received", ruling 20ct): once an opening is finalised, Received shows the schedule of tenders and the Grand Summary with their two downloads, through the
   // same components and the same read as the Schedule section. Before finalising it shows none of it.
   /^(Schedule of tenders.*|Grand Summary|Download .* \(CSV\))$/,
 ];
@@ -423,8 +423,8 @@ const DECIDED_ABSENT = [
   // Wave 3a review (SR-15 ruling 24, M3; SR-10 ruling 17): decided differences from the sample, recorded so each stays visible.
   {
     screen: /^[/]sourcing[/][^/]+$/,
-    match: /^(Kelas \(register\)|Class as read|Status)$/,
-    why: "SR-15 (ruling 24, review M3): the schedule of tenders carries Kelas, the supplier register's reading frozen when the offer was read, beside Class as read (what the officer recorded from the envelope) and Status, as separate columns, so neither is passed off as the other; the screen, the print and the CSV take their headings from one list",
+    match: /^(Class \(register\)|Class as read|Status)$/,
+    why: "SR-15 (ruling 24, review M3): the schedule of tenders carries Class (register), the supplier register's reading frozen when the offer was read, beside Class as read (what the officer recorded from the envelope) and Status, as separate columns, so neither is passed off as the other; the screen, the print and the CSV take their headings from one list",
   },
   {
     screen: /^[/]supplier[/]bids[/][^/]+[/]documents$/,
@@ -548,6 +548,12 @@ const DECIDED_ABSENT = [
     screen: /^[/]sourcing(?:[/][^/]+(?:[/]appendix|[/]edit)?|[/]new)?$/,
     match: /^(This exercise is hidden from everyone else.*|Restricted to the people named on it|Restricted to its named people|The name is approved for a list, and invitation is held to it|The contract's particulars, stated for the tender.*|These documents are bought online|Some sales were paid on the payment simulator|Registration and suspension are checked only for a linked contractor|The portal records envelopes, not offers|Every named officer is needed|Its panel is picked when the opening starts|Simulated, no money received.*|Online submissions|Earlier record|Priced figures are SULIT|Not filled in yet|Attendance is not mandatory|What is being bought, and how it is approved.*|Online bids are sealed to a key.*|Who will open the bids.*|Each letter received before the closing.*)$/,
     why: "0005, founder 2026-10-19: sourcing card subtitles, drawer introductions, empty-state bodies and the info callouts were cut to what the user needs to act; the restricted, demonstration, not-emailed and SULIT facts are chips with popovers, and the key-custody consequence lines stay",
+  },
+  // Note 0005, founder 2026-10-19 (minimal words): the opening (paper and online), the matrix, Received's schedule tables, and the evaluation tab, report and proposal paper.
+  {
+    screen: /^[/]sourcing[/][^/]+(?:[/]evaluation[/](?:report|proposal)|[/]opening[/]print)?$/,
+    match: /^(Never read at the opening.*|The opening starts once the window has closed.*|One answer for each item and offer.*|Checked against each bid|Frozen when the opening was finalised.*|Built from the record as it stands.*|The scan of the paper the panel signed.*|Never opened at the main opening.*|Each report names its contractor.*|Appointed on both sides.*|Carried from the opening.*|Scores, prices, the ranking.*|Pinned when the exercise was published.*|A verdict and a narrative for each bid.*|Each held, then closed on its minutes.*|A negotiation is held only once its route is approved|Recorded, never sent from here.*|The percentage is entered from this report.*|The signed report and paper.*|Issued once, frozen.*|Produced from the issued report.*|Kertas Cadangan|Bil[.])$/,
+    why: "0005, founder 2026-10-19: opening and evaluation subtitles, drawer introductions, empty-state bodies and info callouts were cut to the consequence; the SULIT, panel-authorises and blind-scoring facts are chips with popovers, and the sample's Malay column and document names (Bil., Kelas, Jadual Tawaran, Kertas Cadangan) are English on every screen (founder 2026-10-19, English only)",
   },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
