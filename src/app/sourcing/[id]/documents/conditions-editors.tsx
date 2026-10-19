@@ -115,6 +115,7 @@ export function ConfirmAssuranceDrawer({ exerciseId, kind, label, people, allowe
     <RecordEditor
       title={`Confirmed: ${label.toLowerCase()}`}
       description="Confirm with the day. Amended versions are confirmed again."
+      more="Later edits do not withdraw a confirmation. Remove it and confirm again if the documents changed."
       fields={[
         hidden("exerciseId"),
         hidden("kind"),
@@ -155,6 +156,7 @@ export function OverrideClauseDrawer({ exerciseId, clauseCode, title, people, al
     <RecordEditor
       title={`Go without the ${title.toLowerCase()}`}
       description="Omits a mandatory clause, this version only. Needs a reason."
+      more="Leaving a clause out needs a legal endorsement. The giver's office is not checked."
       fields={[
         hidden("exerciseId"),
         hidden("clauseCode"),

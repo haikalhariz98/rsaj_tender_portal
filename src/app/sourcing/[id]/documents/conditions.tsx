@@ -56,7 +56,7 @@ export function Row({ title, value, action, children }: { title: string; value?:
  * because the override drawer is the only fix (founder, 2026-10-05; note 0005 R13). Where no clause is configured there
  * is no list: the line says what is missing. `note` is the explanation, behind the information button.
  */
-function ClausesCard({ line, note, children }: { line: ClausesLine; note: React.ReactNode; children: React.ReactNode }) {
+function ClausesCard({ line, note, children }: { line: ClausesLine; note?: React.ReactNode; children: React.ReactNode }) {
   return (
     <Card className="overflow-hidden">
       {!line.empty ? (
@@ -66,10 +66,12 @@ function ClausesCard({ line, note, children }: { line: ClausesLine; note: React.
           defaultOpen={startsOpen({ finding: line.tone === "warn", mustKeep: line.expand })}
           icon={<GavelIcon size={17} />}
           title="Mandatory clauses"
-          subtitle={note}
           summary={line.text}
         >
-          <CardBody className="flex flex-col gap-4">{children}</CardBody>
+          <CardBody className="flex flex-col gap-4">
+            {note}
+            {children}
+          </CardBody>
         </CardHeader>
       ) : (
         <CardHeader id="clauses" icon={<GavelIcon size={17} />} title="Mandatory clauses" subtitle={line.text} divided={false} actions={line.tone === "warn" ? <Badge tone="warn">Needs attention</Badge> : undefined} />
@@ -121,7 +123,17 @@ function FrozenCards({ c }: { c: Frozen }) {
   const left = f.clauses.filter((x) => x.override).length;
   const regs = f.groups.reduce((n, g) => n + g.items.length, 0);
   const showAssurance = assuranceCardShown(f.assurance.policy);
+  const restricted = f.restriction.answer === "Yes";
+  const restrictionNotSet = f.restriction.answer === NOT_SET;
+  const permitNotSet = f.permit.answer === NOT_SET || f.permit.type === NOT_SET;
   const assurance = assuranceLine({ required: f.assurance.required, rows: f.assurance.rows.map((r) => ({ confirmed: !!r.by, notNeeded: false })), latestOn: f.assurance.latestOn });
+  // Any Not set or Restricted chip inside repeats on the card's line (0005 R13 item 1).
+  const flags = (
+    <>
+      {restricted && <Badge tone="neutral">Restricted</Badge>}
+      {(regs === 0 || restrictionNotSet || permitNotSet || assurance.notSet) && <Badge tone="warn">Not set</Badge>}
+    </>
+  );
   return (
     <Card className="overflow-hidden">
       <CardHeader
@@ -130,15 +142,15 @@ function FrozenCards({ c }: { c: Frozen }) {
         defaultOpen={startsOpen({ mustKeep: clauses.expand, finding: assurance.notSet })}
         icon={<UsersIcon size={17} />}
         title="Tender conditions"
-        subtitle={`Judged ${f.judgedOn}.`}
-        summary={`Frozen with version ${f.version}`}
+        summary={<>Frozen with version {f.version}{flags}</>}
       >
         <CardBody className="flex flex-col gap-3">
+          <p className="text-[12.5px] text-ink-3">Judged {f.judgedOn}.</p>
           <Disclosure boxed id="registrations" title="Registrations bidders must hold" summary={regs === 0 ? <Badge tone="warn">Not set</Badge> : `${regs} required`}>
             <Registrations groups={f.groups.map((g) => ({ ...g, items: g.items }))} />
             {f.notice && <p className="mt-2 text-[12.5px] text-ink-3">{f.notice}.</p>}
           </Disclosure>
-          <Disclosure boxed id="restriction" title="Restriction and permit" summary={f.restriction.answer === "Yes" ? "Restricted" : f.restriction.answer === NOT_SET ? "Restriction not set" : "Not restricted"}>
+          <Disclosure boxed id="restriction" title="Restriction and permit" summary={<>{restricted ? <Badge tone="neutral">Restricted</Badge> : restrictionNotSet ? null : "Not restricted"}{(restrictionNotSet || permitNotSet) && <Badge tone="warn">Not set</Badge>}</>}>
             <ul className="divide-y divide-line/70 rounded-2xl border border-line">
               <Row title={f.restriction.question} value={<Value v={f.restriction.answer} />}>
                 {f.restriction.stampEn != null && (
@@ -183,6 +195,7 @@ function FrozenCards({ c }: { c: Frozen }) {
             </Disclosure>
           )}
           <Disclosure boxed id="clauses" defaultOpen={clauses.expand} title="Mandatory clauses" summary={clauses.empty ? clauses.text : `${f.clauses.length - left} in${left > 0 ? `, ${left} left out` : ""}`}>
+            <span className="mb-2 inline-flex"><MoreText label="About these clauses" text="Clauses every agreement carries." /></span>
             <ul className="divide-y divide-line/70 rounded-2xl border border-line">
               {f.clauses.map((x) => (
                 <Row key={x.title} title={x.title} value={<Badge tone={x.override ? "neutral" : "ok"}>{x.status}</Badge>}>
@@ -235,7 +248,6 @@ function LiveCards({ c, packless }: { c: LiveConditions; packless: boolean }) {
             defaultOpen={startsOpen({ finding: assurance.notSet || !!c.assurance.policyNotSet, actNow: assurance.open })}
             icon={<CheckIcon size={17} />}
             title="Assurance"
-            subtitle={<MoreText label="About assurance" text="Named officers confirm before approval. Later edits do not withdraw it. Remove and confirm again if the documents changed." />}
             summary={assurance.notSet ? <Badge tone="warn">Not set</Badge> : assurance.text}
           >
             <CardBody className="flex flex-col gap-4">
@@ -265,12 +277,7 @@ function LiveCards({ c, packless }: { c: LiveConditions; packless: boolean }) {
 
       <ClausesCard
         line={clausesSummary({ none: c.clauses.none, statuses: c.clauses.rows.map((r) => r.status) })}
-        note={
-          <span className="inline-flex flex-wrap items-center gap-1.5">
-            <InfoChip tone="warn" detail="Giver's office is not checked.">Not checked</InfoChip>
-            <MoreText label="About leaving a clause out" text="Leaving a clause out needs a legal endorsement." />
-          </span>
-        }
+        note={<span className="self-start"><InfoChip tone="warn" detail="Giver's office is not checked.">Not checked</InfoChip></span>}
       >
         <ul className="divide-y divide-line/70 rounded-2xl border border-line">
           {c.clauses.rows.map((r) => (

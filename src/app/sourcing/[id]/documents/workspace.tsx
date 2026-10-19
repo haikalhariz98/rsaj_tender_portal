@@ -1,6 +1,5 @@
 
 import { EscalateDrawer } from "@/app/approvals/editors";
-import { Accordion } from "@/components/accordion";
 import { FileIcon, RouteIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -141,7 +140,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
 
   return (
     <div className="flex flex-col gap-6">
-      <Card id="parts" className="scroll-mt-24 overflow-hidden">
+      <Card className="overflow-hidden">
         <CardHeader
           icon={<FileIcon size={17} />}
           title={notDecided || d.facts.documentPack === NOT_APPLICABLE_BEFORE_ASSEMBLY ? "Tender documents" : d.facts.documentPack}
@@ -169,14 +168,14 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
         {d.pack && (
           <div className="border-t border-line px-5 py-3 sm:px-6">
             <Disclosure
-              id="documents-to-issue"
-              defaultOpen={startsOpen({ finding: readyCount < d.pack.parts.length, actNow: !!d.pack.newParts || !!d.pack.refresh })}
-              title={<span className="inline-flex items-center gap-1 text-[14px] font-bold text-ink">Documents to issue <MoreText label="How a part becomes ready" text={hasBq ? "Ready when its file is uploaded or its text merges. Bill issued unpriced where built on screen." : "Ready when its file is uploaded or its text merges."} /></span>}
+              id="parts"
+              defaultOpen={startsOpen({ finding: d.pack.parts.some((p) => p.stateKey === "warn"), actNow: !!d.pack.newParts || !!d.pack.refresh })}
+              title={<span className="text-[14px] font-bold text-ink">Documents to issue</span>}
               summary={<>{readyCount} of {d.pack.parts.length} ready</>}
             >
               <div className="-mx-5 sm:-mx-6">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 pb-3 sm:px-6">
-                  <p className="min-w-[12rem] flex-1 text-[12.5px] text-ink-3">In print order.</p>
+                  <p className="inline-flex min-w-[12rem] flex-1 items-center gap-1 text-[12.5px] text-ink-3">In print order. <MoreText label="How a part becomes ready" text={hasBq ? "Ready when its file is uploaded or its text merges. Bill issued unpriced where built on screen." : "Ready when its file is uploaded or its text merges."} /></p>
                   {d.pack.newParts && <TakeNewPartsDrawer exerciseId={exerciseId} parts={d.pack.newParts.parts} confirmedParts={d.pack.newPartsKey ?? ""} />}
                   {d.pack.refresh && <RefreshFlagsDrawer exerciseId={exerciseId} refresh={d.pack.refresh} confirmedChanges={d.pack.refreshKey ?? ""} />}
                 </div>
@@ -194,10 +193,10 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
       {(d.pack || routes.length > 0) && <RouteCard versionLabel={(() => { const v = d.versions.find((x) => x.submittedOn); return v ? `Version ${v.versionNo}` : null; })()} exerciseId={exerciseId} approvedOn={d.dates && "approvedOn" in d.dates ? (d.dates.approvedOn ?? null) : null} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} />}
 
       {d.versions.length > 1 && (
-        <Accordion title="Versions" meta={`${d.versions.length} versions`}>
+        <Disclosure boxed title="Versions" summary={`${d.versions.length} versions`}>
           <ul className="divide-y divide-line/70">
             {d.versions.map((v) => (
-              <li key={v.versionNo} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-[13px] sm:px-6">
+              <li key={v.versionNo} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 text-[13px]">
                 <span className="font-semibold text-ink">Version {v.versionNo}</span>
                 <Badge tone={PACK_TONE[v.status] ?? "neutral"}>{v.status}</Badge>
                 <span className="min-w-0 break-words text-ink-2">
@@ -208,7 +207,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
               </li>
             ))}
           </ul>
-        </Accordion>
+        </Disclosure>
       )}
     </div>
   );
@@ -240,6 +239,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
   // Open while the route is pending or sent back, or holds a finding; folded to its outcome once approved (0005 R14).
   const decided = inst.status === "APPROVED";
   const ruleLine = inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : null;
+  const submittedLine = `${versionLabel ? `${versionLabel}, submitted` : "Submitted"} ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`;
   return (
     <Card className="overflow-hidden">
       <CardHeader
@@ -249,10 +249,13 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
         summary={decided ? `${ruleLine ? `${ruleLine} · ` : ""}Approved${approvedOn ? ` ${approvedOn}` : ""}` : undefined}
         icon={<RouteIcon size={17} />}
         title="Approval for tendering"
-        subtitle={`${versionLabel ? `${versionLabel}, submitted` : "Submitted"} ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
-        actions={<Badge tone={tenderingRouteTone(inst.status)}>{tenderingRouteLabel(inst.status, inst.warnings)}</Badge>}
+        subtitle={decided ? undefined : submittedLine}
+        actions={decided ? undefined : <Badge tone={tenderingRouteTone(inst.status)}>{tenderingRouteLabel(inst.status, inst.warnings)}</Badge>}
       >
       <CardBody className="flex flex-col gap-4">
+        {decided && <p className="text-[12.5px] text-ink-3">{submittedLine}</p>}
+        {/* A decision point: the rule and its clause stay on the surface while the route is open (0005 R13 item 4). */}
+        {!decided && <p className="text-[13px] break-words text-ink-2"><span className="font-semibold text-ink">Rule</span> {ruleLine ?? <Badge tone="warn">Not recorded</Badge>}</p>}
         {/* The same helper the Overview's stepper reads, so the route is worded once. Decide and Escalate sit on the pending step below. */}
         <Stepper label="Approval for tendering" steps={tenderingStepperSteps(inst)} />
         {inst.status === "REJECTED" && (
@@ -283,12 +286,12 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
         )}
       />
       <CardBody className="flex flex-col gap-3 border-t border-line">
-        <Accordion title="How this route was chosen">
-          <div className="flex flex-col gap-4 p-5">
+        <Disclosure boxed title="How this route was chosen">
+          <div className="flex flex-col gap-4">
             <KeyValues
               columns={2}
               items={[
-                { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
+                ...(decided ? [{ label: "Rule", value: ruleLine ?? "Not recorded" }] : []),
                 { label: "Routed on", value: routedOnLabel(inst.cond, "exercise") },
               ]}
             />
@@ -298,12 +301,12 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
               </p>
             )}
           </div>
-        </Accordion>
+        </Disclosure>
         {earlier.length > 0 && (
-          <Accordion title="Earlier routes" meta={`${earlier.length} kept on record`}>
+          <Disclosure boxed title="Earlier routes" summary={`${earlier.length} kept on record`}>
             <ul className="divide-y divide-line/70">
               {earlier.map((e) => (
-                <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
+                <li key={e.id} className="flex flex-wrap items-center gap-2 py-3 text-[13px]">
                   <Badge tone="neutral">{tenderingRouteLabel(e.status, e.warnings)}</Badge>
                   <span className="text-ink-2">
                     Submitted {formatDate(e.openedAt)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
@@ -312,7 +315,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
                 </li>
               ))}
             </ul>
-          </Accordion>
+          </Disclosure>
         )}
       </CardBody>
       </CardHeader>
