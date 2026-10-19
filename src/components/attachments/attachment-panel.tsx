@@ -99,20 +99,16 @@ export function AttachmentPanel({
       <CardHeader
         icon={<FileIcon size={17} />}
         title={
-          compact ? (
-            <span className="inline-flex items-center gap-2">
-              {title}
-              <span className="sr-only">{statement}</span>
-              <MoreText text={statement} title="Who can open these" variant="note" label="Who can open these" />
-            </span>
-          ) : (
-            title
-          )
+          <span className="inline-flex items-center gap-2">
+            {title}
+            <span className="sr-only">{statement}</span>
+            <MoreText text={statement} title="Who can open these" variant="note" label="Who can open these" />
+          </span>
         }
-        subtitle={subtitle ?? `Kept against ${owner.label}.`}
+        subtitle={subtitle}
       />
       <CardBody className="flex flex-col gap-4">
-        {!compact && <Callout tone="info">{statement}</Callout>}
+
         {notice && (
           <Callout tone={notice.tone} action={<Button size="sm" variant="ghost" onClick={() => setNotice(null)}>Dismiss</Button>}>
             {notice.text}
@@ -153,10 +149,10 @@ export function AttachmentPanel({
           emptyTitle="Nothing is attached yet"
           emptyBody={
             slots.some((s) => s.state === "OPEN" && s.attachedBy == null)
-              ? "Upload one with the Upload button on its line above. It is stored, then attached to this record."
+              ? "Upload one on its line above."
               : slots.length > 0 && slots.every((s) => s.attachedBy != null)
-                ? "Documents here are attached by the step named above, never uploaded on their own."
-                : "Documents can be attached once the record allows it, as said above."
+                ? "Attached by the step named above."
+                : "Attachable once the record allows it."
           }
           actions={(id) => <RowActions item={byId.get(id)!} owner={key} upload={upload} onNotice={setNotice} />}
         />
@@ -167,7 +163,7 @@ export function AttachmentPanel({
         <div className="border-t border-line">
           <div className="px-5 pt-4 sm:px-6">
             <h4 className="text-[13px] font-bold text-ink">Taken off or replaced</h4>
-            <p className="text-[12.5px] text-ink-3">Kept for the record: what stood here before, and why it was changed.</p>
+            <p className="text-[12.5px] text-ink-3">What stood here before, and why.</p>
           </div>
           <DataList flat stackBelow="xl" selectable={false} searchable={false} toolbar={false} columns={pastColumns} rows={pastRows} exportName="documents-taken-off" />
         </div>

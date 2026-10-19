@@ -12,6 +12,7 @@ import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { KeyValues } from "@/components/ui/stat";
 import { endSentence, LOWER_NOTE, plural, RECLASSIFY_NOTE, WITHDRAW_NOTE, withdrawnLine } from "@/lib/documents/labels";
 import type { AttachmentItemView, DrawerView, DrawerVersionView, UploadView } from "@/lib/documents/views";
@@ -138,12 +139,12 @@ function Drawer({ data, reload, onClose, onRecord }: { data: DrawerView | null |
           ) : (
             <div className="flex flex-col gap-6">
               {notice && <Callout tone={notice.tone}>{notice.text}</Callout>}
-              <Callout tone="info">
-                {data.statements.access} {data.statements.fingerprint}
-              </Callout>
+              <div>
+                <InfoChip tone="info" detail={`${data.statements.access} ${data.statements.fingerprint}`} label="About access">Access logged</InfoChip>
+              </div>
               <Summary d={data} onDone={done} />
               {onRecord && <OnRecord ctx={onRecord} onDone={done} />}
-              <Section title="Versions" blurb="A correction is a new version. Nothing is ever deleted: a withdrawn version is marked, with its reason.">
+              <Section title="Versions" blurb="Corrections are new versions. Nothing is deleted.">
                 <ul className="flex flex-col gap-3">
                   {data.versions.map((v) => (
                     <VersionCard key={v.id} v={v} onDone={done} />
@@ -153,7 +154,7 @@ function Drawer({ data, reload, onClose, onRecord }: { data: DrawerView | null |
               <Section title="Where it is attached">
                 <Attachments d={data} />
               </Section>
-              <Section title="Legal holds" blurb="A hold stops it ever being disposed of, whatever its retention says.">
+              <Section title="Legal holds" blurb="A hold stops disposal.">
                 <Holds d={data} onDone={done} />
               </Section>
               <Accordion title="Downloads, refusals and checks" meta={plural(data.versions.reduce((n, v) => n + v.accessEvents.length, 0), "event")}>
@@ -252,7 +253,7 @@ function Summary({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) 
           { label: "Classification", value: <Badge tone={d.classificationTone}>{d.classificationUnset ? "Not set" : d.classification}</Badge> },
           { label: "Class", value: d.className },
           { label: "Received into the portal", value: d.createdOn },
-          { label: "Filed", value: d.filedOn ?? "Not yet: it is listed under Received, not filed" },
+          { label: "Filed", value: d.filedOn ?? "Not yet" },
           { label: "Keep for", value: d.retention.period },
           { label: "Retention starts", value: d.retention.starts },
           { label: "Disposal", value: d.retention.disposal },
@@ -262,7 +263,7 @@ function Summary({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) 
       {d.staged && (
         <div className="flex flex-col items-start gap-1.5">
           <AttachToRecordButton versionId={d.attachVersionId} title={d.title} unclassified={d.classificationUnset} />
-          <p className="text-[12.5px] text-ink-3">Received, not filed. Attach it to the record it belongs to, as what it is kept as there.</p>
+          <p className="text-[12.5px] text-ink-3">Received, not filed. Attach it to its record.</p>
         </div>
       )}
       <div>
@@ -317,7 +318,7 @@ function VersionCard({ v, onDone }: { v: DrawerVersionView; onDone: (n: Notice) 
       fd.set("versionId", v.id);
       fd.set("reason", String(data.get("reason") ?? ""));
       const r = await withdrawVersion(EMPTY_FORM_STATE, fd);
-      if (r.ok) onDone({ tone: "ok", text: `Version ${v.versionNo} is withdrawn. It can still be downloaded where its classification allows; to stop that, set the classification to SULIT.` });
+      if (r.ok) onDone({ tone: "ok", text: `Version ${v.versionNo} withdrawn. Set SULIT to stop downloads.` });
       return r;
     },
     [v.id, v.versionNo, onDone],
@@ -381,7 +382,7 @@ function VersionCard({ v, onDone }: { v: DrawerVersionView; onDone: (n: Notice) 
 function Attachments({ d }: { d: DrawerView }) {
   const rows = d.versions.flatMap((v) => v.attachments.map((a) => ({ ...a, versionNo: v.versionNo })));
   if (rows.length === 0) {
-    return <p className="text-[13px] text-ink-3">Not attached to any record. It is listed under Received, not filed until it is.</p>;
+    return <p className="text-[13px] text-ink-3">Not attached to any record.</p>;
   }
   return (
     <ul className="flex flex-col divide-y divide-line/70 rounded-2xl border border-line">
@@ -500,7 +501,7 @@ function AccessEvents({ d }: { d: DrawerView }) {
           {e.reason && <span className="text-ink-3">{e.reason}</span>}
         </li>
       ))}
-      <li className="px-5 py-3 text-[12.5px] text-ink-3">Each download, check and refusal names who asked; any from before sign-in has no name.</li>
+      <li className="px-5 py-3 text-[12.5px] text-ink-3">Entries from before sign-in have no name.</li>
     </ul>
   );
 }
@@ -528,7 +529,7 @@ function History({ d }: { d: DrawerView }) {
           {e.reason && <span className="text-[12.5px] text-ink-3">Reason: {e.reason}</span>}
         </li>
       ))}
-      <li className="px-5 py-3 text-[12.5px] text-ink-3">Each change names who made it; any from before sign-in is not attributed.</li>
+      <li className="px-5 py-3 text-[12.5px] text-ink-3">Changes from before sign-in are not attributed.</li>
     </ul>
   );
 }

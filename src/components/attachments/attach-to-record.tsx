@@ -126,13 +126,13 @@ export function AttachToRecordButton({
               <DrawerHeader title="Attach to a record" subtitle={title} onClose={close} />
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
                 <div className="flex flex-col gap-4">
-                  {versionId == null && <Callout tone="err">Every version of this document is withdrawn, so it cannot be attached. Upload the file again as a new document.</Callout>}
+                  {versionId == null && <Callout tone="err">Every version is withdrawn. Upload the file again as a new document.</Callout>}
                   {error && <Callout tone="err">{error}</Callout>}
                   <p className="rounded-xl bg-sunken px-3.5 py-2.5 text-[13px] text-ink-2">
-                    The file is already stored. Attaching it files it against a record and takes it off the Received, not filed list. Every check the record&apos;s own screen makes is made again.
+                    Already stored. Attaching files it against the record and repeats its checks.
                   </p>
                   {unclassified && (
-                    <Callout tone="warn">This document&apos;s classification is not set. It can be attached, but it is listed and never opened in the portal until its classification is set.</Callout>
+                    <Callout tone="warn">Classification not set. Listed but never opened in the portal until set.</Callout>
                   )}
                   <Field label="Kind of record" required htmlFor="attach-kind">
                     <Select id="attach-kind" value={kind} onChange={(e) => chooseKind(e.target.value)} placeholder="Choose a kind of record">

@@ -50,7 +50,7 @@ function uploadFields(upload: UploadView, opts: { newDocument: boolean; titleHin
       label: "File",
       required: true,
       accept: upload.accept || undefined,
-      hint: [upload.allowedTypes.length ? `Allowed: ${upload.allowedTypes.join(", ")}.` : null, upload.capText ? `${upload.capText}.` : null, "Its type is read from the file itself, not from its name."].filter(Boolean).join(" "),
+      hint: [upload.allowedTypes.length ? `Allowed: ${upload.allowedTypes.join(", ")}.` : null, upload.capText ? `${upload.capText}.` : null, "Type is read from the file itself."].filter(Boolean).join(" "),
     },
     ...(opts.newDocument
       ? ([
