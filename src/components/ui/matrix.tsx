@@ -15,6 +15,11 @@ import { Table, THead, Th, Tr, Td } from "./table";
 export const HEAD_WIDTH = 168;
 export const COLUMN_MIN = 176;
 
+/// The narrowest the table may be for this many subject columns. Below it the card scrolls sideways; at or above it the columns share the width. Never fewer than one column's worth.
+export function matrixMinWidth(columnCount: number): number {
+  return HEAD_WIDTH + COLUMN_MIN * Math.max(columnCount, 1);
+}
+
 export interface MatrixColumnSpec {
   key: string;
   head: ReactNode;
@@ -34,12 +39,12 @@ const STICKY = "sticky left-0 z-10 border-r border-line shadow-[1px_0_0_0_var(--
 
 export function Matrix({ corner, columns, rows, caption }: { corner: ReactNode; columns: readonly MatrixColumnSpec[]; rows: readonly MatrixRowSpec[]; caption: string }) {
   return (
-    <Table stack={false} minWidth={HEAD_WIDTH + COLUMN_MIN * Math.max(columns.length, 1)}>
+    <Table stack={false} minWidth={matrixMinWidth(columns.length)}>
       <caption className="sr-only">{caption}</caption>
       <colgroup>
         <col style={{ width: HEAD_WIDTH }} />
         {columns.map((c) => (
-          <col key={c.key} style={{ minWidth: COLUMN_MIN }} />
+          <col key={c.key} />
         ))}
       </colgroup>
       <THead>
@@ -59,7 +64,7 @@ export function Matrix({ corner, columns, rows, caption }: { corner: ReactNode; 
               {r.head}
             </Th>
             {columns.map((c) => (
-              <Td key={c.key} className="align-top">
+              <Td key={c.key} className="min-w-0 align-top break-words whitespace-normal">
                 {r.cells[c.key]}
               </Td>
             ))}

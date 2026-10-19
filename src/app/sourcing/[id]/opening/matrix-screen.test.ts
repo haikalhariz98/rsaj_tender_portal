@@ -11,6 +11,8 @@ vi.mock("./editors", () => ({
   VerdictDrawer: ({ options }: { options: { value: string }[] }) => h("button", { "data-options": options.map((o) => o.value).join(",") }, "Record the verdict"),
 }));
 
+import { COLUMN_MIN } from "@/components/ui/matrix";
+
 import { OpeningMatrix } from "./matrix";
 
 const allowed = { allowed: true } as const;
@@ -94,5 +96,34 @@ describe("the SR-14 matrix on screen", () => {
     const html = render(view([column([], { openedBidId: "a", pass: no, reject: no }), column([], { openedBidId: "b", listingNo: 2, pass: no, reject: no })], { rows: [] }));
     expect(html.split(">Only the named officers decide.<").length - 1).toBe(1);
     expect(html.split("aria-describedby=\"matrix-refusal-op1-0\"").length - 1).toBe(4);
+  });
+
+  // jsdom does no layout, so the width is held by what can be read: no fixed width above the column minimum, and long text in an element that wraps. N3 step 2 (AC-63).
+  it("four offers: no cell fixes a width above the column minimum, and long text sits in an element that wraps", () => {
+    const filed = (n: number) => cell("form", "CHECK_FILES", { fileIds: [`f${n}`], filed: [{ fileId: `f${n}`, versionId: `v${n}`, plainSha256: "cd".repeat(32) }] });
+    const no = { allowed: false as const, reason: "Only the named officers decide, and nobody else may record a verdict on this column." };
+    const cols = [1, 2, 3, 4].map((n) => column([filed(n)], { openedBidId: `b${n}`, listingNo: n, of: 4, bidder: `A Very Long Registered Bidder Name Sdn Bhd Number ${n}`, receiptDigest: "ef".repeat(32), pass: no, reject: no }));
+    const html = render(view(cols, { phase: "FINALISED", rows: [{ key: "form", label: "Form of tender", opened: true }] }));
+    for (const m of html.matchAll(/(?:min-w|w)-\[(\d+)px\]/g)) expect(Number(m[1])).toBeLessThanOrEqual(COLUMN_MIN);
+    const wraps = /(break-words|break-all|whitespace-normal)/;
+    const nowrap = /whitespace-nowrap/;
+    const exempt = /^(Pass|Reject|Download|Confirm|Present|Absent)/;
+    const stack: string[] = [];
+    let long = 0;
+    for (const t of html.match(/<[^>]+>|[^<]+/g) ?? []) {
+      if (t.startsWith("</")) stack.pop();
+      else if (t.startsWith("<")) {
+        if (!/\/>$/.test(t) && !/^<(br|hr|img|input|col|meta|link)(?![a-z])/.test(t)) stack.push((/^<(\w+)/.exec(t)?.[1] === "table" ? "table " : "") + (/class="([^"]*)"/.exec(t)?.[1] ?? ""));
+      } else {
+        const text = t.trim();
+        // Only what is inside the table: the notes beside it are plain paragraphs.
+        if (text.length < 30 || exempt.test(text) || stack.some((c) => c.includes("sr-only")) || !stack.some((c) => c.startsWith("table "))) continue;
+        long++;
+        // The nearest element that says either way decides.
+        const decider = [...stack].reverse().find((c) => wraps.test(c) || nowrap.test(c));
+        expect(decider !== undefined && wraps.test(decider) && !nowrap.test(decider), text).toBe(true);
+      }
+    }
+    expect(long).toBeGreaterThan(4);
   });
 });
