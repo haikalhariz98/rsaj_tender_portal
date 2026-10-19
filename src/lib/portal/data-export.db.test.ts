@@ -10,6 +10,7 @@ import { loadSupplier, supplierHistory } from "@/lib/suppliers/repo";
 import { ensureAdministrator, facts, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
 import { exportSupplierData } from "./data-export-store";
+import { portalStandingBarOf } from "./standing-gate-store";
 
 /**
  * N2 step 2 (PDPA right of access, ruling 1875(8); plan docs/notes/plans/backlog-n2.md): a signed-in supplier's export of its own data, against a real database. Supplier A's OUT columns and
@@ -218,7 +219,8 @@ describe("a supplier's export of its own data (N2)", () => {
     expect(json).toContain(A_LOGIN_NAME);
 
     const sealed = Buffer.from(A_OUT.sealed, "utf8");
-    holdsNone(json, [...Object.values(A_OUT), sealed.toString("hex"), sealed.toString("base64"), B_MARK, B_DIGEST, B.reference]);
+    const bAccount = await db.supplierAccount.findUniqueOrThrow({ where: { id: B.accountId }, select: { loginName: true, contact: { select: { email: true } } } });
+    holdsNone(json, [...Object.values(A_OUT), sealed.toString("hex"), sealed.toString("base64"), B_MARK, B_DIGEST, B.reference, bAccount.loginName, bAccount.contact.email]);
     expect(json).not.toContain('"Buffer"');
 
     // One export row, its digest the file's bytes', and one audit row with no exported value.
@@ -271,6 +273,8 @@ describe("a supplier's export of its own data (N2)", () => {
     const C = await signedIn(tag("C Company"));
     await standing(C, "BLACKLIST", { reason: tag("C-REASON"), note: tag("C-OUT-NOTE") });
     for (const who of [A, C]) {
+      // The seeding bars them: every act but reading is refused (the standing gate), so the export below is a read a barred supplier keeps.
+      expect(await db.$transaction((tx) => portalStandingBarOf(tx, who.actor, "TRANSACT")), who.reference).not.toBeNull();
       const before = await exportsOf(who);
       const out = await exportSupplierData(who.actor, "PAGE");
       expect(out, who.reference).not.toBeNull();
