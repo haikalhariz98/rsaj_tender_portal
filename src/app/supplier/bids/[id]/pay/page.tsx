@@ -48,9 +48,7 @@ export default async function PayPage({ params, searchParams }: { params: Promis
       <>
         {head("Pay for the documents")}
         <Card>
-          <EmptyState title="Nothing to pay for" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the documents</ButtonLink>}>
-            {view ? "You have not started buying these documents. Press Buy documents on the Documents tab." : "The documents of this exercise are not bought online."}
-          </EmptyState>
+          <EmptyState title={view ? "No purchase started" : "Not sold online"} action={<ButtonLink href={back} variant="secondary" size="sm">Back to the documents</ButtonLink>} />
         </Card>
       </>
     );
@@ -70,13 +68,8 @@ export default async function PayPage({ params, searchParams }: { params: Promis
         <Card>
           <CardHeader icon={<WalletIcon size={17} />} title={release.state === "READY" || release.state === "NOT_OPEN" ? "The documents are paid for" : "Payment made on the simulator"} subtitle={`Started ${view.purchase.startedOn}.`} actions={release.state === "READY" ? <ButtonLink href={`/supplier/bids/${id}/documents`} variant="primary" size="sm" prefetch={false}>Open the documents</ButtonLink> : undefined} />
           <CardBody className="flex flex-col gap-4">
-            {p.channel === "SIMULATED" && (
-              <Callout tone="warn" title={SIMULATED_LABEL}>
-                This payment was made on the demonstration payment simulator. No money moved, and it is not a receipt of {ctx.org.name}.
-              </Callout>
-            )}
             <ul className="flex flex-col gap-1.5 text-[14px] text-ink">{lines.map((l) => <li key={l}>{l}</li>)}</ul>
-            <Callout tone={release.state === "READY" ? "ok" : "neutral"} title={release.words.short}>{release.words.detail}</Callout>
+            <p className="text-[14px] text-ink"><span className="font-semibold">{release.words.short}.</span> {release.words.detail}</p>
           </CardBody>
         </Card>
       </>
@@ -93,10 +86,7 @@ export default async function PayPage({ params, searchParams }: { params: Promis
         <Card>
           <CardHeader icon={<WalletIcon size={17} />} title={say.title} subtitle={`Started ${view.purchase.startedOn}. Fee ${view.purchase.amount}.`} />
           <CardBody className="flex flex-col gap-3">
-            <Callout tone="info" title="How to pay">
-              {say.instruct}
-            </Callout>
-            <p className="text-[13px] text-ink-3">{view.payment.words}</p>
+            <p className="text-[15px] font-semibold text-ink">{say.instruct}</p>
             <div>
               <ButtonLink href={back} variant="secondary" size="sm">Back to the documents</ButtonLink>
             </div>
@@ -115,14 +105,14 @@ export default async function PayPage({ params, searchParams }: { params: Promis
       <>
         {head("Pay for the documents", { text: "Awaiting payment", tone: "warn" })}
         <Card>
-          <CardHeader icon={<WalletIcon size={17} />} title="Choose how to pay" subtitle={`Fee ${view.purchase.amount}. This is a demonstration: no money moves.`} />
+          <CardHeader icon={<WalletIcon size={17} />} title="Choose how to pay" subtitle={`Fee ${view.purchase.amount}`} />
           <CardBody className="flex flex-col gap-4">
             <Callout tone="warn" title={SIMULATED_LABEL}>
-              The payment is simulated. You will be taken to a simulated provider page, where you choose whether it succeeds or fails.
+              No money moves. You choose whether it succeeds or fails.
             </Callout>
             {view.purchase.lastFailure && (
               <Callout tone="err" title={`Your last try failed (${view.purchase.lastFailure.method})`}>
-                {view.purchase.lastFailure.text} The documents are still waiting for payment.
+                {view.purchase.lastFailure.text}
               </Callout>
             )}
             <ul className="flex flex-col gap-2" aria-label="Payment methods">
@@ -147,10 +137,10 @@ export default async function PayPage({ params, searchParams }: { params: Promis
     <>
       {head("Simulated payment page", { text: SIMULATED_LABEL, tone: "warn" })}
       <Card>
-        <CardHeader icon={<WalletIcon size={17} />} title={`${method} (simulated)`} subtitle="This stands in for a payment provider's page." />
+        <CardHeader icon={<WalletIcon size={17} />} title={`${method} (simulated)`} />
         <CardBody className="flex flex-col gap-4">
           <Callout tone="warn" title="Simulated payment: no money moves">
-            You are on a simulated page. Choosing Pay successfully records the documents as paid on the simulator and releases them to you; it is not a payment to {ctx.org.name}.
+            Not a payment to {ctx.org.name}.
           </Callout>
           <KeyValues
             columns={2}

@@ -51,11 +51,11 @@ export default async function TableDocumentPage({ params }: { params: Promise<{ 
         table
         notes={
           <div className="mb-6 flex flex-col gap-1 text-[13.5px] text-ink-2">
-            <p>Only the parts of the documents the notice puts on the tender table. Your opening of this page is logged against your company. Files bound into the documents are inspected at the counter.</p>
+            <p>Each opening is logged.</p>
             {r.since.map((l) => <p key={l} className="font-semibold">{l}</p>)}
           </div>
         }
-        footer="The text frozen when the documents were approved for tendering. Files are bound in separately."
+        footer="Frozen when approved for tendering."
       />
     </>
   );

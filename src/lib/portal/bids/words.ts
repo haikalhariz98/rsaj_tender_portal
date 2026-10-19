@@ -55,7 +55,7 @@ const OWN: Readonly<Record<BidFault, (d: Data) => Words>> = {
   PAYMENT_BARRED: (d) => w(String(d.words ?? "The supplier register does not allow the documents to be sold to your company.")),
   // Decisions log, 2026-10-09, ruling on 1875(3): the supplier's standing bars this act, in its own words (src/lib/portal/standing-gate.ts).
   SUPPLIER_STANDING_BARS: (d) => w(String(d.en ?? "")),
-  REQUEST_REFUSED: () => w("The documents cannot be sold to your company at the moment. The reasons are listed above."),
+  REQUEST_REFUSED: () => w("Cannot be sold to your company. See the reasons above."),
 };
 
 export function bidFaultText(f: Pick<BidFinding, "code" | "data">): Words {

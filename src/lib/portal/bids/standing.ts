@@ -48,20 +48,20 @@ export function bidStanding(i: BidStandingInput): BidStanding {
   if (i.opened) {
     if (i.award?.issued) {
       return i.award.awardeeIsYou
-        ? { stage: "AWARDED_TO_YOU", headline: "Awarded to your company", detail: "The award of this exercise has been issued to your company.", tone: "ok" }
+        ? { stage: "AWARDED_TO_YOU", headline: "Awarded to your company", detail: "The award is issued to your company.", tone: "ok" }
         : i.inResults
-          ? { stage: "AWARDED_ELSEWHERE", headline: "Awarded to another company", detail: "The award of this exercise has been issued to another company. The award is published under Results.", tone: "neutral" }
-          : { stage: "AWARD_ISSUED", headline: "The award has been issued", detail: "The procurement office tells each tenderer the outcome of its bid. Nothing about how any bid fared is shown here.", tone: "info" };
+          ? { stage: "AWARDED_ELSEWHERE", headline: "Awarded to another company", detail: "See Results.", tone: "neutral" }
+          : { stage: "AWARD_ISSUED", headline: "The award has been issued", detail: "The office tells each tenderer its outcome.", tone: "info" };
     }
-    if (i.status === "EVALUATED") return { stage: "EVALUATED", headline: "The evaluation is finished, the award not yet issued", detail: "Your bid was opened. Nothing about how any bid fared is shown here, and the award has not been issued yet.", tone: "info" };
-    if (i.status === "UNDER_EVALUATION") return { stage: "UNDER_EVALUATION", headline: "The exercise is under evaluation", detail: "Your bid was opened. Evaluation is confidential: nothing about how any bid fares is shown here.", tone: "info" };
-    return { stage: "OPENED", headline: "Your bid was opened", detail: "Your bid was opened at the opening. Nothing of what was read, nor how it compares, is shown here.", tone: "info" };
+    if (i.status === "EVALUATED") return { stage: "EVALUATED", headline: "Evaluation finished, award not issued", detail: "Your bid was opened.", tone: "info" };
+    if (i.status === "UNDER_EVALUATION") return { stage: "UNDER_EVALUATION", headline: "The exercise is under evaluation", detail: "Your bid was opened. Evaluation is confidential.", tone: "info" };
+    return { stage: "OPENED", headline: "Your bid was opened", detail: "Nothing read at the opening is shown here.", tone: "info" };
   }
-  if (!i.closed) return { stage: "NOT_CLOSED", headline: "Bids are handed in on paper", detail: "The portal does not take bids. Hand yours in, sealed, at the place the notice names, before the closing. Nothing about a bid is shown here before the opening.", tone: "neutral" };
+  if (!i.closed) return { stage: "NOT_CLOSED", headline: "Bids are handed in on paper", detail: "Hand yours in, sealed, at the place the notice names, before the closing.", tone: "neutral" };
   return {
     stage: "NOT_NAMED",
     headline: "No bid of yours is recorded as opened",
-    detail: "A bid is shown here once it has been opened and the procurement office has linked the purchase of the documents to your registration. If you handed one in, ask the procurement office whether that link has been made.",
+    detail: "Shown once opened and linked to your registration. Handed one in? Ask the procurement office.",
     tone: "warn",
   };
 }

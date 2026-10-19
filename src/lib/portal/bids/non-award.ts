@@ -36,7 +36,7 @@ export const awardStands = (status: string): boolean => status === "ISSUED" || s
 export const noticeStands = (awardStatus: string): boolean => awardStands(awardStatus);
 
 /// What a supplier is told of a notice issued under an award that no longer stands: it is not repeated, because it no longer applies.
-export const SUPERSEDED_NOTICE_WORDS = "A notice of the outcome was issued to your company under an award that was later cancelled. It no longer applies.";
+export const SUPERSEDED_NOTICE_WORDS = "Issued under an award later cancelled. It no longer applies.";
 
 /// The parties named on an opened bid, other than the awardee. An award whose awardee is not a party names none.
 export function unsuccessfulPartyIds(bids: readonly { partyId: string }[], awardeePartyId: string | null): string[] {

@@ -74,15 +74,13 @@ export function SignUpControl({ exerciseId, eventId, token, what, mode, defaultN
         <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && setOpen(false)}>
           <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
             <span id={heading} className="sr-only">Sign up for the {what}</span>
-            <DrawerHeader icon={<CalendarIcon size={17} />} title={`Sign up for the ${what}`} subtitle="Tell the procurement office who your company will send." onClose={() => !busy && setOpen(false)} />
+            <DrawerHeader icon={<CalendarIcon size={17} />} title={`Sign up for the ${what}`} onClose={() => !busy && setOpen(false)} />
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {error && <Callout tone="err" className="mb-3">{error}</Callout>}
-              <Field label="Who will you send?" htmlFor={field} required hint="The person's full name, as they will be known at the door.">
+              <Field label="Who will you send?" htmlFor={field} required hint="Full name, as at the door">
                 <Input id={field} value={name} maxLength={240} autoFocus onChange={(e) => setName(e.target.value)} />
               </Field>
-              <Callout tone="info" title="This is not attendance" className="mt-3">
-                Signing up tells the office to expect you. Attendance is recorded by an officer at the {what}, from the sheet signed there, and only that counts where the notice makes attendance a condition of buying the documents.
-              </Callout>
+              <p className="mt-3 text-[13px] text-ink-2">Signing up is not attendance. An officer records attendance.</p>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
               <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
@@ -96,7 +94,7 @@ export function SignUpControl({ exerciseId, eventId, token, what, mode, defaultN
           <aside role="alertdialog" aria-modal="true" aria-labelledby={heading} className={confirmPanelClass()}>
             <div className="px-6 pt-6">
               <h2 id={heading} className="text-[16px] font-bold text-ink">Withdraw your sign-up?</h2>
-              <p className="mt-2 text-[14px] text-ink-2">Your company will no longer be expected at the {what}{representative ? `, and ${representative} will not be on the list` : ""}. You can sign up again until it begins.</p>
+              <p className="mt-2 text-[14px] text-ink-2">Your company will not be expected at the {what}{representative ? ` (${representative})` : ""}. You can sign up again until it begins.</p>
               {error && <Callout tone="err" className="mt-3">{error}</Callout>}
             </div>
             <div className="flex items-center justify-end gap-2 px-6 py-5">
@@ -215,20 +213,18 @@ export function RequestControl({ exerciseId, token, mode, defaultName, collector
         <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && setOpen(false)}>
           <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
             <span id={heading} className="sr-only">Ask for the tender documents</span>
-            <DrawerHeader icon={<FileIcon size={17} />} title="Ask for the tender documents" subtitle="The office sells them to you, as it does at the counter." onClose={() => !busy && setOpen(false)} />
+            <DrawerHeader icon={<FileIcon size={17} />} title="Ask for the tender documents" onClose={() => !busy && setOpen(false)} />
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {error && <Callout tone="err" className="mb-3">{error}</Callout>}
               {reasons.length > 0 && (
-                <Callout tone="err" title="The documents cannot be sold to your company at the moment" className="mb-3">
+                <Callout tone="err" title="Cannot be sold to your company now" className="mb-3">
                   <ul className="list-disc pl-5">{reasons.map((r) => <li key={r}>{r}</li>)}</ul>
                 </Callout>
               )}
-              <Field label="Who will collect them?" htmlFor={field} required hint="The person's full name. They bring proof that they may receive the documents for your company.">
+              <Field label="Who will collect them?" htmlFor={field} required hint="Full name. They must bring proof of authority.">
                 <Input id={field} value={name} maxLength={240} autoFocus onChange={(e) => setName(e.target.value)} />
               </Field>
-              <Callout tone="info" title="Nothing is paid or released here" className="mt-3">
-                Asking tells the office you want them. An officer sells them to you and records the payment. Paying online is not available.
-              </Callout>
+              <p className="mt-3 text-[13px] text-ink-2">Nothing is paid here. An officer records the sale.</p>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
               <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
@@ -242,7 +238,7 @@ export function RequestControl({ exerciseId, token, mode, defaultName, collector
           <aside role="alertdialog" aria-modal="true" aria-labelledby={heading} className={confirmPanelClass()}>
             <div className="px-6 pt-6">
               <h2 id={heading} className="text-[16px] font-bold text-ink">Withdraw your request for the documents?</h2>
-              <p className="mt-2 text-[14px] text-ink-2">The office will no longer expect {collector ?? "your collector"} to collect them. You can ask again while the sale is open.</p>
+              <p className="mt-2 text-[14px] text-ink-2">The office will not expect {collector ?? "your collector"}. You can ask again while the sale is open.</p>
               {error && <Callout tone="err" className="mt-3">{error}</Callout>}
             </div>
             <div className="flex items-center justify-end gap-2 px-6 py-5">
@@ -300,7 +296,7 @@ export function BuyControl({ exerciseId, token, why, label = "Buy documents", pa
       <Button variant="primary" size="sm" icon={<FileIcon size={15} />} onClick={buy} disabled={busy || !token}>{busy ? "Starting…" : label}</Button>
       {error && <Callout tone="err" className="max-w-sm text-left">{error}</Callout>}
       {reasons.length > 0 && (
-        <Callout tone="err" title="The documents cannot be sold to your company at the moment" className="max-w-sm text-left">
+        <Callout tone="err" title="Cannot be sold to your company now" className="max-w-sm text-left">
           <ul className="list-disc pl-5">{reasons.map((r) => <li key={r}>{r}</li>)}</ul>
         </Callout>
       )}

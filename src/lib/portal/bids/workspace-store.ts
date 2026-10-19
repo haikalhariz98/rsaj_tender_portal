@@ -267,15 +267,15 @@ export async function overviewTab(client: Tx, actor: Who, ctx: BidContext): Prom
   const toAck = open ? new Set(copies.map((c) => c.addendumId).filter((id) => !acked.has(id))).size : 0;
   if (toAck > 0) todo.push(toAck === 1 ? "Acknowledge the addendum that came with your documents." : `Acknowledge ${toAck} addenda.`);
   if (sale) todo.push(sale.financeReceiptNo && sale.financeReceiptNo.trim() ? "The documents were sold to your company and the payment is recorded." : "The documents were sold to your company; the payment receipt is not recorded yet.");
-  else if (requests[0] && requests[0].refusedAt == null && requests[0].endedAt == null) todo.push("Your request for the documents is waiting for the procurement office.");
-  else if (requests[0]?.refusedAt) todo.push("Your last request for the documents was refused. The reasons are under Documents.");
-  else if (ctx.phase === "OPEN_FOR_PURCHASE") todo.push("The documents are on sale. Under Documents you can see the checks and ask for them.");
+  else if (requests[0] && requests[0].refusedAt == null && requests[0].endedAt == null) todo.push("Documents requested. Waiting for the procurement office.");
+  else if (requests[0]?.refusedAt) todo.push("Request refused. See Documents.");
+  else if (ctx.phase === "OPEN_FOR_PURCHASE") todo.push("Documents on sale. Ask under Documents.");
   const upcoming = events.filter((e) => {
     const reg = registrations.find((r) => r.eventId === e.id) ?? null;
     return signUpFaults({ event: { startsAt: e.startsAt, cancelled: e.cancelledAt != null, heldOn: e.heldOn ? storedDay(e.heldOn) : null }, phase: ctx.phase, path: ctx.path, invited: isInvited(ctx), representative: "-", existing: reg ? { endedAt: reg.endedAt } : null, now: ctx.now }).length === 0;
   });
   if (upcoming.length > 0) todo.push(upcoming.length === 1 ? `Sign up for the ${SITE_EVENT_KIND_LABEL[upcoming[0]!.kind].toLowerCase()} on ${upcoming[0]!.startsAt ? instantText(upcoming[0]!.startsAt, ctx.org.timeZone) : "a day to be set"}.` : `Sign up for the ${upcoming.length} briefings and site visits ahead.`);
-  if (standing.notice) todo.push("A notice of the outcome has been issued to you. Read it under Outcome.");
+  if (standing.notice) todo.push("Outcome notice issued. Read it under Outcome.");
   return {
     facts: {
       closing: ctx.ex.closingAt && ctx.ex.status !== "CANCELLED" ? instantText(ctx.ex.closingAt, ctx.org.timeZone) : null,

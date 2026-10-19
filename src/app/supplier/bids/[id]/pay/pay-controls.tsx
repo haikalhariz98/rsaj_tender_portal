@@ -51,7 +51,7 @@ export function PayControls({ exerciseId, token, method, againHref }: { exercise
         <Button variant="primary" onClick={() => choose("PAY")} disabled={busy != null || !token}>{busy === "PAY" ? "Paying…" : "Pay successfully"}</Button>
         <Button variant="secondary" onClick={() => choose("FAIL")} disabled={busy != null || !token}>{busy === "FAIL" ? "Failing…" : "Payment fails"}</Button>
       </div>
-      <p className="text-[12.5px] text-ink-3">Simulated payment. These two buttons stand in for a payment provider&apos;s page: no money moves and nothing is charged.</p>
+      <p className="text-[12.5px] text-ink-3">Demo. No money moves.</p>
     </div>
   );
 }

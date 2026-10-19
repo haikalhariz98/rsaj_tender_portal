@@ -39,7 +39,7 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
         <RecordCrumb label={r.ctx!.ex.reference} />
         <PageHeader eyebrow={<Link href={back}>Back to the documents</Link>} title="Your copy of the documents" subtitle={`${r.ctx!.ex.reference} · ${r.ctx!.ex.title}`} />
         <Card>
-          <EmptyState title={r.headline} action={<ButtonLink href={back} variant="secondary" size="sm">Back to the documents</ButtonLink>}>{r.detail}</EmptyState>
+          <EmptyState title={r.headline} action={<div className="flex flex-col items-center gap-3"><p className="text-[13.5px] text-ink-2">{r.detail}</p><ButtonLink href={back} variant="secondary" size="sm">Back to the documents</ButtonLink></div>} />
         </Card>
       </>
     );
@@ -62,7 +62,7 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
       </div>
       {pack && (pack.files.length > 0 || pack.texts.length > 0) && (
         <Card className="mb-6 print:hidden">
-          <CardHeader icon={<DownloadIcon size={17} />} title="Download your documents" subtitle={`The issued parts of version ${pack.packVersion}, as frozen when they were approved for tendering. Each download is logged against your company.`} />
+          <CardHeader icon={<DownloadIcon size={17} />} title="Download your documents" subtitle={`Version ${pack.packVersion}. Each download is logged.`} />
           <CardBody>
             {!token && <p className="mb-3 text-[13px] text-ink-2">Downloads closed. Tell the portal operator.</p>}
             <DataList
@@ -72,7 +72,6 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
               toolbar={false}
               exportName="released-documents"
               emptyTitle="Nothing to download"
-              emptyBody="The issued parts of the documents appear here."
               columns={[
                 { key: "item", label: "Document", mobile: "primary" },
                 { key: "kind", label: "Kind", width: "170px", mobile: "meta" },
@@ -87,7 +86,7 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
         v={r.view}
         table={false}
         notes={<div className="mb-6 flex flex-col gap-1 text-[13.5px] font-semibold text-ink-2">{r.since.map((l) => <p key={l}>{l}</p>)}</div>}
-        footer="The text frozen when the documents were approved for tendering. Addenda issued since are under Addenda. Files are bound in separately."
+        footer="Frozen when approved for tendering."
       />
     </>
   );

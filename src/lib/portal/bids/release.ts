@@ -63,14 +63,14 @@ export function releaseState(i: ReleaseInput): ReleaseState {
 
 /// The words for a counter exercise, and the base for the rest. `releaseText` is what a screen shows: it says what is true of the exercise's mode and of how it was paid.
 export const releaseWords: Record<ReleaseState, { short: string; detail: string }> = {
-  NOT_SET: { short: "Collected at the counter", detail: "The procurement office has not set whether documents are released online, so they are collected at the counter. Nothing is released here." },
-  OFF: { short: "Collected at the counter", detail: "The procurement office hands the documents over at the counter only. Nothing is released here." },
-  NO_SALE: { short: "Not bought yet", detail: "The documents are released here after the office has sold them to your company and recorded the payment." },
-  AWAITING_PAYMENT: { short: "Waiting for your payment", detail: "You have started buying the documents. They are released here once the payment is made." },
-  AWAITING_RECEIPT: { short: "Waiting for the payment to be recorded", detail: "The documents have been sold to your company. They are released here once an officer records the payment receipt." },
-  SIMULATION_NOT_ALLOWED: { short: "Paid on the payment simulator", detail: "This purchase was paid on the payment simulator, which this copy of the system does not accept as a payment: no money moved. Ask the procurement office." },
-  NOT_OPEN: { short: "No longer released", detail: "The documents are released from publication to the closing, and not for a cancelled exercise." },
-  READY: { short: "Released to you", detail: "Your payment is recorded, so the documents are open to you here until the closing." },
+  NOT_SET: { short: "Collected at the counter", detail: "Release online is not set. Collect at the counter." },
+  OFF: { short: "Collected at the counter", detail: "Nothing is released here." },
+  NO_SALE: { short: "Not bought yet", detail: "Released here after the office records payment." },
+  AWAITING_PAYMENT: { short: "Waiting for your payment", detail: "Released once payment is made." },
+  AWAITING_RECEIPT: { short: "Waiting for the payment to be recorded", detail: "Released once an officer records payment." },
+  SIMULATION_NOT_ALLOWED: { short: "Paid on the payment simulator", detail: "No money moved. Ask the procurement office." },
+  NOT_OPEN: { short: "No longer released", detail: "Released from publication to the closing." },
+  READY: { short: "Released to you", detail: "Payment recorded. Open to you here until the closing." },
 };
 
 /**
@@ -79,18 +79,18 @@ export const releaseWords: Record<ReleaseState, { short: string; detail: string 
  */
 export function releaseText(state: ReleaseState, ctx: { saleMode: "COUNTER" | "ONLINE" | null; simulated: boolean }): { short: string; detail: string } {
   if (state === "READY" && ctx.simulated) {
-    return { short: "Released to you (simulated payment)", detail: "You paid on the payment simulator: no money moved and this is not a finance receipt. The documents are open to you here until the closing." };
+    return { short: "Released to you (simulated payment)", detail: "No money moved. Open to you here until the closing." };
   }
   if (ctx.saleMode !== "ONLINE") return releaseWords[state];
   switch (state) {
     case "NOT_SET":
-      return { short: "Not released online yet", detail: "These documents are sold online, but the procurement office has not set whether documents are released online, so they cannot be bought or opened here yet. Ask the procurement office." };
+      return { short: "Not released online yet", detail: "Release online is not set. Ask the procurement office." };
     case "OFF":
-      return { short: "Not released online", detail: "These documents are sold online, but the procurement office has switched off the release of documents online, so nothing is released here. Ask the procurement office." };
+      return { short: "Not released online", detail: "Release online is off. Ask the procurement office." };
     case "NO_SALE":
-      return { short: "Not bought yet", detail: "Buy the documents here. They are released to you as soon as the payment is made." };
+      return { short: "Not bought yet", detail: "Buy above. Released once paid." };
     case "AWAITING_RECEIPT":
-      return { short: "Waiting for the payment to be recorded", detail: "The documents have been sold to your company. They are released here once the procurement office records the payment." };
+      return { short: "Waiting for the payment to be recorded", detail: "Released once the office records payment." };
     default:
       return releaseWords[state];
   }

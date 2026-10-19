@@ -227,8 +227,8 @@ describe("the tender documents: when they are released online", () => {
   it("not set means nothing is released online, and is not the same as off", () => {
     expect(releaseState({ simulatorAllowed: true, setting: null, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("NOT_SET");
     expect(releaseState({ simulatorAllowed: true, setting: false, sale, phase: "OPEN_FOR_PURCHASE" })).toBe("OFF");
-    expect(releaseWords.NOT_SET.detail).toContain("has not set");
-    expect(releaseWords.OFF.detail).not.toContain("has not set");
+    expect(releaseWords.NOT_SET.detail).toContain("not set"); // 0005, founder 2026-10-19: shortened
+    expect(releaseWords.OFF.detail).not.toContain("not set");
   });
   it("needs a sale that stands and a recorded payment receipt", () => {
     expect(releaseState({ simulatorAllowed: true, setting: true, sale: null, phase: "OPEN_FOR_PURCHASE" })).toBe("NO_SALE");
@@ -275,12 +275,12 @@ describe("where a supplier's own bid stands", () => {
   it("before the closing the portal says bids are on paper and shows nothing of a bid", () => {
     const s = bidStanding({ ...base, status: "ADVERTISED", closed: false, opened: false });
     expect(s.stage).toBe("NOT_CLOSED");
-    expect(s.detail).toContain("does not take bids");
+    expect(s.headline).toContain("on paper"); // 0005, founder 2026-10-19: the sentence moved from the detail to the headline
   });
   it("after the closing, with no bid linked, says what is missing rather than that no bid was made", () => {
     const s = bidStanding({ ...base, opened: false });
     expect(s.stage).toBe("NOT_NAMED");
-    expect(s.detail).toContain("linked the purchase");
+    expect(s.detail).toContain("linked to your registration"); // 0005, founder 2026-10-19: shortened
     expect(s.headline).not.toMatch(/rejected|eliminated|disqualified/i);
   });
   it("shows the stage of the exercise, not the fate of the bid", () => {
