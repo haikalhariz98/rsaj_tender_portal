@@ -550,3 +550,151 @@ Step 0 tests this.
 - the supplier-portal rules;
 - the English-only line;
 - the order of the sweep.
+
+## 9. Product-owner ruling, 2026-10-20: the residual list and the three heaviest screens
+
+Made under the founder's minimal-words instruction. Where this section amends §3.3, §4 or R4, it prevails. It does not outrank a
+client-spec Must, §3.7 or R4's must-keep items, and it hides no fact a user needs to decide.
+
+**R11. Measurement (amends §4).** The 2026-10-20 browser count included `.sr-only` popover text, which §4 excludes. The
+arithmetic proves it: Scope "Eligibility and details" is 3 visible words plus a 31-word `MoreText`, measured 34. The approval
+matrix note is 8 plus 31, measured 39. The dashboard "Longest wait first" is 3 plus its `LeadWithMore` popover. From now on:
+- Count the page body only (the `main` landmark). The sidebar and shell are excluded and reported once, separately.
+- Exclude `.sr-only`, `aria-hidden`, closed popovers and the content of closed disclosures (R12).
+- Judge a string against its budget by its template (§3.1: an interpolated value is one word). Report rendered counts too, but
+  user data (names, units, quoted reasons, matter subjects) is never cut to meet a budget.
+- Re-baseline the nine measured screens with this counter, on the same demo data and the same `?tab=&section=` address, before
+  building. R13's target of "at least half" is measured against that corrected baseline, in each screen's default state.
+
+**R12. A collapsed section is a fourth home, for content only (amends §3.3).**
+- A collapsible section holds **content**: finished fields, lists and records (who signed, when, which rows). It never holds
+  **explanation**. Explanation still goes only to the page `info` popover, an inline `MoreText`/`InfoChip`, or nowhere.
+- One shared component, in `src/components/ui`: `CardHeader` gains `collapsible`, `defaultOpen` and `summary` (one line), and a
+  `Disclosure` component covers a part inside a card. Both use native `details`/`summary` so they are keyboard-operable with no
+  script. The ad-hoc `details` in `window/window-section.tsx`, `scope/scope-section.tsx`, `configuration/invitation/page.tsx`,
+  `configuration/templates/editors.tsx` and `supplier/bids/[id]/submissions-list.tsx` move onto it. After that move,
+  `check-ui.mjs` fails on a raw `<details` under `src/app`.
+- Closed content is rendered in the DOM, never lazy-mounted, so `text-snapshot.mjs` (which reads `textContent`) still sees it.
+- Native `title=` stays banned (§3.3). The committees "In use" span becomes an `InfoChip`.
+
+**R13. The layout rule for the three heaviest screens** (Tender documents › Documents, Bids and opening › Opening, Approval
+matrix). Target: at least half the corrected visible words (R11), in the default state, on the demo data.
+1. **Every card, or part of a card, is a collapsible section** (R12) with one summary line: its title, one state chip, a count,
+   and at most one fact. Any **SULIT**, **Not set**, **Not checked**, **Assumed**, **Restricted** or **Not scanned** chip inside
+   it repeats on that line.
+2. **Open or closed is decided in `src/lib`**, as a pure function with tests (for example `src/lib/disclosure/open.ts`). A
+   section starts open if, and only if, it holds one of these:
+   - a `warn` or `err`;
+   - an act the viewer must take now, meaning a step addressed to them or a fix it requires. An edit button alone does not
+     count, or every draft would open everything;
+   - a §3.7 or R4 must-keep item;
+   - the target of the address (`?section=`, or the `#anchor` of an existing link such as "Open the schedule",
+     `#conditions` or `#not-approved-outcomes`).
+   Otherwise it starts closed.
+3. **Finished means one line.** A finished part shows its outcome only, for example "Approved 3 Oct", "Frozen with version 3"
+   or "Finalised 3 Oct · 5 offers".
+4. **Never inside a closed section:** the R2 "rule label · clause" at a decision point, an R3 route warning, a refusal saying
+   who can act, the opening's "must be re-tendered" `err`, and SULIT marks. The approval matrix configuration screen is not a
+   decision point, so its routing rows may collapse. The step that acts on a route keeps R2 and R3 on the surface.
+5. **Say each thing once per screen** (§3.2 rule 6). A provenance badge, a policy sentence or a per-row note that repeats becomes
+   one chip, or one list note of 8 words or fewer.
+6. If the rule does not reach half on a screen, the builder reports the figures. A fact is never cut to make the number.
+
+**R14. How R13 applies, screen by screen.**
+- **Tender documents › Documents.**
+  - The status card stays open.
+  - Under "Documents to issue", the 13- to 17-word lead becomes the list note "In print order." The readiness rule and the
+    unpriced-bill rule go into a `MoreText` beside it.
+  - The parts list collapses to "Documents to issue · {ready} of {n} ready" when every part is ready. A row's blocked reason
+    stays beside its disabled act, as a "Why" (`MoreText`), as the award start already does.
+  - "Approval for tendering" is open while the route is pending or sent back. Once decided, it collapses to
+    "{route label · clause} · Approved {date}".
+  - Registrations, Mandatory clauses and Assurance each collapse when they hold no `warn`. Their summaries are
+    "Registrations · {n} required", "Mandatory clauses · {in} in, {out} left out" and "Assurance · Confirmed {date}" (or
+    **Not set**).
+  - Once frozen, the three become one card, "Tender conditions · Frozen with version {v}", with the three as summary lines.
+  - "Giver's office is not checked" becomes a **Not checked** chip.
+  - "Later edits do not withdraw it…", "Leaving a clause out needs a legal endorsement" and "Clauses every agreement carries"
+    move to the `MoreText` of the act or editor they explain.
+  - "Frozen. Change by addendum under Publishing." stays: it is 7 words, and a link to Publishing replaces the last 2.
+- **Bids and opening › Opening.**
+  - The opening card's parts each become a `Disclosure` with a summary:
+    - The panel: "{present} of {n} present · {a} authorised"
+    - The tender box: "Locked {time}" or **Not recorded**
+    - Envelopes: "{opened} of {n} opened"
+    - Offers read: "{n}"
+    - Checklist: "{n} not judged", which is a `warn`, so the part opens
+    - The signed schedule: "{pages} pages · {s} signatures"
+    - Finalising: "Nothing outstanding" or "{n} outstanding"
+  - The first unfinished part in that order is open. Earlier parts are closed. Once finalised, the whole card collapses to
+    "Opening · Finalised {date} · {n} offers".
+  - The "Sitting / Panel size / Independence / rules" facts move to the panel part's summary and body.
+  - **Authorisations line:** removed from the surface, not dropped.
+    - Each panel row's chip becomes "Authorised", an `InfoChip` with "{seat}, {time}" as its detail.
+    - A lapsed authorisation shows a **Lapsed** chip on its row.
+    - The full list (who, seat, time, lapsed) sits in a `Disclosure` "Authorisations ({n})" inside the panel part. It is
+      evidence.
+  - "Authorises in their own sign-in", repeated per row, becomes one list note under the panel: "Each officer authorises in
+    their own sign-in."
+  - The sittings list becomes a `Disclosure` "Sittings ({n})".
+  - "Not checked, not returned: …" becomes a **Not checked** `InfoChip` with a count, naming the items in its detail.
+  - "Not judged: whether … must be returned is not set. Finalising is blocked." becomes a `warn` with 15 fixed words or fewer:
+    "Return rule not set for {n} items. Finalising is blocked." The item names go into an `InfoChip` beside it.
+  - Opening attestations stay verbatim in their drawers (R4).
+- **Approval matrix.**
+  - The draft `warn` and the core-refusals `err` stay on the surface.
+  - The "Value bands" card stays open, because it holds the boundary switch and its provenance, which AGENTS.md makes the
+    worked example. Within it:
+    - Delete the `Note` "Exactly RM … sits in the … band". It repeats the "A value exactly on the boundary" row. Its
+      `MoreText` moves onto that row.
+    - That row's value becomes the side ("Quotation band" or "Tender band"). `boundarySentence` and its `labels.test.ts`
+      assertions stay as they are, for their other callers.
+    - The percentage row's value becomes "Same side as the boundary". The 10% example and "judged on the exact ratio" go into
+      its `MoreText`.
+    - The provenance badge shows once, on "Boundary ruling", not three times.
+    - "Shown for reference…" under "Requisition boundary" goes into a `MoreText`.
+    - The two Stat hints and the card subtitle are deleted.
+  - Three band families, Contract terms bands, Core routing, Routing rules (one `Disclosure` per decision-type group),
+    rejection destinations and Simulator each collapse. Summaries are "{n} rows", "{n} rules · {a} **Assumed**" and similar.
+    Simulator starts closed, unless its result is showing.
+  - The "boundary could fall differently in two families" `warn` stays on the surface.
+
+**R15. The residual list, item by item.**
+
+| Item (measured) | Ruling |
+| --- | --- |
+| Requisition subtitle (11) | Within budget by template (5). No cut. When cancelled or closed, the badge already says so, so the subtitle shows only the quoted reason, or "No reason recorded". The reason is never truncated. |
+| Supplier record subtitle (9) | Subtitle removed. `meta` gains "Reg. {no}" and "Registered {date}". |
+| Callout "Not ready to issue" (35) | Title "Not ready to issue". Body: the **first** fault as a refusal of 12 words or fewer plus its R1 citation, then "+{n} more" as a `Disclosure` listing the rest, all in the DOM. The count is always visible, so no blocking reason can vanish. The same rule applies to "Before it can go for approval", "Before it can be finalised" and "Before it can leave draft". |
+| Case step default "Not ready to issue: the signatory is not resolved" | "Signatory not resolved". Update `case-steps.test.ts:256`, citing R15. |
+| Callout "Work has not commenced" (47) | Title "Work has not commenced". Body: "Grace ended {date}. Consequence: {consequence}." An unset consequence is a **Not set** chip. Who is told moves out of the sentence into R16's chips. The restricted sentence is dropped, because the header **Restricted** chip says it. |
+| Callout "The indent has expired" (44) | Title "Indent expired {date}". The same R16 chips. `INDENT_READING` becomes an **Assumed** `InfoChip` with the detail "Valid through its expiry day." This also applies on the Overview panel. |
+| Requisition callout (16) | Rejected: the title stays. The body is the quoted reason (data) plus the choice reason **without** the repeated "The officer chooses.": "No rejection destination set.", "Return step is not before the rejecting step." or "Destination not possible here." Add a short map; do not edit `CHOICE_WHY_TEXT` if other callers use it. Returned at approval: each citation note becomes "{committee} decision of {date} does not clear this route. Table again." |
+| Committee sitting callout (21) | The title stays (7 words or fewer). One line per gap: "{Setting}" + **Not set** chip + "Blocks {n}", with the matter subjects in that chip's `InfoChip` detail. If an agenda row does not show its own blocker, the subjects stay visible. |
+| Approval matrix "Exactly RM 300K…" (39) | 8 visible words, so within budget (R11). It is still deleted as a repeat (R14). |
+| Dashboard "Longest wait first…" (38) | 3 visible words, so within budget (R11). No change. |
+| Case "What's next on {step}:" (23) | The label becomes "Next:". The stepper already names the step. Every case-step `next` literal is 12 words or fewer. Add a test in `case-steps.test.ts` that asserts this for every literal. |
+| Scope "Eligibility and details…" (34) | 3 visible words, so within budget (R11). No change. |
+| Organisation logo hint (38) | Visible: "Replaces the product mark." `MoreText`: "On the sign-in photograph it gets a soft halo. Add a light version under Sign-in page: logo for dark backgrounds." |
+| Committees configuration (21) | `ReturnsTo`, typed before: a `warn` `InfoChip` "Opens nothing", with the detail "Typed before the evaluation existed. Edit it to choose a stage." The NONE case: a chip "Opens nothing". "In use" becomes an `InfoChip` with the detail "Cited by recorded decisions. Retire it and add a new one." |
+| Bids and opening, 18 paragraphs (up to 43) | R13 and R14. After building, any paragraph still over 20 words is either a §3.7 or R4 verbatim text, or it is cut to its element's budget. The builder lists each in the log. |
+
+**R16. Who is told about a late clock (amends R4's notification row).** R4's "No notification rule. Nobody is told." is false
+while the requester is active, so R5's overclaim clause binds. Build a pure `clockPlanChips(kind, plan)` in
+`src/lib/inbox/clock-plan.ts`, with tests:
+- `NO_RULE`: a `warn` chip "No rule", with the detail "Only the requester is told.", or "Nobody is told." when the requester is
+  inactive.
+- `RULE_OFF`: an **Off** chip, with the rule name in its detail.
+- `NO_TIME_ZONE`: **Not judged**.
+- `RULE_SET`: the fact "Told: {rule name}".
+- An office nobody holds: a `warn` chip "{n} unheld", naming the offices.
+- Always a **Not emailed** chip, for `CLOCK_NOTICE_CHANNEL`.
+
+`clockPlanWords` stays for notice bodies.
+
+**R17. Stored text.** Inbox notice titles and bodies are written at send time. New wording applies to new notices only. No
+existing row is rewritten.
+
+**R18. Test pins.** A test changes only to match R14 to R16, and cites "0005 R1x, 2026-10-20". These earlier rulings stand: the
+boundary switch's full wording in the editor's `more` popover, the bid-sealing attested wording (20ai), and the "Why" beside
+"Start the award". `labels.test.ts` (`boundarySentence`) is unchanged.
