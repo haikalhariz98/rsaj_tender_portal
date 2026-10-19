@@ -118,9 +118,9 @@ export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
           {warns.map((f, i) => (
             <Callout key={i} tone="warn">{rosterFindingText(f)}</Callout>
           ))}
-          {!acts.substitute.allowed && change.fault && <Callout tone="info" title="The officers can no longer be changed">{acts.substitute.reason}</Callout>}
-          {change.change === "CONTROLLED" && <p className="text-[12.5px] text-ink-3">{ROSTER_AFTER_CLOSING_NOTE}</p>}
-          {change.change === "FREE" && <p className="text-[12.5px] text-ink-3">{ROSTER_AFTER_CLOSING_NOTE} Once the documents are submitted an officer is replaced by a controlled change with its authority and reason.</p>}
+          {!acts.substitute.allowed && change.fault && <Callout tone="warn" title="Officers cannot be changed">{acts.substitute.reason}</Callout>}
+          {change.change === "CONTROLLED" && <Callout tone="warn">{ROSTER_AFTER_CLOSING_NOTE}</Callout>}
+          {change.change === "FREE" && <Callout tone="warn">{ROSTER_AFTER_CLOSING_NOTE}</Callout>}
         </CardBody>
         {roster.ended.length > 0 && (
           <Accordion title="Earlier officers" meta={`${roster.ended.length} on record`}>

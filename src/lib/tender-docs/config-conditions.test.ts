@@ -49,7 +49,7 @@ describe("the permit list must be a plain list, not a classification (C2: carry 
     const asValue = uses([{ taxonomyCode: "permits", whenTaxonomyCode: null }]);
     expect(codes(conditionsPolicyFaults(none, ["permits"], asValue))).toEqual(["TAXONOMY_CLASSIFIES"]);
     expect(codes(conditionsPolicyFaults(none, ["permits"], uses(mappings)))).toEqual(["TAXONOMY_CLASSIFIES"]);
-    expect(conditionsPolicyFaultText(conditionsPolicyFaults(none, ["permits"], asValue)[0])).toBe("1 mapping row maps contract types into that list, so it classifies contracts. Choose a plain list, or add a new one under Reference data.");
+    expect(conditionsPolicyFaultText(conditionsPolicyFaults(none, ["permits"], asValue)[0])).toBe("1 mapping row maps contract types into that list. Choose a plain list, or add one under Reference data."); // 0005, founder 2026-10-19
   });
   it("a taxonomy exercises are already classified in is refused", () => {
     expect(codes(conditionsPolicyFaults(none, ["permits"], uses([], [{ taxonomyCode: "permits" }, { taxonomyCode: "permits" }])))).toEqual(["TAXONOMY_CLASSIFIED_EXERCISES"]);

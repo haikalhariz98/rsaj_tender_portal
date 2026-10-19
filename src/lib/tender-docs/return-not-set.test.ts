@@ -43,7 +43,7 @@ describe("a mandatory part's 'returned by the bidder' unset at approval (67-C1)"
   it("says it will block the opening, where to set it, and that approved documents keep the answer", () => {
     const [f] = warn([part({ returnedByBidder: null }), declaration]);
     expect(partFaultText(f)).toBe(
-      "Whether a bidder returns part 2. Form of tender with the bid is not set. Approved like this, these documents keep it unset, and the bid opening will be refused when it is finalised: completeness cannot be judged against an unset answer, and the only way on then is to cancel the exercise. Set it under Configuration, Tender documents, then choose Refresh from configuration under Parts below.",
+      "Part 2. Form of tender: returned with the bid or not is not set. Approved documents keep it unset, so the opening cannot be finalised. Set it under Configuration, Tender documents, then choose Refresh from configuration under Parts below." // 0005, founder 2026-10-19,
     );
     expect(partFaultText(f)).not.toMatch(/[A-Z]{3,}_[A-Z]/);
   });

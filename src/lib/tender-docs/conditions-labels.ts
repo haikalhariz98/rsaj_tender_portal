@@ -36,37 +36,37 @@ const TEXT: Record<ConditionsFault, (f: Finding) => string> = {
   BODY_TWICE_IN_GROUP: (f) => `${d(f, "body")} is required twice in one group. Remove one ${DETAILS}.`,
   // 615-C1: the grade and codes a requirement asks for.
   ...(Object.fromEntries((Object.keys(NEED_FAULT_TEXT) as NeedFault[]).map((k) => [k, (f: Finding) => NEED_FAULT_TEXT[k]((f.data ?? {}) as Record<string, string | number | null>)])) as Record<NeedFault, (f: Finding) => string>),
-  NOTICE_PART_MISSING: () => `The pack has no notice of invitation to carry the eligibility block. Add an invitation part for this pack kind ${CONFIG}.`,
-  NOTICE_LACKS_ELIGIBILITY: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} does not state ${d(f, "fields")}, so the notice would go without its eligibility block. Add them under Configuration, Templates, or choose another template.`,
-  NOTICE_NOT_CHECKED: (f) => `Part ${d(f, "part")} is an uploaded file, which the portal cannot read: check that it states the registrations and their validity window before it goes.`,
+  NOTICE_PART_MISSING: () => `No invitation notice to carry the eligibility block. Add an invitation part ${CONFIG}.`,
+  NOTICE_LACKS_ELIGIBILITY: (f) => `Part ${d(f, "part")}: template ${d(f, "template")} does not state ${d(f, "fields")}. Add them under Configuration, Templates, or choose another template.`,
+  NOTICE_NOT_CHECKED: (f) => `Part ${d(f, "part")} is an uploaded file, not read here. Check it states the registrations and validity window.`,
   // FR-DOC-009
   RESTRICTION_NOT_ANSWERED: () => `Whether the tender is restricted is not answered. Answer it ${DETAILS}.`,
-  STAMP_NOT_SET: (f) => `The tender is restricted, and the wording stamped on its documents is not set in ${d(f, "language")}. Set it ${CONFIG}.`,
-  UPLOADS_NOT_STAMPED: (f) => `The portal stamps the documents it generates; ${d(f, "count")} uploaded ${f.data?.count === 1 ? "file is" : "files are"} not generated here and must carry the stamp themselves.`,
+  STAMP_NOT_SET: (f) => `Restricted stamp wording not set in ${d(f, "language")}. Set it ${CONFIG}.`,
+  UPLOADS_NOT_STAMPED: (f) => `${d(f, "count")} uploaded ${f.data?.count === 1 ? "file is" : "files are"} not stamped here and must carry the stamp.`,
   // FR-DOC-006
   REGULATED_NOT_ANSWERED: () => `Whether the works need the regulator's permit is not answered. Answer it ${DETAILS}.`,
   PERMIT_LIST_NOT_SET: () => `The works need the regulator's permit, and no list of permit types is configured. Choose the list ${CONFIG}.`,
   PERMIT_NOT_CHOSEN: () => `The works need the regulator's permit: choose its type ${DETAILS}.`,
   PERMIT_NOT_ON_LIST: () => `The permit type chosen is no longer on the configured list. Choose another ${DETAILS}.`,
-  INSTRUCTIONS_PART_MISSING: () => `The pack has no instructions to tenderers to state the permit in. Add an instructions part for this pack kind ${CONFIG}.`,
-  PERMIT_NAME_MS_MISSING: (f) => `Part ${d(f, "part")} has Malay text, and the permit type ${d(f, "permit")} has no Malay name, so the Malay instructions would not name it. Add the name under Configuration, Reference data, or choose another type ${DETAILS}.`,
-  PERMIT_NOT_IN_INSTRUCTIONS: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} does not name {{permit.type}}, so the instructions would not state the permit. Add it under Configuration, Templates, or choose another template.`,
-  INSTRUCTIONS_NOT_CHECKED: (f) => `Part ${d(f, "part")} is an uploaded file, which the portal cannot read: check that it states the regulator's permit and its type.`,
-  PERMIT_FIELD_NOT_REGULATED: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} names the regulator's permit, and the works are recorded as not needing one. Choose a template without it, or correct the answer ${DETAILS}.`,
+  INSTRUCTIONS_PART_MISSING: () => `No instructions part to state the permit in. Add one ${CONFIG}.`,
+  PERMIT_NAME_MS_MISSING: (f) => `Part ${d(f, "part")} has Malay text, and permit type ${d(f, "permit")} has no Malay name. Add it under Configuration, Reference data, or choose another type ${DETAILS}.`,
+  PERMIT_NOT_IN_INSTRUCTIONS: (f) => `Part ${d(f, "part")}: template ${d(f, "template")} does not name {{permit.type}}. Add it under Configuration, Templates, or choose another template.`,
+  INSTRUCTIONS_NOT_CHECKED: (f) => `Part ${d(f, "part")} is an uploaded file, not read here. Check it states the permit and its type.`,
+  PERMIT_FIELD_NOT_REGULATED: (f) => `Part ${d(f, "part")}: template ${d(f, "template")} names a permit, and the works need none. Choose another template, or correct the answer ${DETAILS}.`,
   // FR-DOC-011
   CLAUSE_MANDATORY_UNSET: (f) => `Whether every agreement must carry the clause ${d(f, "clause")} is not set. Set it ${CONFIG}, under Clauses.`,
-  AGREEMENT_PART_MISSING: () => `Mandatory clauses are configured, and the pack issues no conditions of contract to carry them. Make the conditions part ready instead of omitting it.`,
-  CLAUSE_MISSING: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} does not cite the clause ${d(f, "clause")}. Cite it under Configuration, Templates, or record a legal endorsement to go without it ${TAB}.`,
-  CLAUSE_NOT_CHECKABLE: (f) => `Part ${d(f, "part")} is an uploaded file, so the clause ${d(f, "clause")} cannot be seen in it. Draw the part from a template that cites it, or record a legal endorsement ${TAB}.`,
-  CLAUSE_LANGUAGE_MISSING: (f) => `Part ${d(f, "part")} cites the clause ${d(f, "clause")} in ${d(f, "language")}, and the clause has no ${d(f, "language")} text. Add it ${CONFIG}, under Clauses.`,
+  AGREEMENT_PART_MISSING: () => `Mandatory clauses need a conditions of contract part. Make it ready.`,
+  CLAUSE_MISSING: (f) => `Part ${d(f, "part")}: template ${d(f, "template")} does not cite clause ${d(f, "clause")}. Cite it under Configuration, Templates, or record a legal endorsement ${TAB}.`,
+  CLAUSE_NOT_CHECKABLE: (f) => `Part ${d(f, "part")} is an uploaded file, so clause ${d(f, "clause")} is not seen. Use a template that cites it, or record a legal endorsement ${TAB}.`,
+  CLAUSE_LANGUAGE_MISSING: (f) => `Clause ${d(f, "clause")} has no ${d(f, "language")} text. Add it ${CONFIG}, under Clauses.`,
   CLAUSE_OVERRIDDEN: (f) => `The clause ${d(f, "clause")} is left out under a legal endorsement by ${d(f, "person")}: “${d(f, "reason")}”.`,
   // FR-DOC-014
-  ASSURANCE_POLICY_NOT_SET: () => `Whether the documents need the two assurance confirmations is not set, and no answer is assumed. Set it ${CONFIG}, under Policy.`,
+  ASSURANCE_POLICY_NOT_SET: () => `Assurance confirmations not set. Set them ${CONFIG}, under Policy.`,
   ASSURANCE_MISSING: (f) => `Not yet confirmed: ${ASSURANCE_KIND_LABEL[d(f, "kind") as AssuranceKind]?.toLowerCase() ?? "an assurance"}. Record who confirmed it and when under Assurance below.`,
   ASSURANCE_NOT_REQUIRED: () => "The organisation's policy is that the assurance confirmations are not required: recorded as its decision.",
   // FR-DOC-010
-  TABLE_DOCUMENT_UNSET: (f) => `Whether part ${d(f, "part")} is in the Tender Table Document is not set. Set it on the part ${CONFIG}, then choose Refresh from configuration under Parts below.`,
-  TABLE_DOCUMENT_EMPTY: () => `No part of this pack is in the Tender Table Document. Say which are, on the parts ${CONFIG}, then choose Refresh from configuration under Parts below.`,
+  TABLE_DOCUMENT_UNSET: (f) => `Part ${d(f, "part")}: in the Tender Table Document or not is not set. Set it on the part ${CONFIG}, then Refresh from configuration.`,
+  TABLE_DOCUMENT_EMPTY: () => `No part is in the Tender Table Document. Set which are ${CONFIG}, then Refresh from configuration.`,
 };
 
 export const conditionsFaultText = (f: Finding) => (TEXT as Record<string, (f: Finding) => string>)[f.code]?.(f) ?? "A condition of the tender is not met.";
@@ -118,4 +118,4 @@ const CLAUSE_CONFIG_TEXT: Record<ClauseConfigFault, string> = {
 };
 export const clauseConfigFaultText = (f: Finding) => CLAUSE_CONFIG_TEXT[f.code as ClauseConfigFault] ?? "The clause cannot be saved.";
 
-export const CONDITIONS_FROZEN_TEXT = "The tender's conditions change only before the documents go for approval: while the exercise is a draft or in preparation.";
+export const CONDITIONS_FROZEN_TEXT = "Conditions change only before approval.";

@@ -66,7 +66,7 @@ export const PART_CONFIG_FAULT_TEXT: Readonly<Record<PartConfigFault, string>> =
   UNIT_UNKNOWN: "That office is not configured. Choose one from the list.",
   PROVENANCE_REQUIRED: "Say where this comes from.",
   RETURN_PROVENANCE_REQUIRED: "Say where the answer on whether a bidder returns this part comes from.",
-  ROLE_TAKEN: "Another live part of this pack kind and basis already has this role. Retire it first, or give this one another basis.",
+  ROLE_TAKEN: "Another live part has this role. Retire it first, or change the basis.",
 };
 
 export type PolicyFault = "PCT_NOT_VALID" | "AMOUNT_NOT_VALID" | "PERIOD_NOT_VALID" | "PROVENANCE_REQUIRED" | "PAIR_INCOMPLETE";
@@ -157,7 +157,7 @@ export function configHoldingWorkBack(methods: readonly { retired: boolean; docu
 }
 
 /// Said where the organisation's day is needed and its time zone is not set (names the setting).
-export const CONFIG_TIME_ZONE_NOT_SET = "The organisation's time zone is not set, so whether a part's retirement has taken effect cannot be judged. Set it under Configuration, Organisation.";
+export const CONFIG_TIME_ZONE_NOT_SET = "Time zone not set. Retirement cannot be judged.";
 
 /// A method's document pack, as saved: the kind and where that answer comes from, or not set.
 export function methodPackFault(kind: string | null, provenance: string | null): Finding<"PROVENANCE_REQUIRED"> | null {

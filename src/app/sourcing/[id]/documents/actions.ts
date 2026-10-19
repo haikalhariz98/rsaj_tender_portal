@@ -69,8 +69,8 @@ import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester
 
 const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
 const CHANGED: FormState = { ok: false, message: "The exercise changed while this was being saved. Reload and try again." };
-const NO_PACK: FormState = { ok: false, message: "There is no draft of the tender documents to change. Start one on the Tender documents tab." };
-const NO_ZONE: FormState = { ok: false, message: "The organisation's time zone is not set, so no tendering act can be dated. Set it under Configuration, Organisation." };
+const NO_PACK: FormState = { ok: false, message: "No draft to change. Start one on Tender documents." };
+const NO_ZONE: FormState = { ok: false, message: "Time zone not set. Set it under Organisation." };
 
 class Refusal extends Error {
   constructor(readonly state: FormState) {
@@ -108,7 +108,7 @@ async function inPacks(scope: Reader, exerciseId: string, fn: (tx: Tx, l: Locked
     const attribution = attributionRefusalState(e);
     if (attribution) return attribution;
     if (e instanceof ExerciseMoveRefused) return e.findings[0]?.code === "CHANGED" ? CHANGED : refuse(e.findings, findingText, "The exercise cannot move:");
-    if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
+    if (transactionTimedOut(e)) return { ok: false, message: "Not saved: took too long. Try again." };
     throw e;
   }
   if (result?.ok) {
@@ -326,7 +326,7 @@ export async function takeNewParts(_prev: FormState, data: FormData): Promise<Fo
     const fresh = newPartsOf(composition, pack.parts);
     const changed = confirmedPartsFault(typeof confirmed === "string" ? confirmed : null, fresh);
     if (changed) return { ok: false, message: changed };
-    if (fresh.length === 0) return { ok: false, message: "Nothing to add: the draft already holds every part the configuration gives this exercise." };
+    if (fresh.length === 0) return { ok: false, message: "Nothing to add. The draft holds every part." };
     const templates = await loadTemplates(l.org.id, tx);
     for (const p of fresh) {
       const template = p.templateCode ? (templates.find((t) => t.code === p.templateCode) ?? null) : null;
@@ -378,7 +378,7 @@ function lockedAppendix(l: LockedExercise, packs: readonly PackRow[]) {
   if (!pack) throw new Refusal(NO_PACK);
   const edit = packEditFault(pack.status, l.ex.status);
   if (edit) throw new Refusal(refuse([edit]));
-  if (!pack.appendix) throw new Refusal({ ok: false, message: "This pack's parts have no Appendix to the Conditions of Contract. Add an Appendix part for this pack kind under Configuration, Tender documents." });
+  if (!pack.appendix) throw new Refusal({ ok: false, message: "Pack has no Appendix part. Add one under Configuration, Tender documents." });
   return { pack, appendix: pack.appendix };
 }
 
@@ -858,7 +858,7 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
       await audit(tx, toAuditActor(actor), l.org.id, ENTITY.pack, pack.id, packLabel(l, pack), "UPDATE", packStatusAudit("SUBMITTED", "RETURNED", { returnedBecause: reason }), reason);
       await moveExercise(tx, ex, "DOCUMENTS_IN_PREPARATION", { today: l.org.today, via: "RETURN" });
       await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${ex.reference} · ${ex.title}`, "UPDATE", diffFields({ status: ex.status }, { status: "DOCUMENTS_IN_PREPARATION" }), `Tender documents returned for amendment: ${reason}`);
-      return { ok: true, message: "Returned for amendment. Start the next version of the tender documents on the Tender documents tab." };
+      return { ok: true, message: "Returned. Start the next version on Tender documents." };
     }
     if (!completes) return { ok: true };
 
@@ -877,6 +877,6 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
     const scopePolicy = await loadScopePolicy(l.org.id, tx);
     const scope = await scopeReadiness(l.org.id, ex, tx);
     const lead = estimateLeadWarning(scope.lastEstimateVersionOn, closingAt, scopePolicy, l.org.timeZone);
-    return { ok: true, message: lead.warn ? `Approved for tendering. The company estimate's lead: ${lead.state === "LATE" ? "its last version was made after the last day before closing." : lead.state === "NOT_PREPARED" ? "no estimate is prepared yet." : "not judged (see the Company estimate tab)."}` : "Approved for tendering." };
+    return { ok: true, message: lead.warn ? `Approved for tendering. Estimate lead: ${lead.state === "LATE" ? "last version made too late." : lead.state === "NOT_PREPARED" ? "no estimate prepared." : "not judged."}` : "Approved for tendering." };
   });
 }

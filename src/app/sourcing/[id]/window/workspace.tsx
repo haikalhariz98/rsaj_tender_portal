@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { EmptyState } from "@/components/ui/feedback";
 import { addendaTab, briefingTab, saleRegister, windowTab } from "@/lib/window/read";
 import { invitationStage } from "@/lib/window/stage";
 
@@ -53,9 +53,7 @@ function NotYet({ c, what }: { c: WindowContext; what: string }) {
   }
   return (
     <div className="flex flex-col gap-6">
-      <Callout tone="info" title={`${what} opens once the documents are approved for tendering`} action={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=scope&section=notice`} variant="secondary" size="sm">Open Notice and fee</ButtonLink>}>
-        {c.status === "DOCUMENTS_IN_PREPARATION" ? "The documents are still being prepared." : "The documents are awaiting approval."} Until then the notice, the fee, the bids&apos; validity and any briefing or site visit are prepared on Scope and estimate.
-      </Callout>
+      <EmptyState title={`${what} opens after approval for tendering`} action={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=scope&section=notice`} variant="secondary" size="sm">Open Notice and fee</ButtonLink>} />
     </div>
   );
 }

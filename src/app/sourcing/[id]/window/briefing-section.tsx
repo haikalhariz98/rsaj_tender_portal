@@ -74,7 +74,7 @@ export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
                 <Chip tone={e.attendance.startsWith("Mandatory") ? "brand" : e.attendance === "Not answered" ? "warn" : "neutral"}>{e.attendance}</Chip>
                 {e.attendance === "Not answered" && <span className="text-[12.5px] text-ink-3">Answer it before the window can be published.</span>}
               </div>
-              {cancelled && <Callout tone="neutral">{e.cancelled}. {published ? "Tell purchasers by addendum." : ""}</Callout>}
+              {cancelled && <span className="text-[12.5px] text-ink-3">{e.cancelled}. {published ? "Tell purchasers by addendum." : ""}</span>}
               {!cancelled && (
                 <div className="flex flex-wrap items-center gap-2">
                   {d.schedule.allowed && d.mandatoryOffered && <SetMandatoryDrawer exerciseId={c.exerciseId} eventId={e.id} label={label} current={e.attendance === "Not answered" ? "unset" : e.attendance.startsWith("Mandatory") ? "yes" : "no"} />}

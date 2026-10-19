@@ -86,7 +86,7 @@ type Before = Extract<ConditionsTab, { mode: "before" }>;
 export const Registrations = ({ groups }: { groups: { number: number; heading: string; items: { id?: string; body: string; qualifiers: string | null }[] }[] }) =>
   groups.length === 0 ? (
     <p className="rounded-2xl border border-dashed border-line px-4 py-3 text-[13px] text-ink-2">
-      <Badge tone="warn">Not set</Badge> <span className="ml-1">No registration is recorded, so the notice has no eligibility block.</span>
+      <Badge tone="warn">Not set</Badge> <span className="ml-1">No registration recorded.</span>
     </p>
   ) : (
     <ul className="divide-y divide-line/70 rounded-2xl border border-line">
@@ -112,7 +112,7 @@ function FrozenCards({ c }: { c: Frozen }) {
   return (
     <>
       <Card id="conditions" className="scroll-mt-24 overflow-hidden">
-        <CardHeader icon={<UsersIcon size={17} />} title="Tender conditions" subtitle={`As frozen with version ${f.version}, judged ${f.judgedOn}. They change only in a new version, after a return.`} />
+        <CardHeader icon={<UsersIcon size={17} />} title="Tender conditions" subtitle={`Frozen with version ${f.version}, judged ${f.judgedOn}.`} />
         <CardBody className="flex flex-col gap-5">
           <div>
             <p className="mb-2 text-[12px] font-semibold text-ink-3">Registrations bidders must hold</p>
@@ -146,10 +146,10 @@ function FrozenCards({ c }: { c: Frozen }) {
       </Card>
 
       {assuranceCardShown(f.assurance.policy) && <Card id="assurance" className="scroll-mt-24 overflow-hidden">
-        <CardHeader icon={<CheckIcon size={17} />} title="Assurance" subtitle="Who confirmed the documents before they went for approval, and the day." actions={<Badge tone={f.assurance.required === NOT_SET ? "warn" : "neutral"}>{f.assurance.required === NOT_SET ? "Policy was not set" : f.assurance.required}</Badge>} />
+        <CardHeader icon={<CheckIcon size={17} />} title="Assurance" subtitle="Who confirmed, and when." actions={<Badge tone={f.assurance.required === NOT_SET ? "warn" : "neutral"}>{f.assurance.required === NOT_SET ? "Policy was not set" : f.assurance.required}</Badge>} />
         <CardBody>
           {f.assurance.rows.length === 0 ? (
-            <p className="text-[13px] text-ink-2">{f.assurance.required === NOT_SET ? "The policy was not set when the documents were frozen." : "No confirmation was needed."}</p>
+            <p className="text-[13px] text-ink-2">{f.assurance.required === NOT_SET ? "Policy was not set when frozen." : "No confirmation was needed."}</p>
           ) : (
             <ul className="divide-y divide-line/70 rounded-2xl border border-line">
               {f.assurance.rows.map((x) => (
@@ -166,8 +166,8 @@ function FrozenCards({ c }: { c: Frozen }) {
         </CardBody>
       </Card>}
 
-      <ClausesCard line={clausesSummary({ none: f.clauses.length === 0 ? "No clause was required when the documents were frozen." : null, statuses: f.clauses.map((x) => x.status), noneTone: "neutral" })}>
-        <p className="text-[12.5px] text-ink-3">The clauses every agreement carries, as frozen with this version.</p>
+      <ClausesCard line={clausesSummary({ none: f.clauses.length === 0 ? "No clause was required." : null, statuses: f.clauses.map((x) => x.status), noneTone: "neutral" })}>
+        <p className="text-[12.5px] text-ink-3">Clauses every agreement carries.</p>
         <ul className="divide-y divide-line/70 rounded-2xl border border-line">
           {f.clauses.map((x) => (
             <Row key={x.title} title={x.title} value={<Badge tone={x.override ? "neutral" : "ok"}>{x.status}</Badge>}>
@@ -185,9 +185,9 @@ function FrozenCards({ c }: { c: Frozen }) {
 function BeforeCards({ c }: { c: Before }) {
   return (
     <Card id="conditions" className="scroll-mt-24 overflow-hidden">
-      <CardHeader icon={<UsersIcon size={17} />} title="Tender conditions" subtitle={`Version ${c.version} was frozen before they were recorded with it.`} />
+      <CardHeader icon={<UsersIcon size={17} />} title="Tender conditions" subtitle={`Version ${c.version} predates them.`} />
       <CardBody className="flex flex-col gap-5">
-        <Callout tone="info">{c.before}</Callout>
+        <p className="text-[12.5px] text-ink-3">{c.before}</p>
         <div>
           <p className="mb-2 text-[12px] font-semibold text-ink-3">Registrations bidders must hold</p>
           <Registrations groups={c.groups} />
@@ -214,12 +214,12 @@ function LiveCards({ c, packless }: { c: LiveConditions; packless: boolean }) {
             <CardHeader
               icon={<CheckIcon size={17} />}
               title="Assurance"
-              subtitle="Named officers confirm the documents before they go for approval, each with the day."
+              subtitle="Named officers confirm before approval."
               actions={<Badge tone={c.assurance.required === NOT_SET ? "warn" : "neutral"}>{c.assurance.required === NOT_SET ? "Policy not set" : c.assurance.required}</Badge>}
             />
             <CardBody className="flex flex-col gap-4">
               {c.assurance.policyNotSet && <Callout tone="warn">{c.assurance.policyNotSet}</Callout>}
-              <p className="text-[12.5px] text-ink-3">A confirmation is not withdrawn by later edits to the parts. If the documents changed after it was recorded, remove it and confirm again.</p>
+              <p className="text-[12.5px] text-ink-3">Later edits do not withdraw it. Remove and confirm again if the documents changed.</p>
               <ul className="divide-y divide-line/70 rounded-2xl border border-line">
                 {c.assurance.rows.map((r) => (
                   <Row
@@ -242,7 +242,7 @@ function LiveCards({ c, packless }: { c: LiveConditions; packless: boolean }) {
           </Card>}
 
           <ClausesCard line={clausesSummary({ none: c.clauses.none, statuses: c.clauses.rows.map((r) => r.status) })}>
-            <p className="text-[12.5px] text-ink-3">Leaving a clause out needs a legal endorsement. Which office may give one is not checked, because no policy names it. The endorser is the person signed in who gave it; the reason is recorded with it.</p>
+            <p className="text-[12.5px] text-ink-3">Leaving a clause out needs a legal endorsement. Giver&apos;s office is not checked.</p>
             <ul className="divide-y divide-line/70 rounded-2xl border border-line">
               {c.clauses.rows.map((r) => (
                 <Row

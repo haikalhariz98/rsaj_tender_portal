@@ -167,7 +167,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
           />
           <CardBody className="flex flex-col gap-2">
             {d.findings.length === 0 && d.hasWindow ? (
-              <Callout tone="ok">Every check passes. {d.actions.publishLabel}.</Callout>
+              <p className="text-[13px] font-semibold text-ink">Every check passes.</p>
             ) : (
               d.findings.map((f, i) => (
                 <Callout key={i} tone={levelTone(f.level)}>

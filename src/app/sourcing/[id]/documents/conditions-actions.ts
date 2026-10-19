@@ -38,8 +38,8 @@ import type { AuditActor } from "@/lib/auth/types";
  */
 
 const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
-const NO_ZONE: FormState = { ok: false, message: "The organisation's time zone is not set, so nothing on the tender's conditions can be judged or dated. Set it under Configuration, Organisation." };
-const NO_DRAFT: FormState = { ok: false, message: "There is no draft of the tender documents. Start one on the Tender documents tab." };
+const NO_ZONE: FormState = { ok: false, message: "Time zone not set. Set it under Organisation." };
+const NO_DRAFT: FormState = { ok: false, message: "No draft. Start one on Tender documents." };
 
 type Locked = { org: ExerciseOrg; ex: ExerciseRow; packs: PackRow[] };
 
@@ -67,7 +67,7 @@ async function locked(scope: Reader, exerciseId: string, fn: (tx: Tx, l: Locked)
   } catch (e) {
     const attribution = attributionRefusalState(e);
     if (attribution) return attribution;
-    if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
+    if (transactionTimedOut(e)) return { ok: false, message: "Not saved: took too long. Try again." };
     throw e;
   }
   if (result?.ok) revalidatePath(`/sourcing/${exerciseId}`);

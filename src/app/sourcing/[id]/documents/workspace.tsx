@@ -99,7 +99,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
         ["Contract basis", d.facts.contractBasis],
         ["Standard form", d.facts.standardForm],
       ]}
-      notes={returned ? ["The returned version stays as it was frozen.", "The next version carries each part's state, template and omission, its live files, and the Appendix."] : []}
+      notes={returned ? ["The returned version stays as it was frozen.", "Carries each part's state, files and the Appendix."] : []}
     />
   ) : draft ? (
     <SubmitPackDrawer
@@ -142,7 +142,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
         <CardHeader
           icon={<FileIcon size={17} />}
           title={notDecided || d.facts.documentPack === NOT_APPLICABLE_BEFORE_ASSEMBLY ? "Tender documents" : d.facts.documentPack}
-          subtitle={d.pack ? d.facts.version : "The documents tenderers receive, assembled from the parts configured for this pack and basis."}
+          subtitle={d.pack ? d.facts.version : "Documents tenderers receive."}
           actions={
             <>
               {d.pack && <Badge tone={PACK_TONE[d.pack.status] ?? "neutral"} dot>{d.pack.status}</Badge>}
@@ -160,15 +160,15 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
               {returned.returnedBecause || "No reason recorded."} Start the next version to amend it; this one stays as it was frozen.
             </Callout>
           )}
-          {!d.pack && !d.start.allowed && <Callout tone="info" title="Not started">{d.start.reason}</Callout>}
-          {d.facts.status === TENDERING_STATE_LABEL.APPROVED && <Callout tone="ok" title={TENDERING_STATE_LABEL.APPROVED}>The documents stand as frozen. A change from here is an addendum, made under Publishing once the window is published.</Callout>}
+          {!d.pack && !d.start.allowed && <Callout tone="warn" title="Not started">{d.start.reason}</Callout>}
+          {d.facts.status === TENDERING_STATE_LABEL.APPROVED && <p className="text-[13px] text-ink-2">Frozen. Change by addendum under Publishing.</p>}
         </CardBody>
         {d.pack && (
           <div className="border-t border-line">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 sm:px-6">
               <div className="min-w-[12rem] flex-1">
                 <p className="text-[14px] font-bold text-ink">Documents to issue</p>
-                <p className="text-[12.5px] text-ink-3">{hasBq ? "In print order. Each line is ready as soon as its file is uploaded, or its text merges without a missing field. The bill of quantities is issued unpriced where it is built on screen." : "In print order. Each line is ready as soon as its file is uploaded, or its text merges without a missing field."}</p>
+                <p className="text-[12.5px] text-ink-3">{hasBq ? "In print order. Ready when its file is uploaded or its text merges. Bill issued unpriced where built on screen." : "In print order. Ready when its file is uploaded or its text merges."}</p>
               </div>
               {d.pack.newParts && <TakeNewPartsDrawer exerciseId={exerciseId} parts={d.pack.newParts.parts} confirmedParts={d.pack.newPartsKey ?? ""} />}
               {d.pack.refresh && <RefreshFlagsDrawer exerciseId={exerciseId} refresh={d.pack.refresh} confirmedChanges={d.pack.refreshKey ?? ""} />}

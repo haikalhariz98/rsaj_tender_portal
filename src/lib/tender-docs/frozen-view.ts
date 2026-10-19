@@ -18,7 +18,7 @@ import { NOT_SET, yesNoNotSet } from "./labels";
 /// A body's name as it starts a line ("the Demo Companies Registry" is "The Demo Companies Registry" in a list).
 export const capFirst = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-export const BEFORE_CONDITIONS_TEXT = "Frozen before the tender's conditions were recorded with the documents, so nothing was judged or frozen for them. What the exercise recorded is shown as it stands; it was not checked at submission.";
+export const BEFORE_CONDITIONS_TEXT = "Frozen before conditions were recorded. Shown as recorded, not checked at submission.";
 
 export interface FrozenGroup {
   number: number;

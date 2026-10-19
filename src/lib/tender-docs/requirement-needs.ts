@@ -105,5 +105,5 @@ export const NEED_FAULT_TEXT: Readonly<Record<NeedFault, (d: Record<string, stri
   NEED_RETIRED: (d) => `${d.value} is retired. Choose a code that is still in use.`,
   NEED_TWICE: (d) => `${d.value} is chosen twice.`,
   ONE_GRADE_ONLY: () => "Choose one grade: the lowest a bidder may hold.",
-  NEEDS_NOT_TAKEN: () => "This registration body takes nothing stated with it, so no grade or code can be asked for. Clear them, or choose another body.",
+  NEEDS_NOT_TAKEN: () => "This body takes no grade or code. Clear them, or choose another body.",
 };

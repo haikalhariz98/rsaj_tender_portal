@@ -37,6 +37,6 @@ export function newPartsView(parts: readonly Pick<ResolvedPart, "printedNumber" 
 
 /// Said when the confirmed list is not the list now: configuration changed in between.
 export function confirmedPartsFault(confirmed: string | null, now: readonly Pick<ResolvedPart, "code">[]): string | null {
-  if (confirmed == null || confirmed !== newPartsKey(now)) return "The parts configured changed while this was open. Nothing was added. Reload to see the list as it stands, then take it again.";
+  if (confirmed == null || confirmed !== newPartsKey(now)) return "Configured parts changed. Nothing added. Reload and try again.";
   return null;
 }

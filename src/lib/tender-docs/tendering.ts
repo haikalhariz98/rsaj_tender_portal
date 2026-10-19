@@ -157,6 +157,6 @@ export function decisionWindow(stated: { startOn: string; closingDay: string } |
     closingDay: stated.closingDay,
     startText: `${formatDate(stated.startOn)}, as the notice states`,
     closingText: `${formatDate(stated.closingDay)}, as the notice states`,
-    note: "The frozen notice states the registrations' validity window, so approving records exactly these days. To change them, return the documents for amendment.",
+    note: "Approving records these days. To change them, return the documents.",
   };
 }

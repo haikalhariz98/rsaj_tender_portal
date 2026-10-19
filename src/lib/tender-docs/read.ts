@@ -657,7 +657,7 @@ export async function tenderDocsConfig(organisationId: string, showRetired = fal
     /// Set only where the time zone is not: a part's retirement cannot be judged until it is.
     timeZoneNotSet: today == null && parts.some((p) => p.retiredOn != null) ? CONFIG_TIME_ZONE_NOT_SET : null,
     groups,
-    empty: parts.length === 0 ? "No parts are configured. Tender and quotation documents cannot be started until the parts for each pack kind are added." : null,
+    empty: parts.length === 0 ? "No parts set. Add parts for each pack kind first." : null,
     methods: methodRows,
     policy: {
       restrictionStampEn: policy.restrictionStampTextEn ?? NOT_SET,

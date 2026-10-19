@@ -120,7 +120,7 @@ export function PartsList({ exerciseId, parts }: { exerciseId: string; parts: Pa
                   Fill in
                 </Link>
               ) : (
-                <Blocked label="Fill in" reason="The Appendix is entered once the version is started." ariaLabel={`Fill in ${name}`} />
+                <Blocked label="Fill in" reason="Entered once the version is started." ariaLabel={`Fill in ${name}`} />
               )}
             </span>
           );
@@ -145,7 +145,7 @@ export function PartsList({ exerciseId, parts }: { exerciseId: string; parts: Pa
               <Blocked label="Template" reason={t.reason} noteId={why!.id} ariaLabel={`Template for ${name}`} />
             )}
             {upload.allowed ? (
-              <OwnerDocumentsButton owner={{ kind: "tenderPackPart", id: p.id }} label={name} triggerLabel="Upload" title="Upload a file to this part" subtitle="Kept in the document store, with its fingerprint. The part is ready as soon as a file is uploaded, and the file freezes with the version." options={{ only: ["TENDER_PART"] }} />
+              <OwnerDocumentsButton owner={{ kind: "tenderPackPart", id: p.id }} label={name} triggerLabel="Upload" title="Upload a file to this part" subtitle="Kept with its fingerprint. Ready once uploaded. Frozen with the version." options={{ only: ["TENDER_PART"] }} />
             ) : (
               <Blocked label="Upload" reason={upload.reason} noteId={why!.id} ariaLabel={`Upload to ${name}`} />
             )}
@@ -157,7 +157,7 @@ export function PartsList({ exerciseId, parts }: { exerciseId: string; parts: Pa
               <Blocked label="Download" reason={dl.reason} noteId={why!.id} ariaLabel={`Download for ${name}`} />
             )}
             {replace.allowed ? (
-              <OwnerDocumentsButton owner={{ kind: "tenderPackPart", id: p.id }} label={name} triggerLabel="Replace" title="Replace the file of this part" subtitle="A corrected file goes in place of the one now attached, as a new version of the same document. The earlier version stays on the record." options={{ only: ["TENDER_PART"] }} />
+              <OwnerDocumentsButton owner={{ kind: "tenderPackPart", id: p.id }} label={name} triggerLabel="Replace" title="Replace the file of this part" subtitle="Replaces the attached file as a new version. The earlier one stays on record." options={{ only: ["TENDER_PART"] }} />
             ) : (
               <Blocked label="Replace" reason={replace.reason} noteId={why!.id} ariaLabel={`Replace for ${name}`} />
             )}

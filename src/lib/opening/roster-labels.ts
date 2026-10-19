@@ -39,7 +39,7 @@ export function incomingRefusal(faults: readonly Finding[]): { message?: string;
 export const rosterChangeText = (c: RosterChangeFault) => openingFindingText({ code: c, level: "block" });
 
 /// Said on the card whenever an officer can be replaced before the closing, so nobody is surprised by the day it closes.
-export const ROSTER_AFTER_CLOSING_NOTE = "After the closing there is no replacing an officer: the bids cannot be opened without every named officer, and the exercise would have to be re-tendered.";
+export const ROSTER_AFTER_CLOSING_NOTE = "No replacing officers after closing: every named officer is needed, or the exercise is re-tendered.";
 
 type Allowed = { allowed: true } | { allowed: false; reason: string };
 

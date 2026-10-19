@@ -771,7 +771,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
       <div className="mb-6 flex flex-col gap-3">
         {ex.status === "CANCELLED" && (
-          <Callout tone="info" title="Cancelled">
+          <Callout tone="warn" title="Cancelled">
             {ex.cancelReason || "No reason recorded."} <InfoChip tone="warn" detail={CANCELLED_ASSUMPTION} label="About Assumed">Assumed</InfoChip>
           </Callout>
         )}
@@ -1311,9 +1311,7 @@ function HistoryPanel({
       />
       {onlineNote && (
         <div className="px-5 pb-3 sm:px-6">
-          <Callout tone="info" title="Online submissions">
-            {onlineNote}
-          </Callout>
+          <p className="text-[12.5px] text-ink-3">{onlineNote}</p>
         </div>
       )}
       {entries.length === 0 ? (

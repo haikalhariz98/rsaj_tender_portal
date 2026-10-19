@@ -24,23 +24,23 @@ const THREE: Option[] = [
 
 type NeedOptions = { grade: Record<string, Option[]>; categories: Record<string, Option[]>; specialisations: Record<string, Option[]>; fieldCodes: Record<string, Option[]>; permits: Record<string, Option[]> };
 const WAITING = "Choose the registration body first.";
-const NONE_FOR_BODY = "This body offers nothing to choose here: its list is not configured, or it takes nothing stated with it.";
+const NONE_FOR_BODY = "Nothing to choose here.";
 
 export function AddRequirementDrawer({ exerciseId, allowed, bodies, groups, typeTest, needs }: { exerciseId: string; allowed: Allowed; bodies: Option[]; groups: Option[]; typeTest: string; needs: NeedOptions }) {
   if (!allowed.allowed) return <Blocked label="Add a registration" reason={allowed.reason} />;
   return (
     <RecordEditor
       title="Add a registration bidders must hold"
-      description={`A new requirement is needed in addition to the others; an alternative is an option for one already listed, and any one of them is enough. The contract type's registration test: ${typeTest}.`}
+      description={`Requirement: needed as well. Alternative: any one will do. Registration test: ${typeTest}.`}
       fields={[
         hidden("exerciseId"),
         { kind: "select", name: "bodyCode", label: "Registration body", required: true, placeholder: "Choose", options: bodies },
-        { kind: "select", name: "needGrade", label: "Lowest grade accepted", placeholder: "No grade asked for", hint: "Compared by the grade's order in the body's list: a bidder at this grade or above passes.", options: [], optionsBy: { name: "bodyCode", options: needs.grade, waiting: WAITING } },
+        { kind: "select", name: "needGrade", label: "Lowest grade accepted", placeholder: "No grade asked for", hint: "Grade or above passes.", options: [], optionsBy: { name: "bodyCode", options: needs.grade, waiting: WAITING } },
         { kind: "checks", name: "needCategories", label: "Category (any one is enough)", options: [], optionsBy: { name: "bodyCode", options: needs.categories, waiting: WAITING, none: NONE_FOR_BODY } },
         { kind: "checks", name: "needSpecialisations", label: "Specialisation (any one is enough)", options: [], optionsBy: { name: "bodyCode", options: needs.specialisations, waiting: WAITING, none: NONE_FOR_BODY } },
         { kind: "checks", name: "needFieldCodes", label: "Field codes (every one is needed)", options: [], optionsBy: { name: "bodyCode", options: needs.fieldCodes, waiting: WAITING, none: NONE_FOR_BODY } },
         { kind: "checks", name: "needPermits", label: "Permit types (every one is needed)", options: [], optionsBy: { name: "bodyCode", options: needs.permits, waiting: WAITING, none: NONE_FOR_BODY } },
-        { kind: "text", name: "qualifiers", label: "What is required with it, in words", hint: "Leave empty to have it written from the grade and codes chosen above. Words typed here are printed on the notice but are not compared, so eligibility reads \"not assessed\" for them." },
+        { kind: "text", name: "qualifiers", label: "What is required with it, in words", hint: "Empty: written from the grade and codes. Typed words are not compared, so eligibility reads \"not assessed\"." },
         { kind: "select", name: "alternativeGroup", label: "How it counts", required: true, options: groups },
       ]}
       values={{ exerciseId, alternativeGroup: groups[0]?.value ?? "" }}
@@ -57,7 +57,7 @@ export function RemoveRequirementDrawer({ exerciseId, id, label, allowed }: { ex
   return (
     <RecordEditor
       title={`Remove ${label}`}
-      description="Bidders will no longer be asked for this registration. It stays in the exercise's History."
+      description="Bidders are no longer asked for this registration."
       fields={[hidden("exerciseId"), hidden("id")]}
       values={{ exerciseId, id }}
       destructive={{ reasonLabel: "Why it is removed" }}
@@ -75,7 +75,7 @@ export function RestrictionDrawer({ exerciseId, question, raw, allowed }: { exer
   return (
     <RecordEditor
       title="Is the tender restricted?"
-      description={`Asked here as: ${question}. Where the answer is yes, every document the portal generates carries the stamp configured for it. Not answered holds submission back.`}
+      description={`${question} Yes stamps every generated document. Unanswered blocks submission.`}
       fields={[hidden("exerciseId"), { kind: "select", name: "restrictedTender", label: "Answer", required: true, placeholder: "Choose", options: THREE }]}
       values={{ exerciseId, restrictedTender: raw === "unset" ? "" : raw }}
       action={saveRestriction}
@@ -91,13 +91,13 @@ export function PermitDrawer({ exerciseId, raw, rawPermit, options, list, allowe
   return (
     <RecordEditor
       title="Do the works need the regulator's permit?"
-      description="Where they do, the instructions to tenderers state that the successful bidder must obtain the permit, naming its type. Which type a value needs is the regulator's rule and is not worked out here: choose it."
+      description="Instructions state that the successful bidder must obtain the permit. Choose its type."
       fields={[
         hidden("exerciseId"),
         { kind: "select", name: "regulatedActivity", label: "Needs the regulator's permit", required: true, placeholder: "Choose", options: THREE },
         options.length
           ? { kind: "select", name: "regulatorPermitCode", label: "Permit type", placeholder: "Not chosen", options, hint: `From the configured list: ${list}.` }
-          : { kind: "note", text: "No list of permit types is configured. Choose one under Configuration, Tender documents." },
+          : { kind: "note", text: "No permit types set. Set them under Configuration, Tender documents." },
       ]}
       values={{ exerciseId, regulatedActivity: raw === "unset" ? "" : raw, regulatorPermitCode: rawPermit }}
       showWhen={{ regulatorPermitCode: { name: "regulatedActivity", in: ["yes"] } }}
@@ -114,7 +114,7 @@ export function ConfirmAssuranceDrawer({ exerciseId, kind, label, people, allowe
   return (
     <RecordEditor
       title={`Confirmed: ${label.toLowerCase()}`}
-      description="You confirm it, and the day. It belongs to this version; an amended version is confirmed again."
+      description="Confirm with the day. Amended versions are confirmed again."
       fields={[
         hidden("exerciseId"),
         hidden("kind"),
@@ -136,7 +136,7 @@ export function RemoveAssuranceDrawer({ exerciseId, id, label, allowed }: { exer
   return (
     <RecordEditor
       title={`Remove the confirmation: ${label.toLowerCase()}`}
-      description="For a confirmation recorded in error, or one the documents have since outgrown. It stays in the exercise's History."
+      description="Kept in the History."
       fields={[hidden("exerciseId"), hidden("id")]}
       values={{ exerciseId, id }}
       destructive={{ reasonLabel: "Why it is removed" }}
@@ -154,7 +154,7 @@ export function OverrideClauseDrawer({ exerciseId, clauseCode, title, people, al
   return (
     <RecordEditor
       title={`Go without the ${title.toLowerCase()}`}
-      description="Only a legal endorsement lets an agreement go without a clause every agreement must carry. You give it as yourself, signed in, and say why. Which office may give an endorsement is not checked, because no policy names one. It holds for this version only."
+      description="Needed to omit a mandatory clause. Given as yourself, with a reason. Office not checked. This version only."
       fields={[
         hidden("exerciseId"),
         hidden("clauseCode"),
@@ -175,7 +175,7 @@ export function RemoveOverrideDrawer({ exerciseId, id, title, allowed }: { exerc
   return (
     <RecordEditor
       title={`Withdraw the endorsement: ${title.toLowerCase()}`}
-      description="The agreement must carry the clause again. The endorsement stays in the exercise's History."
+      description="The clause is required again. Kept in the History."
       fields={[hidden("exerciseId"), hidden("id")]}
       values={{ exerciseId, id }}
       destructive={{ reasonLabel: "Why it is withdrawn" }}

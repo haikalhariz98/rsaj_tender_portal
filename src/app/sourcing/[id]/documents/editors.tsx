@@ -50,7 +50,7 @@ export function StartPackDrawer({ exerciseId, label, allowed, rows, notes }: { e
   return (
     <RecordEditor
       title={label}
-      description="The parts are taken from the configuration as it stands today and kept with the version."
+      description="Parts are taken from today's configuration."
       fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       sections={<Facts rows={rows} notes={notes} />}
@@ -70,17 +70,17 @@ export function SubmitPackDrawer({ exerciseId, rows, warnings, today, dates }: {
   return (
     <RecordEditor
       title="Submit for Approval for Tendering"
-      description="Submitting freezes this version: each part's text is stored as it reads now, the bill of quantities is issued unpriced and files are pinned. A version that is frozen is changed only by returning it. If anything is still missing, submitting says what it is and nothing is frozen."
+      description="Freezes this version. Changed only by returning it."
       fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       sections={
         <div className="flex flex-col gap-4">
           <Facts rows={[...rows, ["Proposed start", dates.start ?? "Not entered"], ["Proposed closing", dates.closing ?? "Not entered"]]} />
-          <p className="text-[12.5px] text-ink-3">The days are the ones entered under Key dates on Scope and estimate. The notice states them, and the approver records them.</p>
+          <p className="text-[12.5px] text-ink-3">Days from Key dates on Scope and estimate.</p>
           {warnings.map((w) => (
             <Callout key={w} tone="warn">{w}</Callout>
           ))}
-          {!today && <Callout tone="warn">The organisation&apos;s time zone is not set, so the dates cannot be judged. Set it under Configuration, Organisation.</Callout>}
+          {!today && <Callout tone="warn">Time zone not set. Dates cannot be judged.</Callout>}
         </div>
       }
       action={submitPack}
@@ -97,7 +97,7 @@ export function RefreshFlagsDrawer({ exerciseId, refresh, confirmedChanges }: { 
   return (
     <RecordEditor
       title={REFRESH_LABEL}
-      description="A version keeps the answers it was started with. Where the configuration has since said whether a part is mandatory, or is in the Tender Table Document, they are taken into this draft. A frozen version is never changed."
+      description="Takes newly configured answers into this draft. Frozen versions never change."
       fields={[hidden("exerciseId"), hidden("confirmedChanges")]}
       values={{ exerciseId, confirmedChanges }}
       sections={
@@ -120,7 +120,7 @@ export function TakeNewPartsDrawer({ exerciseId, parts, confirmedParts }: { exer
   return (
     <RecordEditor
       title={TAKE_PARTS_LABEL}
-      description="A version keeps the parts it was started with. These parts were configured after this draft was started. Taking them adds them to this draft; nothing already on it is changed or removed, and a frozen version is never changed."
+      description="Adds parts configured since. Nothing on the draft is changed."
       fields={[hidden("exerciseId"), hidden("confirmedParts")]}
       values={{ exerciseId, confirmedParts }}
       sections={
@@ -146,7 +146,7 @@ export function PickTemplateDrawer({ exerciseId, partId, partLabel, options, cur
   return (
     <RecordEditor
       title={`Template for ${partLabel}`}
-      description="The part is issued as the template's text, merged with this exercise's details when the version is submitted, unless a file is uploaded to it in its place. It is ready when the merge has no missing field."
+      description="Issued as the template text unless a file replaces it. Ready when no field is missing."
       fields={[hidden("exerciseId"), hidden("partId"), { kind: "select", name: "templateId", label: "Template", required: true, placeholder: "Choose", options }]}
       values={{ exerciseId, partId, templateId: current }}
       sections={
@@ -178,13 +178,13 @@ export function DecideDrawer({ exerciseId, stepId, office, done, people, today, 
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
-      description={`The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for the requisition's department, or a delegation of it. A refusal returns the documents for amendment.${recordsDates ? " This is the last step: it records the dates tendering starts and closes." : ""}`}
+      description={`Signed with the holder's password. A refusal returns the documents.${recordsDates ? " Last step: records the tendering dates." : ""}`}
       fields={[
         hidden("exerciseId"),
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: TENDERING_STATE_LABEL.RETURNED }] },
-        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office for the requisition's department today." : undefined }),
-        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was submitted. A signed decision is dated today unless back-dating is recorded." },
+        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office for the department." : undefined }),
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before submission." },
         { kind: "textarea", name: "reason", label: "Reason for returning them", required: true, hint: "Say what is to be amended." },
         ...(recordsDates
           ? (fixedWindow
@@ -195,10 +195,10 @@ export function DecideDrawer({ exerciseId, stepId, office, done, people, today, 
                   { kind: "readonly", name: "closingShown", label: "Closing day", text: fixedWindow.closingText },
                   hidden("startOn"),
                   hidden("closingDay"),
-                  { kind: "text", name: "closingTime", label: "Closing time", required: true, hint: "Hours and minutes, 24-hour (14:30). The time is not part of the window." },
+                  { kind: "text", name: "closingTime", label: "Closing time", required: true, hint: "24-hour, such as 14:30." },
                 ] as Field[])
               : ([
-                  { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "As proposed when submitted; the approver may set another. Not before the day decided." },
+                  { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "As proposed. Not before the day decided." },
                   { kind: "date", name: "closingDay", label: "Closing day", required: true, hint: "After the start day." },
                   { kind: "text", name: "closingTime", label: "Closing time", required: true, hint: "Hours and minutes, 24-hour (14:30)." },
                 ] as Field[]))

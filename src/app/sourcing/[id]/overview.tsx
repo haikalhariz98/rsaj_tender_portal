@@ -373,9 +373,9 @@ function RulesUsed({ p }: { p: OverviewProps }) {
             </Callout>
           ))}
           {superseded.map((r) => (
-            <Callout key={r.subject} tone="neutral">
+            <p key={r.subject} className="text-[12.5px] text-ink-3">
               {resolutionText(r, p.timeZone)}
-            </Callout>
+            </p>
           ))}
         </section>
       )}

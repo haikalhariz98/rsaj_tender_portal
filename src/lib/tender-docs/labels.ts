@@ -150,18 +150,18 @@ const SET_PARTS_REFRESH = "Set it under Configuration, Tender documents, then ch
 const d = (f: Finding, k: string) => (f.data?.[k] == null ? "" : String(f.data[k]));
 
 const EDIT_TEXT: Record<EditFault, (f: Finding) => string> = {
-  PACK_NOT_DRAFT: () => "This version of the tender documents is no longer a draft, so it stands as it was frozen. Changes are made on the next version, once it is returned for amendment.",
+  PACK_NOT_DRAFT: () => "Frozen. Change it on the next version, after a return.",
   EXERCISE_NOT_IN_PREPARATION: () => "The tender documents change only while the exercise is in preparation. Move it into preparation first.",
 };
 
 const CONTENT_TEXT: Record<ContentFault, (f: Finding) => string> = {
-  TEMPLATE_NOT_SET: (f) => `Part ${d(f, "part")} draws a library template and none is chosen. Choose one, or name it on the part under Configuration, Tender documents.`,
+  TEMPLATE_NOT_SET: (f) => `Part ${d(f, "part")} has no template chosen. Choose one, or name it under Configuration, Tender documents.`,
   TEMPLATE_BODY_EMPTY: (f) => `${f.data?.part ? `Part ${d(f, "part")}: the` : "The"} template ${d(f, "template")} has no text. Write it under Configuration, Templates.`,
-  TEMPLATE_LANGUAGE_NOT_SET: (f) => `${f.data?.part ? `Part ${d(f, "part")}: the` : "The"} template ${d(f, "template")} has text in both languages and does not say which is issued first. Choose it under Configuration, Templates.`,
-  TEMPLATE_UNKNOWN_FIELD: (f) => `${f.data?.part ? `Part ${d(f, "part")}: the` : "The"} template ${d(f, "template")} names ${d(f, "fields")}, which a tender document does not fill. Correct it under Configuration, Templates.`,
-  BESPOKE_FROM_LIBRARY: (f) => `Part ${d(f, "part")} is prepared for this exercise, so it cannot be drawn from the template library. It is uploaded, or comes from the bill or the Appendix.`,
-  BQ_PART_WITHOUT_BQ: (f) => `Part ${d(f, "part")} issues the bill of quantities unpriced, and the exercise has no finalised bill. Finalise it on the Bill of quantities tab.`,
-  UPLOAD_MISSING: (f) => (f.data?.bill ? `Part ${d(f, "part")} is the bill of quantities, an uploaded Excel file on this exercise. Download its template, fill it in, and upload it on this line; the part is ready as soon as a file is uploaded.` : `Part ${d(f, "part")} has no file. Upload one on its line; the part is ready as soon as a file is uploaded.`),
+  TEMPLATE_LANGUAGE_NOT_SET: (f) => `${f.data?.part ? `Part ${d(f, "part")}: the` : "The"} template ${d(f, "template")} has two languages and no issue language. Choose it under Configuration, Templates.`,
+  TEMPLATE_UNKNOWN_FIELD: (f) => `${f.data?.part ? `Part ${d(f, "part")}: the` : "The"} template ${d(f, "template")} names ${d(f, "fields")}, which are not filled. Correct it under Configuration, Templates.`,
+  BESPOKE_FROM_LIBRARY: (f) => `Part ${d(f, "part")} is prepared for this exercise, not drawn from the library.`,
+  BQ_PART_WITHOUT_BQ: (f) => `Part ${d(f, "part")} needs a finalised bill. Finalise it on the Bill of quantities tab.`,
+  UPLOAD_MISSING: (f) => (f.data?.bill ? `Part ${d(f, "part")} is the bill of quantities, an uploaded Excel file. Download the template, fill it in, upload it on this line.` : `Part ${d(f, "part")} has no file. Upload one on its line.`),
   APPENDIX_INCOMPLETE: (f) => `Part ${d(f, "part")}: the Appendix is not complete yet. Complete it on the Appendix page.`,
 };
 
@@ -176,12 +176,12 @@ const PART_ACT_TEXT: Record<Exclude<PartActFault, EditFault | ContentFault>, (f:
 
 const READINESS_TEXT: Record<Exclude<ReadinessFault, ContentFault | "MANDATORY_UNSET" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED">, (f: Finding) => string> = {
   PART_NOT_READY: (f) => `Part ${d(f, "part")} is not ready.`,
-  BILL_PART_MISSING: () => "The contract basis is let on a bill of quantities, this exercise's bill is an uploaded file, and the pack has no bill of quantities part to upload it to. Add the part under Configuration, Tender documents, then use Take newly configured parts on this draft.",
-  DECLARATION_PART_MISSING: () => `Every tender and quotation pack binds the bidder's declaration as a mandatory part, and this pack's parts have none. Add a declaration part for this pack kind under Configuration, Tender documents.`,
+  BILL_PART_MISSING: () => "Pack has no bill of quantities part to upload the file to. Add it under Configuration, Tender documents, then take newly configured parts.",
+  DECLARATION_PART_MISSING: () => `Pack has no bidder's declaration part. Add one under Configuration, Tender documents.`,
   DECLARATION_NOT_MANDATORY: (f) => `The bidder's declaration (part ${d(f, "part")}) must be mandatory. ${SET_PARTS_REFRESH}`,
   NO_PARTS: () => "The pack has no parts.",
-  PART_WAS_OMITTED: (f) => `Part ${d(f, "part")} was left out earlier by an officer (reason given: ${d(f, "reason")}). Parts are now judged by their content, and this one is in order, so it will be issued when you submit; there is no way to leave it out. To keep it out of this version, do not submit it. Its earlier reason stays on its History.`,
-  RETURN_NOT_SET: (f) => `Whether a bidder returns part ${d(f, "part")} with the bid is not set. Approved like this, these documents keep it unset, and the bid opening will be refused when it is finalised: completeness cannot be judged against an unset answer, and the only way on then is to cancel the exercise. ${SET_PARTS_REFRESH}`,
+  PART_WAS_OMITTED: (f) => `Part ${d(f, "part")} was left out earlier (reason: ${d(f, "reason")}). It is in order now and will be issued on submit. Its earlier reason stays on its History.`,
+  RETURN_NOT_SET: (f) => `Part ${d(f, "part")}: returned with the bid or not is not set. Approved documents keep it unset, so the opening cannot be finalised. ${SET_PARTS_REFRESH}`,
 };
 
 /// A part's or the pack's finding, in words.
@@ -194,15 +194,15 @@ const ROLE_WORDS = (role: string) => (PART_ROLE_LABEL as Record<string, string>)
 
 const START_TEXT: Record<StartFault, (f: Finding) => string> = {
   EXERCISE_NOT_IN_PREPARATION: () => "Tender documents are assembled once the exercise is in preparation. Move it into preparation first.",
-  PREPARED_BEFORE_ASSEMBLY: () => "This exercise was prepared before tender document assembly existed, so it keeps the earlier path: its documents are prepared outside the portal and its award opens as before.",
+  PREPARED_BEFORE_ASSEMBLY: () => "Prepared before document assembly existed. Documents are prepared outside the portal.",
   NO_PACK_FOR_METHOD: () => "This exercise's method assembles no tender documents, so there is no pack to prepare.",
   LIVE_PACK_EXISTS: () => "A version of the tender documents is already being prepared or is with approval.",
-  PACK_APPROVED: () => "The tender documents are approved for tendering. A change now is an addendum, issued under Publishing on Tender documents once the exercise is published.",
+  PACK_APPROVED: () => "Approved for tendering. Change by addendum, issued under Publishing on Tender documents once published.",
   NO_PACK: () => "This exercise's method assembles no tender documents.",
   BASIS_NOT_SET: () => "The contract basis is not set, and the pack's parts follow it. Choose it by editing the exercise.",
   COMPOSITION_NOT_SET: () => `No parts are configured for this pack kind and contract basis. ${SET_PARTS}`,
-  DUPLICATE_ROLE: (f) => `Two parts are configured as the ${ROLE_WORDS(d(f, "role"))} for this pack kind and basis, so which one the pack takes is unclear. Retire one under Configuration, Tender documents.`,
-  NO_CONDITIONS_PART: () => `No conditions of contract part is configured for this pack kind and basis, so the pack names no standard form. ${SET_PARTS}`,
+  DUPLICATE_ROLE: (f) => `Two parts are the ${ROLE_WORDS(d(f, "role"))}. Retire one under Configuration, Tender documents.`,
+  NO_CONDITIONS_PART: () => `No conditions of contract part, so no standard form. ${SET_PARTS}`,
 };
 
 export const startFaultText = (f: Finding) => (START_TEXT as Record<string, (f: Finding) => string>)[f.code]?.(f) ?? "The tender documents cannot be started.";
@@ -222,17 +222,17 @@ const APPENDIX_TEXT: Record<AppendixFault | "APPENDIX_NOT_STARTED", (f: Finding)
 export const appendixFaultText = (f: Finding) => (APPENDIX_TEXT as Record<string, (f: Finding) => string>)[f.code]?.(f) ?? "The Appendix is not complete.";
 
 const BEHAVIOUR_TEXT: Record<BehaviourFault, (f: Finding) => string> = {
-  PROFILE_NOT_RECORDED: () => "The contract type's behaviours were not recorded when the exercise was decided, so the documents cannot be checked against them.",
-  BEHAVIOUR_NOT_SET: (f) => `The contract type's ${BEHAVIOUR_LABEL[d(f, "behaviour") as BehaviourKey]?.toLowerCase() ?? "behaviour"} is not set. Set it on the contract type under Configuration, Reference data.`,
+  PROFILE_NOT_RECORDED: () => "Contract type behaviours not recorded. Documents not checked against them.",
+  BEHAVIOUR_NOT_SET: (f) => `Contract type ${BEHAVIOUR_LABEL[d(f, "behaviour") as BehaviourKey]?.toLowerCase() ?? "behaviour"} not set. Set it under Configuration, Reference data.`,
   DLP_MONTHS_REQUIRED: (f) =>
     f.data?.appendix === 0
-      ? "The contract type has a defects liability period, and this pack has no Appendix to state it in. Add an Appendix part for this pack kind under Configuration, Tender documents."
+      ? "Defects liability applies, but the pack has no Appendix. Add an Appendix part under Configuration, Tender documents."
       : "The contract type has a defects liability period: say it applies and enter its months on the Appendix page.",
-  DLP_NOT_FOR_TYPE: () => "The contract type has no defects liability period, and the Appendix states one. Say it does not apply, on the Appendix page.",
+  DLP_NOT_FOR_TYPE: () => "No defects liability period, but the Appendix states one. Correct it on the Appendix page.",
   NOMINATION_NOT_FOR_TYPE: (f) =>
-    f.data?.where === "BILL" ? "The contract type allows no nomination, and the bill holds a prime cost sum. Revise the bill." : "The contract type allows no nomination, and the Appendix states prime cost sum work. Remove it on the Appendix page.",
-  NOMINATION_BILL_NOT_CHECKED: () => "Not checked: this exercise's bill of quantities is an uploaded file, so prime cost sums in it are not read. The Appendix's answer is still checked. Enter prime cost and provisional sums at the contract baseline once the contract is formed.",
-  BOND_FORMS_REQUIRED: () => "The contract type needs securities before the work starts, so the bond forms must be bound in as a mandatory part of the Tender Table Document. Configure the part under Configuration, Tender documents.",
+    f.data?.where === "BILL" ? "The contract type allows no nomination, and the bill holds a prime cost sum. Revise the bill." : "No nomination allowed, but the Appendix states prime cost sum work. Remove it.",
+  NOMINATION_BILL_NOT_CHECKED: () => "Not checked: the bill is an uploaded file, so prime cost sums are not read. The Appendix answer is checked.",
+  BOND_FORMS_REQUIRED: () => "Securities needed: bond forms must be a mandatory part of the Tender Table Document. Configure it under Configuration, Tender documents.",
 };
 
 export const behaviourFaultText = (f: Finding) => (BEHAVIOUR_TEXT as Record<string, (f: Finding) => string>)[f.code]?.(f) ?? "The contract type's behaviours are not met.";
@@ -244,7 +244,7 @@ const DATES_TEXT: Record<DatesFault, string> = {
   CLOSING_TIME_NOT_VALID: "Give the closing time as hours and minutes, 24-hour (14:30).",
   START_IN_PAST: "The start day has passed. Give today or a later day.",
   CLOSING_NOT_AFTER_START: "The closing day must be after the start day.",
-  DATES_DIFFER_FROM_DOCUMENTS: "The frozen notice states the registrations' validity window from the proposed start to the proposed closing day. Record those days, or return the documents for amendment so the next version states the new ones.",
+  DATES_DIFFER_FROM_DOCUMENTS: "The notice states the registrations' validity from the proposed start to closing. Record those days, or return the documents.",
 };
 
 export const datesFaultText = (f: Finding) => DATES_TEXT[f.code as DatesFault] ?? "The tendering dates are not valid.";
@@ -253,10 +253,10 @@ export const datesFaultText = (f: Finding) => DATES_TEXT[f.code as DatesFault] ?
 export const submitDatesText = (f: Finding) => (f.code === "DATES_DIFFER_FROM_DOCUMENTS" || f.code === "TIME_ZONE_NOT_SET" ? datesFaultText(f) : `${datesFaultText(f)} Enter them under Key dates on Scope and estimate.`);
 
 const ROUTE_TEXT: Record<RouteFault, (f: Finding) => string> = {
-  NO_ISSUE_IN_FORCE: () => "No approval matrix is issued and in force today, so the approval for tendering cannot be routed. Issue one under Configuration, Approval matrix.",
+  NO_ISSUE_IN_FORCE: () => "No approval matrix in force. Issue one under Approval matrix.",
   ROUTE_NO_METHOD_KEY: () => "The sourcing method is not tied to any approval rule. Set its approval matrix method under Configuration, Reference data.",
-  ROUTE_NO_RULE: () => "No approval for tendering rule in the approval matrix matches this method and value. Add one under Configuration, Approval matrix.",
-  ROUTE_HAS_COMMITTEE_STEP: () => "The route for approval for tendering includes a committee step, and an exercise cannot yet be tabled at a sitting. Change the rule so that offices decide it.",
+  ROUTE_NO_RULE: () => "No approval rule matches this method and value. Add one under Approval matrix.",
+  ROUTE_HAS_COMMITTEE_STEP: () => "Route has a committee step, which cannot yet decide this. Let offices decide.",
   ROUTE_REFUSED: (f) => d(f, "text"),
   ROUTE_ERROR: (f) => d(f, "text"),
   ROUTE_OPEN: () => "An approval for tendering route is already open on this exercise.",

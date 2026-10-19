@@ -1,7 +1,6 @@
 import { EyeIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { Card, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
 import { db } from "@/lib/db";
 import { exerciseOrg } from "@/lib/method/repo";
 import { inspectionLogOf } from "@/lib/portal/bids/staff-read";
@@ -32,7 +31,7 @@ export async function InspectionLogCard({ organisationId, exerciseId }: { organi
       <CardHeader
         icon={<EyeIcon size={17} />}
         title="Inspection log"
-        subtitle={log.total === 0 ? "Nobody has opened the Tender Table Document from a supplier portal account." : `${log.total} ${log.total === 1 ? "opening" : "openings"} by ${log.suppliers} ${log.suppliers === 1 ? "supplier" : "suppliers"}. A supplier that opens the same version again within a minute is logged once.`}
+        subtitle={log.total === 0 ? "Not opened yet." : `${log.total} ${log.total === 1 ? "opening" : "openings"} by ${log.suppliers} ${log.suppliers === 1 ? "supplier" : "suppliers"}. Repeat opens within a minute count once.`}
         divided={log.rows.length > 0}
       />
       {log.rows.length > 0 && (
@@ -54,7 +53,7 @@ export async function InspectionLogCard({ organisationId, exerciseId }: { organi
       )}
       {log.total === 0 && (
         <div className="px-5 pb-5 sm:px-6">
-          <Callout tone="neutral">The log fills once the exercise is published and a supplier opens the Tender Table Document from its portal account.</Callout>
+          <p className="text-[13px] text-ink-3">Fills once published and opened.</p>
         </div>
       )}
     </Card>

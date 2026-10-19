@@ -29,7 +29,7 @@ describe("parts configured after a draft was started (review M2)", () => {
   it("is refused when the list confirmed is not the list now", () => {
     const now = [rp("bill", "7a")];
     expect(confirmedPartsFault(newPartsKey(now), now)).toBeNull();
-    expect(confirmedPartsFault(newPartsKey([rp("other", "8")]), now)).toMatch(/changed while this was open/);
-    expect(confirmedPartsFault(null, now)).toMatch(/changed while this was open/);
+    expect(confirmedPartsFault(newPartsKey([rp("other", "8")]), now)).toMatch(/Configured parts changed/); // 0005, founder 2026-10-19
+    expect(confirmedPartsFault(null, now)).toMatch(/Configured parts changed/);
   });
 });

@@ -94,17 +94,17 @@ export function conditionsPolicyFaults(p: { restrictionLabelEn: string | null; r
 export const CONDITIONS_POLICY_FAULT_TEXT: Readonly<Record<ConditionsPolicyFault, string>> = {
   PROVENANCE_REQUIRED: "Say where this comes from.",
   TAXONOMY_UNKNOWN: "That list is not configured. Choose one from the list.",
-  TAXONOMY_CLASSIFIES: "Contract types are mapped into that list, so it classifies contracts. Choose a plain list, or add a new one under Reference data.",
+  TAXONOMY_CLASSIFIES: "That list classifies contracts. Choose a plain list, or add one under Reference data.",
   TAXONOMY_CLASSIFIED_EXERCISES: "Exercises are already classified in that list. Choose a plain list, or add a new one under Reference data.",
-  TAXONOMY_NAMED_BY_POLICY: "That list is already read by another policy, so it classifies contracts. Choose a plain list, or add a new one under Reference data.",
+  TAXONOMY_NAMED_BY_POLICY: "Another policy already reads that list. Choose a plain list, or add one under Reference data.",
 };
 
 /// A fault's words, with the count or the policies it names where it has them.
 export function conditionsPolicyFaultText(f: Finding<ConditionsPolicyFault>): string {
   const base = CONDITIONS_POLICY_FAULT_TEXT[f.code];
-  if (f.code === "TAXONOMY_CLASSIFIES") return `${f.data?.count} mapping ${f.data?.count === 1 ? "row maps" : "rows map"} contract types into that list, so it classifies contracts. Choose a plain list, or add a new one under Reference data.`;
-  if (f.code === "TAXONOMY_CLASSIFIED_EXERCISES") return `${f.data?.count} ${f.data?.count === 1 ? "exercise is" : "exercises are"} already classified in that list. Choose a plain list, or add a new one under Reference data.`;
-  if (f.code === "TAXONOMY_NAMED_BY_POLICY") return `That list is already read by the ${f.data?.policies}, so it classifies contracts. Choose a plain list, or add a new one under Reference data.`;
+  if (f.code === "TAXONOMY_CLASSIFIES") return `${f.data?.count} mapping ${f.data?.count === 1 ? "row maps" : "rows map"} contract types into that list. Choose a plain list, or add one under Reference data.`;
+  if (f.code === "TAXONOMY_CLASSIFIED_EXERCISES") return `${f.data?.count} ${f.data?.count === 1 ? "exercise is" : "exercises are"} already classified in that list. Choose another list.`;
+  if (f.code === "TAXONOMY_NAMED_BY_POLICY") return `The ${f.data?.policies} already reads that list. Choose a plain list, or add one under Reference data.`;
   return base;
 }
 

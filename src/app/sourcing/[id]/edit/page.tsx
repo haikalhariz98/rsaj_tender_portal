@@ -36,7 +36,7 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
     return (
       <>
         {header}
-        <Callout tone="info" title={`This exercise is ${EXERCISE_STATUS_LABEL[ex.status].toLowerCase()}`} action={<ButtonLink href={`/sourcing/${ex.id}`} size="sm">Back to the exercise</ButtonLink>}>
+        <Callout tone="warn" title={`This exercise is ${EXERCISE_STATUS_LABEL[ex.status].toLowerCase()}`} action={<ButtonLink href={`/sourcing/${ex.id}`} size="sm">Back to the exercise</ButtonLink>}>
           Only a draft exercise can be edited.
         </Callout>
       </>

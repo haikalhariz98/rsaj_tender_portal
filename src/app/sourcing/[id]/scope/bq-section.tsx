@@ -4,6 +4,7 @@ import { ClipboardIcon, FileIcon, FilesIcon, ScaleIcon, ShieldIcon, SlidersIcon,
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import type { bqTab } from "@/lib/scope/read";
@@ -50,13 +51,14 @@ export function BqSection({ d }: { d: Data }) {
   return (
     <div className="flex flex-col gap-6">
       {d.readOnly && (
-        <Callout tone="info" title="Earlier record">
-          Kept as recorded. The bill is an uploaded file under Tender documents.
-        </Callout>
+        <p className="text-[13px] text-ink-2">Earlier record. Kept as recorded. The bill is an uploaded file under Tender documents.</p>
       )}
-      <Callout tone="neutral" title="Priced figures are SULIT">{d.statement}</Callout>
+      <p className="flex items-center gap-2 text-[13px] text-ink-2">
+        <InfoChip tone="warn" detail={d.statement} label="About SULIT">SULIT</InfoChip>
+        Priced figures
+      </p>
       {d.finalised && draft && (
-        <Callout tone="info">Version {d.finalised.versionNo} is finalised and stands until this draft is finalised.</Callout>
+        <p className="text-[13px] text-ink-2">Version {d.finalised.versionNo} stands until this draft is finalised.</p>
       )}
 
       {v.stats.incompleteLines > 0 && <Callout tone="warn">{v.stats.incompleteLines === 1 ? "1 line is" : `${v.stats.incompleteLines} lines are`} not complete yet: each needs a quantity or a sum, and a rate.</Callout>}

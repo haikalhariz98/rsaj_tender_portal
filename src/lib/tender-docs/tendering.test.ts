@@ -149,7 +149,7 @@ describe("the approving step's form where a frozen notice states the validity wi
     const w = decisionWindow({ startOn: "2026-10-08", closingDay: "2026-10-22" })!;
     expect(w.startText).toBe("08 Oct 2026, as the notice states");
     expect(w.closingText).toBe("22 Oct 2026, as the notice states");
-    expect(w.note).toMatch(/approving records exactly these days/);
+    expect(w.note).toMatch(/Approving records these days/); // 0005, founder 2026-10-19
     // What the form posts is what the rule accepts; any other day is refused.
     expect(frozenWindowFault({ startOn: "2026-10-08", closingDay: "2026-10-22" }, { startOn: w.startOn, closingDay: w.closingDay })).toBeNull();
     expect(frozenWindowFault({ startOn: "2026-10-08", closingDay: "2026-10-22" }, { startOn: "2026-10-09", closingDay: w.closingDay })?.code).toBe("DATES_DIFFER_FROM_DOCUMENTS");
