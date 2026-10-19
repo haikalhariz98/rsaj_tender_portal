@@ -1,11 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import type { Tx } from "@/lib/audit/record";
 
 import { lockDelegation, LOCKED_DELEGATION_SELECT } from "./lock";
+import { posixRelative } from "@/lib/scan/files";
 
 /**
  * BD-DS-16 as ruled (2026-10-01): both delegation attach paths — `saveDelegation`
@@ -146,7 +147,7 @@ describe("the legacy mark is never written by the application (source scan)", ()
   const files = (dir: string): string[] =>
     readdirSync(dir).flatMap((n) => {
       const p = join(dir, n);
-      const rel = relative(ROOT, p).replace(/\\/g, "/");
+      const rel = posixRelative(ROOT, p);
       if (statSync(p).isDirectory()) return rel === "src/generated" ? [] : files(p);
       return /\.(ts|tsx)$/.test(n) && !/\.test\.ts$/.test(n) ? [rel] : [];
     });

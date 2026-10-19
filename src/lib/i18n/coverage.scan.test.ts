@@ -12,6 +12,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { NOT_YET_CONVERTED, SCREEN_COVERAGE } from "./coverage";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 const APP = path.resolve(__dirname, "../../app");
 
@@ -32,7 +33,7 @@ function staffRouteOf(relative: string): string | null {
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {
     const full = path.join(dir, n);
-    return statSync(full).isDirectory() ? walk(full) : n === "page.tsx" ? [full] : [];
+    return statSync(full).isDirectory() ? walk(full) : n === "page.tsx" ? [toPosix(full)] : [];
   });
 
 describe("staffRouteOf", () => {
@@ -80,7 +81,7 @@ const REDIRECT_ONLY: Readonly<Record<string, string>> = {
 
 describe("the coverage lists match the staff screens", () => {
   const walked = walk(APP)
-    .map((f) => staffRouteOf(path.relative(APP, f).split(path.sep).join("/")))
+    .map((f) => staffRouteOf(posixRelative(APP, f)))
     .filter((r): r is string => r !== null)
     .sort();
 

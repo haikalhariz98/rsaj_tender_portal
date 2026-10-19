@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { SITTING_TABLED_MATTER_KINDS } from "@/lib/committee/labels";
+import { posixRelative } from "@/lib/scan/files";
 
 /**
  * 62-C1 / BD-62-28: a SCOPE matter is judged under the committee of its sitting and the act
@@ -28,10 +29,10 @@ function sources(dir: string): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) {
-      if (relative(ROOT, p).replace(/\\/g, "/") === "src/generated") continue;
+      if (posixRelative(ROOT, p) === "src/generated") continue;
       out.push(...sources(p));
     } else if (/\.(ts|tsx)$/.test(name) && !/\.test\.ts$/.test(name)) {
-      out.push(relative(ROOT, p).replace(/\\/g, "/"));
+      out.push(posixRelative(ROOT, p));
     }
   }
   return out;

@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { toPosix } from "@/lib/scan/files";
 import { isServerModule, lex, rawCallText, rawCalls } from "@/lib/scan/source";
 
 /**
@@ -20,7 +21,7 @@ import { isServerModule, lex, rawCallText, rawCalls } from "@/lib/scan/source";
  * the writers it calls) is a site; (d) a committee's outcome on a variation's matter asks VARIATION's row.
  */
 
-const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : [join(dir, n)]));
+const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : [toPosix(join(dir, n))]));
 
 /// Contract and every model whose required relations lead to it (a nullable link, such as a route's, does not own).
 function contractOwnedModels(schema: string): Set<string> {
@@ -65,7 +66,7 @@ function importsOf(file: string, src: string, known: ReadonlySet<string>): Map<s
   const out = new Map<string, string | null>();
   for (const m of src.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+"([^"]+)"/g)) {
     const spec = m[2];
-    const base = spec.startsWith("@/") ? `src/${spec.slice(2)}` : spec.startsWith(".") ? join(file, "..", spec) : null;
+    const base = spec.startsWith("@/") ? `src/${spec.slice(2)}` : spec.startsWith(".") ? toPosix(join(file, "..", spec)) : null;
     const target = base ? ([".ts", ".tsx", "/index.ts"].map((e) => base + e).find((p) => known.has(p)) ?? null) : null;
     for (const part of m[1].split(",")) {
       const names = part.replace(/^\s*type\s+/, "").trim().split(/\s+as\s+/);

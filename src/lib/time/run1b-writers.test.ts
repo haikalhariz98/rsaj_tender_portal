@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { lex, rawCallText, rawCalls, spans } from "@/lib/scan/source";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 6.13 Part B run 1b (design note §9): each new table has its named writers, file#function, and no other code writes it.
@@ -86,7 +87,7 @@ function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
     if (rel === path.normalize("src/generated")) return [];
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.(m?[jt]sx?)$/.test(f) && !/\.test\.tsx?$/.test(f) ? [rel] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.(m?[jt]sx?)$/.test(f) && !/\.test\.tsx?$/.test(f) ? [toPosix(rel)] : [];
   });
 }
 
@@ -109,7 +110,7 @@ describe("the writer scan's self-test", () => {
 });
 
 describe("one named writer per run 1b table (design note §9)", () => {
-  const all = [...files("src"), ...files("prisma"), ...files("scripts")].flatMap((f) => writesOf(f.split(path.sep).join("/"), readFileSync(path.join(ROOT, f), "utf8")));
+  const all = [...files("src"), ...files("prisma"), ...files("scripts")].flatMap((f) => writesOf(f, readFileSync(path.join(ROOT, f), "utf8")));
   it("every write to a run 1b table is in a writer the design note names", () => {
     expect(all.filter((w) => w.model === UNREADABLE || !WRITERS[w.model].includes(w.at)).map((w) => `${w.model} ${w.at}`)).toEqual([]);
   });

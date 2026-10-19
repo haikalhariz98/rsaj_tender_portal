@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * Product owner, 2026-10-06 (ruling 5b): every application on the register names the officer who recorded
@@ -12,7 +13,7 @@ import { describe, expect, it } from "vitest";
  */
 
 const ROOT = process.cwd();
-const slash = (p: string) => p.split(path.sep).join("/");
+const slash = (p: string) => toPosix(p);
 
 function walk(dir: string): string[] {
   const out: string[] = [];

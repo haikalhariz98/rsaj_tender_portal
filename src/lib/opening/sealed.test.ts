@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { ACTIVITY_ENTITIES } from "@/lib/dashboard/activity";
 
 import { OPENING_ENTITIES } from "./audit-view";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * ADR 0017, C-4, FR-OPN-011 by source scan:
@@ -25,7 +26,7 @@ function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return name === "generated" ? [] : files(path);
-    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [toPosix(path)] : [];
   });
 }
 const sources = files(join(root, "src")).map((p) => ({ path: relative(root, p), text: readFileSync(p, "utf8") }));

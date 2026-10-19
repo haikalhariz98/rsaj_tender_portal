@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * `open.ts` is the only way out of a seal for code outside `src/lib/sealing/` (ADR 0036 D12, build plan step 4; step 19 widens this into the product-wide scan).
@@ -15,10 +16,10 @@ function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) return name === "generated" || name === "node_modules" ? [] : files(p);
-    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [p] : [];
+    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [toPosix(p)] : [];
   });
 }
-const sources = [...files(join(root, "src")), ...files(join(root, "prisma"))].map((p) => ({ path: relative(root, p).split(sep).join("/"), text: readFileSync(p, "utf8") }));
+const sources = [...files(join(root, "src")), ...files(join(root, "prisma"))].map((p) => ({ path: posixRelative(root, p), text: readFileSync(p, "utf8") }));
 const SEALING = "src/lib/sealing/";
 
 describe("every decryption outside the sealing module goes through open.ts", () => {

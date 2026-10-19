@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { lex } from "@/lib/scan/source";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * BD-613-102 (T37 of run 1b's ruling trace): the spec's figures (2 weeks, 28 and 14 days, four weeks, 120 days, 5%, 24
@@ -18,8 +19,8 @@ import { lex } from "@/lib/scan/source";
  */
 
 const ROOT = process.cwd();
-const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(path.join(dir, n)).isDirectory() ? walk(path.join(dir, n)) : [path.join(dir, n)]));
-const RUN1B_LAD = ["basis.ts", "credit.ts", "segments.ts", "waiver.ts", "accrual.ts", "scopes.ts", "frozen.ts"].map((f) => path.join("src/lib/lad", f));
+const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(path.join(dir, n)).isDirectory() ? walk(path.join(dir, n)) : [toPosix(path.join(dir, n))]));
+const RUN1B_LAD = ["basis.ts", "credit.ts", "segments.ts", "waiver.ts", "accrual.ts", "scopes.ts", "frozen.ts"].map((f) => toPosix(path.join("src/lib/lad", f)));
 const FILES = [...walk("src/lib/time"), "src/lib/matter/matter.ts", ...RUN1B_LAD].filter((f) => /\.ts$/.test(f) && !/\.test\.ts$/.test(f) && !/labels\.ts$/.test(f)).filter((f) => {
   try {
     return statSync(path.join(ROOT, f)).isFile();

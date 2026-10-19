@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * X-2: the exercise's closing has two writers in the product — 6.4's approving step and,
@@ -27,12 +28,12 @@ const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => {
     const p = join(dir, f);
     if (statSync(p).isDirectory()) return f === "generated" ? [] : walk(p);
-    return /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [p] : [];
+    return /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [toPosix(p)] : [];
   });
 const FILES = walk(join(ROOT, "src"));
 /// The demo loader's own files (never its migrations: the column's DDL is not a write).
-const PRISMA_FILES = readdirSync(join(ROOT, "prisma")).filter((f) => /\.ts$/.test(f)).map((f) => join(ROOT, "prisma", f));
-const rel = (f: string) => relative(ROOT, f).replace(/\\/g, "/");
+const PRISMA_FILES = readdirSync(join(ROOT, "prisma")).filter((f) => /\.ts$/.test(f)).map((f) => toPosix(join(ROOT, "prisma", f)));
+const rel = (f: string) => posixRelative(ROOT, f);
 
 /// Every call matching `re`, with its whole argument text, and the function it sits in.
 function calls(src: string, re: RegExp): { text: string; within: string }[] {
@@ -59,7 +60,7 @@ const writersOf = (re: RegExp, field: RegExp) =>
     const src = readFileSync(f, "utf8");
     return calls(src, re)
       .filter((c) => field.test(c.text) && !/^\s*(export\s+)?async function moveExercise/.test(c.text))
-      .map((c) => `${relative(ROOT, f).replace(/\\/g, "/")}#${c.within}`);
+      .map((c) => `${posixRelative(ROOT, f)}#${c.within}`);
   }).filter((w) => !w.startsWith("src/lib/method/move.ts#"));
 
 describe("X-2: who writes the closing", () => {

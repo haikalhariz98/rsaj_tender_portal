@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Ruling 20t (step 15): FINALISE grants are read only by the online finalise. The download route serves OPENING_CHECK grants alone, and is the only other door that opens a grant, with the use written
@@ -13,9 +14,9 @@ const files = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) return files(p);
-    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [p] : [];
+    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [toPosix(p)] : [];
   });
-const sources = files(join(root, "src")).filter((p) => !p.includes(`${sep}generated${sep}`)).map((p) => ({ path: relative(root, p).split(sep).join("/"), text: readFileSync(p, "utf8") }));
+const sources = files(join(root, "src")).filter((p) => !p.includes("/generated/")).map((p) => ({ path: posixRelative(root, p), text: readFileSync(p, "utf8") }));
 
 describe("FINALISE grants are read only by finaliseOnline (20t)", () => {
   it("only the download route and the finalise's own store open a grant", () => {

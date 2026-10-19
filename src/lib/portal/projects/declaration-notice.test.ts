@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { SUBMISSION_KIND_HINT, SUBMISSION_KIND_WORDS } from "./labels";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Decisions log, 2026-10-09, ruling on 1924(K) (spec line 3278, Statutory Declarations Act 1960): what the contractor sends from the portal is its NOTICE that the statutory declaration is lodged. It is
@@ -14,7 +15,7 @@ const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {
     const p = path.join(dir, n);
     if (statSync(p).isDirectory()) return n === "generated" ? [] : walk(p);
-    return /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [p] : [];
+    return /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [toPosix(p)] : [];
   });
 
 describe("the portal's declaration is a notice", () => {
@@ -31,7 +32,7 @@ describe("the portal's declaration is a notice", () => {
         const src = readFileSync(f, "utf8");
         return /declarationBlocking/.test(src) && /contractorSubmission|ContractorSubmission/.test(src);
       })
-      .map((f) => path.relative(process.cwd(), f).split(path.sep).join("/"));
+      .map((f) => posixRelative(process.cwd(), f));
     expect(readers).toEqual([]);
   });
 });

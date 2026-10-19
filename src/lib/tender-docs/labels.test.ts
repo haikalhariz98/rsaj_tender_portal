@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -13,6 +13,7 @@ import { ASSURANCE_KINDS } from "./assurance";
 import { appendixCardOf, appendixHintsByCard, appendixFaultText, appendixHref, findingHref, findingsSummary, IF_REFUSED_TEXT, TENDERING_STATE_LABEL, tenderingStepLabel, tenderingRouteTone, tenderingStepTone, behaviourFaultText, datesFaultText, PACK_KIND_LABEL, PACK_STATUS_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, PART_STATE_LABEL, partFaultText, periodText, trailLabel, routeFaultText, startFaultText, tenderingRouteLabel } from "./labels";
 import { APPENDIX_FIELD_LABEL } from "./appendix";
 import { PACK_KINDS, PACK_PART_STATES, PART_CONTENTS, PART_ROLES, PART_SOURCES, TENDER_PACK_STATUSES } from "./types";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Codes never reach a screen (AGENTS.md rule 5): every value and finding has words, the
@@ -89,14 +90,14 @@ describe("restriction and stamp wording comes from configuration, never a custom
       readdirSync(d).flatMap((x) => {
         const p = join(d, x);
         if (statSync(p).isDirectory()) return x === "generated" ? [] : walk(p);
-        return /\.(ts|tsx)$/.test(x) && !/\.test\.tsx?$/.test(x) ? [p] : [];
+        return /\.(ts|tsx)$/.test(x) && !/\.test\.tsx?$/.test(x) ? [toPosix(p)] : [];
       });
     const all = [...walk(join(root, "src")), ...walk(join(root, "prisma"))];
     // The stamp's words, anywhere.
-    expect(all.filter((p) => /untuk\s+bumiputera\s+sahaja|for\s+bumiputera\s+only/i.test(readFileSync(p, "utf8"))).map((p) => relative(root, p))).toEqual([]);
+    expect(all.filter((p) => /untuk\s+bumiputera\s+sahaja|for\s+bumiputera\s+only/i.test(readFileSync(p, "utf8"))).map((p) => posixRelative(root, p))).toEqual([]);
     // The restriction itself, anywhere the tender documents are made: it is configuration.
-    const tenderDocs = all.filter((p) => /src\/lib\/tender-docs|src\/app\/sourcing|configuration\/tender-documents|demo-tender-docs/.test(relative(root, p)));
-    expect(tenderDocs.filter((p) => /bumiputera/i.test(readFileSync(p, "utf8"))).map((p) => relative(root, p))).toEqual([]);
+    const tenderDocs = all.filter((p) => /src\/lib\/tender-docs|src\/app\/sourcing|configuration\/tender-documents|demo-tender-docs/.test(posixRelative(root, p)));
+    expect(tenderDocs.filter((p) => /bumiputera/i.test(readFileSync(p, "utf8"))).map((p) => posixRelative(root, p))).toEqual([]);
   });
 });
 

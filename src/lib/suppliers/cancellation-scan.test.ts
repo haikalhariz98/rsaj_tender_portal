@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { closing, enclosingFn, lex, rawCallText, rawCalls, spans } from "@/lib/scan/source";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 615-C2 (BD-613-91): one writer of a registration cancelled, held by a source scan. Standing events are append-only
@@ -23,12 +24,12 @@ import { closing, enclosingFn, lex, rawCallText, rawCalls, spans } from "@/lib/s
 /// A test helper, not product code: it writes the closing, a supplier and the exercise through raw SQL to stand a scenario up, and only the database tests import it (wave 3c step 4).
 const TEST_ONLY_FIXTURE = "online-opening.fixture.ts";
 const ROOT = path.join(__dirname, "../../..");
-const ACTS = path.normalize("src/app/suppliers/standing-actions.ts");
+const ACTS = toPosix(path.normalize("src/app/suppliers/standing-actions.ts"));
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
     if (rel === path.normalize("src/generated")) return [];
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [rel] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [toPosix(rel)] : [];
   });
 }
 const SOURCES = [...files("src/app"), ...files("src/lib"), ...files("prisma")].map((file) => ({ file, src: readFileSync(path.join(ROOT, file), "utf8") }));
@@ -172,8 +173,8 @@ describe("one writer of a registration cancelled (615-C2), standing events appen
         `${ACTS} › recordFromRequest · standingEvent.create BLACKLIST_LIFT`,
         `${ACTS} › recordRegistrationCancelled · standingEvent.create REGISTRATION_CANCELLED`,
         `${ACTS} › withdrawRegistrationCancelled · standingEvent.updateMany`,
-        `${path.normalize("prisma/demo-suppliers.ts")} › suspend · standingEvent.create SUSPEND`,
-        `${path.normalize("prisma/demo-suppliers.ts")} › recordBlacklisting · standingEvent.create BLACKLIST`,
+        `${toPosix(path.normalize("prisma/demo-suppliers.ts"))} › suspend · standingEvent.create SUSPEND`,
+        `${toPosix(path.normalize("prisma/demo-suppliers.ts"))} › recordBlacklisting · standingEvent.create BLACKLIST`,
         // Phase 1d (ADR 0034 D11): wipeSuppliersDemo's updateMany and deleteMany are gone with the retired demo wipe. Tightened, not weakened.
       ].sort(),
     );
@@ -192,7 +193,7 @@ describe("the scan catches each evasion (self-tests)", () => {
   const fn = (name: string, body: string) => `export async function ${name}(tx) {\n  ${body}\n}\n`;
   it("a cancellation created elsewhere, or by the demo", () => {
     expect(one(fn("suspendSupplier", `await tx.standingEvent.create({ data: { kind: "REGISTRATION_CANCELLED", cancellingBodyId: b } });`))).toEqual(["suspendSupplier · standingEvent.create REGISTRATION_CANCELLED · creates a registration cancelled outside its writer"]);
-    expect(one(fn("load", `await db.standingEvent.create({ data: { kind: "REGISTRATION_CANCELLED" } });`), path.normalize("prisma/demo-suppliers.ts"))).toEqual(["load · standingEvent.create REGISTRATION_CANCELLED · creates a registration cancelled outside its writer"]);
+    expect(one(fn("load", `await db.standingEvent.create({ data: { kind: "REGISTRATION_CANCELLED" } });`), toPosix(path.normalize("prisma/demo-suppliers.ts")))).toEqual(["load · standingEvent.create REGISTRATION_CANCELLED · creates a registration cancelled outside its writer"]);
   });
   it("a kind not a literal, a spread, data in a variable, a createMany", () => {
     expect(one(fn("x", "await tx.standingEvent.create({ data: { kind } });"))).toEqual(["x · standingEvent.create ? · kind not a literal"]);

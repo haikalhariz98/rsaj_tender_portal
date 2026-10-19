@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * FR-CON-002 and ADR 0007 (Award and Contract Requirements v2, C-3 and AC-20; wave C step C11): `issueAward` is the only code that creates a Contract row. The
@@ -23,7 +24,7 @@ function walk(dir: string): string[] {
     if (statSync(p).isDirectory()) {
       if (name === "node_modules" || name === ".next" || name === "generated" || name === "migrations") continue;
       out.push(...walk(p));
-    } else if (/\.(ts|tsx|mjs)$/.test(name)) out.push(p);
+    } else if (/\.(ts|tsx|mjs)$/.test(name)) out.push(toPosix(p));
   }
   return out;
 }
@@ -45,7 +46,7 @@ describe("issueAward is the only creator of a Contract row (FR-CON-002, ADR 0007
   it("finds no Contract write outside the issue act and the demonstration loader (tests build their own rows and are not the product)", () => {
     const hits: string[] = [];
     for (const f of files) {
-      const rel = relative(ROOT, f).split(sep).join("/");
+      const rel = posixRelative(ROOT, f);
       if (ALLOWED.includes(rel) || /\.test\.tsx?$/.test(rel)) continue;
       const text = stripComments(readFileSync(f, "utf8"));
       for (const w of WRITES) if (w.test(text)) hits.push(`${rel}: ${w}`);

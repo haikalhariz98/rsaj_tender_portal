@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { lex, rawCallText, rawCalls } from "@/lib/scan/source";
+import { posixRelative } from "@/lib/scan/files";
 
 /**
  * The sealed-figure rule, by source scan (OD-1, ADR 0012): one accessor reads the company
@@ -27,7 +28,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const files = [...walk("src"), ...walk("prisma")].map((f) => relative(root, join(root, f)).split(sep).join("/"));
+const files = [...walk("src"), ...walk("prisma")].map((f) => posixRelative(root, join(root, f)));
 const isTest = (f: string) => /\.test\.tsx?$/.test(f) || f.endsWith("/online-opening.fixture.ts"); // the fixture is a test helper that stands a scenario up through raw SQL (wave 3c step 4)
 
 /// Each raw call that names the versions table, or cannot be read, as "file · method · why" (read through rawCalls).

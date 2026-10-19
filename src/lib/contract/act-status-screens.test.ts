@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { toPosix } from "@/lib/scan/files";
+
 import { ACT_STATUS, actStatusBlocker, actStatusFault, actStatusText, CONTRACT_ACTS, type ContractAct } from "./act-status";
 import { CONTRACT_STATUSES } from "./types";
 
@@ -13,7 +15,7 @@ import { CONTRACT_STATUSES } from "./types";
  * the acts' words) and gates its drawers with it (ActGate), so a drawer with no blocker of its own is gated too.
  */
 
-const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : [join(dir, n)]));
+const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : [toPosix(join(dir, n))]));
 const TSX = walk("src").filter((f) => f.endsWith(".tsx") && !f.includes("/generated/"));
 
 /// Contract statuses no other enum in the product shares (ACTIVE, CLOSED and CANCELLED are shared, so they do not mark a list).
@@ -70,7 +72,7 @@ const constsOf = (src: string) => new Set([...src.matchAll(/^(?:export )?const (
 type Imported = { file: string | null; own: boolean; name: string };
 
 const targetOf = (file: string, spec: string, sources: Sources) => {
-  const base = spec.startsWith("@/") ? `src/${spec.slice(2)}` : spec.startsWith(".") ? join(file, "..", spec) : null;
+  const base = spec.startsWith("@/") ? `src/${spec.slice(2)}` : spec.startsWith(".") ? toPosix(join(file, "..", spec)) : null;
   const target = base ? ([".tsx", ".ts", "/index.tsx", "/index.ts"].map((e) => base + e).find((p) => sources.has(p)) ?? null) : null;
   return { own: base !== null, target };
 };

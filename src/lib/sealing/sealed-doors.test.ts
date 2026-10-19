@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { enclosingFn, lex, spans } from "@/lib/scan/source";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Wave 3b step 19 (build plan step 19, ADR 0036 D12): which code can take a seal apart, who may read the data keys the finalise needs, and what the sealed doors write to the
@@ -11,12 +12,12 @@ import { enclosingFn, lex, spans } from "@/lib/scan/source";
  */
 
 const root = process.cwd();
-const posix = (p: string) => relative(root, p).split(sep).join("/");
+const posix = (p: string) => posixRelative(root, p);
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return files(path);
-    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [toPosix(path)] : [];
   });
 }
 const sources = [...files(join(root, "src", "app")), ...files(join(root, "src", "lib"))].map((p) => ({ path: posix(p), text: readFileSync(p, "utf8") }));

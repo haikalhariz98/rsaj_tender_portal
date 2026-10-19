@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 // 614-C2: the one lexer every source scan shares (6.14 lifted it unchanged from this file).
 // Residual round (S-3a): isServerModule lives with the lexer, so the act-status scan reads server modules the same way.
 import { closing, enclosingFn, isServerModule, lex, rawCallText, rawCalls, spans } from "@/lib/scan/source";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * The canonical lock order for every post-award write (rulings, 6.12 conditions): Requisition →
@@ -37,7 +38,7 @@ function actions(src: string): Map<string, string> {
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [rel] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [toPosix(rel)] : [];
   });
 }
 
@@ -239,7 +240,7 @@ describe("single writers", () => {
     expect(writers.sort()).toEqual(["correctContractDate", "recordRsajSignature"]);
     // No other server action in the app writes it.
     for (const f of files("src/app")) {
-      if (f === path.normalize(ACTIONS)) continue;
+      if (f === toPosix(path.normalize(ACTIONS))) continue;
       const s = read(f);
       if (!s.startsWith('"use server"')) continue;
       expect(s, f).not.toMatch(/contractDate:/);
@@ -358,7 +359,7 @@ interface Write {
 /// `active` permits the one ACTIVE write (the possession act's); `reason` pins a baseline version's reason literal.
 type Allow = Readonly<Record<string, { ops: readonly string[]; spread?: RegExp; contractDate?: boolean; demo?: boolean; active?: boolean; reason?: string }>>;
 
-const P = (f: string) => path.normalize(f);
+const P = (f: string) => toPosix(path.normalize(f));
 const ACT = P(ACTIONS);
 const SUP = P(SUPERVISION);
 export const ALLOW: Allow = {

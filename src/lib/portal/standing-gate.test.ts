@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { portalStandingBar, standingBarFinding } from "./standing-gate";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 // Decisions log, 2026-10-09, ruling on 1875(3): a rejected, suspended or blacklisted supplier may sign in to read its own status; every act but reading is refused to it with the standing in words.
 
@@ -55,9 +56,9 @@ const ROOT = path.join(process.cwd(), "src/lib/portal");
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {
     const p = path.join(dir, n);
-    return statSync(p).isDirectory() ? walk(p) : /\.ts$/.test(n) && !/\.(test|fixture)\.ts$/.test(n) ? [p] : [];
+    return statSync(p).isDirectory() ? walk(p) : /\.ts$/.test(n) && !/\.(test|fixture)\.ts$/.test(n) ? [toPosix(p)] : [];
   });
-const rel = (f: string) => path.relative(process.cwd(), f).split(path.sep).join("/");
+const rel = (f: string) => posixRelative(process.cwd(), f);
 
 /// The stores that write for a signed-in supplier and ask the standing before they do. Each is held to the call below.
 const GATED = [

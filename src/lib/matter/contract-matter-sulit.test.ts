@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { isSulitField, SULIT_FIELDS } from "@/lib/sulit-fields";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * Review S4 (6.13 Part B, Run 1a fix round): a contract matter's amount and ratio are SULIT wherever shown (a CONTRACT
@@ -34,9 +35,9 @@ describe("S4: the matter's amount and ratio, named for the registry", () => {
   it("each name is specific: no source outside the schema, the generated client and the matter's one writer uses it (the whole-word scan cannot misfire)", () => {
     // 6.13 Part B run 1b (flagged against run 1a, stricter): the matter's one writer (write.ts, markSent) is the only
     // product source that names them; "yet" became "only there".
-    const walk = (d: string): string[] => readdirSync(d).flatMap((n) => (statSync(path.join(d, n)).isDirectory() ? walk(path.join(d, n)) : [path.join(d, n)]));
+    const walk = (d: string): string[] => readdirSync(d).flatMap((n) => (statSync(path.join(d, n)).isDirectory() ? walk(path.join(d, n)) : [toPosix(path.join(d, n))]));
     const users = walk(path.join(ROOT, "src")).filter((f) => /\.tsx?$/.test(f) && !f.includes("/generated/") && !f.endsWith(".test.ts") && !f.endsWith("sulit-fields.ts")).filter((f) => NAMES.some((n) => new RegExp(`\\b${n}\\b`).test(readFileSync(f, "utf8"))));
-    expect(users).toEqual([path.join(ROOT, "src/lib/matter/write.ts")]);
+    expect(users).toEqual([toPosix(path.join(ROOT, "src/lib/matter/write.ts"))]);
   });
 
   it("the migration: the pre-check first, then the renames, then the shape CHECK restated under the new names", () => {

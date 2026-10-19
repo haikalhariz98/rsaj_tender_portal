@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { lex } from "@/lib/scan/source";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Who may write "paid", held by a source scan (SR-10, ruling 17 as amended by the founder; the Phase 4d scan that said "no other writer" is this one, widened):
@@ -23,10 +24,10 @@ const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {
     const p = path.join(dir, n);
     if (statSync(p).isDirectory()) return n === "migrations" || n === "node_modules" || p.includes(`${path.sep}generated${path.sep}`) ? [] : walk(p);
-    return SOURCE.test(n) && !/\.test\.[a-z]+$/.test(n) ? [p] : [];
+    return SOURCE.test(n) && !/\.test\.[a-z]+$/.test(n) ? [toPosix(p)] : [];
   });
 // SEC / S8: the scan walks prisma/ (the demo loaders) and scripts/ as well as src/, because a loader or a script writes with the same client.
-const FILES = ROOTS.flatMap(walk).map((f) => ({ file: path.relative(process.cwd(), f).split(path.sep).join("/"), src: lex(readFileSync(f, "utf8")), code: lex(readFileSync(f, "utf8"), { only: "comments" }), raw: readFileSync(f, "utf8") }));
+const FILES = ROOTS.flatMap(walk).map((f) => ({ file: posixRelative(process.cwd(), f), src: lex(readFileSync(f, "utf8")), code: lex(readFileSync(f, "utf8"), { only: "comments" }), raw: readFileSync(f, "utf8") }));
 const filesMatching = (re: RegExp) => FILES.filter((f) => re.test(f.src)).map((f) => f.file).sort();
 
 const PAID = "src/lib/portal/bids/purchase-paid.ts";

@@ -2,6 +2,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { toPosix } from "@/lib/scan/files";
+
 import { MATTER_KINDS, type MatterKind } from "./labels";
 import { MATTER_AMOUNT_SULIT, matterAmountIsSulit, SULIT_AMOUNT_KINDS, surfaceChipsAmounts } from "./matter-amount";
 import { TABLE_PREFILL_KEYS, tablePrefillFromQuery, tablingQuery } from "./table-prefill";
@@ -47,7 +49,7 @@ function screens(dir: string): string[] {
   return readdirSync(join(root, dir)).flatMap((name) => {
     const p = join(dir, name);
     if (statSync(join(root, p)).isDirectory()) return screens(p);
-    return /\.tsx$/.test(name) ? [p] : [];
+    return /\.tsx$/.test(name) ? [toPosix(p)] : [];
   });
 }
 /// A function's body, from its declaration to the first line that closes it.

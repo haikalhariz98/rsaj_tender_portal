@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -16,6 +16,7 @@ import {
 import { SPEC_METHODS } from "./fixture";
 import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN, type Method } from "./types";
 import { NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Ruling X-5: an exercise's own routes are told apart by domain, never by `awardId`
@@ -96,9 +97,9 @@ describe("no exercise-route reader filters on awardId alone (source scan, ruling
     readdirSync(dir).flatMap((f) => {
       const p = join(dir, f);
       if (statSync(p).isDirectory()) return f === "generated" || f === "node_modules" ? [] : walk(p);
-      return /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) ? [p] : [];
+      return /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) ? [toPosix(p)] : [];
     });
-  const files = [...walk(join(ROOT, "src")), ...readdirSync(join(ROOT, "prisma")).filter((f) => /\.ts$/.test(f)).map((f) => join(ROOT, "prisma", f))];
+  const files = [...walk(join(ROOT, "src")), ...readdirSync(join(ROOT, "prisma")).filter((f) => /\.ts$/.test(f)).map((f) => toPosix(join(ROOT, "prisma", f)))];
   const text = (p: string) => readFileSync(p, "utf8");
 
   // Where `awardId: null` may stand without a domain, and why. The two that stood here were the demo wipe's safety nets
@@ -131,7 +132,7 @@ describe("no exercise-route reader filters on awardId alone (source scan, ruling
   it("every `awardId: null` filter names a domain in the same object, or is an allowed wipe net", () => {
     const offenders: string[] = [];
     for (const f of files) {
-      const rel = relative(ROOT, f).split(sep).join("/");
+      const rel = posixRelative(ROOT, f);
       const src = text(f);
       for (const hit of src.matchAll(/awardId:\s*(null|\{\s*equals:\s*null)/g)) {
         const obj = enclosing(src, hit.index!);
@@ -157,7 +158,7 @@ describe("no exercise-route reader filters on awardId alone (source scan, ruling
     const SPLIT = /(nameRoutesOf|tenderingRoutesOf|windowChangeRoutesOf|exerciseRoutesOf|routesByDomain)\(\s*(?:\w+\.)?$/;
     const offenders: string[] = [];
     for (const f of files) {
-      const rel = relative(ROOT, f).split(sep).join("/");
+      const rel = posixRelative(ROOT, f);
       const src = text(f);
       const re = rel === "src/app/sourcing/page.tsx" ? /\b(?:ex|exercise|r)\.approvalInstances\b/g : /\b(?:ex|exercise)\.approvalInstances\b/g;
       for (const hit of src.matchAll(re)) {

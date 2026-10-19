@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { lex, rawCallText, rawCalls } from "@/lib/scan/source";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 6.13 Part B run 1a (ADR 0029, OD-B5 A, BD-613-73): a post-award matter decided on an approval route is one record,
@@ -61,7 +62,7 @@ function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
     if (rel === path.normalize("src/generated")) return [];
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [rel] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [toPosix(rel)] : [];
   });
 }
 
@@ -90,10 +91,10 @@ describe("the raw-write test (self-test, run 1b C3)", () => {
  * whole; a write through a client not named `tx`, `db` or `client` is still found (the delegate is matched on any
  * receiver); a `contractMatterId:` in a where clause fails closed (it is reported, and must be named here).
  */
-const WRITER_FILE = path.normalize("src/lib/matter/write.ts");
-const ROUTE_FILE = path.normalize("src/lib/matter/route-write.ts");
-const KEY_FILE = path.normalize("src/lib/matter/tabling.ts");
-const TABLING_ACTS = path.normalize("src/app/projects/[id]/matter-actions.ts");
+const WRITER_FILE = toPosix(path.normalize("src/lib/matter/write.ts"));
+const ROUTE_FILE = toPosix(path.normalize("src/lib/matter/route-write.ts"));
+const KEY_FILE = toPosix(path.normalize("src/lib/matter/tabling.ts"));
+const TABLING_ACTS = toPosix(path.normalize("src/app/projects/[id]/matter-actions.ts"));
 
 /// What one source does to ContractMatter that the rule restricts, after comments and strings are lexed out.
 function matterWritesOf(file: string, src: string): string[] {

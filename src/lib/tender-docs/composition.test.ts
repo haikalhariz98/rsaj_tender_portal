@@ -1,11 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { formLabel, resolveComposition } from "./composition";
 import { OMP005_QUOTATION_PARTS, SK001_TEMPLATE_NAMES, SK001_TENDER_PARTS } from "./sk001-fixture";
 import type { ConfiguredPart, ResolvedPart } from "./types";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * Plan 6.4 tests 1 and 2 (FR-DOC-001, 002, 013; FR-MTD-013), on RSAJ's part lists as a
@@ -112,10 +113,10 @@ describe("the RSAJ part lists stay a test fixture (Q-8)", () => {
       readdirSync(d).flatMap((f) => {
         const p = join(d, f);
         if (statSync(p).isDirectory()) return f === "generated" ? [] : walk(p);
-        return /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) ? [p] : [];
+        return /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) ? [toPosix(p)] : [];
       });
     const files = [...walk(join(root, "src")), ...walk(join(root, "prisma"))];
-    const offenders = files.filter((f) => /sk001-fixture/.test(readFileSync(f, "utf8"))).map((f) => relative(root, f));
+    const offenders = files.filter((f) => /sk001-fixture/.test(readFileSync(f, "utf8"))).map((f) => posixRelative(root, f));
     expect(offenders).toEqual([]);
   });
 });

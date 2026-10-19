@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * 6.12 re-review (consider items, scans):
@@ -15,7 +16,7 @@ const ROOT = path.join(__dirname, "../../..");
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [rel] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [toPosix(rel)] : [];
   });
 }
 const SOURCES = [...files("src/app"), ...files("src/lib"), ...files("prisma")].map((file) => ({ file, src: readFileSync(path.join(ROOT, file), "utf8") }));
@@ -37,7 +38,7 @@ export function oldCorrectionKeys(src: string): string[] {
 
 describe("the baseline's version is read through baselineFor or latestVersion only", () => {
   it("no hand-written latest-version read anywhere (src/app, src/lib, prisma)", () => {
-    const bad = SOURCES.filter((s) => s.file !== path.normalize("src/lib/contract/baseline.ts")).flatMap((s) => handWrittenVersionReads(s.src).map((x) => `${s.file}: ${x}`));
+    const bad = SOURCES.filter((s) => s.file !== toPosix(path.normalize("src/lib/contract/baseline.ts"))).flatMap((s) => handWrittenVersionReads(s.src).map((x) => `${s.file}: ${x}`));
     expect(bad).toEqual([]);
   });
   it("self-test: the forms it catches", () => {

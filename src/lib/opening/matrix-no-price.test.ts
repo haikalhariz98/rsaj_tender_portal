@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { lex } from "@/lib/scan/source";
+import { toPosix } from "@/lib/scan/files";
 
 /**
  * Wave 3c plan §4.3 (wave 3b §3): the matrix holds no price, no completion period and no declared figure. Neither the read model nor the matrix components select or name them, so a figure cannot reach
@@ -13,7 +14,7 @@ import { lex } from "@/lib/scan/source";
 const FORBIDDEN = /\b(?:priceAsRead|completionPeriod|completionUnit|openingPrice|correctedPrice|periodValue|periodUnit)\b|declar\w*/i;
 const root = process.cwd();
 const opening = join(root, "src", "app", "sourcing", "[id]", "opening");
-const components = existsSync(opening) ? readdirSync(opening).filter((f) => /^matrix[\w-]*\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f)).map((f) => join("src", "app", "sourcing", "[id]", "opening", f)) : [];
+const components = existsSync(opening) ? readdirSync(opening).filter((f) => /^matrix[\w-]*\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f)).map((f) => toPosix(join("src", "app", "sourcing", "[id]", "opening", f))) : [];
 const FILES = ["src/lib/opening/matrix.ts", "src/lib/opening/matrix-read.ts", "src/lib/opening/matrix-store.ts", ...components];
 
 describe("the matrix holds no price, period or declared figure", () => {

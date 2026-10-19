@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 /**
  * AC-23 (wave C step C9): after the case list and the redirects, nothing builds an `/awards` address of its own. Every link to an
@@ -23,7 +24,7 @@ function walk(dir: string): string[] {
     if (statSync(p).isDirectory()) {
       if (name === "node_modules" || name === ".next" || name === "generated") continue;
       out.push(...walk(p));
-    } else if (/\.(ts|tsx|mjs)$/.test(name)) out.push(p);
+    } else if (/\.(ts|tsx|mjs)$/.test(name)) out.push(toPosix(p));
   }
   return out;
 }
@@ -48,7 +49,7 @@ describe("no code builds an /awards address (AC-23)", () => {
   it("finds no /awards literal outside the redirect pages, the print pages and the print links", () => {
     const hits: string[] = [];
     for (const f of files) {
-      const rel = relative(ROOT, f).split(sep).join("/");
+      const rel = posixRelative(ROOT, f);
       if (ALLOWED_FILES.includes(rel) || rel.startsWith("src/app/awards/[id]/print/")) continue;
       // Tests may name an old address to prove it still works.
       if (/\.test\.tsx?$/.test(rel)) continue;
@@ -62,7 +63,7 @@ describe("no code builds an /awards address (AC-23)", () => {
   });
   it("the redirect pages are the only pages left under /awards besides the print views", () => {
     const pages = walk(join(ROOT, "src/app/awards"))
-      .map((f) => relative(ROOT, f).split(sep).join("/"))
+      .map((f) => posixRelative(ROOT, f))
       .filter((f) => /\/(page|route)\.tsx?$/.test(f))
       .sort();
     expect(pages).toEqual(["src/app/awards/[id]/page.tsx", "src/app/awards/[id]/print/[kind]/page.tsx", "src/app/awards/new/page.tsx", "src/app/awards/page.tsx"]);

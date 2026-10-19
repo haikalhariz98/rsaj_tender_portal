@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -9,6 +9,7 @@ import type { BqLine } from "@/lib/scope/types";
 
 import { APPENDIX_GROUP_FIELDS, appendixComplete, appendixFieldErrors, appendixFaults, appendixGroupFields, awardTermsFrom, EMPTY_APPENDIX, firstInterimMinimum, insurancePeriodEnd, ladDaily, ladSuggestion, worksInsuredSum, type AppendixFacts } from "./appendix";
 import { formatPct, parsePct, pctOf } from "./percent";
+import { posixRelative, toPosix } from "@/lib/scan/files";
 
 const sen = parseSen;
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -90,10 +91,10 @@ describe("§8.6: LAD a day (Q-6)", () => {
   });
   it("the prototype's 0.1% default and 10% cap appear in no source file (§8.6)", () => {
     const root = join(process.cwd(), "src/lib/tender-docs");
-    const walk = (d: string): string[] => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]));
+    const walk = (d: string): string[] => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [toPosix(join(d, f))]));
     for (const f of walk(root).filter((p) => !/\.test\.ts$/.test(p))) {
       const text = readFileSync(f, "utf8");
-      expect(text, relative(root, f)).not.toMatch(/0\.1\s*%|\b0\.001\b|lad.{0,20}cap|cap.{0,20}10\s*%/i);
+      expect(text, posixRelative(root, f)).not.toMatch(/0\.1\s*%|\b0\.001\b|lad.{0,20}cap|cap.{0,20}10\s*%/i);
     }
   });
 });
