@@ -155,7 +155,8 @@ describe("a pre-issue case offers no contract stage action", () => {
       it(`${status} ${JSON.stringify(over)}`, () => {
         const steps = caseSteps(facts({ award: award(status, over) }));
         for (const k of ["before-signing", "signing", "project", "close-out"] as const) expect(step(steps, k).action).toBeNull();
-        expect(step(steps, "before-signing")).toMatchObject({ state: "waiting", next: "Opens once the award is issued" });
+        // AC-67: the words on Before signing are true of a stage that is open before issue.
+        expect(step(steps, "before-signing")).toMatchObject({ state: "waiting", next: "Conditions are checked once the award is issued" });
         expect(step(steps, "signing")).toMatchObject({ state: "waiting", next: "Opens once the award is issued" });
       });
     }

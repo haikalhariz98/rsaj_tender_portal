@@ -148,6 +148,8 @@ export class CaseFactsError extends Error {
 // ------------------------------------------------------------------ words
 
 const NOT_ISSUED_YET = "Opens once the award is issued";
+/// AC-67: this stage is open before issue for the award's conditions and bond requirement (AC-36), so it never says it is closed.
+const CONDITIONS_AFTER_ISSUE = "Conditions are checked once the award is issued";
 const RESTRICTED_AWARD = "The award stage is restricted to those named on its exercise";
 const RESTRICTED_CONDITIONS = "Adding and settling conditions is restricted; the contract's securities are shown";
 export const CLOSE_OUT_PARKED = "Parked until after go-live";
@@ -222,7 +224,7 @@ function awardStep(f: CaseFacts): Draft {
 
 function beforeSigningStep(f: CaseFacts): Draft {
   const b = f.beforeSigning;
-  if (!b) return { state: "waiting", next: NOT_ISSUED_YET, action: null };
+  if (!b) return { state: "waiting", next: CONDITIONS_AFTER_ISSUE, action: null };
   if (f.signing && SIGNED_CONTRACT_STATUSES.includes(f.signing.status)) return { state: "done", next: "The contract is signed", action: null };
   if (b.readiness?.ready) return { state: "done", next: "Every condition before signing is met", action: null };
   const outstanding = b.readiness?.items.find((i) => i.state !== "MET") ?? null;
