@@ -22,12 +22,6 @@ const ROUTES = [
   "/projects",
   "/suppliers",
   // "/documents" is a permanent redirect to /projects (MN-02, AC-16): no screen of its own.
-  "/supplier",
-  "/supplier/opportunities",
-  "/supplier/bids",
-  "/supplier/projects",
-  "/supplier/announcements",
-  "/supplier/company",
   "/configuration",
   "/configuration/organisation",
   "/configuration/approval-matrix",
@@ -64,6 +58,11 @@ const ROUTES = [
   ),
 ];
 
+// The supplier portal is another session: a staff cookie is refused there and the crawl would throw. Its screens are read only with a supplier session
+// (PEROLEHAN_SUPPLIER_COOKIE, see signed-in-fetch.mjs), and left out, with a line saying so, without one.
+const PORTAL_ROUTES = ["/supplier", "/supplier/opportunities", "/supplier/bids", "/supplier/projects", "/supplier/announcements", "/supplier/company"];
+const isPortal = (route) => route === "/supplier" || route.startsWith("/supplier/");
+
 // Text only, one line per block of text, whitespace collapsed. Class names and
 // structure are deliberately ignored: they are what a redesign changes.
 function lines(html) {
@@ -98,11 +97,12 @@ for (const [list, re] of [
   if (hit) ROUTES.push(hit[1], ...(list === "/projects" || list === "/committees" ? [] : [`${hit[1]}/edit`]));
 }
 
-ROUTES.push(...process.argv.slice(4));
+ROUTES.push(...(process.env.PEROLEHAN_SUPPLIER_COOKIE ? PORTAL_ROUTES : []), ...process.argv.slice(4));
+if (!process.env.PEROLEHAN_SUPPLIER_COOKIE) console.log("skipped the supplier portal's screens: set PEROLEHAN_SUPPLIER_COOKIE to read them");
 
 mkdirSync(out, { recursive: true });
 for (const route of ROUTES) {
-  const res = await signedInFetch(base + route);
+  const res = await signedInFetch(base + route, { portal: isPortal(route) });
   const name = (route === "/" ? "dashboard" : route.slice(1)).replace(/[/?=]/g, "__") + ".txt";
   writeFileSync(join(out, name), `# ${route} (${res.status})\n` + lines(await res.text()));
   console.log(res.status, route);
