@@ -190,25 +190,25 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     return (
       <>
       {status === "CANCELLED" && (
-        <Callout tone="info" title="Cancelled">
+        <Callout tone="warn" title="Cancelled">
           {award.cancelReason || "No reason recorded."}
           {award.cancelConsequence && ` Consequence recorded: ${NON_COMMENCEMENT_LABEL[award.cancelConsequence].toLowerCase()}.`}
           {award.cancelConsequence === "CANCEL_AND_BLACKLIST" &&
             (award.standingRequests.length > 0
-              ? " Blacklisting was asked for from this award, on the supplier's record."
+              ? " Blacklisting was asked for."
               : award.vendor
-                ? <> Blacklisting is asked for on the supplier&apos;s record, where its route decides it: <Link href={`/suppliers/${award.vendor.id}?tab=standing&fromAward=${award.id}`}>ask for the blacklisting of {award.vendor.registeredName}</Link>.</>
-                : " Blacklisting is asked for on the supplier's record once the awardee is linked to the supplier register (from the supplier's record, Participation).")}
+                ? <> <Link href={`/suppliers/${award.vendor.id}?tab=standing&fromAward=${award.id}`}>Ask for the blacklisting of {award.vendor.registeredName}</Link>.</>
+                : " Link the awardee to the supplier register to ask for blacklisting.")}
         </Callout>
       )}
       {awardee?.warning && status !== "CANCELLED" && (
-        <Callout tone="warn" title="The awardee's supplier is barred on the register">
+        <Callout tone="warn" title="Awardee's supplier is barred">
           {awardee.warning.en}
         </Callout>
       )}
       {ev.commencement?.state === "LATE" && status === "ISSUED" && (
         <Callout tone="err" title="Work has not commenced">
-          The grace period ended on {formatDate(ev.commencement.deadline)}. The variant&apos;s consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. Cancelling records it; a blacklisting is then asked for on the supplier&apos;s record, where its route decides it. {told.get("COMMENCEMENT_LATE")}
+          The grace period ended on {formatDate(ev.commencement.deadline)}. Consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. {told.get("COMMENCEMENT_LATE")}
         </Callout>
       )}
       {ev.indent?.state === "EXPIRED" && issued && indentExpiryRaised(ev.indent, day(award.commencedOn), status) && (
@@ -305,19 +305,17 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       const headerNote =
         status === "DRAFT" && submitBlocks.length ? (
           <span>
-            <span className="font-semibold text-ink-2">Send for approval:</span> not yet — see what stops it, below.
+            <span className="font-semibold text-ink-2">Send for approval:</span> blocked, see below.
           </span>
         ) : status === "APPROVED" && !issueReady ? (
           <span>
-            <span className="font-semibold text-ink-2">Issue:</span> not yet — {issueShownCount === 1 ? "one thing below is" : `${issueShownCount} things below are`} not in place.
+            <span className="font-semibold text-ink-2">Issue:</span> blocked, {issueShownCount === 1 ? "one thing" : `${issueShownCount} things`} below.
           </span>
         ) : null;
       const callouts = (
         <>
           {!today && (
-            <Callout tone="warn" title="The organisation's time zone is not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>
-              Sending for approval, issuing and recording depend on today&apos;s date, which is not assumed to be UTC.
-            </Callout>
+            <Callout tone="warn" title="Time zone not set. Dates cannot be judged." action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>} />
           )}
           {status === "DRAFT" && submitBlocks.length > 0 && (
             <Callout tone="warn" title="Before it can go for approval">

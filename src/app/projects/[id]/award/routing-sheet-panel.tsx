@@ -37,17 +37,17 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
   const open = closed.length === 0;
   if (!rows.sheet) {
     const types = await db.routingSheetType.findMany({ where: { organisationId: l.org.id, subject: "AWARD", OR: [{ retiredOn: null }, ...(today ? [{ retiredOn: { gt: new Date(`${today}T00:00:00.000Z`) } }] : [])] }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], select: { id: true, labelEn: true } });
-    const blocker = !today ? "Set the organisation's time zone first." : !open ? refusalText("Not started:", closed) : types.length === 0 ? "No routing sheet type is drawn over an award's route: add one under Configuration › Routing sheets." : null;
+    const blocker = !today ? "Time zone not set. Set it under Configuration, Organisation." : !open ? refusalText("Not started:", closed) : types.length === 0 ? "No routing sheet type. Add one under Configuration › Routing sheets." : null;
     return (
       <Card>
         <CardHeader
           icon={<RouteIcon size={17} />}
           title={<Say words={P.routingSheet} />}
-          subtitle="The pre-award routing sheet around the appointment route: the day received, its internal checks, the route's own steps and the day approved, and the elapsed time against the sheet's target."
+         
           actions={
             <RecordEditor
               title="Start the routing sheet"
-              description="Freezes the chosen type, its checks and its targets on this award, as they stand today."
+              description="Freezes the type, checks and targets as they stand."
               fields={[hidden("id"), { kind: "select", name: "typeId", label: "Routing sheet", required: true, placeholder: "Choose", options: types.map((t) => ({ value: t.id, label: t.labelEn })) }]}
               values={{ id: award.id }}
               action={startAwardRoutingSheet}
@@ -57,7 +57,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
             />
           }
         />
-        <EmptyState size="sm" title="Not started">No routing sheet is kept for this award yet.</EmptyState>
+        <EmptyState size="sm" title="Not started" />
       </Card>
     );
   }
@@ -78,7 +78,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
         open ? (
           <RecordEditor
             title="The day received"
-            description="The day the document reached the routing sheet. It starts the internal clock. Not in the future, not after the first check is recorded, and not after the appointment route opened or anyone on it decided."
+            description="Starts the internal clock. Not in the future."
             fields={[hidden("id"), { kind: "date", name: "receivedOn", label: "Received on", required: true }]}
             values={{ id: award.id, receivedOn: received ?? today }}
             action={recordAwardRoutingReceived}
@@ -91,7 +91,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
       checkAction={(def) => (
         <RecordEditor
           title={def.labelEn}
-          description={def.officeLabel ? `Recorded for a holder of ${def.officeLabel} on the day (or a delegate of the whole office).` : "No office is set for this check on its type: any officer may be named, and the sheet says so."}
+          description={def.officeLabel ? `For a holder of ${def.officeLabel}, or a delegate.` : "No office set for this check. Any officer may be named."}
           fields={[hidden("id"), hidden("defOrder"), actorField("RoutingCheck.person", { name: "personId", people }), { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
           values={{ id: award.id, defOrder: String(def.order), on: today }}
           action={recordAwardRoutingCheck}

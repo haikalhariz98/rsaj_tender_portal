@@ -53,8 +53,8 @@ describe("the printed sheet's labels stay off the screens (S-2)", () => {
   // them and no longer says they are not built (its empty message too).
   it("the contract's Documents tab names no module number and says what raises a certificate (S-3)", () => {
     const src = code(read("src/app/projects/[id]/documents-panel.tsx"));
-    expect(src).toMatch(/A delegation to a representative raises its letters under Team; the advance payment, the interim payment certificates, the warning letter and the Certificate of Non-Completion are raised under Payments; a variation's application, the S\.O\.'s instruction, the Variation Order Certificate and the adjustments of the contract sum under Variations\./);
-    expect(src).toMatch(/None is raised on this contract\. A delegation under Team raises its letters; Payments raises the advance, interim, warning and non-completion certificates; Variations raises a variation's application, instruction and order, and the adjustments of the contract sum\./);
+    // The sentence moved into the information button, shortened (note 0005, founder 2026-10-19); it still says what raises a certificate.
+    expect(src).toMatch(/A delegation under Team raises its letters\. Payments raises the advance, interim, warning and non-completion certificates\. Variations raises a variation's application, instruction and order, and the adjustments of the contract sum\./);
     expect(src).not.toMatch(/not built yet/);
     expect(src).not.toMatch(/\b6\.1\d\b|post-award module/);
   });

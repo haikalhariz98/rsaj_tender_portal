@@ -54,7 +54,7 @@ describe("the awardee's standing on an award (fix S-3)", () => {
     const page = readFileSync(dir + "award-view.tsx", "utf8") + readFileSync(dir + "overview-panel.tsx", "utf8") + readFileSync(dir + "approval-panel.tsx", "utf8");
     expect(page).toMatch(/awardStanding\(vendorStanding\.reading, formatDate\)/);
     expect(page).toMatch(/label: "Standing on the register"/);
-    expect(page).toMatch(/Before a step is decided: the awardee's supplier is barred on the register/);
+    expect(page).toMatch(/Awardee's supplier is barred/); // shortened by note 0005, founder 2026-10-19
     expect(readFileSync("src/app/projects/new/award-form.tsx", "utf8")).toMatch(/The bidder's supplier is barred on the register/);
     expect(readFileSync("src/app/projects/new/page.tsx", "utf8")).toMatch(/partyRegister\(/);
     const acts = readFileSync("src/app/awards/actions.ts", "utf8");

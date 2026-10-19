@@ -150,7 +150,7 @@ describe("FR-MTD-009 with the document store: the dossier's evidence, counted an
     const ev = evaluateAward(facts({ method: direct, exercise: dossierEx, dossierEvidence: { count: 1, snapshot: null, withdrawnVersionIds: [] } }));
     const f = ev.issueFaults.find((x) => x.code === "EVIDENCE_NOT_SNAPSHOTTED")!;
     expect(f).toBeTruthy();
-    expect(awardFindingText(f)).toMatch(/Cancel this award and open it again/);
+    expect(awardFindingText(f)).toMatch(/Cancel and reopen this award/); // wording shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
   });
   it("a snapshotted version withdrawn since refuses issue, naming the document and cancel and reopen", () => {
     const ev = evaluateAward(facts({ method: direct, exercise: dossierEx, dossierEvidence: { count: 1, snapshot, withdrawnVersionIds: ["v1"] } }));

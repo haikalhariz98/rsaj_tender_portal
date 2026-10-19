@@ -46,7 +46,7 @@ describe("issuing after the opening", () => {
   it("Opened, the schedule's scan attached, the awardee carried: nothing more asked", () => expect(issue({ facts: facts(), awardeePartyId: "p1" })).toEqual([]));
   it("published but not opened: EXERCISE_NOT_OPEN, in the opening's words", () => {
     const f = issueFaults({ ...clear, exerciseStatus: "OPENING_IN_PROGRESS", opening: { facts: facts(), awardeePartyId: "p1" } }).find((x) => x.code === "EXERCISE_NOT_OPEN");
-    expect(awardFindingText(f!)).toMatch(/bids have not been opened, or its opening is not finalised/);
+    expect(awardFindingText(f!)).toMatch(/bids not opened or opening not finalised/i); // wording shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
   });
   it("the scan missing, an unexplained copy finding, an admitted late tender unopened", () => {
     expect(issue({ facts: facts({ openings: [{ kind: "MAIN", sequenceNo: 1, finalised: true, liveScans: 0, copyCheck: "MISMATCH", explained: false, admittedEnvelopeId: null }] }), awardeePartyId: "p1" })).toEqual(["SIGNED_SCHEDULE_NOT_ATTACHED", "ESTIMATE_COPY_UNEXPLAINED"]);
@@ -66,7 +66,7 @@ describe("issuing after the opening", () => {
 describe("opening the award and sending it for approval", () => {
   it("the open refusal names the opening once published", () => {
     expect(exerciseOpenForAward("OPENED", "QUOTATION", { phase: "CLOSED", changePending: false })).toBe(true);
-    expect(awardOpenRefusal("TENDER", "ADVERTISED", { phase: "CLOSED", changePending: false })).toMatch(/bids are opened and the opening's schedule is finalised/);
+    expect(awardOpenRefusal("TENDER", "ADVERTISED", { phase: "CLOSED", changePending: false })).toMatch(/opening not finalised/i); // shortened by note 0005, founder 2026-10-19
     expect(awardOpenRefusal("TENDER", "OPENING_IN_PROGRESS", { phase: "CLOSED", changePending: false })).toMatch(/Bids and opening/);
   });
   it("submission asks the openings too", () => {

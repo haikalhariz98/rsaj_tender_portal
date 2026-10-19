@@ -6,6 +6,7 @@ import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { SulitValue } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { KeyValues } from "@/components/ui/stat";
 import { ACCEPTANCE_FAULT_LABEL, RETURN_ITEM_LABEL, RETURN_SLOT_LABEL, returnScansText, WAITING_FOR_PAPER } from "@/lib/award/labels";
 import { type LoadedAward } from "@/lib/award/repo";
@@ -29,7 +30,7 @@ export function ReturnPanel({ sulit, l, ret, people }: { sulit: Sulit<true>; l: 
       <OwnerAttachments
         owner={{ kind: "award", id: award.id }}
         title="Scans of what came back"
-        subtitle="Each returned item counts toward the return, and toward acceptance, only with its signed scan attached."
+       
         required={Object.fromEntries(RETURN_SCANS[award.instrumentKind as InstrumentKind].map((p) => [p, scansAreRequired]))}
         labels={RETURN_SLOT_LABEL}
         statuses={ret && award.awardReturn ? Object.fromEntries(scansAwaitingPaper(award.instrumentKind as InstrumentKind, ret).map((p) => [p, { text: WAITING_FOR_PAPER, tone: "neutral" as const }])) : undefined}
@@ -45,9 +46,7 @@ async function ReturnRecordCard({ sulit, l, ret, people }: { sulit: Sulit<true>;
   if (!ret || !award.awardReturn) {
     return (
       <Card>
-        <EmptyState title="Nothing to return yet">
-          {loa ? "Once the Letter of Acceptance is issued, the awardee returns it signed with the successful bidder's declaration and a letter of authorisation." : "Once the appointment letter is issued, the contractor returns its acceptance page complete."}
-        </EmptyState>
+        <EmptyState title="Nothing to return yet" />
       </Card>
     );
   }
@@ -78,7 +77,7 @@ async function ReturnRecordCard({ sulit, l, ret, people }: { sulit: Sulit<true>;
           />
         ) : (
           <>
-            <Callout tone="info">The identity card number is SULIT. It is shown in full here, and only to the people entitled to it; everywhere else it is masked. {sulit.state === "WITHHELD" ? `It is withheld from you, so the return cannot be recorded or corrected by you: recording it would write the number. ${sulit.words.en}` : ""}</Callout>
+            {sulit.state === "WITHHELD" ? <Callout tone="warn">{`Withheld from you: you cannot record or correct the return. ${sulit.words.en}`}</Callout> : <div><InfoChip outline detail="The identity card number is SULIT. Shown in full only to those entitled; masked elsewhere.">SULIT</InfoChip></div>}
             <KeyValues
               columns={2}
               items={[

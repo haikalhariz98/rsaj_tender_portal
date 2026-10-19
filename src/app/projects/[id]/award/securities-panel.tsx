@@ -61,21 +61,21 @@ export function SecuritiesPanel({
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.performanceBond} />} subtitle="Decided for this contract: what it is a percentage of, the percentage and how long it must run. Never filled in for you." actions={!termsReadOnly && editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} label="Edit bond" tender={ev.appendix ? Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null> : null} /> : undefined} />
+        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.performanceBond} />} actions={!termsReadOnly && editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} label="Edit bond" tender={ev.appendix ? Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null> : null} /> : undefined} />
         <CardBody className="flex flex-col gap-5">
-          {termsReadOnly && <p className="text-[13px] text-ink-3">These terms are decided on the Award stage and are printed in the letter, so they are read-only here.</p>}
-          {ev.appendix && <p className="text-[13px] text-ink-2">The tender Appendix states no bond terms, so there is nothing to compare: the bond is decided for this contract.</p>}
+          {termsReadOnly && <p className="text-[13px] text-ink-3">Read-only here. Set on the Award stage.</p>}
+          {ev.appendix && <p className="text-[13px] text-ink-2">The tender Appendix states no bond terms.</p>}
           {award.bondRequired == null ? (
-            <Callout tone="warn" title="Not decided">Whether this contract needs a performance bond is not decided. Nothing is assumed.</Callout>
+            <Callout tone="warn" title="Bond requirement not decided" />
           ) : award.bondRequired === false ? (
-            <Callout tone="info" title="No bond required">{award.bondNotRequiredReason || "The reason is not recorded."} {award.bondBasisProvenance && <ProvenanceBadge value={award.bondBasisProvenance} />}</Callout>
+            <p className="flex flex-wrap items-center gap-2 text-[13.5px] text-ink-2"><span className="font-semibold text-ink">No bond required.</span> {award.bondNotRequiredReason || "Reason not recorded."} {award.bondBasisProvenance && <ProvenanceBadge value={award.bondBasisProvenance} />}</p>
           ) : ev.requiredBond.state === "NOT_SET" ? (
-            <Callout tone="warn" title="Bond basis not set">The procedure and the observed award pack give different bases. Choose what this contract&apos;s bond is a percentage of, and the percentage.</Callout>
+            <Callout tone="warn" title="Bond basis not set. Choose a basis and a percentage." />
           ) : null}
           {award.bondRequired !== false && (
           <div className="grid gap-4 md:grid-cols-3">
             <Stat variant="inset" size="sm" tone="neutral" label="Required amount" value={ev.requiredBond.state === "SET" ? formatMoney(ev.requiredBond.amount) : null} hint={award.bondBasis ? `${BOND_BASIS_LABEL[award.bondBasis]}${award.bondPercent ? `, ${pct(award.bondPercent)}` : ""}` : "Basis not set"} />
-            <Stat variant="inset" size="sm" tone="neutral" label="One-year value, as entered" value={award.bondBasisAmount && award.bondBasis === "ANNUAL_VALUE" ? money(award.bondBasisAmount) : null} hint={derived ? `Derived from the sum and period: ${formatMoney(derived)}. For comparison only.` : "No derived figure: the period is not in months."} />
+            <Stat variant="inset" size="sm" tone="neutral" label="One-year value, as entered" value={award.bondBasisAmount && award.bondBasis === "ANNUAL_VALUE" ? money(award.bondBasisAmount) : null} hint={derived ? `Derived from the sum and period: ${formatMoney(derived)}. For comparison only.` : "No derived figure."} />
             <Stat variant="inset" size="sm" tone="neutral" label="Must run until" value={ev.bondUntil ? formatDate(ev.bondUntil) : null} hint={award.bondValidityExtraMonths != null ? `Completion plus ${award.bondValidityExtraMonths} months.` : "Months past completion not set."} />
           </div>
           )}
@@ -88,9 +88,9 @@ export function SecuritiesPanel({
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.securitiesLodged} />} subtitle={c ? `On contract ${c.number}. Verified only against the approved issuers list${offsets.length ? `; expiry reminders at ${offsets.join(", ")} days, shown and not sent` : "; no expiry reminders are set"}.` : "Lodged on the contract, which exists once the instrument is issued."} actions={open ? <LodgeSecurityDrawer id={award.id} issuers={issuers} today={today} /> : undefined} divided={(c?.securities.length ?? 0) > 0} />
+        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.securitiesLodged} />} subtitle={c ? `Contract ${c.number}. ${offsets.length ? `Reminders at ${offsets.join(", ")} days.` : "No notification rule. Nobody is told."}` : undefined} actions={open ? <LodgeSecurityDrawer id={award.id} issuers={issuers} today={today} /> : undefined} divided={(c?.securities.length ?? 0) > 0} />
         {!c || c.securities.length === 0 ? (
-          <EmptyState size="sm" title="None lodged">{c ? "Lodge the performance bond when it is handed in." : "Nothing can be lodged before issue."}</EmptyState>
+          <EmptyState size="sm" title={c ? "None lodged" : "Lodge after issue"} />
         ) : (
           <ul className="divide-y divide-line/70">
             {c.securities.map((s) => (
@@ -116,14 +116,14 @@ export function SecuritiesPanel({
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title={<Say words={P.insurance} />}
-          subtitle={requirements.length ? `Required for this contract: ${requirements.map((r) => r.nameEn).join(", ")}.${requirements.some((r) => r.kind === "WORKMENS_COMPENSATION") ? ` How workmen's compensation is calculated: ${award.wcBasis ? WC_BASIS_LABEL[award.wcBasis].toLowerCase() : "not set — set it in Edit terms"}.` : ""}` : "No insurance requirements are configured, so what must be verified is not known."}
+          subtitle={requirements.length ? `Required: ${requirements.map((r) => r.nameEn).join(", ")}.${requirements.some((r) => r.kind === "WORKMENS_COMPENSATION") ? ` Workmen's compensation: ${award.wcBasis ? WC_BASIS_LABEL[award.wcBasis].toLowerCase() : "not set"}.` : ""}` : "No insurance requirements configured."}
           actions={open ? <LodgePolicyDrawer id={award.id} issuers={issuers} today={today} tenderUplift={ev.appendix?.baseline.insurance.worksUplift ? formatMoney(ev.appendix.baseline.insurance.worksUplift.sen) : null} /> : undefined}
           divided={(c?.policies.length ?? 0) > 0 || true}
         />
         <CardBody className="flex flex-col gap-2 border-b border-line">
           <p className="text-[13px] text-ink-2">
             Public liability limit from the bands:{" "}
-            {pl.state === "SET" ? <span className="font-semibold text-ink">{formatMoney(pl.limit)}</span> : pl.state === "NOT_SET" ? <span className="text-ink-4">bands not set</span> : pl.state === "NO_BAND" ? <span className="text-rose-700">the contract price falls between the bands — refused, not placed</span> : <span className="text-rose-700">the contract price falls in two bands</span>}
+            {pl.state === "SET" ? <span className="font-semibold text-ink">{formatMoney(pl.limit)}</span> : pl.state === "NOT_SET" ? <span className="text-ink-4">bands not set</span> : pl.state === "NO_BAND" ? <span className="text-rose-700">price falls between bands</span> : <span className="text-rose-700">price falls in two bands</span>}
             {pl.state !== "SET" && (
               <>
                 {" "}
@@ -133,7 +133,7 @@ export function SecuritiesPanel({
           </p>
         </CardBody>
         {!c || c.policies.length === 0 ? (
-          <EmptyState size="sm" title="None lodged">{c ? "Lodge each required policy when it is handed in." : "Nothing can be lodged before issue."}</EmptyState>
+          <EmptyState size="sm" title={c ? "None lodged" : "Lodge after issue"} />
         ) : (
           <ul className="divide-y divide-line/70">
             {c.policies.map((p) => (

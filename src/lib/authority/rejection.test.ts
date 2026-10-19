@@ -194,13 +194,13 @@ describe("saving a destination (destinationRowFaults)", () => {
 describe("the destination in words", () => {
   it("tells the approver what happens, from the snapshot, and says unset plainly", () => {
     expect(ifRejectedText({ snapshotAt: on, kind: "RETURN_TO_STEP", returnToOffice: "Head of Division", provenance: "ASSUMED" }, false)).toBe("If rejected: returns to the Head of Division's step (configured; source: assumed).");
-    expect(ifRejectedText({ snapshotAt: on, kind: null, returnToOffice: null, provenance: null }, false)).toMatch(/not set — the officer will choose/);
+    expect(ifRejectedText({ snapshotAt: on, kind: null, returnToOffice: null, provenance: null }, false)).toMatch(/not set\. The officer will choose/); // shortened by note 0005, founder 2026-10-19
     expect(ifRejectedText({ snapshotAt: null, kind: null, returnToOffice: null, provenance: null }, false)).toMatch(/not recorded/);
     // Said of a step with no step of the named office before it: the return cannot apply.
     const toDiv = { snapshotAt: on, kind: "RETURN_TO_STEP" as const, returnToOffice: "Head of Division", provenance: "ASSUMED" };
-    expect(ifRejectedText(toDiv, false, false)).toBe("If rejected at this step: the configured return is to the Head of Division, but no step of that office comes before this one — the officer will choose where it goes.");
+    expect(ifRejectedText(toDiv, false, false)).toBe("If rejected here: the configured return is to the Head of Division, with no earlier step. The officer will choose."); // shortened by note 0005, founder 2026-10-19
     expect(ifRejectedText(toDiv, false, true)).toBe("If rejected: returns to the Head of Division's step (configured; source: assumed).");
-    expect(ifRejectedText({ snapshotAt: on, kind: "TERMINATE", returnToOffice: null, provenance: null }, true)).toMatch(/committee's own/);
+    expect(ifRejectedText({ snapshotAt: on, kind: "TERMINATE", returnToOffice: null, provenance: null }, true)).toMatch(/committee's outcome/); // shortened by note 0005, founder 2026-10-19
   });
   it("never shows an officer's choice as policy", () => {
     // Phase 2b (decisions log, 2026-10-07): the trail and the screen name the person and say how the act was recorded only from its attribution (signed, or recorded from

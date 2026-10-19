@@ -34,8 +34,8 @@ describe("the state an award needs, by the pack kind the exercise was prepared u
       expect(exerciseOpenForAward(s, kind)).toBe(false);
     }
     for (const s of ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "ADVERTISED", "INVITED", "OPENING_IN_PROGRESS", "CANCELLED"]) expect(exerciseOpenForAward(s, kind, closed)).toBe(false);
-    expect(awardOpenRefusal(kind)).toMatch(/advertised or invited and its invitation window has closed/);
-    expect(awardOpenRefusal(kind, "ADVERTISED", { phase: "CLOSED", changePending: true })).toMatch(/change to the invitation window is with approval/);
+    expect(awardOpenRefusal(kind)).toMatch(/advertised or invited, or the invitation window is not closed/); // shortened by note 0005, founder 2026-10-19
+    expect(awardOpenRefusal(kind, "ADVERTISED", { phase: "CLOSED", changePending: true })).toMatch(/invitation window change awaits approval/i); // shortened by note 0005, founder 2026-10-19
   });
 });
 
@@ -52,7 +52,7 @@ describe("the gates read it", () => {
     expect(submitFaults({ opening: null, status: "DRAFT", today: "2026-10-01", exerciseStatus: "OPENED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: false }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual([]);
     expect(submitFaults({ opening: null, status: "DRAFT", today: "2026-10-01", exerciseStatus: "ADVERTISED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: false }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual(["EXERCISE_NOT_OPENED"]);
     expect(submitFaults({ opening: null, status: "DRAFT", today: "2026-10-01", exerciseStatus: "ADVERTISED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: true }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual(["WINDOW_CHANGE_PENDING"]);
-    expect(awardFindingText({ code: "EXERCISE_WINDOW_NOT_CLOSED", level: "block" })).toMatch(/invitation window must have closed/);
+    expect(awardFindingText({ code: "EXERCISE_WINDOW_NOT_CLOSED", level: "block" })).toMatch(/invitation window must close/i); // wording shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
     expect(sub("DOCUMENTS_IN_PREPARATION", null)).not.toContain("EXERCISE_NOT_IN_PREPARATION");
     expect(awardFindingText({ code: "EXERCISE_NOT_APPROVED_FOR_TENDERING", level: "block" })).toMatch(/approved for tendering/);
   });
@@ -61,7 +61,7 @@ describe("the gates read it", () => {
     const base = { status: "APPROVED", today: "2026-10-01", exerciseStatus: "DOCUMENTS_IN_PREPARATION", exercisePackKind: "TENDER" } as unknown as IssueInput;
     const f = issueFaults({ ...base, commitment: null, sourcingPermitted: true, instrument: { kind: "LETTER_OF_ACCEPTANCE" }, valueFaults: [], dossierFaults: [], appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] }, signatory: { ok: false, fault: "SIGNATORY_UNRESOLVED" }, indent: null, distribution: { rows: [{}] }, documents: [], variant: null, terms: null, bond: { required: false, reason: "", basis: { state: "NOT_REQUIRED" } } as never, contractNumber: { source: "SERIES", seriesKey: "c" }, startDate: null, wc: { required: false, basis: null } }).find((x) => x.code === "EXERCISE_NOT_OPEN");
     expect(f?.data?.needs).toBe("WINDOW_CLOSED");
-    expect(awardFindingText(f!)).toMatch(/invitation window has not closed/);
+    expect(awardFindingText(f!)).toMatch(/invitation window not closed/i); // wording shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
     expect(awardFindingText({ code: "EXERCISE_NOT_OPEN", level: "block", data: { needs: "DOCUMENTS_IN_PREPARATION" } })).toBe("The exercise is no longer in preparation.");
   });
 });

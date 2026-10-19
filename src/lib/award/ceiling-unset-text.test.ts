@@ -19,7 +19,7 @@ describe("an unrecorded ceiling, on the award", () => {
   it("says the differing value cannot be judged and names the recommended price as the way on", () => {
     const [f] = evaluationFindings({ facts, awardeePartyId: "p1", award: { value: parseSen("295000.00"), period: { value: 6, unit: "MONTHS" }, reasons: { value: "Negotiated", period: null } } });
     expect(f.code).toBe("BOUNDARY_NOT_RECORDED");
-    expect(awardFindingText(f)).toBe("This quotation's ceiling was never recorded when the exercise was classified, so an awarded value different from the recommendation cannot be judged against it. Award at the recommended price.");
+    expect(awardFindingText(f)).toBe("Quotation ceiling not recorded. Award at the recommended price."); // wording shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
     expect(awardFindingText(f)).toBe(AWARD_CEILING_NOT_RECORDED);
   });
 

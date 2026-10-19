@@ -35,4 +35,4 @@ export function contractNumberSource(
   return seriesKey ? { source: "SERIES", seriesKey } : { fault: "CONTRACT_SERIES_NOT_SET" };
 }
 
-export const CONTRACT_YEAR_READING = "The year in the number is the year it was issued — assumed to be the year the contract starts, to be confirmed.";
+export const CONTRACT_YEAR_READING = "Year of issue. Assumed to be the start year.";

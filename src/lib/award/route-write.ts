@@ -28,7 +28,7 @@ import { committeeStepFrom } from "@/lib/requisition/committee-step";
 import type { AuditActor } from "@/lib/auth/types";
 
 export const CHANGED: FormState = { ok: false, message: "The award changed while this was being saved. Reload and try again." };
-export const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration, Organisation first. Today's date decides this act, and it is not assumed to be UTC." };
+export const NO_ZONE: FormState = { ok: false, message: "Time zone not set. Set it under Configuration, Organisation." };
 
 /// A refusal found after a write in the same transaction: thrown, so the whole act rolls back.
 export class Refusal extends Error {

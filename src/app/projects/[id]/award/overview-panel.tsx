@@ -51,21 +51,21 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
               { label: "Awardee", value: <span className="flex flex-col"><span>{award.awardeeName}</span><span className="text-[12.5px] text-ink-3">{award.awardeeRegistrationNo || "Registration number not recorded"}</span></span> },
               { label: "Address", value: award.awardeeAddress || notSet("Not recorded") },
               // 6.15a (OD-9): the link to the register, made by an explicit act on the supplier's record.
-              { label: "On the supplier register", value: award.vendor ? <Link href={`/suppliers/${award.vendor.id}`}>{`${award.vendor.reference} · ${award.vendor.registeredName}`}</Link> : notSet(award.awardeePartyId ? "Not linked: link the awardee party from the supplier's record" : "Not linked: link the award from the supplier's record") },
+              { label: "On the supplier register", value: award.vendor ? <Link href={`/suppliers/${award.vendor.id}`}>{`${award.vendor.reference} · ${award.vendor.registeredName}`}</Link> : notSet(award.awardeePartyId ? "Not linked" : "Not linked") },
               // 6.15a fix S-3: its standing, as the register derives it today; a barred supplier is warned of, not refused.
-              ...(award.vendor ? [{ label: "Standing on the register", value: awardee ? <span className="flex flex-col items-start gap-1"><Badge tone={awardee.tone} dot>{awardee.words.en}</Badge>{awardee.warning && <span className="text-[12.5px] break-words text-amber-900">{awardee.warning.en}</span>}</span> : notSet("Not read: the organisation's time zone is not set") }] : []),
+              ...(award.vendor ? [{ label: "Standing on the register", value: awardee ? <span className="flex flex-col items-start gap-1"><Badge tone={awardee.tone} dot>{awardee.words.en}</Badge>{awardee.warning && <span className="text-[12.5px] break-words text-amber-900">{awardee.warning.en}</span>}</span> : notSet("Not read: time zone not set") }] : []),
               { label: "Awarded value", value: <FromRecommendation differs={differs.includes("value")} reason={award.recValueDiffersReason} recommended={recommendation ? formatMoney(recommendation.price) : null}><span className="tabular-nums">{money(award.awardedValue)}</span></FromRecommendation> },
               { label: "Exercise's estimate", value: <SulitValue of={through(sulit, money(ex.estimatedValue))} /> },
               { label: "Completion period", value: <FromRecommendation differs={differs.includes("period")} reason={award.recPeriodDiffersReason} recommended={recommendation?.period ? periodText(recommendation.period.value, recommendation.period.unit) : recommendation ? "No period stated" : null}>{periodText(award.completionPeriod, award.completionUnit)}</FromRecommendation> },
               { label: "Stated start date", value: award.startDate ? formatDate(award.startDate) : notSet() },
-              { label: "Completion", value: ev.completion ? formatDate(ev.completion) : notSet("Not known until the start date is set") },
+              { label: "Completion", value: ev.completion ? formatDate(ev.completion) : notSet("Needs the start date") },
               { label: policyLabel ? `${policyLabel}?` : "The regulated activity?", value: <AgainstTender ev={ev} field="regulated" issued={award.issuedAt != null}>{award.regulatedActivity == null ? notSet("Not answered") : award.regulatedActivity ? "Yes" : "No"}</AgainstTender> },
             ]}
           />
         </CardBody>
       </Card>
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.contractAndCommitment} />} subtitle="The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here." />
+        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.contractAndCommitment} />} />
         <CardBody>
           <KeyValues
             columns={2}
@@ -80,7 +80,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
                     {contractYearReading(c).seriesNumber && <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_WORDS.series(contractYearReading(c).issueYear).en}</span>}
                     <Link href={`/projects/${c.id}`} className="text-[13px] font-semibold">Open the contract</Link>
                   </span>
-                ) : "fault" in ev.contractNumber ? notSet(awardFindingText({ code: ev.contractNumber.fault, level: "block" })) : ev.contractNumber.source === "SERIES" ? "Drawn from its contract type's series on issue" : "The indent's own number, on issue",
+                ) : "fault" in ev.contractNumber ? notSet(awardFindingText({ code: ev.contractNumber.fault, level: "block" })) : ev.contractNumber.source === "SERIES" ? "From its contract type's series" : "The indent's own number",
               },
               { label: "Contract sum", value: c ? <span className="tabular-nums">{money(c.contractSum)}</span> : notSet("On issue") },
               {
@@ -125,7 +125,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
         <CardHeader
           icon={<SlidersIcon size={17} />}
           title={<Say words={P.lettersTerms} />}
-          subtitle={ev.appendix ? `Opened from the tender Appendix (documents version ${ev.appendix.baseline.packVersion}). A term stated otherwise needs a reason.` : "Per award, with where they came from. Never defaulted."}
+          subtitle={ev.appendix ? `Tender Appendix, documents version ${ev.appendix.baseline.packVersion}` : undefined}
           actions={award.termsProvenance ? <ProvenanceBadge value={award.termsProvenance} /> : undefined}
         />
         <CardBody>
@@ -138,7 +138,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
             columns={2}
             items={[
               { label: "Liquidated damages", value: <AgainstTender ev={ev} field="lad" issued={award.issuedAt != null}>{award.ladAmount ? `${money(award.ladAmount)}${award.ladUnit ? ` ${award.ladUnit}` : ""}` : notSet()}</AgainstTender> },
-              { label: "Workmen's compensation", value: award.wcBasis ? WC_BASIS_LABEL[award.wcBasis] : notSet("How it is calculated is not set — set it in Edit terms") },
+              { label: "Workmen's compensation", value: award.wcBasis ? WC_BASIS_LABEL[award.wcBasis] : notSet("Not set") },
               { label: "Retention", value: award.retentionPercent ? `${pct(award.retentionPercent)}${award.retentionCapPercent ? `, limited to ${pct(award.retentionCapPercent)} of the sum` : ""}` : ev.terms?.retentionAsked === false ? "Not asked by its terms band" : notSet() },
               { label: "Defects liability period", value: <AgainstTender ev={ev} field="dlp" issued={award.issuedAt != null}>{award.dlpMonths != null ? (award.dlpMonths === 0 && ev.appendix ? "None" : periodText(award.dlpMonths, "MONTHS")) : ev.terms?.dlpAsked === false ? "Not asked by its terms band" : notSet()}</AgainstTender> },
               { label: "Terms band", value: ex.termsBandKey ? (l.ex.bandSnapshot as { terms?: { label?: string } } | null)?.terms?.label ?? "As recorded on the exercise" : ex.termsState === "NONE_IN_REGIME" ? "Not applicable in this band" : notSet() },

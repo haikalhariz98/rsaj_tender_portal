@@ -70,8 +70,8 @@ export function FromRecommendation({ differs, reason, recommended, children }: {
 /// The insurance the tender Appendix states: carried to the contract, not restated by the award.
 /// 64-C4-b: the sum insured that governs a kind, with its source; the award's figure below the Appendix's shows both.
 export function GoverningSum({ g, reason, issued }: { g: Governing; reason: string | null; issued: boolean }) {
-  if (g.state === "NOT_STATED") return notSet("Not stated by the award or a tender Appendix: not compared");
-  if (g.state === "APPENDIX") return <span>{formatMoney(g.sen)} <span className="text-ink-3">· from the tender Appendix (the award states none)</span></span>;
+  if (g.state === "NOT_STATED") return notSet("Not stated: not compared");
+  if (g.state === "APPENDIX") return <span>{formatMoney(g.sen)} <span className="text-ink-3">· from the tender Appendix</span></span>;
   // BD-613-2 ruling: a figure other than the one the Appendix governs, above or below, is a difference: both figures, and its reason.
   const differs = g.appendix != null && g.sen !== g.appendix;
   return (
@@ -87,9 +87,9 @@ export function tenderInsurance(b: NonNullable<AwardEvaluation["appendix"]>["bas
   const m = (x: bigint | null) => (x == null ? notSet() : formatMoney(x));
   const u = b.insurance.worksUplift;
   return [
-    { label: "Works insurance beyond the price, from the tender Appendix", value: u ? (u.kind === "PERCENT" ? `${formatMoney(u.sen)} (${formatPct(u.pct)} of the awarded sum)` : formatMoney(u.sen)) : notSet() },
-    { label: "Third-party and workmen's compensation minimums, from the tender Appendix", value: <span>{m(b.insurance.tplMinimum)} · {m(b.insurance.wcMinimum)}</span> },
-    { label: "Permitted insurance excess, from the tender Appendix", value: m(b.insurance.insuranceExcess) },
-    ...(b.sectional ? [{ label: "Sections", value: "Each section's damages are the tender Appendix's, as frozen." }] : []),
+    { label: "Works insurance beyond the price (Appendix)", value: u ? (u.kind === "PERCENT" ? `${formatMoney(u.sen)} (${formatPct(u.pct)} of the awarded sum)` : formatMoney(u.sen)) : notSet() },
+    { label: "Third-party and workmen's compensation minimums (Appendix)", value: <span>{m(b.insurance.tplMinimum)} · {m(b.insurance.wcMinimum)}</span> },
+    { label: "Permitted insurance excess (Appendix)", value: m(b.insurance.insuranceExcess) },
+    ...(b.sectional ? [{ label: "Sections", value: "Damages per section: as in the Appendix" }] : []),
   ];
 }

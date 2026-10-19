@@ -3,7 +3,7 @@ import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { FileIcon, PrinterIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
 import { type AwardEvaluation } from "@/lib/award/evaluate";
 import { DOCUMENT_LABEL, DOCUMENT_SLUG, INSTRUMENT_LABEL, LANGUAGE_LABEL } from "@/lib/award/labels";
 import { mergeFieldLabel } from "@/lib/award/fields";
@@ -17,11 +17,9 @@ export function InstrumentPanel({ l, ev }: { l: LoadedAward; ev: AwardEvaluation
   const issued = award.documents.length > 0;
   return (
     <div className="flex flex-col gap-6">
-      <Callout tone="info" title={issued ? "As issued" : "Generated when issued"}>
-        {issued
-          ? "Each document is printed from the text frozen when it was issued, never from today's template. It is the portal's text of the instrument, not the controlled printed form: print it, have it signed on paper, and record what comes back."
-          : "The documents are generated from the configured templates and frozen when the instrument is issued. Until then a preview shows how they read today, marked as a draft."}
-      </Callout>
+      <div>
+        <InfoChip outline detail={issued ? "Printed from the text frozen at issue. Not the controlled printed form: print it, have it signed on paper, and record what comes back." : "Generated from the configured templates and frozen at issue. Until then a draft preview shows how they read today."}>{issued ? "As issued" : "Draft preview"}</InfoChip>
+      </div>
       <Card className="overflow-hidden">
         <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.documents} />} subtitle={INSTRUMENT_LABEL[award.instrumentKind as InstrumentKind]} />
         <ul className="divide-y divide-line/70">

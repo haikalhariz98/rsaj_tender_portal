@@ -18,7 +18,7 @@ import { GATE_ITEM_NOTE, gateDetailText } from "./gate-words";
 
 describe("the insurance item says what it does not judge", () => {
   it("the words", () => {
-    expect(GATE_ITEM_NOTE.INSURANCE).toBe("Each required policy's sum insured is compared with the award's own figure for its kind, or the tender Appendix's minimum where the award states none.");
+    expect(GATE_ITEM_NOTE.INSURANCE).toBe("Each policy's sum insured is compared with the award's figure or the Appendix minimum."); // shortened by note 0005, founder 2026-10-19
     expect(GATE_ITEM_NOTE.BOND).toBeUndefined();
     expect(GATE_ITEM_NOTE.RETURNED).toBeUndefined();
   });

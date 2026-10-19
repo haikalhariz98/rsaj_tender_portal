@@ -69,7 +69,7 @@ export async function ApprovalPanel({
   const absent = absentFrom((inst ? (inst.warnings as { code?: string; from?: string }[]) : ev.route?.ok ? ev.route.warnings : null) ?? []);
   const absentLine = absent.length > 0 && (
     <p className="text-[13px] break-words text-ink-2">
-      <span className="font-semibold">Treated as absent{inst ? " when it was sent" : " today"}:</span> {absent.map(roleName).join(", ")}. Nobody holding the office, nor a delegate of it, was available, so its authority went upward.
+      <span className="font-semibold">Treated as absent{inst ? " when it was sent" : " today"}:</span> {absent.map(roleName).join(", ")}. No holder or delegate was available; authority went upward.
     </p>
   );
   const amountText = (a: { toString(): string } | null) => (a == null ? "the decision states no amount" : `at ${money(a)}`);
@@ -78,13 +78,13 @@ export async function ApprovalPanel({
     <div className="flex flex-col gap-6">
       {!inst ? (
         <Card>
-          <CardHeader icon={<RouteIcon size={17} />} title={<Say words={P.whoApproves} />} subtitle={status === "CANCELLED" ? "No route was resolved." : "Resolved when the award is sent for approval, for the awarded value, under the approval matrix then in force."} />
+          <CardHeader icon={<RouteIcon size={17} />} title={<Say words={P.whoApproves} />} />
           <CardBody className="flex flex-col gap-3">
             {status === "CANCELLED" ? (
-              <p className="text-[13.5px] text-ink-2">Cancelled before it was sent for approval — no route was resolved, and nobody was asked to approve it.</p>
+              <p className="text-[13.5px] text-ink-2">Cancelled before approval. No route resolved.</p>
             ) : ev.route?.ok ? (
               <>
-                <p className="text-[13.5px] text-ink-2">If it were sent today, it would go:</p>
+                <p className="text-[13.5px] text-ink-2">Route if sent today:</p>
                 <ol className="flex flex-col gap-1.5">
                   {ev.route.chain.map((s, i) => (
                     <li key={i} className="flex min-w-0 items-center gap-2 text-[13.5px]">
@@ -125,14 +125,13 @@ export async function ApprovalPanel({
           )}
           {inst.status === "PENDING" && awardee?.warning && (
             <div className="border-t border-line px-5 py-3 sm:px-6">
-              <Callout tone="warn" title="Before a step is decided: the awardee's supplier is barred on the register">{awardee.warning.en}</Callout>
+              <Callout tone="warn" title="Awardee's supplier is barred">{awardee.warning.en}</Callout>
             </div>
           )}
           {inst.status === "PENDING" && (
             <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
-              Steps are decided in order. A committee&apos;s step is discharged by citing its decision on this exercise.{" "}
               {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: inst.rejectionReturnToRoleCode ? roleName(inst.rejectionReturnToRoleCode) : null, provenance: inst.rejectionProvenance }, false, returnTargetBeforeNext(inst))}
-              {inst.supersedesInstanceId ? " This route continues a refused one from an earlier step; the steps before it keep their decisions." : ""}
+              {inst.supersedesInstanceId ? " Continues a refused route; earlier decisions stand." : ""}
             </p>
           )}
           {inst.status === "REJECTED" && (() => {
@@ -151,7 +150,7 @@ export async function ApprovalPanel({
                 <div className="border-t border-line px-5 py-3 sm:px-6">
                   <Callout
                     tone="warn"
-                    title="Where the refused appointment goes next is the officer's choice"
+                    title="Refused: the officer chooses where it goes"
                     action={
                       <AwardChoiceDrawer
                         id={award.id}
@@ -161,7 +160,7 @@ export async function ApprovalPanel({
                       />
                     }
                   >
-                    {CHOICE_WHY_TEXT[(inst.rejectionChoiceWhy as keyof typeof CHOICE_WHY_TEXT | null) ?? "NOT_SET"]} The award stays pending approval until the choice is recorded, or it is cancelled.
+                    {CHOICE_WHY_TEXT[(inst.rejectionChoiceWhy as keyof typeof CHOICE_WHY_TEXT | null) ?? "NOT_SET"]}
                   </Callout>
                 </div>
               );
@@ -242,7 +241,7 @@ export async function ApprovalPanel({
       )}
 
       <Card>
-        <CardHeader icon={<ClipboardIcon size={17} />} title={<Say words={P.routingSheet} />} subtitle="The committee's part and the approver's, taken from the committee's decision and the route as recorded. They are fixed into the covering memo when it is issued." />
+        <CardHeader icon={<ClipboardIcon size={17} />} title={<Say words={P.routingSheet} />} />
         <CardBody className="grid gap-5 md:grid-cols-2">
           <div className="flex flex-col gap-2">
             <p className="text-[12px] font-semibold text-ink-3">Committee</p>
@@ -254,7 +253,7 @@ export async function ApprovalPanel({
                   { label: "Outcome", value: cb.outcome === "CARRIED" ? "Carried" : cb.outcome === "DEFERRED" ? "Deferred" : "Not carried" },
                   { label: "Amount", value: lastCommitteeStep?.committeeDecision ? (lastCommitteeStep.committeeDecision.amount == null ? "The decision states no amount" : money(lastCommitteeStep.committeeDecision.amount)) : notSet("Not recorded") },
                   { label: "Decided on", value: cb.decisionDate ? formatDate(cb.decisionDate) : notSet("Not recorded") },
-                  { label: "Minutes", value: cb.minuted ? "Minuted" : "Not yet minuted — the decision stands on the record" },
+                  { label: "Minutes", value: cb.minuted ? "Minuted" : "Not yet minuted" },
                 ]}
               />
             ) : (
@@ -273,7 +272,7 @@ export async function ApprovalPanel({
                 ]}
               />
             ) : (
-              <p className="text-[13.5px] text-ink-3">{inst ? "The route's approval is a committee's." : status === "CANCELLED" ? "No route, so no approver." : "Resolved when the award is sent for approval."}</p>
+              <p className="text-[13.5px] text-ink-3">{inst ? "The route's approval is a committee's." : status === "CANCELLED" ? "No route, so no approver." : "Resolved on sending."}</p>
             )}
           </div>
         </CardBody>
@@ -281,7 +280,7 @@ export async function ApprovalPanel({
 
       {status !== "CANCELLED" || award.signatoryName ? (
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.whoSigns} />} subtitle="Set by the signatory rules on the approval matrix for this instrument and value. If no rule fits, two rules fit, or the rule is a known gap, nobody may sign until the matrix is corrected." />
+          <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.whoSigns} />} />
           <CardBody>
             {award.signatoryName ? (
               <KeyValues

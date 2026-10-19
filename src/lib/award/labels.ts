@@ -83,8 +83,8 @@ export const ACCEPTED_BEFORE_SCANS = "Accepted before scans were required";
 
 /// The return drawer's description (FR-AWD-003, 008; OD-5; BD-24).
 export const RETURN_DRAWER_NOTE = {
-  recording: "The day each item came back, as the paper shows it. An item counts once its scan is attached to the award; the return that completes the instrument, every item with its scan, moves the award to Accepted.",
-  correcting: "The award is accepted on this return. A correction is kept in the history with its reason, cannot leave the return incomplete, and needs the scan of the item it corrects.",
+  recording: "Day each item came back. Each needs its scan.",
+  correcting: "Accepted. A correction needs a reason and the item's scan.",
 } as const;
 
 /// The Return tab's attachments line: what is scanned, what is outstanding.
@@ -97,8 +97,8 @@ export function returnScansText(i: { required: boolean; missing: readonly (keyof
 /// The award tab and the award form, where a direct appointment's dossier has no evidence (replaces BD-4's copy).
 export const DOSSIER_EVIDENCE_NEEDED = {
   title: "Attach the dossier evidence before it goes for approval",
-  body: "A direct appointment is approved only with its supporting evidence attached to the dossier. The award can be opened now and kept as a draft; it is sent for approval once at least one document is attached to the exercise's dossier evidence.",
-  short: "Record the awardee and the awarded value. It is sent for approval once the dossier has its evidence attached.",
+  body: "Needs supporting evidence in the dossier before approval.",
+  short: "Record the awardee and value.",
 } as const;
 
 export const RETURN_ITEM_LABEL = { SIGNED_LETTER: "the signed letter", DECLARATION: "the signed successful bidder's declaration", AUTHORISATION: "the letter of authorisation" } as const;
@@ -160,12 +160,12 @@ export const FIX_AT: Record<string, { href: string; label: string }> = {
 /// The text of a finding from `src/lib/award` (and the method findings it passes through).
 /// 68-C3 residual: a quotation's ceiling was never recorded, so an awarded value that differs from the
 /// recommendation cannot be judged against it; the recommended price was judged when it was formed.
-export const AWARD_CEILING_NOT_RECORDED = "This quotation's ceiling was never recorded when the exercise was classified, so an awarded value different from the recommendation cannot be judged against it. Award at the recommended price.";
+export const AWARD_CEILING_NOT_RECORDED = "Quotation ceiling not recorded. Award at the recommended price.";
 
 /// The findings that say how the award compares with the evaluation's recommendation, which is SULIT (FR-EVL-014; review of Phase 3b). To a reader the recommendation is closed to, each of
 /// them would tell whether the awardee, value, period or the validity consent matches it, so none is worded for them: they read `RECOMMENDATION_CLOSED_TEXT` instead.
 export const RECOMMENDATION_COMPARISON_CODES: ReadonlySet<string> = new Set(["AWARDEE_NOT_RECOMMENDED", "CONSENT_NOT_FROM_RECOMMENDED", "VALUE_DIFFERS_REASON_REQUIRED", "PERIOD_DIFFERS_REASON_REQUIRED", "VALUE_ABOVE_CEILING"]);
-export const RECOMMENDATION_CLOSED_TEXT = "The award is judged against the evaluation's recommendation, which is SULIT and closed to you. Someone it is open to has to check the awardee, value and period against it.";
+export const RECOMMENDATION_CLOSED_TEXT = "Recommendation is SULIT and closed to you. Another officer must check it.";
 
 /// The findings as a reader the recommendation is closed to has them: the comparison findings are one sentence, so only the first of them stays. Unchanged for a reader it is open to.
 export function findingsForReader<F extends Finding>(faults: readonly F[], recommendation: boolean): F[] {
@@ -185,10 +185,10 @@ export function awardFindingTextFor(f: Finding, figures: boolean, recommendation
   switch (f.code) {
     case "EXCEEDS_APPROVED_VALUE":
       return Number(f.data?.others ?? 0) > 0
-        ? "With the requisition's other awards this comes to more than its approval covered. Reduce the awarded value, cancel another award, or raise a further requisition for the difference. The figures are the department estimate's, which is closed to you."
-        : "This is above what the requisition's approval covered. Reduce the awarded value, or raise a further requisition for the difference. The figures are the department estimate's, which is closed to you.";
+        ? "Exceeds the requisition's approval with its other awards. Figures closed to you."
+        : "Above the requisition's approval. Figures closed to you. Reduce the value.";
     case "ABOVE_ESTIMATE":
-      return "Above the exercise's estimate, within what the requisition's approval covered. The difference is not posted to the budget ledger: it waits for the finance system's commitment. The figures are closed to you.";
+      return "Above the estimate, within the approval. Awaits the finance commitment.";
     default:
       return awardFindingText(f);
   }
@@ -198,12 +198,12 @@ export function awardFindingText(f: Finding): string {
   const d = f.data ?? {};
   switch (f.code) {
     case "NO_ISSUE_IN_FORCE":
-      return "No approval matrix is in force, so the award's route and signatory cannot be judged. Issue one under Configuration, Approval matrix.";
+      return "No approval matrix in force. Issue one under Configuration.";
     // instrument.ts
     case "REGIME_NOT_DETERMINED":
-      return "The exercise's regime has not been determined, so no instrument can be chosen. Save the exercise under an issue of the limits in force.";
+      return "Regime not determined. Save the exercise under the limits in force.";
     case "NO_AWARD_IN_REGIME":
-      return "Below the quotation floor there is no award instrument in the portal: such a matter is ordered directly.";
+      return "Below the quotation floor. Order directly.";
     case "INSTRUMENT_NOT_SET":
       return `No award instrument is set for the ${regime(d.regime)} band. Set it under Award controls; nothing is assumed.`;
     case "INSTRUMENT_CHANGED":
@@ -211,7 +211,7 @@ export function awardFindingText(f: Finding): string {
     case "VALUE_NOT_POSITIVE":
       return "The awarded value must be more than nothing.";
     case "NO_APPROVED_ROUTE":
-      return "The requisition has no approved route on record, so there is no approved value to award against.";
+      return "Requisition has no approved route.";
     case "EXCEEDS_APPROVED_VALUE":
       return Number(d.others ?? 0) > 0
         ? `With the requisition's other awards this comes to ${d.together}, above the ${d.approved} its approval covered. Reduce the awarded value, cancel another award, or raise a further requisition for the difference.`
@@ -226,63 +226,63 @@ export function awardFindingText(f: Finding): string {
     case "NOT_DRAFT":
       return "Only a draft award is sent for approval.";
     case "EXERCISE_NOT_IN_PREPARATION":
-      return "The exercise must be in preparation, with its classification decided, before its award goes for approval.";
+      return "Exercise must be in preparation, classified.";
     case "EXERCISE_NOT_APPROVED_FOR_TENDERING":
-      return "The exercise's tender documents must be approved for tendering before its award goes for approval.";
+      return "Tender documents not approved for tendering.";
     case "EXERCISE_WINDOW_NOT_CLOSED":
-      return "The exercise must have been advertised or invited, and its invitation window must have closed, before its award goes for approval.";
+      return "Invitation window must close first.";
     case "WINDOW_CHANGE_PENDING":
-      return "A change to the exercise's invitation window is with approval. The award goes for approval once it is decided.";
+      return "Invitation window change awaits approval.";
     // 6.7 (C-8): the award follows the opening's finalised schedule.
     case "EXERCISE_NOT_OPENED":
-      return "The exercise's bids have not been opened, or its opening is not finalised. The award goes for approval once the opening's schedule is finalised, on Bids and opening.";
+      return "Opening not finalised. Finalise it on Bids and opening.";
     case "ANOTHER_ROUTE_OPEN":
       return "An approval route is already open for this award.";
     case "DEPENDS_ON_METHOD":
-      return "The exercise has no method, so who approves the appointment cannot be resolved.";
+      return "Exercise has no method.";
     case "NO_METHOD_KEY":
-      return "The exercise's method names no key in the approval matrix, so who approves the appointment cannot be resolved. Set the method's approval key under Reference data.";
+      return "Method has no approval key. Set it under Reference data.";
     case "NO_RULE":
       return `No approval rule approves this appointment at this value. It cannot be routed: escalate it to the immediate superior of the indicated approving authority, and record a rule or a known gap for it on the approval matrix.${d.messages ? ` ${d.messages}` : ""}`;
     case "ROUTE_ERROR":
       return `The appointment's route cannot be relied on: ${d.messages ?? "the approval matrix raised an error"}`;
     case "REQUESTER_ONLY":
-      return d.messages ? String(d.messages) : "The requisition's requester is the only officer able to act for a step of the appointment's route, and nobody decides a step of a matter they raised. Record a delegation of that office to another officer under Users & roles, or have another officer raise the requisition.";
+      return d.messages ? String(d.messages) : "The requester cannot decide their own matter. Delegate the office to another officer.";
     case "EVIDENCE_NOT_ATTACHED":
-      return "A direct appointment is not approved without supporting evidence attached to its dossier. Attach at least one document to the exercise's dossier evidence, then send the award for approval.";
+      return "No dossier evidence. Attach a document, then send for approval.";
     // The dossier evidence the award was sent on (FR-MTD-009, scope ruling): re-checked at issue.
     case "EVIDENCE_NOT_SNAPSHOTTED":
-      return "This direct appointment was sent for approval without a record of the evidence it was approved on, so it is not issued. Cancel this award and open it again: the new award is sent for approval on the evidence attached to the dossier.";
+      return "Sent without evidence on record. Cancel and reopen this award.";
     case "EVIDENCE_WITHDRAWN_SINCE_JUDGED":
       return `“${d.title ?? "A document"}”${d.versionNo ? ` (version ${d.versionNo})` : ""}, part of the evidence this appointment was approved on, has since been withdrawn, so the award is not issued. Cancel this award and open it again, so the appointment is approved on the evidence that stands.`;
     // Close-out ruling CO-8: until 6.5 enforces it at invitation, at submission.
     case "NAME_NOT_REQUESTED":
-      return "This method asks for approval of the name, and none has been requested (or the last request was withdrawn). Request it on the exercise's Name approval tab; the award goes for approval once the name is approved.";
+      return "Name approval not requested. Request it on the exercise's Name approval tab.";
     case "NAME_NOT_APPROVED":
-      return "This method asks for approval of the name, and that approval is still in progress. The award goes for approval once the name is approved.";
+      return "Name approval still in progress.";
     case "NAME_REJECTED":
-      return "The name was refused. It is asked again, or goes where the refusal sent it, on the exercise's Name approval tab; the award goes for approval once a name is approved.";
+      return "Name refused. Resolve it on the exercise's Name approval tab.";
     // gate.ts
     case "NOT_APPROVED_YET":
       return "Only an approved award is issued.";
     case "EXERCISE_NOT_OPEN":
       return d.needs === "WINDOW_CLOSED"
         ? d.changePending === "yes"
-          ? "A change to the exercise's invitation window is with approval, so no award is issued on it until it is decided."
+          ? "Invitation window change awaits approval."
           : d.status === "ADVERTISED" || d.status === "INVITED" || d.status === "OPENING_IN_PROGRESS"
-            ? "The exercise's bids have not been opened, or its opening is not finalised, so no award is issued on it."
-            : "The exercise's invitation window has not closed, so no award is issued on it."
+            ? "Bids not opened or opening not finalised."
+            : "Invitation window not closed."
         : d.needs === "APPROVED_FOR_TENDERING"
-          ? "The exercise's tender documents are not approved for tendering, so no award is issued on it."
+          ? "Tender documents not approved for tendering."
           : "The exercise is no longer in preparation.";
     case "REQUISITION_NOT_APPROVED":
-      return d.step ? `The requisition has not completed its approval: ${d.step} has not yet decided. Nothing is issued against it until it has.` : "The requisition has not completed its approval. Nothing is issued against it until it has.";
+      return d.step ? `The requisition has not completed its approval: ${d.step} has not yet decided. Nothing is issued against it until it has.` : "Requisition approval not complete.";
     case "REQUISITION_NOT_ROUTED":
-      return "The requisition has no approval route on record. Nothing is issued against it.";
+      return "Requisition has no approval route.";
     case "SOURCING_NOT_PERMITTED":
-      return "The requisition's funding route does not let the organisation procure, so nothing is awarded on it.";
+      return "Funding route does not allow procurement.";
     case "SOURCING_NOT_RECORDED":
-      return "Whether the requisition's funding route lets the organisation procure was not recorded.";
+      return "Funding route not recorded.";
     case "APPOINTMENT_NOT_APPROVED":
       return d.step ? `The appointment is not approved yet: waiting on ${d.step}.` : "The appointment is not approved yet.";
     case "COMMITTEE_DECISION_NOT_RECORDED":
@@ -292,27 +292,27 @@ export function awardFindingText(f: Finding): string {
           ? `The ${d.committee} did not carry the matter.`
           : `No decision of the ${d.committee} on this exercise is recorded. Table the award at a sitting and cite its decision on the Approval tab.`;
     case "NO_COMMITTEE_APPROVAL_IN_ROUTE":
-      return "A Letter of Acceptance needs an approving committee's decision, and this appointment's route has none. Correct the appointment rule on the approval matrix.";
+      return "Route has no committee decision. Correct the appointment rule on the approval matrix.";
     case "SIGNATORY_UNRESOLVED":
-      return "No signatory rule covers this instrument at this value, so nobody may sign it. Add the signatory rule on the approval matrix; the portal does not route round the gap.";
+      return "No signatory rule covers this instrument and value. Add one on the approval matrix.";
     case "SIGNATORY_NOT_FOR_INSTRUMENT":
-      return "The signatory rule that matches names no instrument, so it is not read as covering this one. On the approval matrix, give each signatory rule the instrument it signs as its condition (Letter of Acceptance, or work indent).";
+      return "Signatory rule names no instrument. Set its instrument on the approval matrix.";
     case "SIGNATORY_AMBIGUOUS":
-      return "More than one signatory rule matches this instrument at this value. Correct the overlapping rules on the approval matrix.";
+      return "Two signatory rules overlap. Correct them on the approval matrix.";
     case "SIGNATORY_GAP":
-      return "The signatory rule that matches is recorded as a known gap. A contract signatory cannot be an assumption: record the rule on the approval matrix.";
+      return "Signatory rule is a known gap. Record the rule on the approval matrix.";
     case "SIGNATORY_BOUNDARY_UNDECIDED":
-      return "The signatory rule has an edge on the boundary and nobody has decided whether it follows the boundary switch. Decide it on the approval matrix.";
+      return "Signatory rule sits on a boundary. Decide it on the approval matrix.";
     case "INDENT_NUMBER_REQUIRED":
-      return "Record the indent's commitment number, as the finance system gave it, and the day it was received.";
+      return "Commitment number and day received.";
     case "INDENT_NUMBER_FORMAT":
       return "The indent number does not match the finance system's format.";
     case "INDENT_EXPIRED":
       return `The indent expired on ${typeof d.expiresOn === "string" ? formatDate(d.expiresOn) : "its expiry day"}. The user department must ask Contract & Procurement to cancel it; cancel this award and raise a fresh indent.`;
     case "RECIPIENTS_NOT_SET":
-      return "Nobody is set to receive a copy of this instrument. Set the distribution list under Award controls.";
+      return "No distribution list. Set it under Award controls.";
     case "REGULATED_NOT_ANSWERED":
-      return "Say whether the works are the regulated activity: a recipient's copy depends on it.";
+      return "Say whether the works are regulated.";
     case "TEMPLATE_NOT_SET":
       return `No template is set for the ${docName(d.kind).toLowerCase()}. Set it under Award controls.`;
     case "TEMPLATE_TEXT_NOT_SET":
@@ -329,15 +329,15 @@ export function awardFindingText(f: Finding): string {
     case "TEMPLATE_UNKNOWN_FIELD":
       return `The template “${d.template}” names ${d.count} field${d.count === 1 ? "" : "s"} the portal does not fill. Correct it under Templates.`;
     case "VARIANT_NONE":
-      return "No appointment-letter variant is set for this contract type and terms band. Add one under Award controls.";
+      return "No letter variant for this type and band. Add one under Award controls.";
     case "VARIANT_AMBIGUOUS":
-      return "Two appointment-letter variants fit this contract type and terms band equally. Correct them under Award controls.";
+      return "Two letter variants fit. Correct them under Award controls.";
     case "TERMS_NOT_SET":
-      return "The exercise has no contract terms band set, so the appointment letter's variant cannot be chosen. Nothing is guessed.";
+      return "No terms band set. The letter variant cannot be chosen.";
     case "TERMS_UNDECIDED":
-      return "The exercise's terms band does not say whether retention and defects liability apply. Decide it on the approval matrix's terms bands.";
+      return "Terms band is silent on retention. Decide it on the approval matrix.";
     case "RETENTION_REQUIRED":
-      return "The terms band asks for retention: record the retention percentage and its limit.";
+      return "Record the retention percentage and limit.";
     case "DLP_REQUIRED":
       return "The terms band asks for a defects liability period: record it.";
     case "BOND_NOT_DECIDED":
@@ -345,25 +345,25 @@ export function awardFindingText(f: Finding): string {
     case "BOND_REASON_REQUIRED":
       return "Record why no performance bond is required.";
     case "BOND_BASIS_NOT_SET":
-      return "The performance bond's basis is not set: choose what it is a percentage of, and a percentage above 0. 0% is not a bond — where none is wanted, answer that no bond is required and say why.";
+      return "Bond basis not set. 0% is not a bond: choose above 0.";
     case "CONTRACT_SERIES_NOT_SET":
-      return "The contract type names no numbering series, so no contract number can be drawn. Set the contract series on the contract type under Reference data.";
+      return "Contract type has no numbering series. Set it under Reference data.";
     case "QUOTATION_KEY_NOT_SET":
-      return "Where a quotation award's contract number comes from is not set. Set it under Award controls.";
+      return "Quotation number source not set. See Award controls.";
     case "INDENT_NUMBER_NOT_AN_INDENT":
-      return "Quotation contracts are set to take the indent's own number, and this award is not issued as a work indent, so it has none. A purchase order's number is never used: change where quotation contract numbers come from under Award controls.";
+      return "No indent number: this award is not a work indent. See Award controls.";
     case "INDENT_NUMBER_NOT_RECORDED":
-      return "The contract takes the indent's own number, and no indent number is recorded on the award. Record it first.";
+      return "Record the indent number first.";
     case "WC_BASIS_REQUIRED":
-      return "The contract must carry workmen's compensation, and the award does not say how it is calculated. Set it in the award's terms: it cannot be changed once the letter is issued.";
+      return "Workmen's compensation basis not set. Set it in the terms before issue.";
     case "INDENT_EXPIRES_BEFORE_START":
       return `The indent expires on ${typeof d.expiresOn === "string" ? formatDate(d.expiresOn) : "its expiry day"}, before the stated start date of ${typeof d.startDate === "string" ? formatDate(d.startDate) : "the works"}. Bring the start date forward, or have a fresh indent raised.`;
     case "START_DATE_REQUIRED":
-      return "Record the stated start date: the commencement clock and the insurance period run from it.";
+      return "Record the start date.";
     // appendix-baseline.ts (64-C4, 6.4 Q-1 B)
     case "APPENDIX_DIFFERENCE_UNEXPLAINED":
       return d.field === "regulated"
-        ? "Whether the works are the regulated activity differs from the tender's answer, and no reason is recorded. In Edit terms, answer as the tender did, or record why it differs."
+        ? "Differs from the tender's answer with no reason. Match it or record why."
         : `${BASELINE_FIELD_LABEL[d.field as BaselineField] ?? "A term"}: differs from the tender Appendix, and no reason is recorded. In Edit terms, state it as the Appendix does, or record why it differs.`;
     // 6.6 (X-9): the envelope register's checks, in the register's words.
     case "LATE_UNDECIDED":
@@ -422,25 +422,25 @@ export const DESPATCH_FAULT_TEXT = {
 export const BOND_FAULT_TEXT = {
   ISSUER_NOT_APPROVED: "The issuer is not on the approved list on the day it was lodged.",
   EXPIRY_REQUIRED: "The expiry date is not recorded.",
-  BASIS_NOT_SET: "The bond's basis is not set on the award, so what it must cover is not known.",
+  BASIS_NOT_SET: "Bond basis not set.",
   BELOW_REQUIRED: "Its value is below the amount required.",
-  VALIDITY_NOT_SET: "How long past completion it must run is not set on the award, or the start date is not recorded.",
+  VALIDITY_NOT_SET: "Period past completion or start date not set.",
   EXPIRES_TOO_EARLY: "It expires before completion plus the validity months.",
 } as const;
 
 export const INSURANCE_FAULT_TEXT = {
   ISSUER_NOT_APPROVED: "The insurer is not on the approved list on the day it was lodged.",
-  BAD_SUBSTITUTION: "Only contractor's or erection all risks insurance may stand in for the works insurance.",
+  BAD_SUBSTITUTION: "Only contractor's or erection all risks may stand in.",
   SUM_BELOW_REQUIRED: "The sum insured is below what is required.",
-  LIMIT_NOT_SET: "No liability bands are configured, so the limit cannot be derived. Set them under Award controls.",
-  NO_BAND: "The contract price falls between the configured liability bands. It is refused, never placed: correct the bands under Award controls.",
-  AMBIGUOUS_BAND: "The contract price falls in more than one liability band. Correct the bands under Award controls.",
+  LIMIT_NOT_SET: "No liability bands. Set them under Award controls.",
+  NO_BAND: "Price falls between liability bands. Correct the bands under Award controls.",
+  AMBIGUOUS_BAND: "Price in two liability bands. Correct them under Award controls.",
   LIMIT_LOWERED: "The limit cannot be set below the one derived from the bands.",
   LIMIT_JUSTIFICATION_REQUIRED: "A limit raised above the derived one needs its justification recorded.",
   BELOW_LIMIT: "The sum insured is below the limit it must meet.",
-  WC_BASIS_NOT_SET: "The award does not say how workmen's compensation is calculated. Set it in the award's terms.",
-  WC_PERCENT_NOT_SET: "The requirement gives no percentage of the contract sum for workmen's compensation.",
-  PERIOD_NOT_SET: "How long it must run cannot be worked out: the start date, the defects liability period or the requirement's tail is not recorded.",
+  WC_BASIS_NOT_SET: "Workmen's compensation basis not set. Set it in the terms.",
+  WC_PERCENT_NOT_SET: "No workmen's compensation percentage.",
+  PERIOD_NOT_SET: "Period cannot be worked out. Record the start date and defects period.",
   PERIOD_TOO_SHORT: "It ends before the day it must run to.",
 } as const;
 
@@ -481,7 +481,7 @@ export function differsRefusal(field: BaselineField, said: string): string {
  * already issued (`issuedAt` set) was issued before the rule asked for one: it is never told it "is not issued".
  */
 export function noReasonText(issued: boolean): string {
-  return issued ? "No reason recorded: the instrument was issued before a reason was required for this difference." : "No reason recorded: the instrument is not issued until there is one.";
+  return issued ? "No reason recorded for this difference." : "Reason required before issue.";
 }
 
 /// The words beside a term the award states otherwise.

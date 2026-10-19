@@ -18,4 +18,4 @@ export function maskIc(ic: string | null | undefined): string {
 export const IC_FORMAT = /^\d{6}-?\d{2}-?\d{4}$/;
 export const icNumberFault = (v: string): "FORMAT" | null => (v.trim() && !IC_FORMAT.test(v.trim()) ? "FORMAT" : null);
 
-export const MASKING_NOTE = "Masked here. Masking is not access control: who may see the number is enforced once sign-in exists.";
+export const MASKING_NOTE = "Masked here. Masking is not access control.";

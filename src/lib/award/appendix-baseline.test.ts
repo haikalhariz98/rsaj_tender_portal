@@ -155,7 +155,7 @@ describe("defects liability and the regulated activity", () => {
     const open = baselineOf({ ...TENDER, regulated: null }, AWARDED);
     expect(matchesBaseline("regulated", open, terms({ regulatedActivity: false }))).toBeNull();
     expect(prefill(open)).not.toHaveProperty("regulatedActivity");
-    expect(awardFindingText({ code: "APPENDIX_DIFFERENCE_UNEXPLAINED", level: "block", data: { field: "regulated" } })).toMatch(/differs from the tender's answer/);
+    expect(awardFindingText({ code: "APPENDIX_DIFFERENCE_UNEXPLAINED", level: "block", data: { field: "regulated" } })).toMatch(/differs from the tender's answer/i); // wording shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
   });
 });
 

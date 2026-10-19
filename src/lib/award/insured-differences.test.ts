@@ -84,8 +84,8 @@ describe("6.13A residual: a cleared sum insured clears its stored reason", () =>
 
 describe("6.13A residual: a difference with no reason on an award already issued", () => {
   it("before issue: issue waits for one; issued: it was issued before a reason was required, never 'is not issued'", () => {
-    expect(noReasonText(false)).toBe("No reason recorded: the instrument is not issued until there is one.");
-    expect(noReasonText(true)).toBe("No reason recorded: the instrument was issued before a reason was required for this difference.");
+    expect(noReasonText(false)).toBe("Reason required before issue."); // wording shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
+    expect(noReasonText(true)).toBe("No reason recorded for this difference.");
     expect(noReasonText(true)).not.toMatch(/is not issued/);
   });
   it("the award page words both places through it, from the award's issuedAt", () => {

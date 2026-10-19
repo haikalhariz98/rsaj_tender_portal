@@ -15,7 +15,7 @@ export { GATE_LABEL, GATE_STATE_LABEL };
  * compared, so S-3's "not compared" sentence has left; the note says what governs each comparison.
  */
 export const GATE_ITEM_NOTE: Readonly<Partial<Record<keyof typeof GATE_LABEL, string>>> = {
-  INSURANCE: "Each required policy's sum insured is compared with the award's own figure for its kind, or the tender Appendix's minimum where the award states none.",
+  INSURANCE: "Each policy's sum insured is compared with the award's figure or the Appendix minimum.",
 };
 
 const SOURCE_WORDS: Readonly<Record<string, string>> = { AWARD: "the award's figure", APPENDIX: "the tender Appendix's minimum" };
@@ -36,9 +36,9 @@ export function gateDetailText(item: { key: string; detail: readonly string[] },
     NOT_REQUIRED: `No bond required: ${bondNotRequiredReason}`,
     BASIS_NOT_SET: "The bond's basis is not set.",
     NOT_VERIFIED: "No verified performance bond covers the required amount.",
-    REQUIREMENTS_NOT_SET: "No insurance requirements are configured, so what must be verified is not known.",
-    WC_NOT_CHECKED: "Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, under Before signing › Securities.",
-    WC_RECORDED_NOT_JUDGED: "Workmen's compensation on uncovered wages: the check of the declared wages is recorded on the contract. Recorded, not judged: basis not set (D4).",
+    REQUIREMENTS_NOT_SET: "No insurance requirements configured.",
+    WC_NOT_CHECKED: "Workmen's compensation: met once the wages check is recorded under Before signing › Securities.",
+    WC_RECORDED_NOT_JUDGED: "Uncovered-wages check is recorded on the contract. Not judged.",
     WC_BASIS_NOT_SET: "How workmen's compensation is calculated is not set on the award.",
   };
   if (item.key !== "INSURANCE") return item.detail.map((d) => DETAIL[d] ?? "").join(" ");

@@ -14,14 +14,14 @@ import { gateDetailText } from "./gate-words";
 describe("the readiness gate's words, shared by the award and the contract", () => {
   it("insurance lists what is not lodged and what is lodged but not verified", () => {
     expect(gateDetailText({ key: "INSURANCE", detail: ["NOT_LODGED:Works insurance", "LODGED:Public liability insurance", "WC_NOT_CHECKED"] }, "")).toBe(
-      "Not lodged: Works insurance. Lodged, not verified: Public liability insurance. Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, under Before signing › Securities.",
+      "Not lodged: Works insurance. Lodged, not verified: Public liability insurance. Workmen's compensation: met once the wages check is recorded under Before signing › Securities.",
     );
   });
   it("the bond's reason is quoted", () => {
     expect(gateDetailText({ key: "BOND", detail: ["NOT_REQUIRED"] }, "Short-form terms.")).toBe("No bond required: Short-form terms.");
   });
   it("a recorded wages check says it is recorded, not judged", () => {
-    expect(gateDetailText({ key: "INSURANCE", detail: ["WC_RECORDED_NOT_JUDGED"] }, "")).toMatch(/Recorded, not judged: basis not set \(D4\)\.$/);
+    expect(gateDetailText({ key: "INSURANCE", detail: ["WC_RECORDED_NOT_JUDGED"] }, "")).toMatch(/Not judged\.$/); // shortened by note 0005, founder 2026-10-19; D4 is a product code, not shown (R2)
   });
 });
 

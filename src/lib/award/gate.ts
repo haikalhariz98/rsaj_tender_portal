@@ -73,11 +73,11 @@ export function exerciseOpenForAward(status: string, packKindSnapshot: PackKind 
 
 /// Why an award is not opened on the exercise, by what it needs.
 export function awardOpenRefusal(packKindSnapshot: PackKind | null, status: string | null = null, window: WindowGate | null = null): string {
-  if (awardableStatus(packKindSnapshot) === "DOCUMENTS_IN_PREPARATION") return "An award is opened only on an exercise in preparation, with its classification decided.";
-  if (status !== "ADVERTISED" && status !== "INVITED" && status !== "OPENING_IN_PROGRESS" && !PAST_OPENING.has(status ?? "")) return "An award is opened only once the exercise was advertised or invited and its invitation window has closed.";
-  if (window?.changePending) return "A change to the invitation window is with approval: an award waits for its decision.";
+  if (awardableStatus(packKindSnapshot) === "DOCUMENTS_IN_PREPARATION") return "Exercise must be in preparation, classified.";
+  if (status !== "ADVERTISED" && status !== "INVITED" && status !== "OPENING_IN_PROGRESS" && !PAST_OPENING.has(status ?? "")) return "Not advertised or invited, or the invitation window is not closed.";
+  if (window?.changePending) return "Invitation window change awaits approval.";
   // 6.7 (C-8): published, the award follows the opening's finalised schedule.
-  if (!PAST_OPENING.has(status ?? "")) return "An award is opened only once the bids are opened and the opening's schedule is finalised, on Bids and opening.";
+  if (!PAST_OPENING.has(status ?? "")) return "Opening not finalised. Finalise it on Bids and opening.";
   return "An award is opened only once the invitation window has closed.";
 }
 

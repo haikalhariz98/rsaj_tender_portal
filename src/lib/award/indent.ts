@@ -22,7 +22,7 @@ export function indentState(receivedOn: Day | null, validityDays: number | null,
 }
 
 /// The reading the expiry day rests on, said wherever it is shown.
-export const INDENT_READING = "Valid through its expiry day (the day of receipt plus the validity days): an assumed reading of the rule.";
+export const INDENT_READING = "Valid through its expiry day. Assumed reading.";
 
 /**
  * Whether an expired indent is still a live problem: until work commences under it, and

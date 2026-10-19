@@ -32,11 +32,11 @@ export function ifRejectedText(
   /// (`rejectionOutcome`, STEP_NOT_ON_ROUTE). Omitted: said of the route as a whole.
   targetBefore?: boolean,
 ): string {
-  if (committeeStep) return "If not carried: the committee's own not-carried outcome decides — a loop returns it to whoever raised it, a terminal outcome ends it.";
-  if (!route.snapshotAt) return "If rejected: where it goes was not recorded when this route opened — the officer will choose.";
-  if (!route.kind) return "If rejected: not set — the officer will choose, and the choice is recorded as theirs.";
+  if (committeeStep) return "If not carried: the committee's outcome decides.";
+  if (!route.snapshotAt) return "If rejected: destination not recorded. The officer will choose.";
+  if (!route.kind) return "If rejected: not set. The officer will choose.";
   if (route.kind === "RETURN_TO_STEP" && targetBefore === false)
-    return `If rejected at this step: the configured return is to the ${route.returnToOffice ?? "office no longer configured"}, but no step of that office comes before this one — the officer will choose where it goes.`;
+    return `If rejected here: the configured return is to the ${route.returnToOffice ?? "office no longer configured"}, with no earlier step. The officer will choose.`;
   const how = route.provenance ? ` (configured; source: ${PROVENANCE_WORD[route.provenance] ?? "not recorded"})` : " (configured)";
   return `If rejected: ${destinationText(route.kind, route.returnToOffice).replace(/^R/, "r").replace(/^T/, "t")}${how}.`;
 }
@@ -56,9 +56,9 @@ chosenActed?: string | null): string {
 }
 
 export const CHOICE_WHY_TEXT: Record<"NOT_SET" | "STEP_NOT_ON_ROUTE" | "NOT_SUPPORTED", string> = {
-  NOT_SET: "No rejection destination was set for this matter type when the route opened, so the officer chooses where it goes.",
-  STEP_NOT_ON_ROUTE: "The configured destination returns to a step that is not on this route before the rejecting step, so the officer chooses where it goes.",
-  NOT_SUPPORTED: "The configured destination is not one this matter can take, so the officer chooses where it goes.",
+  NOT_SET: "No rejection destination set. The officer chooses.",
+  STEP_NOT_ON_ROUTE: "Return step is not before the rejecting step. The officer chooses.",
+  NOT_SUPPORTED: "Destination not possible here. The officer chooses.",
 };
 
 export const CHOICE_FAULT_TEXT: Record<ChoiceFault, string> = {

@@ -17,13 +17,13 @@ export function ConditionsPanel({ l, gate, kinds, today }: { l: LoadedAward; gat
   return (
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.conditionsPrecedent} />} subtitle="All three, cumulatively, before the contract may be signed. Preparation continues while the gate is red; the signatures are recorded on the contract." actions={<Badge tone={gate.ready ? "ok" : "warn"}>{gate.ready ? "Ready" : "Not ready"}</Badge>} />
+        <CardHeader icon={<ShieldIcon size={17} />} title={<Say words={P.conditionsPrecedent} />} actions={<Badge tone={gate.ready ? "ok" : "warn"}>{gate.ready ? "Ready" : "Not ready"}</Badge>} />
         <ReadinessGateList items={gate.items} bondNotRequiredReason={award.bondNotRequiredReason} />
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<CheckIcon size={17} />} title={<Say words={P.beforeWorkStarts} />} subtitle="The customer's conditions precedent, each with the day it is needed by. A delay in one marked so gives no extension of time." actions={open ? <AddConditionDrawer id={award.id} kinds={kinds} /> : undefined} divided={award.conditions.length > 0} />
+        <CardHeader icon={<CheckIcon size={17} />} title={<Say words={P.beforeWorkStarts} />} actions={open ? <AddConditionDrawer id={award.id} kinds={kinds} /> : undefined} divided={award.conditions.length > 0} />
         {award.conditions.length === 0 ? (
-          <EmptyState size="sm" title="None recorded">Add the conditions that apply to this award.</EmptyState>
+          <EmptyState size="sm" title="None recorded" />
         ) : (
           <ul className="divide-y divide-line/70">
             {award.conditions.map((c) => (

@@ -142,7 +142,7 @@ describe("the readiness gate blocks signing on a shortfall", () => {
   });
   it("the note under the item says what is compared, no longer that sums are not compared", () => {
     expect(GATE_ITEM_NOTE.INSURANCE).not.toMatch(/not yet compared/);
-    expect(GATE_ITEM_NOTE.INSURANCE).toMatch(/compared with the award's own figure for its kind, or the tender Appendix's minimum/);
+    expect(GATE_ITEM_NOTE.INSURANCE).toMatch(/compared with the award's figure or the Appendix minimum/); // shortened by note 0005, founder 2026-10-19
   });
 });
 

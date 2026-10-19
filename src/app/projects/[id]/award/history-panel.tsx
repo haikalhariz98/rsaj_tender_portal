@@ -61,12 +61,12 @@ const FIELD_NAME: Record<string, string> = {
   worksSumInsured: "Works insurance, sum insured",
   liabilitySumInsured: "Public liability insurance, sum insured",
   wcSumInsured: "Workmen's compensation insurance, sum insured",
-  ladDiffersReason: "Why the liquidated damages differ from the tender Appendix",
-  dlpDiffersReason: "Why the defects liability period differs from the tender Appendix",
-  regulatedDiffersReason: "Why the regulated-activity answer differs from the tender's",
-  worksInsuredDiffersReason: "Why the works sum insured differs from the tender Appendix",
-  liabilityInsuredDiffersReason: "Why the public liability sum insured differs from the tender Appendix",
-  wcInsuredDiffersReason: "Why the workmen's compensation sum insured differs from the tender Appendix",
+  ladDiffersReason: "Reason: liquidated damages differ",
+  dlpDiffersReason: "Reason: defects period differs",
+  regulatedDiffersReason: "Reason: regulated answer differs",
+  worksInsuredDiffersReason: "Reason: works sum differs",
+  liabilityInsuredDiffersReason: "Reason: public liability sum differs",
+  wcInsuredDiffersReason: "Reason: workmen's compensation sum differs",
   termsFrom: "Terms opened from",
   erpCommitmentNo: "Commitment number",
   erpCommitmentKind: "It is",
@@ -114,7 +114,7 @@ export function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<Re
   const read = (field: string, value: string | null, entity: string): string => {
     if (value == null || value === "") return "—";
     if (field === "status" && STATUS_TEXT[entity]?.[value]) return STATUS_TEXT[entity][value];
-    if (field === "yearReading") return "The year of issue — an assumed reading, to be confirmed";
+    if (field === "yearReading") return "Year of issue (assumed)";
     if (ENUM_TEXT[field]?.[value]) return ENUM_TEXT[field][value];
     if (MONEY_FIELDS.has(field) && /^-?\d+(\.\d+)?$/.test(value)) return formatMoney(parseSen(value));
     if (/Percent$/.test(field) && /^\d+(\.\d+)?$/.test(value)) return pct(value)!;
@@ -131,7 +131,7 @@ export function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<Re
       <CardHeader
         icon={<ClockIcon size={17} />}
         title={<Say words={COMPONENT_WORDS.history} />}
-        subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this award and what is under it. "}Each change names who made it; any from before sign-in is not attributed. The identity card number is masked here.`}
+        subtitle={total > entries.length ? `Latest ${entries.length} of ${total}` : undefined}
         divided={entries.length === 0}
       />
       {entries.length === 0 ? (

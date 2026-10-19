@@ -242,7 +242,7 @@ describe("the Award step", () => {
   it("DRAFT blocked: no action, the first finding's words", () => {
     const s = step(caseSteps(facts({ award: award("DRAFT", { submitBlocks: [{ code: "NO_ISSUE_IN_FORCE", level: "block" }] }) })), "award");
     expect(s).toMatchObject({ state: "in-progress", action: null });
-    expect(s.next).toMatch(/No approval matrix is in force/);
+    expect(s.next).toMatch(/No approval matrix in force/); // shortened by note 0005, founder 2026-10-19
   });
   it("PENDING_APPROVAL: waiting for approval", () => {
     expect(step(caseSteps(facts({ award: award("PENDING_APPROVAL") })), "award")).toEqual({ key: "award", state: "in-progress", next: "Waiting for approval", action: null });

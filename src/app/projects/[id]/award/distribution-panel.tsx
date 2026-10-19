@@ -20,7 +20,7 @@ export function DistributionPanel({ l, ev }: { l: LoadedAward; ev: AwardEvaluati
   if (rows.length === 0) {
     return (
       <Card>
-        <CardHeader icon={<InboxIcon size={17} />} title={<Say words={P.distribution} />} subtitle="Drawn from the configured recipients when the instrument is issued, with the awardee's own copy." />
+        <CardHeader icon={<InboxIcon size={17} />} title={<Say words={P.distribution} />} />
         <CardBody>
           {"rows" in ev.distribution ? (
             <ul className="flex list-disc flex-col gap-1 pl-5 text-[13.5px] text-ink-2">

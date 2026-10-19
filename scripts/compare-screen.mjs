@@ -519,6 +519,12 @@ const DECIDED_ABSENT = [
     match: /^(Every act on a contract records.*|The Stage Three briefing at signing.*|Bonds, guarantees and policies on this contract.*|Before work starts, each with.*|The readiness gate, as the award shows it.*|Each written once[.].*|Start it on the Overview.*|Signature is refused until endorsed.*|Each signature is read from.*)$/,
     why: "0005, founder 2026-10-19: card subtitles, callout bodies and drawer introductions on the case Overview, Formation and baseline were cut to the consequence; Assumed and Not judged are chips, the hidden-acts note is a chip with a popover",
   },
+  // Note 0005, founder 2026-10-19 (minimal words): the Award stage tabs of the case page.
+  {
+    screen: /^[/]projects[/][^/]+$/,
+    match: /^(Set by the signatory rules on the approval matrix.*|The committee's part and the approver's.*|Resolved when the award is sent for approval.*|Each document is printed from the text frozen.*|The documents are generated from the configured templates.*|The pre-award routing sheet around.*|Decided for this contract.*|All three, cumulatively.*|The customer's conditions precedent.*|Drawn from the configured recipients.*)$/,
+    why: "0005, founder 2026-10-19: card subtitles, drawer introductions, refusal sentences and the info callouts on the Award stage tabs were cut; the rule label and clause stay on the approval panel, the issued and draft state is a chip with a popover",
+  },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
     screen: /^[/]projects$/,
