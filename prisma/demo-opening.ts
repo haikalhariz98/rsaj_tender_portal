@@ -637,7 +637,7 @@ export async function checkOpeningDemo(db: Db) {
   const o20 = (await openingSection(await demoOrgId(), `${P}sx20`, await loaderGate(), null, false)) ?? fail("sx20's opening did not load.");
   const op3 = o20.openings[0] ?? fail("sx20 has no opening.");
   if (op3.phase !== "Adjourned" || !op3.resume?.allowed) fail("sx20's opening is not adjourned, ready to resume.");
-  if (!op3.authorisations.some((a) => a.includes("lapsed"))) fail("sx20's unpaired authorisation did not lapse.");
+  if (!op3.authorisations.some((a) => a.lapsed)) fail("sx20's unpaired authorisation did not lapse.");
   if (!op3.envelopes.some((e) => e.source.startsWith("In the box when it was locked"))) fail("sx20 has no envelope found in the box.");
   // OD-2: only an opened envelope names a bidder.
   if (await db.bidEnvelope.count({ where: { id: demoRef, status: { not: "OPENED" }, NOT: { partyId: null } } })) fail("an envelope not opened names a party.");

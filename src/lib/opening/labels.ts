@@ -5,7 +5,7 @@
  */
 
 import { formatDate } from "@/lib/format";
-import { CLOSING_FAULT_WORDS, isRestrictionReading } from "@/lib/suppliers/restriction-register";
+import { isRestrictionReading } from "@/lib/suppliers/restriction-register";
 
 import { FILED_FILE_WORDS } from "./filed-file";
 import { MATRIX_FAULT_TEXT } from "./matrix";
@@ -254,8 +254,9 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   WITHDRAWAL_UNRESOLVED: (f) => `${plural(n(f, "count"), "withdrawal is", "withdrawals are")} unmatched and unexplained.`,
   // ---- findings and the checklist
   RESTRICTION_NOT_ANSWERED: () => "Restricted or not: not answered on its documents.",
-  RESTRICTION_EVIDENCE_TYPE_NOT_SET: () => CLOSING_FAULT_WORDS.EVIDENCE_TYPE_NOT_SET,
-  RESTRICTION_CLOSING_DAY_RULE_NOT_SET: () => CLOSING_FAULT_WORDS.CLOSING_DAY_RULE_NOT_SET,
+  // 0005 R15, 2026-10-20: the opening says it in 20 words or fewer. The longer wording stays with the supplier setting that owns it.
+  RESTRICTION_EVIDENCE_TYPE_NOT_SET: () => "The restriction evidence document is not set (Configuration, Suppliers). Set it, then open the envelope again.",
+  RESTRICTION_CLOSING_DAY_RULE_NOT_SET: () => "The closing-day expiry rule for evidence documents is not set (Configuration, Suppliers). Set it, then open the envelope again.",
   RESTRICTION_NOT_ASSESSED: () => "Restriction not assessed. A status document awaits verification. No verdict yet.",
   NOT_ON_CHECKLIST: () => "Not on this opening's checklist.",
   ANSWER_REQUIRED: () => "Choose present, absent or not applicable.",

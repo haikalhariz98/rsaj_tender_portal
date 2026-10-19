@@ -76,3 +76,11 @@ describe("paragraph rule (0005 R14, 2026-10-20)", () => {
     expect(scanSource("src/app/sourcing/[id]/documents/print/page.tsx", `export const a = <p>${long}</p>;`)).toEqual([]);
   });
 });
+
+describe("paragraph rule on Bids and opening (0005 R14, 2026-10-20)", () => {
+  const long = Array.from({ length: 21 }, () => "word").join(" ");
+  it("covers the opening tab's files and leaves its print view alone", () => {
+    expect(scanSource("src/app/sourcing/[id]/opening/workspace.tsx", `export const a = <p>${long}</p>;`).map((v) => v.rule)).toEqual(["paragraph-length"]);
+    expect(scanSource("src/app/sourcing/[id]/opening/print/page.tsx", `export const a = <p>${long}</p>;`)).toEqual([]);
+  });
+});

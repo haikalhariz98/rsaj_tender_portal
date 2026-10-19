@@ -26,8 +26,9 @@ describe("an opening authorisation is each member's own", () => {
   });
 
   it("is offered on a member's row only to the member who is signed in; the others read that they authorise in their own sign-in", () => {
-    expect(WORKSPACE).toMatch(/p\.personId === viewerPersonId \? <AuthoriseDrawer/);
-    expect(WORKSPACE).toMatch(/Authorises in their own sign-in/);
+    // 0005 R14, 2026-10-20: the drawer is on the viewer's own row only, and the note is said once under the panel.
+    expect(WORKSPACE).toMatch(/p\.personId === viewerPersonId && <AuthoriseDrawer/);
+    expect(WORKSPACE).toMatch(/Each officer authorises in their own sign-in\./);
     expect(WORKSPACE).toMatch(/viewerPersonId=\{actor\.personId\}/);
   });
 

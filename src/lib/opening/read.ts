@@ -356,6 +356,10 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     online: o.exercise.submissionChannel === "ONLINE",
     authorisationsRequired: state.required,
     panelSize: o.panelSizeRequired,
+    /// The panel part's one line repeats these (0005 R13): a rule that is not set, and the independence rule's provenance when it is an assumption.
+    independenceNotSet: snap.panel.exclusionRule == null,
+    independenceAssumed: snap.panel.exclusionRule != null && snap.panel.exclusionProvenance === "ASSUMED",
+    rulesNotSet: snap.completeness.eliminates == null || snap.alternativesPermitted == null || (!snap.unpurchased.consequence && !c.method?.unpurchasedBidConsequence),
     panelOverride: o.panelOverrideAuthority ? `A panel of ${o.panel.length}, not ${o.panelSizeRequired}, under ${o.panelOverrideAuthority}: ${o.panelOverrideReason}${o.panelOverrideBy ? ` (recorded by ${o.panelOverrideBy.name})` : ""}` : null,
     independence: snap.panel.exclusionRule == null ? openingFindingText({ code: "EXCLUSION_RULE_NOT_SET", level: "warn" }) : snap.panel.exclusionRule ? `Checked against the committee's independence rule (${PROVENANCE_WORD[snap.panel.exclusionProvenance ?? ""] ?? "provenance not recorded"}).` : "The committee excludes no unit from its panel.",
     panel: o.panel.map((p) => ({
@@ -364,9 +368,23 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       seat: p.seatLabelSnapshot,
       present: p.present,
       authorised: authorisers.includes(p.personId),
+      /// 0005 R14: the seat and time of this sitting's authorisation, for the chip's detail, and whether an earlier one lapsed with an adjournment.
+      authorisedDetail: (() => {
+        const a = o.authorisations.find((x) => x.personId === p.personId && x.sittingNo === state.sittingNo && !x.lapsedAt);
+        return a ? `${seatWords(a.panelMember?.seatLabelSnapshot)}, ${time(a.recordedAt, tz)}` : null;
+      })(),
+      lapsed: !authorisers.includes(p.personId) && o.authorisations.some((x) => x.personId === p.personId && !!x.lapsedAt),
       authorise: p.present ? allowedOf(authorisationFaults({ state, panel, auths: o.authorisations, personId: p.personId, recorderId: null, now: x.now, closing, boxLocked, online: o.exercise.submissionChannel === "ONLINE", required: state.required })) : null,
     })),
-    authorisations: o.authorisations.map((a) => `Sitting ${a.sittingNo}: ${x.authorisedBy.read({ entity: "OpeningAuthorisation", id: a.id, slot: "person" }, a.person.name).en}, ${seatWords(a.panelMember?.seatLabelSnapshot)}, ${time(a.recordedAt, tz)}${a.lapsedAt ? " · lapsed when the sitting was adjourned" : ""}`),
+    /// The evidence (0005 R14): who authorised which sitting, in which seat, when, and whether it lapsed when the sitting was adjourned.
+    authorisations: o.authorisations.map((a) => ({
+      id: a.id,
+      sittingNo: a.sittingNo,
+      who: x.authorisedBy.read({ entity: "OpeningAuthorisation", id: a.id, slot: "person" }, a.person.name).en,
+      seat: seatWords(a.panelMember?.seatLabelSnapshot),
+      time: time(a.recordedAt, tz),
+      lapsed: !!a.lapsedAt,
+    })),
     adjourn: state.adjourned || state.finalised ? null : allowedOf(adjournFaults({ state, reason: "-", personActive: true, resume: false })),
     resume: state.adjourned && !state.finalised ? allowedOf(adjournFaults({ state, reason: "-", personActive: true, resume: true })) : null,
     registerBox: o.kind === "MAIN" && !state.finalised ? allowedOf([...actFaults(state), ...(o.bids.length ? [{ code: "BOX_EMPTIED", level: "block" as const }] : [])]) : null,
