@@ -588,6 +588,10 @@ matrix). Target: at least half the corrected visible words (R11), in the default
    - an act the viewer must take now, meaning a step addressed to them or a fix it requires. An edit button alone does not
      count, or every draft would open everything;
    - a §3.7 or R4 must-keep item;
+   - work in progress: a pending or sent-back route, or the current (first unfinished) part of an ordered sequence such as
+     the opening's parts;
+   - a policy value shown with its provenance, such as the matrix boundary (AGENTS.md's worked example);
+   - a result the viewer has just asked for, such as the simulator's;
    - the target of the address (`?section=`, or the `#anchor` of an existing link such as "Open the schedule",
      `#conditions` or `#not-approved-outcomes`).
    Otherwise it starts closed.
@@ -665,9 +669,9 @@ matrix). Target: at least half the corrected visible words (R11), in the default
 | --- | --- |
 | Requisition subtitle (11) | Within budget by template (5). No cut. When cancelled or closed, the badge already says so, so the subtitle shows only the quoted reason, or "No reason recorded". The reason is never truncated. |
 | Supplier record subtitle (9) | Subtitle removed. `meta` gains "Reg. {no}" and "Registered {date}". |
-| Callout "Not ready to issue" (35) | Title "Not ready to issue". Body: the **first** fault as a refusal of 12 words or fewer plus its R1 citation, then "+{n} more" as a `Disclosure` listing the rest, all in the DOM. The count is always visible, so no blocking reason can vanish. The same rule applies to "Before it can go for approval", "Before it can be finalised" and "Before it can leave draft". |
+| Callout "Not ready to issue" (35) | Title "Not ready to issue". Body: **every** fault visible, one line each, as a refusal of 12 words or fewer plus its R1 citation (the citation is not counted). The 15-word callout budget applies to the title and the first line. No fault goes into a disclosure (R13 item 4). The same rule applies to "Before it can go for approval", "Before it can be finalised" and "Before it can leave draft". |
 | Case step default "Not ready to issue: the signatory is not resolved" | "Signatory not resolved". Update `case-steps.test.ts:256`, citing R15. |
-| Callout "Work has not commenced" (47) | Title "Work has not commenced". Body: "Grace ended {date}. Consequence: {consequence}." An unset consequence is a **Not set** chip. Who is told moves out of the sentence into R16's chips. The restricted sentence is dropped, because the header **Restricted** chip says it. |
+| Callout "Work has not commenced" (47) | Title "Work has not commenced". Body: "Grace ended {date}. Consequence: {consequence}." An unset consequence is a **Not set** chip. Who is told moves out of the sentence into R16's chips. The case page has no **Restricted** header chip, so where the exercise is restricted a **Restricted** `InfoChip` joins R16's chips, with the detail "Only people named on it are told." |
 | Callout "The indent has expired" (44) | Title "Indent expired {date}". The same R16 chips. `INDENT_READING` becomes an **Assumed** `InfoChip` with the detail "Valid through its expiry day." This also applies on the Overview panel. |
 | Requisition callout (16) | Rejected: the title stays. The body is the quoted reason (data) plus the choice reason **without** the repeated "The officer chooses.": "No rejection destination set.", "Return step is not before the rejecting step." or "Destination not possible here." Add a short map; do not edit `CHOICE_WHY_TEXT` if other callers use it. Returned at approval: each citation note becomes "{committee} decision of {date} does not clear this route. Table again." |
 | Committee sitting callout (21) | The title stays (7 words or fewer). One line per gap: "{Setting}" + **Not set** chip + "Blocks {n}", with the matter subjects in that chip's `InfoChip` detail. If an agenda row does not show its own blocker, the subjects stay visible. |
@@ -689,6 +693,7 @@ while the requester is active, so R5's overclaim clause binds. Build a pure `clo
 - `RULE_SET`: the fact "Told: {rule name}".
 - An office nobody holds: a `warn` chip "{n} unheld", naming the offices.
 - Always a **Not emailed** chip, for `CLOCK_NOTICE_CHANNEL`.
+- A restricted exercise: a **Restricted** chip, with the detail "Only people named on it are told."
 
 `clockPlanWords` stays for notice bodies.
 
