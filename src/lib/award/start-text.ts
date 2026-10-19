@@ -2,11 +2,12 @@
  * The words for `awardStartRefusal`, shared by the Award tab (which shows them beside the disabled button) and `createAward` (which returns them). One place, so the two never differ.
  */
 
-import { awardFindingText } from "./labels";
+import { awardFindingTextFor } from "./labels";
 import { NO_ZONE } from "./route-write";
 import type { StartRefusal } from "./start-gate";
 
-export function startRefusalText(r: StartRefusal): string {
+/// `recommendationOpen` false: the reader the recommendation is closed to, who is not told how the award compares with it.
+export function startRefusalText(r: StartRefusal, recommendationOpen = true): string {
   switch (r.kind) {
     case "NO_ZONE":
       return NO_ZONE.message ?? "";
@@ -14,7 +15,7 @@ export function startRefusalText(r: StartRefusal): string {
     case "LIVE_AWARD":
       return r.message;
     case "FINDINGS":
-      return r.findings.map(awardFindingText).join(" ");
+      return r.findings.map((f) => awardFindingTextFor(f, false, recommendationOpen)).join(" ");
   }
 }
 

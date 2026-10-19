@@ -43,10 +43,10 @@ export const DEMO_GRANTS = [
 type Org = { id: string; name: string };
 
 /// The office the demonstration's grants go to: held by someone the demonstration made. Null where nobody does.
-async function accountManagerRole(db: PrismaClient): Promise<{ code: string; name: string } | null> {
+async function accountManagerRole(db: PrismaClient, organisationId: string): Promise<{ code: string; name: string } | null> {
   const held = (await db.roleAssignment.count({ where: { roleCode: DEMO_ACCOUNT_MANAGER_ROLE, personId: { startsWith: DEMO_PREFIX } } })) > 0;
   if (!held) return null;
-  const role = await db.authorityRole.findFirst({ where: { code: DEMO_ACCOUNT_MANAGER_ROLE }, select: { nameEn: true } });
+  const role = await db.authorityRole.findFirst({ where: { organisationId, code: DEMO_ACCOUNT_MANAGER_ROLE }, select: { nameEn: true } });
   return { code: DEMO_ACCOUNT_MANAGER_ROLE, name: role?.nameEn ?? "the office that approves supplier registration" };
 }
 
@@ -68,7 +68,7 @@ export async function loadDemoSignInAndGrants(db: PrismaClient, org: Org): Promi
       );
     });
   }
-  const role = await accountManagerRole(db);
+  const role = await accountManagerRole(db, org.id);
   if (!role) return;
   for (const g of DEMO_GRANTS) {
     if (await db.rolePermission.findFirst({ where: { organisationId: org.id, permissionKey: g.permissionKey, roleCode: role.code }, select: { id: true } })) continue;
@@ -88,7 +88,7 @@ export async function missingDemoConfigWords(db: PrismaClient, org: Org): Promis
   const policy = await loadSecurityPolicy(db, org.id);
   const unset = unsetSettings(policy, "SIGN_IN", "SUPPLIER_SIGN_IN", "SET_PASSWORD", "ISSUE_CODE");
   if (unset.length) lines.push(`Sign-in settings not set: ${settingLabels(unset).join("; ")}. Set them under Configuration, Sign-in settings.`);
-  const role = await accountManagerRole(db);
+  const role = await accountManagerRole(db, org.id);
   if (role) {
     for (const g of DEMO_GRANTS) {
       if (!(await db.rolePermission.findFirst({ where: { organisationId: org.id, permissionKey: g.permissionKey, roleCode: role.code }, select: { id: true } }))) {

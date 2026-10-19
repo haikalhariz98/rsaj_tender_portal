@@ -246,6 +246,11 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
         instrumentFault: "fault" in instrument ? { code: instrument.fault, level: "block", data: { regime: instrument.regime } } : null,
         issueInForce: issue != null && ctx != null,
       });
+      // The recommendation is SULIT: an officer it is closed to is told so before any refusal that reads from it (AC-69).
+      if (refused?.kind === "FINDINGS" && refused.source === "EVALUATION") {
+        const closed = await recommendationClosed(tx, actor, ex.id, evaluation);
+        if (closed) return closed;
+      }
       if (refused) return refused.kind === "NO_ZONE" ? NO_ZONE : { ok: false, message: refused.kind === "FINDINGS" ? `${refused.source === "EVALUATION" ? "Nothing was saved:" : "No award was opened:"} ${startRefusalText(refused)}` : startRefusalText(refused) };
       if (!org.today) return NO_ZONE; // narrowing only: refused above
       // 6.7 (C-7, C-8, flagged): the awardee a party carried to evaluation, compared as a party.

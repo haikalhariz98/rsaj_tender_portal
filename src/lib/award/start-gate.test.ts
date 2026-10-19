@@ -23,6 +23,7 @@ describe("awardStartRefusal", () => {
     expect(awardStartRefusal({ ...ok, opening: { ...ok.opening, applies: false } })).toBeNull();
   });
 
+  // Reproduced read-only on the browser check's database (perolehan_verify_g, 2026-10-19): demo_sx21 is UNDER_EVALUATION with the evaluation gate applying, pinned, and no report issued.
   it("refuses an exercise still under evaluation, and asks no awardee", () => {
     const r = awardStartRefusal({ ...ok, status: "UNDER_EVALUATION", evaluation: { ...ok.evaluation, exerciseStatus: "UNDER_EVALUATION", issued: null }, opening: { ...ok.opening, applies: false } });
     expect(r).toMatchObject({ kind: "FINDINGS", source: "EVALUATION" });

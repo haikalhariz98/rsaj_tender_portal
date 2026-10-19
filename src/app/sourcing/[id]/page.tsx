@@ -311,12 +311,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       instrumentFault: "fault" in instrument ? { code: instrument.fault, level: "block", data: { regime: instrument.regime } } : null,
       issueInForce: issue != null && ctx != null,
     });
-    let note = refusal ? startRefusalText(refusal) : null;
     // The recommendation is SULIT: an officer it is closed to is refused by the act, so the button says so here. Asked without logging or reading any SULIT field (`sulitWriteDecision`).
-    if (!note && g.gate.applies) {
-      const closed = (await sulitWriteDecision(db, actor, { scope: "evaluation", exerciseId: ex.id }, RECOMMENDATION_FIELDS))?.refusal;
-      if (closed) note = recommendationClosedText(closed, "No award can be opened");
-    }
+    const closed = g.gate.applies && (!refusal || (refusal.kind === "FINDINGS" && refusal.source === "EVALUATION")) ? (await sulitWriteDecision(db, actor, { scope: "evaluation", exerciseId: ex.id }, RECOMMENDATION_FIELDS))?.refusal : null;
+    const note = closed ? recommendationClosedText(closed, "No award can be opened") : refusal ? startRefusalText(refusal) : null;
     return { note, evaluation: g.gate.applies ? evaluationFindings({ facts: g.gate }).map(awardFindingText) : [], opening: openingGateFaults(openingFacts).map(openingFindingText) };
   })() : null;
   const openingAward = awardStart?.opening ?? [];

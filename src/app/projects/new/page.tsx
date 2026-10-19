@@ -7,13 +7,13 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { awardOpenRefusal, evaluationFindings, exerciseOpenForAward } from "@/lib/award/gate";
+import { awardStartRefusal } from "@/lib/award/start-gate";
+import { startRefusalText } from "@/lib/award/start-text";
+import { evaluationContext } from "@/lib/method/repo";
 import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
 import { readWindowGate } from "@/lib/window/repo";
-import { openingGateFaults } from "@/lib/opening/award-gate";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
-import { openingFindingText } from "@/lib/opening/labels";
-import { INSTRUMENT_LABEL, awardFindingText } from "@/lib/award/labels";
+import { INSTRUMENT_LABEL } from "@/lib/award/labels";
 import { awardHeadroom, instrumentFor } from "@/lib/award/instrument";
 import { frozenTenderOf, loadAwardPolicy } from "@/lib/award/repo";
 import { LIVE_STATUSES } from "@/lib/award/status";
@@ -78,11 +78,22 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
   const gate = await readWindowGate(ex, org.timeZone);
   // 6.7 (C-7, C-8): the openings' checks; the awardee is chosen from the bidders carried to evaluation.
   const opening = await loadOpeningGate(ex.id);
-  const openingBlock = openingGateFaults(opening);
   // 6.8 (E-9, flagged): Evaluated, its report standing; the award is pre-filled from the recommendation.
   const evaluation = await loadEvaluationGate(ex.id);
-  const evaluationBlock = evaluation.gate.applies ? evaluationFindings({ facts: evaluation.gate }) : [];
-  const blocker = !exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate) ? awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) : openingBlock.length ? openingBlock.map(openingFindingText).join(" ") : evaluationBlock.length ? evaluationBlock.map(awardFindingText).join(" ") : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
+  // AC-69: the refusals that do not depend on the form are the one pure function's, the same the Award tab and the act ask.
+  const { issue, ctx } = await evaluationContext(org, l.req, ex);
+  const refusal = awardStartRefusal({
+    timeZoneSet: org.today != null,
+    status: ex.status,
+    packKindSnapshot: ex.packKindSnapshot,
+    window: gate,
+    live: live?.reference ?? null,
+    opening,
+    evaluation: evaluation.gate,
+    instrumentFault: "fault" in instrument ? { code: instrument.fault, level: "block", data: { regime: instrument.regime } } : null,
+    issueInForce: issue != null && ctx != null,
+  });
+  const blocker = refusal ? startRefusalText(refusal) : null;
   if (blocker) {
     return (
       <>
