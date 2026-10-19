@@ -76,17 +76,17 @@ describe("how many authorise (ADR 0036 D10, ruling 20k): two on paper, the roste
     const two = openingState(o, [{ sittingNo: 1, adjournedAt: null }], [auth("p1"), auth("p2")], panel3, 3);
     expect(two.sittingAuthorised).toBe(false);
     expect(openingPhase(two)).toBe("AWAITING_REAUTHORISATION");
-    expect(openingFindingText(actFaults(two)[0])).toMatch(/each of the 3 named opening officers/);
+    expect(openingFindingText(actFaults(two)[0])).toMatch(/All 3 named officers/);
     const three = openingState(o, [{ sittingNo: 1, adjournedAt: null }], [auth("p1"), auth("p2"), auth("p3")], panel3, 3);
     expect(three.sittingAuthorised).toBe(true);
     // An online roster of two is still every named officer, with no box (review): the words follow the channel, never the count.
     const panel2 = [{ personId: "p1", present: true }, { personId: "p2", present: true }];
     const noneYet = openingState({ ...o, unsealedAt: null }, [{ sittingNo: 1, adjournedAt: null }], [], panel2, 2);
-    expect(openingFindingText(actFaults(noneYet)[0])).toMatch(/each of the 2 named opening officers/);
+    expect(openingFindingText(actFaults(noneYet)[0])).toMatch(/All 2 named opening officers/);
     expect(openingFindingText(actFaults(noneYet)[0])).not.toMatch(/box|panel members present/);
     const resting = openingState(o, [{ sittingNo: 1, adjournedAt: null }], [auth("p1")], panel2, 2);
-    expect(openingFindingText(actFaults(resting)[0])).toMatch(/each of the 2 named opening officers/);
-    expect(openingFindingText(actFaults(openingState({ ...o, online: false, unsealedAt: null }, [{ sittingNo: 1, adjournedAt: null }], [], PANEL))[0])).toMatch(/two panel members/);
+    expect(openingFindingText(actFaults(resting)[0])).toMatch(/All 2 named officers/);
+    expect(openingFindingText(actFaults(openingState({ ...o, online: false, unsealedAt: null }, [{ sittingNo: 1, adjournedAt: null }], [], PANEL))[0])).toMatch(/Two present panel members/);
   });
 });
 
@@ -107,8 +107,8 @@ describe("starting an online opening (20aa, H2)", () => {
     expect(words).toMatch(/Try again in 21 seconds/);
   });
   it("KEY_OFFICERS_MISMATCH says the officers changed when the counts are the same, and gives the counts when they differ (review)", () => {
-    expect(openingFindingText({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: 2, keyOfficers: 2 } })).toMatch(/roster has changed since the key was made/);
-    expect(openingFindingText({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: 3, keyOfficers: 2 } })).toMatch(/split across 2 officers, and 3 are named now/);
+    expect(openingFindingText({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: 2, keyOfficers: 2 } })).toMatch(/Officers differ from those the key was split across/);
+    expect(openingFindingText({ code: "KEY_OFFICERS_MISMATCH", level: "block", data: { officers: 3, keyOfficers: 2 } })).toMatch(/split across 2 officers, 3 named/);
   });
   it("refuses no live key, a key split across other officers, a roster of one, and an unset closing", () => {
     expect(onlineStartFaults({ ...ok, key: null }).map((f) => f.code)).toEqual(["KEY_NOT_LIVE"]);

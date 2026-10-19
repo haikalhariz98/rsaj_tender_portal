@@ -192,29 +192,29 @@ export function columnBindingFaults(i: { seen: ColumnSeen; current: ColumnFacts 
 }
 
 export const MATRIX_FAULT_TEXT: Readonly<Record<CellAnswerFault | MatrixActorFault | ConfirmFault | ColumnBindingFault, string>> = {
-  COLUMN_CHANGED: "The column changed after you opened it. Reload the page to read the column again, then confirm or decide.",
-  NO_FILE_RECEIVED: "No file was received for this part, so it cannot be recorded as present. Record it as absent or not applicable.",
-  ADMINISTRATOR: "An administrator account does not answer, decide or confirm anything at an opening.",
-  NOT_A_NAMED_OFFICER: "Only the named opening officers present at this opening record its answers, decisions and confirmations, and only for an officer present at it.",
-  NOT_OWN_ACT: "Each named opening officer records this for themselves. Only a confirmation on a paper opening may be recorded for another officer present at it.",
-  COLUMN_NOT_ANSWERED: "Every item in this column must be answered before the column is confirmed.",
-  DECISION_NOT_RECORDED: "No decision is recorded for this column yet. Record it before confirming the column.",
+  COLUMN_CHANGED: "Column changed since you opened it. Reload, then confirm or decide.",
+  NO_FILE_RECEIVED: "No file received. Record it absent or not applicable.",
+  ADMINISTRATOR: "Administrators do not answer, decide or confirm at an opening.",
+  NOT_A_NAMED_OFFICER: "Only named opening officers present here can record this.",
+  NOT_OWN_ACT: "Each officer records this themselves. Only paper confirmations may be recorded for another.",
+  COLUMN_NOT_ANSWERED: "Answer every item before confirming the column.",
+  DECISION_NOT_RECORDED: "No decision yet. Record it before confirming.",
 };
 
 /// Staff-facing English; no code reaches a screen. The addendum's own line, with its day, is `addendumCellText`.
 export const CELL_WORDS: Readonly<Record<CellKind, string>> = {
-  PAPER: "Checked against the envelope at the opening",
-  CHECK_FILES: "Opened at the opening by the named opening officers",
-  RECEIVED_NOT_CHECKED: "A file was received. It is not opened at the opening, only at finalising",
-  NOT_RECEIVED: "No file was received for this part",
-  ADDENDUM: "Answered from the portal's record of acknowledgements",
+  PAPER: "Checked against the envelope",
+  CHECK_FILES: "Opened by the named officers",
+  RECEIVED_NOT_CHECKED: "File received. Opened only at finalising",
+  NOT_RECEIVED: "No file received",
+  ADDENDUM: "From the portal's acknowledgements",
 };
 
 /// An online addendum cell's line: the day it was acknowledged on the portal (a YYYY-MM-DD day, as the organisation reads it), or that it was not.
-export const addendumCellText = (acknowledgedOn: string | null): string => (acknowledgedOn ? `Acknowledged on the portal on ${formatDate(acknowledgedOn)}` : "Not acknowledged on the portal");
+export const addendumCellText = (acknowledgedOn: string | null): string => (acknowledgedOn ? `Acknowledged ${formatDate(acknowledgedOn)}` : "Not acknowledged");
 
 /// The addendum cell's line for a reader from whom the day is held until finalising (20c, 20cm): the day could be matched against the acknowledgement register to name the column.
-export const ADDENDUM_DAY_HELD_TEXT = "The acknowledgement day is shown to the named opening officers until the opening is finalised";
+export const ADDENDUM_DAY_HELD_TEXT = "Day shown to opening officers until finalised";
 
 /// An online column whose bid has no digest on the roll frozen at the start says so, never a blank.
 export const NO_RECEIPT_DIGEST_TEXT = "No receipt digest on the roll";

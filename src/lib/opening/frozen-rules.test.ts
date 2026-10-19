@@ -36,14 +36,14 @@ describe("the words (S-4)", () => {
   const consequence = openingFindingText({ code: "CONSEQUENCE_NOT_SET", level: "block" });
   it("never 'set it': the answer was not set when the documents were approved; later documents take the setting", () => {
     expect(notJudged).not.toMatch(/\bset it\b/i);
-    expect(notJudged).toMatch(/^Whether a bidder returns Specification was not set when the tender documents were approved/);
-    expect(notJudged).toMatch(/Documents approved later take the setting \(Configuration › Tender documents\)/);
+    expect(notJudged).toMatch(/^Whether bidders return Specification was never set/);
+    expect(notJudged).toMatch(/Cancel from Tender documents › Publishing/);
   });
   it("this exercise's exit is cancellation (C-9)", () => {
     // SR-06 (ruling 9): the Invitation tab is gone; the exit is named at Tender documents, under Publishing.
-    expect(notJudged).toMatch(/this exercise's exit is to cancel it, from Tender documents, under Publishing\.$/);
+    expect(notJudged).toMatch(/Cancel from Tender documents › Publishing\.$/);
     expect(consequence).not.toMatch(/\bset it\b/i);
-    expect(consequence).toMatch(/Windows published later take the setting \(Configuration › Invitation, under Bid receipt, by sourcing method\)/);
-    expect(consequence).toMatch(/this exercise's exit is to cancel it/);
+    expect(consequence).toMatch(/Cancel from Tender documents › Publishing/);
+    expect(consequence).toMatch(/Cancel from/);
   });
 });

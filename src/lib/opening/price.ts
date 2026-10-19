@@ -18,7 +18,7 @@ export class PriceNotReadError extends Error {
   readonly code = "PRICE_NOT_READ" as const;
   constructor(readonly listingNo: number | null) {
     super(
-      `The price of bid ${listingNo ?? "(unnumbered)"} is not read: an online bid's price is written only when its opening is finalised (ADR 0036 D10, ruling 20), so it cannot be used here yet.`,
+      `Price of bid ${listingNo ?? "(unnumbered)"} not read yet. Online prices are written at finalising.`,
     );
     this.name = "PriceNotReadError";
   }

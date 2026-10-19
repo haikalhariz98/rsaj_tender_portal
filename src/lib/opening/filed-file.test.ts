@@ -53,8 +53,8 @@ describe("FILED_FILE_WORDS: a sentence per refusal and per failure of the move",
     }
   });
   it("CLASS_NOT_SET points where the finalise refusal points (Configuration › Documents, in the upload rules)", () => {
-    expect(FILED_FILE_WORDS.CLASS_NOT_SET).toContain("Configuration › Documents, in the upload rules");
-    expect(openingFindingText({ code: "ONLINE_FILE_CLASS_NOT_SET", level: "block" })).toContain("Configuration › Documents, in the upload rules");
+    expect(FILED_FILE_WORDS.CLASS_NOT_SET).toContain("Configuration › Documents");
+    expect(openingFindingText({ code: "ONLINE_FILE_CLASS_NOT_SET", level: "block" })).toContain("Configuration › Documents");
   });
   it("the opening's words read the two new refusal codes from here", () => {
     expect(openingFindingText({ code: "NOT_ON_THIS_OPENING", level: "block" })).toBe(FILED_FILE_WORDS.NOT_ON_THIS_OPENING);

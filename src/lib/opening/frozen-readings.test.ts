@@ -99,15 +99,15 @@ describe("the unpurchased rule set since the start (S-3, OD-4)", () => {
 describe("the company estimate's card and the paper copy (S-5)", () => {
   const card = (requires: boolean | null, state: Parameters<typeof estimateCardText>[0]["state"], copyCheck: Parameters<typeof estimateCardText>[0]["copyCheck"] = null) => estimateCardText({ requires, state, copyCheck, sealedText: "Withheld from view until the schedule is finalised" });
   it("none lodged: needed, not needed and not set read differently", () => {
-    expect(card(true, null)).toEqual({ text: "The method needs a company estimate, and none is lodged.", tone: "warn" });
-    expect(card(false, null)).toEqual({ text: "Not needed: the method does not need a company estimate, and none is lodged.", tone: "neutral" });
-    expect(card(null, null).text).toMatch(/whether the method needs a company estimate is not set/);
+    expect(card(true, null)).toEqual({ text: "Estimate needed. None lodged.", tone: "warn" });
+    expect(card(false, null)).toEqual({ text: "Estimate not needed. None lodged.", tone: "neutral" });
+    expect(card(null, null).text).toMatch(/Whether it is needed is not set/);
     expect(card(null, null).tone).toBe("warn");
     expect(new Set([card(true, null).text, card(false, null).text, card(null, null).text]).size).toBe(3);
   });
   it("a voluntary lodged estimate says its copy may be left unanswered; a required one says it is compared", () => {
-    expect(card(false, "LODGED").text).toMatch(/Lodged voluntarily.*may be left unanswered then, and is then not compared/);
-    expect(card(true, "LODGED").text).toMatch(/its paper copy compared, only when the opening is finalised/);
+    expect(card(false, "LODGED").text).toMatch(/Lodged voluntarily\. Paper copy may be left unanswered/);
+    expect(card(true, "LODGED").text).toMatch(/Paper copy compared at finalising/);
   });
   it("disclosed: with a comparison, or 'Paper copy not compared'", () => {
     expect(card(false, "DISCLOSED", null).text).toMatch(/Paper copy not compared\.$/);

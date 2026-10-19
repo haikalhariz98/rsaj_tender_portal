@@ -13,7 +13,7 @@ describe("an online opening (review, stage C)", () => {
   it("the paper finalise refuses it in words, whatever else is ready, before any price is read", () => {
     const f = finaliseFaults({ ...base, state: open({ online: true, required: 3 }) });
     expect(f.map((x) => x.code)).toEqual(["ONLINE_FINALISE_ELSEWHERE"]);
-    expect(openingFindingText(f[0])).toMatch(/bids online/);
+    expect(openingFindingText(f[0])).toMatch(/Online bids finalise only under Finalising/);
     expect(finaliseFaults({ ...base, state: open({ online: true, finalised: true }) }).map((x) => x.code)).toEqual(["FINALISED"]);
   });
 });
@@ -31,7 +31,7 @@ describe("the online finalise judges an online opening by the same faults (step 
   it("an estimate lodged but no sealed copy read says so in its own words, and a copy read clears it", () => {
     const f = finaliseFaults({ ...online, estimate: { required: true, lodged: true, paperAnswered: false } });
     expect(f.map((x) => x.code)).toEqual(["ESTIMATE_COPY_NOT_ANSWERED"]);
-    expect(openingFindingText(f[0])).toMatch(/sealed copy/);
+    expect(openingFindingText(f[0])).toMatch(/sealed estimate copy/);
     expect(openingFindingText(f[0])).not.toMatch(/paper copy from the box/);
     expect(finaliseFaults({ ...online, estimate: { required: true, lodged: true, paperAnswered: true } })).toEqual([]);
   });
@@ -40,7 +40,7 @@ describe("the online finalise judges an online opening by the same faults (step 
     expect(finaliseFaults({ ...base, state: open({ online: true, required: 2 }) }).map((x) => x.code)).toEqual(["ONLINE_FINALISE_ELSEWHERE"]);
   });
   it("the paper refusal names the online finalise's screen", () => {
-    expect(openingFindingText({ code: "ONLINE_FINALISE_ELSEWHERE", level: "block" })).toMatch(/Finalising section of this exercise's Opening tab/);
+    expect(openingFindingText({ code: "ONLINE_FINALISE_ELSEWHERE", level: "block" })).toMatch(/under Finalising on this tab/);
   });
 });
 

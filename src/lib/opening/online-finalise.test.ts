@@ -30,7 +30,7 @@ describe("the doors of the online finalise", () => {
       for (const f of onlineFinaliseDoorFaults({ ...ready, ...over })) expect(openingFindingText(f), f.code).not.toMatch(/\b[A-Z]{3,}_[A-Z_]+\b|cannot be recorded as it stands/);
     }
     const early = onlineFinaliseDoorFaults({ ...ready, unsealed: false })[0];
-    expect(openingFindingText(early)).toMatch(/each of the 2 named opening officers must authorise/);
+    expect(openingFindingText(early)).toMatch(/All 2 named opening officers must authorise/);
     expect(openingFindingText(early)).not.toMatch(/box/);
   });
 });
@@ -39,10 +39,10 @@ describe("what a failed check says", () => {
   it.each(["ONLINE_BID_NOT_FOUND", "ONLINE_GRANT_MISSING", "ONLINE_GRANT_UNREADABLE", "ONLINE_BYTES_MISSING", "ONLINE_FILE_UNREADABLE", "ONLINE_DIGEST_MISMATCH", "ONLINE_DECLARATION_UNREADABLE"] as const)("%s names the offer and says nothing was finalised, with no code", (code) => {
     const t = openingFindingText(materialFinding(code, 4));
     expect(t).toMatch(/offer 4/i);
-    expect(t).toMatch(/Nothing was finalised/);
+    expect(t).toMatch(/Nothing finalised/);
     expect(t).not.toMatch(/ONLINE_/);
   });
-  it("an estimate that did not open names no offer", () => expect(openingFindingText(materialFinding("ONLINE_ESTIMATE_UNREADABLE", null))).toMatch(/Nothing was finalised/));
+  it("an estimate that did not open names no offer", () => expect(openingFindingText(materialFinding("ONLINE_ESTIMATE_UNREADABLE", null))).toMatch(/Nothing finalised/));
 });
 
 describe("what the finalise writes and releases", () => {

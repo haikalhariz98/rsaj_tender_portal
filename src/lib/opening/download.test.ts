@@ -23,7 +23,7 @@ const opening = (over: Partial<DownloadOpening> = {}): DownloadOpening => ({
 describe("openingCsv (SR-15, ruling 24)", () => {
   it("refuses before finalising, in words", () => {
     expect(openingCsv("schedule", opening({ finalised: false }))).toEqual({ refusal: "NOT_FINALISED" });
-    expect(DOWNLOAD_REFUSAL_TEXT.NOT_FINALISED).toMatch(/not finalised/);
+    expect(DOWNLOAD_REFUSAL_TEXT.NOT_FINALISED).toMatch(/not finalised/i);
   });
   it("titles the schedule with the print label and keeps the opening order, the estimate row last", () => {
     const r = openingCsv("schedule", opening());

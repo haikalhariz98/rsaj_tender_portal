@@ -31,7 +31,7 @@ describe("the opening's state reads the exercise's cancellation", () => {
     expect(openingState({ ...o, exerciseStatus: "CANCELLED" }, sittings, [], PANEL).cancelled).toBe(true);
     expect(openingState({ ...o, exerciseStatus: "OPENING_IN_PROGRESS" }, sittings, [], PANEL).cancelled).toBe(false);
   });
-  it("its words say nothing more is recorded", () => expect(openingFindingText({ code: "CANCELLED", level: "block" })).toMatch(/nothing more is recorded at its opening/));
+  it("its words say nothing more is recorded", () => expect(openingFindingText({ code: "CANCELLED", level: "block" })).toMatch(/nothing more is opened or recorded/i));
 });
 
 describe("every act refuses CANCELLED, first and alone", () => {

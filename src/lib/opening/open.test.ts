@@ -76,6 +76,6 @@ describe("correcting a keying slip (OD-10)", () => {
   it("after signing, never", () => expect(f({ state: open({ finalised: true }) })).toEqual(["FINALISED"]));
   it("an online bid whose price is not read yet is refused in words, never thrown (review S6)", () => {
     expect(f({ priceRead: false })).toEqual(["PRICE_NOT_READ"]);
-    expect(openingFindingText({ code: "PRICE_NOT_READ", level: "block" })).toMatch(/price is not read yet/);
+    expect(openingFindingText({ code: "PRICE_NOT_READ", level: "block" })).toMatch(/Price not read yet/);
   });
 });

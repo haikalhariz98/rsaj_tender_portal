@@ -34,8 +34,8 @@ describe("17a: a restriction not assessed holds the verdict", () => {
   });
   it("says why in words and carries no code", () => {
     const w = openingFindingText({ code: "RESTRICTION_NOT_ASSESSED", level: "block" });
-    expect(w).toMatch(/waiting for an officer to verify/);
-    expect(w).toMatch(/read again each time you act on this offer/);
+    expect(w).toMatch(/awaits verification/);
+    expect(w).toMatch(/No verdict yet/);
     expect(w).not.toMatch(/RESTRICTION_NOT_ASSESSED|NOT_ASSESSED/);
   });
   it("the configuration gaps are blocking faults in words naming the setting", () => {
@@ -52,7 +52,7 @@ describe("17a: the finding's words say the register, never a sighting", () => {
   it("a register reading is labelled verified on, or not evidenced on, the supplier register", () => {
     expect(restrictionLabel("EVIDENCED", reading)).toBe("Restriction verified on the supplier register");
     expect(restrictionLabel("NOT_EVIDENCED", reading)).toBe("Restriction not evidenced on the supplier register");
-    expect(restrictionLabel("NOT_ASSESSED", reading)).toMatch(/waiting to be verified/);
+    expect(restrictionLabel("NOT_ASSESSED", reading)).toMatch(/awaiting verification/);
   });
   it("a counter sale (no register reading) keeps its labels", () => {
     expect(restrictionLabel("EVIDENCED", null)).toBe(RESTRICTION_FINDING_LABEL.EVIDENCED);

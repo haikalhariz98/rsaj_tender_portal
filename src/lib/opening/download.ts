@@ -65,8 +65,8 @@ export interface DownloadOpening {
 
 export type DownloadRefusal = "NOT_FINALISED" | "NO_SUMMARY";
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {
-  NOT_FINALISED: "The opening is not finalised yet. The schedule and the Grand Summary are downloaded once it is, from the copy frozen then.",
-  NO_SUMMARY: "No Grand Summary was frozen with this opening.",
+  NOT_FINALISED: "Not finalised yet. Download after finalising.",
+  NO_SUMMARY: "No Grand Summary for this opening.",
 };
 
 const priceText = (s: Sulit<string>) => (s.state === "GRANTED" ? s.value : `SULIT · withheld: ${s.words.en}`);

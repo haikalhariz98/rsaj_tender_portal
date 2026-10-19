@@ -27,7 +27,7 @@ describe("a unit outside the structure in force (R-6)", () => {
   });
   it("its words say why, and where to correct it", () => {
     const f = panelFaults({ ...base, picked: [pick("p1", "OLD"), pick("p2", "FIN")] }).find((x) => x.code === "UNIT_NOT_RECORDED")!;
-    expect(openingFindingText(f)).toMatch(/^Person p1's unit is not in the organisation's structure in force on the opening day/);
+    expect(openingFindingText(f)).toMatch(/^Person p1's unit is not in the structure in force/);
     expect(openingFindingText({ code: "UNIT_NOT_RECORDED", level: "block", data: { person: "Aminah" } })).toMatch(/unit is not recorded/);
   });
   it("units in force are judged as before: outside passes, inside or under is refused", () => {

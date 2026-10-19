@@ -34,26 +34,26 @@ export function filedFileFaults(i: { administrator: boolean; finalised: boolean;
 
 /// One sentence per refusal and per failure of the move. Staff-facing English; no code reaches a screen.
 export const FILED_FILE_WORDS: Readonly<Record<FiledFileFault | MoveFailure, string>> = {
-  ADMINISTRATOR: "An administrator account does not download bid files from an opening.",
-  NOT_FINALISED: "The opening is not finalised yet. Until it is, only the named opening officers open this file, from the opening.",
-  NOT_ON_THIS_OPENING: "That file is not part of a bid opened at this opening.",
-  NOT_AN_OPENING_CHECK_FILE: "That file is not for a part the officers open at the opening, so it is not downloaded from here.",
-  FILE_NOT_FOUND: "No such file was received for this exercise.",
-  CLASS_NOT_SET: "The class that an online bid's files take when they are filed is not set, so this file cannot be filed yet. Set it under Configuration › Documents, in the upload rules.",
-  CLASS_NOT_SULIT: "The class set for an online bid's filed files is not a SULIT class, so this file is not filed under it. Set a SULIT class under Configuration › Documents, in the upload rules.",
-  ORGANISATION_NOT_FOUND: "The organisation this file belongs to could not be read, so it was not filed. Report it to whoever runs the portal.",
-  STORE_NOT_BUILT: "The store that filed documents are kept in is not set up on this server, so this file cannot be filed yet. Report it to whoever runs the portal.",
-  BYTES_MISSING: "The sealed file is not in the store, so it cannot be filed. Report it to whoever runs the portal.",
-  DIGEST_MISMATCH: "The file does not match its recorded fingerprint, so it was not filed. Report it to whoever runs the portal.",
-  FILE_UNREADABLE: "The sealed file could not be opened to be filed, so it was not filed. Report it to whoever runs the portal.",
-  REFUSED: "The document store refused to file this file, so it was not filed. Report it to whoever runs the portal.",
+  ADMINISTRATOR: "Administrators do not download bid files.",
+  NOT_FINALISED: "Not finalised yet. Only named opening officers open this file.",
+  NOT_ON_THIS_OPENING: "Not part of a bid opened here.",
+  NOT_AN_OPENING_CHECK_FILE: "Not an opening-check file. It cannot be downloaded here.",
+  FILE_NOT_FOUND: "No such file received.",
+  CLASS_NOT_SET: "Filing class not set. Set it under Configuration › Documents.",
+  CLASS_NOT_SULIT: "Filing class is not SULIT. Set one under Configuration › Documents.",
+  ORGANISATION_NOT_FOUND: "Organisation unreadable. Not filed. Ask whoever runs the portal.",
+  STORE_NOT_BUILT: "Document store not set up. Not filed. Ask whoever runs the portal.",
+  BYTES_MISSING: "Sealed file not in the store. Ask whoever runs the portal.",
+  DIGEST_MISMATCH: "File does not match its fingerprint. Not filed. Ask whoever runs the portal.",
+  FILE_UNREADABLE: "Sealed file would not open. Not filed. Ask whoever runs the portal.",
+  REFUSED: "Document store refused it. Not filed. Ask whoever runs the portal.",
 };
 
 /// The words when the mover found nothing to move and no filed document stands for the file: the finalise did not release it. Staff-facing English.
-export const NOT_FILED_YET_WORDS = "This file has not been filed as a document yet, so it cannot be downloaded. Report it to whoever runs the portal.";
+export const NOT_FILED_YET_WORDS = "Not filed yet. Ask whoever runs the portal.";
 
 /// The words when the route could not be reached or answered with something that is not ours (a proxy's page). Staff-facing English.
-export const FILED_FILE_FALLBACK_WORDS = "The file could not be downloaded. Try again, or report it to whoever runs the portal.";
+export const FILED_FILE_FALLBACK_WORDS = "Download failed. Try again, or ask whoever runs the portal.";
 
 export const FILED_FILE_FIELDS = ["exerciseId", "openingId", "fileId"] as const;
 export type FiledFileRequest = { exerciseId: string; openingId: string; fileId: string };

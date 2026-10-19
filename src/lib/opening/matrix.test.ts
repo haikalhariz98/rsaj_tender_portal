@@ -38,7 +38,7 @@ import { CHECKLIST_ANSWERS, type ChecklistAnswer } from "./types";
  * supplier acknowledged Addendum 1 on 13 Nov 2026. So its column reads:
  *   Form of Tender   → the officers open the file (CHECK_FILES)
  *   Summary and Rates → no file was received (NOT_RECEIVED): Present is refused, Absent or Not applicable is the officers' call
- *   Addendum 1       → "Acknowledged on the portal on 13 Nov 2026"
+ *   Addendum 1       → "Acknowledged 13 Nov 2026"
  * The column starts at revision 0, and every answer changed and every decision recorded raises it by one (plan §1.3, §4.1). Step by step:
  *   1. The officers answer Present, Absent, Present (revisions 1, 2, 3). The column reads "2 of 3 present · 1 absent".
  *      Nobody may confirm yet: no decision is recorded.
@@ -76,7 +76,7 @@ describe("the worked example (a finance reader can follow it by hand)", () => {
       { itemKey: "SAR", kind: "NOT_RECEIVED", fileIds: [], acknowledgedOn: null },
       { itemKey: "addendum:1", kind: "ADDENDUM", fileIds: [], acknowledgedOn: "2026-11-13" },
     ]);
-    expect(addendumCellText(cells[2].acknowledgedOn)).toBe("Acknowledged on the portal on 13 Nov 2026");
+    expect(addendumCellText(cells[2].acknowledgedOn)).toBe("Acknowledged 13 Nov 2026");
     expect(cellAnswerFaults(cells[1], "PRESENT").map((f) => f.code)).toEqual(["NO_FILE_RECEIVED"]);
 
     const answers = new Map<string, ChecklistAnswer>([["FOT", "PRESENT"], ["SAR", "ABSENT"], ["addendum:1", "PRESENT"]]);
@@ -152,8 +152,8 @@ describe("cellFacts: what each cell offers (§1.2, G1)", () => {
   it("addenda: acknowledged gives the day, not acknowledged gives null, and the words say each", () => {
     const cells = online({ items: [ADD1, ADD2], acknowledgements: new Map([[1, "2026-11-13"]]) });
     expect(cells.map((c) => [c.kind, c.acknowledgedOn])).toEqual([["ADDENDUM", "2026-11-13"], ["ADDENDUM", null]]);
-    expect(addendumCellText(null)).toBe("Not acknowledged on the portal");
-    expect(ADDENDUM_DAY_HELD_TEXT).toMatch(/named opening officers/);
+    expect(addendumCellText(null)).toBe("Not acknowledged");
+    expect(ADDENDUM_DAY_HELD_TEXT).toMatch(/opening officers/);
   });
   it("an addendum item whose key is not addendum:<n> reads as not acknowledged rather than guessing a number", () => {
     const odd: ChecklistItem = { key: "addendum:one", label: "Addendum", source: "ADDENDUM" };
@@ -383,6 +383,6 @@ describe("the column a confirmation or a decision is bound to (security audit, r
     expect(columnBindingFaults({ seen: { ...now, asReadCorrections: 0 }, current: now }).map((f) => f.code)).toEqual(["COLUMN_CHANGED"]);
     // The refusal opens with "Nothing was saved:" itself, so the sentence does not say it again.
     expect(MATRIX_FAULT_TEXT.COLUMN_CHANGED).not.toMatch(/Nothing was saved/);
-    expect(MATRIX_FAULT_TEXT.COLUMN_CHANGED).toMatch(/Reload the page/);
+    expect(MATRIX_FAULT_TEXT.COLUMN_CHANGED).toMatch(/Reload/);
   });
 });

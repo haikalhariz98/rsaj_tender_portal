@@ -31,7 +31,7 @@ describe("the time zone (R-5)", () => {
     expect(restrictionFinding(true, sale, null)).toEqual({ fault: { code: "TIME_ZONE_NOT_SET", level: "block" } });
     expect(restrictionFinding(true, sale, "2026-11-17")).toEqual({ finding: "NOT_EVIDENCED" });
     expect(restrictionFinding(false, sale, null)).toEqual({ finding: "NOT_RESTRICTED" });
-    expect(openingFindingText({ code: "TIME_ZONE_NOT_SET", level: "block" })).toMatch(/time zone is not set/);
+    expect(openingFindingText({ code: "TIME_ZONE_NOT_SET", level: "block" })).toMatch(/Time zone not set/);
   });
   it("no fallback is left: no UTC instant for the day, no empty closing day", () => {
     const repo = readFileSync("src/lib/opening/repo.ts", "utf8");

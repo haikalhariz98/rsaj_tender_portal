@@ -39,7 +39,7 @@ describe("the supplementary opening's panel (R-3)", () => {
   it("the main opening's committee retired or gone: MAIN_COMMITTEE_GONE, never another committee", () => {
     expect(supplementaryPanel({ mainCommittee: { ...tenderBoard, retiredOn: new Date("2026-11-20") }, frozenCode: "OPENING_A", seats, unitPath })).toEqual({ fault: { code: "MAIN_COMMITTEE_GONE", level: "block" } });
     expect(supplementaryPanel({ mainCommittee: null, frozenCode: "OPENING_A", seats, unitPath })).toEqual({ fault: { code: "MAIN_COMMITTEE_GONE", level: "block" } });
-    expect(openingFindingText({ code: "MAIN_COMMITTEE_GONE", level: "block" })).toMatch(/does not take its place/);
+    expect(openingFindingText({ code: "MAIN_COMMITTEE_GONE", level: "block" })).toMatch(/needs that committee/);
   });
   it("startSupplementaryOpening reads the main opening's committee and seats, never the method's now", () => {
     const src = readFileSync("src/app/sourcing/[id]/opening/actions.ts", "utf8");

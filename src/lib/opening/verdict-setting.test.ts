@@ -61,10 +61,10 @@ describe("a verdict that no longer stands for another reason (residual 5)", () =
     const base = { state: { kind: "MAIN", status: "IN_PROGRESS", sittingNo: 1, finalised: false, exerciseStatus: "CLOSED" }, bids: [], present: [], signed: [], pages: 2, checklist, withdrawals: [], unopened: 0, admittedOpened: true, completenessEliminates: true, unpurchased: "ELIMINATE" as const, invitedReading: "ALL" as never, estimate: { required: false, lodged: false, paperAnswered: true }, personActive: true } as unknown as Parameters<typeof finaliseFaults>[0];
     const fs = finaliseFaults({ ...base, noLongerStands: [{ listingNo: 4, verdict: "PASS", added: ["NOT_PURCHASED"], removed: [] }] });
     const f = fs.find((x) => x.code === "VERDICT_NO_LONGER_STANDS")!;
-    expect(openingFindingText(f)).toBe("Offer 4's carrying no longer stands under the rules as they read now (now against it: the bidder holds no live purchase of the documents, and the method eliminates such a bid). Record offer 4's verdict again.");
+    expect(openingFindingText(f)).toBe("Offer 4's carrying no longer stands (now against it: no live purchase of the documents). Record it again.");
     expect(openingFindingText(f)).not.toMatch(/setting has changed/);
     const s = finaliseFaults({ ...base, ineligible: { consequence: "ELIMINATE", anyFound: true, disagreements: [{ listingNo: 3, was: "REPORT", now: "ELIMINATE" }] } }).find((x) => x.code === "VERDICT_UNDER_OTHER_SETTING")!;
-    expect(openingFindingText(s)).toBe("Offer 3's verdict was recorded with its bidder, found not eligible on the supplier register, reported to the committee, which decides; the register's setting has changed since, and finalising would freeze it as eliminated at the opening. Record offer 3's verdict again under the setting as it stands.");
+    expect(openingFindingText(s)).toBe("Offer 3's verdict was reported to the committee, now eliminated. Record it again.");
   });
 });
 

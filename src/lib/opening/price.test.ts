@@ -15,8 +15,8 @@ describe("the price as read, which an online bid has only from the finalise (ADR
     } catch (e) {
       expect((e as PriceNotReadError).code).toBe("PRICE_NOT_READ");
       expect((e as PriceNotReadError).listingNo).toBe(3);
-      expect((e as Error).message).toMatch(/bid 3 is not read/);
-      expect((e as Error).message).toMatch(/finalised/);
+      expect((e as Error).message).toMatch(/bid 3 not read/);
+      expect((e as Error).message).toMatch(/finalising/);
     }
     expect(() => priceRead({ priceAsRead: undefined as unknown as null })).toThrow(/unnumbered/);
   });
