@@ -67,7 +67,7 @@ describe("the independence rule on a broken path (67-C5)", () => {
     const fs = whole([pick("p1", "dept_orphan"), pick("p2", "sect_a1x")]);
     expect(fs.map((f) => f.code)).toEqual(["UNIT_NOT_RECORDED", "MEMBER_IN_EXCLUDED_UNIT"]);
     expect(openingFindingText(fs[0])).toBe(
-      "Person p1's unit is not in the organisation's structure in force on the opening day, or a unit above it is not, so the independence rule cannot be checked. Correct the person's unit under Configuration › Users, or the structure under Configuration › Organisation.",
+      "Person p1's unit is not in the structure in force. Correct it under Configuration › Users or Configuration › Organisation.",
     );
   });
 

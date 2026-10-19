@@ -64,8 +64,8 @@ describe("the online finalise and the download of a file to check (20at, 20au)",
     const ed = src("src/app/sourcing/[id]/opening/editors.tsx");
     expect(ed).toContain("OnlineFinaliseDrawer");
     expect(ed).toContain("OnlineSignatureDrawer");
-    expect(ed).toContain("Your unseal passphrase cannot be reset or recovered");
-    expect(src("src/app/sourcing/[id]/opening/workspace.tsx")).toContain("named officers have signed the schedule");
+    expect(ed).toContain("Cannot be reset or recovered") // 0005, founder 2026-10-19: now the passphrase field's hint;
+    expect(src("src/app/sourcing/[id]/opening/workspace.tsx")).toContain("officers have signed.");
   });
 });
 
@@ -155,7 +155,7 @@ describe("the supplier's screens for an online bid", () => {
 describe("the staff screens of the online opening", () => {
   it("the online authorise drawer asks for the passphrase and says every named officer is needed and that a passphrase cannot be recovered", () => {
     const drawer = src("src/app/sourcing/[id]/opening/editors.tsx");
-    for (const token of ["AuthoriseOnlineDrawer", "Unseal passphrase", "secret: true", "authoriseOnlineUnseal", "named officers authorises in their own sign-in", "A passphrase cannot be reset or recovered", "OpeningAuthorisation.person"]) expect(drawer, token).toContain(token);
+    for (const token of ["AuthoriseOnlineDrawer", "Unseal passphrase", "secret: true", "authoriseOnlineUnseal", "named officers must authorise", "Cannot be reset or recovered", "OpeningAuthorisation.person"]) expect(drawer, token).toContain(token);
   });
   it("the Sealing key card offers the check of one's own passphrase and says nothing is opened by it", () => {
     expect(src("src/app/sourcing/[id]/scope/key-section.tsx")).toContain("CheckUnlockDrawer");
