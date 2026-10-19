@@ -1,6 +1,8 @@
 # 0040 — The staff screens' language layer
 
-**Status:** Accepted for the AC-63 N1 scope. Q1–Q7 open, defaults taken. Written on 2026-10-19 from the N1 build plan
+**Status: Superseded, 2026-10-19.** The founder decided: "please remove the Malay translation work. only English needed in the system." The staff screens and the supplier portal render English only; the language switch, the stored choice, the coverage notices, the registry and the Malay half of every `Words` pair were removed. `say` remains as an English reader so call sites compile. This departs from NFR-LNG-001 (a Must), which RSAJ must accept before go-live (see `docs/notes/backlog.md`). Everything below is the record of what was built and is kept for history; it no longer describes the system.
+
+**Was:** Accepted for the AC-63 N1 scope. Q1–Q7 open, defaults taken. Written on 2026-10-19 from the N1 build plan
 (`docs/notes/plans/backlog-n1.md` §2–§3). The product owner's scope is the decisions-log line "2026-10-19 · Product owner (for the
 founder), AC-63 N1". The open questions Q1–Q7 are logged in the decisions log as product-owner questions, each with the default this
 record takes. If an answer differs from its default, this record is amended before the slice that depends on it is built.

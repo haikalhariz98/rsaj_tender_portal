@@ -7,7 +7,7 @@
 2. The exercise key is split across the named opening officers. Every one of them must enter a passphrase at the opening. If one passphrase or share is lost after bids are in, the exercise is re-tendered. There is no back door.
 3. Paper exercises are unchanged and stay on ADR 0016. This ADR replaces 0016 only for exercises pinned ONLINE.
 4. Honest limits remain. Who bid is plain in the database (FR-BID-001's identity clause is not met against someone who can query it). The running server sees a bid while it handles it. One named officer with a database copy, the pepper and their own passphrase can read opened bids before finalising. The customer must accept these in writing before LIVE.
-5. Before LIVE: an outside cryptography review, CPD's SK002/SK003 amendment, a real malware scanner, the pepper, the `SEALED_BIDS_LIVE_ALLOWED` setting, two attested host facts, the customer's written acceptance, and a Malay review by RSAJ. Seven build points are open as product-owner questions in the decisions log (2026-10-16, "NOT FIXED").
+5. Before LIVE: an outside cryptography review, CPD's SK002/SK003 amendment, a real malware scanner, the pepper, the `SEALED_BIDS_LIVE_ALLOWED` setting, two attested host facts, the customer's written acceptance, and RSAJ's acceptance of English-only screens (NFR-LNG-001; founder, 2026-10-19, replaces the Malay review). Seven build points are open as product-owner questions in the decisions log (2026-10-16, "NOT FIXED").
 
 **Earlier status line.** Accepted for building (product owner, for the founder, 2026-10-13, ruling 20x), with the 20x change list applied. Revised after:
 - the product owner's rulings 20a–20q (2026-10-12) and 20r–20x (2026-10-13), in `docs/notes/design/0003-sourcing-requirements-v2.md` §6,
