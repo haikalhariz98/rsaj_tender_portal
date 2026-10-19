@@ -100,7 +100,8 @@ export const openingFindings = (o: { facts: OpeningGateFacts; awardeePartyId: st
  */
 export interface EvaluationForAward {
   facts: EvaluationGateFacts;
-  awardeePartyId: string | null;
+  /// Absent: the award is not yet named, so who it names is not asked (the Award tab and the start of an award). Null: named none, which the evaluation refuses.
+  awardeePartyId?: string | null;
   /// The award's value and period with the reasons recorded where they differ; absent: not compared yet.
   award?: { value: Sen; period: { value: number; unit: PeriodUnit }; reasons: { value: string | null; period: string | null } };
 }

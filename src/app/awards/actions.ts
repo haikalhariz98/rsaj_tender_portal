@@ -24,7 +24,9 @@ import { icNumberFault } from "@/lib/award/mask";
 import { RECOMMENDATION_FIELDS } from "@/lib/evaluation/recommendation-fields";
 import { despatchFaults } from "@/lib/award/distribution";
 import { evaluateAward } from "@/lib/award/evaluate";
-import { awardOpenRefusal, evaluationFindings, exerciseOpenForAward } from "@/lib/award/gate";
+import { evaluationFindings } from "@/lib/award/gate";
+import { awardStartRefusal } from "@/lib/award/start-gate";
+import { recommendationClosedText, startRefusalText } from "@/lib/award/start-text";
 import { readWindowGate } from "@/lib/window/repo";
 import { awardeeBidderText, awardeePartyWrite, openingGateFaults } from "@/lib/opening/award-gate";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
@@ -86,6 +88,7 @@ import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester
  * what blocks it. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that).
  */
 
+const NO_ISSUE_REFUSAL: FormState = { ok: false, message: "No award was opened." };
 const GONE: FormState = { ok: false, message: "That award no longer exists." };
 
 
@@ -183,7 +186,7 @@ async function recommendationClosed(tx: Tx, actor: Parameters<typeof sulitWriteR
   const gate = evaluation ?? (await loadEvaluationGate(exerciseId, tx));
   if (!gate.gate.applies) return null;
   const closed = await sulitWriteRefusal(tx, actor, { scope: "evaluation", exerciseId }, RECOMMENDATION_FIELDS);
-  return closed ? { ok: false, message: `${lead}: the award is judged against the evaluation's recommendation, which is SULIT and closed to you. ${closed}` } : null;
+  return closed ? { ok: false, message: recommendationClosedText(closed, lead) } : null;
 }
 
 /// The reasons written: each only where its figure differs from the recommendation (cleared where it no longer does).
@@ -224,34 +227,40 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
   try {
     const result = await withLockedExerciseForAward(actor, exerciseId, async (tx, l): Promise<FormState> => {
       const { org, ex, req } = l;
-      if (!org.today) return NO_ZONE;
-      // X-9 (6.5): an exercise with a tender or quotation pack needs its invitation window closed, with no change pending.
+      // AC-69: every refusal that does not depend on the form's fields is the one pure function's, the same the Award tab asks before it offers the act.
       const gate = await readWindowGate(ex, org.timeZone, tx);
-      if (!exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate)) return { ok: false, message: awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) };
       const live = await tx.award.findFirst({ where: { exerciseId: ex.id, status: { in: [...LIVE_STATUSES] } }, select: { reference: true } });
-      if (live) return { ok: false, message: `This exercise already has a live award, ${live.reference}. Cancel it first to open another.` };
-      // 6.7 (C-7, C-8, flagged): the openings' checks, and the awardee a party carried to evaluation, compared as a party.
       const opening = await loadOpeningGate(ex.id, tx);
+      const evaluation = await loadEvaluationGate(ex.id, tx);
+      const config = await loadAwardConfig(org.id, tx);
+      const instrument = instrumentFor(ex.regime, config.policy);
+      const { issue, cfg, ctx } = await evaluationContext(org, req, ex, tx);
+      const refused = awardStartRefusal({
+        timeZoneSet: org.today != null,
+        status: ex.status,
+        packKindSnapshot: ex.packKindSnapshot,
+        window: gate,
+        live: live?.reference ?? null,
+        opening,
+        evaluation: evaluation.gate,
+        instrumentFault: "fault" in instrument ? { code: instrument.fault, level: "block", data: { regime: instrument.regime } } : null,
+        issueInForce: issue != null && ctx != null,
+      });
+      if (refused) return refused.kind === "NO_ZONE" ? NO_ZONE : { ok: false, message: refused.kind === "FINDINGS" ? `${refused.source === "EVALUATION" ? "Nothing was saved:" : "No award was opened:"} ${startRefusalText(refused)}` : startRefusalText(refused) };
+      if (!org.today) return NO_ZONE; // narrowing only: refused above
+      // 6.7 (C-7, C-8, flagged): the awardee a party carried to evaluation, compared as a party.
       const og = openingGateFaults(opening, opening.applies ? awardeePartyId : undefined);
-      const naming = og.filter((f) => f.code === "AWARDEE_NOT_NAMED" || f.code === "AWARDEE_NOT_CARRIED");
-      if (og.length > naming.length) return refuse(og.filter((f) => !naming.includes(f)), "No award was opened:");
-      if (naming.length) return { ok: false, errors: { awardeePartyId: naming.map(openingFindingText).join(" ") } };
-      // 6.8 (E-9, flagged): Evaluated, the report standing, the awardee the recommended tenderer; a value or
-      // period that differs from the recommendation carries its reason.
+      if (og.length) return { ok: false, errors: { awardeePartyId: og.map(openingFindingText).join(" ") } };
       // Phase 3b (FR-EVL-014): an award is judged against the evaluation's recommendation (the awardee must be the tenderer it recommends, and a value or period that differs carries a reason),
       // so choosing one is reading it: an officer the recommendation is closed to may not open or change the award, and is told why. Logged in this transaction.
-      const evaluation = await loadEvaluationGate(ex.id, tx);
       const closed = await recommendationClosed(tx, actor, ex.id, evaluation);
       if (closed) return closed;
       const period = { value: v.completionPeriod!, unit: v.completionUnit! };
       const evf = recommendationRefusal(evaluation, awardeePartyId, { value: parseSen(v.awardedValue!), period, reasons });
       if (evf) return evf;
       const recorded = recordedReasons(evaluation, parseSen(v.awardedValue!), period, reasons);
-      const config = await loadAwardConfig(org.id, tx);
-      const instrument = instrumentFor(ex.regime, config.policy);
-      if ("fault" in instrument) return refuse([{ code: instrument.fault, level: "block", data: { regime: instrument.regime } }], "No award was opened:");
-      const { issue, cfg, ctx } = await evaluationContext(org, req, ex, tx);
-      if (!issue || !ctx) return refuse([{ code: "NO_ISSUE_IN_FORCE", level: "block" }], "No award was opened:");
+      // Narrowing only: `awardStartRefusal` has already refused an unset instrument and a missing issue.
+      if ("fault" in instrument || !issue || !ctx) return NO_ISSUE_REFUSAL;
       const value = parseSen(v.awardedValue!);
       const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
       // Resolved here for its rule alone (the value checks below); who can act, and the

@@ -81,7 +81,7 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
   const openingBlock = openingGateFaults(opening);
   // 6.8 (E-9, flagged): Evaluated, its report standing; the award is pre-filled from the recommendation.
   const evaluation = await loadEvaluationGate(ex.id);
-  const evaluationBlock = evaluation.gate.applies ? evaluationFindings({ facts: evaluation.gate, awardeePartyId: null }) : [];
+  const evaluationBlock = evaluation.gate.applies ? evaluationFindings({ facts: evaluation.gate }) : [];
   const blocker = !exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate) ? awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) : openingBlock.length ? openingBlock.map(openingFindingText).join(" ") : evaluationBlock.length ? evaluationBlock.map(awardFindingText).join(" ") : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
   if (blocker) {
     return (
