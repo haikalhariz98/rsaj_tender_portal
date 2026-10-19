@@ -37,6 +37,7 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 
 | Wave 3c built; looks and one question carried | Recorded 2026-10-17 (commits c316e387, eace6ae1). SR-14's matrix and SR-15 online are built and reviewed once. Carried: (1) the rendered look of the online matrix in its states and the three CSVs against the screen on an online demonstration, needing a second server on a database holding an unsealed online opening and a browser session as a named officer (20bj); (2) the ui-guidelines-reviewer pass; (3) the matrix's fourth column is cut at 1440, which needs a shared `Matrix` width change; (4) "Status as read" on online rows: ruled 2026-10-19 (AC-44), code owed; (5) the history's "Sealed (version N)" label (`lib/scope/labels.ts`) overclaims. | `plans/wave-3c-build-plan.md`; decisions log, wave 3c entries |
 | Accounts disable drawer: exposure lines | Ruling 20ci(a). The refusal states its reason today; per-exposure lines are not shown. | decisions log, 20ci |
+| English-only re-check (2026-10-20) | Browser re-check items (a) to (i), including English-only (e) and the supplier export (f), were NOT RUN: they need the isolated build on ports 3101 and 3102 with the scratch database. Malay still held in issued documents, supplier registration legal texts, configuration editors and configuration screens (needs RSAJ to accept the NFR-LNG-001 departure and a founder decision before any stored data is removed). | decisions log 2026-10-20 |
 
 ## Part B items moved here when a run overran
 
