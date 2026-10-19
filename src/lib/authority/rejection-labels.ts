@@ -61,6 +61,13 @@ export const CHOICE_WHY_TEXT: Record<"NOT_SET" | "STEP_NOT_ON_ROUTE" | "NOT_SUPP
   NOT_SUPPORTED: "Destination not possible here. The officer chooses.",
 };
 
+/// The same three reasons without "The officer chooses." (0005 R15, 2026-10-20): the callout title already says it.
+export const CHOICE_WHY_SHORT: Record<keyof typeof CHOICE_WHY_TEXT, string> = {
+  NOT_SET: "No rejection destination set.",
+  STEP_NOT_ON_ROUTE: "Return step is not before the rejecting step.",
+  NOT_SUPPORTED: "Destination not possible here.",
+};
+
 export const CHOICE_FAULT_TEXT: Record<ChoiceFault, string> = {
   NOT_AWAITING: "This matter is not waiting for a choice of where it goes.",
   NOT_OFFERED: "Choose one of the destinations offered.",

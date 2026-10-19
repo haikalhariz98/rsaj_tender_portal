@@ -141,9 +141,10 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
         eyebrow={<Link href="/suppliers">Suppliers</Link>}
         title={s.registeredName}
         badge={reading && status === "REGISTERED" ? <Badge tone={standingTone(reading)} dot>{standingWords(reading).en}</Badge> : <Badge tone={SUPPLIER_STATUS_TONE[status]} dot>{SUPPLIER_STATUS_LABEL[status].en}</Badge>}
-        subtitle={`Registration number ${s.registrationNo}${s.registeredOn ? ` · registered ${formatDate(day(s.registeredOn))}` : ""}`}
         meta={[
           <span key="ref" className="font-mono text-[12.5px]">{s.reference}</span>,
+          `Reg. ${s.registrationNo}`,
+          s.registeredOn ? `Registered ${formatDate(day(s.registeredOn))}` : null,
           cfg.listName("ENTITY_TYPE", s.entityTypeCode) ?? "An entity type no longer listed",
           cfg.listName("COUNTRY", s.countryCode) ?? "A country no longer listed",
           open ? `${APPLICATION_KIND_LABEL[open.kind as ApplicationKind].en}: ${QUEUE_STATE_LABEL[queueState({ ...open, resubmitBy: day(open.resubmitBy), answeredOnTime: answeredHere.has(open.id) }, today)].en.toLowerCase()}` : waitingForApplicant ? "Waiting for the applicant to complete registration online" : "No application open",
@@ -557,7 +558,7 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
                   <span className="text-[13px] font-semibold text-ink-2">Approval route · sent {formatDate(day(r.openedAt))} · {r.ruleLabel ?? "a rule no longer recorded"}{r.ruleClause ? ` · ${r.ruleClause}` : ""}</span>
                   <Badge tone={r.status === "REJECTED" ? "warn" : routeTone(r.status)}>{r.status === "PENDING" ? "With approval" : r.status === "APPROVED" ? "Approved" : r.status === "REJECTED" ? "Refused: the application stays open" : "Closed"}</Badge>
                 </div>
-                <p className="px-5 pb-2 text-[12.5px] text-ink-3 sm:px-6">Routed on no value: a supplier matter is not routed on a value, so only a rule with no value band applies. Chain beneath the approver: {routeCoreText(r, () => ({ en: "an office no longer configured" })).en}</p>
+                <p className="px-5 pb-2 text-[12.5px] text-ink-3 sm:px-6">Routed on no value. <MoreText text="A supplier matter is not routed on a value, so only a rule with no value band applies." /> Chain beneath the approver: {routeCoreText(r, () => ({ en: "an office no longer configured" })).en}</p>
                 {r.status === "REJECTED" && <p className="px-5 pb-2 text-[12.5px] text-ink-2 sm:px-6">Refused: {r.rejectionReason || "no reason recorded"}.</p>}
                 <RouteSteps
                   inst={r}

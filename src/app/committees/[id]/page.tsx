@@ -18,6 +18,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, Meter } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
+import { MoreText } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { fieldLabel } from "@/lib/audit/diff";
 import { assessQuorum } from "@/lib/committee/quorum";
@@ -289,8 +290,16 @@ function ConfigurationGaps({ s }: { s: LoadedSitting }) {
       }
     >
       {report.gaps.map((g) => (
-        <span key={g.key} className="block">
-          {g.text}
+        <span key={g.key} className="flex flex-wrap items-center gap-2">
+          {g.setting}
+          {g.matterIds.length > 0 ? (
+            <InfoChip tone="warn" detail={g.subjectsText}>
+              Not set
+            </InfoChip>
+          ) : (
+            <Badge tone="warn">Not set</Badge>
+          )}
+          {g.matterIds.length > 0 && `Blocks ${g.matterIds.length}`}
         </span>
       ))}
     </Callout>
@@ -330,7 +339,9 @@ async function AgendaPanel({ s, prefill, notLinked, hiddenMatters, matterGates }
               <Badge tone="warn">Restricted</Badge>
               <span className="min-w-0 font-semibold break-words text-ink">{HIDDEN_MATTER_SUBJECT}</span>
             </div>
-            <p className="text-[12.5px] text-ink-2">This matter concerns an exercise restricted to the people named on it, and you are not one of them. Name the committee&apos;s members on the exercise for them to see it.</p>
+            <p className="text-[12.5px] text-ink-2">
+              Restricted to the people named on the exercise. <MoreText text="You are not named on it. Name the committee's members on the exercise for them to see it." />
+            </p>
           </CardBody>
         </Card>
       );

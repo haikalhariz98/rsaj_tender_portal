@@ -70,3 +70,43 @@ export function clockPlanWords(kind: ClockKind, plan: ClockPlan, officeName: (co
   const sealed = opts.restricted ? " This exercise is restricted: a notice reaches only those of them who are named on it." : "";
   return `${lead}${empty}${left}${sealed} ${CLOCK_NOTICE_CHANNEL}`;
 }
+
+export interface ClockChip {
+  key: string;
+  label: string;
+  tone: "neutral" | "warn";
+  /// The sentence behind the chip. Absent: the chip says it all.
+  detail?: string;
+}
+
+export interface ClockChips {
+  /// "Told: {rule name}", only where the rule is on and says who is told.
+  fact: string | null;
+  chips: ClockChip[];
+}
+
+/// The late-clock callouts' answer to "who is told?" as a fact and chips, not a sentence (0005 R16, which amends R4's "Nobody is told": the requester is told
+/// while active, so that line overclaimed). `clockPlanWords` stays for the notice bodies written at send time (R17).
+export function clockPlanChips(kind: ClockKind, plan: ClockPlan, officeName: (code: string) => string, opts: { restricted?: boolean } = {}): ClockChips {
+  const gone = plan.requesterInactive === true;
+  const chips: ClockChip[] = [];
+  let fact: string | null = null;
+  switch (plan.state) {
+    case "NO_RULE":
+      chips.push({ key: "rule", label: "No rule", tone: "warn", detail: gone ? "Nobody is told." : "Only the requester is told." });
+      break;
+    case "RULE_OFF":
+      chips.push({ key: "rule", label: "Off", tone: "neutral", detail: `“${plan.ruleName}” is switched off for ${EVENT_WORDS[kind]}.` });
+      break;
+    case "NO_TIME_ZONE":
+      chips.push({ key: "rule", label: "Not judged", tone: "warn", detail: `The time zone is not set, so who holds the offices “${plan.ruleName}” names is unknown.` });
+      break;
+    case "RULE_SET":
+      fact = `Told: ${plan.ruleName}`;
+      break;
+  }
+  if (plan.emptyOffices.length > 0) chips.push({ key: "unheld", label: `${plan.emptyOffices.length} unheld`, tone: "warn", detail: `Nobody holds ${plan.emptyOffices.map(officeName).join(", ")} today.` });
+  chips.push({ key: "channel", label: "Not emailed", tone: "neutral", detail: CLOCK_NOTICE_CHANNEL });
+  if (opts.restricted) chips.push({ key: "restricted", label: "Restricted", tone: "neutral", detail: "Only people named on it are told." });
+  return { fact, chips };
+}

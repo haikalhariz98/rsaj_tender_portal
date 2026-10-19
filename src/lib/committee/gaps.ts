@@ -21,6 +21,10 @@ export interface ConfigurationGap {
   text: string;
   /// The pending matters on the agenda this gap stops.
   matterIds: string[];
+  /// What is unset, without the state: the screen shows it beside a Not set chip (0005 R15).
+  setting: string;
+  /// The stopped matters' subjects, as a sentence: the detail of that chip.
+  subjectsText: string;
 }
 
 export interface ConfigurationGapReport {
@@ -53,6 +57,13 @@ const WHAT: Record<ConfigurationGapKey, string> = {
   QUORUM: "Quorum: not set",
   VOTING_RULE: "Voting rule: not set",
   SECRETARIAT: "Secretariat office: not set",
+};
+
+const SETTING: Record<ConfigurationGapKey, string> = {
+  ALTERNATE_FOR_RECUSED: "Alternate for a recused member",
+  QUORUM: "Quorum",
+  VOTING_RULE: "Voting rule",
+  SECRETARIAT: "Secretariat office",
 };
 
 const quoted = (s: string) => `“${s}”`;
@@ -102,7 +113,7 @@ export function configurationGaps(i: {
         : matterIds.length === pending.length && pending.length > 1
           ? ` Blocks every undecided matter: ${subjectList(matterIds.map((id) => subjectOf.get(id)!))}.`
           : ` Blocks ${subjectList(matterIds.map((id) => subjectOf.get(id)!))}.`;
-    return { key, text: `${WHAT[key]}.${which}`, matterIds };
+    return { key, text: `${WHAT[key]}.${which}`, matterIds, setting: SETTING[key], subjectsText: subjectList(matterIds.map((id) => subjectOf.get(id)!)) };
   });
 
   const hit = new Set(gaps.flatMap((g) => g.matterIds));

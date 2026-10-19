@@ -253,7 +253,7 @@ describe("the Award step", () => {
     expect(s.next).toMatch(/No approval matrix/);
   });
   it("APPROVED, not ready, with no fault (the signatory unresolved): says so", () => {
-    expect(step(caseSteps(facts({ award: award("APPROVED") })), "award")).toMatchObject({ action: null, next: "Not ready to issue: the signatory is not resolved" });
+    expect(step(caseSteps(facts({ award: award("APPROVED") })), "award")).toMatchObject({ action: null, next: "Signatory not resolved" }); // 0005 R15, 2026-10-20: the stepper already names the step
   });
   it("a finding that quotes the approved value is worded without its figures (SULIT)", () => {
     const f = { code: "EXCEEDS_APPROVED_VALUE", level: "block" as const, data: { approved: "RM 987,654.32", together: "RM 1,234,567.89", others: 0 } };
@@ -435,5 +435,32 @@ describe("invariants over every award status × contract status × instrument ×
           }
   it("covers every combination", () => {
     expect(n).toBe(AWARD_STATUSES.length * contracts.length * kinds.length * 2 * 2 - AWARD_STATUSES.length * kinds.length * 2);
+  });
+});
+
+// 0005 R15, 2026-10-20: the line under the step bar reads "Next: {next}", so every literal that can become a `next` is 12 words or fewer.
+describe("next-line literals", () => {
+  it("none of the words written in case-steps.ts is longer than 12 words", async () => {
+    const ts = (await import("typescript")).default;
+    const { readFileSync } = await import("node:fs");
+    const file = new URL("./case-steps.ts", import.meta.url);
+    const sf = ts.createSourceFile("case-steps.ts", readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+    const long: string[] = [];
+    const count = (t: string) => t.split(/\s+/).filter(Boolean).length;
+    const visit = (n: import("typescript").Node) => {
+      if (ts.isImportDeclaration(n)) return;
+      // A developer error thrown for a page that breaks the rule is never shown.
+      if (ts.isNewExpression(n)) return;
+      if (ts.isStringLiteralLike(n)) {
+        if (count(n.text) > 12) long.push(n.text);
+      } else if (ts.isTemplateExpression(n)) {
+        // An inserted value counts as one word.
+        const text = n.head.text + n.templateSpans.map((s) => "X" + s.literal.text).join("");
+        if (count(text) > 12) long.push(text);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    expect(long).toEqual([]);
   });
 });

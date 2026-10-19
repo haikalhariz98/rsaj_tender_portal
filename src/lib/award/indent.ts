@@ -23,6 +23,8 @@ export function indentState(receivedOn: Day | null, validityDays: number | null,
 
 /// The reading the expiry day rests on, said wherever it is shown.
 export const INDENT_READING = "Valid through its expiry day. Assumed reading.";
+/// The same reading behind an Assumed chip (0005 R15).
+export const INDENT_READING_DETAIL = "Valid through its expiry day.";
 
 /**
  * Whether an expired indent is still a live problem: until work commences under it, and

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clockPlan, clockPlanWords, CLOCK_EVENT_KEY } from "./clock-plan";
+import { clockPlan, clockPlanChips, clockPlanWords, CLOCK_EVENT_KEY } from "./clock-plan";
 
 /// AC-42: the late-clock notices go to the offices the organisation's notification rule names, and to the requester.
 const rule = { nameEn: "Indent expired", isActive: true, recipientRoleCodes: ["HOD", "CLERK"] };
@@ -52,5 +52,37 @@ describe("clockPlanWords", () => {
     expect(w).not.toContain("The requester and");
     expect(clockPlanWords("INDENT_EXPIRED", clockPlan({ requesterId: "r", requesterActive: false, rule: null, holdersOf, dayKnown: true }), name)).not.toContain("The requester is.");
     expect(clockPlan({ requesterId: "r", requesterActive: true, rule, holdersOf, dayKnown: true }).requesterInactive).toBeUndefined();
+  });
+});
+
+// 0005 R16, 2026-10-20: who is told, as a fact and chips.
+describe("clockPlanChips", () => {
+  const name = (c: string) => `Office ${c}`;
+  const labels = (kind: "INDENT_EXPIRED" | "COMMENCEMENT_LATE", p: ReturnType<typeof clockPlan>, o = {}) => clockPlanChips(kind, p, name, o).chips.map((c) => c.label);
+  it("no rule: a warn chip that says the requester is told, or nobody when the requester is inactive", () => {
+    const p = clockPlan({ requesterId: "r", rule: null, holdersOf, dayKnown: true });
+    expect(clockPlanChips("INDENT_EXPIRED", p, name).chips[0]).toMatchObject({ label: "No rule", tone: "warn", detail: "Only the requester is told." });
+    const gone = clockPlan({ requesterId: "r", requesterActive: false, rule: null, holdersOf, dayKnown: true });
+    expect(clockPlanChips("INDENT_EXPIRED", gone, name).chips[0].detail).toBe("Nobody is told.");
+  });
+  it("a rule that is off is an Off chip naming the rule", () => {
+    const p = clockPlan({ requesterId: "r", rule: { ...rule, isActive: false }, holdersOf, dayKnown: true });
+    const c = clockPlanChips("COMMENCEMENT_LATE", p, name).chips[0];
+    expect(c.label).toBe("Off");
+    expect(c.detail).toContain("Indent expired");
+  });
+  it("no time zone: Not judged", () => {
+    expect(labels("INDENT_EXPIRED", clockPlan({ requesterId: "r", rule, holdersOf, dayKnown: false }))[0]).toBe("Not judged");
+  });
+  it("a rule that is on gives the fact, and an unheld office is a chip naming it", () => {
+    const r = clockPlanChips("INDENT_EXPIRED", clockPlan({ requesterId: "r", rule, holdersOf, dayKnown: true }), name);
+    expect(r.fact).toBe("Told: Indent expired");
+    expect(r.chips.find((c) => c.key === "unheld")).toMatchObject({ label: "1 unheld", detail: "Nobody holds Office CLERK today." });
+  });
+  it("always says Not emailed; Restricted only for a restricted exercise", () => {
+    const p = clockPlan({ requesterId: "r", rule: null, holdersOf, dayKnown: true });
+    expect(labels("INDENT_EXPIRED", p)).toEqual(["No rule", "Not emailed"]);
+    expect(labels("INDENT_EXPIRED", p, { restricted: true })).toEqual(["No rule", "Not emailed", "Restricted"]);
+    expect(clockPlanChips("INDENT_EXPIRED", p, name, { restricted: true }).chips[2].detail).toBe("Only people named on it are told.");
   });
 });

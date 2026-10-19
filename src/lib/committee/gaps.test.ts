@@ -47,6 +47,8 @@ describe("configurationGaps", () => {
     expect(r.title).toBe("Committee set-up blocks 1 of 3 matters");
     expect(r.gaps.map((g) => g.key)).toEqual(["ALTERNATE_FOR_RECUSED"]);
     expect(r.gaps[0].text).toContain("Blocks “Renewal of the security services contract”.");
+    // 0005 R15, 2026-10-20: the screen shows the setting, a Not set chip and the count, with the subjects behind the chip.
+    expect(r.gaps[0]).toMatchObject({ setting: "Alternate for a recused member", subjectsText: "“Renewal of the security services contract”" });
     expect(r.gaps[0].text).not.toContain("cleaning");
   });
 

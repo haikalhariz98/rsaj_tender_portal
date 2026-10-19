@@ -95,7 +95,7 @@ import { prRefusal } from "@/lib/requisition/pr-pdf-data";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
 import { returnedRouteCitationNotes } from "@/lib/requisition/committee-step";
 import { choicesFor, earlierSteps, returnTargetBefore, type RejectionKind } from "@/lib/authority/rejection";
-import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
+import { appliedText, CHOICE_WHY_SHORT, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
 import { SENT_BACK_LABEL, sentBackBy } from "@/lib/requisition/sent-back";
 import { GATE_DOMAIN, gateOpenReason } from "@/lib/requisition/gate";
@@ -481,9 +481,9 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         }
         subtitle={
           r.status === "CANCELLED"
-            ? `Cancelled: ${r.cancelReason || "no reason recorded"}`
+            ? r.cancelReason || "No reason recorded"
             : r.status === "CLOSED" && r.closedReason
-              ? `Closed: ${r.closedReason}`
+              ? r.closedReason
               : `${unitName(r.requestingUnitCode)}${r.sectionUnitCode ? ` · ${unitName(r.sectionUnitCode)}` : ""} · raised by ${r.requestingPerson.name}`
         }
         meta={[
@@ -531,7 +531,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       {r.status === "REJECTED" && inst && (
         <Callout tone="err" className="mb-6" title={awaitingChoice ? "Rejected. The officer chooses where it goes." : "Rejected"}>
           {inst.rejectionReason ? `“${inst.rejectionReason}” ` : ""}
-          {awaitingChoice ? (inst.rejectionChoices.length > 0 ? CHOICE_WHY_TEXT[awaitingChoice.why] : "No destination was recorded.") : null}
+          {awaitingChoice ? (inst.rejectionChoices.length > 0 ? CHOICE_WHY_SHORT[awaitingChoice.why] : "No destination was recorded.") : null}
         </Callout>
       )}
       {sentBack && (

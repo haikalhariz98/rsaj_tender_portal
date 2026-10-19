@@ -354,7 +354,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         <CardBody className="flex flex-col gap-5">
           <Stepper steps={stepperSteps} label={t(H.stagesLabel)} selected={stage} />
           <p className="text-[13.5px] text-ink-2">
-            <span className="font-semibold text-ink">{sayWith(H.whatsNextOn, lang, { step: t(CASE_STEP_WORDS[stage]) })}</span> {viewed.next}
+            <span className="font-semibold text-ink">{t(H.whatsNextOn)}</span> {viewed.next}
           </p>
         </CardBody>
       </Card>

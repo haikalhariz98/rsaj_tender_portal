@@ -85,7 +85,7 @@ export const CASE_HEADER_WORDS = {
   notSigned: w("Not signed"),
   forExercise: w("for"),
   stagesLabel: w("Stages of this case"),
-  whatsNextOn: w("What's next on {step}:"),
+  whatsNextOn: w("Next:"),
   awardRestricted: w("restricted to the people named on the exercise"),
   instrument: w("Instrument"),
   caseTabs: w("Case"),

@@ -3,9 +3,12 @@ import Link from "next/link";
 
 import { sulitExerciseGate } from "@/app/_auth/sulit";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/feedback";
+import { InfoChip } from "@/components/ui/info-chip";
+import { ClockTold } from "./clock-told";
 import { evaluateAward } from "@/lib/award/evaluate";
-import { INDENT_READING, indentExpiryRaised } from "@/lib/award/indent";
+import { INDENT_READING_DETAIL, indentExpiryRaised } from "@/lib/award/indent";
 import { awardFindingTextFor, findingsForReader, DOCUMENT_LABEL, INSTRUMENT_LABEL, NON_COMMENCEMENT_LABEL, tenderTermText } from "@/lib/award/labels";
 import { BASELINE_FIELDS, formDefaults, type BaselineField } from "@/lib/award/appendix-baseline";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
@@ -44,7 +47,7 @@ import { HistoryPanel } from "./history-panel";
 import { AwardRoutingSheetPanel } from "./routing-sheet-panel";
 import { NOT_SET, yesNo, day, FaultList } from "./shared";
 import { loadClockPlan } from "@/lib/award/clock-notices";
-import { clockPlanWords, type ClockKind } from "@/lib/inbox/clock-plan";
+import { clockPlanChips, clockPlanWords, type ClockChips, type ClockKind } from "@/lib/inbox/clock-plan";
 
 /// The award's panels, by the tab id they have on /awards/[id] (the case page maps them to stages, C-2).
 export type AwardPanelId = "overview" | "approval" | "instrument" | "distribution" | "return" | "conditions" | "securities" | "routing" | "history";
@@ -87,7 +90,7 @@ export interface AwardView {
   /// The clocks running late today, by the conditions of the two callouts: each is told to staff once (FR-AWD-006, FR-AWD-009; C13).
   lateClocks: { kind: ClockKind; day: string; dayWords: string }[];
   /// Who each late clock is told to today and the words that say so (AC-42): the notification rule's offices and the requester. Read once, however many callers ask.
-  clockTellings: () => Promise<{ kind: ClockKind; day: string; dayWords: string; recipientIds: string[]; words: string }[]>;
+  clockTellings: () => Promise<{ kind: ClockKind; day: string; dayWords: string; recipientIds: string[]; words: string; told: ClockChips }[]>;
   /// The parts that depend on which tab is open, read once the page knows which that is.
   finish: (q: { tab: AwardPanelId | "none"; chrome: boolean }) => Promise<AwardFinish>;
 }
@@ -175,7 +178,8 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       for (const c of lateClocks) {
         const plan = await loadClockPlan({ organisationId: org.id, organisationCode: actor.organisationCode, requestingUnitCode: l.req.requestingUnitCode, requesterId: l.req.requestingPersonId, today, kind: c.kind });
         const names = new Map((await db.authorityRole.findMany({ where: { organisationId: org.id, code: { in: plan.emptyOffices } }, select: { code: true, nameEn: true } })).map((r) => [r.code, r.nameEn] as const));
-        out.push({ ...c, recipientIds: plan.recipientIds, words: clockPlanWords(c.kind, plan, (code) => names.get(code) ?? "an office no longer configured", { restricted: ex.restricted }) });
+        const officeName = (code: string) => names.get(code) ?? "an office no longer configured";
+        out.push({ ...c, recipientIds: plan.recipientIds, words: clockPlanWords(c.kind, plan, officeName, { restricted: ex.restricted }), told: clockPlanChips(c.kind, plan, officeName, { restricted: ex.restricted }) });
       }
       return out;
     })());
@@ -186,7 +190,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     // 6.15a fix S-3: the linked supplier's standing, derived on the organisation's day; barred warns, never refuses.
     const vendorStanding = award.vendor && today ? await standingOf(award.vendor.id, org.id, today) : null;
     const awardee = vendorStanding ? awardStanding(vendorStanding.reading, formatDate) : null;
-    const told = new Map((await clockTellings()).map((c) => [c.kind, c.words] as const));
+    const told = new Map((await clockTellings()).map((c) => [c.kind, c.told] as const));
     return (
       <>
       {status === "CANCELLED" && (
@@ -208,12 +212,15 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       )}
       {ev.commencement?.state === "LATE" && status === "ISSUED" && (
         <Callout tone="err" title="Work has not commenced">
-          Grace period ended {formatDate(ev.commencement.deadline)}. Consequence: {consequenceText ? consequenceText.toLowerCase() : "not set"}. {told.get("COMMENCEMENT_LATE")}
+          Grace ended {formatDate(ev.commencement.deadline)}. Consequence: {consequenceText ? `${consequenceText.toLowerCase()}.` : <Badge tone="warn">Not set</Badge>}
+          <ClockTold told={told.get("COMMENCEMENT_LATE")} />
         </Callout>
       )}
       {ev.indent?.state === "EXPIRED" && issued && indentExpiryRaised(ev.indent, day(award.commencedOn), status) && (
-        <Callout tone="err" title="The indent has expired">
-          It expired on {formatDate(ev.indent.expiresOn)}. {told.get("INDENT_EXPIRED")} {INDENT_READING}
+        <Callout tone="err" title={`Indent expired ${formatDate(ev.indent.expiresOn)}`}>
+          <ClockTold told={told.get("INDENT_EXPIRED")}>
+            <InfoChip tone="warn" detail={INDENT_READING_DETAIL}>Assumed</InfoChip>
+          </ClockTold>
         </Callout>
       )}
       </>

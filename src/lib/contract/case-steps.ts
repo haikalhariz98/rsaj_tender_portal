@@ -214,7 +214,7 @@ function awardStep(f: CaseFacts): Draft {
       return { state: "in-progress", next: "Waiting for approval", action: null };
     case "APPROVED":
       if (a.issueReady) return { state: "in-progress", next: CASE_ACTION_NEXT.ISSUE, action: "ISSUE" };
-      return { state: "in-progress", next: a.issueFaults.length ? findingWords(a.issueFaults[0]) : "Not ready to issue: the signatory is not resolved", action: null };
+      return { state: "in-progress", next: a.issueFaults.length ? findingWords(a.issueFaults[0]) : "Signatory not resolved", action: null };
     case "ISSUED":
       if (a.despatchOpen > 0) return { state: "in-progress", next: `${plural(a.despatchOpen, "copy", "copies")} still to despatch`, action: "RECORD_DESPATCH" };
       if (a.returnOffered) return { state: "in-progress", next: a.returned ? "The return is recorded, waiting for acceptance" : CASE_ACTION_NEXT.RECORD_RETURN, action: "RECORD_RETURN" };

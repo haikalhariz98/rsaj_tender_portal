@@ -3,6 +3,7 @@ import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { through, type Sulit } from "@/lib/auth/sulit-access";
 import Link from "next/link";
 import { AwardIcon, FileIcon, SlidersIcon } from "@/components/icons";
+import { InfoChip } from "@/components/ui/info-chip";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { recommendationDifferences } from "@/lib/evaluation/award-gate";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { CONTRACT_YEAR_WORDS, contractYearReading } from "@/lib/contract/issue-year";
 import { type AwardEvaluation } from "@/lib/award/evaluate";
-import { INDENT_READING } from "@/lib/award/indent";
+import { INDENT_READING_DETAIL } from "@/lib/award/indent";
 import { awardFindingText, COMMITMENT_KIND_LABEL, CONTRACT_STATUS_LABEL, INSTRUMENT_LABEL, INSURANCE_KIND_LABEL, NON_COMMENCEMENT_LABEL, periodText, WC_BASIS_LABEL } from "@/lib/award/labels";
 import { type LoadedAward } from "@/lib/award/repo";
 import type { InstrumentKind } from "@/lib/award/types";
@@ -107,7 +108,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
                       ) : (
                         <span className="flex flex-col items-start gap-1">
                           <span>{`${indent.state === "EXPIRED" ? "Expired" : "Valid"} · expires ${formatDate(indent.expiresOn)} (${validityDays} days from receipt)`}</span>
-                          <span className="text-[12.5px] text-ink-3">{INDENT_READING}{indent.state === "EXPIRED" && expiredRule !== "ON" ? (expiredRule === "OFF" ? " The notification rule is switched off, so no office is told." : " No notification rule names who is told.") : ""}</span>
+                          <span className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3"><InfoChip tone="warn" detail={INDENT_READING_DETAIL}>Assumed</InfoChip>{indent.state === "EXPIRED" && expiredRule !== "ON" ? (expiredRule === "OFF" ? " The notification rule is switched off, so no office is told." : " No notification rule names who is told.") : ""}</span>
                         </span>
                       ),
                     },
