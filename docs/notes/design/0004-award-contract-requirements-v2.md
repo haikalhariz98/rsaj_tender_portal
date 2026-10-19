@@ -1219,7 +1219,9 @@ None of them starts wave P: P1 to P7 stay held (AC-7).
   - It is a breach because 12c already ruled that no additive step on a loaded database writes configuration. `demo:accounts` refuses
     unless the demo is loaded, so every run of it is on a loaded database. The script was never brought into line with 12c.
   - **Not undone now**, for 12c's reason: writing the earlier state back is itself a one-person configuration write. The organisation holds
-    invented demonstration data only, every row is ASSUMED, and History names the demo loader. No screen claims two people issued it.
+    invented demonstration data only, the list values and document types are tagged ASSUMED, and History names the demo loader. No
+    screen claims two people issued it.
+    The three grants carry no provenance (RolePermission has none), so on screen they read as ordinary grants. The founder is told so.
   - **The founder's review list** is one list: these ten writes plus 12c's three. The bank-details grant comes first, because it opens a
     SULIT gate. He confirms, reverses or changes each through Configuration by the two-person path. The second person must be a second
     real account. The 16 demonstration logins share one published password, so a change made and approved by two of them is not two
@@ -1245,21 +1247,20 @@ None of them starts wave P: P1 to P7 stay held (AC-7).
   shared `Stepper` only.
   - ADR 0037 decision 5, AC-36 and FR-CON-008 decided that the bar is parallel. A pending commencement, an unsigned contract and
     outstanding conditions are three things that are each truly in progress at once. Showing one of them would hide two. Reversing this
-    now would be the oscillation AC-62 refused. With AC-67, a draft award can show a fourth.
+    now would be the oscillation AC-62 refused.
   - The legibility fix is visual only, in the shared `Stepper`. When `selected` is given, that step is marked as the one being viewed (for
     example a brand-colour ring and an underlined label), distinct from the amber "in progress" dot. No new words and no `COMPONENT_WORDS`
     entry, so nothing extends the ADR 0040 layer. The steppers that pass no `selected` render unchanged (C2). It is pinned in
     `stepper.test.ts`.
-- **AC-67. Before signing on an award with no contract yet: the step bar must match the screen.** Code: yes.
-  - Today `projects/[id]/page.tsx` passes `beforeSigning: null` when there is no Contract row, so the bar says "Opens once the award is
-    issued". But AC-36 (amended F0-4) opens this stage before issue for the award's conditions and bond requirement, and the page renders
-    those panels. That is a dishonest line, and a bug.
-  - Fix: take the Before signing facts from the award's own reader (`av.before`) whether or not a Contract row exists. The step's state,
-    words and main button then follow the existing rules in `beforeSigningStep`.
-  - The main button is offered only where a panel there already offers its drawer, as a link to that panel (F0-2, the C5 pattern of
-    `CASE_ACTION_AT`). It adds no gate and invents no act (AC-20). If nothing there is due, there is no main button and the line says why.
-  - If the readiness gate cannot judge without a Contract row, the step reads "waiting" with true words, for example "Conditions are
-    checked once the award is issued". It must never say the stage is closed. Pin both cases in `case-steps.test.ts` and the page test.
+- **AC-67. Before signing on an award with no contract yet: no main button is correct, and the words must be true.** Code: yes (words).
+  - Before issue, no contract-stage step offers an act. `case-steps.test.ts` pins this ("a pre-issue case offers no contract stage
+    action"), and that pin stands. There is no main button on Before signing before issue, and the default step does not move.
+  - The line is the bug. The bar says "Opens once the award is issued", but AC-36 (amended F0-4) opens this stage before issue for the
+    award's conditions and bond requirement, and the page renders those panels.
+  - Fix: Before signing keeps the state "waiting" and gets true words in place of `NOT_ISSUED_YET`, for example "Conditions are checked
+    once the award is issued". It must never say the stage is closed. Signing keeps "Opens once the award is issued", which is true.
+  - The one test line that expects the old words on Before signing is updated, citing AC-67. Its action-null assertions and the Signing
+    line are unchanged.
 - **AC-68. Project on a contract on site has no main button. That is correct.** Code: no. This also answers log 2479 (2026-10-18).
   - At most one main button, not at least one. A step's main button exists only where today's page offers that act's drawer (F0-2,
     AC-20). On site, many acts run side by side (valuations, variations and the rest), and none is the next. Picking one would be a
@@ -1274,9 +1275,11 @@ None of them starts wave P: P1 to P7 stay held (AC-7).
     with no awardee, the time zone, the instrument, and an issue in force.
   - Rule 3: the page and the action ask the same pure functions in `src/lib/award`. Neither restates the other. Only the refusals that
     depend on the awardee, the value or the period stay at click time.
-  - The SULIT closure of the recommendation (`recommendationClosed`) writes an access-log row when asked. The page must not add log writes
-    on every render just to decide a button. Use an existing check of the reader's grant that reads no SULIT field, if one exists. If
-    none does, that one refusal stays at click time, already logged (AC-37), and is recorded as a residual.
+  - The SULIT closure of the recommendation (`recommendationClosed`) is decided by the pure `sulitAccessAll` / `decide` in
+    `src/lib/auth/sulit-access.ts`, which reads no SULIT field and writes nothing. The page asks that decision with the same context the
+    action builds, and shows the button disabled with the refusal words when it is closed. If the builder finds the decision cannot be
+    had without the logging wrapper, the refusal is logged on each load that asks it, as AC-37 (d) already does. It is not left to click
+    time, because that may be the very case the browser check found.
   - The browser check's exact refusal text is not in the repository. The builder reproduces the case with an exercise under evaluation on
     a scratch database and pins it in a test.
 - **AC-70. The founder's English-only instruction (2026-10-19) and the open questions of that day.** Code: words only, none blocking.
