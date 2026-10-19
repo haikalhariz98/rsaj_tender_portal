@@ -62,19 +62,19 @@ export function LodgeDocumentDrawer({ supplierId, types, values, people, renews,
   return (
     <RecordEditor
       title={renews ? `Renew ${renews.label}` : "Lodge a document"}
-      description={renews ? "The renewal takes effect only once it is verified; until then the document it renews stays in force (and reads expired once its day has passed)." : "One document of each type is lodged; a later one is lodged as its renewal. Attach its scan once lodged, then record the check."}
+      description={renews ? "Takes effect once verified. The old document stays in force until then." : "One per type; later ones renew it. Then attach the scan and verify."}
       columns={2}
       fields={[
         hidden("supplierId"),
         hidden("renewsId"),
         ...(renews ? [hidden("typeId")] : [{ kind: "select", name: "typeId", label: "Document type", required: true, placeholder: "Choose", options: types } as Field]),
-        { kind: "text", name: "reference", label: "Reference", hint: "Its number as printed. Not for a document recorded as not applicable." },
+        { kind: "text", name: "reference", label: "Reference", hint: "Number as printed. Not for not-applicable." },
         { kind: "text", name: "issuingAuthority", label: "Issuing authority" },
         { kind: "date", name: "issuedOn", label: "Issued on" },
         { kind: "date", name: "validFrom", label: "Valid from" },
         { kind: "date", name: "expiresOn", label: "Expires on", hint: "Required where the type carries an expiry." },
         { kind: "tokens", name: "valueIds", label: "Values it records", options: values, hint: "Grades, categories, codes, as the certificate states them." },
-        ...(renews ? [] : [{ kind: "switch", name: "notApplicable", label: "Not applicable to this supplier", hint: "Only where the type allows it. Nothing else is recorded then." } as Field]),
+        ...(renews ? [] : [{ kind: "switch", name: "notApplicable", label: "Not applicable to this supplier", hint: "Only where the type allows it." } as Field]),
         actorField("SupplierDocument.recordedBy", { name: "recordedByPersonId", people }),
         { kind: "textarea", name: "note", label: "Note" },
       ]}
@@ -98,8 +98,8 @@ export function VerifyDocumentDrawer({ documentId, label, people, today, blocker
         { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "Verified" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
         actorField("SupplierDocument.verifiedBy", { name: "personId", people }),
         { kind: "date", name: "verifiedOn", label: "Checked on", required: true, hint: "Not after today, nor before it was lodged." },
-        ...(asksExpiry ? [{ kind: "date", name: "expiresOn", label: "Expiry date on the certificate", hint: "Confirm it against the certificate. If you change it, the note below must say why: the date before and after is recorded." } satisfies Field] : []),
-        { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where it is not in order, or where you changed the expiry date." },
+        ...(asksExpiry ? [{ kind: "date", name: "expiresOn", label: "Expiry date on the certificate", hint: "Confirm against the certificate." } satisfies Field] : []),
+        { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required if not in order or expiry changed." },
       ]}
       values={{ documentId, verifiedOn: today, ...(asksExpiry ? { expiresOn: expiresOn ?? "" } : {}) }}
       action={verifyDocument}
@@ -123,8 +123,8 @@ export function VerifyCreditorDrawer({ profileId, version, today, blocker }: { p
         hidden("profileId"),
         { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "In order" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
         actorField("CreditorProfile.verifiedBy", { name: "personId", dated: true }),
-        { kind: "date", name: "verifiedOn", label: "Checked on", required: true, hint: "Not after today, nor before the supplier sent them." },
-        { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where they are not in order: the supplier is told on its Company page, under Bank details." },
+        { kind: "date", name: "verifiedOn", label: "Checked on", required: true, hint: "Not after today or before it was sent." },
+        { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where not in order." },
       ]}
       values={{ profileId, verifiedOn: today }}
       action={verifyCreditorProfile}
@@ -149,7 +149,7 @@ export function OpenApplicationDrawer({ supplierId, kinds, channels, people, tod
         { kind: "date", name: "receivedOn", label: "Received on", required: true },
         { kind: "select", name: "channel", label: "How it came in", required: true, placeholder: "Choose", options: channels },
         { kind: "date", name: "declarationSignedOn", label: "Declaration signed on" },
-        { kind: "date", name: "epaymentFormReceivedOn", label: "E-Payment form received on", hint: "Only that it was received: no bank detail is recorded here." },
+        { kind: "date", name: "epaymentFormReceivedOn", label: "E-Payment form received on", hint: "Receipt only: no bank detail recorded." },
         actorField("SupplierApplication.recordedBy", { name: "recordedByPersonId", people }),
       ]}
       values={{ supplierId, receivedOn: today }}
@@ -219,7 +219,7 @@ export function ResubmissionDrawer({ applicationId, items, people, blocker }: { 
         hidden("applicationId"),
         hidden("outcome"),
         ...items.map((i) => ({ kind: "textarea", name: i.name, label: i.label } as Field)),
-        { kind: "date", name: "resubmitBy", label: "Resubmit by", required: true, hint: "After today. It lapses the day after: the application is then rejected when the lapse is recorded." },
+        { kind: "date", name: "resubmitBy", label: "Resubmit by", required: true, hint: "After today. It lapses the day after." },
         { kind: "textarea", name: "remarks", label: "General remarks" },
         actorField("ApplicationDecision.decidedBy", { name: "personId", people, paper: false }),
       ]}

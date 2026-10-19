@@ -54,9 +54,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
         <RecordCrumb label={d.exercise.reference} />
         {header()}
         <Card>
-          <EmptyState title="No Appendix to enter" action={<Link href={back} className="text-[13px] font-semibold">Back to the tender documents</Link>}>
-            {d.why}
-          </EmptyState>
+          <EmptyState title="No Appendix to enter" action={<span className="flex items-center gap-2"><Link href={back} className="text-[13px] font-semibold">Back to the tender documents</Link><MoreText text={d.why} label="Why" /></span>} />
         </Card>
       </>
     );

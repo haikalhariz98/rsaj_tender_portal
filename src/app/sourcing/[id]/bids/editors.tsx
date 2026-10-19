@@ -40,7 +40,7 @@ const receiptFields = (people: Option[], bids: Option[]): Field[] => [
   { kind: "select", name: "kind", label: "Envelope", required: true, placeholder: "Choose", options: KIND_OPTIONS },
   { kind: "select", name: "parentEnvelopeId", label: "Alternative to", placeholder: "Not named on the envelope", options: bids, hint: "Only if the envelope names it." },
   { kind: "select", name: "channel", label: "How it came", required: true, placeholder: "Choose", options: CHANNEL_OPTIONS, hint: "Tender box envelopes are registered at opening." },
-  { kind: "textarea", name: "markings", label: "Markings, as written on the envelope", required: true, hint: "Title, number and closing as shown. Bidders are named at opening." },
+  { kind: "textarea", name: "markings", label: "Markings, as written on the envelope", required: true, hint: "Title, number and closing as shown." },
   actorField("BidEnvelope.receivedBy", { name: "receivedByPersonId", people }),
 ];
 
@@ -50,7 +50,7 @@ export function ReceiveNowDrawer({ exerciseId, allowed, people, bids, noteId }: 
   return (
     <RecordEditor
       title="Record a receipt now"
-      description="The portal stamps the time on save. That alone decides lateness. Late envelopes go to the committee."
+      description="The portal stamps the time on save. Late envelopes go to the committee."
       fields={[...receiptFields(people, bids), { kind: "note", text: "Record it as handed over. After closing it is late." }]}
       values={{ exerciseId }}
       showWhen={{ parentEnvelopeId: { name: "kind", in: ["ALTERNATIVE"] } }}

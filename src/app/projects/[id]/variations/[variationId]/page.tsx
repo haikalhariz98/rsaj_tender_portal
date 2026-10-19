@@ -197,7 +197,7 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
         {statusRefused?.code === "CONTRACT_CANCELLED" && <Callout tone="warn" title="The contract is cancelled" />}
         {statusRefused && statusRefused.code !== "CONTRACT_CANCELLED" && <Callout tone="warn" title={statusCalloutTitle(l.contract.status as ContractStatus).en}>{actStatusText(statusRefused)}</Callout>}
         {stage === "CLOSED" && <Callout tone="warn" title="Closed">{`${v.closedReason} (${formatDate(day(v.closedOn))}).`}</Callout>}
-        {commencedPending(f) && <Callout tone="warn" title="Commenced pending approval">{`Commenced ${formatDate(day(v.commencedOn))} on the support of ${v.commencedSupport?.name ?? "the S.O."}. Estimate ${formatMoney(f.estimate)} counts as exposure until approved.`}</Callout>}
+        {commencedPending(f) && <Callout tone="warn" title="Commenced pending approval">{`Commenced ${formatDate(day(v.commencedOn))}, supported by ${v.commencedSupport?.name ?? "the S.O."}. Exposure ${formatMoney(f.estimate)} until approved.`}</Callout>}
         {!EXECUTED_STATUSES.includes(l.contract.status) && <Callout tone="warn" title="The contract is not executed">{variationFaultText({ code: "NOT_EXECUTED", level: "block" })}</Callout>}
       </div>
       <ActGate blocker={gate}>
@@ -509,7 +509,7 @@ function MeasurementPanel({ l, v, people, today, hidden, blockedBy }: { l: Loade
       <CardHeader
         icon={<ScaleIcon size={17} />}
         title="Measured items"
-        subtitle={ins ? `Under “${ins.description}”. Net so far ${formatMoney(total)}.` : "Measured under the instruction once it is issued."}
+        subtitle={ins ? `Under “${ins.description}”. Net so far ${formatMoney(total)}.` : "After the instruction is issued"}
         actions={hidden.includes("VALUATION") ? undefined : <MeasurementDrawer id={l.contract.id} variationId={v.id} heading={ins?.description ?? ""} people={people} sources={RATE_SOURCES.map((x) => ({ value: x, label: RATE_SOURCE_WORDS[x].en }))} directions={ADJUSTMENT_DIRECTIONS.map((x) => ({ value: x, label: DIRECTION_WORDS[x].en }))} today={today} blocker={blocker} />}
         divided={items.length > 0}
       />

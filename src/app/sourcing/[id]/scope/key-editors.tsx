@@ -63,7 +63,7 @@ export function ChangeKeyDrawer({ exerciseId, allowed }: { exerciseId: string; a
   return (
     <RecordEditor
       title="Change the exercise key"
-      description="Destroys the live copy of the old key and shares. Refused once a bid exists or closing has passed."
+      description="Destroys the old key and shares. Refused once a bid exists."
       more="A backup taken before now still holds the old key and could be opened with the officers' passphrases. Unsubmitted supplier uploads are discarded and recorded. Suppliers are not yet told why. The change is recorded with its reason."
       fields={[hidden("exerciseId"), { kind: "textarea", name: "reason", label: "Why the key is changed", required: true }, actorField("PublishedKeyChange.by", { name: "personId" })]}
       values={{ exerciseId }}

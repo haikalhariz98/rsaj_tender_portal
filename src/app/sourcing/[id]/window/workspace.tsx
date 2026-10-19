@@ -38,16 +38,14 @@ function NotYet({ c, what }: { c: WindowContext; what: string }) {
   if (stage === "no_window") {
     return (
       <Card>
-        <EmptyState title="This exercise has no invitation window">No tender documents, so nothing to publish.</EmptyState>
+        <EmptyState title="No invitation window: no tender documents" />
       </Card>
     );
   }
   if (stage === "not_yet") {
     return (
       <Card>
-        <EmptyState title={`${what} opens once the exercise is in preparation`} action={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=overview`} variant="secondary" size="sm">Open the Overview</ButtonLink>}>
-          Move to preparation first.
-        </EmptyState>
+        <EmptyState title={`${what} opens once the exercise is in preparation`} action={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=overview`} variant="secondary" size="sm">Open the Overview</ButtonLink>} />
       </Card>
     );
   }

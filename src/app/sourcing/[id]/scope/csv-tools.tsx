@@ -49,7 +49,7 @@ function Preview({ parsed }: { parsed: ParsedBqCsv | null }) {
       ) : (
         <Callout tone="ok" title="Ready to import">
           {s.lines} {s.lines === 1 ? "line" : "lines"} in {s.sections} {s.sections === 1 ? "section" : "sections"}.{" "}
-          {s.priced ? `Total ${formatSen(s.total)}${s.incompleteLines ? `; ${s.incompleteLines} without a rate or quantity yet` : ""}.` : "No Rate column. Enter rates after import."}
+          {s.priced ? `Total ${formatSen(s.total)}${s.incompleteLines ? `; ${s.incompleteLines} without a rate or quantity yet` : ""}.` : "No Rate column."}
         </Callout>
       )}
       {(notices.mismatches.length > 0 || notices.amountFaults.length > 0) && (
@@ -172,9 +172,10 @@ export function ImportCsvDrawer({
       title={`Import lines into version ${draft.versionNo} from CSV`}
       description={note}
       fields={[
-        { kind: "file", name: "file", label: "The bill as a CSV file", required: true, accept: ".csv,text/csv", hint: `Columns: Section, Section title, Item, Description, Unit, Kind, Quantity, Rate, Amount, Provisional. Saved from a spreadsheet as “CSV UTF-8”.${upload.capText ? ` ${upload.capText}` : ""}` },
+        { kind: "file", name: "file", label: "The bill as a CSV file", required: true, accept: ".csv,text/csv", hint: `CSV UTF-8.${upload.capText ? ` ${upload.capText}` : ""}` },
+        { kind: "note", text: "Columns: Section, Section title, Item, Description, Unit, Kind, Quantity, Rate, Amount, Provisional. Save a spreadsheet as CSV UTF-8." },
         { kind: "text", name: "title", label: "Title", required: true, hint: "What the kept file is called in lists." },
-        { kind: "select", name: "documentClassId", label: "Class", required: true, placeholder: "Choose a class", options: upload.classes, hint: "Sets classification and retention. A priced bill may be SULIT." },
+        { kind: "select", name: "documentClassId", label: "Class", required: true, placeholder: "Choose a class", options: upload.classes, hint: "Sets classification and retention." },
         actorField("DocumentVersion.recordedBy", { name: "recordedByPersonId", people: upload.people }),
         { kind: "date", name: "receivedOn", label: "Received on", hint: "Blank if unknown." },
         ...(draft.lines === 0 && draft.sections > 0 ? [{ kind: "note" as const, text: `${draft.sections} empty ${draft.sections === 1 ? "section is" : "sections are"} replaced by the file's. Removals are kept in the history.` }] : []),
@@ -227,7 +228,7 @@ export function ExportCsvForm({ exerciseId, versions, note }: { exerciseId: stri
             ))}
           </Select>
         </Field>
-        <Field label="As" htmlFor="bq-export-priced" hint="The unpriced file is the bill as tenderers receive it.">
+        <Field label="As" htmlFor="bq-export-priced" hint="The bill as tenderers receive it.">
           <Select id="bq-export-priced" name="priced" defaultValue="no">
             <option value="no">Unpriced: no rate or amount</option>
             <option value="yes">Priced: rates and amounts</option>
@@ -243,7 +244,7 @@ export function ExportCsvForm({ exerciseId, versions, note }: { exerciseId: stri
       {state.message && !state.ok && <Callout tone="err">{state.message}</Callout>}
       {state.ok && saved && (
         <Callout tone="ok" title={`Saved ${saved}`}>
-          SHA-256 of the file: <span className="font-mono text-[12px] break-all">{state.sha256}</span>. The export is recorded in the exercise&apos;s history.
+          SHA-256 of the file: <span className="font-mono text-[12px] break-all">{state.sha256}</span>.
         </Callout>
       )}
     </form>

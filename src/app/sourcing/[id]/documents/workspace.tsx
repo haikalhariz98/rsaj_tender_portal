@@ -32,7 +32,7 @@ type Route = LoadedExercise["ex"]["approvalInstances"][number];
 
 const GONE = (
   <Card>
-    <EmptyState title="This exercise could not be found">Its organisation may no longer be configured.</EmptyState>
+    <EmptyState title="Exercise not found" />
   </Card>
 );
 
@@ -156,7 +156,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
           <KeyValues columns={3} items={facts} />
           {returned && (
             <Callout tone="warn" title={TENDERING_STATE_LABEL.RETURNED}>
-              {returned.returnedBecause || "No reason recorded."} Start the next version to amend it; this one stays as it was frozen.
+              {returned.returnedBecause || "No reason recorded."} Start the next version to amend.
             </Callout>
           )}
           {!d.pack && !d.start.allowed && <Callout tone="warn" title="Not started">{d.start.reason}</Callout>}

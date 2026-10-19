@@ -95,7 +95,7 @@ export function ReviewStep({
       )}
 
       <Card>
-        <CardHeader title="Declaration" subtitle="Read it, tick the box, and sign with your password." />
+        <CardHeader title="Declaration" subtitle="Read, tick and sign" />
         <CardBody>
           {falseText ? (
             <>

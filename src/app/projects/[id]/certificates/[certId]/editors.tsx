@@ -99,7 +99,7 @@ export function SignatureDrawer({ certId, block, people, today, blocker }: { cer
   if (own) {
     fields.push(hidden("personBlock"));
     fields.push(by("CertificateSignature.person", "personId", people, undefined, true));
-    fields.push({ kind: "date", name: "signedOn", label: "Signed on", hint: "Empty dates it today. From paper: the signing day." });
+    fields.push({ kind: "date", name: "signedOn", label: "Signed on", hint: "Empty is today. From paper: signing day." });
   } else {
     fields.push({ kind: "text", name: "name", label: "Full name as signed", required: true });
     fields.push({ kind: "text", name: "icNumber", label: "Identity-card number", hint: "Only the last four digits are kept." });
@@ -204,7 +204,7 @@ export function SendForApprovalDrawer({ certId, figure, people, blocker, again }
   return (
     <RecordEditor
       title={again ? "Send for approval again" : "Send for approval"}
-      description={`Routed on ${figure} under the matrix in force today. Figures freeze. You may not decide it afterwards.`}
+      description={`Routed on ${figure}. Figures freeze. You cannot decide it afterwards.`}
       fields={[hidden("certId"), by("ApprovalInstance.submittedBy", "personId", people)]}
       values={{ certId }}
       action={sendCertificateForApproval}
@@ -219,14 +219,14 @@ export function DecideRouteStepDrawer({ certId, stepId, roleLabel, act, done, pe
   return (
     <RecordEditor
       title={`Record ${roleLabel}'s decision`}
-      description={`The ${act.toLowerCase()} step. The holder signs in with their password. A paper decision is recorded for them, not signed.`}
+      description={`The ${act.toLowerCase()} step. Paper decisions are recorded, not signed.`}
       fields={[
         hidden("certId"),
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused" }] },
         by("ApprovalStep.decidedBy", "personId", people, undefined, true),
         { kind: "date", name: "receivedOn", label: "Received on", hint: "Optional. Not recorded shows as such." },
-        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was sent for approval." },
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today or before it was sent." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
       values={{ certId, stepId, decidedOn: today }}

@@ -233,9 +233,7 @@ export function AuthoritySimulator({
 
         {!chosen && (
           <Card tone="flat">
-            <EmptyState size="sm" title="Choose a case">
-              Pick a matter, then a value and any other detail, to see which rule decides it and who approves.
-            </EmptyState>
+            <EmptyState size="sm" title="Pick a matter and a value" />
           </Card>
         )}
 
@@ -274,9 +272,7 @@ export function AuthoritySimulator({
 
         {chosen && result && result.chain.length === 0 && !error && (
           <Card tone="flat">
-            <EmptyState size="sm" title="No rule matched">
-              Nothing in the authority matrix covers this combination.
-            </EmptyState>
+            <EmptyState size="sm" title="No rule matched" />
           </Card>
         )}
 

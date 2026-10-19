@@ -385,7 +385,6 @@ export default async function CommitteePage({
             toolbar={false}
             exportName={`${committee.code}-sittings`}
             emptyTitle="No sittings recorded"
-            emptyBody="Schedule one under Committee sittings."
             rowAction={{ label: "Open", hrefTemplate: "/committees/{id}" }}
             rowOpens
             columns={[

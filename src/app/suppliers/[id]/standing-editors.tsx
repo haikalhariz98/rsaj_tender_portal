@@ -30,8 +30,8 @@ export function SuspendDrawer({ supplierId, reasons, documents, people, today, b
       description="Reinstating needs each document verified again. Not emailed."
       fields={[
         hidden("supplierId"),
-        { kind: "select", name: "reasonId", label: "Reason", required: true, placeholder: "Choose", options: reasons, hint: reasons.length ? undefined : "No suspension reason is configured (Configuration › Supplier register, Standing reasons)." },
-        { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: "Not after today, nor before the supplier was registered." },
+        { kind: "select", name: "reasonId", label: "Reason", required: true, placeholder: "Choose", options: reasons, hint: reasons.length ? undefined : "None configured under Configuration › Supplier register." },
+        { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: "Not after today or before registration." },
         { kind: "tokens", name: "flaggedDocumentIds", label: "The documents it is for", options: documents, hint: "Reinstating needs each verified and in force again." },
         { kind: "textarea", name: "note", label: "Note" },
         actorField("StandingEvent.recordedBy", { name: "personId", people }),
@@ -77,7 +77,7 @@ export function RequestBlacklistDrawer({ supplierId, reasons, awards, fromAward,
       description="Decided on its own route. Recorded once approved."
       fields={[
         hidden("supplierId"),
-        { kind: "select", name: "reasonId", label: "Reason", required: true, placeholder: "Choose", options: reasons, hint: reasons.length ? undefined : "No blacklisting reason is configured (Configuration › Supplier register, Standing reasons)." },
+        { kind: "select", name: "reasonId", label: "Reason", required: true, placeholder: "Choose", options: reasons, hint: reasons.length ? undefined : "None configured under Configuration › Supplier register." },
         ...(awards.length ? [{ kind: "select", name: "sourceAwardId", label: "From the cancelled award", placeholder: "None", options: awards, hint: "An award cancelled with blacklisting recommended." } as Field] : []),
         { kind: "textarea", name: "note", label: "Note" },
         actorField("StandingRequest.requestedBy", { name: "personId", people }),
@@ -111,10 +111,10 @@ export function RecordStandingDrawer({ requestId, kind, people, today, approvedO
   return (
     <RecordEditor
       title={label}
-      description={kind === "BLACKLIST" ? "Its route has approved it. The period is worked out from the policy as it stands now and kept with the record." : "Its route has approved it."}
+      description={kind === "BLACKLIST" ? "Its route has approved it. The period follows today's policy." : "Its route has approved it."}
       fields={[
         hidden("requestId"),
-        { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: approvedOn ? `Not before the route approved it, nor after today.` : undefined },
+        { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: approvedOn ? `Not before route approval, nor after today.` : undefined },
         actorField("StandingEvent.recordedBy", { name: "personId", people }),
       ]}
       values={{ requestId, effectiveOn: today }}
@@ -153,9 +153,9 @@ export function RecordCancellationDrawer({ supplierId, bodies, people, today, bl
       description="Bars the supplier from sales, bids and awards while it stands."
       fields={[
         hidden("supplierId"),
-        { kind: "select", name: "cancellingBodyId", label: "Cancelled by", required: true, placeholder: "Choose", options: bodies, hint: bodies.length ? undefined : "No registration body is configured (Configuration › Supplier register)." },
+        { kind: "select", name: "cancellingBodyId", label: "Cancelled by", required: true, placeholder: "Choose", options: bodies, hint: bodies.length ? undefined : "None configured (Configuration › Supplier register)." },
         { kind: "text", name: "externalReference", label: "The body's reference", required: true, hint: "As on its notice." },
-        { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: "As the notice states; not after today, nor before the supplier was registered." },
+        { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: "As on the notice; not after today." },
         { kind: "textarea", name: "note", label: "Note" },
         actorField("StandingEvent.recordedBy", { name: "personId", people }),
       ]}
@@ -194,7 +194,7 @@ export function DecideRouteStepDrawer({ stepId, office, done, people, today, mat
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: refused }] },
         actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office organisation-wide today." : undefined }),
-        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was asked for." },
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today or before it was asked." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
       values={{ stepId, decidedOn: today }}
@@ -264,7 +264,7 @@ export function PermissionDrawer({ partyId, partyLabel, requirements, bodies, pe
         { kind: "select", name: "internalApproval", label: "Approved inside the organisation too", required: true, placeholder: "Choose", options: [{ value: "yes", label: "Yes: on its route, then granted" }, { value: "no", label: "No: granted by the bodies above" }] },
         { kind: "switch", name: "existingClassConfirmed", label: "The party already holds a registration class" },
         { kind: "switch", name: "goodRecordConfirmed", label: "The party's record is good" },
-        { kind: "date", name: "grantedOn", label: "Granted on", hint: "Where no approval inside the organisation is needed. Not after today." },
+        { kind: "date", name: "grantedOn", label: "Granted on", hint: "No internal approval needed. Not after today." },
         { kind: "textarea", name: "note", label: "Note" },
         actorField("SpecialPermission.requestedBy", { name: "personId", people }),
       ]}

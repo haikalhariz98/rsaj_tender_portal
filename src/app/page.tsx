@@ -77,9 +77,7 @@ export default async function Dashboard() {
   if (!data) {
     return (
       <Card>
-        <EmptyState title={t(D.setupTitle)} icon={<SparkleIcon size={24} />}>
-          {t(D.setupRun)} <code className="font-mono text-[12.5px]">npm run setup</code> {t(D.setupLoad)}
-        </EmptyState>
+        <EmptyState title={t(D.setupTitle)} icon={<SparkleIcon size={24} />} action={<code className="font-mono text-[12.5px]">npm run setup</code>} />
       </Card>
     );
   }

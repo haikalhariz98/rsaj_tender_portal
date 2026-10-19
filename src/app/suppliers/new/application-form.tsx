@@ -100,14 +100,14 @@ export function ApplicationForm({
       {state.message && <Callout tone="err">{state.message}</Callout>}
       {portal && <input type="hidden" name="portalApplicationId" value={portal.id} />}
       <Card>
-        <CardHeader title="The company" subtitle={portal ? "As the applicant typed it. Check each against the certificate and correct what differs." : "As the application and its certificate state it."} />
+        <CardHeader title="The company" subtitle={portal ? "Check against the certificate" : "As the certificate states it"} />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">{text("registeredName", "Registered name", { required: true })}</div>
-          {text("registrationNo", "Registration number", { required: true, hint: formatExample ? `In the configured format, for example ${formatExample}.` : "No format is set: the number is recorded as typed and marked “format not checked”." })}
-          {select("entityTypeCode", "Entity type", entityTypes, { required: true, hint: entityTypes.length ? undefined : "No entity types are set under Configuration › Supplier register." })}
-          {select("countryCode", "Country", countries, { required: true, hint: countries.length ? undefined : "No countries are set under Configuration › Supplier register." })}
+          {text("registrationNo", "Registration number", { required: true, hint: formatExample ? `E.g. ${formatExample}.` : "No format set: recorded as typed." })}
+          {select("entityTypeCode", "Entity type", entityTypes, { required: true, hint: entityTypes.length ? undefined : "None set under Configuration › Supplier register." })}
+          {select("countryCode", "Country", countries, { required: true, hint: countries.length ? undefined : "None set under Configuration › Supplier register." })}
           {text("incorporatedOn", "Date incorporated", { required: true, type: "date", hint: "As the certificate states it; not after today." })}
-          {bumiputeraStatuses.length > 0 && select("bumiputeraClaimCode", "Bumiputera status (declared)", bumiputeraStatuses, { hint: "What the applicant declares. The status that counts is the one the certificate shows once it is lodged and verified. Leave it blank if the applicant makes no claim." })}
+          {bumiputeraStatuses.length > 0 && select("bumiputeraClaimCode", "Bumiputera status (declared)", bumiputeraStatuses, { hint: "What the applicant declares. Blank for no claim." })}
           {text("companyEmail", "Company email", { required: true, type: "email", hint: "Not verified: nothing is e-mailed from the portal." })}
         </CardBody>
       </Card>
@@ -118,7 +118,7 @@ export function ApplicationForm({
           <div className="sm:col-span-2">{text("addressLine2", "Street address, second line")}</div>
           {text("city", "City", { required: true })}
           {text("postcode", "Postcode", { required: true })}
-          {select("stateCode", "State", states, { required: true, hint: states.length ? undefined : "No states are set under Configuration › Supplier register." })}
+          {select("stateCode", "State", states, { required: true, hint: states.length ? undefined : "None set under Configuration › Supplier register." })}
         </CardBody>
       </Card>
       <Card>
@@ -126,7 +126,7 @@ export function ApplicationForm({
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {text("contactName", "Name", { required: true })}
           {text("contactDesignation", "Designation")}
-          {text("contactEmail", "Email", { type: "email", required: contactNeedsEmailAndPhone, hint: contactNeedsEmailAndPhone ? "An email and a mobile number are both needed." : "An email or a telephone." })}
+          {text("contactEmail", "Email", { type: "email", required: contactNeedsEmailAndPhone, hint: contactNeedsEmailAndPhone ? "Email and mobile number both needed." : "An email or a telephone." })}
           {text("contactPhone", "Mobile number", { required: contactNeedsEmailAndPhone })}
         </CardBody>
       </Card>
@@ -151,8 +151,8 @@ export function ApplicationForm({
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {text("receivedOn", "Received on", { required: true, type: "date", hint: "The day it arrived; not after today." })}
           {select("channel", "How it came in", channels, { required: true })}
-          {text("declarationSignedOn", "Declaration signed on", { type: "date", hint: "The day on the signed false-declaration and blacklisting declaration. Needed before it is sent for decision." })}
-          {text("epaymentFormReceivedOn", "E-Payment form received on", { type: "date", hint: "Only that it was received: no bank detail is recorded here. Its scan is SULIT." })}
+          {text("declarationSignedOn", "Declaration signed on", { type: "date", hint: "The day on the signed declaration." })}
+          {text("epaymentFormReceivedOn", "E-Payment form received on", { type: "date", hint: "Receipt only; no bank detail. Scan is SULIT." })}
           <ActAttributionFields spec={actorField("SupplierApplication.recordedBy", { name: "recordedByPersonId", hint: "Recorded by you, from your sign-in." })} errors={state.errors} />
         </CardBody>
       </Card>
@@ -171,7 +171,7 @@ export function ApplicationForm({
             ) : !account.validitySet ? (
               <div className="sm:col-span-2">
                 <Callout tone="warn" title="The code cannot be issued yet">
-                  How long a one-time code stays valid is not set (Configuration › Security). Record the supplier now and open the account once it is.
+                  Code validity is not set (Configuration › Security).
                 </Callout>
               </div>
             ) : (
@@ -181,9 +181,9 @@ export function ApplicationForm({
                 </div>
                 {v.openAccount === "on" && (
                   <>
-                    {text("accountLoginName", "Sign-in name", { required: true, hint: "3 to 64 characters: letters, digits and . _ - @. The contact signs in with it." })}
+                    {text("accountLoginName", "Sign-in name", { required: true, hint: "3 to 64: letters, digits, ._-@" })}
                     <div className="sm:col-span-2">
-                      <Field label="How the caller's identity was checked" required htmlFor="identityCheck" error={err("identityCheck")} hint="For example: seen at the counter with identity card.">
+                      <Field label="How the caller's identity was checked" required htmlFor="identityCheck" error={err("identityCheck")} hint="E.g. seen at the counter.">
                         <Input id="identityCheck" name="identityCheck" value={v.identityCheck ?? ""} onChange={set("identityCheck")} />
                       </Field>
                     </div>

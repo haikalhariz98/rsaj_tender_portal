@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import type { ReactNode } from "react";
 
 import { ClockIcon } from "@/components/icons";
@@ -27,7 +28,7 @@ export function RoutingSheetView({ sheet, headerAction, checkAction, open, route
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ClockIcon size={17} />} title={sheet.type.labelEn} subtitle={`Frozen when the sheet started, ${formatDate(sheet.type.frozenOn)}. ${CERT_WORDS.calendarDays.en}.`} actions={headerAction} />
+        <CardHeader icon={<ClockIcon size={17} />} title={sheet.type.labelEn} subtitle={`Frozen ${formatDate(sheet.type.frozenOn)}`} actions={<span className="inline-flex items-center gap-1"><MoreText label="Days" text={`${CERT_WORDS.calendarDays.en}.`} />{headerAction}</span>} />
         <CardBody>
           <KeyValues
             columns={2}

@@ -40,7 +40,7 @@ export function ScopeSection({ d }: { d: Data }) {
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title="How this exercise is prepared"
-          subtitle="Frozen when tender documents are first submitted."
+          subtitle="Frozen on first submission"
           actions={unsetPins && switches.take ? <TakeSettingsDrawer exerciseId={exercise.id} take={switches.take} rows={[["Specification panel", `${panelWords}, organisation's setting: ${switches.panel.setting}`], ["Bill of quantities", `${billWords}, organisation's setting: ${switches.bill.setting === "Used" ? "Built on screen" : switches.bill.setting === "Not used" ? "An uploaded Excel file" : "Not set"}`]]} /> : undefined}
         />
         <CardBody className="flex flex-col gap-4">
@@ -53,10 +53,9 @@ export function ScopeSection({ d }: { d: Data }) {
           />
           {unsetPins && (
             <Callout tone="warn" title="Submission waits for this">
-              {switches.panel.pin == null && "Specification panel not set. "}
-              {switches.bill.pin == null && "Bill of quantities mode not set. "}
-              The tender documents cannot be submitted until they are. Take the organisation&apos;s setting here; if the organisation has not set them, set them under{" "}
-              <Link href={switches.configHref} className="font-semibold">Configuration, Scope and estimate</Link>, where a second person issues the change.
+              {switches.panel.pin == null && "Panel not set. "}
+              {switches.bill.pin == null && "Bill mode not set. "}
+              Set it under <Link href={switches.configHref} className="font-semibold">Configuration.</Link>
             </Callout>
           )}
         </CardBody>
@@ -71,9 +70,7 @@ export function ScopeSection({ d }: { d: Data }) {
           actions={<Badge tone={STATE_TONE[panel.state]} dot>{panel.stateLabel}</Badge>}
         />
         {panel.id == null ? (
-          <EmptyState size="sm" title="The panel has not been started" action={<EditPanelDrawer exerciseId={exercise.id} isNew raw={panel.raw} kinds={panel.options.contractKinds} statuses={panel.options.projectStatuses} bills={panel.options.bills} clearsVerifications={false} />}>
-            Record kind, status and revisions, then who verified each column.
-          </EmptyState>
+          <EmptyState size="sm" title="The panel has not been started" action={<EditPanelDrawer exerciseId={exercise.id} isNew raw={panel.raw} kinds={panel.options.contractKinds} statuses={panel.options.projectStatuses} bills={panel.options.bills} clearsVerifications={false} />} />
         ) : (
           <CardBody className="flex flex-col gap-5">
             {!readOnly && (
@@ -105,9 +102,7 @@ export function ScopeSection({ d }: { d: Data }) {
             <div className="border-t border-line pt-5">
               <p className="mb-2 text-[12px] font-semibold text-ink-3">Verification, column by column</p>
               {columnsUnset ? (
-                <EmptyState size="sm" title="The panel's columns are not set" action={<ButtonLink href={SCOPE_CONFIG_PATH} size="sm" variant="secondary">Set them under Configuration</ButtonLink>}>
-                  Verification columns not set. Nothing can be verified.
-                </EmptyState>
+                <EmptyState size="sm" title="The panel's columns are not set" action={<ButtonLink href={SCOPE_CONFIG_PATH} size="sm" variant="secondary">Set them under Configuration</ButtonLink>} />
               ) : (
                 <ul className="divide-y divide-line/70 rounded-2xl border border-line">
                   {panel.columns.map((c) => (
@@ -157,9 +152,7 @@ export function ScopeSection({ d }: { d: Data }) {
       ) : (
         <Card>
           <CardHeader icon={<ShieldIcon size={17} />} title="Signed panel form" subtitle="Scanned and filed as SULIT." />
-          <EmptyState size="sm" title="Start the panel to attach its form">
-            Save the panel first.
-          </EmptyState>
+          <EmptyState size="sm" title="Start the panel to attach its form" />
         </Card>
       ))}
 
@@ -167,7 +160,7 @@ export function ScopeSection({ d }: { d: Data }) {
         <CardHeader
           icon={<ScaleIcon size={17} />}
           title="Scope approval"
-          subtitle={approval.fileMode ? "Committee approval of the scope, from its sitting. A replaced file needs its own." : "Committee approval of the scope, from its sitting."}
+          subtitle={approval.fileMode ? "A replaced file needs its own" : "From the committee sitting"}
           actions={<Badge tone={approval.badge.tone} dot>{approval.badge.label}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">

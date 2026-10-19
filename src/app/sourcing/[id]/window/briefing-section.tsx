@@ -39,9 +39,7 @@ export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
   if (d.events.length === 0) {
     return (
       <Card>
-        <EmptyState size="sm" title="No briefing or site visit">
-          {d.schedule.allowed ? "None scheduled" : "None scheduled. Add on Scope and estimate."}
-        </EmptyState>
+        <EmptyState size="sm" title="No briefing or site visit" />
       </Card>
     );
   }
@@ -49,7 +47,7 @@ export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
     <div className="flex flex-col gap-6">
       {!d.mandatoryOffered && (
         <Callout tone="warn" title="Attendance not mandatory">
-          Not permitted or not set under Invitation controls. No sale is refused for missing one.
+          No sale is refused for missing one.
         </Callout>
       )}
       {d.events.map((e) => {

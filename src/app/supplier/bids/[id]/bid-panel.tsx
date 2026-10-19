@@ -20,9 +20,7 @@ export function BidPanel({ screen, supplierName }: { screen: BidScreen; supplier
   if (!screen.online) {
     return (
       <Card>
-        <EmptyState title={<Bi words={SCREEN_WORDS.paperOnlyTitle} inline />}>
-          <Bi words={SUBMIT_FAULT_WORDS.CHANNEL_NOT_ONLINE} />
-        </EmptyState>
+        <EmptyState title={<Bi words={SCREEN_WORDS.paperOnlyTitle} inline />} action={<span className="text-[13.5px] text-ink-2"><Bi words={SUBMIT_FAULT_WORDS.CHANNEL_NOT_ONLINE} /></span>} />
       </Card>
     );
   }

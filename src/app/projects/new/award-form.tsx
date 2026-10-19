@@ -123,10 +123,10 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, r
           </Field>
           {recommended && (
             <>
-              <Field label="Why the value differs from the recommendation" htmlFor="recValueDiffersReason" hint={`Recommended: ${recommended.valueText}. Only where the awarded value is not that.`} error={err("recValueDiffersReason")}>
+              <Field label="Why the value differs from the recommendation" htmlFor="recValueDiffersReason" hint={`Recommended: ${recommended.valueText}.`} error={err("recValueDiffersReason")}>
                 <Textarea id="recValueDiffersReason" name="recValueDiffersReason" rows={2} value={v.recValueDiffersReason ?? ""} onChange={set("recValueDiffersReason")} />
               </Field>
-              <Field label="Why the period differs from the recommendation" htmlFor="recPeriodDiffersReason" hint="Only where the period is not the recommended one." error={err("recPeriodDiffersReason")}>
+              <Field label="Why the period differs from the recommendation" htmlFor="recPeriodDiffersReason" hint="Only where the period differs." error={err("recPeriodDiffersReason")}>
                 <Textarea id="recPeriodDiffersReason" name="recPeriodDiffersReason" rows={2} value={v.recPeriodDiffersReason ?? ""} onChange={set("recPeriodDiffersReason")} />
               </Field>
             </>

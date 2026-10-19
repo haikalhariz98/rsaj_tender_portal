@@ -157,7 +157,6 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
         exportName="people"
         searchPlaceholder="Search people"
         emptyTitle="Nobody on record"
-        emptyBody="Add a person before assigning a role."
         views={[
           { id: "away", label: "Away" },
           { id: "left", label: "Left the organisation" },
@@ -289,7 +288,6 @@ function AssignmentsList({ assignments, people, offices }: UsersData) {
         exportName="assignments"
         searchPlaceholder="Search assignments"
         emptyTitle="Nobody holds a role"
-        emptyBody="A rule routes to a role; only an assignment turns it into somebody who can sign."
         columns={[
           { key: "person", label: "Person", width: "26%", sortable: true, mobile: "primary" },
           { key: "role", label: "Role", width: "28%", sortable: true, mobile: "meta" },
@@ -358,7 +356,6 @@ function RolesList({ offices, people, holdings, grants }: UsersData) {
         exportName="roles"
         searchPlaceholder="Search roles"
         emptyTitle="No role configured"
-        emptyBody="An approval rule routes to a role, so nothing routes until one exists."
         columns={[
           { key: "role", label: "Role", width: "28%", sortable: true, mobile: "primary" },
           { key: "workspace", label: "Workspace", width: "14%", mobile: "meta" },
@@ -685,7 +682,6 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload, l
           exportName="delegations"
           searchPlaceholder="Search delegations"
           emptyTitle="Nothing is delegated"
-          emptyBody="Every role is exercised by whoever holds it."
           views={[
             { id: "inforce", label: "In force" },
             { id: "scheduled", label: "Scheduled" },
@@ -820,7 +816,6 @@ function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
           exportName="reporting-lines"
           searchPlaceholder="Search reporting lines"
           emptyTitle="Reporting line not set"
-          emptyBody="No reporting line is recorded for anyone."
           views={[
             { id: "inforce", label: "In force" },
             { id: "scheduled", label: "Scheduled" },

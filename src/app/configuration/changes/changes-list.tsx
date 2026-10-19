@@ -36,7 +36,6 @@ export function WaitingList({ rows }: { rows: QueueRow[] }) {
       exportName="changes-waiting"
       searchPlaceholder="Search changes"
       emptyTitle="Nothing is waiting"
-      emptyBody="A change that needs a second person appears here until it is applied, declined or withdrawn."
       columns={[
         { key: "change", label: "Change", width: "26%", sortable: true, mobile: "primary" },
         { key: "what", label: "What it would do", mobile: "meta" },

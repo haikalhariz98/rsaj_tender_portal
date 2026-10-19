@@ -97,7 +97,7 @@ export function EditWindowDrawer({ exerciseId, items, allowed, first, online = f
         { kind: "money", name: "feeAmount", label: "Document fee", required: true, hint: "Judged against the band's minimum." },
         ...(online ? [] : ([{ kind: "text", name: "feePaymentMethods", label: "How the fee is paid", required: true }] satisfies Field[])),
         { kind: "textarea", name: "closingTimeReason", label: "Why the closing time is not the usual one", hint: "Only if different from the default time." },
-        { kind: "select", name: "specialPermissionOffered", label: "Special permission", options: [{ value: "unset", label: "Not stated" }, { value: "yes", label: "Offered" }, { value: "no", label: "Not offered" }], hint: "For a firm short of a grade or field code. Not stated: none granted." },
+        { kind: "select", name: "specialPermissionOffered", label: "Special permission", options: [{ value: "unset", label: "Not stated" }, { value: "yes", label: "Offered" }, { value: "no", label: "Not offered" }], hint: "For a firm short of a grade." },
       ]}
       values={{ exerciseId, specialPermissionOffered: "unset", ...(items ?? {}) }}
       action={saveWindow}
@@ -353,7 +353,7 @@ export function RequestChangeDrawer({ exerciseId, kind, allowed, closing, lastDa
         { kind: "date", name: "closingDay", label: "New closing day", required: true },
         { kind: "text", name: "closingTime", label: "New closing time", required: true, placeholder: "14:30", hint: "Hours and minutes, 24-hour, the organisation's clock." },
         { kind: "date", name: "purchaseCloseDay", label: "New last day of sale", hint: lastDayOfSale ? `Now ${lastDayOfSale}. Leave empty to keep it.` : "Leave empty to keep it." },
-        { kind: "textarea", name: "reason", label: "Why", required: true, hint: "Purchasers are told of an extension: the register is the list." },
+        { kind: "textarea", name: "reason", label: "Why", required: true, hint: "Purchasers are told of an extension." },
       ]}
       values={{ exerciseId, kind }}
       action={requestClosingChange}
@@ -374,7 +374,7 @@ export function RequestCancellationDrawer({ exerciseId, allowed, reference, note
       fields={[
         hidden("exerciseId"),
         { kind: "textarea", name: "reason", label: "Why", required: true },
-        { kind: "select", name: "feeRefund", label: "Are the document fees refunded?", required: true, placeholder: "Choose", placeholderDisabled: true, options: [{ value: "yes", label: "Yes, the fees are refunded" }, { value: "no", label: "No, they are not" }], hint: "Must be answered before it can be asked for." },
+        { kind: "select", name: "feeRefund", label: "Are the document fees refunded?", required: true, placeholder: "Choose", placeholderDisabled: true, options: [{ value: "yes", label: "Yes, the fees are refunded" }, { value: "no", label: "No, they are not" }], hint: "Answer before asking for it." },
       ]}
       values={{ exerciseId }}
       danger
@@ -397,8 +397,8 @@ export function WindowDecisionDrawer({ exerciseId, stepId, office, done, people,
         hidden("exerciseId"),
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused: the change is not made" }] },
-        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office for the requisition's department today." : undefined }),
-        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was asked for." },
+        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office for the department today." : undefined }),
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today or before it was asked." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
       values={{ exerciseId, stepId, decidedOn: today }}
@@ -452,7 +452,7 @@ export function RecordSaleDrawer({
           : ([
               { kind: "text", name: "name", label: "Contractor", hint: "Needed where no contractor is chosen above." },
               { kind: "text", name: "registrationNo", label: "Registration number", mono: true },
-              { kind: "textarea", name: "address", label: "Address", hint: "Printed on the label that goes on the set." },
+              { kind: "textarea", name: "address", label: "Address", hint: "Printed on the label on the set." },
               { kind: "text", name: "phone", label: "Telephone" },
               { kind: "text", name: "fax", label: "Fax" },
               { kind: "text", name: "email", label: "Email" },
@@ -472,7 +472,7 @@ export function RecordSaleDrawer({
         { kind: "select", name: "suspensionCheck", label: "Suspension", placeholder: "Not checked", options: [{ value: "FAILED", label: "Checked: suspended" }], hint: "Linked: read from the register. Otherwise not checked." },
         { kind: "textarea", name: "checkNote", label: "Note on the checks" },
         { kind: "text", name: "paymentMethod", label: "How the fee was paid", required: true },
-        { kind: "text", name: "financeReceiptNo", label: "Finance receipt number", mono: true, hint: "As on finance's receipt. Empty: shows in receipts to collect." },
+        { kind: "text", name: "financeReceiptNo", label: "Finance receipt number", mono: true, hint: "As on finance's receipt; empty is to collect." },
         actorField("DocumentSale.issuedBy", { name: "issuedByPersonId", people }),
       ]}
       values={{ exerciseId }}
@@ -585,7 +585,7 @@ export function MarkHeldDrawer({ exerciseId, eventId, label, today }: { exercise
     <RecordEditor
       title={`Record the ${label.toLowerCase()} as held`}
       description="Attendance is recorded once the event is held."
-      fields={[hidden("exerciseId"), hidden("eventId"), { kind: "date", name: "heldOn", label: "Held on", required: true, hint: "Not before it was to start, nor after today." }]}
+      fields={[hidden("exerciseId"), hidden("eventId"), { kind: "date", name: "heldOn", label: "Held on", required: true, hint: "Not before it started, nor after today." }]}
       values={{ exerciseId, eventId, heldOn: today }}
       action={markEventHeld}
       submitLabel="Record as held"

@@ -47,9 +47,7 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
       <>
         {header}
         <Card>
-          <EmptyState title={online ? "This online application is not waiting any more" : "No such online application"}>
-            {online ? "It was recorded as a supplier or set aside already." : "It may have been recorded or removed."} <Link href="/suppliers?tab=portal">Back to the online applications</Link>
-          </EmptyState>
+          <EmptyState title={online ? "Online application no longer waiting" : "No such online application"} action={<Link href="/suppliers?tab=portal">Back to the online applications</Link>} />
         </Card>
       </>
     );

@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ActGate } from "@/components/act-gate";
@@ -223,9 +224,9 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const variationSection = (VARIATION_SECTIONS.find((s) => s.id === section)?.id ?? "variations") as VariationSection;
   const sectionOf: Record<string, string> = { formation: formationSection, site: siteSection, payments: paymentSection, variations: variationSection };
 
-  const notice = (title: string, body: ReactNode) => (
+  const notice = (title: string, body: string) => (
     <Card>
-      <EmptyState title={title}>{body}</EmptyState>
+      <EmptyState title={title} action={<MoreText text={body} label="Why" />} />
     </Card>
   );
   const panelFor = (tabId: string): ReactNode => {
@@ -429,7 +430,7 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
       </Card>
       <Card className="overflow-hidden">
         <CardHeader icon={<ShieldIcon size={17} />} title={t(P.readyToSign)} actions={facts ? <Badge tone={facts.gate.ready ? "ok" : "warn"}>{facts.gate.ready ? "Gate met" : "Gate not met"}</Badge> : undefined} />
-        {facts ? <ReadinessGateList items={facts.gate.items} bondNotRequiredReason={l.award.bondNotRequiredReason} /> : <EmptyState size="sm" title={t(R.notJudged)}>{t(R.setTimeZoneFirst)}</EmptyState>}
+        {facts ? <ReadinessGateList items={facts.gate.items} bondNotRequiredReason={l.award.bondNotRequiredReason} /> : <EmptyState size="sm" title={t(R.notJudged)} action={<MoreText text={t(R.setTimeZoneFirst)} label="Why" />} />}
       </Card>
       <Card className="overflow-hidden">
         <CardHeader icon={<CheckIcon size={17} />} title={t(P.awardConditions)} divided={l.award.conditions.length > 0} />

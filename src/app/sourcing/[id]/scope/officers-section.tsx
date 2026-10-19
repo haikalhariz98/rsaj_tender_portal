@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import { requireStaff } from "@/app/_auth/actor";
 import { Accordion } from "@/components/accordion";
 import { DataList } from "@/components/data-list";
@@ -14,7 +15,6 @@ import { loadExercise } from "@/lib/method/repo";
 import { rosterChange, rosterFaults } from "@/lib/opening/roster";
 import { loadOpeningRoster } from "@/lib/opening/roster-store";
 import { ROSTER_AFTER_CLOSING_NOTE, rosterActs, rosterFindingText } from "@/lib/opening/roster-labels";
-import { SETTING_AT } from "@/lib/opening/labels";
 
 import { KeySection } from "./key-section";
 import { OfficersList } from "./officers-list";
@@ -65,8 +65,8 @@ export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
         </Callout>
       )}
       {roster.input.committee && size == null && (
-        <Callout tone="warn" title="The number of opening officers is not set" action={<ButtonLink href="/configuration/committees" size="sm" variant="secondary">Open Committees</ButtonLink>}>
-          Panel size of {roster.input.committee.name} is set under {SETTING_AT.committee}. Nobody can be named until then.
+        <Callout tone="warn" title="Opening officer count not set" action={<ButtonLink href="/configuration/committees" size="sm" variant="secondary">Open Committees</ButtonLink>}>
+          Nobody can be named until it is set.
         </Callout>
       )}
       <Card className="overflow-hidden">
@@ -91,7 +91,7 @@ export async function OfficersSection({ exerciseId }: { exerciseId: string }) {
             ]}
           />
           {roster.rows.length === 0 ? (
-            <EmptyState size="sm" title="Nobody named">{acts.name.allowed ? null : acts.name.reason}</EmptyState>
+            <EmptyState size="sm" title="Nobody named" action={acts.name.allowed ? undefined : <MoreText text={acts.name.reason} label="Why" />} />
           ) : (
             <div className="overflow-hidden rounded-2xl border border-line">
               <OfficersList

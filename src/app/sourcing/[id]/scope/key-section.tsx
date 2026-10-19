@@ -91,7 +91,7 @@ export async function KeySection({ ex, org, actor }: { ex: ExerciseRow; org: Exe
           ]}
         />
         <Callout tone="warn" title="Every named officer is needed to open">
-          No substitution after closing. A lost share means re-tender.
+          No substitution after closing.
         </Callout>
         {pending.state === "PENDING" && (
           <Callout tone="warn" title="A substitution is waiting">

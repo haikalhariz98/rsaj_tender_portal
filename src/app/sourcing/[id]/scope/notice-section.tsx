@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import { hiddenExercises } from "@/app/_auth/sulit";
 import type { Reader } from "@/lib/auth/sulit-store";
 import { ClockIcon, UsersIcon } from "@/components/icons";
@@ -54,7 +55,7 @@ export async function NoticeSection({ scope, c }: { scope: Reader; c: WindowCont
         <CardHeader
           icon={<ClockIcon size={17} />}
           title="Bid validity"
-          subtitle="Days a bid stays valid. No default."
+          subtitle="No default"
           actions={<BidAnswersDrawer exerciseId={c.exerciseId} allowed={v.allowed} values={v.values} needsReason={v.needsReason} />}
         />
         <CardBody className="flex flex-col gap-3 border-t border-line">
@@ -90,7 +91,7 @@ export async function BriefingPrepSection({ scope, c }: { scope: Reader; c: Wind
           divided={b.events.length === 0}
         />
         {b.events.length === 0 ? (
-          <EmptyState size="sm" title="None scheduled">{schedule.allowed ? null : schedule.reason}</EmptyState>
+          <EmptyState size="sm" title="None scheduled" action={schedule.allowed ? undefined : <MoreText text={schedule.reason} label="Why" />} />
         ) : (
           <ul className="divide-y divide-line/70">
             {b.events.map((e) => {

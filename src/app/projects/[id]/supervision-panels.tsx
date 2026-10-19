@@ -258,7 +258,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
         <CardHeader
           icon={<UsersIcon size={17} />}
           title={<Say words={P.representatives} />}
-          subtitle={`The S.O.'s delegations, each in force from its letter's date until revoked. Letters: ${variant ? VARIANT_WORDS[variant].en : "not set for this contract type"}.`}
+          subtitle={`Letters: ${variant ? VARIANT_WORDS[variant].en : "not set for this contract type"}.`}
           actions={<DelegationDrawer id={c.id} people={people} kinds={opts(DELEGATE_KINDS, DELEGATE_KIND_WORDS)} acts={opts(SUPERVISION_ACTS, ACT_WORDS)} letters={variant ? VARIANT_WORDS[variant].en : "not set for this contract type"} blocker={delegateBlocker} />}
           divided={v.s.soDelegations.length > 0}
         />
@@ -364,7 +364,7 @@ async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract
         <CardHeader
           icon={<BuildingIcon size={17} />}
           title={<Say words={P.possessionOfSite} />}
-          subtitle={`Recorded once. It starts the contract period and makes the contract active. Start of work: ${START_RULE_WORDS[startRule].en.toLowerCase()}.`}
+          subtitle={`Start of work: ${START_RULE_WORDS[startRule].en.toLowerCase()}`}
           actions={pos ? <Badge tone="ok">Recorded</Badge> : hidden.includes("PRINCIPAL_OR_SO") ? undefined : <PossessionDrawer id={c.id} people={people} today={today} blocker={possessionBlocker} startRule={START_RULE_WORDS[startRule].en.toLowerCase()} />}
         />
         {pos && (
@@ -383,7 +383,7 @@ async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<CalendarIcon size={17} />} title={<Say words={P.programme} />} subtitle={inForce ? `Revision ${inForce.revision} is the plan in force today.` : "No revision approved. Progress is not judged."} actions={<SubmitProgrammeDrawer id={c.id} kinds={opts(PROGRAMME_KINDS, PROGRAMME_KIND_WORDS)} directions={v.s.programmeDirections.map((x) => ({ value: x.id, label: `${CAUSE_WORDS[x.cause].en}, ${formatDate(day(x.directedOn))}` }))} today={today} blocker={programmeBlocker} />} divided={revs.length > 0} />
+        <CardHeader icon={<CalendarIcon size={17} />} title={<Say words={P.programme} />} subtitle={inForce ? `Revision ${inForce.revision} in force` : "No revision approved"} actions={<SubmitProgrammeDrawer id={c.id} kinds={opts(PROGRAMME_KINDS, PROGRAMME_KIND_WORDS)} directions={v.s.programmeDirections.map((x) => ({ value: x.id, label: `${CAUSE_WORDS[x.cause].en}, ${formatDate(day(x.directedOn))}` }))} today={today} blocker={programmeBlocker} />} divided={revs.length > 0} />
         {revs.length === 0 ? (
           <EmptyState size="sm" title="None submitted" />
         ) : (
@@ -415,7 +415,7 @@ async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<ChartIcon size={17} />} title={<Say words={P.progress} />} subtitle={d ? <DelayDetail d={d} lead /> : "Not judged without the organisation's time zone."} actions={hidden.includes("PROGRESS") ? undefined : <ProgressDrawer id={c.id} people={people} today={today} blocker={possessed(v, today)} />} divided={v.s.progressRecords.length > 0} />
+        <CardHeader icon={<ChartIcon size={17} />} title={<Say words={P.progress} />} subtitle={d ? <DelayDetail d={d} lead /> : "Needs the organisation's time zone."} actions={hidden.includes("PROGRESS") ? undefined : <ProgressDrawer id={c.id} people={people} today={today} blocker={possessed(v, today)} />} divided={v.s.progressRecords.length > 0} />
         {v.s.progressRecords.length === 0 ? (
           <EmptyState size="sm" title="None recorded" />
         ) : (
@@ -451,7 +451,7 @@ function DiarySection({ l, v, people, today, page, hidden }: { l: LoadedContract
     <div className="flex flex-col gap-6">
       {missing.count > 0 && (
         <Callout tone="warn" title={`${missing.count} day${missing.count === 1 ? "" : "s"} since possession with no diary entry`}>
-          {`${missing.days.map((x) => formatDate(x)).join(", ")}${missing.count > missing.days.length ? ", and more" : ""}. An entry written after its day says why.`}
+          {`${missing.days.map((x) => formatDate(x)).join(", ")}${missing.count > missing.days.length ? ", and more" : ""}.`}
         </Callout>
       )}
       <Card className="overflow-hidden">
@@ -650,7 +650,7 @@ function RecordsSection({ l, v, people, today }: { l: LoadedContract; v: Supervi
     <div className="flex flex-col gap-6">
       <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="Site records" only={["PROGRAMME", "DIARY_PHOTO", "PIPE_LOG", "AS_BUILT"]} />
       <Card className="overflow-hidden">
-        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.handedOver} />} subtitle={`To the Implementing Department, the versions handed over pinned with each. Live now: ${SITE_RECORDS_SETS.map((s) => `${RECORDS_SET_WORDS[s].en.toLowerCase()} ${live(s)}`).join(", ")}.`} actions={<HandoverDrawer id={c.id} people={people} sets={opts(SITE_RECORDS_SETS, RECORDS_SET_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.siteRecordsHandovers.length > 0} />
+        <CardHeader icon={<FileIcon size={17} />} title={<Say words={P.handedOver} />} subtitle={`Live now: ${SITE_RECORDS_SETS.map((s) => `${RECORDS_SET_WORDS[s].en.toLowerCase()} ${live(s)}`).join(", ")}.`} actions={<HandoverDrawer id={c.id} people={people} sets={opts(SITE_RECORDS_SETS, RECORDS_SET_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.siteRecordsHandovers.length > 0} />
         {v.s.siteRecordsHandovers.length === 0 ? (
           <EmptyState size="sm" title="None handed over" />
         ) : (

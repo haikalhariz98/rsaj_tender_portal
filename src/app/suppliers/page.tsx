@@ -230,7 +230,6 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             exportName="suppliers"
             searchPlaceholder="Search by name, reference or registration number"
             emptyTitle="No supplier recorded yet"
-            emptyBody="Record one from its paper application."
             views={[
               { id: "registered", label: "Registered" },
               { id: "applicants", label: "Applicants" },
@@ -277,7 +276,6 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             exportName="supplier-applications"
             searchPlaceholder="Search by supplier"
             emptyTitle="Nothing awaiting a decision"
-            emptyBody="An application, recorded from paper or sent through the supplier portal, appears here until it is decided."
             views={[
               { id: "received", label: "Received" },
               { id: "approval", label: "With approval" },
@@ -316,7 +314,6 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
               exportName="online-applications"
               searchPlaceholder="Search by company, reference or registration number"
               emptyTitle="No online application is waiting"
-              emptyBody="An application sent through the supplier portal appears here until an officer records the supplier from it or sets it aside."
               views={[
                 { id: "clash", label: "Number on the register" },
                 { id: "again", label: "Number sent more than once" },
@@ -354,7 +351,6 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
               exportName="supplier-documents-expiring"
               searchPlaceholder="Search by supplier or document"
               emptyTitle="Nothing expiring"
-              emptyBody="No document in force is within the bands, or expired."
               views={[
                 { id: "expiring", label: "Within the bands" },
                 { id: "expired", label: "Expired" },
@@ -388,7 +384,6 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             exportName="supplier-standing"
             searchPlaceholder="Search by supplier"
             emptyTitle="Every registered supplier is active"
-            emptyBody="Nothing is suspended, blacklisted or asked for."
             views={[
               { id: "suspended", label: "Suspended" },
               { id: "blacklisted", label: "Blacklisted" },

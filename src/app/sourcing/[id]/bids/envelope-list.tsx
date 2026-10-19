@@ -59,7 +59,6 @@ export function EnvelopeList({ exerciseId, rows, late }: { exerciseId: string; r
       exportName="envelope-register"
       searchPlaceholder="Search by envelope or markings"
       emptyTitle="No envelope recorded"
-      emptyBody={undefined}
       views={[
         { id: "intime", label: "In time" },
         { id: "late", label: "Late" },

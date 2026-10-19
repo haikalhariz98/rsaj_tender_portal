@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import type { ReactNode } from "react";
 import type { AccountStatus } from "@/generated/prisma/client";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
@@ -477,8 +478,8 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
             <CardHeader
               icon={<ClipboardIcon size={17} />}
               title={`${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en}, received ${formatDate(day(a.receivedOn))}`}
-              subtitle={a.recordedBy ? <>{CHANNEL_LABEL[a.channel].en} · <ActedBy entity="SupplierApplication" id={a.id} slot="recordedBy" name={a.recordedBy.name} />, {formatOrgDateTime(a.recordedAt, l.org.timeZone)}</> : `${CHANNEL_LABEL[a.channel].en} · came in through an earlier online form, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}. No officer is on file as having recorded it.${a.declarationSignedOn ? "" : " The signed declaration is still to come on paper."}`}
-              actions={<Badge tone={QUEUE_STATE_TONE[st]} dot>{QUEUE_STATE_LABEL[st].en}</Badge>}
+              subtitle={a.recordedBy ? <>{CHANNEL_LABEL[a.channel].en} · <ActedBy entity="SupplierApplication" id={a.id} slot="recordedBy" name={a.recordedBy.name} />, {formatOrgDateTime(a.recordedAt, l.org.timeZone)}</> : `${CHANNEL_LABEL[a.channel].en} · earlier online form, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}`}
+              actions={<span className="inline-flex items-center gap-1">{!a.recordedBy && !a.declarationSignedOn && <MoreText label="Declaration" text="The signed declaration is still to come on paper." />}<Badge tone={QUEUE_STATE_TONE[st]} dot>{QUEUE_STATE_LABEL[st].en}</Badge></span>}
             />
             <CardBody className="flex flex-col gap-4">
               {a.submittedAt && <InfoChip tone="info" detail={`Sent from the portal on ${formatOrgDateTime(a.submittedAt, l.org.timeZone)}. Declaration signed online. ${extras.get(a.id)?.onlineDeclarationReplacesPaper === true ? "The organisation accepts it in place of the paper declaration." : "The paper declaration is still required."}`}>Sent online</InfoChip>}

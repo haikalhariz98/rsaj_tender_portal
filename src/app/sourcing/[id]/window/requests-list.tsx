@@ -27,7 +27,6 @@ export function RequestsList({ requests }: { requests: RequestRow[] }) {
       exportName="online-requests"
       searchPlaceholder="Search by supplier or collector"
       emptyTitle="No supplier has asked online"
-      emptyBody={undefined}
       views={[
         { id: "waiting", label: "Waiting for a sale" },
         { id: "refused", label: "Refused" },

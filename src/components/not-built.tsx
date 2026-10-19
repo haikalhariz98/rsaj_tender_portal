@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import type { ReactNode } from "react";
 
 import { SparkleIcon } from "@/components/icons";
@@ -58,13 +59,14 @@ export function NotBuilt({
             icon={<SparkleIcon size={24} />}
             title={reason.title}
             action={
-              <ButtonLink href={back.href} size="sm">
-                {back.label}
-              </ButtonLink>
+              <span className="inline-flex items-center gap-2">
+                <ButtonLink href={back.href} size="sm">
+                  {back.label}
+                </ButtonLink>
+                <MoreText label="About this module" text={reason.text} />
+              </span>
             }
-          >
-            {reason.text}
-          </EmptyState>
+          />
         </Card>
 
         <Card>

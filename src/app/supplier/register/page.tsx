@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import { BuildingIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
@@ -28,13 +29,11 @@ export default async function SupplierRegisterPage() {
 
       {!form.ready ? (
         <Card>
-          <EmptyState title={APPLY.closedTitle.en}>{APPLY.noOrganisation.en}</EmptyState>
+          <EmptyState title={APPLY.closedTitle.en} action={<span className="text-[13.5px] text-ink-2">{APPLY.noOrganisation.en}</span>} />
         </Card>
       ) : !open ? (
         <Card>
-          <EmptyState title={APPLY.closedTitle.en} icon={<BuildingIcon size={22} />}>
-            {APPLY.closedBody.en} {APPLY.closedMissing.en} {form.missing.map((m) => m.en).join(", ")}.
-          </EmptyState>
+          <EmptyState title={APPLY.closedTitle.en} icon={<BuildingIcon size={22} />} action={<span className="inline-flex items-center gap-1 text-[13.5px] text-ink-2">{APPLY.closedBody.en}<MoreText label="What is missing" text={`${APPLY.closedMissing.en} ${form.missing.map((m) => m.en).join(", ")}.`} /></span>} />
         </Card>
       ) : (
         <div className="flex flex-col gap-6">

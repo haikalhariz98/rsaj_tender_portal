@@ -76,14 +76,14 @@ export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
       {(o.attention.expired > 0 || o.attention.critical > 0) && (
         <Callout
           tone={o.attention.expired > 0 ? "err" : "warn"}
-          title={o.attention.expired > 0 ? "A document has expired" : "A document is about to expire"}
+          title={o.attention.expired > 0 ? "A document has expired" : "A document is expiring"}
           action={
             <ButtonLink href="/supplier/company?tab=documents" variant="secondary" size="sm">
               See your documents
             </ButtonLink>
           }
         >
-          {o.attention.expired > 0 ? `${o.attention.expired} of your documents ${o.attention.expired === 1 ? "has" : "have"} expired. ` : ""}
+          {o.attention.expired > 0 ? `${o.attention.expired} ${o.attention.expired === 1 ? "has" : "have"} expired. ` : ""}
           {o.attention.critical > 0 ? `${o.attention.critical} ${o.attention.critical === 1 ? "expires" : "expire"} soon. ` : ""}
           Send a current copy.
         </Callout>
@@ -205,7 +205,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
         <Card>
           <CardHeader
             title="What the procurement office asked for"
-            subtitle={tab.request.resubmitBy ? `Answer by ${formatDate(tab.request.resubmitBy)} or it is rejected.` : undefined}
+            subtitle={tab.request.resubmitBy ? `Answer by ${formatDate(tab.request.resubmitBy)}, or rejected.` : undefined}
             actions={<Badge tone={tab.request.open ? "warn" : "neutral"} dot>{tab.request.open ? "Open" : "The date has passed"}</Badge>}
           />
           <CardBody className="flex flex-col gap-3">

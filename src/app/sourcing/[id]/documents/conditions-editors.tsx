@@ -40,7 +40,7 @@ export function AddRequirementDrawer({ exerciseId, allowed, bodies, groups, type
         { kind: "checks", name: "needSpecialisations", label: "Specialisation (any one is enough)", options: [], optionsBy: { name: "bodyCode", options: needs.specialisations, waiting: WAITING, none: NONE_FOR_BODY } },
         { kind: "checks", name: "needFieldCodes", label: "Field codes (every one is needed)", options: [], optionsBy: { name: "bodyCode", options: needs.fieldCodes, waiting: WAITING, none: NONE_FOR_BODY } },
         { kind: "checks", name: "needPermits", label: "Permit types (every one is needed)", options: [], optionsBy: { name: "bodyCode", options: needs.permits, waiting: WAITING, none: NONE_FOR_BODY } },
-        { kind: "text", name: "qualifiers", label: "What is required with it, in words", hint: "Empty: written from the grade and codes. Typed words are not compared, so eligibility reads \"not assessed\"." },
+        { kind: "text", name: "qualifiers", label: "What is required with it, in words", hint: "Empty: written from the grade and codes." },
         { kind: "select", name: "alternativeGroup", label: "How it counts", required: true, options: groups },
       ]}
       values={{ exerciseId, alternativeGroup: groups[0]?.value ?? "" }}
@@ -119,7 +119,7 @@ export function ConfirmAssuranceDrawer({ exerciseId, kind, label, people, allowe
         hidden("exerciseId"),
         hidden("kind"),
         actorField("PackAssurance.person", { name: "personId", people }),
-        { kind: "date", name: "confirmedOn", label: "Confirmed on", required: true, hint: today ? "Not after today, nor before this version was started." : undefined },
+        { kind: "date", name: "confirmedOn", label: "Confirmed on", required: true, hint: today ? "Not after today or before the start." : undefined },
         { kind: "textarea", name: "note", label: "Note" },
       ]}
       values={{ exerciseId, kind }}
@@ -154,7 +154,7 @@ export function OverrideClauseDrawer({ exerciseId, clauseCode, title, people, al
   return (
     <RecordEditor
       title={`Go without the ${title.toLowerCase()}`}
-      description="Needed to omit a mandatory clause. Given as yourself, with a reason. Office not checked. This version only."
+      description="Omits a mandatory clause, this version only. Needs a reason."
       fields={[
         hidden("exerciseId"),
         hidden("clauseCode"),

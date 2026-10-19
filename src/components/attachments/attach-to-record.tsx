@@ -153,9 +153,9 @@ export function AttachToRecordButton({
                         htmlFor="attach-record"
                         hint={
                           targets.records.length === 0
-                            ? `There is no ${OWNER_KIND_LABEL[kind as OwnerKind].toLowerCase()} yet.`
+                            ? `No ${OWNER_KIND_LABEL[kind as OwnerKind].toLowerCase()} yet.`
                             : cut
-                              ? `Showing the latest ${targets.cap} of ${targets.total}. If the one you want is not here, attach the document from that record's own screen.`
+                              ? `Latest ${targets.cap} of ${targets.total} shown.`
                               : undefined
                         }
                       >

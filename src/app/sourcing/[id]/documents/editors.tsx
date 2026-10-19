@@ -146,7 +146,7 @@ export function PickTemplateDrawer({ exerciseId, partId, partLabel, options, cur
   return (
     <RecordEditor
       title={`Template for ${partLabel}`}
-      description="Issued as the template text unless a file replaces it. Ready when no field is missing."
+      description="Issued as the template text unless a file replaces it."
       fields={[hidden("exerciseId"), hidden("partId"), { kind: "select", name: "templateId", label: "Template", required: true, placeholder: "Choose", options }]}
       values={{ exerciseId, partId, templateId: current }}
       sections={

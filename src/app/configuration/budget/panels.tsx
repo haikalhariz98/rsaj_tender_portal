@@ -194,7 +194,6 @@ function BudgetCodesPanel({
           exportName="budget-codes"
           searchPlaceholder="Search budget codes"
           emptyTitle="No budget code configured"
-          emptyBody="A requirement is charged to a budget code, so nothing can be checked until one exists."
           views={[
             { id: "capital", label: "Capital" },
             { id: "operating", label: "Operating" },
@@ -295,7 +294,6 @@ function AllocationsPanel({
           exportName="allocations"
           searchPlaceholder="Search budget codes"
           emptyTitle="Nothing allocated"
-          emptyBody="An allocation starts with an original amount on a budget code."
           views={[
             { id: "revisions", label: "Revisions" },
             { id: "transfers", label: "Transfers" },

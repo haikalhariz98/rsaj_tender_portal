@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { ButtonLink } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { awardStartRefusal } from "@/lib/award/start-gate";
@@ -109,9 +109,8 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
                 </span>
               )
             }
-          >
-            {blocker}
-          </EmptyState>
+          />
+          <CardBody className="pt-0 text-center text-[13px] text-ink-2">{blocker}</CardBody>
         </Card>
       </>
     );

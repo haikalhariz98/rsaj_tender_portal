@@ -133,9 +133,7 @@ function Drawer({ data, reload, onClose, onRecord }: { data: DrawerView | null |
           {data === undefined ? (
             <p className="text-[13px] text-ink-3">Loading…</p>
           ) : data === null ? (
-            <EmptyState size="sm" title="This document no longer exists">
-              Close this and reload the page.
-            </EmptyState>
+            <EmptyState size="sm" title="Document gone: reload the page" />
           ) : (
             <div className="flex flex-col gap-6">
               {notice && <ToneNote tone={notice.tone}>{notice.text}</ToneNote>}

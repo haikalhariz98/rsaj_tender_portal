@@ -20,7 +20,7 @@ export function PublishDrawer() {
         { kind: "select", name: "category", label: "Category", required: true, placeholder: "Choose", options: ANNOUNCEMENT_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_WORDS[c].en })) },
         { kind: "text", name: "title", label: "Title", required: true },
         { kind: "textarea", name: "body", label: "Announcement", required: true },
-        { kind: "switch", name: "pinned", label: "Pin it at the top of the board", hint: "Pinned announcements stay above the rest until unpinned or withdrawn." },
+        { kind: "switch", name: "pinned", label: "Pin it at the top of the board", hint: "Stays above the rest until unpinned." },
         actorField("Announcement.publishedBy", { name: "publishedByPersonId" }),
       ]}
       values={{}}

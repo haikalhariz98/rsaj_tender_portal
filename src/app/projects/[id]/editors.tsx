@@ -308,7 +308,7 @@ export function RsajSignatureDrawer({ id, office, people, blocker, contractDate 
   return (
     <RecordEditor
       title="Record the signature for the employer"
-      description={`Signed by the holder of ${office}, or a delegate. Contract Date is today, ${contractDate}. A late signature is corrected afterwards.`}
+      description={`Signed by the holder of ${office}, or a delegate. Contract Date: ${contractDate}.`}
       fields={[hidden("id"), by("ContractSignature.person", "personId", people)]}
       values={{ id }}
       action={recordRsajSignature}
@@ -487,7 +487,7 @@ const GROUP_FIELDS: Record<EnteredGroup, Field[]> = {
   honourDays: [{ kind: "number", name: "days", label: "Days to honour a certificate", required: true, min: 1 }],
   sectional: [
     { kind: "select", name: "sectionalApplies", label: "Sectional completion applies", required: true, placeholder: "Choose", options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }] },
-    { kind: "textarea", name: "sections", label: "Sections", hint: 'One a line: "reference | description | amount a day".' },
+    { kind: "textarea", name: "sections", label: "Sections", hint: 'Line: "reference | description | daily amount"' },
   ],
   unfixedMaterials: [{ kind: "text", name: "percent", label: "Unfixed materials allowance, %", required: true }],
   onCost: [{ kind: "text", name: "percent", label: "On-cost, %", required: true }],
@@ -559,7 +559,7 @@ export function AwardTermDrawer({ id, term, label, current }: { id: string; term
   return (
     <RecordEditor
       title={`Correct the award's term: ${label}`}
-      description={`Recorded as ${current}. Only for a term recorded wrongly from the signed letter. A change to the terms is a variation.`}
+      description={`Recorded as ${current}. Only for a mis-recorded term. Changes are variations.`}
       fields={[hidden("id"), hidden("term"), ...TERM_FIELDS[term]]}
       values={{ id, term }}
       reason={{ label: "Why it was recorded wrongly" }}

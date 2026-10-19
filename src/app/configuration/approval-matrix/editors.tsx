@@ -38,6 +38,10 @@ const ACT_OPTIONS = [
   { value: "MA", label: "Mandatory approval" },
 ];
 
+/// The switch's full wording (ruling on the boundary), held in the editor's information popover so the field's hint stays short.
+const BOUNDARY_HELP =
+  "Where governing documents disagree, this is the switch. Amounts: it decides only a value exactly on the tender floor, for the quotation and tender bands and for a rule whose edge sits on the tender floor and that is set to follow the switch; every other amount edge counts in the band it closes. Percentages: it decides every band edge on this matrix. On, a value exactly on an edge it decides falls in the band the edge closes; off, in the band it opens.";
+
 /// The issue's fields. `routes` are the funding routes whose funder's rules may
 /// supersede the limits: choosing one makes this issue that funder's rule set.
 function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
@@ -151,6 +155,7 @@ export function AddMatrix({
     <RecordEditor
       title={title}
       description="A draft is editable and routes nothing. Add its rules, then issue it."
+      more={BOUNDARY_HELP}
       fields={matrixFields(routes)}
       action={saveMatrix}
       submitLabel="Create draft"
@@ -185,6 +190,7 @@ export function EditMatrix({ matrix, routes }: { matrix: MatrixValues; routes: {
     <RecordEditor
       title={`Edit ${matrix.label}`}
       description="A draft. Nothing here is in force until it is issued."
+      more={BOUNDARY_HELP}
       fields={[{ kind: "hidden", name: "id" }, ...matrixFields(routes)]}
       action={saveMatrix}
       trigger={{ label: "Edit thresholds", className: buttonClass("secondary", "sm") }}

@@ -71,7 +71,7 @@ function PositionCard({ l, v }: { l: LoadedContract; v: VariationView }) {
   const basis = v.policy?.variationPctBasis ?? null;
   return (
     <Card>
-      <CardHeader icon={<ScaleIcon size={17} />} title={<Say words={P.contractSumAndVariations} />} subtitle="Revised sum is read from issued adjustments" />
+      <CardHeader icon={<ScaleIcon size={17} />} title={<Say words={P.contractSumAndVariations} />} subtitle="Read from issued adjustments" />
       <CardBody className="flex flex-col gap-4">
         {v.refused && <AdjustmentRefusedCallout l={l} refused={v.refused} />}
         <KeyValues

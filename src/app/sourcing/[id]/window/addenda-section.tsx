@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import type { ReactNode } from "react";
 
 import { OwnerDocumentsButton } from "@/components/attachments/owner-documents-button";
@@ -37,9 +38,7 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
   if (d.addenda.length === 0) {
     return (
       <Card>
-        <EmptyState size="sm" title="No addendum">
-          {d.draft.allowed ? "No addenda issued" : d.windowClosed ? "None issued. Window closed." : d.draft.reason}
-        </EmptyState>
+        <EmptyState size="sm" title={d.windowClosed && !d.draft.allowed ? "None issued. Window closed." : "No addenda issued"} action={d.draft.allowed || d.windowClosed ? undefined : <MoreText text={d.draft.reason} label="Why" />} />
       </Card>
     );
   }

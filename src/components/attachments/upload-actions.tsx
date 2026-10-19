@@ -114,7 +114,7 @@ export function UploadButton({ owner, slot, upload, onNotice, label = "Upload" }
   return (
     <RecordEditor
       title={`Upload: ${slot.label}`}
-      description={`Will be attached to ${owner.label} as ${slot.label}. The file is stored, then attached in one step.`}
+      description={`Will be attached to ${owner.label} as ${slot.label}.`}
       fields={uploadFields(upload, { newDocument: true, titleHint: slot.label })}
       action={action}
       submitLabel="Upload and attach"

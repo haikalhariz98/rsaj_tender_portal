@@ -192,13 +192,13 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       {status === "CANCELLED" && (
         <Callout tone="warn" title="Cancelled">
           {award.cancelReason || "No reason recorded."}
-          {award.cancelConsequence && ` Consequence recorded: ${NON_COMMENCEMENT_LABEL[award.cancelConsequence].toLowerCase()}.`}
+          {award.cancelConsequence && ` Consequence: ${NON_COMMENCEMENT_LABEL[award.cancelConsequence].toLowerCase()}.`}
           {award.cancelConsequence === "CANCEL_AND_BLACKLIST" &&
             (award.standingRequests.length > 0
               ? " Blacklisting was asked for."
               : award.vendor
                 ? <> <Link href={`/suppliers/${award.vendor.id}?tab=standing&fromAward=${award.id}`}>Ask for the blacklisting of {award.vendor.registeredName}</Link>.</>
-                : " Link the awardee to the supplier register to ask for blacklisting.")}
+                : " Link the awardee to the register.")}
         </Callout>
       )}
       {awardee?.warning && status !== "CANCELLED" && (
@@ -208,7 +208,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       )}
       {ev.commencement?.state === "LATE" && status === "ISSUED" && (
         <Callout tone="err" title="Work has not commenced">
-          The grace period ended on {formatDate(ev.commencement.deadline)}. Consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. {told.get("COMMENCEMENT_LATE")}
+          Grace period ended {formatDate(ev.commencement.deadline)}. Consequence: {consequenceText ? consequenceText.toLowerCase() : "not set"}. {told.get("COMMENCEMENT_LATE")}
         </Callout>
       )}
       {ev.indent?.state === "EXPIRED" && issued && indentExpiryRaised(ev.indent, day(award.commencedOn), status) && (

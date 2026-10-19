@@ -162,7 +162,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
           <CardHeader
             icon={<ShieldIcon size={17} />}
             title={`Before it can be ${invited ? "invited" : "published"}`}
-            subtitle={blocks.length === 0 ? (others.length ? `Nothing to put right; ${others.length} to note.` : "Every check passes.") : `${blocks.length} to put right${others.length ? `, ${others.length} to note` : ""}.`}
+            subtitle={blocks.length === 0 ? (others.length ? `${others.length} to note` : "Every check passes.") : `${blocks.length} to put right${others.length ? `, ${others.length} to note` : ""}.`}
             actions={blocks.some((f) => /Invitation controls/.test(f.text)) ? <ButtonLink href={SETTINGS_HREF} variant="secondary" size="sm">Open Invitation controls</ButtonLink> : undefined}
           />
           <CardBody className="flex flex-col gap-2">
@@ -244,7 +244,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
         <InviteesCard d={d} c={c} />
       ) : (
         <Card>
-          <EmptyState title="Way of tendering not set">Method says both or neither advertisement and invitation. Correct the method.</EmptyState>
+          <EmptyState title="Way of tendering not set" />
         </Card>
       )}
 
@@ -459,7 +459,7 @@ function InviteesCard({ d, c }: { d: WindowTab; c: WindowContext }) {
         <CardHeader
           icon={<UsersIcon size={17} />}
           title="Invitees and letters of invitation"
-          subtitle={frozen ? "Frozen: invited. Cancel and replace to change." : "Name approved for exactly this list"}
+          subtitle={frozen ? "Frozen once invited" : "Approved for this list"}
           actions={frozen ? undefined : <ProposeInviteeDrawer exerciseId={c.exerciseId} allowed={inv.edit} withdrawsRoute={hasRoute} />}
           divided={inv.proposed.length === 0}
         />
@@ -513,7 +513,7 @@ function InviteesCard({ d, c }: { d: WindowTab; c: WindowContext }) {
         <CardHeader
           icon={<RouteIcon size={17} />}
           title="The name, and the list it was approved for"
-          subtitle={inv.nameRoute ? `Name approval: ${inv.nameRoute.label}. ${inv.nameRoute.listState}` : "The name has not been sent for approval."}
+          subtitle={inv.nameRoute ? inv.nameRoute.label : "Not sent for approval"}
           actions={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=name`} variant="secondary" size="sm">Open the name approval</ButtonLink>}
         />
         {inv.approved && inv.approved.length > 0 && (
@@ -541,7 +541,7 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
   return (
     <>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClockIcon size={17} />} title="The closing, and its changes" subtitle="Set at approval, with every change since." divided={nothing} />
+        <CardHeader icon={<ClockIcon size={17} />} title="The closing, and its changes" subtitle="Set at approval" divided={nothing} />
         {nothing ? (
           <EmptyState size="sm" title="Closing not set" />
         ) : (

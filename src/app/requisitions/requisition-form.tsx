@@ -255,7 +255,7 @@ export function RequisitionForm({
               required: true,
               value: officer,
               onChange: chooseOfficer,
-              hint: forAnother ? "Recorded from their paper request. Not signed by them." : "You, unless recording for another.",
+              hint: forAnother ? "From their paper request; not signed." : "You, unless recording for another.",
             })
           )}
           <div className="flex items-end pb-2 text-[13px] text-ink-3" aria-live="polite">

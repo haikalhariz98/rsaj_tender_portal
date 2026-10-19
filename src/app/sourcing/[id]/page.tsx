@@ -840,7 +840,7 @@ function AwardTab({ notices, exerciseId, status, packKind, window, awards, dossi
       {/* 6.6 (X-9): what the envelope register asks before the award is sent or issued. */}
       {bidFaults.length > 0 && (
         <Callout tone="warn" title="The bids received hold the award back" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids&section=received`} size="sm" variant="secondary">Open the bids received</ButtonLink>}>
-          {bidFaults.join(" ")} The award is not sent for approval or issued until then.
+          {bidFaults.join(" ")}
         </Callout>
       )}
       {/* 6.7 (C-8): what the openings ask before the award is opened, sent or issued. */}
@@ -875,11 +875,9 @@ function AwardTab({ notices, exerciseId, status, packKind, window, awards, dossi
               </div>
             </div>
           ) : !exerciseOpenForAward(status, packKind, window) ? (
-            <EmptyState size="sm" title="Not awarded">{status === "CANCELLED" ? "The exercise is cancelled." : status === "DRAFT" ? "The exercise must move into preparation first." : awardOpenRefusal(packKind, status, window)}</EmptyState>
+            <EmptyState size="sm" title={status === "CANCELLED" ? "Exercise cancelled" : status === "DRAFT" ? "Not in preparation yet" : "Not awarded"} action={status === "CANCELLED" || status === "DRAFT" ? undefined : <MoreText text={awardOpenRefusal(packKind, status, window)} label="Why" />} />
           ) : startNote ? (
-            <EmptyState size="sm" title="No award is opened here" action={<Button size="sm" variant="primary" disabled aria-describedby="award-start-note">Start the award</Button>}>
-              <span id="award-start-note">{startNote}</span>
-            </EmptyState>
+            <EmptyState size="sm" title="No award is opened here" action={<span className="flex items-center gap-2"><Button size="sm" variant="primary" disabled>Start the award</Button><MoreText text={startNote} label="Why" /></span>} />
           ) : (
             <div className="flex flex-col gap-4">
               {dossier && (
@@ -887,9 +885,7 @@ function AwardTab({ notices, exerciseId, status, packKind, window, awards, dossi
                   {DOSSIER_EVIDENCE_NEEDED.body}
                 </Callout>
               )}
-              <EmptyState size="sm" title="Not awarded yet" action={<ButtonLink href={`/projects/new?exercise=${exerciseId}`} size="sm" variant="primary">Start the award</ButtonLink>}>
-                {dossier ? DOSSIER_EVIDENCE_NEEDED.short : null}
-              </EmptyState>
+              <EmptyState size="sm" title="Not awarded yet" action={<ButtonLink href={`/projects/new?exercise=${exerciseId}`} size="sm" variant="primary">Start the award</ButtonLink>} />
             </div>
           )}
         </CardBody>
@@ -1002,8 +998,8 @@ async function NamePanel({
           <CardHeader
             icon={<RouteIcon size={17} />}
             title={TERM.nameApproval}
-            subtitle={`Requested ${formatDate(inst.openedAt)} · ${inst.matrixLabel ?? "Issue no longer on file"} · ${inst.ruleLabel ?? "Rule no longer on file"} · ${inst.ruleClause || "No clause"}`}
-            actions={<Badge tone={routeTone(inst.status)}>{nameRouteLabel(inst.status, inst.warnings)}</Badge>}
+            subtitle={`Requested ${formatDate(inst.openedAt)}`}
+            actions={<span className="inline-flex items-center gap-1"><MoreText label="Rule behind it" text={`${inst.matrixLabel ?? "Issue no longer on file"} · ${inst.ruleLabel ?? "Rule no longer on file"} · ${inst.ruleClause || "No clause"}`} /><Badge tone={routeTone(inst.status)}>{nameRouteLabel(inst.status, inst.warnings)}</Badge></span>}
           />
           {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
             <CardBody className="flex flex-col gap-2">

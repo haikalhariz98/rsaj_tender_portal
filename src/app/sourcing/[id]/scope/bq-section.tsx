@@ -37,10 +37,8 @@ export function BqSection({ d }: { d: Data }) {
           Priced figures
         </p>
         <Card>
-          <CardHeader icon={<ScaleIcon size={17} />} title="Bill of quantities" subtitle="Measured work, prime cost and provisional sums." />
-          <EmptyState size="sm" title="No bill of quantities yet" action={<StartBqDrawer exerciseId={exerciseId} templates={d.options.templates} allowed={d.actions.start} />}>
-            Start a draft. Finalise before documents go for approval.
-          </EmptyState>
+          <CardHeader icon={<ScaleIcon size={17} />} title="Bill of quantities" />
+          <EmptyState size="sm" title="No bill of quantities yet" action={<StartBqDrawer exerciseId={exerciseId} templates={d.options.templates} allowed={d.actions.start} />} />
         </Card>
       </div>
     );
@@ -64,7 +62,7 @@ export function BqSection({ d }: { d: Data }) {
         <p className="text-[13px] text-ink-2">Version {d.finalised.versionNo} stands until this draft is finalised.</p>
       )}
 
-      {v.stats.incompleteLines > 0 && <Callout tone="warn">{v.stats.incompleteLines === 1 ? "1 line is" : `${v.stats.incompleteLines} lines are`} not complete yet: each needs a quantity or a sum, and a rate.</Callout>}
+      {v.stats.incompleteLines > 0 && <Callout tone="warn">{v.stats.incompleteLines === 1 ? "1 line is" : `${v.stats.incompleteLines} lines are`} incomplete: needs quantity and rate.</Callout>}
 
       <Card id="bill-version" className="scroll-mt-24">
         <CardHeader
@@ -115,9 +113,7 @@ export function BqSection({ d }: { d: Data }) {
       {v.sections.length === 0 ? (
         <Card>
           <CardHeader icon={<FileIcon size={17} />} title="Sections and lines" actions={editable ? <SectionDrawer exerciseId={exerciseId} versionId={v.id} /> : undefined} />
-          <EmptyState size="sm" title="No sections yet">
-            A bill is made of sections, each with its lines. {editable ? "Add a section, or import under More." : ""}
-          </EmptyState>
+          <EmptyState size="sm" title="No sections yet" />
         </Card>
       ) : (
         <>
@@ -221,7 +217,7 @@ export function BqSection({ d }: { d: Data }) {
           </div>
 
           <Card>
-            <CardHeader icon={<FileIcon size={17} />} title="CSV and schedules of rates" subtitle="Import into the draft, or export a version." />
+            <CardHeader icon={<FileIcon size={17} />} title="CSV and schedules of rates" subtitle="Import or export" />
             <CardBody className="flex flex-col gap-5">
               <div className="flex flex-col gap-2">
                 <p className="text-[12px] font-semibold text-ink-3">Import</p>
@@ -253,7 +249,7 @@ export function BqSection({ d }: { d: Data }) {
           />
 
           <Card className="overflow-hidden">
-            <CardHeader icon={<ClipboardIcon size={17} />} title="Versions" subtitle="Finalised versions never change. Revise with a new draft." divided={false} />
+            <CardHeader icon={<ClipboardIcon size={17} />} title="Versions" subtitle="Finalised versions never change." divided={false} />
             <DataList
               flat
               selectable={false}

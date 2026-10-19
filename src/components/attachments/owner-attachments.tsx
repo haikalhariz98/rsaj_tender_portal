@@ -41,9 +41,7 @@ export async function OwnerAttachments({ owner, title, subtitle, collapseWhenEmp
   const [org, panel, upload] = await Promise.all([documentOrg(organisationId), ownerPanel(organisationId, owner, entitled), uploadContext(organisationId)]);
   if (!panel || !upload) {
     return (
-      <EmptyState size="sm" title="Its documents cannot be shown">
-        The record, or the organisation, could not be found.
-      </EmptyState>
+      <EmptyState size="sm" title="Record or organisation not found" />
     );
   }
   // Who recorded each version, signed or recorded from paper, is read from its attribution (Phase 2b).

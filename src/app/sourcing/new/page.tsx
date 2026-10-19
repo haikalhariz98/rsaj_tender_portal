@@ -53,7 +53,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       <>
         {header}
         <Card>
-          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+          <EmptyState title="No organisation: run the setup" />
         </Card>
       </>
     );

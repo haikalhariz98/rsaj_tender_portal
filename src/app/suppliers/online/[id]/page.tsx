@@ -44,7 +44,7 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
       <>
         <PageHeader eyebrow={back} title="Online application" subtitle="Sent through the supplier portal." />
         <Card>
-          <EmptyState title="No such online application">It may have been removed. <Link href="/suppliers?tab=portal">Back to the online applications</Link></EmptyState>
+          <EmptyState title="No such online application" action={<Link href="/suppliers?tab=portal">Back to the online applications</Link>} />
         </Card>
       </>
     );

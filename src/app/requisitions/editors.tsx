@@ -48,7 +48,7 @@ export function RecordEndorsementDrawer({ id, tiers, byTier, today }: { id: stri
         actorField("RequisitionEndorsement.person", {
           name: "personId",
           people: [...new Map(Object.values(byTier).flat().map((o) => [o.value, o])).values()],
-          hint: "The unit head. None on record: set one under Organisation.",
+          hint: "Unit head. None: set under Organisation.",
         }),
         { kind: "date", name: "endorsedOn", label: "Endorsed on", required: true, hint: "Not after today." },
         { kind: "textarea", name: "note", label: "Note" },
@@ -72,7 +72,7 @@ export function MarkEndorsed({ id, blocker, source }: { id: string; blocker: str
       title="Mark as endorsed"
       description={
         source === "PORTAL_LEDGER"
-          ? "Fields are fixed and the budget is checked. After that it cannot be returned as incomplete."
+          ? "Fields are fixed and the budget is checked. Cannot then be returned."
           : "Fields are fixed, then it is budget-checked."
       }
       fields={[hidden("id")]}

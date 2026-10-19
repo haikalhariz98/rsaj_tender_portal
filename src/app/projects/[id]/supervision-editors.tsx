@@ -51,7 +51,7 @@ export function ResolveSoDrawer({ id, blocker, office, from }: { id: string; blo
   return (
     <RecordEditor
       title="Resolve the Superintending Officer"
-      description={`From the approval matrix on the Contract Date (${from}), so no day is without an S.O.`}
+      description={`From the approval matrix on the Contract Date (${from}).`}
       fields={[hidden("id"), { kind: "readonly", name: "office", label: "The matrix gives", text: office ?? "No single office: see why beside the button" }, { kind: "readonly", name: "from", label: "Takes effect from", text: from }]}
       values={{ id }}
       action={resolveSuperintendingOfficer}
@@ -67,7 +67,7 @@ export function DelegationDrawer({ id, people, kinds, acts, letters, blocker }: 
   return (
     <RecordEditor
       title="Delegate to a representative"
-      description={`Opens two certificates for this contract type (${letters}). The delegation holds from the letter's date. A representative never delegates further.`}
+      description={`Opens two certificates (${letters}). Holds from the letter's date. Cannot delegate further.`}
       size="lg"
       columns={2}
       fields={[
@@ -110,7 +110,7 @@ export function PossessionDrawer({ id, people, today, blocker, startRule }: { id
   return (
     <RecordEditor
       title="Record possession of site"
-      description={`Once, when fully executed. Starts the contract period and makes it active. Start of work: ${startRule}.`}
+      description={`Once, when executed. Starts the contract period. Start of work: ${startRule}.`}
       fields={[hidden("id"), { kind: "date", name: "possessionOn", label: "Date of possession", required: true }, by("Possession.recordedBy", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, possessionOn: today }}
       action={recordPossession}
@@ -125,7 +125,7 @@ export function SubmitProgrammeDrawer({ id, kinds, directions, today, blocker }:
   return (
     <RecordEditor
       title="Record a programme submitted"
-      description="One line per point: a day and the cumulative percentage. Read on a straight line between points."
+      description="One line per point: a day and cumulative percentage."
       size="lg"
       fields={[
         hidden("id"),

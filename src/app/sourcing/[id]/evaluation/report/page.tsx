@@ -8,7 +8,7 @@ import { PrinterIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { SulitTag, SulitWithheld } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardBody } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -63,9 +63,8 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
         <RecordCrumb label={ex.reference} />
         <PageHeader eyebrow={<Link href={back}>Back to the report</Link>} title="Evaluation report" />
         <Card>
-          <EmptyState title="Report withheld: SULIT" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>}>
-            <SulitWithheld words={gate.words.en} compact />
-          </EmptyState>
+          <EmptyState title="Report withheld: SULIT" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>} />
+          <CardBody><SulitWithheld words={gate.words.en} compact /></CardBody>
         </Card>
       </>
     );

@@ -520,7 +520,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       )}
       {r.status === "OVER_BUDGET" && inst?.status === "RECALLED" && returnedAtApproval(inst.warnings) && (
         <Callout tone="warn" className="mb-6" title="Returned at approval: budget no longer covers it">
-          Decision not recorded. Submit again on the over-budget route.
+          Submit again on the over-budget route.
           {returnedRouteCitationNotes({ returnedAtApproval: true, steps: inst.steps }).map((n) => (
             <span key={n} className="mt-1.5 block">
               {n}
@@ -701,7 +701,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 <CardHeader
                   icon={<GlobeIcon size={17} />}
                   title="Sourcing exercises"
-                  subtitle={approvedRoute && remaining != null ? (sumsShown && estimate.state === "GRANTED" ? `Approved ${formatMoney(routedValue(approvedRoute))} · ${formatMoney(inExercises)} in exercises · ${formatMoney(remaining)} left` : estimate.state === "WITHHELD" ? "Approved. Amounts are SULIT." : `Approved ${formatMoney(routedValue(approvedRoute))}. Remaining is SULIT.`) : undefined}
+                  subtitle={approvedRoute && remaining != null ? (sumsShown && estimate.state === "GRANTED" ? `Approved ${formatMoney(routedValue(approvedRoute))} · ${formatMoney(remaining)} left` : estimate.state === "WITHHELD" ? "Approved. Amounts are SULIT." : `Approved ${formatMoney(routedValue(approvedRoute))}. Remaining is SULIT.`) : undefined}
                   actions={
                     exerciseFault ? (
                       <Blocked label="New exercise" reason={findingText(exerciseFault)} />
@@ -1056,8 +1056,8 @@ function BudgetPanel({
         <CardHeader
           icon={<ChartIcon size={17} />}
           title="Latest budget check"
-          subtitle={c ? `${SOURCE_LABEL[c.source]} · as at ${formatDate(c.asAt)} · checked ${formatOrgDay(c.checkedAt, l.org.timeZone)}` : undefined}
-          actions={c ? <Badge tone={TONE[VERDICT_TONE[c.verdict]]}>{VERDICT_LABEL[c.verdict]}</Badge> : undefined}
+          subtitle={c ? `${SOURCE_LABEL[c.source]} · as at ${formatDate(c.asAt)}` : undefined}
+          actions={c ? <span className="inline-flex items-center gap-1"><MoreText label="Checked" text={`Checked ${formatOrgDay(c.checkedAt, l.org.timeZone)}`} /><Badge tone={TONE[VERDICT_TONE[c.verdict]]}>{VERDICT_LABEL[c.verdict]}</Badge></span> : undefined}
         />
         <CardBody className="flex flex-col gap-5">
           {r.origin === "EXTERNAL" && !r.commitmentMovementId && unposted && (
@@ -1697,9 +1697,8 @@ function ChecksPanel({
             ]}
           />
           {inst?.status === "APPROVED" && inst.checkedAgainstMatrix && inst.fundingRouteCode !== r.fundingRouteCode && (
-            <Callout tone="warn" title="Funding route changed after approval">
-              Approved on &ldquo;{routeNameOf(inst.fundingRouteCode ?? "") ?? "a route no longer configured"}&rdquo;. Not re-routed
-              {route && gate.supersedesAuthority ? ". Check whether it needs approval again." : "."}
+            <Callout tone="warn" title={`Route changed after approval: ${routeNameOf(inst.fundingRouteCode ?? "") ?? "a route no longer configured"}`}>
+              Not re-routed{route && gate.supersedesAuthority ? ". Check if it needs approval again." : "."}
             </Callout>
           )}
           {gate.faults.length > 0 && !["APPROVED", "CANCELLED", "CLOSED"].includes(r.status) && (

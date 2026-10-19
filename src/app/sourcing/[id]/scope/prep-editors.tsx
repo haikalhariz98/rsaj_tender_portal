@@ -82,7 +82,7 @@ export function SubstituteOfficerDrawer({ exerciseId, officerId, name, candidate
         hidden("exerciseId"),
         hidden("officerId"),
         { kind: "select", name: "personId", label: "Replacement", required: true, placeholder: candidates.length ? "Choose" : "Nobody else holds a seat on the committee", options: candidates },
-        ...(controlled ? ([{ kind: "text", name: "authority", label: "Authority for the change", required: true, hint: "For example the minute or instruction it is made under." }] as Field[]) : []),
+        ...(controlled ? ([{ kind: "text", name: "authority", label: "Authority for the change", required: true, hint: "E.g. the minute or instruction." }] as Field[]) : []),
         { kind: "textarea", name: "reason", label: "Why they are replaced", required: true },
       ]}
       values={{ exerciseId, officerId }}

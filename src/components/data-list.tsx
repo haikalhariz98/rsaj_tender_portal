@@ -174,7 +174,6 @@ export interface View {
   /// What an empty list says when this view is chosen and nothing is in it ("Nothing closes
   /// this week"), rather than the list's own empty state. The way back to all records is always offered.
   emptyTitle?: string;
-  emptyBody?: string;
   /// What a heading above the list says about this view (what counts in it), where it needs saying.
   about?: string;
 }
@@ -387,7 +386,6 @@ export function DataList({
   searchable = true,
   flat = false,
   emptyTitle,
-  emptyBody,
   exportName = "export",
   toolbar = true,
   stackBelow = "md",
@@ -422,7 +420,6 @@ export function DataList({
   /// True when the list sits inside a card that already provides the border.
   flat?: boolean;
   emptyTitle?: string;
-  emptyBody?: string;
   exportName?: string;
   /// False for a short read-only list inside a card, where views, search, density and
   /// export would be chrome with nothing to act on.
@@ -707,9 +704,7 @@ export function DataList({
               </Button>
             ) : undefined
           }
-        >
-          {narrowed ? (views.find((v) => v.id === view)?.emptyBody) : emptyBody}
-        </EmptyState>
+        />
       ) : (
         <>
         {stacked && (

@@ -35,7 +35,7 @@ export default async function TableDocumentPage({ params }: { params: Promise<{ 
         <RecordCrumb label={r.ctx!.ex.reference} />
         <PageHeader eyebrow={<Link href={back}>Back to the documents</Link>} title="The Tender Table Document" subtitle={`${r.ctx!.ex.reference} · ${r.ctx!.ex.title}`} />
         <Card>
-          <EmptyState title={r.headline} action={<ButtonLink href={back} variant="secondary" size="sm">Back to the documents</ButtonLink>}>{r.detail}</EmptyState>
+          <EmptyState title={r.headline} action={<span className="flex flex-col items-center gap-3"><span className="text-[13.5px] text-ink-2">{r.detail}</span><ButtonLink href={back} variant="secondary" size="sm">Back to the documents</ButtonLink></span>} />
         </Card>
       </>
     );

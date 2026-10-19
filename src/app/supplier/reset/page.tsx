@@ -37,7 +37,7 @@ export default async function SupplierResetPage() {
                 submitLabel="Set my password"
                 fields={[
                   { name: "loginName", label: "Sign-in name", autoComplete: "username", autoFocus: true, icon: "person" },
-                  { name: "code", label: "Reset code", mono: true, hint: "Letters and digits. Spaces and dashes do not matter." },
+                  { name: "code", label: "Reset code", mono: true, hint: "Letters and digits. Spaces and dashes are ignored." },
                   { name: "password", label: "New password", type: "password", autoComplete: "new-password", icon: "lock", reveal: true },
                   { name: "confirm", label: "New password, again", type: "password", autoComplete: "new-password", icon: "lock", reveal: true },
                 ]}

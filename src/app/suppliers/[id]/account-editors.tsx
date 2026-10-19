@@ -107,7 +107,7 @@ export function OpenPortalAccount({ supplierId, contactId, name, suggestedLoginN
       submitLabel="Open and issue code"
       hidden={{ supplierId, contactId }}
       asks={[
-        { name: "loginName", label: "Sign-in name", required: true, hint: `3 to 64 characters: letters, digits and . _ - @.${suggestedLoginName ? ` For example ${suggestedLoginName}.` : ""}` },
+        { name: "loginName", label: "Sign-in name", required: true, hint: `3 to 64: letters, digits, ._-@${suggestedLoginName ? ` E.g. ${suggestedLoginName}` : ""}` },
         { name: "identityCheck", label: "How the caller's identity was checked", required: true, hint: IDENTITY_HINT },
       ]}
       action={openSupplierAccountAction}

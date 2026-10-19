@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import { Accordion } from "@/components/accordion";
 import { DataList } from "@/components/data-list";
 import { ClockIcon, ShieldIcon } from "@/components/icons";
@@ -31,7 +32,7 @@ export function EstimateSection({ d }: { d: Data }) {
           <CardHeader
             icon={<ShieldIcon size={17} />}
             title={<span className="inline-flex flex-wrap items-center gap-2">Company estimate <Chip tone="err">{d.badge}</Chip></span>}
-            subtitle="Lodged into the sealed set before the bids open."
+            subtitle="Lodged before bids open"
           />
           <EmptyState
             size="sm"
@@ -42,9 +43,8 @@ export function EstimateSection({ d }: { d: Data }) {
                 <PrepareEstimateDrawer exerciseId={exerciseId} people={people} allowed={d.prepare} />
               </span>
             }
-          >
-            {d.empty.body}
-          </EmptyState>
+          />
+          <CardBody><MoreText text={d.empty.body} label="Why" /></CardBody>
         </Card>
       ) : (
         <Live e={e} d={d} exerciseId={exerciseId} />
@@ -80,16 +80,16 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title={<span className="inline-flex flex-wrap items-center gap-2">Company estimate <Chip tone="err">{d.badge}</Chip></span>}
-          subtitle="Figure withheld. Who, when and versions only."
+          subtitle="Figure withheld"
           actions={<Badge tone={lodged ? "ok" : "info"} dot>{e.state}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">
           {e.lodgementBehind && (
-            <Callout tone="warn">The estimate was amended after version {e.lodgedVersionNo} was lodged. The lodged copy is behind: lodge the current version.</Callout>
+            <Callout tone="warn">Amended after version {e.lodgedVersionNo} was lodged. Lodge the current version.</Callout>
           )}
           {e.relodge && (
             <Callout tone="warn">
-              Key changed: version {e.lodgedVersionNo} is no longer lodged, so opening cannot start. Lodge it again, with a reason.
+              Key changed: version {e.lodgedVersionNo} is no longer lodged. Lodge it again.
             </Callout>
           )}
           {e.online && !lodged && !e.sealedKeyReady && (

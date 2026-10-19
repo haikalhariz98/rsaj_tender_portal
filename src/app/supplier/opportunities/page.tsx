@@ -71,7 +71,7 @@ export default async function SupplierOpportunitiesPage() {
 
       {!ready ? (
         <Card>
-          <EmptyState title={NOT_SET_UP.title.en}>{NOT_SET_UP.body.en}</EmptyState>
+          <EmptyState title={NOT_SET_UP.title.en} action={<span className="text-[13.5px] text-ink-2">{NOT_SET_UP.body.en}</span>} />
         </Card>
       ) : (
         <Card className="overflow-hidden">

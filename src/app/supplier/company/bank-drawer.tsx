@@ -160,7 +160,7 @@ export function BankDrawer(p: BankDrawerProps) {
                     </h3>
                     <div className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
                       {text("beneficiaryName", { required: true })}
-                      {text("beneficiaryIdentityNo", { required: true, hint: "Company number, or identity card number if a sole proprietor" })}
+                      {text("beneficiaryIdentityNo", { required: true, hint: "Company or identity card number" })}
                       <div className="sm:col-span-2">{text("beneficiaryAddress", { required: true, area: true })}</div>
                       {text("beneficiaryContactPerson", { required: true })}
                       {text("beneficiaryTelephone", { required: true, type: "tel", inputMode: "tel" })}

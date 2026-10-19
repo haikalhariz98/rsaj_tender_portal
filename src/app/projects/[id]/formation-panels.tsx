@@ -206,7 +206,7 @@ function CheckCard({ sulit, l, check: k, people, today, editable, preparationOn,
       <CardHeader
         icon={<CheckIcon size={17} />}
         title={<Say words={CHECK_WORDS[kind]} />}
-        subtitle={done ? <>Complete: {k.completedBy ? <ActedBy entity="FormationCheck" id={k.id} slot="completedBy" name={k.completedBy.name} /> : "an officer"}, {formatDate(k.completedOn)}.{k.note ? ` ${k.note}` : ""}</> : "Not complete."}
+        subtitle={done ? <>{k.completedBy ? <ActedBy entity="FormationCheck" id={k.id} slot="completedBy" name={k.completedBy.name} /> : "an officer"}, {formatDate(k.completedOn)}{k.note ? ` · ${k.note}` : ""}</> : "Not complete"}
         actions={
           <span className="flex flex-wrap items-center gap-2">
             {editable && !done && kind === "ARITHMETIC" && <CorrectionDrawer id={c.id} checkId={k.id} />}

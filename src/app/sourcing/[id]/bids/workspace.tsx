@@ -105,7 +105,7 @@ function BidsPanel({ d, schedule }: { d: BidsTab; schedule: ReactNode }) {
         <CardHeader
           icon={<InboxIcon size={17} />}
           title="Envelope register"
-          subtitle={`${register.length} ${register.length === 1 ? "envelope" : "envelopes"}: ${d.count.inTime} in time, ${d.count.late} late, ${d.count.withdrawn} withdrawn${d.count.fromBox > 0 ? `, ${d.count.fromBox} from the box` : ""}`}
+          subtitle={`${register.length} ${register.length === 1 ? "envelope" : "envelopes"} · ${d.count.late} late`}
           divided={false}
         />
         {d.online.count > 0 && (
@@ -169,7 +169,7 @@ function LateCard({ d }: { d: BidsTab }) {
       />
       {d.late.gate && (
         <CardBody className="border-t border-line">
-          <Callout tone="warn">{d.late.gate} An appointment is not tabled or cited, and the award is not sent or issued, until then.</Callout>
+          <Callout tone="warn">{d.late.gate} Award held back.</Callout>
         </CardBody>
       )}
       {d.late.rows.length === 0 ? (

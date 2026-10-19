@@ -269,10 +269,10 @@ export function AdvanceDrawer({ id, people, parties, guarantees, parts, blocker 
   return (
     <RecordEditor
       title="Apply for an advance payment"
-      description={`Not checked: no procedure sets eligibility or the percentage. Needs a verified Advance Payment Guarantee and a schedule recouping the whole advance. ${PAYEE_BANK_UNCHECKED.advance.en}`}
+      description={`Eligibility and percentage not checked. Needs a verified guarantee and recoupment schedule. ${PAYEE_BANK_UNCHECKED.advance.en}`}
       size="lg"
       columns={2}
-      fields={[hidden("id"), choose("advanceFor", "For", parts), { kind: "select", name: "partyId", label: "The nominated sub-contractor", placeholder: parties.length ? "Choose" : "None recorded on Team", options: parties }, { kind: "money", name: "amount", label: "Amount", required: true }, choose("securityId", "Advance Payment Guarantee", guarantees), { kind: "textarea", name: "schedule", label: "Recoupment schedule", required: true, hint: "One line per interim certificate: \"certificate number | amount\"." }, by("AdvancePayment.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
+      fields={[hidden("id"), choose("advanceFor", "For", parts), { kind: "select", name: "partyId", label: "The nominated sub-contractor", placeholder: parties.length ? "Choose" : "None recorded on Team", options: parties }, { kind: "money", name: "amount", label: "Amount", required: true }, choose("securityId", "Advance Payment Guarantee", guarantees), { kind: "textarea", name: "schedule", label: "Recoupment schedule", required: true, hint: "Per line: \"certificate number | amount\"." }, by("AdvancePayment.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id }}
       showWhen={{ partyId: { name: "advanceFor", in: ["NSC"] } }}
       action={applyAdvancePayment}
@@ -323,7 +323,7 @@ export function NonCompletionDrawer({ id, people, outcomes, scopes, sections, pa
   return (
     <RecordEditor
       title="The non-completion decision"
-      description="Damages apply only where no extension of time is due. Otherwise record the delay as excusable or pending, with its reason."
+      description="Damages apply only where no extension is due. Otherwise record why."
       size="xl"
       columns={2}
       fields={[
@@ -401,7 +401,7 @@ export function OpeningDrawer({ id, people, groups, values, existing, blocker }:
         { kind: "money", name: "releasedNsc", label: "Retention released: nominated sub-contractors", required: true },
         { kind: "money", name: "releasedNs", label: "Retention released: nominated suppliers", required: true },
         ...source("released", label("released")),
-        { kind: "textarea", name: "advanceRecouped", label: "Advance recouped, by certificate", hint: 'One line each: "certificate number | amount". Empty: none.' },
+        { kind: "textarea", name: "advanceRecouped", label: "Advance recouped, by certificate", hint: 'Per line: "certificate number | amount"' },
         ...source("advance", label("advance")),
         { kind: "date", name: "damagesChargedUntil", label: "Damages charged until (the first day not charged)", hint: "Empty: none charged." },
         ...source("damages", label("damages")),

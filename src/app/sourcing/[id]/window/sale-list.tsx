@@ -66,7 +66,6 @@ export function SaleList({ exerciseId, sales }: { exerciseId: string; sales: Sal
       exportName="sale-register"
       searchPlaceholder="Search by contractor or receipt"
       emptyTitle="Nothing sold yet"
-      emptyBody={undefined}
       views={[
         { id: "live", label: "Live sales" },
         { id: "noreceipt", label: "Receipt to collect" },

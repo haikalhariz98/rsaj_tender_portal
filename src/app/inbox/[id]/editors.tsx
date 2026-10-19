@@ -9,7 +9,7 @@ export function ConfirmBackdating({ attributionId, signerName, whatWords, effect
   return (
     <RecordEditor
       title="Confirm the back-dating"
-      description={`You confirm that you authorised ${signerName} to date “${whatWords}” ${effectiveOn}. This is your signature: it is recorded with your name, the time, and the act it confirms.`}
+      description={`You confirm you authorised ${signerName} to date “${whatWords}” ${effectiveOn}.`}
       fields={[{ kind: "hidden", name: "attributionId" }, actorField("BackdateConfirmation.confirmedBy", { name: "personId" })]}
       values={{ attributionId }}
       action={confirmBackdatingAction}

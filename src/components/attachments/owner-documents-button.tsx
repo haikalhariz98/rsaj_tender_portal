@@ -68,9 +68,7 @@ export function OwnerDocumentsButton({ owner, label, options, iconOnly = false, 
                 {view === undefined ? (
                   <p className="text-[13px] text-ink-3">Loading…</p>
                 ) : view === null ? (
-                  <EmptyState size="sm" title="Its documents cannot be shown">
-                    The record no longer exists. Reload the page.
-                  </EmptyState>
+                  <EmptyState size="sm" title="Record gone: reload the page" />
                 ) : (
                   <AttachmentPanel {...view} onChanged={async () => setView(await loadOwnerPanel(owner, options))} title={title} subtitle={subtitle} />
                 )}

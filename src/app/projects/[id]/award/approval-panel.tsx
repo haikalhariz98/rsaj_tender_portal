@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import { Say } from "@/components/i18n/language-context";
 import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import Link from "next/link";
@@ -112,8 +113,8 @@ export async function ApprovalPanel({
           <CardHeader
             icon={<RouteIcon size={17} />}
             title={<Say words={P.approvalOfAppointment} />}
-            subtitle={`Sent ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
-            actions={<Badge tone={routeTone(inst.status)}>{inst.status === "APPROVED" ? "Approved" : inst.status === "PENDING" ? "In progress" : inst.status === "REJECTED" ? "Refused" : "Withdrawn"}</Badge>}
+            subtitle={`Sent ${formatDate(inst.openedAt)}`}
+            actions={<span className="inline-flex items-center gap-1"><MoreText label="Rule behind it" text={`${inst.matrixLabel ?? "An issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}`} /><Badge tone={routeTone(inst.status)}>{inst.status === "APPROVED" ? "Approved" : inst.status === "PENDING" ? "In progress" : inst.status === "REJECTED" ? "Refused" : "Withdrawn"}</Badge></span>}
           />
           {(absentLine || ((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0) && (
             <CardBody className="flex flex-col gap-2">

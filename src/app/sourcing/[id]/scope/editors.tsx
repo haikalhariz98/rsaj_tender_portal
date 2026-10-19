@@ -85,7 +85,7 @@ export function EditPanelDrawer({
         { kind: "text", name: "revisedRevisionNo", label: "Revised revision number" },
         { kind: "date", name: "revisedRevisionOn", label: "Revised revision date" },
         { kind: "text", name: "completionPeriodText", label: "Completion period" },
-        { kind: "select", name: "bqVersionId", label: "Bill of quantities it certifies", placeholder: "None named", options: bills, hint: "Required where the contract basis is let on a bill." },
+        { kind: "select", name: "bqVersionId", label: "Bill of quantities it certifies", placeholder: "None named", options: bills, hint: "Required for bill-based contracts." },
       ]}
       values={{ exerciseId, ...raw }}
       action={savePanel}
@@ -410,9 +410,9 @@ export function LodgeEstimateDrawer({ exerciseId, estimateId, versionNo, allowed
       title={relodge ? `Lodge version ${versionNo} again` : `Lodge version ${versionNo}`}
       description={
         relodge
-          ? "Key changed: the sealed copy cannot be opened. Lodge the same version again. Only the officer who lodged it can."
+          ? "Key changed: lodge the same version again. Only its lodger can."
           : online
-            ? "Lodges a sealed copy under the exercise's key. The version itself stays unencrypted in the database."
+            ? "Lodges a sealed copy under the exercise's key."
             : "Goes into the sealed set as the lodged copy."
       }
       fields={[
@@ -496,8 +496,8 @@ export function TableScopeDrawer({
       fields={[
         hidden("exerciseId"),
         hidden("versionId"),
-        { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: "Choose", options: table.sittings, hint: "Sittings of the committee that are scheduled or in progress." },
-        actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", hint: table.holders.length === 0 ? "Nobody holds the Secretariat office." : "Only a holder of the Secretariat office can table." }),
+        { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: "Choose", options: table.sittings, hint: "Scheduled or in-progress sittings." },
+        actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", hint: table.holders.length === 0 ? "Nobody holds the Secretariat office." : "Only the Secretariat office can table." }),
       ]}
       values={{ exerciseId, versionId: table.versionId }}
       action={tableScope}

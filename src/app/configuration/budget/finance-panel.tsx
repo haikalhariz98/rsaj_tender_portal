@@ -236,7 +236,6 @@ export function FinancePanel({
           exportName="reconciliation"
           searchPlaceholder="Search budget codes"
           emptyTitle="Nothing to reconcile"
-          emptyBody="The two systems have not been compared, or they agree on every code."
           views={[
             { id: "outstanding", label: "Outstanding" },
             { id: "settled", label: "Settled" },

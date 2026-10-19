@@ -176,7 +176,6 @@ export function AvailabilityPanel({
           exportName="availability"
           searchPlaceholder="Search budget codes"
           emptyTitle="No budget code configured"
-          emptyBody="There is nothing to commit against until a budget code exists."
           filters={[
             { key: "type", label: "Type" },
             { key: "unit", label: "Owning department" },

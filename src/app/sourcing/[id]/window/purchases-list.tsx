@@ -41,7 +41,6 @@ export function PurchasesList({ exerciseId, purchases }: { exerciseId: string; p
       exportName="online-purchases-awaiting-payment"
       searchPlaceholder="Search by supplier or buyer"
       emptyTitle="No online purchase is waiting for payment"
-      emptyBody={undefined}
       stackBelow="xl"
       actionsWidth={160}
       columns={[

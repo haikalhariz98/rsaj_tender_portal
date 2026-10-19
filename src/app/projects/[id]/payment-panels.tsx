@@ -212,7 +212,7 @@ function OpeningCard({ l, v, people, today, hidden }: { l: LoadedContract; v: Pa
         actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <OpeningDrawer id={l.contract.id} people={people} groups={OPENING_GROUPS.map((g) => ({ group: g, label: OPENING_GROUP_WORDS[g].en }))} values={values} existing={!!o} blocker={blocker} />}
       />
       <CardBody>
-        {foreign.length > 0 && <Callout tone="warn" title="Interim certificates issued here without a valuation">{`${foreign.map((x) => x.number ?? `interim certificate ${x.sequence}`).join(", ")}: record the opening position covering ${foreign.length === 1 ? "it" : "them"} before the next valuation is raised.`}</Callout>}
+        {foreign.length > 0 && <Callout tone="warn" title="Interim certificates issued here without a valuation">{`${foreign.map((x) => x.number ?? `interim certificate ${x.sequence}`).join(", ")}: record the opening position first.`}</Callout>}
         {rec.length > 0 && <Callout tone="warn" title="Said, not refused">{say(rec)}</Callout>}
         {o ? (
           <KeyValues
@@ -382,7 +382,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
           ]}
         />
       </CardBody>
-      <CardHeader title={<Say words={P.materialsOnSite} />} subtitle="A failed line is shown, not valued" actions={<MaterialDrawer id={c.id} valuationId={x.id} today={today} />} divided={x.materialLines.length > 0} className="border-t border-line/70" />
+      <CardHeader title={<Say words={P.materialsOnSite} />} subtitle="Failed lines shown, not valued" actions={<MaterialDrawer id={c.id} valuationId={x.id} today={today} />} divided={x.materialLines.length > 0} className="border-t border-line/70" />
       {x.materialLines.length > 0 && (
         <ul className="divide-y divide-line/70">
           {x.materialLines.map((m) => {

@@ -31,7 +31,7 @@ export async function InspectionLogCard({ organisationId, exerciseId }: { organi
       <CardHeader
         icon={<EyeIcon size={17} />}
         title="Inspection log"
-        subtitle={log.total === 0 ? "Not opened yet." : `${log.total} ${log.total === 1 ? "opening" : "openings"} by ${log.suppliers} ${log.suppliers === 1 ? "supplier" : "suppliers"}. Repeat opens within a minute count once.`}
+        subtitle={log.total === 0 ? "Not opened yet" : `${log.total} ${log.total === 1 ? "opening" : "openings"} by ${log.suppliers} ${log.suppliers === 1 ? "supplier" : "suppliers"}`}
         divided={log.rows.length > 0}
       />
       {log.rows.length > 0 && (

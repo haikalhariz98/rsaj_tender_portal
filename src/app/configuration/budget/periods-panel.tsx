@@ -174,7 +174,6 @@ export function PeriodsPanel({
           searchable={false}
           exportName={`periods-${selected}`}
           emptyTitle="No period in this year"
-          emptyBody="Nothing can be posted into a year with no periods."
           columns={[
             { key: "period", label: "Period", width: "88px", nowrap: true, sortable: true, mobile: "primary" },
             { key: "name", label: "Name", sortable: true, mobile: "meta" },

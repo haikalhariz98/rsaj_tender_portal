@@ -145,7 +145,7 @@ export function EditTermsDrawer({
           label: regulatedLabel ? `Is this ${regulatedLabel.toLowerCase()}?` : "Are the works the regulated activity?",
           placeholder: "Not answered",
           options: YES_NO,
-          hint: fromTender(tender?.regulated, "The tender answered") ?? "A recipient of the instrument's copies may depend on it.",
+          hint: fromTender(tender?.regulated, "The tender answered") ?? "Recipients of copies may depend on it.",
         },
         { kind: "note", text: "The performance bond: decided for this contract, never filled in for you." },
         { kind: "select", name: "bondRequired", label: "Performance bond required", placeholder: "Not decided", options: YES_NO },

@@ -11,7 +11,7 @@ export function CrossSiteRefusal({ headline, detail }: { headline: string; detai
     <>
       <PageHeader title="Tender documents" subtitle="Open it from My Bids" />
       <Card>
-        <EmptyState title={headline} action={<ButtonLink href="/supplier/bids" variant="secondary" size="sm">Go to My Bids</ButtonLink>}>{detail}</EmptyState>
+        <EmptyState title={headline} action={<span className="flex flex-col items-center gap-3"><span className="text-[13.5px] text-ink-2">{detail}</span><ButtonLink href="/supplier/bids" variant="secondary" size="sm">Go to My Bids</ButtonLink></span>} />
       </Card>
     </>
   );

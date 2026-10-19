@@ -234,7 +234,7 @@ export function RecordAttendanceEditor({
                 name: "standingInForSeatId",
                 label: "Standing in for",
                 placeholder: "Not standing in",
-                hint: "Only while the holder is absent. Not for the chairman.",
+                hint: "Only while the holder is absent.",
                 options: seats.map((s) => ({ value: s.seatId, label: s.label })),
               },
             ] as Field[])

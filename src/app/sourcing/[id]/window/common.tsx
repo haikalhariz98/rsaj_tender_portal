@@ -7,7 +7,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 
 export const GONE = (
   <Card>
-    <EmptyState title="This exercise could not be found">Its organisation may no longer be configured.</EmptyState>
+    <EmptyState title="Exercise not found" />
   </Card>
 );
 

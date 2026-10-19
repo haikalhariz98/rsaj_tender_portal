@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import { InfoChip } from "@/components/ui/info-chip";
 import { DataList, type Column, type Row } from "@/components/data-list";
 import { LockIcon } from "@/components/icons";
@@ -59,9 +60,7 @@ export async function CreditorPanel({ actor, l, version }: { actor: StaffActor; 
     return (
       <Card>
         <CardHeader icon={<LockIcon size={17} />} title="Creditor profile" subtitle="The supplier's bank and beneficiary details." actions={<SulitTag />} />
-        <EmptyState title="No bank details have been sent">
-          {drafting > 0 ? "The supplier has started on its bank details but has not sent them. They are its working copy until it does, and are not shown here." : "The supplier enters its bank details in its registration, in the portal. Nothing is held for it here, and payments to it are refused until an officer has checked some."}
-        </EmptyState>
+        <EmptyState title={drafting > 0 ? "Bank details started, not sent" : "No bank details sent"} action={<MoreText label="About bank details" text="The supplier enters them in its portal registration. Payments to it are refused until an officer has checked some." />} />
       </Card>
     );
   }

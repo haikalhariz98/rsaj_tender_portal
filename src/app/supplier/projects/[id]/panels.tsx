@@ -202,7 +202,7 @@ export async function PaymentsPanel({ actor, ctx, token }: Props) {
       </div>
       {p.summary.paidUnfigured > 0n && (
         <Callout tone="warn" title={`${p.summary.paidUnfiguredText} paid on certificates without a figure on record`}>
-          Not set against the certified sum. Ask the office for the certificate&apos;s figure.
+          Ask the office for the figure.
         </Callout>
       )}
       <Card className="overflow-hidden">
@@ -282,7 +282,7 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Your certificates"
-          subtitle={c.total > c.rows.length ? `Newest ${c.rows.length} of ${c.total}. Ask the office for older ones.` : undefined}
+          subtitle={c.total > c.rows.length ? `Newest ${c.rows.length} of ${c.total}` : undefined}
           divided={c.rows.length > 0}
         />
         {c.rows.length === 0 ? (

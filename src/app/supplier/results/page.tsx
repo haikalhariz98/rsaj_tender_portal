@@ -56,7 +56,7 @@ export default async function SupplierResultsPage() {
 
       {!ready ? (
         <Card>
-          <EmptyState title={RESULTS.notSetUp.title.en}>{RESULTS.notSetUp.body.en}</EmptyState>
+          <EmptyState title={RESULTS.notSetUp.title.en} action={<span className="text-[13.5px] text-ink-2">{RESULTS.notSetUp.body.en}</span>} />
         </Card>
       ) : (
         <Card className="overflow-hidden">

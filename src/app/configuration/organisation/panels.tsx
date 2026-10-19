@@ -667,7 +667,6 @@ function CostCentresView({ costCentres, units, sites, people, on }: Organisation
         exportName="cost-centres"
         searchPlaceholder="Search cost centres"
         emptyTitle="No cost centre yet"
-        emptyBody="Nothing can be charged anywhere until one exists."
         views={[
           { id: "closed", label: "Closed" },
           { id: "upcoming", label: "Not yet in force" },
@@ -735,7 +734,6 @@ function SitesView({ sites, costCentres, units, on }: OrganisationPanelData) {
         exportName="sites"
         searchPlaceholder="Search sites"
         emptyTitle="No site yet"
-        emptyBody="A cost centre names the site its spending belongs to."
         views={[
           { id: "closed", label: "Closed" },
           { id: "upcoming", label: "Not yet in force" },

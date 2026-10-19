@@ -1,3 +1,4 @@
+import { MoreText } from "@/components/ui/more-text";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -6,7 +7,7 @@ import { PrinterIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { TenderDocumentArticle } from "@/components/tender-document";
 import { ButtonLink } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardBody } from "@/components/ui/card";
 import { Callout, EmptyState, Note } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { printView } from "@/lib/tender-docs/read";
@@ -45,9 +46,8 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
                 <ButtonLink href={`/sourcing/${id}/documents/print`} variant="ghost" size="sm">Print the whole pack</ButtonLink>
               </span>
             }
-          >
-            {tableNote.refusal}
-          </EmptyState>
+          />
+          <CardBody><MoreText text={tableNote.refusal} label="Why" /></CardBody>
         </Card>
       </>
     );
@@ -58,9 +58,8 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
         <RecordCrumb label={v.exercise.reference} />
         <PageHeader eyebrow={<Link href={`/sourcing/${id}?tab=documents`}>Back to the tender documents</Link>} title="Nothing to print" meta={[<span key="ref" className="font-mono text-[12.5px]">{v.exercise.reference}</span>, v.exercise.title]} />
         <Card>
-          <EmptyState title="No tender documents to print" action={<ButtonLink href={`/sourcing/${id}?tab=documents`} variant="secondary" size="sm">Back to the tender documents</ButtonLink>}>
-            {v.why}
-          </EmptyState>
+          <EmptyState title="No tender documents to print" action={<ButtonLink href={`/sourcing/${id}?tab=documents`} variant="secondary" size="sm">Back to the tender documents</ButtonLink>} />
+          <CardBody>{v.why ? <MoreText text={v.why} label="Why" /> : null}</CardBody>
         </Card>
       </>
     );
@@ -79,7 +78,7 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
       </div>
       {v.watermark ? (
         <Callout tone="warn" className="mb-5 print:hidden">
-          {frozen ? "With approval: the text frozen when the version was submitted. It is not issued until approved for tendering." : "A draft: how the documents read with today's templates, bill and Appendix. The text is frozen when the version is submitted."}
+          {frozen ? "Frozen at submission. Not issued until approved." : "A draft, read with today's templates. Frozen on submission."}
         </Callout>
       ) : (
         <Note className="mb-5 print:hidden">
