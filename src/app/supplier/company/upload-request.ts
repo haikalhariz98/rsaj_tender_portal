@@ -54,7 +54,7 @@ export async function readUpload(actor: SupplierActor, request: Request, kind: U
   const s = blobStore();
   if ("fault" in s) {
     await log(s.fault);
-    return { ok: false, response: reply({ ok: false, code: "CLOSED", message: "Uploads are closed: the portal's document store is not set up. Tell the procurement office." }, 503) };
+    return { ok: false, response: reply({ ok: false, code: "CLOSED", message: "Uploads closed: the document store is not set up. Tell the procurement office." }, 503) };
   }
   const settings = await loadRegistrationSettings(db, actor.organisationId);
   if (!settings) return { ok: false, response: reply({ ok: false, code: "CLOSED", message: "The portal is not set up." }, 503) };
@@ -63,7 +63,7 @@ export async function readUpload(actor: SupplierActor, request: Request, kind: U
   const policy = kind === "statement" ? loaded.statement : loaded.document;
   const unset = uploadSettingFault(storeSettings, policy, kind);
   if (unset) return refuse(422, unset);
-  if (declared == null || declared.trim() === "") return { ok: false, response: reply({ ok: false, code: "NO_LENGTH", message: "The upload did not say how large it is, so it was not read." }, 411) };
+  if (declared == null || declared.trim() === "") return { ok: false, response: reply({ ok: false, code: "NO_LENGTH", message: "The upload size was not stated. Try again." }, 411) };
   const lengthFault = requestLengthFault(declared, storeSettings.capBytes!);
   if (lengthFault) return refuse(lengthFault === "TOO_LARGE" ? 413 : 400, { code: "TOO_LARGE", level: "block" }, { bytes: offered });
 

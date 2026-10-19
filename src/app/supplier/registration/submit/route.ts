@@ -32,8 +32,8 @@ export async function POST(request: Request) {
   const { version, password, declarations } = parsed.value;
 
   const state = await loadWizardState(db, actor);
-  if (state === "SENT") return reply({ ok: false, code: "DECIDED", message: "This registration has already been sent to the procurement office." }, 409);
-  if (state !== "OPEN") return reply({ ok: false, code: "NOT_OPEN", message: "This registration is with the procurement office, so it cannot be sent from here." }, 409);
+  if (state === "SENT") return reply({ ok: false, code: "DECIDED", message: "Already sent to the procurement office." }, 409);
+  if (state !== "OPEN") return reply({ ok: false, code: "NOT_OPEN", message: "With the procurement office. It cannot be sent from here." }, 409);
   const view = await loadDraftView(db, actor);
   if (view.version !== version) return refusalReply(new DraftRefused("STALE"))!;
   const ctx = await contextFor(db, actor, view.documents.flatMap((d) => d.valueIds));
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   if (!asked.ok) {
     if (asked.kind === "LOCKED") return reply({ ok: false, code: "LOCKED", message: "This account is locked after too many wrong passwords. Try again later." }, 403);
     if (asked.kind === "THROTTLED") return reply({ ok: false, code: "THROTTLED", message: "Too many attempts just now. Wait a few minutes and try again." }, 429);
-    if (asked.kind === "POLICY_NOT_SET") return reply({ ok: false, code: "CLOSED", message: "Signing is closed: the procurement office has not finished setting up supplier sign-in. Tell the procurement office." }, 503);
+    if (asked.kind === "POLICY_NOT_SET") return reply({ ok: false, code: "CLOSED", message: "Signing is closed: sign-in is not set up. Tell the procurement office." }, 503);
     return reply({ ok: false, code: "WRONG_PASSWORD", message: "That password is not right. Nothing was sent." }, 403);
   }
 

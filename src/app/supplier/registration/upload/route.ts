@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const guard = await supplierUploadPost(request, "registration");
   if (!guard.ok) return guard.response;
   const slot = uploadLimiter().tryAcquire();
-  if (!slot) return reply({ ok: false, code: "BUSY", message: "The portal is busy with other files. Wait a few seconds and try again." }, 503, { "Retry-After": String(RETRY_AFTER_SECONDS) });
+  if (!slot) return reply({ ok: false, code: "BUSY", message: "The portal is busy. Try again in a few seconds." }, 503, { "Retry-After": String(RETRY_AFTER_SECONDS) });
   try {
     return await upload(guard.actor, request);
   } finally {
@@ -64,7 +64,7 @@ async function upload(actor: SupplierActor, request: Request) {
   const s = blobStore();
   if ("fault" in s) {
     await log(s.fault);
-    return reply({ ok: false, code: "CLOSED", message: "Uploads are closed: the portal's document store is not set up. Tell the procurement office." }, 503);
+    return reply({ ok: false, code: "CLOSED", message: "Uploads closed: the document store is not set up. Tell the procurement office." }, 503);
   }
   const settings = await loadRegistrationSettings(db, actor.organisationId);
   if (!settings) return reply({ ok: false, code: "CLOSED", message: "The portal is not set up." }, 503);
@@ -74,7 +74,7 @@ async function upload(actor: SupplierActor, request: Request) {
   const policy: UploadPolicy = kind === "statement" ? loaded.statement : loaded.document;
   const unset = uploadSettingFault(storeSettings, policy, kind);
   if (unset) return refuse(422, unset);
-  if (declared == null || declared.trim() === "") return reply({ ok: false, code: "NO_LENGTH", message: "The upload did not say how large it is, so it was not read." }, 411);
+  if (declared == null || declared.trim() === "") return reply({ ok: false, code: "NO_LENGTH", message: "The upload size was not stated. Try again." }, 411);
   const lengthFault = requestLengthFault(declared, storeSettings.capBytes!);
   if (lengthFault) return refuse(lengthFault === "TOO_LARGE" ? 413 : 400, { code: "TOO_LARGE", level: "block" }, { bytes: offered });
 
@@ -94,7 +94,7 @@ async function upload(actor: SupplierActor, request: Request) {
     return typeof v === "string" ? v.trim() : "";
   };
   const version = Number(text("version"));
-  if (!Number.isInteger(version) || version < 0 || version > 1_000_000_000) return reply({ ok: false, code: "VALIDATION", message: "The page did not say which version of the draft it was showing." }, 400);
+  if (!Number.isInteger(version) || version < 0 || version > 1_000_000_000) return reply({ ok: false, code: "VALIDATION", message: "The page did not say which draft version it showed. Reload." }, 400);
   const target: UploadTarget = kind === "statement" ? { kind: "statement" } : { kind: "document", documentId: text("documentId") || null, typeId: text("typeId") || null, title: text("title").slice(0, 120) };
 
   const size = BigInt(file.size);

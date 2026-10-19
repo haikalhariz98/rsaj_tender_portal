@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const guard = await supplierUploadPost(request, "company");
   if (!guard.ok) return guard.response;
   const slot = uploadLimiter().tryAcquire();
-  if (!slot) return reply({ ok: false, code: "BUSY", message: "The portal is busy with other files. Wait a few seconds and try again." }, 503, { "Retry-After": String(RETRY_AFTER_SECONDS) });
+  if (!slot) return reply({ ok: false, code: "BUSY", message: "The portal is busy. Try again in a few seconds." }, 503, { "Retry-After": String(RETRY_AFTER_SECONDS) });
   try {
     const read = await readUpload(guard.actor, request, "document");
     if (!read.ok) return read.response;

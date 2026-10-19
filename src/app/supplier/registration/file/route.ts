@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   if (!/^[A-Za-z0-9_-]{8,40}$/.test(id)) return plain(404, "No such file.");
 
   const slot = downloadLimiter().tryAcquire();
-  if (!slot) return plain(503, "The portal is busy with other files. Wait a few seconds and try again.", { "Retry-After": String(RETRY_AFTER_SECONDS) });
+  if (!slot) return plain(503, "The portal is busy. Try again in a few seconds.", { "Retry-After": String(RETRY_AFTER_SECONDS) });
   try {
     const org = await documentOrg(actor.organisationId);
     if (!org) return plain(503, "The portal is not set up.");
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     const bytes = await s.store.get(org.id, version.sha256);
     if (!bytes || sha256Hex(bytes) !== version.sha256) {
       await logAccess({ organisationId: org.id, kind: "INTEGRITY_FAILED", reasonCode: bytes ? "DIGEST_MISMATCH" : "BYTES_MISSING", versionId: version.id, actor: as });
-      return plain(500, "The stored file does not match its fingerprint, so it is not served. This has been logged; tell the procurement office.");
+      return plain(500, "The stored file does not match its fingerprint. Logged. Tell the procurement office.");
     }
     // Everything that can fail is built before the download is logged, so that no entry says a file was downloaded for a response that was not sent.
     const response = new Response(bytes as Uint8Array<ArrayBuffer>, {

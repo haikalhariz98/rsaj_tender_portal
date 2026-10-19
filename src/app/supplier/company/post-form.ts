@@ -31,9 +31,9 @@ export function postForm(url: string, token: string | null, form: FormData, onPr
 export function answerWords(status: number, body: FormAnswer | null): string {
   const said = typeof body?.message === "string" && body.message.trim() ? body.message.trim() : null;
   if (said) return said;
-  if (status === 0) return "That did not reach the portal. Check your connection and try again. Nothing was sent.";
+  if (status === 0) return "Not received. Check your connection and try again.";
   if (status === 401) return "You have been signed out. Sign in again, then send it.";
-  return "That did not work and nothing was sent. Try again in a moment.";
+  return "Not sent. Try again in a moment.";
 }
 
 /// The fault messages at a field, blocking first.

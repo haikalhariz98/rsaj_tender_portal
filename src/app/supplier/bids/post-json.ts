@@ -34,7 +34,7 @@ export async function postBids(path: string, token: string | null, body: Record<
 export function answerWords(status: number, body: BidsAnswer | null): string {
   const said = typeof body?.message === "string" && body.message.trim() ? body.message.trim() : null;
   if (said) return said;
-  if (status === 0) return "That did not reach the portal. Check your connection and try again. Nothing was done.";
+  if (status === 0) return "Not received. Check your connection and try again.";
   if (status === 401) return "You have been signed out. Sign in again, then try again.";
-  return "That did not work and nothing was done. Try again in a moment.";
+  return "Not done. Try again in a moment.";
 }

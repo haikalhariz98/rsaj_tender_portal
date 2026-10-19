@@ -28,11 +28,11 @@ export function refusalReply(e: unknown): Response | null {
   if (e instanceof DraftRefused) {
     switch (e.kind) {
       case "STALE":
-        return reply({ ok: false, code: "STALE", message: "This registration was changed since this page was opened, perhaps in another window. Reload the page to see the latest. Nothing was saved." }, 409);
+        return reply({ ok: false, code: "STALE", message: "Changed since this page was opened. Nothing was saved. Reload to see the latest." }, 409);
       case "SENT":
-        return reply({ ok: false, code: "DECIDED", message: "This registration has already been sent to the procurement office, so it can no longer be changed." }, 409);
+        return reply({ ok: false, code: "DECIDED", message: "Already sent to the procurement office. It cannot be changed." }, 409);
       case "NOT_OPEN":
-        return reply({ ok: false, code: "NOT_OPEN", message: "This registration is with the procurement office, so it cannot be filled in here." }, 409);
+        return reply({ ok: false, code: "NOT_OPEN", message: "With the procurement office. It cannot be filled in here." }, 409);
       case "NOT_FOUND":
         return reply({ ok: false, code: "NOT_FOUND", message: "That is not part of your registration." }, 404);
       case "INVALID":

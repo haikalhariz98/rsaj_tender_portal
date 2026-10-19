@@ -47,7 +47,7 @@ export interface SaveRequestBody {
 export function parseSaveBody(body: Record<string, unknown>): Parsed<SaveRequestBody> {
   const step = typeof body.step === "string" ? body.step : "";
   if (!isRegistrationStep(step) || !EDITABLE_STEPS.includes(step)) return bad("That step cannot be saved.");
-  if (typeof body.version !== "number" || !Number.isInteger(body.version) || body.version < 0 || body.version > 1_000_000_000) return bad("The page did not say which version of the draft it was showing.");
+  if (typeof body.version !== "number" || !Number.isInteger(body.version) || body.version < 0 || body.version > 1_000_000_000) return bad("The page did not say which draft version it showed. Reload.");
   const next = body.next === true;
   const section = body.section;
   const remove: string[] = [];
@@ -126,7 +126,7 @@ export interface SubmitRequestBody {
 }
 
 export function parseSubmitBody(body: Record<string, unknown>): Parsed<SubmitRequestBody> {
-  if (typeof body.version !== "number" || !Number.isInteger(body.version) || body.version < 0 || body.version > 1_000_000_000) return bad("The page did not say which version of the draft it was showing.");
+  if (typeof body.version !== "number" || !Number.isInteger(body.version) || body.version < 0 || body.version > 1_000_000_000) return bad("The page did not say which draft version it showed. Reload.");
   if (typeof body.password !== "string") return bad("Enter your password to send the registration.");
   if (!Array.isArray(body.declarations) || body.declarations.length > DECLARATION_KINDS.length) return bad("The declarations are not a list.");
   const declarations: DeclarationInput[] = [];
@@ -148,7 +148,7 @@ export interface WithdrawRequestBody {
 }
 
 export function parseWithdrawBody(body: Record<string, unknown>): Parsed<WithdrawRequestBody> {
-  if (typeof body.version !== "number" || !Number.isInteger(body.version) || body.version < 0 || body.version > 1_000_000_000) return bad("The page did not say which version of the draft it was showing.");
+  if (typeof body.version !== "number" || !Number.isInteger(body.version) || body.version < 0 || body.version > 1_000_000_000) return bad("The page did not say which draft version it showed. Reload.");
   if (typeof body.versionId !== "string" || !ID.test(body.versionId)) return bad("The file is not named.");
   return { ok: true, value: { version: body.version, versionId: body.versionId } };
 }

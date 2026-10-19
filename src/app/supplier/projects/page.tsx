@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { ToolsIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { Card, CardHeader } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
 import { db } from "@/lib/db";

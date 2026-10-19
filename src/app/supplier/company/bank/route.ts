@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   if (!guard.ok) return guard.response;
   const { actor, facts } = guard;
   const slot = uploadLimiter().tryAcquire();
-  if (!slot) return reply({ ok: false, code: "BUSY", message: "The portal is busy with other files. Wait a few seconds and try again." }, 503, { "Retry-After": String(RETRY_AFTER_SECONDS) });
+  if (!slot) return reply({ ok: false, code: "BUSY", message: "The portal is busy. Try again in a few seconds." }, 503, { "Retry-After": String(RETRY_AFTER_SECONDS) });
   try {
     const read = await readUpload(actor, request, "statement");
     if (!read.ok) return read.response;
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     if (!asked.ok) {
       if (asked.kind === "LOCKED") return reply({ ok: false, code: "LOCKED", message: "This account is locked after too many wrong passwords. Try again later." }, 403);
       if (asked.kind === "THROTTLED") return reply({ ok: false, code: "THROTTLED", message: "Too many attempts just now. Wait a few minutes and try again." }, 429);
-      if (asked.kind === "POLICY_NOT_SET") return reply({ ok: false, code: "CLOSED", message: "Signing is closed: the procurement office has not finished setting up supplier sign-in. Tell the procurement office." }, 503);
+      if (asked.kind === "POLICY_NOT_SET") return reply({ ok: false, code: "CLOSED", message: "Signing is closed: sign-in is not set up. Tell the procurement office." }, 503);
       return reply({ ok: false, code: "WRONG_PASSWORD", message: "That password is not right. Nothing was sent." }, 403);
     }
 
