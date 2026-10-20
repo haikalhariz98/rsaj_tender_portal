@@ -25,7 +25,7 @@ describe("authorising the opening (OD-11 at the closing second)", () => {
     expect(opensTheBox(notYet, 2, 2)).toBe(true);
     expect(opensTheBox(open(), 2, 2)).toBe(false);
   });
-  it("the count is the state's `required`, never a literal: n=2 and n=3 open on the nth", () => {
+  it("opens on the nth authorisation for n=2 and n=3", () => {
     const three = [...PANEL, { personId: "p4", present: true }];
     for (const n of [2, 3]) {
       const st = open({ unsealed: false, sittingAuthorised: false, required: n });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DISABLE_BLOCKED_LINE, disableExposure, HIDDEN_DISABLE_LINE, deactivationGate, EXPOSURE_WORDS, exposureLines, exposureOf, exposuresOf, SECOND_APPROVER_WORDS, type HeldExercise } from "./deactivation";
+import { DISABLE_BLOCKED_LINE, disableExposure, HIDDEN_DISABLE_LINE, hiddenDisableLines, deactivationGate, EXPOSURE_WORDS, exposureLines, exposureOf, exposuresOf, SECOND_APPROVER_WORDS, type HeldExercise } from "./deactivation";
 
 const NOW = new Date("2026-11-02T10:00:00Z");
 const BEFORE = new Date("2026-11-03T10:00:00Z");
@@ -83,5 +83,12 @@ describe("the Accounts disable drawer's lines (20ci a)", () => {
     const r = disableExposure([x("UNFINALISABLE", "secret")], new Set(["secret"]));
     expect(r.lines[0]).toBe(HIDDEN_DISABLE_LINE);
     expect(r.lines.join(" ")).not.toMatch(/TND|Road/);
+  });
+  it("collapses several hidden exercises into one line, so no two lines are equal", () => {
+    const r = disableExposure([x("UNOPENABLE", "h1"), x("SUBSTITUTE_BEFORE_CLOSING", "h2"), x("UNOPENABLE", "e3")], new Set(["h1", "h2"]));
+    expect(r.lines).toHaveLength(2);
+    expect(r.lines[1]).toBe(hiddenDisableLines(2));
+    expect(new Set(r.lines).size).toBe(r.lines.length);
+    expect(hiddenDisableLines(2)).toMatch(/^2 exercises/);
   });
 });

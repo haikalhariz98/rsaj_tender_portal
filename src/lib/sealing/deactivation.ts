@@ -78,11 +78,15 @@ const DISABLE_WORDS: Readonly<Record<ExposureKind, (e: { reference: string; titl
 
 export const DISABLE_BLOCKED_LINE = "One administrator cannot disable this account. Mark the person as left under Users.";
 export const HIDDEN_DISABLE_LINE = "An exercise you may not see needs this officer.";
+export const hiddenDisableLines = (n: number): string => (n === 1 ? HIDDEN_DISABLE_LINE : `${n} exercises you may not see need this officer.`);
 
-/// The lines the Accounts disable drawer shows, and whether the disable would be refused (`deactivationGate`, the rule `disableAccount` applies, never restated). An exercise the reader may not see is not named (FR-MTD-007).
+/// The lines the Accounts disable drawer shows (one per exercise the reader may see, then one for all they may not), and whether the disable would be refused (`deactivationGate`, the rule `disableAccount` applies, never restated). An exercise the reader may not see is not named (FR-MTD-007).
 export function disableExposure(exposures: readonly HolderExposure[], hidden: ReadonlySet<string>): { lines: string[]; blocked: boolean } {
   if (exposures.length === 0) return { lines: [], blocked: false };
   const blocked = !deactivationGate({ exposures, mode: null }).allowed;
-  const lines = exposures.map((x) => (hidden.has(x.exerciseId) ? HIDDEN_DISABLE_LINE : DISABLE_WORDS[x.kind](x)));
+  const seen = exposures.filter((x) => !hidden.has(x.exerciseId)).map((x) => DISABLE_WORDS[x.kind](x));
+  const nHidden = exposures.length - seen.length;
+  // One line for all hidden exercises: the lines are rendered as keyed siblings, so repeats would collide.
+  const lines = nHidden > 0 ? [...seen, hiddenDisableLines(nHidden)] : seen;
   return { lines: blocked ? [...lines, DISABLE_BLOCKED_LINE] : lines, blocked };
 }

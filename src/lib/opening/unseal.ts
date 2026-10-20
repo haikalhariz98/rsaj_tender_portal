@@ -58,7 +58,7 @@ export function authorisationFaults(i: {
 
 export type UnsealState = "AWAITING_FIRST" | "AWAITING_SECOND" | "AUTHORISED";
 
-/// The sitting's authorisations, counted as the box reads them: none, one (awaiting the second), or two.
+/// The sitting's authorisations, counted as the box reads them: none, some (awaiting the rest), or all `required`.
 /// `required` is two on paper and the roster's n online: AWAITING_SECOND then covers every count from one to n-1.
 export function unsealState(sittingNo: number, auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[], required: number): { state: UnsealState; count: number } {
   const n = sittingAuthorisers(sittingNo, auths, panel).length;

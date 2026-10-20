@@ -86,7 +86,7 @@ describe("how many authorise (ADR 0036 D10, ruling 20k): two on paper, the roste
     expect(openingFindingText(actFaults(noneYet)[0])).not.toMatch(/box|panel members present/);
     const resting = openingState(o, [{ sittingNo: 1, adjournedAt: null }], [auth("p1")], panel2, 2);
     expect(openingFindingText(actFaults(resting)[0])).toMatch(/All 2 named officers/);
-    expect(openingFindingText(actFaults(openingState({ ...o, online: false, unsealedAt: null }, [{ sittingNo: 1, adjournedAt: null }], [], PANEL))[0])).toMatch(/Two present panel members/);
+    expect(openingFindingText(actFaults(openingState({ ...o, online: false, unsealedAt: null }, [{ sittingNo: 1, adjournedAt: null }], [], PANEL, 2))[0])).toMatch(/Two present panel members/);
   });
 });
 

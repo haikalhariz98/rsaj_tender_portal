@@ -5,7 +5,7 @@ import { useRef, useState, useTransition } from "react";
 import { LockIcon } from "@/components/icons";
 import { CodeDialog } from "@/components/auth/code-dialog";
 import { EMPTY_FORM_STATE, RecordEditor } from "@/components/record-editor";
-import { Button, buttonClass } from "@/components/ui/button";
+import { Button, ButtonLink, buttonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
@@ -41,7 +41,9 @@ export function CreateAccount({ people }: { people: { id: string; name: string; 
   );
 }
 
-export function DisableAccount({ accountId, name, loginName, exposure = [] }: { accountId: string; name: string; loginName: string; exposure?: string[] }) {
+export function DisableAccount({ accountId, name, loginName, exposure = [], blocked = false }: { accountId: string; name: string; loginName: string; exposure?: string[]; blocked?: boolean }) {
+  // The server refuses this disable (one administrator cannot): send them to where it can be done rather than ask for a reason that will be refused.
+  if (blocked) return <ButtonLink href="/configuration/users" variant="secondary" size="sm" title={exposure.at(-1)}>Mark as left</ButtonLink>;
   return (
     <RecordEditor
       title={`Disable ${name}'s account`}

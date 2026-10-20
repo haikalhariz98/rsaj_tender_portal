@@ -150,7 +150,7 @@ export default async function AccountsPage() {
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="StaffAccount" entityId={r.id} label={`Sign-in account of ${r.personName}`} />
-                    {rowActions(r, now, disableExposure(exposed.get(r.personId) ?? [], hidden).lines)}
+                    {rowActions(r, now, disableExposure(exposed.get(r.personId) ?? [], hidden))}
                   </RowActions>
                 </Td>
               </Tr>
@@ -168,7 +168,7 @@ function holdingsWords(r: AccountRow): string | null {
   return parts.length > 0 ? `holds ${parts.join(", ")}` : null;
 }
 
-function rowActions(r: AccountRow, now: Date, exposure: string[]) {
+function rowActions(r: AccountRow, now: Date, exposure: { lines: string[]; blocked: boolean }) {
   // A code for an administrator's account, or for a person who holds or has held anything (ended or not), needs a second person. Making someone an administrator
   // is judged on what they hold now, which is what the rule of keeping administration apart from transactions asks.
   const notice = secondPersonNotice({ isAdministrator: r.isAdministrator, held: r.held });
@@ -184,7 +184,7 @@ function rowActions(r: AccountRow, now: Date, exposure: string[]) {
       {r.status === "ACTIVE" && r.personActive && !r.isAdministrator && !holdsNow && <ProposeAdministrator accountId={r.id} name={r.personName} direction="GRANT" />}
       {r.status === "ACTIVE" && r.isAdministrator && <ProposeAdministrator accountId={r.id} name={r.personName} direction="REVOKE" />}
       {locked && r.status !== "DISABLED" && <UnlockAccount accountId={r.id} name={r.personName} />}
-      {r.status === "DISABLED" ? <EnableAccount accountId={r.id} name={r.personName} /> : !r.isYou && <DisableAccount accountId={r.id} name={r.personName} loginName={r.loginName} exposure={exposure} />}
+      {r.status === "DISABLED" ? <EnableAccount accountId={r.id} name={r.personName} /> : !r.isYou && <DisableAccount accountId={r.id} name={r.personName} loginName={r.loginName} exposure={exposure.lines} blocked={exposure.blocked} />}
     </>
   );
 }

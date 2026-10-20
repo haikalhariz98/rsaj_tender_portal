@@ -28,8 +28,8 @@ describe("the opening's state reads the exercise's cancellation", () => {
   it("a CANCELLED exercise's opening is cancelled; any other status is not", () => {
     const sittings = [{ sittingNo: 1, adjournedAt: null }];
     const o = { kind: "MAIN" as const, unsealedAt: at(S), finalisedAt: null };
-    expect(openingState({ ...o, exerciseStatus: "CANCELLED" }, sittings, [], PANEL).cancelled).toBe(true);
-    expect(openingState({ ...o, exerciseStatus: "OPENING_IN_PROGRESS" }, sittings, [], PANEL).cancelled).toBe(false);
+    expect(openingState({ ...o, exerciseStatus: "CANCELLED" }, sittings, [], PANEL, 2).cancelled).toBe(true);
+    expect(openingState({ ...o, exerciseStatus: "OPENING_IN_PROGRESS" }, sittings, [], PANEL, 2).cancelled).toBe(false);
   });
   it("its words say nothing more is recorded", () => expect(openingFindingText({ code: "CANCELLED", level: "block" })).toMatch(/nothing more is opened or recorded/i));
 });
@@ -93,7 +93,7 @@ describe("cancelling while an opening sits (C-9 as tightened by M-1)", () => {
     expect(codes(cancelFaults({ ...base, status: "OPENING_IN_PROGRESS", openingAdjourned: true, openingInProgress: false }))).toEqual([]);
     // Resumed before the cancellation applies, the new sitting is in progress again: refused.
     expect(codes(cancelFaults({ ...base, status: "OPENING_IN_PROGRESS", openingAdjourned: false, openingInProgress: true }))).toEqual(["OPENING_NOT_ADJOURNED"]);
-    const adjournedThenCancelled = openingState({ kind: "MAIN", unsealedAt: at(S), finalisedAt: null, exerciseStatus: "CANCELLED" }, [{ sittingNo: 1, adjournedAt: at(600 * S) }], [], PANEL);
+    const adjournedThenCancelled = openingState({ kind: "MAIN", unsealedAt: at(S), finalisedAt: null, exerciseStatus: "CANCELLED" }, [{ sittingNo: 1, adjournedAt: at(600 * S) }], [], PANEL, 2);
     expect(codes(adjournFaults({ state: adjournedThenCancelled, reason: "Resume", personActive: true, resume: true }))).toEqual(["CANCELLED"]);
     expect(codes(authorisationFaults({ state: { ...adjournedThenCancelled, sittingNo: 2, adjourned: false }, panel: PANEL, auths: [], personId: "p1", recorderId: null, now: at(900 * S), closing: CLOSING, boxLocked: true, required: 2 }))).toEqual(["CANCELLED"]);
   });

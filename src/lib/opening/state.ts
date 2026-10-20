@@ -67,7 +67,7 @@ export interface OpeningState {
   online: boolean;
 }
 
-export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; finalisedAt: Date | null; exerciseStatus?: string; online?: boolean }, sittings: readonly SittingFacts[], auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[], required: number = PAPER_AUTHORISATIONS): OpeningState {
+export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; finalisedAt: Date | null; exerciseStatus?: string; online?: boolean }, sittings: readonly SittingFacts[], auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[], required: number): OpeningState {
   const s = currentSitting(sittings);
   const sittingNo = s?.sittingNo ?? 1;
   return {
