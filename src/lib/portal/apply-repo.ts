@@ -33,7 +33,7 @@ export interface RegistrationForm {
   /// The office's own words to an applicant, where it has set them.
   notice: string | null;
   /// How personal details are used (PDPA 2010), in the customer's own words. Both languages, or the form stays closed.
-  personalDataNotice: { en: string; ms: string } | null;
+  personalDataNotice: { en: string } | null;
 }
 
 export async function loadRegistrationForm(): Promise<RegistrationForm> {
@@ -49,11 +49,10 @@ export async function loadRegistrationForm(): Promise<RegistrationForm> {
   const bumiputeraStatuses = list("BUMIPUTERA_STATUS");
   const numberingReady = !!series && patternFaults({ pattern: series.pattern, resetOn: series.resetOn as NumberingReset }).length === 0;
   const en = cfg.policy?.personalDataNoticeEn?.trim() ?? "";
-  const ms = cfg.policy?.personalDataNoticeMs?.trim() ?? "";
   const limitsSet = cfg.policy?.portalDailyLimit != null && cfg.policy?.portalDailyLimitPerNumber != null;
   return {
     ready: true,
-    missing: whatIsMissing({ today: org.today, entityTypeCodes: entityTypes.map((e) => e.value), countryCodes: countries.map((c) => c.value), stateCodes: states.map((x) => x.value), numberingReady, noticeSet: !!en && !!ms, limitsSet, formKeySet: formSecret() != null }),
+    missing: whatIsMissing({ today: org.today, entityTypeCodes: entityTypes.map((e) => e.value), countryCodes: countries.map((c) => c.value), stateCodes: states.map((x) => x.value), numberingReady, noticeSet: !!en, limitsSet, formKeySet: formSecret() != null }),
     entityTypes,
     countries,
     states,
@@ -61,6 +60,6 @@ export async function loadRegistrationForm(): Promise<RegistrationForm> {
     contactNeedsEmailAndPhone: cfg.policy?.contactNeedsEmailAndPhone ?? null,
     formatExample: cfg.format?.example?.trim() || null,
     notice: cfg.policy?.verificationNoticeEn?.trim() || null,
-    personalDataNotice: en && ms ? { en, ms } : null,
+    personalDataNotice: en ? { en } : null,
   };
 }

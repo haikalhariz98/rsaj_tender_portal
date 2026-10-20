@@ -54,7 +54,7 @@ export function ApplicationForm({
   contactNeedsEmailAndPhone: boolean;
   formatExample: string | null;
   notice: string | null;
-  personalDataNotice: { en: string; ms: string };
+  personalDataNotice: { en: string };
   organisationName: string;
 }) {
   const [state, setState] = useState<ApplyState>({ ok: false });
@@ -162,15 +162,8 @@ export function ApplicationForm({
       </Card>
       <Card>
         <CardHeader title={APPLY.noticeTitle.en} subtitle={APPLY.noticeIntro.en} />
-        <CardBody className="grid gap-5 md:grid-cols-2">
-          <div>
-            <h3 className="text-[12.5px] font-semibold tracking-wide text-ink-3 uppercase">{APPLY.noticeEnglish.en}</h3>
-            <p lang="en" className="mt-1.5 text-[14px] leading-relaxed whitespace-pre-line text-ink-2">{personalDataNotice.en}</p>
-          </div>
-          <div>
-            <h3 className="text-[12.5px] font-semibold tracking-wide text-ink-3 uppercase">{APPLY.noticeMalay.en}</h3>
-            <p lang="ms" className="mt-1.5 text-[14px] leading-relaxed whitespace-pre-line text-ink-2">{personalDataNotice.ms}</p>
-          </div>
+        <CardBody>
+          <p lang="en" className="text-[14px] leading-relaxed whitespace-pre-line text-ink-2">{personalDataNotice.en}</p>
         </CardBody>
       </Card>
       {/* The bait field: off the screen, out of the tab order and out of the accessibility tree, so only a script fills it. */}

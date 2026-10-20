@@ -414,9 +414,6 @@ export const APPLY = {
   },
   noticeTitle: w("How your details are used"),
   noticeIntro: w("Read this before you send. Sending means you have read it."),
-  noticeEnglish: w("In English"),
-  // The personal data notice is legal text held in both languages (PDPA); the heading stays. Founder 2026-10-19 removed the Malay UI, not this notice.
-  noticeMalay: w("In Malay"),
   formExpired: w("This form is out of date. Nothing was sent. Reload and send again."),
   busy: w("Too many applications right now. Nothing was sent. Try again later."),
 };

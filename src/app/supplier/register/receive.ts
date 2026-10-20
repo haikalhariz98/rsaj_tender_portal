@@ -98,8 +98,8 @@ export async function receiveApplication(data: FormData): Promise<ApplyState> {
     if (!org) return closed();
     const cfg = await loadSupplierConfig(org.id);
     const policy = cfg.policy;
-    // The form is open only on a notice in both languages and both limits: nothing is assumed (see whatIsMissing).
-    if (!policy?.personalDataNoticeEn?.trim() || !policy.personalDataNoticeMs?.trim() || policy.portalDailyLimit == null || policy.portalDailyLimitPerNumber == null) return closed();
+    // The form is open only on an English notice and both limits: nothing is assumed (see whatIsMissing).
+    if (!policy?.personalDataNoticeEn?.trim() || policy.portalDailyLimit == null || policy.portalDailyLimitPerNumber == null) return closed();
 
     const faults = portalApplicationFaults(
       { ...v, address, bumiputeraClaimCode, incorporatedOn: incorporatedOn || null, contact },

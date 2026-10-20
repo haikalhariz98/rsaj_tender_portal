@@ -261,7 +261,6 @@ describe("the form is closed until it is set up", () => {
     ["no company types", () => { h.lists.ENTITY_TYPE = []; }],
     ["no numbering series", () => { h.numbering = "missing"; }],
     ["no English notice", () => { h.policy = { ...h.policy, personalDataNoticeEn: null }; }],
-    ["a blank Malay notice", () => { h.policy = { ...h.policy, personalDataNoticeMs: "  " }; }],
     ["no daily limit", () => { h.policy = { ...h.policy, portalDailyLimit: null }; }],
     ["no limit per number", () => { h.policy = { ...h.policy, portalDailyLimitPerNumber: null }; }],
     ["no policy at all", () => { h.policy = null; }],
@@ -272,6 +271,16 @@ describe("the form is closed until it is set up", () => {
     expect(r.ok).toBe(false);
     expect(r.message).toBe("Online applications are not open yet, so nothing was sent.");
     expect(h.created).toEqual([]);
+  });
+});
+
+// Founder, 2026-10-20: the gate opens on the English notice alone. It was "a blank Malay notice" closing the form; a Malay notice is no longer asked for.
+describe("the notice gate is English only", () => {
+  it("takes an application with the Malay notice blank or missing", async () => {
+    h.policy = { ...h.policy, personalDataNoticeMs: "  " };
+    expect((await send()).ok).toBe(true);
+    h.policy = { ...h.policy, personalDataNoticeMs: null };
+    expect((await send()).ok).toBe(true);
   });
 });
 
