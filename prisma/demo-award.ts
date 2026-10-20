@@ -73,6 +73,41 @@ Saya, bagi pihak {{awardee.name}} ({{awardee.registrationNo}}), mengaku bahawa s
 
 (Teks demo rekaan.)`;
 
+// Founder, 2026-10-20 (3c226864): a template issues from its English body alone, so each invented template below carries an English text; the Malay is kept as stored.
+const DECLARATION_EN = `SUCCESSFUL BIDDER'S DECLARATION
+
+I, on behalf of {{awardee.name}} ({{awardee.registrationNo}}), declare that the company has not offered or given any inducement to obtain contract {{contract.number}} for {{exercise.title}}.
+
+(Invented demo text.)`;
+
+const APPOINTMENT_SHORT_EN = `NOTICE OF APPOINTMENT
+
+{{awardee.name}}
+{{awardee.address}}
+
+You are appointed for {{exercise.title}} valued at {{award.value}}, from {{award.startDate}} for {{award.completionPeriod}}. Liquidated damages: {{terms.lad}}.
+
+The work must start within the period set; otherwise the appointment may be cancelled.
+
+{{signatory.name}}, {{signatory.office}}
+
+(Invented demo text.)`;
+
+const APPOINTMENT_EXTENDED_EN = `NOTICE OF APPOINTMENT
+
+{{awardee.name}}
+{{awardee.address}}
+
+You are appointed for {{exercise.title}} valued at {{award.value}}, from {{award.startDate}} for {{award.completionPeriod}}. Liquidated damages: {{terms.lad}}.
+
+Retention: {{terms.retention}}, capped at {{terms.retentionCap}}. Defects liability period: {{terms.dlp}}.
+
+The work must start within the period set; otherwise the appointment may be cancelled and blacklisting recommended.
+
+{{signatory.name}}, {{signatory.office}}
+
+(Invented demo text.)`;
+
 const MEMO_EN = `MEMO
 
 Indent {{indent.number}}, received {{indent.receivedOn}}, valid to {{indent.expiresOn}}.
@@ -122,10 +157,10 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
   await db.documentTemplate.update({ where: { id: `${P}dt1` }, data: { bodyMs: LOA_MS, bodyEn: LOA_EN, primaryLanguage: "MS", bodyVersion: 1 } });
   await db.documentTemplate.createMany({
     data: [
-      { id: `${P}dt4`, organisationId, code: "loa_declaration", nameEn: "Successful bidder's declaration", nameMs: "Surat Akuan Pembida Berjaya", formCode: "DEMO-F-002", revisionDate: day("2025-06-01"), documentClassId: `${P}dc1`, bodyMs: DECLARATION_MS, bodyVersion: 1, provenance: "ASSUMED", sortOrder: 4 },
+      { id: `${P}dt4`, organisationId, code: "loa_declaration", nameEn: "Successful bidder's declaration", nameMs: "Surat Akuan Pembida Berjaya", formCode: "DEMO-F-002", revisionDate: day("2025-06-01"), documentClassId: `${P}dc1`, bodyMs: DECLARATION_MS, bodyEn: DECLARATION_EN, bodyVersion: 1, provenance: "ASSUMED", sortOrder: 4 },
       { id: `${P}dt5`, organisationId, code: "indent_memo", nameEn: "Indent covering memo", formCode: "DEMO-F-031", documentClassId: `${P}dc3`, bodyEn: MEMO_EN, bodyVersion: 1, provenance: "ASSUMED", sortOrder: 5 },
-      { id: `${P}dt6`, organisationId, code: "appointment_short", nameEn: "Appointment letter, short form", nameMs: "Pemberitahuan Perlantikan (ringkas)", formCode: "DEMO-F-041", documentClassId: `${P}dc1`, bodyMs: APPOINTMENT_SHORT_MS, bodyVersion: 1, provenance: "ASSUMED", sortOrder: 6 },
-      { id: `${P}dt7`, organisationId, code: "appointment_extended", nameEn: "Appointment letter, extended", nameMs: "Pemberitahuan Perlantikan (lanjutan)", formCode: "DEMO-F-042", documentClassId: `${P}dc1`, bodyMs: APPOINTMENT_EXTENDED_MS, bodyVersion: 1, provenance: "ASSUMED", sortOrder: 7 },
+      { id: `${P}dt6`, organisationId, code: "appointment_short", nameEn: "Appointment letter, short form", nameMs: "Pemberitahuan Perlantikan (ringkas)", formCode: "DEMO-F-041", documentClassId: `${P}dc1`, bodyMs: APPOINTMENT_SHORT_MS, bodyEn: APPOINTMENT_SHORT_EN, bodyVersion: 1, provenance: "ASSUMED", sortOrder: 6 },
+      { id: `${P}dt7`, organisationId, code: "appointment_extended", nameEn: "Appointment letter, extended", nameMs: "Pemberitahuan Perlantikan (lanjutan)", formCode: "DEMO-F-042", documentClassId: `${P}dc1`, bodyMs: APPOINTMENT_EXTENDED_MS, bodyEn: APPOINTMENT_EXTENDED_EN, bodyVersion: 1, provenance: "ASSUMED", sortOrder: 7 },
     ],
   });
 
