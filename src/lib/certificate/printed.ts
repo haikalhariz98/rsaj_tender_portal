@@ -94,7 +94,8 @@ export const labelPair = (p: { labelEn: string; labelMs?: string | null }): stri
 export interface PrintedRow {
   key: string;
   label: string;
-  labelPair: string;
+  /// The English label, whatever language `label` is in.
+  labelEn: string;
   /// The value as printed; null: left for hand completion; "" where a bound value is not there to print.
   value: string | null;
   bound: boolean;
@@ -102,7 +103,7 @@ export interface PrintedRow {
 
 /// The printed fields with their values in one language, in printed order.
 export function printedRows(fields: readonly PrintedField[], values: Readonly<Record<string, string>>, lang: Lang): PrintedRow[] {
-  return inPrintedOrder(fields).map((p) => ({ key: p.key, label: labelIn(p, lang), labelPair: p.labelEn, bound: p.bound, value: p.bound && p.computedKey ? (values[p.computedKey] ?? "") : null }));
+  return inPrintedOrder(fields).map((p) => ({ key: p.key, label: labelIn(p, lang), labelEn: p.labelEn, bound: p.bound, value: p.bound && p.computedKey ? (values[p.computedKey] ?? "") : null }));
 }
 
 /// Code review M-1: a bound field with nothing to print, at issue, refuses it (never issued blank).

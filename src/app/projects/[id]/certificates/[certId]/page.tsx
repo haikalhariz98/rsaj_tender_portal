@@ -694,7 +694,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
           </CardBody>
         </Card>
       ))}
-      <PrintedFieldsCard title={revision ? PRINT_WORDS.asPinned.en : PRINT_WORDS.asNow.en} rows={printed.map((p) => ({ key: p.key, label: p.labelPair, value: p.value, bound: p.bound }))} none={PRINT_WORDS.noneOnForm.en} />
+      <PrintedFieldsCard title={revision ? PRINT_WORDS.asPinned.en : PRINT_WORDS.asNow.en} rows={printed.map((p) => ({ key: p.key, label: p.labelEn, value: p.value, bound: p.bound }))} none={PRINT_WORDS.noneOnForm.en} />
     </div>
   );
 }

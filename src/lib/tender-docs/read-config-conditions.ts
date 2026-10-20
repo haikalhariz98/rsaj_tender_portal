@@ -52,7 +52,6 @@ export async function conditionsConfig(organisationId: string, showRetired = fal
         title: c.titleEn,
         version: `Text version ${c.bodyVersion}`,
         mandatory: yesNoNotSet(c.mandatoryInAgreements),
-        malay: c.bodyMs?.trim() ? "English and Malay" : "English only",
         /// The templates that cite it (a clause no template cites is carried by none).
         citedBy: templatesCiting(c.code, templates),
         provenance: c.provenance,

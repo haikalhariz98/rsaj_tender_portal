@@ -283,7 +283,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                 <tbody>
                   {k.clauses.map((x) => (
                     <Tr key={x.id}>
-                      <Td label="Clause"><CellStack title={x.title} sub={[x.version, x.malay, x.citedBy.length ? `Cited by ${x.citedBy.join(", ")}` : "Cited by no template", x.governingSource, x.retired ? `Retired${x.retiredOn ? ` from ${formatDate(x.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ")} /></Td>
+                      <Td label="Clause"><CellStack title={x.title} sub={[x.version, x.citedBy.length ? `Cited by ${x.citedBy.join(", ")}` : "Cited by no template", x.governingSource, x.retired ? `Retired${x.retiredOn ? ` from ${formatDate(x.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ")} /></Td>
                       <Td label="Every agreement">{x.mandatory === NOT_SET ? <Badge tone="warn" title="Every submission is held back until this is set">Not set</Badge> : x.mandatory === "Yes" ? "Carries it" : "Not required"}</Td>
                       <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                       <Td>

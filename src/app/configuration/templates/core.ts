@@ -85,7 +85,8 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
   const clauseCodes = (await db.clauseText.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((c) => c.code);
   // 6.14 increment 2 (FR-CRT-011): a term in the glossary may be cited as {{term:code}}; one not in it is refused, judged
   // inside the write's transaction under the organisation's lock (code review S-3), as removeTerm judges a citation.
-  for (const k of ["bodyMs", "bodyEn"] as const) {
+  // The Malay text is never issued, so it is passed through unchecked: a stored one that names a dropped field must not lock an English edit.
+  for (const k of ["bodyEn"] as const) {
     const awardUnknown = new Set(v[k] ? renderTemplate(v[k]!, {}).unknown : []);
     // 6.5: the window's instruments (notice, letter of invitation, addendum) fill their own fields;
     // 6.8: so do the evaluation report and the Kertas Cadangan (each re-checks its own whitelist when frozen).
@@ -114,7 +115,7 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
     const termCodes = new Set((await tx.term.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((t) => t.code));
     const errors: Record<string, string> = {};
-    for (const k of ["bodyMs", "bodyEn"] as const) {
+    for (const k of ["bodyEn"] as const) {
       const missing = [...new Set(fieldsNamed(write[k]).filter(isTermField).map(termCodeOf))].filter((c) => !termCodes.has(c));
       if (missing.length) errors[k] = `The portal does not fill ${missing.map((c) => `{{term:${c}}}`).join(", ")}: no such term is in the glossary. Add it on the Terms tab, or use the merge fields listed below.`;
     }

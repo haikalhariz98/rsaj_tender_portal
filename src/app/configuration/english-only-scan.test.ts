@@ -36,4 +36,15 @@ describe("Configuration editors are English only", () => {
     }
     expect(asked).toEqual([]);
   });
+
+  it("no configuration screen offers a Malay text to choose or write", () => {
+    const offered: string[] = [];
+    const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : /\.tsx$/.test(n) && !/\.test\./.test(n) ? [join(dir, n)] : []));
+    for (const f of walk(HERE)) {
+      const rel = relative(HERE, f).split(sep).join("/");
+      if (Object.keys(HELD).some((h) => rel.startsWith(h))) continue;
+      if (/<Option[^>]*>\s*Malay|label="[^"]*Malay|>Malay text</.test(readFileSync(f, "utf8"))) offered.push(rel);
+    }
+    expect(offered).toEqual([]);
+  });
 });

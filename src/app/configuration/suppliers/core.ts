@@ -308,7 +308,7 @@ export async function saveSupplierPolicy(_prev: FormState, data: FormData): Prom
 }
 
 /**
- * How the public application form is opened: the notice about personal details (both languages) and how
+ * How the public application form is opened: the notice about personal details (in English) and how
  * many applications it takes. Nothing is defaulted: until the notice and both limits are set, the form
  * says it is not open and names what is missing. Each figure says where it comes from.
  */

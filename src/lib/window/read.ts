@@ -486,7 +486,7 @@ export async function invitationConfig(organisationId: string) {
   const channels = await loadChannels(org.id);
   const floors = await loadFloors(org.id);
   const calendars = await db.holidayCalendar.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { years: { orderBy: { year: "asc" } }, holidays: { orderBy: { day: "asc" } } } });
-  const templates = await db.documentTemplate.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, bodyEn: true, bodyMs: true } });
+  const templates = await db.documentTemplate.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, bodyEn: true } });
   const calendar = await loadCalendar(policy.calendarId);
   const notSet = [
     policy.minAdvertisementDays == null,
@@ -522,7 +522,7 @@ export async function invitationConfig(organisationId: string) {
       years: c.years.map((y) => ({ id: y.id, year: y.year, complete: y.complete ? "Maintained in full" : "Not complete: a closing in this year is refused", source: y.source || null, from: PROVENANCE_LABEL[y.provenance as Provenance] })),
       holidays: c.holidays.map((h) => ({ id: h.id, day: day(h.day), name: h.nameEn, nameMs: h.nameMs, gazette: h.gazetteRef || null, from: PROVENANCE_LABEL[h.provenance as Provenance] })),
     })),
-    templates: templates.map((t) => ({ id: t.id, name: t.nameEn, hasText: !!(t.bodyEn?.trim() || t.bodyMs?.trim()) })),
+    templates: templates.map((t) => ({ id: t.id, name: t.nameEn, hasText: !!t.bodyEn?.trim() })),
   };
 }
 

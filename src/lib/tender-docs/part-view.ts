@@ -30,7 +30,7 @@ export type PickTemplateView =
 
 /// A template with no text: nothing can be issued on it, so it is not offered (version 0 is its mark).
 export const templateIsEmpty = (t: { bodyVersion: number; bodyEn?: string | null; bodyMs?: string | null }) =>
-  t.bodyVersion === 0 || (t.bodyEn !== undefined && !t.bodyEn?.trim() && !t.bodyMs?.trim());
+  t.bodyVersion === 0 || (t.bodyEn !== undefined && !t.bodyEn?.trim());
 
 /**
  * `suitedCodes`: the codes of the library templates the configuration names for parts of this

@@ -45,6 +45,11 @@ describe("the picker offers only templates suited to the part, with text (UX 10)
     const v = pickTemplateView(p, lib, null, null);
     expect(v.allowed && v.options.map((o) => o.value)).toEqual(["n", "i", "loa"]);
   });
+  it("hides a template whose only text is Malay: it cannot be issued", () => {
+    const ms = [{ id: "ms", code: "notice", nameEn: "Malay only", bodyVersion: 1, bodyEn: null, bodyMs: "Teks" }];
+    const v = pickTemplateView({ ...p, templateId: null }, ms, null, null);
+    expect(v.allowed && v.options).toEqual([]);
+  });
   it("keeps the template the part draws now, so the drawer opens on it", () => {
     const v = pickTemplateView({ ...p, templateId: "blank" }, lib, null, new Set(["notice"]));
     expect(v).toMatchObject({ allowed: true, current: "blank" });

@@ -38,6 +38,7 @@ import { dueOn, instructionFaults, oralLoopFaults, type ClockRule } from "@/lib/
 import { BASE_WORDS, BASIS_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS, lowerFirst, ORIGIN_WORDS, RATE_SOURCE_WORDS, SCHEDULE_FORM_WORDS, SO_DECISION_WORDS, TRIGGER_WORDS, variationRefusal } from "@/lib/variation/labels";
 import { adjustmentInProgress, CONSENT_DOMAIN, loadVariationPeople, consentOf, factsOf, issuedAdjustments, liveInstructionRow, liveOrderRow, loadAdjustments, loadVariations, matterFactsOf, orderNetOf, ordersAdjusted, standingMeasurements, type VariationRow } from "@/lib/variation/load";
 import { dayworkFaults, measuredAmount, measurementFaults, parseQuantity, parseSignedPercent, removeMeasurementFaults } from "@/lib/variation/measure";
+import { englishOnly } from "@/lib/certificate/snapshot";
 import { applicationFigures, orderFaults, orderFigures } from "@/lib/variation/order";
 import { applicationPercents, orderBands } from "@/lib/variation/route";
 import { applicationFormNow, chooseVariationRejection, citeVariationDecision, decideVariationStep, matrixToday, sendVariationRoute, VariationRefusal, variationLabel, type VariationCtx } from "@/lib/variation/route-write";
@@ -524,7 +525,7 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
         thisPct, cumulative: now2.cumulative, cumulativePct: cumPct, periodImplication: v.periodImplication === true,
         basis: { en: `${BASIS_WORDS[reading.basis].en}, over ${BASE_WORDS[reading.base].en.toLowerCase()} (${policy?.variationProvenance === "STATED" ? "stated" : policy?.variationProvenance === "OBSERVED" ? "observed" : "assumed"})`, ms: `${BASIS_WORDS[reading.basis].ms}, atas ${BASE_WORDS[reading.base].ms.toLowerCase()}` },
       });
-      const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: "SUPPORTED" }, data: { applicationReading: snap as unknown as Prisma.InputJsonValue } });
+      const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: "SUPPORTED" }, data: { applicationReading: englishOnly(snap) as unknown as Prisma.InputJsonValue } });
       if (moved.count !== 1) return CHANGED;
     }
     await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ sentFor: null }, { sentFor: EVENT_WORDS[event].en, value: money(value!), readAs: sent.label.en, readOver: money(BigInt(reading.den)), basis: BASIS_WORDS[reading.basis].en, base: BASE_WORDS[reading.base].en, sentBy: sender.name }));

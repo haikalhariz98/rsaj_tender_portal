@@ -32,7 +32,7 @@ export interface RegistrationForm {
   formatExample: string | null;
   /// The office's own words to an applicant, where it has set them.
   notice: string | null;
-  /// How personal details are used (PDPA 2010), in the customer's own words. Both languages, or the form stays closed.
+  /// How personal details are used (PDPA 2010), in the customer's own words. The English text, or the form stays closed.
   personalDataNotice: { en: string } | null;
 }
 

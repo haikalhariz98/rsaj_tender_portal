@@ -57,4 +57,10 @@ describe("English-only template editor keeps the stored Malay", () => {
     expect(after.primaryLanguage).toBe("MS");
     expect(after.bodyEn).toBe("Dear sir {{awardee.name}}.");
   });
+
+  it("an English edit saves where the stored Malay text names a field the portal does not fill", async () => {
+    const row = await db.documentTemplate.create({ data: { organisationId, code: `lk_${randomId()}`.toLowerCase(), nameEn: "Locked", bodyEn: "Dear {{awardee.name}}.", bodyMs: "Tuan {{no.such.field}} {{clause:gone}}.", primaryLanguage: "MS", provenance: "ASSUMED", bodyVersion: 1 } });
+    const out = await saveTemplate({ ok: false }, form({ id: row.id, nameEn: "Locked", nameMs: "", bodyEn: "Dear sir {{awardee.name}}.", bodyMs: row.bodyMs ?? "", primaryLanguage: "MS", provenance: "ASSUMED", sortOrder: "0", formCode: "" }));
+    expect(out, JSON.stringify(out)).toMatchObject({ ok: true });
+  });
 });
