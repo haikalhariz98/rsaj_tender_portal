@@ -103,8 +103,17 @@ Without email, an administrator password reset is the recovery path, and it is a
 - SULIT values carry chips saying "not restricted until sign-in".
 - **Fix:**
   - Restrict SULIT reads by capability once sign-in exists.
-  - REVOKE SELECT on the sealed columns from the app role; read them through one SECURITY DEFINER function that logs each read.
-  - Encrypted backups, with custody recorded.
+  - **Built (N6, ruling 20ch, 2026-10-20):**
+    - The figure column is revoked from the app role. `db:roles` grants every other column of the version table, read from the database at run time, and Postgres refuses a read of the figure with 42501.
+    - The figure is read only through `public.read_company_estimate_figure`, a SECURITY DEFINER function. Each call writes one `SulitAccessEvent` with the basis `LOGGED_FIGURE_READ`, in the caller's transaction. EXECUTE is granted to the app role alone.
+    - The runtime check reads back whether the login, a role it belongs to, or PUBLIC can still read the figure. Sign-in warns on it.
+    - LIVE bid sealing is refused while the figure is readable or TEMPORARY is held, and an unknown login counts as both.
+    - Proved against a real database as the app role in `src/lib/scope/estimate-wall.db.test.ts`.
+  - **Owed:**
+    - `db:roles` on each live database, and again after every restore and every `migrate deploy`.
+    - Encrypted backups, with custody recorded (a deployment item).
+    - The amendment reason is not walled. It stays behind the application's omit and explicit selects only.
+    - Rollback residual: a compromised app process running arbitrary SQL can call the function and roll back its own log row. Recorded, not closed.
 - Sign-in does not fix the backup exposure. State that on screen, as the product already does.
 
 ### F11. Low: anyone can shut the public registration form for the day
@@ -200,7 +209,7 @@ Without email, an administrator password reset is the recovery path, and it is a
 
 **Phase 3: SULIT, sealed estimate, documents.**
 - SULIT values are absent from pages, responses and exports without the capability.
-- The sealed column is unreadable as the app role.
+- The sealed column is unreadable as the app role. **Built (N6):** the column revoke, the logged definer read, the runtime check, and the LIVE refusal on a readable figure or TEMPORARY held. **Owed:** `db:roles` on each live database and after each restore, encrypted backups with recorded custody, the reason not walled, and the rollback residual (see F10).
 - A SULIT download is refused without the capability, and the refusal is logged.
 - Access events carry the actor.
 

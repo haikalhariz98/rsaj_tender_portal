@@ -70,6 +70,21 @@ describe("the bid sealing policy editor", () => {
     expect(await db.bidSealingPolicy.findUnique({ where: { organisationId } })).toBeNull();
   });
 
+  it("LIVE is refused while the app's login can read the estimate's figure or make temporary tables, and both are said (N6, ruling 20ch)", async () => {
+    const kept = globalThis as unknown as { perolehanRuntimeRole?: unknown };
+    const before = kept.perolehanRuntimeRole;
+    kept.perolehanRuntimeRole = Promise.resolve({ name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [], temporaryHeld: true, estimateFigureReadable: true });
+    try {
+      const out = await saveBidSealingPolicy({ ok: false }, form({ onlineSubmission: "LIVE", cryptoReviewReference: "R-1" }));
+      expect(out).toMatchObject({ ok: false });
+      const text = JSON.stringify(out);
+      expect(text).toContain("can still read the company estimate's figure");
+      expect(text).toContain("can still make temporary tables");
+    } finally {
+      kept.perolehanRuntimeRole = before;
+    }
+  });
+
   it("DEMONSTRATION saves, stamps a reference when it changes and records who attested, in the trail's words", async () => {
     const out = await saveBidSealingPolicy({ ok: false }, form({ onlineSubmission: "DEMONSTRATION", cryptoReviewReference: "R-1", publicRoleAttestation: "Role checked on 1 October", provenance: "STATED" }));
     expect(out, JSON.stringify(out)).toMatchObject({ ok: true });
@@ -120,7 +135,8 @@ describe("the organisation's submission channel (ruling 13)", () => {
     await saveBidSealingPolicy({ ok: false }, form({ onlineSubmission: "DEMONSTRATION" }));
     const out = await save("ONLINE");
     expect(out).toMatchObject({ ok: false });
-    expect(JSON.stringify(out)).toContain("online submission is not allowed");
+    // Words follow note 0005 (minimal words, commit 0df37205): the refusal says online bids are blocked by the bid sealing policy.
+    expect(JSON.stringify(out)).toContain("Online bids blocked: bid sealing policy does not allow it");
     expect(await save("PAPER")).toMatchObject({ ok: true });
     expect(await save("unset")).toMatchObject({ ok: true });
     expect((await db.windowPolicy.findUniqueOrThrow({ where: { organisationId } })).submissionChannel).toBeNull();
