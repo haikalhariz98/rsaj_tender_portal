@@ -17,7 +17,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { malwareScanner } from "@/lib/documents/store";
+import { scannerSetting } from "@/lib/documents/store";
 import { demonstrationAllowedByDeployment, liveAllowedByDeployment, pepperConfigured } from "@/lib/integration/sealing-deployment";
 import { PEPPER_LIST_WORDS, pepperListState } from "@/lib/sealing/pepper";
 import { loadPepperList } from "@/lib/sealing/pepper-store";
@@ -63,7 +63,8 @@ export default async function BidSealingPage() {
   // Judged on the rows this reader may see, with a fixed sentence (no number) that a restricted exercise is listed only to those named on it.
   const pepperState = pepperListState(pepperList.held, pepperRows.length);
 
-  const scanner = malwareScanner().configured;
+  const scannerState = scannerSetting().state;
+  const scanner = scannerState === "SET";
   const pepper = pepperConfigured();
   const liveFlag = liveAllowedByDeployment();
   const demoFlag = demonstrationAllowedByDeployment();
@@ -135,7 +136,7 @@ export default async function BidSealingPage() {
               items={[
                 item("Demonstration bids allowed", yes(demoFlag, "Allowed", "Not allowed")),
                 item("Live bids allowed", yes(liveFlag, "Allowed", "Not allowed")),
-                item("Malware scanner", yes(scanner, "Configured", "Not configured")),
+                item("Malware scanner", yes(scanner, "Configured", scannerState === "FAULT" ? "Set wrongly" : "Not configured")),
                 item("Sealing pepper", yes(pepper, "Configured", "Not configured")),
               ]}
             />

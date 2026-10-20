@@ -8,7 +8,7 @@ import { writeAudit } from "@/lib/audit/record";
 import type { OnlineSubmissionMode } from "@/lib/bids/online/types";
 import { dayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { malwareScanner } from "@/lib/documents/store";
+import { scannerSetting } from "@/lib/documents/store";
 import {
   liveAllowedByDeployment,
   pepperConfigured,
@@ -82,7 +82,7 @@ export async function saveBidSealingPolicy(
   };
   if (r.failed) return { ok: false, errors: r.errors };
   const reason = String(data.get("reason") ?? "");
-  const scannerConfigured = malwareScanner().configured;
+  const scannerConfigured = scannerSetting().state === "SET";
 
   // An attestation is an act of the person who attests: the proposer, who typed it, whose person the form names (hidden, theirs). It is attributed through the act registry,
   // at the proposal's rehearsal as themselves and at the apply as the proposer, never as the second person who only decides the change (ADR 0036 D1, ruling 20v).

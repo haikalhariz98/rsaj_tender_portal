@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
+import type { MalwareScanner } from "@/lib/documents/store";
+import { NotConfiguredScanner } from "@/lib/documents/store/scanner";
 import { makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS } from "@/lib/test-db/auth-fixtures";
 import { uncollectedReceipts } from "@/lib/integration/fee-receipt";
 import { isFinanceReceipt } from "@/lib/integration/payment-gateway";
@@ -368,6 +370,24 @@ describe("downloading what a released purchase releases", () => {
     // Another supplier, with no purchase, is served nothing.
     const other = await supplier();
     expect(await prepareDownload(other.actor, { exerciseId: online.exerciseId, file: online.versionId, text: null, secFetchSite: null })).toMatchObject({ ok: false, status: 403 });
+  });
+});
+
+describe("scanning what a released purchase releases (SEC-5, N5)", () => {
+  const stub = (result: "CLEAN" | "THREAT" | "ERROR" | "NOT_SCANNED"): MalwareScanner => ({ configured: true, scan: async () => result });
+  it("serves the file with no scanner or a clean answer, and refuses a threat, a failed scan or an unchecked file once a scanner is configured, each as an access event and never a download row", async () => {
+    const s = await supplier();
+    await startPurchase(s.actor, { exerciseId: online.exerciseId });
+    await settlePayment(s.actor, { exerciseId: online.exerciseId, method: METHODS[0], choice: "PAY" });
+    const ask = (scanner: MalwareScanner) => prepareDownload(s.actor, { exerciseId: online.exerciseId, file: online.versionId, text: null, secFetchSite: "same-origin" }, new Date(), scanner);
+    expect(await ask(NotConfiguredScanner)).toMatchObject({ ok: true });
+    expect(await ask(stub("CLEAN"))).toMatchObject({ ok: true });
+    for (const [answer, code] of [["THREAT", "THREAT"], ["ERROR", "SCAN_ERROR"], ["NOT_SCANNED", "NOT_SCANNED"]] as const) {
+      expect(await ask(stub(answer))).toMatchObject({ ok: false, status: 403, text: "This file cannot be released to you. Ask the procurement office for it." });
+      const events = await db.documentAccessEvent.findMany({ where: { actorSupplierAccountId: s.accountId, kind: "REFUSED", versionId: online.versionId, reasonCode: code } });
+      expect(events).toHaveLength(1);
+    }
+    expect(await db.purchaseDownload.count({ where: { supplierId: s.supplierId } })).toBe(0);
   });
 });
 

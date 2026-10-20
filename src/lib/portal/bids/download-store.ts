@@ -2,7 +2,9 @@ import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { logAccess } from "@/lib/documents/service";
 import { dispositionFilename, downloadDecision, EXTENSION_FOR } from "@/lib/documents/access";
-import { blobStore, sha256Hex } from "@/lib/documents/store";
+import { blobStore, malwareScanner, runScan, sha256Hex } from "@/lib/documents/store";
+import type { MalwareScanner } from "@/lib/documents/store";
+import { releaseScanRefusal } from "@/lib/documents/release-scan";
 import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { packManifest } from "@/lib/tender-docs/freeze";
 
@@ -70,7 +72,7 @@ export type DownloadReply = { ok: true; body: Uint8Array<ArrayBuffer>; contentTy
  * One download. Judged first, in order: the request is from the portal's own pages; the exercise is one this supplier may see; its purchase is released (the rule that opens the documents on screen);
  * the item is one the approved pack names. The log row is written by `commit`, which the route calls once the response is built.
  */
-export async function prepareDownload(actor: SupplierActor, i: { exerciseId: string; file: string | null; text: string | null; secFetchSite: string | null }, now: Date = new Date()): Promise<DownloadReply | DownloadRefusal> {
+export async function prepareDownload(actor: SupplierActor, i: { exerciseId: string; file: string | null; text: string | null; secFetchSite: string | null }, now: Date = new Date(), scanner: MalwareScanner = malwareScanner()): Promise<DownloadReply | DownloadRefusal> {
   const no = (status: DownloadRefusal["status"], text: string): DownloadRefusal => ({ ok: false, status, text });
   if (downloadRequestFault(i.secFetchSite)) return no(403, "Download this from your own list: open the exercise in My Bids and choose the file there. Nothing was logged.");
   // SEC-2: the account's own rate, counted before anything is read. A refusal for rate writes no trail.
@@ -119,6 +121,13 @@ export async function prepareDownload(actor: SupplierActor, i: { exerciseId: str
   if (!bytes || sha256Hex(bytes) !== version.sha256) {
     await logAccess({ organisationId: actor.organisationId, kind: "INTEGRITY_FAILED", reasonCode: bytes ? "DIGEST_MISMATCH" : "BYTES_MISSING", versionId: version.id, actor: who });
     return no(500, "The stored file does not match its fingerprint, so it is not sent. Tell the procurement office.");
+  }
+  // SEC-5 (N5): scanned at release, after the file is judged releasable and its bytes are proved, so a refused file is never sent to the scanner.
+  const fresh = await runScan(scanner, bytes);
+  const scanRefusal = releaseScanRefusal({ stored: version.scanState, fresh, scannerConfigured: scanner.configured });
+  if (scanRefusal) {
+    await logAccess({ organisationId: actor.organisationId, kind: "REFUSED", reasonCode: scanRefusal, versionId: version.id, actor: who });
+    return no(403, "This file cannot be released to you. Ask the procurement office for it.");
   }
   return { ok: true, body: bytes as Uint8Array<ArrayBuffer>, contentType: version.mediaType, disposition: dispositionFilename(version.originalFilename, EXTENSION_FOR[version.mediaType] ?? "bin"), commit: log({ kind: "FILE", partLabel: f.partLabel, title: f.title, documentVersionId: f.versionId }) };
 }
