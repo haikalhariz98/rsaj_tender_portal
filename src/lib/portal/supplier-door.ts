@@ -1,4 +1,3 @@
-import { signInOrganisation } from "@/lib/auth/deployment";
 import type { FormPurpose } from "@/lib/auth/form-token";
 import { loadPortalBranding, type PortalBranding } from "@/lib/organisation/portal-load";
 import { loadSupplierAuthPage } from "@/lib/portal/supplier-auth-page";
@@ -10,7 +9,7 @@ import type { ClosedWords } from "@/lib/auth/supplier-closed";
  * the page draws the card that points to the public portal instead of any form, so `token` is only ever issued where the form is drawn.
  */
 export async function loadSupplierDoor(purpose: FormPurpose): Promise<{ closed: ClosedWords | null; token: string | null; publicCopy: boolean; branding: PortalBranding }> {
-  const [auth, organisation] = await Promise.all([loadSupplierAuthPage(purpose), signInOrganisation()]);
-  const branding = await loadPortalBranding(organisation?.id ?? null);
+  const { organisationId, ...auth } = await loadSupplierAuthPage(purpose);
+  const branding = await loadPortalBranding(organisationId);
   return { ...auth, branding };
 }

@@ -5,15 +5,12 @@ import { buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Chip } from "@/components/ui/badge";
 import { KeyValues } from "@/components/ui/stat";
-import { PORTAL_DEFAULT_HEADLINE, PORTAL_ICON_FIELDS, PORTAL_LABEL, type PortalField, type PortalPageSettings } from "@/lib/organisation/portal-page";
+import { PORTAL_CARD_ID, PORTAL_DEFAULT_HEADLINE, PORTAL_ICON_FIELDS, PORTAL_LABEL, type PortalField, type PortalPageSettings } from "@/lib/organisation/portal-page";
 import { SIGN_IN_ICON_LABEL, SIGN_IN_ICONS, signInIconOf } from "@/lib/organisation/sign-in-page";
 
 import { savePortalPage } from "./sign-in-actions";
 
-const NOT_SET = <span className="text-ink-4">Not set</span>;
-
-/// The anchor the officers' copy of the supplier sign-in page links to ("Set it"). One place, so the link and the card cannot disagree.
-export const PORTAL_CARD_ID = "supplier-portal";
+const NOT_SET = <span className="text-ink-3">Not set</span>;
 
 const WORDS: { field: PortalField; hint: string; textarea?: boolean }[] = [
   { field: "publicAddress", hint: "https:// address of the public copy." },
@@ -66,7 +63,7 @@ export function PortalPageCard({ settings }: { settings: PortalPageSettings }) {
             items={WORDS.map((w) => {
               if (isIcon(w.field)) {
                 const icon = signInIconOf(settings[w.field]);
-                return { label: PORTAL_LABEL[w.field], value: icon ? SIGN_IN_ICON_LABEL[icon] : <span className="text-ink-4">Not chosen: a plain tick</span> };
+                return { label: PORTAL_LABEL[w.field], value: icon ? SIGN_IN_ICON_LABEL[icon] : <span className="text-ink-3">Not chosen: a plain tick</span> };
               }
               return { label: PORTAL_LABEL[w.field], value: settings[w.field] ?? NOT_SET };
             })}

@@ -52,9 +52,15 @@ describe("saving the supplier portal's words", () => {
     expect(await db.organisationPortalPage.findUniqueOrThrow({ where: { organisationId } })).toEqual(before);
   });
 
-  it("blank clears a setting, and an organisation with none set has no row until one is", async () => {
+  it("blank clears a setting", async () => {
     expect(await storePortalPage(db, who, {})).toEqual({ ok: true, changed: true });
     const row = await db.organisationPortalPage.findUniqueOrThrow({ where: { organisationId } });
     expect([row.publicAddress, row.headline, row.line, row.highlight1, row.highlight1Icon]).toEqual([null, null, null, null, null]);
+  });
+
+  it("a blank save for an organisation with no row writes no row and records nothing", async () => {
+    const other = (await db.organisation.create({ data: { code: `portal-blank-${Date.now()}`, name: "Portal blank" }, select: { id: true } })).id;
+    expect(await storePortalPage(db, { ...who, organisationId: other }, {})).toEqual({ ok: true, changed: false });
+    expect(await db.organisationPortalPage.findUnique({ where: { organisationId: other } })).toBeNull();
   });
 });

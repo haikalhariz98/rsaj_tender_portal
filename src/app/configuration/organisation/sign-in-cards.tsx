@@ -71,7 +71,7 @@ function SignInWordsCard({ settings }: { settings: SignInPageSettings }) {
         actions={
           <RecordEditor
             title="Edit the sign-in page"
-            description="Public. Add nothing that is not for the public."
+            description="Public, and the links also show on the supplier portal. Add nothing private."
             fields={fields}
             values={{ ...settings }}
             action={saveSignInPage}

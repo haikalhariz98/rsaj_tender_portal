@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { PORTAL_LANDING_PATHS } from "@/lib/auth/routes";
 import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { LOGO_MAX_BYTES, logoFaultText, SIGN_IN_IMAGE_MAX_BYTES, signInImageFaultText } from "@/lib/organisation/logo";
@@ -101,7 +102,7 @@ export async function savePortalPage(_prev: FormState, data: FormData): Promise<
   const outcome = await storePortalPage(db, who, input, String(data.get("reason") ?? ""));
   if (!outcome.ok) return { ok: false, errors: outcome.errors as Record<string, string> };
   if (outcome.changed) {
-    for (const path of ["/supplier/sign-in", "/supplier/register", "/supplier/activate", "/supplier/reset"]) revalidatePath(path);
+    for (const path of PORTAL_LANDING_PATHS) revalidatePath(path);
     revalidatePath(PATH);
   }
   return { ok: true, message: outcome.changed ? "Saved. The supplier portal shows the new words now." : "Nothing changed." };

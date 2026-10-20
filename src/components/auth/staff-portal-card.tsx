@@ -1,9 +1,6 @@
 import { ExternalLinkIcon, GlobeIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
-import { publicPortalHref } from "@/lib/organisation/portal-page";
-
-/// Where "Set it" goes: the Supplier portal card on the Organisation screen.
-const SET_IT_HREF = "/configuration/organisation?tab=details#supplier-portal";
+import { publicPortalHref, SET_PORTAL_HREF } from "@/lib/organisation/portal-page";
 
 /**
  * What the officers' copy shows in place of a supplier's form (design note 0006, section 3.4): suppliers sign in on the public portal, and a link to the same
@@ -27,7 +24,7 @@ export function StaffPortalCard({ path, address, canSet }: { path: string; addre
         <>
           <p className="text-[14px] text-ink-2">Public portal address not set.</p>
           {canSet ? (
-            <ButtonLink href={SET_IT_HREF} variant="secondary" size="lg" block>
+            <ButtonLink href={SET_PORTAL_HREF} variant="link">
               Set it
             </ButtonLink>
           ) : (

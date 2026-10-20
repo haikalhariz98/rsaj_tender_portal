@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { SignInScreen } from "@/components/auth/sign-in-screen";
 import { MoreText } from "@/components/ui/more-text";
 import { BuildingIcon } from "@/components/icons";
@@ -15,6 +17,7 @@ import { STEP_INFO } from "@/lib/portal/registration/view";
 
 import { ApplicationForm } from "./application-form";
 
+export const metadata: Metadata = { title: APPLY.title.en };
 export const dynamic = "force-dynamic";
 
 /**

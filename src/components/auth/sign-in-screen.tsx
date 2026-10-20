@@ -1,14 +1,13 @@
 import type { ReactNode } from "react";
 
 import { PortalFrame, type PortalPage } from "@/components/auth/portal-frame";
-import { HIGHLIGHT_ICON, ScreenFooter } from "@/components/auth/sign-in-parts";
+import { DOOR_COLUMNS, DOOR_GRID, DoorCard, HighlightRow, ScreenFooter } from "@/components/auth/sign-in-parts";
 
-import { Card } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
 import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { SignInBranding } from "@/lib/organisation/sign-in-load";
 import type { PortalBranding } from "@/lib/organisation/portal-load";
-import { ICON_CIRCLE_STYLE, SHADE_FEATHER_PX, SHADE_FEATHER_SIDE_PX, shadeStyle, TAGLINE_SHADE_ALPHA, TEXT_SHADE_ALPHA } from "@/lib/organisation/sign-in-shading";
+import { SHADE_FEATHER_PX, SHADE_FEATHER_SIDE_PX, shadeStyle, TAGLINE_SHADE_ALPHA, TEXT_SHADE_ALPHA } from "@/lib/organisation/sign-in-shading";
 
 /**
  * The frame of the staff sign-in screens: a picture and the organisation's words on the left, the form's card on the right, and the footer line under it.
@@ -34,7 +33,7 @@ function StaffFrame({ branding, children }: { branding: SignInBranding; children
   const logoClass = cx("w-auto object-contain", beside ? "h-14 max-w-40 lg:h-28 lg:max-w-72" : "h-12 max-w-64 lg:h-14");
   const showsTagline = !!view.tagline;
   return (
-    <div className={view.hasPanel ? "min-h-dvh lg:grid lg:grid-cols-[48fr_52fr]" : "min-h-dvh"}>
+    <div className={view.hasPanel ? cx(DOOR_GRID, DOOR_COLUMNS) : "min-h-dvh"}>
       {view.hasPanel && (
         <aside className="relative isolate flex min-h-60 flex-col justify-between overflow-hidden bg-brand-900 text-white lg:min-h-dvh">
           {imageSha && (
@@ -75,21 +74,7 @@ function StaffFrame({ branding, children }: { branding: SignInBranding; children
               {view.portalName && <p className="text-[12.5px] font-semibold tracking-[0.22em] text-white uppercase">{view.portalName}</p>}
               {view.headline && <p className="mt-3 text-[30px] leading-[1.1] font-extrabold tracking-[-0.02em] text-balance text-white sm:text-[36px] lg:text-[52px]">{view.headline}</p>}
               {view.supportingText && <p className="mt-5 hidden max-w-md text-[16px] leading-relaxed text-white lg:block">{view.supportingText}</p>}
-              {view.highlights.length > 0 && (
-                <ul className="mt-8 hidden flex-wrap gap-x-6 gap-y-5 lg:flex">
-                  {view.highlights.map((h) => {
-                    const Glyph = HIGHLIGHT_ICON[h.icon ?? "check"];
-                    return (
-                      <li key={h.text} className="flex w-[7.5rem] flex-col items-center gap-3 text-center text-[14px] leading-snug font-semibold [overflow-wrap:anywhere] text-white">
-                        <span className="grid size-16 shrink-0 place-items-center rounded-full" style={ICON_CIRCLE_STYLE}>
-                          <Glyph size={26} />
-                        </span>
-                        {h.text}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+              {view.highlights.length > 0 && <HighlightRow highlights={view.highlights} tone="dark" />}
             </div>
           </div>
 
@@ -107,7 +92,7 @@ function StaffFrame({ branding, children }: { branding: SignInBranding; children
       <div className={`flex flex-col items-center justify-center px-4 py-10 sm:px-6 ${view.hasPanel ? "lg:min-h-dvh" : "min-h-dvh"}`}>
         <main className="w-full max-w-[460px]">
           {!view.hasPanel && view.organisationName && <div className="mb-6 text-center text-[13.5px] font-semibold text-ink-3">{view.organisationName}</div>}
-          <Card className="rounded-[28px] p-6 shadow-pop sm:p-9">{children}</Card>
+          <DoorCard>{children}</DoorCard>
         </main>
         <ScreenFooter year={view.year} organisationName={view.organisationName} links={view.links} />
       </div>

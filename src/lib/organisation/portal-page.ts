@@ -45,6 +45,10 @@ export const PORTAL_MAX: Record<PortalField, number> = {
   highlight3Icon: 20,
 };
 
+/// The anchor of the Supplier portal card on the Organisation screen, and the way "Set it" on the officers' copy gets there. One place, so the link and the card cannot disagree.
+export const PORTAL_CARD_ID = "supplier-portal";
+export const SET_PORTAL_HREF = `/configuration/organisation?tab=details#${PORTAL_CARD_ID}`;
+
 /// The product's own word when no headline is set.
 export const PORTAL_DEFAULT_HEADLINE = "Supplier portal";
 

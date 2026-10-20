@@ -43,9 +43,24 @@ describe("PortalIllustration", () => {
 
   it("plays once, in under five seconds", () => {
     expect(css).not.toMatch(/animation:[^;]*portal-art[^;]*infinite/);
-    const float = /portal-art-float \{[^}]*animation: portal-art-float ([\d.]+)s [\w-]+ (\d+)/.exec(css);
-    expect(Number(float?.[1]) * Number(float?.[2])).toBeLessThan(5);
-    // The last one-shot ends with the tick: 3.1 s delay plus 0.5 s.
-    expect(3.1 + 0.5).toBeLessThan(5);
+    const rules = [...css.matchAll(/^\.(portal-art-[a-z-]+)\s*\{([^}]*)\}/gm)].map((m) => ({ name: m[1]!, body: m[2]! }));
+    expect(rules.map((r) => r.name).sort()).toEqual([...classes].sort());
+    // The fields and the password dots carry their own delay in the markup: the latest one starts the last fill.
+    const inline = [...markup.matchAll(/animation-delay:\s*([\d.]+)s/g)].map((m) => Number(m[1]));
+    expect(inline.length).toBeGreaterThan(0);
+    let latest = 0;
+    for (const r of rules) {
+      const decl = /animation:\s*([^;]+);/.exec(r.body)?.[1];
+      expect(decl, `${r.name} has an animation`).toBeTruthy();
+      // Drop the timing function (cubic-bezier holds spaces), then read: duration, optional delay, optional iteration count.
+      const tokens = decl!.replace(/cubic-bezier\([^)]*\)/g, "").trim().split(/\s+/);
+      const times = tokens.filter((t) => /^[\d.]+s$/.test(t)).map((t) => parseFloat(t));
+      const count = Number(tokens.find((t) => /^\d+$/.test(t)) ?? 1);
+      const [duration = 0, delay = 0] = times;
+      const extra = r.name === "portal-art-fill" ? Math.max(...inline) : 0;
+      latest = Math.max(latest, delay + extra + duration * count);
+    }
+    expect(latest).toBeGreaterThan(0);
+    expect(latest).toBeLessThan(5);
   });
 });

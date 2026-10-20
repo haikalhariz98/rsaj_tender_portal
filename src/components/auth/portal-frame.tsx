@@ -2,10 +2,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { PortalIllustration } from "@/components/auth/portal-illustration";
-import { ScreenFooter, HIGHLIGHT_ICON } from "@/components/auth/sign-in-parts";
+import { DOOR_COLUMNS, DOOR_GRID, DoorCard, HighlightRow, ScreenFooter } from "@/components/auth/sign-in-parts";
 import { BuildingIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
 import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { PortalBranding } from "@/lib/organisation/portal-load";
@@ -31,35 +30,23 @@ export function PortalFrame({ branding, page, children }: { branding: PortalBran
   const beside = logo ? showsNameBesideLogo(logo.width, logo.height) : false;
   const logoAlt = organisationName ? `${organisationName} logo` : "Organisation logo";
   return (
-    <div className={cx("min-h-dvh lg:grid", isRegister ? "lg:grid-cols-[40fr_60fr]" : "lg:grid-cols-[48fr_52fr]")}>
-      <aside className="relative flex min-h-60 flex-col gap-6 overflow-hidden bg-gradient-to-b from-brand-50 to-white px-6 pt-8 pb-6 sm:px-10 lg:sticky lg:top-0 lg:h-dvh lg:gap-5 lg:px-14 lg:pt-10 lg:pb-8">
-        <Link href="/supplier" className="inline-flex min-h-12 w-fit items-center rounded-lg text-[20px] font-extrabold tracking-[-0.01em] text-ink">
-          {logo ? (
-            // eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint
-            <img src={`/organisation/logo/${logo.sha}`} width={logo.width} height={logo.height} alt={logoAlt} className={cx("w-auto object-contain", beside ? "h-14 max-w-40 lg:h-20 lg:max-w-56" : "h-12 max-w-64")} />
-          ) : (
-            organisationName || "Supplier portal"
-          )}
-        </Link>
+    <div className={cx(DOOR_GRID, isRegister ? "lg:grid-cols-[40fr_60fr]" : DOOR_COLUMNS)}>
+      <aside className="relative flex min-h-60 flex-col gap-6 overflow-x-hidden overflow-y-auto overscroll-contain bg-gradient-to-b from-brand-50 to-white px-6 pt-8 pb-6 sm:px-10 lg:sticky lg:top-0 lg:h-dvh lg:gap-5 lg:px-14 lg:pt-10 lg:pb-8">
+        {(logo || organisationName) && (
+          <Link href="/supplier" className="inline-flex min-h-12 w-fit items-center rounded-lg text-[20px] font-extrabold tracking-[-0.01em] text-ink">
+            {logo ? (
+              // eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint
+              <img src={`/organisation/logo/${logo.sha}`} width={logo.width} height={logo.height} alt={logoAlt} className={cx("w-auto object-contain", beside ? "h-14 max-w-40 lg:h-20 lg:max-w-56" : "h-12 max-w-64")} />
+            ) : (
+              organisationName
+            )}
+          </Link>
+        )}
 
         <div className="max-w-[34rem]">
           <p className="text-[30px] leading-[1.1] font-extrabold tracking-[-0.02em] text-balance text-ink sm:text-[36px] lg:text-[44px]">{view.headline}</p>
           {view.line && <p className="mt-4 hidden max-w-md text-[16px] leading-relaxed text-ink-2 lg:block">{view.line}</p>}
-          {view.highlights.length > 0 && (
-            <ul className="mt-6 hidden flex-wrap gap-x-6 gap-y-4 lg:flex">
-              {view.highlights.map((h) => {
-                const Glyph = HIGHLIGHT_ICON[h.icon ?? "check"];
-                return (
-                  <li key={h.text} className="flex w-[7.5rem] flex-col items-center gap-2 text-center text-[14px] leading-snug font-semibold [overflow-wrap:anywhere] text-ink">
-                    <span className="grid size-12 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-700">
-                      <Glyph size={22} />
-                    </span>
-                    {h.text}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {view.highlights.length > 0 && <HighlightRow highlights={view.highlights} tone="light" />}
         </div>
 
         <div className="hidden min-h-0 flex-1 items-center justify-center lg:flex">
@@ -88,7 +75,7 @@ export function PortalFrame({ branding, page, children }: { branding: PortalBran
           ) : (
             <>
               <main className="w-full max-w-[460px]">
-                <Card className="rounded-[28px] p-6 shadow-pop sm:p-9">{children}</Card>
+                <DoorCard>{children}</DoorCard>
               </main>
               <div className="mt-6 flex w-full max-w-[460px] flex-col gap-2">
                 <p className="text-center text-[13.5px] font-semibold text-ink-2">New supplier?</p>
