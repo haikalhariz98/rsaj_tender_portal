@@ -46,7 +46,7 @@ const BASE_VALUES = [
 
 /// The hashes of the two fixture wordings, for an organisation named "Demonstration Authority".
 export const FIXTURE_ORGANISATION = "Demonstration Authority";
-export const GIRO_SHA = frozenWording({ bodyEn: "We authorise {organisation} to pay.", bodyMs: "Kami membenarkan {organisation} membayar." }, FIXTURE_ORGANISATION).sha256;
+export const GIRO_SHA = frozenWording({ bodyEn: "We authorise {organisation} to pay.", bodyMs: null }, FIXTURE_ORGANISATION).sha256;
 export const FALSE_SHA = frozenWording({ bodyEn: "We declare this is true to {organisation}.", bodyMs: null }, FIXTURE_ORGANISATION).sha256;
 
 export const ctx = (o: Partial<RegistrationContext> = {}): RegistrationContext => ({
@@ -58,7 +58,7 @@ export const ctx = (o: Partial<RegistrationContext> = {}): RegistrationContext =
   banks: [{ code: "bank-a", nameEn: "Demonstration Bank" }],
   accountTypes: [{ code: "current", nameEn: "Current account" }],
   texts: {
-    GIRO_AUTHORISATION: { id: "text-giro-1", version: 1, bodyEn: "We authorise {organisation} to pay.", bodyMs: "Kami membenarkan {organisation} membayar.", sha256: GIRO_SHA },
+    GIRO_AUTHORISATION: { id: "text-giro-1", version: 1, bodyEn: "We authorise {organisation} to pay.", bodyMs: null, sha256: GIRO_SHA },
     FALSE_DECLARATION: { id: "text-false-1", version: 1, bodyEn: "We declare this is true to {organisation}.", bodyMs: null, sha256: FALSE_SHA },
   },
   noticeEn: "The office checks your registration.",

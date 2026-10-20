@@ -382,7 +382,7 @@ export async function BankPanel({ actor, token, searchToken }: { actor: Supplier
               initial={initial}
               banks={ctx.banks.map((b) => ({ value: b.code, label: b.nameEn }))}
               accountTypes={ctx.accountTypes.map((b) => ({ value: b.code, label: b.nameEn }))}
-              giro={giro ? { id: giro.id, text: fillText(giro.bodyEn, settings.org.name), ms: giro.bodyMs ? fillText(giro.bodyMs, settings.org.name) : "", sha256: giro.sha256 } : null}
+              giro={giro ? { id: giro.id, text: fillText(giro.bodyEn, settings.org.name), sha256: giro.sha256 } : null}
               signatoryName={actor.displayName}
               signatoryDesignation=""
               blockedReason={blocked}

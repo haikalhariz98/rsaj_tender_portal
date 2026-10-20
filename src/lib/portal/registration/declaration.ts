@@ -2,7 +2,7 @@
  * The two declarations of the registration (FR-VND-005, FR-VND-006): the GIRO authorisation, read and ticked on step 4, and the false-declaration acknowledgement, ticked at Submit with the
  * password asked again. Pure.
  *
- * The wording is the customer's, versioned, in English and Malay, and names the organisation (`{organisation}` is filled from `Organisation.name`); none ships. While a kind has no current text
+ * The wording is the customer's, versioned, English only for every new signature (founder, 2026-10-20; a stored Malay body is kept but never shown, signed or hashed), and names the organisation (`{organisation}` is filled from `Organisation.name`); none ships. While a kind has no current text
  * its step is closed and the screen names the missing text. A signature names the text it showed (`textVersionId` must be the current one), and the date is never typed: the server stamps the
  * organisation's day. The signatory is whoever the supplier says signs, and is flagged to the reviewer when it is not the account's contact.
  */
@@ -29,7 +29,8 @@ export interface StoredDeclarationText {
 export function currentDeclarationText(texts: readonly StoredDeclarationText[], kind: DeclarationKind, today: string | null, organisationName: string): DeclarationTextConfig | null {
   if (today == null) return null;
   const inForce = texts.filter((t) => t.kind === kind && t.issuedOn <= today && (t.retiredOn == null || t.retiredOn > today)).sort((a, b) => b.version - a.version)[0];
-  return inForce ? { id: inForce.id, version: inForce.version, bodyEn: inForce.bodyEn, bodyMs: inForce.bodyMs, sha256: frozenWording(inForce, organisationName).sha256 } : null;
+  // English only (founder, 2026-10-20): the Malay body is left out, so what is shown, hashed and frozen is the English text. Signatures made before keep their stored text and hash.
+  return inForce ? { id: inForce.id, version: inForce.version, bodyEn: inForce.bodyEn, bodyMs: null, sha256: frozenWording({ bodyEn: inForce.bodyEn, bodyMs: null }, organisationName).sha256 } : null;
 }
 
 /// The placeholder a declaration's wording names the organisation by.
@@ -40,7 +41,8 @@ export function fillText(body: string, organisationName: string): string {
   return body.split(ORGANISATION_PLACEHOLDER).join(organisationName);
 }
 
-/// What a signature fixes: the wording in both languages as the supplier was shown it, and the SHA-256 of it. The Malay text is blank where the customer wrote none.
+/// What a signature fixes: the wording as the supplier was shown it, and the SHA-256 of it. The hash formula is unchanged, so a signature made with a Malay text still reproduces. A new one is
+/// made from `bodyMs: null` (see `currentDeclarationText`): the Malay line is blank and the hash covers the English text only.
 export function frozenWording(text: Pick<DeclarationTextConfig, "bodyEn" | "bodyMs">, organisationName: string): { en: string; ms: string; sha256: string } {
   const en = fillText(text.bodyEn, organisationName);
   const ms = text.bodyMs ? fillText(text.bodyMs, organisationName) : "";

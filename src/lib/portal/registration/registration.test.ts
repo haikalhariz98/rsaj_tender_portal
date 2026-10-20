@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { codeFaults, codeSections } from "./codes";
@@ -243,6 +244,20 @@ describe("the declarations (FR-VND-005, FR-VND-006)", () => {
     expect(frozenWording({ bodyEn: "Pay {organisation}", bodyMs: "Bayar {organisation}" }, "Demo Water").sha256).toBe(a.sha256);
     expect(frozenWording({ bodyEn: "Pay {organisation}", bodyMs: "Bayar {organisation}" }, "Other Water").sha256).not.toBe(a.sha256);
     expect(frozenWording({ bodyEn: "x", bodyMs: null }, "Demo Water").ms).toBe("");
+  });
+
+  // Founder, 2026-10-20: English only for new signatures. The hash formula is unchanged, so a signature made with a Malay text still reproduces; a new one is made on the English text alone.
+  it("the text in force is English only: a stored Malay body is neither shown nor hashed", () => {
+    const stored = { id: "t1", kind: "GIRO_AUTHORISATION" as const, version: 1, bodyEn: "Pay {organisation}", bodyMs: "Bayar {organisation}", issuedOn: "2026-01-01", retiredOn: null };
+    const now = currentDeclarationText([stored], "GIRO_AUTHORISATION", "2026-06-01", "Demo Water")!;
+    expect(now.bodyMs).toBeNull();
+    expect(now.sha256).toBe(frozenWording({ bodyEn: "Pay {organisation}", bodyMs: null }, "Demo Water").sha256);
+    // A signature made before keeps its stored hash: the legacy formula still reproduces it.
+    const legacy = frozenWording({ bodyEn: stored.bodyEn, bodyMs: stored.bodyMs }, "Demo Water");
+    expect(legacy.sha256).toBe(createHash("sha256").update(`${legacy.en}
+---
+${legacy.ms}`, "utf8").digest("hex"));
+    expect(legacy.sha256).not.toBe(now.sha256);
   });
 
   it("the GIRO text not set closes step 4, naming the text", () => {

@@ -35,7 +35,7 @@ export interface BankDrawerProps {
   banks: ListOption[];
   accountTypes: ListOption[];
   /// Null while the organisation has not written the authorisation.
-  giro: { id: string; text: string; ms: string; sha256: string } | null;
+  giro: { id: string; text: string; sha256: string } | null;
   signatoryName: string;
   signatoryDesignation: string;
   /// Why a change cannot be made now, in words (a change waiting, settings not set).
@@ -216,11 +216,6 @@ export function BankDrawer(p: BankDrawerProps) {
                     {p.giro ? (
                       <>
                         <div className="mt-2 rounded-xl bg-sunken/60 p-4 text-[13.5px] leading-relaxed whitespace-pre-line text-ink-2">{p.giro.text}</div>
-                        {p.giro.ms && (
-                          <div lang="ms" className="mt-2 rounded-xl bg-sunken/60 p-4 text-[13.5px] leading-relaxed whitespace-pre-line text-ink-2">
-                            {p.giro.ms}
-                          </div>
-                        )}
                         <div className="mt-3 grid gap-x-4 gap-y-1 sm:grid-cols-2">
                           <Field label="Name of the person who signs" htmlFor={id("signatory")} required error={at(faults, "giro.signatoryName")}>
                             <Input id={id("signatory")} value={name} maxLength={160} onChange={(e) => setName(e.target.value)} />

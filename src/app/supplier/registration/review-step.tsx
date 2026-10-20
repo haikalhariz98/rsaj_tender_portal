@@ -23,7 +23,6 @@ import { postJson, stepHref } from "./wizard-api";
 export interface ReviewText {
   id: string;
   en: string;
-  ms: string;
   version: number;
   /// The SHA-256 of exactly these words (organisation name filled in): the signature names it, and is refused if the wording has changed since.
   sha256: string;
@@ -100,11 +99,6 @@ export function ReviewStep({
           {falseText ? (
             <>
               <div className="rounded-xl bg-sunken/60 p-4 text-[13.5px] leading-relaxed whitespace-pre-line text-ink-2">{falseText.en}</div>
-              {falseText.ms && (
-                <div lang="ms" className="mt-2 rounded-xl bg-sunken/60 p-4 text-[13.5px] leading-relaxed whitespace-pre-line text-ink-2">
-                  {falseText.ms}
-                </div>
-              )}
               <p className="mt-3 text-[13px] text-ink-3">
                 Signed by {signatoryName || "the person you name in step 4"}
                 {signatoryDesignation ? `, ${signatoryDesignation}` : ""}. Dated the day you send.

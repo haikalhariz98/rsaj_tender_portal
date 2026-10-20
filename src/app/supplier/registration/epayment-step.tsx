@@ -19,13 +19,13 @@ import { errorText, faultsAt, noteText, postJson, stepHref, useStepSave } from "
 
 /**
  * Step 4 of the registration (FR-VND-005): the e-payment form, the Creditor's Profile. The beneficiary, the bank, the bank statement, and the GIRO authorisation, which names the organisation. The
- * details are SULIT and are the supplier's own to see. The GIRO text is the organisation's (English, and Malay where it wrote one) with its name filled in; while it is not set the step
+ * details are SULIT and are the supplier's own to see. The GIRO text is the organisation's (English only; a stored Malay text is not shown) with its name filled in; while it is not set the step
  * cannot be finished and says which text is missing. Signing happens when the registration is sent, with the password asked again; the date is the server's.
  */
 
 export interface GiroView {
   /// Null while the organisation has not written the text.
-  text: { en: string; ms: string; version: number; sha256: string } | null;
+  text: { en: string; version: number; sha256: string } | null;
 }
 
 export interface ListOption {
@@ -213,7 +213,6 @@ export function EpaymentStep({
         {giro.text ? (
           <>
             <div className="mt-2 rounded-xl bg-sunken/60 p-4 text-[13.5px] leading-relaxed whitespace-pre-line text-ink-2">{giro.text.en}</div>
-            {giro.text.ms && <div lang="ms" className="mt-2 rounded-xl bg-sunken/60 p-4 text-[13.5px] leading-relaxed whitespace-pre-line text-ink-2">{giro.text.ms}</div>}
             <div className="mt-3 grid gap-x-4 gap-y-1 sm:grid-cols-2">
               <Field label="Name of the person who signs" htmlFor={id("signatory")} required error={errorText(faultsAt(faults, "giro.signatoryName"))} hint={noteText(faultsAt(faults, "giro.signatoryName"))}>
                 <Input id={id("signatory")} value={name} maxLength={160} onChange={(e) => setName(e.target.value)} />

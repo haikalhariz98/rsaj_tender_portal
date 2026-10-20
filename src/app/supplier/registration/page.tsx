@@ -215,7 +215,7 @@ async function EpaymentPage({ actor, view, ctx, settings, token, accept, uploads
       accountTypes={ctx.accountTypes.map((b) => ({ value: b.code, label: b.nameEn }))}
       statement={view.statement.map((f) => ({ versionId: f.versionId, name: f.name, size: formatBytes(f.size) }))}
       uploadClosed={uploadClosedWords(uploads.store, uploads.statement, "statement")}
-      giro={{ text: giro ? { en: giro.en, ms: giro.ms, version: giro.version, sha256: giro.sha256 } : null }}
+      giro={{ text: giro ? { en: giro.en, version: giro.version, sha256: giro.sha256 } : null }}
       signatoryName={view.signatoryName || actor.displayName}
       signatoryDesignation={view.signatoryDesignation}
       giroConfirmed={giroTick(draftOf(view), ctx) === "OK"}
