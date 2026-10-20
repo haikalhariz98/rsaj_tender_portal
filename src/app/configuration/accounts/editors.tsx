@@ -41,12 +41,12 @@ export function CreateAccount({ people }: { people: { id: string; name: string; 
   );
 }
 
-export function DisableAccount({ accountId, name, loginName }: { accountId: string; name: string; loginName: string }) {
+export function DisableAccount({ accountId, name, loginName, exposure = [] }: { accountId: string; name: string; loginName: string; exposure?: string[] }) {
   return (
     <RecordEditor
       title={`Disable ${name}'s account`}
       description={`${loginName} is signed out everywhere until the account is put back.`}
-      fields={[{ kind: "hidden", name: "accountId" }]}
+      fields={[{ kind: "hidden", name: "accountId" }, ...exposure.map((text) => ({ kind: "note" as const, text }))]}
       values={{ accountId }}
       action={disableAccountAction}
       submitLabel="Disable"

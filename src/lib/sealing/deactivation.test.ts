@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deactivationGate, EXPOSURE_WORDS, exposureLines, exposureOf, exposuresOf, SECOND_APPROVER_WORDS, type HeldExercise } from "./deactivation";
+import { DISABLE_BLOCKED_LINE, disableExposure, HIDDEN_DISABLE_LINE, deactivationGate, EXPOSURE_WORDS, exposureLines, exposureOf, exposuresOf, SECOND_APPROVER_WORDS, type HeldExercise } from "./deactivation";
 
 const NOW = new Date("2026-11-02T10:00:00Z");
 const BEFORE = new Date("2026-11-03T10:00:00Z");
@@ -57,5 +57,31 @@ describe("who is left stranded when a share-holder leaves (D11, 20t)", () => {
     expect(deactivationGate({ exposures: h3, mode: "APPLY" })).toEqual({ allowed: true });
     // Outside the window the act is not refused: it lists what it leaves, and asks a reason.
     expect(deactivationGate({ exposures: exposuresOf([ex({})], NOW), mode: null })).toEqual({ allowed: true });
+  });
+});
+
+describe("the Accounts disable drawer's lines (20ci a)", () => {
+  const x = (kind: "UNFINALISABLE" | "UNOPENABLE" | "LATE_BID_WAITING" | "SUBSTITUTE_BEFORE_CLOSING", id = "e1") => ({ exerciseId: id, reference: "TND/0001", title: "Road works", kind });
+  it("says nothing for a person who is no officer", () => {
+    expect(disableExposure([], new Set())).toEqual({ lines: [], blocked: false });
+  });
+  it("lists one line per exercise and is not blocked where the gate allows", () => {
+    const r = disableExposure([x("UNOPENABLE"), x("SUBSTITUTE_BEFORE_CLOSING", "e2")], new Set());
+    expect(r.blocked).toBe(false);
+    expect(r.lines).toHaveLength(2);
+    expect(r.lines[0]).toMatch(/TND\/0001 \(Road works\)/);
+  });
+  it("is blocked, and says so last, exactly where deactivationGate refuses a run with no two-person mode", () => {
+    for (const kind of ["UNFINALISABLE", "LATE_BID_WAITING"] as const) {
+      const r = disableExposure([x(kind)], new Set());
+      expect(r.blocked).toBe(!deactivationGate({ exposures: [x(kind)], mode: null }).allowed);
+      expect(r.blocked).toBe(true);
+      expect(r.lines.at(-1)).toBe(DISABLE_BLOCKED_LINE);
+    }
+  });
+  it("does not name an exercise the reader may not see", () => {
+    const r = disableExposure([x("UNFINALISABLE", "secret")], new Set(["secret"]));
+    expect(r.lines[0]).toBe(HIDDEN_DISABLE_LINE);
+    expect(r.lines.join(" ")).not.toMatch(/TND|Road/);
   });
 });

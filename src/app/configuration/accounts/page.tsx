@@ -1,4 +1,5 @@
 import { permissionGate, requireStaff } from "@/app/_auth/actor";
+import { hiddenExercises } from "@/app/_auth/sulit";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
@@ -11,7 +12,10 @@ import { RUNTIME_ROLE_WORDS, warnsOnly } from "@/lib/auth/db-role";
 import { runtimeRoleCheck } from "@/lib/auth/runtime-role-store";
 import { settingLabels } from "@/lib/auth/policy";
 import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
+import { db } from "@/lib/db";
 import { formatOrgDateTime } from "@/lib/format";
+import { disableExposure } from "@/lib/sealing/deactivation";
+import { loadHolderExposures } from "@/lib/sealing/substitution-store";
 
 import { Section, Stat, Stats } from "../records-ui";
 import { ProposeAccountCode, ProposeAdministrator } from "../changes/editors";
@@ -47,6 +51,9 @@ export default async function AccountsPage() {
   const view = await loadAccountsView(actor, now);
   // Phase 1d: whether the app runs as its own database role. A failed check says nothing rather than guessing.
   const role = await runtimeRoleCheck().catch(() => null);
+  // 20ci (a): what switching off each active officer's sign-in leaves, beside the act. An exercise the reader may not see is not named.
+  const hidden = new Set(await hiddenExercises(actor));
+  const exposed = await loadHolderExposures(db, actor.organisationId, now, view.rows.filter((r) => r.status !== "DISABLED").map((r) => r.personId));
   const waiting = view.rows.filter((r) => r.status === "PENDING_ACTIVATION").length;
   const locked = view.rows.filter((r) => r.lockedUntil && r.lockedUntil > now).length;
 
@@ -143,7 +150,7 @@ export default async function AccountsPage() {
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="StaffAccount" entityId={r.id} label={`Sign-in account of ${r.personName}`} />
-                    {rowActions(r, now)}
+                    {rowActions(r, now, disableExposure(exposed.get(r.personId) ?? [], hidden).lines)}
                   </RowActions>
                 </Td>
               </Tr>
@@ -161,7 +168,7 @@ function holdingsWords(r: AccountRow): string | null {
   return parts.length > 0 ? `holds ${parts.join(", ")}` : null;
 }
 
-function rowActions(r: AccountRow, now: Date) {
+function rowActions(r: AccountRow, now: Date, exposure: string[]) {
   // A code for an administrator's account, or for a person who holds or has held anything (ended or not), needs a second person. Making someone an administrator
   // is judged on what they hold now, which is what the rule of keeping administration apart from transactions asks.
   const notice = secondPersonNotice({ isAdministrator: r.isAdministrator, held: r.held });
@@ -177,7 +184,7 @@ function rowActions(r: AccountRow, now: Date) {
       {r.status === "ACTIVE" && r.personActive && !r.isAdministrator && !holdsNow && <ProposeAdministrator accountId={r.id} name={r.personName} direction="GRANT" />}
       {r.status === "ACTIVE" && r.isAdministrator && <ProposeAdministrator accountId={r.id} name={r.personName} direction="REVOKE" />}
       {locked && r.status !== "DISABLED" && <UnlockAccount accountId={r.id} name={r.personName} />}
-      {r.status === "DISABLED" ? <EnableAccount accountId={r.id} name={r.personName} /> : !r.isYou && <DisableAccount accountId={r.id} name={r.personName} loginName={r.loginName} />}
+      {r.status === "DISABLED" ? <EnableAccount accountId={r.id} name={r.personName} /> : !r.isYou && <DisableAccount accountId={r.id} name={r.personName} loginName={r.loginName} exposure={exposure} />}
     </>
   );
 }

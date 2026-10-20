@@ -67,3 +67,22 @@ export function deactivationGate(i: { exposures: readonly HolderExposure[]; mode
 
 /// The line for an exercise the reader may not see (FR-MTD-007): that the person is a named officer of some exercise is said, which one is not.
 export const HIDDEN_EXPOSURE_LINE = "An exercise you may not see: this person is a named opening officer of it, and leaving may make its bids unopenable or unfinalisable. Ask someone who may see it before going on.";
+
+/// What switching off a named officer's sign-in leaves: short lines for the Accounts drawer, one per exercise. Switching off is undone by putting the account back, so these say what is needed, not that the exercise is lost.
+const DISABLE_WORDS: Readonly<Record<ExposureKind, (e: { reference: string; title: string }) => string>> = {
+  UNFINALISABLE: (e) => `${e.reference} (${e.title}): opened, not finalised. Their signature is needed.`,
+  LATE_BID_WAITING: (e) => `${e.reference} (${e.title}): a late bid waits to be opened. Every named officer is needed.`,
+  UNOPENABLE: (e) => `${e.reference} (${e.title}): closed, not opened. Every named officer is needed to open it.`,
+  SUBSTITUTE_BEFORE_CLOSING: (e) => `${e.reference} (${e.title}): replace them before the closing.`,
+};
+
+export const DISABLE_BLOCKED_LINE = "One administrator cannot disable this account. Mark the person as left under Users.";
+export const HIDDEN_DISABLE_LINE = "An exercise you may not see needs this officer.";
+
+/// The lines the Accounts disable drawer shows, and whether the disable would be refused (`deactivationGate`, the rule `disableAccount` applies, never restated). An exercise the reader may not see is not named (FR-MTD-007).
+export function disableExposure(exposures: readonly HolderExposure[], hidden: ReadonlySet<string>): { lines: string[]; blocked: boolean } {
+  if (exposures.length === 0) return { lines: [], blocked: false };
+  const blocked = !deactivationGate({ exposures, mode: null }).allowed;
+  const lines = exposures.map((x) => (hidden.has(x.exerciseId) ? HIDDEN_DISABLE_LINE : DISABLE_WORDS[x.kind](x)));
+  return { lines: blocked ? [...lines, DISABLE_BLOCKED_LINE] : lines, blocked };
+}
