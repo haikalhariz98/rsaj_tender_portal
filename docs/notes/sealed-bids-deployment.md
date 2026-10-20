@@ -68,6 +68,24 @@ Each bid part is scanned before it is sealed (ruling 12a), so the scanner reads 
 - **Its temporary directory is a tmpfs**, held in memory, so nothing it reads is written to disk.
 - **There is no quarantine and no copy**: a file found to be a threat is refused and discarded, never kept by the scanner.
 - Under LIVE a scanner is required, and a file it cannot scan is refused. Only a demonstration without a scanner stores files as not scanned.
+- **Released pack files are scanned at each download** (SEC-5). Under a configured scanner only a clean file is served.
+- **Setting or changing a variable needs a restart of the product.**
+- **clamd**: `StreamMaxLength` at least `DOCUMENT_MAX_BYTES`. `TemporaryDirectory` on tmpfs.
+
+Set one of socket or port, never both.
+
+| Variable | Meaning |
+| --- | --- |
+| `MALWARE_SCANNER_SOCKET` | Absolute path of clamd's Unix socket. |
+| `MALWARE_SCANNER_PORT` | clamd's TCP port, 1 to 65535. |
+| `MALWARE_SCANNER_HOST` | With the port only. Default `127.0.0.1`. |
+| `MALWARE_SCANNER_TIMEOUT_MS` | Per scan, 1000 to 300000. Default 30000. |
+
+Socket example: `MALWARE_SCANNER_SOCKET=/run/clamav/clamd.ctl`
+
+Port example: `MALWARE_SCANNER_PORT=3310`
+
+The host must be a loopback literal (127.0.0.0/8 or `::1`). Anything else, `localhost` included, is refused, and the product then refuses every file.
 
 ## Filing the sealed files after the opening is finalised
 
