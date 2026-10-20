@@ -2,9 +2,7 @@ import "dotenv/config";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
-import { PrismaPg } from "@prisma/adapter-pg";
-
-import { PrismaClient } from "@/generated/prisma/client";
+import { Client } from "pg";
 
 /**
  * Makes `npm run test:db` repeatable: every run gets a database of its own, created from template0 with every migration deployed, and
@@ -22,15 +20,16 @@ const databaseName = (url: string | undefined) => (url ? new URL(url).pathname.r
 let made: string | null = null;
 let admin: string | null = null;
 
-async function withAdmin<T>(url: string, fn: (c: PrismaClient) => Promise<T>): Promise<T> {
+async function withAdmin<T>(url: string, fn: (c: Client) => Promise<T>): Promise<T> {
   const u = new URL(url);
   u.pathname = "/postgres";
   u.search = "";
-  const c = new PrismaClient({ adapter: new PrismaPg({ connectionString: u.toString() }) });
+  const c = new Client({ connectionString: u.toString() });
+  await c.connect();
   try {
     return await fn(c);
   } finally {
-    await c.$disconnect();
+    await c.end();
   }
 }
 
@@ -42,7 +41,7 @@ export async function setup() {
   }
   const name = `${PREFIX}${Date.now().toString(36)}_${process.pid.toString(36)}`;
   if (!/^[a-z0-9_]+$/.test(name)) throw new Error(`Refusing an unsafe database name: ${name}`);
-  await withAdmin(base, (c) => c.$executeRawUnsafe(`CREATE DATABASE "${name}" TEMPLATE template0`));
+  await withAdmin(base, (c) => c.query(`CREATE DATABASE "${name}" TEMPLATE template0`));
   made = name;
   admin = base;
 
@@ -69,6 +68,6 @@ export async function teardown() {
   }
   const name = made;
   if (!name.startsWith(PREFIX)) return;
-  await withAdmin(admin, (c) => c.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`));
+  await withAdmin(admin, (c) => c.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`));
   made = null;
 }
