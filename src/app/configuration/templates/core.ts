@@ -93,7 +93,7 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
     const unknown = (v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f) || WINDOW_FIELD_KEYS.has(f), clauseCodes) : []).filter((u) => !EVALUATION_FIELD_KEYS.has(u)).filter((u) => !ANY_CERTIFICATE_FIELD.has(u)).filter((u) => !isTermField(u));
     if (unknown.length) r.reject(k, `The portal does not fill ${unknown.map((u) => `{{${u}}}`).join(", ")}. Use the merge fields listed below.`);
   }
-  if (v.bodyMs && v.bodyEn && !v.primaryLanguage) r.reject("primaryLanguage", "With text in both languages, say which is issued first.");
+  // Founder, 2026-10-20: English only. A stored Malay text and primary language are kept as they were and no longer asked for, so "say which is issued first" is gone.
 
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };

@@ -102,7 +102,7 @@ const recipientFields = (editing: boolean): Field[] => [
   ...code(editing),
   { kind: "select", name: "instrumentKind", label: "Receives a copy of", required: true, placeholder: "Choose", options: INSTRUMENTS },
   { kind: "text", name: "nameEn", label: "Recipient", required: true },
-  { kind: "text", name: "nameMs", label: "Recipient (Malay)" },
+  { kind: "hidden", name: "nameMs" },
   { kind: "switch", name: "mandatory", label: "Mandatory: distribution is not complete without this copy" },
   { kind: "switch", name: "onlyWhenRegulated", label: "Only where the works are the regulated activity" },
   PROVENANCE,

@@ -225,12 +225,14 @@ describe("merge values", () => {
 });
 
 describe("which body a template issues in", () => {
-  it("the primary language, or the only body there is", () => {
-    expect(templateText({ bodyMs: "Tuan", bodyEn: "Sir", primaryLanguage: "MS" })).toEqual({ language: "MS", body: "Tuan" });
+  // Founder, 2026-10-20: English only. These pinned the primary language and an undecided language; a new document is issued from the English body whatever the primary language says.
+  it("the English body, whatever the primary language or a stored Malay body", () => {
+    expect(templateText({ bodyMs: "Tuan", bodyEn: "Sir", primaryLanguage: "MS" })).toEqual({ language: "EN", body: "Sir" });
     expect(templateText({ bodyMs: null, bodyEn: "Sir", primaryLanguage: null })).toEqual({ language: "EN", body: "Sir" });
+    expect(templateText({ bodyMs: "Tuan", bodyEn: "Sir", primaryLanguage: null })).toEqual({ language: "EN", body: "Sir" });
   });
-  it("both bodies and no primary language is undecided; no body is not configured", () => {
-    expect(templateText({ bodyMs: "Tuan", bodyEn: "Sir", primaryLanguage: null })).toEqual({ fault: "NO_LANGUAGE" });
+  it("no English body is not configured, whatever Malay text there is", () => {
+    expect(templateText({ bodyMs: "Tuan", bodyEn: null, primaryLanguage: "MS" })).toEqual({ fault: "NO_TEXT" });
     expect(templateText({ bodyMs: "  ", bodyEn: null, primaryLanguage: null })).toEqual({ fault: "NO_TEXT" });
   });
 });

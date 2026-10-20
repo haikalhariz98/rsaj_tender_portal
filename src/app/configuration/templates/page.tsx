@@ -26,18 +26,15 @@ import { requireStaff } from "@/app/_auth/actor";
 export const dynamic = "force-dynamic";
 
 const day = (d: Date | null) => (d ? formatDate(d) : "—");
-const LANG = { MS: "Malay", EN: "English" } as const;
-/// What a template's text is, and which language an issued document takes — a template
-/// with both texts issues in one of them, never both.
+/// What a template's text is. Founder, 2026-10-20: English only, so a document is issued from the English text; a stored Malay text is kept and not issued.
 /// The version counts the text, and on a certificate form (one with signature blocks, recipients or printed fields)
 /// its blocks, list and printed form too (BD-614-21, increment 2), so the line says which.
 function textLine(t: { bodyMs: string | null; bodyEn: string | null; primaryLanguage: "MS" | "EN" | null; bodyVersion: number }, form: boolean): string {
   const ms = !!t.bodyMs?.trim();
   const en = !!t.bodyEn?.trim();
-  if (!ms && !en) return "Text not configured";
+  if (!en) return ms ? "No English text" : "Text not configured";
   const version = `version ${t.bodyVersion} (${form ? "its text, signature blocks, distribution list and printed form" : "its text"})`;
-  if (ms && en) return `Text in Malay and English, ${version} · ${t.primaryLanguage ? `issued in ${LANG[t.primaryLanguage]}` : "language to issue in not set"}`;
-  return `Text in ${ms ? "Malay" : "English"}, ${version}`;
+  return `English text, ${version}`;
 }
 
 const USE_COUNTS = Object.fromEntries(Object.keys(TEMPLATE_OTHER_USES).map((k) => [k, true])) as Record<keyof typeof TEMPLATE_OTHER_USES, true>;
@@ -69,7 +66,7 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
   const today = org ? todayIn(new Date(), org.timeZone) : null;
   const clauses = org && today ? liveClauses(await loadClauses(org.id), today).map((c) => ({ code: c.code, title: c.titleEn })) : [];
   const unclassified = templates.filter((t) => t.documentClassId == null);
-  const withText = templates.filter((t) => t.bodyMs?.trim() || t.bodyEn?.trim()).length;
+  const withText = templates.filter((t) => t.bodyEn?.trim()).length;
 
   // 6.14 increment 2: the forms the certificates need (FR-CRT-012), the typing corrections and the terms.
   const [kindSettings, policy, sheetTypes, corrections, terms, formRows] = org
@@ -153,11 +150,11 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
               const cls = classes.find((c) => c.id === t.documentClassId);
               return (
                 <Tr key={t.id}>
-                  <Td label="Template" title={t.nameMs ? `${t.nameEn} — ${t.nameMs}` : t.nameEn}>
+                  <Td label="Template" title={t.nameEn}>
                     <CellStack
                       title={<Link href={`/configuration/templates/${t.id}`} className="font-semibold">{t.nameEn}</Link>}
                       aside={t.bilingual ? <Badge outline>bilingual</Badge> : undefined}
-                      sub={[t.nameMs, textLine(t, formLine(t.id) != null), formLine(t.id), pages(pageCountOf(t.id))].filter(Boolean).join(" · ")}
+                      sub={[textLine(t, formLine(t.id) != null), formLine(t.id), pages(pageCountOf(t.id))].filter(Boolean).join(" · ")}
                     />
                   </Td>
                   <Td label="Form code" className="truncate font-mono text-[12.5px] text-ink-2" title={t.formCode || undefined}>

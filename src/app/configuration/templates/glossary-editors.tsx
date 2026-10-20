@@ -74,8 +74,8 @@ function termFields(editing: boolean, code: string | null): Field[] {
   return [
     { kind: "hidden", name: "id" },
     editing ? { kind: "readonly", name: "codeShown", label: "Code", text: code ?? "", hint: "Set once; forms cite the term by it." } : { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Small letters, digits, underscores." },
-    { kind: "text", name: "canonicalMs", label: "Wording (Malay)", hint: "At least one wording is needed." },
-    { kind: "text", name: "canonicalEn", label: "Wording (English)" },
+    { kind: "hidden", name: "canonicalMs" },
+    { kind: "text", name: "canonicalEn", label: "Wording" },
     { kind: "textarea", name: "aliases", label: "Other wordings, one per line", hint: editing ? "The variants source documents use." : "The variants source documents use." },
     ...(editing ? [{ kind: "textarea", name: "reason", label: "Why an alias is removed", hint: "Asked where an issued certificate says it." } as Field] : []),
     PROVENANCE,

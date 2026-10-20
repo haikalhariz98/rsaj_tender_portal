@@ -59,10 +59,9 @@ export interface TemplateFacts {
 export function renderEvaluationInstrument(instrument: EvaluationInstrument, template: TemplateFacts | null, fields: (lang: Lang) => Record<string, string>): { state: TemplateState; language: Lang | null; text: string | null; missing: string[]; unknown: string[] } {
   const none = (state: TemplateState) => ({ state, language: null, text: null, missing: [], unknown: [] });
   if (!template) return none("NOT_SET");
-  if (!template.bodyEn?.trim() && !template.bodyMs?.trim()) return none("NO_TEXT");
   const lang = issueLanguage(template);
-  if (!lang) return none("NO_LANGUAGE");
-  const r = renderWith(lang === "EN" ? template.bodyEn! : template.bodyMs!, fields(lang), whitelist(instrument));
+  if (!lang) return none("NO_TEXT");
+  const r = renderWith(template.bodyEn!, fields(lang), whitelist(instrument));
   return { state: "OK", language: lang, text: renderedText(r), missing: r.missing, unknown: r.unknown };
 }
 

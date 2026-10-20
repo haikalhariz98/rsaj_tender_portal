@@ -148,13 +148,8 @@ export function mergeFieldsFor(c: MergeContext): Record<string, string> {
   return f;
 }
 
-/// Which body a template issues in: its primary language, or the only one it has.
+/// Which body a template issues in. Founder, 2026-10-20: English only, so a new document is issued from the English body, and a template with only a Malay body has no text to issue. `NO_LANGUAGE`
+/// is no longer given: there is no language to choose. A stored Malay body and primary language are kept and ignored.
 export function templateText(t: { bodyMs: string | null; bodyEn: string | null; primaryLanguage: DocumentLanguage | null }): { language: DocumentLanguage; body: string } | { fault: "NO_TEXT" | "NO_LANGUAGE" } {
-  const ms = t.bodyMs?.trim() ? t.bodyMs : null;
-  const en = t.bodyEn?.trim() ? t.bodyEn : null;
-  if (!ms && !en) return { fault: "NO_TEXT" };
-  if (t.primaryLanguage === "MS") return ms ? { language: "MS", body: ms } : { fault: "NO_TEXT" };
-  if (t.primaryLanguage === "EN") return en ? { language: "EN", body: en } : { fault: "NO_TEXT" };
-  if (ms && en) return { fault: "NO_LANGUAGE" };
-  return ms ? { language: "MS", body: ms } : { language: "EN", body: en! };
+  return t.bodyEn?.trim() ? { language: "EN", body: t.bodyEn } : { fault: "NO_TEXT" };
 }

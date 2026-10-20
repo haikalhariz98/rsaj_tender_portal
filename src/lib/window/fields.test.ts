@@ -72,7 +72,8 @@ describe("rendering an instrument", () => {
   it("puts the restriction's configured stamp at the head; missing in the language, says so", () => {
     const r = renderInstrument("NOTICE", tpl(), (l) => windowFieldValues(ctx, l), { EN: "RESTRICTED TENDER", MS: null });
     expect(r.text!.split("\n\n")[0]).toBe("RESTRICTED TENDER");
-    expect(renderInstrument("NOTICE", tpl({ bodyEn: null, bodyMs: "{{exercise.reference}}" }), (l) => windowFieldValues(ctx, l), { EN: "RESTRICTED TENDER", MS: null }).stampMissing).toBe(true);
+    // Founder, 2026-10-20: English only, so the stamp that must be there is the English one (this pinned a Malay body missing its Malay stamp).
+    expect(renderInstrument("NOTICE", tpl(), (l) => windowFieldValues(ctx, l), { EN: null, MS: "STAMP" }).stampMissing).toBe(true);
   });
   it("a field of another instrument is unknown to this one", () => {
     const r = renderInstrument("NOTICE", tpl({ bodyEn: "Dear {{invitee.name}}" }), (l) => windowFieldValues(ctx, l), null);
@@ -85,11 +86,13 @@ describe("rendering an instrument", () => {
     const add = renderInstrument("ADDENDUM", tpl({ bodyEn: "Addendum {{addendum.number}}: {{addendum.whatChanged}}" }), (l) => ({ ...windowFieldValues(ctx, l), ...addendumFieldValues({ number: 2, title: "T", whatChanged: "Drawing 4 replaced.", issuedOn: "2026-11-08" }, l) }), null);
     expect(add.text).toBe("Addendum 2: Drawing 4 replaced.");
   });
-  it("no template, no text, or two languages with no primary: nothing is rendered, and why", () => {
+  // Founder, 2026-10-20: English only. Two languages with no primary used to be undecided (NO_LANGUAGE); the English one is issued, and a Malay-only template has no text.
+  it("no template, or no English text: nothing is rendered, and why", () => {
     expect(renderInstrument("NOTICE", null, () => ({}), null).state).toBe("NOT_SET");
     expect(renderInstrument("NOTICE", tpl({ bodyEn: " ", bodyMs: null }), () => ({}), null).state).toBe("NO_TEXT");
-    expect(renderInstrument("NOTICE", tpl({ bodyEn: "a", bodyMs: "b" }), () => ({}), null).state).toBe("NO_LANGUAGE");
-    expect(issueLanguage({ bodyEn: "a", bodyMs: "b", primaryLanguage: "MS" })).toBe("MS");
+    expect(renderInstrument("NOTICE", tpl({ bodyEn: "a", bodyMs: "b", primaryLanguage: null }), () => ({}), null)).toMatchObject({ state: "OK", language: "EN" });
+    expect(renderInstrument("NOTICE", tpl({ bodyEn: null, bodyMs: "b" }), () => ({}), null).state).toBe("NO_TEXT");
+    expect(issueLanguage({ bodyEn: "a", bodyMs: "b", primaryLanguage: "MS" })).toBe("EN");
   });
 });
 

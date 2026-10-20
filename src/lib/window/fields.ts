@@ -178,12 +178,9 @@ export interface TemplateFacts {
 
 export type TemplateState = "NOT_SET" | "NO_TEXT" | "NO_LANGUAGE" | "OK";
 
-/// The language a template issues in: its primary, or its one body. Null with both and no primary.
+/// The language a template issues in. Founder, 2026-10-20: English only; null where it has no English text (a stored Malay body is kept and never issued).
 export function issueLanguage(t: Pick<TemplateFacts, "bodyEn" | "bodyMs" | "primaryLanguage">): Lang | null {
-  const en = !!t.bodyEn?.trim();
-  const ms = !!t.bodyMs?.trim();
-  if (en && ms) return t.primaryLanguage;
-  return en ? "EN" : ms ? "MS" : null;
+  return t.bodyEn?.trim() ? "EN" : null;
 }
 
 /**
@@ -200,10 +197,9 @@ export function renderInstrument(
 ): { state: TemplateState; language: Lang | null; text: string | null; missing: string[]; unknown: string[]; stampMissing: boolean; fields: Record<string, string> } {
   const none = (state: TemplateState) => ({ state, language: null, text: null, missing: [], unknown: [], stampMissing: false, fields: {} });
   if (!template) return none("NOT_SET");
-  if (!template.bodyEn?.trim() && !template.bodyMs?.trim()) return none("NO_TEXT");
   const lang = issueLanguage(template);
-  if (!lang) return none("NO_LANGUAGE");
-  const body = lang === "EN" ? template.bodyEn! : template.bodyMs!;
+  if (!lang) return none("NO_TEXT");
+  const body = template.bodyEn!;
   const values = fields(lang);
   const r = renderWith(body, values, windowWhitelist(instrument, mode));
   const words = stamp ? stamp[lang] : null;

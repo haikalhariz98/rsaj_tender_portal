@@ -19,7 +19,7 @@ function templateFields(editing: boolean, classes: DocumentClass[]): Field[] {
       ? []
       : ([{ kind: "text", name: "code", label: "Code", required: true, mono: true }] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
-    { kind: "text", name: "nameMs", label: "Name (Malay)" },
+    { kind: "hidden", name: "nameMs" },
     {
       kind: "text",
       name: "formCode",
@@ -59,19 +59,9 @@ function templateFields(editing: boolean, classes: DocumentClass[]): Field[] {
       kind: "note",
       text: "The text the portal issues on this template: plain paragraphs, a blank line between them, with merge fields in double braces — listed below the form. None ships: an empty text cannot be issued.",
     },
-    { kind: "textarea", name: "bodyMs", label: "Text (Malay)" },
+    { kind: "hidden", name: "bodyMs" },
     { kind: "textarea", name: "bodyEn", label: "Text (English)" },
-    {
-      kind: "select",
-      name: "primaryLanguage",
-      label: "Issued in",
-      placeholder: "Not set",
-      hint: "Issued in this one; the other is reference.",
-      options: [
-        { value: "MS", label: "Malay" },
-        { value: "EN", label: "English" },
-      ],
-    },
+    { kind: "hidden", name: "primaryLanguage" },
   ];
 }
 

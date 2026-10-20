@@ -31,7 +31,7 @@ const facts = (x: Partial<AwardFacts> = {}): AwardFacts => ({
   variants: [],
   templates: [
     { id: "t1", code: "loa", nameEn: "LoA", formCode: "F1", revisionDate: null, bodyMs: null, bodyEn: "To {{awardee.name}}\n\nContract {{contract.number}}, signed by {{signatory.name}}, {{signatory.office}}. The {{committee.name}} decided on {{committee.decisionDate}}.", primaryLanguage: null, bodyVersion: 3 },
-    { id: "t2", code: "decl", nameEn: "Declaration", formCode: "F2", revisionDate: null, bodyMs: "Saya, bagi pihak {{awardee.name}}, mengaku.", bodyEn: null, primaryLanguage: null, bodyVersion: 1 },
+    { id: "t2", code: "decl", nameEn: "Declaration", formCode: "F2", revisionDate: null, bodyMs: null, bodyEn: "I, for {{awardee.name}}, declare.", primaryLanguage: null, bodyVersion: 1 },
   ],
   indentPattern: null,
   contractSeriesKey: "contract",
@@ -56,8 +56,11 @@ describe("evaluating an award", () => {
     expect(issued).toBe("Contract KP/T/004/2026, signed by Bala Krishnan, Functional Director. The Tender Board decided on 20 September 2026.");
   });
 
-  it("a Malay template is rendered in Malay", () => {
-    expect(evaluateAward(facts()).documents[1]).toMatchObject({ kind: "SUCCESSFUL_BIDDER_DECLARATION", language: "MS", state: "OK" });
+  // Founder, 2026-10-20: English only. The declaration template was Malay-only and rendered in Malay; it is English now, and a template with only a Malay text has no text to issue.
+  it("a template is rendered in English, and one with only a Malay text has no text", () => {
+    expect(evaluateAward(facts()).documents[1]).toMatchObject({ kind: "SUCCESSFUL_BIDDER_DECLARATION", language: "EN", state: "OK" });
+    const malayOnly = facts().templates.map((t) => (t.id === "t2" ? { ...t, bodyEn: null, bodyMs: "Saya, bagi pihak {{awardee.name}}, mengaku." } : t));
+    expect(evaluateAward(facts({ templates: malayOnly })).documents[1]).toMatchObject({ kind: "SUCCESSFUL_BIDDER_DECLARATION", state: "NO_TEXT" });
   });
 
   it("the committee's decision not yet cited blocks issue, naming the committee", () => {
