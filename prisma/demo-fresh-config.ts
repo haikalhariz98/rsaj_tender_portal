@@ -1,5 +1,5 @@
 /**
- * The configuration a demonstration needs that is not part of any other demonstration step: the sample sign-in settings and three permission grants (AC-65). Written only by `npm run demo:load` on a
+ * The configuration a demonstration needs that is not part of any other demonstration step: the sample sign-in settings, the supplier portal's sample words and three permission grants (AC-65). Written only by `npm run demo:load` on a
  * database with no demonstration yet (ruling 12c: no add-on step on a loaded database writes configuration). `npm run demo:accounts` makes accounts only; where something here is missing it
  * says so in words (`missingDemoConfigWords`) and writes nothing.
  *
@@ -12,6 +12,7 @@ import { writeAudit } from "../src/lib/audit/record";
 import { fillUnset, policyFault, settingLabels, unsetSettings } from "../src/lib/auth/policy";
 import { loadSecurityPolicy } from "../src/lib/auth/policy-store";
 import type { AuditActor, SecurityPolicyValues } from "../src/lib/auth/types";
+import { storePortalPage } from "../src/lib/organisation/portal-store";
 import { DEMO_PREFIX } from "./demo-sign-in";
 import { DEMO_ACCOUNT_MANAGER_ROLE, DEMO_DIAL_CODES, STEP_ONE_LISTS, STEP_TWO_TYPES } from "./demo-step-one";
 
@@ -40,6 +41,19 @@ export const DEMO_GRANTS = [
   { permissionKey: "sulit.read.creditorProfile", label: "Read a supplier's bank details", entityLabel: "Permission to read a supplier's bank details" },
 ] as const;
 
+/// SAMPLE words for the supplier portal's front door (design note 0006, ruling L6). No public address: nothing in the repository serves a public copy at a fixed address, so a seeded one would be
+/// a guessed link to nothing, and the demonstration shows the honest "not set" state. No "Bid online": the demonstration's portal still takes bids on paper.
+export const DEMO_PORTAL_PAGE = {
+  headline: "Supplier portal",
+  line: "Register, buy tender documents and follow results online.",
+  highlight1: "Register online",
+  highlight1Icon: "building",
+  highlight2: "Buy documents",
+  highlight2Icon: "document",
+  highlight3: "See results",
+  highlight3Icon: "globe",
+} as const;
+
 type Org = { id: string; name: string };
 
 /// The office the demonstration's grants go to: held by someone the demonstration made. Null where nobody does.
@@ -67,6 +81,11 @@ export async function loadDemoSignInAndGrants(db: PrismaClient, org: Org): Promi
         existing ? diffFields(Object.fromEntries(filled.map((k) => [k, existing[k]])), data) : diffFields(null, data),
       );
     });
+  }
+  // The portal's words, only where the organisation has set none: a fresh database, never a loaded one.
+  if (!(await db.organisationPortalPage.findUnique({ where: { organisationId: org.id }, select: { id: true } }))) {
+    const saved = await storePortalPage(db, { organisationId: org.id, organisationName: org.name, actor: ACTOR }, DEMO_PORTAL_PAGE, "Sample words for the demonstration, written by the demo loader");
+    if (!saved.ok) throw new Error(Object.values(saved.errors).join(" "));
   }
   const role = await accountManagerRole(db, org.id);
   if (!role) return;
