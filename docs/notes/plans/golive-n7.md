@@ -200,7 +200,9 @@ export function blankWithheld(kind: string, rawPayload: unknown): object | null;
      - `blankWithheld` replaces only the listed strings, keeps order and duplicates and unknown keys, returns null for another kind,
        another operation, no listed field, or an already blank payload, and never touches a file value.
    - A scan test reads the body of `recordReturn` in `src/app/awards/actions.ts` and asserts that every `r.text`, `r.date`,
-     `triState` and `data.get` name is in exactly one of the two lists. A new form field then forces a classification.
+     `triState` and `data.get` name the change stores is in exactly one of the two lists. Skip `reason` and every name
+     `isStoredField` rejects, as `stagedFields` does: the change's reason is its own column, not a stored field. A new stored form
+     field then forces a classification.
    - Tests in `configuration-edit.test.ts`:
      - `null` is accepted on a listed name of this kind and operation, and `withheld` names it;
      - `null` stays `BAD_VALUE` elsewhere (another name, another operation, another kind, no kind);
@@ -211,8 +213,9 @@ export function blankWithheld(kind: string, rawPayload: unknown): object | null;
    per 3.4, starting with a header comment that cites the ruling on 2030 and N7.
    - Apply it in this order:
      - On `perolehan_native_check` first.
-     - Then on `perolehan`. Before and after, run read-only `SELECT count(*), md5(string_agg(id || payload::text || "before"::text, '' ORDER BY id)) FROM "ConfigurationChange"`
-       and record both in the decisions log. They must be equal.
+     - Then on `perolehan`. Before and after, run read-only `SELECT count(*), md5(string_agg(id || payload::text || "before"::text, '' ORDER BY id)) FROM "ConfigurationChange" WHERE status <> 'PROPOSED'`
+       and record both in the decisions log. They must be equal. The founder's dev server is live and may decide a change
+       meanwhile. If they differ, list the rows decided between the two reads before calling it a fault.
    - Then check:
      - `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` is empty;
      - `npx prisma generate` has run.
@@ -250,7 +253,11 @@ export function blankWithheld(kind: string, rawPayload: unknown): object | null;
        run.
      - **Existing rows unchanged:** a return correction decided under the guard without the blank (an UPDATE writing the decision
        only) keeps its full payload, and a later blank of it is PA004.
-   - **Done when** `npx vitest run src/lib/auth src/app/configuration`, `npm run test:db` and `npm run check` pass. Commit.
+   - **Done when**:
+     - `grep -rn 'UPDATE "ConfigurationChange"\|configurationChange.update' src` (excluding tests and `src/generated`) finds no
+       writer of an edit kind's decision other than `conclude` in `edit-store.ts`;
+     - `npx vitest run src/lib/auth src/app/configuration`, `npm run test:db` and `npm run check` pass.
+     Commit.
 4. **test-engineer: the record and the last gate.**
    - Edit `docs/notes/backlog.md`:
      - Mark the row at line 57 "payload: met 2026-10-20 (N7), for corrections decided from now on; rows decided earlier keep their
