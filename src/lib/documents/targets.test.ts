@@ -21,9 +21,14 @@ describe("exercisePurposes", () => {
 describe("attachTargets", () => {
   it("offers an exercise only the purposes its method keeps, and says so where it keeps none", () => {
     const [a, b] = attachTargets([exercise({ requiresDossier: true, requiresCoordinationRecord: false }), exercise({ requiresDossier: false, requiresCoordinationRecord: false })]);
-    expect(a.purposes.map((p) => p.value)).toEqual(["DOSSIER_EVIDENCE"]);
-    expect(b.purposes).toEqual([]);
-    expect(b.nothingKept).toMatch(/method asks for no document/);
+    // Go-live R4: the published schedule is the exercise's whatever its method keeps, so it is always offered (closed until the exercise is ready for it).
+    expect(a.purposes.map((p) => p.value)).toEqual(["DOSSIER_EVIDENCE", "PUBLISHED_SCHEDULE"]);
+    expect(b.purposes.map((p) => p.value)).toEqual(["PUBLISHED_SCHEDULE"]);
+    expect(b.nothingKept).toBeNull();
+    // Where nothing at all is kept, it is said: a standing event that is not a cancellation takes no file.
+    const [none] = attachTargets([{ id: "e", label: "Event", facts: { kind: "standingEvent", cancellation: false, withdrawn: false } }]);
+    expect(none.purposes).toEqual([]);
+    expect(none.nothingKept).toMatch(/method asks for no document/);
   });
 
   it("offers an exercise a purpose exactly where the attach act would not refuse it for the record or its method", () => {

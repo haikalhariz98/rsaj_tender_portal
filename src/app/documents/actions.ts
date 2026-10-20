@@ -133,7 +133,9 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
     if ((under && (await refuseHiddenExercise(tx, actor, under))) || (await sulitAttachRefused(tx, actor, doc.id))) return refuse([{ code: "DOCUMENT_UNKNOWN", level: "block" }]);
     const col = OWNER_COLUMN[kind];
     const already = await tx.documentAttachment.findFirst({ where: { [col]: ownerId, purpose, detachedAt: null, version: { documentId: doc.id } }, select: { id: true } });
-    const faults = attachFault({ purpose, owner: o.facts, version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already });
+    // Under the owner's lock: how many of this purpose it holds now (the purposes that hold one document refuse a second).
+    const liveOfPurpose = await tx.documentAttachment.count({ where: { [col]: ownerId, purpose, detachedAt: null, version: { withdrawnAt: null } } });
+    const faults = attachFault({ purpose, owner: o.facts, version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already, liveOfPurpose });
     const blocks = blocking(faults);
     if (blocks.length) return refuse(blocks);
     const row = await tx.documentAttachment.create({ data: { organisationId: o.organisationId, purpose, versionId: v.id, [col]: ownerId } });

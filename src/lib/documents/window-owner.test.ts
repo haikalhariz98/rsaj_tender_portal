@@ -54,8 +54,9 @@ describe("the window's purposes on an exercise", () => {
     expect(ownerState("ATTENDANCE_SHEET", exercise("INVITED", "INVITED"))).toEqual({ state: "OPEN" });
     expect(ownerState("ATTENDANCE_SHEET", exercise("CANCELLED", "INVITED"))).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
   });
+  // Go-live R4: and the published schedule, closed here: this exercise's opening is not finalised and no award is issued.
   it("the shared attach choice offers exactly those", () => {
     const [t] = attachTargets([{ id: "x", label: "SX/1", facts: exercise("ADVERTISED", "ADVERTISED") }]);
-    expect(t.purposes.map((p) => [p.value, p.open])).toEqual([["PUBLICATION_PROOF", true], ["ATTENDANCE_SHEET", true]]);
+    expect(t.purposes.map((p) => [p.value, p.open])).toEqual([["PUBLICATION_PROOF", true], ["ATTENDANCE_SHEET", true], ["PUBLISHED_SCHEDULE", false]]);
   });
 });

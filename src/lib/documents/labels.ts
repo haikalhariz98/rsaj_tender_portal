@@ -112,6 +112,7 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   SUPPLIER_DRAFT_DOCUMENT: "Certificate uploaded by the supplier",
   SUPPLIER_BANK_STATEMENT: "Bank statement uploaded by the supplier",
   ONLINE_BID_FILE: "File of an online bid",
+  PUBLISHED_SCHEDULE: "Schedule of tenders for Results",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -218,6 +219,10 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   CANCELLATION_WITHDRAWN: "The cancellation was withdrawn as recorded in error and keeps what it has.",
   EOT_CLAIM_DETERMINED: "The extension-of-time claim is determined (or closed) and keeps what it was determined with.",
   EOT_NOT_WEATHER: "Meteorological records are kept only on a weather claim.",
+  SCHEDULE_NOT_ADVERTISED: "The schedule of tenders is published only for an advertised exercise.",
+  SCHEDULE_CONFIDENTIAL: "This exercise is confidential, so no schedule is published for it.",
+  SCHEDULE_OPENING_NOT_FINALISED: "Publish the schedule once the opening is finalised.",
+  SCHEDULE_AWARD_NOT_ISSUED: "Publish the schedule once the award is issued.",
 };
 
 /**
@@ -411,6 +416,10 @@ export function documentFaultText(f: Finding): string {
       return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is kept ${classificationLabel(d.required as SecurityClass)}, and this document is ${d.classification ? classificationLabel(d.classification as SecurityClass) : "not classified"}. Raise its classification to ${classificationLabel(d.required as SecurityClass)} on the document, or upload it again under a class classified ${classificationLabel(d.required as SecurityClass)}.`;
     case "ALREADY_ATTACHED":
       return "That document is already attached here.";
+    case "NOT_PUBLIC":
+      return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is read by the public, so its document must be Public, and this one is ${d.classification ? classificationLabel(d.classification as SecurityClass) : "not classified"}. A classification is never lowered. Upload the file again under a Public class.`;
+    case "SCHEDULE_IS_ONE_FILE":
+      return "The schedule is one file, already published. Use Replace for a corrected one.";
     case "BILL_IS_ONE_FILE":
       return "The bill is one file, already uploaded. Use Replace for a corrected file.";
     case "ATTACHED_BY_OWNER_ACT":

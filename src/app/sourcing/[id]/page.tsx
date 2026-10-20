@@ -144,6 +144,7 @@ import type { ReactNode } from "react";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseValue, sulitExerciseGate } from "@/app/_auth/sulit";
 import { EarlierNoticesPanel, NonAwardPanel } from "./non-award-panel";
+import { SchedulePanel } from "./schedule-panel";
 import { fieldIsFor, sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import { isBlindMasked, maskAllRows } from "@/lib/evaluation/blind-audit";
@@ -658,6 +659,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                   const standing = awards.find((a) => a.status !== "CANCELLED");
                   return standing ? <NonAwardPanel actor={actor} award={{ id: standing.id, exerciseId: ex.id, status: standing.status, awardeePartyId: standing.awardeePartyId }} /> : null;
                 })()}
+                <SchedulePanel actor={actor} exerciseId={ex.id} />
                 <EarlierNoticesPanel actor={actor} exerciseId={ex.id} awards={awards.filter((a) => a.status === "CANCELLED")} />
               </>
             ) : null

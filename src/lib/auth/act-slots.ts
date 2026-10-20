@@ -392,6 +392,11 @@ export const OTHER_HOLDER_ENTRY_POINTS: readonly { entry: string; holder: Admini
   { entry: "src/app/committees/actions.ts#declareRecusal", holder: "HOLDER_CHECKED", why: "A member's declaration that they take no part in a decision." },
   { entry: "src/app/committees/actions.ts#recordOutcome", holder: "HOLDER_CHECKED", why: "Records what a committee decided on a matter, and moves the matter it is about." },
   { entry: "src/app/committees/actions.ts#withdrawMatter", holder: "HOLDER_CHECKED", why: "Takes a matter off a sitting before it is decided: the Secretariat's work." },
+  // Go-live R4: the schedule of tenders is published, replaced and withdrawn through the document store's own acts. A DocumentAttachment names no Person, so these have no slot.
+  // They are the acts of a transaction (an administrator account does not do them), whatever record or purpose they are asked of.
+  { entry: "src/app/documents/actions.ts#attachDocument", holder: "TRANSACTION", why: "Attaches a stored version to a record for a purpose, among them the schedule of tenders published on Results." },
+  { entry: "src/app/documents/actions.ts#attachNewVersion", holder: "TRANSACTION", why: "Replaces the version an attachment pins with a newer one of the same document, with a reason: how a published schedule is corrected." },
+  { entry: "src/app/documents/actions.ts#detachDocument", holder: "TRANSACTION", why: "Takes an attachment off its record, with a reason: how a published schedule is withdrawn." },
 ];
 
 /**

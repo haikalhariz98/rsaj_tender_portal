@@ -66,7 +66,8 @@ export type AttachmentPurpose =
   | "EOT_CALCULATION"
   | "SUPPLIER_DRAFT_DOCUMENT"
   | "SUPPLIER_BANK_STATEMENT"
-  | "ONLINE_BID_FILE";
+  | "ONLINE_BID_FILE"
+  | "PUBLISHED_SCHEDULE";
 
 export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
@@ -115,6 +116,7 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SUPPLIER_DRAFT_DOCUMENT",
   "SUPPLIER_BANK_STATEMENT",
   "ONLINE_BID_FILE",
+  "PUBLISHED_SCHEDULE",
 ];
 
 /// The owners a document can be attached to. New owners arrive by migration with their
@@ -180,6 +182,8 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   SUPPLIER_BANK_STATEMENT: "creditorProfile",
   // Wave 3b step 15: an online bid file moved into the store once its opening is finalised, on the file it came from.
   ONLINE_BID_FILE: "onlineBidFile",
+  // Go-live R4: the schedule of tenders the office publishes on the public Results page, on the exercise.
+  PUBLISHED_SCHEDULE: "exercise",
 };
 
 /// The column on DocumentAttachment that names each owner.
@@ -239,6 +243,8 @@ export const PURPOSE_CLASSIFICATION: Readonly<Partial<Record<AttachmentPurpose, 
   SUPPLIER_BANK_STATEMENT: "SULIT",
   // Wave 3b step 15: a bid file was sealed until the opening, and is read only by those entitled to a SULIT record of the exercise.
   ONLINE_BID_FILE: "SULIT",
+  // Go-live R4: the schedule is read by the public. Exactly PUBLIC, never higher: a document held higher is refused, in its own words (`NOT_PUBLIC`).
+  PUBLISHED_SCHEDULE: "PUBLIC",
 };
 
 /// The types the product can tell from a file's own bytes. A bare ZIP is not among them,

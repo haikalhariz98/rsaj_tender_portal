@@ -41,6 +41,11 @@ export type OwnerFacts =
       /// 6.5: its invitation window's path, where it has a window. Publication proofs are kept
       /// only by an advertised one, attendance sheets by any window. Absent or null: no window.
       window?: { path: "ADVERTISED" | "INVITED" } | null;
+      /// Go-live R4: what the published schedule of tenders is judged on. Absent reads as not met: that purpose fails closed.
+      /// `restricted`: the exercise is confidential (FR-MTD-007). `openingFinalised`: its main opening is finalised. `awardIssued`: an award is issued or accepted.
+      restricted?: boolean;
+      openingFinalised?: boolean;
+      awardIssued?: boolean;
     }
   | {
       kind: "award";
@@ -212,7 +217,12 @@ export type OwnerExit =
   /// 6.13 Part B run 1b: an EOT claim determined or closed keeps what it was determined with; only a weather claim keeps
   /// meteorological records.
   | "EOT_CLAIM_DETERMINED"
-  | "EOT_NOT_WEATHER";
+  | "EOT_NOT_WEATHER"
+  /// Go-live R4: the schedule of tenders is published only for an advertised exercise that is not confidential, once its opening is finalised and an award is issued.
+  | "SCHEDULE_NOT_ADVERTISED"
+  | "SCHEDULE_CONFIDENTIAL"
+  | "SCHEDULE_OPENING_NOT_FINALISED"
+  | "SCHEDULE_AWARD_NOT_ISSUED";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -225,6 +235,10 @@ export type AttachFault =
   | "CLASSIFICATION_BELOW_PURPOSE"
   | "ATTACHED_BY_OWNER_ACT"
   | "BILL_IS_ONE_FILE"
+  /// Go-live R4: the published schedule is one document, replaced by a new version, never a second one beside it.
+  | "SCHEDULE_IS_ONE_FILE"
+  /// Go-live R4: a purpose that must be held PUBLIC meets a document held at another classification, or none. Its own words, not the "below" ones: a class is never lowered to fit.
+  | "NOT_PUBLIC"
   | "ALREADY_ATTACHED";
 
 /// Whether the purpose belongs on this owner at all.
@@ -268,6 +282,9 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): Owner
       // 6.7 (X-8): opening and opened follow publication, so both stay open then.
       if (purpose === "PUBLICATION_PROOF" && owner.status !== "APPROVED_FOR_TENDERING" && owner.status !== "ADVERTISED" && !afterOpening(owner.status)) return { state: "NOT_READY", exit: "NOT_APPROVED_FOR_TENDERING" };
       if (purpose === "ATTENDANCE_SHEET" && owner.status !== "ADVERTISED" && owner.status !== "INVITED" && !afterOpening(owner.status)) return { state: "NOT_READY", exit: "WINDOW_NOT_PUBLISHED" };
+      // Go-live R4: the schedule is public, so each of these is asked in turn and none is assumed. NOT_READY (never FROZEN) so that taking one off stays possible
+      // when the exercise has since become confidential: a published file must always have a way off.
+      if (purpose === "PUBLISHED_SCHEDULE") return publishedScheduleState(owner);
       return { state: "OPEN" };
     case "award":
       if (owner.status === "CANCELLED") return { state: "FROZEN", exit: "AWARD_CANCELLED" };
@@ -449,6 +466,15 @@ function contractOwnerState(purpose: AttachmentPurpose, owner: Extract<OwnerFact
   }
 }
 
+/// Where an exercise stands for the published schedule of tenders. Absent facts read as not met.
+function publishedScheduleState(owner: Extract<OwnerFacts, { kind: "exercise" }>): OwnerState {
+  if (owner.window?.path !== "ADVERTISED") return { state: "NOT_READY", exit: "SCHEDULE_NOT_ADVERTISED" };
+  if (owner.restricted !== false) return { state: "NOT_READY", exit: "SCHEDULE_CONFIDENTIAL" };
+  if (owner.openingFinalised !== true) return { state: "NOT_READY", exit: "SCHEDULE_OPENING_NOT_FINALISED" };
+  if (owner.awardIssued !== true) return { state: "NOT_READY", exit: "SCHEDULE_AWARD_NOT_ISSUED" };
+  return { state: "OPEN" };
+}
+
 /// 6.7: the two states that follow publication (an exercise opened keeps a published one's documents);
 /// 6.8 (X-8): and the evaluation's two.
 const afterOpening = (s: ExerciseStatus) => s === "OPENING_IN_PROGRESS" || s === "OPENED" || s === "UNDER_EVALUATION" || s === "EVALUATED";
@@ -466,6 +492,8 @@ export interface AttachInput {
   documentClassification?: SecurityClass | null;
   /// The same document is already attached, live, to this owner for this purpose.
   alreadyAttached?: boolean;
+  /// How many live attachments of this purpose the owner already holds (read under its lock). Asked only of the purposes that hold one document.
+  liveOfPurpose?: number;
   /// True when the owner's own act attaches it (the bill's import); a purpose in
   /// OWNER_ACT_PURPOSES is refused from anywhere else.
   byOwnerAct?: boolean;
@@ -485,8 +513,11 @@ export function attachFault(i: AttachInput): Finding<AttachFault>[] {
   else if (classification == null) out.push({ code: "CLASSIFICATION_NOT_SET", level: "warn" });
   // 6.2 Q-1: a purpose that must be held at a classification is refused below it (or unset).
   const required = PURPOSE_CLASSIFICATION[i.purpose];
-  if (i.documentClass && required && classification !== required) out.push({ code: "CLASSIFICATION_BELOW_PURPOSE", level: "block", data: { purpose: i.purpose, required, classification } });
+  if (i.documentClass && required === "PUBLIC" && classification !== "PUBLIC") out.push({ code: "NOT_PUBLIC", level: "block", data: { purpose: i.purpose, classification } });
+  else if (i.documentClass && required && classification !== required) out.push({ code: "CLASSIFICATION_BELOW_PURPOSE", level: "block", data: { purpose: i.purpose, required, classification } });
   if (i.alreadyAttached) out.push({ code: "ALREADY_ATTACHED", level: "block" });
+  // Go-live R4: one schedule at a time. A corrected one replaces it (a new version of the same document).
+  if (i.purpose === "PUBLISHED_SCHEDULE" && (i.liveOfPurpose ?? 0) > 0 && !i.alreadyAttached) out.push({ code: "SCHEDULE_IS_ONE_FILE", level: "block" });
   // SR-09: the bill, where it is a file, is one file; a corrected one replaces it (a new version), it is not added beside it.
   if (i.owner.kind === "tenderPackPart" && i.owner.source === "BQ_UNPRICED" && i.owner.billOnScreen === false && i.owner.liveFiles > 0 && !i.alreadyAttached) out.push({ code: "BILL_IS_ONE_FILE", level: "block" });
   return out;

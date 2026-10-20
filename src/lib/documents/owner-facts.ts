@@ -30,7 +30,13 @@ export function exerciseMethodFlags(classificationSnapshot: unknown, configured:
 /// `awards`: the exercise's awards, with how many appointment routes each has open.
 /// `method`: `exerciseMethodFlags` of the exercise.
 /// `window`: 6.5's invitation window, where the exercise has one (its path decides the window's purposes).
-export function exerciseFacts(ex: { status: ExerciseStatus }, awards: readonly { status: string; openAppointmentRoutes: number }[], method: ExerciseMethodFlags | null, window: { path: "ADVERTISED" | "INVITED" } | null = null): OwnerFacts {
+export function exerciseFacts(
+  ex: { status: ExerciseStatus },
+  awards: readonly { status: string; openAppointmentRoutes: number }[],
+  method: ExerciseMethodFlags | null,
+  window: { path: "ADVERTISED" | "INVITED" } | null = null,
+  publication?: PublicationFacts,
+): OwnerFacts {
   return {
     kind: "exercise",
     status: ex.status,
@@ -38,8 +44,26 @@ export function exerciseFacts(ex: { status: ExerciseStatus }, awards: readonly {
     awardApproved: awards.some((a) => a.status === "APPROVED" || a.status === "ISSUED" || a.status === "ACCEPTED"),
     method,
     window,
+    // Go-live R4: what the published schedule of tenders is judged on. Left unread, each reads as not met (the rule fails closed).
+    ...(publication ? { restricted: publication.restricted, openingFinalised: publication.openingFinalised } : {}),
+    awardIssued: awards.some((a) => a.status === "ISSUED" || a.status === "ACCEPTED"),
   };
 }
+
+/// What the published schedule needs of its exercise besides its status: whether it is confidential, and whether its main opening is finalised.
+export interface PublicationFacts {
+  restricted: boolean;
+  openingFinalised: boolean;
+}
+
+/// The same two facts from what an exercise read carries (`restricted`, and its main openings' `finalisedAt`).
+export const publicationFactsOf = (ex: { restricted: boolean; openings: readonly { finalisedAt: Date | null }[] }): PublicationFacts => ({
+  restricted: ex.restricted,
+  openingFinalised: ex.openings.some((o) => o.finalisedAt != null),
+});
+
+/// The select every exercise read adds for `publicationFactsOf`.
+export const PUBLICATION_FACTS_SELECT = { restricted: true, openings: { where: { kind: "MAIN" as const }, select: { finalisedAt: true } } } as const;
 
 /// OD-5: an award accepted with no return-scan snapshot was accepted before scans were required.
 export function awardFacts(a: { status: AwardStatus; instrumentKind: InstrumentKind; returnScanSnapshot: unknown }): OwnerFacts {

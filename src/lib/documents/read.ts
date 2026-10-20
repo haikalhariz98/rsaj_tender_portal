@@ -12,7 +12,7 @@ import { detachFault, ownerState, purposeFits, reliedOn, reliedOnAttachment, rep
 import { isLive } from "./evidence";
 import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, exitWords, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
-import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts, DELAY_NOTICE_FACTS_SELECT, delayNoticeFacts, delayNoticeLabel, EOT_CLAIM_FACTS_SELECT, eotClaimFacts, eotClaimLabel } from "./owner-facts";
+import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, PUBLICATION_FACTS_SELECT, publicationFactsOf, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts, DELAY_NOTICE_FACTS_SELECT, delayNoticeFacts, delayNoticeLabel, EOT_CLAIM_FACTS_SELECT, eotClaimFacts, eotClaimLabel } from "./owner-facts";
 import { SUPPLIER_APPLICATION_FACTS_SELECT, SUPPLIER_DOCUMENT_FACTS_SELECT, supplierApplicationLabel, supplierDocumentLabel } from "@/lib/suppliers/lock";
 import { CONTRACT_FACTS_SELECT, contractLabel } from "@/lib/contract/repo";
 import { PACK_PART_FACTS_SELECT, packPartLabel } from "@/lib/tender-docs/owner";
@@ -42,10 +42,10 @@ export async function readOwner(organisationId: string, ref: OwnerRef): Promise<
       return m ? { facts: meetingFacts(m), label: m.reference } : null;
     }
     case "exercise": {
-      const ex = await db.sourcingExercise.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, reference: true, sourcingMethodCode: true, classificationSnapshot: true, window: { select: { path: true } }, awards: { select: { status: true, approvalInstances: { where: { domain: "appointment", status: "PENDING" }, select: { id: true } } } } } });
+      const ex = await db.sourcingExercise.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, reference: true, sourcingMethodCode: true, classificationSnapshot: true, ...PUBLICATION_FACTS_SELECT, window: { select: { path: true } }, awards: { select: { status: true, approvalInstances: { where: { domain: "appointment", status: "PENDING" }, select: { id: true } } } } } });
       if (!ex) return null;
       const configured = ex.sourcingMethodCode ? await db.sourcingMethod.findFirst({ where: { organisationId: org.id, code: ex.sourcingMethodCode }, select: { requiresDossier: true, requiresCoordinationRecord: true } }) : null;
-      return { facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(ex.classificationSnapshot, configured), ex.window), label: ex.reference };
+      return { facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(ex.classificationSnapshot, configured), ex.window, publicationFactsOf(ex)), label: ex.reference };
     }
     case "award": {
       const a = await db.award.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, instrumentKind: true, returnScanSnapshot: true, reference: true } });
@@ -300,7 +300,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     case "exercise": {
       const where = { organisationId: org.id, ...(hidden.length ? { id: { notIn: [...hidden] } } : {}) };
       const [rows, total, methods] = await Promise.all([
-        db.sourcingExercise.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, status: true, reference: true, title: true, sourcingMethodCode: true, classificationSnapshot: true, window: { select: { path: true } }, awards: { select: { status: true, approvalInstances: { where: { domain: "appointment", status: "PENDING" }, select: { id: true } } } } } }),
+        db.sourcingExercise.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, status: true, reference: true, title: true, sourcingMethodCode: true, classificationSnapshot: true, ...PUBLICATION_FACTS_SELECT, window: { select: { path: true } }, awards: { select: { status: true, approvalInstances: { where: { domain: "appointment", status: "PENDING" }, select: { id: true } } } } } }),
         db.sourcingExercise.count({ where }),
         db.sourcingMethod.findMany({ where: { organisationId: org.id }, select: { code: true, requiresDossier: true, requiresCoordinationRecord: true } }),
       ]);
@@ -310,7 +310,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
             id: ex.id,
             label: `${ex.reference} · ${ex.title}`,
             // The same facts the attach act reads under its lock, method included.
-            facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(ex.classificationSnapshot, methods.find((m) => m.code === ex.sourcingMethodCode) ?? null), ex.window),
+            facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(ex.classificationSnapshot, methods.find((m) => m.code === ex.sourcingMethodCode) ?? null), ex.window, publicationFactsOf(ex)),
           })),
         ),
         total,

@@ -83,7 +83,7 @@ export interface AttachmentItemView {
 }
 
 /// The purposes that hold one document at a time: a signed copy, a signed scan, the one recommendation. Corrected by a new version, not added to. Dossier evidence and the scope document are several documents.
-export const HOLDS_ONE_DOCUMENT: ReadonlySet<AttachmentPurpose> = new Set<AttachmentPurpose>(["SIGNED_MINUTES", "SITTING_MINUTES", "HOLDER_RECOMMENDATION", "SIGNED_LETTER", "DECLARATION", "AUTHORISATION", "ACCEPTANCE_PAGE"]);
+export const HOLDS_ONE_DOCUMENT: ReadonlySet<AttachmentPurpose> = new Set<AttachmentPurpose>(["SIGNED_MINUTES", "SITTING_MINUTES", "HOLDER_RECOMMENDATION", "SIGNED_LETTER", "DECLARATION", "AUTHORISATION", "ACCEPTANCE_PAGE", "PUBLISHED_SCHEDULE"]);
 
 /// What a slot offers: upload while it is empty, then a new version where it holds one document, or another where it holds several.
 export type SlotAct = "UPLOAD" | "NEW_VERSION" | "ADD_ANOTHER";
@@ -168,6 +168,8 @@ export interface PanelOptions {
   statuses?: Partial<Record<AttachmentPurpose, { text: string; tone: Tone }>>;
   /// Extra lines under a slot (the caller's own findings, already in words).
   findings?: Partial<Record<AttachmentPurpose, { tone: "warn" | "info" | "err"; text: string }[]>>;
+  /// Offer only the classes held at this classification (a record that is read by the public offers only the Public ones). Absent: every class.
+  classifiedAs?: SecurityClass;
   /// Purposes the owner's own act attaches (OWNER_ACT_PURPOSES), with the words naming that act.
   attachedBy?: Partial<Record<AttachmentPurpose, string>>;
 }
@@ -192,7 +194,7 @@ export function panelView(p: Panel, u: Upload, timeZone: string | null, opts: Pa
     frozen: frozenAll ? { reason: slots[0].reason! } : null,
     items: all.filter((i) => i.live),
     past: all.filter((i) => !i.live),
-    upload: uploadView(u),
+    upload: uploadView(opts.classifiedAs ? { ...u, classes: u.classes.filter((c) => c.classification === opts.classifiedAs) } : u),
     statement: p.statement,
   };
 }

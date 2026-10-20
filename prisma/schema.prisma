@@ -4535,6 +4535,8 @@ enum AttachmentPurpose {
   SUPPLIER_BANK_STATEMENT
   /// Wave 3b (SR-13, ADR 0036 D10): an online bid file moved into the document store once its opening is finalised, on the file it came from. SULIT.
   ONLINE_BID_FILE
+  /// Go-live R4 (founder, 2026-10-20): the schedule of tenders the procurement office publishes on the public Results page, on the exercise. PUBLIC, and only once the opening is finalised and an award is issued.
+  PUBLISHED_SCHEDULE
 }
 
 enum DocumentAccessKind {

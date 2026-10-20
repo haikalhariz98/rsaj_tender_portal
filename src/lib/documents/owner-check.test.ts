@@ -136,12 +136,14 @@ describe("6.5: the addendum is an owner, and the window's purposes pair with the
   });
 
   it("a publication's proof and an attendance sheet are the exercise's", () => {
-    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/'PUBLICATION_PROOF', 'ATTENDANCE_SHEET'\) AND "exerciseId" IS NOT NULL/);
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/'PUBLICATION_PROOF', 'ATTENDANCE_SHEET', 'PUBLISHED_SCHEDULE'\) AND "exerciseId" IS NOT NULL/);
+    // Go-live R4: the published schedule is the exercise's too, in the CHECK and in the lib.
+    expect(PURPOSE_OWNER.PUBLISHED_SCHEDULE).toBe("exercise");
     expect(PURPOSE_OWNER.PUBLICATION_PROOF).toBe("exercise");
     expect(PURPOSE_OWNER.ATTENDANCE_SHEET).toBe("exercise");
   });
 
-  it.each(["ADDENDUM_SIGNED", "PUBLICATION_PROOF", "ATTENDANCE_SHEET"])("%s arrived alone in its own migration, before the migration that rebuilt the CHECKs with it", (value) => {
+  it.each(["ADDENDUM_SIGNED", "PUBLICATION_PROOF", "ATTENDANCE_SHEET", "PUBLISHED_SCHEDULE"])("%s arrived alone in its own migration, before the migration that rebuilt the CHECKs with it", (value) => {
     const own = migrations.filter((d) => new RegExp(`ALTER TYPE "AttachmentPurpose" ADD VALUE '${value}'`).test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
     const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes(`'${value}'`));
     expect(own).toHaveLength(1);
