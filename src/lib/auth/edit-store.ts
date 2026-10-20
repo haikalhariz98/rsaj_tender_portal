@@ -22,10 +22,12 @@ import {
   readRehearsal,
   rehearsalOf,
   samePayload,
+  withheldFaults,
   type EditKind,
   type EditPayload,
   type StagedValue,
 } from "./configuration-edit";
+import { blankWithheld, WITHHELD_WORDS } from "@/lib/award/return-withheld";
 import { loadCandidates } from "./eligibility-store";
 import { eligiblePersonIds } from "./eligibility";
 import { loadGrants } from "./permission-store";
@@ -174,16 +176,20 @@ export async function proposeEdit(
   if (!op) return refuse([UNKNOWN_EDITOR]);
   const unpermitted = editProposalFaults(op, actor);
   if (unpermitted.length > 0) return refuse(unpermitted);
-  const parsed = parseEditPayload({ operation: input.operation, fields: input.fields });
+  const parsed = parseEditPayload({ operation: input.operation, fields: input.fields }, op.kind);
   if (!parsed.ok) return refuse(parsed.faults.map((x) => f(x.code, `${x.field === "*" ? "" : `${x.field}: `}${x.en}`)));
-  const payload = parsed.payload;
+  // A proposal never holds the withheld marker (go-live N7): that is a decided change's record.
+  const marked = withheldFaults(parsed.payload);
+  if (marked.length > 0) return refuse(marked);
+  // Stored as the editor's own shape: `withheld` is a reading of a decided row, never a key of the stored payload.
+  const payload = { operation: parsed.payload.operation, fields: parsed.payload.fields };
   const reason = input.reason.trim();
 
   return db.$transaction(async (tx): Promise<ProposeEditOutcome> => {
     // The same proposer's same proposal, waiting: said, not stacked.
     const waiting = await tx.configurationChange.findMany({ where: { organisationId: actor.organisationId, kind: op.kind, status: "PROPOSED", proposedByPersonId: actor.personId }, select: { payload: true } });
     for (const w of waiting) {
-      const p = parseEditPayload(w.payload);
+      const p = parseEditPayload(w.payload, op.kind);
       if (p.ok && samePayload(p.payload, payload)) return refuse([f("ALREADY_PROPOSED", "You have already proposed exactly this. It is waiting for a second person.")]);
     }
     // The rehearsal: the editor runs against the live values, as the proposer, and everything it wrote is undone. What it refuses is told to the proposer in its own words.
@@ -250,7 +256,7 @@ export async function decideEdit(
     await tx.$queryRaw`SELECT id FROM "ConfigurationChange" WHERE id = ${input.changeId} AND "organisationId" = ${actor.organisationId} FOR UPDATE`;
     const row = await tx.configurationChange.findFirst({ where: { id: input.changeId, organisationId: actor.organisationId }, include: { proposedBy: { select: { name: true } } } });
     if (!row || !isEditKind(row.kind)) return refuse([NO_SUCH_CHANGE]);
-    const parsed = parseEditPayload(row.payload);
+    const parsed = parseEditPayload(row.payload, row.kind);
     const op = parsed.ok ? registry.find(parsed.payload.operation) : null;
     if (!parsed.ok || !op) return refuse([f("UNREADABLE", "This change no longer fits what a change of its kind carries, or its editor is gone, so it cannot be applied. Decline it, and propose it again.")]);
 
@@ -260,10 +266,18 @@ export async function decideEdit(
     } else {
       const faults = editDecisionFaults(op, row, actor);
       if (faults.length > 0) return refuse(faults);
+      // A payload already holding the withheld marker would run the editor on empty values (go-live N7).
+      if (input.decision === "APPLY") {
+        const marked = withheldFaults(parsed.payload);
+        if (marked.length > 0) return refuse(marked);
+      }
     }
 
     const label = op.label;
     const decidedBy = { decidedByPersonId: actor.personId, decidedAt: now };
+    // PDPA (go-live N7; ruling on open item 2030, decisions-log line 2047, chosen at line 2823): the contractor signatory's personal values leave the stored payload in
+    // the same UPDATE that decides it, whatever the decision. The editor has already run on the parsed in-memory payload, so the correction is unaffected. Null for any other kind.
+    const blanked = blankWithheld(row.kind, row.payload);
     const trail = (status: ChangeStatus, why: string, decisionReason: string) =>
       writeAudit(
         tx,
@@ -272,10 +286,12 @@ export async function decideEdit(
         [
           { field: "Standing", before: STATUS_WORDS.PROPOSED.en, after: STATUS_WORDS[status].en },
           { field: "Decided by", before: null, after: actor.personName },
+          // Said, never the values themselves.
+          ...(blanked ? [{ field: "Personal details", before: "Held", after: WITHHELD_WORDS.en }] : []),
         ],
       );
     const conclude = async (status: ChangeStatus, why: string, decisionReason: string) => {
-      await tx.configurationChange.update({ where: { id: row.id }, data: { status, ...decidedBy, decisionReason } });
+      await tx.configurationChange.update({ where: { id: row.id }, data: { status, ...decidedBy, decisionReason, ...(blanked ? { payload: blanked } : {}) } });
       await trail(status, why, decisionReason);
       await act.write(tx, row.id, { document: { entity: "ConfigurationChange", id: row.id }, roleCode: input.roleCode ?? null });
     };

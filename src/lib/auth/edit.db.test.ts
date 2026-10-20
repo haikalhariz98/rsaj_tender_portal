@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { writeAudit } from "@/lib/audit/record";
+import { RETURN_CORRECTION_KIND, RETURN_CORRECTION_OPERATION, RETURN_KEPT_FIELDS, RETURN_WITHHELD_FIELDS, WITHHELD_WORDS } from "@/lib/award/return-withheld";
 import { db } from "@/lib/db";
 import { ensureAdministrator, facts, makeAccount, randomId, setPolicy, SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
@@ -163,6 +164,16 @@ editor("test.correction", { kind: "BASELINE_CORRECTION", administratorMay: false
   const key = seriesKey(data);
   const row = await db.numberingSeries.create({ data: { organisationId, key, nameEn: key, pattern: "corrected", padding: 3, resetOn: "NEVER" } });
   await audit(actor, row.id, key, "CREATE", [{ field: "pattern", before: null, after: "corrected" }], "");
+  return { ok: true };
+});
+
+/// The return correction of the award (go-live N7): the editor records the form it was run with and writes one audit row, so a rehearsal exists. `returnMood` is what the
+/// world "was" when it ran, so a test can move the world between the proposal and the decision.
+let returnMood = "before";
+const returnRuns: Record<string, string>[] = [];
+editor(RETURN_CORRECTION_OPERATION, { kind: RETURN_CORRECTION_KIND, administratorMay: false, proposePermission: null, decidePermission: "corrections.decide" }, async (data, actor) => {
+  returnRuns.push(Object.fromEntries([...data.entries()].map(([n, v]) => [n, String(v)])));
+  await writeAudit(db, { organisationId, entity: "ReturnTest", entityId: String(data.get("id") ?? ""), entityLabel: "Return test", reason: "", actor: auditActorOfStaff(actor) }, "UPDATE", [{ field: "Standing", before: returnMood, after: "recorded" }]);
   return { ok: true };
 });
 
@@ -522,5 +533,115 @@ describe("the queue", () => {
     expect(data.get("reason")).toBe("the change's reason");
     expect((data.get("f") as File).name).toBe("a.txt");
     expect(await (data.get("f") as File).text()).toBe("hi");
+  });
+});
+
+describe("a return correction's personal values are blanked when it is decided (go-live N7)", () => {
+  const listed = (n: string) => (RETURN_WITHHELD_FIELDS as readonly string[]).includes(n);
+  const form = (): [string, string][] => [...RETURN_KEPT_FIELDS, ...RETURN_WITHHELD_FIELDS].map((n) => [n, `${n} ${randomId()}`]);
+  const payloadOf = async (id: string) => (await rowOf(id)).payload as { operation: string; fields: [string, string | null][] };
+  const decisionAudit = (id: string) => db.auditEntry.findMany({ where: { entity: "ConfigurationChange", entityId: id } });
+  async function waiting(f = form()) {
+    returnMood = "before";
+    const maker = await officer();
+    const checker = await officer("corrections.decide");
+    const id = await proposed(maker, RETURN_CORRECTION_OPERATION, f);
+    return { maker, checker, id, f };
+  }
+  function expectBlanked(payload: { fields: [string, string | null][] }, f: [string, string][]) {
+    expect(payload.fields.map(([n]) => n)).toEqual(f.map(([n]) => n));
+    for (const [i, [n, v]] of f.entries()) expect(payload.fields[i][1], n).toBe(listed(n) ? null : v);
+  }
+  async function expectNoValueInTrail(id: string, f: [string, string][]) {
+    const text = JSON.stringify((await decisionAudit(id)).map((e) => e.changes));
+    expect(text).toContain("Personal details");
+    expect(text).toContain(WITHHELD_WORDS.en);
+    for (const [n, v] of f) if (listed(n)) expect(text, n).not.toContain(v);
+  }
+
+  it("stores the proposal as the editor's own shape, with no withheld key", async () => {
+    const { id } = await waiting();
+    expect(Object.keys((await rowOf(id)).payload as object).sort()).toEqual(["fields", "operation"]);
+  });
+
+  it("APPLY: the editor sees the full values, the stored payload then holds null for the listed names and the strings for the kept ones, and the audit holds no value", async () => {
+    const { checker, id, f } = await waiting();
+    returnRuns.length = 0;
+    expect(await decide(checker, id, "APPLY")).toMatchObject({ ok: true, status: "APPLIED" });
+    expect(returnRuns).toHaveLength(1);
+    for (const [n, v] of f) expect(returnRuns[0][n], n).toBe(v);
+    expectBlanked(await payloadOf(id), f);
+    expect(await rowOf(id)).toMatchObject({ status: "APPLIED", decidedByPersonId: checker.person.id });
+    await expectNoValueInTrail(id, f);
+  });
+
+  it("DECLINE blanks too", async () => {
+    const { checker, id, f } = await waiting();
+    expect(await decide(checker, id, "DECLINE", "Not this")).toMatchObject({ ok: true, status: "DECLINED" });
+    expectBlanked(await payloadOf(id), f);
+    await expectNoValueInTrail(id, f);
+  });
+
+  it("WITHDRAW blanks too", async () => {
+    const { maker, id, f } = await waiting();
+    expect(await decide(maker, id, "WITHDRAW")).toMatchObject({ ok: true, status: "WITHDRAWN" });
+    expectBlanked(await payloadOf(id), f);
+    await expectNoValueInTrail(id, f);
+  });
+
+  it("a STALE apply blanks too", async () => {
+    const { checker, id, f } = await waiting();
+    returnMood = "moved";
+    expect(await decide(checker, id, "APPLY")).toMatchObject({ ok: false, kind: "STALE" });
+    expect(await rowOf(id)).toMatchObject({ status: "STALE" });
+    expectBlanked(await payloadOf(id), f);
+    await expectNoValueInTrail(id, f);
+  });
+
+  it("keeps the payload of another edit kind identical, and writes no personal-details line", async () => {
+    const maker = await officer();
+    const checker = await officer("corrections.decide");
+    const id = await proposed(maker, "test.correction", [["key", key()]]);
+    const before = (await rowOf(id)).payload;
+    expect(await decide(checker, id, "APPLY")).toMatchObject({ ok: true });
+    expect((await rowOf(id)).payload).toEqual(before);
+    expect(JSON.stringify((await decisionAudit(id)).map((e) => e.changes))).not.toContain("Personal details");
+  });
+
+  it("is still read by the queue after the blank: its label stays and it is decided", async () => {
+    const { checker, id } = await waiting();
+    const title = (await loadChangesView(checker.actor, new Date(), registry)).waiting.find((r) => r.id === id)!.title;
+    expect(title).not.toBe("");
+    await decide(checker, id, "APPLY");
+    const view = await loadChangesView(checker.actor, new Date(), registry);
+    expect(view.decided.find((r) => r.id === id)).toMatchObject({ kind: RETURN_CORRECTION_KIND, status: "APPLIED", title });
+  });
+
+  it("refuses at APPLY a PROPOSED payload that already holds the marker, and does not run the editor", async () => {
+    const maker = await officer();
+    const checker = await officer("corrections.decide");
+    const id = `n7_${randomId()}`;
+    const marked = { operation: RETURN_CORRECTION_OPERATION, fields: [["id", "r1"], ["icNumber", null]] };
+    await db.$executeRawUnsafe(
+      `INSERT INTO "ConfigurationChange" ("id", "organisationId", "kind", "payload", "before", "proposedByPersonId") VALUES ($1, $2, $3::"ConfigurationChangeKind", $4::jsonb, '{}'::jsonb, $5)`,
+      id,
+      organisationId,
+      RETURN_CORRECTION_KIND,
+      JSON.stringify(marked),
+      maker.person.id,
+    );
+    returnRuns.length = 0;
+    expect(await decide(checker, id, "APPLY")).toMatchObject({ ok: false, faults: [{ code: "WITHHELD_NOT_APPLICABLE" }] });
+    expect(returnRuns).toHaveLength(0);
+    expect(await rowOf(id)).toMatchObject({ status: "PROPOSED" });
+  });
+
+  it("leaves a correction decided without the blank with its full payload, and a later blank of it is refused by the database", async () => {
+    const { checker, id, f } = await waiting();
+    await db.$executeRawUnsafe(`UPDATE "ConfigurationChange" SET "status" = 'APPLIED'::"ConfigurationChangeStatus", "decidedByPersonId" = $2, "decidedAt" = now() WHERE "id" = $1`, id, checker.person.id);
+    expect((await payloadOf(id)).fields).toEqual(f);
+    const blanked = { operation: RETURN_CORRECTION_OPERATION, fields: f.map(([n, v]) => [n, listed(n) ? null : v]) };
+    await expect(db.$executeRawUnsafe(`UPDATE "ConfigurationChange" SET "payload" = $2::jsonb WHERE "id" = $1`, id, JSON.stringify(blanked))).rejects.toThrow(/PA004/);
+    expect((await payloadOf(id)).fields).toEqual(f);
   });
 });

@@ -119,7 +119,7 @@ async function decide(actor: StaffActor, data: FormData, decision: "APPLY" | "DE
   if (!row) return { ok: false, message: "That change no longer exists." };
   // An editor's save (Phase 5) is decided by the rule of its editor; the other kinds each have their own.
   const editKind = isEditKind(row.kind) ? row.kind : null;
-  const parsedEdit = editKind ? parseEditPayload(row.payload) : null;
+  const parsedEdit = editKind ? parseEditPayload(row.payload, row.kind) : null;
   const editOp = parsedEdit?.ok ? editRegistry.find(parsedEdit.payload.operation) : null;
   if (decision === "WITHDRAW") {
     if (row.status !== "PROPOSED") return { ok: false, message: "This change has already been decided or withdrawn." };

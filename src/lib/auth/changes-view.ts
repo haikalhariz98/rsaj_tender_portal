@@ -86,7 +86,7 @@ export async function loadChangesView(actor: StaffActor, now: Date = new Date(),
   // Who could decide an editor's save: the holders of the checker's permission for that editor, and not an administrator account where the editor is kept from one.
   const deciderPermissions = new Set<PermissionKey>();
   for (const o of open) {
-    const parsed = isEditKind(o.kind) ? parseEditPayload(o.payload) : null;
+    const parsed = isEditKind(o.kind) ? parseEditPayload(o.payload, o.kind) : null;
     const op = parsed?.ok ? (registry?.find(parsed.payload.operation) ?? null) : null;
     if (op) deciderPermissions.add(op.decidePermission);
   }
@@ -96,7 +96,7 @@ export async function loadChangesView(actor: StaffActor, now: Date = new Date(),
 
   const toRow = (r: (typeof rows)[number]): ChangeRow => {
     if (isEditKind(r.kind)) {
-      const parsed = parseEditPayload(r.payload);
+      const parsed = parseEditPayload(r.payload, r.kind);
       const op = parsed.ok ? (registry?.find(parsed.payload.operation) ?? null) : null;
       const summary = describeEdit(r.kind, op?.label ?? null, r.before);
       const waiting = r.status === "PROPOSED";
