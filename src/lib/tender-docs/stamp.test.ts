@@ -27,11 +27,12 @@ describe("FR-DOC-009: the restriction is answered, and its stamp is configured i
     expect(restrictionFaults({ restricted: false, stamp: { EN: null, MS: null }, parts: [part()] })).toEqual([]);
     expect(stampFor(false, STAMP)).toBeNull();
   });
-  it("restricted: the stamp is needed in each language a document is generated in", () => {
-    expect(generatedLanguages([part()])).toEqual(["MS", "EN"]);
+  // Founder, 2026-10-20: English only. A template with both texts used to generate in both languages and need both stamps; only the English document is generated now.
+  it("restricted: the stamp is needed in the language a document is generated in, English", () => {
+    expect(generatedLanguages([part()])).toEqual(["EN"]);
     expect(generatedLanguages([part({ template: template({ bodyMs: null }) }), bqPart])).toEqual(["EN"]);
     expect(restrictionFaults({ restricted: true, stamp: STAMP, parts: [part()] })).toEqual([]);
-    expect(restrictionFaults({ restricted: true, stamp: { EN: STAMP.EN, MS: null }, parts: [part()] })).toEqual([{ code: "STAMP_NOT_SET", level: "block", data: { language: "Malay" } }]);
+    expect(restrictionFaults({ restricted: true, stamp: { EN: STAMP.EN, MS: null }, parts: [part()] })).toEqual([]);
     expect(codes(restrictionFaults({ restricted: true, stamp: { EN: " ", MS: STAMP.MS }, parts: [part()] }))).toEqual(["STAMP_NOT_SET"]);
     // An English-only pack needs no Malay stamp.
     expect(restrictionFaults({ restricted: true, stamp: { EN: STAMP.EN, MS: null }, parts: [part({ template: template({ bodyMs: null }) })] })).toEqual([]);
@@ -51,15 +52,14 @@ describe("FR-DOC-009 acceptance: a restricted exercise carries the stamp on ever
       appendix: { id: "ap1", facts, text: "Appendix to the Conditions of Contract" },
       stamp,
     });
-  it("each generated text opens with the stamp in its own language: the form in both, the bill and the Appendix", () => {
+  it("each generated text opens with the English stamp: the form, the bill and the Appendix (founder, 2026-10-20: English only, so the form is no longer generated in Malay)", () => {
     const { documents, manifest } = freeze(STAMP);
     expect(documents.map((d) => [d.partCode, d.language, d.renderedText.split("\n\n")[0]])).toEqual([
-      ["p2", "MS", STAMP.MS],
       ["p2", "EN", STAMP.EN],
       ["p7", "EN", STAMP.EN],
       ["p3a", "EN", STAMP.EN],
     ]);
-    expect(documents[0].renderedText).toBe(`${STAMP.MS}\n\nTender untuk Filter works.`);
+    expect(documents[0].renderedText).toBe(`${STAMP.EN}\n\nTender for Filter works.`);
     // The manifest says which parts the portal stamped: never the uploaded file.
     expect(manifest.map((m) => [m.partCode, m.stamped])).toEqual([["p2", true], ["p7", true], ["p3a", true], ["p10", false]]);
   });

@@ -159,8 +159,9 @@ export function freezePack(i: FreezeInput): { documents: FrozenDocument[]; manif
     const base = { partCode: p.partCode, source: p.source, templateId: null, templateCode: null, templateName: null, templateFormCode: "", templateRevisionDate: null, templateBodyVersion: null };
     if (p.source === "TEMPLATE" && p.template) {
       const t = p.template;
-      for (const language of ["MS", "EN"] as const) {
-        const body = language === "MS" ? t.bodyMs : t.bodyEn;
+      // Founder, 2026-10-20: English only for every new pack. A pack frozen before keeps the documents it froze.
+      for (const language of ["EN"] as const) {
+        const body = t.bodyEn;
         if (!body?.trim()) continue;
         const fields = { ...i.fields, ...(i.fieldsByLanguage?.[language] ?? {}) };
         documents.push({

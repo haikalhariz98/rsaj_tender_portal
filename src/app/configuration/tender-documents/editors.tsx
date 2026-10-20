@@ -140,7 +140,7 @@ export function EditTenderPolicy({ values, taxonomies = [] }: { values: Record<s
       columns={2}
       fields={[
         { kind: "textarea", name: "restrictionStampTextEn", label: "Stamp wording, English", hint: "Stamped on a restricted tender. Empty: none." },
-        { kind: "textarea", name: "restrictionStampTextMs", label: "Stamp wording, Malay", hint: "The same, for documents issued in Malay." },
+        { kind: "hidden", name: "restrictionStampTextMs" },
         { kind: "text", name: "restrictionLabelEn", label: "Restriction question", hint: "The question each exercise answers. Not set: none." },
         provenance("restrictionProvenance", "Restriction wording, source"),
         { kind: "select", name: "assuranceRequired", label: "Assurance required", hint: "Required before documents go for approval.", placeholder: "Not set", options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No, recorded as a decision" }] },

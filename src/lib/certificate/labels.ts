@@ -11,8 +11,8 @@ import type { CertificateKind, CertificateStatus, DeliveryMethod, DistributionCo
 
 export type { Tone };
 
-/// Issued certificates and printed forms keep their Malay text: it is document content the customer may have in a template, not a screen label.
-/// Founder, 2026-10-19: screens are English only; this pair is the documents' own and stays bilingual (logged as a question for the product owner).
+/// Founder, 2026-10-19: screens are English only. Founder, 2026-10-20: so are new issued documents. The Malay half of this pair is kept only for the words of documents issued before
+/// and for tests that read both; a new certificate is issued and printed from the English one.
 export interface Words {
   en: string;
   ms: string;

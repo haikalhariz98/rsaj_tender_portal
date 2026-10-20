@@ -64,7 +64,7 @@ export function ClauseDrawer({ clause }: { clause?: { id: string; title: string;
         { kind: "select", name: "mandatoryInAgreements", label: "Every agreement carries it", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not set holds every submission back." },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
         { kind: "textarea", name: "bodyEn", label: "Text (English)", required: true },
-        { kind: "textarea", name: "bodyMs", label: "Text (Malay)", hint: "Needed where a Malay template cites it." },
+        { kind: "hidden", name: "bodyMs" },
         { kind: "text", name: "governingSource", label: "Where it is required", hint: "The document that asks for it." },
         { kind: "select", name: "provenance", label: "Where this came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },

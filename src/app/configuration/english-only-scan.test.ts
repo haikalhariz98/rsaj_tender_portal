@@ -12,8 +12,6 @@ import { describe, expect, it } from "vitest";
 const HERE = __dirname;
 const HELD: Record<string, string> = {
   "contracts/editors.tsx": "contract copy stamp, parts and recipients: issued-document content",
-  "tender-documents/conditions-editors.tsx#bodyMs": "tender condition wording cited by Malay templates",
-  "tender-documents/editors.tsx#restrictionStampTextMs": "stamp printed on restricted tender documents",
 };
 
 function files(dir: string): string[] {

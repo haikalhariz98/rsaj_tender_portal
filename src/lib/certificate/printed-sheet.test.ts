@@ -24,7 +24,8 @@ describe("the routing sheet's printed sheet, frozen with its type (BD-614-3, inc
     const frozen = freezeRoutingType(TYPE, "2026-09-01");
     const words = printedSheetWords(frozen);
     expect(words.form.en).toBe("Demo routing sheet · DEMO-RS · revision 15 Jan 2026 · 1 page");
-    expect(words.labels?.en).toBe("Received: Date in (A) · Tarikh masuk (A); Approved: Date out (B)");
+    // Founder, 2026-10-20: English only. The English line named the label pair ("Date in (A) · Tarikh masuk (A)"); it names the English label alone now.
+    expect(words.labels?.en).toBe("Received: Date in (A); Approved: Date out (B)");
     expect(words.labels?.ms).toBe("Diterima: Date in (A) · Tarikh masuk (A); Diluluskan: Date out (B)");
   });
   it("a later change to the printed sheet's labels never reaches a sheet already started", () => {

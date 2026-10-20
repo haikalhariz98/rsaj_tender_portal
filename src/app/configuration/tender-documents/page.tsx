@@ -187,7 +187,6 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
               columns={2}
               items={[
                 setting("Wording stamped on a restricted tender (English)", <Setting value={p.restrictionStampEn} unset={UNSET.stamp} />),
-                setting("Wording stamped on a restricted tender (Malay)", <Setting value={p.restrictionStampMs} unset={UNSET.stamp} />),
                 setting("The restriction, as the exercise asks it", <Setting value={k?.policy.restrictionAskedAs ?? NOT_SET} unset={UNSET.restriction} source={k?.policy.restrictionProvenance ?? null} />),
                 setting("Assurance confirmations required", <Setting value={p.assuranceRequired} unset={UNSET.assurance} source={p.assuranceRequired === NOT_SET ? undefined : (k?.policy.assuranceProvenance ?? null)} />),
                 setting("The list of regulator permits", <Setting value={k?.policy.permitList ?? NOT_SET} unset={UNSET.permits} />),

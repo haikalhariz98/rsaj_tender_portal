@@ -76,14 +76,12 @@ export interface ContentContext {
   whitelist?: MergeWhitelist;
 }
 
-/// Whether a template has text to freeze, and in which language it is issued first.
+/// Whether a template has English text to freeze.
 export function templateFaults(t: TemplateFacts, whitelist: MergeWhitelist = PACK_WHITELIST): Finding<ContentFault>[] {
-  const en = !!t.bodyEn?.trim();
-  const ms = !!t.bodyMs?.trim();
-  if (!en && !ms) return [{ code: "TEMPLATE_BODY_EMPTY", level: "block", data: { template: t.nameEn } }];
+  // Founder, 2026-10-20: English only. The pack is issued from the English text; a template with only a Malay text has none, and no language is chosen.
+  if (!t.bodyEn?.trim()) return [{ code: "TEMPLATE_BODY_EMPTY", level: "block", data: { template: t.nameEn } }];
   const out: Finding<ContentFault>[] = [];
-  if (en && ms && !t.primaryLanguage) out.push({ code: "TEMPLATE_LANGUAGE_NOT_SET", level: "block", data: { template: t.nameEn } });
-  const unknown = [...new Set([...(en ? renderWith(t.bodyEn!, {}, whitelist).unknown : []), ...(ms ? renderWith(t.bodyMs!, {}, whitelist).unknown : [])])];
+  const unknown = [...new Set(renderWith(t.bodyEn, {}, whitelist).unknown)];
   if (unknown.length) out.push({ code: "TEMPLATE_UNKNOWN_FIELD", level: "block", data: { template: t.nameEn, fields: unknown.map((u) => `{{${u}}}`).join(", ") } });
   return out;
 }

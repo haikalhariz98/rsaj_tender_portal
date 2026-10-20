@@ -60,8 +60,9 @@ describe("the permit type in a Malay document (code review carry 4)", () => {
     expect(permitLabel(true, "b", withMs, "MS")).toBeNull();
     expect(permitLabel(true, "b", { ...withMs, values: withMs.values.map((v) => (v.code === "b" ? { ...v, labelMs: "  " } : v)) }, "MS")).toBeNull();
   });
-  it("blocks where the instructions have Malay text and the chosen type has no Malay name, like a clause with no Malay text", () => {
-    expect(permitFaults({ regulated: true, permitCode: "b", list: withMs, parts: [malay()] })).toEqual([{ code: "PERMIT_NAME_MS_MISSING", level: "block", data: { part: "11. Instructions to tenderers", permit: "Permit Type B" } }]);
+  // Founder, 2026-10-20: English only. Instructions with a stored Malay text and a type with no Malay name used to block; no Malay document is issued, so it does not.
+  it("does not block where the instructions hold a Malay text and the chosen type has no Malay name", () => {
+    expect(permitFaults({ regulated: true, permitCode: "b", list: withMs, parts: [malay()] })).toEqual([]);
   });
   it("is clear with a Malay name, or where the instructions have no Malay text", () => {
     expect(permitFaults({ regulated: true, permitCode: "c", list: withMs, parts: [malay()] })).toEqual([]);

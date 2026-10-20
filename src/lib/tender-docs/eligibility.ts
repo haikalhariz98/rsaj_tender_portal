@@ -138,7 +138,8 @@ export function eligibilityFieldValues(reqs: readonly RequirementFacts[], window
 export type NoticeFault = "NOTICE_PART_MISSING" | "NOTICE_LACKS_ELIGIBILITY" | "NOTICE_NOT_CHECKED";
 
 /// The bodies a template part issues (each language it has text in).
-export const bodiesOf = (p: Pick<PackPartFacts, "template">) => [p.template?.bodyEn, p.template?.bodyMs].filter((b): b is string => !!b?.trim());
+/// Founder, 2026-10-20: English only, so only the English text is judged.
+export const bodiesOf = (p: Pick<PackPartFacts, "template">) => [p.template?.bodyEn].filter((b): b is string => !!b?.trim());
 
 /**
  * The notice carries the eligibility block (FR-DOC-005: "cannot be published without the

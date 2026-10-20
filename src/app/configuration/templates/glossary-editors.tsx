@@ -90,7 +90,7 @@ export function AddTerm() {
 }
 
 export function EditTerm({ row }: { row: { id: string; code: string; canonicalEn: string | null; canonicalMs: string | null; aliases: string[]; provenance: string; notes: string } }) {
-  const name = row.canonicalMs ?? row.canonicalEn ?? row.code;
+  const name = row.canonicalEn ?? row.canonicalMs ?? row.code;
   return (
     <RecordEditor
       title={`Edit ${name}`}

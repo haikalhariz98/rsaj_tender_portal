@@ -39,10 +39,12 @@ const CLEAR_CONDITIONS: ConditionsInput = {
 };
 
 describe("a part's content, by its source (FR-DOC-003)", () => {
-  it("a template part needs its template, with text, a first language where it has two, and only pack merge fields", () => {
+  it("a template part needs its template, with English text, and only pack merge fields", () => {
     expect(codes(partReadyFaults(part({ state: "NOT_STARTED", template: null }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX))).toEqual(["TEMPLATE_NOT_SET"]);
     expect(codes(templateFaults(template({ bodyEn: " ", bodyMs: null })))).toEqual(["TEMPLATE_BODY_EMPTY"]);
-    expect(codes(templateFaults(template({ bodyMs: "Tawaran.", primaryLanguage: null })))).toEqual(["TEMPLATE_LANGUAGE_NOT_SET"]);
+    // Founder, 2026-10-20: English only. Two texts and no first language used to block; the English one is issued, and a Malay-only template has no text.
+    expect(templateFaults(template({ bodyMs: "Tawaran.", primaryLanguage: null }))).toEqual([]);
+    expect(codes(templateFaults(template({ bodyEn: null, bodyMs: "Tawaran.", primaryLanguage: "MS" })))).toEqual(["TEMPLATE_BODY_EMPTY"]);
     expect(templateFaults(template({ bodyEn: "Awarded to {{awardee.name}}." }))).toEqual([{ code: "TEMPLATE_UNKNOWN_FIELD", level: "block", data: { template: "Form of tender", fields: "{{awardee.name}}" } }]);
     expect(partReadyFaults(part({ state: "NOT_STARTED" }), "DRAFT", "DOCUMENTS_IN_PREPARATION", CTX)).toEqual([]);
   });

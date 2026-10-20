@@ -101,11 +101,12 @@ describe("FR-DOC-005: the notice cannot go without the eligibility block", () =>
     expect(codes(noticeFaults([]))).toEqual(["NOTICE_PART_MISSING"]);
     expect(codes(noticeFaults([notice({ state: "OMITTED", mandatory: false, omittedReason: "x" })]))).toEqual(["NOTICE_PART_MISSING"]);
   });
-  it("a template missing a field in any language it has text in blocks, naming the field", () => {
+  it("a template missing a field in its English text blocks, naming the field", () => {
     expect(noticeFaults([notice({ template: template({ bodyEn: "Registered with {{eligibility.registration}}." }) })])).toEqual([
       { code: "NOTICE_LACKS_ELIGIBILITY", level: "block", data: { part: "1. Notice", template: "Notice", fields: "{{eligibility.window}}" } },
     ]);
-    expect(codes(noticeFaults([notice({ template: template({ bodyMs: "Berdaftar dengan {{eligibility.registration}}.", primaryLanguage: "MS" }) })]))).toEqual(["NOTICE_LACKS_ELIGIBILITY"]);
+    // Founder, 2026-10-20: English only. A Malay text lacking the field was judged too; it is not issued now, so a good English text beside one lacking it passes.
+    expect(noticeFaults([notice({ template: template({ bodyMs: "Berdaftar dengan {{eligibility.registration}}.", primaryLanguage: "MS" }) })])).toEqual([]);
   });
   it("an uploaded notice is not read: a warning that it is unchecked, never a pass", () => {
     expect(noticeFaults([notice({ source: "UPLOAD", template: null, liveUploads: 1 })])).toEqual([{ code: "NOTICE_NOT_CHECKED", level: "warn", data: { part: "1. Notice" } }]);

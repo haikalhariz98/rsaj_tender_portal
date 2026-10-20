@@ -83,7 +83,7 @@ export function printedSheetWords(type: Pick<Sheet["type"], "printedForm">): { f
   const strip = (s: string) => s.replace(/ · (form version|versi borang) 0$/, "");
   const pairs = SHEET_FIELDS.flatMap((k) => {
     const l = p.labels[k];
-    return l ? [{ en: `${SHEET_FIELD_WORDS[k].en}: ${labelPair({ labelEn: l.en, labelMs: l.ms })}`, ms: `${SHEET_FIELD_WORDS[k].ms}: ${labelPair({ labelEn: l.en, labelMs: l.ms })}` }] : [];
+    return l ? [{ en: `${SHEET_FIELD_WORDS[k].en}: ${l.en}`, ms: `${SHEET_FIELD_WORDS[k].ms}: ${labelPair({ labelEn: l.en, labelMs: l.ms })}` }] : [];
   });
   return { form: w(strip(f.en), strip(f.ms)), labels: pairs.length ? w(pairs.map((x) => x.en).join("; "), pairs.map((x) => x.ms).join("; ")) : w("No printed labels configured for its values", "Tiada label bercetak ditetapkan bagi nilainya") };
 }

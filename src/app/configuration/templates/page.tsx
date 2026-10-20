@@ -90,7 +90,7 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
   // A correction applies to certificate forms only (a template another module uses renders its own text).
   const certificateForms = formRows.filter((t) => otherUsesOf(t._count as unknown as Record<string, number>).length === 0).map((t) => ({ value: t.id, label: t.nameEn }));
   const pageCountOf = (id: string) => formRows.find((t) => t.id === id)?.pageCount ?? null;
-  const termOptions = terms.map((t) => ({ code: t.code, wording: [t.canonicalMs, t.canonicalEn].filter(Boolean).join(" / ") }));
+  const termOptions = terms.map((t) => ({ code: t.code, wording: t.canonicalEn ?? t.canonicalMs ?? "" }));
 
   const templatesPanel = (
     <>
@@ -300,16 +300,16 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
               <Tr key={t.id}>
                 <Td label="Term">
                   <CellStack
-                    title={[t.canonicalMs, t.canonicalEn].filter(Boolean).join(" · ")}
+                    title={t.canonicalEn ?? t.canonicalMs ?? t.code}
                     sub={[t.aliases.length ? `Also written: ${t.aliases.map((a) => a.alias).join("; ")}` : "No other wording", `Cited in a form's text as {{term:${t.code}}}`].join(" · ")}
                   />
                 </Td>
                 <Td label="Source"><ProvenanceBadge value={t.provenance} /></Td>
                 <Td>
                   <RowActions>
-                    <HistoryButton iconOnly entity="Term" entityId={t.id} label={t.canonicalMs ?? t.canonicalEn ?? "Term"} />
+                    <HistoryButton iconOnly entity="Term" entityId={t.id} label={t.canonicalEn ?? t.canonicalMs ?? "Term"} />
                     <EditTerm row={{ id: t.id, code: t.code, canonicalEn: t.canonicalEn, canonicalMs: t.canonicalMs, aliases: t.aliases.map((a) => a.alias), provenance: t.provenance, notes: t.notes }} />
-                    <RemoveTerm id={t.id} label={t.canonicalMs ?? t.canonicalEn ?? "the term"} />
+                    <RemoveTerm id={t.id} label={t.canonicalEn ?? t.canonicalMs ?? "the term"} />
                   </RowActions>
                 </Td>
               </Tr>

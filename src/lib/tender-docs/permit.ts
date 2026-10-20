@@ -66,11 +66,7 @@ export function permitFaults(i: { regulated: boolean | null; permitCode: string 
   else if (!i.permitCode) out.push({ code: "PERMIT_NOT_CHOSEN", level: "block" });
   else if (!i.list.values.some((v) => v.code === i.permitCode && !v.retired)) out.push({ code: "PERMIT_NOT_ON_LIST", level: "block" });
   const instructions = live.filter((p) => p.role === "INSTRUCTIONS");
-  // A Malay instruction naming the permit needs the type's Malay name, as a cited clause needs its Malay text.
-  const chosen = i.list?.values.find((v) => v.code === i.permitCode && !v.retired);
-  if (chosen && !chosen.labelMs?.trim()) {
-    for (const p of instructions) if (p.source === "TEMPLATE" && p.template?.bodyMs?.trim()) out.push({ code: "PERMIT_NAME_MS_MISSING", level: "block", data: { part: `${p.printedNumber}. ${p.label}`, permit: chosen.label } });
-  }
+  // Founder, 2026-10-20: English only. A Malay instruction would need the type's Malay name; none is issued now, so PERMIT_NAME_MS_MISSING is no longer given.
   if (instructions.length === 0) out.push({ code: "INSTRUCTIONS_PART_MISSING", level: "block" });
   for (const p of instructions) {
     const part = `${p.printedNumber}. ${p.label}`;

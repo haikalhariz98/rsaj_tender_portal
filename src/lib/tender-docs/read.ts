@@ -543,9 +543,9 @@ export async function printView(organisationId: string, exerciseId: string, set:
       omitted: p.state === "OMITTED" ? `Omitted: ${p.omittedReason}` : null,
       texts:
         p.source === "TEMPLATE" && p.template && pinnedFilesOf(p).length === 0
-          ? (["MS", "EN"] as const).flatMap((lang) => {
-              const body = lang === "MS" ? p.template!.bodyMs : p.template!.bodyEn;
-              return body?.trim() ? [{ language: lang === "MS" ? "Malay" : "English", paragraphs: stamped(renderedText(renderWith(body, { ...fields, ...(byLang?.[lang] ?? {}) }, whitelist)), stamp?.[lang]).split("\n\n"), fidelity: `From ${p.template!.nameEn}${p.template!.formCode ? ` (${p.template!.formCode})` : ""}, text version ${p.template!.bodyVersion}, as it stands now.` }] : [];
+          ? (["EN"] as const).flatMap((lang) => {
+              const body = p.template!.bodyEn;
+              return body?.trim() ? [{ language: "English", paragraphs: stamped(renderedText(renderWith(body, { ...fields, ...(byLang?.[lang] ?? {}) }, whitelist)), stamp?.[lang]).split("\n\n"), fidelity: `From ${p.template!.nameEn}${p.template!.formCode ? ` (${p.template!.formCode})` : ""}, text version ${p.template!.bodyVersion}, as it stands now.` }] : [];
             })
           : p.source === "BQ_UNPRICED" && scope.bill
             ? [{ language: "English", paragraphs: stamped(unpricedBqText(scope.bill.frozen), stamp?.EN).split("\n\n"), fidelity: "The bill of quantities, unpriced, as it stands now." }]
@@ -579,11 +579,11 @@ export async function mergedDraft(organisationId: string, exerciseId: string, pa
   const whitelist = packWhitelist(conditions ? liveClauses(conditions.clauses.clauses, c.org.today!) : []);
   const stamp = conditions ? conditionStamp(conditions) : null;
   const t = p.template;
-  const blocks = (["MS", "EN"] as const).flatMap((lang) => {
-    const body = lang === "MS" ? t.bodyMs : t.bodyEn;
+  const blocks = (["EN"] as const).flatMap((lang) => {
+    const body = t.bodyEn;
     if (!body?.trim()) return [];
     const text = stamped(renderedText(renderWith(body, { ...fields, ...(byLang?.[lang] ?? {}) }, whitelist)), stamp?.[lang]);
-    return [`${lang === "MS" ? "Malay" : "English"}\n\n${text}`];
+    return [`English\n\n${text}`];
   });
   if (blocks.length === 0) return null;
   const head = [`${c.ex.reference} · ${p.printedNumber}. ${p.labelSnapshot}`, `Draft, not issued: the template ${t.nameEn}, text version ${t.bodyVersion}, merged with this exercise's details as they stand now.`].join("\n");

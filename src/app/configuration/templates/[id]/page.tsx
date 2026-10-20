@@ -92,7 +92,6 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
                         title={`${b.blockOrder}. ${b.labelEn}`}
                         aside={b.datesCertificate ? <Chip tone="info">Dates it</Chip> : undefined}
                         sub={[
-                          b.labelMs,
                           `${BLOCK_KIND_WORDS[b.blockKind].en} · ${b.officeRule === "NAMED_OFFICE" ? officeName(b.officeCode) : OFFICE_RULE_WORDS[b.officeRule].en}`,
                           yesNo(b.delegable, "a delegate may sign", "never a delegate", "whether a delegate may sign is not decided"),
                           b.carriesDecision ? "carries supported / not supported" : null,
@@ -137,7 +136,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
                 {t.distributionRows.map((d) => (
                   <Tr key={d.id}>
                     <Td label="Recipient">
-                      <CellStack title={d.labelEn} aside={d.isOriginal ? <Chip tone="info">Original</Chip> : undefined} sub={[d.labelMs, d.mandatory ? "Mandatory" : "Optional", d.ackRequired ? "acknowledgement asked for" : null, CONDITION_WORDS[d.condition].en].filter(Boolean).join(" · ")} />
+                      <CellStack title={d.labelEn} aside={d.isOriginal ? <Chip tone="info">Original</Chip> : undefined} sub={[d.mandatory ? "Mandatory" : "Optional", d.ackRequired ? "acknowledgement asked for" : null, CONDITION_WORDS[d.condition].en].filter(Boolean).join(" · ")} />
                     </Td>
                     <Td label="Source"><ProvenanceBadge value={d.provenance} /></Td>
                     <Td>

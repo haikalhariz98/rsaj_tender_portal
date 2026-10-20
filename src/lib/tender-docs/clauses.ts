@@ -40,11 +40,8 @@ export type ClauseFault = "CLAUSE_MANDATORY_UNSET" | "AGREEMENT_PART_MISSING" | 
 /// The agreements a pack issues: its conditions of contract parts, not omitted.
 const agreementsOf = (parts: readonly PackPartFacts[]) => parts.filter((p) => p.role === "CONDITIONS" && p.state !== "OMITTED");
 
-const textsOf = (p: PackPartFacts): { lang: DocumentLanguage; body: string }[] =>
-  [
-    { lang: "EN" as const, body: p.template?.bodyEn ?? "" },
-    { lang: "MS" as const, body: p.template?.bodyMs ?? "" },
-  ].filter((t) => t.body.trim());
+/// Founder, 2026-10-20: English only. A pack is issued from a template's English text, so only that text is judged; a stored Malay text is kept and not issued.
+const textsOf = (p: PackPartFacts): { lang: DocumentLanguage; body: string }[] => [{ lang: "EN" as const, body: p.template?.bodyEn ?? "" }].filter((t) => t.body.trim());
 
 /**
  * The clauses a pack is judged by: each live clause's "mandatory" set; each mandatory clause

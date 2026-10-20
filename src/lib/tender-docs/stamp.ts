@@ -23,7 +23,6 @@ export function generatedLanguages(parts: readonly PackPartFacts[]): DocumentLan
     if (p.state !== "READY") continue;
     if (p.source === "TEMPLATE" && p.template) {
       if (p.template.bodyEn?.trim()) out.add("EN");
-      if (p.template.bodyMs?.trim()) out.add("MS");
     } else if (p.source === "BQ_UNPRICED" || p.source === "APPENDIX") out.add("EN");
   }
   return (["MS", "EN"] as const).filter((l) => out.has(l));
