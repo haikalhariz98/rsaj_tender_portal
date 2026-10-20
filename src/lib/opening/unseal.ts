@@ -11,7 +11,7 @@
 
 import { isLate } from "@/lib/bids/lateness";
 
-import { PAPER_AUTHORISATIONS, sittingAuthorisers, type AuthorisationFacts, type OpeningState, type PanelMemberFacts } from "./state";
+import { sittingAuthorisers, type AuthorisationFacts, type OpeningState, type PanelMemberFacts } from "./state";
 import type { Finding } from "./types";
 
 export type AuthorisationFault = "CANCELLED" | "FINALISED" | "ADJOURNED" | "ALREADY_AUTHORISED" | "SITTING_AUTHORISED" | "NOT_ON_PANEL" | "ABSENT" | "AT_OR_BEFORE_CLOSING" | "CLOSING_NOT_SET" | "BOX_NOT_LOCKED" | "SAME_HAND";
@@ -30,7 +30,8 @@ export function authorisationFaults(i: {
   boxLocked: boolean;
   /// ONLINE (ADR 0036 D10, ruling 20k): there is no box, so `BOX_NOT_LOCKED` does not apply, and every named officer authorises (`required` is the roster's n). Paper: false, and two.
   online?: boolean;
-  required?: number;
+  /// How many authorisations open the sitting: `OpeningState.required`, never a literal here.
+  required: number;
 }): Finding<AuthorisationFault>[] {
   if (i.state.cancelled) return [{ code: "CANCELLED", level: "block" }];
   if (i.state.finalised) return [{ code: "FINALISED", level: "block" }];
@@ -42,7 +43,7 @@ export function authorisationFaults(i: {
   else if (!member.present) f("ABSENT");
   const done = sittingAuthorisers(i.state.sittingNo, i.auths, i.panel);
   if (i.auths.some((a) => a.sittingNo === i.state.sittingNo && a.personId === i.personId && a.lapsedAt == null)) f("ALREADY_AUTHORISED");
-  else if (done.length >= (i.required ?? PAPER_AUTHORISATIONS)) f("SITTING_AUTHORISED", { required: i.required ?? PAPER_AUTHORISATIONS, ...(i.online ? { online: 1 } : {}) });
+  else if (done.length >= i.required) f("SITTING_AUTHORISED", { required: i.required, ...(i.online ? { online: 1 } : {}) });
   // Two people authorise: two distinct humans act. The member's authorisation keyed by an officer is that officer's hand as well as the member's, so no officer is a
   // hand of both (they cannot record one authorisation and give the other, nor record both), whoever the authorisations are attributed to.
   const mine = new Set([i.personId, ...(i.recorderId ? [i.recorderId] : [])]);
@@ -59,16 +60,16 @@ export type UnsealState = "AWAITING_FIRST" | "AWAITING_SECOND" | "AUTHORISED";
 
 /// The sitting's authorisations, counted as the box reads them: none, one (awaiting the second), or two.
 /// `required` is two on paper and the roster's n online: AWAITING_SECOND then covers every count from one to n-1.
-export function unsealState(sittingNo: number, auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[], required: number = PAPER_AUTHORISATIONS): { state: UnsealState; count: number } {
+export function unsealState(sittingNo: number, auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[], required: number): { state: UnsealState; count: number } {
   const n = sittingAuthorisers(sittingNo, auths, panel).length;
   return { state: n === 0 ? "AWAITING_FIRST" : n < required ? "AWAITING_SECOND" : "AUTHORISED", count: n };
 }
 
 /// Whether this authorisation is the one that opens the box: the last distinct one (the second on paper, the nth online), before any unseal.
-export const opensTheBox = (s: OpeningState, countAfter: number, required: number = PAPER_AUTHORISATIONS) => !s.unsealed && countAfter === required;
+export const opensTheBox = (s: OpeningState, countAfter: number, required: number) => !s.unsealed && countAfter === required;
 
 /// C-2: adjourning lapses an unpaired authorisation of the sitting it ends (kept, marked lapsed).
-export function lapsedByAdjourning(sittingNo: number, auths: readonly (AuthorisationFacts & { id: string })[], panel: readonly PanelMemberFacts[], required: number = PAPER_AUTHORISATIONS): string[] {
+export function lapsedByAdjourning(sittingNo: number, auths: readonly (AuthorisationFacts & { id: string })[], panel: readonly PanelMemberFacts[], required: number): string[] {
   const live = auths.filter((a) => a.sittingNo === sittingNo && a.lapsedAt == null);
   return sittingAuthorisers(sittingNo, auths, panel).length >= required ? [] : live.map((a) => a.id);
 }

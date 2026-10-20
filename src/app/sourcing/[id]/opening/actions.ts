@@ -370,14 +370,14 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
     // review). None is recorded that way now, so for a new one this finds nobody; it stays for the rows that exist.
     const keyedBy = await loadRecorders(tx, l.org.id, [{ entity: "OpeningAuthorisation", slot: "person", ids: o.authorisations.map((a) => a.id) }]);
     const auths = o.authorisations.map((a) => ({ ...a, recordedByPersonId: keyedBy.get(recorderKey({ entity: "OpeningAuthorisation", slot: "person", id: a.id })) ?? null }));
-    const fs = authorisationFaults({ state, panel: panelOf(o), auths, personId, recorderId: act.recorderId, now, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt) });
+    const fs = authorisationFaults({ state, panel: panelOf(o), auths, personId, recorderId: act.recorderId, now, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt), required: state.required });
     if (!person) fs.push({ code: "NOT_ON_PANEL", level: "block" });
     if (blocking(fs).length) return refuse(fs);
     // NFR-SIG-001: the seat the member authorised in is kept with the act (the opening's own panel row, never a code or a label chosen at the screen).
     const seat = o.panel.find((p) => p.personId === personId) ?? null;
     const row = await tx.openingAuthorisation.create({ data: { organisationId: l.org.id, openingId: o.id, personId, panelMemberId: seat?.id ?? null, sittingNo: state.sittingNo, recordedAt: now } });
-    const after = unsealState(state.sittingNo, [...o.authorisations, { personId, sittingNo: state.sittingNo, recordedAt: now, lapsedAt: null }], panelOf(o));
-    const opens = opensTheBox(state, after.count);
+    const after = unsealState(state.sittingNo, [...o.authorisations, { personId, sittingNo: state.sittingNo, recordedAt: now, lapsedAt: null }], panelOf(o), state.required);
+    const opens = opensTheBox(state, after.count, state.required);
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.authorisation, row.id, openingLabel(l, o), "CREATE", diffFields(null, authorisationFields({ person: person!.name, at: now, sittingNo: state.sittingNo, opensTheBox: opens, seat: seat?.seatLabelSnapshot ?? null }, l.org.timeZone)));
     await act.write(tx, row.id, { document: { entity: "Opening", id: o.id } });
     if (!opens) return { ok: true, message: after.state === "AUTHORISED" ? "Recorded. Sitting authorised." : "Recorded. A second member must authorise." };

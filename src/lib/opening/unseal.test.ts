@@ -9,7 +9,7 @@ import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, un
  */
 
 const notYet = open({ unsealed: false, sittingAuthorised: false });
-const base: Parameters<typeof authorisationFaults>[0] = { state: notYet, panel: PANEL, auths: [], personId: "p1", recorderId: null, now: at(S), closing: CLOSING, boxLocked: true };
+const base: Parameters<typeof authorisationFaults>[0] = { state: notYet, panel: PANEL, auths: [], personId: "p1", recorderId: null, now: at(S), closing: CLOSING, boxLocked: true, required: 2 };
 const codes = (x: Partial<typeof base>) => authorisationFaults({ ...base, ...x }).map((f) => f.code);
 const auth = (personId: string, sittingNo = 1, lapsed = false, keyedBy: string | null = null) => ({ id: `a-${personId}-${sittingNo}`, personId, sittingNo, recordedAt: at(2 * S), lapsedAt: lapsed ? at(3 * S) : null, recordedByPersonId: keyedBy });
 
@@ -20,10 +20,22 @@ describe("authorising the opening (OD-11 at the closing second)", () => {
     expect(codes({ now: at(S) })).toEqual([]);
   });
   it("one authorisation → AWAITING_SECOND; the second distinct one opens the box", () => {
-    expect(unsealState(1, [auth("p1")], PANEL)).toEqual({ state: "AWAITING_SECOND", count: 1 });
-    expect(unsealState(1, [auth("p1"), auth("p2")], PANEL)).toEqual({ state: "AUTHORISED", count: 2 });
-    expect(opensTheBox(notYet, 2)).toBe(true);
-    expect(opensTheBox(open(), 2)).toBe(false);
+    expect(unsealState(1, [auth("p1")], PANEL, 2)).toEqual({ state: "AWAITING_SECOND", count: 1 });
+    expect(unsealState(1, [auth("p1"), auth("p2")], PANEL, 2)).toEqual({ state: "AUTHORISED", count: 2 });
+    expect(opensTheBox(notYet, 2, 2)).toBe(true);
+    expect(opensTheBox(open(), 2, 2)).toBe(false);
+  });
+  it("the count is the state's `required`, never a literal: n=2 and n=3 open on the nth", () => {
+    const three = [...PANEL, { personId: "p4", present: true }];
+    for (const n of [2, 3]) {
+      const st = open({ unsealed: false, sittingAuthorised: false, required: n });
+      const ids = ["p1", "p2", "p4"].slice(0, n);
+      expect(opensTheBox(st, n - 1, st.required)).toBe(false);
+      expect(opensTheBox(st, n, st.required)).toBe(true);
+      expect(unsealState(1, ids.slice(0, n - 1).map((i) => auth(i)), three, n).state).toBe("AWAITING_SECOND");
+      expect(unsealState(1, ids.map((i) => auth(i)), three, n).state).toBe("AUTHORISED");
+      expect(codes({ state: st, panel: three, required: n, personId: "p4", auths: ids.slice(0, n).filter((i) => i !== "p4").map((i) => auth(i)) })).toEqual(n === 2 ? ["SITTING_AUTHORISED"] : []);
+    }
   });
   it("the same Person twice is refused; a non-panel or absent Person is refused", () => {
     expect(codes({ auths: [auth("p1")] })).toEqual(["ALREADY_AUTHORISED"]);
@@ -31,7 +43,7 @@ describe("authorising the opening (OD-11 at the closing second)", () => {
     expect(codes({ personId: "p3" })).toEqual(["ABSENT"]);
   });
   it("an absent member's authorisation never counts towards the pair", () => {
-    expect(unsealState(1, [auth("p1"), auth("p3")], PANEL).state).toBe("AWAITING_SECOND");
+    expect(unsealState(1, [auth("p1"), auth("p3")], PANEL, 2).state).toBe("AWAITING_SECOND");
   });
   it("the main opening needs the box locked; a supplementary one does not", () => {
     expect(codes({ boxLocked: false })).toEqual(["BOX_NOT_LOCKED"]);
@@ -74,14 +86,14 @@ describe("two people authorise: one officer is never the hand behind both (revie
 
 describe("adjourning and resuming (C-2)", () => {
   it("adjourning lapses an unpaired authorisation; a paired one stands", () => {
-    expect(lapsedByAdjourning(1, [auth("p1")], PANEL)).toEqual(["a-p1-1"]);
-    expect(lapsedByAdjourning(1, [auth("p1"), auth("p2")], PANEL)).toEqual([]);
+    expect(lapsedByAdjourning(1, [auth("p1")], PANEL, 2)).toEqual(["a-p1-1"]);
+    expect(lapsedByAdjourning(1, [auth("p1"), auth("p2")], PANEL, 2)).toEqual([]);
   });
   it("a resumed sitting needs two fresh authorisations: the first sitting's do not count, a lapsed one never", () => {
     const resumed = open({ sittingNo: 2, sittingAuthorised: false });
-    expect(unsealState(2, [auth("p1"), auth("p2")], PANEL).state).toBe("AWAITING_FIRST");
+    expect(unsealState(2, [auth("p1"), auth("p2")], PANEL, 2).state).toBe("AWAITING_FIRST");
     expect(authorisationFaults({ ...base, state: resumed, auths: [auth("p1"), auth("p2")] })).toEqual([]);
-    expect(unsealState(1, [auth("p1", 1, true), auth("p2")], PANEL).state).toBe("AWAITING_SECOND");
+    expect(unsealState(1, [auth("p1", 1, true), auth("p2")], PANEL, 2).state).toBe("AWAITING_SECOND");
   });
   it("adjourn needs a reason and is not repeated; resume only an adjourned opening", () => {
     expect(adjournFaults({ state: open(), reason: "", personActive: true, resume: false }).map((f) => f.code)).toEqual(["REASON_REQUIRED"]);

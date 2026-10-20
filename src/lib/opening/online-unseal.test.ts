@@ -33,14 +33,14 @@ describe("how many authorise (ADR 0036 D10, ruling 20k): two on paper, the roste
     expect(unsealState(1, [auth("p1")], panel3, 3)).toEqual({ state: "AWAITING_SECOND", count: 1 });
     expect(unsealState(1, [auth("p1"), auth("p2")], panel3, 3)).toEqual({ state: "AWAITING_SECOND", count: 2 });
     expect(unsealState(1, [auth("p1"), auth("p2"), auth("p3")], panel3, 3)).toEqual({ state: "AUTHORISED", count: 3 });
-    expect(unsealState(1, [auth("p1"), auth("p2")], panel3).state).toBe("AUTHORISED");
+    expect(unsealState(1, [auth("p1"), auth("p2")], panel3, 2).state).toBe("AUTHORISED");
   });
 
   it("opensTheBox: the third authorisation opens an n = 3 unseal, the second does not; paper's second does", () => {
     const notYet = open({ unsealed: false, sittingAuthorised: false });
     expect(opensTheBox(notYet, 2, 3)).toBe(false);
     expect(opensTheBox(notYet, 3, 3)).toBe(true);
-    expect(opensTheBox(notYet, 2)).toBe(true);
+    expect(opensTheBox(notYet, 2, 2)).toBe(true);
     expect(opensTheBox(open(), 3, 3)).toBe(false);
   });
 
@@ -48,7 +48,7 @@ describe("how many authorise (ADR 0036 D10, ruling 20k): two on paper, the roste
     const base = { state: open({ unsealed: false, sittingAuthorised: false, required: 3 }), panel: [...panel3, { personId: "p4", present: true }], personId: "p3", recorderId: null, now: at(S), closing: CLOSING, boxLocked: false, online: true, required: 3 };
     expect(authorisationFaults({ ...base, auths: [auth("p1"), auth("p2")] }).map((f) => f.code)).toEqual([]);
     expect(authorisationFaults({ ...base, personId: "p4", auths: [auth("p1"), auth("p2"), auth("p3")] }).map((f) => f.code)).toEqual(["SITTING_AUTHORISED"]);
-    const paper = { ...base, online: false, required: undefined, boxLocked: true, state: open({ unsealed: false, sittingAuthorised: false }) };
+    const paper = { ...base, online: false, required: 2, boxLocked: true, state: open({ unsealed: false, sittingAuthorised: false }) };
     expect(authorisationFaults({ ...paper, auths: [auth("p1"), auth("p2")] }).map((f) => f.code)).toEqual(["SITTING_AUTHORISED"]);
   });
 
@@ -59,7 +59,7 @@ describe("how many authorise (ADR 0036 D10, ruling 20k): two on paper, the roste
   });
 
   it("an online main opening does not ask the box's lock; paper does", () => {
-    const base = { state: open({ unsealed: false, sittingAuthorised: false }), panel: PANEL, auths: [], personId: "p1", recorderId: null, now: at(S), closing: CLOSING, boxLocked: false };
+    const base = { state: open({ unsealed: false, sittingAuthorised: false }), panel: PANEL, auths: [], personId: "p1", recorderId: null, now: at(S), closing: CLOSING, boxLocked: false, required: 2 };
     expect(authorisationFaults(base).map((f) => f.code)).toEqual(["BOX_NOT_LOCKED"]);
     expect(authorisationFaults({ ...base, online: true }).map((f) => f.code)).toEqual([]);
   });
@@ -67,7 +67,7 @@ describe("how many authorise (ADR 0036 D10, ruling 20k): two on paper, the roste
   it("lapsedByAdjourning: n - 1 of n lapse, n do not, and paper's pair does not", () => {
     expect(lapsedByAdjourning(1, [auth("p1"), auth("p2")], panel3, 3)).toEqual(["a-p1-1", "a-p2-1"]);
     expect(lapsedByAdjourning(1, [auth("p1"), auth("p2"), auth("p3")], panel3, 3)).toEqual([]);
-    expect(lapsedByAdjourning(1, [auth("p1"), auth("p2")], panel3)).toEqual([]);
+    expect(lapsedByAdjourning(1, [auth("p1"), auth("p2")], panel3, 2)).toEqual([]);
   });
 
   it("the state counts to n: two of three is not a sitting authorised, and the phase and the faults say so in words", () => {

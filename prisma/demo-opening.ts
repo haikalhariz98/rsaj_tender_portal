@@ -334,11 +334,11 @@ export class OpeningActs {
     const { moveExercise } = await import("../src/lib/method/move");
     const { l, c, o } = await this.opening(exerciseId, openingId, at);
     const state = stateOf(o, l.ex.status);
-    refuse(`${person.name}'s authorisation of ${openingId}`, authorisationFaults({ state, panel: panelOf(o), auths: o.authorisations, personId: person.id, recorderId: null, now: at, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt) }));
+    refuse(`${person.name}'s authorisation of ${openingId}`, authorisationFaults({ state, panel: panelOf(o), auths: o.authorisations, personId: person.id, recorderId: null, now: at, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt), required: state.required }));
     const id = `${openingId}a${o.authorisations.length + 1}`;
     await this.db.openingAuthorisation.create({ data: { id, organisationId: this.org, openingId, personId: person.id, sittingNo: state.sittingNo, recordedAt: at } });
-    const after = unsealState(state.sittingNo, [...o.authorisations, { personId: person.id, sittingNo: state.sittingNo, recordedAt: at, lapsedAt: null }], panelOf(o));
-    const opens = opensTheBox(state, after.count);
+    const after = unsealState(state.sittingNo, [...o.authorisations, { personId: person.id, sittingNo: state.sittingNo, recordedAt: at, lapsedAt: null }], panelOf(o), state.required);
+    const opens = opensTheBox(state, after.count, state.required);
     const ol = this.openingLabel(l.ex.reference, o);
     this.entry(OPENING_ENTITY.authorisation, id, ol, "CREATE", at, diffFields(null, authorisationFields({ person: person.name, at, sittingNo: state.sittingNo, opensTheBox: opens }, this.tz)));
     if (!opens) return;
@@ -370,7 +370,7 @@ export class OpeningActs {
     const s = o.sittings.find((x) => x.sittingNo === state.sittingNo)!;
     await this.db.openingSitting.update({ where: { id: s.id }, data: { adjournedAt: i.at, adjournReason: i.reason } });
     this.entry(OPENING_ENTITY.sitting, s.id, ol, "UPDATE", i.at, diffFields({ adjourned: null }, sittingFields({ sittingNo: state.sittingNo, at: i.at, by: i.by.name, adjourned: true, reason: i.reason }, this.tz)), i.reason);
-    for (const id of lapsedByAdjourning(state.sittingNo, o.authorisations, panelOf(o))) {
+    for (const id of lapsedByAdjourning(state.sittingNo, o.authorisations, panelOf(o), state.required)) {
       await this.db.openingAuthorisation.update({ where: { id }, data: { lapsedAt: i.at } });
       this.entry(OPENING_ENTITY.authorisation, id, ol, "UPDATE", i.at, diffFields({ lapsed: null }, { lapsed: "Unpaired when the sitting was adjourned: kept, does not count again" }));
     }
