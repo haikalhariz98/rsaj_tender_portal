@@ -29,11 +29,6 @@ function templateFields(editing: boolean, classes: DocumentClass[]): Field[] {
     },
     { kind: "date", name: "revisionDate", label: "Revision date" },
     {
-      kind: "switch",
-      name: "bilingual",
-      label: "Carries both languages on one page",
-    },
-    {
       kind: "select",
       name: "documentClassId",
       label: "Document class",

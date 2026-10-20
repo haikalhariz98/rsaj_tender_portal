@@ -45,7 +45,7 @@ export function InstrumentPanel({ l, ev }: { l: LoadedAward; ev: AwardEvaluation
                         : d.state === "NO_TEXT"
                           ? `“${d.templateName}” has no text configured.`
                           : d.state === "NO_LANGUAGE"
-                            ? `“${d.templateName}” has text in both languages and no language set to issue first.`
+                            ? `“${d.templateName}” has no issue language set.`
                             : `${d.templateName} · ${LANGUAGE_LABEL[d.language!]}${d.missing.length ? ` · not yet recorded: ${d.missing.map((k) => mergeFieldLabel(k).toLowerCase()).join(", ")}` : " · every field it names is filled"}`}
                     </div>
                   </div>

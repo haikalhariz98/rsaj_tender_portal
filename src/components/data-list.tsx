@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useId, useMemo, useState, useTransition, type ReactNode } from "react";
+import { Fragment, useId, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 
 import {
   ChevronRight,
@@ -273,15 +273,38 @@ function StatusCell({ main, others }: { main: StatusItem; others: StatusItem[] }
       {item.provenance && <ProvenanceBadge value={item.provenance} lang={language} />}
     </span>
   );
+  const anchor = useRef<HTMLSpanElement>(null);
+  // Where the tooltip sits, in the window: fixed, so the table wrapper cannot clip it, and above the chip when there is no room below.
+  const [place, setPlace] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   if (others.length === 0) return chip(main);
+  const show = () => {
+    const box = anchor.current?.getBoundingClientRect();
+    if (!box) return;
+    const needed = 28 + (others.length + 1) * 34;
+    const below = window.innerHeight - box.bottom;
+    setPlace(below >= needed || below >= box.top ? { left: box.left, top: box.bottom + 8 } : { left: box.left, bottom: window.innerHeight - box.top + 8 });
+  };
   return (
-    <span className="group relative inline-flex items-center gap-1.5 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" tabIndex={0} aria-describedby={id}>
+    <span
+      ref={anchor}
+      className="inline-flex items-center gap-1.5 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+      tabIndex={0}
+      aria-describedby={id}
+      onMouseEnter={show}
+      onMouseLeave={() => setPlace(null)}
+      onFocus={show}
+      onBlur={() => setPlace(null)}
+    >
       {chip(main)}
       <span className="text-[12.5px] font-semibold text-ink-3" aria-hidden="true">+{others.length}</span>
       <span
         id={id}
         role="tooltip"
-        className="pointer-events-none absolute top-full left-0 z-30 mt-2 hidden w-max max-w-64 flex-col items-start gap-1.5 rounded-xl border border-line bg-surface p-2.5 shadow-pop group-focus-within:flex group-hover:flex"
+        style={place ?? undefined}
+        className={cx(
+          "pointer-events-none fixed z-30 w-max max-w-64 flex-col items-start gap-1.5 rounded-xl border border-line bg-surface p-2.5 shadow-pop",
+          place ? "flex" : "hidden",
+        )}
       >
         {[main, ...others].map((item) => (
           <span key={item.text}>{chip(item)}</span>

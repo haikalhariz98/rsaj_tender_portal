@@ -114,11 +114,6 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
               : "Every template has a class"
           }
         />
-        <Stat
-          label="Bilingual"
-          value={templates.length === 0 ? null : templates.filter((t) => t.bilingual).length}
-          hint="Both languages on one page"
-        />
       </Stats>
 
       <Section
@@ -153,7 +148,6 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
                   <Td label="Template" title={t.nameEn}>
                     <CellStack
                       title={<Link href={`/configuration/templates/${t.id}`} className="font-semibold">{t.nameEn}</Link>}
-                      aside={t.bilingual ? <Badge outline>bilingual</Badge> : undefined}
                       sub={[textLine(t, formLine(t.id) != null), formLine(t.id), pages(pageCountOf(t.id))].filter(Boolean).join(" · ")}
                     />
                   </Td>

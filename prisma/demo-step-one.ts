@@ -23,5 +23,5 @@ export const DEMO_ACCOUNT_MANAGER_ROLE = "HOD_CP";
 /// wording and ASSUMED, neither mandatory: a customer sets its own. Document types are configuration, so a customer adds the real ones under Supplier register, with no code change.
 export const STEP_TWO_TYPES = [
   { id: `${P}sdt9`, code: "demo_lhdn_clearance", nameEn: "LHDN tax clearance", nameMs: "Pelepasan cukai LHDN", bodyId: null, expires: true, mandatoryAtRegistration: false, notApplicableAllowed: true },
-  { id: `${P}sdt10`, code: "demo_non_blacklisting", nameEn: "Declaration of non-blacklisting (Surat Akuan Tidak Disenaraihitam)", nameMs: "Surat Akuan Tidak Disenaraihitam", bodyId: null, expires: false, mandatoryAtRegistration: false, notApplicableAllowed: true },
+  { id: `${P}sdt10`, code: "demo_non_blacklisting", nameEn: "Declaration of non-blacklisting", nameMs: "Surat Akuan Tidak Disenaraihitam", bodyId: null, expires: false, mandatoryAtRegistration: false, notApplicableAllowed: true },
 ];
