@@ -47,14 +47,14 @@ export function sheetOf(cert: SheetSource, today: string): Sheet | null {
   return routingSheet({ type, receivedOn: day(cert.routingReceivedOn), routes: routesOf(cert.approvalInstances), checks: checksOf(cert.routingChecks), ratio, today });
 }
 
-/// A drawn sheet as the pin judges it: its values in both languages, exactly as the issue prints them.
+/// A drawn sheet as the pin judges it: its values in English, exactly as the issue prints them.
 export function pinSheetOf(sheet: Sheet): PinSheet {
   return {
     state: "STARTED",
     decided: sheet.date2 != null || sheet.routeState === "APPROVED",
     typeLabel: sheet.type.labelEn,
     target: sheet.target.state,
-    values: { EN: sheetFieldValues(sheet, "EN"), MS: sheetFieldValues(sheet, "MS") },
+    values: { EN: sheetFieldValues(sheet, "EN") },
   };
 }
 

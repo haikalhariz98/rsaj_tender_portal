@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { notACertificateFormText, notAPrintedFormText, otherUsesOf, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
-import { boundFieldWords, isSheetField, labelPair, PRINTABLE_FIELDS } from "@/lib/certificate/printed";
+import { boundFieldWords, isSheetField, PRINTABLE_FIELDS } from "@/lib/certificate/printed";
 import { BLOCK_KIND_WORDS, CONDITION_WORDS, OFFICE_RULE_WORDS } from "@/lib/certificate/labels";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -185,7 +185,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
                 {t.printedFields.map((f) => (
                   <Tr key={f.id}>
                     <Td label="Field">
-                      <CellStack title={labelPair(f)} sub={f.bound && f.computedKey ? `Filled by the portal: ${boundFieldWords(f.computedKey).en}` : "Completed by hand on the paper"} />
+                      <CellStack title={f.labelEn} sub={f.bound && f.computedKey ? `Filled by the portal: ${boundFieldWords(f.computedKey).en}` : "Completed by hand on the paper"} />
                     </Td>
                     <Td label="Source"><ProvenanceBadge value={f.provenance} /></Td>
                     <Td>

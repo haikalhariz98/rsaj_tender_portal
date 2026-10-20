@@ -11,7 +11,7 @@ import type { Correction } from "./corrections";
 import { fieldNeed } from "./fields";
 import { formNeedFault, raisedWithoutFormFault } from "./form-needs";
 import { w, type Words } from "./labels";
-import { inPrintedOrder, isSheetField, labelPair, type PrintedField } from "./printed";
+import { inPrintedOrder, isSheetField, type PrintedField } from "./printed";
 import { freezeTerms, isTermField, termCodesIn, termFaults, type FrozenTerm, type Term } from "./terms";
 import type { Block, DistributionRow, Finding } from "./types";
 
@@ -100,12 +100,13 @@ export function pinFaults(t: TemplateNow | null, allowed: ReadonlySet<string>, f
   if (t.blocks.length === 0) out.push({ code: "NO_BLOCKS", level: "block", data: { form } });
   for (const b of [...t.blocks].sort((a, c) => a.blockOrder - c.blockOrder)) if (b.delegable == null) out.push({ code: "DELEGABLE_UNDECIDED", level: "block", data: { form, block: b.labelEn } });
   if (t.distribution.length === 0) out.push({ code: "NO_DISTRIBUTION_LIST", level: "block", data: { form } });
-  const bodies = [t.bodyEn, t.bodyMs].filter((b): b is string => b != null && b.trim() !== "");
+  // Founder, 2026-10-20: English only; a stored Malay body is not judged, since it is never issued.
+  const bodies = [t.bodyEn].filter((b): b is string => b != null && b.trim() !== "");
   if (formFault) out.push(formFault);
   // A term ({{term:code}}, increment 2) is judged by the terms configured, not the kind's field list.
   const unknown = [...new Set(bodies.flatMap(fieldsNamed))].filter((k) => !allowed.has(k) && !isTermField(k));
   if (unknown.length) out.push({ code: "UNKNOWN_FIELDS", level: "block", data: { form, fields: unknown.map((u) => `{{${u}}}`).join(", ") } });
-  const texts = ([["EN", t.bodyEn], ["MS", t.bodyMs]] as const).filter(([, b]) => b != null && b.trim() !== "").map(([lang, b]) => ({ lang, fields: fieldsNamed(b!) }));
+  const texts = ([["EN", t.bodyEn]] as const).filter(([, b]) => b != null && b.trim() !== "").map(([lang, b]) => ({ lang, fields: fieldsNamed(b!) }));
   out.push(...termFaults(texts, t.terms ?? [], form));
   return out;
 }
@@ -134,7 +135,7 @@ export interface PinContext {
 /**
  * A routing sheet as the pin judges it (6.14 inc 2 residual M-1). UNJUDGED: started, but the organisation's day is not
  * known (its time zone is not set), so the sheet is not drawn and nothing is said either way. STARTED: its type, its
- * target's state, whether its route is approved, and its own values in each language, exactly as the issue prints
+ * target's state, whether its route is approved, and its own values in English, exactly as the issue prints
  * them (`sheetFieldValues`), so the pin never passes a value the issue would refuse as blank.
  */
 export type PinSheet =
@@ -146,7 +147,7 @@ export type PinSheet =
       typeLabel: string;
       /// Its target's state ("SET", or why there is none), from the type frozen when it started.
       target: string;
-      values: { EN: Readonly<Record<string, string>>; MS: Readonly<Record<string, string>> };
+      values: { EN: Readonly<Record<string, string>> };
     };
 
 /// The sheet values a sheet holds only once its route is approved; the type and target are there from the start.
@@ -156,21 +157,21 @@ const DUE_WHEN_DECIDED: ReadonlySet<string> = new Set(["sheet.received", "sheet.
  * Why a form's printed fields bound to a routing sheet's values could not be printed from this certificate's sheet
  * (6.14 inc 2 residual M-1). The type and the target are judged once the sheet has started; the days and the elapsed
  * time only once its route is approved (before that they are not there yet, and not a fault: the sheet is still
- * running). Each value is held in both languages, as the issue's `printedBlankFaults` holds it.
+ * running). Each value is held in English, as the issue's `printedBlankFaults` holds it.
  */
 export function sheetValueFaults(fields: readonly PrintedField[], ctx: Pick<PinContext, "routed" | "sheet">, form: string): Finding[] {
   const s = ctx.sheet;
   if (!ctx.routed || !s) return [];
   const bound = inPrintedOrder(fields).filter((f) => f.bound && f.computedKey && isSheetField(f.computedKey));
   if (!bound.length) return [];
-  if (s.state === "UNJUDGED") return [{ code: "SHEET_NOT_JUDGED", level: "block", data: { form, fields: bound.map(labelPair).join(", ") } }];
+  if (s.state === "UNJUDGED") return [{ code: "SHEET_NOT_JUDGED", level: "block", data: { form, fields: bound.map((f) => f.labelEn).join(", ") } }];
   const empty: string[] = [];
   const noTarget: string[] = [];
   for (const f of bound) {
     const k = f.computedKey!;
-    if (k === "sheet.target" && s.target !== "SET") noTarget.push(labelPair(f));
+    if (k === "sheet.target" && s.target !== "SET") noTarget.push(f.labelEn);
     else if (!DUE_WHEN_DECIDED.has(k) || s.decided) {
-      if (!s.values.EN[k]?.trim() || !s.values.MS[k]?.trim()) empty.push(labelPair(f));
+      if (!s.values.EN[k]?.trim()) empty.push(f.labelEn);
     }
   }
   const out: Finding[] = [];
@@ -187,7 +188,7 @@ export function sheetValueFaults(fields: readonly PrintedField[], ctx: Pick<PinC
  * field (once 6.13 lists them) is held to its frozen value the same way.
  */
 export function unfillableFaults(t: TemplateNow, ctx: PinContext, allowed: ReadonlySet<string>, fieldsNamed: (body: string) => string[]): Finding[] {
-  const bodies = [t.bodyEn, t.bodyMs].filter((b): b is string => b != null && b.trim() !== "");
+  const bodies = [t.bodyEn].filter((b): b is string => b != null && b.trim() !== "");
   // A field the certificate does not fill at all is UNKNOWN_FIELDS's (pinFaults), not this rule's.
   // Increment 2: a printed field bound to a value is held to it as a field the text names is.
   const printed = (t.fields ?? []).filter((f) => f.bound && f.computedKey).map((f) => f.computedKey!);
@@ -202,7 +203,7 @@ export function unfillableFaults(t: TemplateNow, ctx: PinContext, allowed: Reado
   for (const f of t.fields ?? []) {
     if (!f.bound || !f.computedKey) continue;
     const k = f.computedKey;
-    if (isSheetField(k) ? !ctx.routed : !allowed.has(k)) unbindable.push(labelPair(f));
+    if (isSheetField(k) ? !ctx.routed : !allowed.has(k)) unbindable.push(f.labelEn);
   }
   if (unbindable.length) out.push({ code: "PRINTED_FIELD_NOT_FILLED", level: "block", data: { form, fields: unbindable.join(", ") } });
   out.push(...sheetValueFaults(t.fields ?? [], ctx, form));

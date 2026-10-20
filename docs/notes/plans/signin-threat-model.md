@@ -169,6 +169,7 @@ Without email, an administrator password reset is the recovery path, and it is a
     - IC numbers (two models, schema lines 3674 and 8138) are readable only with a capability.
     - A supplier contact can view and export their own data.
     - Deletion conflicts with the append-only trail: for a deletion request, hold personal data off the audit rows (the rows reference ids and labels), pseudonymise the identity record, and keep the trail. Say so in the privacy notice.
+    - Go-live N7 (`golive-n7.md`): a decided return correction's payload is the one stored change that is altered after it is proposed. The contractor signatory's listed personal values (name, IC number, occupation, address, witness name) become JSON null in the deciding update, and nothing else of any change is ever altered. The blank is done by the application (`conclude()` in `edit-store.ts` is the only writer of an edit change's decision, pinned by a scan test), and the database only allows it, so a decision written by any other path would keep the values.
 
 ## C. Should-haves
 

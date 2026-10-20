@@ -9,7 +9,7 @@ import { currentRequestFacts, refuseForeignPost } from "@/app/_auth/cookies";
 import { editRegistry } from "@/app/_auth/stage";
 import { decideChange, proposeChange, type ChangeFaults } from "@/lib/auth/change-store";
 import { decisionFaults, KIND_PERMISSION, type ChangeKind } from "@/lib/auth/configuration-change";
-import { EDIT_DECIDE_PERMISSION, isEditKind, parseEditPayload } from "@/lib/auth/configuration-edit";
+import { isEditKind, parseEditPayload, unresolvedEditRule } from "@/lib/auth/configuration-edit";
 import { decideEdit, editDecisionFaults } from "@/lib/auth/edit-store";
 import { permissionHeldThrough } from "@/lib/auth/permission-store";
 import { SETTING_LABELS } from "@/lib/auth/policy";
@@ -125,8 +125,9 @@ async function decide(actor: StaffActor, data: FormData, decision: "APPLY" | "DE
     if (row.status !== "PROPOSED") return { ok: false, message: "This change has already been decided or withdrawn." };
     if (row.proposedByPersonId !== actor.personId) return { ok: false, message: "Only the person who proposed a change withdraws it." };
   } else if (editKind) {
-    if (!editOp) return { ok: false, message: "This change's editor is no longer one a change can carry, so it cannot be applied. Decline it, and propose it again." };
-    const faults = editDecisionFaults(editOp, row, actor);
+    // An editor that cannot be resolved cannot be applied, only declined (by the rule of its kind), which also blanks any personal values it holds.
+    if (!editOp && decision === "APPLY") return { ok: false, message: "This change's editor is no longer one a change can carry, so it cannot be applied. Decline it, and propose it again." };
+    const faults = editDecisionFaults(editOp ?? unresolvedEditRule(editKind), row, actor);
     if (faults.length > 0) return { ok: false, message: faults.map((x) => x.en).join(" ") };
   } else {
     const faults = decisionFaults({ kind: row.kind as ChangeKind, status: row.status, proposedByPersonId: row.proposedByPersonId }, { personId: actor.personId, permissions: actor.permissions });
@@ -138,7 +139,7 @@ async function decide(actor: StaffActor, data: FormData, decision: "APPLY" | "DE
   if (!begun.ok) return begun.state;
   const act = begun.act;
   // The office the signer held (NFR-SIG-001): the role they hold the kind's permission through, if any (an administrator holds it through the flag, which is no office).
-  const roleCode = await permissionHeldThrough(db, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, editKind ? (editOp?.decidePermission ?? EDIT_DECIDE_PERMISSION) : KIND_PERMISSION[row.kind as ChangeKind]);
+  const roleCode = await permissionHeldThrough(db, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, editKind ? (editOp?.decidePermission ?? unresolvedEditRule(editKind).decidePermission) : KIND_PERMISSION[row.kind as ChangeKind]);
   try {
     if (editKind) {
       const edited = await decideEdit(actor, act, editRegistry, { changeId, decision, reason, roleCode });

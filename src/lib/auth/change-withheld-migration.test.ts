@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -58,5 +58,37 @@ describe("the N7 migration", () => {
   it("has no ';' inside a comment", () => {
     const commented = sql.split("\n").filter((line) => /--.*;/.test(line));
     expect(commented).toEqual([]);
+  });
+});
+
+/**
+ * The database allows the blank but does not require it (N7 review): a decision written by any path that forgets `blankWithheld` would keep the values. So the writers of a
+ * change's decision are pinned here. A new one fails this test until it is reviewed against the blank.
+ */
+describe("who writes a ConfigurationChange decision (N7 review)", () => {
+  const files = (dir: string): string[] =>
+    readdirSync(dir).flatMap((n) => {
+      const p = join(dir, n);
+      if (n === "generated" || n === "node_modules") return [];
+      if (statSync(p).isDirectory()) return files(p);
+      return /\.tsx?$/.test(n) && !/\.test\.tsx?$/.test(n) ? [p] : [];
+    });
+  const writers = files(join(process.cwd(), "src")).flatMap((p) => {
+    const text = readFileSync(p, "utf8");
+    const hits = text.match(/\bconfigurationChange\.(update|updateMany|upsert|delete|deleteMany)\(|\bUPDATE\s+"ConfigurationChange"|\bDELETE\s+FROM\s+"ConfigurationChange"/g) ?? [];
+    return hits.length > 0 ? [[p.slice(process.cwd().length + 1).split(sep).join("/"), hits.length] as const] : [];
+  });
+
+  it("is the change store for the kinds that carry no payload values, and the edit store, which blanks", () => {
+    expect(writers).toEqual([
+      ["src/lib/auth/change-store.ts", 3],
+      ["src/lib/auth/edit-store.ts", 1],
+    ]);
+  });
+
+  it("is an edit store update that carries the blanked payload, and a change store that refuses edit kinds", () => {
+    const edit = readFileSync(join(process.cwd(), "src/lib/auth/edit-store.ts"), "utf8");
+    expect(edit).toMatch(/configurationChange\.update\([^\n]*\.\.\.\(blanked \? \{ payload: blanked \} : \{\}\)/);
+    expect(readFileSync(join(process.cwd(), "src/lib/auth/change-store.ts"), "utf8")).toContain("WRONG_PATH");
   });
 });

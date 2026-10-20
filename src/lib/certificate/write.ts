@@ -45,7 +45,7 @@ import { variationRefusal } from "@/lib/variation/labels";
 import { draftSigningFaults, matterSigningFaults } from "./kinds";
 import { voidFaults } from "./void";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
-import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
+import { englishOnly, readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
 import { certificateTransition } from "./status";
 import type { CertificateKind, CertificateStatus, DeliveryMethod, Finding } from "./types";
 import { isPersonRule } from "./types";
@@ -145,6 +145,8 @@ export async function openCertificate(tx: Tx, actor: AuditActor, l: LoadedContra
     const fs = typeFaults(owned ? await routingTypeNow(o.routingTypeId, tx) : null, "CERTIFICATE", o.kind, today);
     if (fs.length) refuse("Not opened:", fs);
   }
+  // English only for every new snapshot (founder, 2026-10-20).
+  const computedSnapshot = (o.computed ? englishOnly(o.computed) : undefined) as Prisma.InputJsonValue | undefined;
   const row = await tx.certificate.create({
     data: {
       organisationId: l.org.id,
@@ -154,7 +156,7 @@ export async function openCertificate(tx: Tx, actor: AuditActor, l: LoadedContra
       routingTypeId: o.routingTypeId,
       sectionId: o.sectionId,
       baselineId: baseline!.id,
-      computedSnapshot: (o.computed ?? undefined) as Prisma.InputJsonValue | undefined,
+      computedSnapshot,
       openedAt: now,
       openedOn: dayToDate(today),
     },
@@ -403,12 +405,11 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   };
   const r = renderIssue(rev, cert.kind, values, labelOfField);
   if (r.faults.length) refuse("Not issued:", r.faults);
-  // 6.14 increment 2: the printed form's fields with the values they print, in each language, frozen with the issue.
+  // 6.14 increment 2: the printed form's fields with the values they print, in English, frozen with the issue.
   const sheet = sheetOf(cert, c.today);
-  const printedIn = (lang: Lang) => printedRows(rev.fields ?? [], { ...values(lang), ...sheetFieldValues(sheet, lang) }, lang);
-  const printedEn = printedIn("EN");
-  const printedMs = printedIn("MS");
-  const printed = inPrintedOrder(rev.fields ?? []).map((f, i) => ({ key: f.key, labelEn: f.labelEn, labelMs: f.labelMs, bound: f.bound, valueEn: printedEn[i].value, valueMs: printedMs[i].value }));
+  // Founder, 2026-10-20: English only, so a new issue freezes the English label and value and no Malay ones. Issues made before keep theirs.
+  const printedEn = printedRows(rev.fields ?? [], { ...values("EN"), ...sheetFieldValues(sheet, "EN") }, "EN");
+  const printed = inPrintedOrder(rev.fields ?? []).map((f, i) => ({ key: f.key, labelEn: f.labelEn, labelMs: null, bound: f.bound, valueEn: printedEn[i].value, valueMs: null }));
   // Code review M-1: a field the portal fills is never issued blank.
   const blank = printedBlankFaults(rev.nameEn, printed);
   if (blank.length) refuse("Not issued:", blank);

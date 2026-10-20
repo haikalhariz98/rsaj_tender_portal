@@ -54,14 +54,12 @@ export const distinctApplied = (lists: readonly (readonly AppliedCorrection[])[]
   return out;
 };
 
-/// The text in each language the pinned form has, why it cannot be issued (empty: it can), and how many corrections changed its words.
+/// The English text the pinned form has, why it cannot be issued (empty: it can), and how many corrections changed its words.
 export function renderIssue(rev: TemplateRevision, kind: CertificateKind, values: (lang: Lang) => Record<string, string>, labelOf: (key: string) => string = certificateFieldLabel): { texts: FrozenText[]; faults: Finding[]; corrected: number; applied: AppliedCorrection[] } {
   const faults: Finding[] = [];
   const texts: FrozenText[] = [];
-  const bodies: [Lang, string | null][] = [
-    ["MS", rev.bodyMs],
-    ["EN", rev.bodyEn],
-  ];
+  // Founder, 2026-10-20: a new certificate is issued in English only. A stored Malay body is kept on the form and never issued.
+  const bodies: [Lang, string | null][] = [["EN", rev.bodyEn]];
   const present = bodies.filter(([, b]) => b != null && b.trim() !== "");
   // FR-CRT-012: the one rule (form-needs.ts) decides a form with no text.
   const empty = formNeedFault({ id: rev.templateId, nameEn: rev.nameEn, bodyEn: rev.bodyEn, bodyMs: rev.bodyMs }, w("This certificate's form", "Borang perakuan ini"));

@@ -14,6 +14,7 @@ import {
   RETURN_WITHHELD_FIELDS,
   WITHHELD_WORDS,
   withheldFieldsOf,
+  withholdRehearsal,
 } from "./return-withheld";
 
 // Go-live N7 (plan docs/notes/plans/golive-n7.md, ruling on decisions-log line 2030, scoped at 2823): the return correction's personal values are blanked at the decision.
@@ -148,5 +149,33 @@ describe("every field the return form stores is classified", () => {
     const stored = [...read.names].filter((n) => n !== "reason" && isStoredField(n));
     for (const n of stored) expect(Number(WITHHELD.includes(n)) + Number(KEPT.includes(n)), n).toBe(1);
     expect(new Set(stored)).toEqual(new Set([...WITHHELD, ...KEPT]));
+  });
+});
+
+describe("withholdRehearsal (the proposal's own audit row, N7 review)", () => {
+  const rehearsal = {
+    rows: [{ entity: "AwardReturn", changes: [{ field: "signatoryName", before: "Ali", after: "Abu" }, { field: "icNumber", before: null, after: "900101145678" }, { field: "capacity", before: "Director", after: "Manager" }] }],
+  };
+
+  it("replaces each listed value with the withheld word, keeps null and the kept fields", () => {
+    const out = withholdRehearsal(KIND, OP, rehearsal);
+    expect(out.rows[0].changes).toEqual([
+      { field: "signatoryName", before: WITHHELD_WORDS.en, after: WITHHELD_WORDS.en },
+      { field: "icNumber", before: null, after: WITHHELD_WORDS.en },
+      { field: "capacity", before: "Director", after: "Manager" },
+    ]);
+    expect(JSON.stringify(out)).not.toMatch(/Ali|Abu|900101145678/);
+  });
+
+  it("does not change its input, and returns another kind or operation as it is", () => {
+    const copy = JSON.parse(JSON.stringify(rehearsal));
+    withholdRehearsal(KIND, OP, rehearsal);
+    expect(rehearsal).toEqual(copy);
+    expect(withholdRehearsal("BASELINE_CORRECTION", OP, rehearsal)).toBe(rehearsal);
+    expect(withholdRehearsal(KIND, "awards-records.recordTerms", rehearsal)).toBe(rehearsal);
+  });
+
+  it("has the words the decision's audit line uses", () => {
+    expect(WITHHELD_WORDS).toEqual({ en: "Withheld", held: "Held", field: "Personal details" });
   });
 });

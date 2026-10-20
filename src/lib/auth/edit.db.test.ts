@@ -13,6 +13,7 @@ import { attributeAct } from "./attribution-store";
 import type { ChangeAct } from "./change-store";
 import { loadChangesView } from "./changes-view";
 import { auditActorOfStaff } from "./audit-actor";
+import { parseEditPayload } from "./configuration-edit";
 import { decideEdit, formOf, proposeEdit, type EditOperation, type EditRegistry, type EditRunResult } from "./edit-store";
 import { confirmStaffPassword } from "./identity";
 import { createStaffSession, readStaffSession } from "./session-store";
@@ -173,7 +174,9 @@ let returnMood = "before";
 const returnRuns: Record<string, string>[] = [];
 editor(RETURN_CORRECTION_OPERATION, { kind: RETURN_CORRECTION_KIND, administratorMay: false, proposePermission: null, decidePermission: "corrections.decide" }, async (data, actor) => {
   returnRuns.push(Object.fromEntries([...data.entries()].map(([n, v]) => [n, String(v)])));
-  await writeAudit(db, { organisationId, entity: "ReturnTest", entityId: String(data.get("id") ?? ""), entityLabel: "Return test", reason: "", actor: auditActorOfStaff(actor) }, "UPDATE", [{ field: "Standing", before: returnMood, after: "recorded" }]);
+  // As the real editor's audit row does: the listed personal values are in the rows the editor writes, which is what a proposal's own audit row is built from.
+  const personal = RETURN_WITHHELD_FIELDS.filter((n) => data.has(n)).map((n) => ({ field: n, before: null, after: String(data.get(n)) }));
+  await writeAudit(db, { organisationId, entity: "ReturnTest", entityId: String(data.get("id") ?? ""), entityLabel: "Return test", reason: "", actor: auditActorOfStaff(actor) }, "UPDATE", [{ field: "Standing", before: returnMood, after: "recorded" }, ...personal]);
   return { ok: true };
 });
 
@@ -608,13 +611,57 @@ describe("a return correction's personal values are blanked when it is decided (
     expect(JSON.stringify((await decisionAudit(id)).map((e) => e.changes))).not.toContain("Personal details");
   });
 
-  it("is still read by the queue after the blank: its label stays and it is decided", async () => {
-    const { checker, id } = await waiting();
+  it("is still read by the queue after the blank: its stored payload parses with the kind (and not without it), and it is decided", async () => {
+    const { checker, id, f } = await waiting();
     const title = (await loadChangesView(checker.actor, new Date(), registry)).waiting.find((r) => r.id === id)!.title;
     expect(title).not.toBe("");
     await decide(checker, id, "APPLY");
+    const stored = (await rowOf(id)).payload;
+    const parsed = parseEditPayload(stored, RETURN_CORRECTION_KIND);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.payload.withheld).toEqual([...RETURN_WITHHELD_FIELDS]);
+      expect(parsed.payload.fields).toEqual(f.filter(([n]) => !listed(n)));
+    }
+    const without = parseEditPayload(stored, null);
+    expect(without.ok).toBe(false);
+    if (!without.ok) expect(without.faults.map((x) => [x.field, x.code])).toEqual(RETURN_WITHHELD_FIELDS.map((n) => [n, "BAD_VALUE"]));
     const view = await loadChangesView(checker.actor, new Date(), registry);
     expect(view.decided.find((r) => r.id === id)).toMatchObject({ kind: RETURN_CORRECTION_KIND, status: "APPLIED", title });
+  });
+
+  it("writes none of the listed values to the proposal's own audit row, whatever becomes of it, while the queue still shows them to the checker", async () => {
+    const { checker, id, f } = await waiting();
+    const text = JSON.stringify((await decisionAudit(id)).map((e) => e.changes));
+    expect(text).toContain(WITHHELD_WORDS.en);
+    for (const [n, v] of f) if (listed(n)) expect(text, n).not.toContain(v);
+    const shown = (await loadChangesView(checker.actor, new Date(), registry)).waiting.find((r) => r.id === id)!;
+    const stored = JSON.stringify((await rowOf(id)).before);
+    for (const [n, v] of f) if (listed(n)) expect(stored, n).toContain(v);
+    expect(JSON.stringify(shown.lines)).toContain(f.find(([n]) => n === "signatoryName")![1]);
+  });
+
+  it("can be declined or withdrawn when its payload no longer parses, which blanks it, and cannot be applied", async () => {
+    const maker = await officer();
+    const checker = await officer("corrections.decide");
+    const f = form();
+    const id = `n7_${randomId()}`;
+    // A payload that no longer fits the kind (an unknown key, as a tightened rule would leave it), inserted as it is: the guard refuses an update of a proposal's payload.
+    await db.$executeRawUnsafe(
+      `INSERT INTO "ConfigurationChange" ("id", "organisationId", "kind", "payload", "before", "proposedByPersonId") VALUES ($1, $2, $3::"ConfigurationChangeKind", $4::jsonb, '{}'::jsonb, $5)`,
+      id,
+      organisationId,
+      RETURN_CORRECTION_KIND,
+      JSON.stringify({ operation: RETURN_CORRECTION_OPERATION, fields: f, extra: 1 }),
+      maker.person.id,
+    );
+    expect(await decide(checker, id, "APPLY")).toMatchObject({ ok: false, faults: [{ code: "UNREADABLE" }] });
+    const own = await decide(maker, id, "DECLINE", "x");
+    expect(own.ok).toBe(false);
+    expect(own.ok ? [] : "faults" in own ? own.faults.map((x) => x.code) : []).toContain("PROPOSER_IS_DECIDER");
+    expect(await decide(checker, id, "DECLINE", "It no longer fits")).toMatchObject({ ok: true, status: "DECLINED" });
+    expectBlanked(await payloadOf(id), f);
+    expect((await payloadOf(id)) as object).toHaveProperty("extra", 1);
   });
 
   it("refuses at APPLY a PROPOSED payload that already holds the marker, and does not run the editor", async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applyOverrides, overrideFaults } from "./override";
-import { snapshotFaults, type ComputedSnapshot } from "./snapshot";
+import { englishOnly, readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
 
 /// A money line's floor (6.13 Part A, code review run 2 item 3): the owning module names the part an officer may
 /// not correct; an override below it is refused, naming the floor and why.
@@ -32,5 +32,25 @@ describe("the refusal prints the floor as money", () => {
     const { certificateFaultWords } = await import("./fault-text");
     const t = certificateFaultWords({ code: "OVERRIDE_BELOW_FLOOR", level: "block", data: { floor: "1250.00", why: "the part recorded elsewhere" } }).en;
     expect(t).toMatch(/^Not below RM1,250\.00: the part recorded elsewhere\./);
+  });
+});
+
+// Founder, 2026-10-20: a new snapshot is English only; one stored before keeps its Malay and is read, overridden and judged as it was.
+describe("a new snapshot is English only", () => {
+  it("leaves out every Malay label, sentence and floor wording, and stays sound", () => {
+    const text: ComputedSnapshot = { ...SNAP, lines: [...SNAP.lines, { key: "note", labelEn: "Note", labelMs: "Nota", type: "TEXT", value: "A sentence", valueMs: "Satu ayat", overridable: false }], routingRatio: { num: "1.00", den: "2.00", labelEn: "Ratio", labelMs: "Nisbah" } };
+    const out = englishOnly(text);
+    expect(JSON.stringify(out)).not.toMatch(/Ujian|Kerja|Caj|Bersih|Nota|Satu ayat|Nisbah|bahagian lain/);
+    expect(out.lines[1]).toMatchObject({ floor: { value: "250.00", en: "the part recorded elsewhere" } });
+    expect(out.rule).toEqual({ en: "Test" });
+    expect(snapshotFaults(out)).toEqual([]);
+    expect(applyOverrides(out, []).totals.map((t) => t.key)).toEqual(["net"]);
+  });
+  it("does not change the snapshot it is given, and an older one with its Malay still reads and judges as before", () => {
+    const before = JSON.stringify(SNAP);
+    englishOnly(SNAP);
+    expect(JSON.stringify(SNAP)).toBe(before);
+    expect(readComputedSnapshot(JSON.parse(before))).toEqual(SNAP);
+    expect(at("249.99")).toHaveLength(1);
   });
 });

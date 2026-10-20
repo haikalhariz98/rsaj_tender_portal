@@ -26,7 +26,7 @@ export const RETURN_KEPT_FIELDS = [
 ] as const;
 
 /// What a reader shows in place of a withheld value. Never an empty value.
-export const WITHHELD_WORDS = { en: "Withheld" } as const;
+export const WITHHELD_WORDS = { en: "Withheld", held: "Held", field: "Personal details" } as const;
 
 const NONE: readonly string[] = [];
 
@@ -55,4 +55,16 @@ export function blankWithheld(kind: string, rawPayload: unknown): object | null 
     return e;
   });
   return changed ? { ...o, fields } : null;
+}
+
+/**
+ * A rehearsal's audit rows with each listed field's value replaced by the withheld word, for the proposal's own audit row: the trail is append-only, so the personal values of a
+ * proposal (decided, declined or never decided) must not enter it. Another kind or operation, and a field not listed, are returned as they are. The input is not changed. The
+ * queue still reads the stored rehearsal, so the checker sees the values.
+ */
+export function withholdRehearsal<R extends { rows: { changes: { field: string; before: string | null; after: string | null }[] }[] }>(kind: string, operation: string, rehearsal: R): R {
+  const listed = withheldFieldsOf(kind, operation);
+  if (listed.length === 0) return rehearsal;
+  const word = (v: string | null) => (v === null ? null : WITHHELD_WORDS.en);
+  return { ...rehearsal, rows: rehearsal.rows.map((row) => ({ ...row, changes: row.changes.map((c) => (listed.includes(c.field) ? { ...c, before: word(c.before), after: word(c.after) } : c)) })) };
 }

@@ -89,7 +89,7 @@ export const inPrintedOrder = <T extends Pick<PrintedField, "sortOrder" | "key">
 export const labelIn = (p: Pick<PrintedField, "labelEn" | "labelMs">, lang: Lang): string => (lang === "MS" ? (p.labelMs?.trim() ? p.labelMs : p.labelEn) : p.labelEn);
 
 /// A label pair as one line: "DATE (1) · TARIKH (1)", or the one label where the form prints one.
-export const labelPair = (p: Pick<PrintedField, "labelEn" | "labelMs">): string => (p.labelMs?.trim() && p.labelMs !== p.labelEn ? `${p.labelEn} · ${p.labelMs}` : p.labelEn);
+export const labelPair = (p: { labelEn: string; labelMs?: string | null }): string => (p.labelMs?.trim() && p.labelMs !== p.labelEn ? `${p.labelEn} · ${p.labelMs}` : p.labelEn);
 
 export interface PrintedRow {
   key: string;
@@ -102,12 +102,13 @@ export interface PrintedRow {
 
 /// The printed fields with their values in one language, in printed order.
 export function printedRows(fields: readonly PrintedField[], values: Readonly<Record<string, string>>, lang: Lang): PrintedRow[] {
-  return inPrintedOrder(fields).map((p) => ({ key: p.key, label: labelIn(p, lang), labelPair: labelPair(p), bound: p.bound, value: p.bound && p.computedKey ? (values[p.computedKey] ?? "") : null }));
+  return inPrintedOrder(fields).map((p) => ({ key: p.key, label: labelIn(p, lang), labelPair: p.labelEn, bound: p.bound, value: p.bound && p.computedKey ? (values[p.computedKey] ?? "") : null }));
 }
 
 /// Code review M-1: a bound field with nothing to print, at issue, refuses it (never issued blank).
-export function printedBlankFaults(form: string, rows: readonly { labelEn: string; labelMs: string | null; bound: boolean; valueEn: string | null; valueMs: string | null }[]): Finding[] {
-  const blank = rows.filter((r) => r.bound && (!r.valueEn?.trim() || !r.valueMs?.trim())).map((r) => labelPair(r));
+/// Founder, 2026-10-20: English only, so only the English value is held to be there. An older row may still carry a Malay value; it is not asked for.
+export function printedBlankFaults(form: string, rows: readonly { labelEn: string; labelMs?: string | null; bound: boolean; valueEn: string | null; valueMs?: string | null }[]): Finding[] {
+  const blank = rows.filter((r) => r.bound && !r.valueEn?.trim()).map((r) => r.labelEn);
   return blank.length ? [{ code: "PRINTED_VALUE_EMPTY", level: "block", data: { form, fields: blank.join(", ") } }] : [];
 }
 

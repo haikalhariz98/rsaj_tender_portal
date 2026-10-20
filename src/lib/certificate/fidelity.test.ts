@@ -72,10 +72,8 @@ describe("worked example (FR-CRT-010): CERTICATE reads CERTIFICATE, the form cod
     const rev = pinRevision(FORM, "2026-10-03");
     const r = renderIssue(rev, "INTERIM_PAYMENT", values);
     expect(r.faults).toEqual([]);
-    expect(r.texts).toEqual([
-      { language: "MS", text: "PERAKUAN INTERIM DEMO/KP/T/005/2026. Tempoh Liabiliti Kecacatan terpakai." },
-      { language: "EN", text: "INTERIM CERTIFICATE DEMO/KP/T/005/2026. Defects Liability Period applies." },
-    ]);
+    // Founder, 2026-10-20: a new certificate is English only. The form's stored Malay text is not issued.
+    expect(r.texts).toEqual([{ language: "EN", text: "INTERIM CERTIFICATE DEMO/KP/T/005/2026. Defects Liability Period applies." }]);
     expect(r.corrected).toBe(1);
     expect(fidelityLine({ name: rev.nameEn, formCode: rev.formCode, revisionDate: rev.revisionDate, pageCount: rev.pageCount ?? null, bodyVersion: rev.bodyVersion }, r.corrected).en).toBe("Interim certificate (fixture) · FX-1 · revision 01 Jun 2025 · 2 pages · form version 3 · 1 typing correction applied, form code and revision unchanged");
   });
@@ -94,8 +92,9 @@ describe("the first signature refuses a form whose terms or printed fields could
     expect(codes(fs)).toEqual(["UNKNOWN_TERM"]);
     expect(fs[0].data).toEqual({ form: "Interim certificate (fixture)", terms: "dlp" });
   });
-  it("a term with no wording in a language a text cites it in: refused", () => {
-    expect(codes(pinFaults({ ...FORM, terms: [{ ...DLP, canonicalMs: null }] }, ANY_CERTIFICATE_FIELD, fieldsNamed))).toEqual(["TERM_NO_WORDING"]);
+  it("a term with no English wording: refused; one with no Malay wording is not (founder, 2026-10-20: English only)", () => {
+    expect(codes(pinFaults({ ...FORM, terms: [{ ...DLP, canonicalEn: null }] }, ANY_CERTIFICATE_FIELD, fieldsNamed))).toEqual(["TERM_NO_WORDING"]);
+    expect(codes(pinFaults({ ...FORM, terms: [{ ...DLP, canonicalMs: null }] }, ANY_CERTIFICATE_FIELD, fieldsNamed))).toEqual([]);
   });
   it("a printed field bound to the Contract Date, before the baseline holds one: refused as a field the text names would be (M-2)", () => {
     const form = { ...FORM, fields: [{ ...NUMBER, key: "cdate", computedKey: "contract.date" }] };

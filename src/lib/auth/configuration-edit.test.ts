@@ -11,6 +11,7 @@ import {
   editIsStale,
   editKindsReadBy,
   RECORD_EDIT_KINDS,
+  unresolvedEditRule,
   isEditKind,
   isStoredField,
   MAX_FILE_BYTES,
@@ -79,24 +80,24 @@ describe("what is stored of a posted form", () => {
   });
 
   it("refuses a payload that is not exactly an editor and a list of fields, naming what is wrong", () => {
-    expect(parseEditPayload(null)).toMatchObject({ ok: false });
-    expect(parseEditPayload([])).toMatchObject({ ok: false });
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [], extra: 1 })).toMatchObject({ ok: false, faults: [{ field: "extra", code: "UNKNOWN_FIELD" }] });
-    expect(parseEditPayload({ operation: "not an editor", fields: [] })).toMatchObject({ ok: false, faults: [{ code: "BAD_OPERATION" }] });
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: "x" })).toMatchObject({ ok: false, faults: [{ code: "BAD_FIELDS" }] });
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["a"]] })).toMatchObject({ ok: false, faults: [{ code: "BAD_FIELD" }] });
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["personId:password", "hunter2"]] })).toMatchObject({ ok: false, faults: [{ field: "personId:password", code: "NOT_STORED" }] });
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["a", 3]] })).toMatchObject({ ok: false, faults: [{ code: "BAD_VALUE" }] });
+    expect(parseEditPayload(null, null)).toMatchObject({ ok: false });
+    expect(parseEditPayload([], null)).toMatchObject({ ok: false });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [], extra: 1 }, null)).toMatchObject({ ok: false, faults: [{ field: "extra", code: "UNKNOWN_FIELD" }] });
+    expect(parseEditPayload({ operation: "not an editor", fields: [] }, null)).toMatchObject({ ok: false, faults: [{ code: "BAD_OPERATION" }] });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: "x" }, null)).toMatchObject({ ok: false, faults: [{ code: "BAD_FIELDS" }] });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["a"]] }, null)).toMatchObject({ ok: false, faults: [{ code: "BAD_FIELD" }] });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["personId:password", "hunter2"]] }, null)).toMatchObject({ ok: false, faults: [{ field: "personId:password", code: "NOT_STORED" }] });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["a", 3]] }, null)).toMatchObject({ ok: false, faults: [{ code: "BAD_VALUE" }] });
   });
 
   it("holds text and small files, and refuses a value or a file too large to hold", () => {
-    const ok = parseEditPayload({ operation: "numbering.saveSeries", fields: [["a", "x"], ["a", "y"], ["f", { file: { name: "a.png", type: "image/png", size: 3, base64: "AAAA" } }]] });
+    const ok = parseEditPayload({ operation: "numbering.saveSeries", fields: [["a", "x"], ["a", "y"], ["f", { file: { name: "a.png", type: "image/png", size: 3, base64: "AAAA" } }]] }, null);
     expect(ok).toMatchObject({ ok: true });
     if (ok.ok) expect(ok.payload.fields.map(([n]) => n)).toEqual(["a", "a", "f"]);
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["a", "x".repeat(200_001)]] })).toMatchObject({ ok: false, faults: [{ code: "TOO_LONG" }] });
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["f", { file: { name: "a.png", type: "image/png", size: MAX_FILE_BYTES + 1, base64: "" } }]] })).toMatchObject({ ok: false, faults: [{ code: "FILE_TOO_LARGE" }] });
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["f", { file: { name: "a.png" } }]] })).toMatchObject({ ok: false, faults: [{ code: "BAD_FILE" }] });
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: Array.from({ length: 601 }, (_, i) => [`f${i}`, "x"]) })).toMatchObject({ ok: false, faults: [{ code: "TOO_MANY" }] });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["a", "x".repeat(200_001)]] }, null)).toMatchObject({ ok: false, faults: [{ code: "TOO_LONG" }] });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["f", { file: { name: "a.png", type: "image/png", size: MAX_FILE_BYTES + 1, base64: "" } }]] }, null)).toMatchObject({ ok: false, faults: [{ code: "FILE_TOO_LARGE" }] });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["f", { file: { name: "a.png" } }]] }, null)).toMatchObject({ ok: false, faults: [{ code: "BAD_FILE" }] });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: Array.from({ length: 601 }, (_, i) => [`f${i}`, "x"]) }, null)).toMatchObject({ ok: false, faults: [{ code: "TOO_MANY" }] });
   });
 
   it("knows the same proposal twice, whatever the order of its fields", () => {
@@ -208,13 +209,20 @@ describe("a withheld value", () => {
     expect(parseEditPayload({ operation: OP, fields: [["id", null]] }, KIND), "another name").toMatchObject(bad);
     expect(parseEditPayload({ operation: "awards-records.recordTerms", fields: [["icNumber", null]] }, KIND), "another operation").toMatchObject(bad);
     expect(parseEditPayload({ operation: OP, fields: [["icNumber", null]] }, "BASELINE_CORRECTION"), "another kind").toMatchObject(bad);
-    expect(parseEditPayload({ operation: OP, fields: [["icNumber", null]] }), "no kind").toMatchObject(bad);
+    expect(parseEditPayload({ operation: OP, fields: [["icNumber", null]] }, null), "no kind").toMatchObject(bad);
   });
 
   it("is never in a payload read without one", () => {
     const parsed = parseEditPayload({ operation: OP, fields: [["icNumber", "900101145678"]] }, KIND);
     expect(parsed).toMatchObject({ ok: true, payload: { fields: [["icNumber", "900101145678"]], withheld: [] } });
-    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["a", "x"]] })).toMatchObject({ ok: true, payload: { withheld: [] } });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["a", "x"]] }, null)).toMatchObject({ ok: true, payload: { withheld: [] } });
+  });
+
+  it("refuses a file on a listed name, so a listed name holds text or the marker only", () => {
+    const file = { file: { name: "a.png", type: "image/png", size: 3, base64: "AAAA" } };
+    expect(parseEditPayload({ operation: OP, fields: [["icNumber", file]] }, KIND)).toMatchObject({ ok: false, faults: [{ field: "icNumber", code: "BAD_VALUE" }] });
+    expect(parseEditPayload({ operation: OP, fields: [["whereHeld", file]] }, KIND)).toMatchObject({ ok: true });
+    expect(parseEditPayload({ operation: OP, fields: [["icNumber", file]] }, null)).toMatchObject({ ok: true });
   });
 
   it("refuses to be proposed or run", () => {
@@ -223,5 +231,12 @@ describe("a withheld value", () => {
     expect(faults).toHaveLength(1);
     expect(faults[0].code).toBe("WITHHELD_NOT_APPLICABLE");
     expect(faults[0].en).not.toContain("WITHHELD");
+  });
+});
+
+describe("the rule for a change whose editor cannot be resolved (N7 review)", () => {
+  it("is the corrections checker, kept from an administrator, for a correction of the record, and the issuer of configuration for the rest", () => {
+    for (const k of RECORD_EDIT_KINDS) expect(unresolvedEditRule(k), k).toEqual({ decidePermission: "corrections.decide", administratorMay: false });
+    for (const k of EDIT_KINDS.filter((x) => !RECORD_EDIT_KINDS.includes(x))) expect(unresolvedEditRule(k), k).toEqual({ decidePermission: "configuration.issue", administratorMay: true });
   });
 });

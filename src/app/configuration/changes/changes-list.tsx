@@ -23,6 +23,7 @@ export interface QueueRow {
   facts: QueueFacts;
   makesCode: boolean;
   canDecide: boolean;
+  canApply: boolean;
   isYours: boolean;
   /// The shared list's own cells, built on the server.
   row: Row;
@@ -49,7 +50,7 @@ export function WaitingList({ rows }: { rows: QueueRow[] }) {
         if (!r) return null;
         return (
           <>
-            {r.canDecide && (r.makesCode ? <ApplyCodeChange changeId={r.id} facts={r.facts} /> : <ApplyChange changeId={r.id} facts={r.facts} />)}
+            {r.canApply && (r.makesCode ? <ApplyCodeChange changeId={r.id} facts={r.facts} /> : <ApplyChange changeId={r.id} facts={r.facts} />)}
             {r.canDecide && <DeclineChange changeId={r.id} facts={r.facts} />}
             {r.isYours && <WithdrawChange changeId={r.id} facts={r.facts} />}
           </>

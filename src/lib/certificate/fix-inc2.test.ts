@@ -22,13 +22,13 @@ describe("M-1: a printed field bound to a routing sheet's value", () => {
   it("on a certificate with no routing type: refused at the first signature, naming the field (never pinned to print blank)", () => {
     const fs = pinRefusals(FORM, mergeFields("DELEGATION_LETTER"), fieldsNamed, { ...CTX, routed: false });
     expect(codes(fs)).toEqual(["PRINTED_FIELD_NOT_FILLED"]);
-    expect(fs[0].data).toEqual({ form: "Form X", fields: "Date in (A) · Tarikh masuk (A)" });
+    expect(fs[0].data).toEqual({ form: "Form X", fields: "Date in (A)" });
     expect(codes(pinRefusals(FORM, mergeFields("DELEGATION_LETTER"), fieldsNamed, CTX))).toEqual(["PRINTED_FIELD_NOT_FILLED"]);
   });
   it("on a routed certificate: accepted before its sheet starts; once started, refused while the value is empty, accepted when there", () => {
-    // Residual M-1: the sheet carries whether its route is approved and its values in both languages; the day received
+    // Residual M-1: the sheet carries whether its route is approved and its values in English; the day received
     // is due once approved, and its refusal is the sheet value's own (SHEET_VALUE_EMPTY), not FIELD_NO_VALUE.
-    const started = (received: string) => ({ state: "STARTED" as const, decided: true, typeLabel: "Interim sheet", target: "SET", values: { EN: { "sheet.received": received }, MS: { "sheet.received": received } } });
+    const started = (received: string) => ({ state: "STARTED" as const, decided: true, typeLabel: "Interim sheet", target: "SET", values: { EN: { "sheet.received": received } } });
     expect(pinRefusals(FORM, mergeFields("INTERIM_PAYMENT"), fieldsNamed, { ...CTX, routed: true })).toEqual([]);
     expect(codes(pinRefusals(FORM, mergeFields("INTERIM_PAYMENT"), fieldsNamed, { ...CTX, routed: true, sheet: started("") }))).toEqual(["SHEET_VALUE_EMPTY"]);
     expect(pinRefusals(FORM, mergeFields("INTERIM_PAYMENT"), fieldsNamed, { ...CTX, routed: true, sheet: started("1 September 2026") })).toEqual([]);
@@ -37,10 +37,12 @@ describe("M-1: a printed field bound to a routing sheet's value", () => {
     const form = { ...FORM, fields: [{ ...RECEIVED, key: "due", computedKey: "figure.amountDue" }] };
     expect(codes(pinRefusals(form, mergeFields("INTERIM_PAYMENT"), fieldsNamed, { ...CTX, routed: true }))).toEqual(["PRINTED_FIELD_NOT_FILLED"]);
   });
-  it("at issue, a bound field with nothing to print in either language refuses it; one by hand never does", () => {
+  it("at issue, a bound field with nothing to print refuses it; one by hand never does", () => {
     const row = { labelEn: "Date in (A)", labelMs: "Tarikh masuk (A)", bound: true, valueEn: "1 September 2026", valueMs: "1 September 2026" };
     expect(printedBlankFaults("Form X", [row])).toEqual([]);
-    expect(codes(printedBlankFaults("Form X", [{ ...row, valueMs: "" }]))).toEqual(["PRINTED_VALUE_EMPTY"]);
+    expect(codes(printedBlankFaults("Form X", [{ ...row, valueEn: "" }]))).toEqual(["PRINTED_VALUE_EMPTY"]);
+    // Founder, 2026-10-20: English only. A Malay value is not asked for, so a blank one does not refuse.
+    expect(printedBlankFaults("Form X", [{ ...row, valueMs: "" }])).toEqual([]);
     expect(printedBlankFaults("Form X", [{ ...row, bound: false, valueEn: null, valueMs: null }])).toEqual([]);
   });
 });

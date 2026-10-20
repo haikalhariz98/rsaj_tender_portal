@@ -21,7 +21,8 @@ export const FIGURE_TYPES: readonly FigureType[] = ["MONEY", "PERCENT", "DAYS", 
 export interface FigureLine {
   key: string;
   labelEn: string;
-  labelMs: string;
+  /// Absent on a snapshot made from 2026-10-20 (founder: English only). Older ones keep theirs, and are read as they were stored.
+  labelMs?: string;
   type: FigureType;
   /// As a string: money "1234.50", a percentage "5.0000", days "28", a day "2026-09-30". Null: not computed.
   value: string | null;
@@ -33,13 +34,13 @@ export interface FigureLine {
   /// The lowest an override may set it to, and why (a money line only): the part of the figure the owning module
   /// does not let an officer correct (6.13 Part A, code review run 2 item 3: the premiums the employer paid that
   /// this certificate recovers). Absent: no floor.
-  floor?: { value: string; en: string; ms: string };
+  floor?: { value: string; en: string; ms?: string };
 }
 
 export interface FigureTotal {
   key: string;
   labelEn: string;
-  labelMs: string;
+  labelMs?: string;
   /// What it adds (1) and takes away (−1): money lines, or totals listed before it.
   terms: { key: string; sign: 1 | -1 }[];
 }
@@ -49,7 +50,7 @@ export interface ComputedSnapshot {
   /// The organisation's day the figures were computed on.
   computedOn: string;
   /// Which calculation made them, in words (the owning module's).
-  rule: { en: string; ms: string };
+  rule: { en: string; ms?: string };
   lines: FigureLine[];
   totals: FigureTotal[];
   /// The ratio a banded routing target is judged on (a variation's sum over the contract sum), as two money
@@ -59,7 +60,7 @@ export interface ComputedSnapshot {
   /// the ratio is worked out from the figures as they stand, overrides included, never from the strings handed
   /// in; so a draft override that moves the figure moves the target it is judged against. The strings are the
   /// ratio as computed. A ratio with no keys is read as handed in (a figure no line carries).
-  routingRatio: { num: string; den: string; labelEn: string; labelMs: string; numKey?: string; denKey?: string } | null;
+  routingRatio: { num: string; den: string; labelEn: string; labelMs?: string; numKey?: string; denKey?: string } | null;
 }
 
 const KEY = /^[a-z][A-Za-z0-9]*$/;
@@ -162,3 +163,18 @@ export function totalsFrom(s: ComputedSnapshot, values: ReadonlyMap<string, stri
 
 /// Whether a key names a total.
 export const isTotal = (s: ComputedSnapshot, key: string): boolean => s.totals.some((t) => t.key === key);
+
+/**
+ * A new snapshot is English only (founder, 2026-10-20): every Malay label, sentence and floor wording is left out. The owning modules still word their figures in both languages; this is the one place a
+ * snapshot passes before it is stored, so none of them can store the Malay half. A snapshot stored earlier is never rewritten, and is read as it was.
+ */
+export function englishOnly(s: ComputedSnapshot): ComputedSnapshot {
+  const without = <T extends object>(o: T, ...keys: string[]): T => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k))) as T;
+  return {
+    ...s,
+    rule: without(s.rule, "ms"),
+    lines: s.lines.map((l) => ({ ...without(l, "labelMs", "valueMs", "floor"), ...(l.floor ? { floor: without(l.floor, "ms") } : {}) })),
+    totals: s.totals.map((t) => without(t, "labelMs")),
+    routingRatio: s.routingRatio ? without(s.routingRatio, "labelMs") : null,
+  };
+}

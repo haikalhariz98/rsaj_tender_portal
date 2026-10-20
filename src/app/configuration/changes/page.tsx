@@ -53,7 +53,7 @@ export default async function ChangesPage() {
       },
       ...(c.isYours ? { note: "You proposed this, so you cannot decide it. You can withdraw it." } : {}),
     };
-    return { id: c.id, facts: { title: c.title, subject: c.subject, lines: c.lines, reason: c.reason, proposedBy: c.proposedBy }, makesCode: c.makesCode, canDecide: c.canDecide, isYours: c.isYours, row };
+    return { id: c.id, facts: { title: c.title, subject: c.subject, lines: c.lines, reason: c.reason, proposedBy: c.proposedBy }, makesCode: c.makesCode, canDecide: c.canDecide, canApply: c.canApply, isYours: c.isYours, row };
   });
   const decided: Row[] = view.decided.map((c) => {
     const what = whatChanges(c.lines);

@@ -259,6 +259,7 @@ ActAttribution {
   - Proposer and decider must be different people. The decider needs the kind's permission.
   - Applying re-validates the payload. If the current values no longer equal `before`, the change becomes `STALE`.
   - Kinds in Phase 2c: `SECURITY_POLICY`, `PERMISSION_GRANT`, `ADMINISTRATOR_GRANT`, `ADMINISTRATOR_REVOKE` and `ACCOUNT_CODE` (activation or reset of the account of a Person who holds an office, seat or delegation; the second person issues the code and is shown it, D6). Phase 5a adds quorum (FR-CTE-003), the opening panel size, classification downgrades (BD-DS-11), the 6.12 corrections (`correctBaseline`, `correctAwardTerm`) and the BD-24 award-return correction; Phase 5b moves every remaining Configuration section onto it, people and assignments included.
+- Exception (go-live N7, `docs/notes/plans/golive-n7.md`): when an `AWARD_RETURN_CORRECTION` is decided, the contractor signatory's personal values in its payload (name, IC number, occupation, address, witness name) are replaced with JSON null in the same update. Everything else of a proposed change is still never altered.
 - OQ-1 is settled by the specification (NFR-USE-004, NFR-SEC-004): maker-checker applies to every configuration editor. Transactional acts (window extensions, bid handling) are signed and attributed, with no second person.
 - An organisation with one administrator cannot grant or issue, and the screen says a second person is needed. The product never fakes a second approval.
 

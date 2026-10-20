@@ -33,7 +33,7 @@ export interface EffectiveLine extends FigureLine {
 export interface EffectiveTotal {
   key: string;
   labelEn: string;
-  labelMs: string;
+  labelMs?: string;
   /// Recomputed from the lines as they now stand. Null: a line it needs is not computed.
   value: string | null;
   /// Recomputed from the lines as computed; differs from `value` only where a line was overridden.

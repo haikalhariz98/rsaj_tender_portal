@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { eligibleFor } from "./eligibility-store";
 import { CHANGE_KINDS, KIND_PERMISSION, KIND_WORDS, kindsReadBy, parseChange, STATUS_WORDS, type ChangeKind, type ChangeStatus } from "./configuration-change";
 import { describeChange, type ChangeLine } from "./configuration-change-words";
-import { describeEdit, editKindsReadBy, isEditKind, parseEditPayload, type EditKind } from "./configuration-edit";
+import { describeEdit, editKindsReadBy, isEditKind, parseEditPayload, unresolvedEditRule, type EditKind } from "./configuration-edit";
 import { editDecisionFaults, type EditRegistry } from "./edit-store";
 import type { PermissionKey, StaffActor } from "./types";
 
@@ -34,6 +34,8 @@ export interface ChangeRow {
   isYours: boolean;
   /// The signed-in person may decide it: a different Person, holding the permission that decides this kind (and, for a code, not the account's own Person).
   canDecide: boolean;
+  /// Whether the person may apply it: an editor that cannot be resolved can only be declined or withdrawn.
+  canApply: boolean;
   /// The people besides the proposer who hold the permission, by name: who the change is waiting for. Empty where nobody could decide it.
   waitingFor: string[];
   /// A code is what applying it makes: the second person is shown it once.
@@ -118,7 +120,8 @@ export async function loadChangesView(actor: StaffActor, now: Date = new Date(),
         decisionReason: r.decisionReason,
         isYours: r.proposedByPersonId === actor.personId,
         // Judged as the decision is: by the rule, against the editor the registry names. An editor the registry no longer knows cannot be applied, only declined.
-        canDecide: waiting && op != null && editDecisionFaults(op, r, actor).length === 0,
+        canDecide: waiting && editDecisionFaults(op ?? unresolvedEditRule(r.kind), r, actor).length === 0,
+        canApply: waiting && op != null && editDecisionFaults(op, r, actor).length === 0,
         waitingFor: waiting ? deciders.map((id) => personName.get(id) ?? "A person on file") : [],
         makesCode: false,
       };
@@ -150,6 +153,7 @@ export async function loadChangesView(actor: StaffActor, now: Date = new Date(),
       decisionReason: r.decisionReason,
       isYours: r.proposedByPersonId === actor.personId,
       canDecide: waiting && parsed.ok && deciders.includes(actor.personId),
+      canApply: waiting && parsed.ok && deciders.includes(actor.personId),
       waitingFor: waiting ? deciders.map((id) => personName.get(id) ?? "A person on file") : [],
       makesCode: r.kind === "ACCOUNT_CODE",
     };

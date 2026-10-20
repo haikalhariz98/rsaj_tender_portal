@@ -79,14 +79,14 @@ describe("M-1: a routed certificate's form is judged on its sheet's values only 
     expect(rev.fields?.map((f) => f.key)).toEqual(["date_in", "date_out", "days"]);
     // Worked example a reader can check by hand: received 1 Sep, approved 29 Sep: 28 days.
     const ctx = pinContextOf(c, "2026-10-01");
-    expect(ctx.sheet).toMatchObject({ state: "STARTED", decided: true, values: { EN: { "sheet.received": "1 September 2026", "sheet.approved": "29 September 2026", "sheet.elapsed": "28 days" }, MS: { "sheet.elapsed": "28 hari" } } });
+    expect(ctx.sheet).toMatchObject({ state: "STARTED", decided: true, values: { EN: { "sheet.received": "1 September 2026", "sheet.approved": "29 September 2026", "sheet.elapsed": "28 days" } } });
   });
 
   it("approved but a due value missing (the approving step carries no day): refused with the sheet value's own words, never 'void'", () => {
     const c = cert({ routingReceivedOn: dayToDate("2026-09-01"), approvalInstances: [route("APPROVED", null)] });
     const fs = pinCheck(FORM, c, "2026-10-01");
     expect(codes(fs)).toEqual(["SHEET_VALUE_EMPTY"]);
-    expect(fs[0].data).toEqual({ form: "Interim certificate form", fields: "date_out (EN) · date_out (MS), days (EN) · days (MS)" });
+    expect(fs[0].data).toEqual({ form: "Interim certificate form", fields: "date_out (EN), days (EN)" });
     const words = certificateFaultWords(fs[0]);
     expect(words.en).toMatch(/Routing sheet tab/);
     expect(words.en).toMatch(/completed by hand under Configuration › Templates/);
@@ -99,7 +99,7 @@ describe("M-1: a routed certificate's form is judged on its sheet's values only 
     expect(pinCheck(form, cert(), "2026-09-10")).toEqual([]);
     const fs = pinCheck(form, cert({}, { ...TYPE, targets: [] }), "2026-09-10");
     expect(codes(fs)).toEqual(["SHEET_TARGET_NOT_SET"]);
-    expect(fs[0].data).toEqual({ form: "Interim certificate form", fields: "target (EN) · target (MS)", type: "Interim sheet", why: "NOT_SET" });
+    expect(fs[0].data).toEqual({ form: "Interim certificate form", fields: "target (EN)", type: "Interim sheet", why: "NOT_SET" });
     const words = certificateFaultWords(fs[0]);
     expect(words.en).toMatch(/routing sheet type Interim sheet sets no target for this certificate: the type has no target\. A type's targets are set on it under Configuration › Routing sheets/);
     expect(words.ms).toMatch(/jenis helaian Interim sheet tidak menetapkan sasaran bagi perakuan ini: jenis itu tiada sasaran\. .*Konfigurasi › Helaian penghalaan/);
@@ -130,14 +130,13 @@ describe("M-1: a routed certificate's form is judged on its sheet's values only 
   });
 });
 
-describe("M-1: the pin's sheet-value check and the issue's printedBlankFaults agree, in both languages", () => {
+describe("M-1: the pin's sheet-value check and the issue's printedBlankFaults agree, in English", () => {
   // Every sheet value bound on one form, in printed order.
   const fields = SHEET_FIELDS.map((k, i) => field(k.replace(".", "_"), k, i));
   // As the issue builds its printed rows: the sheet's values over the certificate's, in each language (write.ts issue()).
   const issueBlank = (sheet: ReturnType<typeof routingSheet>, fs: readonly PrintedField[]) => {
     const en = printedRows(fs, sheetFieldValues(sheet, "EN"), "EN");
-    const ms = printedRows(fs, sheetFieldValues(sheet, "MS"), "MS");
-    return printedBlankFaults("F", inPrintedOrder(fs).map((f, i) => ({ labelEn: f.labelEn, labelMs: f.labelMs, bound: f.bound, valueEn: en[i].value, valueMs: ms[i].value })));
+    return printedBlankFaults("F", inPrintedOrder(fs).map((f, i) => ({ labelEn: f.labelEn, labelMs: null, bound: f.bound, valueEn: en[i].value, valueMs: null })));
   };
   // Every combination a signed sheet can be in: received or not, the approving step's day or none, the Malay label
   // absent, blank or given, a target or none. Signing follows an approved route only, so each is approved.
@@ -162,9 +161,10 @@ describe("M-1: the pin's sheet-value check and the issue's printedBlankFaults ag
     expect(sheetValueFaults(fields, { routed: true, sheet: pinSheetOf(sheet) }, "F").length === 0).toBe(issueBlank(sheet, fields).length === 0);
   });
 
-  it("a Malay value blank where the English is there refuses the pin, as it refuses the issue", () => {
+  // Founder, 2026-10-20: English only. A blank Malay label on the type was refused at the pin and the issue; the Malay value is no longer asked for, so neither refuses.
+  it("a blank Malay label does not refuse the pin or the issue", () => {
     const sheet = cases.find((c) => c.name.includes('Malay label ""') && c.name.startsWith("received 2026"))!.sheet;
-    expect(codes(sheetValueFaults([SHEET_TYPE], { routed: true, sheet: pinSheetOf(sheet) }, "F"))).toEqual(["SHEET_VALUE_EMPTY"]);
-    expect(codes(issueBlank(sheet, [SHEET_TYPE]))).toEqual(["PRINTED_VALUE_EMPTY"]);
+    expect(sheetValueFaults([SHEET_TYPE], { routed: true, sheet: pinSheetOf(sheet) }, "F")).toEqual([]);
+    expect(issueBlank(sheet, [SHEET_TYPE])).toEqual([]);
   });
 });

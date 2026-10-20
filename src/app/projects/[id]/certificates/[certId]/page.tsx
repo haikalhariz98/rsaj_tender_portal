@@ -654,7 +654,8 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
     : form
       ? { en: form.bodyEn, ms: form.bodyMs, name: form.nameEn, corrections: form.corrections ?? [], terms: freezeTerms(termCodesIn([...fieldsNamed(form.bodyEn), ...fieldsNamed(form.bodyMs)]), form.terms ?? []), fields: form.fields ?? [], identity: { name: form.nameEn, formCode: form.formCode, revisionDate: form.revisionDate, pageCount: form.pageCount ?? null, bodyVersion: form.bodyVersion } }
       : null;
-  const texts = body ? ([["MS", body.ms], ["EN", body.en]] as const).filter(([, b]) => b && b.trim()) : [];
+  // Founder, 2026-10-20: a new certificate is English only, so the preview shows the English text alone.
+  const texts = body ? ([["EN", body.en]] as const).filter(([, b]) => b && b.trim()) : [];
   if (!body || texts.length === 0) {
     return (
       <Card>
@@ -686,7 +687,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
     <div className="flex flex-col gap-6">
       {rendered.map(({ lang, r }) => (
         <Card key={lang}>
-          <CardHeader icon={<PrinterIcon size={17} />} title={lang === "MS" ? "Malay text" : "English text"} subtitle={`${fidelityLine(body.identity, corrected).en} · ${revision ? PRINT_WORDS.pinnedSuffix.en : PRINT_WORDS.nowSuffix.en}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
+          <CardHeader icon={<PrinterIcon size={17} />} title="English text" subtitle={`${fidelityLine(body.identity, corrected).en} · ${revision ? PRINT_WORDS.pinnedSuffix.en : PRINT_WORDS.nowSuffix.en}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
           <CardBody>
             <div className="flex flex-col gap-3 text-[13.5px] whitespace-pre-line text-ink-2">{r.paragraphs.map((p, i) => <p key={i}>{p}</p>)}</div>
             {r.applied.length > 0 && <p className="mt-4 text-[12.5px] break-words text-ink-3">{correctionsWords(r.applied).en}</p>}

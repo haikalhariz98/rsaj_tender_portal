@@ -47,9 +47,14 @@ describe("M-2: a field the text prints must have its value at issue", () => {
   it("a field the certificate does not fill at all is the unknown-field refusal, once", () => {
     expect(codes(pinRefusals({ ...FORM, bodyEn: "{{figure.amountDue}}" }, ANY_CERTIFICATE_FIELD, fieldsNamed, CTX))).toEqual(["UNKNOWN_FIELDS"]);
   });
-  it("both faults at once, in the Malay text too", () => {
-    const fs = pinRefusals({ ...FORM, bodyEn: null, bodyMs: "Bertarikh {{certificate.date}}; {{contract.date}}", blocks: [INTERIM_BLOCKS[0]] }, ANY_CERTIFICATE_FIELD, fieldsNamed, { ...CTX, contractDate: null });
+  it("both faults at once", () => {
+    const fs = pinRefusals({ ...FORM, bodyEn: "Dated {{certificate.date}}; {{contract.date}}", bodyMs: null, blocks: [INTERIM_BLOCKS[0]] }, ANY_CERTIFICATE_FIELD, fieldsNamed, { ...CTX, contractDate: null });
     expect(codes(fs)).toEqual(["DATE_FIELD_NO_DATING_BLOCK", "FIELD_NO_VALUE"]);
+  });
+  // Founder, 2026-10-20: English only. A form with a Malay text and no English one has no text to issue; the Malay one is not judged.
+  it("a form with only a Malay text has no text", () => {
+    const fs = pinRefusals({ ...FORM, bodyEn: null, bodyMs: "Bertarikh {{certificate.date}}; {{contract.date}}", blocks: [INTERIM_BLOCKS[0]] }, ANY_CERTIFICATE_FIELD, fieldsNamed, { ...CTX, contractDate: null });
+    expect(codes(fs)).toEqual(["TEMPLATE_BODY_EMPTY"]);
   });
   it("no form: the form's own refusal only", () => {
     // Faithful (BD-613-103 sent back, S-6, flagged 6.14): still the form's own refusal only, now RAISED_WITHOUT_FORM.

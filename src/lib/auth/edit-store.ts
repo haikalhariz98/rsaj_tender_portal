@@ -26,8 +26,9 @@ import {
   type EditKind,
   type EditPayload,
   type StagedValue,
+  unresolvedEditRule,
 } from "./configuration-edit";
-import { blankWithheld, WITHHELD_WORDS } from "@/lib/award/return-withheld";
+import { blankWithheld, withholdRehearsal, WITHHELD_WORDS } from "@/lib/award/return-withheld";
 import { loadCandidates } from "./eligibility-store";
 import { eligiblePersonIds } from "./eligibility";
 import { loadGrants } from "./permission-store";
@@ -140,7 +141,7 @@ export function editProposalFaults(op: EditOperation, proposer: { permissions: R
 }
 
 /// Who may decide it: a different Person from the proposer, holding the checker's permission, while it is proposed, and not an administrator account where the editor is kept from one.
-export function editDecisionFaults(op: EditOperation, change: { status: string; proposedByPersonId: string }, decider: { personId: string; permissions: ReadonlySet<string>; isAdministrator: boolean }): Fault[] {
+export function editDecisionFaults(op: Pick<EditOperation, "decidePermission" | "administratorMay">, change: { status: string; proposedByPersonId: string }, decider: { personId: string; permissions: ReadonlySet<string>; isAdministrator: boolean }): Fault[] {
   const out: Fault[] = [];
   if (change.status !== "PROPOSED") out.push(f("NOT_PROPOSED", "This change has already been decided or withdrawn."));
   if (decider.personId === change.proposedByPersonId) out.push(f("PROPOSER_IS_DECIDER", "You proposed this change, so you cannot decide it. A second person decides it."));
@@ -209,7 +210,8 @@ export async function proposeEdit(
       data: { organisationId: actor.organisationId, kind: op.kind, payload: payload as unknown as object, before: before as unknown as object, reason, proposedByPersonId: actor.personId, proposedAt: now },
       select: { id: true },
     });
-    const summary = describeEdit(op.kind, op.label, before);
+    // The trail is append-only: the proposal's own row says "Withheld" for each personal value of a return correction (go-live N7). The queue reads the stored `before`.
+    const summary = describeEdit(op.kind, op.label, withholdRehearsal(op.kind, payload.operation, before));
     await writeAudit(
       tx,
       { organisationId: actor.organisationId, entity: "ConfigurationChange", entityId: row.id, entityLabel: op.label, reason, actor: auditActorOfStaff(actor) },
@@ -258,22 +260,26 @@ export async function decideEdit(
     if (!row || !isEditKind(row.kind)) return refuse([NO_SUCH_CHANGE]);
     const parsed = parseEditPayload(row.payload, row.kind);
     const op = parsed.ok ? registry.find(parsed.payload.operation) : null;
-    if (!parsed.ok || !op) return refuse([f("UNREADABLE", "This change no longer fits what a change of its kind carries, or its editor is gone, so it cannot be applied. Decline it, and propose it again.")]);
+    // A change that cannot be read, or whose editor is gone, cannot be applied. It can still be declined or withdrawn (no editor runs), so that its personal values are blanked
+    // like any other decided change's (go-live N7), by the rule of its kind.
+    const unreadable = f("UNREADABLE", "This change no longer fits what a change of its kind carries, or its editor is gone, so it cannot be applied. Decline it, and propose it again.");
+    if (input.decision === "APPLY" && (!parsed.ok || !op)) return refuse([unreadable]);
+    const rule = op ?? unresolvedEditRule(row.kind);
 
     if (input.decision === "WITHDRAW") {
       if (row.status !== "PROPOSED") return refuse([f("NOT_PROPOSED", "This change has already been decided or withdrawn.")]);
       if (row.proposedByPersonId !== actor.personId) return refuse([f("NOT_THE_PROPOSER", "Only the person who proposed a change withdraws it.")]);
     } else {
-      const faults = editDecisionFaults(op, row, actor);
+      const faults = editDecisionFaults(rule, row, actor);
       if (faults.length > 0) return refuse(faults);
       // A payload already holding the withheld marker would run the editor on empty values (go-live N7).
-      if (input.decision === "APPLY") {
+      if (input.decision === "APPLY" && parsed.ok) {
         const marked = withheldFaults(parsed.payload);
         if (marked.length > 0) return refuse(marked);
       }
     }
 
-    const label = op.label;
+    const label = op?.label ?? EDIT_KIND_WORDS[row.kind].en;
     const decidedBy = { decidedByPersonId: actor.personId, decidedAt: now };
     // PDPA (go-live N7; ruling on open item 2030, decisions-log line 2047, chosen at line 2823): the contractor signatory's personal values leave the stored payload in
     // the same UPDATE that decides it, whatever the decision. The editor has already run on the parsed in-memory payload, so the correction is unaffected. Null for any other kind.
@@ -287,7 +293,7 @@ export async function decideEdit(
           { field: "Standing", before: STATUS_WORDS.PROPOSED.en, after: STATUS_WORDS[status].en },
           { field: "Decided by", before: null, after: actor.personName },
           // Said, never the values themselves.
-          ...(blanked ? [{ field: "Personal details", before: "Held", after: WITHHELD_WORDS.en }] : []),
+          ...(blanked ? [{ field: WITHHELD_WORDS.field, before: WITHHELD_WORDS.held, after: WITHHELD_WORDS.en }] : []),
         ],
       );
     const conclude = async (status: ChangeStatus, why: string, decisionReason: string) => {
@@ -302,6 +308,7 @@ export async function decideEdit(
       return { ok: true, status: status as "DECLINED" | "WITHDRAWN" };
     }
 
+    if (!parsed.ok || !op) return refuse([unreadable]);
     // APPLY. The editor runs, for real, in this transaction. It is kept only if it did not refuse and wrote what it was rehearsed to write: otherwise every
     // write it made is undone, and the change is either left proposed (the editor refused: the cause can be put right, or the change declined) or STALE.
     const rehearsed = readRehearsal(row.before);

@@ -122,9 +122,10 @@ const bad = (field: string, code: string, en: string): EditFault => ({ field, co
 
 /**
  * A posted form, narrowed to what is stored. An unknown shape is refused field by field, never guessed at. A `null` value is the withheld marker (go-live N7): it is read
- * only on a name `withheldFieldsOf(kind, operation)` lists, so only with the change's `kind` given, and is `BAD_VALUE` anywhere else.
+ * only on a name `withheldFieldsOf(kind, operation)` lists, so only with the change's `kind` given (`null` where there is none yet: posted input), and is `BAD_VALUE` anywhere
+ * else. The kind is required so that a reader of stored rows cannot leave it out and find every blanked row unreadable. A listed name holds text or the marker, never a file.
  */
-export function parseEditPayload(raw: unknown, kind?: string): { ok: true; payload: EditPayload } | { ok: false; faults: EditFault[] } {
+export function parseEditPayload(raw: unknown, kind: string | null): { ok: true; payload: EditPayload } | { ok: false; faults: EditFault[] } {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { ok: false, faults: [bad("*", "NOT_AN_OBJECT", "A change is an object.")] };
   const o = raw as Record<string, unknown>;
   const faults: EditFault[] = [];
@@ -136,7 +137,7 @@ export function parseEditPayload(raw: unknown, kind?: string): { ok: true; paylo
   if (entries.length > MAX_FIELDS) return { ok: false, faults: [bad("fields", "TOO_MANY", "This form has more fields than a change can hold.")] };
   const fields: [string, StagedValue][] = [];
   const withheld: string[] = [];
-  const blankable = kind === undefined ? [] : withheldFieldsOf(kind, o.operation as string);
+  const blankable = kind === null ? [] : withheldFieldsOf(kind, o.operation as string);
   let size = 0;
   for (const e of entries) {
     if (!Array.isArray(e) || e.length !== 2 || typeof e[0] !== "string" || e[0] === "" || e[0].length > 120) {
@@ -158,6 +159,10 @@ export function parseEditPayload(raw: unknown, kind?: string): { ok: true; paylo
       fields.push([name, value]);
       continue;
     }
+    if (blankable.includes(name)) {
+      faults.push(bad(name, "BAD_VALUE", "A value is text."));
+      continue;
+    }
     const f = typeof value === "object" && value !== null ? (value as { file?: unknown }).file : undefined;
     if (typeof f === "object" && f !== null) {
       const file = f as Record<string, unknown>;
@@ -175,6 +180,12 @@ export function parseEditPayload(raw: unknown, kind?: string): { ok: true; paylo
   if (size > MAX_PAYLOAD_CHARS) faults.push(bad("fields", "TOO_LARGE", "This form is too large for a change to hold."));
   if (faults.length > 0) return { ok: false, faults };
   return { ok: true, payload: { operation: o.operation as string, fields, withheld } };
+}
+
+/// Who decides an edit change whose editor cannot be resolved (its payload no longer parses, or the registry has lost the operation): it can only be declined or withdrawn, and
+/// by the rule of its kind. A correction of the record is kept from an administrator account, as every editor of one is.
+export function unresolvedEditRule(kind: EditKind): { decidePermission: PermissionKey; administratorMay: boolean } {
+  return RECORD_EDIT_KINDS.includes(kind) ? { decidePermission: CORRECTIONS_DECIDE_PERMISSION, administratorMay: false } : { decidePermission: EDIT_DECIDE_PERMISSION, administratorMay: true };
 }
 
 /// A payload holding the withheld marker is a decided change's record, never something to propose or run: the editor would read the withheld values as left empty.

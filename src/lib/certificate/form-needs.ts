@@ -88,7 +88,8 @@ export interface FormOf {
 /// chosen: 614b-C6), or chosen with no text (naming the form).
 export function formNeedFault(t: FormOf | null, need: Words, setAt: SetAt = "POST_AWARD"): Finding | null {
   if (!t) return { code: "TEMPLATE_NOT_SET", level: "block", data: { need: need.en, needMs: need.ms, setAt } };
-  if (!(t.bodyEn?.trim() || t.bodyMs?.trim())) return { code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form: t.nameEn } };
+  // Founder, 2026-10-20: a new document is English only, so a form with only a Malay text has no text to issue.
+  if (!t.bodyEn?.trim()) return { code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form: t.nameEn } };
   return null;
 }
 
