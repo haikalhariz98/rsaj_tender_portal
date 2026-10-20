@@ -15,7 +15,7 @@ import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
 import { ENTITY, bqExportAudit, bqFinalisedAudit, listValueLabel, panelAudit, type PanelAuditFacts, bqImportAudit, rateFromText, scopeTabledAudit, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, sealedLodgementAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
 import { bqTotals, draftEditFaults, finaliseFaults, holdingOn, isQuantity, itemAmount, lineSizeFaults, qualificationSnapshot, reviseFaults, startBqFaults, totalsSnapshot } from "@/lib/scope/bq";
-import { actionResult, lodgeFaults, retainFaults, startFault, versionContext, versionFaults, voidFault } from "@/lib/scope/estimate";
+import { actionResult, figureReaderOf, lodgeFaults, retainFaults, startFault, versionContext, versionFaults, voidFault } from "@/lib/scope/estimate";
 import { writeEstimateVersion, writeSealedLodgement } from "@/lib/scope/estimate-store";
 import { needsRelodgement, SEALED_LODGEMENT_WORDS, sealedLodgementFaults, type SealedLodgementFault } from "@/lib/sealing/estimate-lodgement";
 import { lodgingOfficerOf, standingLodgement } from "@/lib/sealing/estimate-lodgement-store";
@@ -759,7 +759,7 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
     if (online) {
       let sealed: Awaited<ReturnType<typeof writeSealedLodgement>>;
       try {
-        sealed = await writeSealedLodgement(tx, { organisationId: l.org.id, exerciseId, estimateId: row.id, versionNo: facts.currentVersionNo, key: { id: liveKey!.id, publicKey: new Uint8Array(liveKey!.publicKey) }, lodgedByPersonId: person!.id, supersededReason: sameVersionAgain ? reason : `Version ${facts.currentVersionNo} was lodged`, now });
+        sealed = await writeSealedLodgement(tx, { organisationId: l.org.id, exerciseId, estimateId: row.id, versionNo: facts.currentVersionNo, key: { id: liveKey!.id, publicKey: new Uint8Array(liveKey!.publicKey) }, lodgedByPersonId: person!.id, supersededReason: sameVersionAgain ? reason : `Version ${facts.currentVersionNo} was lodged`, now, reader: figureReaderOf(toAuditActor(actor), l.org.id) });
       } catch (e) {
         // The database's own wall: the closing passed, or the key stopped being the live one, between the read and the write.
         if (sealedSqlState(e) === "PA018") {

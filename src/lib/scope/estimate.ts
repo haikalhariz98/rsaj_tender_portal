@@ -18,6 +18,7 @@
  * finding says "Closing not set"; 6.4 passes the locked closingAt).
  */
 
+import type { AuditActor } from "@/lib/auth/types";
 import { dayIn } from "@/lib/dates";
 import { lowers } from "@/lib/documents/classification";
 import type { SecurityClass } from "@/lib/documents/types";
@@ -25,6 +26,7 @@ import type { ExerciseStatus } from "@/lib/method/types";
 import { fitsMoneyColumn, type Sen } from "@/lib/money";
 
 import { sharePct } from "./bq";
+import type { FigureReader } from "./estimate-store";
 import type { EstimateState, Finding, ScopePolicy } from "./types";
 
 /// An estimate as the rules see it: never its figure.
@@ -350,4 +352,16 @@ export function benchmarkRow(est: Pick<EstimateFacts, "state" | "currentVersionN
 export function actionResult(faults: readonly Finding[]): { ok: true } | { ok: false; codes: string[] } {
   const blocks = faults.filter((f) => f.level === "block");
   return blocks.length ? { ok: false, codes: blocks.map((f) => f.code) } : { ok: true };
+}
+
+/// Who is named on the access row when the figure is read (ruling 20ch). A supplier never reads the company estimate's figure, so a supplier actor throws.
+export function figureReaderOf(actor: AuditActor, organisationId: string): FigureReader {
+  switch (actor.kind) {
+    case "STAFF":
+      return { organisationId, personId: actor.personId, sessionId: actor.sessionId, sourceAddress: actor.sourceAddress };
+    case "SYSTEM":
+      return { organisationId, systemLabel: actor.label };
+    case "SUPPLIER":
+      throw new Error("A supplier never reads the company estimate's figure.");
+  }
 }

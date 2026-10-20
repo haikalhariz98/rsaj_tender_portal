@@ -75,7 +75,7 @@ async function exercise(): Promise<Ex> {
 }
 
 const lodge = (ex: Ex, keyId: string, publicKey: Uint8Array, reason = "Version 1 was lodged") =>
-  db.$transaction((tx) => writeSealedLodgement(tx, { organisationId: org, exerciseId: ex.id, estimateId: ex.estimateId, versionNo: 1, key: { id: keyId, publicKey }, lodgedByPersonId: person, supersededReason: reason, now: new Date() }));
+  db.$transaction((tx) => writeSealedLodgement(tx, { organisationId: org, exerciseId: ex.id, estimateId: ex.estimateId, versionNo: 1, key: { id: keyId, publicKey }, lodgedByPersonId: person, supersededReason: reason, now: new Date(), reader: { organisationId: org, personId: person, sessionId: null, sourceAddress: null } }));
 
 beforeAll(async () => {
   org = (await testOrganisation()).id;

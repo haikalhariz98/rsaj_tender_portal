@@ -13,7 +13,7 @@ import type { Tx } from "@/lib/audit/record";
 import { writeAudit } from "@/lib/audit/record";
 import type { Sen } from "@/lib/money";
 import { estimateEventAudit, estimateStateAudit, ENTITY as SCOPE_ENTITY } from "@/lib/scope/audit-view";
-import { benchmarkRow, disclose, type EstimateFacts } from "@/lib/scope/estimate";
+import { benchmarkRow, disclose, figureReaderOf, type EstimateFacts } from "@/lib/scope/estimate";
 import { readSealedFigures } from "@/lib/scope/estimate-store";
 import { ESTIMATE_STATE_LABEL } from "@/lib/scope/labels";
 import { lockEstimateRow } from "@/lib/scope/lock";
@@ -50,7 +50,7 @@ export async function discloseAtFinalising(
   await writeAudit(tx, { actor, organisationId: i.organisationId, entity: SCOPE_ENTITY.estimate, entityId: i.facts.id, entityLabel: `${i.reference} · Company estimate` }, "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[i.facts.state], ESTIMATE_STATE_LABEL.DISCLOSED));
   await writeAudit(tx, { actor, organisationId: i.organisationId, entity: SCOPE_ENTITY.estimateEvent, entityId: ev.id, entityLabel: `${i.reference} · Company estimate · disclosed` }, "CREATE", estimateEventAudit({ kind: "DISCLOSED", personName: i.person.name, capacity: "At the opening", versionNo: i.facts.currentVersionNo }));
   // Disclosed in this transaction: the figures may now be shown, and only now are they read.
-  const figures = await readSealedFigures(tx, i.facts.id);
+  const figures = await readSealedFigures(tx, i.facts.id, figureReaderOf(actor, i.organisationId));
   const row = benchmarkRow({ id: i.facts.id, state: "DISCLOSED", currentVersionNo: i.facts.currentVersionNo }, figures, { benchmarkLabelEn: i.benchmarkLabelEn });
   const lodgedNo = i.facts.lodgedVersionNo ?? i.facts.currentVersionNo;
   const lodged = figures.versions.find((v) => v.versionNo === lodgedNo)?.value;

@@ -109,7 +109,7 @@ export async function loadEstimates(exerciseId: string, client: Tx = db) {
     orderBy: { createdAt: "desc" },
     include: {
       preparer: { select: { id: true, name: true } },
-      versions: { orderBy: { versionNo: "asc" }, include: { preparer: { select: { id: true, name: true } } } },
+      versions: { orderBy: { versionNo: "asc" }, select: { id: true, versionNo: true, preparedOn: true, createdAt: true, preparerPersonId: true, preparer: { select: { id: true, name: true } } } },
       events: { orderBy: [{ at: "asc" }, { id: "asc" }], include: { person: { select: { id: true, name: true } } } },
     },
   });

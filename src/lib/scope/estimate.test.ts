@@ -11,6 +11,7 @@ import {
   disclose,
   estimateView,
   exerciseAllowsEstimate,
+  figureReaderOf,
   leadTime,
   lodgeFaults,
   lodgementBehind,
@@ -276,5 +277,18 @@ describe("classification (FR-EST-008): SULIT, never lowered", () => {
   it("the unset policy has no figure-shaped default", () => {
     expect(UNSET_SCOPE_POLICY.estimateLeadDays).toBeNull();
     expect(UNSET_SCOPE_POLICY.estimateOverrideRoleCode).toBeNull();
+  });
+});
+
+describe("figureReaderOf: who is named when the figure is read (ruling 20ch)", () => {
+  it("names a staff person with the session and address", () => {
+    expect(figureReaderOf({ kind: "STAFF", personId: "p1", sessionId: "s1", offices: [], sourceAddress: "10.0.0.1" }, "o1")).toEqual({ organisationId: "o1", personId: "p1", sessionId: "s1", sourceAddress: "10.0.0.1" });
+    expect(figureReaderOf({ kind: "STAFF", personId: "p1", sessionId: null, offices: [], sourceAddress: null }, "o1")).toEqual({ organisationId: "o1", personId: "p1", sessionId: null, sourceAddress: null });
+  });
+  it("names a loader by its label alone", () => {
+    expect(figureReaderOf({ kind: "SYSTEM", label: "loader" }, "o1")).toEqual({ organisationId: "o1", systemLabel: "loader" });
+  });
+  it("throws for a supplier", () => {
+    expect(() => figureReaderOf({ kind: "SUPPLIER", supplierAccountId: "a1", sessionId: null, sourceAddress: null }, "o1")).toThrow();
   });
 });
