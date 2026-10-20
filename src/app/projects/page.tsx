@@ -227,7 +227,7 @@ function caseRow(r: CaseRow, cx: RowContext): Row {
   if (ended) chips.push({ kind: endedKind(ended), text: t(CASE_ENDED_WORDS[ended]), ...toneOf(CASE_ENDED_TONE[ended]) });
   else if (phase) chips.push({ kind: phaseKind(phase), text: t(PHASE_WORDS[phase]), ...toneOf(PHASE_TONE[phase]) });
   else if (a) chips.push({ kind: "LIFECYCLE", text: t(AWARD_STATUS_WORDS[a.status as AwardStatus]), ...toneOf(AWARD_STATUS_TONE[a.status as AwardStatus]) });
-  if (c && cx.inDelay.has(c.id)) chips.push({ kind: "IN_DELAY", text: t(L.inDelay), tone: "err",...(cx.delayAssumed.has(c.id) ? { provenance: "ASSUMED" as const } : {}) });
+  if (c && cx.inDelay.has(c.id)) chips.push({ kind: "IN_DELAY", text: t(L.inDelay), tone: "err", ...(cx.delayAssumed.has(c.id) ? { provenance: "ASSUMED" as const } : {}) });
   if (a && kind && !ended) {
     const awardStatus = a.status as AwardStatus;
     // OD-5: before acceptance counted with its scans; an accepted award is not re-judged.
