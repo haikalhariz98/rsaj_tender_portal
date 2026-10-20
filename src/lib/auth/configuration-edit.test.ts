@@ -19,7 +19,9 @@ import {
   rehearsalOf,
   samePayload,
   SULIT_HIDDEN,
+  withheldFaults,
 } from "./configuration-edit";
+import { RETURN_CORRECTION_KIND, RETURN_CORRECTION_OPERATION, RETURN_WITHHELD_FIELDS } from "@/lib/award/return-withheld";
 import { mayReadQueue } from "./configuration-change";
 import type { PermissionKey } from "./types";
 
@@ -178,5 +180,48 @@ describe("a stored edit in words", () => {
     expect(describeEdit("QUORUM_CHANGE", null, rehearsalOf([row()])).title).toBe(EDIT_KIND_WORDS.QUORUM_CHANGE.en);
     expect(describeEdit("CONFIGURATION_EDIT", "A: B", { rows: "no" }).lines[0].after).toMatch(/Cannot be read/);
     expect(describeEdit("CONFIGURATION_EDIT", "A: B", rehearsalOf([])).lines[0].after).toBe("Writes nothing.");
+  });
+});
+
+// Go-live N7 (plan docs/notes/plans/golive-n7.md 3.2): a decided return correction holds `null` for each withheld value, and only there is `null` read.
+describe("a withheld value", () => {
+  const OP = RETURN_CORRECTION_OPERATION;
+  const KIND = RETURN_CORRECTION_KIND;
+
+  it("is read on a listed name of the return correction, left out of the fields and named in withheld", () => {
+    const parsed = parseEditPayload({ operation: OP, fields: [["id", "r1"], ["icNumber", null], ["capacity", "Director"], ["address", null], ["address", null]] }, KIND);
+    expect(parsed).toMatchObject({ ok: true });
+    if (!parsed.ok) return;
+    expect(parsed.payload.fields).toEqual([["id", "r1"], ["capacity", "Director"]]);
+    // One entry per withheld element, in stored order: duplicates are kept, as the fields keep them.
+    expect(parsed.payload.withheld).toEqual(["icNumber", "address", "address"]);
+  });
+
+  it("is read on every listed name", () => {
+    const parsed = parseEditPayload({ operation: OP, fields: RETURN_WITHHELD_FIELDS.map((n) => [n, null]) }, KIND);
+    expect(parsed).toMatchObject({ ok: true, payload: { fields: [], withheld: [...RETURN_WITHHELD_FIELDS] } });
+  });
+
+  it("stays BAD_VALUE anywhere else", () => {
+    const bad = { ok: false, faults: [{ code: "BAD_VALUE" }] };
+    expect(parseEditPayload({ operation: OP, fields: [["capacity", null]] }, KIND), "another name").toMatchObject(bad);
+    expect(parseEditPayload({ operation: OP, fields: [["id", null]] }, KIND), "another name").toMatchObject(bad);
+    expect(parseEditPayload({ operation: "awards-records.recordTerms", fields: [["icNumber", null]] }, KIND), "another operation").toMatchObject(bad);
+    expect(parseEditPayload({ operation: OP, fields: [["icNumber", null]] }, "BASELINE_CORRECTION"), "another kind").toMatchObject(bad);
+    expect(parseEditPayload({ operation: OP, fields: [["icNumber", null]] }), "no kind").toMatchObject(bad);
+  });
+
+  it("is never in a payload read without one", () => {
+    const parsed = parseEditPayload({ operation: OP, fields: [["icNumber", "900101145678"]] }, KIND);
+    expect(parsed).toMatchObject({ ok: true, payload: { fields: [["icNumber", "900101145678"]], withheld: [] } });
+    expect(parseEditPayload({ operation: "numbering.saveSeries", fields: [["a", "x"]] })).toMatchObject({ ok: true, payload: { withheld: [] } });
+  });
+
+  it("refuses to be proposed or run", () => {
+    expect(withheldFaults({ withheld: [] })).toEqual([]);
+    const faults = withheldFaults({ withheld: ["icNumber"] });
+    expect(faults).toHaveLength(1);
+    expect(faults[0].code).toBe("WITHHELD_NOT_APPLICABLE");
+    expect(faults[0].en).not.toContain("WITHHELD");
   });
 });

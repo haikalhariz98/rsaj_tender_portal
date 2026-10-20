@@ -1,10 +1,11 @@
 import type { CapturedAudit } from "@/lib/ambient/ambient-tx";
 import { fieldLabel } from "@/lib/audit/diff";
 import { historyEntityLabel, historyValueWords } from "@/lib/audit/entity-labels";
+import { withheldFieldsOf } from "@/lib/award/return-withheld";
 import { sulitFieldOf } from "@/lib/sulit-trail";
 
 import type { ChangeLine } from "./configuration-change-words";
-import type { PermissionKey } from "./types";
+import type { Fault, PermissionKey } from "./types";
 
 /**
  * A configuration editor's save, held for a second person (ADR 0034 D15, Phase 5). Pure.
@@ -85,6 +86,9 @@ export interface EditPayload {
   /// The editor, as the registry names it ("numbering.saveSeries").
   operation: string;
   fields: [string, StagedValue][];
+  /// The names whose stored value is withheld (JSON `null`), blanked when the change was decided (PDPA, go-live N7, ruling on log line 2030). Left out of `fields`,
+  /// one entry per withheld element, in stored order. Only a decided change of a kind and operation that `withheldFieldsOf` lists ever holds one.
+  withheld: string[];
 }
 
 export const MAX_FIELDS = 600;
@@ -116,8 +120,11 @@ export interface EditFault {
 }
 const bad = (field: string, code: string, en: string): EditFault => ({ field, code, en });
 
-/// A posted form, narrowed to what is stored. An unknown shape is refused field by field, never guessed at.
-export function parseEditPayload(raw: unknown): { ok: true; payload: EditPayload } | { ok: false; faults: EditFault[] } {
+/**
+ * A posted form, narrowed to what is stored. An unknown shape is refused field by field, never guessed at. A `null` value is the withheld marker (go-live N7): it is read
+ * only on a name `withheldFieldsOf(kind, operation)` lists, so only with the change's `kind` given, and is `BAD_VALUE` anywhere else.
+ */
+export function parseEditPayload(raw: unknown, kind?: string): { ok: true; payload: EditPayload } | { ok: false; faults: EditFault[] } {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { ok: false, faults: [bad("*", "NOT_AN_OBJECT", "A change is an object.")] };
   const o = raw as Record<string, unknown>;
   const faults: EditFault[] = [];
@@ -128,6 +135,8 @@ export function parseEditPayload(raw: unknown): { ok: true; payload: EditPayload
   const entries = o.fields as unknown[];
   if (entries.length > MAX_FIELDS) return { ok: false, faults: [bad("fields", "TOO_MANY", "This form has more fields than a change can hold.")] };
   const fields: [string, StagedValue][] = [];
+  const withheld: string[] = [];
+  const blankable = kind === undefined ? [] : withheldFieldsOf(kind, o.operation as string);
   let size = 0;
   for (const e of entries) {
     if (!Array.isArray(e) || e.length !== 2 || typeof e[0] !== "string" || e[0] === "" || e[0].length > 120) {
@@ -137,6 +146,10 @@ export function parseEditPayload(raw: unknown): { ok: true; payload: EditPayload
     const [name, value] = e as [string, unknown];
     if (!isStoredField(name)) {
       faults.push(bad(name, "NOT_STORED", "This field is never stored with a change."));
+      continue;
+    }
+    if (value === null && blankable.includes(name)) {
+      withheld.push(name);
       continue;
     }
     if (typeof value === "string") {
@@ -161,13 +174,18 @@ export function parseEditPayload(raw: unknown): { ok: true; payload: EditPayload
   }
   if (size > MAX_PAYLOAD_CHARS) faults.push(bad("fields", "TOO_LARGE", "This form is too large for a change to hold."));
   if (faults.length > 0) return { ok: false, faults };
-  return { ok: true, payload: { operation: o.operation as string, fields } };
+  return { ok: true, payload: { operation: o.operation as string, fields, withheld } };
 }
 
-/// Two proposals that post the same thing to the same editor.
-export function samePayload(a: EditPayload, b: EditPayload): boolean {
+/// A payload holding the withheld marker is a decided change's record, never something to propose or run: the editor would read the withheld values as left empty.
+export function withheldFaults(payload: Pick<EditPayload, "withheld">): Fault[] {
+  return payload.withheld.length > 0 ? [{ code: "WITHHELD_NOT_APPLICABLE", en: "Some values of this change are withheld, so it cannot be applied." }] : [];
+}
+
+/// Two proposals that post the same thing to the same editor. A proposal never holds a withheld value, so only the operation and the fields are compared.
+export function samePayload(a: Pick<EditPayload, "operation" | "fields">, b: Pick<EditPayload, "operation" | "fields">): boolean {
   if (a.operation !== b.operation || a.fields.length !== b.fields.length) return false;
-  const key = (p: EditPayload) => p.fields.map(([n, v]) => `${n}\u0000${typeof v === "string" ? v : `file:${v.file.name}:${v.file.size}:${v.file.base64.length}:${v.file.base64.slice(0, 64)}`}`).sort().join("\u0001");
+  const key = (p: Pick<EditPayload, "fields">) => p.fields.map(([n, v]) => `${n}\u0000${typeof v === "string" ? v : `file:${v.file.name}:${v.file.size}:${v.file.base64.length}:${v.file.base64.slice(0, 64)}`}`).sort().join("\u0001");
   return key(a) === key(b);
 }
 

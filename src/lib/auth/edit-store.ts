@@ -88,7 +88,7 @@ const ADMIN_REFUSED = f(
 );
 
 /// The posted form, put back as the editor reads it. The reason is the change's own, not a posted field.
-export function formOf(payload: EditPayload, reason: string): FormData {
+export function formOf(payload: Pick<EditPayload, "operation" | "fields">, reason: string): FormData {
   const data = new FormData();
   for (const [name, value] of payload.fields) {
     if (name === "reason") continue;
