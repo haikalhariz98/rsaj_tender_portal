@@ -309,7 +309,7 @@ export const ExternalLinkIcon = (p: IconProps) => (
   </Icon>
 );
 
-export const BuildingIcon =(p: IconProps) => (
+export const BuildingIcon = (p: IconProps) => (
   <Icon {...p}>
     <rect x="4" y="2" width="16" height="20" rx="2" />
     <path d="M9 6h1M14 6h1M9 10h1M14 10h1M9 14h1M14 14h1M10 22v-4h4v4" />
