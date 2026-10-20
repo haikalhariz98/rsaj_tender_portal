@@ -4,7 +4,8 @@ import { attestationFor, exercisesStillTakingBids, sealingModeWords, sealingPoli
 
 const T0 = new Date("2026-10-01T00:00:00Z");
 const NOW = new Date("2026-10-14T00:00:00Z");
-const live = { cryptoReviewReference: "R", procedureAmendmentReference: "A", customerAcceptanceReference: "C", scannerConfigured: true, liveAllowedByDeployment: true, pepperConfigured: true, publicRoleAttestation: "x", deploymentHardeningAttestation: "y" };
+// Changed for ruling 20ch / the N6 scope line: LIVE also reads the app's database login (`runtimeRole`); a walled login is the clean case.
+const live = { cryptoReviewReference: "R", procedureAmendmentReference: "A", customerAcceptanceReference: "C", scannerConfigured: true, liveAllowedByDeployment: true, pepperConfigured: true, publicRoleAttestation: "x", deploymentHardeningAttestation: "y", runtimeRole: { estimateFigureReadable: false, temporaryHeld: false } };
 
 describe("the stamp of a recorded reference", () => {
   it("a changed text takes now, an unchanged one keeps its stamp, a cleared one loses it", () => {
@@ -26,6 +27,12 @@ describe("saving the policy", () => {
     expect(sealingPolicyFaults({ mode: "LIVE", live })).toEqual([]);
     expect(sealingPolicyFaults({ mode: "DEMONSTRATION", live: { ...live, scannerConfigured: false } })).toEqual([]);
     expect(sealingPolicyFaults({ mode: null, live: { ...live, scannerConfigured: false } })).toEqual([]);
+  });
+  it("LIVE is refused while the app's login can read the figure or make temporary tables; other modes are not (N6)", () => {
+    const open = { ...live, runtimeRole: { estimateFigureReadable: true, temporaryHeld: true } };
+    expect(sealingPolicyFaults({ mode: "LIVE", live: open })).toEqual(["ESTIMATE_FIGURE_READABLE", "TEMPORARY_HELD"]);
+    expect(sealingPolicyFaults({ mode: "DEMONSTRATION", live: open })).toEqual([]);
+    expect(sealingPolicyFaults({ mode: null, live: open })).toEqual([]);
   });
   it("an unset mode reads Not set in words", () => {
     expect(sealingModeWords(null)).toBe("Not set");

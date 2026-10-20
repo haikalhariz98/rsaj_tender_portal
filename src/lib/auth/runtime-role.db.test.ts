@@ -7,7 +7,7 @@ import { applyAppRole } from "../../../scripts/db-role-apply";
 import { redeemOneTimeCode } from "./account-store";
 import { authenticateStaff } from "./identity";
 import { RUNTIME_ROLE_WORDS, runtimeRoleVerdict } from "./db-role";
-import { readRuntimeRole } from "./runtime-role-store";
+import { readRuntimeRole, runtimeRoleCheck, runtimeRoleFacts } from "./runtime-role-store";
 
 /**
  * Phase 1d, `assertRuntimeRole` (ADR 0034 D11) above the pure verdict. In production, sign-in and a one-time code are refused while the
@@ -183,5 +183,71 @@ describe("a login that can still make temporary tables is a warning (build plan 
       await db.$executeRawUnsafe(`DROP OWNED BY ${HOLDER}`).catch(() => undefined);
       await db.$executeRawUnsafe(`DROP ROLE IF EXISTS ${HOLDER}`).catch(() => undefined);
     }
+  });
+});
+
+describe("a login that can still read the company estimate's figure is a warning (N6, ruling 20ch, J1)", () => {
+  const asApp = () =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL ROLE ${APP}`);
+      return readRuntimeRole(tx);
+    });
+
+  it("reads false after db:roles, and true where SELECT on the figure is granted back, to the login, to PUBLIC or to a role it is a member of", async () => {
+    const HOLDER = `perolehan_figure_test_${Date.now().toString(36)}`;
+    try {
+      const clean = await asApp();
+      expect(clean.estimateFigureReadable).toBe(false);
+      expect(runtimeRoleVerdict(clean, true)).toEqual({ safe: true });
+
+      for (const grant of [`GRANT SELECT ("value") ON "CompanyEstimateVersion" TO ${APP}`, `GRANT SELECT ON "CompanyEstimateVersion" TO ${APP}`, `GRANT SELECT ("value") ON "CompanyEstimateVersion" TO PUBLIC`]) {
+        await db.$executeRawUnsafe(grant);
+        const held = await asApp();
+        expect(held.estimateFigureReadable, grant).toBe(true);
+        expect(runtimeRoleVerdict(held, true), grant).toMatchObject({ safe: false, reason: "FIGURE_READABLE", refuseSignIn: false });
+        // db:roles takes it back again.
+        await db.$transaction((tx) => applyAppRole(tx, { role: APP, password: null }));
+        await db.$executeRawUnsafe(`REVOKE SELECT ("value") ON "CompanyEstimateVersion" FROM PUBLIC`);
+        expect((await asApp()).estimateFigureReadable, `${grant} taken back`).toBe(false);
+      }
+
+      // A member role: the login is NOINHERIT, so only a check through membership finds it.
+      await db.$executeRawUnsafe(`CREATE ROLE ${HOLDER} NOLOGIN`);
+      await db.$executeRawUnsafe(`GRANT SELECT ("value") ON "CompanyEstimateVersion" TO ${HOLDER}`);
+      expect((await asApp()).estimateFigureReadable).toBe(false);
+      await db.$executeRawUnsafe(`GRANT ${HOLDER} TO ${APP}`);
+      expect((await asApp()).estimateFigureReadable).toBe(true);
+    } finally {
+      await db.$executeRawUnsafe(`REVOKE ${HOLDER} FROM ${APP}`).catch(() => undefined);
+      await db.$executeRawUnsafe(`REVOKE SELECT ("value") ON "CompanyEstimateVersion" FROM PUBLIC`).catch(() => undefined);
+      await db.$executeRawUnsafe(`DROP OWNED BY ${HOLDER}`).catch(() => undefined);
+      await db.$executeRawUnsafe(`DROP ROLE IF EXISTS ${HOLDER}`).catch(() => undefined);
+      await db.$transaction((tx) => applyAppRole(tx, { role: APP, password: null }));
+    }
+  });
+
+  it("the owner reads the figure (an owner reads every column)", async () => {
+    expect((await readRuntimeRole(db)).estimateFigureReadable).toBe(true);
+  });
+});
+
+describe("the facts are kept, the verdict is judged on every call (N6, J5)", () => {
+  it("one kept answer gives the development verdict and then the production one, without asking again", async () => {
+    kept.perolehanRuntimeRole = undefined;
+    const facts = await runtimeRoleFacts();
+    expect(await runtimeRoleFacts()).toBe(facts);
+    // The scratch connection is a superuser: it warns in development and refuses in production, from the same kept facts.
+    expect(await runtimeRoleCheck()).toMatchObject({ safe: false, reason: "SUPERUSER", refuseSignIn: false });
+    vi.stubEnv("NODE_ENV", "production");
+    expect(await runtimeRoleCheck()).toMatchObject({ safe: false, reason: "SUPERUSER", refuseSignIn: true });
+    expect(await runtimeRoleFacts()).toBe(facts);
+  });
+
+  it("a verdict kept under the same key by a process that ran the older code is not taken for facts: the database is asked again", async () => {
+    kept.perolehanRuntimeRole = Promise.resolve({ safe: true });
+    const facts = await runtimeRoleFacts();
+    expect(typeof facts.estimateFigureReadable).toBe("boolean");
+    expect(facts).toMatchObject({ isSuperuser: true });
+    expect(await runtimeRoleCheck()).toMatchObject({ safe: false, reason: "SUPERUSER" });
   });
 });

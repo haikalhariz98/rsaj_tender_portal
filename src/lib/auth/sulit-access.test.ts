@@ -308,6 +308,10 @@ describe("the words", () => {
   });
   it("every granting basis has words", () => {
     for (const b of SULIT_GRANT_BASES) expect(grantedWords(b).en.length).toBeGreaterThan(10);
+    // N6 (J2): the logged reader's basis has its own words, not the in-custody sentence the last branch falls back to.
+    expect(grantedWords("LOGGED_FIGURE_READ").en).toBe("Read through the database's logged reader.");
+    expect(grantedWords("LOGGED_FIGURE_READ").en).not.toBe(grantedWords("IN_CUSTODY").en);
+    expect(SULIT_GRANT_BASES.at(-1)).toBe("LOGGED_FIGURE_READ");
     expect(grantedWords("NAMED_ON_RECORD", ["PARTICIPANT", "EVALUATION_TEAM"]).en).toBe("Shown because you are a named participant and on the evaluation team.");
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { channelSettingFaults, TAKE_CHANNEL_WORDS, takeChannelFaults, DEMONSTRATION_WORDS, LIVE_ISSUE_WORDS, liveIssueFaults, ONLINE_SUBMISSION_WORDS, onlineSubmissionAllowed } from "./switch";
+import { channelSettingFaults, TAKE_CHANNEL_WORDS, takeChannelFaults, DEMONSTRATION_WORDS, LIVE_ISSUE_WORDS, liveIssueFaults, ONLINE_SUBMISSION_WORDS, onlineSubmissionAllowed, RUNTIME_ROLE_UNKNOWN, type LiveIssueFault } from "./switch";
 
 // Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
 
@@ -27,14 +27,36 @@ describe("the switch, at publication and at submission (D1, 20i)", () => {
 });
 
 describe("issuing LIVE (20o, 20v)", () => {
-  const all = { cryptoReviewReference: "CR-2026/1", procedureAmendmentReference: "SK002 rev 3", customerAcceptanceReference: "Letter 12/2026", scannerConfigured: true, liveAllowedByDeployment: true, pepperConfigured: true, publicRoleAttestation: "Role checked 1 Nov", deploymentHardeningAttestation: "Hardened 1 Nov" };
+  // Changed for ruling 20ch / the N6 scope line: LIVE also reads the app's database login, so every literal carries `runtimeRole`; a walled login is the clean case.
+  const walled = { estimateFigureReadable: false, temporaryHeld: false };
+  const all = { cryptoReviewReference: "CR-2026/1", procedureAmendmentReference: "SK002 rev 3", customerAcceptanceReference: "Letter 12/2026", scannerConfigured: true, liveAllowedByDeployment: true, pepperConfigured: true, publicRoleAttestation: "Role checked 1 Nov", deploymentHardeningAttestation: "Hardened 1 Nov", runtimeRole: walled };
 
   it("lists nothing when every condition is recorded", () => expect(liveIssueFaults(all)).toEqual([]));
 
   it("lists every missing condition, in one list", () => {
     expect(
-      liveIssueFaults({ cryptoReviewReference: "", procedureAmendmentReference: " ", customerAcceptanceReference: "", scannerConfigured: false, liveAllowedByDeployment: false, pepperConfigured: false, publicRoleAttestation: "", deploymentHardeningAttestation: "\t" }),
-    ).toEqual(["REVIEW_NOT_RECORDED", "AMENDMENT_NOT_RECORDED", "ACCEPTANCE_NOT_RECORDED", "SCANNER_NOT_CONFIGURED", "LIVE_NOT_ALLOWED_BY_DEPLOYMENT", "PEPPER_NOT_SET", "PUBLIC_ROLE_NOT_ATTESTED", "HARDENING_NOT_ATTESTED"]);
+      // Changed for ruling 20ch / the N6 scope line: the login's two walls are missing too, and come last, after the hardening attestation.
+      liveIssueFaults({ cryptoReviewReference: "", procedureAmendmentReference: " ", customerAcceptanceReference: "", scannerConfigured: false, liveAllowedByDeployment: false, pepperConfigured: false, publicRoleAttestation: "", deploymentHardeningAttestation: "\t", runtimeRole: { estimateFigureReadable: true, temporaryHeld: true } }),
+    ).toEqual(["REVIEW_NOT_RECORDED", "AMENDMENT_NOT_RECORDED", "ACCEPTANCE_NOT_RECORDED", "SCANNER_NOT_CONFIGURED", "LIVE_NOT_ALLOWED_BY_DEPLOYMENT", "PEPPER_NOT_SET", "PUBLIC_ROLE_NOT_ATTESTED", "HARDENING_NOT_ATTESTED", "ESTIMATE_FIGURE_READABLE", "TEMPORARY_HELD"]);
+  });
+
+  it("the app's database login: each wall alone, and both together (N6, ruling 20ch, 20cw (a))", () => {
+    expect(liveIssueFaults({ ...all, runtimeRole: { estimateFigureReadable: true, temporaryHeld: false } })).toEqual(["ESTIMATE_FIGURE_READABLE"]);
+    expect(liveIssueFaults({ ...all, runtimeRole: { estimateFigureReadable: false, temporaryHeld: true } })).toEqual(["TEMPORARY_HELD"]);
+    expect(liveIssueFaults({ ...all, runtimeRole: { estimateFigureReadable: true, temporaryHeld: true } })).toEqual(["ESTIMATE_FIGURE_READABLE", "TEMPORARY_HELD"]);
+    expect(liveIssueFaults({ ...all, deploymentHardeningAttestation: "", runtimeRole: { estimateFigureReadable: true, temporaryHeld: false } })).toEqual(["HARDENING_NOT_ATTESTED", "ESTIMATE_FIGURE_READABLE"]);
+  });
+
+  it("a login the database could not be asked about fails closed: both walls are missing (N6, J6)", () => {
+    expect(RUNTIME_ROLE_UNKNOWN).toEqual({ estimateFigureReadable: true, temporaryHeld: true });
+    expect(liveIssueFaults({ ...all, runtimeRole: RUNTIME_ROLE_UNKNOWN })).toEqual(["ESTIMATE_FIGURE_READABLE", "TEMPORARY_HELD"]);
+  });
+
+  it("every fault has words, and the login's two say what it can still do", () => {
+    const faults: LiveIssueFault[] = ["REVIEW_NOT_RECORDED", "AMENDMENT_NOT_RECORDED", "ACCEPTANCE_NOT_RECORDED", "SCANNER_NOT_CONFIGURED", "LIVE_NOT_ALLOWED_BY_DEPLOYMENT", "PEPPER_NOT_SET", "PUBLIC_ROLE_NOT_ATTESTED", "HARDENING_NOT_ATTESTED", "ESTIMATE_FIGURE_READABLE", "TEMPORARY_HELD"];
+    expect(Object.keys(LIVE_ISSUE_WORDS).sort()).toEqual([...faults].sort());
+    expect(LIVE_ISSUE_WORDS.ESTIMATE_FIGURE_READABLE).toBe("The app's database login can still read the company estimate's figure.");
+    expect(LIVE_ISSUE_WORDS.TEMPORARY_HELD).toBe("The app's database login can still make temporary tables.");
   });
 
   it.each([

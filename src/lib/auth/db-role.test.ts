@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { APPEND_ONLY_TABLES, grantStatements, notYetPresent, roleNameFault, RUNTIME_ROLE_WORDS, runtimeRoleVerdict, SEALED_TABLES, WITHHELD } from "./db-role";
+import { APPEND_ONLY_TABLES, FIGURE_READER, grantStatements, notYetPresent, roleNameFault, RUNTIME_ROLE_WORDS, runtimeRoleVerdict, SEALED_TABLES, WALLED_COLUMNS, WARNING_ONLY_REASONS, warnsOnly, WITHHELD, type RuntimeRoleReason } from "./db-role";
 
 // BlobContent joined the protected tables in the Phase 1d review (stored bytes are never rewritten), and ActAttribution in Phase 2a (ADR 0034 D12),
 // so the "every table exists" set has both.
@@ -9,8 +9,15 @@ import { APPEND_ONLY_TABLES, grantStatements, notYetPresent, roleNameFault, RUNT
 // AddendumAcknowledgement, TenderInspectionEvent and NonAwardNotice joined them in Phase 4d (the supplier's acknowledgement, the inspection log and the notice of non-award: migration 20261016090000).
 // Wave 3b (SR-13, build plan step 2, ADR 0036 D12): SealedAccessEvent and PublishedKeyChange joined the append-only tables, and the rest of the sealed tables
 // (SEALED_TABLES) lose DELETE and TRUNCATE (migration 20261103110000), so the "every table exists" set has them all.
-const ALL = new Set(["Organisation", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "BlobContent", "_prisma_migrations", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES]);
-const grants = (existing: ReadonlySet<string> = ALL) => grantStatements({ role: "perolehan_app", owner: "perolehan", schema: "public", database: "perolehan", existing });
+// N6 (ruling 20ch, threat model F10): CompanyEstimateVersion joins the set, so the column wall is built for it, and `grants` passes its columns and the reader.
+const ALL = new Set(["Organisation", "CompanyEstimateVersion", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "BlobContent", "_prisma_migrations", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES]);
+const VERSION_COLUMNS = ["id", "organisationId", "estimateId", "versionNo", "value", "reason", "preparedById", "createdAt"];
+const COLUMNS: ReadonlyMap<string, readonly string[]> = new Map([["CompanyEstimateVersion", VERSION_COLUMNS]]);
+const grants = (existing: ReadonlySet<string> = ALL, more: { columns?: ReadonlyMap<string, readonly string[]>; figureReaderPresent?: boolean } = {}) =>
+  grantStatements({ role: "perolehan_app", owner: "perolehan", schema: "public", database: "perolehan", existing, columns: more.columns ?? COLUMNS, figureReaderPresent: more.figureReaderPresent ?? true });
+const T = `"public"."CompanyEstimateVersion"`;
+const COLUMN_GRANT = `GRANT SELECT ("createdAt", "estimateId", "id", "organisationId", "preparedById", "reason", "versionNo") ON TABLE ${T} TO "perolehan_app"`;
+const EXECUTE = `GRANT EXECUTE ON FUNCTION "public"."read_company_estimate_figure"(text, text, text, text, text, text) TO "perolehan_app"`;
 
 describe("the app role's grants (ADR 0034 D11)", () => {
   it("revokes UPDATE, DELETE and TRUNCATE on every append-only table, including the O-1 side table", () => {
@@ -37,7 +44,10 @@ describe("the app role's grants (ADR 0034 D11)", () => {
     const firstRevoke = s.findIndex((x) => x.startsWith("REVOKE"));
     expect(broad).toBeGreaterThanOrEqual(0);
     expect(firstRevoke).toBeGreaterThan(broad);
-    expect(s.slice(firstRevoke).every((x) => x.startsWith("REVOKE"))).toBe(true);
+    // Changed for ruling 20ch / the N6 scope line: the figure's wall grants the walled table's other columns back by name, and the reader's EXECUTE, after the revokes.
+    // Those two are the only GRANTs after the first REVOKE; everything else there is still a REVOKE.
+    expect(s.slice(firstRevoke).every((x) => x.startsWith("REVOKE") || x === COLUMN_GRANT || x === EXECUTE)).toBe(true);
+    expect(s.slice(firstRevoke).filter((x) => !x.startsWith("REVOKE"))).toEqual([COLUMN_GRANT, EXECUTE]);
   });
 
   it("never grants TRUNCATE, and takes everything away on Prisma's migrations table", () => {
@@ -49,7 +59,8 @@ describe("the app role's grants (ADR 0034 D11)", () => {
   it("takes TEMPORARY on the database from PUBLIC and from the role, last (wave 3b security audit 1)", () => {
     const s = grants();
     expect(s.slice(-2)).toEqual([`REVOKE TEMPORARY ON DATABASE "perolehan" FROM PUBLIC`, `REVOKE TEMPORARY ON DATABASE "perolehan" FROM "perolehan_app"`]);
-    expect(grantStatements({ role: "perolehan_app", owner: "perolehan", schema: "public", database: 'odd"name', existing: ALL }).at(-1)).toBe(`REVOKE TEMPORARY ON DATABASE "odd""name" FROM "perolehan_app"`);
+    // N6: the call names the walled table's columns and the reader too (ruling 20ch); what is asserted is unchanged.
+    expect(grantStatements({ role: "perolehan_app", owner: "perolehan", schema: "public", database: 'odd"name', existing: ALL, columns: COLUMNS, figureReaderPresent: true }).at(-1)).toBe(`REVOKE TEMPORARY ON DATABASE "odd""name" FROM "perolehan_app"`);
   });
 
   it("sets default privileges for tables the owner makes later, named for that owner", () => {
@@ -79,6 +90,67 @@ describe("the app role's grants (ADR 0034 D11)", () => {
   });
 });
 
+describe("the company estimate's figure is walled off from the app (ruling 20ch, threat model F10, N6)", () => {
+  it("walls exactly the figure", () => {
+    expect(WALLED_COLUMNS).toEqual([{ table: "CompanyEstimateVersion", column: "value" }]);
+    expect(FIGURE_READER).toEqual({ name: "read_company_estimate_figure", args: "text, text, text, text, text, text" });
+  });
+
+  it("revokes the table's SELECT, then the figure's, then grants every other column, after the withheld revokes and before TEMPORARY, then the reader", () => {
+    const s = grants();
+    const at = (x: string) => s.indexOf(x);
+    const lastWithheld = Math.max(...WITHHELD.map((w) => at(`REVOKE ${w.revoke} ON TABLE "public"."${w.table}" FROM "perolehan_app"`)));
+    const order = [
+      lastWithheld,
+      at(`REVOKE SELECT ON TABLE ${T} FROM "perolehan_app"`),
+      at(`REVOKE SELECT ("value") ON TABLE ${T} FROM "perolehan_app"`),
+      at(COLUMN_GRANT),
+      at(EXECUTE),
+      at(`REVOKE TEMPORARY ON DATABASE "perolehan" FROM PUBLIC`),
+      at(`REVOKE TEMPORARY ON DATABASE "perolehan" FROM "perolehan_app"`),
+    ];
+    expect(lastWithheld).toBeGreaterThan(0);
+    expect(order).toEqual(order.map((_, i) => lastWithheld + i));
+    expect(order.at(-1)).toBe(s.length - 1);
+  });
+
+  it("never grants the figure, even when the columns read include it, and grants each column once, quoted and sorted", () => {
+    const s = grants(ALL, { columns: new Map([["CompanyEstimateVersion", ["value", "versionNo", "id", "value", "id"]]]) });
+    expect(s.filter((x) => x.startsWith("GRANT SELECT (") && x.includes(T))).toEqual([`GRANT SELECT ("id", "versionNo") ON TABLE ${T} TO "perolehan_app"`]);
+    expect(s.filter((x) => x.startsWith("GRANT")).some((x) => x.includes(`"value"`))).toBe(false);
+    expect(grants().filter((x) => x.startsWith("GRANT")).some((x) => x.includes(`"value"`))).toBe(false);
+  });
+
+  it("grants a column added since, because the list is read from the database at run time", () => {
+    const s = grants(ALL, { columns: new Map([["CompanyEstimateVersion", [...VERSION_COLUMNS, "basis"]]]) });
+    expect(s).toContain(`GRANT SELECT ("basis", "createdAt", "estimateId", "id", "organisationId", "preparedById", "reason", "versionNo") ON TABLE ${T} TO "perolehan_app"`);
+  });
+
+  it("quotes an odd column name", () => {
+    expect(grants(ALL, { columns: new Map([["CompanyEstimateVersion", ['we"ird', "value"]]]) })).toContain(`GRANT SELECT ("we""ird") ON TABLE ${T} TO "perolehan_app"`);
+  });
+
+  it("grants EXECUTE on the reader only when the function exists", () => {
+    expect(grants(ALL, { figureReaderPresent: true }).filter((x) => x.includes("EXECUTE"))).toEqual([EXECUTE]);
+    expect(grants(ALL, { figureReaderPresent: false }).some((x) => x.includes("EXECUTE") || x.includes("read_company_estimate_figure"))).toBe(false);
+  });
+
+  it("skips a walled table that does not exist yet", () => {
+    const without = new Set([...ALL].filter((t) => t !== "CompanyEstimateVersion"));
+    expect(grants(without).some((x) => x.includes("CompanyEstimateVersion"))).toBe(false);
+  });
+
+  it("a present table whose columns were not read is still revoked, and no empty column GRANT is written", () => {
+    for (const columns of [new Map<string, string[]>(), new Map([["CompanyEstimateVersion", ["value"]]])]) {
+      const s = grants(ALL, { columns });
+      expect(s).toContain(`REVOKE SELECT ON TABLE ${T} FROM "perolehan_app"`);
+      expect(s).toContain(`REVOKE SELECT ("value") ON TABLE ${T} FROM "perolehan_app"`);
+      expect(s.some((x) => x.startsWith("GRANT SELECT ("))).toBe(false);
+      expect(s.some((x) => x.includes("()"))).toBe(false);
+    }
+  });
+});
+
 describe("the role's name", () => {
   it("accepts a plain lower-case name", () => expect(roleNameFault("perolehan_app", "perolehan")).toBeNull());
   it("refuses anything that would need quoting", () => {
@@ -88,7 +160,8 @@ describe("the role's name", () => {
 });
 
 describe("who the running app is", () => {
-  const app = { name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [] as string[], temporaryHeld: false };
+  // N6 (ruling 20ch): the facts gain estimateFigureReadable; the safe login cannot read the figure.
+  const app = { name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [] as string[], temporaryHeld: false, estimateFigureReadable: false };
   it("the separate role is safe", () => {
     expect(runtimeRoleVerdict(app, true)).toEqual({ safe: true });
     expect(runtimeRoleVerdict(app, false)).toEqual({ safe: true });
@@ -131,6 +204,39 @@ describe("who the running app is", () => {
     expect(runtimeRoleVerdict({ ...app, temporaryHeld: true, isSuperuser: true }, true)).toMatchObject({ reason: "SUPERUSER", refuseSignIn: true });
     expect(runtimeRoleVerdict({ ...app, temporaryHeld: true, ownsSchemaObjects: true }, true)).toMatchObject({ reason: "OWNER", refuseSignIn: true });
     expect(runtimeRoleVerdict({ ...app, temporaryHeld: true, withheldHeld: ["AuditEntry"] }, true)).toMatchObject({ reason: "TRAIL_WRITABLE", refuseSignIn: true });
+  });
+  it("a login that can still read the estimate's figure is a warning, never a refusal, even in production (N6, J1)", () => {
+    const fig = { ...app, estimateFigureReadable: true };
+    expect(runtimeRoleVerdict(fig, true)).toEqual({ safe: false, reason: "FIGURE_READABLE", name: "perolehan_app", refuseSignIn: false, tables: [] });
+    expect(runtimeRoleVerdict(fig, false)).toEqual({ safe: false, reason: "FIGURE_READABLE", name: "perolehan_app", refuseSignIn: false, tables: [] });
+  });
+  it("the figure comes after the superuser, owner and grants reasons, and before TEMPORARY (N6)", () => {
+    const fig = { ...app, estimateFigureReadable: true };
+    expect(runtimeRoleVerdict({ ...fig, isSuperuser: true }, true)).toMatchObject({ reason: "SUPERUSER", refuseSignIn: true });
+    expect(runtimeRoleVerdict({ ...fig, ownsSchemaObjects: true }, true)).toMatchObject({ reason: "OWNER", refuseSignIn: true });
+    expect(runtimeRoleVerdict({ ...fig, withheldHeld: ["AuditEntry"] }, true)).toMatchObject({ reason: "TRAIL_WRITABLE", refuseSignIn: true });
+    expect(runtimeRoleVerdict({ ...fig, temporaryHeld: true }, true)).toMatchObject({ reason: "FIGURE_READABLE", refuseSignIn: false });
+  });
+  it("the warning-only reasons are exactly those that never refuse sign-in in production", () => {
+    const one: Record<RuntimeRoleReason, Partial<typeof app>> = {
+      SUPERUSER: { isSuperuser: true },
+      OWNER: { ownsSchemaObjects: true },
+      TRAIL_WRITABLE: { withheldHeld: ["AuditEntry"] },
+      FIGURE_READABLE: { estimateFigureReadable: true },
+      TEMPORARY_HELD: { temporaryHeld: true },
+    };
+    const warning: string[] = [];
+    for (const [reason, f] of Object.entries(one)) {
+      const v = runtimeRoleVerdict({ ...app, ...f }, true);
+      expect(v).toMatchObject({ safe: false, reason });
+      if (!v.safe && !v.refuseSignIn) warning.push(reason);
+    }
+    expect([...WARNING_ONLY_REASONS].sort()).toEqual(warning.sort());
+    for (const reason of Object.keys(one) as RuntimeRoleReason[]) expect(warnsOnly(reason)).toBe(warning.includes(reason));
+  });
+  it("the figure's words say the role setup has not run since the wall, and name no code", () => {
+    expect(RUNTIME_ROLE_WORDS.FIGURE_READABLE).toMatch(/company estimate's figure/);
+    expect(RUNTIME_ROLE_WORDS.FIGURE_READABLE).toMatch(/db:roles/);
   });
   it("its words say the role setup has not run since the hardening, and name no code", () => {
     expect(RUNTIME_ROLE_WORDS.TEMPORARY_HELD).toMatch(/temporary tables/);

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 
-import { RUNTIME_ROLE_WORDS, runtimeRoleVerdict, WITHHELD, type RuntimeRoleFacts, type RuntimeRoleVerdict } from "./db-role";
+import { RUNTIME_ROLE_WORDS, runtimeRoleVerdict, WALLED_COLUMNS, warnsOnly, WITHHELD, type RuntimeRoleFacts, type RuntimeRoleVerdict } from "./db-role";
 
 /**
  * Who the running app is connected as (ADR 0034 D11, Phase 1d `assertRuntimeRole`). Asked once per process, at startup from
@@ -39,20 +39,50 @@ export async function readRuntimeRole(client: Client = db): Promise<RuntimeRoleF
                      WHERE pg_has_role(current_user, m.oid, 'MEMBER')
                        AND has_database_privilege(m.oid, current_database(), 'TEMPORARY'))
             OR has_database_privilege('public', current_database(), 'TEMPORARY')) AS "held"`;
-  return { ...row, withheldHeld: held?.tables ?? [], temporaryHeld: temp?.held ?? false };
+  // The walled figure (ruling 20ch, N6): can the login, a role it is a member of, or PUBLIC SELECT the column directly? A table not made yet reads NULL from to_regclass and counts as false.
+  let estimateFigureReadable = false;
+  for (const w of WALLED_COLUMNS) {
+    const [col] = await client.$queryRaw<{ held: boolean | null }[]>`
+      SELECT coalesce(
+               EXISTS (SELECT 1 FROM pg_roles m
+                        WHERE pg_has_role(current_user, m.oid, 'MEMBER')
+                          AND has_column_privilege(m.oid, to_regclass(format('%I.%I', current_schema(), ${w.table}::text)), ${w.column}::text, 'SELECT'))
+               OR has_column_privilege('public', to_regclass(format('%I.%I', current_schema(), ${w.table}::text)), ${w.column}::text, 'SELECT'),
+             false) AS "held"
+       WHERE to_regclass(format('%I.%I', current_schema(), ${w.table}::text)) IS NOT NULL`;
+    if (col?.held) estimateFigureReadable = true;
+  }
+  return { ...row, withheldHeld: held?.tables ?? [], temporaryHeld: temp?.held ?? false, estimateFigureReadable };
 }
 
-const kept = globalThis as unknown as { perolehanRuntimeRole?: Promise<RuntimeRoleVerdict> };
+/// The facts, not the verdict, are kept (N6, J5): the sign-in verdict and the LIVE conditions both derive from them. Same global key as before.
+const kept = globalThis as unknown as { perolehanRuntimeRole?: Promise<RuntimeRoleFacts> };
 
-export function runtimeRoleCheck(): Promise<RuntimeRoleVerdict> {
-  if (!kept.perolehanRuntimeRole) {
-    const asked = readRuntimeRole().then((facts) => runtimeRoleVerdict(facts, process.env.NODE_ENV === "production"));
-    kept.perolehanRuntimeRole = asked;
-    asked.catch(() => {
-      if (kept.perolehanRuntimeRole === asked) kept.perolehanRuntimeRole = undefined;
-    });
+function ask(): Promise<RuntimeRoleFacts> {
+  const asked = readRuntimeRole();
+  kept.perolehanRuntimeRole = asked;
+  asked.catch(() => {
+    if (kept.perolehanRuntimeRole === asked) kept.perolehanRuntimeRole = undefined;
+  });
+  return asked;
+}
+
+/// Who the app runs as, asked once per process. A failed query is not kept, so the next call asks again.
+export async function runtimeRoleFacts(): Promise<RuntimeRoleFacts> {
+  const held = kept.perolehanRuntimeRole;
+  if (!held) return ask();
+  const facts = await held;
+  // A process that ran the code before N6 kept the verdict under this key, not the facts (next dev keeps globalThis across a reload). That is not an answer: ask again.
+  if (typeof (facts as Partial<RuntimeRoleFacts>).estimateFigureReadable !== "boolean") {
+    if (kept.perolehanRuntimeRole === held) return ask();
+    return runtimeRoleFacts();
   }
-  return kept.perolehanRuntimeRole;
+  return facts;
+}
+
+/// The verdict, judged on every call from the kept facts and the current NODE_ENV.
+export async function runtimeRoleCheck(): Promise<RuntimeRoleVerdict> {
+  return runtimeRoleVerdict(await runtimeRoleFacts(), process.env.NODE_ENV === "production");
 }
 
 /// At start-up (`src/instrumentation.ts`): one line in the server log when the app is not running as its own role. Never throws.
@@ -61,7 +91,7 @@ export async function reportRuntimeRole(): Promise<void> {
     const verdict = await runtimeRoleCheck();
     if (verdict.safe) return;
     const tables = verdict.reason === "TRAIL_WRITABLE" ? ` It holds rights it should not on: ${verdict.tables.join(", ")}.` : "";
-    if (verdict.reason === "TEMPORARY_HELD") {
+    if (warnsOnly(verdict.reason)) {
       console.warn(`[perolehan] The app is connected to the database as "${verdict.name}", ${RUNTIME_ROLE_WORDS[verdict.reason]}. Sign-in is not refused. Run npm run db:roles, then restart the app.`);
       return;
     }

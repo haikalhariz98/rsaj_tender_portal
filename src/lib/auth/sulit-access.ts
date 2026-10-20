@@ -31,7 +31,8 @@ import type { Words } from "./words";
 /// Why a value was shown. Stored on the access event, so it is a closed list the table's CHECK holds (`SULIT_GRANT_BASES`).
 /// SECRETARIAT_OFFICE and INTERNAL_AUDIT_OFFICE (ruling of 2026-10-08 on log lines 1735 and 1736): the reader holds the office the organisation names as the Secretariat, or as Internal Audit, for evaluations.
 /// CREDITOR_PROFILE_PERMISSION (Phase 4b): the reader holds `sulit.read.creditorProfile`, which opens a supplier's bank details and nothing else. OWN_RECORD: a signed-in supplier reading its own profile.
-export const SULIT_GRANT_BASES = ["NAMED_ON_RECORD", "ORGANISATION_PERMISSION", "IN_CUSTODY", "SECRETARIAT_OFFICE", "INTERNAL_AUDIT_OFFICE", "CREDITOR_PROFILE_PERMISSION", "OWN_RECORD"] as const;
+/// LOGGED_FIGURE_READ (N6, J2): the company estimate's figure was read through the database's logged reader, which writes its own row (migration 20261113000000).
+export const SULIT_GRANT_BASES = ["NAMED_ON_RECORD", "ORGANISATION_PERMISSION", "IN_CUSTODY", "SECRETARIAT_OFFICE", "INTERNAL_AUDIT_OFFICE", "CREDITOR_PROFILE_PERMISSION", "OWN_RECORD", "LOGGED_FIGURE_READ"] as const;
 export type SulitGrantBasis = (typeof SULIT_GRANT_BASES)[number];
 
 /// Why a value was withheld.
@@ -400,6 +401,7 @@ function creditorRefusalWords(basis: SulitRefusalBasis, routeStarted: boolean): 
 export const grantedWords = (basis: SulitGrantBasis, namedAs: readonly NamedAs[] = []): Words => {
   if (basis === "CREDITOR_PROFILE_PERMISSION") return { en: "Shown because your role may read suppliers' creditor profiles." };
   if (basis === "OWN_RECORD") return { en: "Shown because it is your own company's profile." };
+  if (basis === "LOGGED_FIGURE_READ") return { en: "Read through the database's logged reader." };
   if (basis === "NAMED_ON_RECORD" && namedAs.length > 0) {
     return { en: `Shown because you are ${namedAs.map((n) => NAMED_AS_WORDS[n].en).join(" and ")}.` };
   }

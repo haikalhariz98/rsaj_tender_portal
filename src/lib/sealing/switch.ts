@@ -26,11 +26,16 @@ export function onlineSubmissionAllowed(mode: OnlineSubmissionMode | null, deplo
   return { allowed: false, demonstration: false, fault: "ONLINE_NOT_ALLOWED" };
 }
 
-export type LiveIssueFault = "REVIEW_NOT_RECORDED" | "AMENDMENT_NOT_RECORDED" | "ACCEPTANCE_NOT_RECORDED" | "SCANNER_NOT_CONFIGURED" | "LIVE_NOT_ALLOWED_BY_DEPLOYMENT" | "PEPPER_NOT_SET" | "PUBLIC_ROLE_NOT_ATTESTED" | "HARDENING_NOT_ATTESTED";
+export type LiveIssueFault = "REVIEW_NOT_RECORDED" | "AMENDMENT_NOT_RECORDED" | "ACCEPTANCE_NOT_RECORDED" | "SCANNER_NOT_CONFIGURED" | "LIVE_NOT_ALLOWED_BY_DEPLOYMENT" | "PEPPER_NOT_SET" | "PUBLIC_ROLE_NOT_ATTESTED" | "HARDENING_NOT_ATTESTED" | "ESTIMATE_FIGURE_READABLE" | "TEMPORARY_HELD";
 
-/// Every condition for issuing LIVE that is missing, in one list (threat model §G must-haves 1 to 8). A reference or an attestation of only spaces is missing.
-export function liveIssueFaults(p: { cryptoReviewReference: string; procedureAmendmentReference: string; customerAcceptanceReference: string; scannerConfigured: boolean; liveAllowedByDeployment: boolean; pepperConfigured: boolean; publicRoleAttestation: string; deploymentHardeningAttestation: string }):
-  ("REVIEW_NOT_RECORDED" | "AMENDMENT_NOT_RECORDED" | "ACCEPTANCE_NOT_RECORDED" | "SCANNER_NOT_CONFIGURED" | "LIVE_NOT_ALLOWED_BY_DEPLOYMENT" | "PEPPER_NOT_SET" | "PUBLIC_ROLE_NOT_ATTESTED" | "HARDENING_NOT_ATTESTED")[] {
+/// What the database reports about the app's own login, as LIVE reads it (N6, ruling 20ch, 20cw (a)): `runtimeRoleFacts()` at the call sites.
+export type LiveRuntimeRole = { estimateFigureReadable: boolean; temporaryHeld: boolean };
+
+/// What a call site passes when the database could not be asked: an unknown login fails closed, so LIVE is refused for both (N6, J6).
+export const RUNTIME_ROLE_UNKNOWN: Readonly<LiveRuntimeRole> = { estimateFigureReadable: true, temporaryHeld: true };
+
+/// Every condition for issuing LIVE that is missing, in one list (threat model §G must-haves 1 to 8, then the database login's two walls, N6). A reference or an attestation of only spaces is missing.
+export function liveIssueFaults(p: { cryptoReviewReference: string; procedureAmendmentReference: string; customerAcceptanceReference: string; scannerConfigured: boolean; liveAllowedByDeployment: boolean; pepperConfigured: boolean; publicRoleAttestation: string; deploymentHardeningAttestation: string; runtimeRole: LiveRuntimeRole }): LiveIssueFault[] {
   const out: LiveIssueFault[] = [];
   if (!p.cryptoReviewReference.trim()) out.push("REVIEW_NOT_RECORDED");
   if (!p.procedureAmendmentReference.trim()) out.push("AMENDMENT_NOT_RECORDED");
@@ -40,6 +45,8 @@ export function liveIssueFaults(p: { cryptoReviewReference: string; procedureAme
   if (!p.pepperConfigured) out.push("PEPPER_NOT_SET");
   if (!p.publicRoleAttestation.trim()) out.push("PUBLIC_ROLE_NOT_ATTESTED");
   if (!p.deploymentHardeningAttestation.trim()) out.push("HARDENING_NOT_ATTESTED");
+  if (p.runtimeRole.estimateFigureReadable) out.push("ESTIMATE_FIGURE_READABLE");
+  if (p.runtimeRole.temporaryHeld) out.push("TEMPORARY_HELD");
   return out;
 }
 
@@ -58,6 +65,8 @@ export const LIVE_ISSUE_WORDS: Readonly<Record<LiveIssueFault, string>> = {
   PEPPER_NOT_SET: "The deployment's sealing pepper is not configured.",
   PUBLIC_ROLE_NOT_ATTESTED: "Nobody has attested that the public copy's database role cannot read sealed bids. This is attested, not checked by the portal.",
   HARDENING_NOT_ATTESTED: "Nobody has attested the deployment's hardening (no core dumps or swap, HTTPS only, no logging of request bodies). This is attested, not checked by the portal.",
+  ESTIMATE_FIGURE_READABLE: "The app's database login can still read the company estimate's figure.",
+  TEMPORARY_HELD: "The app's database login can still make temporary tables.",
 };
 
 export const ONLINE_SUBMISSION_WORDS: Readonly<Record<OnlineSubmissionFault, string>> = {

@@ -26,7 +26,7 @@ export function attestationFor(before: { text: string; at: Date | null; byPerson
   return { at, byPersonId: kept ? before.byPersonId : by };
 }
 
-/// Saving the policy at LIVE needs every condition for LIVE (must-haves 1 to 8). Any other mode, or none, is never refused for them.
+/// Saving the policy at LIVE needs every condition for LIVE (must-haves 1 to 8, and the database login's two walls, N6). Any other mode, or none, is never refused for them.
 export function sealingPolicyFaults(i: { mode: OnlineSubmissionMode | null; live: Parameters<typeof liveIssueFaults>[0] }): LiveIssueFault[] {
   return i.mode === "LIVE" ? liveIssueFaults(i.live) : [];
 }

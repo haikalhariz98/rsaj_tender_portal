@@ -8,6 +8,7 @@ import { writeAudit } from "@/lib/audit/record";
 import type { OnlineSubmissionMode } from "@/lib/bids/online/types";
 import { dayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { runtimeRoleFacts } from "@/lib/auth/runtime-role-store";
 import { scannerSetting } from "@/lib/documents/store";
 import {
   liveAllowedByDeployment,
@@ -19,7 +20,7 @@ import {
   sealingPolicyFaults,
   stampFor,
 } from "@/lib/sealing/policy";
-import { LIVE_ISSUE_WORDS } from "@/lib/sealing/switch";
+import { LIVE_ISSUE_WORDS, RUNTIME_ROLE_UNKNOWN } from "@/lib/sealing/switch";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -83,6 +84,8 @@ export async function saveBidSealingPolicy(
   if (r.failed) return { ok: false, errors: r.errors };
   const reason = String(data.get("reason") ?? "");
   const scannerConfigured = scannerSetting().state === "SET";
+  // The app's database login (N6): an unknown login fails closed (J6).
+  const runtimeRole = await runtimeRoleFacts().catch(() => RUNTIME_ROLE_UNKNOWN);
 
   // An attestation is an act of the person who attests: the proposer, who typed it, whose person the form names (hidden, theirs). It is attributed through the act registry,
   // at the proposal's rehearsal as themselves and at the apply as the proposer, never as the second person who only decides the change (ADR 0036 D1, ruling 20v).
@@ -138,6 +141,7 @@ export async function saveBidSealingPolicy(
           pepperConfigured: pepperConfigured(),
           publicRoleAttestation: v.publicRoleAttestation,
           deploymentHardeningAttestation: v.hardeningAttestation,
+          runtimeRole,
         },
       });
       if (faults.length)

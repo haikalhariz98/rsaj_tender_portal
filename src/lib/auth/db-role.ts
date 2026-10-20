@@ -50,6 +50,19 @@ export const WITHHELD: readonly { table: string; revoke: string; held: string }[
   ...SEALED_TABLES.map((table) => ({ table, revoke: "DELETE, TRUNCATE", held: "DELETE, TRUNCATE" })),
 ];
 
+/// Columns no app login may read (ruling 20ch, threat model F10). The company estimate's figure is read only through FIGURE_READER, which logs every read.
+export const WALLED_COLUMNS: readonly { table: string; column: string }[] = [{ table: "CompanyEstimateVersion", column: "value" }];
+
+/// The database's logged reader of the walled figure (migration `20261113000000_estimate_figure_wall`). SECURITY DEFINER: EXECUTE is granted to the app role by `db:roles`, never to PUBLIC.
+export const FIGURE_READER = { name: "read_company_estimate_figure", args: "text, text, text, text, text, text" } as const;
+
+/// The walled tables, each with its walled columns, in first-listed order.
+export function walledByTable(): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const w of WALLED_COLUMNS) out.set(w.table, [...(out.get(w.table) ?? []), w.column]);
+  return out;
+}
+
 const IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/;
 
 const quoteIdent = (name: string) => `"${name.replace(/"/g, '""')}"`;
@@ -74,7 +87,17 @@ export const ROLE_ATTRIBUTES = "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHE
  * exist yet is skipped and picked up on the next run. Default privileges make tables created later by `owner` readable and writable at
  * once, so a new append-only table is writable until this runs again: run it after every `migrate deploy`.
  */
-export function grantStatements(input: { role: string; owner: string; schema: string; database: string; existing: ReadonlySet<string> }): string[] {
+export function grantStatements(input: {
+  role: string;
+  owner: string;
+  schema: string;
+  database: string;
+  existing: ReadonlySet<string>;
+  /// The columns of each WALLED_COLUMNS table as the database lists them now (pg_attribute, attnum > 0, not dropped). Read at run time, never a literal.
+  columns: ReadonlyMap<string, readonly string[]>;
+  /// The figure reader function exists (to_regprocedure is not null).
+  figureReaderPresent: boolean;
+}): string[] {
   const role = quoteIdent(input.role);
   const owner = quoteIdent(input.owner);
   const schema = quoteIdent(input.schema);
@@ -89,6 +112,16 @@ export function grantStatements(input: { role: string; owner: string; schema: st
   for (const w of WITHHELD) {
     if (input.existing.has(w.table)) statements.push(`REVOKE ${w.revoke} ON TABLE ${table(w.table)} FROM ${role}`);
   }
+  // Ruling 20ch (threat model F10, N6): a walled column is unreadable to the app. The table-level SELECT the broad grant gave is taken away, then any stray grant of the walled
+  // column itself, and every other column is granted back by name. A table whose columns were not read gets no column GRANT: it stays unreadable rather than guessed at.
+  for (const [name, walled] of walledByTable()) {
+    if (!input.existing.has(name)) continue;
+    statements.push(`REVOKE SELECT ON TABLE ${table(name)} FROM ${role}`);
+    for (const column of walled) statements.push(`REVOKE SELECT (${quoteIdent(column)}) ON TABLE ${table(name)} FROM ${role}`);
+    const readable = [...new Set(input.columns.get(name) ?? [])].filter((c) => !walled.includes(c)).sort();
+    if (readable.length > 0) statements.push(`GRANT SELECT (${readable.map(quoteIdent).join(", ")}) ON TABLE ${table(name)} TO ${role}`);
+  }
+  if (input.figureReaderPresent) statements.push(`GRANT EXECUTE ON FUNCTION ${schema}.${quoteIdent(FIGURE_READER.name)}(${FIGURE_READER.args}) TO ${role}`);
   // Wave 3b security audit 1: no temporary tables. A temporary table named like a real one could stand in for it in a function that resolves names through the
   // search path; the trigger functions are fixed to the public schema (migration 20261103200000), and this is the second wall. PUBLIC holds TEMPORARY on every
   // database by default, so it is taken from PUBLIC as well as from the role. The owner, a superuser in development, keeps it.
@@ -115,9 +148,16 @@ export interface RuntimeRoleFacts {
   withheldHeld: string[];
   /// The login (or a role it is a member of, or PUBLIC) still holds TEMPORARY on the database: it can make temporary tables. `db:roles` takes it away (wave 3b security audit 1, build plan step 19).
   temporaryHeld: boolean;
+  /// The login (or a role it is a member of, or PUBLIC) can SELECT a WALLED_COLUMNS column directly: `db:roles` has not run since the wall (ruling 20ch, N6). A table not made yet reads false.
+  estimateFigureReadable: boolean;
 }
 
-export type RuntimeRoleReason = "SUPERUSER" | "OWNER" | "TRAIL_WRITABLE" | "TEMPORARY_HELD";
+export type RuntimeRoleReason = "SUPERUSER" | "OWNER" | "TRAIL_WRITABLE" | "FIGURE_READABLE" | "TEMPORARY_HELD";
+
+/// The reasons that warn and never refuse sign-in, even in production. Each is a second wall: TEMPORARY behind the pinned search_path (step 19), the figure behind the
+/// client's omit and explicit selects (N6, J1). LIVE refuses both instead (`liveIssueFaults`).
+export const WARNING_ONLY_REASONS: readonly RuntimeRoleReason[] = ["FIGURE_READABLE", "TEMPORARY_HELD"];
+export const warnsOnly = (reason: RuntimeRoleReason): boolean => WARNING_ONLY_REASONS.includes(reason);
 
 export type RuntimeRoleVerdict =
   | { safe: true }
@@ -128,13 +168,15 @@ export type RuntimeRoleVerdict =
  * every sign-in: the trail's grants would mean nothing, and a stolen session could reach DDL. So does a separate login that still holds
  * UPDATE, DELETE or TRUNCATE on the trail (or a right on Prisma's table, or UPDATE on stored bytes): DocumentAccessEvent has no trigger,
  * so its grants are its only wall. In development the app still runs (the founder's copy runs as the owner until he sets the role up)
- * and the accounts screen says so. Precedence: superuser, then owner, then the grants.
+ * and the accounts screen says so. Precedence: superuser, then owner, then the grants, then the two warnings (the figure, then TEMPORARY).
  */
 export function runtimeRoleVerdict(facts: RuntimeRoleFacts, production: boolean): RuntimeRoleVerdict {
   const unsafe = (reason: RuntimeRoleReason) => ({ safe: false as const, reason, name: facts.name, refuseSignIn: production, tables: facts.withheldHeld });
   if (facts.isSuperuser) return unsafe("SUPERUSER");
   if (facts.ownsSchemaObjects) return unsafe("OWNER");
   if (facts.withheldHeld.length > 0) return unsafe("TRAIL_WRITABLE");
+  // A warning, never a refusal (N6, J1): the figure's wall is a second wall, and LIVE is where it is enforced.
+  if (facts.estimateFigureReadable) return { safe: false, reason: "FIGURE_READABLE", name: facts.name, refuseSignIn: false, tables: [] };
   // A warning, never a refusal (step 19): TEMPORARY is the second wall behind the pinned search_path every sealed trigger function carries. The refusal is kept for a wall that stands alone.
   if (facts.temporaryHeld) return { safe: false, reason: "TEMPORARY_HELD", name: facts.name, refuseSignIn: false, tables: [] };
   return { safe: true };
@@ -145,5 +187,6 @@ export const RUNTIME_ROLE_WORDS: Record<RuntimeRoleReason, string> = {
   SUPERUSER: "the database superuser, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
   OWNER: "the owner of the tables, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
   TRAIL_WRITABLE: "a login that can still change or remove records the app should only add to (the audit trail, the sign-in log, document access history or stored document content), remove sealed bid records, or reach the migration history",
+  FIGURE_READABLE: "a login that can still read the company estimate's figure directly, so npm run db:roles has not run on this database since the figure was walled off",
   TEMPORARY_HELD: "a login that can still make temporary tables, so npm run db:roles has not run on this database since the sealed-bid hardening, which takes that right away",
 };

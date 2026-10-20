@@ -7,7 +7,7 @@ import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui
 import { HistoryButton } from "@/components/history-drawer";
 import { secondPersonNotice } from "@/lib/auth/administration-rules";
 import { loadAccountsView, type AccountRow } from "@/lib/auth/administration-view";
-import { RUNTIME_ROLE_WORDS } from "@/lib/auth/db-role";
+import { RUNTIME_ROLE_WORDS, warnsOnly } from "@/lib/auth/db-role";
 import { runtimeRoleCheck } from "@/lib/auth/runtime-role-store";
 import { settingLabels } from "@/lib/auth/policy";
 import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
@@ -65,13 +65,13 @@ export default async function AccountsPage() {
         }
       />
 
-      {role && !role.safe && role.reason === "TEMPORARY_HELD" && (
+      {role && !role.safe && warnsOnly(role.reason) && (
         <Callout tone="warn" title="Database login too broad. Operator reruns role setup." className="mb-5">
           Runs as {RUNTIME_ROLE_WORDS[role.reason]}.
         </Callout>
       )}
 
-      {role && !role.safe && role.reason !== "TEMPORARY_HELD" && (
+      {role && !role.safe && !warnsOnly(role.reason) && (
         <Callout tone="warn" title={role.refuseSignIn ? "Sign-in refused: database login too broad. Contact the operator." : "Database login too broad. Production refuses sign-in. Contact the operator."} className="mb-5">
           Runs as {RUNTIME_ROLE_WORDS[role.reason]}.
         </Callout>

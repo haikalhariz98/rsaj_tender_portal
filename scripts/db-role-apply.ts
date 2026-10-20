@@ -1,4 +1,4 @@
-import { grantStatements, notYetPresent, ROLE_ATTRIBUTES, roleNameFault, type RoleNameFault } from "../src/lib/auth/db-role";
+import { FIGURE_READER, grantStatements, notYetPresent, ROLE_ATTRIBUTES, roleNameFault, walledByTable, type RoleNameFault } from "../src/lib/auth/db-role";
 
 /**
  * Makes (or brings back into line) the app's database login and its grants in ONE database (ADR 0034 D11). Run by `scripts/db-roles.ts`
@@ -60,6 +60,18 @@ async function grantAll(sql: SqlClient, role: string, who: { owner: string; sche
   const [connect] = await rows<{ ddl: string }>(`SELECT format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), $1::text) AS ddl`, role);
   await sql.$executeRawUnsafe(connect.ddl);
   const existing = new Set((await rows<{ name: string }>(`SELECT tablename::text AS name FROM pg_tables WHERE schemaname = current_schema()`)).map((r) => r.name));
-  for (const statement of grantStatements({ role, owner: who.owner, schema: who.schema, database: who.database, existing })) await sql.$executeRawUnsafe(statement);
+  // Ruling 20ch (N6): every column of a walled table but the walled one is granted back by name, so the list is read from the database now, never written down here.
+  const columns = new Map<string, string[]>();
+  for (const name of walledByTable().keys()) {
+    if (!existing.has(name)) continue;
+    const listed = await rows<{ name: string }>(
+      `SELECT attname::text AS name FROM pg_attribute WHERE attrelid = to_regclass(format('%I.%I', current_schema(), $1::text)) AND attnum > 0 AND NOT attisdropped ORDER BY attnum`,
+      name,
+    );
+    columns.set(name, listed.map((r) => r.name));
+  }
+  const [reader] = await rows<{ present: boolean }>(`SELECT to_regprocedure(format('%I.%I(%s)', current_schema(), $1::text, $2::text)) IS NOT NULL AS present`, FIGURE_READER.name, FIGURE_READER.args);
+  const statements = grantStatements({ role, owner: who.owner, schema: who.schema, database: who.database, existing, columns, figureReaderPresent: reader?.present === true });
+  for (const statement of statements) await sql.$executeRawUnsafe(statement);
   return existing;
 }

@@ -22,7 +22,8 @@ import { demonstrationAllowedByDeployment, liveAllowedByDeployment, pepperConfig
 import { PEPPER_LIST_WORDS, pepperListState } from "@/lib/sealing/pepper";
 import { loadPepperList } from "@/lib/sealing/pepper-store";
 import { exercisesStillTakingBids, sealingModeWords } from "@/lib/sealing/policy";
-import { LIVE_ISSUE_WORDS, liveIssueFaults } from "@/lib/sealing/switch";
+import { runtimeRoleFacts } from "@/lib/auth/runtime-role-store";
+import { LIVE_ISSUE_WORDS, liveIssueFaults, RUNTIME_ROLE_UNKNOWN } from "@/lib/sealing/switch";
 
 import { EditBidSealingPolicy } from "./editors";
 
@@ -68,6 +69,8 @@ export default async function BidSealingPage() {
   const pepper = pepperConfigured();
   const liveFlag = liveAllowedByDeployment();
   const demoFlag = demonstrationAllowedByDeployment();
+  // The app's database login (N6): an unknown login fails closed (J6).
+  const runtimeRole = await runtimeRoleFacts().catch(() => RUNTIME_ROLE_UNKNOWN);
   const missing = liveIssueFaults({
     cryptoReviewReference: row?.cryptoReviewReference ?? "",
     procedureAmendmentReference: row?.procedureAmendmentReference ?? "",
@@ -77,6 +80,7 @@ export default async function BidSealingPage() {
     pepperConfigured: pepper,
     publicRoleAttestation: row?.publicRoleAttestation ?? "",
     deploymentHardeningAttestation: row?.hardeningAttestation ?? "",
+    runtimeRole,
   });
   const mode = row?.onlineSubmission ?? null;
   const values: Record<string, string> = {
