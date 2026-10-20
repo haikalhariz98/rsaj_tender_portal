@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { isStoredField } from "@/lib/auth/configuration-edit";
+import { awardAuditPair } from "@/lib/award/audit-view";
 import { sulitFieldOf } from "@/lib/sulit-trail";
 
 import {
@@ -173,6 +174,17 @@ describe("withholdRehearsal (the proposal's own audit row, N7 review)", () => {
     expect(rehearsal).toEqual(copy);
     expect(withholdRehearsal("BASELINE_CORRECTION", OP, rehearsal)).toBe(rehearsal);
     expect(withholdRehearsal(KIND, "awards-records.recordTerms", rehearsal)).toBe(rehearsal);
+  });
+
+  it("matches the field names of the real audit rows of an AwardReturn, the masked IC number included", () => {
+    const before = { signatoryName: "Ali Bin Abu", icNumber: "900101145678", occupation: "Director", address: "12 Jalan Bunga", witnessName: "Siti Aminah", capacity: "Director" };
+    const after = { ...before, signatoryName: "Abu Bin Ali", icNumber: "850505105678", address: "34 Jalan Daun", witnessName: "Rahim Salleh", capacity: "Manager" };
+    const changes = awardAuditPair(before, after);
+    expect(changes.map((c) => c.field).sort()).toEqual(["address", "capacity", "icNumber", "signatoryName", "witnessName"]);
+    const out = withholdRehearsal(KIND, OP, { rows: [{ changes }] });
+    const text = JSON.stringify(out);
+    for (const v of ["Ali Bin Abu", "Abu Bin Ali", "12 Jalan Bunga", "34 Jalan Daun", "Siti Aminah", "Rahim Salleh", "5678", "changed ("]) expect(text, v).not.toContain(v);
+    expect(out.rows[0].changes.find((c) => c.field === "capacity")).toMatchObject({ before: "Director", after: "Manager" });
   });
 
   it("has the words the decision's audit line uses", () => {
