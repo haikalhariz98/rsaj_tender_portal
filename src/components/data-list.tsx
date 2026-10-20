@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useMemo, useState, useTransition, type ReactNode } from "react";
+import { Fragment, useId, useMemo, useState, useTransition, type ReactNode } from "react";
 
 import {
   ChevronRight,
@@ -32,6 +32,12 @@ import { needsPaging, PAGE_SIZES } from "@/lib/paging";
  * component can hand rows straight over and the client can still sort and search
  * them. Adding a cell kind here is how a new column type arrives.
  */
+export interface StatusItem {
+  text: string;
+  tone?: "ok" | "warn" | "err" | "info" | "brand";
+  provenance?: "STATED" | "OBSERVED" | "ASSUMED";
+}
+
 export type Cell =
   | { kind: "stack"; title: string; sub?: string; monoSub?: boolean }
   | { kind: "text"; text: string; dim?: boolean }
@@ -59,6 +65,9 @@ export type Cell =
   /// A chip with `provenance` carries the shared provenance tag beside it (a reading that rests on an assumption,
   /// say), so a list never writes "(assumed)" in its own words.
   | { kind: "chips"; items: { text: string; tone?: "ok" | "warn" | "err" | "info" | "brand"; nowrap?: boolean; provenance?: "STATED" | "OBSERVED" | "ASSUMED" }[] }
+  /// One status chip with a muted "+N" beside it when the row has others; hovering or focusing either lists them all (founder, 2026-10-20: one status per row).
+  /// Search and the CSV carry every status, the main one first.
+  | { kind: "status"; main: StatusItem; others: StatusItem[] }
   /// A filled bar with the figure beside it, and a marker at the configured warning
   /// threshold. Null percent renders as not set — a code with no allocation has not
   /// used none of its budget, and a bar drawn at zero says it has.
@@ -235,6 +244,8 @@ function cellText(cell: Cell | undefined, lang: Language = "en"): string {
       return cell.items.join(" ");
     case "chips":
       return cell.items.map((i) => (i.provenance ? `${i.text} (${provenanceLabel(i.provenance, lang)})` : i.text)).join(" · ");
+    case "status":
+      return [cell.main, ...cell.others].map((i) => (i.provenance ? `${i.text} (${provenanceLabel(i.provenance, lang)})` : i.text)).join(" · ");
     case "meter":
       return cell.percent == null ? "" : `${cell.percent}%`;
     case "withheld":
@@ -250,6 +261,35 @@ function senOf(cell: Cell | undefined): bigint | null | undefined {
 }
 
 const dash = <span className="text-ink-4">—</span>;
+
+/// The one status chip, and "+N" for the rest. The full list is a tooltip that opens on hover and on keyboard focus; a screen reader gets
+/// it as the description.
+function StatusCell({ main, others }: { main: StatusItem; others: StatusItem[] }) {
+  const { language } = useLanguage();
+  const id = useId();
+  const chip = (item: StatusItem) => (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <Chip tone={item.tone}>{item.text}</Chip>
+      {item.provenance && <ProvenanceBadge value={item.provenance} lang={language} />}
+    </span>
+  );
+  if (others.length === 0) return chip(main);
+  return (
+    <span className="group relative inline-flex items-center gap-1.5 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" tabIndex={0} aria-describedby={id}>
+      {chip(main)}
+      <span className="text-[12.5px] font-semibold text-ink-3" aria-hidden="true">+{others.length}</span>
+      <span
+        id={id}
+        role="tooltip"
+        className="pointer-events-none absolute top-full left-0 z-30 mt-2 hidden w-max max-w-64 flex-col items-start gap-1.5 rounded-xl border border-line bg-surface p-2.5 shadow-pop group-focus-within:flex group-hover:flex"
+      >
+        {[main, ...others].map((item) => (
+          <span key={item.text}>{chip(item)}</span>
+        ))}
+      </span>
+    </span>
+  );
+}
 
 function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: boolean }) {
   const { language } = useLanguage();
@@ -352,6 +392,8 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
           })}
         </span>
       );
+    case "status":
+      return <StatusCell main={cell.main} others={cell.others} />;
     case "badges": {
       if (cell.items.length === 0) return dash;
       const shown = cell.items.slice(0, cell.max ?? 3);

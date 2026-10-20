@@ -89,6 +89,25 @@ describe("a list's per-row actions (6.6 review S-2)", () => {
   });
 });
 
+describe("a status cell (founder, 2026-10-20: 'too much status ... show only one status')", () => {
+  const cols: Column[] = [{ key: "phase", label: "Status" }];
+  const row = (others: { text: string }[]): Row => ({ id: "1", search: "a", cells: { phase: { kind: "status", main: { text: "Indent expired", tone: "err" }, others } } });
+  const render = (r: Row) => renderToStaticMarkup(createElement(DataList, { columns: cols, rows: [r] }));
+  it("shows the one chip, a +N and every status in the tooltip", () => {
+    const out = render(row([{ text: "Awaiting return" }, { text: "Number allocated" }]));
+    expect(out).toContain("+2");
+    expect(out).toContain('role="tooltip"');
+    expect(out).toContain("Awaiting return");
+    expect(out).toContain("Number allocated");
+  });
+  it("with no others there is no +N and no tooltip", () => {
+    const out = render(row([]));
+    expect(out).toContain("Indent expired");
+    expect(out).not.toContain("+0");
+    expect(out).not.toContain('role="tooltip"');
+  });
+});
+
 describe("a chip's provenance tag (6.13A residual: the shared badge, never '(assumed reading)')", () => {
   const cols: Column[] = [{ key: "phase", label: "Where it stands" }];
   const row = (provenance?: "ASSUMED"): Row => ({ id: "1", search: "a", cells: { phase: { kind: "chips", items: [{ text: "Active" }, { text: "In Delay", tone: "err", ...(provenance ? { provenance } : {}) }] } } });

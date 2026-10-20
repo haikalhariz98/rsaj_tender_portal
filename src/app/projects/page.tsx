@@ -7,6 +7,7 @@ import { CASE_PAGE, listCases, parseCaseListView, type CaseRow, type CaseRowView
 import { CASE_WORK_VIEWS } from "@/lib/contract/case-work-views";
 import { awardChips, CASE_ENDED_TONE, CASE_ENDED_WORDS, CASE_VIEW_WORDS, standingWords } from "@/lib/contract/case-list-words";
 import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
+import { endedKind, phaseKind, primaryCaseStatus, type StatusCandidate } from "@/lib/contract/case-status";
 import { caseHref } from "@/lib/contract/links";
 import { DERIVE_CAP, endorsedPhases } from "@/lib/contract/load";
 import type { ContractPhase } from "@/lib/contract/status";
@@ -204,6 +205,8 @@ interface RowContext {
 type Tone = "brand" | "info" | "ok" | "warn" | "err";
 const toneOf = (t: string): { tone?: Tone } => (t === "neutral" ? {} : { tone: t as Tone });
 
+const strip = ({ text, tone, provenance }: StatusCandidate) => ({ text, ...(tone ? { tone } : {}), ...(provenance ? { provenance } : {}) });
+
 /// One case as a row. A row held back to its contract stages (AC-18) has no `award`, so it carries the contract's columns alone.
 function caseRow(r: CaseRow, cx: RowContext): Row {
   const lang = cx.lang;
@@ -220,11 +223,11 @@ function caseRow(r: CaseRow, cx: RowContext): Row {
   const kind = a ? (a.instrumentKind as InstrumentKind) : null;
 
   // The status chips: the contract's phase (or the award's status before there is one), In Delay, then the awards list's own.
-  const chips: { text: string; tone?: Tone; provenance?: "ASSUMED" }[] = [];
-  if (ended) chips.push({ text: t(CASE_ENDED_WORDS[ended]), ...toneOf(CASE_ENDED_TONE[ended]) });
-  else if (phase) chips.push({ text: t(PHASE_WORDS[phase]), ...toneOf(PHASE_TONE[phase]) });
-  else if (a) chips.push({ text: t(AWARD_STATUS_WORDS[a.status as AwardStatus]), ...toneOf(AWARD_STATUS_TONE[a.status as AwardStatus]) });
-  if (c && cx.inDelay.has(c.id)) chips.push({ text: t(L.inDelay), tone: "err", ...(cx.delayAssumed.has(c.id) ? { provenance: "ASSUMED" as const } : {}) });
+  const chips: StatusCandidate[] = [];
+  if (ended) chips.push({ kind: endedKind(ended), text: t(CASE_ENDED_WORDS[ended]), ...toneOf(CASE_ENDED_TONE[ended]) });
+  else if (phase) chips.push({ kind: phaseKind(phase), text: t(PHASE_WORDS[phase]), ...toneOf(PHASE_TONE[phase]) });
+  else if (a) chips.push({ kind: "LIFECYCLE", text: t(AWARD_STATUS_WORDS[a.status as AwardStatus]), ...toneOf(AWARD_STATUS_TONE[a.status as AwardStatus]) });
+  if (c && cx.inDelay.has(c.id)) chips.push({ kind: "IN_DELAY", text: t(L.inDelay), tone: "err",...(cx.delayAssumed.has(c.id) ? { provenance: "ASSUMED" as const } : {}) });
   if (a && kind && !ended) {
     const awardStatus = a.status as AwardStatus;
     // OD-5: before acceptance counted with its scans; an accepted award is not re-judged.
@@ -236,6 +239,8 @@ function caseRow(r: CaseRow, cx: RowContext): Row {
     chips.push(...awardChips({ status: awardStatus, returned: back, toVerify: held.filter((x) => x.status === "LODGED").length, registered: held.length, hasCommitmentNo: !!a.erpCommitmentNo, indentExpired: indentExpiryRaised(indent, day(a.commencedOn), awardStatus) }, lang));
   }
 
+  // Founder, 2026-10-20: one status per row; the others sit behind "+N".
+  const { primary, others } = primaryCaseStatus(chips);
   const money = c ? senFromDecimal(c.contractSum) : a ? senFromDecimal(a.awardedValue) : 0n;
   const completion = c?.dateForCompletion ?? null;
   return {
@@ -248,7 +253,7 @@ function caseRow(r: CaseRow, cx: RowContext): Row {
       // Money in sen, shown and sorted exactly by the list (never a float).
       sum: { kind: "money", sen: money.toString() },
       stage: { kind: "badge", text: stageWords },
-      phase: { kind: "chips", items: chips },
+      phase: primary ? { kind: "status", main: strip(primary), others: others.map(strip) } : { kind: "chips", items: [] },
       dates: c
         ? { kind: "stack", title: c.contractDate ? sayWith(L.contractDate, lang, { date: formatDate(storedDay(c.contractDate), lang) }) : t(L.notSigned), sub: completion ? sayWith(L.completion, lang, { date: formatDate(storedDay(completion), lang) }) : t(L.completionNotSet) }
         : { kind: "stack", title: kind ? t(INSTRUMENT_SHORT_WORDS[kind]) : t(L.instrument), sub: t(L.contractNotNumbered) },

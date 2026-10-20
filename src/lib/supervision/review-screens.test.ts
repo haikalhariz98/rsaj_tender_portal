@@ -50,7 +50,7 @@ describe("BD-613-12 ruling: the In Delay reading is tagged ASSUMED wherever show
     // AC-17 (C9): the chip is built in the case row (cx is the row context).
     const list = read("src/app/projects/page.tsx");
     // N1 step 4: the chip's text is the language layer's word (`t(L.inDelay)`), same tone and same ASSUMED rule.
-    expect(list).toMatch(/\{ text: t\(L\.inDelay\), tone: "err", \.\.\.\(cx\.delayAssumed\.has\(c\.id\) \? \{ provenance: "ASSUMED" as const \} : \{\}\) \}/);
+    expect(list).toMatch(/\{ kind: "IN_DELAY", text: t\(L\.inDelay\), tone: "err", \.\.\.\(cx\.delayAssumed\.has\(c\.id\) \? \{ provenance: "ASSUMED" as const \} : \{\}\) \}/);
     // Founder 2026-10-20: the header's "N on the straight-line reading" fact and its Assumed chip were removed; the row chip above keeps the tag.
     expect(list).not.toMatch(/nStraightLine/);
     expect(list).not.toMatch(/assumed reading|\(assumed\)/);

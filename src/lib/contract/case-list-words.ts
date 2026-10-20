@@ -12,6 +12,7 @@ import { say, sayWith } from "@/lib/i18n/say";
 
 import type { CaseEnded, CaseStage, CaseStanding } from "./case-stage";
 import { CASE_CHIP_WORDS as C } from "./case-page-words";
+import type { StatusKind } from "./case-status";
 import { w, type Tone, type Words } from "./labels";
 
 export const CASE_STAGE_WORDS: Readonly<Record<CaseStage, Words>> = {
@@ -63,6 +64,8 @@ export interface AwardChipFacts {
 }
 
 export interface Chip {
+  /** What the chip says, so the row can rank it (case-status.ts). */
+  kind: StatusKind;
   text: string;
   tone: "ok" | "warn" | "err" | "brand";
 }
@@ -72,10 +75,14 @@ export function awardChips(f: AwardChipFacts, lang: Language = "en"): Chip[] {
   const t = (words: Words) => say(words, lang);
   const issued = f.status === "ISSUED" || f.status === "ACCEPTED";
   return [
-    ...(issued ? [{ text: t(f.returned ? C.returned : C.awaitingReturn), tone: f.returned ? ("ok" as const) : ("warn" as const) }] : []),
-    ...(issued ? [{ text: f.toVerify ? sayWith(C.toVerify, lang, { count: String(f.toVerify) }) : t(f.registered ? C.securitiesVerified : C.noSecuritiesLodged), tone: f.toVerify || !f.registered ? ("warn" as const) : ("ok" as const) }] : []),
-    ...(issued && !f.hasCommitmentNo ? [{ text: t(C.noCommitmentNumber), tone: "warn" as const }] : []),
-    ...(f.indentExpired ? [{ text: t(C.indentExpired), tone: "err" as const }] : []),
-    ...(!issued && f.status !== "CANCELLED" ? [{ text: t(f.status === "APPROVED" ? C.toIssue : f.status === "PENDING_APPROVAL" ? C.withTheApprovers : C.beingPrepared), tone: "brand" as const }] : []),
+    ...(issued ? [{ kind: (f.returned ? "LIFECYCLE" : "AWAITING_RETURN") as StatusKind, text: t(f.returned ? C.returned : C.awaitingReturn), tone: f.returned ? ("ok" as const) : ("warn" as const) }] : []),
+    ...(issued
+      ? [{ kind: (f.toVerify ? "TO_VERIFY" : f.registered ? "LIFECYCLE" : "NO_SECURITIES") as StatusKind, text: f.toVerify ? sayWith(C.toVerify, lang, { count: String(f.toVerify) }) : t(f.registered ? C.securitiesVerified : C.noSecuritiesLodged), tone: f.toVerify || !f.registered ? ("warn" as const) : ("ok" as const) }]
+      : []),
+    ...(issued && !f.hasCommitmentNo ? [{ kind: "NO_COMMITMENT" as StatusKind, text: t(C.noCommitmentNumber), tone: "warn" as const }] : []),
+    ...(f.indentExpired ? [{ kind: "INDENT_EXPIRED" as StatusKind, text: t(C.indentExpired), tone: "err" as const }] : []),
+    ...(!issued && f.status !== "CANCELLED"
+      ? [{ kind: (f.status === "APPROVED" ? "TO_ISSUE" : f.status === "PENDING_APPROVAL" ? "AWAITING_APPROVAL" : "BEING_PREPARED") as StatusKind, text: t(f.status === "APPROVED" ? C.toIssue : f.status === "PENDING_APPROVAL" ? C.withTheApprovers : C.beingPrepared), tone: "brand" as const }]
+      : []),
   ];
 }

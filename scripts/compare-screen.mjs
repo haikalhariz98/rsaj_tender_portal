@@ -579,6 +579,12 @@ const DECIDED_ABSENT = [
     match: /^(All cases|Stages|Awards that need work|, \d+ on the straight-line reading)$/,
     why: "founder 2026-10-20: the header fact 'N In Delay, N on the straight-line reading' with its Assumed chip, and the 'All cases' card of about 16 chips, were removed; one grouped dropdown (Stage, Needs attention, Registers) in the list toolbar replaces the chips and the duplicate Stage filter, with the same counts and the same ?view= addresses",
   },
+  // Founder comment 2026-10-20: the Contracts list's Status column shows one chip.
+  {
+    screen: /^[/]projects$/,
+    match: /^\+\d+$/,
+    why: "founder 2026-10-20: 'too much status ... show only one status'. The Status column shows the one status that matters most (problems first, then what the case is waiting for, then its lifecycle) with a muted +N; hovering or focusing it lists every status. Search, the views, their counts and the CSV still carry all of them",
+  },
   // Award and Contract Requirements v2, C-1 / C-6 (AC-17, AC-23): the Awards list is the Contracts list's cases, and /awards redirects.
   {
     screen: /^[/]projects$/,
