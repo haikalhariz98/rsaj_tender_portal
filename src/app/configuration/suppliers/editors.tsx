@@ -138,7 +138,7 @@ export function EditSupplierPolicy({ values }: { values: Record<string, string> 
       description="What the supplier is told about document checks. Not set if undecided."
       fields={[
         { kind: "textarea", name: "verificationNoticeEn", label: "Verification notice" },
-        { kind: "textarea", name: "verificationNoticeMs", label: "Verification notice (Malay)" },
+        { kind: "hidden", name: "verificationNoticeMs" },
         provenance("noticeProvenance", "Where the notice comes from"),
         {
           kind: "select",
@@ -206,7 +206,7 @@ export function DeclarationTextDrawer({ text }: { text?: { id: string; name: str
         hidden("id"),
         ...(text ? [hidden("kind")] : [{ kind: "select", name: "kind", label: "Which declaration", required: true, placeholder: "Choose", options: DECLARATION_OPTIONS } as Field]),
         { kind: "textarea", name: "bodyEn", label: "Wording", required: true },
-        { kind: "textarea", name: "bodyMs", label: "Wording (Malay)" },
+        { kind: "hidden", name: "bodyMs" },
         { kind: "text", name: "governingSource", label: "Source", hint: "The document the wording is taken from." },
         provenance("provenance", "Where it comes from", true),
       ]}
@@ -232,7 +232,7 @@ export function EditPortalIntake({ values }: { values: Record<string, string> })
       columns={2}
       fields={[
         { kind: "textarea", name: "personalDataNoticeEn", label: "Notice about personal details", hint: "Say why collected, who sees, retention, access." },
-        { kind: "textarea", name: "personalDataNoticeMs", label: "Notice about personal details (Malay)" },
+        { kind: "hidden", name: "personalDataNoticeMs" },
         provenance("personalDataProvenance", "Where the notice comes from"),
         { kind: "number", name: "portalDailyLimit", label: "Applications taken in any 24 hours", min: 1, hint: "Once reached, the form says it is busy." },
         { kind: "number", name: "portalDailyLimitPerNumber", label: "Applications taken for one registration number in 24 hours", min: 1, hint: "Must not exceed the figure beside it." },

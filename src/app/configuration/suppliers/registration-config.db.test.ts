@@ -19,7 +19,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: (
 
 // Phase 5b (the plan's 5b line, ruling 1909(A)): these editors are proposals now; this file tests the editors themselves (the rules each holds), which run in `core.ts` when a second
 // person applies a change. `registration-value.db.test.ts` proposes and applies one through the screen's own action.
-import { saveDeclarationText, saveDocumentType, saveRegistrationSettings, setDeclarationTextRetired } from "./core";
+import { saveDeclarationText, saveDocumentType, savePortalIntake, saveRegistrationSettings, setDeclarationTextRetired } from "./core";
 
 const run = randomId();
 const form = (fields: Record<string, string>) => {
@@ -117,6 +117,23 @@ describe("the declarations' wording", () => {
     expect(await setDeclarationTextRetired({ ok: true }, form({ id: v1.id, retire: "yes" }))).toMatchObject({ ok: false });
     expect((await setDeclarationTextRetired({ ok: true }, form({ id: v1.id, retire: "yes", reason: "Superseded" }))).ok).toBe(true);
     expect((await db.declarationText.findUniqueOrThrow({ where: { id: v1.id } })).retiredOn).not.toBeNull();
+  });
+});
+
+// Founder, 2026-10-20: the notice is English only. The editor no longer asks for the Malay one, and a save posts the stored Malay through unchanged.
+describe("the personal data notice is English only", () => {
+  const intake = (over: Record<string, string> = {}) =>
+    form({ personalDataNoticeEn: "We use your details to review this application.", personalDataNoticeMs: "", personalDataProvenance: "ASSUMED", portalDailyLimit: "50", portalDailyLimitPerNumber: "3", portalLimitProvenance: "ASSUMED", ...over });
+
+  it("saves with the English notice alone", async () => {
+    expect((await savePortalIntake({ ok: true }, intake())).ok).toBe(true);
+    expect(await policy()).toMatchObject({ personalDataNoticeEn: "We use your details to review this application.", personalDataNoticeMs: null });
+  });
+
+  it("keeps a stored Malay notice when the hidden field carries it", async () => {
+    expect((await savePortalIntake({ ok: true }, intake({ personalDataNoticeMs: "Notis yang disimpan." }))).ok).toBe(true);
+    expect((await savePortalIntake({ ok: true }, intake({ personalDataNoticeEn: "A revised English notice.", personalDataNoticeMs: "Notis yang disimpan." }))).ok).toBe(true);
+    expect(await policy()).toMatchObject({ personalDataNoticeEn: "A revised English notice.", personalDataNoticeMs: "Notis yang disimpan." });
   });
 });
 

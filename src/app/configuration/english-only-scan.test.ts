@@ -14,9 +14,6 @@ const HELD: Record<string, string> = {
   "awards/editors.tsx": "award letter recipients: issued-document content",
   "contracts/editors.tsx": "contract copy stamp, parts and recipients: issued-document content",
   "templates/": "document templates build Malay as document content",
-  "suppliers/editors.tsx#bodyMs": "supplier declaration wording: legal text",
-  "suppliers/editors.tsx#verificationNoticeMs": "supplier registration legal text",
-  "suppliers/editors.tsx#personalDataNoticeMs": "personal data notice (PDPA) gate",
   "tender-documents/conditions-editors.tsx#bodyMs": "tender condition wording cited by Malay templates",
   "tender-documents/editors.tsx#restrictionStampTextMs": "stamp printed on restricted tender documents",
 };

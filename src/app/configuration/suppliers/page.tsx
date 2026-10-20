@@ -77,7 +77,7 @@ export default async function SupplierRegisterConfigPage() {
   const listsEmpty = SUPPLIER_LIST_KINDS.filter((k) => !OPTIONAL_LIST_KINDS.includes(k) && cfg.liveCodes(k, org.today).length === 0);
   const p = cfg.policy;
   // a2: the standing rules, each "Not set" until decided (OD-4..OD-7, condition 4).
-  const rulesNotSet = [p?.criticalDays, p?.expiryOnClosingDayCounts, p?.autoSuspendOnLapse, p?.blacklistFirstOffenceMonths, p?.registerRequiredForSale, p?.restrictionEvidenceTypeId, p?.ineligibleBidConsequence, p?.personalDataNoticeEn, p?.personalDataNoticeMs, p?.portalDailyLimit, p?.portalDailyLimitPerNumber].filter((x) => x == null).length;
+  const rulesNotSet = [p?.criticalDays, p?.expiryOnClosingDayCounts, p?.autoSuspendOnLapse, p?.blacklistFirstOffenceMonths, p?.registerRequiredForSale, p?.restrictionEvidenceTypeId, p?.ineligibleBidConsequence, p?.personalDataNoticeEn, p?.portalDailyLimit, p?.portalDailyLimitPerNumber].filter((x) => x == null).length;
   const declarationsMissing = DECLARATION_KINDS.filter((k) => !declTexts.some((t) => t.kind === k && live(t.retiredOn)));
   const registrationNotSet = [p?.helpEmail || p?.helpPhone || null, p?.uploadMaxFilesPerApplication, p?.supplierUploadClassId, p?.supplierBankStatementClassId, p?.onlineDeclarationReplacesPaper].filter((x) => x == null).length + declarationsMissing.length;
   const className = (id: string | null | undefined) => docClasses.find((c) => c.id === id)?.nameEn ?? "A class no longer configured";
@@ -113,7 +113,6 @@ export default async function SupplierRegisterConfigPage() {
               columns={2}
               items={[
                 { label: "Verification notice", value: p?.verificationNoticeEn ? <span className="flex flex-col items-start gap-1.5"><span className="break-words">{p.verificationNoticeEn}</span><ProvenanceBadge value={p.noticeProvenance} /></span> : <Badge tone="warn">Not set</Badge> },
-                { label: "Verification notice (Malay)", value: p?.verificationNoticeMs || <Badge tone="warn">Not set</Badge> },
                 { label: "What a contact must give", value: p?.contactNeedsEmailAndPhone == null ? <span className="flex flex-col items-start gap-1.5"><Badge tone="warn">Not set</Badge><span className="text-[12px] text-ink-3">An email or a telephone is enough.</span></span> : <span className="flex flex-col items-start gap-1.5"><span>{p.contactNeedsEmailAndPhone ? "Both an email and a mobile number" : "An email or a mobile number"}</span><ProvenanceBadge value={p.contactRuleProvenance} /></span> },
                 { label: "Where it is written", value: p?.governingSource || "No source is cited" },
                 { label: "Registration number format", value: cfg.format ? `${cfg.format.example ? `For example ${cfg.format.example}` : "Set"}` : <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><span className="text-[12px] text-ink-3">Numbers are recorded as typed, marked &quot;format not checked&quot;. Set it under <Link href="/configuration/reference-data">Reference data</Link>.</span></span> },
@@ -139,7 +138,6 @@ export default async function SupplierRegisterConfigPage() {
               columns={2}
               items={[
                 { label: "Notice about personal details", value: rule(!!p?.personalDataNoticeEn?.trim(), <span className="whitespace-pre-line">{p?.personalDataNoticeEn}</span>, p?.personalDataProvenance, "The public form stays closed.") },
-                { label: "Notice about personal details (Malay)", value: rule(!!p?.personalDataNoticeMs?.trim(), <span className="whitespace-pre-line">{p?.personalDataNoticeMs}</span>, p?.personalDataProvenance, "The public form stays closed.") },
                 { label: "Applications in any 24 hours", value: rule(p?.portalDailyLimit != null, `${p?.portalDailyLimit} at most`, p?.portalLimitProvenance, "The public form stays closed.") },
                 { label: "Applications for one registration number in 24 hours", value: rule(p?.portalDailyLimitPerNumber != null, `${p?.portalDailyLimitPerNumber} at most`, p?.portalLimitProvenance, "The public form stays closed.") },
               ]}
@@ -212,7 +210,7 @@ export default async function SupplierRegisterConfigPage() {
                   const name = `${DECLARATION_KIND_WORDS[t.kind as DeclarationKindName]} · version ${t.version}`;
                   return (
                     <Tr key={t.id}>
-                      <Td label="Wording"><CellStack title={name} sub={[t.bodyEn.length > 140 ? `${t.bodyEn.slice(0, 140)}…` : t.bodyEn, t.bodyMs ? "Malay wording set" : "No Malay wording", retiredText(t.retiredOn)].filter(Boolean).join(" · ")} /></Td>
+                      <Td label="Wording"><CellStack title={name} sub={[t.bodyEn.length > 140 ? `${t.bodyEn.slice(0, 140)}…` : t.bodyEn, retiredText(t.retiredOn)].filter(Boolean).join(" · ")} /></Td>
                       <Td label="In force from">{formatDate(storedDay(t.issuedOn))}</Td>
                       <Td label="Signed by">{t._count.signed === 0 ? <span className="text-ink-4">No one</span> : `${t._count.signed} ${t._count.signed === 1 ? "supplier" : "suppliers"}`}</Td>
                       <Td label="Source"><ProvenanceBadge value={t.provenance} /></Td>
