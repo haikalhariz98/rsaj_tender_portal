@@ -82,6 +82,68 @@ body {
   }
 }
 
+/* The supplier landing's illustration (src/components/auth/portal-illustration.tsx). One pass, under five seconds,
+   then it rests (WCAG 2.2.2). The markup draws the finished picture; each keyframe runs FROM the empty state with
+   backwards fill, so with animation off the completed form shows. */
+.portal-art-rise {
+  animation: portal-art-rise 0.5s ease-out backwards;
+}
+.portal-art-fill {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: portal-art-fill 0.35s ease-out backwards;
+}
+.portal-art-press {
+  animation: portal-art-press 0.3s ease-in-out 2.5s backwards;
+}
+.portal-art-badge {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: portal-art-badge 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 2.8s backwards;
+}
+.portal-art-tick {
+  animation: portal-art-tick 0.5s ease-out 3.1s backwards;
+}
+.portal-art-float {
+  animation: portal-art-float 2.4s ease-in-out 2;
+}
+.portal-art-float-b {
+  animation: portal-art-float-b 2.4s ease-in-out 2;
+}
+@keyframes portal-art-rise {
+  from { opacity: 0; transform: translateY(8px); }
+}
+@keyframes portal-art-fill {
+  from { transform: scaleX(0); opacity: 0; }
+}
+@keyframes portal-art-press {
+  50% { transform: translateY(2px); fill: var(--color-brand-700); }
+}
+@keyframes portal-art-badge {
+  from { opacity: 0; transform: scale(0.6); }
+}
+@keyframes portal-art-tick {
+  from { stroke-dashoffset: 1; }
+}
+@keyframes portal-art-float {
+  50% { transform: translateY(-6px); }
+}
+@keyframes portal-art-float-b {
+  50% { transform: translateY(6px); }
+}
+/* The global rule above stops transitions only, so the illustration carries its own. */
+@media (prefers-reduced-motion: reduce) {
+  .portal-art-rise,
+  .portal-art-fill,
+  .portal-art-press,
+  .portal-art-badge,
+  .portal-art-tick,
+  .portal-art-float,
+  .portal-art-float-b {
+    animation: none;
+  }
+}
+
 @layer base {
   /* A link in running text reads as a link. Styled links (buttons, nav, crumbs) carry
      their own classes and are left alone. */
