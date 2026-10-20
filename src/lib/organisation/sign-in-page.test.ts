@@ -110,6 +110,10 @@ describe("each highlight's icon, chosen from a fixed set", () => {
     for (const k of SIGN_IN_ICONS) expect(SIGN_IN_ICON_LABEL[k]).toMatch(/^[A-Z][a-z]+( [a-z]+)*$/);
   });
 
+  it("also offers building, globe and wallet, for the supplier landing (ruling L3, 2026-10-20)", () => {
+    for (const k of ["building", "globe", "wallet"]) expect(SIGN_IN_ICONS).toContain(k);
+  });
+
   it("ships with no icon chosen: nothing is a default", () => {
     const s = normaliseSignInPage({});
     expect([s.highlight1Icon, s.highlight2Icon, s.highlight3Icon]).toEqual([null, null, null]);

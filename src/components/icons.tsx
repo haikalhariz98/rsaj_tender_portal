@@ -303,7 +303,13 @@ export const ClockIcon = (p: IconProps) => (
   </Icon>
 );
 
-export const BuildingIcon = (p: IconProps) => (
+export const ExternalLinkIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+  </Icon>
+);
+
+export const BuildingIcon =(p: IconProps) => (
   <Icon {...p}>
     <rect x="4" y="2" width="16" height="20" rx="2" />
     <path d="M9 6h1M14 6h1M9 10h1M14 10h1M9 14h1M14 14h1M10 22v-4h4v4" />

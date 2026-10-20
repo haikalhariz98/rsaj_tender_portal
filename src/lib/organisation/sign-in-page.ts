@@ -18,7 +18,7 @@ export const SIGN_IN_FIELDS = [...SIGN_IN_TEXT_FIELDS, ...SIGN_IN_ICON_FIELDS, .
 
 /// The fixed set a highlight's icon is chosen from. These are setting keys: they are stored, and never drawn as text. The screen shows `SIGN_IN_ICON_LABEL`
 /// in the settings form and a drawing (src/components/icons.tsx) on the sign-in page. Adding one means a drawing for it, and the sign-in screen's map says so.
-export const SIGN_IN_ICONS = ["document", "people", "shield", "check", "lock", "clock", "chart", "award"] as const;
+export const SIGN_IN_ICONS = ["document", "people", "shield", "check", "lock", "clock", "chart", "award", "building", "globe", "wallet"] as const;
 export type SignInIcon = (typeof SIGN_IN_ICONS)[number];
 
 export const SIGN_IN_ICON_LABEL: Record<SignInIcon, string> = {
@@ -30,6 +30,9 @@ export const SIGN_IN_ICON_LABEL: Record<SignInIcon, string> = {
   clock: "Clock",
   chart: "Chart",
   award: "Award rosette",
+  building: "Building",
+  globe: "Globe",
+  wallet: "Wallet",
 };
 
 const isIconField = (f: SignInField): f is (typeof SIGN_IN_ICON_FIELDS)[number] => (SIGN_IN_ICON_FIELDS as readonly string[]).includes(f);
@@ -93,7 +96,7 @@ const clean = (v: string | null | undefined) => (v ?? "").trim().replace(/\s+/g,
 const hasScheme = (url: string) => /^[a-z][a-z0-9+.-]*:/i.test(url);
 
 /// A bare domain is given https. Anything already carrying a scheme is left alone for the check to judge.
-function withScheme(url: string): string {
+export function withScheme(url: string): string {
   return hasScheme(url) && !/^[^/\s:]+:\d+(\/|$)/.test(url) ? url : `https://${url}`;
 }
 

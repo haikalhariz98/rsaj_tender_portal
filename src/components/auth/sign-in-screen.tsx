@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 
-import { AwardIcon, ChartIcon, CheckIcon, ClockIcon, DocumentTextIcon, LockIcon, PeopleGroupIcon, ShieldCheckIcon } from "@/components/icons";
+import { AwardIcon, BuildingIcon, ChartIcon, CheckIcon, ClockIcon, DocumentTextIcon, GlobeIcon, LockIcon, PeopleGroupIcon, ShieldCheckIcon, WalletIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
 import { showsNameBesideLogo } from "@/lib/organisation/details";
@@ -18,6 +18,9 @@ const HIGHLIGHT_ICON: Record<SignInIcon, ComponentType<{ size?: number }>> = {
   clock: ClockIcon,
   chart: ChartIcon,
   award: AwardIcon,
+  building: BuildingIcon,
+  globe: GlobeIcon,
+  wallet: WalletIcon,
 };
 
 /**
