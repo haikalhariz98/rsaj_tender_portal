@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 
 import { formatOrgDay } from "@/lib/format";
 import { DETAIL_FIELDS, normaliseDetails } from "@/lib/organisation/details";
+import { normalisePortalPage } from "@/lib/organisation/portal-page";
 import { normaliseSignInPage } from "@/lib/organisation/sign-in-page";
 
 import { timeZoneLabel, timeZoneOptions } from "@/lib/time-zone-label";
@@ -43,6 +44,7 @@ export default async function OrganisationPage({
       signInImage: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } },
       signInDarkLogo: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } },
       signInPage: true,
+      portalPage: true,
     },
   });
   const timeZone = org?.timeZone ?? null;
@@ -128,6 +130,7 @@ export default async function OrganisationPage({
         signInImage={signInImage}
         signInDarkLogo={signInDarkLogo}
         signInPage={normaliseSignInPage(org?.signInPage ?? {})}
+        portalPage={normalisePortalPage(org?.portalPage ?? {})}
         timeZone={timeZone ? { value: timeZone, label: timeZoneLabel(timeZone) } : null}
         timeZoneOptions={timeZoneOptions()}
         roots={roots}

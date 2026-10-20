@@ -189,6 +189,7 @@ model Organisation {
   logo            OrganisationLogo?
   signInImage     OrganisationSignInImage?
   signInPage      OrganisationSignInPage?
+  portalPage      OrganisationPortalPage?
   signInDarkLogo  OrganisationSignInDarkLogo?
   roles           AuthorityRole[]
   matrices        AuthorityMatrix[]
@@ -1785,6 +1786,27 @@ model OrganisationSignInPage {
   privacyUrl     String?
   termsUrl       String?
   helpDeskUrl    String?
+  updatedAt      DateTime @updatedAt
+}
+
+/// What the supplier portal's front door says about the organisation (design note 0006, rulings L3 to L5): the public portal's address, a headline, one line
+/// and three highlights, each with an icon from the fixed set in src/lib/organisation/sign-in-page.ts. Every column is the organisation's own choice and
+/// nullable, and nothing is seeded by the product: null means the element is not drawn (the headline falls back to the product's neutral "Supplier portal",
+/// and an unset address is said to be unset). The address is stored as an origin and is used only as an outbound link on the staff copy.
+model OrganisationPortalPage {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  publicAddress  String?
+  headline       String?
+  line           String?
+  highlight1     String?
+  highlight1Icon String?
+  highlight2     String?
+  highlight2Icon String?
+  highlight3     String?
+  highlight3Icon String?
   updatedAt      DateTime @updatedAt
 }
 

@@ -32,3 +32,8 @@ export async function saveSignInPage(prev: FormState, data: FormData): Promise<F
   const proposed = await stageEdit("organisation-sign-in.saveSignInPage", prev, data);
   return proposed;
 }
+
+export async function savePortalPage(prev: FormState, data: FormData): Promise<FormState> {
+  const proposed = await stageEdit("organisation-sign-in.savePortalPage", prev, data);
+  return proposed;
+}

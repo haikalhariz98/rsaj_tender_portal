@@ -5,6 +5,8 @@ import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { LOGO_MAX_BYTES, logoFaultText, SIGN_IN_IMAGE_MAX_BYTES, signInImageFaultText } from "@/lib/organisation/logo";
+import { PORTAL_FIELDS, type PortalPageInput } from "@/lib/organisation/portal-page";
+import { storePortalPage } from "@/lib/organisation/portal-store";
 import { SIGN_IN_FIELDS, type SignInPageInput } from "@/lib/organisation/sign-in-page";
 import { clearDarkLogo, clearSignInImage, storeDarkLogo, storeSignInImage, storeSignInPage, type Subject } from "@/lib/organisation/sign-in-store";
 
@@ -88,4 +90,19 @@ export async function saveSignInPage(_prev: FormState, data: FormData): Promise<
   if (!outcome.ok) return { ok: false, errors: outcome.errors as Record<string, string> };
   if (outcome.changed) refresh();
   return { ok: true, message: outcome.changed ? "Saved. The sign-in page shows the new words now." : "Nothing changed." };
+}
+
+/// Save the supplier portal's address, headline, line and highlights. Blank clears a setting; the address must be a web address, and is kept as its origin.
+export async function savePortalPage(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const who = await subjectOf(actor);
+  if (!who) return NO_ORG;
+  const input = Object.fromEntries(PORTAL_FIELDS.map((f) => [f, String(data.get(f) ?? "")])) as PortalPageInput;
+  const outcome = await storePortalPage(db, who, input, String(data.get("reason") ?? ""));
+  if (!outcome.ok) return { ok: false, errors: outcome.errors as Record<string, string> };
+  if (outcome.changed) {
+    for (const path of ["/supplier/sign-in", "/supplier/register", "/supplier/activate", "/supplier/reset"]) revalidatePath(path);
+    revalidatePath(PATH);
+  }
+  return { ok: true, message: outcome.changed ? "Saved. The supplier portal shows the new words now." : "Nothing changed." };
 }
