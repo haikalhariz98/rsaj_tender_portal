@@ -108,7 +108,12 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   };
 
   const countLabel = (label: string, count: number) => sayWith(L.viewCount, lang, { label, count: String(count) });
-  const option = (value: CaseRowView | "all", label: string, count: number) => ({ value, label: countLabel(label, count), href: at(value === "all" ? undefined : value) });
+  // The plain name of each view, for the card heading (the option's own label carries its count).
+  const plainNames = new Map<string, string>();
+  const option = (value: CaseRowView | "all", label: string, count: number) => {
+    plainNames.set(value, label);
+    return { value, label: countLabel(label, count), href: at(value === "all" ? undefined : value) };
+  };
   const viewGroups: ViewGroup[] = [
     {
       label: t(L.groupStage),
@@ -134,6 +139,10 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
     },
   ];
 
+  const current = delayView ? "delay" : (rowView ?? "all");
+  // The heading names the list showing, as Sourcing's does: "All contracts" until a view narrows it.
+  const chosenTitle = current === "all" ? t(L.allContracts) : (plainNames.get(current) ?? t(L.allContracts));
+
   return (
     <>
       <PageHeader
@@ -145,13 +154,14 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         <CommencedCard rows={commenced} exposure={exposure} page={page} today={today} lang={lang} />
       ) : (
       <Card className="overflow-hidden">
+        <CardHeader icon={<FileIcon size={17} />} title={chosenTitle} divided={false} />
         <DataList
           flat
           selectable={false}
           exportName="cases"
           searchPlaceholder={t(L.search)}
           emptyTitle={t(delayView ? L.noneInDelay : rowView ? L.noneHere : L.noCasesYet)}
-          toolbarLead={<CaseViewSelect groups={viewGroups} current={delayView ? "delay" : (rowView ?? "all")} label={t(L.showCases)} />}
+          toolbarFilters={<CaseViewSelect groups={viewGroups} current={current} label={t(L.showCases)} chipLabel={t(L.viewChip)} />}
           rowAction={{ label: t(L.open), hrefTemplate: "/projects/{id}" }}
           rowOpens
           stackBelow="xl"

@@ -11,13 +11,14 @@ export interface ViewGroup {
 
 /// The case list's one view picker: every option is a server-side view (or a register) with its count, and choosing one goes to the
 /// address the old chip linked to, so `?view=` links keep working.
-export function CaseViewSelect({ groups, current, label }: { groups: ViewGroup[]; current: string; label: string }) {
+export function CaseViewSelect({ groups, current, label, chipLabel }: { groups: ViewGroup[]; current: string; label: string; chipLabel?: string }) {
   const router = useRouter();
   const hrefs = new Map(groups.flatMap((g) => g.options.map((o) => [o.value, o.href] as const)));
   return (
     <Select
       variant="chip"
       aria-label={label}
+      chipLabel={chipLabel}
       searchable={false}
       value={current}
       onChange={(e) => {

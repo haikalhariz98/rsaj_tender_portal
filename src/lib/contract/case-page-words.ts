@@ -237,6 +237,7 @@ export const CASES_LIST_WORDS = {
   submissionsWaiting: w("Submissions waiting ({count})"),
   all: w("All"),
   showCases: w("Show cases"),
+  viewChip: w("View"),
   groupStage: w("Stage"),
   groupAttention: w("Needs attention"),
   groupRegisters: w("Registers"),

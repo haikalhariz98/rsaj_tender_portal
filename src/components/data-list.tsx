@@ -392,6 +392,7 @@ export function DataList({
   onViewChange,
   initialView,
   toolbarLead,
+  toolbarFilters,
 }: {
   columns: Column[];
   rows: Row[];
@@ -400,6 +401,9 @@ export function DataList({
   /// A control the screen owns, drawn first in the toolbar (a server-side view picker, say). It keeps the
   /// toolbar on when the view it picked has no rows, so the way back is never hidden.
   toolbarLead?: ReactNode;
+  /// A control the screen owns, drawn where the list's own filter chips go (after the search box). Like `toolbarLead`
+  /// it keeps the toolbar on when the choice it made has no rows.
+  toolbarFilters?: ReactNode;
   rowAction?: RowAction;
   /// Arbitrary per-row controls, for screens whose row action opens an editor rather
   /// than navigating. Renders under an "Actions" header.
@@ -512,7 +516,7 @@ export function DataList({
   // Filtering an empty list is noise. The tools appear once there is something to use
   // them on, or once a filter is what emptied it.
   const narrowed = view !== "all" || query !== "" || Object.keys(chosen).length > 0;
-  const showTools = toolbar && (rows.length > 0 || narrowed || toolbarLead != null);
+  const showTools = toolbar && (rows.length > 0 || narrowed || toolbarLead != null || toolbarFilters != null);
 
   function toggleSort(key: string) {
     setSort((s) =>
@@ -634,6 +638,7 @@ export function DataList({
             </div>
           )}
 
+          {toolbarFilters}
           {filters.map((f) => (
             <Select
               key={f.key}
