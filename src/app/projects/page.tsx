@@ -3,10 +3,9 @@ import { FileIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
 import { CASE_PAGE, listCases, parseCaseListView, type CaseRow, type CaseRowView } from "@/lib/contract/case-load";
 import { CASE_WORK_VIEWS } from "@/lib/contract/case-work-views";
-import { awardChips, CASE_ENDED_TONE, CASE_ENDED_WORDS, CASE_STAGE_WORDS, CASE_VIEW_WORDS, standingWords } from "@/lib/contract/case-list-words";
+import { awardChips, CASE_ENDED_TONE, CASE_ENDED_WORDS, CASE_VIEW_WORDS, standingWords } from "@/lib/contract/case-list-words";
 import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
 import { caseHref } from "@/lib/contract/links";
 import { DERIVE_CAP, endorsedPhases } from "@/lib/contract/load";
@@ -34,6 +33,7 @@ import { hiddenExercises } from "@/app/_auth/sulit";
 import { listRegister } from "@/lib/award/repo";
 import { db } from "@/lib/db";
 
+import { CaseViewSelect, type ViewGroup } from "./case-view-select";
 import { SecuritiesView } from "./securities-view";
 import { SubmissionsView } from "./submissions-view";
 
@@ -107,60 +107,51 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
     return t ? `/projects?${t}` : "/projects";
   };
 
+  const countLabel = (label: string, count: number) => sayWith(L.viewCount, lang, { label, count: String(count) });
+  const option = (value: CaseRowView | "all", label: string, count: number) => ({ value, label: countLabel(label, count), href: at(value === "all" ? undefined : value) });
+  const viewGroups: ViewGroup[] = [
+    {
+      label: t(L.groupStage),
+      options: [
+        option("all", t(L.all), data.counts.all),
+        ...STAGE_VIEWS.map((v) => option(v, t(CASE_VIEW_WORDS[v]), data.counts[v])),
+      ],
+    },
+    {
+      label: t(L.groupAttention),
+      options: [
+        option("delay", t(L.inDelay), data.counts.delay),
+        ...WORK_VIEWS.map((v) => (v === "expired" && !data.indentRuleSet ? { value: v, label: sayWith(L.validityNotSet, lang, { label: t(CASE_VIEW_WORDS[v]) }), href: at(v) } : option(v, t(CASE_VIEW_WORDS[v]), data.counts[v]))),
+        { value: "commenced", label: n(L.commencedPending, commenced.length), href: "/projects?view=commenced" },
+      ],
+    },
+    {
+      label: t(L.groupRegisters),
+      options: [
+        { value: "securities", label: n(L.securitiesExpiring, securitiesCount), href: "/projects?view=securities" },
+        { value: "submissions", label: n(L.submissionsWaiting, submissionsWaiting), href: "/projects?view=submissions" },
+      ],
+    },
+  ];
+
   return (
     <>
       <PageHeader
         title={t(L.title)}
         info={{ title: t(L.infoTitle), text: t(L.infoText) }}
-        meta={[n(L.nAwarding, data.counts.awarding), n(L.nSigning, data.counts.signing), n(L.nOnSite, data.counts.on_site), n(L.nAwaitingConditions, awaiting), n(L.nReadyToSign, ready), <span key="delay" className="inline-flex flex-wrap items-center gap-1.5">
-            {n(L.nInDelay, data.counts.delay)}
-            {delay.assumed.size > 0 && (
-              <>
-                {n(L.nStraightLine, delay.assumed.size)}
-                <ProvenanceBadge value="ASSUMED" lang={lang} />
-              </>
-            )}
-          </span>,
-        ]}
+        meta={[n(L.nAwarding, data.counts.awarding), n(L.nSigning, data.counts.signing), n(L.nOnSite, data.counts.on_site), n(L.nAwaitingConditions, awaiting), n(L.nReadyToSign, ready), n(L.nInDelay, data.counts.delay)]}
       />
       {commencedView ? (
         <CommencedCard rows={commenced} exposure={exposure} page={page} today={today} lang={lang} />
       ) : (
       <Card className="overflow-hidden">
-        <CardHeader
-          icon={<FileIcon size={17} />}
-          title={delayView ? t(L.casesInDelay) : rowView && rowView !== "delay" ? t(CASE_VIEW_WORDS[rowView]) : t(L.allCases)}
-          subtitle={delayView && delay.assumed.size > 0 ? <ProvenanceBadge value="ASSUMED" lang={lang} /> : undefined}
-          actions={
-            <span className="flex flex-wrap gap-2">
-              <ButtonLink href="/projects?view=commenced" size="sm" variant="secondary">{n(L.commencedPending, commenced.length)}</ButtonLink>
-              <ButtonLink href="/projects?view=securities" size="sm" variant="secondary">{n(L.securitiesExpiring, securitiesCount)}</ButtonLink>
-              <ButtonLink href="/projects?view=submissions" size="sm" variant="secondary">{n(L.submissionsWaiting, submissionsWaiting)}</ButtonLink>
-            </span>
-          }
-          divided={false}
-        />
-        <nav aria-label={t(L.stagesNav)} className="flex flex-wrap gap-2 px-5 pb-4 sm:px-6">
-          <ButtonLink href={at(undefined)} size="sm" variant={!rowView ? "primary" : "secondary"}>{n(L.allCount, data.counts.all)}</ButtonLink>
-          {STAGE_VIEWS.map((v) => (
-            <ButtonLink key={v} href={at(v)} size="sm" variant={rowView === v ? "primary" : "secondary"}>{sayWith(L.viewCount, lang, { label: t(CASE_VIEW_WORDS[v]), count: String(data.counts[v]) })}</ButtonLink>
-          ))}
-          <ButtonLink href={at("delay")} size="sm" variant={delayView ? "primary" : "secondary"}>{n(L.inDelayCount, data.counts.delay)}</ButtonLink>
-        </nav>
-        <nav aria-label={t(L.workNav)} className="flex flex-wrap gap-2 px-5 pb-4 sm:px-6">
-          {WORK_VIEWS.map((v) => (
-            <ButtonLink key={v} href={at(v)} size="sm" variant={rowView === v ? "primary" : "secondary"}>
-              {v === "expired" && !data.indentRuleSet ? sayWith(L.validityNotSet, lang, { label: t(CASE_VIEW_WORDS[v]) }) : sayWith(L.viewCount, lang, { label: t(CASE_VIEW_WORDS[v]), count: String(data.counts[v]) })}
-            </ButtonLink>
-          ))}
-        </nav>
         <DataList
           flat
           selectable={false}
           exportName="cases"
           searchPlaceholder={t(L.search)}
           emptyTitle={t(delayView ? L.noneInDelay : rowView ? L.noneHere : L.noCasesYet)}
-          filters={[{ key: "stage", label: t(L.stage), order: [...Object.values(CASE_STAGE_WORDS).map((x) => t(x)), t(CASE_VIEW_WORDS.ended)] }]}
+          toolbarLead={<CaseViewSelect groups={viewGroups} current={delayView ? "delay" : (rowView ?? "all")} label={t(L.showCases)} />}
           rowAction={{ label: t(L.open), hrefTemplate: "/projects/{id}" }}
           rowOpens
           stackBelow="xl"

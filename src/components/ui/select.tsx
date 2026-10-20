@@ -64,7 +64,7 @@ export function Option(
   return null;
 }
 
-type Item = Opt & { icon?: ReactNode; avatar?: string; clear?: boolean };
+type Item = Opt & { icon?: ReactNode; avatar?: string; clear?: boolean; group?: string };
 
 function textOf(node: ReactNode): string {
   if (node == null || typeof node === "boolean") return "";
@@ -83,11 +83,17 @@ type OptionLike = {
   "data-avatar"?: string;
 };
 
-function readOptions(children: ReactNode, out: Item[] = []): Item[] {
+function readOptions(children: ReactNode, out: Item[] = [], group?: string): Item[] {
   Children.forEach(children, (child) => {
     if (!isValidElement(child)) return;
     if (child.type === Fragment) {
-      readOptions((child.props as { children?: ReactNode }).children, out);
+      readOptions((child.props as { children?: ReactNode }).children, out, group);
+      return;
+    }
+    // A native <optgroup label>: its options carry the label, drawn as a heading above the first of them.
+    if (child.type === "optgroup") {
+      const g = child.props as { label?: string; children?: ReactNode };
+      readOptions(g.children, out, g.label);
       return;
     }
     if (child.type !== "option" && child.type !== Option) return;
@@ -101,6 +107,7 @@ function readOptions(children: ReactNode, out: Item[] = []): Item[] {
       sub: p["data-sub"],
       avatar: p["data-avatar"],
       icon: p.icon,
+      group,
     });
   });
   return out;
@@ -627,9 +634,15 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
       >
         {shown.map((o, i) => {
           const on = chosen.includes(o.value);
+          const heading = o.group && o.group !== shown[i - 1]?.group ? o.group : null;
           return (
+            <Fragment key={o.clear ? "clear" : o.value}>
+              {heading && (
+                <li role="presentation" className="px-3 pt-2.5 pb-1 text-[11.5px] font-semibold tracking-wide text-ink-3 uppercase">
+                  {heading}
+                </li>
+              )}
             <li
-              key={o.clear ? "clear" : o.value}
               id={optId(i)}
               role="option"
               aria-selected={on}
@@ -653,6 +666,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
               </span>
               {on && <CheckIcon size={15} className="shrink-0 text-brand-700" aria-hidden="true" />}
             </li>
+            </Fragment>
           );
         })}
         {searchUrl ? (
