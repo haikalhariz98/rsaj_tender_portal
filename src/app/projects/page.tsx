@@ -139,7 +139,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
       <PageHeader
         title={t(L.title)}
         info={{ title: t(L.infoTitle), text: t(L.infoText) }}
-        meta={[n(L.nAwarding, data.counts.awarding), n(L.nSigning, data.counts.signing), n(L.nOnSite, data.counts.on_site), n(L.nAwaitingConditions, awaiting), n(L.nReadyToSign, ready), n(L.nInDelay, data.counts.delay)]}
+        meta={[n(L.nAwarding, data.counts.awarding), n(L.nSigning, data.counts.signing), n(L.nOnSite, data.counts.on_site), n(L.nAwaitingConditions, awaiting), n(L.nReadyToSign, ready)]}
       />
       {commencedView ? (
         <CommencedCard rows={commenced} exposure={exposure} page={page} today={today} lang={lang} />
