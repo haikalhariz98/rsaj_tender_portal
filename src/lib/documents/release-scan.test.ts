@@ -45,6 +45,15 @@ describe("releaseScanRefusal (SEC-5)", () => {
     expect(releaseScanRefusal({ stored, fresh, scannerConfigured })).toBe(expected);
   });
 
+  it("a deployment that takes live bids treats a missing scanner as a failed one, and a threat is still a threat", () => {
+    const required = (stored: ScanState, fresh: ScanResult) => releaseScanRefusal({ stored, fresh, scannerConfigured: false, scannerRequired: true });
+    expect(required("NOT_SCANNED", "NOT_SCANNED")).toBe("SCAN_ERROR");
+    expect(required("CLEAN", "NOT_SCANNED")).toBe("SCAN_ERROR");
+    expect(required("THREAT", "NOT_SCANNED")).toBe("THREAT");
+    expect(required("CLEAN", "ERROR")).toBe("SCAN_ERROR");
+    expect(required("CLEAN", "CLEAN")).toBeNull();
+  });
+
   it("without a scanner, a file not scanned is served, and a threat or a failed scan is refused", () => {
     const served = TABLE.filter(([, , c, e]) => !c && e === null).map(([s, f]) => `${s}|${f}`);
     expect(served.sort()).toEqual(["CLEAN|CLEAN", "CLEAN|NOT_SCANNED", "NOT_SCANNED|CLEAN", "NOT_SCANNED|NOT_SCANNED"]);

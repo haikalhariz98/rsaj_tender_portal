@@ -148,11 +148,11 @@ db test covers both modes without touching `process.env`.
 | T3 | Bid bytes cross a network | Socket path or loopback literal only. A name is never resolved, so a hosts-file entry cannot redirect it. The test proves refusal at configuration. |
 | T4 | A hostile or confused peer on the port | A premature reply, an oversized reply or a malformed reply is ERROR. |
 | T5 | A hung clamd holds a request open | One overall deadline, then the socket is destroyed. |
-| T6 | A file larger than clamd's `StreamMaxLength` | The size-limit reply is ERROR. The notes require `StreamMaxLength` >= `DOCUMENT_MAX_BYTES`. |
+| T6 | A file larger than clamd's `StreamMaxLength` | The size-limit reply is ERROR. The notes require `StreamMaxLength`, `MaxFileSize` and `MaxScanSize` >= `DOCUMENT_MAX_BYTES`, and `AlertExceedsMax yes`, because clamd answers `OK` for content past a limit it skipped. |
 | T7 | Bytes or a signature in logs | Nothing is logged by the client. The stored access event holds only the reason code. |
 | T8 | Stored versions stay NOT_SCANNED forever (immutable row) | The release scans at download (2.4). No write-back is needed. |
 | T9 | SULIT or unclassified bytes sent to the scanner from this path | The scan runs after `downloadDecision` and the digest check, so a refused file's bytes are never read. |
-| T10 | Load from repeated downloads | The scan is bounded by the existing per-account download rate (SEC-2) and the size ceiling. |
+| T10 | Load from repeated downloads | The scan is bounded by the per-account download rate (SEC-2), the size ceiling, and the supplier download route taking the download limiter (503 and Retry-After when full), so competitors' bid-part scans are not starved. The notes size clamd `MaxThreads` above both caps. |
 | T11 | Windows Defender quarantines a test file holding EICAR | The tests assemble the EICAR string at runtime from fragments. The literal never appears in a source file. |
 
 ## 5. Steps

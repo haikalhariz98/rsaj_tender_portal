@@ -4,6 +4,7 @@ import { logAccess } from "@/lib/documents/service";
 import { dispositionFilename, downloadDecision, EXTENSION_FOR } from "@/lib/documents/access";
 import { blobStore, malwareScanner, runScan, sha256Hex } from "@/lib/documents/store";
 import type { MalwareScanner } from "@/lib/documents/store";
+import { liveAllowedByDeployment } from "@/lib/integration/sealing-deployment";
 import { releaseScanRefusal } from "@/lib/documents/release-scan";
 import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { packManifest } from "@/lib/tender-docs/freeze";
@@ -124,7 +125,7 @@ export async function prepareDownload(actor: SupplierActor, i: { exerciseId: str
   }
   // SEC-5 (N5): scanned at release, after the file is judged releasable and its bytes are proved, so a refused file is never sent to the scanner.
   const fresh = await runScan(scanner, bytes);
-  const scanRefusal = releaseScanRefusal({ stored: version.scanState, fresh, scannerConfigured: scanner.configured });
+  const scanRefusal = releaseScanRefusal({ stored: version.scanState, fresh, scannerConfigured: scanner.configured, scannerRequired: liveAllowedByDeployment() });
   if (scanRefusal) {
     await logAccess({ organisationId: actor.organisationId, kind: "REFUSED", reasonCode: scanRefusal, versionId: version.id, actor: who });
     return no(403, "This file cannot be released to you. Ask the procurement office for it.");

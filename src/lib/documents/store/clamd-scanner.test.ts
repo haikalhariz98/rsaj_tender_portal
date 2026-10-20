@@ -190,6 +190,7 @@ describe("clamdScanner over TCP", () => {
 
   it("a reply before the terminator is written is ERROR even if it says OK", async () => {
     // The server answers at once and stops reading, so the client is held in backpressure mid-stream.
+    // Only the OK case proves the early-reply guard (without it the reply would read CLEAN). The size-limit case is ERROR through reply parsing alone.
     for (const early of [ok(), "INSTREAM size limit exceeded. ERROR\0"]) {
       const { target } = await fake({
         onConnection: (s) => {

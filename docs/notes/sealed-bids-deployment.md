@@ -70,7 +70,13 @@ Each bid part is scanned before it is sealed (ruling 12a), so the scanner reads 
 - Under LIVE a scanner is required, and a file it cannot scan is refused. Only a demonstration without a scanner stores files as not scanned.
 - **Released pack files are scanned at each download** (SEC-5). Under a configured scanner only a clean file is served.
 - **Setting or changing a variable needs a restart of the product.**
-- **clamd**: `StreamMaxLength` at least `DOCUMENT_MAX_BYTES`. `TemporaryDirectory` on tmpfs.
+- **The socket's directory** is owned by root or the clamd user and is not writable by others (for example `/run/clamav`). Never `/tmp`. With a TCP port, the port should be 1023 or lower, or the host should have no other users, so nobody else can bind it while clamd is down.
+- **clamd, size**: `StreamMaxLength`, `MaxFileSize` and `MaxScanSize` each at least `DOCUMENT_MAX_BYTES`. clamd answers `OK` for content past a limit it skipped.
+- **clamd, skipped content**: `AlertExceedsMax yes`, so a file past any limit reads as a threat and is refused. Set `MaxRecursion` and `MaxFiles` on purpose: Office files are zip containers.
+- **clamd, encrypted files**: `AlertEncrypted`, `AlertEncryptedArchive` and `AlertEncryptedDoc` (where the deployed version has them) are the organisation's choice. The scanner cannot read an encrypted file, so `yes` refuses it.
+- **clamd, no copy**: `LeaveTemporaryFiles no`, no `VirusEvent` that copies the file, `TemporaryDirectory` on tmpfs.
+- **clamd, capacity**: `MaxThreads` above the product's download cap (6) plus its upload cap (`BID_UPLOAD_MAX_CONCURRENT`, 3), and `MaxQueue` at least as large. Release downloads share clamd with bid-part scans.
+- **Attest these settings** in the bid sealing policy's hardening attestation before LIVE is issued.
 
 Set one of socket or port, never both.
 

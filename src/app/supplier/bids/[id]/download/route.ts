@@ -1,4 +1,5 @@
 import { supplierGet } from "../../../../_auth/supplier";
+import { downloadLimiter, RETRY_AFTER_SECONDS } from "@/lib/documents/concurrency";
 import { prepareDownload } from "@/lib/portal/bids/download-store";
 import { DOWNLOAD_POLICY } from "@/lib/security-headers";
 
@@ -19,11 +20,18 @@ export async function GET(request: Request, ctx: RouteContext<"/supplier/bids/[i
   const file = url.searchParams.get("file");
   const text = url.searchParams.get("text");
   if ((file == null) === (text == null)) return plain(400, "Say which file or text to download.");
-  const out = await prepareDownload(guard.actor, { exerciseId: id, file, text, secFetchSite: request.headers.get("sec-fetch-site") });
-  if (!out.ok) return plain(out.status, out.text, out.retryAfterSeconds != null ? { "Retry-After": String(out.retryAfterSeconds) } : {});
-  const response = new Response(out.body, { status: 200, headers: { "Content-Type": out.contentType, "Content-Length": String(out.body.byteLength), "Content-Disposition": out.disposition, "X-Content-Type-Options": "nosniff", "Content-Security-Policy": DOWNLOAD_POLICY, "Cache-Control": "private, no-store" } });
-  await out.commit();
-  return response;
+  // The cap on downloads in flight (audit C-1, SEC-5): each holds a whole file and takes a scanner worker, which bid-part scans share. Over it, 503 with Retry-After, and nothing logged.
+  const slot = downloadLimiter().tryAcquire();
+  if (!slot) return plain(503, "Busy. Try again in a few seconds.", { "Retry-After": String(RETRY_AFTER_SECONDS) });
+  try {
+    const out = await prepareDownload(guard.actor, { exerciseId: id, file, text, secFetchSite: request.headers.get("sec-fetch-site") });
+    if (!out.ok) return plain(out.status, out.text, out.retryAfterSeconds != null ? { "Retry-After": String(out.retryAfterSeconds) } : {});
+    const response = new Response(out.body, { status: 200, headers: { "Content-Type": out.contentType, "Content-Length": String(out.body.byteLength), "Content-Disposition": out.disposition, "X-Content-Type-Options": "nosniff", "Content-Security-Policy": DOWNLOAD_POLICY, "Cache-Control": "private, no-store" } });
+    await out.commit();
+    return response;
+  } finally {
+    slot();
+  }
 }
 
 export async function HEAD() {

@@ -1,6 +1,6 @@
 import type { MalwareScanner, ScanResult } from "./types";
 
-/// The scanner this build ships unconfigured unless the environment names a clamd (OD-4, N5). Every file is NOT_SCANNED and the screens say so (OD-4).
+/// The scanner used when no clamd is named in the environment: every file is NOT_SCANNED and the screens say so (OD-4).
 export const NotConfiguredScanner: MalwareScanner = {
   configured: false,
   async scan() {
