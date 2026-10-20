@@ -221,3 +221,26 @@ describe("the sealed-bid routes on the public copy (wave 3b step 19, ADR 0036 D1
     }
   });
 });
+
+describe("the schedule of tenders (go-live R4a)", () => {
+  const schedule = "/supplier/results/demo_sx30/schedule";
+  it("is one file per result, served to a GET and never to a HEAD, a POST or a server action", () => {
+    expect(get(schedule)).toBe(true);
+    expect(get(`${schedule}/`)).toBe(true);
+    expect(publicAllows({ method: "HEAD", pathname: schedule, hasServerAction: false })).toBe(false);
+    expect(publicAllows({ method: "POST", pathname: schedule, hasServerAction: false })).toBe(false);
+    expect(publicAllows({ method: "GET", pathname: schedule, hasServerAction: true })).toBe(false);
+  });
+  it("is served on the staff copy to a stranger too, with no sign-in", () => {
+    expect(gate({ surface: "internal", method: "GET", pathname: schedule, hasServerAction: false, staffCookie: false, supplierCookie: false })).toEqual({ kind: "next" });
+  });
+  it("refuses a look-alike: no id, a deeper path, another word, a traversal, an encoded slash, another case", () => {
+    for (const p of ["/supplier/results/schedule", "/supplier/results//schedule", "/supplier/results/a/b/schedule", `${schedule}/x`, "/supplier/results/demo_sx30/schedules", "/supplier/results/demo_sx30/Schedule", "/supplier/results/../sourcing/schedule", "/supplier/results/..%2Fx/schedule", "/supplier/results/demo_sx30", "/supplier/Results/demo_sx30/schedule"]) {
+      expect(get(p), p).toBe(false);
+    }
+  });
+  it("opens nothing else under Results: the list is a page and an exercise has no detail page of its own", () => {
+    expect(get("/supplier/results")).toBe(true);
+    expect(get("/supplier/results/demo_sx30")).toBe(false);
+  });
+});

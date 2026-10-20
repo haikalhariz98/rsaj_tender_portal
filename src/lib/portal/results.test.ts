@@ -8,7 +8,7 @@ import { SULIT_FIELDS } from "@/lib/sulit-fields";
 
 import { isIssuedAward } from "./public";
 import { toPublicResult, type ResultContext, type ResultRow } from "./results";
-import { ISSUED_AWARD_STATUSES, resultSelect } from "./select";
+import { ISSUED_AWARD_STATUSES, resultSelect, SCHEDULE_SELECT } from "./select";
 
 const NOW = new Date("2026-10-06T04:00:00.000Z");
 // Ruling R7 (product owner, 2026-10-20; founder's instruction of the same day): the public Results carry no winner and no figure.
@@ -148,11 +148,13 @@ describe("the read behind the public Results page", () => {
   it("the award carries exactly its status and issue time", () => {
     expect(Object.keys((resultSelect().awards as { select: object }).select).sort()).toEqual(["issuedAt", "status"]);
   });
-  it("no award party, vendor or price column is read anywhere in the public Results code", () => {
-    // Source scan: the projection, its read and the page. A name here would be a column the public could be shown.
-    const files = ["src/lib/portal/results.ts", "src/app/supplier/results/page.tsx"].map((f) => readFileSync(join(process.cwd(), f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""));
-    const repo = readFileSync(join(process.cwd(), "src/lib/portal/repo.ts"), "utf8");
-    const load = repo.slice(repo.indexOf("export async function loadResults"));
-    for (const code of [...files, load]) expect(code).not.toMatch(/awardee|awardedValue|awardedSen|publishAwardedValue|vendor|winner|price|amount/i);
+  it("no award party, vendor or price column is read anywhere in the public Results code, the schedule's read and download included", () => {
+    // Source scan, whole files with their comments stripped: the projection, both reads, the page and the download. A name here would be a column the public could be shown.
+    const strip = (f: string) => readFileSync(join(process.cwd(), f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    const files = ["src/lib/portal/results.ts", "src/lib/portal/repo.ts", "src/lib/portal/schedule.ts", "src/lib/portal/schedule-store.ts", "src/app/supplier/results/page.tsx", "src/app/supplier/results/[id]/schedule/route.ts"];
+    for (const f of files) expect(strip(f), f).not.toMatch(/awardee|awardedValue|awardedSen|publishAwardedValue|vendor|winner|price|amount/i);
+  });
+  it("the schedule's read names the attachment, its version and its document's classification, and nothing of an award", () => {
+    expect([...new Set(keysIn(SCHEDULE_SELECT))].sort()).toEqual(["attachedAt", "classificationSnapshot", "detachedAt", "document", "exerciseId", "id", "mediaType", "originalFilename", "scanState", "select", "sha256", "version", "withdrawnAt"]);
   });
 });

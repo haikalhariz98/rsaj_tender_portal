@@ -11,6 +11,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { deploymentOrganisation } from "./deployment";
 import { ISSUED_AWARD_STATUSES, OPPORTUNITY_SELECT, resultSelect } from "./select";
 import { toPublicResult, type PublicResult, type ResultRow } from "./results";
+import { loadSchedules } from "./schedule-store";
 import { PUBLISHED_OR_CANCELLED, toPublicOpportunity, type OpportunityRow, type PublicOpportunity } from "./public";
 
 /// The public pages serve the deployment's one organisation (ADR 0034 D10): nobody is signed in to name one.
@@ -69,10 +70,30 @@ export async function loadResults(): Promise<{ ready: boolean; results: PublicRe
     where: { organisationId: org.id, ...PUBLIC_WHERE, awards: { some: { status: { in: [...ISSUED_AWARD_STATUSES] } } } },
     select: resultSelect(),
   });
-  const ctx = { now: new Date(), timeZone: org.timeZone, methodNames: new Map(methods.map((m) => [m.code, m.nameEn])) };
+  // The schedules are judged again here (public, live, not withdrawn), not trusted from the day they were attached.
+  const schedules = await loadSchedules(org.id, rows.map((r) => r.id));
+  const ctx = {
+    now: new Date(),
+    timeZone: org.timeZone,
+    methodNames: new Map(methods.map((m) => [m.code, m.nameEn])),
+    schedulePublishedAt: new Map([...schedules].map(([id, r]) => [id, r.attachedAt])),
+  };
   const results = (rows as unknown as ResultRow[])
     .map((r) => toPublicResult(r, ctx))
     .filter((r): r is PublicResult => r !== null)
     .sort((a, b) => (b.awardedDay ?? "").localeCompare(a.awardedDay ?? "") || a.reference.localeCompare(b.reference));
   return { ready: true, results };
+}
+
+/// The schedule of tenders for one result, or null where the exercise is not a result or has none the public may be given. Whether it is a result is `toPublicResult`'s rule.
+export async function loadResultSchedule(id: string) {
+  const org = await publicOrg();
+  if (!org) return null;
+  const row = await db.sourcingExercise.findFirst({
+    where: { id, organisationId: org.id, ...PUBLIC_WHERE, awards: { some: { status: { in: [...ISSUED_AWARD_STATUSES] } } } },
+    select: resultSelect(),
+  });
+  if (!row || !toPublicResult(row as unknown as ResultRow, { now: new Date(), timeZone: org.timeZone, methodNames: new Map() })) return null;
+  const schedule = (await loadSchedules(org.id, [id])).get(id);
+  return schedule ? { organisationId: org.id, schedule } : null;
 }

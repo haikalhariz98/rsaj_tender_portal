@@ -32,7 +32,7 @@ const PORTAL = walk(path.join(SRC, "app", "supplier")).map((f) => ({ file: rel(f
 // Phase 4c: the Company workspace's two uploads are held by the section below (`app/supplier/company/`).
 // Phase 4d: My Bids' three JSON posts are held by the section further down (`app/supplier/bids/`), as the registration's and the Company workspace's are: this first section is for the doors a stranger reaches.
 // Phase 4e: My Projects' three JSON posts are held by their own section (`app/supplier/projects/`).
-const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/") && !f.file.startsWith("app/supplier/bids/") && !f.file.startsWith("app/supplier/projects/") && !f.file.startsWith("app/supplier/account/data/"));
+const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/") && !f.file.startsWith("app/supplier/bids/") && !f.file.startsWith("app/supplier/projects/") && !f.file.startsWith("app/supplier/account/data/") && !f.file.startsWith("app/supplier/results/"));
 // Wave 3a (SR-10): the one GET under a dynamic segment (`app/supplier/bids/[id]/download`) is a read of a released file, held by its own test below; the others are the JSON posts.
 // Wave 3b step 9 (plan section 1.5): the part upload is a multipart post, guarded by `supplierUploadPost` like the registration's and the Company workspace's uploads, so it is held by its own test below.
 const BIDS_UPLOAD = "app/supplier/bids/part/route.ts";
@@ -46,6 +46,8 @@ const COMPANY_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.f
 const REGISTRATION_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/registration/"));
 // N2: the supplier's export of its own data is one GET at a literal path, held by its own test below.
 const DATA_EXPORT_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/account/data/"));
+// Go-live R4a: the schedule of tenders a result publishes is one public GET, held by its own test below.
+const RESULT_SCHEDULE_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/results/"));
 const PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file));
 
 /// The text of a handler's POST function with strings and comments blanked.
@@ -607,5 +609,27 @@ describe("the two stores stay apart", () => {
 
   it("the supplier cookie is read nowhere on the staff side", () => {
     for (const f of ["app/_auth/actor.ts", "app/_auth/route.ts", "lib/auth/session-store.ts"]) expect(read(f), f).not.toMatch(/SUPPLIER_COOKIE|supplierToken/);
+  });
+});
+
+describe("the schedule of tenders a result publishes (go-live R4a)", () => {
+  const f = RESULT_SCHEDULE_HANDLERS[0];
+  it("is one GET at one literal shape, with a HEAD that is refused", () => {
+    expect(RESULT_SCHEDULE_HANDLERS.map((h) => h.file)).toEqual(["app/supplier/results/[id]/schedule/route.ts"]);
+    expect([...f.src.matchAll(/export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g)].map((m) => m[1])).toEqual(["GET", "HEAD"]);
+    const code = lex(f.src);
+    const head = code.slice(code.search(/export\s+async\s+function\s+HEAD\b/));
+    expect(head.slice(0, head.indexOf("}") + 1)).not.toMatch(/\bawait\b|\bdb\.|loadResultSchedule/);
+    expect(f.src).not.toMatch(/^\s*["']use server["']/m);
+  });
+  it("reads what it serves through the one public read, and takes nothing from the request but the id", () => {
+    expect(f.src).toMatch(/loadResultSchedule\(id\)/);
+    const code = lex(f.src, { only: "comments" });
+    expect(code).not.toMatch(/searchParams|\.formData\(|\.json\(|headers\.get|cookies\(|from "next\/headers"/);
+    expect(code).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId)["']\s*\)/);
+  });
+  it("serves nothing that is not Public, whatever the read says, and logs no download", () => {
+    expect(f.src).toMatch(/classificationSnapshot !== "PUBLIC"/);
+    expect(f.src).not.toMatch(/kind: "DOWNLOADED"/);
   });
 });

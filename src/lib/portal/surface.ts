@@ -27,6 +27,8 @@ export function surfaceOf(value: string | undefined | null): Surface {
 // Phase 4b: the registration wizard's page and its two reads (a code search and a file), served on the public copy and answering a supplier only (each asks who is signed in).
 const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", "/supplier/bids", "/supplier/company", "/supplier/projects", SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_DATA_EXPORT.page, SUPPLIER_DATA_EXPORT.file, ...SUPPLIER_AUTH_PAGES, ...SUPPLIER_REGISTRATION_GET_PATHS]);
 const OPPORTUNITY = /^\/supplier\/opportunities\/[A-Za-z0-9_-]+$/;
+/// Go-live R4a: the schedule of tenders one result publishes, a file. One id segment and the literal `schedule`; GET only (a HEAD is refused, as for the inspection pages).
+const RESULT_SCHEDULE = /^\/supplier\/results\/[A-Za-z0-9_-]+\/schedule$/;
 /// Phase 4d: one exercise in My Bids, and the two pages that open its tender documents. One id segment each; the posts are literal paths (`SUPPLIER_BIDS_POST_PATHS`), so a post to a path like these is refused.
 const BID_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+(?:\/(?:table-document|documents|pay|submit|download))?$/;
 /// The two of those that write the inspection log on every render. A page that is only asked about (HEAD) is not opened, so it is not served: a HEAD would otherwise log an opening nobody made.
@@ -62,8 +64,8 @@ export function publicAllows({ method, pathname, hasServerAction }: PublicReques
   const m = method.toUpperCase();
   if (m === "POST") return POST_PATHS.has(path);
   if (m !== "GET" && m !== "HEAD") return false;
-  if (m === "HEAD" && INSPECTION_PAGE.test(path)) return false;
-  return PUBLIC_PAGES.has(path) || OPPORTUNITY.test(path) || BID_PAGE.test(path) || PROJECT_PAGE.test(path) || LOGO.test(path) || PLATFORM.test(path) || path === ICON;
+  if (m === "HEAD" && (INSPECTION_PAGE.test(path) || RESULT_SCHEDULE.test(path))) return false;
+  return PUBLIC_PAGES.has(path) || OPPORTUNITY.test(path) || RESULT_SCHEDULE.test(path) || BID_PAGE.test(path) || PROJECT_PAGE.test(path) || LOGO.test(path) || PLATFORM.test(path) || path === ICON;
 }
 
 /**

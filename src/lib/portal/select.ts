@@ -72,3 +72,24 @@ export function resultSelect() {
     },
   } satisfies Prisma.SourcingExerciseSelect;
 }
+
+/**
+ * The read behind the public schedule of tenders (go-live R4a): the attachment, and the facts of its version and document that decide whether the public may be given it
+ * (`isPublicSchedule`, schedule.ts), and the bytes' fingerprint and type. Nothing of any award is read here.
+ */
+export const SCHEDULE_SELECT = {
+  exerciseId: true,
+  attachedAt: true,
+  detachedAt: true,
+  version: {
+    select: {
+      id: true,
+      sha256: true,
+      mediaType: true,
+      originalFilename: true,
+      scanState: true,
+      withdrawnAt: true,
+      document: { select: { classificationSnapshot: true } },
+    },
+  },
+} satisfies Prisma.DocumentAttachmentSelect;
