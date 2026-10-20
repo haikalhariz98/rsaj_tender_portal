@@ -482,6 +482,9 @@ const csvLines = (csv: string) => csv.split("\r\n");
 describe("SR-15 online: the schedule CSV matches the screen (ruling 24, 20cu)", () => {
   it("runs in opening order with the declared price and period, the register Kelas, 'Not typed: an online bid', and the estimate row last; and is refused before finalising", async () => {
     const holder = { id: "" };
+    // The disclosed estimate's figure is read by its preparer only once the organisation has named the offices that hold its copies and audit it (an unset custody refuses everyone
+    // but the evaluation's readers, FR-EST-008). The test sets them itself: it used to pass only on whatever an earlier file had left in the shared scratch organisation.
+    await db.scopePolicy.upsert({ where: { organisationId: ctx.org }, create: { organisationId: ctx.org, estimateCustodianRoleCode: `ROLE_CUST_${randomId()}`, estimateAuditRoleCode: `ROLE_AUD_${randomId()}` }, update: { estimateCustodianRoleCode: `ROLE_CUST_${randomId()}`, estimateAuditRoleCode: `ROLE_AUD_${randomId()}` } });
     const { ex, opening, offers } = await unsealed(2, 2, async (e) => {
       holder.id = await estimateFor(e);
       expect((await lodgeAs(e, e.officers[0], holder.id)).ok).toBe(true);

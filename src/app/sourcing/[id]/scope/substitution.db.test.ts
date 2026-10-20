@@ -283,7 +283,8 @@ describe("a substitution after publication (D11, ruling 11)", () => {
     // An authority names the incoming officer in o2's place. The key, and every bid sealed to it, stay.
     const named = await substitute(ex, o2, ctl, c);
     expect(named.ok, message(named)).toBe(true);
-    expect(named.message).toMatch(/releases theirs to them/);
+    // Wording cut under 0005 (founder 2026-10-19): the message still says the share must be handed over before opening.
+    expect(named.message).toMatch(/Opening cannot start until the share is handed over/);
     expect((await liveKey(ex)).id).toBe(ex.keyId);
     expect(await db.publishedKeyChange.count({ where: { exerciseId: ex.id } })).toBe(0);
     expect(await db.shareRelease.count({ where: { keyId: ex.keyId } })).toBe(0);
@@ -299,7 +300,7 @@ describe("a substitution after publication (D11, ruling 11)", () => {
     // The incoming officer sets their share: a key of their own, and no re-key. Anyone else named late is refused.
     const set = await setShare(ex, c);
     expect(set.ok, message(set)).toBe(true);
-    expect(set.message).toMatch(/has now to release their share to you/);
+    expect(set.message).toMatch(/must release theirs before opening can start/);
     expect((await liveKey(ex)).id).toBe(ex.keyId);
     expect(await db.publishedKeyChange.count({ where: { exerciseId: ex.id } })).toBe(0);
     expect(await db.officerExerciseKey.count({ where: { exerciseId: ex.id, openingOfficerId: incomingRow, retiredAt: null } })).toBe(1);
@@ -403,7 +404,7 @@ describe("a substitution after publication (D11, ruling 11)", () => {
     who.actor = ctl.actor;
     const removed = await removeOpeningOfficer({ ok: false }, form({ exerciseId: ex.id, officerId: ex.officers[0].rosterId, reason: "Gone" }));
     expect(removed.ok).toBe(false);
-    expect(message(removed)).toMatch(/replaced by a substitution/);
+    expect(message(removed)).toMatch(/Replace by substitution/);
     expect(message(removed)).not.toMatch(/not built/);
   }, 120_000);
 });

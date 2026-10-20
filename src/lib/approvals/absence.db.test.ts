@@ -335,7 +335,8 @@ describe("the automatic move waits for a superior who holds the office above (ru
     const r = await route([{ roleCode: A5, act: "A" }]);
     const out = await sweep();
     expect(movedWords(out, r.label)).toBeUndefined();
-    expect(stayedWords(out, r.label)).toContain(`Named superior ${run} is named as above the people who hold this office, but does not hold Office B5 ${run}`);
+    // Wording cut under 0005 (founder 2026-10-19): the step stays, and the words name the superior and the office they do not hold.
+    expect(stayedWords(out, r.label)).toContain(`Named superior ${run} does not hold Office B5 ${run}`);
     const step = await stepOf(r.steps[0]!);
     expect(step.actingRoleCode).toBeNull();
     expect(step.escalationCount).toBe(0);

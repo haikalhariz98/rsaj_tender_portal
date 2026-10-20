@@ -129,7 +129,8 @@ describe("review of 17a (finding 4): the register is read again when the purchas
     await db.supplierDocument.update({ where: { id: b.doc.id }, data: { verification: "NOT_IN_ORDER", verificationNote: "Illegible." } });
     const words = await wordsOf(() => settlePayment(b.actor, { exerciseId, method: METHODS[0], choice: "PAY" }));
     expect(words).toMatch(/found not in order/);
-    expect(words).toMatch(/your company/);
+    // Wording cut under 0005 (founder 2026-10-19): the buyer is still sent to their own Company page.
+    expect(words).toMatch(/Lodge a corrected one under Company/);
     expect((await db.documentPurchase.findUniqueOrThrow({ where: { id: b.purchase.id } })).state).toBe("AWAITING_PAYMENT");
     expect(await db.documentSale.count({ where: { purchaseId: b.purchase.id } })).toBe(0);
     expect(await db.paymentAttempt.count({ where: { purchaseId: b.purchase.id } })).toBe(0);
@@ -164,7 +165,7 @@ describe("review of 17a (finding 4): the register is read again when the purchas
     expect(shown?.text).toMatch(/Verified on the supplier register: the supplier's document STA-/);
     expect(shown?.text).not.toMatch(/\byour\b/);
     // A sale paid before the reading was kept falls back to the purchase's own check and says only that it was verified.
-    expect(onlineRestrictionOfSale({}, b.purchase.checks)?.text).toMatch(/Verified on the supplier register when the documents were bought/);
+    expect(onlineRestrictionOfSale({}, b.purchase.checks)?.text).toMatch(/Verified on the register at purchase/);
 
     const saleTrail = JSON.stringify((await trail(sale.id)).map((x) => x.changes));
     expect(saleTrail).toMatch(/Warning\. [^"]*Verified on the supplier register: the supplier's document/);

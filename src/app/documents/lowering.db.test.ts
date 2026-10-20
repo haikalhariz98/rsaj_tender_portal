@@ -174,8 +174,8 @@ describe("a document class's classification", () => {
     as(b);
     expect(await applyChangeAction(state, form({ changeId: change.id }, b.password))).toMatchObject({ ok: true });
     expect((await db.documentClass.findUniqueOrThrow({ where: { id: cls.id } })).classification).toBe("INTERNAL");
-    // A raise is not a lowering: this editor refuses it at the proposal.
+    // A raise is not a lowering: this editor refuses it at the proposal. Wording cut under 0005 (founder 2026-10-19): "This form only lowers."
     as(a);
-    expect(await lowerClassClassification(state, form({ id: cls.id, classification: "SULIT", reason: "Back up" }, a.password))).toMatchObject({ ok: false, errors: { classification: expect.stringContaining("lowers a classification") } });
+    expect(await lowerClassClassification(state, form({ id: cls.id, classification: "SULIT", reason: "Back up" }, a.password))).toMatchObject({ ok: false, errors: { classification: expect.stringContaining("only lowers") } });
   });
 });

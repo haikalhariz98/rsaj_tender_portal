@@ -129,7 +129,8 @@ describe("17a: a restricted tender sold online, from purchase to the opened bid'
     const { actor } = await supplier();
     const r = await startPurchase(actor, { exerciseId });
     expect(r).toMatchObject({ outcome: "REFUSED", recorded: true });
-    expect(reasonsOf(r)).toMatch(/has not set which document on the supplier register evidences/);
+    // Wording cut under 0005 (founder 2026-10-19, minimal words); the refusal still says the office has not set the evidence document.
+    expect(reasonsOf(r)).toMatch(/has not set which document evidences it/);
     const kept = await db.documentRequest.findMany({ where: { windowId, supplierId: actor.supplierId, refusedAt: { not: null } } });
     expect(kept).toHaveLength(1);
     expect(JSON.stringify(kept[0].checks)).toMatch(/has not set which document/);
@@ -142,17 +143,17 @@ describe("17a: a restricted tender sold online, from purchase to the opened bid'
     await db.supplier.update({ where: { id: supplierId }, data: { bumiputeraClaimCode: "BUMI" } });
     const r = await startPurchase(actor, { exerciseId });
     expect(r).toMatchObject({ outcome: "REFUSED", recorded: true });
-    expect(reasonsOf(r)).toMatch(/no status document on the supplier register/);
+    expect(reasonsOf(r)).toMatch(/Lodge your status document under Company/);
   });
 
   it("is refused for a document of another type, one not yet verified, one found not in order and one that has expired", async () => {
     await policy({ type: typeId, closingDayCounts: true });
     const other = await supplier();
     await lodge(other.supplierId, { type: otherTypeId, verification: "VERIFIED", expiresInDays: 400 });
-    expect(reasonsOf(await startPurchase(other.actor, { exerciseId }))).toMatch(/no status document/);
+    expect(reasonsOf(await startPurchase(other.actor, { exerciseId }))).toMatch(/Lodge your status document under Company/);
     const waiting = await supplier();
     await lodge(waiting.supplierId, { verification: "NOT_CHECKED", expiresInDays: 400 });
-    expect(reasonsOf(await startPurchase(waiting.actor, { exerciseId }))).toMatch(/not been verified/);
+    expect(reasonsOf(await startPurchase(waiting.actor, { exerciseId }))).toMatch(/not yet verified/);
     const bad = await supplier();
     await lodge(bad.supplierId, { verification: "NOT_IN_ORDER", expiresInDays: 400 });
     expect(reasonsOf(await startPurchase(bad.actor, { exerciseId }))).toMatch(/found not in order/);

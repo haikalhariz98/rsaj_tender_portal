@@ -438,6 +438,9 @@ describe("the exercises that still need the pepper (20y), read from the database
 });
 
 const granted = sulitGranted(true as const, "ORGANISATION_PERMISSION");
+/// The estimate's plain figure as a value, not as a stretch of an identifier: the ids are lowercase letters and digits made from the clock, and a run can make one that carries "55000" inside it
+/// ("...y550000kk..."), which a bare /55000/ took for the figure. The figure is bounded by anything that is not a letter or digit.
+const PLAIN_FIGURE = /(?<![A-Za-z0-9])55000(?![A-Za-z0-9])/;
 const standing = (exerciseId: string) => db.sealedEstimateLodgement.findMany({ where: { exerciseId, supersededAt: null } });
 
 describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
@@ -457,8 +460,8 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
       expect(row.keyId).toBe(e.keyId);
       const trail = await db.auditEntry.findMany({ where: { organisationId: org, entityId: row.id } });
       expect(trail).toHaveLength(1);
-      expect(JSON.stringify(trail)).not.toMatch(/55000/);
-      expect(JSON.stringify(await events(e.id))).not.toMatch(/55000/);
+      expect(JSON.stringify(trail)).not.toMatch(PLAIN_FIGURE);
+      expect(JSON.stringify(await events(e.id))).not.toMatch(PLAIN_FIGURE);
       expect((await events(e.id)).filter((x) => x.kind === "ESTIMATE_LODGED" && x.outcome === "GRANTED")).toHaveLength(1);
       // No paper-box envelope is made online.
       expect(await db.bidEnvelope.count({ where: { exerciseId: e.id, kind: "COMPANY_ESTIMATE" } })).toBe(0);
@@ -515,7 +518,7 @@ describe("the sealed company estimate lodgement (step 16, ruling 20g)", () => {
     expect(JSON.stringify((await openingSection(org, ex.id, granted, null, false))!.start.allowed)).not.toMatch(notLodged);
     const trail = await db.auditEntry.findMany({ where: { organisationId: org, entityId: now[0].id } });
     expect(trail.map((t) => t.reason)).toContain("The key was changed");
-    expect(JSON.stringify(trail)).not.toMatch(/55000/);
+    expect(JSON.stringify(trail)).not.toMatch(PLAIN_FIGURE);
   }, 300_000);
 
   it("is refused after the closing, and refused for an administrator, each in words", async () => {

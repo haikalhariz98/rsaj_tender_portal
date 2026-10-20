@@ -141,12 +141,13 @@ describe("taking the organisation's setting for how the documents are sold (G1)"
     const ex = await db.sourcingExercise.create({ data: { organisationId, reference: `PR/TK/${randomId()}`, requisitionId, title: "Unpinned", estimatedValue: "1000.00", sourcingMethodCode: "M", status: "DOCUMENTS_IN_PREPARATION" } });
     expect(ex.saleMode).toBeNull();
     await db.windowPolicy.upsert({ where: { organisationId }, create: { organisationId, documentSaleMode: null }, update: { documentSaleMode: null } });
+    // Wording cut under 0005 (founder 2026-10-19, minimal words): "Sale mode not set" and "release online is not Yes"; the refusals are the same.
     const unset = await takeSaleMode({ ok: false }, form({ exerciseId: ex.id }));
-    expect(unset).toMatchObject({ ok: false, message: expect.stringContaining("has not set how documents are sold") });
+    expect(unset).toMatchObject({ ok: false, message: expect.stringContaining("Sale mode not set") });
     expect((await db.sourcingExercise.findUniqueOrThrow({ where: { id: ex.id } })).saleMode).toBeNull();
     // SR-10 review S3: an exercise does not take an online setting while the organisation's release of documents online is not Yes, so the release is set first.
     await db.windowPolicy.update({ where: { organisationId }, data: { documentSaleMode: "ONLINE", electronicDocumentRelease: null } });
-    expect(await takeSaleMode({ ok: false }, form({ exerciseId: ex.id }))).toMatchObject({ ok: false, message: expect.stringContaining("release of documents online") });
+    expect(await takeSaleMode({ ok: false }, form({ exerciseId: ex.id }))).toMatchObject({ ok: false, message: expect.stringContaining("release online is not") });
     expect((await db.sourcingExercise.findUniqueOrThrow({ where: { id: ex.id } })).saleMode).toBeNull();
     await db.windowPolicy.update({ where: { organisationId }, data: { electronicDocumentRelease: true } });
     expect(await takeSaleMode({ ok: false }, form({ exerciseId: ex.id }))).toMatchObject({ ok: true });

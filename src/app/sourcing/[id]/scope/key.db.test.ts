@@ -160,10 +160,10 @@ describe("setting a share", () => {
     const ex = await exerciseWith(2);
     const [a, b] = ex.officers;
     const first = await share(ex.id, a);
-    expect(first, JSON.stringify(first)).toMatchObject({ ok: true, message: expect.stringContaining("One officer has still to set theirs") });
+    expect(first, JSON.stringify(first)).toMatchObject({ ok: true, message: expect.stringContaining("One officer still to set theirs") });
     expect(await db.exerciseSealingKey.count({ where: { exerciseId: ex.id } })).toBe(0);
     const second = await share(ex.id, b);
-    expect(second, JSON.stringify(second)).toMatchObject({ ok: true, message: expect.stringContaining("the key is made") });
+    expect(second, JSON.stringify(second)).toMatchObject({ ok: true, message: expect.stringContaining("The key is made") });
 
     const key = await db.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null } });
     expect(key.officerCount).toBe(2);
@@ -270,7 +270,7 @@ describe("a roster change before publication", () => {
     });
     expect(await db.exerciseSealingKey.count({ where: { exerciseId: ex.id, retiredAt: null } })).toBe(0);
     const third: Officer = { ...extra, rosterId: (await db.exerciseOpeningOfficer.findFirstOrThrow({ where: { exerciseId: ex.id, personId: extra.person.id } })).id, passphrase: `third officer passphrase ${randomId()}` };
-    expect(await share(ex.id, third)).toMatchObject({ ok: true, message: expect.stringContaining("the key is made") });
+    expect(await share(ex.id, third)).toMatchObject({ ok: true, message: expect.stringContaining("The key is made") });
     expect((await db.exerciseSealingKey.findFirstOrThrow({ where: { exerciseId: ex.id, retiredAt: null } })).officerCount).toBe(3);
   }, 90_000);
 });

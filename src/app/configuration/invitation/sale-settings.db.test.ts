@@ -125,7 +125,8 @@ describe("the deployment's permission to switch the simulator on (SR-10 review S
   it("refuses to sell online while the release of documents online is not Yes", async () => {
     const out = await save({ documentSaleMode: "ONLINE", electronicDocumentRelease: "unset" });
     expect(out).toMatchObject({ ok: false });
-    expect(JSON.stringify(out)).toContain("release of documents online");
+    // Wording cut under 0005 (founder 2026-10-19, minimal words): the refusal now reads "release online is not Yes". The check is unchanged: the refusal names the setting.
+    expect(JSON.stringify(out)).toContain("release online is not Yes");
     expect(await save({ documentSaleMode: "ONLINE" })).toMatchObject({ ok: true });
   });
 });
