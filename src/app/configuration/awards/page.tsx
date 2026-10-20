@@ -95,8 +95,6 @@ export default async function AwardControlsPage() {
     preContractUnitCode: p.preContractUnitCode,
     postContractUnitCode: p.postContractUnitCode,
     regulatedActivityLabel: p.regulatedActivityLabel,
-    publishAwardedValue: p.publishAwardedValue == null ? null : p.publishAwardedValue ? "YES" : "NO",
-    publishAwardedValueProvenance: p.publishAwardedValueProvenance,
     loaTemplateId: p.loaTemplateId,
     declarationTemplateId: p.declarationTemplateId,
     coveringMemoTemplateId: p.coveringMemoTemplateId,
@@ -143,15 +141,6 @@ export default async function AwardControlsPage() {
                 { label: "Case owned before award", value: <Setting value={unitName(p.preContractUnitCode)} unset="The handover at issue is recorded without its sections." /> },
                 { label: "Case owned after award", value: <Setting value={unitName(p.postContractUnitCode)} unset="The handover at issue is recorded without its sections." /> },
                 { label: "The regulated activity", value: <Setting value={p.regulatedActivityLabel} unset="The question is asked as “the regulated activity”." /> },
-                {
-                  label: "Awarded value on the public Results page",
-                  value: (
-                    <span className="flex flex-col items-start gap-1.5">
-                      <Setting value={p.publishAwardedValue == null ? null : p.publishAwardedValue ? "Shown beside the winner" : "Not shown: the public sees the winner only"} unset="Not set, so the public Results page shows the winner but not the value." />
-                      {p.publishAwardedValue != null && <ProvenanceBadge value={p.publishAwardedValueProvenance} />}
-                    </span>
-                  ),
-                },
                 {
                   label: "Notices to unsuccessful tenderers (policy D7)",
                   value: (

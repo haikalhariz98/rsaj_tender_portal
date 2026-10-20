@@ -8,7 +8,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import {
   HOME_LINKS,
   HOME_TITLE,
-  PORTAL_PATH,
   SIGNED_IN_LINKS,
   SIGNED_IN_SUBTITLE,
   SIGNED_IN_TITLE,
@@ -31,11 +30,6 @@ export default async function SupplierHomePage() {
       <PageHeader
         title={HOME_TITLE.en}
         subtitle={homeSubtitle(organisation.name).en}
-        actions={
-          <ButtonLink href={PORTAL_PATH.opportunities} variant="primary" icon={<GlobeIcon size={16} />}>
-            {HOME_LINKS[0].action.en}
-          </ButtonLink>
-        }
       />
 
 

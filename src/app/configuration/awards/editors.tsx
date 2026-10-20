@@ -57,18 +57,6 @@ export function EditAwardPolicy({ values, templates, units, label = "Edit contro
         { kind: "select", name: "preContractUnitCode", label: "Section that owns the case before award", placeholder: "Not set", options: units },
         { kind: "select", name: "postContractUnitCode", label: "Section that owns it after", placeholder: "Not set", options: units },
         { kind: "text", name: "regulatedActivityLabel", label: "The regulated activity, in the organisation's words", placeholder: "e.g. regulated utility works", hint: "A recipient's copy can depend on it." },
-        {
-          kind: "select",
-          name: "publishAwardedValue",
-          label: "Show the awarded value on the public Results page",
-          placeholder: "Not set (the value is not shown)",
-          options: [
-            { value: "YES", label: "Yes, show the awarded value" },
-            { value: "NO", label: "No, show the winner but not the value" },
-          ],
-          hint: "Only Yes shows the figure publicly.",
-        },
-        { kind: "select", name: "publishAwardedValueProvenance", label: "Where the publishing choice came from", placeholder: "Not recorded", options: (PROVENANCE as Extract<Field, { kind: "select" }>).options },
         { kind: "select", name: "loaTemplateId", label: "Template: Letter of Acceptance", placeholder: "Not set", options: templates },
         { kind: "select", name: "declarationTemplateId", label: "Template: successful bidder's declaration", placeholder: "Not set", options: templates },
         { kind: "select", name: "coveringMemoTemplateId", label: "Template: indent covering memo", placeholder: "Not set", options: templates },

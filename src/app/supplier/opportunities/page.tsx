@@ -33,7 +33,7 @@ const GROUP: Record<OpportunityState, number> = { OPEN: 0, CLOSED: 1, CANCELLED:
 /**
  * The public board of advertised opportunities. No sign-in. Everything on it passed the public
  * rule (`isPublicOpportunity`) and was reduced to plain strings on the server (`toPublicOpportunity`).
- * An awarded exercise is not listed: it moves to Results.
+ * An awarded exercise is not listed. Its page stays reachable by its address (My Bids links to it).
  */
 export default async function SupplierOpportunitiesPage() {
   const [{ organisation }, { ready, opportunities }] = await Promise.all([loadPublicShell(), loadOpportunities()]);

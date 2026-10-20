@@ -5,7 +5,6 @@ import { CalendarIcon, ClipboardIcon, FileIcon, ShieldIcon, WalletIcon } from "@
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { ButtonLink } from "@/components/ui/button";
 import { Callout, ToneNote } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
@@ -16,7 +15,6 @@ import {
   PORTAL_PATH,
   SALE_STATE,
   SITE_EVENT_KIND_WORDS,
-  RESULTS,
   STATE_BANNER,
 } from "@/lib/portal/labels";
 import type { PublicDetail } from "@/lib/portal/public";
@@ -73,7 +71,6 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
           tone={o.state === "CANCELLED" ? "warn" : "info"}
           title={banner.title.en}
           className="mb-6"
-          action={o.state === "AWARDED" ? <ButtonLink href={PORTAL_PATH.results} variant="secondary" size="sm">{RESULTS.viewResults.en}</ButtonLink> : undefined}
         >
           {banner.text(o.cancelledOn).en}
         </ToneNote>

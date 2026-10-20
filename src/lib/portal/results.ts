@@ -1,16 +1,15 @@
 /**
- * What the public may see of an award: that an advertised exercise was awarded, to whom, and when.
- * The awarded value only where the organisation has said so.
+ * What the public may see of an award: that an advertised exercise was awarded, and when. Nothing of
+ * the award's party or figure (founder, 2026-10-20; ruling R3, decisions log).
  *
  * Pure. A result is an exercise the board would list as awarded (`isPublicOpportunity` and
- * `opportunityState`), so every row links to an opportunity page that exists. The projection returns
- * strings and flags only, and it never reads a value it was not allowed to show: with the setting
- * unset or No, the figure is absent from the row and ignored if a caller passes one anyway.
+ * `opportunityState`). Its row carries no award party and no figure: `resultSelect` (select.ts) does not
+ * read them, so there is nothing here to withhold. The schedule of tenders is a document the procurement
+ * office chose to publish (`schedulePublishedAt`); this projection only says when.
  */
 
 import { dayIn } from "@/lib/dates";
 import { formatDay } from "@/lib/award/fields";
-import { senFromDecimal } from "@/lib/money";
 import type { ExerciseStatus } from "@/lib/method/types";
 
 import { isIssuedAward, isPublicOpportunity, opportunityState } from "./public";
@@ -25,15 +24,15 @@ export interface ResultRow {
   closingAt: Date | null;
   sourcingMethodCode: string;
   window: { path: "ADVERTISED" | "INVITED"; publishedAt: Date | null } | null;
-  awards: { status: string; issuedAt: Date | null; awardeeName: string; awardedValue?: { toString(): string } | null }[];
+  awards: { status: string; issuedAt: Date | null }[];
 }
 
 export interface ResultContext {
   now: Date;
   timeZone: string | null;
   methodNames: ReadonlyMap<string, string>;
-  /// `AwardPolicy.publishAwardedValue`: only exactly true shows the value. Null (not set) and false do not.
-  publishAwardedValue: boolean | null;
+  /// When the published schedule of tenders was attached, by exercise id. Absent: not published.
+  schedulePublishedAt?: ReadonlyMap<string, Date>;
 }
 
 export interface PublicResult {
@@ -41,13 +40,13 @@ export interface PublicResult {
   reference: string;
   title: string;
   method: string;
-  /// The awardee's name as the award records it; empty where none is recorded.
-  awardee: string;
+  /// The closing day as the organisation reads it; empty where none is recorded.
+  closing: string | null;
   /// The day the award was issued, as the organisation reads it; for sorting, `awardedDay` (YYYY-MM-DD).
   awardedOn: string | null;
   awardedDay: string | null;
-  /// The awarded value in sen, as an integer's decimal string; null unless the organisation publishes it.
-  awardedSen: string | null;
+  /// The day the schedule of tenders was published; null where it is not.
+  schedulePublishedOn: string | null;
 }
 
 /**
@@ -60,15 +59,15 @@ export function toPublicResult(row: ResultRow, ctx: ResultContext): PublicResult
   if (opportunityState({ status: row.status, closingAt: row.closingAt }, issued.length > 0, ctx.now) !== "AWARDED") return null;
   const award = [...issued].sort((a, b) => (b.issuedAt?.getTime() ?? 0) - (a.issuedAt?.getTime() ?? 0))[0];
   const day = award.issuedAt ? dayIn(award.issuedAt, ctx.timeZone) : null;
-  const showValue = ctx.publishAwardedValue === true && award.awardedValue != null;
+  const published = ctx.schedulePublishedAt?.get(row.id);
   return {
     id: row.id,
     reference: row.reference,
     title: row.title,
     method: ctx.methodNames.get(row.sourcingMethodCode) ?? "",
-    awardee: award.awardeeName.trim(),
+    closing: row.closingAt ? formatDay(dayIn(row.closingAt, ctx.timeZone), "EN") : null,
     awardedOn: day ? formatDay(day, "EN") : null,
     awardedDay: day,
-    awardedSen: showValue ? senFromDecimal(award.awardedValue).toString() : null,
+    schedulePublishedOn: published ? formatDay(dayIn(published, ctx.timeZone), "EN") : null,
   };
 }

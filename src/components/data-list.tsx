@@ -52,7 +52,7 @@ export type Cell =
   /// A link that is an act: a button that calls a server action with `fields`, which does its work and then redirects (the inbox's notice, AC-47). Not an anchor, so a prefetch never runs it.
   | { kind: "open"; text: string; action: (data: FormData) => Promise<void>; fields: Record<string, string>; sub?: string }
   /// A file to save: a plain anchor with the `download` attribute (never a client-side Link, which could prefetch it and write a log row for a download nobody made).
-  | { kind: "download"; text: string; href: string; label: string }
+  | { kind: "download"; text: string; href: string; label: string; sub?: string }
   /// An overlapping stack of avatars with a +N overflow, as the prototype shows for
   /// who holds a role or who reviews a document.
   | { kind: "avatars"; names: string[]; max?: number }
@@ -360,9 +360,12 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
       return <OpenCell cell={cell} line={line} />;
     case "download":
       return (
-        <a href={cell.href} download className={buttonClass("secondary", "sm")} aria-label={cell.label}>
-          {cell.text}
-        </a>
+        <div className="min-w-0">
+          <a href={cell.href} download className={buttonClass("secondary", "sm")} aria-label={cell.label}>
+            {cell.text}
+          </a>
+          {cell.sub && <div className="mt-1 break-words text-[12.5px] text-ink-3">{cell.sub}</div>}
+        </div>
       );
     case "avatars":
       return cell.names.length === 0 ? dash : <AvatarStack names={cell.names} max={cell.max ?? 4} />;

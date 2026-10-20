@@ -339,19 +339,19 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
 }
 
 /**
- * Read back as the public page reads it: the exercise is a result, with its awardee and day, and with the value
- * neither shown nor read while the organisation has not chosen to publish it.
+ * Read back as the public page reads it: the exercise is a result, with its day, and the row carries neither
+ * the award party nor a figure.
  */
 export async function checkResultsDemo(db: Db) {
   const { loadResults, loadOpportunity } = await import("../src/lib/portal/repo");
   const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: RESULTS_EXERCISE }, select: { reference: true, organisationId: true, window: { select: { path: true, publishedAt: true, publications: { select: { id: true } } } }, awards: { select: { status: true, issuedAt: true } } } });
   if (ex.window?.path !== "ADVERTISED" || !ex.window.publishedAt || ex.window.publications.length === 0) fail(`${ex.reference} was not advertised with its publications recorded`);
   if (!ex.awards.some((a) => a.status === "ISSUED" && a.issuedAt)) fail(`${ex.reference} has no issued award`);
-  const policy = await db.awardPolicy.findUnique({ where: { organisationId: ex.organisationId }, select: { publishAwardedValue: true } });
-  const { showsValue, results } = await loadResults();
+  const { results } = await loadResults();
   const row = results.find((x) => x.id === RESULTS_EXERCISE) ?? fail(`${ex.reference} is not on the Results page`);
-  if (!row.awardee || !row.awardedOn) fail(`${ex.reference}'s result names no awardee or day`);
-  if (policy?.publishAwardedValue !== true && (showsValue || row.awardedSen != null)) fail(`${ex.reference}'s value is shown while the organisation has not chosen to publish it`);
+  if (!row.awardedOn) fail(`${ex.reference}'s result names no day`);
+  // Ruling R3 (2026-10-20): the public row carries no award party and no figure, whatever the organisation has set.
+  if (Object.keys(row).some((k) => /awardee|awardedSen|value/i.test(k))) fail(`${ex.reference}'s result carries an award party or a figure`);
   const opportunity = await loadOpportunity(RESULTS_EXERCISE);
   if (opportunity?.state !== "AWARDED") fail(`${ex.reference}'s opportunity page does not read Awarded`);
 }

@@ -3728,9 +3728,9 @@ model AwardPolicy {
   quotationContractKey  QuotationContractKey?
   /// The customer's words for works that need the regulator's copy (FR-AWD-004).
   regulatedActivityLabel String?
-  /// Whether the public Results page shows the awarded value. Null: not set, and not set means not shown.
+  /// Retired 2026-10-20 (ruling R3a): nothing reads or writes this. The public Results page shows no awarded value whatever it holds. Kept so no data is dropped.
   publishAwardedValue           Boolean?
-  /// Where that choice came from, apart from the controls' own provenance: a disclosure is its own decision.
+  /// Retired with the column above. Unread.
   publishAwardedValueProvenance Provenance?
   /// Phase 4d (FR-AWD-010, policy D7): whether unsuccessful tenderers are sent a notice of the outcome. Null: not decided, and nothing is issued. False: decided not to.
   nonAwardNotices Boolean?

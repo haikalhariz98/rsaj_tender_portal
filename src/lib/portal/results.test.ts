@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { EXERCISE_STATUSES, type ExerciseStatus } from "@/lib/method/types";
@@ -8,12 +11,19 @@ import { toPublicResult, type ResultContext, type ResultRow } from "./results";
 import { ISSUED_AWARD_STATUSES, resultSelect } from "./select";
 
 const NOW = new Date("2026-10-06T04:00:00.000Z");
-const ctx = (publishAwardedValue: boolean | null): ResultContext => ({
-  now: NOW,
-  timeZone: "Asia/Kuala_Lumpur",
-  methodNames: new Map([["open_tender", "Open tender"]]),
-  publishAwardedValue,
-});
+// Ruling R7 (product owner, 2026-10-20; founder's instruction of the same day): the public Results carry no winner and no figure.
+// The old argument was the awarded-value setting; the tests below keep passing it ("even with the setting Yes") to show it changes nothing.
+const ctx = (publishAwardedValue: boolean | null = null, schedulePublishedAt?: ReadonlyMap<string, Date>): ResultContext =>
+  ({
+    now: NOW,
+    timeZone: "Asia/Kuala_Lumpur",
+    methodNames: new Map([["open_tender", "Open tender"]]),
+    schedulePublishedAt,
+    // Not part of the context any more: a caller that still passes it is ignored.
+    ...({ publishAwardedValue } as object),
+  }) as ResultContext;
+/// What a careless read could still hand the projection: the winner and the figure. Neither may appear in its output.
+const WINNER = { awardeeName: "  Sampel Engineering Sdn Bhd ", awardedValue: { toString: () => "1234567.5" } };
 const row = (o: Partial<ResultRow> = {}): ResultRow => ({
   id: "sx1",
   reference: "DEMO/SX/0016/2026",
@@ -23,38 +33,39 @@ const row = (o: Partial<ResultRow> = {}): ResultRow => ({
   closingAt: new Date("2026-10-02T07:00:00.000Z"),
   sourcingMethodCode: "open_tender",
   window: { path: "ADVERTISED", publishedAt: new Date("2026-09-10T01:00:00.000Z") },
-  awards: [{ status: "ISSUED", issuedAt: new Date("2026-10-05T17:30:00.000Z"), awardeeName: "  Sampel Engineering Sdn Bhd ", awardedValue: { toString: () => "1234567.5" } }],
+  awards: [{ status: "ISSUED", issuedAt: new Date("2026-10-05T17:30:00.000Z"), ...WINNER }],
   ...o,
 });
 const FIGURES = ["1234567.5", "1,234,567.50", "123456750"];
 const leaks = (r: unknown) => FIGURES.filter((f) => JSON.stringify(r).includes(f));
 
 describe("toPublicResult", () => {
-  it("shows the exercise, the awardee and the day the award was issued, in the organisation's day", () => {
-    const r = toPublicResult(row(), ctx(null))!;
-    expect(r).toMatchObject({ id: "sx1", reference: "DEMO/SX/0016/2026", title: "Reservoir roof repair", method: "Open tender", awardee: "Sampel Engineering Sdn Bhd" });
+  it("shows the exercise, its closing day and the day the award was issued, in the organisation's day", () => {
+    const r = toPublicResult(row(), ctx())!;
+    expect(r).toMatchObject({ id: "sx1", reference: "DEMO/SX/0016/2026", title: "Reservoir roof repair", method: "Open tender", closing: "2 October 2026" });
     // 17:30 UTC on the 5th is 01:30 on the 6th in Kuala Lumpur.
     expect(r.awardedDay).toBe("2026-10-06");
     expect(r.awardedOn).toBe("6 October 2026");
   });
 
-  describe("the awarded value", () => {
-    it("is not shown where the setting is not set", () => {
-      const r = toPublicResult(row(), ctx(null))!;
-      expect(r.awardedSen).toBeNull();
-      expect(leaks(r)).toEqual([]);
+  describe("the winner and the awarded value are never shown, even with the setting Yes", () => {
+    for (const setting of [null, false, true]) {
+      it(`setting ${setting}: no awardee field, no figure, no name anywhere in the row`, () => {
+        const r = toPublicResult(row(), ctx(setting))!;
+        expect(Object.keys(r).sort()).toEqual(["awardedDay", "awardedOn", "closing", "id", "method", "reference", "schedulePublishedOn", "title"]);
+        expect(leaks(r)).toEqual([]);
+        expect(JSON.stringify(r)).not.toMatch(/Sampel|awardee/i);
+      });
+    }
+  });
+
+  describe("the schedule of tenders", () => {
+    it("is not published unless the office attached one", () => {
+      expect(toPublicResult(row(), ctx())!.schedulePublishedOn).toBeNull();
     });
-    it("is not shown where the setting is No", () => {
-      const r = toPublicResult(row(), ctx(false))!;
-      expect(r.awardedSen).toBeNull();
-      expect(leaks(r)).toEqual([]);
-    });
-    it("is shown, exactly and in sen, only where the setting is Yes", () => {
-      expect(toPublicResult(row(), ctx(true))!.awardedSen).toBe("123456750");
-    });
-    it("is not invented where the setting is Yes and no value was read", () => {
-      const r = toPublicResult(row({ awards: [{ status: "ISSUED", issuedAt: NOW, awardeeName: "A" }] }), ctx(true))!;
-      expect(r.awardedSen).toBeNull();
+    it("shows the day it was published, in the organisation's day", () => {
+      const r = toPublicResult(row(), ctx(null, new Map([["sx1", new Date("2026-10-06T17:00:00.000Z")]])))!;
+      expect(r.schedulePublishedOn).toBe("7 October 2026");
     });
   });
 
@@ -74,11 +85,11 @@ describe("toPublicResult", () => {
     }
     it("an award that is only a draft, awaiting approval, approved or cancelled is not a result", () => {
       for (const status of ["DRAFT", "PENDING_APPROVAL", "APPROVED", "CANCELLED"]) {
-        expect(toPublicResult(row({ awards: [{ status, issuedAt: NOW, awardeeName: "A" }] }), ctx(true))).toBeNull();
+        expect(toPublicResult(row({ awards: [{ status, issuedAt: NOW }] }), ctx(true))).toBeNull();
       }
     });
     it("an issued and an accepted award are results", () => {
-      for (const status of ["ISSUED", "ACCEPTED"]) expect(toPublicResult(row({ awards: [{ status, issuedAt: NOW, awardeeName: "A" }] }), ctx(false))).not.toBeNull();
+      for (const status of ["ISSUED", "ACCEPTED"]) expect(toPublicResult(row({ awards: [{ status, issuedAt: NOW }] }), ctx(false))).not.toBeNull();
       expect(isIssuedAward("ISSUED") && isIssuedAward("ACCEPTED") && !isIssuedAward("APPROVED")).toBe(true);
     });
     it("an exercise with no award is not a result", () => {
@@ -92,22 +103,16 @@ describe("toPublicResult", () => {
     });
   });
 
-  it("with more than one issued award, the latest issued is shown", () => {
+  it("with more than one issued award, the latest issued gives the day", () => {
     const r = toPublicResult(
-      row({
-        awards: [
-          { status: "ISSUED", issuedAt: new Date("2026-10-01T02:00:00Z"), awardeeName: "First Sdn Bhd", awardedValue: { toString: () => "100.00" } },
-          { status: "ACCEPTED", issuedAt: new Date("2026-10-03T02:00:00Z"), awardeeName: "Second Sdn Bhd", awardedValue: { toString: () => "200.00" } },
-        ],
-      }),
+      row({ awards: [{ status: "ISSUED", issuedAt: new Date("2026-10-01T02:00:00Z") }, { status: "ACCEPTED", issuedAt: new Date("2026-10-03T02:00:00Z") }] }),
       ctx(true),
     )!;
-    expect(r.awardee).toBe("Second Sdn Bhd");
-    expect(r.awardedSen).toBe("20000");
+    expect(r.awardedDay).toBe("2026-10-03");
   });
 
   it("an award with no recorded day still lists, without a date", () => {
-    const r = toPublicResult(row({ awards: [{ status: "ISSUED", issuedAt: null, awardeeName: "A" }] }), ctx(false))!;
+    const r = toPublicResult(row({ awards: [{ status: "ISSUED", issuedAt: null }] }), ctx(false))!;
     expect(r.awardedOn).toBeNull();
     expect(r.awardedDay).toBeNull();
   });
@@ -124,28 +129,30 @@ const keysIn = (select: unknown): string[] => {
 };
 
 describe("the read behind the public Results page", () => {
-  const without = keysIn(resultSelect(false));
-  const withValue = keysIn(resultSelect(true));
-  it("does not select the awarded value unless the organisation publishes it", () => {
-    expect(without).not.toContain("awardedValue");
-    expect(withValue).toContain("awardedValue");
+  const keys = keysIn(resultSelect());
+  it("takes no argument: nothing an organisation sets widens it", () => {
+    expect(resultSelect.length).toBe(0);
   });
   it("selects only issued or accepted awards", () => {
-    expect((resultSelect(false).awards as { where: unknown }).where).toEqual({ status: { in: [...ISSUED_AWARD_STATUSES] } });
+    expect((resultSelect().awards as { where: unknown }).where).toEqual({ status: { in: [...ISSUED_AWARD_STATUSES] } });
   });
   it("names no SULIT field and nothing else about an award, an exercise or a person", () => {
-    for (const keys of [without, withValue]) {
-      for (const f of SULIT_FIELDS) expect(keys, f.field).not.toContain(f.field);
-      for (const k of [
-        "estimatedValue", "scopeParts", "amount", "parties", "sales", "recipients", "attendance", "personInCharge", "dossierReference", "evaluation", "envelopes", "bids", "recordedBy", "notes", "cancelReason",
-        "awardeeRegistrationNo", "awardeeAddress", "vendor", "vendorId", "awardeeParty", "awardeePartyId", "signatoryName", "signatoryPerson", "signatoryRoleLabel", "icNumber", "erpCommitmentNo", "bondRequired", "ladAmount", "retentionPercent", "contract", "completionPeriod",
-      ]) {
-        expect(keys, k).not.toContain(k);
-      }
+    for (const f of SULIT_FIELDS) expect(keys, f.field).not.toContain(f.field);
+    for (const k of [
+      "estimatedValue", "scopeParts", "amount", "parties", "sales", "recipients", "attendance", "personInCharge", "dossierReference", "evaluation", "envelopes", "bids", "recordedBy", "notes", "cancelReason",
+      "awardeeName", "awardedValue", "awardeeRegistrationNo", "awardeeAddress", "vendor", "vendorId", "awardeeParty", "awardeePartyId", "signatoryName", "signatoryPerson", "signatoryRoleLabel", "icNumber", "erpCommitmentNo", "bondRequired", "ladAmount", "retentionPercent", "contract", "completionPeriod",
+    ]) {
+      expect(keys, k).not.toContain(k);
     }
   });
-  it("the award carries exactly its status, issue time and awardee, and the value only when published", () => {
-    expect(Object.keys((resultSelect(false).awards as { select: object }).select).sort()).toEqual(["awardeeName", "issuedAt", "status"]);
-    expect(Object.keys((resultSelect(true).awards as { select: object }).select).sort()).toEqual(["awardedValue", "awardeeName", "issuedAt", "status"]);
+  it("the award carries exactly its status and issue time", () => {
+    expect(Object.keys((resultSelect().awards as { select: object }).select).sort()).toEqual(["issuedAt", "status"]);
+  });
+  it("no award party, vendor or price column is read anywhere in the public Results code", () => {
+    // Source scan: the projection, its read and the page. A name here would be a column the public could be shown.
+    const files = ["src/lib/portal/results.ts", "src/app/supplier/results/page.tsx"].map((f) => readFileSync(join(process.cwd(), f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""));
+    const repo = readFileSync(join(process.cwd(), "src/lib/portal/repo.ts"), "utf8");
+    const load = repo.slice(repo.indexOf("export async function loadResults"));
+    for (const code of [...files, load]) expect(code).not.toMatch(/awardee|awardedValue|awardedSen|publishAwardedValue|vendor|winner|price|amount/i);
   });
 });

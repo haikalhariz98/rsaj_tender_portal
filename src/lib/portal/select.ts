@@ -51,12 +51,12 @@ export const OPPORTUNITY_SELECT = {
 export const ISSUED_AWARD_STATUSES = ["ISSUED", "ACCEPTED"] as const;
 
 /**
- * The read behind the public Results page. An exercise's award is reduced to when it was issued and
- * who won it. The awarded value is selected only when the organisation has chosen to publish it
- * (`AwardPolicy.publishAwardedValue` is Yes): otherwise it never leaves the database. It names no
- * registration number, address, IC number, vendor, signatory, party or term of the award.
+ * The read behind the public Results page. An award is reduced to its status and the day it was issued
+ * (`issuedAt`): no party, no vendor, no figure, no term of it (founder, 2026-10-20; ruling R3). The
+ * database never returns what the public must not see, so a later edit to the page cannot leak it.
+ * `resultSelect` takes no argument for that reason: nothing an organisation sets widens it.
  */
-export function resultSelect(showValue: boolean) {
+export function resultSelect() {
   return {
     id: true,
     reference: true,
@@ -68,9 +68,7 @@ export function resultSelect(showValue: boolean) {
     window: { select: { path: true, publishedAt: true } },
     awards: {
       where: { status: { in: [...ISSUED_AWARD_STATUSES] } },
-      select: showValue
-        ? { status: true, issuedAt: true, awardeeName: true, awardedValue: true }
-        : { status: true, issuedAt: true, awardeeName: true },
+      select: { status: true, issuedAt: true },
     },
   } satisfies Prisma.SourcingExerciseSelect;
 }

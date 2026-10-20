@@ -58,26 +58,21 @@ export async function loadOpportunity(id: string): Promise<PublicOpportunity | n
 }
 
 /**
- * The public results: advertised exercises with an issued award, newest award first. The value is
- * read only where `AwardPolicy.publishAwardedValue` is Yes; `showsValue` tells the page whether to
- * draw the column at all, so "not published" and "no results" are never confused.
+ * The public results: advertised exercises with an issued award, newest award first. Nothing about who
+ * won or for how much is read (`resultSelect`, select.ts; ruling R3).
  */
-export async function loadResults(): Promise<{ ready: boolean; showsValue: boolean; results: PublicResult[] }> {
+export async function loadResults(): Promise<{ ready: boolean; results: PublicResult[] }> {
   const org = await publicOrg();
-  if (!org) return { ready: false, showsValue: false, results: [] };
-  const [methods, policy] = await Promise.all([
-    db.sourcingMethod.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } }),
-    db.awardPolicy.findUnique({ where: { organisationId: org.id }, select: { publishAwardedValue: true } }),
-  ]);
-  const publish = policy?.publishAwardedValue === true;
+  if (!org) return { ready: false, results: [] };
+  const methods = await db.sourcingMethod.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } });
   const rows = await db.sourcingExercise.findMany({
     where: { organisationId: org.id, ...PUBLIC_WHERE, awards: { some: { status: { in: [...ISSUED_AWARD_STATUSES] } } } },
-    select: resultSelect(publish),
+    select: resultSelect(),
   });
-  const ctx = { now: new Date(), timeZone: org.timeZone, methodNames: new Map(methods.map((m) => [m.code, m.nameEn])), publishAwardedValue: publish };
+  const ctx = { now: new Date(), timeZone: org.timeZone, methodNames: new Map(methods.map((m) => [m.code, m.nameEn])) };
   const results = (rows as unknown as ResultRow[])
     .map((r) => toPublicResult(r, ctx))
     .filter((r): r is PublicResult => r !== null)
     .sort((a, b) => (b.awardedDay ?? "").localeCompare(a.awardedDay ?? "") || a.reference.localeCompare(b.reference));
-  return { ready: true, showsValue: publish, results };
+  return { ready: true, results };
 }

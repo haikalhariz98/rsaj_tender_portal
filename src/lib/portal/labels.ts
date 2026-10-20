@@ -54,7 +54,7 @@ export const HOME_LINKS: readonly HomeLink[] = [
     href: PORTAL_PATH.results,
     title: w("Results"),
     text: w(
-      "Awarded exercises and who won.",
+      "Awarded exercises.",
     ),
     action: w("View results"),
   },
@@ -241,7 +241,7 @@ export const STATE_BANNER: Record<"CLOSED" | "AWARDED" | "CANCELLED", { title: W
   },
   AWARDED: {
     title: w("This opportunity has been awarded"),
-    text: () => w("See Results for the winner."),
+    text: () => w("Bids are no longer accepted."),
   },
   CANCELLED: {
     title: w("This opportunity has been cancelled"),
@@ -262,22 +262,21 @@ export const RESULTS = {
   info: w(
     "Only advertised exercises that were awarded are listed. Exercises that invited named suppliers are not shown.",
   ),
-  valueNotPublished: w("The awarded value is not published."),
   listTitle: w("Awarded exercises"),
   listSubtitle: w("Latest first."),
-  search: w("Search by title, reference or awardee"),
+  search: w("Search by title or reference"),
   columns: {
     exercise: w("Opportunity"),
-    awardee: w("Awarded to"),
-    awardedOn: w("Awarded on"),
     method: w("Method"),
-    value: w("Awarded value"),
+    closing: w("Closing date"),
+    awardedOn: w("Awarded on"),
+    schedule: w("Schedule of tenders"),
   },
-  awardeeNotStated: w("Not stated"),
+  scheduleDownload: w("Download"),
+  scheduleNotPublished: w("Not published"),
+  schedulePublished: (day: string): Words => w(`Published ${day}`),
   emptyTitle: w("No awards to show yet"),
   count: (n: number): Words => w(n === 1 ? "1 award" : `${n} awards`),
-  viewResults: w("View results"),
-  viewOpportunities: w("View opportunities"),
   notSetUp: {
     title: w("Results are not available yet"),
     body: w(
@@ -302,7 +301,7 @@ export const APPLY = {
     w("A contact person: a name, and an email or mobile number."),
     w("Nothing is uploaded here. No bank details are asked."),
     w(
-      "Contact details are never shown. If awarded, your company's registered name appears on Results.",
+      "Contact details are never shown.",
     ),
   ] satisfies Words[],
   companyTitle: w("The company"),
