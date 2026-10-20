@@ -13,9 +13,11 @@ buttons, and a large isometric illustration of a form being submitted.
 - **No, today's page is not standard.** The screenshot is the staff copy. Suppliers never see that warning, because the public
   copy shows a form. But both copies draw sign-in as a plain page inside the sidebar, with nothing that says what the portal is
   for or why a company would join.
-- **Yes, a split landing is standard.** Brand and illustration on one side, the form on the other. Supplier networks such as
-  SAP Business Network and Coupa's supplier portal use this pattern, and so do Stripe, Linear and Notion. Our own staff sign-in
-  already does it. The supplier door should match the officers' door in quality and differ in tone.
+- **Yes, a split landing is a common current pattern.** Brand and illustration sit on one side and the form on the other. Our
+  own staff sign-in already does it. The supplier door should match the officers' door in quality and differ in tone.
+- **Registration belongs on the supplier sign-in page.** SAP Business Network's supplier login page carries a "Register Now"
+  entry beside the sign-in. (Checked 2026-10-20 against SAP's support FAQ. Coupa's supplier portal documentation describes its
+  sign-in flow but not its layout, so this note cites no layout from it.)
 
 ## 2. Who, how often, what goes wrong
 
@@ -110,8 +112,8 @@ Today's warning callout is replaced by one card, in the same position as the for
 - **Globe icon tile:** brand-50, the same tile as the home cards.
 - **Title:** "Suppliers sign in on the public portal"
 - **With the public address set:**
-  - Line: "This copy is for officers."
-  - Button, primary: **Open the supplier portal**, with an external-link icon. It opens `<public address>` plus the same path
+  - No line. The title and the button say it.
+  - Button, primary: **Open supplier portal**, with an external-link icon. It opens `<public address>` plus the same path
     (`/supplier/sign-in`, `/supplier/activate` or `/supplier/reset`) in a new tab (`rel="noopener noreferrer"`).
 - **With the public address not set:**
   - Line: "Public portal address not set."
@@ -126,7 +128,7 @@ Today's warning callout is replaced by one card, in the same position as the for
   "Before you start" note and the form, or the closed `EmptyState`. Only the frame changes.
   - The page header's info popover stays.
   - The left panel replaces the need for a longer subtitle. Under 0005, the subtitle should drop to the organisation's name
-    alone, but that wording is another workflow's file (§9).
+    alone, but that wording is another workflow's file (§10).
 - **Activate and reset:** the same frame and the same card as sign-in, with their forms unchanged. On the staff copy they show
   the §3.4 card.
 
@@ -191,6 +193,9 @@ Add a test that the rule exists, as `scripts/check-ui.mjs` does for retired clas
   - It serves **only** `OrganisationPortalImage` rows of the deployment's organisation. The staff picture and the dark logo are
     never served by it.
   - Every miss is the same 404.
+  - It is open without a session on **both** copies. The staff copy's gate already treats everything `publicAllows` lists as
+    open, so this one pattern serves the staff-copy landing as well. Without that, an officer who is not signed in would get the
+    sign-in redirect and an empty slot.
   - It sends the sniffed `Content-Type`, `X-Content-Type-Options: nosniff` and an immutable cache.
   - `surface.test.ts` gets positive cases, and negative ones: a staff image's sha, a dark logo's sha, an extra segment, a
     trailing path.
@@ -204,7 +209,7 @@ Add a test that the rule exists, as `scripts/check-ui.mjs` does for retired clas
 
 | Field | Limit | Unset means |
 | --- | --- | --- |
-| Public portal address | 300, `safeLinkHref` (https, or http for localhost), stored as an origin | The staff-copy card says "Public portal address not set." |
+| Public portal address | 300, judged by `safeLinkHref` as the staff links are (http or https, a host, no credentials), stored as its origin | The staff-copy card says "Public portal address not set." |
 | Headline | 60 | "Supplier portal" |
 | One line | 120 | Not drawn |
 | Highlight 1 to 3 | 40 each | Not drawn |
@@ -259,8 +264,8 @@ turns online bids on writes that highlight itself.
 - **The public copy still refuses every server action.**
   - The landing is server-rendered with no action.
   - The illustration is static markup with CSS.
-- **`publicAllows` gains exactly one pattern**, the portal image. Nothing else is opened, and `/sign-in/*` stays refused on the
-  public copy.
+- **`publicAllows` gains exactly one pattern**, the portal image. Through the gate, the same pattern is open without a staff
+  session on the staff copy. Nothing else is opened, and `/sign-in/*` stays refused on the public copy.
 - **No external request at runtime.** No image, font, script or analytics from another origin. The illustration is inline. The
   font is the self-hosted `next/font` build.
 - **No data on the landing** beyond the organisation's own branding. The public-copy database role (an ADR 0034 go-live
@@ -271,13 +276,14 @@ turns online bids on writes that highlight itself.
 
 ## 5. Patterns drawn on
 
-- **The split sign-in** (SAP Business Network, Coupa's supplier portal, Stripe, Linear). Brand and purpose on one side, the one
-  task on the other. It fits because the supplier is a stranger who needs to be told what this place is before being asked for a
-  password.
-- **One-pass hero motion** (Stripe, Linear's marketing pages). Motion that tells a short story once, then rests. It fits because
-  the motion explains "fill in, submit, done", the registration promise, without words. That serves 0005.
-- **"Open in the right place" interstitials** (GitHub's "you're on the enterprise instance" pages). A clear card with the one
-  link, instead of a warning about the wrong place.
+- **The split sign-in**, as our staff sign-in draws it: brand and purpose on one side, the one task on the other. It fits because
+  the supplier is a stranger who needs to be told what this place is before being asked for a password.
+- **Register on the sign-in page**, as SAP Business Network's supplier login does with "Register Now". A new company that
+  reaches sign-in first is not sent away to find the way in.
+- **One-pass hero motion**: motion that tells a short story once, then rests. It fits because the motion explains "fill in,
+  submit, done", the registration promise, without words. That serves 0005.
+- **"Wrong door" pages that hand over the right link**: one card with the one link, instead of a warning about being in the
+  wrong place.
 - **Our own staff sign-in.** The frame, the card, the footer and the highlight row are reused, not re-invented.
 
 ## 6. Rejected
@@ -308,7 +314,22 @@ turns online bids on writes that highlight itself.
 
 The highlight row, the card, the footer and the grid stay shared, so the two doors cannot drift apart.
 
-## 8. Test with real users before committing
+## 8. Word budgets (0005 §3.1)
+
+Every literal string this note adds is within budget:
+- The staff card title is 7 words.
+- "Public portal address not set." is 5 words, a state.
+- "An administrator sets it in Configuration." is 6 words, under the 12-word refusal budget, and it names who clears it.
+- "Forgot your password? Ask the office for a reset code." is 10 words, under the 12-word supplier next step.
+- "Every sign-in is recorded." is 4 words.
+- "Open supplier portal" is 3 words, within the button budget. The brief's "Open the supplier portal" would be 4.
+- "Register as a supplier" is 4, one over the button budget. It is kept because it is already the label of the sidebar item and
+  the home page's card, and the same action should read the same everywhere. If the product owner holds the button budget
+  strictly, the label becomes "Register" on all three at once, never on this page alone.
+
+The configured headline, line and highlights are customer text, held by their character limits.
+
+## 9. Test with real users before committing
 
 1. **Five-second test** with three or four small contractors, not officers. Show the public landing, then hide it. Ask "What can
    you do here?" and "How would you join?" Pass: they name registering, and they find the Register button without help.
@@ -321,7 +342,7 @@ The highlight row, the card, the footer and the grid stay shared, so the two doo
    expensive after the founder signs it off.
 5. **Staff copy.** Ask an officer what the card means and where the button goes. Pass: "to the portal suppliers use".
 
-## 9. Not in this note
+## 10. Not in this note
 
 - The subtitle and labels of the register page live in `src/lib/portal/labels.ts`, which another workflow is editing. Shortening
   them to 0005's budget is a follow-up for after that work lands.
