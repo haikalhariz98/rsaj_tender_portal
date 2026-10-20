@@ -73,13 +73,29 @@ describe("the bid sealing policy editor", () => {
   it("LIVE is refused while the app's login can read the estimate's figure or make temporary tables, and both are said (N6, ruling 20ch)", async () => {
     const kept = globalThis as unknown as { perolehanRuntimeRole?: unknown };
     const before = kept.perolehanRuntimeRole;
-    kept.perolehanRuntimeRole = Promise.resolve({ name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [], temporaryHeld: true, estimateFigureReadable: true });
+    kept.perolehanRuntimeRole = Promise.resolve({ name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [], temporaryHeld: true, estimateFigureReadable: true, figureReaderCallable: true });
     try {
       const out = await saveBidSealingPolicy({ ok: false }, form({ onlineSubmission: "LIVE", cryptoReviewReference: "R-1" }));
       expect(out).toMatchObject({ ok: false });
       const text = JSON.stringify(out);
       expect(text).toContain("can still read the company estimate's figure");
       expect(text).toContain("can still make temporary tables");
+    } finally {
+      kept.perolehanRuntimeRole = before;
+    }
+  });
+
+  it("with clean runtime facts neither runtime fault is said, though the other conditions still are (the call site reads the facts)", async () => {
+    const kept = globalThis as unknown as { perolehanRuntimeRole?: unknown };
+    const before = kept.perolehanRuntimeRole;
+    kept.perolehanRuntimeRole = Promise.resolve({ name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [], temporaryHeld: false, estimateFigureReadable: false, figureReaderCallable: true });
+    try {
+      const out = await saveBidSealingPolicy({ ok: false }, form({ onlineSubmission: "LIVE", cryptoReviewReference: "R-1" }));
+      expect(out).toMatchObject({ ok: false });
+      const text = JSON.stringify(out);
+      expect(text).not.toContain("can still read the company estimate's figure");
+      expect(text).not.toContain("can still make temporary tables");
+      expect(text).toContain("malware scanner");
     } finally {
       kept.perolehanRuntimeRole = before;
     }

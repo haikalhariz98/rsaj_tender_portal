@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { parseEstimateFigure } from "@/lib/opening/online-finalise";
 import { leadTime } from "@/lib/scope/estimate";
 import { writeSealedLodgement } from "@/lib/scope/estimate-store";
+import { applyAppRole } from "../../../scripts/db-role-apply";
 import { ensureAdministrator, randomId, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
 import { estimateLodgedOn, needsRelodgement } from "./estimate-lodgement";
@@ -102,6 +103,19 @@ describe("the sealed lodgement (step 16)", () => {
     // The version table still holds the figure (ADR 0012's recorded gap), and the lodgement did not touch it.
     const versions = await db.companyEstimateVersion.findMany({ where: { estimateId: ex.estimateId }, select: { id: true, versionNo: true, preparedOn: true } });
     expect(versions).toHaveLength(1);
+  });
+
+  it("lodges as the app's login (no SELECT on the figure), reading it through the logged reader and writing one access row (N6)", async () => {
+    const role = "perolehan_app_test";
+    expect((await db.$transaction((tx) => applyAppRole(tx, { role, password: null }))).ok).toBe(true);
+    const ex = await exercise();
+    const made = await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL ROLE ${role}`);
+      return writeSealedLodgement(tx, { organisationId: org, exerciseId: ex.id, estimateId: ex.estimateId, versionNo: 1, key: { id: ex.keyId, publicKey: pair.publicKey }, lodgedByPersonId: person, supersededReason: "x", now: new Date(), reader: { organisationId: org, personId: person, sessionId: null, sourceAddress: null } });
+    });
+    expect(made.versionId).toBe(ex.versionId);
+    const rows = await db.sulitAccessEvent.findMany({ where: { entity: "CompanyEstimateVersion", entityId: ex.versionId }, select: { basis: true, outcome: true } });
+    expect(rows).toEqual([{ basis: "LOGGED_FIGURE_READ", outcome: "GRANTED" }]);
   });
 
   it("is judged lodged ONLINE only under the live key, and a re-key takes the standing with it", async () => {

@@ -207,7 +207,6 @@ describe("a login that can still read the company estimate's figure is a warning
         expect(runtimeRoleVerdict(held, true), grant).toMatchObject({ safe: false, reason: "FIGURE_READABLE", refuseSignIn: false });
         // db:roles takes it back again.
         await db.$transaction((tx) => applyAppRole(tx, { role: APP, password: null }));
-        await db.$executeRawUnsafe(`REVOKE SELECT ("value") ON "CompanyEstimateVersion" FROM PUBLIC`);
         expect((await asApp()).estimateFigureReadable, `${grant} taken back`).toBe(false);
       }
 

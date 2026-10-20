@@ -48,6 +48,8 @@ export const WITHHELD: readonly { table: string; revoke: string; held: string }[
   ...APPEND_ONLY_TABLES.map((table) => ({ table, revoke: "UPDATE, DELETE, TRUNCATE", held: "UPDATE, DELETE, TRUNCATE" })),
   ...CONTENT_TABLES.map((table) => ({ table, revoke: "UPDATE, TRUNCATE", held: "UPDATE, TRUNCATE" })),
   ...SEALED_TABLES.map((table) => ({ table, revoke: "DELETE, TRUNCATE", held: "DELETE, TRUNCATE" })),
+  // N6 review: the figure's version row is immutable. Overwriting or deleting it needs no SELECT on the figure and writes no log row, so the app does neither (the app only inserts versions).
+  { table: "CompanyEstimateVersion", revoke: "UPDATE, DELETE, TRUNCATE", held: "UPDATE, DELETE, TRUNCATE" },
 ];
 
 /// Columns no app login may read (ruling 20ch, threat model F10). The company estimate's figure is read only through FIGURE_READER, which logs every read.
@@ -116,8 +118,9 @@ export function grantStatements(input: {
   // column itself, and every other column is granted back by name. A table whose columns were not read gets no column GRANT: it stays unreadable rather than guessed at.
   for (const [name, walled] of walledByTable()) {
     if (!input.existing.has(name)) continue;
-    statements.push(`REVOKE SELECT ON TABLE ${table(name)} FROM ${role}`);
-    for (const column of walled) statements.push(`REVOKE SELECT (${quoteIdent(column)}) ON TABLE ${table(name)} FROM ${role}`);
+    // PUBLIC as well as the role: the runtime check counts a grant through PUBLIC, so db:roles must be able to clear it.
+    statements.push(`REVOKE SELECT ON TABLE ${table(name)} FROM PUBLIC`, `REVOKE SELECT ON TABLE ${table(name)} FROM ${role}`);
+    for (const column of walled) statements.push(`REVOKE SELECT (${quoteIdent(column)}) ON TABLE ${table(name)} FROM PUBLIC`, `REVOKE SELECT (${quoteIdent(column)}) ON TABLE ${table(name)} FROM ${role}`);
     const readable = [...new Set(input.columns.get(name) ?? [])].filter((c) => !walled.includes(c)).sort();
     if (readable.length > 0) statements.push(`GRANT SELECT (${readable.map(quoteIdent).join(", ")}) ON TABLE ${table(name)} TO ${role}`);
   }
@@ -150,13 +153,15 @@ export interface RuntimeRoleFacts {
   temporaryHeld: boolean;
   /// The login (or a role it is a member of, or PUBLIC) can SELECT a WALLED_COLUMNS column directly: `db:roles` has not run since the wall (ruling 20ch, N6). A table not made yet reads false.
   estimateFigureReadable: boolean;
+  /// The login (or a role it is a member of, or PUBLIC) can EXECUTE the logged figure reader. False when it cannot or the function is absent: lodging an online estimate and finalising an opening then fail. `db:roles` grants it (N6 review).
+  figureReaderCallable: boolean;
 }
 
-export type RuntimeRoleReason = "SUPERUSER" | "OWNER" | "TRAIL_WRITABLE" | "FIGURE_READABLE" | "TEMPORARY_HELD";
+export type RuntimeRoleReason = "SUPERUSER" | "OWNER" | "TRAIL_WRITABLE" | "FIGURE_READABLE" | "TEMPORARY_HELD" | "FIGURE_READER_UNCALLABLE";
 
 /// The reasons that warn and never refuse sign-in, even in production. Each is a second wall: TEMPORARY behind the pinned search_path (step 19), the figure behind the
 /// client's omit and explicit selects (N6, J1). LIVE refuses both instead (`liveIssueFaults`).
-export const WARNING_ONLY_REASONS: readonly RuntimeRoleReason[] = ["FIGURE_READABLE", "TEMPORARY_HELD"];
+export const WARNING_ONLY_REASONS: readonly RuntimeRoleReason[] = ["FIGURE_READABLE", "TEMPORARY_HELD", "FIGURE_READER_UNCALLABLE"];
 export const warnsOnly = (reason: RuntimeRoleReason): boolean => WARNING_ONLY_REASONS.includes(reason);
 
 export type RuntimeRoleVerdict =
@@ -179,6 +184,8 @@ export function runtimeRoleVerdict(facts: RuntimeRoleFacts, production: boolean)
   if (facts.estimateFigureReadable) return { safe: false, reason: "FIGURE_READABLE", name: facts.name, refuseSignIn: false, tables: [] };
   // A warning, never a refusal (step 19): TEMPORARY is the second wall behind the pinned search_path every sealed trigger function carries. The refusal is kept for a wall that stands alone.
   if (facts.temporaryHeld) return { safe: false, reason: "TEMPORARY_HELD", name: facts.name, refuseSignIn: false, tables: [] };
+  // A warning, never a refusal: the reader is a hard dependency of lodging and finalising, and an availability fault, not a leak.
+  if (!facts.figureReaderCallable) return { safe: false, reason: "FIGURE_READER_UNCALLABLE", name: facts.name, refuseSignIn: false, tables: [] };
   return { safe: true };
 }
 
@@ -189,4 +196,5 @@ export const RUNTIME_ROLE_WORDS: Record<RuntimeRoleReason, string> = {
   TRAIL_WRITABLE: "a login that can still change or remove records the app should only add to (the audit trail, the sign-in log, document access history or stored document content), remove sealed bid records, or reach the migration history",
   FIGURE_READABLE: "a login that can still read the company estimate's figure directly, so npm run db:roles has not run on this database since the figure was walled off",
   TEMPORARY_HELD: "a login that can still make temporary tables, so npm run db:roles has not run on this database since the sealed-bid hardening, which takes that right away",
+  FIGURE_READER_UNCALLABLE: "a login that cannot call the company estimate's logged reader, so lodging an online estimate and finalising an opening will fail until npm run db:roles has run on this database",
 };

@@ -105,7 +105,7 @@ describe("the app's login cannot change or remove the trail (grants)", () => {
     const facts = await asApp((tx) => readRuntimeRole(tx));
     // Phase 1d review: the check also reads the grants now (withheldHeld), and the script's grants must leave that empty.
     // N6 (ruling 20ch): the check also reads whether the login can SELECT the estimate's figure, and the script's grants must leave that false.
-    expect(facts).toEqual({ name: TEST_ROLE, isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [], temporaryHeld: false, estimateFigureReadable: false });
+    expect(facts).toEqual({ name: TEST_ROLE, isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [], temporaryHeld: false, estimateFigureReadable: false, figureReaderCallable: true });
     const owner = await readRuntimeRole(db);
     expect(owner.isSuperuser || owner.ownsSchemaObjects).toBe(true);
   });

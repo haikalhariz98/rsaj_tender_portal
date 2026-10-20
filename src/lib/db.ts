@@ -23,8 +23,8 @@ function createClient() {
     adapter: new PrismaPg({ connectionString }),
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
     // 6.2 sealed-figure rule (ADR 0012): the company estimate's figure and amendment reason
-    // are never read by default. One accessor un-omits them: readSealedFigures in
-    // src/lib/scope/estimate-store.ts (source-scanned).
+    // are never read by default. Nothing un-omits them: the figure is read only through
+    // the database's logged figure reader (readFigure in src/lib/scope/estimate-store.ts) and the reason by an explicit select there (source-scanned).
     omit: SEALED_OMIT,
   });
 }

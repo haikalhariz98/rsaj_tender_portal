@@ -77,7 +77,7 @@ describe("the app role's grants (ADR 0034 D11)", () => {
     for (const w of WITHHELD) {
       if (w.revoke !== "ALL") expect(w.held).toBe(w.revoke);
     }
-    expect(WITHHELD.map((w) => w.table)).toEqual(["_prisma_migrations", ...APPEND_ONLY_TABLES, "BlobContent", ...SEALED_TABLES]);
+    expect(WITHHELD.map((w) => w.table)).toEqual(["_prisma_migrations", ...APPEND_ONLY_TABLES, "BlobContent", ...SEALED_TABLES, "CompanyEstimateVersion"]);
   });
 
   it("skips a listed table that does not exist yet, and reports it", () => {
@@ -102,7 +102,9 @@ describe("the company estimate's figure is walled off from the app (ruling 20ch,
     const lastWithheld = Math.max(...WITHHELD.map((w) => at(`REVOKE ${w.revoke} ON TABLE "public"."${w.table}" FROM "perolehan_app"`)));
     const order = [
       lastWithheld,
+      at(`REVOKE SELECT ON TABLE ${T} FROM PUBLIC`),
       at(`REVOKE SELECT ON TABLE ${T} FROM "perolehan_app"`),
+      at(`REVOKE SELECT ("value") ON TABLE ${T} FROM PUBLIC`),
       at(`REVOKE SELECT ("value") ON TABLE ${T} FROM "perolehan_app"`),
       at(COLUMN_GRANT),
       at(EXECUTE),
@@ -119,6 +121,15 @@ describe("the company estimate's figure is walled off from the app (ruling 20ch,
     expect(s.filter((x) => x.startsWith("GRANT SELECT (") && x.includes(T))).toEqual([`GRANT SELECT ("id", "versionNo") ON TABLE ${T} TO "perolehan_app"`]);
     expect(s.filter((x) => x.startsWith("GRANT")).some((x) => x.includes(`"value"`))).toBe(false);
     expect(grants().filter((x) => x.startsWith("GRANT")).some((x) => x.includes(`"value"`))).toBe(false);
+  });
+
+  it("takes the figure from PUBLIC as well as the role, before any column is granted back, and bars updating or deleting a version (N6 review)", () => {
+    const s = grants(ALL, { columns: new Map([["CompanyEstimateVersion", VERSION_COLUMNS]]) });
+    const at = (x: string) => s.indexOf(x);
+    expect(at(`REVOKE SELECT ON TABLE ${T} FROM PUBLIC`)).toBeGreaterThan(-1);
+    expect(at(`REVOKE SELECT ("value") ON TABLE ${T} FROM PUBLIC`)).toBeGreaterThan(-1);
+    expect(at(`REVOKE SELECT ("value") ON TABLE ${T} FROM PUBLIC`)).toBeLessThan(s.findIndex((x) => x.startsWith("GRANT SELECT (") && x.includes(T)));
+    expect(s).toContain(`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE ${T} FROM "perolehan_app"`);
   });
 
   it("grants a column added since, because the list is read from the database at run time", () => {
@@ -161,7 +172,7 @@ describe("the role's name", () => {
 
 describe("who the running app is", () => {
   // N6 (ruling 20ch): the facts gain estimateFigureReadable; the safe login cannot read the figure.
-  const app = { name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [] as string[], temporaryHeld: false, estimateFigureReadable: false };
+  const app = { name: "perolehan_app", isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [] as string[], temporaryHeld: false, estimateFigureReadable: false, figureReaderCallable: true };
   it("the separate role is safe", () => {
     expect(runtimeRoleVerdict(app, true)).toEqual({ safe: true });
     expect(runtimeRoleVerdict(app, false)).toEqual({ safe: true });
@@ -217,6 +228,12 @@ describe("who the running app is", () => {
     expect(runtimeRoleVerdict({ ...fig, withheldHeld: ["AuditEntry"] }, true)).toMatchObject({ reason: "TRAIL_WRITABLE", refuseSignIn: true });
     expect(runtimeRoleVerdict({ ...fig, temporaryHeld: true }, true)).toMatchObject({ reason: "FIGURE_READABLE", refuseSignIn: false });
   });
+  it("a login that cannot call the logged figure reader is a warning in words, last in precedence", () => {
+    const nocall = { ...app, figureReaderCallable: false };
+    expect(runtimeRoleVerdict(nocall, true)).toEqual({ safe: false, reason: "FIGURE_READER_UNCALLABLE", name: "perolehan_app", refuseSignIn: false, tables: [] });
+    expect(runtimeRoleVerdict({ ...nocall, temporaryHeld: true }, true)).toMatchObject({ reason: "TEMPORARY_HELD" });
+    expect(RUNTIME_ROLE_WORDS.FIGURE_READER_UNCALLABLE).toMatch(/db:roles/);
+  });
   it("the warning-only reasons are exactly those that never refuse sign-in in production", () => {
     const one: Record<RuntimeRoleReason, Partial<typeof app>> = {
       SUPERUSER: { isSuperuser: true },
@@ -224,6 +241,7 @@ describe("who the running app is", () => {
       TRAIL_WRITABLE: { withheldHeld: ["AuditEntry"] },
       FIGURE_READABLE: { estimateFigureReadable: true },
       TEMPORARY_HELD: { temporaryHeld: true },
+      FIGURE_READER_UNCALLABLE: { figureReaderCallable: false },
     };
     const warning: string[] = [];
     for (const [reason, f] of Object.entries(one)) {

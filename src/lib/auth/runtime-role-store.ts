@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 
-import { RUNTIME_ROLE_WORDS, runtimeRoleVerdict, WALLED_COLUMNS, warnsOnly, WITHHELD, type RuntimeRoleFacts, type RuntimeRoleVerdict } from "./db-role";
+import { FIGURE_READER, RUNTIME_ROLE_WORDS, runtimeRoleVerdict, WALLED_COLUMNS, warnsOnly, WITHHELD, type RuntimeRoleFacts, type RuntimeRoleVerdict } from "./db-role";
 
 /**
  * Who the running app is connected as (ADR 0034 D11, Phase 1d `assertRuntimeRole`). Asked once per process, at startup from
@@ -52,7 +52,14 @@ export async function readRuntimeRole(client: Client = db): Promise<RuntimeRoleF
        WHERE to_regclass(format('%I.%I', current_schema(), ${w.table}::text)) IS NOT NULL`;
     if (col?.held) estimateFigureReadable = true;
   }
-  return { ...row, withheldHeld: held?.tables ?? [], temporaryHeld: temp?.held ?? false, estimateFigureReadable };
+  // The logged reader (N6 review): finalising and lodging call it, so EXECUTE on it must be held. Absent function reads false.
+  const [reader] = await client.$queryRaw<{ callable: boolean | null }[]>`
+    SELECT (EXISTS (SELECT 1 FROM pg_roles m
+                     WHERE pg_has_role(current_user, m.oid, 'MEMBER')
+                       AND has_function_privilege(m.oid, to_regprocedure(format('%I.%I(%s)', current_schema(), ${FIGURE_READER.name}::text, ${FIGURE_READER.args}::text)), 'EXECUTE'))
+            OR coalesce(has_function_privilege('public', to_regprocedure(format('%I.%I(%s)', current_schema(), ${FIGURE_READER.name}::text, ${FIGURE_READER.args}::text)), 'EXECUTE'), false)) AS "callable"
+     WHERE to_regprocedure(format('%I.%I(%s)', current_schema(), ${FIGURE_READER.name}::text, ${FIGURE_READER.args}::text)) IS NOT NULL`;
+  return { ...row, withheldHeld: held?.tables ?? [], temporaryHeld: temp?.held ?? false, estimateFigureReadable, figureReaderCallable: reader?.callable ?? false };
 }
 
 /// The facts, not the verdict, are kept (N6, J5): the sign-in verdict and the LIVE conditions both derive from them. Same global key as before.
@@ -73,7 +80,7 @@ export async function runtimeRoleFacts(): Promise<RuntimeRoleFacts> {
   if (!held) return ask();
   const facts = await held;
   // A process that ran the code before N6 kept the verdict under this key, not the facts (next dev keeps globalThis across a reload). That is not an answer: ask again.
-  if (typeof (facts as Partial<RuntimeRoleFacts>).estimateFigureReadable !== "boolean") {
+  if (typeof (facts as Partial<RuntimeRoleFacts>).estimateFigureReadable !== "boolean" || typeof (facts as Partial<RuntimeRoleFacts>).figureReaderCallable !== "boolean") {
     if (kept.perolehanRuntimeRole === held) return ask();
     return runtimeRoleFacts();
   }

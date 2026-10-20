@@ -18,8 +18,8 @@ import { sealEstimateFigure } from "@/lib/sealing/estimate-seal";
 
 import { sealFigures, type SealedFigures } from "./estimate";
 
-/// Who reads, for the access row: a person (with session and address) or a loader run by label, exactly one (plan golive-n6 3.5).
-export type FigureReader = { organisationId: string } & ({ personId: string; sessionId: string | null; sourceAddress: string | null } | { systemLabel: string });
+import type { FigureReader } from "./estimate";
+export type { FigureReader };
 
 /// The one call of the database's logged reader (ruling 20ch): the figure leaves the version table only through `public.read_company_estimate_figure`, which writes one
 /// SulitAccessEvent row in this transaction. Sen from the numeric text through parseSen, never a float.

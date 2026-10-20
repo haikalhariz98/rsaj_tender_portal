@@ -7,6 +7,7 @@ import { parseSen } from "@/lib/money";
 import { randomId, testOrganisation } from "@/lib/test-db/auth-fixtures";
 import { applyAppRole } from "../../../scripts/db-role-apply";
 
+import { discloseAtFinalising } from "@/lib/opening/estimate";
 import { readSealedFigures, writeEstimateVersion, type FigureReader } from "./estimate-store";
 import { loadEstimates } from "./repo";
 
@@ -124,15 +125,33 @@ describe("the figure is read only through the logged reader", () => {
       asApp((tx) => tx.$queryRaw`SELECT public.read_company_estimate_figure(${otherOrganisationId}::text, ${versionId}::text, ${personId}::text, NULL::text, NULL::text, NULL::text)::text AS v`),
     );
     expect(direct).not.toBeNull();
-    expect(direct).toMatch(/^PA\d{3}$/);
+    expect(direct).toBe("PA035");
     expect(await db.sulitAccessEvent.count({ where: { entity: "CompanyEstimateVersion" } })).toBe(before);
   });
 
   it("the runtime check reads the figure as unreadable for the app's login, and readable for the owner", async () => {
     const facts = await asApp((tx) => readRuntimeRole(tx));
     expect(facts.estimateFigureReadable).toBe(false);
+    expect(facts.figureReaderCallable).toBe(true);
     expect(facts.temporaryHeld).toBe(false);
     expect((await readRuntimeRole(db)).estimateFigureReadable).toBe(true);
+  });
+
+  it("finalising an opening discloses and reads the figure as the app's login, with one access row (the real disclose path)", async () => {
+    const requisitionId = (await db.requisition.create({ data: { organisationId, reference: `WALL/REQ/${randomId()}`, requestingUnitCode: "D", requestingPersonId: personId, title: "R", justification: "t", needStatement: "t", costCentreCode: "C", accountCode: "A", placeOfDelivery: "x", dateRequired: new Date("2027-01-01"), estimatedValue: "1000.00", raisedOn: new Date("2026-10-01") } })).id;
+    const ex = await db.sourcingExercise.create({ data: { organisationId, reference: `WALL/EX/${randomId()}`, requisitionId, title: "Wall disclose", estimatedValue: "1000.00", sourcingMethodCode: "WALL_METHOD", status: "DOCUMENTS_IN_PREPARATION" } });
+    const est = await db.companyEstimate.create({ data: { organisationId, exerciseId: ex.id, preparerPersonId: personId, currentVersionNo: 1, state: "LODGED", lodgedAt: new Date() } });
+    const v = await db.companyEstimateVersion.create({ data: { organisationId, estimateId: est.id, versionNo: 1, value: FIGURE, reason: "first", preparedOn: new Date("2026-10-01T00:00:00.000Z"), preparerPersonId: personId }, select: { id: true } });
+    const out = await asApp((tx) =>
+      discloseAtFinalising(tx, { kind: "SYSTEM", label: "wall test" }, {
+        organisationId, reference: ex.reference, facts: { id: est.id, state: "LODGED", preparerPersonId: personId, currentVersionNo: 1, classification: "SULIT", lodgedVersionNo: 1, retainedVersionNo: null },
+        at: new Date(), person: { id: personId, name: "Estimator" }, paper: null, benchmarkLabelEn: null,
+      }),
+    );
+    expect(out.lodged).toBe(parseSen(FIGURE));
+    const rows = await accessRows(v.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ basis: "LOGGED_FIGURE_READ", outcome: "GRANTED" });
   });
 
   it("the public role may not call the reader (as the owner reads the catalogue)", async () => {

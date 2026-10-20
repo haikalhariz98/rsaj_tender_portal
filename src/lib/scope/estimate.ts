@@ -26,7 +26,6 @@ import type { ExerciseStatus } from "@/lib/method/types";
 import { fitsMoneyColumn, type Sen } from "@/lib/money";
 
 import { sharePct } from "./bq";
-import type { FigureReader } from "./estimate-store";
 import type { EstimateState, Finding, ScopePolicy } from "./types";
 
 /// An estimate as the rules see it: never its figure.
@@ -353,6 +352,9 @@ export function actionResult(faults: readonly Finding[]): { ok: true } | { ok: f
   const blocks = faults.filter((f) => f.level === "block");
   return blocks.length ? { ok: false, codes: blocks.map((f) => f.code) } : { ok: true };
 }
+
+/// Who reads, for the access row: a person (with session and address) or a loader run by label, exactly one (plan golive-n6 3.5).
+export type FigureReader = { organisationId: string } & ({ personId: string; sessionId: string | null; sourceAddress: string | null } | { systemLabel: string });
 
 /// Who is named on the access row when the figure is read (ruling 20ch). A supplier never reads the company estimate's figure, so a supplier actor throws.
 export function figureReaderOf(actor: AuditActor, organisationId: string): FigureReader {

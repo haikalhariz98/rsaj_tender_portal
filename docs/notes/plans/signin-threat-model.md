@@ -107,13 +107,19 @@ Without email, an administrator password reset is the recovery path, and it is a
     - The figure column is revoked from the app role. `db:roles` grants every other column of the version table, read from the database at run time, and Postgres refuses a read of the figure with 42501.
     - The figure is read only through `public.read_company_estimate_figure`, a SECURITY DEFINER function. Each call writes one `SulitAccessEvent` with the basis `LOGGED_FIGURE_READ`, in the caller's transaction. EXECUTE is granted to the app role alone.
     - The runtime check reads back whether the login, a role it belongs to, or PUBLIC can still read the figure. Sign-in warns on it.
-    - LIVE bid sealing is refused while the figure is readable or TEMPORARY is held, and an unknown login counts as both.
+    - Issuing LIVE bid sealing is refused while the figure is readable or TEMPORARY is held, and an unknown login counts as both. This is judged when the policy is saved or applied, not again afterwards.
+    - The app role cannot UPDATE or DELETE a version row, so the figure cannot be overwritten silently.
     - Proved against a real database as the app role in `src/lib/scope/estimate-wall.db.test.ts`.
   - **Owed:**
     - `db:roles` on each live database, and again after every restore and every `migrate deploy`.
     - Encrypted backups, with custody recorded (a deployment item).
     - The amendment reason is not walled. It stays behind the application's omit and explicit selects only.
+    - The column revoke stops plain reads only. The app role holds EXECUTE on the reader, which has no state precondition, so one injected expression can read any version's figure through it and put it in a database error text, and that error aborts the statement and removes the access row it just wrote. No injection point exists in the source today. Recorded, not closed. Closing it takes a state precondition and a `RAISE LOG` in a new migration.
     - Rollback residual: a compromised app process running arbitrary SQL can call the function and roll back its own log row. Recorded, not closed.
+    - The reader records the actor it is given. A compromised app process can attribute a read to another person or to a system label. It closes when the actor comes from the database session.
+    - An organisation already at LIVE stays LIVE if the login later loses the wall (a restore, or a migration that rebuilds the table, with `db:roles` not re-run). Only the start-up warning and the accounts screen say so. Owed: re-check at publication and at lodging.
+    - Operations: `db:roles` runs straight after `migrate deploy` and before the app restarts. Until it does, lodging and finalising fail closed on the reader (the start-up warning now says so). Change the reader with `CREATE OR REPLACE`, never drop and re-create it, or its grants are lost.
+    - Database statement logging can carry the figure as a bind parameter. Set `log_statement` to none or ddl, and `log_parameter_max_length` and `log_parameter_max_length_on_error` to 0. Add it to the LIVE hardening attestation.
 - Sign-in does not fix the backup exposure. State that on screen, as the product already does.
 
 ### F11. Low: anyone can shut the public registration form for the day
@@ -209,7 +215,7 @@ Without email, an administrator password reset is the recovery path, and it is a
 
 **Phase 3: SULIT, sealed estimate, documents.**
 - SULIT values are absent from pages, responses and exports without the capability.
-- The sealed column is unreadable as the app role. **Built (N6):** the column revoke, the logged definer read, the runtime check, and the LIVE refusal on a readable figure or TEMPORARY held. **Owed:** `db:roles` on each live database and after each restore, encrypted backups with recorded custody, the reason not walled, and the rollback residual (see F10).
+- The sealed column is unreadable as the app role. **Built (N6):** the column revoke, the logged definer read, the runtime check, and the refusal to issue LIVE on a readable figure or TEMPORARY held. **Owed:** `db:roles` on each live database and after each restore, encrypted backups with recorded custody, the reason not walled, the rollback and injection residuals, and the already-LIVE re-check (see F10).
 - A SULIT download is refused without the capability, and the refusal is logged.
 - Access events carry the actor.
 
