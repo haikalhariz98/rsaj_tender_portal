@@ -245,6 +245,7 @@ async function readFigure(tx: Tx, reader: FigureReader, versionId: string): Prom
     - a new column passed in is granted;
     - the EXECUTE grant is present only when `figureReaderPresent` is true;
     - an absent table is skipped.
+  - `db-role.test.ts` assertions on the exact statement list are updated to match ruling 20ch, and the test cites it. No assertion is dropped.
   - Verdict tests cover FIGURE_READABLE precedence (after TRAIL_WRITABLE, before TEMPORARY_HELD) and `refuseSignIn: false`.
   - `src/lib/sealing/switch.test.ts` and its siblings:
     - each new fault fires alone, and both fire together;
@@ -291,6 +292,7 @@ async function readFigure(tx: Tx, reader: FigureReader, versionId: string): Prom
        - `readSealedFigures(tx, id, reader)` returns the figure, and exactly one `SulitAccessEvent` with basis `LOGGED_FIGURE_READ`,
          the version's id and the actor exists;
        - a wrong organisation raises and writes no row;
+       - `writeEstimateVersion` creates a version (the create and amend path, whose INSERT must not return `value`);
        - `readRuntimeRole(tx)` reports `estimateFigureReadable: false`;
      - as the owner, `has_function_privilege('public', ..., 'EXECUTE')` is false.
   2. In `src/app/configuration/bid-sealing/policy.db.test.ts`, add one case where LIVE is refused with both new words while the stubbed
