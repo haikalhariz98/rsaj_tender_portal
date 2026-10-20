@@ -6,6 +6,11 @@ export const AFTER_SIGN_IN = "/";
 /// Whether a path belongs to the sign-in screens, which are shown without the staff frame (no navigation, no counts).
 export const isSignInPath = (pathname: string) => pathname === SIGN_IN_PATH || pathname.startsWith(`${SIGN_IN_PATH}/`);
 
+/// The four supplier portal pages drawn as the portal's front door (design note 0006): sign-in, register, activate and reset. Each is a literal path, so a page
+/// below them (the registration's own POST, an account page) is not one. Like the sign-in screens they are shown without the staff frame, on both copies.
+export const PORTAL_LANDING_PATHS = ["/supplier/sign-in", "/supplier/register", "/supplier/activate", "/supplier/reset"] as const;
+export const isPortalLandingPath = (pathname: string) => (PORTAL_LANDING_PATHS as readonly string[]).includes(pathname);
+
 /// The supplier portal's sign-in (Phase 4a). The supplier store signs in on the public copy only, at literal paths: the pages, and the route handlers their forms post to
 /// (a server action cannot be allow-listed by path, and the public copy refuses every one). `publicAllows` (`src/lib/portal/surface.ts`) lists exactly these.
 export const SUPPLIER_SIGN_IN_PATH = "/supplier/sign-in";

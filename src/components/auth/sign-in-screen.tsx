@@ -1,27 +1,14 @@
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import { AwardIcon, BuildingIcon, ChartIcon, CheckIcon, ClockIcon, DocumentTextIcon, GlobeIcon, LockIcon, PeopleGroupIcon, ShieldCheckIcon, WalletIcon } from "@/components/icons";
+import { PortalFrame, type PortalPage } from "@/components/auth/portal-frame";
+import { HIGHLIGHT_ICON, ScreenFooter } from "@/components/auth/sign-in-parts";
+
 import { Card } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
 import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { SignInBranding } from "@/lib/organisation/sign-in-load";
-import type { SignInIcon } from "@/lib/organisation/sign-in-page";
+import type { PortalBranding } from "@/lib/organisation/portal-load";
 import { ICON_CIRCLE_STYLE, SHADE_FEATHER_PX, SHADE_FEATHER_SIDE_PX, shadeStyle, TAGLINE_SHADE_ALPHA, TEXT_SHADE_ALPHA } from "@/lib/organisation/sign-in-shading";
-
-/// The drawing for each icon an organisation may choose. A `Record` over the whole set, so a new icon cannot be added to the set without its drawing.
-const HIGHLIGHT_ICON: Record<SignInIcon, ComponentType<{ size?: number }>> = {
-  document: DocumentTextIcon,
-  people: PeopleGroupIcon,
-  shield: ShieldCheckIcon,
-  check: CheckIcon,
-  lock: LockIcon,
-  clock: ClockIcon,
-  chart: ChartIcon,
-  award: AwardIcon,
-  building: BuildingIcon,
-  globe: GlobeIcon,
-  wallet: WalletIcon,
-};
 
 /**
  * The frame of the staff sign-in screens: a picture and the organisation's words on the left, the form's card on the right, and the footer line under it.
@@ -38,7 +25,7 @@ const HIGHLIGHT_ICON: Record<SignInIcon, ComponentType<{ size?: number }>> = {
  *
  * On a phone the panel is a short band above the card and carries only the logo, the portal name and the headline.
  */
-export function SignInScreen({ branding, children }: { branding: SignInBranding; children: ReactNode }) {
+function StaffFrame({ branding, children }: { branding: SignInBranding; children: ReactNode }) {
   const { view, imageSha, logo, darkLogo } = branding;
   /// A square or near-square mark is drawn taller (as the sidebar draws it) so its small wordmark can be read; a wide one is already wide.
   const shown = darkLogo ?? logo;
@@ -122,24 +109,17 @@ export function SignInScreen({ branding, children }: { branding: SignInBranding;
           {!view.hasPanel && view.organisationName && <div className="mb-6 text-center text-[13.5px] font-semibold text-ink-3">{view.organisationName}</div>}
           <Card className="rounded-[28px] p-6 shadow-pop sm:p-9">{children}</Card>
         </main>
-        <footer className="mt-8 flex max-w-[460px] flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[12.5px] text-ink-2">
-          <span>
-            © {view.year}
-            {view.organisationName && ` ${view.organisationName}`}
-          </span>
-          {view.links.map((l) => (
-            <span key={l.label} className="flex items-center gap-3">
-              <span aria-hidden="true" className="text-ink-4">
-                |
-              </span>
-              <a href={l.href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded px-1 font-medium text-ink-2 underline decoration-ink-4 underline-offset-2 hover:text-ink sm:min-h-6">
-                {l.label}
-                <span className="sr-only"> (opens in a new tab)</span>
-              </a>
-            </span>
-          ))}
-        </footer>
+        <ScreenFooter year={view.year} organisationName={view.organisationName} links={view.links} />
       </div>
     </div>
   );
+}
+
+type StaffProps = { variant?: "staff"; branding: SignInBranding; children: ReactNode };
+type PortalProps = { variant: "portal"; branding: PortalBranding; page: PortalPage; children: ReactNode };
+
+/// The frame of the sign-in screens. The staff variant is the officers' own door (a picture and words on a dark panel); the portal variant is the supplier portal's front door (see `PortalFrame`).
+export function SignInScreen(props: StaffProps | PortalProps) {
+  if (props.variant === "portal") return <PortalFrame branding={props.branding} page={props.page}>{props.children}</PortalFrame>;
+  return <StaffFrame branding={props.branding}>{props.children}</StaffFrame>;
 }

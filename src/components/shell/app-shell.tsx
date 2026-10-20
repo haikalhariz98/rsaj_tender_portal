@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useSay } from "@/components/i18n/language-context";
 import { shellCountsAction } from "@/app/_auth/shell-counts";
-import { isSignInPath } from "@/lib/auth/routes";
+import { isPortalLandingPath, isSignInPath } from "@/lib/auth/routes";
 import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 
 import type { ShellOrganisation, ShellUser } from "@/lib/shell";
@@ -74,7 +74,8 @@ export function AppShell({
 
   // The sign-in screens are for someone who is not in yet: no navigation, no counts, nothing of the staff side to see. They draw their own whole
   // page (`SignInScreen`: the organisation's picture and words beside the card), so the frame adds nothing around them.
-  if (isSignInPath(pathname)) return <>{children}</>;
+  // The supplier portal's front door (sign-in, register, activate, reset) draws its own whole page on both copies, the same frame.
+  if (isSignInPath(pathname) || isPortalLandingPath(pathname)) return <>{children}</>;
 
   return (
     <div className="relative min-h-dvh">

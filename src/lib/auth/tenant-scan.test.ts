@@ -145,6 +145,7 @@ const MAY_IMPORT_DEPLOYMENT: Readonly<Record<string, string>> = {
   "src/lib/auth/supplier-account-store.ts": "using a supplier's one-time code: as signing in, before there is an actor (Phase 4a)",
   "src/lib/auth/supplier-session-store.ts": "a supplier session is good only on the portal of the deployment's one organisation (ADR 0034 D10): each read checks the session's organisation against it, and ends one that is not (Phase 4a)",
   "src/lib/portal/supplier-auth-page.ts": "the supplier sign-in, activation and reset pages name their policy before anyone has signed in (Phase 4a)",
+  "src/lib/portal/supplier-door.ts": "the supplier portal's front door draws the deployment's organisation's logo and words on the sign-in, activation and reset pages before anyone has signed in (design note 0006)",
   "src/lib/portal/repo.ts": "the public pages' loaders (ADR 0034 D10)",
   "src/lib/portal/apply-repo.ts": "the public registration form's loader (ADR 0034 D10)",
 };

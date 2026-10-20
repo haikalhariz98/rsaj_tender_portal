@@ -1,10 +1,13 @@
+import { SignInScreen } from "@/components/auth/sign-in-screen";
 import { MoreText } from "@/components/ui/more-text";
 import { BuildingIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stepper } from "@/components/ui/stepper";
+import { signInOrganisation } from "@/lib/auth/deployment";
 import { issueFormToken } from "@/lib/auth/form-secret";
+import { loadPortalBranding } from "@/lib/organisation/portal-load";
 import { loadRegistrationForm } from "@/lib/portal/apply-repo";
 import { APPLY } from "@/lib/portal/labels";
 import { loadPublicShell } from "@/lib/portal/deployment";
@@ -20,11 +23,12 @@ export const dynamic = "force-dynamic";
  * no status page. No bank details are asked and nothing is uploaded.
  */
 export default async function SupplierRegisterPage() {
-  const [{ organisation }, form] = await Promise.all([loadPublicShell(), loadRegistrationForm()]);
+  const [{ organisation }, form, door] = await Promise.all([loadPublicShell(), loadRegistrationForm(), signInOrganisation()]);
+  const branding = await loadPortalBranding(door?.id ?? null);
   const open = form.ready && form.missing.length === 0;
 
   return (
-    <>
+    <SignInScreen variant="portal" page="register" branding={branding}>
       <PageHeader title={APPLY.title.en} subtitle={APPLY.subtitle(organisation.name).en} info={{ title: APPLY.title.en, text: APPLY.info.en }} />
 
       {!form.ready ? (
@@ -60,6 +64,6 @@ export default async function SupplierRegisterPage() {
           />
         </div>
       )}
-    </>
+    </SignInScreen>
   );
 }
