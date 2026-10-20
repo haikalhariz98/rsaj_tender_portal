@@ -50,7 +50,7 @@ export function parseConcurrency(raw: string | null | undefined, fallback: numbe
 export const RETRY_AFTER_SECONDS = 5;
 
 const KEY = Symbol.for("perolehan.documentLimiters");
-type Held = { uploads?: Limiter; downloads?: Limiter };
+type Held = { uploads?: Limiter; downloads?: Limiter; publicDownloads?: Limiter };
 
 // Held on globalThis so a reloaded module in development shares one count, as the database client does.
 function held(): Held {
@@ -60,3 +60,7 @@ function held(): Held {
 
 export const uploadLimiter = (): Limiter => (held().uploads ??= createLimiter(parseConcurrency(process.env.DOCUMENT_MAX_CONCURRENT_UPLOADS, DEFAULT_MAX_CONCURRENT_UPLOADS)));
 export const downloadLimiter = (): Limiter => (held().downloads ??= createLimiter(parseConcurrency(process.env.DOCUMENT_MAX_CONCURRENT_DOWNLOADS, DEFAULT_MAX_CONCURRENT_DOWNLOADS)));
+
+/// The anonymous schedule download has a cap of its own, so a flood of strangers cannot take the slots signed-in downloads and officers use.
+export const DEFAULT_MAX_CONCURRENT_PUBLIC_DOWNLOADS = 2;
+export const publicDownloadLimiter = (): Limiter => (held().publicDownloads ??= createLimiter(parseConcurrency(process.env.DOCUMENT_MAX_CONCURRENT_PUBLIC_DOWNLOADS, DEFAULT_MAX_CONCURRENT_PUBLIC_DOWNLOADS)));

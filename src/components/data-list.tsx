@@ -237,7 +237,7 @@ function cellText(cell: Cell | undefined, lang: Language = "en"): string {
     case "open":
       return cell.text;
     case "download":
-      return "";
+      return cell.sub ?? cell.text;
     case "avatars":
       return cell.names.join(" ");
     case "badges":

@@ -17,8 +17,8 @@
  * The earlier modules' acts (6.2 to 6.8) are the demo's own classes, each judged by the product's functions as it is
  * written (X-10 c). Every act is dated on the working days before the load day, after the configuration the earlier
  * demos write (W(17) of the load day at the latest), never after now (X-10 a). demo_aw7 / demo_sx16 are not read
- * or written, and AwardPolicy.publishAwardedValue is left as it stands: the Results page shows the row without its
- * value unless the organisation chooses otherwise.
+ * or written, and the Results row carries no award party and no value, whatever the retired
+ * AwardPolicy.publishAwardedValue holds.
  *
  * Additive: `npm run demo:results` applies it to a database the demo is already loaded in (never a wipe), and does
  * nothing where the award is already issued. `npm run demo:load` runs it last. Every row is on a demo exercise or

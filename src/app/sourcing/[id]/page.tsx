@@ -659,7 +659,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                   const standing = awards.find((a) => a.status !== "CANCELLED");
                   return standing ? <NonAwardPanel actor={actor} award={{ id: standing.id, exerciseId: ex.id, status: standing.status, awardeePartyId: standing.awardeePartyId }} /> : null;
                 })()}
-                <SchedulePanel actor={actor} exerciseId={ex.id} />
+                <SchedulePanel actor={actor} exerciseId={ex.id} awardIssued={awards.some((a) => a.status === "ISSUED" || a.status === "ACCEPTED")} />
                 <EarlierNoticesPanel actor={actor} exerciseId={ex.id} awards={awards.filter((a) => a.status === "CANCELLED")} />
               </>
             ) : null

@@ -4,7 +4,7 @@
  * A bid is a sealed paper envelope, and the portal does not take bids: electronic submission waits on decision D6 and an outside review (6.15c). An envelope names no bidder until the opening (6.6 OD-2: a
  * register names no bidder before it), so the portal can say nothing about a bid before that. After the opening it can say how far the exercise has got, and whether the award went to this supplier. It says nothing
  * else: no price as read, no score, no rank, and no verdict of the opening or the evaluation. Telling a bidder it was eliminated is in effect the notice of non-award, which the organisation's policy D7 governs and
- * which is shown as that notice, not here. So "awarded to another company" is said only where the award is public anyway (it is in Results, for anyone to read). On an invited or confidential exercise a bidder is told only that
+ * which is shown as that notice, not here. So "awarded to another company" is said only where the award is public anyway (it is issued on an advertised exercise, which is open to the public). On an invited or confidential exercise a bidder is told only that
  * an award has been issued, until the office issues it a notice: policy D7 unset means no notice, and no verdict by the back door. A bid is linked to a supplier only when an officer has linked the bidder's party to the supplier's register entry, so a bid that is not linked cannot be shown, and the screen says so.
  */
 
@@ -50,7 +50,7 @@ export function bidStanding(i: BidStandingInput): BidStanding {
       return i.award.awardeeIsYou
         ? { stage: "AWARDED_TO_YOU", headline: "Awarded to your company", detail: "The award is issued to your company.", tone: "ok" }
         : i.inResults
-          ? { stage: "AWARDED_ELSEWHERE", headline: "Awarded to another company", detail: "See Results.", tone: "neutral" }
+          ? { stage: "AWARDED_ELSEWHERE", headline: "Awarded to another company", detail: "The office tells each tenderer its outcome.", tone: "neutral" }
           : { stage: "AWARD_ISSUED", headline: "The award has been issued", detail: "The office tells each tenderer its outcome.", tone: "info" };
     }
     if (i.status === "EVALUATED") return { stage: "EVALUATED", headline: "Evaluation finished, award not issued", detail: "Your bid was opened.", tone: "info" };

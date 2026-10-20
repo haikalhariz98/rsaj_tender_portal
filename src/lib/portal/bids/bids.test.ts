@@ -303,8 +303,8 @@ describe("where a supplier's own bid stands", () => {
     expect(`${s.headline} ${s.detail}`).not.toMatch(/another company|Results|not successful|lost|eliminat|reject/i);
     // The awardee is told it won, public or not.
     expect(bidStanding({ ...base, inResults: false, award: { issued: true, awardeeIsYou: true } }).stage).toBe("AWARDED_TO_YOU");
-    // A public exercise says where the award is published.
-    expect(bidStanding({ ...base, award: { issued: true, awardeeIsYou: false } }).detail).toContain("Results");
+    // A public exercise no longer points to Results for the outcome: Results names no awardee (founder 2026-10-20, review of the Results change).
+    expect(bidStanding({ ...base, award: { issued: true, awardeeIsYou: false } }).detail).not.toContain("Results");
   });
   it("a cancelled exercise reads as cancelled whatever else is true", () => expect(bidStanding({ ...base, status: "CANCELLED", award: { issued: true, awardeeIsYou: true } }).stage).toBe("CANCELLED"));
 });

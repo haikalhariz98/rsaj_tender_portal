@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import { CalendarIcon, CheckIcon, ClipboardIcon, EyeIcon, FileIcon, InboxIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
@@ -325,7 +324,7 @@ export async function OutcomePanel({ actor, ctx }: Omit<Props, "token">) {
           ) : o.supersededNotice ? (
             <p className="text-[14px] text-ink-2">{SUPERSEDED_NOTICE_WORDS} It was issued {o.supersededNotice.on}.</p>
           ) : o.awardIssuedElsewhere && o.inResults ? (
-            <p className="text-[14px] text-ink-2">No notice issued to your company. The award is under <Link href="/supplier/results">Results</Link>.</p>
+            <p className="text-[14px] text-ink-2">No notice issued to your company.</p>
           ) : o.awardIssuedElsewhere ? (
             <p className="text-[14px] text-ink-2">No notice issued to your company.</p>
           ) : (

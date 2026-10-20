@@ -74,7 +74,7 @@ export function issueFaults(i: IssueInput): NonAwardFinding[] {
 /// The reason as it is frozen on the notice: the officer's words where the debrief carries one, otherwise nothing, whatever was typed.
 export const reasonToFreeze = (p: NonAwardPolicy, typed: string): string => (carriesReason(p) ? typed.trim() : "");
 
-/// The outcome in the product's own words, frozen at issue. It names the exercise and says the award went elsewhere. It does not name the awardee (the award is published under Results) and states no figure.
+/// The outcome in the product's own words, frozen at issue. It names the exercise and says the award went elsewhere. It does not name the awardee (Results names no awardee) and states no figure.
 export function outcomeText(i: { reference: string; title: string }): string {
   return `Your bid for ${i.reference}, ${i.title}, was not successful. The award has been made to another tenderer.`;
 }

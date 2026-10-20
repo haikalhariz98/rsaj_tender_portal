@@ -138,3 +138,11 @@ describe("one schedule, replaced and taken off", () => {
     }
   });
 });
+
+describe("the staff card's public warning (R6)", () => {
+  it("says anyone can download the file", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../../app/sourcing/[id]/schedule-panel.tsx", import.meta.url), "utf8");
+    expect(src.match(/subtitle="Anyone can download this file\."/g)?.length).toBe(2);
+  });
+});

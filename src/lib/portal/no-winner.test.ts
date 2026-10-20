@@ -44,7 +44,7 @@ describe("R2: an awarded opportunity", () => {
 
 describe("R3: no public words promise a winner", () => {
   it("none of the retired phrases is left in the code", () => {
-    const retired = [/See Results for the winner/, /who won/i, /Search by title, reference or awardee/, /Awarded to"/, /Awarded value/, /awarded value is not published/i, /registered name appears on Results/];
+    const retired = [/See Results for the winner/, /who won/i, /Search by title, reference or awardee/, /Awarded to"/, /Awarded value/, /awarded value is not published/i, /registered name appears on Results/, /See Results\./, /The award is under/];
     for (const f of walk(join(process.cwd(), "src"))) {
       const text = readFileSync(f, "utf8");
       // A bidder's own outcome ("Awarded to your company") is theirs to see; the retired column label (a quoted "Awarded to") is not.

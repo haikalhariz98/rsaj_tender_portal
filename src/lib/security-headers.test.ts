@@ -36,7 +36,7 @@ describe("the rules handed to Next", () => {
     expect(DOWNLOAD_POLICY).toMatch(/frame-ancestors 'self'/);
   });
   it("give the supplier's file routes the same strict policy (N2 review)", () => {
-    for (const source of ["/supplier/account/data/file", "/supplier/registration/file"]) {
+    for (const source of ["/supplier/account/data/file", "/supplier/registration/file", "/supplier/results/:id/schedule", "/supplier/bids/:id/download"]) {
       expect(headerRules().find((r) => r.source === source)?.headers).toEqual([{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }]);
     }
   });
