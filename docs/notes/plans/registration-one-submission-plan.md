@@ -653,6 +653,61 @@ For `form = WHOLE`:
 
 A `form = STEP_ONE` application keeps today's page and "Record the supplier" (REG-5).
 
+### 6.3 Reader inventories: every reader learns the third recorder and the new subject
+
+Typecheck will not catch these. The recorder columns on `SupplierDocument` and `DocumentVersion` are already nullable, so a reader
+with a two-way fallback compiles and silently names the wrong actor on a legal record.
+
+1. **Recorder and signer readers.** Each gets a third branch, "Applicant, not signed in", wherever it falls back today.
+   - The steps:
+     - step 1 adds the columns;
+     - step 2 makes `storeUploadTx` write `APPLICANT_WORDS` ("Applicant, not signed in", new in `src/lib/documents/labels.ts`
+       beside `SUPPLIER_UPLOADER_WORDS`) into the document audit for the applicant;
+     - step 4 covers the promoted rows.
+   - Known readers today:
+     - `src/lib/documents/service.ts:176`, `src/lib/documents/views.ts` (lines 221 and 342) and
+       `src/app/configuration/documents/page.tsx` (the `SUPPLIER_UPLOADER_WORDS` fallback);
+     - `src/lib/portal/registration/summary-store.ts:115` (`lodgedBy`);
+     - `src/lib/portal/company/company-store.ts:52` (`lodgedBySupplier`);
+     - `src/lib/portal/company/replace-store.ts:72`;
+     - `src/lib/suppliers/data-export-fields.ts` (lines 165 and 337).
+   - The builder re-runs this grep at each step and lists every hit in the decisions-log entry:
+
+     ```
+     grep -rn "recordedBySupplierAccountId\|recordedByPersonId\|enteredBySupplierAccountId\|signedBySupplierAccountId\|SUPPLIER_UPLOADER_WORDS" src --include=*.ts --include=*.tsx
+     ```
+
+     Exclude `src/generated` and the writers.
+   - Test (step 4, `portal-application-acts.db.test.ts`): a document, a version, a creditor profile and a declaration recorded by
+     the applicant never render as "The supplier's own portal account" on the supplier page, in History or in the data export.
+2. **Agreements are never called signatures.**
+   - In `registrationSummary` (`src/lib/portal/registration/summary.ts`, today "Signed … by …"), a declaration with
+     `portalApplicationId` and no account renders as: "Agreed {day} · {signatory as typed} · wording version {n}", with the
+     `Chip` "Unverified; not signed in".
+   - The empty text loses "signed" for that path.
+   - The legacy wizard's account-signed rows keep "Signed".
+   - Pinned by text assertions in step 3 (the applicant's review) and step 4 (the staff page and the supplier page after approval).
+3. **Declaration readers follow `portalApplicationId`.** Each must read declarations by `applicationId`, or by `portalApplicationId =
+   application.portalApplicationId`, or by the profile's `enteredByPortalApplicationId`, in step 4:
+   - `src/lib/portal/registration/review-facts.ts`;
+   - `src/lib/portal/registration/summary-store.ts`;
+   - `src/lib/portal/data-export-store.ts` (the supplier's PDPA access export: an approved online supplier's agreements must
+     appear);
+   - `src/lib/auth/creditor-access-store.ts`;
+   - `src/lib/portal/company/bank-store.ts`.
+
+   Grep `registrationDeclaration.` and `declarations:` and list every hit.
+4. **Route-subject readers.** Each must handle `portalApplicationId` or refuse it in words, never fall through to "Matter" or a
+   non-null assertion:
+   - `src/app/approvals/actions.ts`;
+   - `src/lib/approvals/load.ts` (reads the `supplierApplication` relation);
+   - `src/lib/documents/read.ts`, `owners.ts`, `repo.ts` and `types.ts`;
+   - `src/app/documents/actions.ts`;
+   - `src/lib/auth/routed-people-store.ts` and `creditor-access-store.ts`.
+
+   Re-grep `supplierApplicationId`, `supplierApplication?.`, `supplierApplication: {` and `matterKind === "SUPPLIER"` at step 4,
+   and list the hits.
+
 ---
 
 ## 7. The legacy path (step 1)
@@ -782,6 +837,9 @@ Before writing anything, log the REG-5 counts (section 1.0).
 - `src/components/registration/terms-card.tsx` (new). The shared text drawer, if one must be added.
 - `src/app/supplier/registration/{review-step.tsx,reply.ts}`.
 - `src/app/configuration/suppliers/editors.tsx` (TERMS option).
+- `prisma/demo-registration.ts`: seed a TERMS_AND_CONDITIONS text beside the GIRO and false-declaration texts, so the legacy demo
+  Submit stays open. **Demo and scratch data only, never `perolehan`.**
+- The section 6.3.1 recorder grep, with the hits listed.
 - `docs/notes/decisions-log.md`: the rulings REG-1 to REG-6 as written; decisions O-1 to O-10; ADR 0041 marked Accepted; the REG-5
   "before" counts.
 
@@ -804,6 +862,10 @@ Before writing anything, log the REG-5 counts (section 1.0).
 - Deleted: `src/app/supplier/register/{receive.ts,receive.test.ts,application-form.tsx}`.
 - `src/app/supplier/register/page.tsx`: closed card only, per section 3.6.
 - `src/lib/portal/surface.ts` and its test; `src/proxy.ts` and `src/proxy.test.ts`.
+- `src/lib/documents/labels.ts` (`APPLICANT_WORDS`).
+- The demo loader (`prisma/demo-*.ts`, wherever `SupplierPolicy` and the upload settings are seeded): set every new readiness item
+  in section 5, including `onlineDeclarationReplacesPaper = true`, so a rehearsal can reach an open register. **Demo and scratch
+  data only.**
 
 **Tests:** sections 8.2 and 8.3.
 
@@ -832,6 +894,19 @@ step: the only difference is the closed card.
 - Text snapshots of `/supplier/register` and `/supplier/registration` (each step).
 - Compare with the sibling portal screens (sign-in, activate) for header, spacing and card styling.
 - Desktop widths only: 1280 and 1600.
+- **The real-server rehearsal.** Stubs and the source scan cannot prove three things:
+  - that no `node:` module reaches the client bundle (only `next build` or `next dev` bundling the page shows that);
+  - that the form works on the public copy;
+  - that an 11 MB statement passes through Next's body handling whole.
+
+  Run a throwaway public copy against the **scratch** database: `PORTAL_SURFACE=public`, port 3011, a copy of the tree under the
+  scratchpad, **never port 3000**. Then:
+  1. Fill all five steps in a desktop browser and Submit a full application with an 11 MB statement.
+  2. Compare the stored version's sha256 with the sent file's.
+  3. Resubmit with the same token and confirm the same reference.
+  4. Run `scripts/text-snapshot.mjs` against the same copy, port 3011.
+
+  Record all of it in the decisions-log entry.
 
 ### Step 4: the staff side
 
@@ -850,7 +925,12 @@ step: the only difference is the closed card.
 
 **Tests:** section 8.4, the legacy and supplier-page tests unchanged and green, and the worklist tests with the new subject.
 
-**Gate:** text snapshot of `/suppliers/online/[id]` (STEP_ONE unchanged, WHOLE new) and of `/suppliers/[id]` (unchanged).
+Also in this step: the section 6.3 inventories, with every grep hit listed in the decisions-log entry.
+
+**Gate:**
+- Text snapshots of `/suppliers/online/[id]` (STEP_ONE unchanged, WHOLE new) and of `/suppliers/[id]` (unchanged except where an
+  applicant-recorded row now reads "Applicant, not signed in"). Take them on a scratch-database copy, not on port 3000.
+- The section 6.3.1 test: an applicant row never reads as the supplier's own portal account.
 
 ---
 
@@ -865,4 +945,4 @@ step: the only difference is the closed card.
 | F-5 | Legacy signed-in applicants cannot submit until a terms text is issued. On the founder's database that needs a second account holding `configuration.issue` (REG-5). | Blocked, naming the text. |
 | F-6 | Approval registers the supplier with **no portal account**. The office must open it later; the online page shows "Open the account". Nothing reminds anyone (there is no scheduler). | As ruled (REG-1(d)). |
 | F-7 | A supplier numbering series and a `supplier_registration` matrix rule are needed only at decision time. They are not on the applicant's `whatIsMissing`, so the register can take applications an office cannot yet decide. The refusals at send and approval name them. | Not in the register's readiness list. |
-| F-8 | The transaction that receives an application holds the series lock while every file's bytes are written. Under load, a large application delays the next one (the next waits up to `maxWait`, then gets "try again"). | Accepted for the expected volume. Revisit with a queue only on evidence. |
+| F-8 | The transaction that receives an application holds the series lock while every file's bytes are written. Under load, a second sender waits on that row lock until the first commits, bounded by the 60 s transaction timeout (`maxWait` bounds only the wait for a pool connection). If the timeout is reached, the second sender gets "try again" with its data kept. | Accepted for the expected volume. Revisit only on evidence. One option then is to take the series lock after the bytes are written; that needs its own review of the counts. |
