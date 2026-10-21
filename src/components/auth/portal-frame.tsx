@@ -9,10 +9,8 @@ import { cx } from "@/components/ui/cx";
 import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { PortalBranding } from "@/lib/organisation/portal-load";
 
-/// Which of the portal's four front-door pages is drawn: the register page has a wide form, and its second top link is Sign in.
+/// Which of the portal's four front-door pages is drawn: the register page has a wide form.
 export type PortalPage = "sign-in" | "register" | "activate" | "reset";
-
-const TOP_LINK = "inline-flex min-h-11 items-center rounded px-1 text-[13.5px] font-semibold text-ink-2 hover:text-ink hover:underline";
 
 /**
  * The supplier portal's front door (design note 0006): what the portal is for on a light panel (the organisation's logo, a headline, one line, up to three
@@ -55,20 +53,6 @@ export function PortalFrame({ branding, page, children }: { branding: PortalBran
       </aside>
 
       <div className="flex min-h-dvh flex-col px-4 py-6 sm:px-8 lg:px-10">
-        <nav aria-label="Portal" className="flex items-center justify-end gap-5">
-          <Link href="/supplier/opportunities" className={TOP_LINK}>
-            Opportunities
-          </Link>
-          {isRegister ? (
-            <Link href="/supplier/sign-in" className={TOP_LINK}>
-              Sign in
-            </Link>
-          ) : (
-            <Link href="/supplier/results" className={TOP_LINK}>
-              Results
-            </Link>
-          )}
-        </nav>
         <div className="flex flex-1 flex-col items-center justify-center py-8">
           {isRegister ? (
             <main className="w-full max-w-[720px]">{children}</main>

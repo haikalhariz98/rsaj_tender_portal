@@ -44,21 +44,21 @@ describe("the supplier portal's front door (design note 0006, founder 2026-10-20
     expect(out).not.toContain("/sign-in/image/");
   });
 
-  it("is one page on both copies: a way out to Opportunities and Results, a Register button under the card, and the footer", () => {
+  it("is one page on both copies: a Register button under the card and the footer, and no top links", () => {
     const out = html("sign-in", branding());
-    expect(out).toContain('href="/supplier/opportunities"');
-    expect(out).toContain('href="/supplier/results"');
+    expect(out).not.toContain('href="/supplier/opportunities"');
+    expect(out).not.toContain('href="/supplier/results"');
     expect(out).toContain("New supplier?");
     expect(out).toContain('href="/supplier/register"');
     expect(out).toContain("© 2027 Example");
     expect(out).toContain("Privacy");
   });
 
-  it("on register: a wider column, Sign in beside Opportunities, no card and no second Register button", () => {
+  it("on register: a wider column, no top links, no card and no second Register button", () => {
     const out = html("register", branding());
     expect(out).toContain("lg:grid-cols-[40fr_60fr]");
-    expect(out).toContain('href="/supplier/sign-in"');
-    expect(out).not.toContain('href="/supplier/results"');
+    expect(out).not.toContain('href="/supplier/sign-in"');
+    expect(out).not.toContain('href="/supplier/opportunities"');
     expect(out).not.toContain("New supplier?");
   });
 

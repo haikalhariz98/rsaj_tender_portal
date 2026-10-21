@@ -16,6 +16,13 @@ export interface NavItem {
   /// False where the module has not been built yet. The item still appears — the
   /// shape of the portal is agreed — but it lands on a page that says so plainly.
   built?: boolean;
+  /// Only a signed-in supplier can use it. Presentation only: the page itself still sends anyone else to sign in.
+  needsSupplier?: boolean;
+}
+
+/// Whether the sidebar draws an item inert: it needs a supplier and the visitor is not one.
+export function navItemDisabled(item: Pick<NavItem, "needsSupplier">, supplierSignedIn: boolean): boolean {
+  return item.needsSupplier === true && !supplierSignedIn;
 }
 
 export interface NavGroup {
@@ -97,13 +104,13 @@ export const SUPPLIER_NAV: NavGroup[] = [
     label: w("With sign-in"),
     items: [
       // Phase 4d: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
-      { href: "/supplier/bids", label: w("My Bids"), icon: "inbox", built: true },
+      { href: "/supplier/bids", label: w("My Bids"), icon: "inbox", built: true, needsSupplier: true },
       // Phase 4e: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
-      { href: "/supplier/projects", label: w("My Projects"), icon: "tools", built: true },
+      { href: "/supplier/projects", label: w("My Projects"), icon: "tools", built: true, needsSupplier: true },
       // Phase 4c: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
-      { href: "/supplier/company", label: w("Company"), icon: "building", built: true },
+      { href: "/supplier/company", label: w("Company"), icon: "building", built: true, needsSupplier: true },
       // Phase 4e (FR-VND-014): the announcements board, read by every signed-in supplier.
-      { href: "/supplier/announcements", label: w("Announcements"), icon: "bell", built: true },
+      { href: "/supplier/announcements", label: w("Announcements"), icon: "bell", built: true, needsSupplier: true },
     ],
   },
 ];

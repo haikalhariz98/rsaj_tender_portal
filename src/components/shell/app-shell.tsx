@@ -21,6 +21,7 @@ export function AppShell({
   counts: served,
   user,
   portalOnly = false,
+  supplierSignedIn = false,
   signOut,
   children,
 }: {
@@ -30,6 +31,8 @@ export function AppShell({
   user: ShellUser | null;
   /// The public copy of the product: only the supplier portal is served, so the frame offers nothing else.
   portalOnly?: boolean;
+  /// A supplier is signed in: the supplier workspace's signed-in items work only then.
+  supplierSignedIn?: boolean;
   /// The sign-out action (a POST), passed from the layout.
   signOut: (data: FormData) => Promise<void>;
   children: ReactNode;
@@ -90,7 +93,7 @@ export function AppShell({
           overscroll never shows the canvas under it. */}
       <div aria-hidden="true" className="absolute inset-y-0 left-0 z-0 hidden w-68 border-r border-line/70 bg-surface lg:block print:hidden" />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-68 border-r border-line/70 bg-surface lg:block print:hidden">
-        <Sidebar organisation={organisation} strapline={strapline} counts={counts} portalOnly={portalOnly} />
+        <Sidebar organisation={organisation} strapline={strapline} counts={counts} portalOnly={portalOnly} supplierSignedIn={supplierSignedIn} />
       </aside>
 
       {open && (
@@ -108,6 +111,7 @@ export function AppShell({
               onNavigate={() => setOpen(false)}
               onClose={() => setOpen(false)}
               portalOnly={portalOnly}
+              supplierSignedIn={supplierSignedIn}
             />
           </aside>
         </div>

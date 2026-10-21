@@ -35,6 +35,7 @@ import {
   CONFIG_PINNED,
   CONFIG_SECTIONS,
   navFor,
+  navItemDisabled,
   STAFF_NAV,
   SUPPLIER_NAV,
   workspaceFor,
@@ -74,6 +75,7 @@ export function Sidebar({
   onNavigate,
   onClose,
   portalOnly = false,
+  supplierSignedIn = false,
 }: {
   organisation: ShellOrganisation;
   strapline: string;
@@ -85,6 +87,8 @@ export function Sidebar({
   onClose?: () => void;
   /// The public copy of the product: the supplier portal is the whole of it, so there is no other workspace to switch to.
   portalOnly?: boolean;
+  /// Items that need a supplier are drawn inert unless one is signed in.
+  supplierSignedIn?: boolean;
 }) {
   const pathname = usePathname();
   const say = useSay();
@@ -154,6 +158,22 @@ export function Sidebar({
     const Ico = ICONS[item.icon] ?? GridIcon;
     const count = counts[item.href];
     const active = isActive(item.href);
+    if (navItemDisabled(item, supplierSignedIn)) {
+      return (
+        <span
+          key={item.href}
+          role="link"
+          aria-disabled="true"
+          title="Sign in to use"
+          className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-1.5 text-[14px] font-medium text-ink-4 select-none"
+        >
+          <span className="grid size-7 shrink-0 place-items-center rounded-lg text-ink-4">
+            <Ico size={16} />
+          </span>
+          <span className="line-clamp-2 min-w-0 flex-1 leading-snug">{say(item.label)}</span>
+        </span>
+      );
+    }
     return (
       <Link
         key={item.href}

@@ -343,8 +343,6 @@ export const APPLY = {
   laterSteps: (organisation: string): Words => w(`Steps 2 to 5 open after ${organisation} has checked the company.`),
   stepsLabel: w("Registration steps"),
   /// Under the steps on the public form, where nothing has been accepted yet: step 1 is what is being sent, the rest wait on the office's check.
-  stepSubFirst: w("Sent for checking"),
-  stepSubLater: w("After the company is checked"),
   sending: w("Sending…"),
   cantAccept: w("Nothing was sent. Check each field, or contact the procurement office."),
   nothingSent: w("Nothing was sent. Check the fields marked below and send it again."),

@@ -3,11 +3,26 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SUPPLIER_NAV, workspaceFor } from "@/lib/nav";
+import { navItemDisabled, SUPPLIER_NAV, workspaceFor } from "@/lib/nav";
 
 import { HOME_LINKS, PORTAL_PATH, SIGN_IN_ITEMS } from "./labels";
 
 const page = (href: string) => existsSync(path.join(__dirname, "../../app", ...href.split("/").filter(Boolean), "page.tsx"));
+
+describe("the signed-in items of the supplier navigation", () => {
+  const items = SUPPLIER_NAV.flatMap((g) => g.items);
+  it("are inert for anyone who is not a signed-in supplier, and work for one who is", () => {
+    for (const i of items.filter((x) => x.needsSupplier)) {
+      expect(navItemDisabled(i, false), i.href).toBe(true);
+      expect(navItemDisabled(i, true), i.href).toBe(false);
+    }
+  });
+  it("are exactly the With sign-in group; the open items are never inert", () => {
+    const group = SUPPLIER_NAV.find((g) => g.label.en === "With sign-in")!;
+    expect(items.filter((x) => x.needsSupplier).map((x) => x.href)).toEqual(group.items.map((x) => x.href));
+    for (const i of items.filter((x) => !x.needsSupplier)) expect(navItemDisabled(i, false), i.href).toBe(false);
+  });
+});
 
 describe("the supplier portal's navigation and home links", () => {
   const navHrefs = SUPPLIER_NAV.flatMap((g) => g.items.map((i) => i.href));

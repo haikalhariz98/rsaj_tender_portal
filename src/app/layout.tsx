@@ -50,6 +50,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             counts={portalOnly ? {} : personal}
             user={user}
             portalOnly={portalOnly}
+            supplierSignedIn={supplier != null}
             signOut={signOutAction}
           >
             {children}
