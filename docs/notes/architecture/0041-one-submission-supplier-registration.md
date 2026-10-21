@@ -1,8 +1,8 @@
 # 0041 — Supplier registration is one submission, held against the online application and routed on it
 
-**Status:** Proposed. Written 2026-10-21 by the solution architect, from the product owner's rulings REG-1 to REG-6 of the same day
+**Status:** Accepted 2026-10-21, when step 1 of the plan landed (the data model, the shared rules, the terms text and the legacy tick). Proposed and written 2026-10-21 by the solution architect, from the product owner's rulings REG-1 to REG-6 of the same day
 (the founder's words: "send all items from step 1 and step 4 together and being submitted at step 5", "the user cannot save draft",
-"either approved or rejected"). It becomes Accepted when step 1 of `docs/notes/plans/registration-one-submission-plan.md` lands.
+"either approved or rejected"). The plan is `docs/notes/plans/registration-one-submission-plan.md`.
 
 **Number.** 0040 is taken by the superseded staff-screen language layer. Design note 0004 calls the online award return "ADR 0040"
 without a number actually reserved. That record takes the next free number when wave V writes it, not 0040 and not this one.

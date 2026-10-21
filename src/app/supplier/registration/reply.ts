@@ -1,4 +1,5 @@
 import { AttributionRefused } from "@/lib/auth/attribution-store";
+import type { FaultView } from "@/lib/portal/register/contract";
 import { DraftRefused } from "@/lib/portal/registration/draft-store";
 import type { StepFault } from "@/lib/portal/registration/types";
 import { registrationFaultText } from "@/lib/portal/registration/words";
@@ -8,12 +9,8 @@ import { registrationFaultText } from "@/lib/portal/registration/words";
  * plain `message` for the supplier. A finding of the rules is sent as its words and the field it belongs to, never as its code. Nothing in an answer names another supplier.
  */
 
-export interface FaultView {
-  step: StepFault["step"];
-  field: string | null;
-  level: StepFault["level"];
-  message: string;
-}
+/// One shape for the legacy wizard and the public form (ADR 0041, plan section 2.1): it lives with the public form's contract, which the browser imports.
+export type { FaultView };
 
 export const faultViews = (fs: readonly StepFault[]): FaultView[] =>
   fs.map((f) => {
