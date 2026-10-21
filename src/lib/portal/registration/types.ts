@@ -17,8 +17,10 @@ export const EDITABLE_STEPS: readonly RegistrationStep[] = ["documents", "codes"
 
 export const isRegistrationStep = (s: string): s is RegistrationStep => (REGISTRATION_STEPS as readonly string[]).includes(s);
 
-export type DeclarationKind = "GIRO_AUTHORISATION" | "FALSE_DECLARATION";
-export const DECLARATION_KINDS: readonly DeclarationKind[] = ["GIRO_AUTHORISATION", "FALSE_DECLARATION"];
+/// The agreements of a registration: the GIRO authorisation (step 4), the false declaration (FR-VND-006) and the terms and conditions, whose tick also agrees the Personal Data Notice
+/// (ADR 0041 D4, REG-4). Each is a `RegistrationDeclaration` row.
+export type DeclarationKind = "GIRO_AUTHORISATION" | "FALSE_DECLARATION" | "TERMS_AND_CONDITIONS";
+export const DECLARATION_KINDS: readonly DeclarationKind[] = ["GIRO_AUTHORISATION", "FALSE_DECLARATION", "TERMS_AND_CONDITIONS"];
 
 export type RegistrationFault =
   // the organisation's day
@@ -63,6 +65,8 @@ export type RegistrationFault =
   | "SIGNATORY_DESIGNATION_REQUIRED"
   | "NOT_CONFIRMED"
   | "NOTICE_NOT_SET"
+  /// The Personal Data Notice (`SupplierPolicy.personalDataNoticeEn`), agreed with the terms (ADR 0041 D4). Not the notice before sending above.
+  | "PRIVACY_NOTICE_NOT_SET"
   | "SIGNATORY_DIFFERS"
   // shape and length (a save)
   | "TOO_LONG"
@@ -233,6 +237,9 @@ export interface RegistrationContext {
   texts: Readonly<Record<DeclarationKind, DeclarationTextConfig | null>>;
   /// The notice the supplier reads before sending (`SupplierPolicy.verificationNoticeEn`). Null or blank: not set.
   noticeEn: string | null;
+  /// The Personal Data Notice as shown and agreed with the terms (`SupplierPolicy.personalDataNoticeEn`, filled with the organisation's name), and the SHA-256 the tick is bound to.
+  /// Null while not set. It has no version of its own: its hash is its identity (ADR 0041 D4).
+  personalDataNotice: { en: string; sha256: string } | null;
   /// CodeFormat patterns for the account number and the SWIFT code. Null: no format is set, and the field is accepted with a warning.
   accountNoPattern: string | null;
   swiftPattern: string | null;

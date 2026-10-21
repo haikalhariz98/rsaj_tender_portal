@@ -6,7 +6,8 @@ import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import { loadRegistrationContext, loadRegistrationSettings } from "./context-store";
-import { declarationsAsSigned, frozenWording } from "./declaration";
+import { declarationsAsSigned } from "./declaration";
+import { frozenWording } from "./declaration-text";
 import { DraftRefused, draftOf, loadDraftView, lockOpenDraft, touchDraft } from "./draft-store";
 import { blockingFaults, registrationFaults } from "./faults";
 import { parseRate } from "./documents";
@@ -19,7 +20,8 @@ import type { DeclarationInput, DeclarationKind } from "./types";
  * - the supplier's documents promoted from the draft's, lodged by the supplier's own account, each with its codes as they were named and its files MOVED (the same versions, detached
  *   from the draft and attached to the document: no copy of the bytes);
  * - the creditor profile, now sent (version one, awaiting an officer's check);
- * - the two declarations, each with the wording exactly as shown (frozen, with its hash), the signatory, the organisation's day and the server's time;
+ * - the three declarations (GIRO, false declaration, and the terms with the Personal Data Notice frozen and hashed on the same row, ADR 0041 D4), each with the wording exactly as shown
+ *   (frozen, with its hash), the signatory, the organisation's day and the server's time;
  * - the attributions: one signature, with the password asked again, of the submission (the application is the exact document signed), and a SIGNED row for each declaration;
  * - the audit rows with their before and after;
  * - the draft marked sent, which freezes it.
@@ -29,10 +31,19 @@ import type { DeclarationInput, DeclarationKind } from "./types";
  * office's queue until then. The password is asked by the route before this runs, and its stamp is verified again here against the session (`attributeSupplierAct`).
  */
 
+/// What each declaration's audit row calls it. One entry per kind, so a new kind cannot borrow another's name.
+const DECLARATION_AUDIT_LABEL: Readonly<Record<DeclarationKind, string>> = {
+  GIRO_AUTHORISATION: "GIRO authorisation",
+  FALSE_DECLARATION: "Declaration that the information is true",
+  TERMS_AND_CONDITIONS: "Terms and conditions, with the Personal Data Notice",
+};
+
 export interface SubmitInput {
   /// What the page last saw of the draft.
   version: number;
   declarations: readonly DeclarationInput[];
+  /// The SHA-256 of the Personal Data Notice the page showed with the terms: judged with the terms tick against the notice read under the lock.
+  noticeSha256: string;
   /// From `confirmSupplierPassword`: when the password was asked again for this act.
   stepUpAt: Date;
 }
@@ -61,7 +72,7 @@ export async function submitRegistration(actor: SupplierActor, input: SubmitInpu
       // the request's (it is made here), and each signature must name the exact wording the page showed (`textSha256`), judged against the wording read under the lock just above.
       const draft = draftOf(view);
       const declarations = declarationsAsSigned(input.declarations, draft);
-      const faults = blockingFaults(registrationFaults(draft, ctx, declarations));
+      const faults = blockingFaults(registrationFaults(draft, ctx, declarations, input.noticeSha256));
       if (faults.length > 0) throw new DraftRefused("INVALID", faults);
       const today = settings.org.today;
       const supplierAudit = { kind: "SUPPLIER" as const, supplierAccountId: actor.accountId, sessionId: actor.sessionId, sourceAddress: actor.sourceAddress };
@@ -154,7 +165,7 @@ export async function submitRegistration(actor: SupplierActor, input: SubmitInpu
       await tx.creditorProfile.update({ where: { id: profile.id, organisationId: actor.organisationId }, data: { submittedAt: now } });
       await writeAudit(tx, at("CreditorProfile", profile.id, "Creditor's profile"), "UPDATE", [{ field: "status", before: "being filled in", after: `version ${profile.version} sent, waiting for an officer to check it` }]);
 
-      // The declarations: the wording exactly as shown, its hash, the signatory and the server's day and time.
+      // The declarations: the wording exactly as shown, its hash, the signatory and the server's day and time. The terms row also carries the Personal Data Notice agreed by the same tick.
       const declared: { kind: DeclarationKind; id: string }[] = [];
       for (const i of declarations) {
         const text = ctx.texts[i.kind]!;
@@ -170,6 +181,7 @@ export async function submitRegistration(actor: SupplierActor, input: SubmitInpu
             textSha256: wording.sha256,
             frozenTextEn: wording.en,
             frozenTextMs: wording.ms,
+            ...(i.kind === "TERMS_AND_CONDITIONS" ? { noticeSha256: ctx.personalDataNotice!.sha256, noticeFrozenEn: ctx.personalDataNotice!.en } : {}),
             signatoryName: i.signatoryName.trim(),
             signatoryDesignation: i.signatoryDesignation.trim(),
             signedOn: dayToDate(today),
@@ -178,7 +190,7 @@ export async function submitRegistration(actor: SupplierActor, input: SubmitInpu
           },
         });
         declared.push({ kind: i.kind, id: d.id });
-        await writeAudit(tx, at("RegistrationDeclaration", d.id, i.kind === "GIRO_AUTHORISATION" ? "GIRO authorisation" : "Declaration that the information is true"), "CREATE", diffFields(null, { wordingVersion: text.version, wordingFingerprint: wording.sha256.slice(0, 12), position: i.signatoryDesignation.trim(), signedOn: today }));
+        await writeAudit(tx, at("RegistrationDeclaration", d.id, DECLARATION_AUDIT_LABEL[i.kind]), "CREATE", diffFields(null, { wordingVersion: text.version, wordingFingerprint: wording.sha256.slice(0, 12), ...(i.kind === "TERMS_AND_CONDITIONS" ? { noticeFingerprint: ctx.personalDataNotice!.sha256.slice(0, 12) } : {}), position: i.signatoryDesignation.trim(), signedOn: today }));
       }
 
       // The signatures. One password entry signs one act, so the submission carries the signature (the application is the exact document signed) and each declaration is a SIGNED row naming

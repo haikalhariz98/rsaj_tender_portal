@@ -16,6 +16,9 @@ export function scopeOfOwner(kind: OwnerKind, exerciseId: string | null): SulitS
   if (exerciseId) return EVALUATION_OWNERS.includes(kind) ? "evaluation" : "exercise";
   // Phase 4b: a creditor profile's bank statement is judged by who is named on the profile's application route, or holds the grant to read creditor profiles.
   if (kind === "creditorProfile") return "creditorProfile";
+  // ADR 0041 D2 (REG-1): the bank statement held with an online application is judged as bank details are; its certificates as a supplier's.
+  if (kind === "portalApplicationCreditor") return "creditorProfile";
+  if (kind === "portalApplicationDocument") return "supplier";
   if (SUPPLIER_OWNERS.includes(kind)) return "supplier";
   if (CONTRACT_OWNERS.includes(kind)) return "contract";
   return "requisition";

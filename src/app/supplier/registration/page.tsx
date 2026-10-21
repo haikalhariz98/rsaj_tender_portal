@@ -235,6 +235,11 @@ async function ReviewPage({ actor, view, ctx, settings, token, blockers }: { act
   const sections = registrationSummary(record, { day: formatDate });
   const falseText = declarationShown(ctx, "FALSE_DECLARATION", settings.org.name);
   const giroText = declarationShown(ctx, "GIRO_AUTHORISATION", settings.org.name);
+  const termsText = declarationShown(ctx, "TERMS_AND_CONDITIONS", settings.org.name);
+  const termsMissing = [
+    termsText ? null : registrationFaultText({ code: "TEXT_NOT_SET", data: { kind: "TERMS_AND_CONDITIONS" } }).en,
+    ctx.personalDataNotice ? null : registrationFaultText({ code: "PRIVACY_NOTICE_NOT_SET" }).en,
+  ].filter((x): x is string => x != null);
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -247,6 +252,9 @@ async function ReviewPage({ actor, view, ctx, settings, token, blockers }: { act
         notice={ctx.noticeEn}
         falseText={falseText}
         giroText={giroText}
+        termsText={termsText}
+        privacyNotice={ctx.personalDataNotice}
+        termsMissing={termsMissing}
         signatoryName={view.signatoryName || actor.displayName}
         signatoryDesignation={view.signatoryDesignation}
         giroConfirmed={giroTick(draftOf(view), ctx) === "OK"}

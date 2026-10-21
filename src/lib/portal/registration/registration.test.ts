@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { codeFaults, codeSections } from "./codes";
 import { creditorFaults, creditorTrailChanges } from "./creditor";
-import { currentDeclarationText, declarationFaults, declarationsAsSigned, fillText, frozenWording, giroFaults, giroTick, reviewFaults, signatoryDiffers, type StoredDeclarationText } from "./declaration";
+import { declarationFaults, declarationsAsSigned, fillText, giroFaults, giroTick, reviewFaults, signatoryDiffers, termsFaults } from "./declaration";
+import { currentDeclarationText, frozenWording, type StoredDeclarationText } from "./declaration-text";
 import { documentFaults, parseRate } from "./documents";
 import { blockingFaults, draftShapeFaults, firstBlockedStep, registrationFaults, stepFaults } from "./faults";
-import { creditor, ctx, doc, draft, FALSE_SHA, FIXTURE_ORGANISATION, GIRO_SHA, type as docType, value } from "./fixture";
+import { creditor, ctx, doc, draft, FALSE_SHA, FIXTURE_ORGANISATION, GIRO_SHA, NOTICE, TERMS_SHA, type as docType, value } from "./fixture";
 import type { DeclarationInput } from "./types";
 import { hasRegistrationFaultText, registrationFaultText, uploadFaultText } from "./words";
 import { uploadFault } from "./upload";
@@ -261,7 +262,7 @@ ${legacy.ms}`, "utf8").digest("hex"));
   });
 
   it("the GIRO text not set closes step 4, naming the text", () => {
-    const fs = giroFaults(draft(), ctx({ texts: { GIRO_AUTHORISATION: null, FALSE_DECLARATION: ctx().texts.FALSE_DECLARATION } }));
+    const fs = giroFaults(draft(), ctx({ texts: { GIRO_AUTHORISATION: null, FALSE_DECLARATION: ctx().texts.FALSE_DECLARATION, TERMS_AND_CONDITIONS: ctx().texts.TERMS_AND_CONDITIONS } }));
     expect(fs).toEqual([{ step: "epayment", code: "TEXT_NOT_SET", level: "block", field: "giro", data: { kind: "GIRO_AUTHORISATION" } }]);
     expect(registrationFaultText(fs[0]!).en).toContain("GIRO authorisation text is not set");
   });
@@ -291,12 +292,42 @@ ${legacy.ms}`, "utf8").digest("hex"));
     expect(signatoryDiffers("  ", "Aminah Binti Ali")).toBe(false);
   });
 
-  it("step 5 needs the notice and the false-declaration text, each naming what is missing", () => {
+  it("step 5 needs the notice, the false-declaration text, the terms text and the Personal Data Notice, each naming what is missing (REG-5, F-5)", () => {
     expect(reviewFaults(ctx())).toEqual([]);
-    const fs = reviewFaults(ctx({ noticeEn: "  ", texts: { GIRO_AUTHORISATION: null, FALSE_DECLARATION: null } }));
-    expect(fs.map((f) => f.code)).toEqual(["NOTICE_NOT_SET", "TEXT_NOT_SET"]);
+    const fs = reviewFaults(ctx({ noticeEn: "  ", personalDataNotice: null, texts: { GIRO_AUTHORISATION: null, FALSE_DECLARATION: null, TERMS_AND_CONDITIONS: null } }));
+    expect(fs.map((f) => [f.code, f.field])).toEqual([["NOTICE_NOT_SET", "notice"], ["TEXT_NOT_SET", "declaration"], ["TEXT_NOT_SET", "terms"], ["PRIVACY_NOTICE_NOT_SET", "terms"]]);
     expect(registrationFaultText(fs[0]!).en).toContain("notice");
     expect(registrationFaultText(fs[1]!).en).toContain("false-declaration text");
+    expect(registrationFaultText(fs[2]!).en).toBe("The Terms and Conditions text is not set. Tell the procurement office.");
+    expect(registrationFaultText(fs[3]!).en).toBe("The Personal Data Notice is not set. Tell the procurement office.");
+    // Each alone is named alone.
+    expect(reviewFaults(ctx({ texts: { ...ctx().texts, TERMS_AND_CONDITIONS: null } })).map((f) => f.code)).toEqual(["TEXT_NOT_SET"]);
+    expect(reviewFaults(ctx({ personalDataNotice: null })).map((f) => f.code)).toEqual(["PRIVACY_NOTICE_NOT_SET"]);
+  });
+
+  const termsTick: DeclarationInput = { kind: "TERMS_AND_CONDITIONS", textVersionId: "text-terms-1", textSha256: TERMS_SHA, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true };
+  it("the terms tick agrees the text and the notice in force: unticked, missing, a stale text or a stale notice is refused at step 5, field terms (REG-4)", () => {
+    expect(termsFaults(termsTick, NOTICE.sha256, ctx())).toEqual([]);
+    expect(termsFaults({ ...termsTick, confirmed: false }, NOTICE.sha256, ctx())).toEqual([{ step: "review", code: "NOT_CONFIRMED", level: "block", field: "terms", data: { kind: "TERMS_AND_CONDITIONS" } }]);
+    expect(termsFaults(undefined, NOTICE.sha256, ctx()).map((f) => f.code)).toEqual(["NOT_CONFIRMED"]);
+    expect(termsFaults({ ...termsTick, textVersionId: "text-terms-0" }, NOTICE.sha256, ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(termsFaults({ ...termsTick, textSha256: FALSE_SHA }, NOTICE.sha256, ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    // The notice the page showed is not the notice in force: changed since, or never shown.
+    expect(termsFaults(termsTick, TERMS_SHA, ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(termsFaults(termsTick, "", ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(termsFaults({ ...termsTick, confirmed: false }, "", ctx()).map((f) => f.code)).toEqual(["TEXT_STALE", "NOT_CONFIRMED"]);
+    // Unset text or notice: named, and nothing else is judged.
+    expect(termsFaults(termsTick, NOTICE.sha256, ctx({ texts: { ...ctx().texts, TERMS_AND_CONDITIONS: null } })).map((f) => f.code)).toEqual(["TEXT_NOT_SET"]);
+    expect(termsFaults(termsTick, NOTICE.sha256, ctx({ personalDataNotice: null })).map((f) => f.code)).toEqual(["PRIVACY_NOTICE_NOT_SET"]);
+    expect(registrationFaultText({ code: "NOT_CONFIRMED", data: { kind: "TERMS_AND_CONDITIONS" } }).en).toBe("Tick the agreement to submit.");
+  });
+  it("declarationFaults judges all three kinds: the terms through termsFaults, once each", () => {
+    expect(declarationFaults([...good, termsTick], ctx(), NOTICE.sha256)).toEqual([]);
+    expect(declarationFaults(good, ctx(), NOTICE.sha256).map((f) => [f.code, f.field])).toEqual([["NOT_CONFIRMED", "terms"]]);
+    expect(declarationFaults([...good, termsTick, termsTick], ctx(), NOTICE.sha256).map((f) => [f.code, f.field])).toEqual([["NOT_CONFIRMED", "terms"]]);
+    expect(declarationFaults([...good, termsTick], ctx(), null).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    // With no terms text, the request is not judged for it here: reviewFaults names the missing text.
+    expect(declarationFaults(good, ctx({ texts: { ...ctx().texts, TERMS_AND_CONDITIONS: null } }), null)).toEqual([]);
   });
 
   const good: DeclarationInput[] = [
@@ -304,18 +335,18 @@ ${legacy.ms}`, "utf8").digest("hex"));
     { kind: "FALSE_DECLARATION", textVersionId: "text-false-1", textSha256: FALSE_SHA, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
   ];
   it("a request that names the current texts, a signatory and the ticks has nothing in its way", () => {
-    expect(declarationFaults(good, ctx())).toEqual([]);
+    expect(declarationFaults([...good, termsTick], ctx(), NOTICE.sha256)).toEqual([]);
   });
   it("a stale or forged text id is refused", () => {
-    expect(declarationFaults([{ ...good[0]!, textVersionId: "text-giro-0" }, good[1]!], ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
-    expect(declarationFaults([good[0]!, { ...good[1]!, textVersionId: "someone-elses-text" }], ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(declarationFaults([{ ...good[0]!, textVersionId: "text-giro-0" }, good[1]!, termsTick], ctx(), NOTICE.sha256).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(declarationFaults([good[0]!, { ...good[1]!, textVersionId: "someone-elses-text" }, termsTick], ctx(), NOTICE.sha256).map((f) => f.code)).toEqual(["TEXT_STALE"]);
   });
   it("wording changed in place under the same id is refused: a signature names the exact words shown (B9: the frozen text matches what was shown)", () => {
     // The id is the same, the words are not: the page held the hash of the old words.
     const edited = ctx({ texts: { ...ctx().texts, GIRO_AUTHORISATION: { ...ctx().texts.GIRO_AUTHORISATION!, bodyEn: "We authorise someone else to pay.", sha256: frozenWording({ bodyEn: "We authorise someone else to pay.", bodyMs: "Kami membenarkan {organisation} membayar." }, FIXTURE_ORGANISATION).sha256 } } });
-    expect(declarationFaults(good, edited).map((f) => f.code)).toEqual(["TEXT_STALE"]);
-    expect(declarationFaults([good[0]!, { ...good[1]!, textSha256: GIRO_SHA }], ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
-    expect(declarationFaults([{ ...good[0]!, textSha256: "" }, good[1]!], ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(declarationFaults([...good, termsTick], edited, NOTICE.sha256).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(declarationFaults([good[0]!, { ...good[1]!, textSha256: GIRO_SHA }, termsTick], ctx(), NOTICE.sha256).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(declarationFaults([{ ...good[0]!, textSha256: "" }, good[1]!, termsTick], ctx(), NOTICE.sha256).map((f) => f.code)).toEqual(["TEXT_STALE"]);
   });
   it("what is signed is the draft's signatory and the draft's GIRO tick, whatever the request says of either", () => {
     const crafted = good.map((g) => ({ ...g, signatoryName: "Somebody Else", signatoryDesignation: "Chairman", confirmed: true }));
@@ -326,9 +357,9 @@ ${legacy.ms}`, "utf8").digest("hex"));
     ]);
   });
   it("an unticked, unnamed or missing declaration is refused", () => {
-    expect(declarationFaults([good[0]!, { ...good[1]!, confirmed: false, signatoryName: " " }], ctx()).map((f) => f.code)).toEqual(["SIGNATORY_NAME_REQUIRED", "NOT_CONFIRMED"]);
-    expect(declarationFaults([good[0]!], ctx()).map((f) => f.code)).toEqual(["NOT_CONFIRMED"]);
-    expect(declarationFaults([good[0]!, good[1]!, good[1]!], ctx()).map((f) => f.code)).toEqual(["NOT_CONFIRMED"]);
+    expect(declarationFaults([good[0]!, { ...good[1]!, confirmed: false, signatoryName: " " }, termsTick], ctx(), NOTICE.sha256).map((f) => f.code)).toEqual(["SIGNATORY_NAME_REQUIRED", "NOT_CONFIRMED"]);
+    expect(declarationFaults([good[0]!, termsTick], ctx(), NOTICE.sha256).map((f) => f.code)).toEqual(["NOT_CONFIRMED"]);
+    expect(declarationFaults([good[0]!, good[1]!, good[1]!, termsTick], ctx(), NOTICE.sha256).map((f) => f.code)).toEqual(["NOT_CONFIRMED"]);
   });
 });
 
@@ -385,7 +416,8 @@ describe("the three questions: save, next, send", () => {
 
   it("the request's own declarations are judged only when it carries them", () => {
     const withDeclarations = registrationFaults(draft(), ctx(), []);
-    expect(blocks(withDeclarations)).toEqual(["NOT_CONFIRMED", "NOT_CONFIRMED"]);
+    // GIRO, the false declaration and the terms (ADR 0041 D4): each must be ticked.
+    expect(blocks(withDeclarations)).toEqual(["NOT_CONFIRMED", "NOT_CONFIRMED", "NOT_CONFIRMED"]);
     expect(blocks(registrationFaults(draft(), ctx()))).toEqual([]);
   });
 });
@@ -434,7 +466,7 @@ describe("every finding has plain words, in English and Malay, and none shows a 
       "TIME_ZONE_UNSET", "DOCUMENT_TYPES_NOT_SET", "DOCUMENT_TYPE_UNKNOWN", "DOCUMENT_REQUIRED", "DOCUMENT_DUPLICATE", "FILE_REQUIRED", "EXPIRY_REQUIRED", "EXPIRY_NOT_A_DAY", "ALREADY_EXPIRED", "EXPIRES_NOT_SET",
       "RATE_INVALID", "TITLE_REQUIRED", "TITLE_DUPLICATE", "MANDATORY_NOT_SAID", "NOT_APPLICABLE_NOT_ALLOWED", "VALUE_UNKNOWN", "VALUE_RETIRED", "VALUE_NOT_FOR_DOCUMENT", "ONE_GRADE_ONLY", "DOCUMENT_FIRST",
       "LIST_NOT_CONFIGURED", "FIELD_REQUIRED", "BANKS_NOT_SET", "ACCOUNT_TYPES_NOT_SET", "BANK_NOT_LISTED", "ACCOUNT_TYPE_NOT_LISTED", "EMAIL_NOT_VALID", "FORMAT_MISMATCH", "FORMAT_NOT_CHECKED", "IDENTITY_DIFFERS",
-      "STATEMENT_REQUIRED", "TEXT_NOT_SET", "TEXT_STALE", "SIGNATORY_NAME_REQUIRED", "SIGNATORY_DESIGNATION_REQUIRED", "NOT_CONFIRMED", "NOTICE_NOT_SET", "SIGNATORY_DIFFERS", "TOO_LONG", "NOT_A_DAY", "NOT_A_NUMBER",
+      "STATEMENT_REQUIRED", "TEXT_NOT_SET", "TEXT_STALE", "SIGNATORY_NAME_REQUIRED", "SIGNATORY_DESIGNATION_REQUIRED", "NOT_CONFIRMED", "NOTICE_NOT_SET", "PRIVACY_NOTICE_NOT_SET", "SIGNATORY_DIFFERS", "TOO_LONG", "NOT_A_DAY", "NOT_A_NUMBER",
     ];
     for (const code of codes) {
       expect(hasRegistrationFaultText(code), code).toBe(true);
@@ -444,7 +476,7 @@ describe("every finding has plain words, in English and Malay, and none shows a 
     }
   });
   it("an unset-setting refusal tells the supplier it is the office's to set", () => {
-    for (const code of ["DOCUMENT_TYPES_NOT_SET", "BANKS_NOT_SET", "ACCOUNT_TYPES_NOT_SET", "TEXT_NOT_SET", "NOTICE_NOT_SET", "TIME_ZONE_UNSET"] as const) {
+    for (const code of ["DOCUMENT_TYPES_NOT_SET", "BANKS_NOT_SET", "ACCOUNT_TYPES_NOT_SET", "TEXT_NOT_SET", "NOTICE_NOT_SET", "PRIVACY_NOTICE_NOT_SET", "TIME_ZONE_UNSET"] as const) {
       expect(registrationFaultText({ code, data: { kind: "GIRO_AUTHORISATION" } }).en, code).toMatch(/Tell the procurement office/);
     }
   });

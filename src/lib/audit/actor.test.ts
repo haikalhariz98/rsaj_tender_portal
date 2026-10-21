@@ -34,6 +34,11 @@ describe("actorColumns", () => {
     expect(() => actorColumns({ kind: "SYSTEM", label: "  " })).toThrow();
   });
 
+  it("names the applicant of an online application by the application, not signed in: no session, no account, no person (ADR 0041 D3)", () => {
+    expect(actorColumns({ kind: "APPLICANT", portalApplicationId: "pa1", sourceAddress: "203.0.113.9" })).toEqual({ unattributed: false, actorKind: "APPLICANT", actorPortalApplicationId: "pa1", sourceAddress: "203.0.113.9" });
+    expect(() => actorColumns({ kind: "APPLICANT", portalApplicationId: "", sourceAddress: null })).toThrow();
+  });
+
   it("refuses an actor that would break the database CHECK, here, not in the middle of a write", () => {
     expect(() => actorColumns({ kind: "STAFF", personId: "", sessionId: "s", offices: [], sourceAddress: null })).toThrow();
     expect(() => actorColumns({ kind: "SUPPLIER", supplierAccountId: "", sessionId: "s", sourceAddress: null })).toThrow();
@@ -46,5 +51,7 @@ describe("who an entry says acted, in words (Phase 4a)", () => {
     expect(actorDisplayName({ actorKind: "STAFF", actorPerson: { name: "Aziz" } })).toBe("Aziz");
     expect(actorDisplayName({ actorKind: "SYSTEM", actorSystemLabel: "demo loader" })).toBe("System: demo loader");
     expect(actorDisplayName({})).toBeNull();
+    // ADR 0041 D3: never "a supplier's portal account", never the system.
+    expect(actorDisplayName({ actorKind: "APPLICANT", actorPerson: null, actorSystemLabel: null })).toBe("Applicant, not signed in");
   });
 });

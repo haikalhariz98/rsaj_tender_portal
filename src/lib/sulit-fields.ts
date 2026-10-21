@@ -126,6 +126,8 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   // Phase 4b (FR-VND-005, ruling 2 of the CPD registration rulings): a supplier's creditor profile. Judged by its own scope: the officers who hold a step on the registration's route, the officer
   // who checked the profile, and staff granted `sulit.read.creditorProfile`; the supplier reads its own. The names are specific on purpose (the scan matches whole words): a supplier's contact
   // fields keep their own scope and rule (`supplier`).
+  // ADR 0041 O-6 (REG-1): the same thirteen fields on `PortalApplicationCreditor`, the bank details held with an online application before any supplier exists, are SULIT from receipt
+  // under the same scope: these entries name them too (the registry is by property name).
   { field: "beneficiaryName", scope: "creditorProfile", what: "the name of the beneficiary of a supplier's creditor profile (FR-VND-005)" },
   { field: "beneficiaryAddress", scope: "creditorProfile", what: "the address of the beneficiary of a creditor profile (FR-VND-005)" },
   { field: "beneficiaryIdentityNo", scope: "creditorProfile", what: "the identity card or company number of the beneficiary of a creditor profile (FR-VND-005)" },

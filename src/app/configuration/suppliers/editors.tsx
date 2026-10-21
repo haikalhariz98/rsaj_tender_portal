@@ -195,6 +195,7 @@ export function EditRegistrationSettings({ values, classes }: { values: Record<s
 const DECLARATION_OPTIONS: Option[] = [
   { value: "GIRO_AUTHORISATION", label: "GIRO authorisation" },
   { value: "FALSE_DECLARATION", label: "False-declaration acknowledgement" },
+  { value: "TERMS_AND_CONDITIONS", label: "Terms and conditions" },
 ];
 
 export function DeclarationTextDrawer({ text }: { text?: { id: string; name: string; values: Record<string, string> } }) {

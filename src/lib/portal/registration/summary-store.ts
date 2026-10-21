@@ -1,6 +1,6 @@
 import type { Tx } from "@/lib/audit/record";
 import { storedDay } from "@/lib/dates";
-import { SUPPLIER_UPLOADER_WORDS } from "@/lib/documents/labels";
+import { APPLICANT_WORDS, SUPPLIER_UPLOADER_WORDS } from "@/lib/documents/labels";
 import { formatOrgDateTime } from "@/lib/format";
 import { matchesFormat } from "@/lib/integration/award-commitment";
 import { bumiputeraReading } from "@/lib/suppliers/bumiputera";
@@ -126,7 +126,7 @@ export async function loadDeclarationsSummary(client: Tx, scope: SummaryScope, z
     include: { signedBy: { select: { contact: { select: { name: true } } } } },
   });
   // The person who signs is compared with the contact of the account that sent the registration (the contact as it reads now): another is flagged to the reviewer, never refused.
-  return rows.map((d) => ({ kind: d.kind as DeclarationKind, textVersion: d.textVersion, signatoryName: d.signatoryName, signatoryDesignation: d.signatoryDesignation, signedAt: formatOrgDateTime(d.signedAt, zone), by: "the supplier's portal account", signatoryIsNotContact: signatoryDiffers(d.signatoryName, d.signedBy.contact.name) }));
+  return rows.map((d) => ({ kind: d.kind as DeclarationKind, textVersion: d.textVersion, signatoryName: d.signatoryName, signatoryDesignation: d.signatoryDesignation, signedAt: formatOrgDateTime(d.signedAt, zone), by: d.signedBy ? "the supplier's portal account" : APPLICANT_WORDS.toLowerCase(), signatoryIsNotContact: d.signedBy ? signatoryDiffers(d.signatoryName, d.signedBy.contact.name) : false }));
 }
 
 export interface CreditorRow {

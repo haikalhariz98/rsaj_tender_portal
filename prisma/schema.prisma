@@ -370,6 +370,10 @@ model Organisation {
   supplierContacts         SupplierContact[]
   supplierApplications     SupplierApplication[]
   portalApplications       PortalApplication[]
+  portalApplicationDocuments PortalApplicationDocument[]
+  portalApplicationValues    PortalApplicationValue[]
+  portalApplicationCreditors PortalApplicationCreditor[]
+  portalFormTokens           PortalFormToken[]
   registrationDrafts         RegistrationDraft[]
   registrationDraftDocuments RegistrationDraftDocument[]
   registrationDraftValues    RegistrationDraftValue[]
@@ -620,7 +624,10 @@ model Person {
   supplierApplicationsSubmitted SupplierApplication[] @relation("SupplierApplicationSubmittedBy")
   applicationDecisions          ApplicationDecision[] @relation("ApplicationDecidedBy")
   portalApplicationsDecided     PortalApplication[]   @relation("PortalApplicationDecidedBy")
-  supplierDocumentsRecorded     SupplierDocument[]    @relation("SupplierDocumentRecordedBy")
+  portalApplicationsSent        PortalApplication[]   @relation("PortalApplicationSentBy")
+  portalApplicationDocumentsVerified PortalApplicationDocument[] @relation("PortalApplicationDocumentVerifiedBy")
+  portalApplicationCreditorsVerified PortalApplicationCreditor[] @relation("PortalApplicationCreditorVerifiedBy")
+  supplierDocumentsRecorded    SupplierDocument[]    @relation("SupplierDocumentRecordedBy")
   creditorProfilesVerified      CreditorProfile[]     @relation("CreditorProfileVerifiedBy")
   supplierDocumentsVerified     SupplierDocument[]    @relation("SupplierDocumentVerifiedBy")
   // Wave 3b (SR-13, ADR 0036 D3, D11, D10): an opening officer's per-exercise key, a recorded re-key, a sealed estimate lodged, and the sealed access log.
@@ -1848,6 +1855,8 @@ model AuditEntry {
   actorSupplierAccountId String?
   /// For a SYSTEM actor: what ran, in words ("bootstrap command", "demo loader").
   actorSystemLabel       String?
+  /// For an APPLICANT actor (ADR 0041 D3): the online application whose sender acted, not signed in. No foreign key, like the supplier account: the trail outlives it.
+  actorPortalApplicationId String?
   actorSessionId         String?
   /// The offices the actor held when they acted: [{ roleCode, scope }].
   actorOffices           Json?
@@ -2842,6 +2851,9 @@ model ApprovalInstance {
   /// may carry several routes over time: a refused one is followed by a new one when it is sent again.
   supplierApplicationId String?
   supplierApplication   SupplierApplication? @relation(fields: [supplierApplicationId], references: [id], onDelete: Restrict)
+  /// ADR 0041 D5: the online application this route decides (a SUPPLIER matter), before any supplier exists. A refused route is followed by a new one when it is sent again.
+  portalApplicationId   String?
+  portalApplication     PortalApplication? @relation(fields: [portalApplicationId], references: [id], onDelete: Restrict)
   /// 6.15a (OD-8 A): a blacklisting, or its lifting, asked for on the register.
   standingRequestId     String?
   standingRequest       StandingRequest? @relation(fields: [standingRequestId], references: [id], onDelete: Restrict)
@@ -2973,6 +2985,7 @@ model ApprovalInstance {
   @@index([exerciseId])
   @@index([awardId])
   @@index([supplierApplicationId])
+  @@index([portalApplicationId])
   @@index([certificateId])
   @@index([variationId])
 }
@@ -4559,6 +4572,10 @@ enum AttachmentPurpose {
   ONLINE_BID_FILE
   /// Go-live R4 (founder, 2026-10-20): the schedule of tenders the procurement office publishes on the public Results page, on the exercise. PUBLIC, and only once the opening is finalised and an award is issued.
   PUBLISHED_SCHEDULE
+  /// ADR 0041 D2: a certificate an applicant sent with an online application, on the held document. Moved to the supplier's document at approval.
+  PORTAL_APPLICATION_DOCUMENT
+  /// ADR 0041 D2: the bank statement an applicant sent with an online application, on the held bank details. SULIT from receipt.
+  PORTAL_APPLICATION_BANK_STATEMENT
 }
 
 enum DocumentAccessKind {
@@ -4664,6 +4681,9 @@ model DocumentVersion {
   recordedBy         Person?  @relation("VersionRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
   recordedBySupplierAccountId String?
   recordedBySupplierAccount   SupplierAccount? @relation("VersionRecordedBySupplier", fields: [recordedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// ADR 0041 D3: or the sender of an online application, not signed in ("Applicant, not signed in").
+  recordedByPortalApplicationId String?
+  recordedByPortalApplication   PortalApplication? @relation("VersionRecordedByApplicant", fields: [recordedByPortalApplicationId], references: [id], onDelete: Restrict)
   note               String   @default("")
   /// Server time.
   storedAt           DateTime @default(now())
@@ -4762,6 +4782,11 @@ model DocumentAttachment {
   /// Wave 3b step 15 (ADR 0036 D10): an online bid file the mover filed after its opening was finalised. Unique: a file is stored once.
   onlineBidFileId             String?                    @unique
   onlineBidFile               OnlineBidFile?             @relation(fields: [onlineBidFileId], references: [id], onDelete: Restrict)
+  /// ADR 0041 D2: a certificate held on an online application, and the bank statement held with its bank details.
+  portalApplicationDocumentId String?
+  portalApplicationDocument   PortalApplicationDocument? @relation(fields: [portalApplicationDocumentId], references: [id], onDelete: Restrict)
+  portalApplicationCreditorId String?
+  portalApplicationCreditor   PortalApplicationCreditor? @relation(fields: [portalApplicationCreditorId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -4785,6 +4810,8 @@ model DocumentAttachment {
   @@index([eotClaimId])
   @@index([registrationDraftDocumentId])
   @@index([creditorProfileId])
+  @@index([portalApplicationDocumentId])
+  @@index([portalApplicationCreditorId])
   @@index([supplierDocumentId])
   @@index([supplierApplicationId])
   @@index([contractId])
@@ -8540,6 +8567,7 @@ model RegistrationValue {
 
   documentValues SupplierDocumentValue[]
   draftValues    RegistrationDraftValue[]
+  portalValues   PortalApplicationValue[]
   requirementNeeds ExerciseRequirementNeed[]
 
   @@unique([bodyId, kind, code])
@@ -8581,6 +8609,7 @@ model SupplierDocumentType {
   @@unique([organisationId, code])
   restrictionPolicies SupplierPolicy[] @relation("RestrictionEvidence")
   draftDocuments      RegistrationDraftDocument[]
+  portalDocuments     PortalApplicationDocument[]
 }
 
 /// An entry on one of the register's lists: an entity type or a country.
@@ -8826,6 +8855,9 @@ model SupplierApplication {
   submittedAt                  DateTime?
   submittedBySupplierAccountId String?
   submittedBySupplierAccount   SupplierAccount? @relation("SupplierApplicationSubmittedBySupplier", fields: [submittedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// ADR 0041 D6: the online application this was approved from (one-submission registration). Its agreements stay on it and are read through this. Null otherwise.
+  portalApplicationId String?            @unique
+  portalApplication   PortalApplication? @relation("SupplierApplicationFromPortal", fields: [portalApplicationId], references: [id], onDelete: Restrict)
 
   routes       ApprovalInstance[]
   decisions    ApplicationDecision[]
@@ -8843,6 +8875,18 @@ enum PortalApplicationStatus {
   RECORDED
   /// An officer set it aside, with a reason.
   DISCARDED
+  /// ADR 0041 D6: a whole online application approved on its route; the supplier was created at the last approval.
+  APPROVED
+  /// ADR 0041 D7: a whole online application rejected by an officer, with the reasons as written. No supplier was created.
+  REJECTED
+}
+
+/// Which form an online application came from (ADR 0041). Null on every row received before this change, read as STEP_ONE.
+enum PortalApplicationForm {
+  /// The Phase 4a form: company information only. Finished on the old path (record, code, then the signed-in wizard).
+  STEP_ONE
+  /// The one-submission form: every step, with files, bank details and agreements, held against the application.
+  WHOLE
 }
 
 /// An application sent through the public form, before an officer has looked at it. It is not a supplier:
@@ -8896,9 +8940,128 @@ model PortalApplication {
   acceptedSupplierId String?
   acceptedSupplier   Supplier? @relation(fields: [acceptedSupplierId], references: [id], onDelete: Restrict)
 
+  /// ADR 0041: which form it came from. Null on a row received before the one-submission form, read as STEP_ONE.
+  form               PortalApplicationForm?
+  /// ADR 0041 D5: the officer who sent it for decision: the route's requester (FR-APR-008).
+  sentByPersonId     String?
+  sentBy             Person?   @relation("PortalApplicationSentBy", fields: [sentByPersonId], references: [id], onDelete: Restrict)
+  /// ADR 0041 D7: the reasons for a rejection, as the officer wrote them, verbatim. Null otherwise.
+  decisionRemarks    String?
+
+  routes             ApprovalInstance[]
+  documents          PortalApplicationDocument[]
+  creditor           PortalApplicationCreditor?
+  declarations       RegistrationDeclaration[]
+  formToken          PortalFormToken?
+  supplierApplication SupplierApplication?     @relation("SupplierApplicationFromPortal")
+  versionsRecorded   DocumentVersion[]         @relation("VersionRecordedByApplicant")
+  supplierDocumentsRecorded SupplierDocument[] @relation("SupplierDocumentRecordedByApplicant")
+  creditorProfilesEntered   CreditorProfile[]  @relation("CreditorProfileEnteredByApplicant")
+
   @@unique([organisationId, reference])
   @@index([organisationId, status, receivedAt])
   @@index([organisationId, registrationNoKey])
+}
+
+/// A certificate as the applicant sent it with an online application (ADR 0041 D2), held until the application is decided. Frozen on insert, except for the officer's verification and their
+/// confirmation of the expiry (trigger PortalApplicationDocument_frozen). Never deleted.
+model PortalApplicationDocument {
+  id                  String               @id @default(cuid())
+  organisationId      String
+  organisation        Organisation         @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  portalApplicationId String
+  portalApplication   PortalApplication    @relation(fields: [portalApplicationId], references: [id], onDelete: Restrict)
+  typeId              String
+  type                SupplierDocumentType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  /// The type's name as it stood when sent.
+  typeLabelSnapshot   String
+  /// The browser's row key ("new:…"), so a refusal and the staff page can point at the row as the applicant saw it.
+  clientKey           String
+  title               String    @default("")
+  reference           String    @default("")
+  issuingAuthority    String    @default("")
+  expiresOn           DateTime?
+  notApplicable       Boolean   @default(false)
+  ratePercent         Decimal?  @db.Decimal(5, 2)
+  verification        VerificationState @default(NOT_CHECKED)
+  verifiedByPersonId  String?
+  verifiedBy          Person?   @relation("PortalApplicationDocumentVerifiedBy", fields: [verifiedByPersonId], references: [id], onDelete: Restrict)
+  verifiedOn          DateTime?
+  verifiedAt          DateTime?
+  verificationNote    String    @default("")
+  createdAt           DateTime  @default(now())
+
+  values      PortalApplicationValue[]
+  attachments DocumentAttachment[]
+
+  @@unique([portalApplicationId, clientKey])
+  @@index([portalApplicationId])
+}
+
+/// A registration value the applicant chose on a held certificate, with its code and name as they stood. Insert-only (trigger PortalApplicationValue_append_only).
+model PortalApplicationValue {
+  id                          String                    @id @default(cuid())
+  organisationId              String
+  organisation                Organisation              @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  portalApplicationDocumentId String
+  portalApplicationDocument   PortalApplicationDocument @relation(fields: [portalApplicationDocumentId], references: [id], onDelete: Restrict)
+  registrationValueId         String
+  registrationValue           RegistrationValue         @relation(fields: [registrationValueId], references: [id], onDelete: Restrict)
+  kind                        RegistrationValueKind
+  codeSnapshot                String
+  labelSnapshot               String
+
+  @@unique([portalApplicationDocumentId, registrationValueId])
+}
+
+/// The bank and beneficiary details an applicant sent with an online application (ADR 0041 O-6), SULIT from receipt (scope `creditorProfile`). Promoted to `CreditorProfile` version 1 at
+/// approval. Content frozen: the trigger (PortalApplicationCreditor_frozen) allows only the officer's verification, and one erasure on set-aside (every content field to "" and `erasedAt` set).
+model PortalApplicationCreditor {
+  id                  String            @id @default(cuid())
+  organisationId      String
+  organisation        Organisation      @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  portalApplicationId String            @unique
+  portalApplication   PortalApplication @relation(fields: [portalApplicationId], references: [id], onDelete: Restrict)
+
+  beneficiaryName              String @default("")
+  beneficiaryAddress           String @default("")
+  beneficiaryIdentityNo        String @default("")
+  beneficiaryContactPerson     String @default("")
+  beneficiaryTelephone         String @default("")
+  beneficiaryFax               String @default("")
+  beneficiaryTaxRegistrationNo String @default("")
+  beneficiaryEmail             String @default("")
+  /// Codes on the BANK and ACCOUNT_TYPE lists; rendered by their names.
+  bankCode            String @default("")
+  bankAccountNo       String @default("")
+  bankAccountTypeCode String @default("")
+  bankSwiftCode       String @default("")
+  bankAddress         String @default("")
+
+  verification       VerificationState @default(NOT_CHECKED)
+  verifiedByPersonId String?
+  verifiedBy         Person?           @relation("PortalApplicationCreditorVerifiedBy", fields: [verifiedByPersonId], references: [id], onDelete: Restrict)
+  verifiedOn         DateTime?
+  verifiedAt         DateTime?
+  verificationNote   String            @default("")
+  /// Set once, when the application is set aside and the details are erased.
+  erasedAt           DateTime?
+  createdAt          DateTime          @default(now())
+
+  attachments DocumentAttachment[]
+}
+
+/// A spent register form token (ADR 0041 D8): the SHA-256 of the token, never the token. Inserted first in the application's transaction, then set to the application once (trigger
+/// PortalFormToken_once). Never deleted. A retry with a spent token is answered with the stored application's reference.
+model PortalFormToken {
+  id                  String             @id @default(cuid())
+  organisationId      String
+  organisation        Organisation       @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  tokenSha256         String             @unique @db.Char(64)
+  issuedAt            DateTime
+  consumedAt          DateTime
+  portalApplicationId String?            @unique
+  portalApplication   PortalApplication? @relation(fields: [portalApplicationId], references: [id], onDelete: Restrict)
 }
 
 /// An outcome recorded on an application (FR-VND-007). Append-only. `policySnapshot` holds what the
@@ -8985,6 +9148,9 @@ model SupplierDocument {
   recordedBy         Person?  @relation("SupplierDocumentRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
   recordedBySupplierAccountId String?
   recordedBySupplierAccount   SupplierAccount? @relation("SupplierDocumentRecordedBySupplier", fields: [recordedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// ADR 0041 D3, D6: or the sender of the online application it was promoted from, not signed in ("Applicant, not signed in"). Exactly one of the three (CHECK SupplierDocument_one_recorder).
+  recordedByPortalApplicationId String?
+  recordedByPortalApplication   PortalApplication? @relation("SupplierDocumentRecordedByApplicant", fields: [recordedByPortalApplicationId], references: [id], onDelete: Restrict)
 
   /// Phase 4c (FR-VND-007): the item of an officer's resubmission request this document was lodged online in answer to. Null: lodged otherwise.
   answersItemId      String?
@@ -9028,6 +9194,8 @@ enum DeclarationKind {
   GIRO_AUTHORISATION
   /// The acknowledgement that false information is an offence.
   FALSE_DECLARATION
+  /// ADR 0041 D4 (REG-4): the terms and conditions of registration. Its tick also agrees the Personal Data Notice, frozen and hashed on the same row.
+  TERMS_AND_CONDITIONS
 }
 
 /// A supplier's registration while it is being completed in the signed-in wizard (Phase 4b, CPD steps 2 to 5): one per applicant supplier, held for its account(s). It is not an
@@ -9127,8 +9295,12 @@ model CreditorProfile {
   bankSwiftCode       String @default("")
   bankAddress         String @default("")
 
-  enteredBySupplierAccountId String
-  enteredBy                  SupplierAccount @relation("CreditorProfileEnteredBy", fields: [enteredBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// The supplier's own account that entered it, or (ADR 0041 D3, D6) the online application it was promoted from, entered by the applicant not signed in. Exactly one (CHECK
+  /// CreditorProfile_one_enterer).
+  enteredBySupplierAccountId   String?
+  enteredBy                    SupplierAccount?   @relation("CreditorProfileEnteredBy", fields: [enteredBySupplierAccountId], references: [id], onDelete: Restrict)
+  enteredByPortalApplicationId String?
+  enteredByPortalApplication   PortalApplication? @relation("CreditorProfileEnteredByApplicant", fields: [enteredByPortalApplicationId], references: [id], onDelete: Restrict)
   createdAt                  DateTime        @default(now())
   submittedAt                DateTime?
 
@@ -9194,10 +9366,20 @@ model RegistrationDeclaration {
   /// The organisation's day, stamped by the server. Never typed.
   signedOn  DateTime
   signedAt  DateTime
-  signedBySupplierAccountId String
-  signedBy                  SupplierAccount @relation("DeclarationSignedBy", fields: [signedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// The supplier's account that signed it. Null on an agreement the applicant of an online application ticked, not signed in (ADR 0041 D3): that row names `portalApplicationId`
+  /// (CHECK RegistrationDeclaration_signer), and is never called a signature.
+  signedBySupplierAccountId String?
+  signedBy                  SupplierAccount? @relation("DeclarationSignedBy", fields: [signedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// ADR 0041 D4: the online application the agreement was sent with.
+  portalApplicationId String?
+  portalApplication   PortalApplication? @relation(fields: [portalApplicationId], references: [id], onDelete: Restrict)
+  /// ADR 0041 D4: on a TERMS_AND_CONDITIONS row only (CHECK RegistrationDeclaration_notice_on_terms), the Personal Data Notice agreed by the same tick: its SHA-256 and its filled text,
+  /// frozen as shown.
+  noticeSha256   String? @db.Char(64)
+  noticeFrozenEn String?
 
   @@unique([applicationId, kind])
+  @@unique([portalApplicationId, kind])
 }
 
 /// 6.15a (FR-VND-010): what a standing event records.
@@ -12238,6 +12420,8 @@ enum ActorKind {
   STAFF
   SUPPLIER
   SYSTEM
+  /// ADR 0041 D3: the sender of an online application, not signed in. Named by `AuditEntry.actorPortalApplicationId`. Never a signature.
+  APPLICANT
 }
 
 /// ACTIVE may sign in. PENDING_ACTIVATION is waiting for its one-time code. DISABLED is never deleted.

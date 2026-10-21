@@ -23,6 +23,10 @@ const SRC = path.join(ROOT, "src");
 const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "RequisitionSplitCheck.overriddenBy": { why: "The split-check override has no act yet: the check is read, and an override is only seeded.", writer: /requisitionSplitCheck\.(?:create|update|upsert)/ },
   "Evaluation.cancelledBy": { why: "No act cancels an evaluation yet.", writer: /cancelledByPersonId/ },
+  // ADR 0041: the schema and the slots land in step 1 of the one-submission registration plan; the acts that write them are its step 4 (`portal-application-acts.ts`).
+  "PortalApplication.sentBy": { why: "Sending an online application for decision is built in step 4 of the registration plan: no act writes it yet.", writer: /portalApplication\.(?:update|updateMany|upsert)\(\{[^;]*sentByPersonId/ },
+  "PortalApplicationDocument.verifiedBy": { why: "Verifying a certificate held on an online application is built in step 4 of the registration plan: no act writes it yet.", writer: /portalApplicationDocument\.(?:update|updateMany|upsert)\(/ },
+  "PortalApplicationCreditor.verifiedBy": { why: "Verifying the bank details held on an online application is built in step 4 of the registration plan: no act writes it yet.", writer: /portalApplicationCreditor\.(?:update|updateMany|upsert)\(/ },
   "ExtensionOfTime.person": { why: "The extension of time granted on a determined claim is a later 6.13 Part B increment: no act writes it.", writer: /\.extensionOfTime\.(?:create|update|upsert)/ },
   "PeriodExtension.person": { why: "The extension of the contract period is a later 6.13 Part B increment: no act writes it.", writer: /\.periodExtension\.(?:create|update|upsert)/ },
   "PeriodAgreement.person": { why: "The agreement on the contract period is a later 6.13 Part B increment: no act writes it.", writer: /\.periodAgreement\.(?:create|update|upsert)/ },

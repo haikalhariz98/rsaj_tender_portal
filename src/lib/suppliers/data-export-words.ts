@@ -183,6 +183,7 @@ export const ACCOUNT_STATUS_WORDS: Readonly<Record<AccountStatus, string>> = {
 export const DECLARATION_KIND_EXPORT_WORDS: Readonly<Record<DeclarationKind, string>> = {
   GIRO_AUTHORISATION: "GIRO authorisation",
   FALSE_DECLARATION: "False-declaration acknowledgement",
+  TERMS_AND_CONDITIONS: "Terms and conditions",
 };
 
 export const PURCHASE_STATE_EXPORT_WORDS: Readonly<Record<PurchaseState, string>> = {

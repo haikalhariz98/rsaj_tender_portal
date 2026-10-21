@@ -24,7 +24,7 @@ import { hashPassword } from "../src/lib/auth/password";
 import { dayToDate, instantAt, todayIn } from "../src/lib/dates";
 import { issueReference } from "../src/lib/numbering/issue";
 import { contextFor } from "../src/lib/portal/registration/context-store";
-import { frozenWording } from "../src/lib/portal/registration/declaration";
+import { frozenWording } from "../src/lib/portal/registration/declaration-text";
 import { blockingFaults, registrationFaults } from "../src/lib/portal/registration/faults";
 import { draftOf, loadDraftView } from "../src/lib/portal/registration/draft-store";
 import { normaliseRegistrationNo } from "../src/lib/suppliers/identity";
@@ -77,9 +77,11 @@ const OTHER_TYPE = { id: `${P}sdt11`, code: "demo_other_document", nameEn: "Othe
 const TEXTS = [
   { id: `${P}dtx1`, kind: "GIRO_AUTHORISATION" as const, bodyEn: "I authorise {organisation} to pay every amount due to my company into the bank account given in this form, and I confirm that I am entitled to give this authorisation (demonstration wording, invented).", bodyMs: "Saya membenarkan {organisation} membayar semua jumlah yang kena dibayar kepada syarikat saya ke dalam akaun bank yang diberikan dalam borang ini, dan saya mengesahkan bahawa saya berhak memberi kebenaran ini (teks demo, rekaan)." },
   { id: `${P}dtx2`, kind: "FALSE_DECLARATION" as const, bodyEn: "I declare that everything in this registration is true and complete. I understand that a false declaration may lead to the registration being refused or withdrawn and to {organisation} taking further action (demonstration wording, invented).", bodyMs: "Saya mengaku bahawa semua yang terkandung dalam pendaftaran ini adalah benar dan lengkap. Saya faham bahawa akuan palsu boleh menyebabkan pendaftaran ditolak atau ditarik balik dan {organisation} mengambil tindakan lanjut (teks demo, rekaan)." },
+  // ADR 0041 D4 (REG-4): the terms of registration, agreed with the Personal Data Notice by one tick. Demonstration and scratch data only: no terms text ships, and a customer issues its own.
+  { id: `${P}dtx3`, kind: "TERMS_AND_CONDITIONS" as const, bodyEn: "These are the terms on which {organisation} keeps its supplier register. Registering does not entitle a company to any contract. The company keeps its details current and tells {organisation} of any change. {organisation} may suspend or cancel a registration under its published rules (demonstration wording, invented).", bodyMs: null },
 ];
 
-const KIND_NAME = { GIRO_AUTHORISATION: "GIRO authorisation", FALSE_DECLARATION: "False-declaration acknowledgement" } as const;
+const KIND_NAME = { GIRO_AUTHORISATION: "GIRO authorisation", FALSE_DECLARATION: "False-declaration acknowledgement", TERMS_AND_CONDITIONS: "Terms and conditions" } as const;
 
 export async function configureRegistrationDemo(db: Db, organisationId: string) {
   const org = await db.organisation.findUniqueOrThrow({ where: { id: organisationId }, select: { timeZone: true } });
@@ -291,14 +293,16 @@ export async function loadRegistrationDemo(db: Db, organisationId: string) {
   const actor9 = { organisationId, supplierId: v9.id, displayName: v9.contact.name };
   const view = await loadDraftView(db as never, actor9);
   const ctx = await contextFor(db as never, actor9, view.documents.flatMap((d) => d.valueIds));
-  const texts = [ctx.texts.GIRO_AUTHORISATION ?? fail("no GIRO text"), ctx.texts.FALSE_DECLARATION ?? fail("no false-declaration text")];
+  const texts = [ctx.texts.GIRO_AUTHORISATION ?? fail("no GIRO text"), ctx.texts.FALSE_DECLARATION ?? fail("no false-declaration text"), ctx.texts.TERMS_AND_CONDITIONS ?? fail("no terms text")];
+  const notice = ctx.personalDataNotice ?? fail("no Personal Data Notice");
   // The GIRO tick is about the wording it was made on: the demonstration's supplier ticked the wording in force, so the draft holds its hash (as the wizard stores it).
   await db.registrationDraft.update({ where: { id: draft9.id }, data: { giroTextSha256: texts[0].sha256 } });
   const view9 = { ...view, giroTextSha256: texts[0].sha256 };
   const faults = blockingFaults(registrationFaults(draftOf(view9), ctx, [
     { kind: "GIRO_AUTHORISATION", textVersionId: texts[0].id, textSha256: texts[0].sha256, signatoryName: v9.contact.name, signatoryDesignation: v9.contact.designation, confirmed: true },
     { kind: "FALSE_DECLARATION", textVersionId: texts[1].id, textSha256: texts[1].sha256, signatoryName: v9.contact.name, signatoryDesignation: v9.contact.designation, confirmed: true },
-  ]));
+    { kind: "TERMS_AND_CONDITIONS", textVersionId: texts[2].id, textSha256: texts[2].sha256, signatoryName: v9.contact.name, signatoryDesignation: v9.contact.designation, confirmed: true },
+  ], notice.sha256));
   if (faults.length) fail(`the registration of ${v9.name} would be refused: ${faults.map((f) => f.code).join(", ")}`);
 
   // Sent: the application the supplier sent, its documents lodged by its own account with their files moved, the bank details sent, the declarations signed, the draft frozen.
@@ -324,12 +328,13 @@ export async function loadRegistrationDemo(db: Db, organisationId: string) {
   await db.creditorProfile.update({ where: { id: profile9.id }, data: { submittedAt: sentAt } });
   entry("CreditorProfile", profile9.id, `${ref9} · Creditor's profile`, "UPDATE", sentAt, [{ field: "status", before: "being filled in", after: "version 1 sent, waiting for an officer to check it" }]);
   const declarationIds: { entity: string; id: string }[] = [{ entity: "SupplierApplication", id: app.id }];
-  for (const [i, kind] of (["GIRO_AUTHORISATION", "FALSE_DECLARATION"] as const).entries()) {
+  for (const [i, kind] of (["GIRO_AUTHORISATION", "FALSE_DECLARATION", "TERMS_AND_CONDITIONS"] as const).entries()) {
     const text = texts[i]!;
     const wording = frozenWording(text, org.name);
     const d = await db.registrationDeclaration.create({
       data: {
         id: `${P}vdecl9${i + 1}`, organisationId, applicationId: app.id, creditorProfileId: kind === "GIRO_AUTHORISATION" ? profile9.id : null, kind, textId: text.id, textVersion: text.version, textSha256: wording.sha256, frozenTextEn: wording.en, frozenTextMs: wording.ms,
+        ...(kind === "TERMS_AND_CONDITIONS" ? { noticeSha256: notice.sha256, noticeFrozenEn: notice.en } : {}),
         signatoryName: v9.contact.name, signatoryDesignation: v9.contact.designation, signedOn: dayToDate(sentOn), signedAt: sentAt, signedBySupplierAccountId: `${P}vacc9`,
       },
     });
@@ -353,7 +358,7 @@ export async function checkRegistrationDemo(db: Db) {
   const orgId = await demoOrgId();
   const sent = await db.supplierApplication.findFirst({ where: { id: `${P}vapp9`, channel: "PORTAL", submittedAt: { not: null } }, include: { declarations: true, documents: true } });
   if (!sent) return fail("demo_vnd9's registration was not sent");
-  if (sent.declarations.length !== 2 || sent.documents.length !== 7) fail(`demo_vnd9's registration holds ${sent.declarations.length} declarations and ${sent.documents.length} documents, not 2 and 7`);
+  if (sent.declarations.length !== 3 || sent.documents.length !== 7) fail(`demo_vnd9's registration holds ${sent.declarations.length} declarations and ${sent.documents.length} documents, not 3 and 7`);
   if ((await db.creditorProfile.count({ where: { supplierId: `${P}vnd9`, submittedAt: { not: null }, verification: "NOT_CHECKED" } })) !== 1) fail("demo_vnd9's bank details are not waiting for an officer");
   if ((await db.supplier.count({ where: { id: { in: [`${P}vnd8`, `${P}vnd9`] }, status: "APPLICANT" } })) !== 2) fail("the two online suppliers are not applicants");
   if ((await db.portalApplication.count({ where: { id: `${P}pap1`, status: "RECEIVED" } })) !== 1) fail("demo_pap1 is not waiting");

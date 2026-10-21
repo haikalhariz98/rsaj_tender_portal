@@ -410,6 +410,13 @@ export const APPLY = {
     limits: w("how many applications the form takes"),
     formKey: w("the portal's form key"),
   },
+  // REG-4 (ADR 0041 D4): the terms card on step 5, shared by the public form and the signed-in wizard.
+  termsTitle: w("Terms and conditions"),
+  termsLine: w("Read both before you submit."),
+  termsLink: w("Terms and Conditions"),
+  noticeLink: w("Personal Data Notice"),
+  termsTick: w("I confirm I have read and agree to the Terms and Conditions and the Personal Data Notice"),
+  tickToSubmit: w("Tick the agreement to submit."),
   noticeTitle: w("How your details are used"),
   noticeIntro: w("Read this before you send. Sending means you have read it."),
   formExpired: w("This form is out of date. Nothing was sent. Reload and send again."),

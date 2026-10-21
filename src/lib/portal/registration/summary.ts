@@ -105,6 +105,7 @@ export interface SummaryFormat {
 const DECLARATION_TITLE: Readonly<Record<DeclarationKind, string>> = {
   GIRO_AUTHORISATION: "GIRO authorisation",
   FALSE_DECLARATION: "Declaration that the information is true",
+  TERMS_AND_CONDITIONS: "Terms and conditions",
 };
 
 const VERIFICATION_WORDS: Readonly<Record<VerificationState, { text: string; tone: "ok" | "warn" | "err" }>> = {

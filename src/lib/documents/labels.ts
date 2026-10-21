@@ -68,6 +68,9 @@ export function withdrawnLine(on: string, reason: string, canStillDownload: bool
 /// Who recorded a version or a document that no officer did: a signed-in supplier uploaded it (Phase 4b). The account is not named here, and never a person's name.
 export const SUPPLIER_UPLOADER_WORDS = "The supplier's own portal account";
 
+/// Who recorded something that came with an online application (ADR 0041 D3): its sender, not signed in. Held with the trail's actor words.
+export { APPLICANT_WORDS } from "@/lib/audit/actor";
+
 export const STATUS_LABEL: Readonly<Record<DocumentStatus, string>> = { STAGED: "Received, not filed", FILED: "Filed" };
 
 export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
@@ -113,6 +116,8 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   SUPPLIER_BANK_STATEMENT: "Bank statement uploaded by the supplier",
   ONLINE_BID_FILE: "File of an online bid",
   PUBLISHED_SCHEDULE: "Schedule of tenders for Results",
+  PORTAL_APPLICATION_DOCUMENT: "Certificate sent with an online application",
+  PORTAL_APPLICATION_BANK_STATEMENT: "Bank statement sent with an online application",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",

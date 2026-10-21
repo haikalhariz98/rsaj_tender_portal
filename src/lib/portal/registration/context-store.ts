@@ -3,7 +3,7 @@ import { storedDay, todayIn } from "@/lib/dates";
 import type { SupplierActor } from "@/lib/auth/types";
 import type { RegistrationValueKind } from "@/lib/suppliers/types";
 
-import { currentDeclarationText, type StoredDeclarationText } from "./declaration";
+import { currentDeclarationText, personalDataNoticeOf, type StoredDeclarationText } from "./declaration-text";
 import type { DeclarationKind, DocumentTypeConfig, RegistrationContext } from "./types";
 import { inOrder } from "@/lib/series";
 
@@ -33,6 +33,8 @@ export interface RegistrationSettings {
     supplierUploadClassId: string | null;
     supplierBankStatementClassId: string | null;
     onlineDeclarationReplacesPaper: boolean | null;
+    /// The Personal Data Notice, agreed with the terms (ADR 0041 D4). Null or blank: not set.
+    personalDataNoticeEn: string | null;
   };
 }
 
@@ -71,6 +73,7 @@ export async function loadRegistrationSettings(client: Tx, organisationId: strin
         supplierUploadClassId: true,
         supplierBankStatementClassId: true,
         onlineDeclarationReplacesPaper: true,
+        personalDataNoticeEn: true,
       },
     }));
   if (!org) return null;
@@ -86,19 +89,28 @@ export async function loadRegistrationSettings(client: Tx, organisationId: strin
       supplierUploadClassId: null,
       supplierBankStatementClassId: null,
       onlineDeclarationReplacesPaper: null,
+      personalDataNoticeEn: null,
     },
   };
 }
 
 /**
- * The context the rules judge a draft by. `chosenValueIds` are the registration values the draft carries (the only ones loaded by id); `contactName` is the signed-in contact's name, which
- * a signatory is compared with and flagged against; the supplier's registration number key is what a beneficiary's identity number is compared with.
+ * The context the rules judge a draft by, for a signed-in supplier. `chosenValueIds` are the registration values the draft carries (the only ones loaded by id); `contactName` is the
+ * signed-in contact's name, which a signatory is compared with and flagged against; the supplier's registration number key is what a beneficiary's identity number is compared with.
  */
 export async function loadRegistrationContext(client: Tx, actor: Pick<SupplierActor, "organisationId" | "supplierId" | "displayName">, settings: RegistrationSettings, chosenValueIds: readonly string[]): Promise<RegistrationContext> {
-  const orgId = actor.organisationId;
+  const supplier = await client.supplier.findFirst({ where: { id: actor.supplierId, organisationId: actor.organisationId }, select: { registrationNoKey: true } });
+  return registrationContextFor(client, actor.organisationId, settings, chosenValueIds, { registrationNoKey: supplier?.registrationNoKey ?? "", contactName: actor.displayName });
+}
+
+/**
+ * The same context keyed by the organisation alone (ADR 0041, plan section 3.3): what the public form is judged by, where there is no supplier and no actor. `supplier` is what the
+ * applicant gave as its own registration number key and contact name, for the checks that compare the bank details and the signatory with them.
+ */
+export async function registrationContextFor(client: Tx, organisationId: string, settings: RegistrationSettings, chosenValueIds: readonly string[], supplier: RegistrationContext["supplier"]): Promise<RegistrationContext> {
+  const orgId = organisationId;
   const today = settings.org.today;
-  const [supplier, types, bodies, chosen, available, lists, texts, formats] = await inOrder(
-    () => client.supplier.findFirst({ where: { id: actor.supplierId, organisationId: orgId }, select: { registrationNoKey: true } }),
+  const [types, bodies, chosen, available, lists, texts, formats] = await inOrder(
     () => client.supplierDocumentType.findMany({ where: { organisationId: orgId }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
     () => client.registrationBody.findMany({ where: { organisationId: orgId }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], select: { id: true, labelEn: true, retiredOn: true } }),
     () => chosenValueIds.length ? client.registrationValue.findMany({ where: { organisationId: orgId, id: { in: [...chosenValueIds] } }, select: { id: true, bodyId: true, kind: true, code: true, nameEn: true, retiredOn: true } }) : Promise.resolve([]),
@@ -118,11 +130,16 @@ export async function loadRegistrationContext(client: Tx, actor: Pick<SupplierAc
     available: available.map((a) => ({ bodyId: a.bodyId, kind: a.kind as RegistrationValueKind })),
     banks: entries("BANK"),
     accountTypes: entries("ACCOUNT_TYPE"),
-    texts: { GIRO_AUTHORISATION: currentDeclarationText(stored, "GIRO_AUTHORISATION", today, settings.org.name), FALSE_DECLARATION: currentDeclarationText(stored, "FALSE_DECLARATION", today, settings.org.name) },
+    texts: {
+      GIRO_AUTHORISATION: currentDeclarationText(stored, "GIRO_AUTHORISATION", today, settings.org.name),
+      FALSE_DECLARATION: currentDeclarationText(stored, "FALSE_DECLARATION", today, settings.org.name),
+      TERMS_AND_CONDITIONS: currentDeclarationText(stored, "TERMS_AND_CONDITIONS", today, settings.org.name),
+    },
     noticeEn: noticeEn && noticeEn.trim() ? noticeEn : null,
+    personalDataNotice: personalDataNoticeOf(settings.policy.personalDataNoticeEn, settings.org.name),
     accountNoPattern: formats.find((f) => f.key === BANK_ACCOUNT_NO_FORMAT_KEY)?.pattern ?? null,
     swiftPattern: formats.find((f) => f.key === SWIFT_FORMAT_KEY)?.pattern ?? null,
-    supplier: { registrationNoKey: supplier?.registrationNoKey ?? "", contactName: actor.displayName },
+    supplier,
   };
 }
 

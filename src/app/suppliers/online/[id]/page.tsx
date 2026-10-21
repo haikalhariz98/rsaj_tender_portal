@@ -24,7 +24,7 @@ import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
-const STATUS = { RECEIVED: { text: "Waiting for an officer", tone: "info" }, RECORDED: { text: "Recorded as a supplier", tone: "ok" }, DISCARDED: { text: "Set aside", tone: "neutral" } } as const;
+const STATUS = { RECEIVED: { text: "Waiting for an officer", tone: "info" }, RECORDED: { text: "Recorded as a supplier", tone: "ok" }, DISCARDED: { text: "Set aside", tone: "neutral" }, APPROVED: { text: "Approved", tone: "ok" }, REJECTED: { text: "Rejected", tone: "err" } } as const;
 
 /**
  * One online application, in full, for an officer: what the applicant typed, what the register holds

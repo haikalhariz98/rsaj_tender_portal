@@ -318,8 +318,11 @@ describe("sending the registration", () => {
   const DECLARATIONS = [
     { kind: "GIRO_AUTHORISATION", textVersionId: "text1234", textSha256: SHA, signatoryName: "Aini", signatoryDesignation: "Director", confirmed: true },
     { kind: "FALSE_DECLARATION", textVersionId: "text5678", textSha256: SHA, signatoryName: "Aini", signatoryDesignation: "Director", confirmed: true },
+    { kind: "TERMS_AND_CONDITIONS", textVersionId: "text9012", textSha256: SHA, signatoryName: "Aini", signatoryDesignation: "Director", confirmed: true },
   ];
-  const send = (over: Record<string, unknown> = {}) => submit(post("/supplier/registration/submit", { version: 5, password: "correct horse battery", declarations: DECLARATIONS, ...over }));
+  /// The hash of the Personal Data Notice the page showed with the terms (ADR 0041 D4).
+  const NOTICE_SHA = "b".repeat(64);
+  const send = (over: Record<string, unknown> = {}) => submit(post("/supplier/registration/submit", { version: 5, password: "correct horse battery", declarations: DECLARATIONS, noticeSha256: NOTICE_SHA, ...over }));
 
   it("asks the password only for a registration that can be sent, and a wrong one sends nothing", async () => {
     h.registrationFaults.mockReturnValue([{ step: "documents", code: "DOCUMENT_REQUIRED", level: "block", field: "type.t1", data: { type: "Company certificate" } }]);
@@ -352,6 +355,13 @@ describe("sending the registration", () => {
     expect(h.confirm).not.toHaveBeenCalled();
   });
 
+  it("refuses a notice hash that is not a SHA-256, before the password is asked (REG-4)", async () => {
+    const res = await send({ noticeSha256: "not-a-hash" });
+    expect(res.status).toBe(400);
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(h.submitRegistration).not.toHaveBeenCalled();
+  });
+
   it("is refused on a stale page, before the password is asked", async () => {
     const res = await send({ version: 4 });
     expect([res.status, (await res.json()).code]).toEqual([409, "STALE"]);
@@ -364,7 +374,9 @@ describe("sending the registration", () => {
     h.submitRegistration.mockResolvedValue({ sentOn: "2026-10-12", applicationId: "app1" });
     const res = await send({ sentOn: "2020-01-01", supplierId: "sup_other", signedAt: "2020-01-01T00:00:00Z" });
     expect(await res.json()).toEqual({ ok: true, sentOn: "2026-10-12" });
-    expect(h.submitRegistration).toHaveBeenCalledWith(ACTOR, { version: 5, declarations: DECLARATIONS, stepUpAt: at });
+    expect(h.submitRegistration).toHaveBeenCalledWith(ACTOR, { version: 5, declarations: DECLARATIONS, noticeSha256: NOTICE_SHA, stepUpAt: at });
+    // The rules judge the terms tick against the notice the page showed.
+    expect(h.registrationFaults.mock.calls.at(-1)![3]).toBe(NOTICE_SHA);
     expect(JSON.stringify(h.submitRegistration.mock.calls[0])).not.toMatch(/sup_other|2020-01-01/);
     // The password was checked for the session's own account.
     expect(h.confirm.mock.calls[0]![0]).toBe(ACTOR);

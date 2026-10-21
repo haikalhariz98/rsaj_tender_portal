@@ -1,37 +1,17 @@
 /**
- * The two declarations of the registration (FR-VND-005, FR-VND-006): the GIRO authorisation, read and ticked on step 4, and the false-declaration acknowledgement, ticked at Submit with the
- * password asked again. Pure.
+ * The agreements of the registration (FR-VND-005, FR-VND-006, ADR 0041 D4): the GIRO authorisation, read and ticked on step 4; the false-declaration acknowledgement, ticked at Submit;
+ * and the terms and conditions, whose one tick also agrees the Personal Data Notice (REG-4). On the signed-in wizard the password is asked again at Submit; on the public form there is no
+ * account, and an agreement is the applicant's tick, not a signature. Pure, and safe for the browser: no `node:` import.
  *
  * The wording is the customer's, versioned, English only for every new signature (founder, 2026-10-20; a stored Malay body is kept but never shown, signed or hashed), and names the organisation (`{organisation}` is filled from `Organisation.name`); none ships. While a kind has no current text
  * its step is closed and the screen names the missing text. A signature names the text it showed (`textVersionId` must be the current one), and the date is never typed: the server stamps the
  * organisation's day. The signatory is whoever the supplier says signs, and is flagged to the reviewer when it is not the account's contact.
  */
 
-import { createHash } from "node:crypto";
-
-import type { DeclarationInput, DeclarationKind, DeclarationTextConfig, Draft, RegistrationContext, StepFault } from "./types";
+import type { DeclarationInput, DeclarationKind, Draft, RegistrationContext, StepFault } from "./types";
 import { isBlank } from "./types";
 
-/// A stored text of a declaration, as the store reads it.
-export interface StoredDeclarationText {
-  id: string;
-  kind: DeclarationKind;
-  version: number;
-  bodyEn: string;
-  bodyMs: string | null;
-  /// YYYY-MM-DD: the organisation's day it was issued and, once withdrawn, the day it stopped being the one in force.
-  issuedOn: string;
-  retiredOn: string | null;
-}
-
-/// The text in force for a kind on a day: issued on or before the day, not retired on or before it, and of those the highest version. Null while there is none (the step is closed and names
-/// the text), and always null while the day is not known.
-export function currentDeclarationText(texts: readonly StoredDeclarationText[], kind: DeclarationKind, today: string | null, organisationName: string): DeclarationTextConfig | null {
-  if (today == null) return null;
-  const inForce = texts.filter((t) => t.kind === kind && t.issuedOn <= today && (t.retiredOn == null || t.retiredOn > today)).sort((a, b) => b.version - a.version)[0];
-  // English only (founder, 2026-10-20): the Malay body is left out, so what is shown, hashed and frozen is the English text. Signatures made before keep their stored text and hash.
-  return inForce ? { id: inForce.id, version: inForce.version, bodyEn: inForce.bodyEn, bodyMs: null, sha256: frozenWording({ bodyEn: inForce.bodyEn, bodyMs: null }, organisationName).sha256 } : null;
-}
+// The wording's hashes are made on the server (`declaration-text.ts`, `node:crypto`): this file is imported by the browser too, and judges a tick against a hash it is given.
 
 /// The placeholder a declaration's wording names the organisation by.
 export const ORGANISATION_PLACEHOLDER = "{organisation}";
@@ -39,14 +19,6 @@ export const ORGANISATION_PLACEHOLDER = "{organisation}";
 /// The wording with the organisation's name in it. Every placeholder is filled, so what is shown, signed and frozen is one text.
 export function fillText(body: string, organisationName: string): string {
   return body.split(ORGANISATION_PLACEHOLDER).join(organisationName);
-}
-
-/// What a signature fixes: the wording as the supplier was shown it, and the SHA-256 of it. The hash formula is unchanged, so a signature made with a Malay text still reproduces. A new one is
-/// made from `bodyMs: null` (see `currentDeclarationText`): the Malay line is blank and the hash covers the English text only.
-export function frozenWording(text: Pick<DeclarationTextConfig, "bodyEn" | "bodyMs">, organisationName: string): { en: string; ms: string; sha256: string } {
-  const en = fillText(text.bodyEn, organisationName);
-  const ms = text.bodyMs ? fillText(text.bodyMs, organisationName) : "";
-  return { en, ms, sha256: createHash("sha256").update(`${en}\n---\n${ms}`, "utf8").digest("hex") };
 }
 
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, " ").toLowerCase() === b.trim().replace(/\s+/g, " ").toLowerCase();
@@ -81,20 +53,54 @@ export function giroTick(draft: Pick<Draft, "giroConfirmed" | "giroTextSha256">,
   return current && draft.giroTextSha256 != null && draft.giroTextSha256 === current.sha256 ? "OK" : "VOID";
 }
 
-/// Step 5's part: the notice the applicant reads, and the false-declaration text. Blocks Submit while either is unset.
+/// Step 5's part: the notice the applicant reads, the false-declaration text, and the terms with the Personal Data Notice they are agreed with. Blocks Submit while any is unset, naming it
+/// (REG-5: on a database with no terms text, Submit is closed and says so).
 export function reviewFaults(ctx: RegistrationContext): StepFault[] {
   const out: StepFault[] = [];
   const add = (f: Omit<StepFault, "step">) => out.push({ step: "review", ...f });
   if (isBlank(ctx.noticeEn)) add({ code: "NOTICE_NOT_SET", level: "block", field: "notice" });
   if (!ctx.texts.FALSE_DECLARATION) add({ code: "TEXT_NOT_SET", level: "block", field: "declaration", data: { kind: "FALSE_DECLARATION" } });
+  out.push(...termsSetFaults(ctx));
+  return out;
+}
+
+/// Whether the terms can be agreed at all: their text and the Personal Data Notice are both set.
+function termsSetFaults(ctx: Pick<RegistrationContext, "texts" | "personalDataNotice">): StepFault[] {
+  const out: StepFault[] = [];
+  if (!ctx.texts.TERMS_AND_CONDITIONS) out.push({ step: "review", code: "TEXT_NOT_SET", level: "block", field: TERMS_FIELD, data: { kind: "TERMS_AND_CONDITIONS" } });
+  if (!ctx.personalDataNotice) out.push({ step: "review", code: "PRIVACY_NOTICE_NOT_SET", level: "block", field: TERMS_FIELD });
+  return out;
+}
+
+/// The form field the terms card's words are placed beside.
+export const TERMS_FIELD = "terms";
+
+/**
+ * The terms and conditions tick (ADR 0041 D4, REG-4): one tick agrees both the terms text and the Personal Data Notice. Refused while either is unset, when the request names another text
+ * (id or hash) or another notice (its hash) than the ones in force now, and until ticked. `noticeSha256` is the hash of the notice the page showed.
+ */
+export function termsFaults(input: DeclarationInput | undefined, noticeSha256: string, ctx: Pick<RegistrationContext, "texts" | "personalDataNotice">): StepFault[] {
+  const unset = termsSetFaults(ctx);
+  if (unset.length) return unset;
+  const text = ctx.texts.TERMS_AND_CONDITIONS!;
+  const notice = ctx.personalDataNotice!;
+  const out: StepFault[] = [];
+  const add = (f: Omit<StepFault, "step">) => out.push({ step: "review", ...f });
+  if (!input) {
+    add({ code: "NOT_CONFIRMED", level: "block", field: TERMS_FIELD, data: { kind: "TERMS_AND_CONDITIONS" } });
+    return out;
+  }
+  if (input.textVersionId !== text.id || input.textSha256 !== text.sha256 || noticeSha256 !== notice.sha256) add({ code: "TEXT_STALE", level: "block", field: TERMS_FIELD, data: { kind: "TERMS_AND_CONDITIONS" } });
+  if (!input.confirmed) add({ code: "NOT_CONFIRMED", level: "block", field: TERMS_FIELD, data: { kind: "TERMS_AND_CONDITIONS" } });
   return out;
 }
 
 /**
  * What the Submit request itself says: for each kind, the text it names must be the current one (a stale or forged id is refused), the signatory is named, and the tick is made.
- * The kinds must each be present exactly once. A kind with no current text is reported by `giroFaults` / `reviewFaults`, not here.
+ * The kinds must each be present exactly once. A kind with no current text (or, for the terms, no Personal Data Notice) is reported by `giroFaults` / `reviewFaults`, not here. The terms
+ * are judged by `termsFaults`, against `noticeSha256`, the hash of the notice the page showed.
  */
-export function declarationFaults(inputs: readonly DeclarationInput[], ctx: RegistrationContext): StepFault[] {
+export function declarationFaults(inputs: readonly DeclarationInput[], ctx: RegistrationContext, noticeSha256: string | null = null): StepFault[] {
   const out: StepFault[] = [];
   const step = (k: DeclarationKind) => (k === "GIRO_AUTHORISATION" ? "epayment" : "review");
   for (const kind of ["GIRO_AUTHORISATION", "FALSE_DECLARATION"] as const) {
@@ -112,6 +118,11 @@ export function declarationFaults(inputs: readonly DeclarationInput[], ctx: Regi
     if (isBlank(i.signatoryName)) add({ code: "SIGNATORY_NAME_REQUIRED", level: "block", field: `${field}.signatoryName` });
     if (isBlank(i.signatoryDesignation)) add({ code: "SIGNATORY_DESIGNATION_REQUIRED", level: "block", field: `${field}.signatoryDesignation` });
     if (!i.confirmed) add({ code: "NOT_CONFIRMED", level: "block", field: `${field}.confirmed`, data: { kind } });
+  }
+  const terms = inputs.filter((i) => i.kind === "TERMS_AND_CONDITIONS");
+  if (ctx.texts.TERMS_AND_CONDITIONS && ctx.personalDataNotice) {
+    if (terms.length > 1) out.push({ step: "review", code: "NOT_CONFIRMED", level: "block", field: TERMS_FIELD, data: { kind: "TERMS_AND_CONDITIONS" } });
+    else out.push(...termsFaults(terms[0], noticeSha256 ?? "", ctx));
   }
   return out;
 }

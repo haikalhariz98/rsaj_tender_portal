@@ -10,7 +10,7 @@ import type { BlobStore } from "@/lib/documents/store";
 import type { Finding as StoreFinding } from "@/lib/documents/types";
 import { loadRegistrationContext, loadRegistrationSettings } from "@/lib/portal/registration/context-store";
 import { creditorTrailChanges } from "@/lib/portal/registration/creditor";
-import { frozenWording } from "@/lib/portal/registration/declaration";
+import { frozenWording } from "@/lib/portal/registration/declaration-text";
 import { CREDITOR_FIELDS } from "@/lib/portal/registration/types";
 import { uploadFault, uploadSettingFault, type UploadPolicy, type UploadStore } from "@/lib/portal/registration/upload";
 import { lockSupplierRow } from "@/lib/suppliers/lock";

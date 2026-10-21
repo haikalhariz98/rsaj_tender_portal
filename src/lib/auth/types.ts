@@ -86,7 +86,9 @@ export type AuditActor =
   /// `sessionId` is null where the act is the account holder's own but no session exists yet: using a one-time code.
   | { kind: "STAFF"; personId: string; sessionId: string | null; offices: readonly Office[]; sourceAddress: string | null }
   | { kind: "SUPPLIER"; supplierAccountId: string; sessionId: string | null; sourceAddress: string | null }
-  | { kind: "SYSTEM"; label: string };
+  | { kind: "SYSTEM"; label: string }
+  /// ADR 0041 D3: the sender of an online application, not signed in. Named by the application; never a person, an account or a machine.
+  | { kind: "APPLICANT"; portalApplicationId: string; sourceAddress: string | null };
 
 /// The settings of an organisation's `SecurityPolicy`, each null while the customer has not decided. Nothing has a default.
 export interface SecurityPolicyValues {

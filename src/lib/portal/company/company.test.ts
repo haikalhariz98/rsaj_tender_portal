@@ -329,7 +329,7 @@ describe("changing the bank details after registration", () => {
     expect(blocks(input({ creditor: creditor({ bankCode: "no-such" }) }))).toContain("BANK_NOT_LISTED");
   });
   it("the authorisation: its wording is set, is the wording shown, names who signs and is ticked", () => {
-    expect(blocks(input(), ok, ctx({ texts: { GIRO_AUTHORISATION: null, FALSE_DECLARATION: null } }))).toContain("TEXT_NOT_SET");
+    expect(blocks(input(), ok, ctx({ texts: { GIRO_AUTHORISATION: null, FALSE_DECLARATION: null, TERMS_AND_CONDITIONS: null } }))).toContain("TEXT_NOT_SET");
     expect(blocks(input({ giro: giro({ textSha256: "0".repeat(64) }) }))).toContain("TEXT_STALE");
     expect(blocks(input({ giro: giro({ textVersionId: "forged" }) }))).toContain("TEXT_STALE");
     expect(blocks(input({ giro: giro({ signatoryName: "", signatoryDesignation: "" }) }))).toEqual(expect.arrayContaining(["SIGNATORY_NAME_REQUIRED", "SIGNATORY_DESIGNATION_REQUIRED"]));

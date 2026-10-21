@@ -121,6 +121,7 @@ export const EXPORT_COLUMNS = {
     createdAt: TECH,
     submittedAt: IN,
     submittedBySupplierAccountId: KEY,
+    portalApplicationId: KEY,
   },
   ApplicationDecision: {
     id: KEY,
@@ -163,6 +164,7 @@ export const EXPORT_COLUMNS = {
     recordedAt: TECH,
     recordedByPersonId: STAFF,
     recordedBySupplierAccountId: KEY,
+    recordedByPortalApplicationId: KEY,
     answersItemId: KEY,
     verification: IN,
     verifiedByPersonId: STAFF,
@@ -202,6 +204,7 @@ export const EXPORT_COLUMNS = {
     bankSwiftCode: IN,
     bankAddress: IN,
     enteredBySupplierAccountId: KEY,
+    enteredByPortalApplicationId: KEY,
     createdAt: TECH,
     submittedAt: IN,
     verification: IN,
@@ -227,6 +230,10 @@ export const EXPORT_COLUMNS = {
     signedOn: IN,
     signedAt: IN,
     signedBySupplierAccountId: KEY,
+    portalApplicationId: KEY,
+    noticeSha256: TECH,
+    // ADR 0041 D4: the Personal Data Notice as agreed with the terms is the supplier's own agreement, exported as the wording of the other agreements is.
+    noticeFrozenEn: IN,
   },
   StandingEvent: {
     id: KEY,
@@ -335,6 +342,7 @@ export const EXPORT_COLUMNS = {
     receivedOn: TECH,
     recordedByPersonId: STAFF,
     recordedBySupplierAccountId: KEY,
+    recordedByPortalApplicationId: KEY,
     note: out("STAFF_ONLY"),
     storedAt: IN,
     scanState: TECH,

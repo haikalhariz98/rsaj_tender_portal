@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  *     for nothing), and a draft already sent is refused as decided (409);
  *  2. the password is asked again: a wrong one counts towards the lockout and is logged (`STEP_UP_FAILED`), and a locked or throttled account is refused;
  *  3. one transaction judges it all again on the locked rows, with the texts in force now (a stale or forged text id is refused), and writes the application, the documents, the bank
- *     details, the two signed declarations with their attributions and the audit rows, or nothing.
+ *     details, the three declarations with their attributions and the audit rows, or nothing.
  *
  * Nothing in the body names a supplier or a day: the supplier is the session's and the day is the server's.
  */
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const { actor, post } = guard;
   const parsed = parseSubmitBody(post.fields);
   if (!parsed.ok) return reply({ ok: false, code: "VALIDATION", message: parsed.message }, 400);
-  const { version, password, declarations } = parsed.value;
+  const { version, password, declarations, noticeSha256 } = parsed.value;
 
   const state = await loadWizardState(db, actor);
   if (state === "SENT") return reply({ ok: false, code: "DECIDED", message: "Already sent to the procurement office." }, 409);
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const view = await loadDraftView(db, actor);
   if (view.version !== version) return refusalReply(new DraftRefused("STALE"))!;
   const ctx = await contextFor(db, actor, view.documents.flatMap((d) => d.valueIds));
-  const faults = blockingFaults(registrationFaults(draftOf(view), ctx, declarationsAsSigned(declarations, draftOf(view))));
+  const faults = blockingFaults(registrationFaults(draftOf(view), ctx, declarationsAsSigned(declarations, draftOf(view)), noticeSha256));
   if (faults.length > 0) return reply({ ok: false, code: "VALIDATION", message: faultViews(faults)[0]!.message, faults: faultViews(faults) }, 422);
 
   const asked = await confirmSupplierPassword(actor, password, post.facts);
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const sent = await submitRegistration(actor, { version, declarations, stepUpAt: asked.at });
+    const sent = await submitRegistration(actor, { version, declarations, noticeSha256, stepUpAt: asked.at });
     return reply({ ok: true, sentOn: sent.sentOn });
   } catch (e) {
     const refused = refusalReply(e);

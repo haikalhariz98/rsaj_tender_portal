@@ -254,7 +254,8 @@ describe("6.15: a supplier's document and application are owners, everywhere at 
   it("the SUPPLIER matter kind arrived alone, and a SUPPLIER route names exactly one supplier record while any other route names none (a2)", () => {
     const own = migrations.filter((d) => /ALTER TYPE "MatterKind" ADD VALUE 'SUPPLIER';/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
     expect(own).toHaveLength(1);
-    expect(latestCheck("ApprovalInstance_supplier_matter")).toBe(`(num_nonnulls("supplierApplicationId", "standingRequestId", "specialPermissionId") = CASE WHEN "matterKind" = 'SUPPLIER' THEN 1 ELSE 0 END)`);
+    // ADR 0041 D5: the online application is a SUPPLIER route's subject too, counted with the others (migration 20261117001000).
+    expect(latestCheck("ApprovalInstance_supplier_matter")).toBe(`(num_nonnulls("supplierApplicationId", "standingRequestId", "specialPermissionId", "portalApplicationId") = CASE WHEN "matterKind" = 'SUPPLIER' THEN 1 ELSE 0 END)`);
   });
 });
 

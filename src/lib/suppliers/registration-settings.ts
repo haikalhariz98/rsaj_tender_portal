@@ -1,12 +1,12 @@
 /**
- * Configuration › Supplier register › Registration online (Phase 4b): the settings the supplier's own registration is judged by, and the wording of its two declarations. Every one is the
+ * Configuration › Supplier register › Registration online (Phase 4b): the settings the supplier's own registration is judged by, and the wording of its declarations (GIRO, false declaration, terms and conditions). Every one is the
  * customer's and ships unset (AGENTS.md rule 1); an unset one closes what it governs and the screen names it. Pure: the action reads the classes and the texts and asks here.
  */
 
-export const DECLARATION_KINDS = ["GIRO_AUTHORISATION", "FALSE_DECLARATION"] as const;
+export const DECLARATION_KINDS = ["GIRO_AUTHORISATION", "FALSE_DECLARATION", "TERMS_AND_CONDITIONS"] as const;
 export type DeclarationKindName = (typeof DECLARATION_KINDS)[number];
 /// The declarations by what an officer calls them (the key is a configuration key and never reaches a screen).
-export const DECLARATION_KIND_WORDS: Record<DeclarationKindName, string> = { GIRO_AUTHORISATION: "GIRO authorisation", FALSE_DECLARATION: "False-declaration acknowledgement" };
+export const DECLARATION_KIND_WORDS: Record<DeclarationKindName, string> = { GIRO_AUTHORISATION: "GIRO authorisation", FALSE_DECLARATION: "False-declaration acknowledgement", TERMS_AND_CONDITIONS: "Terms and conditions" };
 
 export const MEGABYTE = 1_048_576;
 export const MAX_FILES = 500;

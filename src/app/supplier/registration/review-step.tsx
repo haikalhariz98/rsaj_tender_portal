@@ -8,6 +8,8 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Checkbox, Field, Input } from "@/components/ui/field";
+import { TermsCard } from "@/components/registration/terms-card";
+import { APPLY } from "@/lib/portal/labels";
 import { SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import type { DeclarationInput } from "@/lib/portal/registration/types";
 
@@ -15,7 +17,8 @@ import type { FaultView } from "./reply";
 import { postJson, stepHref } from "./wizard-api";
 
 /**
- * Step 5 of the registration (FR-VND-004, FR-VND-006): the notice the office wrote, the false-declaration text with its tick, the password asked again, and Send. Sending is disabled, with
+ * Step 5 of the registration (FR-VND-004, FR-VND-006, REG-4): the notice the office wrote, the terms card (the Terms and Conditions and the Personal Data Notice, one tick), the
+ * false-declaration text with its tick, the password asked again, and Send. Submit is blocked, with its reason, until the terms are ticked. Sending is disabled, with
  * every thing that stands in the way named, until nothing does. The password signs the registration: the application, and the two declarations, are signed with it, on the office's day,
  * which the supplier does not type. A wrong password is counted towards the lockout like any other, and nothing is sent.
  */
@@ -34,6 +37,9 @@ export function ReviewStep({
   notice,
   falseText,
   giroText,
+  termsText,
+  privacyNotice,
+  termsMissing,
   signatoryName,
   signatoryDesignation,
   giroConfirmed,
@@ -44,6 +50,12 @@ export function ReviewStep({
   notice: string | null;
   falseText: ReviewText | null;
   giroText: ReviewText | null;
+  /// The terms and conditions in force (ADR 0041 D4), or null while none is set.
+  termsText: ReviewText | null;
+  /// The Personal Data Notice as shown and hashed, or null while it is not set.
+  privacyNotice: { en: string; sha256: string } | null;
+  /// What is not set of the two, in words.
+  termsMissing: string[];
   signatoryName: string;
   signatoryDesignation: string;
   giroConfirmed: boolean;
@@ -53,6 +65,7 @@ export function ReviewStep({
   const router = useRouter();
   const base = useId();
   const [confirmed, setConfirmed] = useState(false);
+  const [termsConfirmed, setTermsConfirmed] = useState(false);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -64,14 +77,15 @@ export function ReviewStep({
   const reasons = [...new Set(stopping.map((f) => f.message))];
 
   async function send() {
-    if (!falseText || !giroText || busy) return;
+    if (!falseText || !giroText || !termsText || !privacyNotice || busy) return;
     setBusy(true);
     setMessage(null);
     const declarations: DeclarationInput[] = [
       { kind: "GIRO_AUTHORISATION", textVersionId: giroText.id, textSha256: giroText.sha256, signatoryName, signatoryDesignation, confirmed: giroConfirmed },
       { kind: "FALSE_DECLARATION", textVersionId: falseText.id, textSha256: falseText.sha256, signatoryName, signatoryDesignation, confirmed },
+      { kind: "TERMS_AND_CONDITIONS", textVersionId: termsText.id, textSha256: termsText.sha256, signatoryName, signatoryDesignation, confirmed: termsConfirmed },
     ];
-    const { status, body } = await postJson(SUPPLIER_REGISTRATION_POSTS.submit, token, { version, password, declarations });
+    const { status, body } = await postJson(SUPPLIER_REGISTRATION_POSTS.submit, token, { version, password, declarations, noticeSha256: privacyNotice.sha256 });
     setBusy(false);
     setPassword("");
     if (status === 200 && body?.ok) {
@@ -92,6 +106,8 @@ export function ReviewStep({
           Tell the procurement office.
         </Callout>
       )}
+
+      <TermsCard terms={termsText} notice={privacyNotice} confirmed={termsConfirmed} onConfirm={setTermsConfirmed} missing={termsMissing} />
 
       <Card>
         <CardHeader title="Declaration" subtitle="Read, tick and sign" />
@@ -141,8 +157,10 @@ export function ReviewStep({
           Back
         </ButtonLink>
         <span className="ml-auto flex flex-col items-end gap-1.5">
-          {reasons.length > 0 || !falseText || !notice ? (
-            <Blocked label="Submit registration" primary reason={reasons.length ? "Finish what is listed above." : !notice ? "Notice before sending not set." : "Declaration text not set."} />
+          {reasons.length > 0 || !falseText || !notice || !termsText || !privacyNotice ? (
+            <Blocked label="Submit registration" primary reason={reasons.length ? "Finish what is listed above." : !notice ? "Notice before sending not set." : !falseText ? "Declaration text not set." : termsMissing.join(" ") || APPLY.termsTitle.en} />
+          ) : !termsConfirmed ? (
+            <Blocked label="Submit registration" primary reason={APPLY.tickToSubmit.en} />
           ) : (
             <>
               <Button type="button" variant="primary" disabled={busy || !!missing} aria-busy={busy || undefined} onClick={send} title={missing ?? undefined}>

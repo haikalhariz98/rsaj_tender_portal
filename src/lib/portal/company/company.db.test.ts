@@ -10,7 +10,7 @@ import { sha256Hex } from "@/lib/documents/store";
 import { postgresBlobStore } from "@/lib/documents/store/postgres";
 import { creditorStanding } from "@/lib/payment/creditor";
 import { creditorFactsOf } from "@/lib/payment/creditor-store";
-import { frozenWording } from "@/lib/portal/registration/declaration";
+import { frozenWording } from "@/lib/portal/registration/declaration-text";
 import { CREDITOR_FIELDS, EMPTY_CREDITOR } from "@/lib/portal/registration/types";
 import { documentState } from "@/lib/suppliers/documents";
 import { documentFacts } from "@/lib/suppliers/repo";

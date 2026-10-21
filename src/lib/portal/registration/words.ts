@@ -8,7 +8,7 @@ import type { Finding } from "@/lib/suppliers/types";
 
 import type { UploadFault } from "./upload";
 import { UPLOAD_SETTING_NAME } from "./upload";
-import type { RegistrationFault, StepFault } from "./types";
+import type { DeclarationKind, RegistrationFault, StepFault } from "./types";
 
 export interface Words {
   en: string;
@@ -17,6 +17,18 @@ const w = (en: string): Words => ({ en });
 
 type Data = Record<string, string | number | null>;
 const s = (d: Data | undefined, k: string): string => (d && d[k] != null ? String(d[k]) : "");
+
+/// Each agreement's text by name, for "not set", and what to tick, for "not ticked". One entry per kind: a new kind cannot fall into another's words.
+const TEXT_NAME: Readonly<Record<DeclarationKind, string>> = {
+  GIRO_AUTHORISATION: "The GIRO authorisation text",
+  FALSE_DECLARATION: "The false-declaration text",
+  TERMS_AND_CONDITIONS: "The Terms and Conditions text",
+};
+const TICK_WORDS: Readonly<Record<DeclarationKind, string>> = {
+  GIRO_AUTHORISATION: "Tick the box to confirm the authorisation.",
+  FALSE_DECLARATION: "Tick the box to confirm the declaration.",
+  TERMS_AND_CONDITIONS: "Tick the agreement to submit.",
+};
 
 const TEXT: Readonly<Record<RegistrationFault, (d: Data) => Words>> = {
   TIME_ZONE_UNSET: () => w("Time zone not set, so nothing can be checked. Tell the procurement office."),
@@ -50,16 +62,15 @@ const TEXT: Readonly<Record<RegistrationFault, (d: Data) => Words>> = {
   FORMAT_NOT_CHECKED: (d) => w(`${s(d, "field")}: no form is set, so it is not checked. Check it yourself.`),
   IDENTITY_DIFFERS: () => w("Not the company's registration number. Allowed, and the office will see it."),
   STATEMENT_REQUIRED: () => w("Upload a bank statement."),
-  TEXT_NOT_SET: (d) => (s(d, "kind") === "GIRO_AUTHORISATION"
-    ? w("The GIRO authorisation text is not set. Tell the procurement office.")
-    : w("The false-declaration text is not set. Tell the procurement office.")),
+  TEXT_NOT_SET: (d) => w(`${TEXT_NAME[s(d, "kind") as DeclarationKind] ?? "The declaration text"} is not set. Tell the procurement office.`),
   TEXT_STALE: (d) => (s(d, "ticked")
     ? w("The authorisation wording changed since you ticked. Read it again and tick again.")
     : w("The wording has been changed since you opened this page. Reload it.")),
   SIGNATORY_NAME_REQUIRED: () => w("Give the name of the person who signs."),
   SIGNATORY_DESIGNATION_REQUIRED: () => w("Give the position of the person who signs."),
-  NOT_CONFIRMED: (d) => (s(d, "kind") === "FALSE_DECLARATION" ? w("Tick the box to confirm the declaration.") : w("Tick the box to confirm the authorisation.")),
+  NOT_CONFIRMED: (d) => w(TICK_WORDS[s(d, "kind") as DeclarationKind] ?? "Tick the box to confirm."),
   NOTICE_NOT_SET: () => w("The notice before sending is not set. Tell the procurement office."),
+  PRIVACY_NOTICE_NOT_SET: () => w("The Personal Data Notice is not set. Tell the procurement office."),
   SIGNATORY_DIFFERS: () => w("Not the contact on your account. Allowed, and the office will see it."),
   TOO_LONG: (d) => w(`This is too long. Keep it to ${s(d, "max")} characters.`),
   NOT_A_DAY: () => w("This is not a date."),

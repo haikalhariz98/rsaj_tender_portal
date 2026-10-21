@@ -2,7 +2,7 @@
  * Test fixtures for the registration's rules. The names and lists are invented for the tests (a `demo_` style configuration), never a customer's: nothing here is read by the product.
  */
 
-import { frozenWording } from "./declaration";
+import { frozenWording, personalDataNoticeOf } from "./declaration-text";
 import type { CreditorInput, DocumentTypeConfig, Draft, DraftDocument, RegistrationContext, RegistrationValueConfig } from "./types";
 import { EMPTY_CREDITOR } from "./types";
 
@@ -48,6 +48,8 @@ const BASE_VALUES = [
 export const FIXTURE_ORGANISATION = "Demonstration Authority";
 export const GIRO_SHA = frozenWording({ bodyEn: "We authorise {organisation} to pay.", bodyMs: null }, FIXTURE_ORGANISATION).sha256;
 export const FALSE_SHA = frozenWording({ bodyEn: "We declare this is true to {organisation}.", bodyMs: null }, FIXTURE_ORGANISATION).sha256;
+export const TERMS_SHA = frozenWording({ bodyEn: "These are the terms of {organisation}.", bodyMs: null }, FIXTURE_ORGANISATION).sha256;
+export const NOTICE = personalDataNoticeOf("{organisation} keeps your details to check your registration.", FIXTURE_ORGANISATION)!;
 
 export const ctx = (o: Partial<RegistrationContext> = {}): RegistrationContext => ({
   today: "2026-10-09",
@@ -60,8 +62,10 @@ export const ctx = (o: Partial<RegistrationContext> = {}): RegistrationContext =
   texts: {
     GIRO_AUTHORISATION: { id: "text-giro-1", version: 1, bodyEn: "We authorise {organisation} to pay.", bodyMs: null, sha256: GIRO_SHA },
     FALSE_DECLARATION: { id: "text-false-1", version: 1, bodyEn: "We declare this is true to {organisation}.", bodyMs: null, sha256: FALSE_SHA },
+    TERMS_AND_CONDITIONS: { id: "text-terms-1", version: 1, bodyEn: "These are the terms of {organisation}.", bodyMs: null, sha256: TERMS_SHA },
   },
   noticeEn: "The office checks your registration.",
+  personalDataNotice: NOTICE,
   accountNoPattern: null,
   swiftPattern: null,
   supplier: { registrationNoKey: "202001000001", contactName: "Aminah Binti Ali" },

@@ -365,5 +365,7 @@ export function figureReaderOf(actor: AuditActor, organisationId: string): Figur
       return { organisationId, systemLabel: actor.label };
     case "SUPPLIER":
       throw new Error("A supplier never reads the company estimate's figure.");
+    case "APPLICANT":
+      throw new Error("An applicant never reads the company estimate's figure.");
   }
 }

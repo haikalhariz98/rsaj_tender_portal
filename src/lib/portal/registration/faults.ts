@@ -37,7 +37,7 @@ export const LIMITS = {
   valuesPerDocument: 200,
 } as const;
 
-const CREDITOR_LIMIT: Readonly<Record<keyof CreditorInput, number>> = {
+export const CREDITOR_LIMIT: Readonly<Record<keyof CreditorInput, number>> = {
   beneficiaryName: LIMITS.name,
   beneficiaryAddress: LIMITS.address,
   beneficiaryIdentityNo: LIMITS.short,
@@ -98,16 +98,16 @@ export function stepFaults(step: RegistrationStep, draft: Draft, ctx: Registrati
 }
 
 /**
- * Every rule, for Submit. `declarations` is what the Submit request carries (the two texts' ids, the signatory and the ticks); where it is not given the request's own parts are not judged
- * (the page asks this to say what stands in the way before the supplier has ticked anything).
+ * Every rule, for Submit. `declarations` is what the Submit request carries (the texts' ids, the signatory and the ticks) and `noticeSha256` the hash of the Personal Data Notice the page
+ * showed with the terms; where they are not given the request's own parts are not judged (the page asks this to say what stands in the way before the supplier has ticked anything).
  */
-export function registrationFaults(draft: Draft, ctx: RegistrationContext, declarations?: readonly DeclarationInput[]): StepFault[] {
+export function registrationFaults(draft: Draft, ctx: RegistrationContext, declarations?: readonly DeclarationInput[], noticeSha256: string | null = null): StepFault[] {
   return [
     ...stepFaults("documents", draft, ctx),
     ...stepFaults("codes", draft, ctx),
     ...stepFaults("epayment", draft, ctx),
     ...stepFaults("review", draft, ctx),
-    ...(declarations ? declarationFaults(declarations, ctx) : []),
+    ...(declarations ? declarationFaults(declarations, ctx, noticeSha256) : []),
   ];
 }
 

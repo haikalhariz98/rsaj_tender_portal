@@ -1,6 +1,10 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { AuditActor } from "@/lib/auth/types";
 
+/// Who recorded, entered or agreed something that came with an online application (ADR 0041 D3): its sender, who was not signed in. Never "the supplier's own portal account", and
+/// never called a signature. One wording for the trail, the documents and the registration summary.
+export const APPLICANT_WORDS = "Applicant, not signed in";
+
 /**
  * The AuditEntry columns that say who acted (ADR 0034 D11). Pure.
  *
@@ -10,7 +14,7 @@ import type { AuditActor } from "@/lib/auth/types";
  */
 export function actorColumns(actor: AuditActor | undefined): Pick<
   Prisma.AuditEntryUncheckedCreateInput,
-  "unattributed" | "actorKind" | "actorPersonId" | "actorSupplierAccountId" | "actorSystemLabel" | "actorSessionId" | "actorOffices" | "sourceAddress"
+  "unattributed" | "actorKind" | "actorPersonId" | "actorSupplierAccountId" | "actorSystemLabel" | "actorPortalApplicationId" | "actorSessionId" | "actorOffices" | "sourceAddress"
 > {
   if (!actor) return { unattributed: true, actorPersonId: null };
   switch (actor.kind) {
@@ -30,6 +34,9 @@ export function actorColumns(actor: AuditActor | undefined): Pick<
     case "SYSTEM":
       if (!actor.label.trim()) throw new Error("A system actor says what ran: it needs a label.");
       return { unattributed: false, actorKind: "SYSTEM", actorSystemLabel: actor.label };
+    case "APPLICANT":
+      if (!actor.portalApplicationId) throw new Error("An applicant actor names its application.");
+      return { unattributed: false, actorKind: "APPLICANT", actorPortalApplicationId: actor.portalApplicationId, sourceAddress: actor.sourceAddress };
   }
 }
 
@@ -39,5 +46,6 @@ export function actorColumns(actor: AuditActor | undefined): Pick<
  */
 export function actorDisplayName(row: { actorPerson?: { name: string } | null; actorSystemLabel?: string | null; actorKind?: string | null }): string | null {
   // A supplier's own act (Phase 4a) is named for what it is, not for a person: the supplier's contact is SULIT and the trail does not carry the account's sign-in name.
-  return row.actorPerson?.name ?? (row.actorSystemLabel ? `System: ${row.actorSystemLabel}` : row.actorKind === "SUPPLIER" ? "A supplier's portal account" : null);
+  // The sender of an online application (ADR 0041 D3) was not signed in: said so, never as a supplier's account.
+  return row.actorPerson?.name ?? (row.actorSystemLabel ? `System: ${row.actorSystemLabel}` : row.actorKind === "SUPPLIER" ? "A supplier's portal account" : row.actorKind === "APPLICANT" ? APPLICANT_WORDS : null);
 }

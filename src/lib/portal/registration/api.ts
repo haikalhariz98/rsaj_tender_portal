@@ -123,6 +123,8 @@ export interface SubmitRequestBody {
   version: number;
   password: string;
   declarations: DeclarationInput[];
+  /// The SHA-256 of the Personal Data Notice the page showed with the terms (ADR 0041 D4). Judged with the terms tick. Blank when the request names none.
+  noticeSha256: string;
 }
 
 export function parseSubmitBody(body: Record<string, unknown>): Parsed<SubmitRequestBody> {
@@ -139,7 +141,8 @@ export function parseSubmitBody(body: Record<string, unknown>): Parsed<SubmitReq
     if (typeof d.confirmed !== "boolean") return bad("A declaration does not say whether it was ticked.");
     declarations.push({ kind, textVersionId: s.textVersionId, textSha256: s.textSha256, signatoryName: s.signatoryName, signatoryDesignation: s.signatoryDesignation, confirmed: d.confirmed });
   }
-  return { ok: true, value: { version: body.version, password: body.password, declarations } };
+  if (body.noticeSha256 != null && (typeof body.noticeSha256 !== "string" || !SHA256.test(body.noticeSha256))) return bad("The notice the agreement was made on is not named properly.");
+  return { ok: true, value: { version: body.version, password: body.password, declarations, noticeSha256: typeof body.noticeSha256 === "string" ? body.noticeSha256 : "" } };
 }
 
 export interface WithdrawRequestBody {

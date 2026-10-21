@@ -11,7 +11,7 @@ import { ensureAdministrator, facts, makeSupplierAccount, randomId, setPolicy, S
 import { UploadRefusal } from "@/lib/documents/service";
 
 import { contextFor } from "./context-store";
-import { frozenWording } from "./declaration";
+import { frozenWording, personalDataNoticeOf } from "./declaration-text";
 import { CREDITOR_FIELDS } from "./types";
 import { findOwnVersion } from "./own-file-store";
 import { forSupplier, registrationSummary } from "./summary";
@@ -38,9 +38,14 @@ let gradeId: string;
 let categoryId: string;
 let giroTextId: string;
 let falseTextId: string;
+let termsTextId: string;
 /// The hash of each wording as the page shows it (organisation name filled in): what a tick and a signature are bound to.
 let giroSha: string;
 let falseSha: string;
+let termsSha: string;
+/// The hash of the Personal Data Notice as the page shows it, agreed with the terms (ADR 0041 D4).
+let noticeSha256: string;
+const NOTICE_EN = "{organisation} keeps these details to check the registration.";
 
 /// The hash of a stored wording as it reads now, for the organisation as it is named now.
 async function wordingSha(textId: string): Promise<string> {
@@ -64,7 +69,7 @@ beforeAll(async () => {
     update: {},
     create: { organisationId, verificationNoticeEn: "The office checks it.", uploadMaxFilesPerApplication: 6, uploadMaxBytesPerApplication: 1_000_000n, supplierUploadClassId: classCert, supplierBankStatementClassId: classStatement },
   });
-  await db.supplierPolicy.update({ where: { organisationId }, data: { verificationNoticeEn: "The office checks it.", uploadMaxFilesPerApplication: 6, uploadMaxBytesPerApplication: 1_000_000n, supplierUploadClassId: classCert, supplierBankStatementClassId: classStatement } });
+  await db.supplierPolicy.update({ where: { organisationId }, data: { personalDataNoticeEn: NOTICE_EN, verificationNoticeEn: "The office checks it.", uploadMaxFilesPerApplication: 6, uploadMaxBytesPerApplication: 1_000_000n, supplierUploadClassId: classCert, supplierBankStatementClassId: classStatement } });
   const body = await db.registrationBody.upsert({ where: { organisationId_code: { organisationId, code: "reg4b_board" } }, update: {}, create: { organisationId, code: "reg4b_board", labelEn: "the Works board", provenance: "ASSUMED" } });
   bodyId = body.id;
   const type = (code: string, nameEn: string, extra: Record<string, unknown> = {}) =>
@@ -79,7 +84,7 @@ beforeAll(async () => {
   const list = (code: string, kind: "BANK" | "ACCOUNT_TYPE", nameEn: string) => db.supplierListValue.upsert({ where: { organisationId_list_code: { organisationId, list: kind, code } }, update: { retiredOn: null }, create: { organisationId, list: kind, code, nameEn, provenance: "ASSUMED" } });
   await list("reg4b_bank", "BANK", "Demonstration Bank");
   await list("reg4b_current", "ACCOUNT_TYPE", "Current account");
-  const text = async (kind: "GIRO_AUTHORISATION" | "FALSE_DECLARATION", bodyEn: string) => {
+  const text = async (kind: "GIRO_AUTHORISATION" | "FALSE_DECLARATION" | "TERMS_AND_CONDITIONS", bodyEn: string) => {
     const id = `reg4b_${kind}`;
     const existing = await db.declarationText.findFirst({ where: { organisationId, kind, version: 1 } });
     if (existing) return existing.id;
@@ -90,6 +95,9 @@ beforeAll(async () => {
   falseTextId = await text("FALSE_DECLARATION", "What we say to {organisation} is true.");
   giroSha = await wordingSha(giroTextId);
   falseSha = await wordingSha(falseTextId);
+  termsTextId = await text("TERMS_AND_CONDITIONS", "These are the terms of registration with {organisation}.");
+  termsSha = await wordingSha(termsTextId);
+  noticeSha256 = personalDataNoticeOf(NOTICE_EN, (await db.organisation.findUniqueOrThrow({ where: { id: organisationId }, select: { name: true } })).name)!.sha256;
 });
 
 /// A supplier with a live account, signed in, as the actor the portal reads from its session.
@@ -142,6 +150,7 @@ async function readyDraft(actor: SupplierActor) {
 const declarations = (): DeclarationInput[] => [
   { kind: "GIRO_AUTHORISATION", textVersionId: giroTextId, textSha256: giroSha, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
   { kind: "FALSE_DECLARATION", textVersionId: falseTextId, textSha256: falseSha, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
+  { kind: "TERMS_AND_CONDITIONS", textVersionId: termsTextId, textSha256: termsSha, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
 ];
 
 async function signStep(s: { actor: SupplierActor; password: string }) {
@@ -342,12 +351,12 @@ describe("uploading", () => {
 });
 
 describe("sending the registration", () => {
-  it("writes the application, the documents, the bank details, both declarations, the signatures and the audit rows in one transaction, and moves the files without copying them", async () => {
+  it("writes the application, the documents, the bank details, the three declarations, the signatures and the audit rows in one transaction, and moves the files without copying them", async () => {
     const s = await supplier();
     const d = await readyDraft(s.actor);
     const blobsBefore = await db.blobContent.count({ where: { organisationId } });
     const at = await signStep(s);
-    const sent = await submitRegistration(s.actor, { version: d.v, declarations: declarations(), stepUpAt: at });
+    const sent = await submitRegistration(s.actor, { version: d.v, declarations: declarations(), noticeSha256, stepUpAt: at });
     expect(await db.blobContent.count({ where: { organisationId } })).toBe(blobsBefore);
 
     const app = await db.supplierApplication.findUniqueOrThrow({ where: { id: sent.applicationId } });
@@ -372,7 +381,7 @@ describe("sending the registration", () => {
     expect(profile.submittedAt).not.toBeNull();
 
     const decl = await db.registrationDeclaration.findMany({ where: { applicationId: app.id } });
-    expect(decl.map((x) => x.kind).sort()).toEqual(["FALSE_DECLARATION", "GIRO_AUTHORISATION"]);
+    expect(decl.map((x) => x.kind).sort()).toEqual(["FALSE_DECLARATION", "GIRO_AUTHORISATION", "TERMS_AND_CONDITIONS"]);
     const org = await db.organisation.findUniqueOrThrow({ where: { id: organisationId } });
     for (const x of decl) {
       expect(x.signedBySupplierAccountId).toBe(s.actor.accountId);
@@ -381,6 +390,12 @@ describe("sending the registration", () => {
       expect(x.textSha256).toMatch(/^[0-9a-f]{64}$/);
     }
     expect(decl.find((x) => x.kind === "GIRO_AUTHORISATION")!.creditorProfileId).toBe(profile.id);
+    // The terms row carries the Personal Data Notice agreed by the same tick, frozen as shown and hashed; no other row does (ADR 0041 D4).
+    const terms = decl.find((x) => x.kind === "TERMS_AND_CONDITIONS")!;
+    expect(terms).toMatchObject({ noticeSha256, textId: termsTextId, portalApplicationId: null });
+    expect(terms.noticeFrozenEn).toContain(org.name);
+    expect(terms.noticeFrozenEn).not.toContain("{organisation}");
+    for (const x of decl.filter((y) => y.kind !== "TERMS_AND_CONDITIONS")) expect([x.noticeSha256, x.noticeFrozenEn]).toEqual([null, null]);
 
     // The signature: one, with the password, on the application; each declaration SIGNED on the same entry.
     const submission = await db.actAttribution.findFirstOrThrow({ where: { entity: "SupplierApplication", entityId: app.id, slot: "submittedBySupplierAccount" } });
@@ -404,22 +419,22 @@ describe("sending the registration", () => {
   it("sending twice is refused as decided, and writes nothing more", async () => {
     const s = await supplier();
     const d = await readyDraft(s.actor);
-    await submitRegistration(s.actor, { version: d.v, declarations: declarations(), stepUpAt: await signStep(s) });
+    await submitRegistration(s.actor, { version: d.v, declarations: declarations(), noticeSha256, stepUpAt: await signStep(s) });
     const apps = await db.supplierApplication.count({ where: { supplierId: s.supplierId } });
-    await expect(submitRegistration(s.actor, { version: d.v + 1, declarations: declarations(), stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "SENT" });
+    await expect(submitRegistration(s.actor, { version: d.v + 1, declarations: declarations(), noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "SENT" });
     expect(await db.supplierApplication.count({ where: { supplierId: s.supplierId } })).toBe(apps);
   });
 
   it("refuses a stale page, a stale or forged text id, and a registration with something blocking, and writes nothing", async () => {
     const s = await supplier();
     const d = await readyDraft(s.actor);
-    await expect(submitRegistration(s.actor, { version: d.v - 1, declarations: declarations(), stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "STALE" });
+    await expect(submitRegistration(s.actor, { version: d.v - 1, declarations: declarations(), noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "STALE" });
     const forged = declarations();
     forged[1] = { ...forged[1]!, textVersionId: giroTextId };
-    await expect(submitRegistration(s.actor, { version: d.v, declarations: forged, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID" });
+    await expect(submitRegistration(s.actor, { version: d.v, declarations: forged, noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID" });
     // A missing statement blocks.
     await withdrawDraftFile(s.actor, { version: d.v, versionId: d.statement.versionId });
-    await expect(submitRegistration(s.actor, { version: d.v + 1, declarations: declarations(), stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID" });
+    await expect(submitRegistration(s.actor, { version: d.v + 1, declarations: declarations(), noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID" });
     expect(await db.supplierApplication.count({ where: { supplierId: s.supplierId } })).toBe(0);
     expect(await db.registrationDeclaration.count({ where: { signedBySupplierAccountId: s.actor.accountId } })).toBe(0);
   });
@@ -428,10 +443,24 @@ describe("sending the registration", () => {
     const s = await supplier();
     const d = await readyDraft(s.actor);
     const crafted = declarations().map((x) => ({ ...x, signatoryName: "Somebody Else Entirely", signatoryDesignation: "Chairman", confirmed: true }));
-    const sent = await submitRegistration(s.actor, { version: d.v, declarations: crafted, stepUpAt: await signStep(s) });
+    const sent = await submitRegistration(s.actor, { version: d.v, declarations: crafted, noticeSha256, stepUpAt: await signStep(s) });
     const signed = await db.registrationDeclaration.findMany({ where: { applicationId: sent.applicationId } });
-    expect(signed).toHaveLength(2);
+    expect(signed).toHaveLength(3);
     for (const x of signed) expect(x).toMatchObject({ signatoryName: s.actor.displayName, signatoryDesignation: "Director" });
+  });
+
+  it("refuses Submit without the terms tick, with a stale terms text, or with a Personal Data Notice other than the one in force, and writes nothing (REG-4)", async () => {
+    const s = await supplier();
+    const d = await readyDraft(s.actor);
+    const unticked = declarations().map((x) => (x.kind === "TERMS_AND_CONDITIONS" ? { ...x, confirmed: false } : x));
+    await expect(submitRegistration(s.actor, { version: d.v, declarations: unticked, noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "NOT_CONFIRMED", field: "terms", step: "review" })] });
+    const missing = declarations().filter((x) => x.kind !== "TERMS_AND_CONDITIONS");
+    await expect(submitRegistration(s.actor, { version: d.v, declarations: missing, noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "NOT_CONFIRMED", field: "terms" })] });
+    const staleText = declarations().map((x) => (x.kind === "TERMS_AND_CONDITIONS" ? { ...x, textSha256: falseSha } : x));
+    await expect(submitRegistration(s.actor, { version: d.v, declarations: staleText, noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE", field: "terms" })] });
+    await expect(submitRegistration(s.actor, { version: d.v, declarations: declarations(), noticeSha256: termsSha, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE", field: "terms" })] });
+    expect(await db.supplierApplication.count({ where: { supplierId: s.supplierId } })).toBe(0);
+    expect(await db.registrationDeclaration.count({ where: { signedBySupplierAccountId: s.actor.accountId } })).toBe(0);
   });
 
   it("a GIRO box ticked on one wording does not count for another: refused when a new version took its place, and the supplier ticks again", async () => {
@@ -443,12 +472,12 @@ describe("sending the registration", () => {
       // The page loaded after the new version, so it carries the new text's id and hash: it is the BOX that is stale.
       const now = declarations();
       now[0] = { ...now[0]!, textVersionId: v2.id, textSha256: await wordingSha(v2.id) };
-      await expect(submitRegistration(s.actor, { version: d.v, declarations: now, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE", field: "giro.confirmed" })] });
+      await expect(submitRegistration(s.actor, { version: d.v, declarations: now, noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE", field: "giro.confirmed" })] });
       expect(await db.supplierApplication.count({ where: { supplierId: s.supplierId } })).toBe(0);
       // A tick that names the old wording is refused at the save; ticking again on the wording now in force is accepted and can be sent.
       await expect(saveSection(s.actor, { version: d.v, section: { step: "epayment", creditor: {}, giroConfirmed: true, giroTextSha256: giroSha } }, ctxFor(s.actor))).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE" })] });
       const ticked = await saveSection(s.actor, { version: d.v, section: { step: "epayment", creditor: {}, giroConfirmed: true, giroTextSha256: await wordingSha(v2.id) } }, ctxFor(s.actor));
-      const sent = await submitRegistration(s.actor, { version: ticked.version, declarations: now, stepUpAt: await signStep(s) });
+      const sent = await submitRegistration(s.actor, { version: ticked.version, declarations: now, noticeSha256, stepUpAt: await signStep(s) });
       expect((await db.registrationDeclaration.findFirstOrThrow({ where: { applicationId: sent.applicationId, kind: "GIRO_AUTHORISATION" } })).textVersion).toBe(v2.version);
     } finally {
       // The scratch organisation is shared: the second version is signed by now, so it is retired (a signed wording is never deleted) and the first is in force again.
@@ -464,7 +493,7 @@ describe("sending the registration", () => {
     const drawn = declarations();
     await db.declarationText.update({ where: { id: falseTextId }, data: { bodyEn: "A corrected declaration to {organisation}." } });
     try {
-      await expect(submitRegistration(s.actor, { version: d.v, declarations: drawn, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE" })] });
+      await expect(submitRegistration(s.actor, { version: d.v, declarations: drawn, noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE" })] });
       expect(await db.supplierApplication.count({ where: { supplierId: s.supplierId } })).toBe(0);
       expect(await db.registrationDeclaration.count({ where: { signedBySupplierAccountId: s.actor.accountId } })).toBe(0);
     } finally {
@@ -479,7 +508,7 @@ describe("sending the registration", () => {
     const drawn = declarations();
     await db.organisation.update({ where: { id: organisationId }, data: { name: `${org.name} (renamed)` } });
     try {
-      await expect(submitRegistration(s.actor, { version: d.v, declarations: drawn, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID" });
+      await expect(submitRegistration(s.actor, { version: d.v, declarations: drawn, noticeSha256, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID" });
       expect(await db.registrationDeclaration.count({ where: { signedBySupplierAccountId: s.actor.accountId } })).toBe(0);
     } finally {
       await db.organisation.update({ where: { id: organisationId }, data: { name: org.name } });
@@ -504,7 +533,7 @@ describe("sending the registration", () => {
     }, { timeout: 30_000 });
     try {
       await new Promise((r) => setTimeout(r, 300));
-      const sending = submitRegistration(s.actor, { version: d.v, declarations: drawn, stepUpAt }).then(
+      const sending = submitRegistration(s.actor, { version: d.v, declarations: drawn, noticeSha256, stepUpAt }).then(
         () => "SENT",
         (e: unknown) => (e as { kind?: string }).kind ?? String(e),
       );
@@ -538,7 +567,7 @@ describe("sending the registration", () => {
   it("refuses a password entry that was not asked for this session, or was already used to sign something", async () => {
     const s = await supplier();
     const d = await readyDraft(s.actor);
-    await expect(submitRegistration(s.actor, { version: d.v, declarations: declarations(), stepUpAt: new Date(Date.now() - 1000) })).rejects.toMatchObject({ faults: [expect.objectContaining({ code: "STEP_UP_NOT_CURRENT" })] });
+    await expect(submitRegistration(s.actor, { version: d.v, declarations: declarations(), noticeSha256, stepUpAt: new Date(Date.now() - 1000) })).rejects.toMatchObject({ faults: [expect.objectContaining({ code: "STEP_UP_NOT_CURRENT" })] });
     expect(await db.supplierApplication.count({ where: { supplierId: s.supplierId } })).toBe(0);
     // The failure rolled the whole send back, so the draft is still open.
     expect(await loadWizardState(db, s.actor)).toBe("OPEN");
@@ -547,7 +576,7 @@ describe("sending the registration", () => {
   it("the date stamped is the server's day: the request carries none", async () => {
     const s = await supplier();
     const d = await readyDraft(s.actor);
-    await submitRegistration(s.actor, { version: d.v, declarations: declarations(), stepUpAt: await signStep(s) });
+    await submitRegistration(s.actor, { version: d.v, declarations: declarations(), noticeSha256, stepUpAt: await signStep(s) });
     const decl = await db.registrationDeclaration.findMany({ where: { signedBySupplierAccountId: s.actor.accountId } });
     for (const x of decl) {
       expect(x.signedOn.toISOString().slice(0, 10)).toBe(new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" }));
@@ -560,7 +589,7 @@ describe("what the database itself refuses", () => {
   async function sent() {
     const s = await supplier();
     const d = await readyDraft(s.actor);
-    const r = await submitRegistration(s.actor, { version: d.v, declarations: declarations(), stepUpAt: await signStep(s) });
+    const r = await submitRegistration(s.actor, { version: d.v, declarations: declarations(), noticeSha256, stepUpAt: await signStep(s) });
     const profile = await db.creditorProfile.findFirstOrThrow({ where: { supplierId: s.supplierId } });
     return { s, d, r, profile };
   }
@@ -657,7 +686,7 @@ describe("one supplier's registration is invisible to another (a supplier named 
     for (const id of [draftFile, statementFile, "no_such_version_id"]) expect(await findOwnVersion(db, b.actor, id), id).toBeNull();
     // Once sent, the file hangs on the supplier's document and is still its own alone.
     const at = await signStep(a);
-    await submitRegistration(a.actor, { version: d.v, declarations: declarations(), stepUpAt: at });
+    await submitRegistration(a.actor, { version: d.v, declarations: declarations(), noticeSha256, stepUpAt: at });
     const promoted = (await db.supplierDocument.findFirstOrThrow({ where: { supplierId: a.supplierId, typeId: typeReg }, include: { attachments: true } })).attachments[0]!.versionId;
     expect((await findOwnVersion(db, a.actor, promoted))?.id).toBe(promoted);
     expect(await findOwnVersion(db, b.actor, promoted)).toBeNull();
@@ -670,7 +699,7 @@ describe("one supplier's registration is invisible to another (a supplier named 
     const b = await supplier();
     const da = await readyDraft(a.actor);
     const draftB = await readyDraft(b.actor);
-    await submitRegistration(a.actor, { version: da.v, declarations: declarations(), stepUpAt: await signStep(a) });
+    await submitRegistration(a.actor, { version: da.v, declarations: declarations(), noticeSha256, stepUpAt: await signStep(a) });
     const aDoc = await db.supplierDocument.findFirstOrThrow({ where: { supplierId: a.supplierId, typeId: typeReg } });
     // B's certificate, as it hangs on B's draft: attached to A's document by an officer's mistake.
     const bFile = (await db.documentAttachment.findFirstOrThrow({ where: { registrationDraftDocumentId: draftB.rows.reg, purpose: "SUPPLIER_DRAFT_DOCUMENT" } })).versionId;
@@ -697,7 +726,7 @@ describe("one supplier's registration is invisible to another (a supplier named 
   it("the sent registration's summary for the supplier names no officer and carries no officer's note, though the office's own copy does", async () => {
     const a = await supplier();
     const d = await readyDraft(a.actor);
-    await submitRegistration(a.actor, { version: d.v, declarations: declarations(), stepUpAt: await signStep(a) });
+    await submitRegistration(a.actor, { version: d.v, declarations: declarations(), noticeSha256, stepUpAt: await signStep(a) });
     const officer = await db.person.create({ data: { organisationId, name: "Officer Zainal Abidin Binti Ghazali" } });
     const doc = await db.supplierDocument.findFirstOrThrow({ where: { supplierId: a.supplierId, typeId: typeReg } });
     await db.supplierDocument.update({ where: { id: doc.id }, data: { verification: "NOT_IN_ORDER", verifiedByPersonId: officer.id, verifiedOn: new Date("2026-10-10T00:00:00Z"), verifiedAt: new Date(), verificationNote: "The seal looks altered, ask the board" } });
@@ -725,12 +754,12 @@ describe("one supplier's registration is invisible to another (a supplier named 
     const a = await supplier();
     const b = await supplier();
     const d = await readyDraft(a.actor);
-    await submitRegistration(a.actor, { version: d.v, declarations: declarations(), stepUpAt: await signStep(a) });
+    await submitRegistration(a.actor, { version: d.v, declarations: declarations(), noticeSha256, stepUpAt: await signStep(a) });
     const scopeA = { organisationId, supplierId: a.supplierId };
     const scopeB = { organisationId, supplierId: b.supplierId };
     expect((await loadSentDocumentsSummary(db, scopeA)).length).toBe(2);
     expect(await loadSentDocumentsSummary(db, scopeB)).toEqual([]);
-    expect((await loadDeclarationsSummary(db, scopeA, "Asia/Kuala_Lumpur")).map((x) => x.kind).sort()).toEqual(["FALSE_DECLARATION", "GIRO_AUTHORISATION"]);
+    expect((await loadDeclarationsSummary(db, scopeA, "Asia/Kuala_Lumpur")).map((x) => x.kind).sort()).toEqual(["FALSE_DECLARATION", "GIRO_AUTHORISATION", "TERMS_AND_CONDITIONS"]);
     expect(await loadDeclarationsSummary(db, scopeB, "Asia/Kuala_Lumpur")).toEqual([]);
     expect(await loadCreditorRows(db, scopeB)).toEqual([]);
     expect(await loadCreditorRows(db, { organisationId: "another_organisation", supplierId: a.supplierId })).toEqual([]);

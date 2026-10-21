@@ -127,6 +127,9 @@ export async function readOwner(organisationId: string, ref: OwnerRef): Promise<
     case "registrationDraftDocument":
     case "creditorProfile":
     case "onlineBidFile":
+    // ADR 0041 D2: what an online application holds is not attached to from the staff's shared panel.
+    case "portalApplicationDocument":
+    case "portalApplicationCreditor":
       return null;
   }
 }
@@ -478,6 +481,8 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     case "registrationDraftDocument":
     case "creditorProfile":
     case "onlineBidFile":
+    case "portalApplicationDocument":
+    case "portalApplicationCreditor":
       return { records: [], total: 0 };
   }
 }
