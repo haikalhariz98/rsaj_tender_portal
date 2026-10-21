@@ -62,6 +62,7 @@ export const EXPORT_LABEL = {
   textVersion: "Wording version",
   textEn: "Wording (English)",
   textMs: "Wording (Malay)",
+  noticeEn: "Personal Data Notice, as agreed",
   signatoryName: "Signed by",
   signatoryDesignation: "Signatory's designation",
   signedOn: "Signed on",

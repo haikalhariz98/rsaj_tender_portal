@@ -359,6 +359,11 @@ describe("files, codes and dates", () => {
     const decl = section(e, "declarations").rows[0].rows!;
     expect(find(decl, "Signed on")?.value).toBe("2026-04-20");
     expect(find(decl, "Signed at")?.value).toBe("2026-04-20T04:15:00.000Z");
+    // ADR 0041 D4: only the terms row carries the Personal Data Notice agreed with it.
+    expect(find(decl, "Personal Data Notice, as agreed")).toBeUndefined();
+    const withTerms = build({ declarations: [...source().declarations, fixture("RegistrationDeclaration", { kind: "TERMS_AND_CONDITIONS", textVersion: 1, frozenTextEn: "These are the terms.", frozenTextMs: "", signatoryName: "Aminah binti Ali", signatoryDesignation: "Director", signedOn: d("2026-04-20"), signedAt: t("2026-04-20T04:15:00Z"), noticeFrozenEn: "We keep your details to check the registration." })] });
+    const terms = section(withTerms, "declarations").rows.find((r) => r.value === "Terms and conditions")!.rows!;
+    expect(find(terms, "Personal Data Notice, as agreed")?.value).toBe("We keep your details to check the registration.");
     const purchase = section(e, "purchases").rows[0].rows!;
     expect(find(purchase, "Amount (RM)")?.value).toBe("50.00");
     const values: string[] = [];

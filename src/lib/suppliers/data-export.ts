@@ -263,6 +263,8 @@ function declarations(src: SupplierExportSource): ExportRow[] {
         row("signedAt", instant(d.signedAt)),
         row("textEn", text(d.frozenTextEn)),
         row("textMs", text(d.frozenTextMs)),
+        // ADR 0041 D4: on the terms row, the Personal Data Notice agreed by the same tick. Blank, and left out, on every other row.
+        row("noticeEn", text(d.noticeFrozenEn)),
       ]),
     });
   });
