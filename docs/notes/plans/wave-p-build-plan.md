@@ -1,5 +1,7 @@
 # Wave P — the Project workspace (Part 2): build plan
 
+**Superseded, 2026-10-22, by `docs/notes/plans/project-workspace-simple-plan.md` and ADR 0042** (`docs/notes/architecture/0042-the-simple-project-workspace.md`), under the product owner's rulings PW-1 to PW-21. Entry-gate items 1 and 2 are withdrawn (PW-1); §0's table is refreshed in the new plan's §1. Nothing below was built. The text is kept as written.
+
 **Status (2026-10-19): Proposed, HELD for CPD (AC-7). Not built, and not to be started.** This is wave P step P0 of design note 0004,
 written by the solution architect. It sits alongside ADR 0038 and ADR 0039, which hold the decisions. The plan declares contracts; it is not code. The Prisma
 blocks in §2 and the signatures in §3 are **declarations for the builders**: no migration is written and no file under `prisma/` or

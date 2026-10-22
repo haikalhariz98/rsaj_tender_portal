@@ -1,5 +1,7 @@
 # 0038 — Contract teams, and who reaches the Project exchange
 
+**Superseded by ADR 0042** (`0042-the-simple-project-workspace.md`) and the plan `docs/notes/plans/project-workspace-simple-plan.md`, 2026-10-22, under the product owner's rulings PW-1 to PW-21 (PW-3, PW-16, PW-17). Nothing below was built. The text is kept as written.
+
 **Status:** Proposed, **held for CPD** (AC-7). Written on 2026-10-19 by the solution architect, at wave P step P0 of design note 0004.
 Nothing here is built. No migration and no code follow until the founder records CPD's written sign-off of P-1 to P-7 as [NET-NEW] in
 the decisions log, giving the signer's name, the date and the document version, together with the AC-7 policy answers (R-1 in the
