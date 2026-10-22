@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }), usePathname: () => "/supplier/register" }));
 
+import { APPLY } from "@/lib/portal/labels";
 import { config, heldState } from "@/lib/portal/register/fixture";
 import type { WizardState } from "@/lib/portal/register/wizard";
 
@@ -196,15 +197,39 @@ describe("the public registration form (ADR 0041, plan 4.2)", () => {
     expect(text()).not.toMatch(/account page/i);
   });
 
-  it("no answer: sent again with the same token, never a fresh one, and the words say nothing was sent", async () => {
+  it("no answer: sent again with the same token, never a fresh one; then read-only, offering only Send again, until an answer settles it (RSEC-5)", async () => {
     replies = [{ status: 0, body: null }, { status: 500, body: { ok: false, code: "TRY_AGAIN", message: "Something went wrong. Nothing was sent. Try again in a few minutes." } }];
     mount(held({ step: "review", reached: 4 }));
     await click(button("Submit"));
     await settle();
     expect(sent.map((s) => s.token)).toEqual([TOKEN, TOKEN]);
-    expect(text()).toContain("Something went wrong. Nothing was sent.");
-    expect(button("Submit")?.disabled).toBe(false);
+    // It may have landed: the form says so, never "nothing was sent", and nothing in it can be changed.
+    expect(text()).toContain(APPLY.mayHaveArrived.en);
+    expect(text()).not.toContain("Nothing was sent.");
+    // Inside the disabled fieldset: the browser treats it as disabled, whatever its own attribute says.
+    expect(button("Submit")?.matches(":disabled") ?? true).toBe(true);
+    expect(host.querySelector("fieldset")?.disabled).toBe(true);
     expect(text()).toContain("Step 5 of 5");
+    // Send again: the same token; the answer that it landed shows the reference and when the first send arrived.
+    replies = [{ status: 200, body: { ok: true, reference: "PA-2026-0009", firstReceived: "22 Oct 2026, 09:15" } }];
+    await click(button(APPLY.sendAgain.en));
+    await settle();
+    expect(sent.at(-1)?.token).toBe(TOKEN);
+    expect(text()).toContain("PA-2026-0009");
+    expect(text()).toContain(APPLY.firstReceived("22 Oct 2026, 09:15").en);
+  });
+
+  it("an answer that proves the token unspent opens the form again (RSEC-5)", async () => {
+    replies = [{ status: 0, body: null }, { status: 0, body: null }];
+    mount(held({ step: "review", reached: 4 }));
+    await click(button("Submit"));
+    await settle();
+    expect(host.querySelector("fieldset")?.disabled).toBe(true);
+    replies = [{ status: 422, body: { ok: false, code: "VALIDATION", message: "Nothing was sent.", faults: [{ step: "review", field: "terms", level: "block", message: "Tick the agreement to submit." }] } }];
+    await click(button(APPLY.sendAgain.en));
+    await settle();
+    expect(host.querySelector("fieldset")?.disabled).toBe(false);
+    expect(button(APPLY.sendAgain.en)).toBeFalsy();
   });
 
   it("the browser's warning is armed by the first change and gone once the application is received", async () => {

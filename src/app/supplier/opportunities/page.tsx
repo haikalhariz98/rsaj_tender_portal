@@ -63,7 +63,7 @@ export default async function SupplierOpportunitiesPage() {
         info={{ title: OPPORTUNITIES_TITLE.en, text: OPPORTUNITIES_INFO.en }}
         meta={ready ? [openCount(open).en] : undefined}
         actions={
-          <ButtonLink href={PORTAL_PATH.register} variant="primary" icon={<BuildingIcon size={16} />}>
+          <ButtonLink href={PORTAL_PATH.register} wholeDocument variant="primary" icon={<BuildingIcon size={16} />}>
             {HOME_LINKS[2].action.en}
           </ButtonLink>
         }

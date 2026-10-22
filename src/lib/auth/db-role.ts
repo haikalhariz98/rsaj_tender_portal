@@ -18,8 +18,9 @@ export const APP_ROLE_DEFAULT = "perolehan_app";
  * Phase 4d adds a supplier's acknowledgement of an addendum, the inspection log of the tender documents and the notice of non-award (migration `20261016090000_my_bids`).
  * Wave 3a (SR-10) adds every attempt at paying a purchase and every download of a released file (migration `20261102100000_sr10_online_purchase_payment_simulator`).
  * Wave 3b (SR-13, ADR 0036 D12) adds the sealed access log and the recorded changes of a published exercise key (migration `20261103110000_sr13_sealed_tables_triggers`).
+ * The one-submission registration (ADR 0041, security audit L2) adds the codes held on an online application's certificates (migration `20261117001000_one_submission_registration`).
  */
-export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange"] as const;
+export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", "PortalApplicationValue"] as const;
 
 /**
  * Stored document bytes (OD-9). A trigger refuses UPDATE and TRUNCATE for every login (migration `20261007120000_blob_content_kept`);
@@ -35,6 +36,13 @@ export const CONTENT_TABLES = ["BlobContent"] as const;
  */
 export const SEALED_TABLES = ["BidSealingPolicy", "OfficerExerciseKey", "ExerciseSealingKey", "ExerciseKeyShare", "ShareRelease", "OnlineBidFile", "OnlineBid", "OnlineBidPart", "OfficerDekGrant", "SealedEstimateLodgement"] as const;
 
+/**
+ * What a stranger's registration holds (ADR 0041 D2, D8; security audit L2): the certificates and bank details held on an online application, and the spent form tokens. Their rows
+ * change only as their triggers allow (the officer's check, once; the erasure on set aside; a token set to its application once) and are never removed: a trigger refuses DELETE and
+ * TRUNCATE for every login (migration `20261117001000_one_submission_registration`), and the grants are the second wall. UPDATE stays, for the moves the triggers allow.
+ */
+export const HELD_APPLICATION_TABLES = ["PortalApplicationDocument", "PortalApplicationCreditor", "PortalFormToken"] as const;
+
 /// Prisma's own bookkeeping. The app has no business reading or writing it.
 export const MIGRATIONS_TABLE = "_prisma_migrations";
 
@@ -48,6 +56,7 @@ export const WITHHELD: readonly { table: string; revoke: string; held: string }[
   ...APPEND_ONLY_TABLES.map((table) => ({ table, revoke: "UPDATE, DELETE, TRUNCATE", held: "UPDATE, DELETE, TRUNCATE" })),
   ...CONTENT_TABLES.map((table) => ({ table, revoke: "UPDATE, TRUNCATE", held: "UPDATE, TRUNCATE" })),
   ...SEALED_TABLES.map((table) => ({ table, revoke: "DELETE, TRUNCATE", held: "DELETE, TRUNCATE" })),
+  ...HELD_APPLICATION_TABLES.map((table) => ({ table, revoke: "DELETE, TRUNCATE", held: "DELETE, TRUNCATE" })),
   // N6 review: the figure's version row is immutable. Overwriting or deleting it needs no SELECT on the figure and writes no log row, so the app does neither (the app only inserts versions).
   { table: "CompanyEstimateVersion", revoke: "UPDATE, DELETE, TRUNCATE", held: "UPDATE, DELETE, TRUNCATE" },
 ];
@@ -134,7 +143,7 @@ export function grantStatements(input: {
 }
 
 /// The protected tables this run could not revoke on because they do not exist yet, for the operator's report.
-export const notYetPresent = (existing: ReadonlySet<string>) => [...APPEND_ONLY_TABLES, ...CONTENT_TABLES, ...SEALED_TABLES].filter((t) => !existing.has(t));
+export const notYetPresent = (existing: ReadonlySet<string>) => [...APPEND_ONLY_TABLES, ...CONTENT_TABLES, ...SEALED_TABLES, ...HELD_APPLICATION_TABLES].filter((t) => !existing.has(t));
 
 // ------------------------------------------------------------------ who the running app is
 

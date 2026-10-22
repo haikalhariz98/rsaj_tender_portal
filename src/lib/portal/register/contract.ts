@@ -42,14 +42,15 @@ export interface CurrentTexts {
 }
 
 export type RegisterReply =
-  | { ok: true; reference: string | null }   // null: a dropped bot (honeypot)
+  /// `firstReceived`: a retry of a send that had landed (RSEC-5), and when it was received, in the organisation's time.
+  | { ok: true; reference: string | null; firstReceived?: string }
   | { ok: false; code: "VALIDATION"; message: string; faults: FaultView[]; current?: CurrentTexts }
   | { ok: false; code: "FORM_EXPIRED" | "CLOSED" | "BUSY" | "TOO_MANY" | "TOO_LARGE" | "TOO_SLOW" | "NO_LENGTH" | "UNREADABLE" | "TRY_AGAIN"; message: string };
 
-export type TokenReply = { ok: true; token: string } | { ok: false; code: "CLOSED"; message: string };
+export type TokenReply = { ok: true; token: string } | { ok: false; code: "CLOSED" | "TOO_MANY"; message: string };
 export interface ValueHit { id: string; code: string; name: string; kind: string; bodyId: string }
 /// The code search's answer (`/supplier/register/values`).
-export type ValuesReply = { ok: true; hits: ValueHit[] } | { ok: false; code: "VALIDATION" | "FORM_EXPIRED" | "CLOSED"; message: string };
+export type ValuesReply = { ok: true; hits: ValueHit[] } | { ok: false; code: "VALIDATION" | "FORM_EXPIRED" | "CLOSED" | "TOO_MANY" | "BUSY"; message: string };
 
 /// The code search (`/supplier/register/values`): the fewest characters it is run on, and the most codes one answer holds. Technical bounds on a stranger's read, not policy.
 export const REGISTER_VALUES_MIN_QUERY = 2;

@@ -23,6 +23,7 @@ import { formatBytes } from "@/lib/documents/labels";
 import { HONEYPOT_FIELD } from "@/lib/portal/apply";
 import { APPLY, PORTAL_PATH } from "@/lib/portal/labels";
 import { staleTicks, withCurrentTexts, type PublicRegistrationConfig } from "@/lib/portal/register/config";
+import { REGISTER_CLIENT_TIMEOUT_MS } from "@/lib/portal/register/ceiling";
 import { REGISTER_VALUES_MAX_HITS, REGISTER_VALUES_MIN_QUERY, type CurrentTexts, type TokenReply, type ValueHit } from "@/lib/portal/register/contract";
 import { heldDraft } from "@/lib/portal/register/held-draft";
 import { summaryRecordOfHeld } from "@/lib/portal/register/summary-record";
@@ -53,6 +54,8 @@ function postParts(token: string, parts: [string, string | File][], progress: (f
     for (const [name, value] of parts) form.append(name, value);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", SUBMIT_PATH);
+    // The body's deadline and the transaction's, and a minute: no answer by then is no answer (review minor; `ontimeout` below).
+    xhr.timeout = REGISTER_CLIENT_TIMEOUT_MS;
     xhr.setRequestHeader(FORM_TOKEN_HEADER, token);
     xhr.upload.onprogress = (e) => progress(e.lengthComputable && e.total > 0 ? e.loaded / e.total : 0);
     xhr.onload = () => {
@@ -120,13 +123,16 @@ export function RegistrationWizard({
   /// The last Submit's refusal, in the server's words. One that came with findings goes once the applicant has answered every blocking one of them (the reducer takes each away as its
   /// field changes); the rest stay until the next Submit.
   const [refusal, setRefusal] = useState<{ message: string; withFaults: boolean } | null>(null);
-  const [done, setDone] = useState<{ reference: string | null } | null>(null);
+  const [done, setDone] = useState<{ reference: string | null; firstReceived: string | null } | null>(null);
   /// The texts in force, where a refusal said they changed during the visit (review SHOULD 3). Null: as the page was drawn.
   const [current, setCurrent] = useState<CurrentTexts | null>(null);
   const live = useMemo(() => (current ? withCurrentTexts(config, current) : config), [config, current]);
   const [leaving, setLeaving] = useState<string | null>(null);
   const token = useRef(initialToken);
-  const sentToken = useRef<string | null>(null);
+  /// The token whose send got no clear answer (RSEC-5): while there is one, the form is read-only and offers only "Send again".
+  const [sentToken, setSentToken] = useState<string | null>(null);
+  /// The same, for the code search's callback, which is made once.
+  const sentTokenRef = useRef<string | null>(null);
   const searchToken = useRef(initialToken);
   const bait = useRef<HTMLInputElement>(null);
   const top = useRef<HTMLDivElement>(null);
@@ -182,7 +188,8 @@ export function RegistrationWizard({
   function next() {
     const found = stepCheck(step, state, live);
     dispatch({ type: "next", faults: found });
-    // Into step 4 for the first time: the beneficiary's email and tax number from what step 1 and 2 hold, said under each.
+    // On each Next from step 3 with nothing blocking: the beneficiary's email and tax number, where still empty, from what steps 1 and 2 hold, said under each; the signatory, where
+    // blank, from the contact. Nothing the applicant typed is replaced (`creditorPrefill` fills only empty fields).
     if (step === "codes" && !found.some((f) => f.level === "block")) {
       const pre = creditorPrefill({ creditor: state.creditor, documents: sentRows(state) }, config.context, state.company.companyEmail);
       if (Object.keys(pre.values).length) {
@@ -214,7 +221,7 @@ export function RegistrationWizard({
           if (!fresh) throw new Error("No fresh token.");
           searchToken.current = fresh;
           // A token whose send is still awaiting an answer is never swapped (one visit, one application).
-          if (sentToken.current == null) token.current = fresh;
+          if (sentTokenRef.current == null) token.current = fresh;
           got = await ask(fresh);
           if ("expired" in got) throw new Error("The token was refused.");
         }
@@ -241,13 +248,14 @@ export function RegistrationWizard({
     setSending(0);
     const result = await sendApplication<File>({
       token: token.current,
-      sentToken: sentToken.current,
+      sentToken,
       parts: () => formParts(state, live, bait.current?.value ?? ""),
       transport: TRANSPORT,
       progress: (f) => setSending(Math.round(f * 100)),
     });
     token.current = result.token;
-    sentToken.current = result.sentToken;
+    sentTokenRef.current = result.sentToken;
+    setSentToken(result.sentToken);
     setSending(null);
     land(result.outcome);
   }
@@ -255,7 +263,7 @@ export function RegistrationWizard({
   function land(outcome: Outcome) {
     switch (outcome.kind) {
       case "ok":
-        setDone({ reference: outcome.reference });
+        setDone({ reference: outcome.reference, firstReceived: outcome.firstReceived ?? null });
         return;
       case "faults": {
         const first = firstFaultStep(outcome.faults) ?? "review";
@@ -293,6 +301,7 @@ export function RegistrationWizard({
               <p className="text-[12.5px] font-semibold tracking-wide text-ink-3 uppercase">{APPLY.referenceLabel.en}</p>
               <p className="mt-1 text-[26px] font-bold tracking-tight text-ink [overflow-wrap:anywhere]">{done.reference}</p>
               <p className="mt-2 text-[14px] text-ink-2">{APPLY.keepReference.en}</p>
+              {done.firstReceived && <p className="mt-1 text-[13px] text-ink-3">{APPLY.firstReceived(done.firstReceived).en}</p>}
             </div>
           )}
           {config.verificationNoticeEn && (
@@ -320,6 +329,8 @@ export function RegistrationWizard({
     ...(i !== at && i <= state.reached && sending == null ? { onSelect: () => goTo(s.key) } : {}),
   }));
   const busy = sending != null;
+  // RSEC-5: a send with no clear answer may have landed. Until an answer proves its token unspent, nothing may change: the same token must carry the same application.
+  const frozen = sentToken != null && sending == null;
   const back = at > 0 ? () => goTo(REGISTRATION_STEPS[at - 1]!) : undefined;
   const filesOf = (key: string): RowFiles => ({
     mode: "held",
@@ -338,7 +349,21 @@ export function RegistrationWizard({
       <div aria-hidden="true" className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden">
         <input ref={bait} type="text" name={HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" defaultValue="" />
       </div>
+      {frozen && (
+        <Callout
+          tone="warn"
+          action={
+            <Button type="button" variant="primary" size="sm" onClick={submit}>
+              {APPLY.sendAgain.en}
+            </Button>
+          }
+        >
+          {APPLY.mayHaveArrived.en}
+        </Callout>
+      )}
       <div ref={top} className="scroll-mt-6">
+        {/* Read-only while a send awaits its answer (RSEC-5): every field and button inside is disabled; the steps may still be read. */}
+        <fieldset disabled={frozen} className="m-0 min-w-0 border-0 p-0">
         {step !== "review" ? (
           <Card>
             <CardHeader title={APPLY.stepOf(at + 1, STEP_INFO.length, STEP_INFO[at]!.label).en} />
@@ -431,9 +456,10 @@ export function RegistrationWizard({
             onTerms={(confirmed) => dispatch({ type: "terms", confirmed })}
             onSubmit={submit}
             sending={sending}
-            refusal={refusal && (!refusal.withFaults || state.faults.some((f) => f.level === "block")) ? refusal.message : null}
+            refusal={!frozen && refusal && (!refusal.withFaults || state.faults.some((f) => f.level === "block")) ? refusal.message : null}
           />
         )}
+        </fieldset>
       </div>
       {leaving && (
         <ConfirmDialog

@@ -108,11 +108,6 @@ export function ReviewStep({
         </Callout>
       )}
 
-      <TermsCard terms={termsText} notice={privacyNotice} confirmed={termsConfirmed} onConfirm={(on: boolean) => {
-          setFaults((all) => withoutFaultsAt(all, TERMS_FIELDS));
-          setTermsConfirmed(on);
-        }} missing={termsMissing} />
-
       <DeclarationCard
         text={falseText?.en ?? null}
         subtitle="Read, tick and sign"
@@ -129,6 +124,12 @@ export function ReviewStep({
           </Field>
         </div>
       </DeclarationCard>
+
+      {/* Terms last before Submit, as on the public form and in the founder's sample. */}
+      <TermsCard terms={termsText} notice={privacyNotice} confirmed={termsConfirmed} onConfirm={(on: boolean) => {
+          setFaults((all) => withoutFaultsAt(all, TERMS_FIELDS));
+          setTermsConfirmed(on);
+        }} missing={termsMissing} />
 
       {message && (
         <Callout tone="err" title={stale ? "This page is out of date" : "Nothing was sent"} action={stale ? <Button size="sm" variant="secondary" onClick={() => router.refresh()}>Reload the page</Button> : undefined}>

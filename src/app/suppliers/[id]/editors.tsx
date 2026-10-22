@@ -1,6 +1,7 @@
 import { RecordEditor, type Field, type FormState } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
+import { REGISTRATION_REFUSED_WORDS } from "@/lib/suppliers/labels";
 
 import { decideApplication, decideRegistrationStep, lodgeDocument, openApplication, recordApplicationPaper, recordLapse, saveContact, setErpVendorCode, submitForDecision, verifyDocument } from "../actions";
 import { verifyCreditorProfile } from "../creditor-actions";
@@ -193,14 +194,14 @@ export function SubmitApplicationDrawer({ applicationId, people, blocker, route,
   );
 }
 
-export function DecideStepDrawer({ stepId, office, done, people, today }: { stepId: string; office: string; done: string; people: Option[]; today: string | null }) {
+export function DecideStepDrawer({ stepId, office, done, people, today, refused = REGISTRATION_REFUSED_WORDS.open }: { stepId: string; office: string; done: string; people: Option[]; today: string | null; /** The refusal option's words: an online application's stays waiting (RSEC-7(1)). */ refused?: string }) {
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
       description="Signed by the holder with their password. Paper decisions are recorded by someone else."
       fields={[
         hidden("stepId"),
-        { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused: the application stays open" }] },
+        { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: refused }] },
         actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office organisation-wide today." : undefined }),
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was sent." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },

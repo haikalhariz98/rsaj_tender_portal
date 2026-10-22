@@ -12,7 +12,7 @@ export function DiscardOnlineApplicationDrawer({ id, reference, people, blocker 
   const fields: Field[] = [
     { kind: "hidden", name: "portalApplicationId" },
     actorField("PortalApplication.decidedBy", { name: "recordedByPersonId", label: "Set aside by", people }),
-    { kind: "note", text: keeps ? "The applicant's details and bank details are erased; files and agreements are kept. Do not repeat the details in the reason." : "The applicant's details are erased when it is set aside. Do not repeat them in the reason: the reason stays on the record." },
+    { kind: "note", text: keeps ? "The applicant's details and typed bank details are erased. Files and agreements are kept, the bank statement too, and it carries the account number. Do not repeat the details in the reason." : "The applicant's details are erased when it is set aside. Do not repeat them in the reason: the reason stays on the record." },
   ];
   return (
     <RecordEditor

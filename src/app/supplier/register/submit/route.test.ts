@@ -19,7 +19,13 @@ const h = vi.hoisted(() => ({
   ctxCalls: 0,
 }));
 
-vi.mock("@/lib/db", () => ({ db: { portalApplication: { count: async () => h.lastDay } } }));
+vi.mock("@/lib/db", () => ({
+  db: {
+    portalApplication: { count: async () => h.lastDay },
+    // The series the bait's answer is formed from (security audit L5): read, never moved.
+    numberingSeries: { findUnique: async () => ({ key: "portal_application", nameEn: "Online applications", pattern: "DEMO/APP/{SERIAL}/{YEAR}", padding: 4, resetOn: "NEVER", financialYearStartMonth: 1, nextSerial: 8, serialPeriod: "" }) },
+  },
+}));
 vi.mock("@/lib/portal/deployment", () => ({ deploymentOrganisation: async () => ({ id: "org-public-1", code: "ORG", timeZone: "Asia/Kuala_Lumpur" }) }));
 vi.mock("@/lib/portal/apply-repo", () => ({ loadRegisterSettings: async () => h.register }));
 vi.mock("@/lib/portal/register/token-store", async (importOriginal) => {
@@ -29,7 +35,7 @@ vi.mock("@/lib/portal/register/token-store", async (importOriginal) => {
     findSpent: async (_c: unknown, _org: string, sha: string) => {
       h.spentLookups += 1;
       const reference = h.spent.get(sha);
-      return reference ? { reference } : null;
+      return reference ? { reference, receivedAt: new Date("2026-10-09T02:30:00Z") } : null;
     },
   };
 });
@@ -42,6 +48,7 @@ vi.mock("@/lib/portal/registration/context-store", () => ({
 vi.mock("@/lib/portal/register/receive-store", () => ({
   receivePublicApplication: async (i: unknown) => {
     h.received.push(i);
+    if (h.outcome instanceof Error) throw h.outcome;
     return h.outcome;
   },
 }));
@@ -347,7 +354,8 @@ describe("the form token (plan 8.2.2, ADR 0041 D8)", () => {
     const t = signFormToken("y".repeat(FORM_SECRET_MIN_LENGTH), "register", new Date(), "BBBBBBBBBBBBBBBBBBBBBB");
     h.spent.set(tokenSha256(t), "DEMO/APP/0005/2026");
     const r = await send(parts(), { token: t });
-    expect([r.res.status, r.json, r.pulled]).toEqual([200, { ok: true, reference: "DEMO/APP/0005/2026" }, false]);
+    // RSEC-5: and when the first send was received, in the organisation's time.
+    expect([r.res.status, r.json, r.pulled]).toEqual([200, { ok: true, reference: "DEMO/APP/0005/2026", firstReceived: expect.stringMatching(/2026/) }, false]);
     expect(h.received).toHaveLength(0);
   });
 
@@ -367,7 +375,7 @@ describe("the form token (plan 8.2.2, ADR 0041 D8)", () => {
     const t = token();
     h.spent.set(tokenSha256(t), "DEMO/APP/0003/2026");
     const r = await send(parts(), { token: t });
-    expect([r.res.status, r.json, r.pulled]).toEqual([200, { ok: true, reference: "DEMO/APP/0003/2026" }, false]);
+    expect([r.res.status, r.json, r.pulled]).toEqual([200, { ok: true, reference: "DEMO/APP/0003/2026", firstReceived: expect.any(String) }, false]);
     expect(h.received).toHaveLength(0);
   });
 
@@ -377,7 +385,7 @@ describe("the form token (plan 8.2.2, ADR 0041 D8)", () => {
     h.lastDay = 50;
     h.register = register({ missing: true });
     const r = await send(parts(), { token: t, length: null });
-    expect([r.res.status, r.json, r.pulled]).toEqual([200, { ok: true, reference: "DEMO/APP/0004/2026" }, false]);
+    expect([r.res.status, r.json, r.pulled]).toEqual([200, { ok: true, reference: "DEMO/APP/0004/2026", firstReceived: expect.any(String) }, false]);
   });
 });
 
@@ -397,9 +405,12 @@ describe("the body as it is read (plan 8.2.3 and 8.2.4)", () => {
     expect([res.status, (await res.json()).code]).toEqual([400, "UNREADABLE"]);
   });
 
-  it("the bait field filled: answered as received, with no reference; nothing is received and the token is not spent", async () => {
+  it("the bait field filled: answered as received, with a reference in the series' own form that cannot be told from a real one (L5); nothing is received and the token is not spent", async () => {
     const r = await send(parts({ extra: [[HONEYPOT_FIELD, "http://spam.example"]] }));
-    expect([r.res.status, r.json]).toEqual([200, { ok: true, reference: null }]);
+    expect([r.res.status, r.json]).toEqual([200, { ok: true, reference: expect.stringMatching(/^DEMO\/APP\/0008\/\d{4}$/) }]);
+    expect(Object.keys(r.json).sort()).toEqual(Object.keys((await send()).json).sort());
+    h.received.length = 0;
+    h.ctxCalls = 0;
     expect(h.received).toHaveLength(0);
     expect(h.ctxCalls).toBe(0);
   });
@@ -538,7 +549,7 @@ describe("the per-address limit (RSEC-1(a))", () => {
     // A retry of a send that landed learns its reference, whatever its address sent since.
     const t = token(new Date(), "CCCCCCCCCCCCCCCCCCCCCC");
     h.spent.set(tokenSha256(t), "DEMO/APP/0009/2026");
-    expect((await send(parts(), { ...from(address), token: t })).json).toEqual({ ok: true, reference: "DEMO/APP/0009/2026" });
+    expect((await send(parts(), { ...from(address), token: t })).json).toMatchObject({ ok: true, reference: "DEMO/APP/0009/2026" });
     // Another address is not touched.
     expect((await send(parts(), from("203.0.113.250"))).json).toMatchObject({ ok: true });
   });
@@ -554,5 +565,30 @@ describe("the application part's length (security audit M1)", () => {
     const r = await send([[REGISTER_APPLICATION_PART, " ".repeat(Number(REGISTER_TEXT_ALLOWANCE) + 1)]]);
     expect([r.res.status, r.json.code]).toEqual([400, "UNREADABLE"]);
     expect(h.received).toHaveLength(0);
+  });
+});
+
+describe("a row the applicant says does not apply (review minor)", () => {
+  it("takes no file: a part sent for one is not this form's", async () => {
+    const b = application();
+    const body = { ...b, documents: b.documents.map((d) => (d.clientKey === "new:reg" ? { ...d, notApplicable: true, expiresOn: "" } : d)) };
+    const r = await send(parts({ body }));
+    expect([r.res.status, r.json.code]).toEqual([400, "UNREADABLE"]);
+    expect(h.received).toHaveLength(0);
+  });
+});
+
+describe("the server's log of a failure (security audit L7)", () => {
+  it("holds its kind and code only, never its message", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      h.outcome = Object.assign(new Error("Invalid `prisma.portalApplicationCreditor.create()` invocation: bankAccountNo: 1234567890"), { code: "P2002" });
+      const r = await send();
+      expect(r.res.status).toBe(500);
+      expect(JSON.stringify(spy.mock.calls)).not.toMatch(/1234567890|invocation/);
+      expect(spy.mock.calls[0]?.[1]).toEqual({ name: "Error", code: "P2002" });
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { Checkbox } from "@/components/ui/field";
+import { REGISTRATION_HINT } from "@/lib/portal/labels";
 
 /**
  * The declaration that the information is true (FR-VND-006), with its own tick, on the registration's last step. The wording is the office's, filled with its name, or the card says it is
@@ -33,21 +34,21 @@ export function DeclarationCard({
 }) {
   return (
     <Card>
-      <CardHeader title="Declaration" subtitle={subtitle} />
+      <CardHeader title={REGISTRATION_HINT.declarationTitle} subtitle={subtitle} />
       <CardBody>
         {text ? (
           <>
             <div className="rounded-xl bg-sunken/60 p-4 text-[13.5px] leading-relaxed whitespace-pre-line text-ink-2">{text}</div>
             <p className="mt-3 text-[13px] text-ink-3">{byLine}</p>
             <div className="mt-3">
-              <Checkbox label="I have read this declaration and confirm it." checked={confirmed} onChange={(e) => onConfirm(e.target.checked)} />
+              <Checkbox label={REGISTRATION_HINT.declarationTick} checked={confirmed} onChange={(e) => onConfirm(e.target.checked)} />
               {error && <p className="mt-1 text-[12.5px] font-medium text-rose-600">{error}</p>}
             </div>
             {children}
           </>
         ) : (
-          <Callout tone="warn" title="Declaration text not set">
-            Tell the procurement office.
+          <Callout tone="warn" title={REGISTRATION_HINT.declarationNotSet}>
+            {REGISTRATION_HINT.tellTheOffice}
           </Callout>
         )}
       </CardBody>

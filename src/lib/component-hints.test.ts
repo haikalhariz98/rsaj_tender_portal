@@ -58,6 +58,11 @@ describe("component hints come from labels (D6)", () => {
       notEmailed: "Nothing is e-mailed from the portal.",
       oneGrade: "A certificate carries one grade.",
       several: "You may choose several.",
+      // The declaration card's own words, moved here with the others (review minor), as both wizards showed them.
+      declarationTitle: "Declaration",
+      declarationTick: "I have read this declaration and confirm it.",
+      declarationNotSet: "Declaration text not set",
+      tellTheOffice: "Tell the procurement office.",
     });
   });
 

@@ -65,7 +65,7 @@ import { PAPER_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMA
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
 import { expiryBand } from "@/lib/suppliers/expiry";
-import { asHeading, declarationDayLabel, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, renewalUpcomingWords, standingTone, standingWords } from "@/lib/suppliers/labels";
+import { asHeading, declarationDayLabel, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, REGISTRATION_REFUSED_WORDS, renewalUpcomingWords, standingTone, standingWords } from "@/lib/suppliers/labels";
 import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 
@@ -559,7 +559,7 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
               <div key={r.id} className="border-t border-line">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-3 sm:px-6">
                   <span className="text-[13px] font-semibold text-ink-2">Approval route · sent {formatDate(day(r.openedAt))} · {r.ruleLabel ?? "a rule no longer recorded"}{r.ruleClause ? ` · ${r.ruleClause}` : ""}</span>
-                  <Badge tone={r.status === "REJECTED" ? "warn" : routeTone(r.status)}>{r.status === "PENDING" ? "With approval" : r.status === "APPROVED" ? "Approved" : r.status === "REJECTED" ? "Refused: the application stays open" : "Closed"}</Badge>
+                  <Badge tone={r.status === "REJECTED" ? "warn" : routeTone(r.status)}>{r.status === "PENDING" ? "With approval" : r.status === "APPROVED" ? "Approved" : r.status === "REJECTED" ? REGISTRATION_REFUSED_WORDS.open : "Closed"}</Badge>
                 </div>
                 <p className="px-5 pb-2 text-[12.5px] text-ink-3 sm:px-6">Routed on no value. <MoreText text="A supplier matter is not routed on a value, so only a rule with no value band applies." /> Chain beneath the approver: {routeCoreText(r, () => ({ en: "an office no longer configured" })).en}</p>
                 {r.status === "REJECTED" && <p className="px-5 pb-2 text-[12.5px] text-ink-2 sm:px-6">Refused: {r.rejectionReason || "no reason recorded"}.</p>}

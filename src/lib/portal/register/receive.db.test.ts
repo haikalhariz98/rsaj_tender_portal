@@ -237,7 +237,9 @@ describe("one application per token (plan 8.3.3, ADR 0041 D8)", () => {
     expect(first.ok && again.ok).toBe(true);
     expect(again).toEqual(first);
     expect(await db.portalFormToken.count({ where: { organisationId: org.id, tokenSha256: i.token.sha256 } })).toBe(1);
-    expect(await findSpent(db, org.id, i.token.sha256)).toEqual({ reference: (first as { reference: string }).reference });
+    // With when its application was received (RSEC-5): the retry's answer says when the first send arrived.
+    const pa = await db.portalApplication.findFirstOrThrow({ where: { organisationId: org.id, reference: (first as { reference: string }).reference }, select: { receivedAt: true } });
+    expect(await findSpent(db, org.id, i.token.sha256)).toEqual({ reference: (first as { reference: string }).reference, receivedAt: pa.receivedAt });
   });
 
   it("the same token twice at once: one application, and both replies carry its reference", async () => {

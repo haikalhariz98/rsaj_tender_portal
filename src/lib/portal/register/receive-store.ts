@@ -37,7 +37,8 @@ import { findSpent } from "./token-store";
  *    lock is held while the bytes are written (security audit M3), and a text retired meanwhile still refuses the whole;
  * 8. one agreement per tick, with the wording exactly as shown and its hash, the signatory as typed, and the organisation's day and the server's time;
  * 9. the token set to the application;
- * 10. one audit row, with no personal data in it.
+ * 10. one audit row, naming no company, number or bank detail. The trail is not free of personal data: every applicant row names the source address the request came from, and
+ *     each file's own row its original name, which the applicant chose (review minor; the trail is append-only).
  *
  * No supplier is created and the register is never asked (REG-1): whether a number is already held is the officer's to see. Server-only.
  */
@@ -253,7 +254,8 @@ export async function receivePublicApplication(i: ReceiveInput): Promise<Receive
         // 9. The token is spent by this application.
         await tx.portalFormToken.update({ where: { id: spent.id }, data: { portalApplicationId: app.id } });
 
-        // 10. One row in the trail. No name, number, address or bank detail: the trail is append-only, and what is in it is never erased.
+        // 10. One row in the trail. No company name, number, postal address or bank detail: the trail is append-only, and what is in it is never erased. Its actor names the source
+        // address, and each file's own row (written by `storeUploadTx`) its original name.
         await writeAudit(
           tx,
           { actor: applicant, organisationId: orgId, entity: "PortalApplication", entityId: app.id, entityLabel: `${issued} · Online application` },

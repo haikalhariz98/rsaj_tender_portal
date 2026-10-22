@@ -63,7 +63,7 @@ export function PortalFrame({ branding, page, children }: { branding: PortalBran
               </main>
               <div className="mt-6 flex w-full max-w-[460px] flex-col gap-2">
                 <p className="text-center text-[13.5px] font-semibold text-ink-2">New supplier?</p>
-                <ButtonLink href="/supplier/register" variant="secondary" size="lg" block icon={<BuildingIcon size={18} />} className="h-auto min-h-12 py-2.5 text-center">
+                <ButtonLink href="/supplier/register" wholeDocument variant="secondary" size="lg" block icon={<BuildingIcon size={18} />} className="h-auto min-h-12 py-2.5 text-center">
                   Register
                 </ButtonLink>
               </div>

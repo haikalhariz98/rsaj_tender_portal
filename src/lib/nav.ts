@@ -18,6 +18,8 @@ export interface NavItem {
   built?: boolean;
   /// Only a signed-in supplier can use it. Presentation only: the page itself still sends anyone else to sign in.
   needsSupplier?: boolean;
+  /// Loaded as a whole document, never a client navigation: the register warns before it is left, and Back must be a real unload for the browser to ask (RSEC-7(2)).
+  wholeDocument?: boolean;
 }
 
 /// Whether the sidebar draws an item inert: it needs a supplier and the visitor is not one.
@@ -96,7 +98,7 @@ export const SUPPLIER_NAV: NavGroup[] = [
     items: [
       { href: "/supplier/opportunities", label: w("Opportunities"), icon: "globe", built: true },
       { href: "/supplier/results", label: w("Results"), icon: "award", built: true },
-      { href: "/supplier/register", label: w("Register as a supplier"), icon: "building", built: true },
+      { href: "/supplier/register", label: w("Register as a supplier"), icon: "building", built: true, wholeDocument: true },
     ],
   },
   {

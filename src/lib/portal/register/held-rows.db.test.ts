@@ -76,6 +76,11 @@ describe("a certificate held on an online application (PortalApplicationDocument
     expect(await refusal(db.portalApplicationDocument.delete({ where: { id: d.id } }))).toBe("PA036");
     await db.portalApplicationDocument.update({ where: { id: d.id }, data: { verification: "VERIFIED", verifiedByPersonId: person.id, verifiedOn: new Date("2026-10-21T00:00:00Z"), verifiedAt: new Date(), verificationNote: "Seen", expiresOn: new Date("2027-06-30T00:00:00Z") } });
     expect((await db.portalApplicationDocument.findUniqueOrThrow({ where: { id: d.id } })).verification).toBe("VERIFIED");
+    // Security audit L1: checked once. Once checked, neither the check nor the expiry changes again; an update that changes nothing is let through.
+    expect(await refusal(db.portalApplicationDocument.update({ where: { id: d.id }, data: { verification: "NOT_IN_ORDER" } }))).toBe("PA036");
+    expect(await refusal(db.portalApplicationDocument.update({ where: { id: d.id }, data: { verificationNote: "Changed" } }))).toBe("PA036");
+    expect(await refusal(db.portalApplicationDocument.update({ where: { id: d.id }, data: { expiresOn: new Date("2028-06-30T00:00:00Z") } }))).toBe("PA036");
+    expect(await refusal(db.portalApplicationDocument.update({ where: { id: d.id }, data: { verification: "VERIFIED" } }))).toBeNull();
   });
 
   it("its codes are insert-only", async () => {
@@ -97,12 +102,32 @@ describe("the bank details held on an online application (PortalApplicationCredi
     expect(await refusal(db.portalApplicationCreditor.update({ where: { id: c.id }, data: { bankAccountNo: "987654321" } }))).toBe("PA037");
     expect(await refusal(db.portalApplicationCreditor.delete({ where: { id: c.id } }))).toBe("PA037");
     await db.portalApplicationCreditor.update({ where: { id: c.id }, data: { verification: "VERIFIED", verifiedByPersonId: person.id, verifiedOn: new Date("2026-10-21T00:00:00Z"), verifiedAt: new Date() } });
+    // Security audit L1: checked once.
+    expect(await refusal(db.portalApplicationCreditor.update({ where: { id: c.id }, data: { verification: "NOT_IN_ORDER", verificationNote: "Changed" } }))).toBe("PA037");
+    expect(await refusal(db.portalApplicationCreditor.update({ where: { id: c.id }, data: { verifiedOn: new Date("2026-10-20T00:00:00Z") } }))).toBe("PA037");
     // An erasure that leaves a detail, or that changes anything else with it, is refused.
     expect(await refusal(db.portalApplicationCreditor.update({ where: { id: c.id }, data: { erasedAt: new Date(), beneficiaryName: "" } }))).toBe("PA037");
     expect(await refusal(db.portalApplicationCreditor.update({ where: { id: c.id }, data: { erasedAt: new Date(), beneficiaryName: "", bankAccountNo: "", bankCode: "", verificationNote: "x" } }))).toBe("PA037");
     await db.portalApplicationCreditor.update({ where: { id: c.id }, data: { erasedAt: new Date(), beneficiaryName: "", bankAccountNo: "", bankCode: "" } });
     expect(await refusal(db.portalApplicationCreditor.update({ where: { id: c.id }, data: { verificationNote: "after" } }))).toBe("PA037");
     expect(await refusal(db.portalApplicationCreditor.update({ where: { id: c.id }, data: { erasedAt: new Date() } }))).toBe("PA037");
+  });
+});
+
+describe("the online application itself (PortalApplication_frozen, security audit L3)", () => {
+  it("keeps the typed details, the reference and when and how it came in; its status and decision move; one erasure blanks every typed detail; nothing after it", async () => {
+    const pa = await application();
+    const person = await db.person.create({ data: { organisationId, name: `Officer ${randomId()}` } });
+    for (const data of [{ registeredName: "Another Sdn Bhd" }, { registrationNoKey: "HR-2" }, { companyEmail: "x@y.invalid" }, { incorporatedOn: new Date("2020-01-01T00:00:00Z") }, { reference: "TEST/PA/other" }, { receivedAt: new Date(0) }, { form: "STEP_ONE" as const }])
+      expect(await refusal(db.portalApplication.update({ where: { id: pa.id }, data })), JSON.stringify(data)).toBe("PA039");
+    // The acts' own moves: sending, deciding.
+    expect(await refusal(db.portalApplication.update({ where: { id: pa.id }, data: { sentByPersonId: person.id } }))).toBeNull();
+    // An erasure that keeps a typed detail is refused; one that blanks all of them, at once, is taken.
+    expect(await refusal(db.portalApplication.update({ where: { id: pa.id }, data: { status: "DISCARDED", erasedAt: new Date(), registeredName: "" } }))).toBe("PA039");
+    const ERASED = { registeredName: "", registrationNo: "", registrationNoKey: "", entityTypeCode: "", countryCode: "", registeredAddress: "", addressLine1: "", addressLine2: "", city: "", postcode: "", stateCode: "", bumiputeraClaimCode: "", incorporatedOn: null, companyEmail: "", contactName: "", contactDesignation: "", contactEmail: "", contactPhone: "" };
+    expect(await refusal(db.portalApplication.update({ where: { id: pa.id }, data: { status: "DISCARDED", decidedAt: new Date(), decidedByPersonId: person.id, discardReason: "Not a company.", erasedAt: new Date(), ...ERASED } }))).toBeNull();
+    expect(await refusal(db.portalApplication.update({ where: { id: pa.id }, data: { registeredName: "Back again" } }))).toBe("PA039");
+    expect(await refusal(db.portalApplication.update({ where: { id: pa.id }, data: { erasedAt: null } }))).toBe("PA039");
   });
 });
 

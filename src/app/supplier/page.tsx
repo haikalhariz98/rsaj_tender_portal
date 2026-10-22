@@ -45,7 +45,7 @@ export default async function SupplierHomePage() {
                 <h2 className="text-[16px] font-bold tracking-tight text-ink">{link.title.en}</h2>
                 <p className="flex-1 text-[14px] leading-relaxed text-ink-2">{link.text.en}</p>
                 <div>
-                  <ButtonLink href={link.href} variant="secondary" size="sm" icon={<ArrowRight size={14} />}>
+                  <ButtonLink href={link.href} wholeDocument={link.wholeDocument} variant="secondary" size="sm" icon={<ArrowRight size={14} />}>
                     {link.action.en}
                   </ButtonLink>
                 </div>

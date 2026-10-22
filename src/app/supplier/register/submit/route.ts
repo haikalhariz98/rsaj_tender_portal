@@ -14,7 +14,10 @@ import { formatBytes } from "@/lib/documents/labels";
 import { readLimit } from "@/lib/documents/limits";
 import { mediaFault, sniffMediaType, SNIFF_BYTES } from "@/lib/documents/media";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
-import { honeypotTripped, HONEYPOT_FIELD, portalCapacity } from "@/lib/portal/apply";
+import { honeypotTripped, HONEYPOT_FIELD, portalCapacity, PORTAL_APPLICATION_SERIES_KEY } from "@/lib/portal/apply";
+import { dayToDate } from "@/lib/dates";
+import { formatOrgDateTime } from "@/lib/format";
+import { previewNext, type NumberingReset } from "@/lib/numbering/series";
 import { loadRegisterSettings, type RegisterSettings } from "@/lib/portal/apply-repo";
 import { deploymentOrganisation } from "@/lib/portal/deployment";
 import { APPLY } from "@/lib/portal/labels";
@@ -97,10 +100,23 @@ export async function POST(request: Request) {
   try {
     return await receive(request, address);
   } catch (e) {
-    // The applicant is told nothing of the cause; the server's log holds it.
-    console.error("Public supplier application failed", e);
+    // The applicant is told nothing of the cause; the server's log holds its kind only (security audit L7): a database error prints its arguments, bank details among them.
+    console.error("Public supplier application failed", errorKind(e));
     return reply({ ok: false, code: "TRY_AGAIN", message: APPLY.tryAgainLater.en }, 500);
   }
+}
+
+/// What a failure was, for the server's log: its kind and code, never its message or arguments.
+function errorKind(e: unknown): { name: string; code: string | null } {
+  const x = (typeof e === "object" && e !== null ? e : {}) as { name?: unknown; code?: unknown };
+  return { name: typeof x.name === "string" ? x.name : typeof e, code: typeof x.code === "string" ? x.code : null };
+}
+
+/// A reference as the series would give the next application, read without moving it (security audit L5). The form only: the bait's answer must look like a real one.
+async function baitReference(register: RegisterSettings): Promise<string> {
+  const row = await db.numberingSeries.findUnique({ where: { organisationId_key: { organisationId: register.org.id, key: PORTAL_APPLICATION_SERIES_KEY } } });
+  const on = dayToDate(register.org.today!);
+  return row ? previewNext({ ...row, resetOn: row.resetOn as NumberingReset }, on) : "";
 }
 
 async function receive(request: Request, address: string | null): Promise<Response> {
@@ -118,7 +134,8 @@ async function receive(request: Request, address: string | null): Promise<Respon
   if (!deployment) return closed();
   const tokenSha = tokenSha256(token!);
   const spent = await findSpent(db, deployment.id, tokenSha);
-  if (spent) return reply({ ok: true, reference: spent.reference });
+  // RSEC-5: a retry is told when its first send was received.
+  if (spent) return reply({ ok: true, reference: spent.reference, firstReceived: formatOrgDateTime(spent.receivedAt, deployment.timeZone) });
   if (verdict !== "OK") return expired();
 
   // 4. Readiness (the page asks the same reader), and the day's count without a lock: the locked counts are judged again in the transaction.
@@ -159,8 +176,9 @@ async function receiveBody(request: Request, i: { now: Date; register: RegisterS
     return limited.exceeded() ? tooLarge(ceiling) : unreadable();
   }
 
-  // 8. A filled bait field is a script: answered as received, and nothing is written. The token is not spent.
-  if (honeypotTripped(form.get(HONEYPOT_FIELD))) return reply({ ok: true, reference: null });
+  // 8. A filled bait field is a script: answered as received, with a reference in the series' own form, so the answer cannot be told from a real one (security audit L5). Nothing is
+  // written, the series does not move, and the token is not spent.
+  if (honeypotTripped(form.get(HONEYPOT_FIELD))) return reply({ ok: true, reference: await baitReference(register) });
 
   // 9. The application's shape, and every part named for a row of it (or the statement). Anything else is not this form's.
   const raw = form.get(REGISTER_APPLICATION_PART);
@@ -175,7 +193,8 @@ async function receiveBody(request: Request, i: { now: Date; register: RegisterS
   const parsed = parsePublicApplication(json);
   if (!parsed.ok) return unreadable();
   const body = parsed.value;
-  const parts = new Map<string, { kind: UploadKind; key: string | null }>([[STATEMENT_FILE_PART, { kind: "statement", key: null }], ...body.documents.map((d) => [documentFilePart(d.clientKey), { kind: "document" as const, key: d.clientKey }] as const)]);
+  // A row the applicant says does not apply takes no file: a part sent for one is not this form's (review minor).
+  const parts = new Map<string, { kind: UploadKind; key: string | null }>([[STATEMENT_FILE_PART, { kind: "statement", key: null }], ...body.documents.filter((d) => !d.notApplicable).map((d) => [documentFilePart(d.clientKey), { kind: "document" as const, key: d.clientKey }] as const)]);
   let sent: { part: { kind: UploadKind; key: string | null }; file: File }[] = [];
   for (const [name, value] of form.entries()) {
     if (name === REGISTER_APPLICATION_PART || name === HONEYPOT_FIELD) continue;

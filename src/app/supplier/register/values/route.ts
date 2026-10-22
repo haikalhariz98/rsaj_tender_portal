@@ -9,6 +9,8 @@ import { APPLY } from "@/lib/portal/labels";
 import { REGISTER_VALUES_MAX_HITS, REGISTER_VALUES_MIN_QUERY, type ValueHit, type ValuesReply } from "@/lib/portal/register/contract";
 import { parseValuesQuery } from "@/lib/portal/registration/api";
 
+import { lookupRefusal, searchSlot } from "../lookup-guard";
+
 export const dynamic = "force-dynamic";
 
 const reply = (body: ValuesReply | ReturnType<typeof refusalBody>, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -20,6 +22,19 @@ const reply = (body: ValuesReply | ReturnType<typeof refusalBody>, status = 200)
  */
 export async function GET(request: Request) {
   if (downloadRequestFault(request.headers.get("sec-fetch-site"))) return reply(refusalBody("CROSS_SITE"), REFUSAL_STATUS.CROSS_SITE);
+  // Security audit L8 and the review's minor note: counted per source address, and only so many searches at once, whoever asks.
+  const limited = lookupRefusal(request, "values");
+  if (limited) return limited;
+  const slot = searchSlot();
+  if ("refusal" in slot) return slot.refusal;
+  try {
+    return await search(request);
+  } finally {
+    slot.release();
+  }
+}
+
+async function search(request: Request): Promise<Response> {
   const verdict = checkFormToken("register", request.headers.get(FORM_TOKEN_HEADER));
   if (verdict === "KEY_NOT_SET") return reply({ ok: false, code: "CLOSED", message: APPLY.closedTitle.en }, 503);
   if (verdict !== "OK") return reply({ ok: false, code: "FORM_EXPIRED", message: APPLY.submitExpired.en }, 400);

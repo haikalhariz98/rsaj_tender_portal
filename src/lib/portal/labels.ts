@@ -37,6 +37,8 @@ export interface HomeLink {
   title: Words;
   text: Words;
   action: Words;
+  /// The register: loaded as a whole document, so the browser's own warning guards leaving it (RSEC-7(2)).
+  wholeDocument?: boolean;
 }
 
 export const HOME_LINKS: readonly HomeLink[] = [
@@ -61,6 +63,7 @@ export const HOME_LINKS: readonly HomeLink[] = [
   {
     key: "register",
     href: PORTAL_PATH.register,
+    wholeDocument: true,
     title: w("Register as a supplier"),
     text: w(
       "Apply to join the supplier register.",
@@ -434,6 +437,10 @@ export const APPLY = {
   submitTooSlow: w("The files took too long to arrive. Nothing was sent. Try again on a faster connection."),
   submitUnreadable: w("The application could not be read. Nothing was sent."),
   busy: w("Too many applications right now. Nothing was sent. Try again later."),
+  tooManyLookups: w("Too many requests from your connection. Try again in a minute."),
+  sendAgain: w("Send again"),
+  mayHaveArrived: w("It may already have been received. Send again to find out; changes wait until then."),
+  firstReceived: (when: string): Words => w(`First received ${when}.`),
   textChanged: w("This wording changed while you were filling in the form. Read it again and tick again."),
   tooManyFromAddress: w("Too many tries from your connection. Nothing was sent. Try again later."),
 };
@@ -447,4 +454,8 @@ export const REGISTRATION_HINT = {
   notEmailed: "Nothing is e-mailed from the portal.",
   oneGrade: "A certificate carries one grade.",
   several: "You may choose several.",
+  declarationTitle: "Declaration",
+  declarationTick: "I have read this declaration and confirm it.",
+  declarationNotSet: "Declaration text not set",
+  tellTheOffice: "Tell the procurement office.",
 } as const;

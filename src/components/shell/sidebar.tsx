@@ -174,8 +174,9 @@ export function Sidebar({
         </span>
       );
     }
+    const ItemLink = item.wholeDocument ? "a" : Link;
     return (
-      <Link
+      <ItemLink
         key={item.href}
         href={item.href}
         onClick={onNavigate}
@@ -208,7 +209,7 @@ export function Sidebar({
             {count}
           </span>
         ) : null}
-      </Link>
+      </ItemLink>
     );
   };
 

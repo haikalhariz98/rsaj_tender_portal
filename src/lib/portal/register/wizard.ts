@@ -275,8 +275,8 @@ export function heldSummaryState<F extends HeldFile>(s: WizardState<F>, config: 
 
 /// What the page does with an answer.
 export type Outcome =
-  /// Received: the reference, shown once. Null: the bait field was filled, and nothing was written.
-  | { kind: "ok"; reference: string | null }
+  /// Received: the reference, shown once. Null: the bait field was filled, and nothing was written. `firstReceived`: a retry of a send that had landed, and when.
+  | { kind: "ok"; reference: string | null; firstReceived?: string }
   /// The rules refused it, by step and field. Nothing was written and the token is not spent. `current`: the texts in force, where the server sent them.
   | { kind: "faults"; faults: FaultView[]; message: string; current?: CurrentTexts }
   /// The token is out of date and was not spent: ask for a fresh one and send again.
@@ -297,7 +297,7 @@ const isFault = (x: unknown): x is FaultView => isRecord(x) && typeof x.step ===
 export function readReply(status: number, body: unknown): Outcome {
   const said = isRecord(body) && typeof body.message === "string" && body.message.trim() ? body.message.trim() : null;
   if (status === 0) return { kind: "uncertain", message: APPLY.tryAgainLater.en };
-  if (status === 200 && isRecord(body) && body.ok === true) return { kind: "ok", reference: typeof body.reference === "string" ? body.reference : null };
+  if (status === 200 && isRecord(body) && body.ok === true) return { kind: "ok", reference: typeof body.reference === "string" ? body.reference : null, ...(typeof body.firstReceived === "string" ? { firstReceived: body.firstReceived } : {}) };
   if (isRecord(body) && body.code === "VALIDATION" && Array.isArray(body.faults) && body.faults.every(isFault)) return { kind: "faults", faults: body.faults as FaultView[], message: said ?? APPLY.nothingSent.en, ...(isCurrentTexts(body.current) ? { current: body.current } : {}) };
   if (isRecord(body) && body.code === "FORM_EXPIRED") return { kind: "expired", message: said ?? APPLY.submitExpired.en };
   // A server error, or an answer that is not the route's (a gateway's page): it may have landed.

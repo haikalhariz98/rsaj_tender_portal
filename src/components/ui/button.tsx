@@ -73,10 +73,19 @@ export function ButtonLink({
   block,
   className,
   children,
+  wholeDocument,
   ...props
-}: Common & ComponentProps<typeof Link>) {
+}: Common & ComponentProps<typeof Link> & { /** Load the page as a whole document, never a client navigation: a page that warns before it is left needs Back to be a real unload. */ wholeDocument?: boolean }) {
+  const cls = buttonClass(variant, size, cx(block && "w-full", className));
+  if (wholeDocument)
+    return (
+      <a className={cls} href={String(props.href)} aria-label={props["aria-label"]} target={props.target} rel={props.rel}>
+        {icon}
+        {children}
+      </a>
+    );
   return (
-    <Link className={buttonClass(variant, size, cx(block && "w-full", className))} {...props}>
+    <Link className={cls} {...props}>
       {icon}
       {children}
     </Link>

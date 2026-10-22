@@ -610,5 +610,7 @@ export const REGISTRATION_MATTER = w("a supplier's registration");
 /// The label of an application's declaration day (FR-VND-006). An application approved from a whole online application has an agreement ticked by someone not signed in, never a
 /// signature (ADR 0041 D3, D4; plan 6.3.2): it is "agreed", and so is its label.
 export const declarationDayLabel = (agreedOnline: boolean): string => (agreedOnline ? "Declaration agreed on" : "Declaration signed on");
+/// What a refused step of a registration route is called on the decide drawer and the route's badge (RSEC-7(1)): a paper or wizard application stays open; a whole online one waits.
+export const REGISTRATION_REFUSED_WORDS = { open: "Refused: the application stays open", waiting: "Refused: the application stays waiting" } as const;
 /// Where a refused registration route goes: the application stays open.
 export const REGISTRATION_REFUSED_DECIDED_BY = "the application stays open: resubmission may be requested, it may be rejected, or sent again";

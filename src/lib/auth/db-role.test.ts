@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { APPEND_ONLY_TABLES, FIGURE_READER, grantStatements, notYetPresent, roleNameFault, RUNTIME_ROLE_WORDS, runtimeRoleVerdict, SEALED_TABLES, WALLED_COLUMNS, WARNING_ONLY_REASONS, warnsOnly, WITHHELD, type RuntimeRoleReason } from "./db-role";
+import { APPEND_ONLY_TABLES, FIGURE_READER, grantStatements, HELD_APPLICATION_TABLES, notYetPresent, roleNameFault, RUNTIME_ROLE_WORDS, runtimeRoleVerdict, SEALED_TABLES, WALLED_COLUMNS, WARNING_ONLY_REASONS, warnsOnly, WITHHELD, type RuntimeRoleReason } from "./db-role";
 
 // BlobContent joined the protected tables in the Phase 1d review (stored bytes are never rewritten), and ActAttribution in Phase 2a (ADR 0034 D12),
 // so the "every table exists" set has both.
@@ -10,7 +10,7 @@ import { APPEND_ONLY_TABLES, FIGURE_READER, grantStatements, notYetPresent, role
 // Wave 3b (SR-13, build plan step 2, ADR 0036 D12): SealedAccessEvent and PublishedKeyChange joined the append-only tables, and the rest of the sealed tables
 // (SEALED_TABLES) lose DELETE and TRUNCATE (migration 20261103110000), so the "every table exists" set has them all.
 // N6 (ruling 20ch, threat model F10): CompanyEstimateVersion joins the set, so the column wall is built for it, and `grants` passes its columns and the reader.
-const ALL = new Set(["Organisation", "CompanyEstimateVersion", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "BlobContent", "_prisma_migrations", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES]);
+const ALL = new Set(["Organisation", "CompanyEstimateVersion", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "BlobContent", "_prisma_migrations", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES, "PortalApplicationValue", ...HELD_APPLICATION_TABLES]);
 const VERSION_COLUMNS = ["id", "organisationId", "estimateId", "versionNo", "value", "reason", "preparedById", "createdAt"];
 const COLUMNS: ReadonlyMap<string, readonly string[]> = new Map([["CompanyEstimateVersion", VERSION_COLUMNS]]);
 const grants = (existing: ReadonlySet<string> = ALL, more: { columns?: ReadonlyMap<string, readonly string[]>; figureReaderPresent?: boolean } = {}) =>
@@ -34,8 +34,19 @@ describe("the app role's grants (ADR 0034 D11)", () => {
       expect(s.some((x) => x.startsWith("REVOKE") && x.includes(`"${t}"`) && x.includes("UPDATE"))).toBe(false);
     }
     // No table is on two lists.
-    const listed = [...APPEND_ONLY_TABLES, "BlobContent", ...SEALED_TABLES];
+    const listed = [...APPEND_ONLY_TABLES, "BlobContent", ...SEALED_TABLES, ...HELD_APPLICATION_TABLES];
     expect(listed.filter((t, i) => listed.indexOf(t) !== i)).toEqual([]);
+  });
+
+  it("makes a stranger's held codes append-only, and withholds DELETE and TRUNCATE on the held certificates, bank details and spent tokens, leaving UPDATE (security audit L2)", () => {
+    const s = grants();
+    expect(APPEND_ONLY_TABLES).toContain("PortalApplicationValue");
+    expect(s).toContain(`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE "public"."PortalApplicationValue" FROM "perolehan_app"`);
+    expect([...HELD_APPLICATION_TABLES]).toEqual(["PortalApplicationDocument", "PortalApplicationCreditor", "PortalFormToken"]);
+    for (const t of HELD_APPLICATION_TABLES) {
+      expect(s).toContain(`REVOKE DELETE, TRUNCATE ON TABLE "public"."${t}" FROM "perolehan_app"`);
+      expect(s.some((x) => x.startsWith("REVOKE") && x.includes(`"${t}"`) && x.includes("UPDATE"))).toBe(false);
+    }
   });
 
   it("revokes only after the broad grant, so a re-run never leaves the trail writable", () => {
@@ -77,7 +88,7 @@ describe("the app role's grants (ADR 0034 D11)", () => {
     for (const w of WITHHELD) {
       if (w.revoke !== "ALL") expect(w.held).toBe(w.revoke);
     }
-    expect(WITHHELD.map((w) => w.table)).toEqual(["_prisma_migrations", ...APPEND_ONLY_TABLES, "BlobContent", ...SEALED_TABLES, "CompanyEstimateVersion"]);
+    expect(WITHHELD.map((w) => w.table)).toEqual(["_prisma_migrations", ...APPEND_ONLY_TABLES, "BlobContent", ...SEALED_TABLES, ...HELD_APPLICATION_TABLES, "CompanyEstimateVersion"]);
   });
 
   it("skips a listed table that does not exist yet, and reports it", () => {
@@ -85,7 +96,7 @@ describe("the app role's grants (ADR 0034 D11)", () => {
     const now = new Set(["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "BlobContent"]);
     expect(grants(now).some((x) => x.includes("SulitAccessEvent") || x.includes("RegistrationDeclaration") || x.includes("AddendumAcknowledgement") || x.includes("TenderInspectionEvent") || x.includes("NonAwardNotice") || x.includes("PaymentAttempt") || x.includes("PurchaseDownload"))).toBe(false);
     // Wave 3b (step 2): the sealed-bid tables are listed too, so they are reported until they exist.
-    expect(notYetPresent(now)).toEqual(["SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES]);
+    expect(notYetPresent(now)).toEqual(["SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", "PortalApplicationValue", ...SEALED_TABLES, ...HELD_APPLICATION_TABLES]);
     expect(notYetPresent(ALL)).toEqual([]);
   });
 });

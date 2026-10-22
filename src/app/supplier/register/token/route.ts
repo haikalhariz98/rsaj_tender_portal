@@ -4,6 +4,8 @@ import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { APPLY } from "@/lib/portal/labels";
 import type { TokenReply } from "@/lib/portal/register/contract";
 
+import { lookupRefusal } from "../lookup-guard";
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -13,6 +15,9 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: Request) {
   if (downloadRequestFault(request.headers.get("sec-fetch-site"))) return Response.json(refusalBody("CROSS_SITE"), { status: REFUSAL_STATUS.CROSS_SITE, headers: { "cache-control": "no-store" } });
+  // Security audit L8: counted per source address, and refused past the minute's allowance.
+  const limited = lookupRefusal(request, "token");
+  if (limited) return limited;
   const token = issueFormToken("register");
   const body: TokenReply = token ? { ok: true, token } : { ok: false, code: "CLOSED", message: APPLY.closedTitle.en };
   return Response.json(body, { status: token ? 200 : 503, headers: { "cache-control": "no-store" } });

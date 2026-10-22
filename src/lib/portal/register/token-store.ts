@@ -11,10 +11,11 @@ import { sha256Hex } from "@/lib/documents/store";
 export const tokenSha256 = (token: string): string => sha256Hex(new TextEncoder().encode(token));
 
 /// The application a token already made, or null where the token is unspent. Within the deployment's organisation only.
-export async function findSpent(client: Tx, organisationId: string, tokenSha: string): Promise<{ reference: string } | null> {
+/// With when its application was received (RSEC-5): the answer to a retry says when the first send arrived.
+export async function findSpent(client: Tx, organisationId: string, tokenSha: string): Promise<{ reference: string; receivedAt: Date } | null> {
   const row = await client.portalFormToken.findFirst({
     where: { organisationId, tokenSha256: tokenSha, portalApplicationId: { not: null } },
-    select: { portalApplication: { select: { reference: true } } },
+    select: { portalApplication: { select: { reference: true, receivedAt: true } } },
   });
-  return row?.portalApplication ? { reference: row.portalApplication.reference } : null;
+  return row?.portalApplication ? { reference: row.portalApplication.reference, receivedAt: row.portalApplication.receivedAt } : null;
 }

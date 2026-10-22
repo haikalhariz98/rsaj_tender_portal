@@ -409,3 +409,9 @@ describe("one file check for the page and the route (review SHOULD 2)", () => {
     expect(r.faults).toEqual([expect.objectContaining({ step: "epayment", field: "creditor.statement", level: "block" })]);
   });
 });
+
+describe("a retry that finds its first send landed (RSEC-5)", () => {
+  it("reads when the first send was received", () => {
+    expect(readReply(200, { ok: true, reference: "PA-1", firstReceived: "9 Oct 2026, 10:30" })).toEqual({ kind: "ok", reference: "PA-1", firstReceived: "9 Oct 2026, 10:30" });
+  });
+});

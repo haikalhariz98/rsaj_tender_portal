@@ -45,7 +45,7 @@ import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { verifyFaults } from "@/lib/suppliers/documents";
 import { creditorReviewFaults, creditorReviewText } from "@/lib/suppliers/creditor-review";
 import { DECLARATION_KIND_WORDS } from "@/lib/suppliers/registration-settings";
-import { REGISTRATION_MATTER, supplierFaultText, VERIFICATION_LABEL, VERIFICATION_TONE } from "@/lib/suppliers/labels";
+import { REGISTRATION_MATTER, REGISTRATION_REFUSED_WORDS, supplierFaultText, VERIFICATION_LABEL, VERIFICATION_TONE } from "@/lib/suppliers/labels";
 import type { SupplierConfig, SupplierOrg } from "@/lib/suppliers/repo";
 import { typeFacts } from "@/lib/suppliers/repo";
 import { submitFaults } from "@/lib/suppliers/review";
@@ -349,7 +349,7 @@ export async function WholeApplicationPage({ actor, org, a, flags, cfg, people, 
                 <CardHeader
                   title={`Approval route · sent ${formatDate(day(r.openedAt))}${a.sentBy ? ` by ${a.sentBy.name}` : ""}`}
                   subtitle={`${r.ruleLabel ?? "A rule no longer recorded"}${r.ruleClause ? ` · ${r.ruleClause}` : ""}`}
-                  actions={<Badge tone={r.status === "REJECTED" ? "warn" : routeTone(r.status)}>{r.status === "PENDING" ? "With approval" : r.status === "APPROVED" ? "Approved" : r.status === "REJECTED" ? "Refused: back with the officer" : "Closed"}</Badge>}
+                  actions={<Badge tone={r.status === "REJECTED" ? "warn" : routeTone(r.status)}>{r.status === "PENDING" ? "With approval" : r.status === "APPROVED" ? "Approved" : r.status === "REJECTED" ? REGISTRATION_REFUSED_WORDS.waiting : "Closed"}</Badge>}
                 />
                 <p className="px-5 pt-3 text-[12.5px] text-ink-3 sm:px-6">Routed on no value. Chain: {routeCoreText(r, () => ({ en: "an office no longer configured" })).en}</p>
                 {r.status === "REJECTED" && <p className="px-5 pt-2 text-[12.5px] text-ink-2 sm:px-6">Refused: {r.rejectionReason || "no reason recorded"}.</p>}
@@ -360,7 +360,7 @@ export async function WholeApplicationPage({ actor, org, a, flags, cfg, people, 
                   action={(step, { earlierDone }) => (
                     <>
                       {r.status === "PENDING" && step.decision === "PENDING" && step.roleCode && <EscalateDrawer stepId={step.id} office={step.actingRoleLabel ?? step.roleLabel} mandatory={isMandatoryAct(step.act)} people={suggestions(step.actingRoleCode ?? step.roleCode)} />}
-                      {r.status === "PENDING" && step.decision === "PENDING" && earlierDone && <DecideStepDrawer stepId={step.id} office={step.roleLabel} done={ACT_DONE_LABEL[step.act] ?? "Done"} people={suggestions(step.actingRoleCode ?? step.roleCode)} today={today} />}
+                      {r.status === "PENDING" && step.decision === "PENDING" && earlierDone && <DecideStepDrawer stepId={step.id} office={step.roleLabel} done={ACT_DONE_LABEL[step.act] ?? "Done"} people={suggestions(step.actingRoleCode ?? step.roleCode)} today={today} refused={REGISTRATION_REFUSED_WORDS.waiting} />}
                     </>
                   )}
                 />
