@@ -165,7 +165,7 @@ export function EditDocumentClass({ row, offices }: { row: DocumentClass; office
 }
 
 /// The organisation's upload rules (OD-3). Either may be left unset; uploads are then refused, naming it.
-export function EditStorePolicy({ policy, sulitClasses }: { policy: { allowedMediaTypes: readonly string[]; maxBytes: string | null; onlineBidFileClassId: string | null; provenance: string | null; notes: string }; sulitClasses: { value: string; label: string }[] }) {
+export function EditStorePolicy({ policy, sulitClasses, projectClasses }: { policy: { allowedMediaTypes: readonly string[]; maxBytes: string | null; onlineBidFileClassId: string | null; projectDocumentClassId: string | null; provenance: string | null; notes: string }; sulitClasses: { value: string; label: string }[]; projectClasses: { value: string; label: string }[] }) {
   return (
     <RecordEditor
       title="Upload rules"
@@ -188,6 +188,7 @@ export function EditStorePolicy({ policy, sulitClasses }: { policy: { allowedMed
           hint: "1 MB is 1,048,576 bytes. Empty refuses uploads.",
         },
         { kind: "select", name: "onlineBidFileClassId", label: "Class of a filed online bid file", placeholder: "Not set", options: sulitClasses, hint: "Must be classified SULIT. Empty blocks online openings." },
+        { kind: "select", name: "projectDocumentClassId", label: "Class for project files", placeholder: "Not set", options: projectClasses, hint: "Classified, not SULIT. Empty blocks project files." },
         { kind: "select", name: "provenance", label: "Where this came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
@@ -198,6 +199,7 @@ export function EditStorePolicy({ policy, sulitClasses }: { policy: { allowedMed
         allowedMediaTypes: policy.allowedMediaTypes.join("\n"),
         maxMegabytes: policy.maxBytes ? bytesToMegabytes(BigInt(policy.maxBytes)) : null,
         onlineBidFileClassId: policy.onlineBidFileClassId,
+        projectDocumentClassId: policy.projectDocumentClassId,
         provenance: policy.provenance,
         notes: policy.notes,
       }}

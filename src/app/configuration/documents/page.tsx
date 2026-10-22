@@ -22,12 +22,13 @@ import { supplierAcceptedTypes } from "@/lib/documents/media";
 import { attentionText, classReadiness } from "@/lib/documents/readiness";
 import { attachableVersion, attachRefusal } from "@/lib/documents/targets";
 import { stagedDocuments, standingHolds, uploadContext } from "@/lib/documents/read";
-import { documentOrg, loadStorePolicy } from "@/lib/documents/service";
+import { documentOrg, loadProjectClassChoices, loadStorePolicy } from "@/lib/documents/service";
 import { classificationTone, recorderWords } from "@/lib/documents/views";
 import { formatOrgDay } from "@/lib/format";
 import { loadDocumentClasses } from "@/lib/records/load";
 
 import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
+import { ProjectClassValue } from "./project-class-value";
 import { AddDocumentClass, EditDocumentClass, EditStorePolicy, LowerClassClassification, ReleaseHold } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
@@ -38,13 +39,14 @@ const NOT_SET = <span className="text-ink-4">Not set</span>;
 export default async function DocumentsConfigPage() {
   const actor = await requireStaff();
   const org = await documentOrg(actor.organisationId);
-  const [classes, upload, staged, holds, policy, officeRows] = await Promise.all([
+  const [classes, upload, staged, holds, policy, officeRows, projectClasses] = await Promise.all([
     loadDocumentClasses(actor.organisationCode),
     uploadContext(actor.organisationId),
     stagedDocuments(actor.organisationId),
     standingHolds(actor.organisationId),
     org ? loadStorePolicy(org.id) : null,
     org ? db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } }) : [],
+    loadProjectClassChoices(actor.organisationId),
   ]);
   const offices = officeRows.map((o) => ({ value: o.code, label: o.nameEn }));
   const officeName = (code: string | null) => (code ? (officeRows.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null);
@@ -165,7 +167,7 @@ export default async function DocumentsConfigPage() {
         <CardHeader
           title="Upload rules"
           subtitle="Accepted files and size"
-          actions={policy ? <EditStorePolicy policy={{ allowedMediaTypes: policy.allowedMediaTypes, maxBytes: policy.maxBytes?.toString() ?? null, onlineBidFileClassId: policy.onlineBidFileClassId, provenance: policy.provenance, notes: policy.notes }} sulitClasses={classes.filter((c) => c.classification === "SULIT").map((c) => ({ value: c.id, label: c.nameEn }))} /> : undefined}
+          actions={policy ? <EditStorePolicy policy={{ allowedMediaTypes: policy.allowedMediaTypes, maxBytes: policy.maxBytes?.toString() ?? null, onlineBidFileClassId: policy.onlineBidFileClassId, projectDocumentClassId: policy.projectDocumentClassId, provenance: policy.provenance, notes: policy.notes }} sulitClasses={classes.filter((c) => c.classification === "SULIT").map((c) => ({ value: c.id, label: c.nameEn }))} projectClasses={projectClasses} /> : undefined}
           divided
         />
         <CardBody className="flex flex-col gap-5">
@@ -219,6 +221,7 @@ export default async function DocumentsConfigPage() {
                 label: "Class of a filed online bid file",
                 value: policy?.onlineBidFileClassId ? (classes.find((c) => c.id === policy.onlineBidFileClassId)?.nameEn ?? NOT_SET) : <Badge tone="warn">Not set, an online opening cannot be finalised</Badge>,
               },
+              { label: "Class for project files", value: <ProjectClassValue classId={policy?.projectDocumentClassId ?? null} classes={classes} /> },
               { label: "Where this came from", value: policy?.provenance ? <ProvenanceChip value={policy.provenance} /> : NOT_SET },
               { label: "Megabytes", value: "1 MB is 1,048,576 bytes" },
               ...(policy?.notes ? [{ label: "Notes", value: policy.notes }] : []),
