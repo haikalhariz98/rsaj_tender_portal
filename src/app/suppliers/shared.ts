@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import type { Tx } from "@/lib/audit/record";
+import { lockOrganisation as lockOrganisationRow } from "@/lib/authority/locks";
 import { toSecond } from "@/lib/bids/lateness";
 import { db } from "@/lib/db";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
@@ -22,8 +23,9 @@ import type { OrgScope } from "@/lib/org-scope";
 // The Next-free part lives in the lib, so a write's core can run outside a request; the acts keep importing it from here.
 export { activePerson, audit, CHANGED, GONE, label, NO_ORG, Refusal, type LockedSupplier } from "@/lib/suppliers/write";
 
-/// The organisation row, locked: recording a new supplier is serialised on it (the number, the series).
-export const lockOrganisation = (tx: Tx, id: string) => tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${id} FOR UPDATE`;
+/// The organisation row, locked: recording a new supplier is serialised on it (the number, the series). FOR NO KEY UPDATE, the one organisation lock (`@/lib/authority/locks`): an act
+/// that holds an online application and then writes its audit row asks for KEY SHARE on this row, so FOR UPDATE here would deadlock with it (review MUST 1).
+export const lockOrganisation = (tx: Tx, id: string) => lockOrganisationRow(tx, id);
 
 /// The server's clock, read once at the act's entry, to the second (6.6 CR-3).
 export const stampNow = () => toSecond(new Date());

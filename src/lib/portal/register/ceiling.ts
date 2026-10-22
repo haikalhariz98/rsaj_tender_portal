@@ -66,3 +66,17 @@ export function registerBodyCeiling(s: CeilingSettings): bigint | null {
   const fileBytes = s.maxBytes < byCount ? s.maxBytes : byCount;
   return fileBytes + files * PART_OVERHEAD + REGISTER_TEXT_ALLOWANCE;
 }
+
+/**
+ * How long the one submission's body may take to arrive (security audit H1; threat as wave 3b's S17, S19, `BID_BODY_*`): technical, not policy. Five minutes is what the largest body the
+ * deployment's ceiling allows takes on a working connection, and 16 KB a second (after a 10 second grace for the connection to start) is far below any connection a form is sent on and
+ * far above a deliberate trickle. A body over either is cut off (408) and nothing is kept, so a slow sender holds a slot for minutes at most, never for ever.
+ */
+export const REGISTER_BODY_DEADLINE_SECONDS = 300;
+export const REGISTER_BODY_MIN_BYTES_PER_SECOND = 16 * 1024;
+export const REGISTER_BODY_GRACE_SECONDS = 10;
+/// The most the one transaction that writes a received application may take (`receivePublicApplication`): every file's bytes are written in it.
+export const REGISTER_RECEIVE_TIMEOUT_SECONDS = 60;
+/// How long the page waits for an answer before it treats the send as unanswered: the body's deadline, the transaction's, and a minute for the rest. Shorter, and the page would send again
+/// while the first send was still being written.
+export const REGISTER_CLIENT_TIMEOUT_MS = (REGISTER_BODY_DEADLINE_SECONDS + REGISTER_RECEIVE_TIMEOUT_SECONDS + 60) * 1000;

@@ -499,3 +499,61 @@ describe("after approval (plan 8.4.7, 8.4.8, 6.3)", () => {
     expect(review.creditorProfile).toBe("VERIFIED");
   });
 });
+
+describe("the organisation lock (review MUST 1)", () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /**
+   * A check of the bank details runs while a step is being decided, interleaved as two officers would: the check holds the application (as every act on it does) and has not yet
+   * written its audit row; the decision takes the organisation and waits on the application; then the check writes. An audit row names its organisation by a foreign key, so it asks
+   * for KEY SHARE on the organisation's row: taken FOR UPDATE by the decision, that closes a cycle (40P01). Taken FOR NO KEY UPDATE (`lockOrganisation`), both acts finish.
+   */
+  it("a check of the bank details made while a step is decided does not deadlock it; both are recorded", async () => {
+    const id = await received();
+    await verifyAll(id);
+    expect(await send(id)).toMatchObject({ ok: true });
+    const step = await pendingStep(id);
+
+    let aHasLock!: () => void;
+    const aLocked = new Promise<void>((r) => (aHasLock = r));
+    let goA!: () => void;
+    const aMayGo = new Promise<void>((r) => (goA = r));
+    let bPid = 0;
+    let bStarted!: () => void;
+    const bIn = new Promise<void>((r) => (bStarted = r));
+
+    const a = db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "PortalApplication" WHERE id = ${id} FOR UPDATE`;
+      aHasLock();
+      await aMayGo;
+      const o = (await supplierOrg(org.id, tx))!;
+      return verifyPortalCreditor({ tx, actor: staff(p.checker), org: o, now: new Date(), act: writer(p.checker) }, { portalApplicationId: id, state: "VERIFIED", verifiedOn: today, note: "", personId: p.checker });
+    }, { timeout: 30_000, maxWait: 10_000 });
+    await aLocked;
+    const b = db.$transaction(async (tx) => {
+      const [me] = await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+      bPid = Number(me!.pid);
+      bStarted();
+      const o = (await supplierOrg(org.id, tx))!;
+      return decidePortalRegistrationStep({ tx, actor: staff(p.approver), org: o, now: new Date(), act: writer(p.approver) }, { stepId: step.id, decision: "DONE", reason: "", personId: p.approver, decidedOn: dayToDate(today), onBehalf: false });
+    }, { timeout: 30_000, maxWait: 10_000 });
+    await bIn;
+    // The decision is waiting on the application before the check goes on.
+    let waiting = false;
+    for (let n = 0; n < 400 && !waiting; n++) {
+      const [row] = await db.$queryRaw<{ wait: string | null }[]>`SELECT wait_event_type AS wait FROM pg_stat_activity WHERE pid = ${bPid}::int`;
+      waiting = row?.wait === "Lock";
+      if (!waiting) await sleep(25);
+    }
+    expect(waiting).toBe(true);
+    goA();
+    const [ra, rb] = await Promise.allSettled([a, b]);
+    if (ra.status === "rejected") console.error("check failed", ra.reason);
+    if (rb.status === "rejected") console.error("decision failed", rb.reason);
+    expect(ra).toMatchObject({ status: "fulfilled", value: { ok: true } });
+    expect(rb).toMatchObject({ status: "fulfilled", value: { ok: true } });
+    const pa = await stored(id);
+    expect(pa.status).toBe("APPROVED");
+    expect(pa.creditor!.verification).toBe("VERIFIED");
+  });
+});

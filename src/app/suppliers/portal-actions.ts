@@ -7,7 +7,7 @@ import { creditorDecision, creditorEventRow, creditorPermissionState, CREDITOR_P
 import { refusalWords } from "@/lib/auth/sulit-access";
 import { writeSulitEvents } from "@/lib/auth/sulit-store";
 import { db } from "@/lib/db";
-import { transactionTimedOut } from "@/lib/scope/tx-timeout";
+import { deadlocked, transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { portalLabel, rejectPortalApplication, sendPortalApplicationForDecision, verifyPortalCreditor, verifyPortalDocument, type PortalActContext } from "@/lib/suppliers/portal-application-acts";
 import { supplierOrg } from "@/lib/suppliers/repo";
 import { VERIFICATION_STATES } from "@/lib/suppliers/types";
@@ -40,6 +40,7 @@ async function inPortal(actor: StaffActor, run: (c: Omit<PortalActContext, "act"
     const attribution = attributionRefusalState(e);
     if (attribution) return attribution;
     if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
+    if (deadlocked(e)) return { ok: false, message: "Another officer was changing this application at the same moment, so nothing was saved. Try again." };
     throw e;
   }
 }

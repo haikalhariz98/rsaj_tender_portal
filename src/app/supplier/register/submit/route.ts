@@ -8,16 +8,17 @@ import { refusalBody, REFUSAL_STATUS } from "@/lib/auth/route-refusal";
 import { STAFF_COOKIE, SUPPLIER_COOKIE } from "@/lib/auth/routes";
 import { db } from "@/lib/db";
 import { filenameFault } from "@/lib/documents/access";
-import { limitBody } from "@/lib/documents/body";
-import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency";
+import { limitBodyPaced } from "@/lib/documents/body";
+import { registerUploadLimiter, RETRY_AFTER_SECONDS } from "@/lib/documents/concurrency";
 import { formatBytes } from "@/lib/documents/labels";
 import { readLimit } from "@/lib/documents/limits";
 import { mediaFault, sniffMediaType, SNIFF_BYTES } from "@/lib/documents/media";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 import { honeypotTripped, HONEYPOT_FIELD, portalCapacity } from "@/lib/portal/apply";
-import { loadRegisterSettings } from "@/lib/portal/apply-repo";
+import { loadRegisterSettings, type RegisterSettings } from "@/lib/portal/apply-repo";
 import { deploymentOrganisation } from "@/lib/portal/deployment";
 import { APPLY } from "@/lib/portal/labels";
+import { REGISTER_BODY_DEADLINE_SECONDS, REGISTER_BODY_GRACE_SECONDS, REGISTER_BODY_MIN_BYTES_PER_SECOND } from "@/lib/portal/register/ceiling";
 import { documentFilePart, REGISTER_APPLICATION_PART, STATEMENT_FILE_PART, type FaultView, type RegisterReply } from "@/lib/portal/register/contract";
 import { blockingPublicFaults, publicApplicationFaults, publicFaultViews } from "@/lib/portal/register/faults";
 import { heldDraft } from "@/lib/portal/register/held-draft";
@@ -43,6 +44,7 @@ const busy = (headers: Record<string, string> = {}) => reply({ ok: false, code: 
 const expired = () => reply({ ok: false, code: "FORM_EXPIRED", message: APPLY.submitExpired.en }, 400);
 const unreadable = (status = 400) => reply({ ok: false, code: "UNREADABLE", message: APPLY.submitUnreadable.en }, status);
 const tooLarge = (ceiling: bigint) => reply({ ok: false, code: "TOO_LARGE", message: APPLY.submitTooLarge(formatBytes(ceiling)).en }, 413);
+const tooSlow = () => reply({ ok: false, code: "TOO_SLOW", message: APPLY.submitTooSlow.en }, 408);
 
 /**
  * The one submission of a supplier's registration (ADR 0041, plan section 3): `POST /supplier/register/submit`, multipart, from a stranger who is not signed in. Every field of the five
@@ -54,12 +56,13 @@ const tooLarge = (ceiling: bigint) => reply({ ok: false, code: "TOO_LARGE", mess
  *
  * 1. the boundary (`gate`), as the proxy would answer;
  * 2. the Origin guard (multipart only);
- * 3. a slot of the upload limiter, held to the end;
- * 4. the signed form token (`x-form-token`). A genuine token already spent is answered with its application's reference, before anything else is read: a retry is never refused for a
+ * 3. the signed form token (`x-form-token`). A genuine token already spent is answered with its application's reference, before anything else is read: a retry is never refused for a
  *    limit its own first send took, nor for the day it waited, and never makes a second application;
- * 5. the register's readiness, and the day's count, before the body;
+ * 4. the register's readiness, and the day's count, before the body;
+ * 5. a slot of the register's own limiter (security audit H1), held to the end: taken only now, so a request refused above never holds one, and strangers never take the slots staff and
+ *    signed-in suppliers upload through;
  * 6. the stated length against the ceiling derived from the settings (none stated: refused);
- * 7. the body, read through a counter that cuts it off at the same ceiling;
+ * 7. the body, read through a counter that cuts it off at the same ceiling, at a deadline and under a minimum rate (`limitBodyPaced`);
  * 8. the bait field (a filled one is answered as received, and nothing is written or spent);
  * 9. the shape of the application and of its parts;
  * 10. each file, by its own bytes, against the type, size and quotas;
@@ -85,24 +88,19 @@ export async function POST(request: Request) {
   // 2. Same origin, and a form body.
   const fault = foreignRequestFault(request, ["multipart/form-data"]);
   if (fault) return Response.json(refusalBody(fault.code, fault.message), { status: REFUSAL_STATUS[fault.code], headers: { "cache-control": "no-store" } });
-  // 3. Capacity, before the body: one process holds only so many bodies at once.
-  const slot = uploadLimiter().tryAcquire();
-  if (!slot) return busy({ "Retry-After": String(RETRY_AFTER_SECONDS) });
   try {
     return await receive(request);
   } catch (e) {
     // The applicant is told nothing of the cause; the server's log holds it.
     console.error("Public supplier application failed", e);
     return reply({ ok: false, code: "TRY_AGAIN", message: APPLY.tryAgainLater.en }, 500);
-  } finally {
-    slot();
   }
 }
 
 async function receive(request: Request): Promise<Response> {
   const now = stampNow();
 
-  // 4. The token. Its signature is checked first, so EXPIRED means a token this deployment made: if it was spent, its reference is the answer.
+  // 3. The token. Its signature is checked first, so EXPIRED means a token this deployment made: if it was spent, its reference is the answer.
   const token = request.headers.get(FORM_TOKEN_HEADER);
   const verdict = checkFormToken("register", token, now);
   if (verdict === "KEY_NOT_SET") return closed();
@@ -117,12 +115,24 @@ async function receive(request: Request): Promise<Response> {
   if (spent) return reply({ ok: true, reference: spent.reference });
   if (verdict !== "OK") return expired();
 
-  // 5. Readiness (the page asks the same reader), and the day's count without a lock: the locked counts are judged again in the transaction.
+  // 4. Readiness (the page asks the same reader), and the day's count without a lock: the locked counts are judged again in the transaction.
   const register = await loadRegisterSettings();
   if (!register || register.missing.length > 0 || register.ceiling == null || register.org.id !== deployment.id) return closed();
-  const ceiling = register.ceiling;
   const lastDay = await db.portalApplication.count({ where: { organisationId: register.org.id, receivedAt: { gte: new Date(now.getTime() - DAY_MS) } } });
   if (portalCapacity({ lastDay, forNumber: 0 }, register.limits) !== "OPEN") return busy();
+
+  // 5. Capacity, before the body: one process holds only so many strangers' bodies at once, apart from everyone else's.
+  const slot = registerUploadLimiter().tryAcquire();
+  if (!slot) return busy({ "Retry-After": String(RETRY_AFTER_SECONDS) });
+  try {
+    return await receiveBody(request, { now, register, ceiling: register.ceiling, token: token!, tokenSha });
+  } finally {
+    slot();
+  }
+}
+
+async function receiveBody(request: Request, i: { now: Date; register: RegisterSettings; ceiling: bigint; token: string; tokenSha: string }): Promise<Response> {
+  const { now, register, ceiling, token, tokenSha } = i;
 
   // 6. The stated length, against the ceiling the settings give. The body is never pulled for a request refused here.
   const declared = request.headers.get("content-length");
@@ -130,12 +140,13 @@ async function receive(request: Request): Promise<Response> {
   if (!/^[0-9]{1,20}$/.test(declared.trim())) return unreadable();
   if (BigInt(declared.trim()) > ceiling) return tooLarge(ceiling);
 
-  // 7. The body, counted as it arrives and cut off at the same limit, whatever was stated.
-  const limited = limitBody(request.body, readLimit(ceiling));
+  // 7. The body, counted as it arrives and cut off at the same limit, whatever was stated, at the deadline and under the minimum rate.
+  const limited = limitBodyPaced(request.body, readLimit(ceiling), { deadlineMs: REGISTER_BODY_DEADLINE_SECONDS * 1000, minBytesPerSecond: REGISTER_BODY_MIN_BYTES_PER_SECOND, graceMs: REGISTER_BODY_GRACE_SECONDS * 1000 });
   let form: FormData | null;
   try {
     form = await new Response(limited.stream, { headers: { "content-type": request.headers.get("content-type") ?? "" } }).formData();
   } catch {
+    if (limited.tooSlow()) return tooSlow();
     return limited.exceeded() ? tooLarge(ceiling) : unreadable();
   }
 
@@ -205,7 +216,7 @@ async function receive(request: Request): Promise<Response> {
   if ("fault" in blobs) return closed();
   const outcome = await receivePublicApplication({
     register,
-    token: { sha256: tokenSha, issuedAt: formTokenIssuedAt("register", token!)! },
+    token: { sha256: tokenSha, issuedAt: formTokenIssuedAt("register", token)! },
     body,
     files,
     statement,

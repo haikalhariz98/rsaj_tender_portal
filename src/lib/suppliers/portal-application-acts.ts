@@ -21,6 +21,7 @@ import type { AuditActor } from "@/lib/auth/types";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { personDecisionWrite } from "@/lib/authority/decided-step";
 import { actingOffice } from "@/lib/authority/escalation";
+import { lockOrganisation } from "@/lib/authority/locks";
 import { loadIssue } from "@/lib/authority/load";
 import { boundaryOperatorFor } from "@/lib/authority/resolve";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
@@ -299,8 +300,9 @@ export async function decidePortalRegistrationStep(c: PortalActContext, i: Decid
   const { tx, org } = c;
   const paId = await portalApplicationOfStep(tx, org.id, i.stepId);
   if (!paId) return { ok: false, message: "That step is not on an online application's route." };
-  // The organisation first: the last approval issues a supplier reference and checks the register under it, as recording a supplier does.
-  await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${org.id} FOR UPDATE`;
+  // The organisation first: the last approval issues a supplier reference and checks the register under it, as recording a supplier does. FOR NO KEY UPDATE (`lockOrganisation`), never
+  // FOR UPDATE: every audit row takes KEY SHARE on it, so FOR UPDATE would deadlock with an act that holds the application and then writes its trail (review MUST 1).
+  await lockOrganisation(tx, org.id);
   const pa = await lockApplication(tx, org.id, paId);
   const stop = waitingFault(pa, false);
   if (stop) return stop;

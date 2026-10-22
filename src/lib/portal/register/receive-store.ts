@@ -16,6 +16,7 @@ import { inOrder } from "@/lib/series";
 import { normaliseRegistrationNo } from "@/lib/suppliers/identity";
 import { composeAddress, mobileWithDialCode, typedDay } from "@/lib/suppliers/step-one";
 
+import { REGISTER_RECEIVE_TIMEOUT_SECONDS } from "./ceiling";
 import type { PublicApplicationBody } from "./contract";
 import { blockingPublicFaults, publicApplicationFaults, type PublicFault } from "./faults";
 import { heldDraft } from "./held-draft";
@@ -248,7 +249,7 @@ export async function receivePublicApplication(i: ReceiveInput): Promise<Receive
         return issued;
       },
       // Sized for the byte ceiling: every file's bytes are written in this transaction.
-      { timeout: 60_000, maxWait: 10_000 },
+      { timeout: REGISTER_RECEIVE_TIMEOUT_SECONDS * 1000, maxWait: 10_000 },
     );
     return { ok: true, reference };
   } catch (e) {

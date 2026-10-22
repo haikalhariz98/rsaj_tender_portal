@@ -429,6 +429,7 @@ export const APPLY = {
   submitExpired: w("This form is out of date. Nothing was sent. Submit again."),
   submitTooLarge: (limit: string): Words => w(`Too large to send. The limit is ${limit}. Nothing was sent.`),
   submitNoLength: w("The size was not stated. Nothing was sent. Try again."),
+  submitTooSlow: w("The files took too long to arrive. Nothing was sent. Try again on a faster connection."),
   submitUnreadable: w("The application could not be read. Nothing was sent."),
   busy: w("Too many applications right now. Nothing was sent. Try again later."),
 };

@@ -52,7 +52,7 @@ vi.mock("@/lib/documents/store", async (importOriginal) => {
 
 import { FORM_SECRET_MIN_LENGTH, signFormToken } from "@/lib/auth/form-token";
 import { STAFF_COOKIE, SUPPLIER_COOKIE } from "@/lib/auth/routes";
-import { uploadLimiter } from "@/lib/documents/concurrency";
+import { registerUploadLimiter, uploadLimiter } from "@/lib/documents/concurrency";
 import { sha256Hex } from "@/lib/documents/store";
 import { HONEYPOT_FIELD, type RegisterReadiness } from "@/lib/portal/apply";
 import type { RegisterSettings } from "@/lib/portal/apply-repo";
@@ -251,16 +251,32 @@ describe("guard order: each refusal comes before the body is pulled (plan 8.2.1)
     expect(h.spentLookups).toBe(0);
   });
 
-  it("no slot of the upload limiter: busy, with Retry-After", async () => {
+  it("no slot of the register's own limiter: busy, with Retry-After; taken only after the token and the register are judged (security audit H1)", async () => {
     const held: (() => void)[] = [];
-    for (let s = uploadLimiter().tryAcquire(); s; s = uploadLimiter().tryAcquire()) held.push(s);
+    for (let s = registerUploadLimiter().tryAcquire(); s; s = registerUploadLimiter().tryAcquire()) held.push(s);
     try {
       const r = await send();
       expect([r.res.status, r.json.code, r.pulled]).toEqual([503, "BUSY", false]);
       expect(Number(r.res.headers.get("retry-after"))).toBeGreaterThan(0);
+      // Refused before a slot is asked for: an out-of-date token and a closed register are answered as such, never as busy.
+      expect((await send(parts(), { token: null })).json.code).toBe("FORM_EXPIRED");
+      h.register = register({ missing: true });
+      expect((await send()).json.code).toBe("CLOSED");
     } finally {
       for (const release of held) release();
     }
+  });
+
+  it("the slots staff and signed-in suppliers upload through are not the register's: all of them taken, an application is still received", async () => {
+    const held: (() => void)[] = [];
+    for (let s = uploadLimiter().tryAcquire(); s; s = uploadLimiter().tryAcquire()) held.push(s);
+    try {
+      expect((await send()).json).toEqual({ ok: true, reference: "DEMO/APP/0007/2026" });
+    } finally {
+      for (const release of held) release();
+    }
+    // And the register's slot is given back after each request, whatever its answer.
+    expect(registerUploadLimiter().active()).toBe(0);
   });
 
   it("the register not open: closed, naming nothing", async () => {
@@ -287,6 +303,31 @@ describe("guard order: each refusal comes before the body is pulled (plan 8.2.1)
     expect([over.res.status, over.json.code, over.pulled]).toEqual([413, "TOO_LARGE", false]);
     expect(over.json.message).toMatch(/^Too large to send\. The limit is [\d.,]+ (KB|MB)\. Nothing was sent\.$/);
     expect(h.received).toHaveLength(0);
+  });
+});
+
+describe("a body that is slow to arrive (security audit H1)", () => {
+  it("is cut off at the deadline: 408 in words, nothing received, and the slot given back", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const fd = new FormData();
+      for (const [k, v] of parts()) fd.append(k, v);
+      const encoded = new Response(fd);
+      const bytes = new Uint8Array(await encoded.arrayBuffer());
+      // The first bytes come, then nothing more: a sender holding its connection open.
+      let sent = false;
+      const stream = new ReadableStream<Uint8Array>({ pull: (c) => { if (!sent) { sent = true; c.enqueue(bytes.subarray(0, 1024)); } return new Promise(() => undefined); } }, { highWaterMark: 0 });
+      const req = new Request(URL_, { method: "POST", body: stream, headers: { ...SAME_ORIGIN, "content-type": encoded.headers.get("content-type")!, "content-length": String(bytes.byteLength), "x-form-token": token() }, duplex: "half" } as RequestInit);
+      const pending = POST(req);
+      await vi.advanceTimersByTimeAsync(301_000);
+      const res = await pending;
+      expect(res.status).toBe(408);
+      expect(await res.json()).toMatchObject({ ok: false, code: "TOO_SLOW", message: expect.stringMatching(/Nothing was sent/) });
+      expect(h.received).toHaveLength(0);
+      expect(registerUploadLimiter().active()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

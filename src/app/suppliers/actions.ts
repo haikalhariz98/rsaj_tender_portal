@@ -47,6 +47,7 @@ import { FormReader } from "@/lib/validate";
 
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { currentRequestFacts } from "@/app/_auth/cookies";
+import { deadlocked, transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, lockOrganisation, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { routeRequesterId } from "@/lib/approvals/requester";
@@ -775,6 +776,8 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
       if (e instanceof Refusal) return e.state;
       const attribution = attributionRefusalState(e);
       if (attribution) return attribution;
+      if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
+      if (deadlocked(e)) return { ok: false, message: "Another officer was changing this application at the same moment, so nothing was saved. Try again." };
       throw e;
     }
     if (res.ok) {
