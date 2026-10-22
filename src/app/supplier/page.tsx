@@ -18,6 +18,8 @@ import {
 } from "@/lib/portal/labels";
 import { loadPublicShell } from "@/lib/portal/deployment";
 
+import { WaitingForYouCard } from "./waiting-card";
+
 const LINK_ICON = { opportunities: GlobeIcon, results: AwardIcon, register: BuildingIcon } as const;
 // Phase 4e: every signed-in part is built; the home page lists them, and each asks the visitor to sign in.
 const SIGNED_IN_ICON = { bids: InboxIcon, projects: ToolsIcon, company: BuildingIcon, announcements: BellIcon } as const;
@@ -32,6 +34,7 @@ export default async function SupplierHomePage() {
         subtitle={homeSubtitle(organisation.name).en}
       />
 
+      <WaitingForYouCard />
 
       <div className="grid gap-5 md:grid-cols-3">
         {HOME_LINKS.map((link) => {

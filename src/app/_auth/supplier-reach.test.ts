@@ -463,7 +463,8 @@ describe("My Projects' handlers and pages (Phase 4e)", () => {
   });
 
   it("every page asks who is signed in first, and reads its supplier from the actor", () => {
-    expect(PROJECTS_PAGES.length).toBe(3);
+    // Four: My Projects' list, one project, the announcements board, and (Project workspace, plan step 5) one document of a project. The new page is held to the same rules as the others by this very loop.
+    expect(PROJECTS_PAGES.length).toBe(4);
     for (const f of PROJECTS_PAGES) {
       expect(f.src, f.file).toMatch(/const actor = await requireSupplier\(\);/);
       expect(f.src, f.file).not.toMatch(/params\.supplierId|searchParams\.supplierId|\{\s*supplierId\s*\}\s*=/);

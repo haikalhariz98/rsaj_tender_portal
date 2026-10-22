@@ -23,10 +23,10 @@ export const dynamic = "force-dynamic";
  * certificates to sign or dispute, and the submissions sent to the office. The supplier is the SESSION's; the id in the address is a contract's, and the page answers "not found" for one that
  * does not exist, is another organisation's or is another contractor's, all alike. One tab is read at a time, and only its own slice.
  */
-export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string }> }) {
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; docsAfter?: string }> }) {
   const actor = await requireSupplier();
   const { id } = await params;
-  const { tab: asked, page } = await searchParams;
+  const { tab: asked, page, docsAfter } = await searchParams;
   const ctx = await loadProjectContext(db, actor, id);
   if (!ctx) notFound();
   const tab: ProjectTab = isProjectTab(asked) ? asked : "overview";
@@ -40,7 +40,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     { id: "diary", label: "Site diary", icon: <FileIcon size={15} />, lazy: true, panel: tab === "diary" ? <DiaryPanel actor={actor} ctx={ctx} token={token} page={page} /> : null },
     { id: "payments", label: "Payments", icon: <WalletIcon size={15} />, lazy: true, panel: tab === "payments" ? <PaymentsPanel actor={actor} ctx={ctx} token={token} /> : null },
     { id: "certificates", label: "Certificates", icon: <CheckIcon size={15} />, lazy: true, panel: tab === "certificates" ? <CertificatesPanel actor={actor} ctx={ctx} token={token} /> : null },
-    { id: "submissions", label: "Submissions", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "submissions" ? <SubmissionsPanel actor={actor} ctx={ctx} token={token} /> : null },
+    { id: "submissions", label: "Submissions", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "submissions" ? <SubmissionsPanel actor={actor} ctx={ctx} token={token} docsAfter={docsAfter || null} /> : null },
   ];
 
   return (

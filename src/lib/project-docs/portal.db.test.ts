@@ -34,7 +34,7 @@ import { POST as versionRoute } from "@/app/supplier/projects/documents/version/
 import { exportSupplierData, readProjectDocuments } from "@/lib/portal/data-export-store";
 
 import { PROJECT_BYTES_PER_WINDOW, PROJECT_FILES_PER_WINDOW } from "./bounds";
-import { loadPortalDocumentPage, loadPortalRegister, loadWaitingForYou } from "./portal-read";
+import { loadPortalDocumentPage, loadPortalRegister, loadPortalStart, loadWaitingForYou } from "./portal-read";
 import { findProjectFile } from "./portal-file";
 import { storeProjectFile, WindowRefused, preflightProjectUpload } from "./portal-upload";
 import { documentOrg } from "@/lib/documents/service";
@@ -661,6 +661,26 @@ describe("the lists: Waiting for you and the paged register (PW-4, PW-13)", () =
     expect(first.rows).toHaveLength(1);
     expect(first.next).not.toBeNull();
     expect(first).not.toHaveProperty("total");
+  });
+
+  it("says whether the contractor may start a document: open, then shut by the contract's state or by the unset project class, in words that name the organisation and no setting; another contractor's contract is null", async () => {
+    const c = as(await contractor());
+    const open = await contract(c.supplierId);
+    const closed = await contract(c.supplierId, "CLOSED");
+    expect(await loadPortalStart(db, c.actor, open)).toEqual({ create: { allowed: true, reasons: [] }, organisationName: ORG_NAME });
+    const shut = await loadPortalStart(db, c.actor, closed);
+    expect(shut!.create.allowed).toBe(false);
+    expect(shut!.create.reasons[0]).toMatch(/closed/i);
+    await db.documentStorePolicy.update({ where: { organisationId }, data: { projectDocumentClassId: null } });
+    try {
+      const unset = await loadPortalStart(db, c.actor, open);
+      expect(unset!.create.allowed).toBe(false);
+      expect(unset!.create.reasons.join(" ")).toContain(ORG_NAME);
+      expect(unset!.create.reasons.join(" ")).not.toMatch(/Configuration|administrator/i);
+    } finally {
+      await db.documentStorePolicy.update({ where: { organisationId }, data: { projectDocumentClassId: projectClassId } });
+    }
+    expect(await loadPortalStart(db, (await contractor()).actor, open)).toBeNull();
   });
 
   it("the register pages by a cursor, newest first, with no count, and skips what is not listed without breaking the page", async () => {

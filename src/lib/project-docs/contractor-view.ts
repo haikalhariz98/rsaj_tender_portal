@@ -36,6 +36,9 @@ export interface ContractorReading {
 
 export const WAITING_FOR_YOU = "Waiting for you";
 
+/// `PortalDocumentPage.fromLabel` of a document the contractor started itself; any other value is the organisation's name.
+export const FROM_YOU = "Yours";
+
 export function contractorReading(doc: DocumentFacts, orgName: string): ContractorReading {
   const view = contractorView(doc);
   if (view.shown === "NOT_LISTED") return { shown: "NOT_LISTED", stateLabel: null, waitsOnYou: false, waitsOnLabel: null, visibleVersions: [], latestVisible: null };

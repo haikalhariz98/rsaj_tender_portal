@@ -12,9 +12,12 @@ import type { ProjectContext } from "@/lib/portal/projects/context-store";
 import { OUTCOME_TONE, OUTCOME_WORDS, ROUTING_STATEMENT, SERVICE_NOT_SET, serviceWords, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
 import type { SubmissionKind } from "@/lib/portal/projects/types";
 import { certificatesTab, DIARY_PAGE, diaryTab, overviewTab, paymentsTab, programmeTab, submissionsTab } from "@/lib/portal/projects/workspace-store";
+import { loadWaitingForYou } from "@/lib/project-docs/portal-read";
 import { delayWords, ENTRY_STATE_TONE, ENTRY_STATE_WORDS, PROGRAMME_DECISION_WORDS } from "@/lib/supervision/labels";
 
 import { AttestControl, DisputeDiaryControl, SignCertificateControl, SubmitControl } from "./controls";
+import { PortalDocumentsPanel } from "./documents-panel";
+import { WaitingList } from "./waiting-for-you";
 
 /**
  * The tabs of one contract in My Projects (Phase 4e). Each panel reads only its own slice (`workspace-store.ts`), as the session's supplier, for a contract it holds. What is not set, not
@@ -28,6 +31,7 @@ const NOTICE_KINDS: SubmissionKind[] = ["DELAY_NOTICE", "DEFECTS_RECTIFIED", "ST
 
 export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
   const o = await overviewTab(db, actor, ctx);
+  const waiting = await loadWaitingForYou(db, actor, { contractId: ctx.contract.id });
   const todo = [
     ...(o.counts.toAttest ? [`${o.counts.toAttest} diary ${o.counts.toAttest === 1 ? "entry" : "entries"} to attest.`] : []),
     ...(o.counts.toSign ? [`${o.counts.toSign} ${o.counts.toSign === 1 ? "certificate" : "certificates"} to sign.`] : []),
@@ -46,20 +50,23 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card>
           <CardHeader icon={<ClipboardIcon size={17} />} title="Waiting for you" />
-          <CardBody>
-            {todo.length === 0 ? (
-              <p className="text-[14px] text-ink-2">Nothing waits for you.</p>
-            ) : (
-              <ul className="flex flex-col gap-2.5">
-                {todo.map((t) => (
-                  <li key={t} className="flex items-start gap-2.5 text-[14px] text-ink">
-                    <span aria-hidden="true" className="mt-[7px] size-1.5 shrink-0 rounded-full bg-brand-600" />
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardBody>
+          {(todo.length > 0 || waiting.rows.length === 0) && (
+            <CardBody>
+              {todo.length === 0 ? (
+                <p className="text-[14px] text-ink-2">Nothing waits for you.</p>
+              ) : (
+                <ul className="flex flex-col gap-2.5">
+                  {todo.map((t) => (
+                    <li key={t} className="flex items-start gap-2.5 text-[14px] text-ink">
+                      <span aria-hidden="true" className="mt-[7px] size-1.5 shrink-0 rounded-full bg-brand-600" />
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardBody>
+          )}
+          {waiting.rows.length > 0 && <WaitingList rows={waiting.rows} withContract={false} more={waiting.next ? { href: `/supplier/projects/${ctx.contract.id}?tab=submissions`, label: "More in Documents" } : null} />}
         </Card>
         <Card>
           <CardHeader title="The contract" />
@@ -318,11 +325,13 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
   );
 }
 
-export async function SubmissionsPanel({ actor, ctx, token }: Props) {
+export async function SubmissionsPanel({ actor, ctx, token, docsAfter }: Props & { docsAfter: string | null }) {
   const s = await submissionsTab(db, actor, ctx);
   const unset = Object.entries(s.serviceLevels).filter(([, v]) => v == null).length + (6 - Object.keys(s.serviceLevels).length);
   return (
     <div className="flex flex-col gap-6">
+      {/* The Documents list first (the simple Project workspace). The earlier list and its send form stay below it until the six kinds move into Documents. */}
+      <PortalDocumentsPanel actor={actor} ctx={ctx} token={token} after={docsAfter} />
       <Card className="overflow-hidden">
         <CardHeader
           icon={<InboxIcon size={17} />}

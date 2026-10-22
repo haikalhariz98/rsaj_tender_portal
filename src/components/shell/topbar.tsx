@@ -128,6 +128,12 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
     crumbs[2].label = CRUMB_WORDS.submissions;
     crumbs[2].href = `/projects/${segments[1]}?stage=project&tab=submissions`;
   }
+  // The same document in the contractor's portal: "My Projects › <contract> › Submissions › <document>"; no page of its own sits at …/documents, so that crumb is the contract's tab.
+  if (segments[0] === "supplier" && segments[1] === "projects" && segments[3] === "documents" && crumbs.length >= 5) {
+    if (parentName) crumbs[2].label = named(parentName);
+    crumbs[3].label = CRUMB_WORDS.submissions;
+    crumbs[3].href = `/supplier/projects/${segments[2]}?tab=submissions`;
+  }
 
   return crumbs;
 }

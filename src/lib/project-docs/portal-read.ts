@@ -24,9 +24,9 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { loadProjectContext } from "@/lib/portal/projects/context-store";
 import { STANDING_AWARD } from "@/lib/portal/projects/visibility";
 
-import { contractorFaultText, contractorReading, type ContractorReading } from "./contractor-view";
+import { contractorFaultText, contractorReading, FROM_YOU, type ContractorReading } from "./contractor-view";
 import { loadDocumentFactsMany } from "./facts";
-import { requestFaults, uploadFaults } from "./faults";
+import { createFaults, requestFaults, uploadFaults } from "./faults";
 import { kindWords, outcomeWords, versionLabel } from "./labels";
 import type { Gate } from "./page-store";
 import { decodeRegisterCursor, encodeRegisterCursor, REGISTER_BATCH } from "./register";
@@ -232,7 +232,7 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
     shown: reading.shown,
     waitsOnLabel: reading.waitsOnLabel,
     waitsOnYou: reading.waitsOnYou,
-    fromLabel: head.side === "CONTRACTOR" ? "Yours" : orgName,
+    fromLabel: head.side === "CONTRACTOR" ? FROM_YOU : orgName,
     createdOn: onDay(head.createdAt),
     versions: versions.map((v) => ({
       id: v.id,
@@ -262,6 +262,30 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
     classSet,
     organisationName: orgName,
   };
+}
+
+// ------------------------------------------------------------------ what the contractor may start
+
+export interface PortalStart {
+  /// Whether "New document" can be used now, and if not, why, in the contractor's words (the same faults as the create act, asked with a sample title and one file).
+  create: Gate;
+  /// The organisation's configured name, for the page's own words.
+  organisationName: string;
+}
+
+/**
+ * Whether the contractor may start a document on this contract now (the portal's twin of the staff screen's start gate): the pure create faults for a contractor actor, folded
+ * with the contract's state, in words that name the organisation and no setting. Only the state-level faults can show (a sample title and one file are given), so a closed
+ * contract or an unset project class says so before the contractor fills in a form. Null where the contract is not the supplier's.
+ */
+export async function loadPortalStart(client: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId" | "accountId">, contractId: string): Promise<PortalStart | null> {
+  const ctx = await loadProjectContext(client, actor, contractId);
+  if (!ctx) return null;
+  const classSet = (await loadStorePolicy(actor.organisationId, client)).projectDocumentClassId !== null;
+  const status = actStatusFault("PROJECT_WORKSPACE", ctx.contract.status as ContractStatus);
+  const shut = status ? actStatusText(status) : null;
+  const faults = createFaults({ actor: { side: "CONTRACTOR", accountId: actor.accountId }, classSet, title: "title", note: "", first: { upload: { files: 1, note: "", kind: null, signed: false } }, approvers: [] });
+  return { create: gateOf(faults, ctx.org.name, shut), organisationName: ctx.org.name };
 }
 
 // ------------------------------------------------------------------ "Waiting for you"
