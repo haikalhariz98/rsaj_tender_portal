@@ -56,7 +56,7 @@ import { registerUploadLimiter, uploadLimiter } from "@/lib/documents/concurrenc
 import { sha256Hex } from "@/lib/documents/store";
 import { HONEYPOT_FIELD, type RegisterReadiness } from "@/lib/portal/apply";
 import type { RegisterSettings } from "@/lib/portal/apply-repo";
-import { registerBodyCeiling } from "@/lib/portal/register/ceiling";
+import { REGISTER_TEXT_ALLOWANCE, registerBodyCeiling } from "@/lib/portal/register/ceiling";
 import { documentFilePart, REGISTER_APPLICATION_PART, STATEMENT_FILE_PART, type PublicApplicationBody } from "@/lib/portal/register/contract";
 import { body as baseBody, step1 } from "@/lib/portal/register/fixture";
 import type { HeldFile, ReceiveInput } from "@/lib/portal/register/receive-store";
@@ -97,11 +97,11 @@ const application = (o: Partial<PublicApplicationBody> = {}): PublicApplicationB
 const READY: RegisterReadiness = {
   today: "2026-10-09", entityTypeCodes: ["demo_private"], countryCodes: ["demo_home"], stateCodes: ["demo_state"], numberingReady: true, noticeSet: true, termsTextSet: true,
   falseDeclarationTextSet: true, giroTextSet: true, verificationNoticeSet: true, documentTypesSet: true, banksSet: true, accountTypesSet: true, storeRulesSet: true, ceilingSet: true,
-  documentClassSet: true, statementClassSet: true, quotasSet: true, limitsSet: true, onlineDeclarationAccepted: true, storeDriverSet: true, formKeySet: true,
+  documentClassSet: true, statementClassSet: true, quotasSet: true, limitsSet: true, onlineDeclarationAccepted: true, storeDriverSet: true, formKeySet: true, addressLimitSet: true, bodyCapSet: true,
 };
 
 /// The register as `loadRegisterSettings` would read it: open, with these upload rules.
-function register(o: { capBytes?: bigint; maxFiles?: number; maxBytes?: bigint; missing?: boolean; daily?: number } = {}): RegisterSettings {
+function register(o: { capBytes?: bigint; maxFiles?: number; maxBytes?: bigint; missing?: boolean; daily?: number; perAddress?: number } = {}): RegisterSettings {
   const capBytes = o.capBytes ?? 1n * MB;
   const maxFiles = o.maxFiles ?? 6;
   const maxBytes = o.maxBytes ?? 4n * MB;
@@ -119,6 +119,7 @@ function register(o: { capBytes?: bigint; maxFiles?: number; maxBytes?: bigint; 
     },
     ceiling: registerBodyCeiling({ capBytes, maxFiles, maxBytes }),
     limits: { daily: o.daily ?? 50, perNumber: 3 },
+    addressLimit: { attempts: o.perAddress ?? 1000, minutes: 60 },
     readiness: READY,
     missing: o.missing ? [{ en: "the Terms and Conditions" }] : [],
   };
@@ -516,5 +517,39 @@ describe("the portal's own folder", () => {
       .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\./.test(f))
       .filter((f) => /^\s*["']use server["']/m.test(readFileSync(f, "utf8")));
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("the per-address limit (RSEC-1(a))", () => {
+  const from = (address: string) => ({ headers: { "x-forwarded-for": address } });
+  it("counts every submission from an address, refused or received, and refuses past the limit before the body; a spent token is still answered", async () => {
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "1");
+    h.register = register({ perAddress: 2 });
+    const address = `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
+    expect((await send(parts(), { ...from(address), token: null })).json.code).toBe("FORM_EXPIRED");
+    expect((await send(parts(), from(address))).json).toMatchObject({ ok: true });
+    const over = await send(parts(), from(address));
+    expect([over.res.status, over.json.code, over.pulled]).toEqual([429, "TOO_MANY", false]);
+    expect(over.json.message).toMatch(/Nothing was sent/);
+    expect(Number(over.res.headers.get("retry-after"))).toBe(3600);
+    // A retry of a send that landed learns its reference, whatever its address sent since.
+    const t = token(new Date(), "CCCCCCCCCCCCCCCCCCCCCC");
+    h.spent.set(tokenSha256(t), "DEMO/APP/0009/2026");
+    expect((await send(parts(), { ...from(address), token: t })).json).toEqual({ ok: true, reference: "DEMO/APP/0009/2026" });
+    // Another address is not touched.
+    expect((await send(parts(), from("203.0.113.250"))).json).toMatchObject({ ok: true });
+  });
+
+  it("is never applied while the address is unknown (TRUSTED_PROXY_HOPS unset)", async () => {
+    h.register = register({ perAddress: 1 });
+    for (let n = 0; n < 3; n++) expect((await send(parts(), from("198.51.100.250"))).json).toMatchObject({ ok: true });
+  });
+});
+
+describe("the application part's length (security audit M1)", () => {
+  it("is refused unread past the allowance it was sized by", async () => {
+    const r = await send([[REGISTER_APPLICATION_PART, " ".repeat(Number(REGISTER_TEXT_ALLOWANCE) + 1)]]);
+    expect([r.res.status, r.json.code]).toEqual([400, "UNREADABLE"]);
+    expect(h.received).toHaveLength(0);
   });
 });

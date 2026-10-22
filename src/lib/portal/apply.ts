@@ -217,6 +217,10 @@ export interface RegisterReadiness {
   storeDriverSet: boolean;
   /// The portal's form key (`PORTAL_FORM_SECRET`).
   formKeySet: boolean;
+  /// RSEC-1(a): `portalAddressAttempts` and `portalAddressMinutes`, the per-address limit.
+  addressLimitSet: boolean;
+  /// Security audit M1: the deployment's cap on one application's body (`REGISTER_MAX_BODY_BYTES`), valid.
+  bodyCapSet: boolean;
 }
 
 /// What the register still lacks before it can take an application, each named, in the order a person would set it.
@@ -242,9 +246,11 @@ export function whatIsMissing(c: RegisterReadiness): Words[] {
     [!c.statementClassSet, m.statementClass],
     [!c.quotasSet, m.quotas],
     [!c.limitsSet, m.limits],
+    [!c.addressLimitSet, m.addressLimit],
     [!c.onlineDeclarationAccepted, m.onlineDeclaration],
     [!c.storeDriverSet, m.storeDriver],
     [!c.formKeySet, m.formKey],
+    [!c.bodyCapSet, m.bodyCap],
   ];
   return unset.filter(([missing]) => missing).map(([, words]) => words);
 }

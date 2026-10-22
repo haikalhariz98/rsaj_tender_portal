@@ -89,6 +89,8 @@ const EXEMPT: Readonly<Record<string, string>> = {
   "src/lib/portal/registration/upload-store.ts": "the online application of an applicant, not yet on the register: its status is judged by `registration/state.ts`",
   // ADR 0041 (registration step 2): the public form's one submission.
   "src/lib/portal/register/receive-store.ts": "a stranger's whole registration, received with nobody signed in and no supplier on the register (REG-1): there is no supplier whose standing could be asked",
+  // RSEC-1(a): the per-address counter is in memory. The scan sees `Map.delete(`.
+  "src/lib/portal/register/address-limit.ts": "writes nothing to the database: it counts a stranger's submissions per address in memory (`Map.delete(` is what the scan sees)",
 };
 
 describe("every write of the portal asks the supplier's standing", () => {

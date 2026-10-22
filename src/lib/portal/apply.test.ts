@@ -169,7 +169,7 @@ describe("the bait field", () => {
   });
 });
 
-describe("what the register lacks (plan section 5: each of the 22 named)", () => {
+describe("what the register lacks (plan section 5, RSEC-1 and audit M1: each of the 24 named)", () => {
   const ready: RegisterReadiness = {
     today: "2026-10-06",
     entityTypeCodes: ["a"],
@@ -193,6 +193,8 @@ describe("what the register lacks (plan section 5: each of the 22 named)", () =>
     onlineDeclarationAccepted: true,
     storeDriverSet: true,
     formKeySet: true,
+    addressLimitSet: true,
+    bodyCapSet: true,
   };
   const nothing: RegisterReadiness = Object.fromEntries(Object.entries(ready).map(([k, v]) => [k, Array.isArray(v) ? [] : typeof v === "boolean" ? false : null])) as unknown as RegisterReadiness;
 
@@ -200,16 +202,16 @@ describe("what the register lacks (plan section 5: each of the 22 named)", () =>
     expect(whatIsMissing(ready)).toEqual([]);
   });
 
-  it("names all 22 in the order a person would set them, in plain words", () => {
+  it("names all 24 in the order a person would set them, in plain words", () => {
     const missing = whatIsMissing(nothing);
-    expect(missing).toHaveLength(22);
+    expect(missing).toHaveLength(24);
     expect(missing).toEqual([
       APPLY.missing.timeZone, APPLY.missing.entityTypes, APPLY.missing.countries, APPLY.missing.states, APPLY.missing.numbering, APPLY.missing.notice, APPLY.missing.termsText,
       APPLY.missing.falseDeclarationText, APPLY.missing.giroText, APPLY.missing.verificationNotice, APPLY.missing.documentTypes, APPLY.missing.banks, APPLY.missing.accountTypes,
       APPLY.missing.storeRules, APPLY.missing.ceiling, APPLY.missing.documentClass, APPLY.missing.statementClass, APPLY.missing.quotas, APPLY.missing.limits,
-      APPLY.missing.onlineDeclaration, APPLY.missing.storeDriver, APPLY.missing.formKey,
+      APPLY.missing.addressLimit, APPLY.missing.onlineDeclaration, APPLY.missing.storeDriver, APPLY.missing.formKey, APPLY.missing.bodyCap,
     ]);
-    expect(new Set(missing.map((m) => m.en)).size).toBe(22);
+    expect(new Set(missing.map((m) => m.en)).size).toBe(24);
     for (const m of missing) expect(m.en).not.toMatch(/Configuration|[A-Z]{2,}_|[a-z][A-Z]/);
   });
 
@@ -236,6 +238,8 @@ describe("what the register lacks (plan section 5: each of the 22 named)", () =>
     ["the online declaration accepted in place of paper (O-8)", { onlineDeclarationAccepted: false }, "onlineDeclaration"],
     ["the document store driver", { storeDriverSet: false }, "storeDriver"],
     ["the form key", { formKeySet: false }, "formKey"],
+    ["the per-address limit (RSEC-1)", { addressLimitSet: false }, "addressLimit"],
+    ["the deployment's cap on one application (security audit M1)", { bodyCapSet: false }, "bodyCap"],
   ] as const)("keeps the register closed until %s is set, and names only that", (_name, unset, key) => {
     expect(whatIsMissing({ ...ready, ...unset } as RegisterReadiness)).toEqual([APPLY.missing[key]]);
   });

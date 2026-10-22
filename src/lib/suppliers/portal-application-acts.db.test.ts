@@ -114,6 +114,7 @@ const register = (): RegisterSettings =>
     },
     ceiling: 2_000_000n,
     limits: { daily: 1000, perNumber: 5 },
+    addressLimit: { attempts: 1000, minutes: 60 },
     readiness: null as never,
     missing: [],
   }) as RegisterSettings;

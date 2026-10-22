@@ -8681,6 +8681,11 @@ model SupplierPolicy {
   portalDailyLimit          Int?
   portalDailyLimitPerNumber Int?
   portalLimitProvenance     Provenance?
+  /// RSEC-1 (security audit H2): how many submissions the public registration takes from one source address in a window of so many minutes, counted in memory per server process.
+  /// Null: not set, and the public form stays closed. Never applied while the address is unknown (TRUSTED_PROXY_HOPS unset, ADR 0034 D11). Two-person path.
+  portalAddressAttempts   Int?
+  portalAddressMinutes    Int?
+  portalAddressProvenance Provenance?
   /// OD-6 A: what follows at an opening from a linked bidder found not eligible. Null: not set, and an
   /// opening holding such a bid cannot finalise, naming this setting.
   ineligibleBidConsequence IneligibleBidConsequence?

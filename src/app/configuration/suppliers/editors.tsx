@@ -228,7 +228,7 @@ export function EditPortalIntake({ values }: { values: Record<string, string> })
   return (
     <RecordEditor
       title="Edit online applications"
-      description="The public form stays closed until the notice and both limits are set."
+      description="The public form stays closed until the notice and every limit are set."
       more="The per-number limit stops one number being sent over and over. The cost: anyone can send a company's number that many times and turn that company away online for 24 hours. It can still apply on paper, and the busy message sends it to the office."
       columns={2}
       fields={[
@@ -238,6 +238,9 @@ export function EditPortalIntake({ values }: { values: Record<string, string> })
         { kind: "number", name: "portalDailyLimit", label: "Applications taken in any 24 hours", min: 1, hint: "Once reached, the form says it is busy." },
         { kind: "number", name: "portalDailyLimitPerNumber", label: "Applications taken for one registration number in 24 hours", min: 1, hint: "Must not exceed the figure beside it." },
         provenance("portalLimitProvenance", "Where the limits come from"),
+        { kind: "number", name: "portalAddressAttempts", label: "Applications from one address", min: 1, hint: "Every try counts, sent or refused." },
+        { kind: "number", name: "portalAddressMinutes", label: "Minutes they are counted over", min: 1 },
+        provenance("portalAddressProvenance", "Where the address limit comes from"),
       ]}
       values={values}
       reason={{ label: "Why this changes" }}

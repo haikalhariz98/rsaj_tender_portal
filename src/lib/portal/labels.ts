@@ -403,9 +403,11 @@ export const APPLY = {
     statementClass: w("a SULIT document class for bank statements"),
     quotas: w("how many files and bytes one application may send"),
     limits: w("how many applications the form takes"),
+    addressLimit: w("how many applications one address may send"),
     onlineDeclaration: w("accepting the online declaration in place of paper"),
     storeDriver: w("the document store"),
     formKey: w("the portal's form key"),
+    bodyCap: w("the deployment's largest application"),
   },
   // REG-4 (ADR 0041 D4): the terms card on step 5, shared by the public form and the signed-in wizard.
   termsTitle: w("Terms and conditions"),
@@ -432,6 +434,7 @@ export const APPLY = {
   submitTooSlow: w("The files took too long to arrive. Nothing was sent. Try again on a faster connection."),
   submitUnreadable: w("The application could not be read. Nothing was sent."),
   busy: w("Too many applications right now. Nothing was sent. Try again later."),
+  tooManyFromAddress: w("Too many tries from your connection. Nothing was sent. Try again later."),
 };
 
 /// The registration steps' field hints (Phase 4b), shared by the signed-in wizard and the public form (ADR 0041): the shared components take their hints from a labels file (D6).

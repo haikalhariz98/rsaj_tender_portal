@@ -10,7 +10,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { trustedProxyHops } from "@/lib/auth/request";
 import { storedDay } from "@/lib/dates";
+import { addressLimitState } from "@/lib/portal/register/address-limit";
 import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
 import { asHeading, LIST_KIND_LABEL, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
@@ -77,12 +79,14 @@ export default async function SupplierRegisterConfigPage() {
   const listsEmpty = SUPPLIER_LIST_KINDS.filter((k) => !OPTIONAL_LIST_KINDS.includes(k) && cfg.liveCodes(k, org.today).length === 0);
   const p = cfg.policy;
   // a2: the standing rules, each "Not set" until decided (OD-4..OD-7, condition 4).
-  const rulesNotSet = [p?.criticalDays, p?.expiryOnClosingDayCounts, p?.autoSuspendOnLapse, p?.blacklistFirstOffenceMonths, p?.registerRequiredForSale, p?.restrictionEvidenceTypeId, p?.ineligibleBidConsequence, p?.personalDataNoticeEn, p?.portalDailyLimit, p?.portalDailyLimitPerNumber].filter((x) => x == null).length;
+  const rulesNotSet = [p?.criticalDays, p?.expiryOnClosingDayCounts, p?.autoSuspendOnLapse, p?.blacklistFirstOffenceMonths, p?.registerRequiredForSale, p?.restrictionEvidenceTypeId, p?.ineligibleBidConsequence, p?.personalDataNoticeEn, p?.portalDailyLimit, p?.portalDailyLimitPerNumber, p?.portalAddressAttempts].filter((x) => x == null).length;
   const declarationsMissing = DECLARATION_KINDS.filter((k) => !declTexts.some((t) => t.kind === k && live(t.retiredOn)));
   const registrationNotSet = [p?.helpEmail || p?.helpPhone || null, p?.uploadMaxFilesPerApplication, p?.supplierUploadClassId, p?.supplierBankStatementClassId, p?.onlineDeclarationReplacesPaper].filter((x) => x == null).length + declarationsMissing.length;
   const className = (id: string | null | undefined) => docClasses.find((c) => c.id === id)?.nameEn ?? "A class no longer configured";
   const reasonName = (id: string | null | undefined) => cfg.reasons.find((x) => x.id === id)?.nameEn ?? null;
   const typeName = (id: string | null | undefined) => cfg.types.find((x) => x.id === id)?.nameEn ?? null;
+  // RSEC-1(a): the address is known only behind a trusted proxy (ADR 0034 D11).
+  const addressLimit = addressLimitState({ attempts: p?.portalAddressAttempts ?? null, minutes: p?.portalAddressMinutes ?? null }, trustedProxyHops(process.env.TRUSTED_PROXY_HOPS) != null);
   const rule = (set: boolean, value: React.ReactNode, from: string | null | undefined, unset: string) =>
     set ? <span className="flex flex-col items-start gap-1"><span className="break-words">{value}</span><ProvenanceBadge value={from ?? null} /></span> : <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><span className="text-[12px] text-ink-3">{unset}</span></span>;
 
@@ -129,7 +133,7 @@ export default async function SupplierRegisterConfigPage() {
             actions={
               <span className="flex flex-wrap items-center gap-2">
                 {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="online applications" />}
-                <EditPortalIntake values={{ personalDataNoticeEn: p?.personalDataNoticeEn ?? "", personalDataNoticeMs: p?.personalDataNoticeMs ?? "", personalDataProvenance: p?.personalDataProvenance ?? "", portalDailyLimit: p?.portalDailyLimit?.toString() ?? "", portalDailyLimitPerNumber: p?.portalDailyLimitPerNumber?.toString() ?? "", portalLimitProvenance: p?.portalLimitProvenance ?? "" }} />
+                <EditPortalIntake values={{ personalDataNoticeEn: p?.personalDataNoticeEn ?? "", personalDataNoticeMs: p?.personalDataNoticeMs ?? "", personalDataProvenance: p?.personalDataProvenance ?? "", portalDailyLimit: p?.portalDailyLimit?.toString() ?? "", portalDailyLimitPerNumber: p?.portalDailyLimitPerNumber?.toString() ?? "", portalLimitProvenance: p?.portalLimitProvenance ?? "", portalAddressAttempts: p?.portalAddressAttempts?.toString() ?? "", portalAddressMinutes: p?.portalAddressMinutes?.toString() ?? "", portalAddressProvenance: p?.portalAddressProvenance ?? "" }} />
               </span>
             }
           />
@@ -140,6 +144,21 @@ export default async function SupplierRegisterConfigPage() {
                 { label: "Notice about personal details", value: rule(!!p?.personalDataNoticeEn?.trim(), <span className="whitespace-pre-line">{p?.personalDataNoticeEn}</span>, p?.personalDataProvenance, "The public form stays closed.") },
                 { label: "Applications in any 24 hours", value: rule(p?.portalDailyLimit != null, `${p?.portalDailyLimit} at most`, p?.portalLimitProvenance, "The public form stays closed.") },
                 { label: "Applications for one registration number in 24 hours", value: rule(p?.portalDailyLimitPerNumber != null, `${p?.portalDailyLimitPerNumber} at most`, p?.portalLimitProvenance, "The public form stays closed.") },
+                // RSEC-1(a): never shown as met while the address is unknown.
+                {
+                  label: "Applications from one address",
+                  value: rule(
+                    addressLimit !== "NOT_SET",
+                    <span className="flex flex-col items-start gap-1">
+                      <span>
+                        {p?.portalAddressAttempts} in {p?.portalAddressMinutes} minutes <MoreText text="Counted in memory on each server. A restart clears the count." />
+                      </span>
+                      {addressLimit === "NOT_APPLIED" && <Badge tone="warn">Set, not applied: addresses are unknown</Badge>}
+                    </span>,
+                    p?.portalAddressProvenance,
+                    "The public form stays closed.",
+                  ),
+                },
               ]}
             />
           </CardBody>

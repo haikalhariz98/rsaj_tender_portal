@@ -88,6 +88,7 @@ const register = (): RegisterSettings =>
     },
     ceiling: 2_000_000n,
     limits: { daily: 1000, perNumber: 2 },
+    addressLimit: { attempts: 1000, minutes: 60 },
     readiness: null as never,
     missing: [],
   }) as RegisterSettings;
@@ -264,6 +265,50 @@ describe("a refusal after the files were read leaves nothing, not a row and not 
     expect(out).toEqual({ ok: false, kind: "BUSY" });
     expect(await counts()).toEqual(before);
   });
+
+  it("an application of the number set aside or rejected no longer holds its place (RSEC-1(b)); the day's total still counts it", async () => {
+    const number = `RCV-${randomId()}`;
+    for (let n = 0; n < 2; n++) expect((await receivePublicApplication(input({ body: application(number) }))).ok).toBe(true);
+    expect(await receivePublicApplication(input({ body: application(number) }))).toEqual({ ok: false, kind: "BUSY" });
+    const sent = await db.portalApplication.findMany({ where: { organisationId: org.id, registrationNoKey: number.toUpperCase() }, orderBy: { receivedAt: "asc" } });
+    await db.portalApplication.update({ where: { id: sent[0]!.id }, data: { status: "DISCARDED", decidedAt: new Date() } });
+    expect((await receivePublicApplication(input({ body: application(number) }))).ok).toBe(true);
+    const third = await db.portalApplication.findFirstOrThrow({ where: { organisationId: org.id, registrationNoKey: number.toUpperCase(), status: "RECEIVED" }, orderBy: { receivedAt: "desc" } });
+    await db.portalApplication.update({ where: { id: third.id }, data: { status: "REJECTED", decidedAt: new Date() } });
+    expect((await receivePublicApplication(input({ body: application(number) }))).ok).toBe(true);
+    // The day's total counts every row: with the limit at what has arrived, nothing more is taken, whatever became of them.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const lastDay = await db.portalApplication.count({ where: { organisationId: org.id, receivedAt: { gte: since } } });
+    expect(await receivePublicApplication(input({ register: { ...register(), limits: { daily: lastDay, perNumber: 5 } } as RegisterSettings }))).toEqual({ ok: false, kind: "BUSY" });
+  });
+
+  it("no lock on the agreed texts is held while the bytes are written (security audit M3): a text retired meanwhile is not kept waiting, and still refuses the whole", async () => {
+    const before = await counts();
+    const terms = texts.TERMS_AND_CONDITIONS;
+    let retired = false;
+    // The first byte written stands for the slow part of a large application: while it is being written, an officer retires the terms from another connection.
+    const store = {
+      ...postgresBlobStore,
+      put: async (tx: Parameters<typeof postgresBlobStore.put>[0], o: string, sha: string, bytes: Uint8Array) => {
+        if (!retired) {
+          retired = true;
+          await db.declarationText.update({ where: { id: terms.id }, data: { retiredOn: new Date(`${today}T00:00:00Z`) } });
+        }
+        return postgresBlobStore.put(tx, o, sha, bytes);
+      },
+    };
+    try {
+      const out = await receivePublicApplication(input({ store }));
+      expect(retired).toBe(true);
+      if (out.ok || out.kind !== "VALIDATION") throw new Error(`expected a refusal by the rules, got ${JSON.stringify(out)}`);
+      expect(out.faults.some((f) => f.step === "review" && f.level === "block")).toBe(true);
+      expect(await counts()).toEqual(before);
+    } finally {
+      const old = await db.declarationText.findUniqueOrThrow({ where: { id: terms.id } });
+      const next = await db.declarationText.create({ data: { organisationId: org.id, kind: "TERMS_AND_CONDITIONS", version: old.version + 1, bodyEn: old.bodyEn, provenance: "ASSUMED", issuedOn: new Date("2026-01-01T00:00:00Z") } });
+      texts.TERMS_AND_CONDITIONS = { id: next.id, sha: frozenWording({ bodyEn: next.bodyEn, bodyMs: null }, org.name).sha256 };
+    }
+  }, 30_000);
 
   it("the terms retired between the page and Submit: refused at the review step, and every table as it was", async () => {
     const before = await counts();

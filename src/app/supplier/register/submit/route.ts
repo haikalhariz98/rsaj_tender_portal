@@ -18,7 +18,8 @@ import { honeypotTripped, HONEYPOT_FIELD, portalCapacity } from "@/lib/portal/ap
 import { loadRegisterSettings, type RegisterSettings } from "@/lib/portal/apply-repo";
 import { deploymentOrganisation } from "@/lib/portal/deployment";
 import { APPLY } from "@/lib/portal/labels";
-import { REGISTER_BODY_DEADLINE_SECONDS, REGISTER_BODY_GRACE_SECONDS, REGISTER_BODY_MIN_BYTES_PER_SECOND } from "@/lib/portal/register/ceiling";
+import { overAddressLimit, registerAddressCounter } from "@/lib/portal/register/address-limit";
+import { REGISTER_BODY_DEADLINE_SECONDS, REGISTER_BODY_GRACE_SECONDS, REGISTER_BODY_MIN_BYTES_PER_SECOND, REGISTER_TEXT_ALLOWANCE } from "@/lib/portal/register/ceiling";
 import { documentFilePart, REGISTER_APPLICATION_PART, STATEMENT_FILE_PART, type FaultView, type RegisterReply } from "@/lib/portal/register/contract";
 import { blockingPublicFaults, publicApplicationFaults, publicFaultViews } from "@/lib/portal/register/faults";
 import { heldDraft } from "@/lib/portal/register/held-draft";
@@ -90,8 +91,11 @@ export async function POST(request: Request) {
   // 2. Same origin, and a form body.
   const fault = foreignRequestFault(request, ["multipart/form-data"]);
   if (fault) return Response.json(refusalBody(fault.code, fault.message), { status: REFUSAL_STATUS[fault.code], headers: { "cache-control": "no-store" } });
+  // RSEC-1(a): every submission that reaches the route is counted against its address, refused or received. Nothing is counted while the address is unknown.
+  const address = requestFacts((n) => request.headers.get(n)).sourceAddress;
+  if (address) registerAddressCounter().hit(address, Date.now());
   try {
-    return await receive(request);
+    return await receive(request, address);
   } catch (e) {
     // The applicant is told nothing of the cause; the server's log holds it.
     console.error("Public supplier application failed", e);
@@ -99,7 +103,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function receive(request: Request): Promise<Response> {
+async function receive(request: Request, address: string | null): Promise<Response> {
   const now = stampNow();
 
   // 3. The token. Its signature is checked first, so EXPIRED means a token this deployment made: if it was spent, its reference is the answer.
@@ -122,6 +126,9 @@ async function receive(request: Request): Promise<Response> {
   if (!register || register.missing.length > 0 || register.ceiling == null || register.org.id !== deployment.id) return closed();
   const lastDay = await db.portalApplication.count({ where: { organisationId: register.org.id, receivedAt: { gte: new Date(now.getTime() - DAY_MS) } } });
   if (portalCapacity({ lastDay, forNumber: 0 }, register.limits) !== "OPEN") return busy();
+  // RSEC-1(a): the address's own count, after a spent token was answered (a retry learns its reference whatever its address sent since).
+  const windowMs = (register.addressLimit.minutes ?? 0) * 60_000;
+  if (address && overAddressLimit(registerAddressCounter().count(address, Date.now(), windowMs), register.addressLimit, address)) return reply({ ok: false, code: "TOO_MANY", message: APPLY.tooManyFromAddress.en }, 429, { "Retry-After": String(Math.ceil(windowMs / 1000)) });
 
   // 5. Capacity, before the body: one process holds only so many strangers' bodies at once, apart from everyone else's.
   const slot = registerUploadLimiter().tryAcquire();
@@ -157,7 +164,8 @@ async function receiveBody(request: Request, i: { now: Date; register: RegisterS
 
   // 9. The application's shape, and every part named for a row of it (or the statement). Anything else is not this form's.
   const raw = form.get(REGISTER_APPLICATION_PART);
-  if (typeof raw !== "string") return unreadable();
+  // Security audit M1: never parsed past the allowance it was sized by. A character is at least one byte, so a longer string is a longer body.
+  if (typeof raw !== "string" || raw.length > Number(REGISTER_TEXT_ALLOWANCE)) return unreadable();
   let json: unknown;
   try {
     json = JSON.parse(raw);
@@ -168,7 +176,7 @@ async function receiveBody(request: Request, i: { now: Date; register: RegisterS
   if (!parsed.ok) return unreadable();
   const body = parsed.value;
   const parts = new Map<string, { kind: UploadKind; key: string | null }>([[STATEMENT_FILE_PART, { kind: "statement", key: null }], ...body.documents.map((d) => [documentFilePart(d.clientKey), { kind: "document" as const, key: d.clientKey }] as const)]);
-  const sent: { part: { kind: UploadKind; key: string | null }; file: File }[] = [];
+  let sent: { part: { kind: UploadKind; key: string | null }; file: File }[] = [];
   for (const [name, value] of form.entries()) {
     if (name === REGISTER_APPLICATION_PART || name === HONEYPOT_FIELD) continue;
     const part = parts.get(name);
@@ -195,6 +203,7 @@ async function receiveBody(request: Request, i: { now: Date; register: RegisterS
     usage.bytes += size;
     accepted.push({ key: part.key, file, mediaType: sniffed! });
   }
+  sent = [];
 
   // 11. Every step's rules, on the body and the files that were taken. The context is the organisation's, with the codes chosen and the applicant's own number and contact.
   const fileCounts = new Map<string, number>();
@@ -207,13 +216,14 @@ async function receiveBody(request: Request, i: { now: Date; register: RegisterS
   // 12. The bytes, one copy each, and the one transaction.
   const files = new Map<string, HeldFile[]>();
   const statement: HeldFile[] = [];
-  for (const a of accepted) {
+  form = null;
+  // Each file let go as soon as its bytes are copied (security audit M1): the form and the lists no longer hold it, so a body is not held twice over while the next is read.
+  for (let a = accepted.shift(); a; a = accepted.shift()) {
     const bytes = new Uint8Array(await a.file.arrayBuffer());
     const held: HeldFile = { bytes, sha256: sha256Hex(bytes), mediaType: a.mediaType, originalFilename: a.file.name };
     if (a.key == null) statement.push(held);
     else files.set(a.key, [...(files.get(a.key) ?? []), held]);
   }
-  form = null;
   const blobs = blobStore();
   if ("fault" in blobs) return closed();
   const outcome = await receivePublicApplication({

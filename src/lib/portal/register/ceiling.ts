@@ -58,13 +58,21 @@ export interface CeilingSettings {
   maxBytes: bigint | null;
 }
 
-/// min(maxBytes, maxFiles × capBytes) + maxFiles × PART_OVERHEAD + REGISTER_TEXT_ALLOWANCE. Null while any setting is unset: the register is closed and names it.
-export function registerBodyCeiling(s: CeilingSettings): bigint | null {
-  if (s.capBytes == null || s.maxFiles == null || s.maxBytes == null) return null;
+/// min(maxBytes, maxFiles × capBytes) + maxFiles × PART_OVERHEAD + REGISTER_TEXT_ALLOWANCE, and never more than the deployment's cap (`REGISTER_MAX_BODY_BYTES`, security audit M1: a
+/// body costs the server several times its size in memory, so whoever runs it bounds it). Null while any setting is unset: the register is closed and names it.
+export function registerBodyCeiling(s: CeilingSettings & { deploymentCap?: bigint | null }): bigint | null {
+  if (s.capBytes == null || s.maxFiles == null || s.maxBytes == null || s.deploymentCap === null) return null;
   const files = BigInt(s.maxFiles);
   const byCount = files * s.capBytes;
   const fileBytes = s.maxBytes < byCount ? s.maxBytes : byCount;
-  return fileBytes + files * PART_OVERHEAD + REGISTER_TEXT_ALLOWANCE;
+  const derived = fileBytes + files * PART_OVERHEAD + REGISTER_TEXT_ALLOWANCE;
+  return s.deploymentCap != null && s.deploymentCap < derived ? s.deploymentCap : derived;
+}
+
+/// The deployment's cap on one application's body, in bytes (`REGISTER_MAX_BODY_BYTES`): a whole number of at least one. Null while unset or not a number, and the register is closed.
+export function registerBodyCap(raw: string | null | undefined): bigint | null {
+  const v = (raw ?? "").trim();
+  return /^[1-9][0-9]{0,15}$/.test(v) ? BigInt(v) : null;
 }
 
 /**

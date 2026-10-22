@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { HONEYPOT_FIELD } from "@/lib/portal/apply";
 import { CREDITOR_FIELDS } from "@/lib/portal/registration/types";
 
-import { PART_OVERHEAD, REGISTER_TEXT_ALLOWANCE, registerBodyCeiling } from "./ceiling";
+import { PART_OVERHEAD, REGISTER_TEXT_ALLOWANCE, registerBodyCap, registerBodyCeiling } from "./ceiling";
 import { documentFilePart, REGISTER_APPLICATION_PART, STATEMENT_FILE_PART, type PublicApplicationBody } from "./contract";
 import { ADDRESS_BOUNDS, AGREEMENT_BOUNDS, COMPANY_BOUNDS, CONTACT_BOUNDS, CREDITOR_BOUNDS, DOCUMENT_BOUNDS, LIST_BOUNDS, parsePublicApplication, SIGNATORY_BOUNDS } from "./parse";
 
@@ -13,6 +13,16 @@ describe("the body ceiling (ADR 0041 D9, REG-2, O-10)", () => {
     expect(registerBodyCeiling(s)).toBe(50_000_000n + 10n * PART_OVERHEAD + REGISTER_TEXT_ALLOWANCE);
     // The count times the cap, where that is the smaller.
     expect(registerBodyCeiling({ ...s, maxBytes: 500_000_000n })).toBe(100_000_000n + 10n * PART_OVERHEAD + REGISTER_TEXT_ALLOWANCE);
+  });
+
+  it("is never more than the deployment's cap, and closed while the cap is unset (security audit M1)", () => {
+    const s = { capBytes: 10_000_000n, maxFiles: 10, maxBytes: 50_000_000n };
+    const derived = registerBodyCeiling(s)!;
+    expect(registerBodyCeiling({ ...s, deploymentCap: 20_000_000n })).toBe(20_000_000n);
+    expect(registerBodyCeiling({ ...s, deploymentCap: derived + 1n })).toBe(derived);
+    expect(registerBodyCeiling({ ...s, deploymentCap: null })).toBeNull();
+    expect(registerBodyCap("104857600")).toBe(104_857_600n);
+    for (const raw of [undefined, "", " ", "0", "-1", "1e9", "12 MB"]) expect(registerBodyCap(raw)).toBeNull();
   });
 
   it("is null while any setting is unset: the register is closed, never opened on an assumed figure", () => {

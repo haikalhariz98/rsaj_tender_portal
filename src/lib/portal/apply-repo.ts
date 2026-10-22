@@ -22,7 +22,8 @@ import { REGISTRATION_NO_FORMAT_KEY } from "@/lib/suppliers/types";
 import { deploymentOrganisation } from "./deployment";
 import { PORTAL_APPLICATION_SERIES_KEY, whatIsMissing, type PortalApplicationContext, type PortalLimits, type RegisterReadiness } from "./apply";
 import type { Words } from "./labels";
-import { registerBodyCeiling } from "./register/ceiling";
+import type { AddressLimit } from "./register/address-limit";
+import { registerBodyCap, registerBodyCeiling } from "./register/ceiling";
 import type { PlainUploadPolicy, PublicRegistrationConfig, ShownText } from "./register/config";
 import { fillText } from "./registration/declaration";
 import { loadRegistrationSettings, registrationContextFor, type RegistrationSettings } from "./registration/context-store";
@@ -54,6 +55,8 @@ export interface RegisterSettings {
   /// The most bytes one application may weigh. Null while a setting it is derived from is unset (and the register is closed).
   ceiling: bigint | null;
   limits: PortalLimits;
+  /// RSEC-1(a): how many submissions one address may send in a window.
+  addressLimit: AddressLimit;
   readiness: RegisterReadiness;
   missing: Words[];
 }
@@ -69,7 +72,7 @@ export async function loadRegisterSettings(client: Tx = db, env: Record<string, 
   const [lists, format, policy, series, storePolicy, context, upload] = await inOrder(
     () => client.supplierListValue.findMany({ where: { organisationId: orgId, list: { in: [...STEP_ONE_LISTS] } }, orderBy: [{ list: "asc" }, { sortOrder: "asc" }, { nameEn: "asc" }], select: { list: true, code: true, nameEn: true, callingCode: true, retiredOn: true } }),
     () => client.codeFormat.findFirst({ where: { organisationId: orgId, key: REGISTRATION_NO_FORMAT_KEY }, select: { pattern: true } }),
-    () => client.supplierPolicy.findUnique({ where: { organisationId: orgId }, select: { portalDailyLimit: true, portalDailyLimitPerNumber: true, contactNeedsEmailAndPhone: true } }),
+    () => client.supplierPolicy.findUnique({ where: { organisationId: orgId }, select: { portalDailyLimit: true, portalDailyLimitPerNumber: true, portalAddressAttempts: true, portalAddressMinutes: true, contactNeedsEmailAndPhone: true } }),
     () => client.numberingSeries.findUnique({ where: { organisationId_key: { organisationId: orgId, key: PORTAL_APPLICATION_SERIES_KEY } }, select: { pattern: true, resetOn: true } }),
     () => loadStorePolicy(orgId, client),
     () => registrationContextFor(client, orgId, settings, [], { registrationNoKey: "", contactName: "" }),
@@ -86,7 +89,9 @@ export async function loadRegisterSettings(client: Tx = db, env: Record<string, 
     contactNeedsEmailAndPhone: policy?.contactNeedsEmailAndPhone ?? null,
   };
   const limits: PortalLimits = { daily: policy?.portalDailyLimit ?? null, perNumber: policy?.portalDailyLimitPerNumber ?? null };
-  const ceiling = registerBodyCeiling({ capBytes: upload.store.capBytes, maxFiles: upload.document.maxFiles, maxBytes: upload.document.maxBytes });
+  const addressLimit: AddressLimit = { attempts: policy?.portalAddressAttempts ?? null, minutes: policy?.portalAddressMinutes ?? null };
+  const bodyCap = registerBodyCap(env.REGISTER_MAX_BODY_BYTES);
+  const ceiling = registerBodyCeiling({ capBytes: upload.store.capBytes, maxFiles: upload.document.maxFiles, maxBytes: upload.document.maxBytes, deploymentCap: bodyCap });
   const readiness: RegisterReadiness = {
     today,
     entityTypeCodes: step1.entityTypeCodes,
@@ -110,6 +115,8 @@ export async function loadRegisterSettings(client: Tx = db, env: Record<string, 
     onlineDeclarationAccepted: settings.policy.onlineDeclarationReplacesPaper === true,
     storeDriverSet: !("fault" in blobStore(env)),
     formKeySet: formSecret(env) != null,
+    addressLimitSet: addressLimit.attempts != null && addressLimit.minutes != null,
+    bodyCapSet: bodyCap != null,
   };
   return {
     org: { id: orgId, code: deployment.code, timeZone: settings.org.timeZone, today, name: settings.org.name },
@@ -121,6 +128,7 @@ export async function loadRegisterSettings(client: Tx = db, env: Record<string, 
     upload,
     ceiling,
     limits,
+    addressLimit,
     readiness,
     missing: whatIsMissing(readiness),
   };

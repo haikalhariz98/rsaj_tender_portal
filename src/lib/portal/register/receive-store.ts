@@ -27,10 +27,13 @@ import { findSpent } from "./token-store";
  * (the blob store is transactional, ADR 0011):
  *
  * 1. the spent token, FIRST: a second send with the same token waits on its unique index, and then reads this one's reference;
- * 2. the application's reference, from its own series: the series row is the lock under which the day's and the number's counts are read;
- * 3. the organisation and the agreed texts held still (in `submit-store.ts`'s order), the texts and the notice read again, and every rule judged again on them;
+ * 2. the application's reference, from its own series: the series row is the lock under which the day's and the number's counts are read (the number's leaves out applications set
+ *    aside or rejected, RSEC-1(b); the day's counts every one);
+ * 3. every rule judged on the configuration as it reads now, unlocked, so a refusal costs no byte written;
  * 4. the application (`form WHOLE`), with step 1 as the applicant typed it;
  * 5. to 7. the certificates with their codes and files, and the bank details with the statement, filed in the classes the organisation chose, each file recorded by the application;
+ * 7a. only then the organisation and the agreed texts held still (in `submit-store.ts`'s order), the texts and the notice read again, and every rule judged again on them: no share
+ *    lock is held while the bytes are written (security audit M3), and a text retired meanwhile still refuses the whole;
  * 8. one agreement per tick, with the wording exactly as shown and its hash, the signatory as typed, and the organisation's day and the server's time;
  * 9. the token set to the application;
  * 10. one audit row, with no personal data in it.
@@ -104,21 +107,24 @@ export async function receivePublicApplication(i: ReceiveInput): Promise<Receive
         const since = new Date(i.now.getTime() - DAY_MS);
         const [lastDay, forNumber] = await inOrder(
           () => tx.portalApplication.count({ where: { organisationId: orgId, receivedAt: { gte: since } } }),
-          () => tx.portalApplication.count({ where: { organisationId: orgId, registrationNoKey: key, receivedAt: { gte: since } } }));
+          // RSEC-1(b): an application set aside or rejected no longer holds its number's place, so nobody can squat a number with junk the office threw out.
+          () => tx.portalApplication.count({ where: { organisationId: orgId, registrationNoKey: key, receivedAt: { gte: since }, status: { notIn: ["DISCARDED", "REJECTED"] } } }));
         const capacity = portalCapacity({ lastDay, forNumber }, register.limits);
         if (capacity === "NOT_SET") throw new Turned({ ok: false, kind: "CLOSED" });
         // Alike for both limits, so the form never says that this particular number has been sent before.
         if (capacity === "BUSY") throw new Turned({ ok: false, kind: "BUSY" });
 
-        // 3. The wording agreed to is held still until this commits, as the signed-in wizard's send holds it: the organisation first, then the texts, shared.
-        await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR KEY SHARE`;
-        await tx.$queryRaw`SELECT id FROM "DeclarationText" WHERE "organisationId" = ${orgId} FOR SHARE`;
-        const settings = await loadRegistrationSettings(tx, orgId);
-        if (!settings) throw new Turned({ ok: false, kind: "CLOSED" });
+        // 3. Every rule, on the configuration as it reads now (unlocked): a refusal here writes no byte. Judged again under the locks at 7a.
         const valueIds = [...new Set(body.documents.flatMap((d) => d.valueIds))];
-        const ctx = await registrationContextFor(tx, orgId, settings, valueIds, { registrationNoKey: key, contactName: body.company.contact.name });
-        const faults = blockingPublicFaults(publicApplicationFaults(body, heldDraft(body, fileCounts, i.statement.length), ctx, register.step1));
-        if (faults.length > 0) throw new Turned({ ok: false, kind: "VALIDATION", faults });
+        const judge = async () => {
+          const settings = await loadRegistrationSettings(tx, orgId);
+          if (!settings) throw new Turned({ ok: false, kind: "CLOSED" });
+          const ctx = await registrationContextFor(tx, orgId, settings, valueIds, { registrationNoKey: key, contactName: body.company.contact.name });
+          const faults = blockingPublicFaults(publicApplicationFaults(body, heldDraft(body, fileCounts, i.statement.length), ctx, register.step1));
+          if (faults.length > 0) throw new Turned({ ok: false, kind: "VALIDATION", faults });
+          return { settings, ctx };
+        };
+        const { ctx } = await judge();
         // The statement's class must still be SULIT, on the row: it may have changed since the settings were read.
         const statementClass = await tx.documentClass.findFirst({ where: { id: statementClassId, organisationId: orgId }, select: { classification: true } });
         if (statementClass?.classification !== "SULIT") throw new Turned({ ok: false, kind: "CLOSED" });
@@ -211,10 +217,17 @@ export async function receivePublicApplication(i: ReceiveInput): Promise<Receive
           fileCount += 1;
         }
 
+        // 7a. Only now, with every byte written, the wording agreed to is held still until this commits, as the signed-in wizard's send holds it (the organisation first, then the
+        // texts, shared), and every rule is judged again on what it reads under them. The agreements below are made on that reading.
+        await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR KEY SHARE`;
+        await tx.$queryRaw`SELECT id FROM "DeclarationText" WHERE "organisationId" = ${orgId} FOR SHARE`;
+        const held = await judge();
+        const settings = held.settings;
+
         // 8. The agreements: the wording exactly as shown and its hash, the signatory as typed on step 4 (unverified: nobody is signed in), the organisation's day and the server's time.
         // The terms row also carries the Personal Data Notice agreed by the same tick.
         for (const kind of AGREEMENT_ORDER) {
-          const text = ctx.texts[kind]!;
+          const text = held.ctx.texts[kind]!;
           const wording = frozenWording(text, settings.org.name);
           await tx.registrationDeclaration.create({
             data: {
@@ -226,7 +239,7 @@ export async function receivePublicApplication(i: ReceiveInput): Promise<Receive
               textSha256: wording.sha256,
               frozenTextEn: wording.en,
               frozenTextMs: wording.ms,
-              ...(kind === "TERMS_AND_CONDITIONS" ? { noticeSha256: ctx.personalDataNotice!.sha256, noticeFrozenEn: ctx.personalDataNotice!.en } : {}),
+              ...(kind === "TERMS_AND_CONDITIONS" ? { noticeSha256: held.ctx.personalDataNotice!.sha256, noticeFrozenEn: held.ctx.personalDataNotice!.en } : {}),
               signatoryName: body.signatory.name.trim(),
               signatoryDesignation: body.signatory.designation.trim(),
               signedOn: dayToDate(today),

@@ -36,7 +36,7 @@ export interface FaultView { step: RegistrationStep; field: string | null; level
 export type RegisterReply =
   | { ok: true; reference: string | null }   // null: a dropped bot (honeypot)
   | { ok: false; code: "VALIDATION"; message: string; faults: FaultView[] }
-  | { ok: false; code: "FORM_EXPIRED" | "CLOSED" | "BUSY" | "TOO_LARGE" | "TOO_SLOW" | "NO_LENGTH" | "UNREADABLE" | "TRY_AGAIN"; message: string };
+  | { ok: false; code: "FORM_EXPIRED" | "CLOSED" | "BUSY" | "TOO_MANY" | "TOO_LARGE" | "TOO_SLOW" | "NO_LENGTH" | "UNREADABLE" | "TRY_AGAIN"; message: string };
 
 export type TokenReply = { ok: true; token: string } | { ok: false; code: "CLOSED"; message: string };
 export interface ValueHit { id: string; code: string; name: string; kind: string; bodyId: string }

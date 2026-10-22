@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
 import { validLimit } from "@/lib/portal/apply";
+import { ADDRESS_LIMIT_BOUNDS } from "@/lib/portal/register/address-limit";
 import { documentTypeFaults, listValueFaults, valueFaults } from "@/lib/suppliers/config";
 import { exercisesHoldingRank } from "@/lib/tender-docs/requirement-store";
 import { bandPolicyFaults } from "@/lib/suppliers/expiry";
@@ -324,7 +325,15 @@ export async function savePortalIntake(_prev: FormState, data: FormData): Promis
     portalDailyLimit: r.int("portalDailyLimit", "Applications taken in any 24 hours", { min: 1 }),
     portalDailyLimitPerNumber: r.int("portalDailyLimitPerNumber", "Applications taken for one registration number in 24 hours", { min: 1 }),
     portalLimitProvenance: r.choice("portalLimitProvenance", "Where the limits come from", PROVENANCE),
+    // RSEC-1(a): how many submissions one address may send in a window, counted in memory per server process.
+    portalAddressAttempts: r.int("portalAddressAttempts", "Applications from one address", { min: ADDRESS_LIMIT_BOUNDS.attempts.min }),
+    portalAddressMinutes: r.int("portalAddressMinutes", "Minutes they are counted over", { min: ADDRESS_LIMIT_BOUNDS.minutes.min }),
+    portalAddressProvenance: r.choice("portalAddressProvenance", "Where the address limit comes from", PROVENANCE),
   };
+  if ((v.portalAddressAttempts == null) !== (v.portalAddressMinutes == null)) r.reject(v.portalAddressAttempts == null ? "portalAddressAttempts" : "portalAddressMinutes", "Set both, or neither.");
+  if ((v.portalAddressAttempts != null || v.portalAddressMinutes != null) && !v.portalAddressProvenance) r.reject("portalAddressProvenance", "Say where the address limit comes from.");
+  if (v.portalAddressAttempts != null && v.portalAddressAttempts > ADDRESS_LIMIT_BOUNDS.attempts.max) r.reject("portalAddressAttempts", `Use a whole number from 1 to ${ADDRESS_LIMIT_BOUNDS.attempts.max.toLocaleString("en-GB")}.`);
+  if (v.portalAddressMinutes != null && v.portalAddressMinutes > ADDRESS_LIMIT_BOUNDS.minutes.max) r.reject("portalAddressMinutes", `Use a whole number from 1 to ${ADDRESS_LIMIT_BOUNDS.minutes.max.toLocaleString("en-GB")}.`);
   if ((v.personalDataNoticeEn || v.personalDataNoticeMs) && !v.personalDataProvenance) r.reject("personalDataProvenance", "Say where the notice comes from.");
   if ((v.portalDailyLimit != null || v.portalDailyLimitPerNumber != null) && !v.portalLimitProvenance) r.reject("portalLimitProvenance", "Say where the limits come from.");
   if ((v.portalDailyLimit == null) !== (v.portalDailyLimitPerNumber == null)) r.reject(v.portalDailyLimit == null ? "portalDailyLimit" : "portalDailyLimitPerNumber", "Set both limits, or neither.");
@@ -343,6 +352,8 @@ export async function savePortalIntake(_prev: FormState, data: FormData): Promis
             applicationsPerDay: p.portalDailyLimit ?? "Not set",
             applicationsPerNumberPerDay: p.portalDailyLimitPerNumber ?? "Not set",
             limitsFrom: prov(p.portalLimitProvenance),
+            applicationsFromOneAddress: p.portalAddressAttempts != null && p.portalAddressMinutes != null ? `${p.portalAddressAttempts} in ${p.portalAddressMinutes} minutes` : "Not set",
+            addressLimitFrom: prov(p.portalAddressProvenance),
           }
         : null;
     if (!before) {
