@@ -44,6 +44,8 @@ export const CONTRACT_ACTS = [
   // 6.14: a certificate's acts after its issue (despatch, acknowledgement, copies, payment recording); before its issue a
   // certificate reads its kind's family (certificateAct, BD-613-114).
   "CERTIFICATE",
+  // ADR 0042 D11 (PW-22): the Project workspace's acts (documents, versions, requests, approvers, decisions, marks, the kick-off meeting).
+  "PROJECT_WORKSPACE",
   // 6.13 Part B.
   "EOT",
   "PERIOD_EXTENSION",
@@ -108,6 +110,10 @@ export const ACT_STATUS = {
   VARIATION: before(PC, MGC),
   SUM_ADJUSTMENT: before(PC, MGC),
   CERTIFICATE: before(PC, MGC, FCI),
+  // PW-22 (ADR 0042 D11): open from execution through practical completion, making good, the final certificate and termination; never before execution,
+  // when cancelled or once closed. Wider than SUPERVISION on purpose: documents are still exchanged on a terminated contract and up to its final certificate.
+  // Reading is never refused by this row.
+  PROJECT_WORKSPACE: executed(PC, MGC, FCI, T),
   EOT: executed(PC),
   // R4 (BD-613-119): a supplementary agreement extends a running term, never one already practically complete.
   PERIOD_EXTENSION: executed(),
@@ -296,7 +302,7 @@ export function actStatusWords(f: Finding): Words {
       return { en: "The contract is not executed yet: this is recorded once it is." };
     case "CONTRACT_TERMINATED":
       return {
-        en: "The contract is terminated: only termination consequences, debts, releases, a claim on the design guarantee bond, where the originals are held, and its close are recorded.",
+        en: "The contract is terminated: only termination consequences, debts, releases, a claim on the design guarantee bond, where the originals are held, project documents, and its close are recorded.",
       };
     case "CONTRACT_CLOSED":
       return { en: "The contract is closed: only debts, the release of or a claim on the design guarantee bond, and where the originals are held are recorded." };

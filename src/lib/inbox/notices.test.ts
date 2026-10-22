@@ -63,7 +63,8 @@ describe("the closed list of kinds", () => {
     // Changed for Phase 4e: the CHECK was replaced whole by the My Projects migration, which adds CONTRACTOR_SUBMISSION; the latest definition is the one held to the list.
     // Changed for Phase 5a (ruling item 9): replaced whole again by the back-dating confirmation's migration, which adds BACKDATE_TO_CONFIRM.
     // Changed for C13 (design note 0004, AC-20): replaced whole again by the migration that adds INDENT_EXPIRED and COMMENCEMENT_LATE.
-    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261110000000_staff_notices_indent_and_commencement/migration.sql"), "utf8");
+    // Changed for ADR 0042 D6 (PW-13): replaced whole again by the Project workspace's migration, which adds the three PROJECT_DOCUMENT_ kinds.
+    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261122000100_project_workspace/migration.sql"), "utf8");
     const check = /StaffNotice_kind_known" CHECK \(\("kind" IN \(([^)]*)\)\)/.exec(sql);
     expect(check, "the CHECK is in the migration").toBeTruthy();
     const named = [...check![1]!.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);

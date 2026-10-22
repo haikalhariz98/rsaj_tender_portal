@@ -174,3 +174,22 @@ describe("6.2 Q-3: a bill's imported file goes with the bill's exercise", () => 
     expect(onDemoSide(on({ bqVersionId: "cm_bqv1" }), side())).toBe(false);
   });
 });
+
+describe("ADR 0042 D1: a Project workspace version's files go with its contract", () => {
+  it("a demo version, or one the wipe removes with its contract, is on the demo side; a real one is not", () => {
+    expect(onDemoSide(on({ projectDocumentVersionId: "demo_pdv1" }, "att", "PROJECT_DOCUMENT_FILE"), side())).toBe(true);
+    expect(onDemoSide(on({ projectDocumentVersionId: "cm_pdv1" }, "att", "PROJECT_DOCUMENT_FILE"), side({ removedProjectVersionIds: new Set(["cm_pdv1"]) }))).toBe(true);
+    expect(onDemoSide(on({ projectDocumentVersionId: "cm_pdv1" }, "att", "PROJECT_DOCUMENT_FILE"), side())).toBe(false);
+    // An id in another kind's set does not count.
+    expect(onDemoSide(on({ projectDocumentVersionId: "cm_pdv1" }, "att", "PROJECT_DOCUMENT_FILE"), side({ removedTimeRecordIds: new Set(["cm_pdv1"]) }))).toBe(false);
+  });
+
+  it("the demo's file on a version the wipe removes is removed with the demo, not refused; on a real version it refuses, whatever the flag", () => {
+    const removed = side({ removedProjectVersionIds: new Set(["cm_pdv1"]) });
+    const p = documentWipePlan([doc("demo_doc7", [on({ projectDocumentVersionId: "cm_pdv1" }, "a7", "PROJECT_DOCUMENT_FILE")])], removed, false);
+    expect(p.refused).toBe(false);
+    expect(p.demoDocuments.map((d) => d.id)).toEqual(["demo_doc7"]);
+    const real = documentWipePlan([doc("demo_doc8", [on({ projectDocumentVersionId: "real_pdv1" }, "a8", "PROJECT_DOCUMENT_FILE")])], side(), true);
+    expect(real.hard.map((l) => l.kind)).toEqual(["DEMO_DOCUMENT_ON_REAL_RECORD"]);
+  });
+});

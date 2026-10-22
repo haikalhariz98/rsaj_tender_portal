@@ -47,11 +47,15 @@ describe("the table is exhaustive: every act, every status", () => {
     for (const a of CONTRACT_ACTS) expect(Object.keys(ACT_STATUS[a]).sort(), a).toEqual([...CONTRACT_STATUSES].sort());
     expect(Object.keys(ACT_STATUS).sort()).toEqual([...CONTRACT_ACTS].sort());
   });
-  it("35 families: 13 built before Part B (R2's originals included), then Part B's 22 (R5's design guarantee claim included)", () => {
-    expect(CONTRACT_ACTS.length).toBe(35);
-    expect(CONTRACT_ACTS.indexOf("EOT")).toBe(13);
+  // Changed for ADR 0042 D11 (PW-22): the Project workspace's row joins after the certificate's, before Part B's.
+  it("36 families: 13 built before Part B (R2's originals included), the Project workspace's, then Part B's 22 (R5's design guarantee claim included)", () => {
+    expect(CONTRACT_ACTS.length).toBe(36);
+    expect(CONTRACT_ACTS.indexOf("PROJECT_WORKSPACE")).toBe(CONTRACT_ACTS.indexOf("CERTIFICATE") + 1);
+    expect(CONTRACT_ACTS.indexOf("EOT")).toBe(14);
     expect(CONTRACT_ACTS.slice(0, 13)).toContain("ORIGINALS");
-    expect(CONTRACT_ACTS.slice(13)).toContain("DESIGN_GUARANTEE_CLAIM");
+    expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("PROJECT_WORKSPACE");
+    expect(CONTRACT_ACTS.slice(14)).toContain("DESIGN_GUARANTEE_CLAIM");
+    expect(CONTRACT_ACTS.slice(14)).toHaveLength(22);
   });
   it("CANCELLED refuses every act, first", () => {
     for (const a of CONTRACT_ACTS) expect(actStatusFault(a, "CANCELLED")?.code, a).toBe("CONTRACT_CANCELLED");
@@ -76,8 +80,9 @@ describe("Part A's answers, unchanged for the nine statuses that existed", () =>
 // Run 1a fix round (BD-613-113 as ruled, R1, R2, R5): CLOSE, SECURITY_RELEASE, DESIGN_BOND_RELEASE, ORIGINALS and
 // DESIGN_GUARANTEE_CLAIM join BD-613-99's seven.
 describe("BD-613-99: in TERMINATED exactly these acts are allowed", () => {
-  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification, debt, the releases of a security and the design guarantee bond, the originals' custody, the design guarantee claim and the close; no other", () => {
-    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CLOSE", "CONVERSE_DECISION", "DEBT", "DESIGN_BOND_RELEASE", "DESIGN_GUARANTEE_CLAIM", "NOMINATED_INCREASE", "ORIGINALS", "RECTIFICATION", "SECURITY_RELEASE", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
+  // Changed for ADR 0042 D11 (PW-22): the Project workspace stays open on a terminated contract.
+  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification, debt, the releases of a security and the design guarantee bond, the originals' custody, the design guarantee claim, the Project workspace and the close; no other", () => {
+    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CLOSE", "CONVERSE_DECISION", "DEBT", "DESIGN_BOND_RELEASE", "DESIGN_GUARANTEE_CLAIM", "NOMINATED_INCREASE", "ORIGINALS", "PROJECT_WORKSPACE", "RECTIFICATION", "SECURITY_RELEASE", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
     for (const a of CONTRACT_ACTS.filter((x) => !allowedIn("TERMINATED").includes(x))) expect(actStatusFault(a, "TERMINATED")?.code, a).toBe("CONTRACT_TERMINATED");
   });
   it("the TERMINATED_FINAL certificate's acts read TERMINATED_FINAL_ROUTE; the termination's own notices read the case", () => {
@@ -102,6 +107,27 @@ describe("R2: the originals' custody, for the record's life", () => {
   it("the closed and terminated contract's words name the originals", () => {
     expect(actStatusWords({ code: "CONTRACT_CLOSED", level: "block" }).en).toMatch(/where the originals are held/);
     expect(actStatusWords({ code: "CONTRACT_TERMINATED", level: "block" }).en).toMatch(/where the originals are held/);
+  });
+});
+
+describe("PW-22 (ADR 0042 D11): the Project workspace, from execution to the final certificate or termination", () => {
+  it("allowed in EXECUTED, STAMPED, ACTIVE, practically complete, making good complete, final certificate issued and terminated; refused before execution, cancelled and closed", () => {
+    const open: readonly ContractStatus[] = ["EXECUTED", "STAMPED", "ACTIVE", "PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED"];
+    for (const s of CONTRACT_STATUSES) expect(ACT_STATUS.PROJECT_WORKSPACE[s] === "ALLOWED", s).toBe(open.includes(s));
+    for (const s of ["NUMBER_ALLOCATED", "IN_PREPARATION", "PENDING_LEGAL_ENDORSEMENT", "RETURNED_FOR_AMENDMENT", "LEGALLY_ENDORSED"] as const) expect(actStatusFault("PROJECT_WORKSPACE", s)?.code, s).toBe("NOT_EXECUTED");
+    expect(actStatusFault("PROJECT_WORKSPACE", "CANCELLED")?.code).toBe("CONTRACT_CANCELLED");
+    expect(actStatusFault("PROJECT_WORKSPACE", "CLOSED")?.code).toBe("CONTRACT_CLOSED");
+  });
+  it("wider than SUPERVISION and FINAL_ACCOUNT on purpose: open at the final certificate and on termination, where those are not", () => {
+    for (const s of ["FINAL_CERTIFICATE_ISSUED", "TERMINATED"] as const) {
+      expect(ACT_STATUS.PROJECT_WORKSPACE[s], s).toBe("ALLOWED");
+      expect(ACT_STATUS.SUPERVISION[s], s).toBe("REFUSED");
+      expect(ACT_STATUS.FINAL_ACCOUNT[s], s).toBe("REFUSED");
+    }
+  });
+  it("the terminated contract's words name project documents, since they are still recorded; the closed contract's do not", () => {
+    expect(actStatusWords({ code: "CONTRACT_TERMINATED", level: "block" }).en).toMatch(/project documents/);
+    expect(actStatusWords({ code: "CONTRACT_CLOSED", level: "block" }).en).not.toMatch(/project documents/);
   });
 });
 

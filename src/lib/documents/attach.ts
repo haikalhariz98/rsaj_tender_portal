@@ -103,7 +103,10 @@ export type OwnerFacts =
   /// 6.13 Part B run 1b (FR-EOT-005, 006): an EOT claim, with its contract's status, whether it is determined or closed
   /// (it then stands on what it was determined with) and whether it is a weather claim (only one keeps meteorological
   /// records).
-  | { kind: "eotClaim"; contractStatus: ContractStatus; determined: boolean; closed: boolean; isWeather: boolean };
+  | { kind: "eotClaim"; contractStatus: ContractStatus; determined: boolean; closed: boolean; isWeather: boolean }
+  /// ADR 0042 D1: a version of a Project workspace document, with its contract's status. Its files are pinned by the workspace act that makes the version
+  /// (`OWNER_ACT_PURPOSES`), never from the shared attach choice; the PROJECT_WORKSPACE row is read first, as every contract purpose reads its family's.
+  | { kind: "projectDocumentVersion"; contractStatus: ContractStatus };
 
 /// 6.8: where an evaluation version stands (the Prisma enum's values).
 export type EvaluationState = "OPEN" | "ISSUED" | "SUPERSEDED" | "CANCELLED";
@@ -380,6 +383,9 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): Owner
       if (purpose === "METEOROLOGICAL_RECORD" && !owner.isWeather) return { state: "FROZEN", exit: "EOT_NOT_WEATHER" };
       return { state: "OPEN" };
     }
+    case "projectDocumentVersion":
+      // ADR 0042 D11: the PROJECT_WORKSPACE row first; then a version keeps the files it was made with (it is append-only).
+      return contractTableState(purpose, owner.contractStatus) ?? { state: "OPEN" };
   }
 }
 
@@ -405,6 +411,8 @@ export const CONTRACT_PURPOSE_FAMILY = {
   DELAY_NOTICE: "EOT",
   METEOROLOGICAL_RECORD: "EOT",
   EOT_CALCULATION: "EOT",
+  // ADR 0042 D11: a Project workspace version's files read the workspace's row.
+  PROJECT_DOCUMENT_FILE: "PROJECT_WORKSPACE",
 } as const satisfies Partial<Record<AttachmentPurpose, ContractAct>>;
 
 /**

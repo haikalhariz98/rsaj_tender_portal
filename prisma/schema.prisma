@@ -374,6 +374,12 @@ model Organisation {
   portalApplicationValues    PortalApplicationValue[]
   portalApplicationCreditors PortalApplicationCreditor[]
   portalFormTokens           PortalFormToken[]
+  /// ADR 0042 D1: the Project workspace.
+  projectDocuments         ProjectDocument[]
+  projectDocumentVersions  ProjectDocumentVersion[]
+  projectDocumentRequests  ProjectDocumentRequest[]
+  projectDocumentApprovers ProjectDocumentApprover[]
+  projectDocumentDecisions ProjectDocumentDecision[]
   registrationDrafts         RegistrationDraft[]
   registrationDraftDocuments RegistrationDraftDocument[]
   registrationDraftValues    RegistrationDraftValue[]
@@ -583,6 +589,14 @@ model Person {
   nonAwardNoticesIssued    NonAwardNotice[]         @relation("NonAwardIssuedBy")
   /// Phase 4e: the officer's answer to a contractor's submission, and the announcements board.
   contractorSubmissionsDecided ContractorSubmission[]  @relation("ContractorSubmissionDecidedBy")
+  /// ADR 0042 D1: the Project workspace's acts, and the approvers it names.
+  projectDocumentsCreated  ProjectDocument[]         @relation("ProjectDocumentCreatedBy")
+  projectVersionsUploaded  ProjectDocumentVersion[]  @relation("ProjectDocumentVersionUploadedBy")
+  projectRequestsMade      ProjectDocumentRequest[]  @relation("ProjectDocumentRequestedBy")
+  projectApproverOf        ProjectDocumentApprover[] @relation("ProjectDocumentApprover")
+  projectApproversAdded    ProjectDocumentApprover[] @relation("ProjectDocumentApproverAddedBy")
+  projectApproversRemoved  ProjectDocumentApprover[] @relation("ProjectDocumentApproverRemovedBy")
+  projectDocumentDecisions ProjectDocumentDecision[] @relation("ProjectDocumentDecidedBy")
   announcementsPublished   Announcement[]           @relation("AnnouncementPublishedBy")
   announcementsWithdrawn   Announcement[]           @relation("AnnouncementWithdrawnBy")
   envelopesReceived        BidEnvelope[]            @relation("EnvelopeReceivedBy")
@@ -1476,6 +1490,8 @@ model DocumentClass {
   /// Phase 4b: the supplier policy that names this class for a supplier's uploaded certificates, or for its bank statement.
   supplierUploadPolicies        SupplierPolicy[] @relation("SupplierUploadClass")
   onlineBidFilePolicies         DocumentStorePolicy[] @relation("OnlineBidFileClass")
+  /// ADR 0042 D7: the store policy that names this class for every Project workspace file.
+  projectDocumentPolicies       DocumentStorePolicy[] @relation("ProjectDocumentClass")
   supplierBankStatementPolicies SupplierPolicy[] @relation("SupplierBankStatementClass")
 
   @@unique([organisationId, code])
@@ -4152,6 +4168,8 @@ model Contract {
   diaryEndorsements      DiaryEndorsement[]
   /// Phase 4e: what the contractor sent from its portal account.
   contractorSubmissions  ContractorSubmission[]
+  /// ADR 0042 D1: the Project workspace's documents.
+  projectDocuments       ProjectDocument[]
   siteMeetings           SiteMeeting[]
   complianceObservations ComplianceObservation[]
   programmeDirections    ProgrammeDirection[]
@@ -4576,6 +4594,8 @@ enum AttachmentPurpose {
   PORTAL_APPLICATION_DOCUMENT
   /// ADR 0041 D2: the bank statement an applicant sent with an online application, on the held bank details. SULIT from receipt.
   PORTAL_APPLICATION_BANK_STATEMENT
+  /// ADR 0042 D1: a file of a Project workspace document's version, on the version.
+  PROJECT_DOCUMENT_FILE
 }
 
 enum DocumentAccessKind {
@@ -4600,6 +4620,9 @@ model DocumentStorePolicy {
   /// Wave 3b step 15: the class a moved online bid file takes (it must be SULIT). Null: not set, and an online opening cannot be finalised, naming the setting.
   onlineBidFileClassId String?
   onlineBidFileClass   DocumentClass? @relation("OnlineBidFileClass", fields: [onlineBidFileClassId], references: [id], onDelete: Restrict)
+  /// ADR 0042 D7 (PW-14): the class every Project workspace file takes. Must be classified and not SULIT. Null: not set, and nothing can be created or uploaded in the workspace, naming the setting.
+  projectDocumentClassId String?
+  projectDocumentClass   DocumentClass? @relation("ProjectDocumentClass", fields: [projectDocumentClassId], references: [id], onDelete: Restrict)
 
   provenance Provenance @default(ASSUMED)
   notes      String     @default("")
@@ -4787,6 +4810,9 @@ model DocumentAttachment {
   portalApplicationDocument   PortalApplicationDocument? @relation(fields: [portalApplicationDocumentId], references: [id], onDelete: Restrict)
   portalApplicationCreditorId String?
   portalApplicationCreditor   PortalApplicationCreditor? @relation(fields: [portalApplicationCreditorId], references: [id], onDelete: Restrict)
+  /// ADR 0042 D1: a version of a Project workspace document (its files).
+  projectDocumentVersionId    String?
+  projectDocumentVersion      ProjectDocumentVersion?    @relation(fields: [projectDocumentVersionId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -4812,6 +4838,7 @@ model DocumentAttachment {
   @@index([creditorProfileId])
   @@index([portalApplicationDocumentId])
   @@index([portalApplicationCreditorId])
+  @@index([projectDocumentVersionId])
   @@index([supplierDocumentId])
   @@index([supplierApplicationId])
   @@index([contractId])
@@ -12627,6 +12654,10 @@ model SupplierAccount {
   tenderInspections        TenderInspectionEvent[]   @relation("TenderInspectedBySupplier")
   /// Phase 4e: what this account sent, signed and disputed as the contractor.
   contractorSubmissionsSent ContractorSubmission[]   @relation("ContractorSubmissionSentBy")
+  /// ADR 0042 D1: what this account created, uploaded and asked for in a Project workspace.
+  projectDocumentsCreated  ProjectDocument[]         @relation("ProjectDocumentCreatedBySupplier")
+  projectVersionsUploaded  ProjectDocumentVersion[]  @relation("ProjectDocumentVersionUploadedBySupplier")
+  projectRequestsMade      ProjectDocumentRequest[]  @relation("ProjectDocumentRequestedBySupplier")
   diaryEntriesAttested     SiteDiaryEntry[]          @relation("DiaryAgentAttestedBy")
   diaryEntriesDisputed     SiteDiaryEntry[]          @relation("DiaryDisputedBy")
   certificateBlocksSigned  CertificateSignature[]    @relation("CertificateSignedBySupplier")
@@ -13190,6 +13221,164 @@ model ContractorSubmissionLine {
   value        Decimal              @db.Decimal(18, 2)
 
   @@unique([submissionId, sortOrder])
+}
+
+// ------------------------------------------------------------------ ADR 0042: the simple Project workspace (documents, versions, requests and optional approval)
+
+/// Which side of the contract a project document's versions come from (ADR 0042 D1, PW-5, PW-8). Set at creation, never changed.
+enum ProjectSide {
+  CONTRACTOR
+  ORGANISATION
+}
+
+/// A decision on one version: an approver's (APPROVED, REJECTED; PW-6, PW-7) or the mark on a version of one of the six kinds
+/// (TAKEN_UP, RETURNED; PW-9). The words a mark is read by are decided with the labels, not here (PW-24: defects rectified reads "Noted").
+enum ProjectDocumentOutcome {
+  APPROVED
+  REJECTED
+  TAKEN_UP
+  RETURNED
+}
+
+/// A document in a contract's Project workspace (ADR 0042 D1). Created with its first version or its first request, so never empty.
+/// Its state is never stored: one pure function derives it. Never deleted, and only `kind` changes, once, from null (a trigger).
+model ProjectDocument {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  title String
+  note  String      @default("")
+  /// The side whose versions this document holds: the creator's when the creator uploads first, the other side when the creator asks for it.
+  side  ProjectSide
+  /// One of the six kinds (PW-9), on a CONTRACTOR document only, picked by the contractor at its first version. Null: an ordinary document.
+  kind  ContractorSubmissionKind?
+
+  createdByPersonId          String?
+  createdByPerson            Person?          @relation("ProjectDocumentCreatedBy", fields: [createdByPersonId], references: [id], onDelete: Restrict)
+  createdBySupplierAccountId String?
+  createdBySupplierAccount   SupplierAccount? @relation("ProjectDocumentCreatedBySupplier", fields: [createdBySupplierAccountId], references: [id], onDelete: Restrict)
+  createdAt                  DateTime
+
+  versions  ProjectDocumentVersion[]
+  requests  ProjectDocumentRequest[]
+  approvers ProjectDocumentApprover[]
+
+  @@index([contractId, createdAt])
+  @@index([organisationId])
+}
+
+/// One version: shown as "Version {number}" with its day and uploader (PW-4). Its files are DocumentAttachment rows (purpose
+/// PROJECT_DOCUMENT_FILE). Append-only (a trigger).
+model ProjectDocumentVersion {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  documentId     String
+  document       ProjectDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  /// 1, 2, 3 within the document. Not the store's DocumentVersion.versionNo.
+  number Int
+  note   String @default("")
+
+  uploadedByPersonId          String?
+  uploadedByPerson            Person?          @relation("ProjectDocumentVersionUploadedBy", fields: [uploadedByPersonId], references: [id], onDelete: Restrict)
+  uploadedBySupplierAccountId String?
+  uploadedBySupplierAccount   SupplierAccount? @relation("ProjectDocumentVersionUploadedBySupplier", fields: [uploadedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// Server time, and the organisation's day from the server's clock (FR-EOT-001 for a delay notice).
+  uploadedAt DateTime
+  uploadedOn DateTime
+
+  /// True when the document had no live approver at upload (PW-8). Written with the row; an ORGANISATION version with this true is shared
+  /// with the contractor at once, and adding an approver later never hides it.
+  noApproversAtUpload Boolean
+
+  /// The request this version answers, if it answers one.
+  requestId String?                 @unique
+  request   ProjectDocumentRequest? @relation(fields: [requestId], references: [id], onDelete: Restrict)
+
+  /// STATUTORY_DECLARATION only: when the password was asked again (the attribution carries the signature). Step 6 writes it.
+  signedAt DateTime?
+
+  files     DocumentAttachment[]
+  decisions ProjectDocumentDecision[]
+
+  @@unique([documentId, number])
+  @@index([organisationId, uploadedAt])
+}
+
+/// A request for a document, to a side (PW-5, PW-30). Open while no version names it. Append-only (a trigger).
+model ProjectDocumentRequest {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  documentId     String
+  document       ProjectDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  /// Always the document's side, and never the asker's own.
+  toSide ProjectSide
+  note   String      @default("")
+
+  requestedByPersonId          String?
+  requestedByPerson            Person?          @relation("ProjectDocumentRequestedBy", fields: [requestedByPersonId], references: [id], onDelete: Restrict)
+  requestedBySupplierAccountId String?
+  requestedBySupplierAccount   SupplierAccount? @relation("ProjectDocumentRequestedBySupplier", fields: [requestedBySupplierAccountId], references: [id], onDelete: Restrict)
+  requestedAt                  DateTime
+
+  answeredBy ProjectDocumentVersion?
+
+  @@index([documentId])
+}
+
+/// A named approver of a document (PW-6, PW-25). Removed once, with a reason, before deciding the current version. Never deleted (a trigger).
+model ProjectDocumentApprover {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  documentId     String
+  document       ProjectDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  personId String
+  person   Person @relation("ProjectDocumentApprover", fields: [personId], references: [id], onDelete: Restrict)
+
+  addedByPersonId String
+  addedBy         Person   @relation("ProjectDocumentApproverAddedBy", fields: [addedByPersonId], references: [id], onDelete: Restrict)
+  addedAt         DateTime
+
+  removedAt         DateTime?
+  removedByPersonId String?
+  removedBy         Person?   @relation("ProjectDocumentApproverRemovedBy", fields: [removedByPersonId], references: [id], onDelete: Restrict)
+  removeReason      String    @default("")
+
+  decisions ProjectDocumentDecision[]
+
+  @@index([documentId])
+}
+
+/// A decision on one version (PW-6, PW-7, PW-9). Append-only (a trigger).
+model ProjectDocumentDecision {
+  id             String                 @id @default(cuid())
+  organisationId String
+  organisation   Organisation           @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  versionId      String
+  version        ProjectDocumentVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+
+  /// The approver who decided (APPROVED, REJECTED). Null for TAKEN_UP and RETURNED.
+  approverId String?
+  approver   ProjectDocumentApprover? @relation(fields: [approverId], references: [id], onDelete: Restrict)
+
+  outcome ProjectDocumentOutcome
+  remarks String                 @default("") @db.Text
+
+  decidedByPersonId String
+  decidedBy         Person   @relation("ProjectDocumentDecidedBy", fields: [decidedByPersonId], references: [id], onDelete: Restrict)
+  decidedAt         DateTime
+  decidedOn         DateTime
+
+  @@unique([versionId, approverId])
+  @@index([versionId])
 }
 
 /// The vendor announcements board (FR-VND-014): published by an officer the organisation has granted `announcements.publish`, shown to every signed-in supplier,

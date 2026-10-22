@@ -56,6 +56,11 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "SealedAccessEvent.supplierAccount": "The sealed access log itself (SR-13, ruling 20w): it records a supplier's attempt at sealed content, granted or refused, and is append-only for every login.",
   // N2 step 2 (PDPA right of access, ruling 1875(8)).
   "SupplierDataExport.account": "Which account took an export of the supplier's own data (N2): the column is the record, written with its audit row in the read's transaction. Reading one's own data is not an act and signs nothing.",
+  // ADR 0042 D1 (plan step 1): the Project workspace's three contractor columns. An upload, a request and the document they make sign nothing; each is the record, audited with the account.
+  // Step 6 revisits the version's column when the statutory declaration moves in (it keeps the password step-up of `ContractorSubmission.submittedBy`).
+  "ProjectDocument.createdBySupplierAccount": "Who made a Project workspace document from the portal (ADR 0042 D1): the column is the record, with exactly one creator by CHECK, and the act is audited with the account. It signs nothing.",
+  "ProjectDocumentVersion.uploadedBySupplierAccount": "Who uploaded a version from the portal (ADR 0042 D1): the column is the record, with exactly one uploader by CHECK, append-only, and audited with the account. An ordinary upload signs nothing.",
+  "ProjectDocumentRequest.requestedBySupplierAccount": "Who asked the organisation for a document from the portal (ADR 0042 D1): the column is the record, with exactly one requester by CHECK, append-only, and audited with the account. It signs nothing.",
 };
 
 describe("the schema scan finds what it should", () => {

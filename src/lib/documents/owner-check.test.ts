@@ -355,3 +355,56 @@ describe("615-C2: a registration cancelled is an owner, everywhere at once (X-6)
     for (const line of sql.split("\n").filter((l) => l.trim().startsWith("--"))) expect(line).not.toContain(";");
   });
 });
+
+/// The definition of a constraint as it stood after one migration folder, across the folders up to it in the order they apply.
+function checkAsOf(name: string, lastFolder: string): string {
+  let found: string | null = null;
+  for (const dir of migrations.filter((d) => d <= lastFolder)) {
+    const sql = readFileSync(join(migrationsDir, dir, "migration.sql"), "utf8");
+    for (const m of sql.matchAll(new RegExp(`ADD CONSTRAINT "${name}"\\s*CHECK\\s*([\\s\\S]*?);`, "g"))) found = m[1];
+  }
+  if (!found) throw new Error(`no CHECK ${name} up to ${lastFolder}`);
+  return found;
+}
+const ownerList = (def: string) => /num_nonnulls\(([^)]*)\)\s*=\s*1/.exec(def)![1].split(",").map((c) => c.trim().replace(/"/g, ""));
+const purposeArms = (def: string) => [...def.matchAll(/\("purpose"\s*(?:=|IN)\s*(?:\([^)]*\)|'[A-Z_]+')\s*AND\s*"\w+"\s+IS NOT NULL\)/g)].map((m) => m[0]);
+
+describe("ADR 0042 D1: the Project workspace version is an owner, everywhere at once (X-6)", () => {
+  const BEFORE = "20261118000100_portal_application_frozen";
+  const OWN = "20261122000000_enum_purpose_project_document_file";
+  const REBUILD = "20261122000100_project_workspace";
+
+  it("its key is counted by one_owner and PROJECT_DOCUMENT_FILE pairs with it", () => {
+    expect(latestCheck("DocumentAttachment_one_owner")).toMatch(/"projectDocumentVersionId"(, "\w+")*\) = 1/);
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\("purpose" = 'PROJECT_DOCUMENT_FILE' AND "projectDocumentVersionId" IS NOT NULL\)/);
+    expect(OWNER_COLUMN.projectDocumentVersion).toBe("projectDocumentVersionId");
+    expect(PURPOSE_OWNER.PROJECT_DOCUMENT_FILE).toBe("projectDocumentVersion");
+  });
+
+  it("every owner before the workspace is still counted, in the same order, with the new one added last and nothing dropped (before and after)", () => {
+    const before = ownerList(checkAsOf("DocumentAttachment_one_owner", BEFORE));
+    const after = ownerList(checkAsOf("DocumentAttachment_one_owner", REBUILD));
+    expect(before).toEqual(["meetingId", "exerciseId", "awardId", "delegationId", "specificationPanelId", "bqVersionId", "tenderPackPartId", "addendumId", "bidWithdrawalId", "validityExtensionId", "openingId", "evaluationId", "evaluationMeetingId", "evaluationBidderId", "supplierDocumentId", "supplierApplicationId", "contractId", "variationInstructionId", "standingEventId", "delayNoticeId", "eotClaimId", "registrationDraftDocumentId", "creditorProfileId", "onlineBidFileId", "portalApplicationDocumentId", "portalApplicationCreditorId"]);
+    expect(after).toEqual([...before, "projectDocumentVersionId"]);
+  });
+
+  it("every purpose arm before the workspace is still there, word for word, with the one new arm added (before and after)", () => {
+    const before = purposeArms(checkAsOf("DocumentAttachment_purpose_owner", BEFORE));
+    const after = purposeArms(checkAsOf("DocumentAttachment_purpose_owner", REBUILD));
+    expect(before.length).toBeGreaterThan(20);
+    expect(after.filter((a) => !before.includes(a))).toEqual([`("purpose" = 'PROJECT_DOCUMENT_FILE' AND "projectDocumentVersionId" IS NOT NULL)`]);
+    expect(before.filter((a) => !after.includes(a))).toEqual([]);
+  });
+
+  it("PROJECT_DOCUMENT_FILE arrived alone in its own migration, before the migration that rebuilt the CHECKs with it, which names it only inside that CHECK", () => {
+    const own = migrations.filter((d) => /ALTER TYPE "AttachmentPurpose" ADD VALUE 'PROJECT_DOCUMENT_FILE'/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes("'PROJECT_DOCUMENT_FILE'"));
+    expect(own).toEqual([OWN]);
+    expect(used[0]).toBe(REBUILD);
+    for (const u of used) expect(mentionsOutsidePurposeCheck(readFileSync(join(migrationsDir, u, "migration.sql"), "utf8"), "'PROJECT_DOCUMENT_FILE'"), u).toEqual([]);
+    const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(sql).toHaveLength(1);
+    // No semicolon inside a comment (the WASM engine splits on every one).
+    for (const f of [OWN, REBUILD]) for (const line of readFileSync(join(migrationsDir, f, "migration.sql"), "utf8").split("\n").filter((l) => l.trim().startsWith("--"))) expect(line, f).not.toContain(";");
+  });
+});

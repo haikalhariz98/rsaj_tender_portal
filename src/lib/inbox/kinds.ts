@@ -1,6 +1,6 @@
 /**
  * What the staff inbox can hold (Phase 3c). Product vocabulary, not policy: the closed list of events a notice is raised for. `StaffNotice.kind` is checked
- * against this list in the database (migration 20261009090000, widened by 20261017090000 for the contractor's submission by 20261018110000 for a back-dated signature to confirm and by 20261110000000 for the indent-expiry and late-commencement notices), and a source test holds the two together.
+ * against this list in the database (migration 20261009090000, widened by 20261017090000 for the contractor's submission by 20261018110000 for a back-dated signature to confirm, by 20261110000000 for the indent-expiry and late-commencement notices and by 20261122000100 for the Project workspace's three), and a source test holds the two together.
  *
  * Email is not connected (INT-09), so a notice is delivered in the portal and nowhere else. That is a fact about the product, not a per-notice setting, and it is
  * said where a notice is shown, in these words.
@@ -29,6 +29,12 @@ export const STAFF_NOTICE_KINDS = [
   "INDENT_EXPIRED",
   /// An issued award's work has not commenced by the end of the grace period (FR-AWD-009): the same people are told.
   "COMMENCEMENT_LATE",
+  /// A version of a Project workspace document waits on the recipient, a named approver of it (ADR 0042 D6, PW-13).
+  "PROJECT_DOCUMENT_TO_APPROVE",
+  /// The contractor uploaded a document or a new version in the Project workspace: the S.O. office's holders and acting holders are told (PW-13).
+  "PROJECT_DOCUMENT_FROM_CONTRACTOR",
+  /// The contractor asked the organisation for a document in the Project workspace: the same people are told (PW-13).
+  "PROJECT_DOCUMENT_REQUESTED",
 ] as const;
 
 export type StaffNoticeKind = (typeof STAFF_NOTICE_KINDS)[number];
@@ -45,6 +51,9 @@ export const STAFF_NOTICE_KIND_LABEL: Readonly<Record<StaffNoticeKind, Words>> =
   BACKDATE_TO_CONFIRM: w("A back-dated signature to confirm"),
   INDENT_EXPIRED: w("An indent has expired"),
   COMMENCEMENT_LATE: w("Work has not commenced"),
+  PROJECT_DOCUMENT_TO_APPROVE: w("Document to approve"),
+  PROJECT_DOCUMENT_FROM_CONTRACTOR: w("Document from the contractor"),
+  PROJECT_DOCUMENT_REQUESTED: w("Document asked for by the contractor"),
 };
 
 /// Said on every screen that shows a notice. The delivery is a fact of the product: there is no outbound email.

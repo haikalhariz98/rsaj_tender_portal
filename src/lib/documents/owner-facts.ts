@@ -214,5 +214,10 @@ export const EOT_CLAIM_FACTS_SELECT = { contractId: true, entitlement: true, isW
 type EotClaimRow = { contractId: string; entitlement: string | null; isWeather: boolean; matter: { reference: string | null; closedAt: Date | null }; contract: { status: ContractStatus; number: string; award: { awardeeName: string } } };
 export const eotClaimFacts = (c: EotClaimRow): OwnerFacts => ({ kind: "eotClaim", contractStatus: c.contract.status, determined: c.entitlement != null, closed: c.matter.closedAt != null, isWeather: c.isWeather });
 export const eotClaimLabel = (c: EotClaimRow) => `Contract ${c.contract.number} · extension-of-time claim ${c.matter.reference ?? "(not yet numbered)"}`;
+/// ADR 0042 D1: what a Project workspace version is judged and named by.
+export const PROJECT_DOCUMENT_VERSION_FACTS_SELECT = { number: true, document: { select: { title: true, contractId: true, contract: { select: { status: true, number: true } } } } } as const;
+type ProjectDocumentVersionRow = { number: number; document: { title: string; contractId: string; contract: { status: ContractStatus; number: string } } };
+export const projectDocumentVersionFacts = (v: ProjectDocumentVersionRow): OwnerFacts => ({ kind: "projectDocumentVersion", contractStatus: v.document.contract.status });
+export const projectDocumentVersionLabel = (v: ProjectDocumentVersionRow) => `Contract ${v.document.contract.number} · ${v.document.title}, version ${v.number}`;
 export const variationInstructionLabel = (i: InstructionRow) =>
   `Contract ${i.variation.contract.number} · variation ${i.variation.reference ?? "(not yet numbered)"} · the S.O.'s instruction ${i.certificate.number ?? "(not yet numbered)"}`;

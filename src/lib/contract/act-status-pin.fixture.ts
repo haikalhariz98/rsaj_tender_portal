@@ -16,6 +16,9 @@ export const TODAY_ACTS = {
   "src/app/projects/[id]/certificates/[certId]/actions.ts": ["sendCertificateForRouting", "recordCertificateReceived", "recordCertificateCheck", "sendCertificateToSigning", "recordCertificateSignature", "overrideCertificateFigure", "correctCertificateDay", "despatchCertificateCopy", "acknowledgeCertificateCopy", "voidCertificateAct", "sendCertificateForApproval", "decideCertificateRouteStep", "chooseCertificateRouteRejection", "recordCertificatePayment"],
 } as const;
 
+/// ADR 0042 D11 (PW-22): families added to the table after the pin, outside Part B. They have no pinned answer and no act in TODAY_ACTS.
+export const AFTER_PIN_FAMILIES = ["PROJECT_WORKSPACE"] as const;
+
 export const exported = (src: string) => [...src.matchAll(/^export async function ([a-zA-Z]+)\(/gm)].map((m) => m[1]);
 export const bodyOf = (src: string, name: string) => {
   const start = src.indexOf(`export async function ${name}(`);

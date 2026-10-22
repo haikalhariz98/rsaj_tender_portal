@@ -73,6 +73,8 @@ export interface PlanAttachment {
   /// 6.13 Part B run 1b: a delay notice or an EOT claim, which go with their contract (`removedTimeRecordIds`).
   delayNoticeId?: string | null;
   eotClaimId?: string | null;
+  /// ADR 0042 D1: a Project workspace version, which goes with its contract (`removedProjectVersionIds`).
+  projectDocumentVersionId?: string | null;
 }
 
 export interface PlanDocument {
@@ -114,6 +116,8 @@ export interface WipeSide {
   removedStandingEventIds?: ReadonlySet<string>;
   /// 6.13 Part B run 1b: the delay notices and EOT claims removed with their contract.
   removedTimeRecordIds?: ReadonlySet<string>;
+  /// ADR 0042 D1: the Project workspace versions removed with their contract.
+  removedProjectVersionIds?: ReadonlySet<string>;
 }
 
 /**
@@ -153,7 +157,7 @@ export interface DocumentWipePlan {
 
 /// Whether an attachment's record is demo data or removed with it.
 export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
-  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null, a.bidWithdrawalId ?? null, a.validityExtensionId ?? null, a.openingId ?? null, a.evaluationId ?? null, a.evaluationMeetingId ?? null, a.evaluationBidderId ?? null, a.supplierDocumentId ?? null, a.supplierApplicationId ?? null, a.contractId ?? null, a.variationInstructionId ?? null, a.standingEventId ?? null, a.delayNoticeId ?? null, a.eotClaimId ?? null].filter((k): k is string => k != null);
+  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null, a.bidWithdrawalId ?? null, a.validityExtensionId ?? null, a.openingId ?? null, a.evaluationId ?? null, a.evaluationMeetingId ?? null, a.evaluationBidderId ?? null, a.supplierDocumentId ?? null, a.supplierApplicationId ?? null, a.contractId ?? null, a.variationInstructionId ?? null, a.standingEventId ?? null, a.delayNoticeId ?? null, a.eotClaimId ?? null, a.projectDocumentVersionId ?? null].filter((k): k is string => k != null);
   // An attachment has exactly one owner (a CHECK); a row with none is never the demo's.
   if (keys.length === 0) return false;
   return keys.every(
@@ -172,7 +176,8 @@ export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
       (a.contractId === k && (side.removedContractIds?.has(k) ?? false)) ||
       (a.variationInstructionId === k && (side.removedInstructionIds?.has(k) ?? false)) ||
       (a.standingEventId === k && (side.removedStandingEventIds?.has(k) ?? false)) ||
-      ((a.delayNoticeId === k || a.eotClaimId === k) && (side.removedTimeRecordIds?.has(k) ?? false)),
+      ((a.delayNoticeId === k || a.eotClaimId === k) && (side.removedTimeRecordIds?.has(k) ?? false)) ||
+      (a.projectDocumentVersionId === k && (side.removedProjectVersionIds?.has(k) ?? false)),
   );
 }
 

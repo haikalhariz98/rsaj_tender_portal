@@ -382,6 +382,10 @@ export const OUT_MODELS: Readonly<Record<string, OutReason>> = {
   ContractorSubmission: "NOT_YET_EXPORTED",
   SiteDiaryEntry: "NOT_YET_EXPORTED",
   CertificateSignature: "NOT_YET_EXPORTED",
+  // ADR 0042 (plan step 1): the Project workspace's rows that name a supplier account. Step 5 moves them into EXPORT_COLUMNS (PW-19, PW-28).
+  ProjectDocument: "NOT_YET_EXPORTED",
+  ProjectDocumentVersion: "NOT_YET_EXPORTED",
+  ProjectDocumentRequest: "NOT_YET_EXPORTED",
 };
 
 /// The IN columns of a model, as a Prisma `select`.

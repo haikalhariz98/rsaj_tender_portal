@@ -215,6 +215,8 @@ describe("S3: the scan finds what it should (self-test)", () => {
 
   it("the owned models: the contract's records, its certificates, variations and securities; not a route or an evaluation", () => {
     for (const m of ["Contract", "Certificate", "Variation", "VariationInstruction", "SecurityInstrument", "InsurancePolicy", "InterimValuation", "SiteDiaryEntry", "ContractMatter", "CustodyMovement"]) expect(OWNED.has(m), m).toBe(true);
+    // ADR 0042 D11: the Project workspace's five tables hang on the contract, so every write to them must ask PROJECT_WORKSPACE's row (or be named here).
+    for (const m of ["ProjectDocument", "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentApprover", "ProjectDocumentDecision"]) expect(OWNED.has(m), m).toBe(true);
     for (const m of ["ApprovalInstance", "Evaluation", "Exercise", "Award", "Supplier", "DocumentAttachment"]) expect(OWNED.has(m), m).toBe(false);
   });
 

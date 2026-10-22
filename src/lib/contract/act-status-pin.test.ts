@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 
-import { bodyOf, exported, TODAY_ACTS, TODAY_STATUSES, todayAnswer } from "./act-status-pin.fixture";
+import { ACT_STATUS } from "./act-status";
+import { AFTER_PIN_FAMILIES, bodyOf, exported, TODAY_ACTS, TODAY_STATUSES, todayAnswer } from "./act-status-pin.fixture";
 import { isExecuted } from "./status";
 
 /**
@@ -35,6 +36,16 @@ describe("today's answers, pinned (before the act × status table)", () => {
   it("executed today means EXECUTED, STAMPED and ACTIVE, by both readers", () => {
     for (const s of TODAY_STATUSES) expect(isExecuted(s), s).toBe(["EXECUTED", "STAMPED", "ACTIVE"].includes(s));
     for (const s of TODAY_STATUSES) expect(EXECUTED_STATUSES.includes(s), s).toBe(["EXECUTED", "STAMPED", "ACTIVE"].includes(s));
+  });
+});
+
+// ADR 0042 D11 (PW-22): a family that arrived after the pin has no pinned answer. The Project workspace's row, for the statuses that existed then, reads as
+// Part B's do: refused before execution and when cancelled, allowed once executed. Its own acts (from step 4) are never added to TODAY_ACTS.
+describe("a family after the pin: the Project workspace", () => {
+  it("is not recorded before execution or when cancelled, and is recorded once executed, for every status that existed at the pin", () => {
+    expect([...AFTER_PIN_FAMILIES]).toEqual(["PROJECT_WORKSPACE"]);
+    for (const f of AFTER_PIN_FAMILIES) for (const s of TODAY_STATUSES) expect(ACT_STATUS[f][s], `${f} ${s}`).toBe(isExecuted(s) ? "ALLOWED" : "REFUSED");
+    expect(Object.keys(TODAY_ACTS)).toHaveLength(5);
   });
 });
 

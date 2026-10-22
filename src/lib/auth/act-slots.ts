@@ -209,6 +209,14 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // Phase 4e (6.14 OD-6, BD-614-31): the officer who answered a contractor's submission, the signed-in officer's own act, judged by the contract's supervision (the S.O., or a
   // representative whose letter lists contractor communication). An administrator is refused (NFR-SEC-004).
   slot("ContractorSubmission", "decidedBy", "Answered by", { holder: "TRANSACTION", entryPoints: ["src/app/documents/review-actions.ts#answerContractorSubmission"] }),
+  // ADR 0042 D2 (plan step 1): the Project workspace's staff acts, each the signed-in person's own (PW-5: the S.O., an acting holder, or a representative whose letter lists
+  // contractor communication). An approval or a rejection is not a signature (PW-26). No holder yet: step 4 wires each with its entry point.
+  slot("ProjectDocument", "createdByPerson", "Raised by"),
+  slot("ProjectDocumentVersion", "uploadedByPerson", "Sent by"),
+  slot("ProjectDocumentRequest", "requestedByPerson", "Requested by"),
+  slot("ProjectDocumentApprover", "addedBy", "Recorded by"),
+  slot("ProjectDocumentApprover", "removedBy", "Recorded by"),
+  slot("ProjectDocumentDecision", "decidedBy", "Decided by"),
   // Phase 4e (FR-VND-014): the officer who published an announcement to the supplier board, and the one who withdrew it. Each is the signed-in holder's own act, gated by
   // `announcements.publish`; an administrator is refused as at every act outside configuration (taken in the refusing direction; an open item for the product owner).
   slot("Announcement", "publishedBy", "Published by", { holder: "TRANSACTION", entryPoints: ["src/app/suppliers/announcement-actions.ts#publishAnnouncement"] }),
@@ -449,6 +457,7 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "SourcingExercise.personInCharge": "A designation: the officer named in charge of the exercise, not an act.",
   "Requisition.returnedTo": "A routing target: the person a requisition is returned to, who did nothing by being named.",
   "CustodyItem.custodian": "A state: who holds an original now, changed only by a custody movement (`CustodyMovement.person`).",
+  "ProjectDocumentApprover.person": "The approver named: who is asked to decide, not who acted. The act is the addition, whose slot is `ProjectDocumentApprover.addedBy`.",
 };
 
 export const slotKey = (entity: string, field: string): string => `${entity}.${field}`;

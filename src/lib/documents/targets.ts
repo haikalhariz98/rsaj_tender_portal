@@ -46,6 +46,7 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   onlineBidFile: "File of an online bid",
   portalApplicationDocument: "Certificate in an online application",
   portalApplicationCreditor: "Bank details in an online application",
+  projectDocumentVersion: "Version of a project document",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
@@ -111,6 +112,9 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
     case "portalApplicationDocument":
     case "portalApplicationCreditor":
       return exerciseId ? `/suppliers/online/${exerciseId}` : "/suppliers/online";
+    // ADR 0042 D5: a Project workspace version is on its contract's Documents list (the tab id stays "submissions"); the third argument is the contract's id.
+    case "projectDocumentVersion":
+      return exerciseId ? `/projects/${exerciseId}?tab=submissions` : "/projects";
   }
 }
 

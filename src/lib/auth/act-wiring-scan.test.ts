@@ -30,6 +30,13 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "LadWaiver.person": { why: "Waiving liquidated damages is a later 6.13 Part B increment: no act writes it.", writer: /\.ladWaiver\.(?:create|update|upsert)/ },
   "LossExpenseClaim.valuedBy": { why: "Valuing a loss-and-expense claim is a later 6.13 Part B increment: no act writes the valuation.", writer: /valuedByPersonId/ },
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
+  // ADR 0042 (plan step 1): the Project workspace's six staff slots are registered with the schema; step 4 builds their acts and takes each off this list.
+  "ProjectDocument.createdByPerson": { why: "Creating a Project workspace document is plan step 4: no act writes it yet.", writer: /\.projectDocument\.(?:create|createMany|update|updateMany|upsert)\(/ },
+  "ProjectDocumentVersion.uploadedByPerson": { why: "Uploading a version in the Project workspace is plan step 4: no act writes it yet.", writer: /\.projectDocumentVersion\.(?:create|createMany|createManyAndReturn)\(/ },
+  "ProjectDocumentRequest.requestedByPerson": { why: "Asking for a document in the Project workspace is plan step 4: no act writes it yet.", writer: /\.projectDocumentRequest\.(?:create|createMany|createManyAndReturn)\(/ },
+  "ProjectDocumentApprover.addedBy": { why: "Adding an approver to a Project workspace document is plan step 4: no act writes it yet.", writer: /\.projectDocumentApprover\.(?:create|createMany|createManyAndReturn)\(/ },
+  "ProjectDocumentApprover.removedBy": { why: "Removing an approver from a Project workspace document is plan step 4: no act writes it yet.", writer: /\.projectDocumentApprover\.(?:update|updateMany|upsert)\(/ },
+  "ProjectDocumentDecision.decidedBy": { why: "Approving or rejecting a Project workspace version is plan step 4: no act writes it yet.", writer: /\.projectDocumentDecision\.(?:create|createMany|createManyAndReturn)\(/ },
 };
 
 function walk(dir: string, out: string[] = []): string[] {

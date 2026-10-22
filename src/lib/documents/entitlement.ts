@@ -68,6 +68,7 @@ const ENTITY_OF: Readonly<Record<OwnerKind, string>> = {
   onlineBidFile: "OnlineBidFile",
   portalApplicationDocument: "PortalApplicationDocument",
   portalApplicationCreditor: "PortalApplicationCreditor",
+  projectDocumentVersion: "ProjectDocumentVersion",
 };
 
 /// The record an owner of documents is judged as (read without a lock).
@@ -77,6 +78,11 @@ export async function subjectOfOwner(client: Tx | typeof db, kind: OwnerKind, id
   if (exerciseId) {
     const ex = await client.sourcingExercise.findUnique({ where: { id: exerciseId }, select: { reference: true } });
     return { scope, exerciseId, entity: "SourcingExercise", id: exerciseId, label: ex?.reference ?? "" };
+  }
+  // ADR 0042 D7: a Project workspace version's files are judged as its contract's, by the contract's own scope.
+  if (kind === "projectDocumentVersion") {
+    const v = await client.projectDocumentVersion.findUnique({ where: { id }, select: { document: { select: { contractId: true, contract: { select: { number: true } } } } } });
+    if (v) return { scope, exerciseId: null, entity: "Contract", id: v.document.contractId, label: v.document.contract.number };
   }
   return { scope, exerciseId: null, entity: ENTITY_OF[kind], id, label: ENTITY_OF[kind] };
 }

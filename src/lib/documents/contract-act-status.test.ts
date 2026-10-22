@@ -8,7 +8,7 @@ import { CONTRACT_STATUSES, type ContractStatus } from "@/lib/contract/types";
 import { attachFault, CONTRACT_PURPOSE_FAMILY, detachFault, ownerState, type OwnerFacts } from "./attach";
 import { documentFaultText, EXIT_TEXT, exitWords } from "./labels";
 import { attachTargets } from "./targets";
-import { ATTACHMENT_PURPOSES, PURPOSE_OWNER, type AttachmentPurpose } from "./types";
+import { ATTACHMENT_PURPOSES, OWNER_ACT_PURPOSES, PURPOSE_OWNER, type AttachmentPurpose } from "./types";
 
 /**
  * BD-613-115, as ruled and brought forward into the Run 1a fix round (review S6). Every contract attachment purpose reads
@@ -19,7 +19,8 @@ import { ATTACHMENT_PURPOSES, PURPOSE_OWNER, type AttachmentPurpose } from "./ty
  */
 
 /// 6.13 Part B run 1b (flagged against run 1a, stricter): the delay notice's and the EOT claim's purposes are a contract's too.
-const CONTRACT_OWNERS = ["contract", "variationInstruction", "delayNotice", "eotClaim"];
+// ADR 0042 D11 (stricter): a Project workspace version's files are a contract's too, read by PROJECT_WORKSPACE's row.
+const CONTRACT_OWNERS = ["contract", "variationInstruction", "delayNotice", "eotClaim", "projectDocumentVersion"];
 const CONTRACT_PURPOSES = ATTACHMENT_PURPOSES.filter((p) => CONTRACT_OWNERS.includes(PURPOSE_OWNER[p]));
 const SITE: readonly AttachmentPurpose[] = ["PIPE_LOG", "AS_BUILT", "DIARY_PHOTO"];
 
@@ -30,7 +31,9 @@ const factsFor = (p: AttachmentPurpose, status: ContractStatus): OwnerFacts =>
       ? { kind: "delayNotice", contractStatus: status }
       : PURPOSE_OWNER[p] === "eotClaim"
         ? { kind: "eotClaim", contractStatus: status, determined: false, closed: false, isWeather: true }
-        : { kind: "contract", status, legalSubmitted: true, contractorSigned: false };
+        : PURPOSE_OWNER[p] === "projectDocumentVersion"
+          ? { kind: "projectDocumentVersion", contractStatus: status }
+          : { kind: "contract", status, legalSubmitted: true, contractorSigned: false };
 
 describe("BD-613-115: a contract's attachments read the act x status table first", () => {
   it("every purpose a contract (or its instruction) keeps names its owning family", () => {
@@ -39,6 +42,15 @@ describe("BD-613-115: a contract's attachments read the act x status table first
     for (const p of ["PROGRAMME", "PIPE_LOG", "AS_BUILT", "DIARY_PHOTO"] as const) expect(CONTRACT_PURPOSE_FAMILY[p], p).toBe("SUPERVISION");
     expect(CONTRACT_PURPOSE_FAMILY.INSTRUCTION_SKETCH).toBe("VARIATION");
     for (const p of ["DELAY_NOTICE", "METEOROLOGICAL_RECORD", "EOT_CALCULATION"] as const) expect(CONTRACT_PURPOSE_FAMILY[p], p).toBe("EOT");
+    expect(CONTRACT_PURPOSE_FAMILY.PROJECT_DOCUMENT_FILE).toBe("PROJECT_WORKSPACE");
+  });
+
+  it("ADR 0042 D11: a Project workspace version's files are open wherever the workspace is, and not before execution or once closed", () => {
+    const v = (contractStatus: ContractStatus): OwnerFacts => ({ kind: "projectDocumentVersion", contractStatus });
+    for (const s of ["EXECUTED", "ACTIVE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED"] as const) expect(ownerState("PROJECT_DOCUMENT_FILE", v(s)), s).toEqual({ state: "OPEN" });
+    expect(ownerState("PROJECT_DOCUMENT_FILE", v("LEGALLY_ENDORSED")).state).toBe("NOT_READY");
+    expect(ownerState("PROJECT_DOCUMENT_FILE", v("CLOSED")).state).toBe("FROZEN");
+    expect(ownerState("PROJECT_DOCUMENT_FILE", v("CANCELLED"))).toEqual({ state: "FROZEN", exit: "CONTRACT_CANCELLED" });
   });
 
   it("run 1b: the EOT claim keeps its papers until it is determined or closed; meteorological records only on a weather claim", () => {
@@ -98,6 +110,12 @@ describe("BD-613-115: a contract's attachments read the act x status table first
     for (const p of CONTRACT_PURPOSES) {
       for (const s of CONTRACT_STATUSES) {
         const facts = factsFor(p, s);
+        // ADR 0042 D8: a purpose its owner's own act attaches (a Project workspace version's files) is never offered by the attach screen, in any state.
+        if (OWNER_ACT_PURPOSES.includes(p)) {
+          expect(attachTargets([{ id: "x", label: "x", facts }])[0].purposes.find((x) => x.value === p), `${p} ${s}`).toBeUndefined();
+          expect(attachFault({ purpose: p, owner: facts, version: { withdrawnAt: null }, documentClass: { classification: "INTERNAL" } }).map((x) => x.code), `${p} ${s}`).toEqual(["ATTACHED_BY_OWNER_ACT"]);
+          continue;
+        }
         const screen = attachTargets([{ id: "x", label: "x", facts }])[0].purposes.find((x) => x.value === p)!;
         const store = attachFault({ purpose: p, owner: facts, version: { withdrawnAt: null }, documentClass: { classification: "INTERNAL" } }).filter((x) => x.code === "OWNER_NOT_READY" || x.code === "OWNER_FROZEN");
         expect(screen.open, `${p} ${s}`).toBe(store.length === 0);
