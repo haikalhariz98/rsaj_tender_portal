@@ -578,6 +578,11 @@ describe("staging: the window and the lock (PW-15, PW-32)", () => {
     expect((await uploadFile(contractId, { name: "notes.txt", bytes: new TextEncoder().encode("plain text, no signature") })).status).toBe(415);
     expect((await uploadFile(contractId, { name: "claim.pdf", bytes: new TextEncoder().encode("plain text, not a pdf") })).status).toBe(415);
     expect((await uploadFile(contractId, { bytes: new Uint8Array(0) })).status).toBe(422);
+    // A real picture the rules do not allow: refused in words that name what is accepted and point at no staff screen.
+    const png = await uploadFile(contractId, { name: "site.png", bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]) });
+    expect(png.status).toBe(415);
+    expect(png.body.message).toMatch(/not accepted here\. Send a PDF/);
+    expect(png.body.message).not.toMatch(/Upload rules|Configuration|administrator/i);
     expect((await uploadFile(null, { query: "" })).status).toBe(400);
     expect(await db.documentVersion.count({ where: { recordedBySupplierAccountId: c.accountId } })).toBe(before);
   });

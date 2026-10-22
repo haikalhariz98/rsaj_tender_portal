@@ -53,6 +53,8 @@ export interface UploadPreflight {
   classId: string;
   /// The most one file may be (the smaller of the customer's `maxBytes` and the deployment's ceiling).
   cap: bigint;
+  /// Which of the two binds, so a refusal for size says the right one.
+  capFrom: "POLICY" | "CEILING";
   /// What the organisation's upload rules allow, less the types a contractor's upload cannot be (Office files are staff-only).
   allowedTypes: string[];
 }
@@ -84,7 +86,7 @@ export async function preflightProjectUpload(actor: SupplierActor, contractId: s
   if ("fault" in cap) return { ok: false, outcome: notSetUp(cap.fault) };
   const allowedTypes = supplierAcceptedTypes(policy.allowedMediaTypes);
   if (allowedTypes.length === 0) return { ok: false, outcome: notSetUp("TYPES_NOT_SET") };
-  return { ok: true, value: { ctx, org, store: s.store, classId: policy.projectDocumentClassId, cap: cap.cap, allowedTypes } };
+  return { ok: true, value: { ctx, org, store: s.store, classId: policy.projectDocumentClassId, cap: cap.cap, capFrom: cap.from, allowedTypes } };
 }
 
 /// Raised from inside the staging transaction when the account's window is full: nothing is stored.

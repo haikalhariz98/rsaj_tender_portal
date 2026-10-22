@@ -3,7 +3,6 @@ import type { SupplierActor } from "@/lib/auth/types";
 import { filenameFault } from "@/lib/documents/access";
 import { limitBodyPaced } from "@/lib/documents/body";
 import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency";
-import { documentFaultText } from "@/lib/documents/labels";
 import { readLimit, requestLengthFault } from "@/lib/documents/limits";
 import { mediaFault, recogniseFile } from "@/lib/documents/media";
 import { logAccess, UploadRefusal } from "@/lib/documents/service";
@@ -12,6 +11,7 @@ import type { Finding } from "@/lib/documents/types";
 import { PROJECT_BODY_DEADLINE_SECONDS, PROJECT_BODY_GRACE_SECONDS, PROJECT_BODY_MIN_BYTES_PER_SECOND } from "@/lib/project-docs/bounds";
 import { parseUploadForm, parseUploadQuery } from "@/lib/project-docs/portal-api";
 import { preflightProjectUpload, storeProjectFile, WindowRefused, windowRefusalOutcome, type PortalOutcome } from "@/lib/project-docs/portal-upload";
+import { uploadFaultWords } from "@/lib/project-docs/upload-words";
 
 export const dynamic = "force-dynamic";
 
@@ -55,10 +55,11 @@ async function upload(actor: SupplierActor, request: Request) {
     if (pre.outcome.logReason && pre.outcome.logReason !== "NOT_FOUND") await log(actor.organisationId, pre.outcome.logReason);
     return send(pre.outcome);
   }
-  const { org, store, classId, cap, allowedTypes, ctx } = pre.value;
+  const { org, store, classId, cap, capFrom, allowedTypes, ctx } = pre.value;
+  const words = (f: Finding) => uploadFaultWords(f, { orgName: ctx.org.name, allowedTypes });
   const refuse = async (status: number, f: Finding, extra: { filename?: string | null; bytes?: bigint | null } = {}, code?: string) => {
     await log(org.id, f.code, extra);
-    return send({ status, body: { ok: false, code: code ?? (f.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED"), message: documentFaultText(f) } });
+    return send({ status, body: { ok: false, code: code ?? (f.code === "TOO_LARGE" ? "TOO_LARGE" : "REFUSED"), message: words(f) } });
   };
 
   if (declared == null || declared.trim() === "") {
@@ -66,7 +67,7 @@ async function upload(actor: SupplierActor, request: Request) {
     return send({ status: 411, body: { ok: false, code: "NO_LENGTH", message: "The upload size was not stated. Try again." } });
   }
   const lengthFault = requestLengthFault(declared, cap);
-  if (lengthFault) return refuse(lengthFault === "TOO_LARGE" ? 413 : 400, { code: lengthFault === "TOO_LARGE" ? "TOO_LARGE" : "REQUEST_UNREADABLE", level: "block", data: { cap: cap.toString(), from: "POLICY" } });
+  if (lengthFault) return refuse(lengthFault === "TOO_LARGE" ? 413 : 400, { code: lengthFault === "TOO_LARGE" ? "TOO_LARGE" : "REQUEST_UNREADABLE", level: "block", data: { cap: cap.toString(), from: capFrom } });
 
   // The body, counted as it arrives: cut off at the cap, at the deadline, and under the minimum rate.
   const limited = limitBodyPaced(request.body, readLimit(cap), { deadlineMs: PROJECT_BODY_DEADLINE_SECONDS * 1000, minBytesPerSecond: PROJECT_BODY_MIN_BYTES_PER_SECOND, graceMs: PROJECT_BODY_GRACE_SECONDS * 1000 });
@@ -75,7 +76,7 @@ async function upload(actor: SupplierActor, request: Request) {
     form = await new Response(limited.stream, { headers: { "content-type": request.headers.get("content-type") ?? "" } }).formData();
   } catch {
     if (limited.tooSlow()) return refuse(408, { code: "BODY_TOO_SLOW", level: "block" }, { bytes: limited.seen() }, "BODY_TOO_SLOW");
-    if (limited.exceeded()) return refuse(413, { code: "TOO_LARGE", level: "block", data: { cap: cap.toString(), from: "POLICY" } }, { bytes: limited.seen() });
+    if (limited.exceeded()) return refuse(413, { code: "TOO_LARGE", level: "block", data: { cap: cap.toString(), from: capFrom } }, { bytes: limited.seen() });
     return refuse(400, { code: "REQUEST_UNREADABLE", level: "block" }, { bytes: limited.seen() });
   }
   const fields = parseUploadForm(form.entries(), contractId);
@@ -91,7 +92,7 @@ async function upload(actor: SupplierActor, request: Request) {
   const nameFault = filenameFault(file.name);
   if (nameFault) return refuse(422, nameFault, at);
   if (size === 0n) return refuse(422, { code: "EMPTY", level: "block" }, at);
-  if (size > cap) return refuse(413, { code: "TOO_LARGE", level: "block", data: { cap: cap.toString(), from: "POLICY" } }, at);
+  if (size > cap) return refuse(413, { code: "TOO_LARGE", level: "block", data: { cap: cap.toString(), from: capFrom } }, at);
   // The type is what the bytes say, never the name or the declared type; a file whose name or declared type disagrees is refused as well. Office files are staff-only.
   const recognised = await recogniseFile(file);
   const media = mediaFault(recognised.sniffed, { filename: file.name, contentType: file.type }, { allowedMediaTypes: allowedTypes, maxBytes: cap });
