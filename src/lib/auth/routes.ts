@@ -81,6 +81,19 @@ export const SUPPLIER_PROJECTS_POSTS = {
 } as const;
 export const SUPPLIER_PROJECTS_POST_PATHS: readonly string[] = Object.values(SUPPLIER_PROJECTS_POSTS);
 
+/// The contractor's Project workspace documents (plan step 5): four posts, each a route handler at a literal path (three JSON acts, and the multipart staging of one file), and one read, the download
+/// of one file, at a path with one id segment (`SUPPLIER_PROJECT_DOCUMENT_FILE` + "/" + the attachment's id; it has its own pattern in `surface.ts`). A supplier must be signed in to each
+/// (a handler answers 401), and no id of a supplier is read from any of them: the supplier is the session's. The ids a request names are a contract's, a document's, staged files' and a
+/// file's, which the stores read only as the session's supplier may reach them (another's read as not found).
+export const SUPPLIER_PROJECT_DOCUMENTS_POSTS = {
+  create: "/supplier/projects/documents/create",
+  version: "/supplier/projects/documents/version",
+  request: "/supplier/projects/documents/request",
+  upload: "/supplier/projects/documents/upload",
+} as const;
+export const SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS: readonly string[] = Object.values(SUPPLIER_PROJECT_DOCUMENTS_POSTS);
+export const SUPPLIER_PROJECT_DOCUMENT_FILE = "/supplier/projects/documents/file";
+
 /// A signed-in supplier's export of its own data (N2, the PDPA right of access): a printable page, and the same content as one JSON file. Both are reads and write one export row each; neither reads an id.
 export const SUPPLIER_DATA_EXPORT = { page: "/supplier/account/data", file: "/supplier/account/data/file" } as const;
 

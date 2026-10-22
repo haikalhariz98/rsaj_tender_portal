@@ -10,11 +10,13 @@ import { formatDate } from "@/lib/format";
 import { auditActorOf } from "@/lib/portal/bids/signup-store";
 import { loadBidContext } from "@/lib/portal/bids/context-store";
 import { loadBankTab } from "@/lib/portal/company/company-store";
+import { STANDING_AWARD } from "@/lib/portal/projects/visibility";
+import { loadDocumentFactsMany } from "@/lib/project-docs/facts";
 import { standingView } from "@/lib/portal/company/standing-view";
 import { loadRegistrationSettings } from "@/lib/portal/registration/context-store";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
-import { buildSupplierExport, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportLists, type SupplierExport, type SupplierExportSource } from "@/lib/suppliers/data-export";
+import { buildSupplierExport, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportLists, type ProjectDocumentSource, type SupplierExport, type SupplierExportSource } from "@/lib/suppliers/data-export";
 import { inColumns } from "@/lib/suppliers/data-export-fields";
 import { standingOf } from "@/lib/suppliers/standing-repo";
 import { inOrder } from "@/lib/series";
@@ -59,6 +61,66 @@ const exerciseName = (ex: { reference: string; title: string }) => `${ex.title} 
 /// approved from. The columns the export may show, and two keys read to word a row (agreed, not signed), never written.
 export function ownDeclarationRows(tx: Tx, organisationId: string, supplierId: string) {
   return tx.registrationDeclaration.findMany({ where: { organisationId, OR: [{ application: { supplierId } }, { portalApplication: { supplierApplication: { supplierId } } }] }, orderBy: [{ signedAt: "asc" }, { kind: "asc" }], select: { ...inColumns("RegistrationDeclaration"), portalApplicationId: true, signedBySupplierAccountId: true } });
+}
+
+/**
+ * The Project workspace documents on the contracts the supplier holds (PW-19): every document, with all its versions, files, decisions and requests, and the facts the contractor's reading is
+ * made from. Scoped by the contract (its award names this supplier and stands: `supplierHoldsContract`'s one rule), never by "rows that name an account", so a document the contractor never
+ * wrote is in the read; what the contractor may not see is dropped by `buildSupplierExport` (PW-28), which is where that is decided and tested. The names are the organisation's, or the
+ * contractor's own colleague's: never an officer's.
+ */
+export async function readProjectDocuments(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, orgName: string): Promise<ProjectDocumentSource[]> {
+  const contracts = await tx.contract.findMany({
+    where: { organisationId: actor.organisationId, award: { vendorId: actor.supplierId, status: { in: [...STANDING_AWARD] } } },
+    orderBy: [{ numberedOn: "desc" }, { number: "asc" }],
+    select: { id: true, number: true, award: { select: { exercise: { select: { title: true } } } } },
+  });
+  if (contracts.length === 0) return [];
+  const label = new Map(contracts.map((c) => [c.id, `${c.number} · ${c.award.exercise.title}`]));
+  const docs = await tx.projectDocument.findMany({
+    where: { organisationId: actor.organisationId, contractId: { in: contracts.map((c) => c.id) } },
+    orderBy: [{ contractId: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    select: {
+      ...inColumns("ProjectDocument"),
+      id: true,
+      contractId: true,
+      versions: {
+        orderBy: { number: "asc" },
+        select: {
+          ...inColumns("ProjectDocumentVersion"),
+          id: true,
+          uploadedByPersonId: true,
+          uploadedBySupplierAccount: { select: { contact: { select: { name: true } } } },
+          files: { where: { detachedAt: null, version: { withdrawnAt: null } }, orderBy: { attachedAt: "asc" }, select: { id: true, version: { select: inColumns("DocumentVersion") } } },
+          decisions: { orderBy: [{ decidedAt: "asc" }, { id: "asc" }], select: inColumns("ProjectDocumentDecision") },
+        },
+      },
+      requests: {
+        orderBy: [{ requestedAt: "asc" }, { id: "asc" }],
+        select: { ...inColumns("ProjectDocumentRequest"), requestedByPersonId: true, requestedBySupplierAccount: { select: { contact: { select: { name: true } } } }, answeredBy: { select: { id: true } } },
+      },
+    },
+  });
+  const facts = await loadDocumentFactsMany(tx, docs.map((d) => d.id));
+  return docs.flatMap((d) => {
+    const f = facts.get(d.id);
+    if (!f) return [];
+    return [
+      {
+        row: d,
+        facts: f,
+        contractLabel: label.get(d.contractId) ?? "",
+        versions: d.versions.map((v) => ({
+          id: v.id,
+          row: v,
+          sentBy: v.uploadedByPersonId ? orgName : (v.uploadedBySupplierAccount?.contact.name ?? ""),
+          files: v.files.map((a) => ({ attachmentId: a.id, version: a.version })),
+          decisions: v.decisions,
+        })),
+        requests: d.requests.map((r) => ({ row: r, by: r.requestedByPersonId ? orgName : (r.requestedBySupplierAccount?.contact.name ?? ""), answeredByVersionId: r.answeredBy?.id ?? null })),
+      },
+    ];
+  });
 }
 
 export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "PAGE", now: Date = new Date()): Promise<SupplierDataExportResult | null> {
@@ -137,6 +199,8 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
       return [{ exerciseName: name, row: p, attempts: p ? p.attempts : [], downloads: taken }];
     });
 
+    const projectDocuments = await readProjectDocuments(tx, actor, settings.org.name);
+
     const src: SupplierExportSource = {
       organisationName: settings.org.name,
       accountId: actor.accountId,
@@ -150,6 +214,7 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
       standingChanges,
       applications: applications.map(({ decisions, ...row }) => ({ row, decisions: decisions.map(({ items, ...d }) => ({ row: d, items })) })),
       purchases: purchaseSource,
+      projectDocuments,
       bidReceipts: receipts.flatMap((r) => (seen.has(r.exerciseId) ? [{ row: r.row, exerciseName: seen.get(r.exerciseId)!, receivedAt: r.receivedAt, late: r.late, keyFingerprint: r.keyFingerprint }] : [])),
     };
 

@@ -13,11 +13,15 @@
  */
 
 import type { FieldChange } from "@/lib/audit/diff";
-import { SUPPLIER_REGISTRATION_GETS } from "@/lib/auth/routes";
+import { SUPPLIER_PROJECT_DOCUMENT_FILE, SUPPLIER_REGISTRATION_GETS } from "@/lib/auth/routes";
 import type { Words } from "@/lib/contract/labels";
 import { storedDay } from "@/lib/dates";
 import { bankState } from "@/lib/portal/company/bank";
 import type { StandingView } from "@/lib/portal/company/standing-view";
+import { contractorReading } from "@/lib/project-docs/contractor-view";
+import { kindWords, outcomeWords, versionLabel } from "@/lib/project-docs/labels";
+import type { DocKind, DocumentFacts, Outcome } from "@/lib/project-docs/types";
+import { contractorSeesRemarks } from "@/lib/project-docs/visibility";
 
 import { pickIn, type ExportModel } from "./data-export-fields";
 import {
@@ -63,6 +67,21 @@ export interface ExportLists {
   bankAccountType: Readonly<Record<string, string>>;
 }
 
+/// One Project workspace document on a contract the supplier holds (ADR 0042, PW-19), as the reader read it: every version, file, decision and request, and the facts the contractor's reading is made from. `buildSupplierExport`
+/// lets through only what the contractor may see (`contractorReading`, PW-28): the reader does not decide that, so a document the contractor may not open cannot reach the export by a reader's mistake.
+export interface ProjectDocumentSource {
+  /// ProjectDocument.
+  row: SourceRow;
+  /// The document as the rules read it (`loadDocumentFactsMany`).
+  facts: DocumentFacts;
+  /// The contract's number and title, as the contractor knows it.
+  contractLabel: string;
+  /// ProjectDocumentVersion, with the name it is sent by (the organisation, or the contractor's own colleague: never an officer), its files (the attachment's id, and the DocumentVersion) and its decisions (ProjectDocumentDecision).
+  versions: readonly { id: string; row: SourceRow; sentBy: string; files: readonly { attachmentId: string; version: SourceRow }[]; decisions: readonly SourceRow[] }[];
+  /// ProjectDocumentRequest, with who asked (the organisation, or the contractor's own colleague) and the version that answered it.
+  requests: readonly { row: SourceRow; by: string; answeredByVersionId: string | null }[];
+}
+
 export interface SupplierExportSource {
   organisationName: string;
   /// The reader's own account: the only one whose sign-in details are exported (decisions log 2026-10-19).
@@ -90,6 +109,8 @@ export interface SupplierExportSource {
   purchases: readonly { exerciseName: string; row: SourceRow | null; attempts: readonly SourceRow[]; downloads: readonly SourceRow[] }[];
   /// OnlineBid, with what the receipt card shows beside it.
   bidReceipts: readonly { row: SourceRow; exerciseName: string; receivedAt: Date; late: boolean; keyFingerprint: string }[];
+  /// Every Project workspace document on the contracts the supplier holds.
+  projectDocuments: readonly ProjectDocumentSource[];
 }
 
 /// How a value that is not plain text is to be shown.
@@ -187,6 +208,16 @@ function files(rows: readonly SourceRow[]): ExportFile[] {
     const versionId = text(f.id);
     if (!versionId) return [];
     return [{ name: text(f.originalFilename) ?? "", type: text(f.mediaType) ?? "", size: count(f.byteSize) ?? "", lodgedOn: instant(f.storedAt)?.typed ?? "", versionId, path: `${SUPPLIER_REGISTRATION_GETS.file}?id=${encodeURIComponent(versionId)}` }];
+  });
+}
+
+/// A project file: the attachment is what the download names (the file route reaches it through the contract the supplier holds, and judges it again).
+function projectFiles(rows: readonly { attachmentId: string; version: SourceRow }[]): ExportFile[] {
+  return rows.flatMap(({ attachmentId, version }) => {
+    const f = pick("DocumentVersion", version);
+    const versionId = text(f.id);
+    if (!versionId) return [];
+    return [{ name: text(f.originalFilename) ?? "", type: text(f.mediaType) ?? "", size: count(f.byteSize) ?? "", lodgedOn: instant(f.storedAt)?.typed ?? "", versionId, path: `${SUPPLIER_PROJECT_DOCUMENT_FILE}/${encodeURIComponent(attachmentId)}` }];
   });
 }
 
@@ -447,7 +478,61 @@ function bidReceipts(src: SupplierExportSource): ExportRow[] {
   });
 }
 
-const BUILD: Readonly<Record<ExportSectionKey, (src: SupplierExportSource) => ExportRow[]>> = { company, contacts, accounts, declarations, bank, documents, standing, standingChanges, applications, purchases, bidReceipts };
+/**
+ * The Project workspace's documents (PW-19), as the contractor may read them (PW-8, PW-28) and no further. The reader hands over every document on the supplier's contracts; here each is
+ * read through `contractorReading`: an organisation document the contractor did not ask for, with no version it may see, is left out whole; of the others only the versions it may see
+ * are listed, with their files; remarks and answers appear only on the contractor's own documents (`contractorSeesRemarks`), by "the organisation", never an officer; a request answered
+ * by a version the contractor may not see reads as still open. The state is the contractor's own, never the organisation's working.
+ */
+function projectDocuments(src: SupplierExportSource): ExportRow[] {
+  const org = src.organisationName;
+  return src.projectDocuments.flatMap((p) => {
+    const reading = contractorReading(p.facts, org);
+    if (reading.shown === "NOT_LISTED") return [];
+    const d = pick("ProjectDocument", p.row);
+    const visible = new Map(reading.visibleVersions.map((v) => [v.id, v]));
+    const remarksShown = contractorSeesRemarks(p.facts);
+    const versions = p.versions
+      .filter((v) => visible.has(v.id))
+      .sort((a, b) => visible.get(a.id)!.number - visible.get(b.id)!.number)
+      .map((v) => {
+        const r = pick("ProjectDocumentVersion", v.row);
+        const answers = remarksShown
+          ? v.decisions.map((raw) => {
+              const x = pick("ProjectDocumentDecision", raw);
+              return row("pdAnswer", typeof x.outcome === "string" ? outcomeWords(x.outcome as Outcome, p.facts.kind) : null, { rows: details([row("pdDecidedBy", org), row("decidedOn", day(x.decidedOn)), row("remarks", text(x.remarks))]) });
+            })
+          : [];
+        return row("pdVersion", typeof r.number === "number" ? versionLabel(r.number) : null, {
+          files: projectFiles(v.files),
+          rows: details([row("pdSentBy", text(v.sentBy)), row("pdSentOn", day(r.uploadedOn)), row("pdSentAt", instant(r.uploadedAt)), row("pdNote", text(r.note)), row("pdSignedAt", instant(r.signedAt)), ...answers]),
+        });
+      });
+    const requests = p.requests.map((raw) => {
+      const r = pick("ProjectDocumentRequest", raw.row);
+      const answered = raw.answeredByVersionId ? visible.get(raw.answeredByVersionId) : undefined;
+      return row("pdRequest", r.toSide === "CONTRACTOR" ? "You" : r.toSide === "ORGANISATION" ? org : null, {
+        rows: details([row("pdAskedBy", text(raw.by)), row("pdAskedOn", instant(r.requestedAt)), row("pdNote", text(r.note)), answered ? row("pdAnsweredBy", versionLabel(answered.number)) : null]),
+      });
+    });
+    return [
+      row("projectDocument", text(d.title), {
+        rows: details([
+          row("pdContract", text(p.contractLabel)),
+          row("pdKind", typeof d.kind === "string" ? kindWords(d.kind as DocKind) : null),
+          row("pdFrom", d.side === "CONTRACTOR" ? "You" : d.side === "ORGANISATION" ? org : null),
+          row("pdState", reading.stateLabel),
+          row("pdNote", text(d.note)),
+          row("pdStarted", instant(d.createdAt)),
+          ...versions,
+          ...requests,
+        ]),
+      }),
+    ];
+  });
+}
+
+const BUILD: Readonly<Record<ExportSectionKey, (src: SupplierExportSource) => ExportRow[]>> = { company, contacts, accounts, declarations, bank, documents, standing, standingChanges, applications, purchases, bidReceipts, projectDocuments };
 
 /// The supplier's export, from what the reader read.
 export function buildSupplierExport(src: SupplierExportSource, ctx: ExportContext): SupplierExport {

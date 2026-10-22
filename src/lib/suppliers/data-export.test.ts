@@ -4,9 +4,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { Prisma } from "@/generated/prisma/client";
+import { story, type Story } from "@/lib/project-docs/story.fixture";
 
 import { SUPPLIER_ENTITY, SUPPLIER_ENTITY_LABEL, SUPPLIER_FIELD_NAME } from "./audit-view";
-import { buildSupplierExport, ExportFileNameError, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportRow, type SourceRow, type SupplierExport, type SupplierExportSource } from "./data-export";
+import { buildSupplierExport, ExportFileNameError, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportRow, type ProjectDocumentSource, type SourceRow, type SupplierExport, type SupplierExportSource } from "./data-export";
 import { classificationFaults, EXPORT_COLUMNS, inColumns, OUT_MODELS, pickIn, schemaScalars, supplierLinkedModels, type Classified, type ExportModel } from "./data-export-fields";
 import * as WORDS from "./data-export-words";
 
@@ -117,9 +118,51 @@ function source(over: Partial<SupplierExportSource> = {}): SupplierExportSource 
         downloads: [fixture("PurchaseDownload", { kind: "FILE", packVersion: 1, partLabel: "Part A", title: "Conditions of tender", downloadedAt: t("2026-09-01T02:10:00Z") })],
       },
     ],
+    projectDocuments: projectDocuments(),
     bidReceipts: [{ row: fixture("OnlineBid", { kind: "BID", status: "SUBMITTED", statusAt: null, receiptDigest: "ab12cd34" }), exerciseName: "Supply of office furniture", receivedAt: t("2026-09-20T01:00:00Z"), late: false, keyFingerprint: "KF-1234" }],
     ...over,
   };
+}
+
+/// A project document on the supplier's contract, from a story of the acts that made it: every version, file, decision and request the reader would hand over.
+function projectDoc(s: Story, o: { title: string; side: "CONTRACTOR" | "ORGANISATION"; note?: string; files?: Record<string, string>; remarks?: Record<string, string>; requestedBy?: string }): ProjectDocumentSource {
+  const decisions = s.doc.decisions.map((x) => ({ ...x, row: fixture("ProjectDocumentDecision", { outcome: x.outcome, remarks: o.remarks?.[x.versionId] ?? x.remarks, decidedOn: d("2026-10-10") }) }));
+  return {
+    row: fixture("ProjectDocument", { title: o.title, note: o.note ?? "", side: o.side, kind: s.doc.kind, createdAt: t("2026-10-01T02:00:00Z") }),
+    facts: s.doc,
+    contractLabel: "WK/2026/7 · Drainage works",
+    versions: s.doc.versions.map((v) => ({
+      id: v.id,
+      row: fixture("ProjectDocumentVersion", { number: v.number, note: `${o.title} note ${v.id}`, uploadedAt: t(`2026-10-0${v.number + 1}T03:00:00Z`), uploadedOn: d(`2026-10-0${v.number + 1}`), signedAt: null }),
+      sentBy: o.side === "CONTRACTOR" ? "Aminah binti Ali" : "Demonstration Authority",
+      files: o.files?.[v.id] ? [{ attachmentId: `att-${v.id}-${o.title.replace(/\W/g, "")}`, version: versionRow(`sv-${v.id}-${o.title.replace(/\W/g, "")}`, o.files[v.id]) }] : [],
+      decisions: decisions.filter((x) => x.versionId === v.id).map((x) => x.row),
+    })),
+    requests: s.doc.requests.map((r) => ({ row: fixture("ProjectDocumentRequest", { toSide: r.toSide, note: "Please send it.", requestedAt: t("2026-10-02T01:00:00Z") }), by: o.requestedBy ?? "Aminah binti Ali", answeredByVersionId: r.answered ? (s.doc.versions.find((v) => v.requestId === r.id)?.id ?? null) : null })),
+  };
+}
+
+/// Three documents on the supplier's contract: its own (an approver rejected Version 1 with remarks; Version 2 waits), an organisation document shared at once whose Version 2 waits for its approver
+/// (the contractor sees Version 1 only), and an organisation document the contractor did not ask for, with its approver at upload and nothing it may see (PW-28: not listed, so not exported).
+function projectDocuments(): ProjectDocumentSource[] {
+  const own = story("CONTRACTOR");
+  own.addApprover("e");
+  own.upload();
+  own.decide("e", "REJECTED", "Lower the levels at gully 4.");
+  own.upload();
+  const shared = story("ORGANISATION");
+  shared.upload();
+  shared.addApprover("e");
+  shared.upload();
+  shared.decide("e", "REJECTED", "HIDDEN-remark: the drawing is wrong.");
+  const unlisted = story("ORGANISATION");
+  unlisted.addApprover("e");
+  unlisted.upload();
+  return [
+    projectDoc(own, { title: "Method statement", side: "CONTRACTOR", files: { v1: "method-v1.pdf", v2: "method-v2.pdf" } }),
+    projectDoc(shared, { title: "Site plan", side: "ORGANISATION", files: { v1: "plan-v1.pdf", v2: "HIDDEN-plan-v2.pdf" } }),
+    projectDoc(unlisted, { title: "HIDDEN-Internal costing", side: "ORGANISATION", files: { v1: "HIDDEN-costing.pdf" } }),
+  ];
 }
 
 function bankRow(version: number, verification: string, beneficiaryName: string, verificationNote: string): SourceRow {
@@ -327,7 +370,13 @@ describe("files, codes and dates", () => {
     const e = build();
     const files: string[] = [];
     for (const s of e.sections) walkRows(s.rows, (r) => files.push(...(r.files ?? []).map((f) => f.path)));
-    expect(files).toEqual(["/supplier/registration/file?id=ver-bank-2", "/supplier/registration/file?id=ver-doc-1"]);
+    expect(files).toEqual([
+      "/supplier/registration/file?id=ver-bank-2",
+      "/supplier/registration/file?id=ver-doc-1",
+      "/supplier/projects/documents/file/att-v1-Methodstatement",
+      "/supplier/projects/documents/file/att-v2-Methodstatement",
+      "/supplier/projects/documents/file/att-v1-Siteplan",
+    ]);
     for (const p of files) expect(p).not.toMatch(/[?&]t=/);
     expect(exportJson(e)).not.toMatch(/[?&]t=/);
   });
@@ -432,14 +481,101 @@ describe("a worked example a finance person can check by hand", () => {
   it("SUP-0042's export: what each section holds", () => {
     // Syarikat Contoh: one company record; two contacts (one not open to this account, withheld); two accounts likewise; one
     // declaration; bank details version 2 in force and version 3 not in order (version 1 superseded, left out); three documents;
-    // its current standing; two changes to it; one application; one exercise bought from at RM 50.00; one online bid.
+    // its current standing; two changes to it; one application; one exercise bought from at RM 50.00; one online bid; and two project documents (a third, the organisation's own working that the
+    // contractor did not ask for and may not see, is left out whole).
     const e = build();
-    expect(exportSectionCounts(e)).toEqual({ company: 1, contacts: 2, accounts: 2, declarations: 1, bank: 2, documents: 3, standing: 1, standingChanges: 2, applications: 1, purchases: 1, bidReceipts: 1 });
+    expect(exportSectionCounts(e)).toEqual({ company: 1, contacts: 2, accounts: 2, declarations: 1, bank: 2, documents: 3, standing: 1, standingChanges: 2, applications: 1, purchases: 1, bidReceipts: 1, projectDocuments: 2 });
     expect(exportAuditChanges(e, "PAGE", null)[1].after).toBe(
-      "Company: 1 · Contacts: 2 · Portal accounts: 2 · Declarations and agreements: 1 · Bank details: 2 · Documents: 3 · Current standing: 1 · Changes to your standing: 2 · Applications and outcomes: 1 · Tender document purchases: 1 · Online bid receipts: 1",
+      "Company: 1 · Contacts: 2 · Portal accounts: 2 · Declarations and agreements: 1 · Bank details: 2 · Documents: 3 · Current standing: 1 · Changes to your standing: 2 · Applications and outcomes: 1 · Tender document purchases: 1 · Online bid receipts: 1 · Project documents: 2",
     );
     const app = section(e, "applications").rows[0];
     expect(app.value).toBe("First registration");
     expect(app.rows!.filter((r) => label(r) === "Outcome").map((r) => en(r.value))).toEqual(["Resubmission requested", "Approved"]);
+  });
+});
+
+describe("project documents (PW-19, PW-28)", () => {
+  const docs = () => section(build(), "projectDocuments").rows;
+  const titled = (title: string) => docs().find((r) => r.value === title);
+
+  it("lists the documents the contractor may open and leaves the unlisted organisation document out whole: the gate is what excludes it, for the reader handed it", () => {
+    expect(source().projectDocuments).toHaveLength(3);
+    expect(docs().map((r) => r.value)).toEqual(["Method statement", "Site plan"]);
+    const json = exportJson(build());
+    expect(json).not.toContain("HIDDEN");
+    expect(json).not.toContain("Internal costing");
+  });
+
+  it("an organisation document asked for by the contractor, with nothing it may see, is listed as being prepared, with no version", () => {
+    const s = story("ORGANISATION");
+    s.addApprover("e");
+    s.request();
+    s.upload();
+    const e = build({ projectDocuments: [projectDoc(s, { title: "Insurance policy", side: "ORGANISATION", files: { v1: "HIDDEN-policy.pdf" } })] });
+    const row = section(e, "projectDocuments").rows[0];
+    expect(row.value).toBe("Insurance policy");
+    expect(find(row.rows!, "Where it stands")?.value).toBe("Being prepared by Demonstration Authority");
+    expect(row.rows!.some((r) => r.label === "Version")).toBe(false);
+    expect(exportJson(e)).not.toContain("HIDDEN");
+  });
+
+  it("an organisation document with an earlier shared version and a later one still with its approver: the shared version only, Shared, with no hidden note, file or remark", () => {
+    const site = titled("Site plan")!;
+    expect(find(site.rows!, "Where it stands")?.value).toBe("Shared");
+    const versions = site.rows!.filter((r) => r.label === "Version");
+    expect(versions.map((v) => v.value)).toEqual(["Version 1"]);
+    expect(versions[0].files!.map((f) => f.name)).toEqual(["plan-v1.pdf"]);
+    expect(JSON.stringify(site)).not.toMatch(/HIDDEN|Waiting for approval|Rejected|v2/);
+    // No answer at all on an organisation's own document.
+    expect(site.rows!.some((r) => r.label === "Answer")).toBe(false);
+  });
+
+  it("the contractor's own document: every version, its files, and the approver's answer with remarks, by the organisation and never an officer", () => {
+    const own = titled("Method statement")!;
+    expect(find(own.rows!, "Where it stands")?.value).toBe("Waiting for approval");
+    expect(find(own.rows!, "Comes from")?.value).toBe("You");
+    const versions = own.rows!.filter((r) => r.label === "Version");
+    expect(versions.map((v) => v.value)).toEqual(["Version 1", "Version 2"]);
+    expect(versions.map((v) => v.files!.map((f) => f.name))).toEqual([["method-v1.pdf"], ["method-v2.pdf"]]);
+    const answer = versions[0].rows!.find((r) => r.label === "Answer")!;
+    expect(answer.value).toBe("Rejected");
+    expect(find(answer.rows!, "Remarks")?.value).toBe("Lower the levels at gully 4.");
+    expect(find(answer.rows!, "By")?.value).toBe("Demonstration Authority");
+    expect(find(answer.rows!, "Decided on")?.value).toBe("2026-10-10");
+    expect(versions[1].rows!.some((r) => r.label === "Answer")).toBe(false);
+  });
+
+  it("a file's path is the contractor's download route for its attachment, with no token, and the document files are plain names beside it", () => {
+    const own = titled("Method statement")!;
+    const files = own.rows!.filter((r) => r.label === "Version").flatMap((v) => v.files!);
+    expect(files.map((f) => f.path)).toEqual(["/supplier/projects/documents/file/att-v1-Methodstatement", "/supplier/projects/documents/file/att-v2-Methodstatement"]);
+    for (const f of files) expect(f.path).not.toMatch(/[?&]t=/);
+  });
+
+  it("a request is shown as the contractor's own or addressed to it, answered only by a version it may see", () => {
+    const s = story("ORGANISATION");
+    s.upload();
+    s.request();
+    s.addApprover("e");
+    s.upload();
+    const e = build({ projectDocuments: [projectDoc(s, { title: "Variation order", side: "ORGANISATION" })] });
+    const row = section(e, "projectDocuments").rows[0];
+    const req = row.rows!.find((r) => r.label === "Request")!;
+    expect(req.value).toBe("Demonstration Authority");
+    // Version 2 (the answer) waits for its approver, so the contractor reads the request as still open.
+    expect(find(req.rows!, "Answered by")).toBeUndefined();
+    expect(find(row.rows!, "Where it stands")?.value).toBe("Shared");
+  });
+
+  it("every cell of the section is words: no kind, side, state or outcome code, and no officer", () => {
+    const own = story("CONTRACTOR", "WORK_PROGRAMME");
+    own.upload();
+    own.mark("RETURNED", "Add the critical path.");
+    const e = build({ projectDocuments: [projectDoc(own, { title: "Programme", side: "CONTRACTOR" })] });
+    const values: string[] = [];
+    for (const r of section(e, "projectDocuments").rows) walkRows([r], (x) => typeof x.value === "string" && values.push(x.value));
+    expect(values).toContain("Returned");
+    expect(values).toContain("Work programme");
+    for (const v of values) expect(v).not.toMatch(/^[A-Z][A-Z0-9_]+$/);
   });
 });

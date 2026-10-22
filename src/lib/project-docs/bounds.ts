@@ -19,6 +19,12 @@ export const PROJECT_FILES_PER_WINDOW = 60;
 /// The most bytes one portal account may stage in the window: 256 MiB, so about 6 GB a day at most, even scripted.
 export const PROJECT_BYTES_PER_WINDOW = 256n * 1024n * 1024n;
 
+/// How a portal upload's body is read (the same rhythm as the bid part's and the registration's, which `limitBodyPaced` holds): the whole body within the deadline, and no slower
+/// than the minimum rate once the grace has passed. Technical constants, not customer policy: they stop a slow body from holding an upload slot.
+export const PROJECT_BODY_DEADLINE_SECONDS = 300;
+export const PROJECT_BODY_MIN_BYTES_PER_SECOND = 16 * 1024;
+export const PROJECT_BODY_GRACE_SECONDS = 10;
+
 const WINDOW_MS = PROJECT_UPLOAD_WINDOW_MINUTES * 60_000;
 const MIB = 1024n * 1024n;
 

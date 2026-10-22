@@ -264,3 +264,41 @@ describe("the public registration's two reads (ADR 0041, plan 2.4)", () => {
     }
   });
 });
+
+describe("the contractor's Project workspace documents (plan step 5)", () => {
+  const post = (pathname: string) => publicAllows({ method: "POST", pathname, hasServerAction: false });
+  const file = "/supplier/projects/documents/file/cmabc123def456";
+
+  it("takes its four writes at their literal paths, as POSTs only, and not as a GET", () => {
+    for (const p of ["/supplier/projects/documents/create", "/supplier/projects/documents/version", "/supplier/projects/documents/request", "/supplier/projects/documents/upload"]) {
+      expect(post(p), p).toBe(true);
+      expect(get(p), p).toBe(false);
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: true }), p).toBe(false);
+    }
+  });
+
+  it("takes no write at a look-alike: a deeper path, another case, an id, a traversal", () => {
+    for (const p of ["/supplier/projects/documents", "/supplier/projects/documents/create/x", "/supplier/projects/documents/Create", "/supplier/projects/documents/upload/abc", "/supplier/projects/documents/../submit", "/supplier/projects/documents/file/abc123def456"]) {
+      expect(post(p), p).toBe(false);
+    }
+  });
+
+  it("serves one file per attachment to a GET, never to a HEAD (the GET logs a download), a POST or a server action", () => {
+    expect(get(file)).toBe(true);
+    expect(publicAllows({ method: "HEAD", pathname: file, hasServerAction: false })).toBe(false);
+    expect(post(file)).toBe(false);
+    expect(publicAllows({ method: "GET", pathname: file, hasServerAction: true })).toBe(false);
+  });
+
+  it("refuses a look-alike of the file: no id, a deeper path, a traversal, an encoded slash", () => {
+    for (const p of ["/supplier/projects/documents/file", "/supplier/projects/documents/file/", "/supplier/projects/documents/file/a/b", "/supplier/projects/documents/file/..%2Fx", "/supplier/projects/documents/file/../create", "/supplier/projects/documents/File/abc"]) {
+      expect(get(p), p).toBe(false);
+    }
+  });
+
+  it("serves a document's page to a read only: two id segments under a contract", () => {
+    expect(get("/supplier/projects/contract_0001/documents/document_0001")).toBe(true);
+    expect(post("/supplier/projects/contract_0001/documents/document_0001")).toBe(false);
+    for (const p of ["/supplier/projects/contract_0001/documents", "/supplier/projects/contract_0001/documents/a/b", "/supplier/projects/contract_0001/Documents/document_0001"]) expect(get(p), p).toBe(false);
+  });
+});

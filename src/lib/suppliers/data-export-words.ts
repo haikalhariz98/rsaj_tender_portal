@@ -6,10 +6,10 @@
 
 import type { AccountStatus, DeclarationKind, OnlineBidKind, OnlineBidStatus, PaymentChannel, PaymentOutcome, PurchaseDownloadKind, PurchaseState } from "@/generated/prisma/client";
 
-export type ExportSectionKey = "company" | "contacts" | "accounts" | "declarations" | "bank" | "documents" | "standing" | "standingChanges" | "applications" | "purchases" | "bidReceipts";
+export type ExportSectionKey = "company" | "contacts" | "accounts" | "declarations" | "bank" | "documents" | "standing" | "standingChanges" | "applications" | "purchases" | "bidReceipts" | "projectDocuments";
 
 /// The sections, in the order the export carries them.
-export const EXPORT_SECTION_ORDER: readonly ExportSectionKey[] = ["company", "contacts", "accounts", "declarations", "bank", "documents", "standing", "standingChanges", "applications", "purchases", "bidReceipts"];
+export const EXPORT_SECTION_ORDER: readonly ExportSectionKey[] = ["company", "contacts", "accounts", "declarations", "bank", "documents", "standing", "standingChanges", "applications", "purchases", "bidReceipts", "projectDocuments"];
 
 export const EXPORT_SECTION_TITLE: Readonly<Record<ExportSectionKey, string>> = {
   company: "Company",
@@ -24,6 +24,7 @@ export const EXPORT_SECTION_TITLE: Readonly<Record<ExportSectionKey, string>> = 
   applications: "Applications and outcomes",
   purchases: "Tender document purchases",
   bidReceipts: "Online bid receipts",
+  projectDocuments: "Project documents",
 };
 
 /// Every label a row of the export carries.
@@ -161,6 +162,27 @@ export const EXPORT_LABEL = {
   late: "Received after the closing time",
   receiptDigest: "Receipt digest",
   keyFingerprint: "Sealing key fingerprint",
+  // Project documents (ADR 0042, PW-19). The value of a document's row is its title.
+  projectDocument: "Project document",
+  pdContract: "Contract",
+  pdKind: "Kind",
+  pdFrom: "Comes from",
+  pdState: "Where it stands",
+  pdNote: "Note",
+  pdStarted: "Started",
+  pdVersion: "Version",
+  pdSentBy: "Sent by",
+  pdSentOn: "Sent on",
+  pdSentAt: "Sent at",
+  pdSignedAt: "Signed at",
+  pdAnswersRequest: "Answers a request",
+  pdAnswer: "Answer",
+  pdAnsweredBy: "Answered by",
+  pdDecidedBy: "By",
+  pdRequest: "Request",
+  pdAskedOf: "Asked of",
+  pdAskedBy: "Asked by",
+  pdAskedOn: "Asked on",
 } as const satisfies Readonly<Record<string, string>>;
 
 export type ExportLabelKey = keyof typeof EXPORT_LABEL;

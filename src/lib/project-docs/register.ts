@@ -109,3 +109,6 @@ export async function loadRegister(
     from = last;
   }
 }
+
+/// The cursor and the batch the contractor's own readers (`portal-read.ts`) page with, so the two lists page the same way.
+export { BATCH as REGISTER_BATCH, decode as decodeRegisterCursor, encode as encodeRegisterCursor };

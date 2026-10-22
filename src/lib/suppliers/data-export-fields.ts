@@ -349,6 +349,57 @@ export const EXPORT_COLUMNS = {
     withdrawnAt: out("NOT_SHOWN_TODAY"),
     withdrawnReason: out("STAFF_ONLY"),
   },
+  // ADR 0042, PW-19, PW-28: a contractor's Project workspace documents. The reader takes every document on the contracts the supplier holds and `buildSupplierExport` lets only what the contractor may see
+  // through (`contractor-view.ts`): an organisation document it did not ask for, with no version it may see, is left out whole, and so is every version, file and remark it may not read.
+  ProjectDocument: {
+    id: KEY,
+    organisationId: KEY,
+    contractId: KEY,
+    title: IN,
+    note: IN,
+    side: IN,
+    kind: IN,
+    createdByPersonId: STAFF,
+    createdBySupplierAccountId: KEY,
+    createdAt: IN,
+  },
+  ProjectDocumentVersion: {
+    id: KEY,
+    organisationId: KEY,
+    documentId: KEY,
+    number: IN,
+    note: IN,
+    uploadedByPersonId: STAFF,
+    uploadedBySupplierAccountId: KEY,
+    uploadedAt: IN,
+    uploadedOn: IN,
+    // The organisation's own working: whether an approver was live when it was uploaded drives what the contractor may see, and is not itself shown.
+    noApproversAtUpload: TECH,
+    requestId: KEY,
+    signedAt: IN,
+  },
+  ProjectDocumentRequest: {
+    id: KEY,
+    organisationId: KEY,
+    documentId: KEY,
+    toSide: IN,
+    note: IN,
+    requestedByPersonId: STAFF,
+    requestedBySupplierAccountId: KEY,
+    requestedAt: IN,
+  },
+  // Shown only on a document of the contractor's own side (`contractorSeesRemarks`): the organisation's remarks on its own versions are staff-only. `buildSupplierExport` gates it. Which officer decided is never shown.
+  ProjectDocumentDecision: {
+    id: KEY,
+    organisationId: KEY,
+    versionId: KEY,
+    approverId: KEY,
+    outcome: IN,
+    remarks: IN,
+    decidedByPersonId: STAFF,
+    decidedAt: TECH,
+    decidedOn: IN,
+  },
 } as const satisfies Readonly<Record<string, Columns>>;
 
 export type ExportModel = keyof typeof EXPORT_COLUMNS;
@@ -382,10 +433,6 @@ export const OUT_MODELS: Readonly<Record<string, OutReason>> = {
   ContractorSubmission: "NOT_YET_EXPORTED",
   SiteDiaryEntry: "NOT_YET_EXPORTED",
   CertificateSignature: "NOT_YET_EXPORTED",
-  // ADR 0042 (plan step 1): the Project workspace's rows that name a supplier account. Step 5 moves them into EXPORT_COLUMNS (PW-19, PW-28).
-  ProjectDocument: "NOT_YET_EXPORTED",
-  ProjectDocumentVersion: "NOT_YET_EXPORTED",
-  ProjectDocumentRequest: "NOT_YET_EXPORTED",
 };
 
 /// The IN columns of a model, as a Prisma `select`.

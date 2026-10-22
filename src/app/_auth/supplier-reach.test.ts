@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECTS_PAGE, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_PROJECTS_POSTS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
+import { SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECT_DOCUMENT_FILE, SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, SUPPLIER_PROJECT_DOCUMENTS_POSTS, SUPPLIER_PROJECTS_PAGE, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_PROJECTS_POSTS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { lex } from "@/lib/scan/source";
 
 /**
@@ -40,7 +40,10 @@ const BIDS_ALL_POSTS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.fil
 const BIDS_HANDLERS = BIDS_ALL_POSTS.filter((f) => f.file !== BIDS_UPLOAD);
 const BIDS_DOWNLOADS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/bids/") && f.file.includes("/[id]/"));
 const BIDS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && f.file.startsWith("app/supplier/bids"));
-const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/"));
+// Project workspace (plan step 5): the contractor's documents have four posts (three JSON acts and one multipart staging) and one download, held by their own section below, as the bids' part
+// upload and download are. This first section keeps its three JSON posts and is not loosened: it only stops counting the routes of the section that holds the others to the same rules and more.
+const PROJECT_DOCUMENT_ROUTES = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/documents/"));
+const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/") && !f.file.startsWith("app/supplier/projects/documents/"));
 const PROJECTS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && (f.file.startsWith("app/supplier/projects") || f.file.startsWith("app/supplier/announcements")));
 const COMPANY_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/company/"));
 const REGISTRATION_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/registration/"));
@@ -505,6 +508,136 @@ describe("My Projects' handlers and pages (Phase 4e)", () => {
       expect(body.indexOf("staffForAct("), fn).toBeGreaterThan(-1);
       expect(body.indexOf("permissionGate(actor,"), fn).toBeGreaterThan(body.indexOf("staffForAct("));
       expect(body.indexOf("permissionGate(actor,"), fn).toBeLessThan(body.indexOf("$transaction("));
+    }
+  });
+});
+
+describe("the contractor's Project workspace documents (plan step 5)", () => {
+  const FILE = (f: { file: string }) => `/${f.file.replace(/^app\//, "").replace(/\/route\.ts$/, "")}`;
+  const HTTP = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
+  const methods = (src: string) => [...src.matchAll(HTTP)].map((m) => m[1]);
+  const UPLOAD = "app/supplier/projects/documents/upload/route.ts";
+  const DOWNLOAD = "app/supplier/projects/documents/file/[attachmentId]/route.ts";
+  const POSTS = PROJECT_DOCUMENT_ROUTES.filter((f) => f.file !== DOWNLOAD);
+  const JSON_POSTS = POSTS.filter((f) => f.file !== UPLOAD);
+  const LIBS = ["portal-acts.ts", "portal-api.ts", "portal-upload.ts", "portal-file.ts", "portal-read.ts"].map((n) => ({ file: `lib/project-docs/${n}`, src: read(`lib/project-docs/${n}`) }));
+  const bodyOf = (src: string, method: string): string => {
+    const m = lex(src);
+    const at = m.search(new RegExp(String.raw`export\s+async\s+function\s+${method}\b`));
+    expect(at, method).toBeGreaterThanOrEqual(0);
+    const open = m.indexOf("{", m.indexOf(")", at));
+    let depth = 0;
+    for (let i = open; i < m.length; i++) {
+      if (m[i] === "{") depth++;
+      else if (m[i] === "}" && --depth === 0) return m.slice(open, i + 1);
+    }
+    throw new Error("unbalanced");
+  };
+
+  it("are exactly the four literal posts the public copy lists, and the one download, and nothing else", () => {
+    expect(POSTS.map(FILE).sort()).toEqual([...SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS].sort());
+    expect(Object.values(SUPPLIER_PROJECT_DOCUMENTS_POSTS)).toHaveLength(4);
+    expect(PROJECT_DOCUMENT_ROUTES.map((f) => f.file).sort()).toEqual([...POSTS.map((f) => f.file), DOWNLOAD].sort());
+    expect(`${SUPPLIER_PROJECT_DOCUMENT_FILE}/[attachmentId]`).toBe(FILE({ file: DOWNLOAD }));
+  });
+
+  it("each JSON act answers a POST and nothing else, and asks the portal's guard before anything else is awaited, returning its refusal as it is", () => {
+    expect(JSON_POSTS).toHaveLength(3);
+    for (const f of JSON_POSTS) {
+      expect(methods(f.src), f.file).toEqual(["POST"]);
+      const body = postBody(f.src);
+      expect(body.slice(body.search(/\bawait\b/)).startsWith("await supplierPost(request, "), f.file).toBe(true);
+      expect(f.src, f.file).toMatch(/await supplierPost\(request, "projects", \{ maxBytes: PROJECTS_BODY_LIMIT \}\)/);
+      expect(body, f.file).toMatch(/^\{\s*const guard =/);
+      expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+      expect(body.indexOf("post.fields"), f.file).toBeGreaterThan(body.indexOf("guard.ok"));
+      // Parsed once, in one place, and acted on only if it parsed.
+      expect(body.indexOf("(post.fields)"), f.file).toBeLessThan(body.indexOf("(actor, parsed.value)"));
+    }
+  });
+
+  it("the upload is one POST that asks the portal's upload guard first, and judges the request in the order that keeps a stranger's cheap", () => {
+    const f = POSTS.find((x) => x.file === UPLOAD)!;
+    expect(methods(f.src)).toEqual(["POST"]);
+    const body = postBody(f.src);
+    expect(body.slice(body.search(/\bawait\b/)).startsWith("await supplierUploadPost(request, ")).toBe(true);
+    expect(f.src).toMatch(/await supplierUploadPost\(request, "projects"\)/);
+    expect(body).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+    // The place in line is taken before the work, and given back in a finally.
+    expect(body.indexOf("uploadLimiter().tryAcquire()")).toBeGreaterThan(body.indexOf("guard.ok"));
+    expect(body).toMatch(/finally\s*\{\s*slot\(\);/);
+    // Inside: the query (the contract, a posted kind) and the contract as this supplier holds it, then the stated length, the paced body, the form, the bytes' type, the store.
+    const code = lex(f.src);
+    const at = (needle: string) => code.indexOf(needle);
+    for (const [a, b] of [["parseUploadQuery(", "preflightProjectUpload("], ["preflightProjectUpload(", "requestLengthFault("], ["requestLengthFault(", "limitBodyPaced("], ["limitBodyPaced(", "formData()"], ["formData()", "parseUploadForm("], ["parseUploadForm(", "recogniseFile("], ["recogniseFile(", "mediaFault("], ["mediaFault(", "storeProjectFile("]] as const) {
+      expect(at(a), a).toBeGreaterThan(-1);
+      expect(at(b), b).toBeGreaterThan(at(a));
+    }
+    // The route reads no supplier, organisation or account from the request; the contract's id is the one thing the query names.
+    expect(lex(f.src, { only: "comments" })).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId|storedAt)["']\s*\)/);
+  });
+
+  it("staging takes no contract lock: it takes the account's own row, never the contract, the supplier row or a document, and is not run inside the contract's lock (PW-15)", () => {
+    const store = read("lib/project-docs/portal-upload.ts");
+    expect(lex(store)).not.toMatch(/withLockedContract|inHeldContract|lockSupplierRow|FROM "Contract"|FROM "Supplier"|FROM "ProjectDocument"|withLockedOwner/);
+    expect(store).toMatch(/FROM "SupplierAccount" WHERE id = \$\{actor\.accountId\}[^`]*FOR UPDATE/);
+    expect(lex(read(UPLOAD))).not.toMatch(/withLockedContract|inHeldContract/);
+    // The window is judged inside the store's own transaction, after the lock, and `now` is taken after it.
+    expect(store.indexOf("const now = new Date()")).toBeGreaterThan(store.indexOf("FOR UPDATE"));
+    expect(store.indexOf("windowFaults(")).toBeGreaterThan(store.indexOf("const now = new Date()"));
+    expect(store).toMatch(/hooks: \{\s*before:/);
+  });
+
+  it("the download is one GET that asks the portal's read guard first, reads the file only through the reach chain, logs after the response is built, and has a HEAD that reads nothing", () => {
+    const f = PROJECT_DOCUMENT_ROUTES.find((x) => x.file === DOWNLOAD)!;
+    expect(methods(f.src)).toEqual(["GET", "HEAD"]);
+    const get = bodyOf(f.src, "GET");
+    expect(get.slice(get.search(/\bawait\b/)).startsWith("await supplierGet(request, ")).toBe(true);
+    expect(f.src).toMatch(/await supplierGet\(request, "projects"\)/);
+    expect(get).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+    expect(bodyOf(f.src, "HEAD")).not.toMatch(/\bawait\b|\bdb\./);
+    const code = lex(f.src);
+    expect(code.indexOf("findProjectFile(")).toBeGreaterThan(-1);
+    expect(code.indexOf("findProjectFile(")).toBeLessThan(code.indexOf("store.get("));
+    // Everything that can fail is built before the download is logged.
+    expect(code.indexOf("new Response(")).toBeLessThan(code.lastIndexOf("logAccess("));
+    expect(f.src).toMatch(/kind: "DOWNLOADED"/);
+    expect(f.src).toMatch(/kind: "REFUSED"/);
+    expect(f.src).toMatch(/actor: as/);
+    // The supplier is the session's: the address names an attachment, never a supplier.
+    expect(lex(f.src, { only: "comments" })).not.toMatch(/searchParams|\.get\(\s*["'](?:supplierId|organisationId|accountId)["']\s*\)/);
+    // The reach chain: the attachment, held through its award, in the supplier's own organisation.
+    const reach = read("lib/project-docs/portal-file.ts");
+    expect(reach).toMatch(/organisationId: actor\.organisationId/);
+    expect(reach).toMatch(/supplierHoldsContract\(\{ awardVendorId: award\.vendorId, awardStatus: award\.status, supplierId: actor\.supplierId \}\)/);
+    expect(reach).toMatch(/contractorSeesVersion\(/);
+    expect(reach).toMatch(/contractorMayDownload\(/);
+    expect(reach).toMatch(/purpose: "PROJECT_DOCUMENT_FILE"/);
+  });
+
+  it("no handler or loader reads a supplier, an organisation, an account, a day or a time from the request", () => {
+    for (const f of [...PROJECT_DOCUMENT_ROUTES, ...LIBS]) {
+      const code = lex(f.src, { only: "comments" });
+      expect(code, f.file).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId|uploadedOn|uploadedAt|requestedAt|storedAt)["']\s*\)/);
+      expect(code, f.file).not.toMatch(/(?:fields|body|post\.fields|params|searchParams)\??\.\s*(?:supplierId|organisationId|accountId|supplierAccountId|uploadedOn|uploadedAt|requestedAt|storedAt)\b/);
+    }
+    // The parsers read a contract, a document, staged files, a note and a title, and nothing else (and no approver: a contractor names none).
+    const api = lex(read("lib/project-docs/portal-api.ts"), { only: "comments" });
+    expect(api).not.toMatch(/["'](?:supplierId|organisationId|accountId|supplierAccountId)["']/);
+  });
+
+  it("hold no server action, and the acts and readers take the supplier and the organisation from the actor", () => {
+    for (const f of PROJECT_DOCUMENT_ROUTES) expect(f.src, f.file).not.toMatch(/^\s*["']use server["']/m);
+    const acts = read("lib/project-docs/portal-acts.ts");
+    expect(acts).toMatch(/inHeldContract\(actor, contractId/);
+    expect(acts).toMatch(/kind: "SUPPLIER", actor/);
+    expect(lex(acts)).not.toMatch(/withLockedContract\(|lockSupplierRow|FROM "Supplier"/);
+    for (const file of ["lib/project-docs/portal-read.ts", "lib/project-docs/portal-file.ts"]) {
+      expect(read(file), file).toMatch(/organisationId: actor\.organisationId/);
+    }
+    // The contractor's readers never reach the staff ones, which name officers and carry the organisation's own state.
+    for (const file of ["lib/project-docs/portal-read.ts", "lib/project-docs/portal-file.ts", "lib/project-docs/portal-acts.ts", "lib/project-docs/contractor-view.ts"]) {
+      expect(lex(read(file)), file).not.toMatch(/loadDocumentPage|loadRegister\(|loadWorkspaceStart|organisationSideOn|decidedBy|approverName/);
     }
   });
 });
