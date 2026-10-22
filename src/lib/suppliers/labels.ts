@@ -605,5 +605,8 @@ export const SUPPLIER_DECIDER_TEXT: Readonly<Record<DeciderFault, Words>> = {
 
 /// What a supplier's registration is called in a route refusal.
 export const REGISTRATION_MATTER = w("a supplier's registration");
+/// The label of an application's declaration day (FR-VND-006). An application approved from a whole online application has an agreement ticked by someone not signed in, never a
+/// signature (ADR 0041 D3, D4; plan 6.3.2): it is "agreed", and so is its label.
+export const declarationDayLabel = (agreedOnline: boolean): string => (agreedOnline ? "Declaration agreed on" : "Declaration signed on");
 /// Where a refused registration route goes: the application stays open.
 export const REGISTRATION_REFUSED_DECIDED_BY = "the application stays open: resubmission may be requested, it may be rejected, or sent again";

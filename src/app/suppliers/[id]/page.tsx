@@ -65,7 +65,7 @@ import { PAPER_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMA
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
 import { expiryBand } from "@/lib/suppliers/expiry";
-import { asHeading, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, renewalUpcomingWords, standingTone, standingWords } from "@/lib/suppliers/labels";
+import { asHeading, declarationDayLabel, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, renewalUpcomingWords, standingTone, standingWords } from "@/lib/suppliers/labels";
 import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 
@@ -490,7 +490,7 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
               <KeyValues
                 columns={3}
                 items={[
-                  { label: "Declaration signed on", value: a.declarationSignedOn ? formatDate(day(a.declarationSignedOn)) : a.portalApplication ? <span>Agreed online, {formatOrgDay(a.portalApplication.receivedAt, l.org.timeZone)}</span> : a.submittedAt ? <span>Online, {formatOrgDay(a.submittedAt, l.org.timeZone)}</span> : notSet("Not recorded") },
+                  { label: declarationDayLabel(a.portalApplication != null && !a.declarationSignedOn), value: a.declarationSignedOn ? formatDate(day(a.declarationSignedOn)) : a.portalApplication ? <span>Online, {formatOrgDay(a.portalApplication.receivedAt, l.org.timeZone)}</span> : a.submittedAt ? <span>Online, {formatOrgDay(a.submittedAt, l.org.timeZone)}</span> : notSet("Not recorded") },
                   { label: "E-Payment form received on", value: a.epaymentFormReceivedOn ? formatDate(day(a.epaymentFormReceivedOn)) : notSet("Not recorded") },
                   { label: "Resubmit by", value: a.resubmitBy && a.status === "RESUBMISSION_REQUESTED" ? formatDate(day(a.resubmitBy)) : "—" },
                 ]}
