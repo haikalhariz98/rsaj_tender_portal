@@ -406,7 +406,8 @@ model ProjectDocumentDecision {
 ## 3. Step 2 — domain-engineer: pure `src/lib/project-docs/**`, with tests
 
 No database access in any file below except `side-store.ts` and `register.ts`. Each pure file has a `.test.ts`. `Finding` is
-`Finding` from `@/lib/contract/types`.
+`Finding` from `@/lib/contract/types`. Built 2026-10-23; where the build differs from a signature below, the decisions log of that day says
+how and why.
 
 ```ts
 // src/lib/project-docs/types.ts
@@ -419,7 +420,7 @@ export type Actor =
 export interface VersionFacts { id: string; number: number; uploaderPersonId: string | null; uploaderAccountId: string | null; noApproversAtUpload: boolean; requestId: string | null; uploadedOn: string }
 export interface ApproverFacts { id: string; personId: string; removed: boolean }
 export interface DecisionFacts { versionId: string; approverId: string | null; outcome: Outcome; remarks: string }
-export interface RequestFacts { id: string; toSide: Side; answered: boolean }
+export interface RequestFacts { id: string; toSide: Side; answered: boolean }   // who asked is derived, never stored twice: always the other side (PA042), askedBy(r) in state.ts
 export interface DocumentFacts { side: Side; kind: DocKind | null; versions: readonly VersionFacts[]; approvers: readonly ApproverFacts[]; decisions: readonly DecisionFacts[]; requests: readonly RequestFacts[] }
 
 // src/lib/project-docs/state.ts — the one source of a document's state (PW-12)
@@ -471,8 +472,14 @@ export const REMARKS_MAX = 4000;
 export function contractorSeesVersion(doc: DocumentFacts, v: VersionFacts): boolean;
 //   CONTRACTOR document: true. ORGANISATION document: v.noApproversAtUpload, or v is the latest and documentState(doc).state === "APPROVED".
 export const contractorSeesRemarks = (doc: Pick<DocumentFacts, "side">): boolean => doc.side === "CONTRACTOR";
-export type ContractorView = { shown: "VERSIONS"; versionIds: readonly string[] } | { shown: "BEING_PREPARED" };
-export function contractorView(doc: DocumentFacts): ContractorView;   // no visible version: "Being prepared by {organisation}"
+export type ContractorView = { shown: "VERSIONS"; versionIds: readonly string[] } | { shown: "BEING_PREPARED" } | { shown: "NOT_LISTED" };
+export function contractorView(doc: DocumentFacts): ContractorView;
+//   PW-28 (amends PW-8): a CONTRACTOR document is always VERSIONS (even before its first version). An ORGANISATION document is VERSIONS when the
+//   contractor may see a version (with an earlier shared version and a later pending one, the shared one only); otherwise BEING_PREPARED ("Being
+//   prepared by {organisation}") only if the contractor asked for it (a request from the contractor, answered or not: contractorAskedFor); otherwise
+//   NOT_LISTED: not in the portal list, its page a 404, and left out of the supplier's data export.
+export const contractorAskedFor = (doc: Pick<DocumentFacts, "requests">): boolean;
+export const contractorMayOpen = (doc: DocumentFacts): boolean;   // contractorView(doc).shown !== "NOT_LISTED"
 /// A contractor's download: the version is visible to it, and neither the document's classification nor its class's is SULIT or unset.
 export function contractorMayDownload(i: { versionVisible: boolean; documentClassification: SecurityClass | null; classClassification: SecurityClass | null }): boolean;
 /// "Waiting for you" (PW-13): an open request to the contractor, or a CONTRACTOR document REJECTED or RETURNED.
@@ -484,7 +491,9 @@ export const PROJECT_UPLOAD_WINDOW_MINUTES = 60;
 export const PROJECT_FILES_PER_WINDOW = 60;
 export const PROJECT_BYTES_PER_WINDOW = 256n * 1024n * 1024n;
 export type WindowFault = "TOO_MANY_FILES_IN_WINDOW" | "TOO_MANY_BYTES_IN_WINDOW";
-export function windowFaults(i: { filesInWindow: number; bytesInWindow: bigint; incomingBytes: bigint }): Finding<WindowFault>[];
+/// PW-32: `staged` is every store version the account recorded (attached or not), read under its SupplierAccount lock. Each refusal carries the limit and
+/// `retryInMinutes`, when enough of the oldest counted files leave the rolling window for this one to fit; the words name both. No meter, no counter.
+export function windowFaults(i: { staged: readonly { at: Date; bytes: bigint }[]; incomingBytes: bigint; now: Date }): Finding<WindowFault>[];
 export type StagedFault = "NOT_STAGED_FOR_PROJECT" | "NOT_YOURS" | "ALREADY_ATTACHED" | "WITHDRAWN" | "WRONG_CLASS" | "DUPLICATE";
 /// Each staged file the act would pin (ADR 0042 D8). recordedBy* are the store version's; actor is the act's.
 export function stagedFileFaults(files: readonly { versionId: string; stagedFor: string | null; recordedByPersonId: string | null; recordedBySupplierAccountId: string | null; attachments: number; withdrawn: boolean; documentClassId: string }[], actor: Actor, projectClassId: string): Finding<StagedFault>[];
@@ -502,13 +511,20 @@ export function noticeTargets(e: WorkspaceEvent): { kind: StaffNoticeKind; subje
 // Title and body builders live in src/lib/inbox/notices.ts beside contractorSubmissionNotices: they carry the contract label, the
 // document title and the contractor's name, and never a figure.
 
-// src/lib/project-docs/taken-up.ts — PW-9
-/// Where a taken-up kind is recorded. Null: no staff screen records it (see §11, item 3).
+// src/lib/project-docs/taken-up.ts — PW-9, PW-24
+/// Where a taken-up kind is recorded. Null: no staff screen records it (see §11, item 3); then "Taken up" shows no link and no "recorded in" words.
 export function takenUpWhere(kind: DocKind): { stage: "project"; tab: "site" | "payments"; section: string } | null;
 //   WORK_PROGRAMME → site/start; INTERIM_CLAIM, MATERIALS_ON_SITE → payments/valuations; DELAY_NOTICE, DEFECTS_RECTIFIED, STATUTORY_DECLARATION → null
 
 // src/lib/project-docs/labels.ts — English words; never a code on screen
 export const STATE_WORDS: Readonly<Record<DocumentState, string>>;   // "Asked for", "Waiting for approval", "Approved", "Rejected", "Shared", "Received", "Taken up", "Returned"
+// PW-24: the outcome is stored as the generic TAKEN_UP, but on DEFECTS_RECTIFIED it reads "Noted". So screens word a state or an outcome with the
+// document's kind, never from STATE_WORDS alone:
+export const stateWords: (state: DocumentState, kind: DocKind | null) => string;
+export const outcomeWords: (outcome: Outcome, kind: DocKind | null) => string;
+export const markActionWords: (outcome: "TAKEN_UP" | "RETURNED", kind: DocKind | null) => string;   // "Mark taken up" | "Mark noted" | "Return"
+/// "Recorded under Site › Possession and progress", only together with its link; null where takenUpWhere is null.
+export function takenUpLink(kind: DocKind): { words: string; where: TakenUpWhere } | null;
 export function waitsOnWords(r: DocumentReading, orgName: string): string | null;   // "Waiting on the contractor" | `Waiting on ${orgName}` | null
 export function faultText(f: Finding): string;
 export const BEING_PREPARED = (orgName: string) => `Being prepared by ${orgName}`;
@@ -532,8 +548,12 @@ export async function organisationSideOn(l: LoadedContract, s: SupervisionRows, 
 - The window bound applies to portal accounts: the external surface.
 - Staff staging goes through the existing staff upload route, and staff are bounded per version only, as every other staff upload is
   today.
-- The window is counted from `DocumentVersion` rows by `recordedBySupplierAccountId` and `storedAt`. Staged-but-unpinned files count,
-  because staging is where a flood would land.
+- The window is counted from `DocumentVersion` rows by `recordedBySupplierAccountId` and `storedAt`, under the `SupplierAccount` row's lock.
+  Staged-but-unpinned files count, because staging is where a flood would land. The window is rolling and half-open: a file staged exactly
+  60 minutes ago has left it.
+- **Not shown until hit (PW-32).** No meter, counter or standing text. A refusal names the limit and when to try again ("Try again in 12
+  minutes": when enough of the oldest counted files have left the window for this one to fit). Bytes may bind before files; accepted as a
+  flood brake. Postgres growth is an open risk until object storage.
 
 ### 3.2 Done when (vitest, pure)
 
@@ -544,8 +564,12 @@ export async function organisationSideOn(l: LoadedContract, s: SupervisionRows, 
   4. the approver rejects with remarks: REJECTED, waits on CONTRACTOR, and `contractorSeesRemarks` is true;
   5. the contractor uploads Version 2: WAITING_FOR_APPROVAL, and the Version 1 rejection does not count;
   6. the approver approves: APPROVED, final, waits on nobody.
-- **Visibility and approvers:**
-  - an organisation document with an approver at upload is BEING_PREPARED to the contractor until approved, then shows that version;
+- **Visibility and approvers** (PW-28 amends PW-8):
+  - an organisation document with an approver at upload, which the contractor did not ask for, is NOT_LISTED until approved, then shows
+    that version;
+  - the same document asked for by the contractor is BEING_PREPARED until approved, then shows that version;
+  - with an earlier shared version and a later one still with its approvers, the contractor sees the shared version only;
+  - a contractor document is always listed, even before its first version;
   - a version uploaded with no approver stays visible after an approver is added;
   - two approvers: one approval leaves WAITING_FOR_APPROVAL; a rejection by the second gives REJECTED, and a later approval by the
     first is NOT_WAITING;
@@ -560,10 +584,12 @@ export async function organisationSideOn(l: LoadedContract, s: SupervisionRows, 
   - an organisation person cannot upload to a CONTRACTOR document;
   - a request to one's own side is refused; a second request while one is open is refused; a request while REJECTED is refused;
   - Reject and Returned with blank remarks are refused, and Approve with blank remarks is accepted.
-- **Bounds:** at 20 files a version is accepted, and at 21 it is refused; the window refuses at 61 files and at 256 MiB + 1 byte; a
-  staged file of another actor, another class, already attached, or not staged for a project is refused.
+- **Bounds:** at 20 files a version is accepted, and at 21 it is refused; the window refuses at 61 files and at 256 MiB + 1 byte, and the
+  refusal names the limit and when to retry; a staged file of another actor, another class, already attached, or not staged for a project
+  is refused.
 - **Notices:** each event's recipients are exactly PW-13's, de-duplicated (an S.O. who is also an approver gets each kind once).
-- **Words:** `STATE_WORDS` and every fault have English words, with no code in them (a scan, as `labels.test.ts` elsewhere).
+- **Words:** `STATE_WORDS` and every fault have English words, with no code in them (a scan, as `labels.test.ts` elsewhere). On defects
+  rectified the mark reads "Noted" as state, outcome and button (PW-24), and no kind without a screen gets "recorded in" words.
 
 ## 4. Step 3 — api-engineer, then frontend-engineer: configuration, the project document class
 

@@ -185,6 +185,48 @@ export function contractorSubmissionNotices(i: { submissionId: string; contractI
   }));
 }
 
+/**
+ * ADR 0042 D6 (PW-13): the Project workspace's three notices, written from `noticeTargets` (src/lib/project-docs/notices.ts), which decides the kind, the
+ * subject and who is told. They name the contract, the document's title and the contractor, and never a figure. The person who did the act is never told
+ * of it (`by`; null for the contractor's acts). The subject is the version or the request, so Version 2 tells the approvers again.
+ */
+export function projectDocumentNotices(i: {
+  target: {
+    kind: "PROJECT_DOCUMENT_TO_APPROVE" | "PROJECT_DOCUMENT_FROM_CONTRACTOR" | "PROJECT_DOCUMENT_REQUESTED";
+    subjectEntity: "ProjectDocumentVersion" | "ProjectDocumentRequest";
+    subjectId: string;
+    recipientPersonIds: readonly string[];
+  };
+  by: string | null;
+  contractLabel: string;
+  documentTitle: string;
+  contractorName: string;
+  /// "Version 2", for the two notices about a version; ignored for a request.
+  versionLabel: string;
+  /// The contract's exercise where its notices are restricted with it; null as for the contractor's submissions.
+  exerciseId: string | null;
+  href: string;
+}): NoticeDraft[] {
+  const t = i.target;
+  const words =
+    t.kind === "PROJECT_DOCUMENT_TO_APPROVE"
+      ? { title: `Document to approve: ${i.documentTitle}`, body: `${i.contractLabel}: ${i.versionLabel} of "${i.documentTitle}" waits on your approval.` }
+      : t.kind === "PROJECT_DOCUMENT_FROM_CONTRACTOR"
+        ? { title: `${i.documentTitle} from ${i.contractorName}`, body: `${i.contractLabel}: the contractor sent ${i.versionLabel} of "${i.documentTitle}".` }
+        : { title: `${i.contractorName} asks for ${i.documentTitle}`, body: `${i.contractLabel}: the contractor asked for "${i.documentTitle}".` };
+  return recipientsOf(t.recipientPersonIds, i.by).map((r) => ({
+    recipientPersonId: r,
+    kind: t.kind,
+    subjectEntity: t.subjectEntity,
+    subjectId: t.subjectId,
+    occurrence: "",
+    exerciseId: i.exerciseId,
+    title: words.title,
+    body: words.body,
+    href: i.href,
+  }));
+}
+
 export function matterNotCarriedMemo(i: {
   decisionId: string;
   matterLabel: string;

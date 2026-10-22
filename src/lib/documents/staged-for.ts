@@ -13,6 +13,13 @@ export const STAGED_FOR_DELEGATION = "delegation-recommendation";
 export const STAGED_FOR_TEMPLATE_FILE = "tender-part-template";
 
 /**
+ * ADR 0042 D8 (plan step 2): a file of a Project workspace document's version. Staged first, outside any contract lock, by the staff upload route or the
+ * portal's project upload route, in the configured project class; the act that creates the version then pins it (`stagedFileFaults`,
+ * src/lib/project-docs/bounds.ts), and refuses a file staged for anything else, or by anyone else.
+ */
+export const STAGED_FOR_PROJECT_DOCUMENT = "project-document";
+
+/**
  * Review S7: whether a document may be a configured part's template file. Any version of the organisation used to be accepted; now only a document the upload route staged for this
  * purpose, which no record holds, and never a SULIT one (every officer downloads a template file, on every exercise, restricted or not). Words for the officer, or null. Pure.
  */

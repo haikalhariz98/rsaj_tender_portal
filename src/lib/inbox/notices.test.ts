@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { STAFF_NOTICE_KINDS, STAFF_NOTICE_KIND_LABEL } from "./kinds";
-import { caseClockNotices, delegationReceivedNotice, holderMarkedAbsentNotices, matterNotCarriedMemo, routeRecalledNotices, stepEscalatedNotices, stepMovedOnAbsenceNotices } from "./notices";
+import { caseClockNotices, delegationReceivedNotice, holderMarkedAbsentNotices, matterNotCarriedMemo, projectDocumentNotices, routeRecalledNotices, stepEscalatedNotices, stepMovedOnAbsenceNotices } from "./notices";
 
 // Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
 
@@ -84,5 +84,30 @@ describe("the clock notices of an award (FR-AWD-006, FR-AWD-009; C13)", () => {
   });
   it("writes none when nobody is to be told", () => {
     expect(caseClockNotices({ ...base, kind: "INDENT_EXPIRED", recipients: [] })).toEqual([]);
+  });
+});
+
+describe("the Project workspace's notices (ADR 0042 D6, PW-13)", () => {
+  const base = { by: null, contractLabel: "CON/1 · A Contractor", documentTitle: "Drainage layout", contractorName: "A Contractor", versionLabel: "Version 2", exerciseId: null, href: "/projects/c1/documents/d1" };
+  it("a version to approve tells each approver once, never the uploader, and names the version and the title", () => {
+    const n = projectDocumentNotices({ ...base, by: "so", target: { kind: "PROJECT_DOCUMENT_TO_APPROVE", subjectEntity: "ProjectDocumentVersion", subjectId: "v2", recipientPersonIds: ["eng", "so", "eng"] } });
+    expect(n.map((x) => x.recipientPersonId)).toEqual(["eng"]);
+    expect(n[0]).toMatchObject({ kind: "PROJECT_DOCUMENT_TO_APPROVE", subjectEntity: "ProjectDocumentVersion", subjectId: "v2", occurrence: "", exerciseId: null, href: "/projects/c1/documents/d1" });
+    expect(n[0]!.title).toBe("Document to approve: Drainage layout");
+    expect(n[0]!.body).toBe('CON/1 · A Contractor: Version 2 of "Drainage layout" waits on your approval.');
+  });
+  it("what the contractor sent and asked for names the contractor, and tells every S.O. once", () => {
+    const sent = projectDocumentNotices({ ...base, target: { kind: "PROJECT_DOCUMENT_FROM_CONTRACTOR", subjectEntity: "ProjectDocumentVersion", subjectId: "v1", recipientPersonIds: ["b", "a"] } });
+    expect(sent.map((x) => x.recipientPersonId)).toEqual(["a", "b"]);
+    expect(sent[0]!.title).toBe("Drainage layout from A Contractor");
+    const asked = projectDocumentNotices({ ...base, target: { kind: "PROJECT_DOCUMENT_REQUESTED", subjectEntity: "ProjectDocumentRequest", subjectId: "r1", recipientPersonIds: ["a"] } });
+    expect(asked[0]).toMatchObject({ subjectEntity: "ProjectDocumentRequest", subjectId: "r1", title: "A Contractor asks for Drainage layout" });
+    expect(asked[0]!.body).not.toContain("Version");
+  });
+  it("never carries a figure beyond the version's own label", () => {
+    for (const kind of ["PROJECT_DOCUMENT_TO_APPROVE", "PROJECT_DOCUMENT_FROM_CONTRACTOR", "PROJECT_DOCUMENT_REQUESTED"] as const) {
+      const [n] = projectDocumentNotices({ ...base, versionLabel: "Version 1", target: { kind, subjectEntity: "ProjectDocumentVersion", subjectId: "v", recipientPersonIds: ["a"] } });
+      expect(`${n!.title} ${n!.body}`.replace("Version 1", "").replace("CON/1", ""), kind).not.toMatch(/\d/);
+    }
   });
 });
