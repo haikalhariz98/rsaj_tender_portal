@@ -434,6 +434,7 @@ export const APPLY = {
   submitTooSlow: w("The files took too long to arrive. Nothing was sent. Try again on a faster connection."),
   submitUnreadable: w("The application could not be read. Nothing was sent."),
   busy: w("Too many applications right now. Nothing was sent. Try again later."),
+  textChanged: w("This wording changed while you were filling in the form. Read it again and tick again."),
   tooManyFromAddress: w("Too many tries from your connection. Nothing was sent. Try again later."),
 };
 

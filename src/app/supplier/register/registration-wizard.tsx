@@ -22,8 +22,8 @@ import { FORM_TOKEN_HEADER } from "@/lib/auth/form-token-shape";
 import { formatBytes } from "@/lib/documents/labels";
 import { HONEYPOT_FIELD } from "@/lib/portal/apply";
 import { APPLY, PORTAL_PATH } from "@/lib/portal/labels";
-import type { PublicRegistrationConfig } from "@/lib/portal/register/config";
-import { REGISTER_VALUES_MAX_HITS, REGISTER_VALUES_MIN_QUERY, type TokenReply, type ValueHit } from "@/lib/portal/register/contract";
+import { staleTicks, withCurrentTexts, type PublicRegistrationConfig } from "@/lib/portal/register/config";
+import { REGISTER_VALUES_MAX_HITS, REGISTER_VALUES_MIN_QUERY, type CurrentTexts, type TokenReply, type ValueHit } from "@/lib/portal/register/contract";
 import { heldDraft } from "@/lib/portal/register/held-draft";
 import { summaryRecordOfHeld } from "@/lib/portal/register/summary-record";
 import { browserContext, emptyWizard, firstFaultStep, formParts, heldBody, heldSummaryState, readValues, sendApplication, sentRows, stepCheck, stepIndex, summaryListsOf, wizardReducer, type Outcome, type Transport, type WizardState } from "@/lib/portal/register/wizard";
@@ -121,6 +121,9 @@ export function RegistrationWizard({
   /// field changes); the rest stay until the next Submit.
   const [refusal, setRefusal] = useState<{ message: string; withFaults: boolean } | null>(null);
   const [done, setDone] = useState<{ reference: string | null } | null>(null);
+  /// The texts in force, where a refusal said they changed during the visit (review SHOULD 3). Null: as the page was drawn.
+  const [current, setCurrent] = useState<CurrentTexts | null>(null);
+  const live = useMemo(() => (current ? withCurrentTexts(config, current) : config), [config, current]);
   const [leaving, setLeaving] = useState<string | null>(null);
   const token = useRef(initialToken);
   const sentToken = useRef<string | null>(null);
@@ -173,11 +176,11 @@ export function RegistrationWizard({
 
   const step = state.step;
   const at = stepIndex(step);
-  const ctx = useMemo(() => browserContext(state, config), [state, config]);
+  const ctx = useMemo(() => browserContext(state, live), [state, live]);
   const faults = state.faults.filter((f) => f.step === step);
 
   function next() {
-    const found = stepCheck(step, state, config);
+    const found = stepCheck(step, state, live);
     dispatch({ type: "next", faults: found });
     // Into step 4 for the first time: the beneficiary's email and tax number from what step 1 and 2 hold, said under each.
     if (step === "codes" && !found.some((f) => f.level === "block")) {
@@ -228,7 +231,7 @@ export function RegistrationWizard({
     if (sending != null) return;
     setRefusal(null);
     // The page's own check first: a fault anywhere sends the applicant to it, and nothing is sent.
-    const found = stepCheck("review", state, config);
+    const found = stepCheck("review", state, live);
     const first = firstFaultStep(found);
     if (first) {
       dispatch({ type: "faults", faults: found, step: first });
@@ -239,7 +242,7 @@ export function RegistrationWizard({
     const result = await sendApplication<File>({
       token: token.current,
       sentToken: sentToken.current,
-      parts: () => formParts(state, config, bait.current?.value ?? ""),
+      parts: () => formParts(state, live, bait.current?.value ?? ""),
       transport: TRANSPORT,
       progress: (f) => setSending(Math.round(f * 100)),
     });
@@ -256,7 +259,11 @@ export function RegistrationWizard({
         return;
       case "faults": {
         const first = firstFaultStep(outcome.faults) ?? "review";
-        dispatch({ type: "faults", faults: outcome.faults, step: first });
+        if (outcome.current) {
+          // A wording changed while the form was open: shown now, the ticks made on the old one taken away, and the applicant asked to read it again.
+          dispatch({ type: "textsChanged", untick: staleTicks(live, outcome.current), faults: outcome.faults, step: first });
+          setCurrent(outcome.current);
+        } else dispatch({ type: "faults", faults: outcome.faults, step: first });
         setRefusal({ message: outcome.message, withFaults: outcome.faults.some((f) => f.level === "block") });
         focusFirst();
         return;
@@ -320,7 +327,7 @@ export function RegistrationWizard({
     add: (file) => dispatch({ type: "addFile", key, file }),
     remove: (index) => dispatch({ type: "removeFile", key, index }),
   });
-  const body = heldBody(state, config);
+  const body = heldBody(state, live);
 
   return (
     <>
@@ -392,7 +399,7 @@ export function RegistrationWizard({
                     remove: (index) => dispatch({ type: "removeStatement", index }),
                   }}
                   uploadClosed={null}
-                  giro={{ text: config.texts.GIRO_AUTHORISATION }}
+                  giro={{ text: live.texts.GIRO_AUTHORISATION }}
                   giroVoided={false}
                   acceptNote={config.upload.acceptNote}
                   accept={config.upload.accept}
@@ -417,7 +424,7 @@ export function RegistrationWizard({
         ) : (
           <Review
             state={state}
-            config={config}
+            config={live}
             onEdit={goTo}
             onBack={() => goTo("epayment")}
             onFalseDeclaration={(confirmed) => dispatch({ type: "falseDeclaration", confirmed })}

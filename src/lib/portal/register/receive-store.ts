@@ -17,7 +17,8 @@ import { normaliseRegistrationNo } from "@/lib/suppliers/identity";
 import { composeAddress, mobileWithDialCode, typedDay } from "@/lib/suppliers/step-one";
 
 import { REGISTER_RECEIVE_TIMEOUT_SECONDS } from "./ceiling";
-import type { PublicApplicationBody } from "./contract";
+import { currentTextsOf } from "./config";
+import type { CurrentTexts, PublicApplicationBody } from "./contract";
 import { blockingPublicFaults, publicApplicationFaults, type PublicFault } from "./faults";
 import { heldDraft } from "./held-draft";
 import { findSpent } from "./token-store";
@@ -67,7 +68,7 @@ export type ReceiveOutcome =
   | { ok: true; reference: string }
   | { ok: false; kind: "BUSY" | "CLOSED" }
   /// A rule found a fault on what was read again under the lock: a text retired, a notice changed, a type or a code withdrawn since the page was drawn.
-  | { ok: false; kind: "VALIDATION"; faults: PublicFault[] };
+  | { ok: false; kind: "VALIDATION"; faults: PublicFault[]; current: CurrentTexts };
 
 /// A refusal thrown from inside the transaction, so the reference and everything else it took are given back.
 class Turned extends Error {
@@ -121,7 +122,7 @@ export async function receivePublicApplication(i: ReceiveInput): Promise<Receive
           if (!settings) throw new Turned({ ok: false, kind: "CLOSED" });
           const ctx = await registrationContextFor(tx, orgId, settings, valueIds, { registrationNoKey: key, contactName: body.company.contact.name });
           const faults = blockingPublicFaults(publicApplicationFaults(body, heldDraft(body, fileCounts, i.statement.length), ctx, register.step1));
-          if (faults.length > 0) throw new Turned({ ok: false, kind: "VALIDATION", faults });
+          if (faults.length > 0) throw new Turned({ ok: false, kind: "VALIDATION", faults, current: currentTextsOf(ctx) });
           return { settings, ctx };
         };
         const { ctx } = await judge();

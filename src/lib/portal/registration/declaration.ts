@@ -114,7 +114,8 @@ export function declarationFaults(inputs: readonly DeclarationInput[], ctx: Regi
       continue;
     }
     const i = given[0]!;
-    if (i.textVersionId !== text.id || i.textSha256 !== text.sha256) add({ code: "TEXT_STALE", level: "block", field, data: { kind } });
+    // On the tick, so it clears when the box is ticked again on the wording now shown (review SHOULD 3).
+    if (i.textVersionId !== text.id || i.textSha256 !== text.sha256) add({ code: "TEXT_STALE", level: "block", field: `${field}.confirmed`, data: { kind } });
     if (isBlank(i.signatoryName)) add({ code: "SIGNATORY_NAME_REQUIRED", level: "block", field: `${field}.signatoryName` });
     if (isBlank(i.signatoryDesignation)) add({ code: "SIGNATORY_DESIGNATION_REQUIRED", level: "block", field: `${field}.signatoryDesignation` });
     if (!i.confirmed) add({ code: "NOT_CONFIRMED", level: "block", field: `${field}.confirmed`, data: { kind } });

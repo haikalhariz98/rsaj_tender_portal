@@ -469,6 +469,9 @@ describe("every step's rules, by step and field (plan 8.2.6)", () => {
     const at = (r.json.faults as { step: string; field: string | null; level: string }[]).filter((f) => f.level === "block").map((f) => [f.step, f.field]);
     expect(at).toEqual(expect.arrayContaining([["company", "registeredName"], ["documents", "documents.new:reg.file"], ["epayment", "creditor.bankCode"], ["epayment", "creditor.statement"], ["review", "terms"]]));
     expect(JSON.stringify(r.json)).not.toMatch(/[A-Z]{3,}_[A-Z]/);
+    // Review SHOULD 3: the texts in force come back with the refusal, so the page can show what is agreed now.
+    expect(r.json.current.texts.terms).toMatchObject({ id: CTX.texts.TERMS_AND_CONDITIONS!.id, sha256: CTX.texts.TERMS_AND_CONDITIONS!.sha256 });
+    expect(r.json.current.notice).toEqual(CTX.personalDataNotice);
     expect(h.received).toHaveLength(0);
   });
 });

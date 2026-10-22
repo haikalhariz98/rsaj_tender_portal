@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { approveFaults, submitFaults } from "@/lib/suppliers/review";
 import type { DocumentTypeFacts } from "@/lib/suppliers/types";
 
-import { portalFileFacts, type HeldDocumentFacts } from "./file-facts";
+import { portalFileFacts, portalFileFactsOf, type HeldDocumentFacts } from "./file-facts";
 
 /// The held rows of a whole online application, read by the same approval rules as any application (ADR 0041 D5, plan 8.1).
 const TODAY = "2026-10-09";
@@ -43,5 +43,28 @@ describe("portalFileFacts read by approveFaults", () => {
     expect(approveFaults(f, TODAY)).toEqual([{ code: "CREDITOR_NOT_VERIFIED", level: "warn" }]);
     for (const status of ["APPROVED", "REJECTED", "DISCARDED", "RECORDED"] as const) expect(codes(approveFaults(portalFileFacts({ ...app, status }, [verified], null, declared, types, { onlineDeclarationReplacesPaper: true }, TODAY), TODAY))).toEqual(["DECIDED"]);
     expect(codes(submitFaults(portalFileFacts({ ...app, routePending: true }, [verified], null, declared, types, { onlineDeclarationReplacesPaper: true }, TODAY), TODAY))).toEqual(["ROUTE_PENDING"]);
+  });
+});
+
+describe("the held rows, mapped once (review SHOULD 2)", () => {
+  it("reads dates as the organisation's days, a check by its state, and bank details set aside as none", () => {
+    const rows = {
+      application: { status: "RECEIVED" as const, receivedOn: new Date("2026-10-01T00:00:00Z"), routePending: false },
+      documents: [{ id: "d1", typeId: "t1", typeLabelSnapshot: "Registry", expiresOn: new Date("2027-06-30T00:00:00Z"), notApplicable: false, verification: "VERIFIED", verifiedOn: new Date("2026-10-02T00:00:00Z") }],
+      creditor: { verification: "VERIFIED", erasedAt: new Date() },
+      declarations: [{ kind: "FALSE_DECLARATION", signedAt: new Date("2026-10-01T02:00:00Z") }],
+    };
+    const types = [{ id: "t1", nameEn: "Registry", expires: true, mandatoryAtRegistration: true, notApplicableAllowed: false, retired: false, provenance: "ASSUMED" }] as never;
+    const viaRows = portalFileFactsOf(rows, types, { onlineDeclarationReplacesPaper: true }, "2026-10-05");
+    const direct = portalFileFacts(
+      { status: "RECEIVED", receivedOn: "2026-10-01", routePending: false },
+      [{ id: "d1", typeId: "t1", typeLabel: "Registry", expiresOn: "2027-06-30", notApplicable: false, verification: "VERIFIED", verifiedOn: "2026-10-02" }],
+      null,
+      [{ kind: "FALSE_DECLARATION", signedAt: "2026-10-01T02:00:00.000Z" }],
+      types,
+      { onlineDeclarationReplacesPaper: true },
+      "2026-10-05",
+    );
+    expect(viaRows).toEqual(direct);
   });
 });

@@ -33,9 +33,17 @@ export interface PublicApplicationBody {
 
 export interface FaultView { step: RegistrationStep; field: string | null; level: "block" | "warn" | "info"; message: string }
 
+/// The agreed texts and the Personal Data Notice in force when a submission was refused (review SHOULD 3): the page swaps them in, unticks what changed and asks for it to be read
+/// again. A text's wording is sent unfilled (`bodyEn`); the page fills in the organisation's name it already holds, so the hash it shows is the one the server checks. Keyed by words
+/// (the GIRO authorisation, the false declaration, the terms), never by a code.
+export interface CurrentTexts {
+  texts: Record<"giro" | "declaration" | "terms", { id: string; version: number; bodyEn: string; sha256: string } | null>;
+  notice: { en: string; sha256: string } | null;
+}
+
 export type RegisterReply =
   | { ok: true; reference: string | null }   // null: a dropped bot (honeypot)
-  | { ok: false; code: "VALIDATION"; message: string; faults: FaultView[] }
+  | { ok: false; code: "VALIDATION"; message: string; faults: FaultView[]; current?: CurrentTexts }
   | { ok: false; code: "FORM_EXPIRED" | "CLOSED" | "BUSY" | "TOO_MANY" | "TOO_LARGE" | "TOO_SLOW" | "NO_LENGTH" | "UNREADABLE" | "TRY_AGAIN"; message: string };
 
 export type TokenReply = { ok: true; token: string } | { ok: false; code: "CLOSED"; message: string };

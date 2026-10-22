@@ -91,6 +91,8 @@ function wordsOf(f: PublicFault): string | null {
     if (words) return words.en;
     return c.level === "block" ? APPLY.cantAccept.en : null;
   }
+  // Review SHOULD 3: on this path a reload loses everything held, so a changed wording is never answered with "reload"; the page swaps the wording in and the tick is asked again.
+  if (f.code === "TEXT_STALE") return APPLY.textChanged.en;
   return registrationFaultText(f as StepFault).en;
 }
 

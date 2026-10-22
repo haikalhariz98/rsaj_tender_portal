@@ -29,9 +29,9 @@ import { isLive } from "@/lib/documents/evidence";
 import { ACT_LABEL } from "@/lib/labels";
 import { issueReference, NumberingError } from "@/lib/numbering/issue";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
-import { portalFileFacts } from "@/lib/portal/register/file-facts";
+import { portalFileFactsOf } from "@/lib/portal/register/file-facts";
 import { blocksRecording, flagWords, portalFlags } from "@/lib/portal/queue";
-import { CREDITOR_FIELDS, type DeclarationKind } from "@/lib/portal/registration/types";
+import { CREDITOR_FIELDS } from "@/lib/portal/registration/types";
 import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
 import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { inOrder } from "@/lib/series";
@@ -89,11 +89,8 @@ export async function portalFileOf(tx: Tx, organisationId: string, pa: Pick<Lock
     () => tx.registrationDeclaration.findMany({ where: { portalApplicationId: pa.id, organisationId }, select: { kind: true, signedAt: true } }),
     () => tx.supplierPolicy.findUnique({ where: { organisationId }, select: { onlineDeclarationReplacesPaper: true } }),
   );
-  const f: FileFacts = portalFileFacts(
-    { status: pa.status, receivedOn: storedDay(pa.receivedOn), routePending: pa.routes.some((r) => r.status === "PENDING") },
-    docs.map((d) => ({ id: d.id, typeId: d.typeId, typeLabel: d.typeLabelSnapshot, expiresOn: day(d.expiresOn), notApplicable: d.notApplicable, verification: d.verification as VerificationState, verifiedOn: day(d.verifiedOn) })),
-    creditor && !creditor.erasedAt ? { verification: creditor.verification as VerificationState } : null,
-    agreements.map((a) => ({ kind: a.kind as DeclarationKind, signedAt: a.signedAt.toISOString() })),
+  const f: FileFacts = portalFileFactsOf(
+    { application: { status: pa.status, receivedOn: pa.receivedOn, routePending: pa.routes.some((r) => r.status === "PENDING") }, documents: docs, creditor, declarations: agreements },
     types.map(typeFacts),
     { onlineDeclarationReplacesPaper: policy?.onlineDeclarationReplacesPaper ?? null },
     today,

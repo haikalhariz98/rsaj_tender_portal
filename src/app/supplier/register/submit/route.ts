@@ -20,18 +20,18 @@ import { deploymentOrganisation } from "@/lib/portal/deployment";
 import { APPLY } from "@/lib/portal/labels";
 import { overAddressLimit, registerAddressCounter } from "@/lib/portal/register/address-limit";
 import { REGISTER_BODY_DEADLINE_SECONDS, REGISTER_BODY_GRACE_SECONDS, REGISTER_BODY_MIN_BYTES_PER_SECOND, REGISTER_TEXT_ALLOWANCE } from "@/lib/portal/register/ceiling";
-import { documentFilePart, REGISTER_APPLICATION_PART, STATEMENT_FILE_PART, type FaultView, type RegisterReply } from "@/lib/portal/register/contract";
+import { currentTextsOf } from "@/lib/portal/register/config";
+import { checkFiles, type FileToCheck } from "@/lib/portal/register/file-checks";
+import { documentFilePart, REGISTER_APPLICATION_PART, STATEMENT_FILE_PART, type RegisterReply } from "@/lib/portal/register/contract";
 import { blockingPublicFaults, publicApplicationFaults, publicFaultViews } from "@/lib/portal/register/faults";
 import { heldDraft } from "@/lib/portal/register/held-draft";
 import { parsePublicApplication } from "@/lib/portal/register/parse";
 import { receivePublicApplication, type HeldFile } from "@/lib/portal/register/receive-store";
 import { findSpent, tokenSha256 } from "@/lib/portal/register/token-store";
 import { registrationContextFor } from "@/lib/portal/registration/context-store";
-import { uploadFault, type UploadFault, type UploadKind } from "@/lib/portal/registration/upload";
-import { uploadFaultText } from "@/lib/portal/registration/words";
+import type { UploadKind } from "@/lib/portal/registration/upload";
 import { gate, SURFACE_ENV, surfaceOf } from "@/lib/portal/surface";
 import { normaliseRegistrationNo } from "@/lib/suppliers/identity";
-import type { Finding } from "@/lib/suppliers/types";
 
 import { stampNow } from "../../../suppliers/shared";
 
@@ -184,34 +184,27 @@ async function receiveBody(request: Request, i: { now: Date; register: RegisterS
     sent.push({ part, file: value });
   }
 
-  // 10. Each file, in the order sent, by what its own bytes say it is. The quotas count across the whole application, so each is judged once.
+  // 10. Each file, in the order sent, by what its own bytes say it is, through the page's own check (`checkFiles`): the quotas count across the whole application, so each is judged
+  // once. A file whose name or declared type disagrees with its bytes is refused as well: a disguise or a mistake, and neither is filed.
   const store = register.upload.store;
-  const usage = { files: 0, bytes: 0n };
-  const fileFaults: FaultView[] = [];
-  const accepted: { key: string | null; file: File; mediaType: string }[] = [];
+  const read: FileToCheck<File>[] = [];
   for (const { part, file } of sent) {
-    const size = BigInt(file.size);
     const sniffed = sniffMediaType(new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer()));
-    // A file whose name or declared type disagrees with its bytes is refused as well: a disguise or a mistake, and neither is filed.
     const disguised = filenameFault(file.name) != null || mediaFault(sniffed, { filename: file.name, contentType: file.type }, { allowedMediaTypes: [...store.allowedTypes], maxBytes: store.capBytes }) != null;
-    const found: Finding<UploadFault> | null = disguised ? { code: "TYPE_NOT_ALLOWED", level: "block" } : uploadFault({ size, sniffedType: sniffed }, store, register.upload[part.kind], usage, part.kind);
-    if (found) {
-      fileFaults.push(part.kind === "statement" ? { step: "epayment", field: "creditor.statement", level: "block", message: uploadFaultText(found, "statement").en } : { step: "documents", field: `documents.${part.key}.file`, level: "block", message: uploadFaultText(found, "document").en });
-      continue;
-    }
-    usage.files += 1;
-    usage.bytes += size;
-    accepted.push({ key: part.key, file, mediaType: sniffed! });
+    read.push({ key: part.key, kind: part.kind, size: BigInt(file.size), type: sniffed, disguised, item: file });
   }
   sent = [];
+  const checked = checkFiles(read, register.upload);
+  read.length = 0;
+  const fileFaults = checked.faults;
+  const accepted = checked.accepted;
+  const fileCounts = checked.counts;
+  const statementCount = checked.statementCount;
 
   // 11. Every step's rules, on the body and the files that were taken. The context is the organisation's, with the codes chosen and the applicant's own number and contact.
-  const fileCounts = new Map<string, number>();
-  for (const a of accepted) if (a.key) fileCounts.set(a.key, (fileCounts.get(a.key) ?? 0) + 1);
-  const statementCount = accepted.filter((a) => a.key == null).length;
   const ctx = await registrationContextFor(db, register.org.id, register.settings, [...new Set(body.documents.flatMap((d) => d.valueIds))], { registrationNoKey: normaliseRegistrationNo(body.company.registrationNo), contactName: body.company.contact.name });
   const ruleFaults = publicApplicationFaults(body, heldDraft(body, fileCounts, statementCount), ctx, register.step1);
-  if (fileFaults.length > 0 || blockingPublicFaults(ruleFaults).length > 0) return reply({ ok: false, code: "VALIDATION", message: APPLY.nothingSent.en, faults: [...fileFaults, ...publicFaultViews(ruleFaults)] }, 422);
+  if (fileFaults.length > 0 || blockingPublicFaults(ruleFaults).length > 0) return reply({ ok: false, code: "VALIDATION", message: APPLY.nothingSent.en, faults: [...fileFaults, ...publicFaultViews(ruleFaults)], current: currentTextsOf(ctx) }, 422);
 
   // 12. The bytes, one copy each, and the one transaction.
   const files = new Map<string, HeldFile[]>();
@@ -219,8 +212,9 @@ async function receiveBody(request: Request, i: { now: Date; register: RegisterS
   form = null;
   // Each file let go as soon as its bytes are copied (security audit M1): the form and the lists no longer hold it, so a body is not held twice over while the next is read.
   for (let a = accepted.shift(); a; a = accepted.shift()) {
-    const bytes = new Uint8Array(await a.file.arrayBuffer());
-    const held: HeldFile = { bytes, sha256: sha256Hex(bytes), mediaType: a.mediaType, originalFilename: a.file.name };
+    const bytes = new Uint8Array(await a.item.arrayBuffer());
+    // Taken by `checkFiles`, so its bytes said a type the store takes.
+    const held: HeldFile = { bytes, sha256: sha256Hex(bytes), mediaType: a.type!, originalFilename: a.item.name };
     if (a.key == null) statement.push(held);
     else files.set(a.key, [...(files.get(a.key) ?? []), held]);
   }
@@ -237,6 +231,6 @@ async function receiveBody(request: Request, i: { now: Date; register: RegisterS
     now,
   });
   if (outcome.ok) return reply({ ok: true, reference: outcome.reference });
-  if (outcome.kind === "VALIDATION") return reply({ ok: false, code: "VALIDATION", message: APPLY.nothingSent.en, faults: publicFaultViews(outcome.faults) }, 422);
+  if (outcome.kind === "VALIDATION") return reply({ ok: false, code: "VALIDATION", message: APPLY.nothingSent.en, faults: publicFaultViews(outcome.faults), current: outcome.current }, 422);
   return outcome.kind === "BUSY" ? busy() : closed();
 }

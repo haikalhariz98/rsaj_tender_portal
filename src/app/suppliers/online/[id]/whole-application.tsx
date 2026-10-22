@@ -36,7 +36,7 @@ import { APPLY } from "@/lib/portal/labels";
 import { blocksRecording, flagWords, type PortalFlag } from "@/lib/portal/queue";
 import type { WholeApplication } from "@/lib/portal/queue-repo";
 import { loadHeldCreditorValues } from "@/lib/portal/queue-repo";
-import { portalFileFacts } from "@/lib/portal/register/file-facts";
+import { portalFileFactsOf } from "@/lib/portal/register/file-facts";
 import { summaryRecordOfPortal } from "@/lib/portal/register/summary-record";
 import { registrationSummary } from "@/lib/portal/registration/summary";
 import { CREDITOR_FIELDS, type CreditorInput, type DeclarationKind } from "@/lib/portal/registration/types";
@@ -83,11 +83,8 @@ export async function WholeApplicationPage({ actor, org, a, flags, cfg, people, 
 
   // The file as the approval rules judge it now: what stops sending it.
   const f = today
-    ? portalFileFacts(
-        { status: a.status, receivedOn: storedDay(a.receivedOn), routePending: pending },
-        a.documents.map((d) => ({ id: d.id, typeId: d.typeId, typeLabel: d.typeLabelSnapshot, expiresOn: day(d.expiresOn), notApplicable: d.notApplicable, verification: d.verification as VerificationState, verifiedOn: day(d.verifiedOn) })),
-        a.creditor && !a.creditor.erasedAt ? { verification: a.creditor.verification as VerificationState } : null,
-        a.declarations.map((x) => ({ kind: x.kind as DeclarationKind, signedAt: x.signedAt.toISOString() })),
+    ? portalFileFactsOf(
+        { application: { status: a.status, receivedOn: a.receivedOn, routePending: pending }, documents: a.documents, creditor: a.creditor, declarations: a.declarations },
         cfg.types.map(typeFacts),
         { onlineDeclarationReplacesPaper: cfg.policy?.onlineDeclarationReplacesPaper ?? null },
         today,

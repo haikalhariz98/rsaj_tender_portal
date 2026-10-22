@@ -12,14 +12,14 @@ import { APPLY } from "@/lib/portal/labels";
 import { codesChangedFields, companyChangedFields, DECLARATION_FIELDS, documentsChangedFields, epaymentChangedFields, fileChangedFields, STATEMENT_FIELDS, TERMS_FIELDS, withoutFaultsAt } from "@/lib/portal/registration/changed-fields";
 import { stepFaults } from "@/lib/portal/registration/faults";
 import { REGISTRATION_STEPS, type CreditorInput, type RegistrationContext, type RegistrationStep } from "@/lib/portal/registration/types";
-import { uploadFault, type UploadKind, type UploadUsage } from "@/lib/portal/registration/upload";
-import { uploadFaultText } from "@/lib/portal/registration/words";
+import type { UploadKind } from "@/lib/portal/registration/upload";
 import { normaliseRegistrationNo } from "@/lib/suppliers/identity";
 import type { RegistrationValueKind } from "@/lib/suppliers/types";
 
 import { uploadRulesOf, type PublicRegistrationConfig } from "./config";
-import { documentFilePart, REGISTER_APPLICATION_PART, STATEMENT_FILE_PART, type FaultView, type PublicApplicationBody, type ValueHit, type ValuesReply } from "./contract";
+import { documentFilePart, REGISTER_APPLICATION_PART, STATEMENT_FILE_PART, type CurrentTexts, type FaultView, type PublicApplicationBody, type ValueHit, type ValuesReply } from "./contract";
 import { companyFaults, heldShapeFaults, publicApplicationFaults, publicFaultViews } from "./faults";
+import { checkFiles } from "./file-checks";
 import { heldDraft } from "./held-draft";
 import type { HeldSummaryState, SummaryLists } from "./summary-record";
 
@@ -83,7 +83,10 @@ export type WizardAction<F extends HeldFile = HeldFile> =
   | { type: "terms"; confirmed: boolean }
   | { type: "goTo"; step: RegistrationStep }
   | { type: "next"; faults: FaultView[] }
-  | { type: "faults"; faults: FaultView[]; step?: RegistrationStep };
+  | { type: "faults"; faults: FaultView[]; step?: RegistrationStep }
+  /// The texts changed during the visit (review SHOULD 3): the ticks made on the old wording are taken away and the server's findings set, in one move, so the findings are not
+  /// cleared by the untick that answers them.
+  | { type: "textsChanged"; untick: { giro: boolean; declaration: boolean; terms: boolean }; faults: FaultView[]; step?: RegistrationStep };
 
 export const stepIndex = (s: RegistrationStep) => REGISTRATION_STEPS.indexOf(s);
 
@@ -143,6 +146,15 @@ export function wizardReducer<F extends HeldFile>(s: WizardState<F>, a: WizardAc
     }
     case "faults":
       return { ...s, faults: a.faults, ...(a.step ? { step: a.step } : {}) };
+    case "textsChanged":
+      return {
+        ...s,
+        giroConfirmed: a.untick.giro ? false : s.giroConfirmed,
+        falseDeclaration: a.untick.declaration ? false : s.falseDeclaration,
+        terms: a.untick.terms ? false : s.terms,
+        faults: a.faults,
+        ...(a.step ? { step: a.step } : {}),
+      };
   }
 }
 
@@ -200,27 +212,10 @@ export function sentFiles<F extends HeldFile>(s: WizardState<F>): { part: string
   ];
 }
 
-/// Each held file against the type, size and quotas, the quotas counted across the whole application as the server counts them. The browser reads the type the file says it is; the
-/// server reads its bytes. A file refused here is not counted as held, as on the server.
+/// Each held file against the type, size and quotas, by the route's own check (`checkFiles`): the browser reads the type the file says it is; the server reads its bytes.
 export function heldFileChecks<F extends HeldFile>(s: WizardState<F>, config: Pick<PublicRegistrationConfig, "upload">): { faults: FaultView[]; counts: Map<string, number>; statementCount: number } {
-  const rules = uploadRulesOf(config);
-  const usage: UploadUsage = { files: 0, bytes: 0n };
-  const faults: FaultView[] = [];
-  const counts = new Map<string, number>();
-  let statementCount = 0;
-  for (const { key, kind, file } of sentFiles(s)) {
-    const size = BigInt(file.size);
-    const found = uploadFault({ size, sniffedType: file.type || null }, rules.store, rules[kind], usage, kind);
-    if (found) {
-      faults.push(kind === "statement" ? { step: "epayment", field: "creditor.statement", level: "block", message: uploadFaultText(found, "statement").en } : { step: "documents", field: `documents.${key}.file`, level: "block", message: uploadFaultText(found, "document").en });
-      continue;
-    }
-    usage.files += 1;
-    usage.bytes += size;
-    if (key == null) statementCount += 1;
-    else counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return { faults, counts, statementCount };
+  const r = checkFiles(sentFiles(s).map(({ key, kind, file }) => ({ key, kind, size: BigInt(file.size), type: file.type || null, item: file })), uploadRulesOf(config));
+  return { faults: r.faults, counts: r.counts, statementCount: r.statementCount };
 }
 
 /**
@@ -282,8 +277,8 @@ export function heldSummaryState<F extends HeldFile>(s: WizardState<F>, config: 
 export type Outcome =
   /// Received: the reference, shown once. Null: the bait field was filled, and nothing was written.
   | { kind: "ok"; reference: string | null }
-  /// The rules refused it, by step and field. Nothing was written and the token is not spent.
-  | { kind: "faults"; faults: FaultView[]; message: string }
+  /// The rules refused it, by step and field. Nothing was written and the token is not spent. `current`: the texts in force, where the server sent them.
+  | { kind: "faults"; faults: FaultView[]; message: string; current?: CurrentTexts }
   /// The token is out of date and was not spent: ask for a fresh one and send again.
   | { kind: "expired"; message: string }
   /// Not known whether it arrived (no answer, a failure on the way, a server error): send again with the SAME token, which the server answers with its reference if the first one landed.
@@ -292,6 +287,10 @@ export type Outcome =
   | { kind: "refused"; message: string };
 
 const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+const isText = (x: unknown) => x === null || (isRecord(x) && typeof x.id === "string" && typeof x.version === "number" && typeof x.bodyEn === "string" && typeof x.sha256 === "string");
+/// The texts in force as a refusal carries them, read only when every part is as sent.
+export const isCurrentTexts = (x: unknown): x is CurrentTexts =>
+  isRecord(x) && isRecord(x.texts) && ["giro", "declaration", "terms"].every((k) => isText((x.texts as Record<string, unknown>)[k])) && (x.notice === null || (isRecord(x.notice) && typeof x.notice.en === "string" && typeof x.notice.sha256 === "string"));
 const isFault = (x: unknown): x is FaultView => isRecord(x) && typeof x.step === "string" && (REGISTRATION_STEPS as readonly string[]).includes(x.step) && (x.field === null || typeof x.field === "string") && (x.level === "block" || x.level === "warn" || x.level === "info") && typeof x.message === "string";
 
 /// Every answer the route can give, read: its own replies, the boundary's plain 404 and refusal bodies, the Origin guard's, a server error, and none at all (status 0).
@@ -299,7 +298,7 @@ export function readReply(status: number, body: unknown): Outcome {
   const said = isRecord(body) && typeof body.message === "string" && body.message.trim() ? body.message.trim() : null;
   if (status === 0) return { kind: "uncertain", message: APPLY.tryAgainLater.en };
   if (status === 200 && isRecord(body) && body.ok === true) return { kind: "ok", reference: typeof body.reference === "string" ? body.reference : null };
-  if (isRecord(body) && body.code === "VALIDATION" && Array.isArray(body.faults) && body.faults.every(isFault)) return { kind: "faults", faults: body.faults as FaultView[], message: said ?? APPLY.nothingSent.en };
+  if (isRecord(body) && body.code === "VALIDATION" && Array.isArray(body.faults) && body.faults.every(isFault)) return { kind: "faults", faults: body.faults as FaultView[], message: said ?? APPLY.nothingSent.en, ...(isCurrentTexts(body.current) ? { current: body.current } : {}) };
   if (isRecord(body) && body.code === "FORM_EXPIRED") return { kind: "expired", message: said ?? APPLY.submitExpired.en };
   // A server error, or an answer that is not the route's (a gateway's page): it may have landed.
   if (status >= 500 && !(isRecord(body) && ["CLOSED", "BUSY"].includes(String(body.code)))) return { kind: "uncertain", message: said ?? APPLY.tryAgainLater.en };

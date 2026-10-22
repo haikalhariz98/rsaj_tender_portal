@@ -108,7 +108,19 @@ export function registrationFaults(draft: Draft, ctx: RegistrationContext, decla
     ...stepFaults("epayment", draft, ctx),
     ...stepFaults("review", draft, ctx),
     ...(declarations ? declarationFaults(declarations, ctx, noticeSha256) : []),
-  ];
+  ].filter(onceStale());
+}
+
+/// A wording changed is said once on its tick: the GIRO tick's own rule (`giroFaults`) and the request's (`declarationFaults`) both find it (review SHOULD 3).
+function onceStale() {
+  const seen = new Set<string>();
+  return (f: StepFault) => {
+    if (f.code !== "TEXT_STALE") return true;
+    const k = `${f.step}\u0000${f.field ?? ""}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  };
 }
 
 export const blockingFaults = (fs: readonly StepFault[]): StepFault[] => fs.filter((f) => f.level === "block");

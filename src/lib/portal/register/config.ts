@@ -6,7 +6,10 @@
 
 import type { PortalApplicationContext } from "@/lib/portal/apply";
 import type { UploadPolicy, UploadStore } from "@/lib/portal/registration/upload";
+import { fillText } from "@/lib/portal/registration/declaration";
 import type { DeclarationKind, RegistrationContext } from "@/lib/portal/registration/types";
+
+import type { CurrentTexts } from "./contract";
 
 export type ListOption = { value: string; label: string };
 
@@ -67,6 +70,41 @@ export interface PublicRegistrationConfig {
 }
 
 const big = (s: string | null): bigint | null => (s == null ? null : BigInt(s));
+
+/// The texts in force, from the rules' context, as a refusal carries them back (review SHOULD 3). No Malay wording is sent.
+export function currentTextsOf(ctx: Pick<RegistrationContext, "texts" | "personalDataNotice">): CurrentTexts {
+  const t = (k: DeclarationKind) => {
+    const x = ctx.texts[k];
+    return x ? { id: x.id, version: x.version, bodyEn: x.bodyEn, sha256: x.sha256 } : null;
+  };
+  return { texts: { giro: t("GIRO_AUTHORISATION"), declaration: t("FALSE_DECLARATION"), terms: t("TERMS_AND_CONDITIONS") }, notice: ctx.personalDataNotice };
+}
+
+/// The page's configuration with the texts in force swapped in: what is shown (filled with the organisation's name) and what the rules read.
+const CURRENT_KEY = { GIRO_AUTHORISATION: "giro", FALSE_DECLARATION: "declaration", TERMS_AND_CONDITIONS: "terms" } as const satisfies Record<DeclarationKind, keyof CurrentTexts["texts"]>;
+
+export function withCurrentTexts(config: PublicRegistrationConfig, current: CurrentTexts): PublicRegistrationConfig {
+  const shown = (k: DeclarationKind): ShownText | null => {
+    const x = current.texts[CURRENT_KEY[k]];
+    return x ? { id: x.id, en: fillText(x.bodyEn, config.organisationName), version: x.version, sha256: x.sha256 } : null;
+  };
+  const rule = (k: DeclarationKind) => {
+    const x = current.texts[CURRENT_KEY[k]];
+    return x ? { ...x, bodyMs: null } : null;
+  };
+  return {
+    ...config,
+    texts: { GIRO_AUTHORISATION: shown("GIRO_AUTHORISATION"), FALSE_DECLARATION: shown("FALSE_DECLARATION"), TERMS_AND_CONDITIONS: shown("TERMS_AND_CONDITIONS") },
+    notice: current.notice,
+    context: { ...config.context, texts: { GIRO_AUTHORISATION: rule("GIRO_AUTHORISATION"), FALSE_DECLARATION: rule("FALSE_DECLARATION"), TERMS_AND_CONDITIONS: rule("TERMS_AND_CONDITIONS") }, personalDataNotice: current.notice },
+  };
+}
+
+/// Which ticks were made on wording that is no longer in force: each kind whose text changed, and the terms also when the notice agreed with them did.
+export function staleTicks(config: Pick<PublicRegistrationConfig, "texts" | "notice">, current: CurrentTexts): { giro: boolean; declaration: boolean; terms: boolean } {
+  const changed = (k: DeclarationKind) => (config.texts[k]?.id ?? null) !== (current.texts[CURRENT_KEY[k]]?.id ?? null) || (config.texts[k]?.sha256 ?? null) !== (current.texts[CURRENT_KEY[k]]?.sha256 ?? null);
+  return { giro: changed("GIRO_AUTHORISATION"), declaration: changed("FALSE_DECLARATION"), terms: changed("TERMS_AND_CONDITIONS") || (config.notice?.sha256 ?? null) !== (current.notice?.sha256 ?? null) };
+}
 
 /// The upload rules as `uploadFault` reads them.
 export function uploadRulesOf(config: Pick<PublicRegistrationConfig, "upload">): { store: UploadStore; document: UploadPolicy; statement: UploadPolicy } {

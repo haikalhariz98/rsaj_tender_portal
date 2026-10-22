@@ -86,3 +86,19 @@ describe("the agreements (REG-4)", () => {
     expect(ctx().personalDataNotice).toEqual(NOTICE);
   });
 });
+
+describe("a wording changed during the visit (review SHOULD 3)", () => {
+  const stale = (kind: "GIRO_AUTHORISATION" | "FALSE_DECLARATION") => body({ agreements: body().agreements.map((a) => (a.kind === kind ? { ...a, textVersionId: `${a.textVersionId}-old` } : a)) });
+  it("is found on the tick, once, so it goes when the box is ticked again on the wording now shown", () => {
+    expect(blocks(judge(stale("FALSE_DECLARATION")))).toEqual([["review", "TEXT_STALE", "declaration.confirmed"]]);
+    expect(blocks(judge(stale("GIRO_AUTHORISATION"))).filter((f) => f[1] === "TEXT_STALE")).toEqual([["epayment", "TEXT_STALE", "giro.confirmed"]]);
+  });
+  it("is said without asking for a reload, which would lose everything held", () => {
+    for (const k of ["GIRO_AUTHORISATION", "FALSE_DECLARATION"] as const) {
+      const words = publicFaultViews(judge(stale(k))).filter((v) => v.level === "block").map((v) => v.message);
+      expect(words.length).toBeGreaterThan(0);
+      for (const m of words) expect(m).not.toMatch(/reload/i);
+    }
+    expect(publicFaultViews(judge(body({ noticeSha256: TERMS_SHA }))).map((v) => v.message).join(" ")).not.toMatch(/reload/i);
+  });
+});

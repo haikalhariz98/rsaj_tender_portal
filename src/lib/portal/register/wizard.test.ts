@@ -8,6 +8,7 @@ import { publicApplicationFaults, publicFaultViews } from "./faults";
 import { heldDraft } from "./held-draft";
 import { ctx as registrationCtx } from "@/lib/portal/registration/fixture";
 import { summaryRecordOfHeld } from "./summary-record";
+import { currentTextsOf, staleTicks, withCurrentTexts } from "./config";
 import {
   browserContext,
   firstFaultStep,
@@ -367,5 +368,44 @@ describe("the token: one visit, one application (ADR 0041 D8, plan 3.5)", () => 
     const mine = tokenAt(NOW - 1000);
     const { t } = transport([{ status: 422, body: { ok: false, code: "VALIDATION", message: "x", faults: [] } }]);
     expect(await send(t, mine, mine)).toMatchObject({ outcome: { kind: "faults" }, sentToken: null });
+  });
+});
+
+describe("a wording changed during the visit, answered by the server (review SHOULD 3)", () => {
+  const c = config();
+  const current = currentTextsOf({ texts: { ...c.context.texts, FALSE_DECLARATION: { ...c.context.texts.FALSE_DECLARATION!, id: "text-false-2", version: 2, bodyEn: "What we tell {organisation} is true, in full.", sha256: "e".repeat(64) } }, personalDataNotice: c.notice });
+  const faults = [{ step: "review" as const, field: "declaration.confirmed", level: "block" as const, message: "This wording changed while you were filling in the form. Read it again and tick again." }];
+
+  it("reads the texts in force from a refusal, and only when every part is as sent", () => {
+    expect(readReply(422, { ok: false, code: "VALIDATION", message: "Nothing was sent.", faults, current })).toEqual({ kind: "faults", faults, message: "Nothing was sent.", current });
+    expect(readReply(422, { ok: false, code: "VALIDATION", message: "Nothing was sent.", faults, current: { texts: {} } })).toEqual({ kind: "faults", faults, message: "Nothing was sent." });
+  });
+
+  it("swaps them in, shown filled with the organisation's name, and says which ticks were made on the old wording", () => {
+    const live = withCurrentTexts(c, current);
+    expect(live.texts.FALSE_DECLARATION).toEqual({ id: "text-false-2", en: `What we tell ${c.organisationName} is true, in full.`, version: 2, sha256: "e".repeat(64) });
+    expect(live.context.texts.FALSE_DECLARATION).toMatchObject({ id: "text-false-2", sha256: "e".repeat(64), bodyMs: null });
+    expect(live.texts.GIRO_AUTHORISATION).toEqual(c.texts.GIRO_AUTHORISATION);
+    expect(staleTicks(c, current)).toEqual({ giro: false, declaration: true, terms: false });
+    expect(staleTicks(c, { ...currentTextsOf({ texts: c.context.texts, personalDataNotice: c.notice }), notice: { en: "Another notice.", sha256: "d".repeat(64) } })).toEqual({ giro: false, declaration: false, terms: true });
+    // The body now sent names the wording in force.
+    expect(heldBody(heldState(), live).agreements.find((a) => a.kind === "FALSE_DECLARATION")).toMatchObject({ textVersionId: "text-false-2", textSha256: "e".repeat(64) });
+  });
+
+  it("unticks what changed and keeps the server's finding until the box is ticked again", () => {
+    const s = heldState({ falseDeclaration: true, terms: true, giroConfirmed: true, step: "review", reached: 4 });
+    const after = wizardReducer(s, { type: "textsChanged", untick: { giro: false, declaration: true, terms: false }, faults, step: "review" });
+    expect(after).toMatchObject({ falseDeclaration: false, terms: true, giroConfirmed: true, faults });
+    expect(wizardReducer(after, { type: "falseDeclaration", confirmed: true }).faults).toEqual([]);
+  });
+});
+
+describe("one file check for the page and the route (review SHOULD 2)", () => {
+  it("is the route's: a file is judged by the type it says it is here, and refused as the route refuses it", () => {
+    const s = heldState({ files: { "new:reg": [pdf("a.pdf")] }, statement: [{ name: "s.csv", size: 10, type: "text/csv" }] });
+    const r = heldFileChecks(s, config());
+    expect(r.counts.get("new:reg")).toBe(1);
+    expect(r.statementCount).toBe(0);
+    expect(r.faults).toEqual([expect.objectContaining({ step: "epayment", field: "creditor.statement", level: "block" })]);
   });
 });
