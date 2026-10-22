@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { slotAct, slotStatus } from "./views";
+import { APPLICANT_WORDS, SUPPLIER_UPLOADER_WORDS } from "./labels";
+import { recorderWords, slotAct, slotStatus } from "./views";
 
 describe("slotStatus", () => {
   it("a required open slot with nothing attached is outstanding", () => {
@@ -29,5 +30,14 @@ describe("slotAct", () => {
   it("offers another where the slot holds several", () => {
     expect(slotAct("DOSSIER_EVIDENCE", 1)).toBe("ADD_ANOTHER");
     expect(slotAct("COORDINATION_SCOPE", 2)).toBe("ADD_ANOTHER");
+  });
+});
+
+describe("who recorded a version that names no person (ADR 0041 D3, plan 6.3.1)", () => {
+  it("an applicant who was not signed in is never called the supplier's own portal account, nor the other way round", () => {
+    expect(recorderWords({ recordedByPortalApplicationId: "pa1" })).toBe(APPLICANT_WORDS);
+    expect(APPLICANT_WORDS).toBe("Applicant, not signed in");
+    expect(recorderWords({ recordedByPortalApplicationId: null })).toBe(SUPPLIER_UPLOADER_WORDS);
+    expect(recorderWords({})).toBe(SUPPLIER_UPLOADER_WORDS);
   });
 });

@@ -265,6 +265,9 @@ describe("a document is attached only by someone who may already open it (OD-2, 
         // (`replace-store.ts`), and a bank statement to the new version of its bank details (`bank-store.ts`). Both are the supplier's own files, as above.
         "src/lib/portal/company/bank-store.ts",
         "src/lib/portal/company/replace-store.ts",
+        // Changed for ADR 0041 (registration step 2): an applicant's one submission attaches each file it has just stored, in the same transaction, to the held certificate or the held bank
+        // details it came with. The applicant's own files: no officer attaches, and nothing already in the store is named.
+        "src/lib/portal/register/receive-store.ts",
       ].sort(),
     );
   });

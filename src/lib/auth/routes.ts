@@ -117,7 +117,7 @@ export const PUBLIC_ENTRY_POINTS: readonly PublicEntry[] = [
   { under: "supplier/results", reason: "The portal's published results: open to everyone, on the public copy and on the staff copy. It holds no supplier's own data." },
   {
     under: "supplier/register",
-    reason: "The public registration form and its one POST: served to people with no account, because applying is how a company gets one. The POST passes the Origin guard and a signed form token, and the public copy takes no other write from a stranger but the sign-in posts below.",
+    reason: "The public registration form, its one POST and its two reads: served to people with no account, because applying is how a company gets one. The POST passes the Origin guard and a signed, single-use form token, and the public copy takes no other write from a stranger but the sign-in posts below. The reads (a fresh form token, and a search of the published registration codes) write nothing and refuse a request another site started (ADR 0041).",
   },
   // Phase 4d: `supplier/bids` is built, so it is no longer a public entry. Its pages ask `requireSupplier` and its three handlers ask `supplierPost`, first (held by `supplier-reach.test.ts`).
   // Phase 4c: `supplier/company` is built, so it is no longer a public entry. Its page asks `requireSupplier` and its two handlers ask `supplierUploadPost`, first (held by `supplier-reach.test.ts`).

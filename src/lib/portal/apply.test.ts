@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HONEYPOT_FIELD, honeypotTripped, portalApplicationFaults, portalCapacity, portalRefusal, PORTAL_FIELD_OF, validLimit, whatIsMissing, type PortalApplicationContext, type PortalApplicationInput } from "./apply";
+import { HONEYPOT_FIELD, honeypotTripped, portalApplicationFaults, portalCapacity, portalRefusal, PORTAL_FIELD_OF, validLimit, whatIsMissing, type PortalApplicationContext, type RegisterReadiness, type PortalApplicationInput } from "./apply";
 import { APPLY } from "./labels";
 
 // Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
@@ -169,21 +169,75 @@ describe("the bait field", () => {
   });
 });
 
-describe("what the register lacks", () => {
-  const ready = { today: "2026-10-06", entityTypeCodes: ["a"], countryCodes: ["b"], stateCodes: ["c"], numberingReady: true, noticeSet: true, limitsSet: true, formKeySet: true };
-  it("is empty when it is ready, and names each missing piece in plain words", () => {
+describe("what the register lacks (plan section 5: each of the 22 named)", () => {
+  const ready: RegisterReadiness = {
+    today: "2026-10-06",
+    entityTypeCodes: ["a"],
+    countryCodes: ["b"],
+    stateCodes: ["c"],
+    numberingReady: true,
+    noticeSet: true,
+    termsTextSet: true,
+    falseDeclarationTextSet: true,
+    giroTextSet: true,
+    verificationNoticeSet: true,
+    documentTypesSet: true,
+    banksSet: true,
+    accountTypesSet: true,
+    storeRulesSet: true,
+    ceilingSet: true,
+    documentClassSet: true,
+    statementClassSet: true,
+    quotasSet: true,
+    limitsSet: true,
+    onlineDeclarationAccepted: true,
+    storeDriverSet: true,
+    formKeySet: true,
+  };
+  const nothing: RegisterReadiness = Object.fromEntries(Object.entries(ready).map(([k, v]) => [k, Array.isArray(v) ? [] : typeof v === "boolean" ? false : null])) as unknown as RegisterReadiness;
+
+  it("is empty when everything is set", () => {
     expect(whatIsMissing(ready)).toEqual([]);
-    const missing = whatIsMissing({ today: null, entityTypeCodes: [], countryCodes: [], stateCodes: [], numberingReady: false, noticeSet: false, limitsSet: false, formKeySet: false });
-    expect(missing).toHaveLength(8);
-    for (const m of missing) expect(m.en).not.toMatch(/Configuration|[A-Z]{2,}_/);
   });
-  it("keeps the form closed until the states are listed and the portal's form key is set", () => {
-    expect(whatIsMissing({ ...ready, stateCodes: [] })).toEqual([APPLY.missing.states]);
-    expect(whatIsMissing({ ...ready, formKeySet: false })).toEqual([APPLY.missing.formKey]);
+
+  it("names all 22 in the order a person would set them, in plain words", () => {
+    const missing = whatIsMissing(nothing);
+    expect(missing).toHaveLength(22);
+    expect(missing).toEqual([
+      APPLY.missing.timeZone, APPLY.missing.entityTypes, APPLY.missing.countries, APPLY.missing.states, APPLY.missing.numbering, APPLY.missing.notice, APPLY.missing.termsText,
+      APPLY.missing.falseDeclarationText, APPLY.missing.giroText, APPLY.missing.verificationNotice, APPLY.missing.documentTypes, APPLY.missing.banks, APPLY.missing.accountTypes,
+      APPLY.missing.storeRules, APPLY.missing.ceiling, APPLY.missing.documentClass, APPLY.missing.statementClass, APPLY.missing.quotas, APPLY.missing.limits,
+      APPLY.missing.onlineDeclaration, APPLY.missing.storeDriver, APPLY.missing.formKey,
+    ]);
+    expect(new Set(missing.map((m) => m.en)).size).toBe(22);
+    for (const m of missing) expect(m.en).not.toMatch(/Configuration|[A-Z]{2,}_|[a-z][A-Z]/);
   });
-  it("keeps the form closed until the notice about personal details and the limits are set", () => {
-    expect(whatIsMissing({ ...ready, noticeSet: false })).toEqual([APPLY.missing.notice]);
-    expect(whatIsMissing({ ...ready, limitsSet: false })).toEqual([APPLY.missing.limits]);
+
+  it.each([
+    ["the time zone", { today: null }, "timeZone"],
+    ["the entity types", { entityTypeCodes: [] }, "entityTypes"],
+    ["the countries", { countryCodes: [] }, "countries"],
+    ["the states", { stateCodes: [] }, "states"],
+    ["the numbering", { numberingReady: false }, "numbering"],
+    ["the Personal Data Notice", { noticeSet: false }, "notice"],
+    ["the Terms and Conditions text", { termsTextSet: false }, "termsText"],
+    ["the false-declaration text", { falseDeclarationTextSet: false }, "falseDeclarationText"],
+    ["the GIRO text", { giroTextSet: false }, "giroText"],
+    ["the verification notice", { verificationNoticeSet: false }, "verificationNotice"],
+    ["a live document type", { documentTypesSet: false }, "documentTypes"],
+    ["the banks", { banksSet: false }, "banks"],
+    ["the account types", { accountTypesSet: false }, "accountTypes"],
+    ["the store's file types and size", { storeRulesSet: false }, "storeRules"],
+    ["the deployment ceiling", { ceilingSet: false }, "ceiling"],
+    ["the class for certificates", { documentClassSet: false }, "documentClass"],
+    ["a SULIT class for bank statements", { statementClassSet: false }, "statementClass"],
+    ["the file and byte quotas", { quotasSet: false }, "quotas"],
+    ["the daily and per-number limits", { limitsSet: false }, "limits"],
+    ["the online declaration accepted in place of paper (O-8)", { onlineDeclarationAccepted: false }, "onlineDeclaration"],
+    ["the document store driver", { storeDriverSet: false }, "storeDriver"],
+    ["the form key", { formKeySet: false }, "formKey"],
+  ] as const)("keeps the register closed until %s is set, and names only that", (_name, unset, key) => {
+    expect(whatIsMissing({ ...ready, ...unset } as RegisterReadiness)).toEqual([APPLY.missing[key]]);
   });
 });
 

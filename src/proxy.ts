@@ -47,9 +47,11 @@ export function proxy(request: NextRequest) {
  * `proxyClientMaxBodySize` (10 MB) keeps only the first part. For a multipart upload that undoes the route's own guards (they answer "before a byte of the body is read", cap the
  * time and the rate of the read, and refuse an upload by its length) and would cut an honest file between 10 MB and the part's own limit short, refused as unreadable. So the uploads
  * are left out of the proxy. Each is a route handler that asks the same questions itself and first (`supplierUploadPost`: this copy serves the portal, the Origin, the form token,
- * and a supplier signed in). A staff cookie on the public copy, which the boundary turns away, is ignored by those handlers (a supplier module never reads the staff cookie: supplier-reach.test.ts). The list is spelled out because Next reads this export statically; `proxy.test.ts` pins that every route
- * that takes a multipart upload is on it, and that nothing else is.
+ * and a supplier signed in). A staff cookie on the public copy, which the boundary turns away, is ignored by those handlers (a supplier module never reads the staff cookie: supplier-reach.test.ts).
+ * ADR 0041 D9: the public registration's one submission (`supplier/register/submit`) carries every file of an application, so it is left out too; nobody is signed in to it, so it asks the
+ * boundary's own `gate()` itself, first, with the same facts this function passes, and answers as this would. The list is spelled out because Next reads this export statically;
+ * `proxy.test.ts` pins that every route that takes a multipart upload is on it, and that nothing else is.
  */
 export const config = {
-  matcher: ["/((?!supplier/bids/part$|supplier/company/bank$|supplier/company/document$|supplier/registration/upload$).*)"],
+  matcher: ["/((?!supplier/bids/part$|supplier/company/bank$|supplier/company/document$|supplier/registration/upload$|supplier/register/submit$).*)"],
 };

@@ -87,6 +87,8 @@ const EXEMPT: Readonly<Record<string, string>> = {
   "src/lib/portal/registration/draft-store.ts": "the online application of an applicant, not yet on the register: its status is judged by `registration/state.ts`",
   "src/lib/portal/registration/submit-store.ts": "the online application of an applicant, not yet on the register: its status is judged by `registration/state.ts`",
   "src/lib/portal/registration/upload-store.ts": "the online application of an applicant, not yet on the register: its status is judged by `registration/state.ts`",
+  // ADR 0041 (registration step 2): the public form's one submission.
+  "src/lib/portal/register/receive-store.ts": "a stranger's whole registration, received with nobody signed in and no supplier on the register (REG-1): there is no supplier whose standing could be asked",
 };
 
 describe("every write of the portal asks the supplier's standing", () => {

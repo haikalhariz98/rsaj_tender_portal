@@ -40,3 +40,7 @@ export type RegisterReply =
 
 export type TokenReply = { ok: true; token: string } | { ok: false; code: "CLOSED"; message: string };
 export interface ValueHit { id: string; code: string; name: string; kind: string; bodyId: string }
+
+/// The code search (`/supplier/register/values`): the fewest characters it is run on, and the most codes one answer holds. Technical bounds on a stranger's read, not policy.
+export const REGISTER_VALUES_MIN_QUERY = 2;
+export const REGISTER_VALUES_MAX_HITS = 50;

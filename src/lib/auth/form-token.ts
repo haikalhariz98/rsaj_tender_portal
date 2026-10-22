@@ -34,24 +34,45 @@ export const FORM_SECRET_MIN_LENGTH = 32;
 
 export type FormTokenVerdict = "OK" | "MISSING" | "MALFORMED" | "BAD_SIGNATURE" | "EXPIRED" | "FROM_THE_FUTURE" | "KEY_NOT_SET";
 
-const mac = (secret: string, purpose: FormPurpose, issuedAt: number) => createHmac("sha256", secret).update(`perolehan-form|${purpose}|${issuedAt}`, "utf8").digest("base64url");
+/// ADR 0041 D8: the forms whose token is spent once used, and so must differ between two pages rendered in the same millisecond. Their token carries a random nonce, signed with the rest.
+export const NONCE_PURPOSES: readonly FormPurpose[] = ["register"];
+/// 16 random bytes in base64url, made by `issueFormToken` (the caller's randomness: this module stays pure).
+export const FORM_NONCE = /^[A-Za-z0-9_-]{22}$/;
+
+const needsNonce = (purpose: FormPurpose) => NONCE_PURPOSES.includes(purpose);
+
+const mac = (secret: string, purpose: FormPurpose, issuedAt: number, nonce: string | null) =>
+  createHmac("sha256", secret).update(nonce == null ? `perolehan-form|${purpose}|${issuedAt}` : `perolehan-form|${purpose}|${issuedAt}|${nonce}`, "utf8").digest("base64url");
 
 export const keyIsUsable = (secret: string | null | undefined): secret is string => typeof secret === "string" && secret.length >= FORM_SECRET_MIN_LENGTH;
 
-/// A token for a form rendered at `now`: the moment, and a signature over the purpose and the moment.
-export function signFormToken(secret: string, purpose: FormPurpose, now: Date): string {
+/// A token for a form rendered at `now`: the moment, and a signature over the purpose and the moment. A `register` token also carries a nonce (`issuedAt.nonce.mac`), signed with them; every other
+/// purpose has none, and is given none.
+export function signFormToken(secret: string, purpose: FormPurpose, now: Date, nonce?: string): string {
   const issuedAt = now.getTime();
-  return `${issuedAt}.${mac(secret, purpose, issuedAt)}`;
+  if (needsNonce(purpose)) {
+    if (nonce == null || !FORM_NONCE.test(nonce)) throw new Error(`A ${purpose} token needs a nonce of 16 random bytes in base64url.`);
+    return `${issuedAt}.${nonce}.${mac(secret, purpose, issuedAt, nonce)}`;
+  }
+  if (nonce != null) throw new Error(`A ${purpose} token carries no nonce.`);
+  return `${issuedAt}.${mac(secret, purpose, issuedAt, null)}`;
+}
+
+/// When a token says it was made, or null where it is not of this purpose's shape. Trusted only once `verifyFormToken` has accepted the token (the moment is signed with it).
+export function formTokenIssuedAt(purpose: FormPurpose, token: string): Date | null {
+  const m = (needsNonce(purpose) ? /^(\d{1,15})\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/ : /^(\d{1,15})\.[A-Za-z0-9_-]{43}$/).exec(token);
+  return m ? new Date(Number(m[1])) : null;
 }
 
 export function verifyFormToken(secret: string | null | undefined, purpose: FormPurpose, token: string | null | undefined, now: Date): FormTokenVerdict {
   if (!keyIsUsable(secret)) return "KEY_NOT_SET";
   if (token == null || token === "") return "MISSING";
-  const m = /^(\d{1,15})\.([A-Za-z0-9_-]{43})$/.exec(token);
+  // A `register` token without its nonce, or another form's token with one, is not this form's shape.
+  const m = needsNonce(purpose) ? /^(\d{1,15})\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(token) : /^(\d{1,15})\.()([A-Za-z0-9_-]{43})$/.exec(token);
   if (!m) return "MALFORMED";
   const issuedAt = Number(m[1]);
-  const given = Buffer.from(m[2]);
-  const expected = Buffer.from(mac(secret, purpose, issuedAt));
+  const given = Buffer.from(m[3]);
+  const expected = Buffer.from(mac(secret, purpose, issuedAt, needsNonce(purpose) ? m[2] : null));
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return "BAD_SIGNATURE";
   // The signature is checked first, so a forged time is never reported as anything but a bad signature.
   if (issuedAt - now.getTime() > FORM_TOKEN_SKEW_MS) return "FROM_THE_FUTURE";

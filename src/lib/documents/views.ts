@@ -32,12 +32,16 @@ import {
   SCAN_LABEL,
   shortFingerprint,
   STATUS_LABEL,
+  APPLICANT_WORDS,
   SUPPLIER_UPLOADER_WORDS,
 } from "./labels";
 import type { documentDrawer, ownerPanel, uploadContext } from "./read";
 import { SECURITY_CLASSES, type AttachmentPurpose, type ScanState, type SecurityClass } from "./types";
 
 type Tone = "ok" | "warn" | "err" | "info" | "neutral";
+
+/// Who recorded a version that names no person: an applicant who was not signed in (ADR 0041 D3), or a supplier's own portal account. Never the one for the other.
+export const recorderWords = (v: { recordedByPortalApplicationId?: string | null }): string => (v.recordedByPortalApplicationId ? APPLICANT_WORDS : SUPPLIER_UPLOADER_WORDS);
 
 /// A document's classification as a badge: unset is a warning, never a blank.
 export function classificationTone(c: SecurityClass | null): Tone {
@@ -218,7 +222,7 @@ export function itemView(i: Item, timeZone: string | null, acted: AttributionInd
     versionNo: v.versionNo,
     newerVersionNo: i.newerVersion?.versionNo ?? null,
     receivedOn: v.receivedOn ? formatDate(v.receivedOn) : null,
-    recordedBy: v.recordedBy ? acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en : SUPPLIER_UPLOADER_WORDS,
+    recordedBy: v.recordedBy ? acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en : recorderWords(v),
     size: formatBytes(v.byteSize),
     fingerprint: v.sha256,
     fingerprintShort: shortFingerprint(v.sha256),
@@ -339,7 +343,7 @@ export function drawerView(d: Drawer, timeZone: string | null, acted: Attributio
       fingerprint: v.sha256,
       receivedOn: v.receivedOn ? formatDate(v.receivedOn) : null,
       storedOn: formatOrgDateTime(v.storedAt, timeZone),
-      recordedBy: v.recordedBy ? acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en : SUPPLIER_UPLOADER_WORDS,
+      recordedBy: v.recordedBy ? acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en : recorderWords(v),
       note: v.note || null,
       scan: { text: SCAN_LABEL[v.scanState], tone: scanTone(v.scanState) },
       withdrawn: v.withdrawnAt ? { on: formatOrgDay(v.withdrawnAt, timeZone), reason: v.withdrawnReason ?? "" } : null,

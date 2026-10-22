@@ -30,6 +30,8 @@ import { currentVersion } from "./versioning";
 const versionSelect = {
   id: true, versionNo: true, sha256: true, byteSize: true, mediaType: true, originalFilename: true, receivedOn: true, storedAt: true, scanState: true, withdrawnAt: true, withdrawnReason: true, note: true,
   recordedBy: { select: { id: true, name: true } },
+  // ADR 0041 D3: a version an applicant sent with an online application, not signed in, is named by the application, never as a supplier's account.
+  recordedByPortalApplicationId: true,
 } as const;
 
 /// An owner's facts, read for display (no lock). Null when the owner does not exist.
@@ -494,7 +496,7 @@ export async function stagedDocuments(organisationId: string) {
   return db.document.findMany({
     where: { organisationId: org.id, status: "STAGED" },
     orderBy: { createdAt: "asc" },
-    select: { id: true, title: true, createdAt: true, classificationSnapshot: true, documentClass: { select: { nameEn: true } }, versions: { select: { id: true, versionNo: true, withdrawnAt: true, originalFilename: true, recordedBy: { select: { name: true } } }, orderBy: { versionNo: "desc" } } },
+    select: { id: true, title: true, createdAt: true, classificationSnapshot: true, documentClass: { select: { nameEn: true } }, versions: { select: { id: true, versionNo: true, withdrawnAt: true, originalFilename: true, recordedBy: { select: { name: true } }, recordedByPortalApplicationId: true }, orderBy: { versionNo: "desc" } } },
   });
 }
 

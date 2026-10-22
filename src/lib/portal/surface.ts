@@ -23,9 +23,15 @@ export function surfaceOf(value: string | undefined | null): Surface {
   return v === "" || v === "internal" ? "internal" : "public";
 }
 
+/// The door that accepts a write from a stranger: the registration form's post.
+export const SUBMIT_PATH = "/supplier/register/submit";
+/// ADR 0041 (plan 2.4): the public form's two reads, each a route handler at a literal path: a fresh form token, and a search of the registration codes.
+export const REGISTER_TOKEN_PATH = "/supplier/register/token";
+export const REGISTER_VALUES_PATH = "/supplier/register/values";
+
 /// The public routes. One literal path each, or one id segment: nothing is matched by prefix.
 // Phase 4b: the registration wizard's page and its two reads (a code search and a file), served on the public copy and answering a supplier only (each asks who is signed in).
-const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", "/supplier/bids", "/supplier/company", "/supplier/projects", SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_DATA_EXPORT.page, SUPPLIER_DATA_EXPORT.file, ...SUPPLIER_AUTH_PAGES, ...SUPPLIER_REGISTRATION_GET_PATHS]);
+const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", REGISTER_TOKEN_PATH, REGISTER_VALUES_PATH, "/supplier/bids", "/supplier/company", "/supplier/projects", SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_DATA_EXPORT.page, SUPPLIER_DATA_EXPORT.file, ...SUPPLIER_AUTH_PAGES, ...SUPPLIER_REGISTRATION_GET_PATHS]);
 const OPPORTUNITY = /^\/supplier\/opportunities\/[A-Za-z0-9_-]+$/;
 /// Go-live R4a: the schedule of tenders one result publishes, a file. One id segment and the literal `schedule`; GET only (a HEAD is refused, as for the inspection pages).
 const RESULT_SCHEDULE = /^\/supplier\/results\/[A-Za-z0-9_-]+\/schedule$/;
@@ -42,8 +48,6 @@ const LOGO = /^\/organisation\/logo\/[A-Za-z0-9_-]+$/;
 /// needs it (the logo is a plain image, the fonts are static files).
 const PLATFORM = /^\/_next\/static\//;
 const ICON = "/favicon.ico";
-/// The door that accepts a write from a stranger: the registration form's post.
-export const SUBMIT_PATH = "/supplier/register/submit";
 /// Every write the public copy takes, each at one literal path (Phase 4a): the registration post, and the supplier portal's sign-in, sign-out, activation, reset and account posts.
 /// A stranger can reach the sign-in ones (they are how a supplier becomes signed in); each is a route handler that passes the Origin guard and a form token, and the ones
 /// behind an account then ask who is signed in. No other path takes a write, and the public copy refuses every server action.

@@ -159,8 +159,16 @@ describe("the proxy's matcher (a proxied body is buffered whole and cut at 10 MB
     };
     walk(root);
     expect(uploads.length).toBeGreaterThanOrEqual(4);
+    // ADR 0041 D9: the public registration's one submission carries every file of an application, from a stranger who is not signed in (so it asks `gate()` itself, not `supplierUploadPost`).
+    expect(readFileSync(join(root, "supplier", "register", "submit", "route.ts"), "utf8")).toMatch(/\bgate\(\{/);
+    uploads.push("/supplier/register/submit");
     for (const path of uploads) expect(runs(path), path).toBe(false);
     expect(config.matcher[0].split("|").length).toBe(uploads.length);
+  });
+
+  it("leaves out the public registration's one submission, whose body may be far over 10 MB, and only that path of the register", () => {
+    expect(runs("/supplier/register/submit")).toBe(false);
+    for (const path of ["/supplier/register", "/supplier/register/token", "/supplier/register/values", "/supplier/register/submit/x", "/supplier/register/submitx"]) expect(runs(path), path).toBe(true);
   });
 
   it("still runs on the pages, the other posts, the API and the platform's files", () => {

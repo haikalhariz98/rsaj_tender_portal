@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { gate, publicAllows, surfaceOf, type GateRequest, type PublicRequest } from "./surface";
+import { gate, publicAllows, REGISTER_TOKEN_PATH, REGISTER_VALUES_PATH, surfaceOf, type GateRequest, type PublicRequest } from "./surface";
 
 const get = (pathname: string, o: Partial<PublicRequest> = {}) => publicAllows({ method: "GET", pathname, hasServerAction: false, ...o });
 
@@ -242,5 +242,25 @@ describe("the schedule of tenders (go-live R4a)", () => {
   it("opens nothing else under Results: the list is a page and an exercise has no detail page of its own", () => {
     expect(get("/supplier/results")).toBe(true);
     expect(get("/supplier/results/demo_sx30")).toBe(false);
+  });
+});
+
+describe("the public registration's two reads (ADR 0041, plan 2.4)", () => {
+  it("serves a fresh form token and the code search to a GET, at their literal paths, and nothing that only looks like them", () => {
+    expect(REGISTER_TOKEN_PATH).toBe("/supplier/register/token");
+    expect(REGISTER_VALUES_PATH).toBe("/supplier/register/values");
+    for (const p of [REGISTER_TOKEN_PATH, REGISTER_VALUES_PATH]) {
+      expect(get(p), p).toBe(true);
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: false }), p).toBe(false);
+      expect(publicAllows({ method: "GET", pathname: p, hasServerAction: true }), p).toBe(false);
+    }
+    for (const p of ["/supplier/register/token/x", "/supplier/register/tokens", "/supplier/register/values/x", "/supplier/register/Values", "/supplier/register/submit"]) expect(get(p), p).toBe(false);
+  });
+  it("serves them on the staff copy to a stranger too, with no sign-in, and on neither copy to the wrong cookie", () => {
+    for (const p of [REGISTER_TOKEN_PATH, REGISTER_VALUES_PATH]) {
+      expect(gate({ surface: "internal", method: "GET", pathname: p, hasServerAction: false, staffCookie: false, supplierCookie: false }), p).toEqual({ kind: "next" });
+      expect(gate({ surface: "public", method: "GET", pathname: p, hasServerAction: false, staffCookie: true, supplierCookie: false }), p).toEqual({ kind: "notFound" });
+      expect(gate({ surface: "internal", method: "GET", pathname: p, hasServerAction: false, staffCookie: false, supplierCookie: true }), p).toEqual({ kind: "notFound" });
+    }
   });
 });

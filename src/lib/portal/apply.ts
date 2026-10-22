@@ -49,9 +49,6 @@ export const APPLICATION_LIMITS = {
   contactPhone: 60,
 } as const;
 
-/// The most bytes a submission may weigh: every field at its limit is under 4 KB, so this is generous and still small.
-export const APPLICATION_BODY_LIMIT = 32 * 1024;
-
 /// The name of the form's bait field. A person never sees it; a script that fills every field does. It was `faxNumber` until Phase 4a: a real Fax field is coming to
 /// the form (the creditor's profile asks for one), and the bait must not share a name with a field a person is asked to fill.
 export const HONEYPOT_FIELD = "website2";
@@ -178,16 +175,76 @@ export function portalCapacity(load: PortalLoad, limits: PortalLimits): PortalCa
 /// Whether a limit is a figure an officer may set: a whole number of at least one.
 export const validLimit = (n: number) => Number.isInteger(n) && n >= 1 && n <= 100_000;
 
-/// What the register still lacks before it can take an application, in the order a person would set it.
-export function whatIsMissing(c: { today: string | null; entityTypeCodes: readonly string[]; countryCodes: readonly string[]; stateCodes: readonly string[]; numberingReady: boolean; noticeSet: boolean; limitsSet: boolean; formKeySet: boolean }): Words[] {
-  return [
-    ...(c.today == null ? [APPLY.missing.timeZone] : []),
-    ...(c.entityTypeCodes.length === 0 ? [APPLY.missing.entityTypes] : []),
-    ...(c.countryCodes.length === 0 ? [APPLY.missing.countries] : []),
-    ...(c.stateCodes.length === 0 ? [APPLY.missing.states] : []),
-    ...(c.numberingReady ? [] : [APPLY.missing.numbering]),
-    ...(c.noticeSet ? [] : [APPLY.missing.notice]),
-    ...(c.limitsSet ? [] : [APPLY.missing.limits]),
-    ...(c.formKeySet ? [] : [APPLY.missing.formKey]),
+/**
+ * Whether each thing the one-submission register needs is set (ADR 0041 D9, plan section 5): what the five steps are judged by, and the limits that bound a stranger's post. Each is the
+ * customer's, or the deployment's, and an unset one keeps the register closed. Read by one loader (`loadRegisterSettings`), so the page and the submit route cannot disagree.
+ */
+export interface RegisterReadiness {
+  /// The organisation's day; null while its time zone is not set.
+  today: string | null;
+  entityTypeCodes: readonly string[];
+  countryCodes: readonly string[];
+  stateCodes: readonly string[];
+  /// The `portal_application` numbering series exists and its pattern is sound.
+  numberingReady: boolean;
+  /// `SupplierPolicy.personalDataNoticeEn`, agreed with the terms.
+  noticeSet: boolean;
+  /// A current text of each kind the applicant agrees to.
+  termsTextSet: boolean;
+  falseDeclarationTextSet: boolean;
+  giroTextSet: boolean;
+  /// `SupplierPolicy.verificationNoticeEn`, shown after Submit.
+  verificationNoticeSet: boolean;
+  /// At least one live supplier document type.
+  documentTypesSet: boolean;
+  banksSet: boolean;
+  accountTypesSet: boolean;
+  /// The document store's file types (those a supplier may send) and its size.
+  storeRulesSet: boolean;
+  /// The deployment's largest file (`DOCUMENT_MAX_BYTES`), valid.
+  ceilingSet: boolean;
+  /// `SupplierPolicy.supplierUploadClassId`, naming a class of the organisation.
+  documentClassSet: boolean;
+  /// `SupplierPolicy.supplierBankStatementClassId`, naming a class of the organisation that is SULIT.
+  statementClassSet: boolean;
+  /// `uploadMaxFilesPerApplication` and `uploadMaxBytesPerApplication`.
+  quotasSet: boolean;
+  /// `portalDailyLimit` and `portalDailyLimitPerNumber`.
+  limitsSet: boolean;
+  /// `SupplierPolicy.onlineDeclarationReplacesPaper` is true (plan O-8): otherwise no online application could ever be approved.
+  onlineDeclarationAccepted: boolean;
+  /// The document store's driver is configured for this deployment.
+  storeDriverSet: boolean;
+  /// The portal's form key (`PORTAL_FORM_SECRET`).
+  formKeySet: boolean;
+}
+
+/// What the register still lacks before it can take an application, each named, in the order a person would set it.
+export function whatIsMissing(c: RegisterReadiness): Words[] {
+  const m = APPLY.missing;
+  const unset: [boolean, Words][] = [
+    [c.today == null, m.timeZone],
+    [c.entityTypeCodes.length === 0, m.entityTypes],
+    [c.countryCodes.length === 0, m.countries],
+    [c.stateCodes.length === 0, m.states],
+    [!c.numberingReady, m.numbering],
+    [!c.noticeSet, m.notice],
+    [!c.termsTextSet, m.termsText],
+    [!c.falseDeclarationTextSet, m.falseDeclarationText],
+    [!c.giroTextSet, m.giroText],
+    [!c.verificationNoticeSet, m.verificationNotice],
+    [!c.documentTypesSet, m.documentTypes],
+    [!c.banksSet, m.banks],
+    [!c.accountTypesSet, m.accountTypes],
+    [!c.storeRulesSet, m.storeRules],
+    [!c.ceilingSet, m.ceiling],
+    [!c.documentClassSet, m.documentClass],
+    [!c.statementClassSet, m.statementClass],
+    [!c.quotasSet, m.quotas],
+    [!c.limitsSet, m.limits],
+    [!c.onlineDeclarationAccepted, m.onlineDeclaration],
+    [!c.storeDriverSet, m.storeDriver],
+    [!c.formKeySet, m.formKey],
   ];
+  return unset.filter(([missing]) => missing).map(([, words]) => words);
 }

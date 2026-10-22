@@ -100,7 +100,8 @@ describe("the scan finds what it should", () => {
     // Changed for wave 3b step 14 (SR-14, ADR 0036 D10): the officer's download of a sealed file at the opening check is a staff route handler (it asks who is signed in first), so 41.
     // Changed for wave 3c step 4 (SR-15 online, plan section 4.2): a received part is filed once and sent on to its document version through a staff route handler (it asks who is signed in first), so 42.
     // Changed for N2 (the PDPA right of access): a supplier downloads its own data as a file through a portal route handler (it asks the portal's guard first), so 43.
-    expect(ROUTE_FILES.length).toBe(44);
+    // Changed for ADR 0041 (registration step 2): the public registration's two reads, a fresh form token and the code search, are route handlers under the public `supplier/register`, so 46.
+    expect(ROUTE_FILES.length).toBe(46);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });
@@ -181,6 +182,9 @@ describe("every route handler asks who is signed in first, and every one that ch
       "sign-in/image/[sha]/route.ts",
       "supplier/activate/submit/route.ts",
       "supplier/register/submit/route.ts",
+      // ADR 0041: the public registration's two reads, for a stranger who is not signed in: a fresh form token, and a search of the registration codes (each refuses another site).
+      "supplier/register/token/route.ts",
+      "supplier/register/values/route.ts",
       "supplier/reset/submit/route.ts",
       // Go-live R4a: the schedule of tenders a result publishes, a public read under `supplier/results` (held by supplier-reach.test.ts).
       "supplier/results/[id]/schedule/route.ts",

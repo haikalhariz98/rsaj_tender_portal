@@ -11,8 +11,11 @@ import { describe, expect, it } from "vitest";
 const ROOT = process.cwd();
 const SRC = path.join(ROOT, "src");
 const REGISTRATION = ["faults", "declaration", "documents", "codes", "creditor", "summary"].map((f) => `src/lib/portal/registration/${f}.ts`);
+/// The server's own stores (`*-store.ts`: the submit route's transaction and the spent tokens) read the database by design and are never the browser's. They are left out as entry
+/// points only: a browser module that imported one would still be walked into it, and fail.
+const SERVER_STORES = /-store\.ts$/;
 const REGISTER = readdirSync(path.join(SRC, "lib/portal/register"))
-  .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "fixture.ts")
+  .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "fixture.ts" && !SERVER_STORES.test(f))
   .map((f) => `src/lib/portal/register/${f}`);
 const ENTRIES = [...REGISTRATION, ...REGISTER];
 
@@ -68,5 +71,13 @@ describe("the modules the browser imports reach no node: module and no database 
   it("the scan itself catches what it should: the server-only wording file hashes with node:crypto", () => {
     expect(walk(["src/lib/portal/registration/declaration-text.ts"]).bad).toEqual(["src/lib/portal/registration/declaration-text.ts imports node:crypto"]);
     expect(walk(["src/lib/portal/registration/context-store.ts"]).bad.length).toBeGreaterThan(0);
+  });
+
+  it("leaves out only the server's stores, and no browser module reaches one", () => {
+    const left = readdirSync(path.join(SRC, "lib/portal/register")).filter((f) => SERVER_STORES.test(f) && !f.endsWith(".test.ts")).sort();
+    expect(left).toEqual(["receive-store.ts", "token-store.ts"]);
+    for (const f of left) expect(walk([`src/lib/portal/register/${f}`]).bad.length, f).toBeGreaterThan(0);
+    const { visited } = walk(ENTRIES);
+    for (const f of left) expect(visited.has(`src/lib/portal/register/${f}`), f).toBe(false);
   });
 });
