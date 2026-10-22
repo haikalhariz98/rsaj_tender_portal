@@ -56,6 +56,12 @@ describe("breadcrumbs of the certificate core's pages (S-1)", () => {
     expect(c[2].href).toBe("/projects/demo_con3?tab=variations");
     expect(labels(trail("/projects/demo_con3/variations/demo_vvo1", null))).toEqual(["Contracts", "Contract", "Variations", "Variation"]);
   });
+  it("a Project document: Contracts › its contract › Submissions (the contract's tab, where the Documents list is) › the document", () => {
+    const c = trail("/projects/demo_con3/documents/demo_pd1", "Drainage layout", "XI202600799");
+    expect(labels(c)).toEqual(["Contracts", "XI202600799", "Submissions", "Drainage layout"]);
+    expect(c[2].href).toBe("/projects/demo_con3?stage=project&tab=submissions");
+    expect(labels(trail("/projects/demo_con3/documents/demo_pd1", null))).toEqual(["Contracts", "Contract", "Submissions", "Document"]);
+  });
   it("the contract itself is unchanged: Projects › its number", () => {
     expect(labels(trail("/projects/demo_con3", "XI202600799"))).toEqual(["Contracts", "XI202600799"]);
   });

@@ -150,7 +150,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const status = c ? (c.status as ContractStatus) : null;
   const today = l.org.today;
   const ref = { awardId: award.id, contractId: c?.id ?? null };
-  const { tab, section, page, waiting, answered } = { tab: first("tab"), section: first("section"), page: first("page"), waiting: first("waiting"), answered: first("answered") };
+  const { tab, section, page, waiting, answered, docs, docsAfter } = { tab: first("tab"), section: first("section"), page: first("page"), waiting: first("waiting"), answered: first("answered"), docs: first("docs"), docsAfter: first("docsAfter") };
   const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
 
   // ----------------------------------------------------------------- what the step bar needs
@@ -261,7 +261,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       case "documents":
         return documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null;
       case "submissions":
-        return <SubmissionsTab organisationId={l.org.id} contractId={c.id} status={status!} today={today} waiting={waiting} answered={answered} />;
+        return <SubmissionsTab l={lc} actor={actor} organisationId={l.org.id} contractId={c.id} status={status!} today={today} waiting={waiting} answered={answered} docs={docs} docsAfter={docsAfter} />;
       default:
         return null;
     }

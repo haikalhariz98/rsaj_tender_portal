@@ -73,6 +73,9 @@ const minutes = (n: number) => (n === 1 ? "1 minute" : `${n} minutes`);
 const NO_AUTHORITY_WORDS = "the S.O., someone acting as the S.O., or a representative whose letter covers communicating with the contractor";
 const AGAIN = "Upload it again from this form.";
 
+/// The short statement of the unset setting, for a screen's callout; `faultText` adds where it is set.
+export const CLASS_NOT_SET_LEAD = "Project files have no document class yet.";
+
 const NOTE_FIELD: Readonly<Record<string, string>> = { document: "The document's note", version: "The version's note", request: "The request's note" };
 
 function finalWords(state: string, kind: DocKind | null): string {
@@ -105,7 +108,7 @@ export function faultText(f: Finding, orgName = "the organisation"): string {
     case "NO_AUTHORITY":
       return `Only ${NO_AUTHORITY_WORDS} can do this today.`;
     case "CLASS_NOT_SET":
-      return "Project files have no document class yet. An administrator sets the class for project files under Configuration › Documents.";
+      return `${CLASS_NOT_SET_LEAD} An administrator sets the class for project files under Configuration › Documents.`;
     case "TITLE_REQUIRED":
       return "Give the document a title.";
     case "TITLE_TOO_LONG":

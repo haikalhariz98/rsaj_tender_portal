@@ -99,6 +99,8 @@ export const RECORD_LABEL: Readonly<Record<string, Words>> = {
   certificates: w("Certificate"),
   // 6.13 Part A step 4: a variation under its contract.
   variations: w("Variation"),
+  // The simple Project workspace: a document under its contract.
+  documents: w("Document"),
   templates: w("Template"),
   "routing-sheets": w("Routing sheet type"),
   sourcing: w("Exercise"),
@@ -158,5 +160,6 @@ export const CRUMB_WORDS = {
   saleLabel: w("Sale label"),
   documents: w("Documents"),
   variations: w("Variations"),
+  submissions: w("Submissions"),
 } as const satisfies Record<string, Words>;
 

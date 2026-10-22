@@ -19,7 +19,7 @@ import { loadStorePolicy } from "@/lib/documents/service";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { loadDocumentFactsMany } from "./facts";
-import { addApproverFaults, removeApproverFaults, decideFaults, requestFaults, uploadFaults } from "./faults";
+import { addApproverFaults, createFaults, removeApproverFaults, decideFaults, requestFaults, uploadFaults } from "./faults";
 import { faultText, kindWords, outcomeWords, sideWords, stateWords, versionLabel, waitsOnWords } from "./labels";
 import { organisationSideOn } from "./side-store";
 import { mayActForOrganisation } from "./side";
@@ -146,6 +146,37 @@ const gate = (faults: readonly Finding[], orgName: string, shut: string | null):
   const reasons = [...new Set(faults.filter((f) => f.level === "block").map((f) => faultText(f, orgName)))];
   return { allowed: reasons.length === 0, reasons };
 };
+
+export interface WorkspaceStart {
+  /// The project's class for files is set: where false, nothing can be added and the screen names the setting.
+  classSet: boolean;
+  /// Whether the reader may start a document now (the pure `createFaults` asked with the reader as the actor, or the contract's shut state), and if not, why.
+  create: Gate;
+  /// Who the reader may name as an approver: those on the organisation's side who may act today.
+  picker: { personId: string; name: string; officeLabel: string }[];
+}
+
+/**
+ * What the Documents list needs to offer "New document": the class setting, whether the reader may start one (with the reasons if not), and the approver picker. The same
+ * reader as `loadDocumentPage`'s gates, for the list, where there is no document yet. Writes nothing and takes no lock.
+ */
+export async function loadWorkspaceStart(client: Tx, l: LoadedContract, viewer: StaffActor): Promise<WorkspaceStart> {
+  const orgName = l.org.name;
+  const today = dayOf(new Date(), l.org.timeZone);
+  const sv = await loadSupervision(l.contract.id, client);
+  const so = today ? await soOfficeOn(l, sv, today, client) : null;
+  const readerMayAct = today !== null && mayActForOrganisation(viewer.personId, so?.office ?? null, delegationFactsOf(sv), today);
+  const classSet = (await loadStorePolicy(l.org.id, client)).projectDocumentClassId !== null;
+  const status = actStatusFault("PROJECT_WORKSPACE", l.contract.status as ContractStatus);
+  const shut = status ? actStatusText(status) : today === null ? faultText({ code: "ZONE_NOT_SET", level: "block" }, orgName) : null;
+  const actor: Actor = { side: "ORGANISATION", personId: viewer.personId, authorityToday: readerMayAct };
+  const picker = today ? (await organisationSideOn(l, sv, today, client)).filter((m) => m.mayAct).map((m) => ({ personId: m.personId, name: m.name, officeLabel: m.officeLabel })) : [];
+  return {
+    classSet,
+    create: gate(createFaults({ actor, classSet, title: "title", note: "", first: { upload: { files: 1, note: "", kind: null, signed: false } }, approvers: [] }), orgName, shut),
+    picker,
+  };
+}
 
 /**
  * The document, or null where it is not on this contract (a 404). `l` is the loaded contract (the page has it); the reader is the signed-in staff person.

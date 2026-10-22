@@ -43,7 +43,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: (
 
 import { addProjectApprover, createProjectDocument, decideProjectVersion, removeProjectApprover, requestProjectDocument, uploadProjectVersion } from "@/app/projects/[id]/document-actions";
 import { loadDocumentFacts } from "./facts";
-import { loadDocumentPage } from "./page-store";
+import { loadDocumentPage, loadWorkspaceStart } from "./page-store";
 import { loadRegister } from "./register";
 import { documentState } from "./state";
 import { addVersion, createDocument, requestDocument, WorkspaceRefused, type WorkspaceCtx } from "./store";
@@ -636,5 +636,37 @@ describe("requests, and the contractor's own acts", () => {
     const req = await asContractor(c, contractId, async (ctx) => requestDocument(ctx, { kind: "SUPPLIER", actor: c.actor }, { documentId: orgDoc, note: "A newer one, please." }, null));
     expect((await noticesOf(req.requestId)).map((n) => n.kind)).toEqual(["PROJECT_DOCUMENT_REQUESTED", "PROJECT_DOCUMENT_REQUESTED", "PROJECT_DOCUMENT_REQUESTED"]);
     expect(await stateOf(orgDoc)).toMatchObject({ state: "REQUESTED", waitsOn: "ORGANISATION" });
+  });
+});
+
+describe("what the Documents list needs to offer a new document", () => {
+  it("the S.O. may start one and may name those who hold authority; a stranger may not, and is told who may; a closed contract is shut in its own words", async () => {
+    const contractId = await contract(null);
+    const l = (await loadContract(organisationId, contractId))!;
+    const mine = await loadWorkspaceStart(db, l, staff(p.so));
+    expect(mine).toMatchObject({ classSet: true, create: { allowed: true, reasons: [] } });
+    expect(mine.picker.map((m) => m.personId).sort()).toEqual([p.so, p.so2, p.so3].sort());
+    const theirs = await loadWorkspaceStart(db, l, staff(p.stranger));
+    expect(theirs.create.allowed).toBe(false);
+    expect(theirs.create.reasons.join(" ")).toMatch(/Only the S\.O\./);
+    // Closed: the contract's state is said, once, whoever asks.
+    await db.contract.update({ where: { id: contractId }, data: { status: "CLOSED" } });
+    const closed = await loadWorkspaceStart(db, (await loadContract(organisationId, contractId))!, staff(p.so));
+    expect(closed.create.allowed).toBe(false);
+    expect(closed.create.reasons).toHaveLength(1);
+    expect(closed.create.reasons[0]).toMatch(/closed/i);
+  });
+
+  it("with the project class unset the list is told, and names the setting", async () => {
+    const contractId = await contract(null);
+    await db.documentStorePolicy.update({ where: { organisationId }, data: { projectDocumentClassId: null } });
+    try {
+      const start = await loadWorkspaceStart(db, (await loadContract(organisationId, contractId))!, staff(p.so));
+      expect(start.classSet).toBe(false);
+      expect(start.create.allowed).toBe(false);
+      expect(start.create.reasons.join(" ")).toMatch(/Configuration › Documents/);
+    } finally {
+      await db.documentStorePolicy.update({ where: { organisationId }, data: { projectDocumentClassId: projectClassId } });
+    }
   });
 });

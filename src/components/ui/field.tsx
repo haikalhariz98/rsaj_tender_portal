@@ -165,7 +165,8 @@ export function FileInput({
         {...fieldAria(ctx, props)}
         onChange={(e) => {
           const file = e.currentTarget.files?.[0];
-          setName(file?.name ?? null);
+          // Several files (`multiple`): every name, in the order chosen, never a count.
+          setName(props.multiple ? [...(e.currentTarget.files ?? [])].map((f) => f.name).join(", ") || null : (file?.name ?? null));
           onChange?.(e);
           if (upload && file) send(file);
         }}

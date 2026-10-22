@@ -185,6 +185,7 @@ function gateReach(sources: Sources, exceptions: Readonly<Record<string, string>
 const RECORDS_NOTHING: Readonly<Record<string, string>> = {
   Tabs: "Switches the panel shown; it records nothing. The panels it shows are followed from the page that builds them.",
   MoreText: "Shows the rest of a long text (a page header's subtitle); it records nothing (no drawer or form in more-text.tsx).",
+  CaseViewSelect: "The server-side view picker of a list (the Documents list's four filters): choosing an option goes to another address (router.push) and records nothing (no drawer or form in case-view-select.tsx).",
   DataList: "The shared list: its buttons filter, sort, select and page the rows, and record nothing (no drawer or form in data-list.tsx). Its rows link to records whose own pages gate their acts.",
   Stepper: "Draws a flow's steps; a step's button (onSelect, ADR 0041's public form) only moves the page to that step, and records nothing (no drawer or form in stepper.tsx).",
 };
@@ -252,8 +253,8 @@ const SECTION_FAMILIES: Readonly<Record<string, readonly ContractAct[]>> = {
   AdjustmentsSection: ["SUM_ADJUSTMENT"],
   OverviewPanel: ["FORMATION"],
   SecuritiesPanel: ["FORMATION"],
-  // AC-16: answering a contractor's submission is an act of the contract's supervision (answerContractorSubmission).
-  SubmissionsTab: ["SUPERVISION"],
+  // AC-16: answering a contractor's submission is an act of the contract's supervision (answerContractorSubmission). The queue is its own section under the Documents list.
+  EarlierQueue: ["SUPERVISION"],
 };
 
 /// Components that offer no act of their own, each with why.
@@ -262,6 +263,16 @@ const NO_ACT: Readonly<Record<string, string>> = {
   SitePanel: "Dispatches to its sections, which gate themselves.",
   FormationPanel: "Dispatches to its sections, which gate themselves.",
   VariationsPanel: "Dispatches to its sections, which gate themselves.",
+  SubmissionsTab: "Dispatches to the Documents list and the earlier queue, each of which gates itself (the list by the Project workspace's row, the queue by the supervision family's).",
+  ProjectDocumentPage: "Loads the document and renders DocumentPageView, whose gates come from the loader.",
+};
+
+/// The Project workspace's screens (ADR 0042 D11): their gates come whole from a loader that asks the PROJECT_WORKSPACE row of the table first (`actStatusFault`) and the rules' own faults after, so the screen restates no rule and
+/// states the table's words once. They sit outside any ActGate on purpose: the supervision family's gate would block an open workspace on a terminated contract (PW-22).
+/// `gate`: the one ActGate the screen holds, which states that same row's words to every drawer and blocked button beneath it (the loader's `workspaceShut`); none where the screen holds none (the Documents list, which sits in a tab whose own gate is the supervision family's).
+const GATED_BY_LOADER: Readonly<Record<string, { loader: string; call: string; gate: RegExp | null }>> = {
+  ProjectDocumentsCard: { loader: "src/lib/project-docs/page-store.ts", call: "loadWorkspaceStart", gate: null },
+  DocumentPageView: { loader: "src/lib/project-docs/page-store.ts", call: "loadDocumentPage", gate: /<ActGate blocker=\{page\.workspaceShut\}>/ },
 };
 
 describe("S1: no hand-written status list on a screen", () => {
@@ -349,10 +360,22 @@ describe("S1 and S-2: every component on the contract's pages that offers an act
   });
 
   it("every component that offers an act is a listed section, a page with its gates, gated by a listed parent, a dispatcher, or a drawer", () => {
-    const unlisted = offering.filter((k) => !SECTION_FAMILIES[k] && !PAGE_GATES[k] && !GATED_BY_PARENT[k] && !NO_ACT[k] && !isDrawer(k));
+    const unlisted = offering.filter((k) => !SECTION_FAMILIES[k] && !PAGE_GATES[k] && !GATED_BY_PARENT[k] && !GATED_BY_LOADER[k] && !NO_ACT[k] && !isDrawer(k));
     expect(unlisted).toEqual([]);
-    for (const n of [...Object.keys(SECTION_FAMILIES), ...Object.keys(PAGE_GATES), ...Object.keys(GATED_BY_PARENT), ...Object.keys(NO_ACT)]) expect(all.has(n), n).toBe(true);
-    for (const n of [...Object.keys(SECTION_FAMILIES), ...Object.keys(PAGE_GATES), ...Object.keys(GATED_BY_PARENT)]) expect(offering, n).toContain(n);
+    for (const n of [...Object.keys(SECTION_FAMILIES), ...Object.keys(PAGE_GATES), ...Object.keys(GATED_BY_PARENT), ...Object.keys(GATED_BY_LOADER), ...Object.keys(NO_ACT)]) expect(all.has(n), n).toBe(true);
+    for (const n of [...Object.keys(SECTION_FAMILIES), ...Object.keys(PAGE_GATES), ...Object.keys(GATED_BY_PARENT), ...Object.keys(GATED_BY_LOADER)]) expect(offering, n).toContain(n);
+  });
+
+  it("each Project workspace screen takes its gates from a loader that asks the table's PROJECT_WORKSPACE row first, and no ActGate of another family wraps it", () => {
+    for (const [n, { loader, call, gate }] of Object.entries(GATED_BY_LOADER)) {
+      const src = SOURCES.get(loader)!;
+      const from = src.indexOf(`export async function ${call}(`);
+      expect(from, `${call} in ${loader}`).toBeGreaterThan(-1);
+      const end = src.indexOf("\n}\n", from);
+      expect(src.slice(from, end), `${call} asks the row`).toMatch(/actStatusFault\("PROJECT_WORKSPACE", /);
+      if (gate) expect(all.get(n)!.body, `${n} states the row's words to every act beneath it`).toMatch(gate);
+      else expect(all.get(n)!.body, `${n} holds no gate of its own`).not.toMatch(/<ActGate\b/);
+    }
   });
 
   it("each listed section asks the table (actStatusBlocker, or actStatusFault) for each of its families and gates its drawers with it", () => {

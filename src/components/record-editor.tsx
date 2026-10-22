@@ -83,7 +83,8 @@ export type Field =
   /// A file chosen from the officer's device, on the shared FileInput. It rides out in the
   /// form's data as a File: the action that reads it is a client function that sends it
   /// where a body of that size can go (never a Server Action, which caps a body at 1 MB).
-  | { kind: "file"; name: string; label: string; required?: boolean; hint?: string; accept?: string }
+  | { kind: "file"; name: string; label: string; required?: boolean; hint?: string; accept?: string; /// Several files under the one name (read with `FormData.getAll`); the chosen names are listed.
+      multiple?: boolean }
   /// Several values at once, shown as removable tags.
   | {
       kind: "tokens";
@@ -551,7 +552,7 @@ function FieldInput({
   if (field.kind === "file") {
     return (
       <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error} className="sm:col-span-2">
-        <FileInput id={id} name={field.name} accept={field.accept} aria-invalid={error ? true : undefined} />
+        <FileInput id={id} name={field.name} accept={field.accept} multiple={field.multiple} aria-invalid={error ? true : undefined} />
       </Field>
     );
   }

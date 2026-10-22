@@ -122,6 +122,12 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
     crumbs[2].label = CRUMB_WORDS.variations;
     crumbs[2].href = `/projects/${segments[1]}?tab=variations`;
   }
+  // The simple Project workspace: a document sits on its contract's Submissions tab (where the Documents list is): "Contracts › <contract> › Submissions › <document>".
+  if (segments[0] === "projects" && segments[2] === "documents" && crumbs.length >= 3) {
+    if (parentName) crumbs[1].label = named(parentName);
+    crumbs[2].label = CRUMB_WORDS.submissions;
+    crumbs[2].href = `/projects/${segments[1]}?stage=project&tab=submissions`;
+  }
 
   return crumbs;
 }
