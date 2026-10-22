@@ -165,6 +165,9 @@ describe("the registration summary", () => {
     const [d] = section(record(), "declarations").items;
     expect(d).toEqual({ label: "GIRO authorisation", value: "Aminah Binti Ali, Director", note: "Signed 9 Oct 2026, 10:00 by the supplier's portal account · wording version 2" });
     expect(section(record({ declarations: [] }), "declarations").empty).toContain("signed when the registration is sent");
+    // An account's signature keeps "Signed" and carries no chip; only the public form's agreements read "Agreed" (plan 6.3.2).
+    expect(d!.chip).toBeUndefined();
+    expect(section(record({ declarations: [], agreedOnline: true }), "declarations").empty).toBe("Nothing has been agreed yet. The agreements are made at Submit.");
   });
 });
 

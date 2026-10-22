@@ -19,6 +19,7 @@ import {
 } from "react";
 
 import { CheckIcon, ChevronDown, SearchIcon } from "@/components/icons";
+import { FORM_TOKEN_HEADER } from "@/lib/auth/form-token-shape";
 import {
   CLEAR_LABEL,
   choiceDropped,
@@ -128,9 +129,13 @@ type Common = {
   /// Phase 4b: the choices are searched on the server, not held on the page (a registry's thousands of codes). `url` answers `?q=` with `{ options: [{ value, label }], hasMore }`; `minChars`
   /// is how much must be typed first (0: the first page is listed on opening); `token` rides in `x-form-token`; `labels` names the values the page already holds (the draft's chosen codes),
   /// because their options are not among the results. Options and the chosen values read as the labels the server gives ("code — name"); a value with no label is never shown as itself.
-  search?: { url: string; minChars?: number; token?: string | null; labels?: Readonly<Record<string, string>> };
+  /// `load` (ADR 0041): the page asks for the rows itself, in place of `url` (a route whose answer has another shape, a token the page refreshes); it answers the same rows.
+  search?: { url?: string; load?: RemoteLoad; minChars?: number; token?: string | null; labels?: Readonly<Record<string, string>> };
   children?: ReactNode;
 };
+
+/// A page's own search for a server-searched Select: the rows for a query, and whether there are more than these. A refusal throws, and the list says it could not be loaded.
+export type RemoteLoad = (query: string, signal: AbortSignal) => Promise<{ options: { value: string; label: string }[]; hasMore: boolean }>;
 
 type Attrs = Omit<
   SelectHTMLAttributes<HTMLSelectElement>,
@@ -232,7 +237,13 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
   const typed = useRef({ text: "", at: 0 });
 
   // ---- searching on the server (Phase 4b) ---------------------------------------
-  const searchUrl = props.search?.url;
+  // Searched on the server through a route (`url`) or through the page's own loader (`load`). `searchUrl` is the key the search is run under; the loader is read through a ref, so a page
+  // that hands in a new function each render does not search again.
+  const searchLoad = useRef<RemoteLoad | undefined>(props.search?.load);
+  useEffect(() => {
+    searchLoad.current = props.search?.load;
+  });
+  const searchUrl = props.search?.url ?? (props.search?.load ? "load" : undefined);
   const searchMin = props.search?.minChars ?? 0;
   const searchToken = props.search?.token ?? null;
   const searchLabels = props.search?.labels;
@@ -243,6 +254,16 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
   const [known, setKnown] = useState<Record<string, string>>({});
 
   const searchOn = searchUrl ? true : wantsSearch(items, searchable);
+  // The hidden native select carries a single choice to the page (a real change event): searched on the server, it also holds the rows the last search returned, so one of them can be
+  // chosen, and the value now held, so it is not lost when the rows change. Without these a searched choice could never be made (ADR 0041 rehearsal).
+  const nativeItems = useMemo(() => {
+    if (!searchUrl) return items;
+    const out = [...items];
+    const has = (v: string) => out.some((o) => o.value === v);
+    for (const r of remote.rows) if (!has(r.value)) out.push(r);
+    if (single && !has(single)) out.push({ value: single, label: labelOfChoice(single, searchLabels, known) });
+    return out;
+  }, [items, searchUrl, remote.rows, single, searchLabels, known]);
   // The rows for a query. "Clear selection" heads the list, and is not searched through. Searched on the server, the rows are what the server returned for the query.
   const rowsFor = useCallback(
     (q: string): Item[] => {
@@ -261,9 +282,14 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
     const ctl = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(remoteSearchUrl(searchUrl, q), { signal: ctl.signal, credentials: "same-origin", headers: searchToken ? { "x-form-token": searchToken } : undefined });
-        if (!res.ok) throw new Error(String(res.status));
-        const body = (await res.json()) as { options?: { value: string; label: string }[]; hasMore?: boolean };
+        let body: { options?: { value: string; label: string }[]; hasMore?: boolean };
+        const load = searchLoad.current;
+        if (load) body = await load(q, ctl.signal);
+        else {
+          const res = await fetch(remoteSearchUrl(searchUrl, q), { signal: ctl.signal, credentials: "same-origin", headers: searchToken ? { [FORM_TOKEN_HEADER]: searchToken } : undefined });
+          if (!res.ok) throw new Error(String(res.status));
+          body = (await res.json()) as { options?: { value: string; label: string }[]; hasMore?: boolean };
+        }
         const rows = (body.options ?? []).map((o) => ({ value: String(o.value), label: String(o.label) }));
         setKnown((k) => ({ ...k, ...Object.fromEntries(rows.map((o) => [o.value, o.label])) }));
         setRemote({ rows, more: body.hasMore === true, failed: false, query: q });
@@ -724,7 +750,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
             (props as SingleSelectProps).onChange?.(e);
           }}
         >
-          {items.map((o) => (
+          {nativeItems.map((o) => (
             <option key={o.value} value={o.value} disabled={o.disabled}>
               {o.label}
             </option>

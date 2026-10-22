@@ -17,7 +17,12 @@ const SERVER_STORES = /-store\.ts$/;
 const REGISTER = readdirSync(path.join(SRC, "lib/portal/register"))
   .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "fixture.ts" && !SERVER_STORES.test(f))
   .map((f) => `src/lib/portal/register/${f}`);
-const ENTRIES = [...REGISTRATION, ...REGISTER];
+/// The browser's own modules (plan step 3): the public wizard, the shared step components it and the signed-in wizard draw, and the token's shape. The scan reaches only what it is pointed at.
+const COMPONENTS = readdirSync(path.join(SRC, "components/registration"))
+  .filter((f) => /\.tsx?$/.test(f) && !f.endsWith(".test.ts"))
+  .map((f) => `src/components/registration/${f}`);
+const BROWSER = ["src/app/supplier/register/registration-wizard.tsx", "src/lib/auth/form-token-shape.ts", "src/lib/portal/registration/view.ts", ...COMPONENTS];
+const ENTRIES = [...REGISTRATION, ...REGISTER, ...BROWSER];
 
 /// The imports of a module that survive compilation: `import type` and `export type` are erased.
 function runtimeImports(text: string): string[] {
@@ -60,6 +65,11 @@ function walk(entries: readonly string[]): { visited: Set<string>; bad: string[]
 describe("the modules the browser imports reach no node: module and no database (plan 2.3)", () => {
   it("lists every module of the register directory, and the registration rules", () => {
     expect(REGISTER).toEqual(expect.arrayContaining(["src/lib/portal/register/contract.ts", "src/lib/portal/register/faults.ts", "src/lib/portal/register/parse.ts", "src/lib/portal/register/held-draft.ts", "src/lib/portal/register/ceiling.ts"]));
+  });
+
+  it("lists the public wizard and every shared registration component among the entries", () => {
+    expect(BROWSER).toEqual(expect.arrayContaining(["src/app/supplier/register/registration-wizard.tsx", "src/components/registration/company-fields.tsx", "src/components/registration/documents-fields.tsx", "src/components/registration/codes-fields.tsx", "src/components/registration/epayment-fields.tsx", "src/components/registration/terms-card.tsx", "src/components/registration/faults.ts"]));
+    expect(walk(["src/app/supplier/register/registration-wizard.tsx"]).visited).toContain("src/lib/portal/register/wizard.ts");
   });
 
   it("finds no node: import and no database, following every runtime import", () => {

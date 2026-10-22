@@ -6,12 +6,12 @@ import { db } from "@/lib/db";
 import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { deploymentOrganisation } from "@/lib/portal/deployment";
 import { APPLY } from "@/lib/portal/labels";
-import { REGISTER_VALUES_MAX_HITS, REGISTER_VALUES_MIN_QUERY, type ValueHit } from "@/lib/portal/register/contract";
+import { REGISTER_VALUES_MAX_HITS, REGISTER_VALUES_MIN_QUERY, type ValueHit, type ValuesReply } from "@/lib/portal/register/contract";
 import { parseValuesQuery } from "@/lib/portal/registration/api";
 
 export const dynamic = "force-dynamic";
 
-const reply = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
+const reply = (body: ValuesReply | ReturnType<typeof refusalBody>, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
 /**
  * Search the registration codes of one body for the public form (ADR 0041, plan 2.4): `GET /supplier/register/values?body=&kind=&q=`. The published lists run to thousands of codes, so

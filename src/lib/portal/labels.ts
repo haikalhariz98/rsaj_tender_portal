@@ -295,21 +295,14 @@ export const APPLY = {
     "Sending this form does not register your company. The procurement office reviews every application.",
   ),
   backToHome: w("Back to the supplier portal"),
-  beforeTitle: w("Before you start"),
-  beforeItems: [
-    w("Registered name, registration number, date incorporated and address, as on the certificate."),
-    w("A contact person: a name, and an email or mobile number."),
-    w("Nothing is uploaded here. No bank details are asked."),
-    w(
-      "Contact details are never shown.",
-    ),
-  ] satisfies Words[],
+  // REG-4(c): the one line under the title. Nothing is saved before Submit, so leaving loses it.
+  nothingSaved: w("Nothing is saved until you submit."),
+  leaveQuestion: w("Leave? Nothing you entered is kept."),
+  leave: w("Leave"),
+  stay: w("Stay"),
   companyTitle: w("The company"),
-  companySubtitle: w("As its registration certificate states it."),
   addressTitle: w("Registered address"),
-  addressSubtitle: w("As its registration certificate states it."),
   contactTitle: w("Who we can reach"),
-  contactSubtitle: w("A person at the company. This is not a sign-in."),
   fields: {
     registeredName: w("Registered name"),
     registrationNo: w("Registration number"),
@@ -330,7 +323,7 @@ export const APPLY = {
     contactPhone: w("Telephone"),
     contactMobile: w("Mobile number"),
   },
-  bumiputeraHint: w("Declared. Checked against the certificate you send later. Leave blank if none."),
+  bumiputeraHint: w("Declared, not verified. Leave blank if none."),
   incorporatedHint: w("As on the certificate."),
   mobileHint: (dialCode: string | null): Words => (dialCode ? w(`Without the ${dialCode}, which is added for you.`) : w("With the country code if it is not local.")),
   reachHintBoth: w("Give both an email address and a mobile number."),
@@ -338,12 +331,14 @@ export const APPLY = {
   choose: w("Choose"),
   reachHint: w("Give an email or a telephone number, or both."),
   numberFormatHint: (example: string): Words => w(`For example ${example}.`),
-  // SR-01 (R1): step 1 of five is sent for checking; the other four open once the office has checked the company.
-  submit: w("Send for checking"),
-  laterSteps: (organisation: string): Words => w(`Steps 2 to 5 open after ${organisation} has checked the company.`),
+  // ADR 0041 (REG-1): the five steps are sent together, once, at Submit on step 5.
+  submit: w("Submit"),
   stepsLabel: w("Registration steps"),
-  /// Under the steps on the public form, where nothing has been accepted yet: step 1 is what is being sent, the rest wait on the office's check.
   sending: w("Sending…"),
+  sendingPercent: (percent: number): Words => w(`Sending… ${percent}%`),
+  stepOf: (n: number, of: number, title: string): Words => w(`Step ${n} of ${of}: ${title}`),
+  reviewTitle: w("Application summary"),
+  edit: w("Edit"),
   cantAccept: w("Nothing was sent. Check each field, or contact the procurement office."),
   nothingSent: w("Nothing was sent. Check the fields marked below and send it again."),
   tooLong: (label: string, max: number): Words => w(`${label} must be ${max} characters or fewer.`),
@@ -358,20 +353,8 @@ export const APPLY = {
   sentTitle: w("Your application was sent"),
   sentNoReference: w("Your application was received."),
   referenceLabel: w("Your reference"),
-  keepReference: w(
-    "Write this reference down. Quote it when you contact the procurement office.",
-  ),
-  nextTitle: w("What happens next"),
-  nextItems: [
-    w("The procurement office reviews your application."),
-    w(
-      "Once accepted, you complete your registration online: documents, bank details and declarations. Quote your reference with any question.",
-    ),
-    w(
-      "The office then opens an account and hands your contact a one-time code. Not emailed.",
-    ),
-    w("Applying does not register your company or invite it to bid."),
-  ] satisfies Words[],
+  // REG-3: shown once; there is no status lookup, and the result comes from the office (never "your account page" on this path, O-9).
+  keepReference: w("Keep this reference."),
   officeNoticeTitle: w("A note from the procurement office"),
   /// Every blocking fault the public form can show.
   faults: {
@@ -431,9 +414,17 @@ export const APPLY = {
   noticeLink: w("Personal Data Notice"),
   termsTick: w("I confirm I have read and agree to the Terms and Conditions and the Personal Data Notice"),
   tickToSubmit: w("Tick the agreement to submit."),
-  noticeTitle: w("How your details are used"),
-  noticeIntro: w("Read this before you send. Sending means you have read it."),
-  formExpired: w("This form is out of date. Nothing was sent. Reload and send again."),
+  /// The chip on an applicant's agreement and on the rows it sent: the name is as typed, and nobody signed in (ADR 0041 D3).
+  unverified: w("Unverified; not signed in"),
+  /// The false declaration on the public form: the applicant's tick, never a signature.
+  declarationBy: (name: string, designation: string): Words => w(`By ${[name, designation].filter((x) => x.trim()).join(", ") || "the person named in step 4"}. Dated the day you submit.`),
+  /// The GIRO authorisation on the public form, likewise.
+  giroSignatory: w("Name of the person authorising"),
+  giroDated: w("Dated the day you submit."),
+  tickDeclaration: w("Tick the declaration to submit."),
+  finishFirst: w("Finish what is marked above."),
+  stillToFix: (n: number): Words => w(n === 1 ? "One thing to fix before you submit" : `${n} things to fix before you submit`),
+  notSentTitle: w("Nothing was sent"),
   // ADR 0041 (plan 3.1): the one submission's refusals. Each within 12 words; none says to reload, which would lose what was typed.
   submitExpired: w("This form is out of date. Nothing was sent. Submit again."),
   submitTooLarge: (limit: string): Words => w(`Too large to send. The limit is ${limit}. Nothing was sent.`),
@@ -441,3 +432,14 @@ export const APPLY = {
   submitUnreadable: w("The application could not be read. Nothing was sent."),
   busy: w("Too many applications right now. Nothing was sent. Try again later."),
 };
+
+/// The registration steps' field hints (Phase 4b), shared by the signed-in wizard and the public form (ADR 0041): the shared components take their hints from a labels file (D6).
+export const REGISTRATION_HINT = {
+  rowTitle: "So it can be told from the others",
+  expiryIfAny: "Give the date, if it has one",
+  rate: "Per cent, 0 to 100",
+  identityNo: "Company or identity card number",
+  notEmailed: "Nothing is e-mailed from the portal.",
+  oneGrade: "A certificate carries one grade.",
+  several: "You may choose several.",
+} as const;

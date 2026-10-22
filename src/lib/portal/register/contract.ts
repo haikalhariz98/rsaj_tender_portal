@@ -9,7 +9,7 @@ import type { CreditorInput, RegistrationStep } from "@/lib/portal/registration/
 export const REGISTER_APPLICATION_PART = "application"; // the JSON part
 export const documentFilePart = (clientKey: string) => `doc.${clientKey}`; // one or more files per row
 export const STATEMENT_FILE_PART = "statement";
-// The token travels in FORM_TOKEN_HEADER ("x-form-token"); the honeypot stays the multipart field HONEYPOT_FIELD.
+// The token travels in FORM_TOKEN_HEADER ("x-form-token", `src/lib/auth/form-token-shape.ts`, which the browser may import); the honeypot stays the multipart field HONEYPOT_FIELD.
 
 export type AgreementKind = "GIRO_AUTHORISATION" | "FALSE_DECLARATION" | "TERMS_AND_CONDITIONS";
 
@@ -40,6 +40,8 @@ export type RegisterReply =
 
 export type TokenReply = { ok: true; token: string } | { ok: false; code: "CLOSED"; message: string };
 export interface ValueHit { id: string; code: string; name: string; kind: string; bodyId: string }
+/// The code search's answer (`/supplier/register/values`).
+export type ValuesReply = { ok: true; hits: ValueHit[] } | { ok: false; code: "VALIDATION" | "FORM_EXPIRED" | "CLOSED"; message: string };
 
 /// The code search (`/supplier/register/values`): the fewest characters it is run on, and the most codes one answer holds. Technical bounds on a stranger's read, not policy.
 export const REGISTER_VALUES_MIN_QUERY = 2;

@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { FORM_TOKEN_MAX_AGE_MS } from "./form-token-shape";
+
 /**
  * The signed form token on the portal's forms (Phase 4a; the plan: "a signed form token, server secret from the environment, on the portal forms").
  *
@@ -22,9 +24,8 @@ export const FORM_TOKEN_FIELD = "formToken";
 export type FormPurpose = "register" | "sign-in" | "activate" | "reset" | "account" | "registration" | "company" | "bids" | "projects" | "data-export";
 export const FORM_PURPOSES: readonly FormPurpose[] = ["register", "sign-in", "activate", "reset", "account", "registration", "company", "bids", "projects", "data-export"];
 
-/// How long a token is good for. A technical bound, not a customer's policy: a form left open for longer than a working day is simply rendered again. Logged as an
-/// assumption in the decisions log.
-export const FORM_TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/// How long a token is good for: defined with the token's header in `form-token-shape.ts`, which the browser may import.
+export { FORM_TOKEN_MAX_AGE_MS };
 
 /// A token made a moment ahead of this instance's clock is the other instance's clock, not a forgery: a minute is allowed.
 export const FORM_TOKEN_SKEW_MS = 60 * 1000;

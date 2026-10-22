@@ -34,10 +34,11 @@ export function TermsCard({
         {terms && notice ? (
           <div className="flex flex-col gap-3">
             <p className="text-[13.5px] text-ink-2">{APPLY.termsLine.en}</p>
-            <p className="flex flex-wrap gap-x-5 gap-y-1 text-[13.5px]">
+            {/* A div, not a paragraph: each link's drawer is drawn beside it, and a drawer holds headings. */}
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13.5px]">
               <TextDrawerLink label={APPLY.termsLink.en} title={APPLY.termsLink.en} text={terms.en} />
               <TextDrawerLink label={APPLY.noticeLink.en} title={APPLY.noticeLink.en} text={notice.en} />
-            </p>
+            </div>
             <Checkbox label={APPLY.termsTick.en} required checked={confirmed} onChange={(e) => onConfirm(e.target.checked)} />
           </div>
         ) : (

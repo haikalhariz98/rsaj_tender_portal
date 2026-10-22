@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { DownloadIcon, UploadIcon } from "@/components/icons";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
-import { CONFIRM_SCRIM, confirmPanelClass } from "@/components/ui/drawer";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { ImportedLine, ImportProblem } from "@/lib/requisition/line-import";
 import { confirmReplace, LINE_UPLOAD_WORDS as W, linesRead } from "@/lib/requisition/line-import-labels";
 
@@ -107,50 +107,19 @@ export function LineUpload({
         </Callout>
       )}
       {asking && (
-        <ReplaceConfirm
+        // Replacing typed lines is asked, never done silently.
+        <ConfirmDialog
+          question={W.confirmTitle.en}
           words={confirmReplace(typedLines, asking.lines.length, asking.left).en}
-          onReplace={() => {
+          confirmLabel={W.replace.en}
+          cancelLabel={W.keep.en}
+          onConfirm={() => {
             apply(asking.lines, asking.name);
             setAsking(null);
           }}
-          onKeep={() => setAsking(null)}
+          onCancel={() => setAsking(null)}
         />
       )}
-    </div>
-  );
-}
-
-/// A small centred box: replacing typed lines is asked, never done silently.
-function ReplaceConfirm({ words, onReplace, onKeep }: { words: string; onReplace: () => void; onKeep: () => void }) {
-  const latest = useRef(onKeep);
-  useEffect(() => {
-    latest.current = onKeep;
-  });
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && latest.current();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
-  return (
-    <div className={CONFIRM_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && onKeep()}>
-      <div className={confirmPanelClass()} role="alertdialog" aria-modal="true" aria-labelledby="line-replace-title" aria-describedby="line-replace-words">
-        <div className="flex flex-col gap-2 px-6 pt-5 pb-4">
-          <h2 id="line-replace-title" className="text-[18px] leading-snug font-bold tracking-tight text-ink">
-            {W.confirmTitle.en}
-          </h2>
-          <p id="line-replace-words" className="text-[14px] text-ink-2">
-            {words}
-          </p>
-        </div>
-        <div className="flex flex-wrap justify-end gap-2 border-t border-line px-6 py-4">
-          <Button autoFocus variant="ghost" onClick={onKeep}>
-            {W.keep.en}
-          </Button>
-          <Button variant="primary" onClick={onReplace}>
-            {W.replace.en}
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "rea
 
 import { useSay } from "@/components/i18n/language-context";
 import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
+import { FORM_TOKEN_HEADER } from "@/lib/auth/form-token-shape";
 import { NOT_SCANNED_LABEL, progressPercent, progressText, uploadOutcome, type UploadAnswer, type UploadPhase } from "@/lib/ui/upload-logic";
 
 import { Chip } from "./badge";
@@ -128,7 +129,7 @@ export function FileInput({
     for (const [k, v] of Object.entries(upload.fields?.() ?? {})) form.append(k, v);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", upload.url);
-    if (upload.token) xhr.setRequestHeader("x-form-token", upload.token);
+    if (upload.token) xhr.setRequestHeader(FORM_TOKEN_HEADER, upload.token);
     xhr.responseType = "json";
     xhr.upload.onprogress = (e) => setLoaded([e.loaded, e.lengthComputable ? e.total : 0]);
     xhr.onload = () => {

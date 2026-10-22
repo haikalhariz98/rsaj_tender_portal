@@ -301,6 +301,20 @@ describe("the form token (plan 8.2.2, ADR 0041 D8)", () => {
     expect(h.received).toHaveLength(0);
   });
 
+  it("a spent token that now fails its signature (the key rotated) is still answered with its reference, never 'out of date' (which the page reads as unspent)", async () => {
+    const t = signFormToken("y".repeat(FORM_SECRET_MIN_LENGTH), "register", new Date(), "BBBBBBBBBBBBBBBBBBBBBB");
+    h.spent.set(tokenSha256(t), "DEMO/APP/0005/2026");
+    const r = await send(parts(), { token: t });
+    expect([r.res.status, r.json, r.pulled]).toEqual([200, { ok: true, reference: "DEMO/APP/0005/2026" }, false]);
+    expect(h.received).toHaveLength(0);
+  });
+
+  it("a token not of the register's shape is never looked up", async () => {
+    const before = h.spentLookups;
+    for (const t of [signFormToken(KEY, "sign-in", new Date()), "garbage"]) expect((await send(parts(), { token: t })).json.code).toBe("FORM_EXPIRED");
+    expect(h.spentLookups).toBe(before);
+  });
+
   it("the deployment's form key not set: closed", async () => {
     vi.stubEnv("PORTAL_FORM_SECRET", "");
     const r = await send();

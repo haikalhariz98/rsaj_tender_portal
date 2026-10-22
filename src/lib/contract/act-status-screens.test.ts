@@ -186,6 +186,7 @@ const RECORDS_NOTHING: Readonly<Record<string, string>> = {
   Tabs: "Switches the panel shown; it records nothing. The panels it shows are followed from the page that builds them.",
   MoreText: "Shows the rest of a long text (a page header's subtitle); it records nothing (no drawer or form in more-text.tsx).",
   DataList: "The shared list: its buttons filter, sort, select and page the rows, and record nothing (no drawer or form in data-list.tsx). Its rows link to records whose own pages gate their acts.",
+  Stepper: "Draws a flow's steps; a step's button (onSelect, ADR 0041's public form) only moves the page to that step, and records nothing (no drawer or form in stepper.tsx).",
 };
 /// Components a gated section may render that are neither gated nor ungated openers, each with why.
 const GATE_EXCEPTIONS: Readonly<Record<string, string>> = {

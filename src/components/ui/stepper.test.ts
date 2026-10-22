@@ -67,4 +67,15 @@ describe("Stepper", () => {
     expect(html).toMatch(/<a [^>]*href="\/projects\/a1\?stage=award"[^>]*>Award<\/a>/);
     expect(count(html, "<a ")).toBe(1);
   });
+
+  it("draws a step with onSelect as a button, never a link, and leaves the others as plain text (ADR 0041: the public form goes back to a step already done)", () => {
+    const html = render([
+      { key: "x", label: "Company Information", state: "done", onSelect: () => undefined },
+      { key: "y", label: "Compliance Documents", state: "current" },
+      { key: "z", label: "Work Codes", state: "waiting" },
+    ]);
+    expect(html).toMatch(/<button type="button"[^>]*>Company Information<\/button>/);
+    expect(count(html, "<button")).toBe(1);
+    expect(html).not.toContain("<a ");
+  });
 });

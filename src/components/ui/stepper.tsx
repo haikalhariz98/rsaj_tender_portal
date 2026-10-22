@@ -37,7 +37,7 @@ const VIEWED_LABEL = "underline decoration-brand-600 decoration-2 underline-offs
  *
  * Without `selected`, every `current` step carries aria-current="step", as ever. With it, only the
  * step with that key does, so several steps can be `current` (running in parallel) while one is the
- * stage being viewed. A step with an `href` draws its label as a link; a `parked` step is greyed out.
+ * stage being viewed. A step with an `href` draws its label as a link, one with `onSelect` as a button; a `parked` step is greyed out.
  */
 export function Stepper({ steps, label, selected }: { steps: StepperStep[]; label: string; selected?: string }) {
   return (
@@ -70,6 +70,10 @@ export function Stepper({ steps, label, selected }: { steps: StepperStep[]; labe
                   <Link href={s.href} className="rounded-sm underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
                     {s.label}
                   </Link>
+                ) : s.onSelect ? (
+                  <button type="button" onClick={s.onSelect} className="rounded-sm font-semibold underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+                    {s.label}
+                  </button>
                 ) : (
                   s.label
                 )}

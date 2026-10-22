@@ -8,6 +8,7 @@
  */
 
 import type { Sulit } from "@/lib/auth/sulit-access";
+import { APPLY } from "@/lib/portal/labels";
 import { bumiputeraNeedsAttention, bumiputeraWords, type BumiputeraReading } from "@/lib/suppliers/bumiputera";
 import type { VerificationState } from "@/lib/suppliers/types";
 
@@ -21,6 +22,8 @@ export interface SummaryItem {
   /// A second line under the value: what a reviewer is told about it.
   note?: string;
   tone?: "ok" | "warn" | "err";
+  /// A state word drawn beside the value as a chip ("Unverified; not signed in").
+  chip?: string;
 }
 
 export interface SummarySection {
@@ -77,6 +80,8 @@ export interface SummaryDeclaration {
   by: string;
   /// The person who signed is not the contact on the account that sent the registration. Allowed, and flagged to the reviewer.
   signatoryIsNotContact: boolean;
+  /// An applicant's agreement on the public form (ADR 0041 D3, D4): ticked by someone not signed in, so never called a signature. Absent or false: signed by the account.
+  agreedNotSignedIn?: boolean;
 }
 
 export interface SummaryRecord {
@@ -96,6 +101,8 @@ export interface SummaryRecord {
   documents: SummaryDocument[];
   creditor: Sulit<SummaryCreditor | null>;
   declarations: SummaryDeclaration[];
+  /// The registration came through the public form (ADR 0041): its declarations are agreements made at Submit, never signatures.
+  agreedOnline?: boolean;
 }
 
 export interface SummaryFormat {
@@ -119,6 +126,9 @@ const verificationNote = (v: NonNullable<SummaryDocument["verification"]>, fmt: 
   if (v.state === "NOT_CHECKED") return w.text;
   return `${w.text}${v.by ? `, by ${v.by}` : ""}${v.on ? `, ${fmt.day(v.on)}` : ""}${v.note ? `. “${v.note}”` : ""}`;
 };
+
+/// The chip on an applicant's agreement: the name is as typed, and nobody signed in to make it (ADR 0041 D3; `APPLY.unverified`).
+export const UNVERIFIED_WORDS = APPLY.unverified.en;
 
 /// What the supplier's own copy says in place of an officer's name.
 export const OFFICE_WORDS = "the procurement office";
@@ -232,13 +242,18 @@ export function registrationSummary(record: SummaryRecord, fmt: SummaryFormat): 
   sections.push({
     key: "declarations",
     title: "Declarations",
-    empty: "Nothing has been signed yet. The declarations are signed when the registration is sent.",
-    items: record.declarations.map((d) => ({
-      label: DECLARATION_TITLE[d.kind],
-      value: `${d.signatoryName}, ${d.signatoryDesignation}`,
-      note: `Signed ${d.signedAt} by ${d.by} · wording version ${d.textVersion}${d.signatoryIsNotContact ? ". The person who signed is not the contact on the account that sent the registration." : ""}`,
-      ...(d.signatoryIsNotContact ? { tone: "warn" as const } : {}),
-    })),
+    // An online application's agreements are made at Submit, by an applicant who is not signed in: nothing there is "signed" (plan 6.3.2).
+    empty: record.agreedOnline ? "Nothing has been agreed yet. The agreements are made at Submit." : "Nothing has been signed yet. The declarations are signed when the registration is sent.",
+    items: record.declarations.map((d): SummaryItem =>
+      d.agreedNotSignedIn
+        ? { label: DECLARATION_TITLE[d.kind], value: `${d.signatoryName}, ${d.signatoryDesignation}`, note: `Agreed ${d.signedAt} · ${d.signatoryName} · wording version ${d.textVersion}`, chip: UNVERIFIED_WORDS }
+        : {
+            label: DECLARATION_TITLE[d.kind],
+            value: `${d.signatoryName}, ${d.signatoryDesignation}`,
+            note: `Signed ${d.signedAt} by ${d.by} · wording version ${d.textVersion}${d.signatoryIsNotContact ? ". The person who signed is not the contact on the account that sent the registration." : ""}`,
+            ...(d.signatoryIsNotContact ? { tone: "warn" as const } : {}),
+          },
+    ),
   });
   return sections;
 }

@@ -106,13 +106,16 @@ async function receive(request: Request): Promise<Response> {
   const token = request.headers.get(FORM_TOKEN_HEADER);
   const verdict = checkFormToken("register", token, now);
   if (verdict === "KEY_NOT_SET") return closed();
-  if (verdict !== "OK" && verdict !== "EXPIRED") return expired();
+  // Any token of the register's shape is looked up before "out of date" is said, not only a well-signed one (step 3 review): a token that was spent and now fails its signature (the
+  // key rotated) or its clock (another instance's) is answered with its application's reference. The browser reads "out of date" as "not spent" and sends a fresh token, so saying it of
+  // a spent one would make a second application. Only a token that was once spent can match: a forged one finds nothing.
+  if (verdict !== "OK" && (token == null || formTokenIssuedAt("register", token) == null)) return expired();
   const deployment = await deploymentOrganisation();
   if (!deployment) return closed();
   const tokenSha = tokenSha256(token!);
   const spent = await findSpent(db, deployment.id, tokenSha);
   if (spent) return reply({ ok: true, reference: spent.reference });
-  if (verdict === "EXPIRED") return expired();
+  if (verdict !== "OK") return expired();
 
   // 5. Readiness (the page asks the same reader), and the day's count without a lock: the locked counts are judged again in the transaction.
   const register = await loadRegisterSettings();

@@ -4,9 +4,11 @@
  */
 
 import type { PortalApplicationContext } from "@/lib/portal/apply";
-import { creditor, FALSE_SHA, GIRO_SHA, NOTICE, TERMS_SHA } from "@/lib/portal/registration/fixture";
+import { creditor, ctx, FALSE_SHA, FIXTURE_ORGANISATION, GIRO_SHA, NOTICE, TERMS_SHA } from "@/lib/portal/registration/fixture";
 
+import type { PublicRegistrationConfig } from "./config";
 import type { PublicApplicationBody } from "./contract";
+import { emptyWizard, type HeldFile, type WizardState } from "./wizard";
 
 export const step1 = (o: Partial<PortalApplicationContext> = {}): PortalApplicationContext => ({
   today: "2026-10-09",
@@ -48,3 +50,56 @@ export const body = (o: Partial<PublicApplicationBody> = {}): PublicApplicationB
 
 /// One file held for each row and one statement: what a complete submission carries.
 export const FILES = new Map([["new:reg", 1], ["new:works", 1]]);
+
+/// The public form's configuration, as `loadRegisterForm` would hand it to the page, on the registration fixture's context. Every file rule set: PDF and PNG, 5 MB each, 4 files and 12 MB in all.
+export const config = (o: Partial<PublicRegistrationConfig> = {}): PublicRegistrationConfig => {
+  const c = ctx();
+  const shown = (kind: "GIRO_AUTHORISATION" | "FALSE_DECLARATION" | "TERMS_AND_CONDITIONS") => {
+    const t = c.texts[kind]!;
+    return { id: t.id, en: t.bodyEn.split("{organisation}").join(FIXTURE_ORGANISATION), version: t.version, sha256: t.sha256 };
+  };
+  return {
+    ready: true,
+    missing: [],
+    organisationName: FIXTURE_ORGANISATION,
+    step1: step1(),
+    lists: { entityTypes: [{ value: "demo_private", label: "Private company" }], countries: [{ value: "demo_home", label: "Demonstration Country", callingCode: "+60" }], states: [{ value: "demo_state", label: "Demonstration State" }], bumiputeraStatuses: [] },
+    formatExample: null,
+    bumiputeraEvidenceSet: false,
+    context: { today: c.today, types: c.types, bodies: c.bodies, available: c.available, banks: c.banks, accountTypes: c.accountTypes, texts: c.texts, noticeEn: c.noticeEn, personalDataNotice: c.personalDataNotice, accountNoPattern: null, swiftPattern: null },
+    texts: { GIRO_AUTHORISATION: shown("GIRO_AUTHORISATION"), FALSE_DECLARATION: shown("FALSE_DECLARATION"), TERMS_AND_CONDITIONS: shown("TERMS_AND_CONDITIONS") },
+    notice: NOTICE,
+    verificationNoticeEn: c.noticeEn,
+    upload: {
+      allowedTypes: ["application/pdf", "image/png"],
+      capBytes: String(5 * 1024 * 1024),
+      document: { classSet: true, maxFiles: 4, maxBytes: String(12 * 1024 * 1024) },
+      statement: { classSet: true, classIsSulit: true, maxFiles: 4, maxBytes: String(12 * 1024 * 1024) },
+      acceptNote: "PDF, PNG; up to 5 MB each.",
+      accept: "application/pdf,image/png",
+    },
+    ...o,
+  };
+};
+
+/// A held file: what the rules read of a browser `File`.
+export const pdf = (name: string, size = 1000): HeldFile => ({ name, size, type: "application/pdf" });
+
+/// A whole application held in the page, every step filled: the same application as `body()`, with one file per row and a statement.
+export const heldState = (o: Partial<WizardState> = {}): WizardState => ({
+  ...emptyWizard(body().company, [
+    { id: "new:reg", typeId: "t-reg", title: "", reference: "R-1", issuingAuthority: "An authority", expiresOn: "2027-06-30", ratePercent: "", notApplicable: false },
+    { id: "new:works", typeId: "t-works", title: "", reference: "W-1", issuingAuthority: "A board", expiresOn: "2027-06-30", ratePercent: "", notApplicable: false },
+  ], creditor()),
+  files: { "new:reg": [pdf("registry.pdf")], "new:works": [pdf("board.pdf")] },
+  chosen: { "new:works": { GRADE: ["v-g1"], CATEGORY: ["v-b"] } },
+  hits: { "v-g1": { id: "v-g1", code: "G1", name: "Grade 1", kind: "GRADE", bodyId: "body-1" }, "v-b": { id: "v-b", code: "B", name: "Buildings", kind: "CATEGORY", bodyId: "body-1" } },
+  statement: [pdf("statement.pdf")],
+  signatoryName: "Aminah Binti Ali",
+  signatoryDesignation: "Director",
+  giroConfirmed: true,
+  falseDeclaration: true,
+  terms: true,
+  touched: true,
+  ...o,
+});

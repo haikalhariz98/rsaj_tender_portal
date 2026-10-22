@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { clearedCookieHeader, readCookie, sessionCookieHeader } from "@/lib/auth/cookie-header";
 import { checkFormToken, formSecret } from "@/lib/auth/form-secret";
 import { FORM_TOKEN_FIELD, type FormPurpose } from "@/lib/auth/form-token";
+import { FORM_TOKEN_HEADER } from "@/lib/auth/form-token-shape";
 import { readJsonBody } from "@/lib/auth/json-body";
 import { requestFacts, type RequestFacts } from "@/lib/auth/request";
 import { foreignRequestFault } from "@/lib/auth/request-guard";
@@ -109,8 +110,8 @@ export async function supplierPost(request: Request, purpose: FormPurpose, opts:
   return { ok: true, actor: read.actor, post: first.post };
 }
 
-/// The header a multipart upload carries its form token in: the token cannot ride in a body that is not read until the guards have passed.
-export const FORM_TOKEN_HEADER = "x-form-token";
+/// The header a multipart upload carries its form token in: the token cannot ride in a body that is not read until the guards have passed. Defined once, where the browser may read it.
+export { FORM_TOKEN_HEADER };
 
 type Guarded = { ok: true; actor: SupplierActor; facts: RequestFacts } | { ok: false; response: Response };
 

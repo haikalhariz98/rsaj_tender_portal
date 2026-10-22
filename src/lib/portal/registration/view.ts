@@ -10,7 +10,7 @@ import { draftOf, type DraftView } from "./draft-view";
 import { uploadFault, uploadSettingFault, type UploadKind, type UploadPolicy, type UploadStore } from "./upload";
 import { valueLabel } from "./values";
 import { uploadFaultText } from "./words";
-import type { DeclarationKind, DocumentTypeConfig, RegistrationContext, RegistrationStep } from "./types";
+import type { DeclarationKind, DocumentTypeConfig, Draft, RegistrationContext, RegistrationStep } from "./types";
 import { VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 import type { RegistrationValueKind } from "@/lib/suppliers/types";
 
@@ -94,10 +94,14 @@ export interface CodeSectionShape {
 
 /// Step 3 as data. `valueNames` names every value the draft holds, as "code — name".
 export function codeSectionShapes(view: DraftView, ctx: RegistrationContext): CodeSectionShape[] {
-  const draft = draftOf(view);
+  return codeSectionShapesOf(draftOf(view).documents, ctx);
+}
+
+/// The same from the rows themselves: the public form (ADR 0041) holds its rows in the browser, and names the values its searches returned (`ctx.values`).
+export function codeSectionShapesOf(documents: Draft["documents"], ctx: RegistrationContext): CodeSectionShape[] {
   const names = new Map(ctx.values.map((v) => [v.id, valueLabel(v)]));
   const kindOf = new Map(ctx.values.map((v) => [v.id, v.kind as string]));
-  return codeSections(draft.documents, ctx).map((s) => ({
+  return codeSections(documents, ctx).map((s) => ({
     bodyId: s.body.id,
     bodyName: s.body.nameEn,
     state: s.state,
@@ -123,7 +127,8 @@ export function declarationShown(ctx: RegistrationContext, kind: DeclarationKind
 
 /// Which fields of the bank details were filled in for the supplier from what it had already given, said under the field. The tax number comes from the document that carries a rate (the
 /// tax certificate: the product knows no tax by name, only that one kind of document records a rate), the email from the company's.
-export function creditorPrefill(view: DraftView, ctx: RegistrationContext, companyEmail: string): { values: { beneficiaryTaxRegistrationNo?: string; beneficiaryEmail?: string }; said: Record<string, string> } {
+/// Reads only the rows' type, reference and "does not apply", and the bank details: the public form (ADR 0041) asks it of what it holds in the browser.
+export function creditorPrefill(view: { creditor: Pick<DraftView["creditor"], "beneficiaryTaxRegistrationNo" | "beneficiaryEmail">; documents: readonly Pick<DraftView["documents"][number], "typeId" | "notApplicable" | "reference">[] }, ctx: Pick<RegistrationContext, "types">, companyEmail: string): { values: { beneficiaryTaxRegistrationNo?: string; beneficiaryEmail?: string }; said: Record<string, string> } {
   const values: { beneficiaryTaxRegistrationNo?: string; beneficiaryEmail?: string } = {};
   const said: Record<string, string> = {};
   const taxTypeIds = ctx.types.filter((t) => t.recordsRate === true).map((t) => t.id);

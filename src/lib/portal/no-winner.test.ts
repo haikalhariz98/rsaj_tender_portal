@@ -54,6 +54,7 @@ describe("R3: no public words promise a winner", () => {
   });
   it("the Results words name no winner column, and the application form no longer promises one", () => {
     expect(Object.keys(RESULTS.columns)).toEqual(["exercise", "method", "closing", "awardedOn", "schedule"]);
-    expect(APPLY.beforeItems.map((w) => w.en).join(" ")).not.toMatch(/Results/);
+    // Every word of the application form (the "before you start" list went with the one submission, ADR 0041): none promises a winner on Results.
+    expect(JSON.stringify(APPLY)).not.toMatch(/Results/);
   });
 });

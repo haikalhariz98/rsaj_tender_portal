@@ -16,4 +16,6 @@ export interface StepperStep {
   tone?: "warn";
   /// A step that is also a link (the case page's stage switch). The Stepper draws the label as the link.
   href?: string;
+  /// A step the page moves to itself, without a navigation (the public registration form returns to a step already done). The Stepper draws the label as a button.
+  onSelect?: () => void;
 }

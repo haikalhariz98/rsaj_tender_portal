@@ -6,8 +6,8 @@ import { useId, useState } from "react";
 import { Blocked } from "@/components/ui/blocked";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Checkbox, Field, Input } from "@/components/ui/field";
+import { Field, Input } from "@/components/ui/field";
+import { DeclarationCard } from "@/components/registration/declaration-card";
 import { TermsCard } from "@/components/registration/terms-card";
 import { APPLY } from "@/lib/portal/labels";
 import { SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
@@ -109,32 +109,19 @@ export function ReviewStep({
 
       <TermsCard terms={termsText} notice={privacyNotice} confirmed={termsConfirmed} onConfirm={setTermsConfirmed} missing={termsMissing} />
 
-      <Card>
-        <CardHeader title="Declaration" subtitle="Read, tick and sign" />
-        <CardBody>
-          {falseText ? (
-            <>
-              <div className="rounded-xl bg-sunken/60 p-4 text-[13.5px] leading-relaxed whitespace-pre-line text-ink-2">{falseText.en}</div>
-              <p className="mt-3 text-[13px] text-ink-3">
-                Signed by {signatoryName || "the person you name in step 4"}
-                {signatoryDesignation ? `, ${signatoryDesignation}` : ""}. Dated the day you send.
-              </p>
-              <div className="mt-3">
-                <Checkbox label="I have read this declaration and confirm it." checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-              </div>
-              <div className="mt-3 max-w-sm">
-                <Field label="Your password" htmlFor={`${base}-password`} required hint="Signs your registration.">
-                  <Input id={`${base}-password`} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                </Field>
-              </div>
-            </>
-          ) : (
-            <Callout tone="warn" title="Declaration text not set">
-              Tell the procurement office.
-            </Callout>
-          )}
-        </CardBody>
-      </Card>
+      <DeclarationCard
+        text={falseText?.en ?? null}
+        subtitle="Read, tick and sign"
+        byLine={`Signed by ${signatoryName || "the person you name in step 4"}${signatoryDesignation ? `, ${signatoryDesignation}` : ""}. Dated the day you send.`}
+        confirmed={confirmed}
+        onConfirm={setConfirmed}
+      >
+        <div className="mt-3 max-w-sm">
+          <Field label="Your password" htmlFor={`${base}-password`} required hint="Signs your registration.">
+            <Input id={`${base}-password`} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+        </div>
+      </DeclarationCard>
 
       {message && (
         <Callout tone="err" title={stale ? "This page is out of date" : "Nothing was sent"} action={stale ? <Button size="sm" variant="secondary" onClick={() => router.refresh()}>Reload the page</Button> : undefined}>

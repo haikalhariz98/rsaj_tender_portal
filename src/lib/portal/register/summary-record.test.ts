@@ -56,7 +56,11 @@ describe("the officer's page reads the same projection (plan 2.2)", () => {
       { contacts: (value) => ({ state: "GRANTED", value, basis: "ORGANISATION_PERMISSION" }), creditor: () => ({ state: "WITHHELD", basis: "NOT_NAMED_PERMISSION_NOT_HELD", scope: "creditorProfile", words: { en: "Withheld." } }) },
     );
     expect(record.documents[0]).toMatchObject({ lodgedBy: "Applicant, not signed in", lodgedByOfficer: false, codes: ["G1 — Grade 1"] });
-    expect(record.declarations[0]).toMatchObject({ by: "Applicant, not signed in", signatoryIsNotContact: false });
+    expect(record.declarations[0]).toMatchObject({ by: "Applicant, not signed in", signatoryIsNotContact: false, agreedNotSignedIn: true });
+    // Plan 6.3.2: an applicant's agreement is never called a signature. "Agreed", the name as typed, the wording's version, and the chip.
+    const agreements = registrationSummary(record, fmt).find((x) => x.key === "declarations")!;
+    expect(agreements.items).toEqual([{ label: "Terms and conditions", value: "Aminah Binti Ali, Director", note: "Agreed 9 Oct 2026, 10:00 · Aminah Binti Ali · wording version 1", chip: "Unverified; not signed in" }]);
+    expect(JSON.stringify(agreements)).not.toMatch(/[Ss]igned (?!in)/);
     expect(record.creditor.state).toBe("WITHHELD");
     expect(JSON.stringify(record.creditor)).not.toContain(b.creditor.bankAccountNo);
   });

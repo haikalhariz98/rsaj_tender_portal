@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { ATTACH_PURPOSE_HINT, DOCUMENT_CLASS_HINT, DOCUMENT_NOTE_HINT, DOCUMENT_TITLE_HINT } from "@/lib/documents/labels";
 import { PROVENANCE_HINT, PROVENANCE_NOT_SET_HINT, REASON_HINT, SIMULATOR_HINT } from "@/lib/labels";
+import { REGISTRATION_HINT } from "@/lib/portal/labels";
 
 /**
  * Phase 1 carry D6: the shared components' hints live in labels files, not as literals in the
@@ -45,6 +46,18 @@ describe("component hints come from labels (D6)", () => {
       absent: "Authority reverts upward, never down",
       noFundingRoute: "No funding route configured yet",
       fundingRoute: "Whether a funder overrides these limits is set per route",
+    });
+  });
+
+  it("the registration steps' hints, moved into the shared components with the public form (ADR 0041), are the words the signed-in wizard showed", () => {
+    expect(REGISTRATION_HINT).toEqual({
+      rowTitle: "So it can be told from the others",
+      expiryIfAny: "Give the date, if it has one",
+      rate: "Per cent, 0 to 100",
+      identityNo: "Company or identity card number",
+      notEmailed: "Nothing is e-mailed from the portal.",
+      oneGrade: "A certificate carries one grade.",
+      several: "You may choose several.",
     });
   });
 

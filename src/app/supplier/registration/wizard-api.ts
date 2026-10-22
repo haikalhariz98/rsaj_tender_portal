@@ -85,17 +85,5 @@ export function useStepSave(step: RegistrationStep, token: string | null, initia
   return { version, setVersion, busy, message, saved, faults, stale, save, setMessage };
 }
 
-/// The words of the faults that belong to a field or a row, joined, or undefined where there are none. Blocking ones first, so a field's error is what stops the step.
-export function faultsAt(faults: readonly FaultView[], field: string | ((f: string | null) => boolean)): FaultView[] {
-  return faults.filter((f) => (typeof field === "string" ? f.field === field : field(f.field)));
-}
-
-export const errorText = (fs: readonly FaultView[]): string | undefined => {
-  const blocking = fs.filter((f) => f.level === "block");
-  return blocking.length ? blocking.map((f) => f.message).join(" ") : undefined;
-};
-
-export const noteText = (fs: readonly FaultView[]): string | undefined => {
-  const rest = fs.filter((f) => f.level !== "block");
-  return rest.length ? rest.map((f) => f.message).join(" ") : undefined;
-};
+/// Placing the words beside the fields is shared with the public form (ADR 0041): one copy, in `src/components/registration/faults.ts`.
+export { errorText, faultsAt, noteText } from "@/components/registration/faults";

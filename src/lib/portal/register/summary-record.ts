@@ -106,6 +106,7 @@ export function summaryRecordOfHeld(state: HeldSummaryState, config: HeldSummary
     }),
     creditor: own(creditorOf(b.creditor, config, state.statementFiles, b.company.registrationNo, null)),
     declarations: [],
+    agreedOnline: true,
   };
 }
 
@@ -160,6 +161,7 @@ export function summaryRecordOfPortal(rows: PortalSummaryRows, lists: SummaryLis
       codes: d.codes.map((v) => valueLabel({ code: v.code, nameEn: v.label })),
     })),
     creditor: sulit.creditor(rows.creditor ? creditorOf(rows.creditor.values, lists, rows.creditor.statementFiles, rows.company.registrationNo, rows.creditor.verification) : null),
-    declarations: rows.agreements.map((a): SummaryDeclaration => ({ kind: a.kind, textVersion: a.textVersion, signatoryName: a.signatoryName, signatoryDesignation: a.signatoryDesignation, signedAt: a.signedAt, by: APPLICANT_WORDS, signatoryIsNotContact: false })),
+    declarations: rows.agreements.map((a): SummaryDeclaration => ({ kind: a.kind, textVersion: a.textVersion, signatoryName: a.signatoryName, signatoryDesignation: a.signatoryDesignation, signedAt: a.signedAt, by: APPLICANT_WORDS, signatoryIsNotContact: false, agreedNotSignedIn: true })),
+    agreedOnline: true,
   };
 }
