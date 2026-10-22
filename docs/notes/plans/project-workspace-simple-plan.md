@@ -565,7 +565,7 @@ export async function organisationSideOn(l: LoadedContract, s: SupervisionRows, 
 - **Notices:** each event's recipients are exactly PW-13's, de-duplicated (an S.O. who is also an approver gets each kind once).
 - **Words:** `STATE_WORDS` and every fault have English words, with no code in them (a scan, as `labels.test.ts` elsewhere).
 
-## 4. Step 3 — configuration: the project document class
+## 4. Step 3 — api-engineer, then frontend-engineer: configuration, the project document class
 
 **No schema change.**
 
@@ -728,8 +728,6 @@ Slot keys:
     officer, shows no access log, and shows organisation remarks to nobody;
   - "Waiting for you" (`waitingForContractor`) appears on the portal home (`src/app/supplier/page.tsx`) and on the project page's
     overview, as a `DataList`. Wording is per design note 0005.
-- **The team, read-only** (PW-16): the portal project overview lists the S.O. and the representatives in force, with their offices
-  (`organisationSideOn`).
 - **Data export (PW-19):**
   - move `ProjectDocument`, `ProjectDocumentVersion` and `ProjectDocumentRequest` from `OUT_MODELS` into `EXPORT_COLUMNS`. Each
     column is IN or OUT with a reason. `ProjectDocumentDecision.remarks` is IN only on CONTRACTOR documents, and `decidedBy` is
@@ -745,9 +743,9 @@ Slot keys:
   - db test: pinning another account's staged file is refused;
   - db test: `storeUpload` never runs under the contract lock (the route stages; the act pins);
   - `data-export.test.ts` passes, with the new columns classified;
-  - `supplier-reach.test.ts` and `projects.db.test.ts` pass, unweakened.
+  - `src/app/_auth/supplier-reach.test.ts` and `projects.db.test.ts` pass, unweakened.
 
-## 7. Step 6 — the six kinds move in
+## 7. Step 6 — domain-engineer, then api-engineer, then frontend-engineer: the six kinds move in
 
 **No schema change.**
 
@@ -791,7 +789,7 @@ Slot keys:
   - "Documents waiting" counts both sources;
   - the text snapshots of the staff and portal project pages show the renamed tabs, with no field lost.
 
-## 8. Step 7 — team lists, then the kick-off meeting
+## 8. Step 7 — data-modeler, then domain-engineer, then api-engineer, then frontend-engineer: team lists, then the kick-off meeting
 
 **Changes the schema** (the kick-off tables). One new migration folder, sorted after the newest. Run `prisma generate` and
 `db:roles`, then restart the dev server.
@@ -803,6 +801,12 @@ Slot keys:
 - Names come through the existing SULIT read for contact details (`src/lib/auth/sulit-access.ts`, supplier scope). Without that
   right, the row reads "Portal account" with its status.
 - It is read-only, and links to `supplierAccounts.manage` only where the reader holds it.
+- The portal project overview (`src/app/supplier/projects/[id]/panels.tsx`) lists the S.O. and the representatives in force, with
+  their offices, read-only (`organisationSideOn`, from step 2). It names people and offices only, with no contact details.
+- **Done when:**
+  - db test: a disabled account is not listed;
+  - db test: a reader without the contact SULIT right sees no name;
+  - db test: the portal list shows a representative whose letter was revoked yesterday as gone today.
 
 ### 8.2 The kick-off meeting (PW-18)
 
@@ -905,9 +909,9 @@ model KickOffAttendance {
   - the briefing is never written by the meeting, and `briefingMissing` is unchanged (`sign.test.ts` passes untouched);
   - a person without PW-5 authority is refused every kick-off act.
 
-## 9. Step 8 — close-out
+## 9. Step 8 — close-out (data-modeler for the demo data; test-engineer; code-reviewer and security-auditor; the step's builders for the fix round; ui-guidelines-reviewer)
 
-1. **Demo data**, through `npm run demo:load` only. A new `prisma/demo-project-documents.ts` is called from `prisma/demo.ts load`.
+1. **Demo data** (data-modeler), through `npm run demo:load` only. A new `prisma/demo-project-documents.ts` is called from `prisma/demo.ts load`.
    It sets `projectDocumentClassId` on the demo organisation's store policy, and builds the founder's loop on the demo contract
    (`demo-my-projects.ts`'s contract), plus one delay notice taken up, one organisation draft being prepared, and one held kick-off.
    Nothing is seeded outside `demo:load`.
@@ -935,7 +939,7 @@ contractor account:
 6. The engineer approves it. The register shows "Approved", and the contractor sees "Approved".
 7. Every download in the walk has its `DocumentAccessEvent`. No screen shows a number, a count or a chart for the document.
 
-## 10. Step 9 — wave C verification (PW-21)
+## 10. Step 9 — security-auditor (C12), then test-engineer (the C2 and C4 snapshots): wave C verification (PW-21)
 
 Wave C's code is built (`f959e680`, `b58c88f7`, `41d9f88b`, `dc49f39b`, `529df279`, `1d404453`, `503caea2`). What remains is
 verification only:
@@ -971,8 +975,8 @@ Wave V stays out (PW-21).
    that side or is final.
 10. **Step 1's two migration folders** are a technical split forced by BD-613-112, not a second schema step.
 
-Each is logged in the decisions log as an architect's default when step 1 starts. The product owner may overturn any of them before
-the step that builds it.
+Each is listed in the step 0 report to the product owner, who rules on it or adopts it before the step that builds it. Item 2
+departs from the rulings' build order as written: it moves the declaration's password step-up from step 5 to step 6.
 
 ## 12. Risks
 
