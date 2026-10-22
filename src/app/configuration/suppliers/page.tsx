@@ -151,7 +151,7 @@ export default async function SupplierRegisterConfigPage() {
                     addressLimit !== "NOT_SET",
                     <span className="flex flex-col items-start gap-1">
                       <span>
-                        {p?.portalAddressAttempts} in {p?.portalAddressMinutes} minutes <MoreText text="Counted in memory on each server. A restart clears the count." />
+                        {p?.portalAddressAttempts} in {p?.portalAddressMinutes} minutes <MoreText text="Counted in memory on each server, and only where that server can tell addresses apart. A restart clears the count." />
                       </span>
                       {addressLimit === "NOT_APPLIED" && <Badge tone="warn">Set, not applied: addresses are unknown</Badge>}
                     </span>,

@@ -149,7 +149,7 @@ async function counts() {
 }
 
 describe("a whole application, received (plan 8.3.1)", () => {
-  it("writes everything in one transaction: the application, the held certificates and codes, the files recorded by the application, the SULIT bank details, three agreements, the spent token and one audit row with no personal data", async () => {
+  it("writes everything in one transaction: the application, the held certificates and codes, the files recorded by the application, the SULIT bank details, three agreements, the spent token and one audit row naming no company, number or bank detail", async () => {
     const i = input();
     const before = await counts();
     const out = await receivePublicApplication(i);

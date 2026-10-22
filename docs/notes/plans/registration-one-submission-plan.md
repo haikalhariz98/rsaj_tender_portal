@@ -772,7 +772,7 @@ The database and the store are stood in. The real guards and pure rules run.
    - the creditor, with the statement in the SULIT class;
    - three declarations with the frozen text, hash, and notice columns on TERMS;
    - the token row;
-   - one APPLICANT audit row, with no personal data.
+   - one APPLICANT audit row, naming no company, number or bank detail (corrected 2026-10-22: the trail is not free of personal data, since the actor names the source address and each file's own row its original name).
 2. A refusal **after** the files are parsed (the per-number limit under the lock; a terms text retired between page and Submit)
    leaves **zero** new rows in every table and zero new blob bytes. Count them before and after.
 3. The same token twice in a row gives one application and the same reference. The same token twice **concurrently** (two

@@ -397,6 +397,11 @@ describe("a wording changed during the visit, answered by the server (review SHO
     const after = wizardReducer(s, { type: "textsChanged", untick: { giro: false, declaration: true, terms: false }, faults, step: "review" });
     expect(after).toMatchObject({ falseDeclaration: false, terms: true, giroConfirmed: true, faults });
     expect(wizardReducer(after, { type: "falseDeclaration", confirmed: true }).faults).toEqual([]);
+    // The GIRO tick on step 4 the same way: its finding sits on giro.confirmed and goes when the box is ticked again.
+    const giroFault = [{ step: "epayment" as const, field: "giro.confirmed", level: "block" as const, message: faults[0]!.message }];
+    const giro = wizardReducer(s, { type: "textsChanged", untick: { giro: true, declaration: false, terms: false }, faults: giroFault, step: "epayment" });
+    expect(giro).toMatchObject({ giroConfirmed: false, faults: giroFault, step: "epayment" });
+    expect(wizardReducer(giro, { type: "epayment", creditor: giro.creditor, signatoryName: giro.signatoryName, signatoryDesignation: giro.signatoryDesignation, giroConfirmed: true }).faults).toEqual([]);
   });
 });
 
