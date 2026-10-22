@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import { filenameFault } from "./access";
 import { lockDocument, shareDocumentClass } from "./lock";
 import { documentCreated, versionCreated } from "./audit-view";
+import { eligibleProjectClasses } from "./project-class";
 import { receivedOnFault } from "./received";
 import { isRetentionRule, type RetentionRule } from "./retention";
 import type { BlobStore } from "./store";
@@ -39,10 +40,16 @@ export async function documentOrg(organisationId: string, client: Tx = db): Prom
   return org ? { id: org.id, code: org.code, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) } : null;
 }
 
-export async function loadStorePolicy(organisationId: string, client: Tx = db): Promise<StorePolicy & { provenance: string | null; notes: string; id: string | null; onlineBidFileClassId: string | null }> {
+export async function loadStorePolicy(organisationId: string, client: Tx = db): Promise<StorePolicy & { provenance: string | null; notes: string; id: string | null; onlineBidFileClassId: string | null; projectDocumentClassId: string | null }> {
   const p = await client.documentStorePolicy.findUnique({ where: { organisationId } });
-  if (!p) return { id: null, allowedMediaTypes: [], maxBytes: null, provenance: null, notes: "", onlineBidFileClassId: null };
-  return { id: p.id, allowedMediaTypes: p.allowedMediaTypes, maxBytes: p.maxBytes, provenance: p.provenance, notes: p.notes, onlineBidFileClassId: p.onlineBidFileClassId };
+  if (!p) return { id: null, allowedMediaTypes: [], maxBytes: null, provenance: null, notes: "", onlineBidFileClassId: null, projectDocumentClassId: null };
+  return { id: p.id, allowedMediaTypes: p.allowedMediaTypes, maxBytes: p.maxBytes, provenance: p.provenance, notes: p.notes, onlineBidFileClassId: p.onlineBidFileClassId, projectDocumentClassId: p.projectDocumentClassId };
+}
+
+/// The classes the "Class for project files" select offers: this organisation's, classified and not SULIT (`projectClassFault`), in the screen's order, as `{ value, label }`.
+export async function loadProjectClassChoices(organisationId: string, client: Tx = db): Promise<{ value: string; label: string }[]> {
+  const rows = await client.documentClass.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, classification: true } });
+  return eligibleProjectClasses(rows).map((c) => ({ value: c.id, label: c.nameEn }));
 }
 
 /// A signed-in supplier opening or being refused its own registration's file (Phase 4b): the actor is the supplier's account, never a person.

@@ -5,6 +5,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { auditedCreate, writeAudit } from "@/lib/audit/record";
 import { classClassificationFault } from "@/lib/documents/classification";
 import { policyView } from "@/lib/documents/audit-view";
+import { projectClassFault } from "@/lib/documents/project-class";
 import { documentFaultText } from "@/lib/documents/labels";
 import { megabytesToBytes, policyFaults } from "@/lib/documents/policy";
 import { DISPOSAL_METHODS, RETENTION_TRIGGERS, SECURITY_CLASSES } from "@/lib/documents/types";
@@ -150,18 +151,29 @@ export async function saveStorePolicy(_prev: FormState, data: FormData): Promise
   const bidClass = classChoice ? await db.documentClass.findFirst({ where: { id: classChoice, organisationId: orgId }, select: { id: true, nameEn: true, classification: true } }) : null;
   if (classChoice && !bidClass) r.reject("onlineBidFileClassId", "Choose one of this organisation's document classes.");
   else if (bidClass && bidClass.classification !== "SULIT") r.reject("onlineBidFileClassId", "A bid file was sealed until the opening, so its class must be classified SULIT. Choose a SULIT class, or set that class's classification first.");
+  // The class a project's files take (simple Project workspace, step 3). Read only when posted, so a proposal staged before the field existed never blanks it when decided.
+  const projectPosted = new Set([...data.keys()]).has("projectDocumentClassId");
+  const projectChoice = projectPosted ? (r.optionalText("projectDocumentClassId") ?? "") : "";
+  const projectClass = projectChoice ? await db.documentClass.findFirst({ where: { id: projectChoice, organisationId: orgId }, select: { id: true, nameEn: true, classification: true } }) : null;
+  if (projectChoice) {
+    const fault = projectClassFault(projectClass);
+    if (fault) r.reject("projectDocumentClassId", fault);
+  }
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
   const onlineBidFileClassId = bidClass?.id ?? null;
+  const projectWrite = projectPosted ? { projectDocumentClassId: projectClass?.id ?? null } : {};
   const reason = String(data.get("reason") ?? "");
   await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
-    const before = await tx.documentStorePolicy.findUnique({ where: { organisationId: orgId }, include: { onlineBidFileClass: { select: { nameEn: true } } } });
+    const names = { onlineBidFileClass: { select: { nameEn: true } }, projectDocumentClass: { select: { nameEn: true } } } as const;
+    const before = await tx.documentStorePolicy.findUnique({ where: { organisationId: orgId }, include: names });
     const row = await tx.documentStorePolicy.upsert({
       where: { organisationId: orgId },
-      create: { organisationId: orgId, allowedMediaTypes, maxBytes, onlineBidFileClassId, provenance, notes },
-      update: { allowedMediaTypes, maxBytes, onlineBidFileClassId, provenance, notes },
+      create: { organisationId: orgId, allowedMediaTypes, maxBytes, onlineBidFileClassId, ...projectWrite, provenance, notes },
+      update: { allowedMediaTypes, maxBytes, onlineBidFileClassId, ...projectWrite, provenance, notes },
+      include: names,
     });
-    const changes = diffFields(policyView(before, before?.onlineBidFileClass?.nameEn ?? null), policyView(row, bidClass?.nameEn ?? null));
+    const changes = diffFields(policyView(before, before?.onlineBidFileClass?.nameEn ?? null, before?.projectDocumentClass?.nameEn ?? null), policyView(row, bidClass?.nameEn ?? null, row.projectDocumentClass?.nameEn ?? null));
     if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "DocumentStorePolicy", entityId: row.id, entityLabel: "Upload rules", reason }, before ? "UPDATE" : "CREATE", changes);
   });
   revalidatePath(PATH);

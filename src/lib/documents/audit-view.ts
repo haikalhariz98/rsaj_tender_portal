@@ -95,12 +95,14 @@ export function holdReleased(i: { reason: string; releasedBy: string }): FieldCh
 }
 
 /// `onlineBidFileClass`: the name of the class a filed online bid file takes (step 15), or null where none is set.
-export function policyView(p: { allowedMediaTypes: readonly string[]; maxBytes: bigint | null; provenance: string; notes: string } | null, onlineBidFileClass: string | null = null): Record<string, unknown> {
-  if (!p) return { allowedTypes: "Not set", largestFile: "Not set", onlineBidFileClass: "Not set", provenance: null, notes: null };
+/// `projectDocumentClass`: the name of the class a project's files take (simple Project workspace), or null where none is set.
+export function policyView(p: { allowedMediaTypes: readonly string[]; maxBytes: bigint | null; provenance: string; notes: string } | null, onlineBidFileClass: string | null = null, projectDocumentClass: string | null = null): Record<string, unknown> {
+  if (!p) return { allowedTypes: "Not set", largestFile: "Not set", onlineBidFileClass: "Not set", projectDocumentClass: "Not set", provenance: null, notes: null };
   return {
     allowedTypes: p.allowedMediaTypes.length ? p.allowedMediaTypes.map(mediaLabel).join(", ") : "Not set",
     largestFile: p.maxBytes != null ? formatBytes(p.maxBytes) : "Not set",
     onlineBidFileClass: onlineBidFileClass ?? "Not set",
+    projectDocumentClass: projectDocumentClass ?? "Not set",
     provenance: p.provenance,
     notes: p.notes || null,
   };
