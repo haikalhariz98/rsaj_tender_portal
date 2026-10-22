@@ -272,6 +272,8 @@ export function accessReasonText(code: string): string | null {
   // SEC-5 (release-scan.ts): a release refused on a failed or missing malware check.
   if (code === "SCAN_ERROR") return "The file could not be checked for malware.";
   if (code === "NOT_SCANNED") return "The file was not checked for malware.";
+  // RSEC-2: a stranger's file, asked for with no scanner and not confirmed.
+  if (code === "UNCONFIRMED") return "Not scanned, and opening it was not confirmed.";
   return documentFaultText({ code, level: "block" });
 }
 

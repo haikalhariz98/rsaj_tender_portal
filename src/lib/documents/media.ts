@@ -184,6 +184,12 @@ export function supplierAcceptedTypes(types: readonly string[]): string[] {
   return types.filter((t) => (SUPPLIER_MEDIA_TYPES as readonly string[]).includes(t));
 }
 
+/// The types a stranger's registration may send (RSEC-2): PDF and images only, the supplier's types less CSV. A product-level exclusion by channel, not a setting: a file from
+/// someone not signed in is stored before any scanner looks at it. Signed-in suppliers keep CSV.
+export function publicRegisterAcceptedTypes(types: readonly string[]): string[] {
+  return supplierAcceptedTypes(types).filter((t) => t !== "text/csv");
+}
+
 const EXTENSION_TYPE: Readonly<Record<string, KnownMediaType>> = {
   xlsx: XLSX_TYPE,
   docx: DOCX_TYPE,

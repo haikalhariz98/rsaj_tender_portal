@@ -279,7 +279,7 @@ async function draftRecord(actor: Awaited<ReturnType<typeof requireSupplier>>, v
         supersedesId: null,
         verifiedByPersonId: null,
         values: { ...view.creditor },
-        statement: view.statement.map((f) => ({ versionId: f.versionId, name: f.name, scanState: f.scanState })),
+        statement: view.statement.map((f) => ({ versionId: f.versionId, name: f.name, scanState: f.scanState, fromApplicant: false })),
       })
     : null;
   return {

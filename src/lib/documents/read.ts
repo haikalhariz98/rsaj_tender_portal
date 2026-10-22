@@ -23,7 +23,8 @@ import { EXTENSION_FACTS_SELECT, extensionLabel, WITHDRAWAL_FACTS_SELECT, withdr
 import { type OwnerRef } from "./repo";
 import { attachTargets, ownerHref } from "./targets";
 import { retentionOf, documentOrg, loadStorePolicy } from "./service";
-import { deploymentCeiling } from "./store";
+import { asksBeforeOpening } from "./applicant-scan";
+import { deploymentCeiling, malwareScanner } from "./store";
 import { ATTACHMENT_PURPOSES, OWNER_COLUMN, type AttachmentPurpose } from "./types";
 import { currentVersion } from "./versioning";
 
@@ -174,6 +175,7 @@ export async function ownerPanel(organisationId: string, ref: OwnerRef, entitled
     const f = fs.find((x) => x.code !== "REASON_REQUIRED");
     return f ? { allowed: false as const, reason: documentFaultText(f) } : { allowed: true as const };
   };
+  const scannerConfigured = malwareScanner().configured;
   const items = rows.map((r) => {
     const d = r.version.document;
     const purpose = r.purpose as AttachmentPurpose;
@@ -194,7 +196,8 @@ export async function ownerPanel(organisationId: string, ref: OwnerRef, entitled
       document: { id: d.id, title: d.title, className: d.documentClass.nameEn, classification: d.classificationSnapshot, standingHold: d.holds[0] ?? null },
       version: { ...r.version, byteSize: r.version.byteSize.toString(), document: undefined },
       newerVersion: latest && latest.id !== r.version.id && latest.versionNo > r.version.versionNo && latest.withdrawnAt == null ? { id: latest.id, versionNo: latest.versionNo } : null,
-      download: decision.allow ? { allowed: true as const, href: `/api/documents/versions/${r.version.id}` } : { allowed: false as const, reason: DOWNLOAD_REFUSAL_TEXT[decision.reason].replace(/ The request was refused and logged\.$/, "") },
+      // RSEC-2: a stranger's file, with no scanner, is opened only once the shared question is answered.
+      download: decision.allow ? { allowed: true as const, href: `/api/documents/versions/${r.version.id}`, unscanned: asksBeforeOpening(r.version, scannerConfigured) } : { allowed: false as const, reason: DOWNLOAD_REFUSAL_TEXT[decision.reason].replace(/ The request was refused and logged\.$/, "") },
     };
   });
   return { owner: { ...ref, label: owner.label, facts: owner.facts }, purposes, items, statement: ACCESS_STATEMENT };
@@ -270,11 +273,12 @@ export async function documentDrawer(organisationId: string, documentId: string,
     createdAt: d.createdAt,
     filedAt: d.filedAt,
     versions: d.versions.map((v) => {
+      const scannerConfigured = malwareScanner().configured;
       const decision = downloadDecision({ classification: d.classificationSnapshot, scanState: v.scanState, entitled });
       return {
         ...v,
         byteSize: v.byteSize.toString(),
-        download: decision.allow ? { allowed: true as const, href: `/api/documents/versions/${v.id}` } : { allowed: false as const, reason: DOWNLOAD_REFUSAL_TEXT[decision.reason].replace(/ The request was refused and logged\.$/, "") },
+        download: decision.allow ? { allowed: true as const, href: `/api/documents/versions/${v.id}`, unscanned: asksBeforeOpening(v, scannerConfigured) } : { allowed: false as const, reason: DOWNLOAD_REFUSAL_TEXT[decision.reason].replace(/ The request was refused and logged\.$/, "") },
         accessEvents: v.accessEvents.map((e) => ({ id: e.id, kind: e.kind, at: e.at, reason: accessReasonText(e.reasonCode), by: e.actorPerson?.name ?? e.actorSystemLabel ?? null })),
         attachments: v.attachments.map((a) => ({ id: a.id, purpose: a.purpose, attachedAt: a.attachedAt, detachedAt: a.detachedAt, detachReason: a.detachReason, owner: ownerLabel(a), href: hrefOf(a) })),
       };

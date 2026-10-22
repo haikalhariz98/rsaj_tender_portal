@@ -11,7 +11,8 @@ import { documentOrg, logAccess } from "@/lib/documents/service";
 import { downloadLimiter, RETRY_AFTER_SECONDS } from "@/lib/documents/concurrency";
 import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { DOWNLOAD_POLICY } from "@/lib/security-headers";
-import { blobStore, sha256Hex } from "@/lib/documents/store";
+import { blobStore, malwareScanner, runScan, sha256Hex } from "@/lib/documents/store";
+import { APPLICANT_DOWNLOAD_REFUSAL_TEXT, applicantDownloadRefusal, UNSCANNED_CONFIRM_PARAM } from "@/lib/documents/applicant-scan";
 
 /**
  * Download one version (plan §2, §4). `downloadDecision` first: a SULIT version is served only to a reader its records admit (OD-2, Phase 3b); unclassified and
@@ -21,6 +22,10 @@ import { blobStore, sha256Hex } from "@/lib/documents/store";
  * served as an attachment, never inline, with the stored (sniffed) type, `nosniff`, a
  * sandbox policy and no caching, and the download is logged. A withdrawn version is
  * still served: it is withdrawn, not deleted, and the drawer lists it as withdrawn.
+ *
+ * A version a stranger sent with the public registration (`recordedByPortalApplicationId`, RSEC-2) takes a fresh scan before it is served, judged by the release's rule
+ * (`applicantDownloadRefusal`): refused on a threat, stored or fresh, on a failed scan, and, once a scanner is configured, on a file it did not check. With no scanner it is
+ * served only to a request that confirms it (`?unscanned=1`, sent by the page's question), and never said to be clean.
  */
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/versions/[id]">) {
   const guard = await staffRoute();
@@ -33,20 +38,20 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/ve
   const slot = downloadLimiter().tryAcquire();
   if (!slot) return busy();
   try {
-    return await download(scope, ctx);
+    return await download(scope, ctx, new URL(req.url).searchParams.get(UNSCANNED_CONFIRM_PARAM) === "1");
   } finally {
     slot();
   }
 }
 
-async function download(scope: StaffActor, ctx: RouteContext<"/api/documents/versions/[id]">) {
+async function download(scope: StaffActor, ctx: RouteContext<"/api/documents/versions/[id]">, confirmed: boolean) {
   const { id } = await ctx.params;
   const org = await documentOrg(scope.organisationId);
   if (!org) return plain(503, "No organisation is configured.");
   const { db } = await import("@/lib/db");
   const version = await db.documentVersion.findFirst({
     where: { id, organisationId: org.id },
-    select: { id: true, documentId: true, sha256: true, byteSize: true, mediaType: true, originalFilename: true, scanState: true, document: { select: { classificationSnapshot: true } } },
+    select: { id: true, documentId: true, sha256: true, byteSize: true, mediaType: true, originalFilename: true, scanState: true, recordedByPortalApplicationId: true, document: { select: { classificationSnapshot: true } } },
   });
   if (!version) return plain(404, "No such document version.");
   // FR-MTD-007: a version hanging on an exercise restricted to its named people (or on anything under it) reads as one that does not exist, and the attempt is logged.
@@ -70,6 +75,15 @@ async function download(scope: StaffActor, ctx: RouteContext<"/api/documents/ver
   if (!bytes || sha256Hex(bytes) !== version.sha256) {
     await logAccess({ organisationId: org.id, kind: "INTEGRITY_FAILED", reasonCode: bytes ? "DIGEST_MISMATCH" : "BYTES_MISSING", versionId: version.id, actor: scope });
     return plain(500, "The stored file does not match its fingerprint, so it is not served. This has been logged; report it to whoever runs the portal.");
+  }
+  // RSEC-2: a stranger's file is scanned now, whatever its stored state says.
+  if (version.recordedByPortalApplicationId) {
+    const scanner = malwareScanner();
+    const refusal = applicantDownloadRefusal({ stored: version.scanState, fresh: await runScan(scanner, bytes), scannerConfigured: scanner.configured, confirmed });
+    if (refusal) {
+      await logAccess({ organisationId: org.id, kind: "REFUSED", reasonCode: refusal, versionId: version.id, actor: scope });
+      return plain(refusal === "UNCONFIRMED" ? 409 : 403, APPLICANT_DOWNLOAD_REFUSAL_TEXT[refusal]);
+    }
   }
   // Everything that can fail is built before the download is logged: an entry saying a
   // file was downloaded must never be written for a response that was not sent (audit M-2).

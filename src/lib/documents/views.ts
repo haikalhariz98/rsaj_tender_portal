@@ -51,7 +51,8 @@ export function classificationTone(c: SecurityClass | null): Tone {
 export const scanTone = (s: ScanState): Tone => (s === "CLEAN" ? "ok" : s === "THREAT" ? "err" : "warn");
 
 export type Allowance = { allowed: true } | { allowed: false; reason: string };
-export type DownloadView = { allowed: true; href: string } | { allowed: false; reason: string };
+/// `unscanned`: a file sent by someone not signed in, with no scanner configured: opened only once the shared question is answered (RSEC-2).
+export type DownloadView = { allowed: true; href: string; unscanned?: boolean } | { allowed: false; reason: string };
 
 export interface AttachmentItemView {
   attachmentId: string;

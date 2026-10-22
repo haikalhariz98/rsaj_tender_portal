@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { DownloadLink } from "./download-link";
+
 import { loadDocumentDrawer, placeLegalHold, releaseLegalHold, reclassifyDocument, withdrawVersion } from "@/app/documents/actions";
 import { Accordion } from "@/components/accordion";
 import { EyeIcon, FileIcon } from "@/components/icons";
@@ -344,9 +346,9 @@ function VersionCard({ v, onDone }: { v: DrawerVersionView; onDone: (n: Notice) 
       />
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {v.download.allowed ? (
-          <a href={v.download.href} className={buttonClass("secondary", "sm")}>
+          <DownloadLink href={v.download.href} unscanned={v.download.unscanned} className={buttonClass("secondary", "sm")}>
             Download
-          </a>
+          </DownloadLink>
         ) : (
           <Button size="sm" variant="secondary" disabled aria-describedby={`dl-${v.id}`}>
             Download

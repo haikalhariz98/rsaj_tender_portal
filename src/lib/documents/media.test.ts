@@ -4,7 +4,7 @@ import ExcelJS from "exceljs";
 
 import { documentFaultText } from "./labels";
 import { uploadFaultText } from "@/lib/portal/registration/words";
-import { ARCHIVE_TAIL_BYTES, DOCX_TYPE, inspectArchive, mediaFault, ooxmlTypeOf, recogniseFile, sniffMediaType, staffMediaFault, supplierAcceptedTypes, typeFromHeader, typeFromName, unknownPolicyTypes, XLSX_TYPE } from "./media";
+import { ARCHIVE_TAIL_BYTES, DOCX_TYPE, inspectArchive, mediaFault, ooxmlTypeOf, recogniseFile, sniffMediaType, staffMediaFault, publicRegisterAcceptedTypes, supplierAcceptedTypes, typeFromHeader, typeFromName, unknownPolicyTypes, XLSX_TYPE } from "./media";
 import type { StorePolicy } from "./types";
 
 const bytes = (...xs: (number | string)[]) => new Uint8Array(xs.flatMap((x) => (typeof x === "string" ? [...Buffer.from(x, "latin1")] : [x])));
@@ -374,6 +374,10 @@ describe("a refused Office file says why and what to do instead; the supplier si
   it("a supplier is offered, and judged by, only the types its path recognises", () => {
     expect(supplierAcceptedTypes(["application/pdf", XLSX_TYPE, "image/png", DOCX_TYPE, "text/csv"])).toEqual(["application/pdf", "image/png", "text/csv"]);
     expect(supplierAcceptedTypes([XLSX_TYPE, DOCX_TYPE])).toEqual([]);
+  });
+  it("a stranger's registration takes PDF and images only: the supplier's types less CSV (RSEC-2)", () => {
+    expect(publicRegisterAcceptedTypes(["application/pdf", XLSX_TYPE, "image/png", "image/jpeg", "image/tiff", DOCX_TYPE, "text/csv"])).toEqual(["application/pdf", "image/png", "image/jpeg", "image/tiff"]);
+    expect(publicRegisterAcceptedTypes(["text/csv"])).toEqual([]);
   });
   it("the supplier path refuses a workbook (a ZIP to it) in words that are true", () => {
     const book = crafted(OFFICE);

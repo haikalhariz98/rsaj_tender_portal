@@ -812,7 +812,8 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
       recorderId: act.recorderId,
       endorserIds: [],
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
-      earlier: await earlierRecordersOf(tx, l.org.id, { otherStepIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.id) }),
+      // RSEC-3(b): and whoever checked a certificate or the bank details on this application.
+      earlier: await earlierRecordersOf(tx, l.org.id, { otherStepIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.id), registration: { supplierApplicationId: a.id } }),
       otherDeciderIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
       earlierDone: full.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
       decidedOn,

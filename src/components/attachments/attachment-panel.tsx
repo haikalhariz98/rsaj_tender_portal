@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { DataList, type Column, type Row } from "@/components/data-list";
+import { DownloadLink } from "./download-link";
 import { FileIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonClass } from "@/components/ui/button";
@@ -185,9 +186,9 @@ function SlotRow({ s, item, owner, upload, refused, showReason, onNotice, downlo
       </div>
       <div className="flex shrink-0 items-center gap-2 max-sm:w-full">
         {download && item && (item.download.allowed ? (
-          <a href={item.download.href} className={buttonClass("secondary", "sm")} aria-label={`Download ${item.title}`}>
+          <DownloadLink href={item.download.href} unscanned={item.download.unscanned} className={buttonClass("secondary", "sm")} aria-label={`Download ${item.title}`}>
             Download
-          </a>
+          </DownloadLink>
         ) : (
           <Button size="sm" variant="secondary" disabled aria-label={`Download ${item.title}`} title={item.download.reason ?? undefined}>
             Download
@@ -206,9 +207,9 @@ function RowActions({ item, owner, upload, onNotice }: { item: AttachmentItemVie
   return (
     <>
       {item.download.allowed ? (
-        <a href={item.download.href} className={buttonClass("secondary", "sm")} aria-label={`Download ${item.title}`}>
+        <DownloadLink href={item.download.href} unscanned={item.download.unscanned} className={buttonClass("secondary", "sm")} aria-label={`Download ${item.title}`}>
           Download
-        </a>
+        </DownloadLink>
       ) : (
         <Button size="sm" variant="secondary" disabled aria-label={`Download ${item.title}`}>
           Download

@@ -601,6 +601,8 @@ export const SUPPLIER_DECIDER_TEXT: Readonly<Record<DeciderFault, Words>> = {
   RECORDER_ENDORSED_IT: w("You endorsed this matter. An endorser does not record its decision for someone else."),
   RECORDER_DECIDED_ANOTHER_STEP: w("You have already decided another step of this route. The same person does not record a second decision on it for someone else."),
   RECORDER_DECLARED_CONFLICT: w("You declared a conflict of interest on this step and recused. You do not record its decision for someone else."),
+  VERIFIED_IT: w("That person checked a certificate or the bank details of this application. Whoever checked it does not decide it."),
+  RECORDER_VERIFIED_IT: w("You checked a certificate or the bank details of this application. Whoever checked it does not record its decision for someone else."),
 };
 
 /// What a supplier's registration is called in a route refusal.

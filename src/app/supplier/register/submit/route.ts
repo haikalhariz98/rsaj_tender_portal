@@ -69,7 +69,9 @@ const tooSlow = () => reply({ ok: false, code: "TOO_SLOW", message: APPLY.submit
  * 11. every step's rules, by step and field (the files' faults with them, so the applicant sees all at once);
  * 12. one transaction (`receivePublicApplication`), which judges the counts and the agreed texts again under its locks.
  *
- * Nothing is written before step 12, and a refusal there writes nothing either: not a row, not a byte. Every file is "Not scanned": nothing scans (scanning happens at download, SEC-5).
+ * Nothing is written before step 12, and a refusal there writes nothing either: not a row, not a byte. Every file is stored "Not scanned": nothing scans here. Only PDF and images are
+ * taken (RSEC-2: the organisation's supplier types less CSV). An officer's download of such a file takes a fresh scan and is refused on a threat, a failed scan, or (once a scanner is
+ * configured) a file it did not check; with no scanner it is served only after the officer confirms, and never shown as clean (`applicant-scan.ts`, the staff download route).
  */
 export async function POST(request: Request) {
   // 1. The boundary's own question: the copy serves this path, with no staff cookie on the public copy and no supplier cookie on the staff copy, and no server action.

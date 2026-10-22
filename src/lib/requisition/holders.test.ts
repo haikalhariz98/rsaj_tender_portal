@@ -174,6 +174,16 @@ describe("who may discharge a step (ruling OD-12)", () => {
     });
   });
 
+  // RSEC-3(b): a supplier registration names who checked what it holds; none of them decides it, whether deciding or recording the decision for someone else.
+  it("refuses whoever checked a certificate or the bank details of the registration, as decider or as recorder", () => {
+    const checked = { ...NO_EARLIER_RECORDERS, verifierIds: ["hodNth", "clerk"] };
+    expect(deciderFaults(step, ctx({ earlier: checked })).faults).toEqual(["VERIFIED_IT"]);
+    expect(deciderFaults(step, ctx({ person: { id: "deputy", isActive: true }, value: 900_000n, recorderId: "clerk", earlier: checked })).faults).toEqual(["RECORDER_VERIFIED_IT"]);
+    // Nobody else is touched, and a matter with no checks named is judged as before.
+    expect(deciderFaults(step, ctx({ earlier: { ...NO_EARLIER_RECORDERS, verifierIds: ["someoneElse"] } })).faults).toEqual([]);
+    expect(deciderFaults(step, ctx({ earlier: { ...NO_EARLIER_RECORDERS, verifierIds: [] } })).faults).toEqual([]);
+  });
+
   it("does not judge the person themselves twice: a decider who is the recorder is the ordinary case", () => {
     expect(deciderFaults(step, ctx({ requesterId: "hodNth", recorderId: "hodNth" })).faults).toEqual(["SELF_APPROVAL"]);
     expect(deciderFaults(step, ctx({ recorderId: "hodNth" })).faults).toEqual([]);

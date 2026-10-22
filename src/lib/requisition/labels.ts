@@ -316,6 +316,9 @@ export const DECIDER_FAULT_TEXT: Record<DeciderFault, string> = {
   RECORDER_ENDORSED_IT: "You endorsed this matter. An endorser does not record its decision for someone else.",
   RECORDER_DECIDED_ANOTHER_STEP: "You already decided another step. Someone else records this one.",
   RECORDER_DECLARED_CONFLICT: "You recused on this step. Someone else records it.",
+  // A supplier registration's only (RSEC-3(b)); every code has words.
+  VERIFIED_IT: "That person checked what this matter holds. Whoever checked it does not decide it.",
+  RECORDER_VERIFIED_IT: "You checked what this matter holds. Someone else records its decision.",
 };
 
 /// Why a received requisition's commitment is not in the portal ledger, as a title.

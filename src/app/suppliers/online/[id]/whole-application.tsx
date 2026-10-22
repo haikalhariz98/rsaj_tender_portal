@@ -3,6 +3,7 @@ import Link from "next/link";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { heldCreditorGate, sulitGate } from "@/app/_auth/sulit";
 import { RouteSteps } from "@/app/sourcing/[id]/route-steps";
+import { DownloadLink } from "@/components/attachments/download-link";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { RegistrationSummaryCards } from "@/components/registration-summary";
 import { Tabs, type TabSpec } from "@/components/tabs";
@@ -27,6 +28,7 @@ import { loadIssue } from "@/lib/authority/load";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { formatBytes, mediaLabel } from "@/lib/documents/labels";
+import { malwareScanner } from "@/lib/documents/store";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -404,13 +406,15 @@ export async function WholeApplicationPage({ actor, org, a, flags, cfg, people, 
 /// One row per file held: its name, size and type, "Not scanned", a link to open it, and whether it has moved to the supplier since.
 function FileRows({ files }: { files: WholeApplication["documents"][number]["attachments"] }) {
   if (files.length === 0) return <p className="text-[13px] text-ink-3">No file.</p>;
+  const scannerConfigured = malwareScanner().configured;
   return (
     <ul className="flex flex-col gap-1.5">
       {files.map((x) => (
         <li key={x.id} className="flex flex-wrap items-center gap-2 text-[13px]">
-          <a href={`/api/documents/versions/${x.version.id}`} className="font-medium text-brand-700 hover:underline" aria-label={`Open ${x.version.originalFilename}`}>
+          {/* RSEC-2: sent by someone not signed in; with no scanner, opened only once the shared question is answered. */}
+          <DownloadLink href={`/api/documents/versions/${x.version.id}`} unscanned={!scannerConfigured} className="font-medium text-brand-700 hover:underline" aria-label={`Open ${x.version.originalFilename}`}>
             {x.version.originalFilename}
-          </a>
+          </DownloadLink>
           <span className="text-ink-3">
             {formatBytes(x.version.byteSize)} · {mediaLabel(x.version.mediaType)}
           </span>

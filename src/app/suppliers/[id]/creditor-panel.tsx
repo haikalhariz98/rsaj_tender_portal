@@ -5,7 +5,8 @@ import { LockIcon } from "@/components/icons";
 import { RegistrationSummaryCards } from "@/components/registration-summary";
 import { sulitGate } from "@/app/_auth/sulit";
 import { Badge, SulitTag } from "@/components/ui/badge";
-import { ButtonLink } from "@/components/ui/button";
+import { DownloadLink } from "@/components/attachments/download-link";
+import { buttonClass } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { CREDITOR_PROFILE_FIELDS } from "@/lib/auth/creditor-access-store";
@@ -13,6 +14,7 @@ import type { Sulit } from "@/lib/auth/sulit-access";
 import type { StaffActor } from "@/lib/auth/types";
 import { storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { malwareScanner } from "@/lib/documents/store";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { creditorStanding, creditorStandingWords, creditorVersionState, type CreditorVersionState } from "@/lib/payment/creditor";
 import { registrationSummary, type SummaryCreditor, type SummaryRecord } from "@/lib/portal/registration/summary";
@@ -88,6 +90,7 @@ export async function CreditorPanel({ actor, l, version }: { actor: StaffActor; 
 
   // Whether the check can be made, said beside the button from the same rule the act runs.
   const live = selected.statement.length;
+  const scannerConfigured = malwareScanner().configured;
   const blocker = creditorReviewFaults({ state: "VERIFIED", personActive: true, verifiedOn: today, note: "" }, { sent: true, verification: selected.verification, sentOn: selected.submittedAt && today ? todayIn(selected.submittedAt, zone) : null, statementFiles: live }, today).find((f) => f.level === "block");
   const canCheck = selected.verification === "NOT_CHECKED";
 
@@ -118,9 +121,9 @@ export async function CreditorPanel({ actor, l, version }: { actor: StaffActor; 
           {/* A file's name is the supplier's own words and often carries the bank and the account number, so the statement is named, and offered, only to a reader the gate granted. */}
           {gate.state === "GRANTED"
             ? selected.statement.map((f) => (
-                <ButtonLink key={f.versionId} href={`/api/documents/versions/${f.versionId}`} variant="secondary" size="sm" target="_blank" rel="noopener noreferrer">
+                <DownloadLink key={f.versionId} href={`/api/documents/versions/${f.versionId}`} unscanned={f.fromApplicant && !scannerConfigured} className={buttonClass("secondary", "sm")} target="_blank" rel="noopener noreferrer">
                   Bank statement: {f.name}
-                </ButtonLink>
+                </DownloadLink>
               ))
             : selected.statement.length > 0 && (
                 <span className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-3">

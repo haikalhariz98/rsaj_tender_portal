@@ -12,7 +12,7 @@ import { formSecret } from "@/lib/auth/form-secret";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatBytes, mediaLabel } from "@/lib/documents/labels";
-import { supplierAcceptedTypes } from "@/lib/documents/media";
+import { publicRegisterAcceptedTypes } from "@/lib/documents/media";
 import { loadStorePolicy, type DocumentOrg } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling } from "@/lib/documents/store";
 import { patternFaults, type NumberingReset } from "@/lib/numbering/series";
@@ -73,7 +73,7 @@ export async function loadRegisterSettings(client: Tx = db, env: Record<string, 
     () => client.numberingSeries.findUnique({ where: { organisationId_key: { organisationId: orgId, key: PORTAL_APPLICATION_SERIES_KEY } }, select: { pattern: true, resetOn: true } }),
     () => loadStorePolicy(orgId, client),
     () => registrationContextFor(client, orgId, settings, [], { registrationNoKey: "", contactName: "" }),
-    () => loadUploadSettings(client, orgId, settings));
+    () => loadUploadSettings(client, orgId, settings).then((u) => ({ ...u, store: { ...u.store, allowedTypes: publicRegisterAcceptedTypes(u.store.allowedTypes) } })));
   const live = (r: { retiredOn: Date | null }) => r.retiredOn == null || (today != null && storedDay(r.retiredOn) > today);
   const codes = (list: (typeof STEP_ONE_LISTS)[number]) => lists.filter((l) => l.list === list && live(l)).map((l) => l.code);
   const step1: PortalApplicationContext = {
@@ -186,7 +186,7 @@ export async function loadRegisterForm(client: Tx = db, env: Record<string, stri
       document: plain(document),
       statement: plain(statement),
       acceptNote: acceptNote(store, mediaLabel, formatBytes),
-      accept: supplierAcceptedTypes(store.allowedTypes).join(","),
+      accept: publicRegisterAcceptedTypes(store.allowedTypes).join(","),
     },
   };
 }

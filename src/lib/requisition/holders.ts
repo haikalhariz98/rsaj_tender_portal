@@ -79,7 +79,10 @@ export type DeciderFault =
   | "RECORDER_IS_REQUESTER"
   | "RECORDER_ENDORSED_IT"
   | "RECORDER_DECIDED_ANOTHER_STEP"
-  | "RECORDER_DECLARED_CONFLICT";
+  | "RECORDER_DECLARED_CONFLICT"
+  /// The person checked a certificate or the bank details of the supplier registration being decided, or recorded that check for someone (RSEC-3(b)): nobody who checked it decides it.
+  | "VERIFIED_IT"
+  | "RECORDER_VERIFIED_IT";
 
 /**
  * The officers who keyed an earlier act of this matter for someone else, from paper (Phase 2b review). A slot holds the person an act is attributed to, so the
@@ -94,6 +97,9 @@ export interface EarlierRecorders {
   endorsementRecorderIds: readonly string[];
   /// Who recorded another step's decision for the person it names.
   otherDeciderRecorderIds: readonly string[];
+  /// A supplier registration's: who checked a certificate or the bank details on the application being decided, as the officer named or as the one who recorded the check for them
+  /// (RSEC-3(b)). Absent on every other matter.
+  verifierIds?: readonly string[];
 }
 
 /// Nobody recorded anything for anyone: the matter's earlier acts were each its own person's, or none was recorded from paper. Not a default: a caller says it.
@@ -167,6 +173,8 @@ export function deciderFaults(
     if (keyed.requesterRecorderIds.includes(rid) && !faults.includes("RECORDER_IS_REQUESTER")) faults.push("RECORDER_IS_REQUESTER");
     if (keyed.endorsementRecorderIds.includes(rid) && !faults.includes("RECORDER_ENDORSED_IT")) faults.push("RECORDER_ENDORSED_IT");
     if (keyed.otherDeciderRecorderIds.includes(rid) && !faults.includes("RECORDER_DECIDED_ANOTHER_STEP")) faults.push("RECORDER_DECIDED_ANOTHER_STEP");
+    // RSEC-3(b), beside the requester bar: who checked what the application holds does not record its decision either.
+    if (keyed.verifierIds?.includes(rid)) faults.push("RECORDER_VERIFIED_IT");
   }
 
   const pid = ctx.person?.id ?? null;
@@ -185,6 +193,8 @@ export function deciderFaults(
   }
   if (pid === ctx.requesterId || keyed.requesterRecorderIds.includes(pid)) faults.push("SELF_APPROVAL");
   else if (ctx.senderId && pid === ctx.senderId) faults.push("SENT_IT");
+  // RSEC-3(b): a fixed rule of the product, not a setting. Who checked a certificate or the bank details of a registration decides no step of its route.
+  if (keyed.verifierIds?.includes(pid)) faults.push("VERIFIED_IT");
   // Ruling BD-1: having endorsed does not disqualify a direct holder of the office tied
   // to the tier they endorsed at — the office held for the unit they endorsed for. It
   // still bars them from deciding any step as a delegate, or any other office.

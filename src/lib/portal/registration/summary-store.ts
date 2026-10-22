@@ -143,7 +143,8 @@ export interface CreditorRow {
   /// The officer who checked it, by id, for who is named on it (the creditor profile's gate).
   verifiedByPersonId: string | null;
   values: Record<string, string>;
-  statement: { versionId: string; name: string; scanState: string }[];
+  /// `fromApplicant`: sent by someone not signed in, with a whole online application (RSEC-2: scanned, or asked about, before it is opened).
+  statement: { versionId: string; name: string; scanState: string; fromApplicant: boolean }[];
 }
 
 const CREDITOR_COLUMNS = ["beneficiaryName", "beneficiaryAddress", "beneficiaryIdentityNo", "beneficiaryContactPerson", "beneficiaryTelephone", "beneficiaryFax", "beneficiaryTaxRegistrationNo", "beneficiaryEmail", "bankCode", "bankAccountNo", "bankAccountTypeCode", "bankSwiftCode", "bankAddress"] as const;
@@ -155,7 +156,7 @@ export async function loadCreditorRows(client: Tx, scope: SummaryScope): Promise
     orderBy: { version: "desc" },
     include: {
       verifiedBy: { select: { name: true } },
-      attachments: { where: { purpose: "SUPPLIER_BANK_STATEMENT", detachedAt: null }, select: { version: { select: { id: true, originalFilename: true, scanState: true, withdrawnAt: true } } } },
+      attachments: { where: { purpose: "SUPPLIER_BANK_STATEMENT", detachedAt: null }, select: { version: { select: { id: true, originalFilename: true, scanState: true, withdrawnAt: true, recordedByPortalApplicationId: true } } } },
     },
   });
   return rows.map((r) => ({
@@ -169,7 +170,7 @@ export async function loadCreditorRows(client: Tx, scope: SummaryScope): Promise
     supersedesId: r.supersedesId,
     verifiedByPersonId: r.verifiedByPersonId,
     values: Object.fromEntries(CREDITOR_COLUMNS.map((k) => [k, r[k]])),
-    statement: r.attachments.filter((a) => a.version.withdrawnAt == null).map((a) => ({ versionId: a.version.id, name: a.version.originalFilename, scanState: a.version.scanState })),
+    statement: r.attachments.filter((a) => a.version.withdrawnAt == null).map((a) => ({ versionId: a.version.id, name: a.version.originalFilename, scanState: a.version.scanState, fromApplicant: a.version.recordedByPortalApplicationId != null })),
   }));
 }
 

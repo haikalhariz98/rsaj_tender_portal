@@ -557,3 +557,34 @@ describe("the organisation lock (review MUST 1)", () => {
     expect(pa.creditor!.verification).toBe("VERIFIED");
   });
 });
+
+describe("whoever checked what an online application holds decides no step of its route (RSEC-3(b))", () => {
+  it("the officer who checked a certificate or the bank details is refused by name and reason, deciding or recording for someone; another holder decides", async () => {
+    // A second holder of the office, so each refusal below is the check's bar alone.
+    const checkerHolder = (await makePerson(org.id, `Decide checker-holder ${run}`)).id;
+    await db.roleAssignment.create({ data: { personId: checkerHolder, roleCode: OFFICE, effectiveFrom: dayToDate("2020-01-01") } });
+    const id = await received();
+    await verifyAll(id, checkerHolder);
+    expect(await send(id)).toMatchObject({ ok: true });
+    const refused = await decide(id, checkerHolder);
+    expect(refused.ok).toBe(false);
+    expect(refused.errors?.personId).toContain(`Decide checker-holder ${run}`);
+    expect(refused.errors?.personId).toMatch(/checked a certificate or the bank details of this application/);
+    expect((await pendingStep(id)).decision).toBe("PENDING");
+
+    // The bank details' checker, recording the approver's decision from paper: refused on the recorder's own account.
+    const second = await received();
+    await verifyAll(second);
+    expect(await as(checkerHolder, (c) => verifyPortalCreditor(c, { portalApplicationId: second, state: "VERIFIED", verifiedOn: today, note: "", personId: checkerHolder }))).toMatchObject({ ok: true });
+    expect(await send(second)).toMatchObject({ ok: true });
+    const step = await pendingStep(second);
+    const recorded = await db.$transaction(async (tx) => {
+      const o = (await supplierOrg(org.id, tx))!;
+      return decidePortalRegistrationStep({ tx, actor: staff(checkerHolder), org: o, now: new Date(), act: { ...writer(p.approver), recorderId: checkerHolder, intent: { mode: "RECORDED_ON_BEHALF" } as never } }, { stepId: step.id, decision: "DONE", reason: "", personId: p.approver, decidedOn: dayToDate(today), onBehalf: true });
+    });
+    expect(JSON.stringify(recorded)).toMatch(/You checked a certificate or the bank details of this application/);
+    expect((await pendingStep(second)).decision).toBe("PENDING");
+    // The approver, who checked nothing, decides it.
+    expect(await decide(second)).toMatchObject({ ok: true });
+  });
+});
