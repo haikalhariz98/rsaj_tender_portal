@@ -63,6 +63,13 @@ describe("the Documents list on the Project stage", () => {
     expect(html).toContain("stage=project&amp;tab=submissions&amp;docs=ORGANISATION");
   });
 
+  it("shows every row it is given, with no pager that counts them (PW-4)", () => {
+    const rows = Array.from({ length: 30 }, (_, i) => row({ id: `d${i}`, title: `Document number ${i}`, href: `/projects/c1/documents/d${i}` }));
+    const html = card({ rows });
+    for (const r of rows) expect(html).toContain(r.title);
+    expect(html).not.toMatch(/Showing|\b\d+ of \d+\b|Rows per page/i);
+  });
+
   it("an empty list says so, and a filtered empty list says which list is empty", () => {
     expect(card({ rows: [] })).toContain("No documents yet");
     expect(card({ rows: [], filter: "APPROVED" })).toContain("No documents in this list");
@@ -212,7 +219,7 @@ describe("a Project document's page", () => {
 
   it("a document that is only asked for shows the request, not an empty list", () => {
     const html = view(page({ state: "REQUESTED", stateLabel: "Asked for", waitsOn: "CONTRACTOR", waitsOnLabel: "Waiting on the contractor", versions: [], approvers: [], openRequest: { id: "r1", toSide: "CONTRACTOR", toLabel: "The contractor", note: "The section drawings, please.", requestedOn: "2026-10-22", answeredByVersion: null }, actions: { upload: shut("x"), request: shut("y"), addApprover: open, approve: shut("z"), reject: shut("z"), decideVersionId: null } }));
-    expect(html).toContain("Asked of The contractor");
+    expect(html).toContain("Asked of the contractor");
     expect(html).toContain("The section drawings, please.");
     expect(html).toContain("22 Oct 2026");
     expect(html).not.toContain("No versions yet");

@@ -49,6 +49,7 @@ export function ProjectDocumentsCard({ contractId, orgName, rows, filter, next, 
       <DataList
         flat
         selectable={false}
+        paging={false}
         exportName="documents"
         searchPlaceholder="Search by title"
         emptyTitle={filter === "ALL" ? "No documents yet" : "No documents in this list"}

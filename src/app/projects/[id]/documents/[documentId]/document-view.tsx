@@ -74,7 +74,7 @@ export function DocumentPageView({ page, contractNumber }: { page: DocumentPage;
       <div className="flex flex-col gap-6">
         {page.openRequest && (
           <Card>
-            <CardHeader icon={<FileIcon size={17} />} title={`Asked of ${page.openRequest.toLabel}`} subtitle={[formatDate(page.openRequest.requestedOn), page.openRequest.note || null].filter(Boolean).join(" · ")} divided={false} />
+            <CardHeader icon={<FileIcon size={17} />} title={`Asked of ${page.openRequest.toSide === "CONTRACTOR" ? "the contractor" : page.openRequest.toLabel}`} subtitle={[formatDate(page.openRequest.requestedOn), page.openRequest.note || null].filter(Boolean).join(" · ")} divided={false} />
           </Card>
         )}
 

@@ -461,6 +461,7 @@ export function DataList({
   initialView,
   toolbarLead,
   toolbarFilters,
+  paging = true,
 }: {
   columns: Column[];
   rows: Row[];
@@ -472,6 +473,8 @@ export function DataList({
   /// A control the screen owns, drawn where the list's own filter chips go (after the search box). Like `toolbarLead`
   /// it keeps the toolbar on when the choice it made has no rows.
   toolbarFilters?: ReactNode;
+  /// False for a list the server pages (a cursor and a link), whose rows are all shown: no client pages, and so no footer that counts them.
+  paging?: boolean;
   rowAction?: RowAction;
   /// Arbitrary per-row controls, for screens whose row action opens an editor rather
   /// than navigating. Renders under an "Actions" header.
@@ -573,11 +576,11 @@ export function DataList({
   }, [rows, view, query, sort, chosen, language]);
 
   // Paging controls say nothing when everything fits on one page at every size.
-  const showFooter = needsPaging(visible.length);
+  const showFooter = paging && needsPaging(visible.length);
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const current = Math.min(page, pageCount - 1);
-  const start = current * pageSize;
-  const paged = visible.slice(start, start + pageSize);
+  const start = paging ? current * pageSize : 0;
+  const paged = paging ? visible.slice(start, start + pageSize) : visible;
 
   const allSelected = paged.length > 0 && paged.every((r) => selected.has(r.id));
 
