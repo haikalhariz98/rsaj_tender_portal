@@ -1,5 +1,6 @@
 import type { Tx } from "@/lib/audit/record";
-import { creditorDecision, creditorNamedFacts, creditorPermissionState } from "@/lib/auth/creditor-access-store";
+import { creditorDecision, creditorNamedFacts, creditorPermissionState, portalCreditorNamedFacts } from "@/lib/auth/creditor-access-store";
+import type { RoutedNamedFacts } from "@/lib/auth/sulit-access";
 import { evaluationOfficeBases } from "@/lib/auth/evaluation-readers-store";
 import { refusalWords, type SulitDecision } from "@/lib/auth/sulit-access";
 import {
@@ -124,7 +125,7 @@ export async function documentBytesAccess(client: Tx, actor: SulitReader, docume
   const offices = actor.system ? new Map() : await evaluationOfficeBases(client, actor, subjects.flatMap((s) => (s.exerciseId && s.scope === "evaluation" ? [s.exerciseId] : [])));
   // A supplier's bank statement (Phase 4b) is judged by who is named on the profile's route, and by the grant of reading creditor profiles, not by the organisation-wide permission.
   const creditors = subjects.filter((s) => s.scope === "creditorProfile");
-  const creditorFacts = creditors.length ? await creditorNamedFacts(client, actor.organisationId, await client.creditorProfile.findMany({ where: { id: { in: creditors.map((s) => s.id) }, organisationId: actor.organisationId }, select: { id: true, supplierId: true, verifiedByPersonId: true } })) : new Map();
+  const creditorFacts = creditors.length ? await creditorFactsOf(client, actor.organisationId, creditors) : new Map<string, RoutedNamedFacts>();
   const creditorPermission = creditors.length ? await creditorPermissionState(client, actor) : null;
   const rows: SulitEventRow[] = [];
   let first: SulitDecision | null = null;
@@ -173,13 +174,30 @@ export async function sulitAttachRefused(client: Tx, actor: SulitReader, documen
   return !(await documentBytesAccess(client, actor, documentId, opts)).entitled;
 }
 
+/// Who is named on each bank-details record a statement hangs on, by the record's id: a supplier's creditor profile (`creditorNamedFacts`), or the bank details held on a whole online
+/// application (ADR 0041, `portalCreditorNamedFacts`, by the application). A record that is not this organisation's has no entry, and is withheld from everyone.
+async function creditorFactsOf(client: Tx, organisationId: string, subjects: readonly { entity: string; id: string }[]): Promise<Map<string, RoutedNamedFacts>> {
+  const out = new Map<string, RoutedNamedFacts>();
+  const profileIds = subjects.filter((s) => s.entity !== "PortalApplicationCreditor").map((s) => s.id);
+  const heldIds = subjects.filter((s) => s.entity === "PortalApplicationCreditor").map((s) => s.id);
+  if (profileIds.length) for (const [k, v] of await creditorNamedFacts(client, organisationId, await client.creditorProfile.findMany({ where: { id: { in: profileIds }, organisationId }, select: { id: true, supplierId: true, verifiedByPersonId: true } }))) out.set(k, v);
+  if (heldIds.length) {
+    const held = await client.portalApplicationCreditor.findMany({ where: { id: { in: heldIds }, organisationId }, select: { id: true, portalApplicationId: true } });
+    const facts = await portalCreditorNamedFacts(client, organisationId, held.map((h) => h.portalApplicationId));
+    for (const h of held) {
+      const f = facts.get(h.portalApplicationId);
+      if (f) out.set(h.id, f);
+    }
+  }
+  return out;
+}
+
 /// Whether the actor may open the SULIT bytes of documents attached to this owner: the owner's own record judges (a panel lists many documents of one owner). Nothing is logged: showing a link is not opening a file.
 export async function ownerBytesEntitled(client: Tx, actor: SulitReader, kind: OwnerKind, id: string): Promise<boolean> {
   const s = await subjectOfOwner(client, kind, id);
   if (s.scope === "creditorProfile") {
-    const profile = await client.creditorProfile.findFirst({ where: { id, organisationId: actor.organisationId }, select: { id: true, supplierId: true, verifiedByPersonId: true } });
-    if (!profile) return false;
-    const facts = (await creditorNamedFacts(client, actor.organisationId, [profile])).get(profile.id);
+    const facts = (await creditorFactsOf(client, actor.organisationId, [s])).get(s.id);
+    if (!facts) return false;
     return creditorDecision(actor, facts, await creditorPermissionState(client, actor), ["documentBytes"]).state === "GRANTED";
   }
   const permission = await organisationPermissionState(client, actor);

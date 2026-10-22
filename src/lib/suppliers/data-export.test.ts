@@ -364,6 +364,15 @@ describe("files, codes and dates", () => {
     const withTerms = build({ declarations: [...source().declarations, fixture("RegistrationDeclaration", { kind: "TERMS_AND_CONDITIONS", textVersion: 1, frozenTextEn: "These are the terms.", frozenTextMs: "", signatoryName: "Aminah binti Ali", signatoryDesignation: "Director", signedOn: d("2026-04-20"), signedAt: t("2026-04-20T04:15:00Z"), noticeFrozenEn: "We keep your details to check the registration." })] });
     const terms = section(withTerms, "declarations").rows.find((r) => r.value === "Terms and conditions")!.rows!;
     expect(find(terms, "Personal Data Notice, as agreed")?.value).toBe("We keep your details to check the registration.");
+    // ADR 0041 D3, D4: an agreement made on the public form, with the online application and no account, reads as agreed by the name as typed, never as signed; the keys are read, never written.
+    const online = { ...fixture("RegistrationDeclaration", { kind: "FALSE_DECLARATION", textVersion: 2, frozenTextEn: "What we tell you is true.", frozenTextMs: "", signatoryName: "Siti Rehearsal", signatoryDesignation: "Director", signedOn: d("2026-10-21"), signedAt: t("2026-10-21T03:00:00Z") }), portalApplicationId: "pa_1", signedBySupplierAccountId: null };
+    const agreed = section(build({ declarations: [online] }), "declarations").rows[0]!.rows!;
+    expect(find(agreed, "Agreed by (as typed, not signed in)")?.value).toBe("Siti Rehearsal");
+    expect(find(agreed, "Position, as typed")?.value).toBe("Director");
+    expect(find(agreed, "Agreed on")?.value).toBe("2026-10-21");
+    expect(find(agreed, "Agreed at")?.value).toBe("2026-10-21T03:00:00.000Z");
+    expect(agreed.map((r) => r.label).join(" ")).not.toMatch(/Sign/);
+    expect(JSON.stringify(agreed)).not.toContain("pa_1");
     const purchase = section(e, "purchases").rows[0].rows!;
     expect(find(purchase, "Amount (RM)")?.value).toBe("50.00");
     const values: string[] = [];
@@ -427,7 +436,7 @@ describe("a worked example a finance person can check by hand", () => {
     const e = build();
     expect(exportSectionCounts(e)).toEqual({ company: 1, contacts: 2, accounts: 2, declarations: 1, bank: 2, documents: 3, standing: 1, standingChanges: 2, applications: 1, purchases: 1, bidReceipts: 1 });
     expect(exportAuditChanges(e, "PAGE", null)[1].after).toBe(
-      "Company: 1 · Contacts: 2 · Portal accounts: 2 · Declarations signed: 1 · Bank details: 2 · Documents: 3 · Current standing: 1 · Changes to your standing: 2 · Applications and outcomes: 1 · Tender document purchases: 1 · Online bid receipts: 1",
+      "Company: 1 · Contacts: 2 · Portal accounts: 2 · Declarations and agreements: 1 · Bank details: 2 · Documents: 3 · Current standing: 1 · Changes to your standing: 2 · Applications and outcomes: 1 · Tender document purchases: 1 · Online bid receipts: 1",
     );
     const app = section(e, "applications").rows[0];
     expect(app.value).toBe("First registration");

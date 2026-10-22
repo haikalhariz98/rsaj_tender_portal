@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { db } from "@/lib/db";
-import { writeAudit } from "@/lib/audit/record";
+import { writeAudit, type Tx } from "@/lib/audit/record";
 import { OWN_RECORD, writeSupplierSulitEvent } from "@/lib/auth/creditor-access-store";
 import type { SupplierActor } from "@/lib/auth/types";
 import { loadOwnBidReceipts } from "@/lib/bids/online/my-bids-store";
@@ -55,6 +55,12 @@ function listsOf(values: readonly { list: string; code: string; nameEn: string }
 
 const exerciseName = (ex: { reference: string; title: string }) => `${ex.title} (${ex.reference})`;
 
+/// The supplier's own declarations and agreements, as the export reads them: those signed on one of its applications, and (ADR 0041 D6) those agreed with the online application one was
+/// approved from. The columns the export may show, and two keys read to word a row (agreed, not signed), never written.
+export function ownDeclarationRows(tx: Tx, organisationId: string, supplierId: string) {
+  return tx.registrationDeclaration.findMany({ where: { organisationId, OR: [{ application: { supplierId } }, { portalApplication: { supplierApplication: { supplierId } } }] }, orderBy: [{ signedAt: "asc" }, { kind: "asc" }], select: { ...inColumns("RegistrationDeclaration"), portalApplicationId: true, signedBySupplierAccountId: true } });
+}
+
 export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "PAGE", now: Date = new Date()): Promise<SupplierDataExportResult | null> {
   return db.$transaction(async (tx) => {
     const own = { organisationId: actor.organisationId, supplierId: actor.supplierId };
@@ -67,8 +73,9 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
       () => tx.supplierListValue.findMany({ where: { organisationId: actor.organisationId, list: { in: Object.values(LIST_KINDS) } }, select: { list: true, code: true, nameEn: true } }),
       // As `loadContactsSummary`: the contacts not retired, the primary first.
       () => tx.supplierContact.findMany({ where: { ...own, retiredOn: null }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }], select: { ...inColumns("SupplierContact"), account: { select: { ...inColumns("SupplierAccount"), id: true } } } }),
-      // As `loadDeclarationsSummary`: every declaration signed on one of the supplier's applications.
-      () => tx.registrationDeclaration.findMany({ where: { organisationId: actor.organisationId, application: { supplierId: actor.supplierId } }, orderBy: [{ signedAt: "asc" }, { kind: "asc" }], select: inColumns("RegistrationDeclaration") }),
+      // As `loadDeclarationsSummary`: every declaration signed on one of the supplier's applications, and (ADR 0041 D6) every agreement made with the online application one was approved from.
+      // Two keys are read to word the row (agreed, not signed), never written.
+      () => ownDeclarationRows(tx, actor.organisationId, actor.supplierId),
       // As `loadDocumentsTab` and `companyDocument`: every document of the supplier, with its codes and its live files (attached, not withdrawn).
       () => tx.supplierDocument.findMany({
         where: own,

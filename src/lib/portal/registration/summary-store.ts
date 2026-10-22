@@ -112,7 +112,8 @@ export async function loadSentDocumentsSummary(client: Tx, scope: SummaryScope, 
     ratePercent: d.ratePercent ? d.ratePercent.toString() : null,
     files: d.attachments.filter((a) => a.version.withdrawnAt == null).map((a) => ({ name: a.version.originalFilename, scanLabel: SCAN_LABEL[a.version.scanState] ?? "Not scanned" })),
     verification: { state: d.verification as VerificationState, by: d.verifiedBy?.name ?? null, on: d.verifiedOn ? storedDay(d.verifiedOn) : null, note: d.verificationNote },
-    lodgedBy: d.recordedBy ? d.recordedBy.name : SUPPLIER_UPLOADER_WORDS.toLowerCase(),
+    // Three recorders (ADR 0041 D3): an officer, the supplier's own account, or the applicant of an online application, who was not signed in. Never one for another.
+    lodgedBy: d.recordedBy ? d.recordedBy.name : d.recordedByPortalApplicationId ? APPLICANT_WORDS.toLowerCase() : SUPPLIER_UPLOADER_WORDS.toLowerCase(),
     lodgedByOfficer: d.recordedBy != null,
     codes: d.values.map((v) => valueLabel({ code: v.codeSnapshot, nameEn: v.labelSnapshot })),
   }));
@@ -121,12 +122,13 @@ export async function loadSentDocumentsSummary(client: Tx, scope: SummaryScope, 
 /// The declarations a supplier signed, newest first within an application.
 export async function loadDeclarationsSummary(client: Tx, scope: SummaryScope, zone: string | null, opts: { applicationId?: string } = {}): Promise<SummaryDeclaration[]> {
   const rows = await client.registrationDeclaration.findMany({
-    where: { organisationId: scope.organisationId, application: { supplierId: scope.supplierId, ...(opts.applicationId ? { id: opts.applicationId } : {}) } },
+    // ADR 0041 D6: an application approved from a whole online application keeps its agreements on the online application; they are read through it.
+    where: { organisationId: scope.organisationId, OR: [{ application: { supplierId: scope.supplierId, ...(opts.applicationId ? { id: opts.applicationId } : {}) } }, { portalApplication: { supplierApplication: { supplierId: scope.supplierId, ...(opts.applicationId ? { id: opts.applicationId } : {}) } } }] },
     orderBy: [{ signedAt: "asc" }, { kind: "asc" }],
     include: { signedBy: { select: { contact: { select: { name: true } } } } },
   });
   // The person who signs is compared with the contact of the account that sent the registration (the contact as it reads now): another is flagged to the reviewer, never refused.
-  return rows.map((d) => ({ kind: d.kind as DeclarationKind, textVersion: d.textVersion, signatoryName: d.signatoryName, signatoryDesignation: d.signatoryDesignation, signedAt: formatOrgDateTime(d.signedAt, zone), by: d.signedBy ? "the supplier's portal account" : APPLICANT_WORDS.toLowerCase(), signatoryIsNotContact: d.signedBy ? signatoryDiffers(d.signatoryName, d.signedBy.contact.name) : false }));
+  return rows.map((d) => ({ kind: d.kind as DeclarationKind, textVersion: d.textVersion, signatoryName: d.signatoryName, signatoryDesignation: d.signatoryDesignation, signedAt: formatOrgDateTime(d.signedAt, zone), by: d.signedBy ? "the supplier's portal account" : APPLICANT_WORDS.toLowerCase(), signatoryIsNotContact: d.signedBy ? signatoryDiffers(d.signatoryName, d.signedBy.contact.name) : false, ...(!d.signedBy && d.portalApplicationId ? { agreedNotSignedIn: true } : {}) }));
 }
 
 export interface CreditorRow {

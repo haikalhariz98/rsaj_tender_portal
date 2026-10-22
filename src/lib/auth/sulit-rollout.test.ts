@@ -268,6 +268,9 @@ describe("a document is attached only by someone who may already open it (OD-2, 
         // Changed for ADR 0041 (registration step 2): an applicant's one submission attaches each file it has just stored, in the same transaction, to the held certificate or the held bank
         // details it came with. The applicant's own files: no officer attaches, and nothing already in the store is named.
         "src/lib/portal/register/receive-store.ts",
+        // Changed for ADR 0041 D6 (registration step 4): the last approval of a whole online application moves the versions the applicant's submission stored onto the new supplier's
+        // documents and creditor profile, as submit-store moves a draft's. The applicant's own files: no officer attaches anything, and their bytes are judged by the records they then hang on.
+        "src/lib/suppliers/portal-application-acts.ts",
       ].sort(),
     );
   });

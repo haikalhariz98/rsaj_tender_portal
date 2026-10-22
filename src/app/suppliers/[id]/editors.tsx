@@ -1,4 +1,4 @@
-import { RecordEditor, type Field } from "@/components/record-editor";
+import { RecordEditor, type Field, type FormState } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 
@@ -12,6 +12,8 @@ import { verifyCreditorProfile } from "../creditor-actions";
  */
 
 type Option = { value: string; label: string };
+/// A server action a drawer saves through. The supplier page's drawers save to the register's own acts; the online application's page (ADR 0041) passes its own, so the two never drift.
+type SaveAction = (prev: FormState, data: FormData) => Promise<FormState>;
 const hidden = (name: string): Field => ({ kind: "hidden", name });
 const ghost = buttonClass("ghost", "sm");
 const secondary = buttonClass("secondary", "sm");
@@ -88,7 +90,7 @@ export function LodgeDocumentDrawer({ supplierId, types, values, people, renews,
   );
 }
 
-export function VerifyDocumentDrawer({ documentId, label, people, today, blocker, expiresOn, asksExpiry }: { documentId: string; label: string; people: Option[]; today: string | null; blocker: string | null; /** The expiry date the document holds now (YYYY-MM-DD), to be confirmed against the certificate. */ expiresOn?: string | null; /** Whether this kind of document has an expiry to confirm. */ asksExpiry?: boolean }) {
+export function VerifyDocumentDrawer({ documentId, label, people, today, blocker, expiresOn, asksExpiry, action = verifyDocument, slot = "SupplierDocument.verifiedBy" }: { documentId: string; label: string; people: Option[]; today: string | null; blocker: string | null; /** The expiry date the document holds now (YYYY-MM-DD), to be confirmed against the certificate. */ expiresOn?: string | null; /** Whether this kind of document has an expiry to confirm. */ asksExpiry?: boolean; /** Where the check is saved, and its person slot: a certificate held on an online application is checked through its own act. */ action?: SaveAction; slot?: string }) {
   return (
     <RecordEditor
       title={`Record the check of ${label}`}
@@ -96,13 +98,13 @@ export function VerifyDocumentDrawer({ documentId, label, people, today, blocker
       fields={[
         hidden("documentId"),
         { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "Verified" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
-        actorField("SupplierDocument.verifiedBy", { name: "personId", people }),
+        actorField(slot, { name: "personId", people }),
         { kind: "date", name: "verifiedOn", label: "Checked on", required: true, hint: "Not after today, nor before it was lodged." },
         ...(asksExpiry ? [{ kind: "date", name: "expiresOn", label: "Expiry date on the certificate", hint: "Confirm against the certificate." } satisfies Field] : []),
         { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required if not in order or expiry changed." },
       ]}
       values={{ documentId, verifiedOn: today, ...(asksExpiry ? { expiresOn: expiresOn ?? "" } : {}) }}
-      action={verifyDocument}
+      action={action}
       submitLabel="Record the check"
       submitBlock={blocker}
       trigger={{ label: "Record the check", className: secondary, ariaLabel: `Record the check of ${label}` }}
@@ -114,23 +116,24 @@ export function VerifyDocumentDrawer({ documentId, label, people, today, blocker
  * The check of a supplier's bank details (Phase 4b, FR-VND-005): ONE officer, signed with their own password, against the statement the supplier uploaded. Found not in order, it says why; a
  * later change by the supplier is a new version, checked on its own. `blocker` says why the check cannot be made, beside the button.
  */
-export function VerifyCreditorDrawer({ profileId, version, today, blocker }: { profileId: string; version: number; today: string | null; blocker: string | null }) {
+export function VerifyCreditorDrawer({ profileId, version, today, blocker, held }: { profileId: string; version: number; today: string | null; blocker: string | null; /** Bank details held on an online application (ADR 0041): checked through its own act, by the application's id, with no version yet. */ held?: { portalApplicationId: string; action: SaveAction } }) {
+  const title = held ? "Check the bank details" : `Check the bank details, version ${version}`;
   return (
     <RecordEditor
-      title={`Check the bank details, version ${version}`}
+      title={title}
       description="You sign with your password. Payments use these details once checked."
       fields={[
-        hidden("profileId"),
+        hidden(held ? "portalApplicationId" : "profileId"),
         { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "In order" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
-        actorField("CreditorProfile.verifiedBy", { name: "personId", dated: true }),
+        actorField(held ? "PortalApplicationCreditor.verifiedBy" : "CreditorProfile.verifiedBy", { name: "personId", dated: true }),
         { kind: "date", name: "verifiedOn", label: "Checked on", required: true, hint: "Not after today or before it was sent." },
         { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where not in order." },
       ]}
-      values={{ profileId, verifiedOn: today }}
-      action={verifyCreditorProfile}
+      values={held ? { portalApplicationId: held.portalApplicationId, verifiedOn: today } : { profileId, verifiedOn: today }}
+      action={held?.action ?? verifyCreditorProfile}
       submitLabel="Record the check"
       submitBlock={blocker}
-      trigger={{ label: "Check the bank details", className: primary, ariaLabel: `Check the bank details, version ${version}` }}
+      trigger={{ label: "Check the bank details", className: primary, ariaLabel: title }}
     />
   );
 }
@@ -174,14 +177,15 @@ export function PaperDaysDrawer({ applicationId, values }: { applicationId: stri
   );
 }
 
-export function SubmitApplicationDrawer({ applicationId, people, blocker, route }: { applicationId: string; people: Option[]; blocker: string | null; route: string[] }) {
+export function SubmitApplicationDrawer({ applicationId, people, blocker, route, held }: { applicationId: string; people: Option[]; blocker: string | null; route: string[]; /** A whole online application (ADR 0041 D5): sent through its own act, by its id. */ held?: { action: SaveAction } }) {
+  const idField = held ? "portalApplicationId" : "applicationId";
   return (
     <RecordEditor
       title="Send for decision"
       description={`Sent along ${route.length ? route.join(" → ") : "the matrix route"}. The sender cannot decide a step.`}
-      fields={[hidden("applicationId"), actorField("SupplierApplication.submittedBy", { name: "personId", people })]}
-      values={{ applicationId }}
-      action={submitForDecision}
+      fields={[hidden(idField), actorField(held ? "PortalApplication.sentBy" : "SupplierApplication.submittedBy", { name: "personId", people })]}
+      values={{ [idField]: applicationId }}
+      action={held?.action ?? submitForDecision}
       submitLabel="Send for decision"
       submitBlock={blocker}
       trigger={{ label: "Send for decision", className: primary }}

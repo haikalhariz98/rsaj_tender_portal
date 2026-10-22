@@ -68,9 +68,9 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
   if (kind === "CONFLICT_DECLARED") {
     const route = await db.approvalStep.findUnique({
       where: { id: stepId, instance: { organisationId: actor.organisationId } },
-      select: { instance: { select: { requisitionId: true, exerciseId: true, awardId: true, supplierApplicationId: true, standingRequestId: true, specialPermissionId: true, certificateId: true, variationId: true, contractMatterId: true } } },
+      select: { instance: { select: { requisitionId: true, exerciseId: true, awardId: true, supplierApplicationId: true, portalApplicationId: true, standingRequestId: true, specialPermissionId: true, certificateId: true, variationId: true, contractMatterId: true } } },
     });
-    const begun = await beginAct(actor, data, "ApprovalStep.declaredBy", { personField: "declaredByPersonId", document: route ? matterDocumentOf({ requisition: route.instance.requisitionId, exercise: route.instance.exerciseId, award: route.instance.awardId, supplierApplication: route.instance.supplierApplicationId, standingRequest: route.instance.standingRequestId, specialPermission: route.instance.specialPermissionId, cert: route.instance.certificateId, variation: route.instance.variationId, contractMatter: route.instance.contractMatterId }) : null });
+    const begun = await beginAct(actor, data, "ApprovalStep.declaredBy", { personField: "declaredByPersonId", document: route ? matterDocumentOf({ requisition: route.instance.requisitionId, exercise: route.instance.exerciseId, award: route.instance.awardId, supplierApplication: route.instance.supplierApplicationId, portalApplication: route.instance.portalApplicationId, standingRequest: route.instance.standingRequestId, specialPermission: route.instance.specialPermissionId, cert: route.instance.certificateId, variation: route.instance.variationId, contractMatter: route.instance.contractMatterId }) : null });
     if (!begun.ok) return begun.state;
     act = begun.act;
   }
@@ -111,7 +111,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
   const { stepId, kind, reason, act, declarerId } = i;
   const found = await db.approvalStep.findUnique({
     where: { id: stepId, instance: { organisationId: actor.organisationId } },
-    select: { instance: { select: { id: true, requisitionId: true, exerciseId: true, awardId: true, exercise: { select: { requisitionId: true } }, supplierApplicationId: true, supplierApplication: { select: { supplierId: true } }, standingRequestId: true, standingRequest: { select: { supplierId: true } }, specialPermissionId: true, specialPermission: { select: { party: { select: { vendorId: true } } } }, certificateId: true, certificate: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } }, variationId: true, variation: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } }, contractMatterId: true, contractMatter: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } } } } },
+    select: { instance: { select: { id: true, requisitionId: true, exerciseId: true, awardId: true, exercise: { select: { requisitionId: true } }, supplierApplicationId: true, supplierApplication: { select: { supplierId: true } }, portalApplicationId: true, standingRequestId: true, standingRequest: { select: { supplierId: true } }, specialPermissionId: true, specialPermission: { select: { party: { select: { vendorId: true } } } }, certificateId: true, certificate: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } }, variationId: true, variation: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } }, contractMatterId: true, contractMatter: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } } } } },
   });
   if (!found) return { ok: false, message: "That step no longer exists." };
   const route = found.instance;
@@ -138,7 +138,9 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
   // a special permission's locks its permission row (it belongs to an exercise, and touches no supplier row).
   const supplierId = route.supplierApplication?.supplierId ?? route.standingRequest?.supplierId ?? null;
   const permissionId = route.specialPermissionId;
-  if (!requisitionId && !supplierId && !permissionId) return { ok: false, message: "That step's matter cannot be found." };
+  // ADR 0041 D5: a whole online application's route locks the application, as the acts on it do; like every supplier matter it belongs to no unit.
+  const portalId = route.portalApplicationId;
+  if (!requisitionId && !supplierId && !permissionId && !portalId) return { ok: false, message: "That step's matter cannot be found." };
 
   let result: FormState & { paths?: string[]; info?: EscalateInfo };
   try {
@@ -165,6 +167,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
         if (route.standingRequestId) await tx.$queryRaw`SELECT id FROM "StandingRequest" WHERE id = ${route.standingRequestId} FOR UPDATE`;
       }
       if (permissionId) await tx.$queryRaw`SELECT id FROM "SpecialPermission" WHERE id = ${permissionId} FOR UPDATE`;
+      if (portalId) await tx.$queryRaw`SELECT id FROM "PortalApplication" WHERE id = ${portalId} FOR UPDATE`;
 
       const inst = await tx.approvalInstance.findUnique({
         where: { id: route.id, organisationId: actor.organisationId },
@@ -174,6 +177,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
           exercise: { select: { id: true, reference: true } },
           award: { select: { id: true, reference: true } },
           supplierApplication: { select: { supplier: { select: { id: true, reference: true } } } },
+          portalApplication: { select: { id: true, reference: true } },
           standingRequest: { select: { kind: true, supplier: { select: { id: true, reference: true } } } },
           specialPermission: { select: { exercise: { select: { id: true, reference: true } } } },
           certificate: { select: { id: true, kind: true, number: true, status: true, contract: { select: { id: true, number: true, status: true, award: { select: { awardeeName: true } } } } } },
@@ -211,7 +215,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
       const office = actingOffice(step);
       const on = today ? dayToDate(today) : new Date();
       const unitPath = requisitionId ? pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code) : [];
-      const holders = office && today ? (supplierId || permissionId ? supplierHolders(office, roster, delegations, today) : holdersFor(office, unitPath, roster, delegations, today)) : { scope: null, holderIds: [], delegates: [] };
+      const holders = office && today ? (supplierId || permissionId || portalId ? supplierHolders(office, roster, delegations, today) : holdersFor(office, unitPath, roster, delegations, today)) : { scope: null, holderIds: [], delegates: [] };
       const people = new Map(roster.people.map((p) => [p.id, p]));
       const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
       const declarer = declarerId ? (people.get(declarerId) ?? null) : null;
@@ -223,7 +227,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
         roles: Object.fromEntries(roles.map((x) => [x.code, { escalatesToCode: x.escalatesToCode }])),
         routeSteps: inst.steps,
         // The same reading of "able to act" as the worklist and My steps (ruling on log line 1790): a delegate counts only where this step may be delegated and the ceiling reaches the route's value.
-        holderAvailable: someoneCanAct(holders, available, step, ceilingValue(inst, supplierId != null || permissionId != null)),
+        holderAvailable: someoneCanAct(holders, available, step, ceilingValue(inst, supplierId != null || permissionId != null || portalId != null)),
         declarerEntitled: kind === "CONFLICT_DECLARED" ? (declarer ? holders.holderIds.includes(declarer.id) || holders.delegates.some((d) => d.personId === declarer.id) : null) : null,
       });
       const nameOf = (code: string | null) => (code ? (roles.find((x) => x.code === code)?.nameEn ?? "An office no longer configured") : null);
@@ -234,7 +238,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
       // The office the step would move to, and who holds it on the day: read before the move, because the automatic move is judged against it (ruling on log line 1769) and the
       // notices below are addressed to it.
       const lines = await loadReportingLines(tx, req.organisationId);
-      const toHolders = today ? (supplierId || permissionId ? supplierHolders(verdict.toRoleCode, roster, delegations, today) : holdersFor(verdict.toRoleCode, unitPath, roster, delegations, today)) : null;
+      const toHolders = today ? (supplierId || permissionId || portalId ? supplierHolders(verdict.toRoleCode, roster, delegations, today) : holdersFor(verdict.toRoleCode, unitPath, roster, delegations, today)) : null;
       // Product owner, 2026-10-08, ruling on log line 1769: the AUTOMATIC move (the sweep after an absence) happens only if a superior named by the holders' reporting lines holds,
       // on the day, the office the step would move to. Otherwise the step stays put, with that reason in words. An officer's own escalation does not wait for a line: it is an
       // explicit act, goes to the configured office and names both.
@@ -256,7 +260,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
       };
       const moved = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
       if (moved.count !== 1) return { ok: false, message: "The step changed while this was being saved. Reload and try again." };
-      const matter = inst.contractMatter?.id ? `${contractLabel({ number: inst.contractMatter.contract.number, award: { awardeeName: inst.contractMatter.contract.award.awardeeName } })} · ${MATTER_KIND_WORDS[inst.contractMatter.kind as ContractMatterKind].en} ${inst.contractMatter.reference ?? "(not yet numbered)"}` : inst.variation?.id ? `${contractLabel({ number: inst.variation.contract.number, award: { awardeeName: inst.variation.contract.award.awardeeName } })} · variation ${inst.variation.reference ?? "(not yet numbered)"}` : inst.certificate?.id ? `${contractLabel({ number: inst.certificate.contract.number, award: { awardeeName: inst.certificate.contract.award.awardeeName } })} · ${KIND_WORDS[inst.certificate.kind].en}${inst.certificate.number ? ` ${inst.certificate.number}` : ""}` : inst.award ? `${inst.award.reference} · appointment` : inst.exercise ? `${inst.exercise.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}` : inst.supplierApplication ? `${inst.supplierApplication.supplier.reference} · Registration approval route` : inst.standingRequest ? `${inst.standingRequest.supplier.reference} · ${inst.standingRequest.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"}` : inst.specialPermission ? `${inst.specialPermission.exercise.reference} · Special permission route` : `${inst.requisition?.reference ?? "Matter"}`;
+      const matter = inst.contractMatter?.id ? `${contractLabel({ number: inst.contractMatter.contract.number, award: { awardeeName: inst.contractMatter.contract.award.awardeeName } })} · ${MATTER_KIND_WORDS[inst.contractMatter.kind as ContractMatterKind].en} ${inst.contractMatter.reference ?? "(not yet numbered)"}` : inst.variation?.id ? `${contractLabel({ number: inst.variation.contract.number, award: { awardeeName: inst.variation.contract.award.awardeeName } })} · variation ${inst.variation.reference ?? "(not yet numbered)"}` : inst.certificate?.id ? `${contractLabel({ number: inst.certificate.contract.number, award: { awardeeName: inst.certificate.contract.award.awardeeName } })} · ${KIND_WORDS[inst.certificate.kind].en}${inst.certificate.number ? ` ${inst.certificate.number}` : ""}` : inst.award ? `${inst.award.reference} · appointment` : inst.exercise ? `${inst.exercise.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}` : inst.supplierApplication ? `${inst.supplierApplication.supplier.reference} · Registration approval route` : inst.portalApplication ? `${inst.portalApplication.reference} · Registration approval route` : inst.standingRequest ? `${inst.standingRequest.supplier.reference} · ${inst.standingRequest.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"}` : inst.specialPermission ? `${inst.specialPermission.exercise.reference} · Special permission route` : `${inst.requisition?.reference ?? "Matter"}`;
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: req.organisationId, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matter} · ${step.roleLabel}`, reason }, "UPDATE",
         diffFields(
           { actingOffice: step.actingRoleLabel ?? step.roleLabel },
@@ -283,7 +287,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
           ? stepMovedOnAbsenceNotices({ stepId: step.id, escalationCount: after.escalationCount, matter: ref, actLabel: ACT_LABEL[step.act]?.toLowerCase() ?? "decision", fromOffice: step.actingRoleLabel ?? step.roleLabel, toOffice: after.actingRoleLabel, absentName: (i.absentNames ?? []).join(", ") || "the holder", recipients: told, by, superiorNote: superiors.text })
           : stepEscalatedNotices({ stepId: step.id, escalationCount: after.escalationCount, matter: ref, actLabel: ACT_LABEL[step.act]?.toLowerCase() ?? "decision", fromOffice: step.actingRoleLabel ?? step.roleLabel, toOffice: after.actingRoleLabel, whyLabel: ESCALATION_KIND_LABEL[kind], reason, recipients: told, by, superiorNote: superiors.text }),
       );
-      const paths = ["/approvals", ...(requisitionId ? [`/requisitions/${requisitionId}`] : []), ...(inst.exercise ? [`/sourcing/${inst.exercise.id}`] : []), ...(inst.award ? [`/projects/${inst.award.id}`] : []), ...(supplierId ? [`/suppliers/${supplierId}`] : []), ...(route.specialPermission?.party.vendorId ? [`/suppliers/${route.specialPermission.party.vendorId}`] : []), ...(cert ? [`/projects/${cert.contractId}`, `/projects/${cert.contractId}/certificates/${cert.id}`] : []), ...(variation ? [`/projects/${variation.contractId}`, `/projects/${variation.contractId}/variations/${variation.id}`] : []), ...(contractMatter ? [`/projects/${contractMatter.contractId}`] : [])];
+      const paths = ["/approvals", ...(requisitionId ? [`/requisitions/${requisitionId}`] : []), ...(inst.exercise ? [`/sourcing/${inst.exercise.id}`] : []), ...(inst.award ? [`/projects/${inst.award.id}`] : []), ...(supplierId ? [`/suppliers/${supplierId}`] : []), ...(portalId ? [`/suppliers/online/${portalId}`] : []), ...(route.specialPermission?.party.vendorId ? [`/suppliers/${route.specialPermission.party.vendorId}`] : []), ...(cert ? [`/projects/${cert.contractId}`, `/projects/${cert.contractId}/certificates/${cert.id}`] : []), ...(variation ? [`/projects/${variation.contractId}`, `/projects/${variation.contractId}/variations/${variation.id}`] : []), ...(contractMatter ? [`/projects/${contractMatter.contractId}`] : [])];
       return { ok: true, paths, info: { matter, from: step.actingRoleLabel ?? step.roleLabel, to: after.actingRoleLabel } };
     },
     { timeout: 20_000, maxWait: 10_000 },

@@ -32,18 +32,8 @@ export default async function SupplierRegisterPage() {
 
   return (
     <SignInScreen variant="portal" page="register" branding={branding}>
-      <PageHeader
-        title={APPLY.title.en}
-        subtitle={token ? APPLY.nothingSaved.en : APPLY.subtitle(organisation.name).en}
-        info={{ title: APPLY.title.en, text: APPLY.info.en }}
-        actions={
-          token ? (
-            <ButtonLink href={PORTAL_PATH.home} variant="ghost" size="sm">
-              {APPLY.backToHome.en}
-            </ButtonLink>
-          ) : undefined
-        }
-      />
+      {/* While the form is open its header is the wizard's: once the application is sent, "Nothing is saved until you submit." and the header's way back go. */}
+      {!token && <PageHeader title={APPLY.title.en} subtitle={APPLY.subtitle(organisation.name).en} info={{ title: APPLY.title.en, text: APPLY.info.en }} />}
 
       {!form.ready ? (
         <Card>
@@ -63,7 +53,23 @@ export default async function SupplierRegisterPage() {
           />
         </Card>
       ) : (
-        <RegistrationWizard config={form} token={token} />
+        <RegistrationWizard
+          config={form}
+          token={token}
+          header={
+            <PageHeader
+              title={APPLY.title.en}
+              subtitle={APPLY.nothingSaved.en}
+              info={{ title: APPLY.title.en, text: APPLY.info.en }}
+              actions={
+                <ButtonLink href={PORTAL_PATH.home} variant="ghost" size="sm">
+                  {APPLY.backToHome.en}
+                </ButtonLink>
+              }
+            />
+          }
+          sentHeader={<PageHeader title={APPLY.title.en} info={{ title: APPLY.title.en, text: APPLY.info.en }} />}
+        />
       )}
     </SignInScreen>
   );

@@ -10,6 +10,8 @@ export interface RoutePointers {
   exercise: string | null;
   award: string | null;
   supplierApplication: string | null;
+  /// ADR 0041 D5: a whole online application, decided on its own route.
+  portalApplication?: string | null;
   standingRequest: string | null;
   specialPermission: string | null;
   /// Named `cert` because a property called `certificate` reads, to the certificate writers' source scan, as the model.
@@ -29,6 +31,7 @@ export function matterDocumentOf(r: RoutePointers): MatterDocument | null {
     ["SpecialPermission", r.specialPermission],
     ["StandingRequest", r.standingRequest],
     ["SupplierApplication", r.supplierApplication],
+    ["PortalApplication", r.portalApplication ?? null],
     ["Award", r.award],
     ["SourcingExercise", r.exercise],
     ["Requisition", r.requisition],

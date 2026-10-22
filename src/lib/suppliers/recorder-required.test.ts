@@ -85,7 +85,17 @@ describe("every application names its recorder (ruling 5b)", () => {
     const creates = files.flatMap(({ file, src }) => calls(src, "supplierApplication", CREATES).map((c) => ({ file, ...c, value: recorderValue(c.arg), bySupplier: /\bsubmittedBySupplierAccountId:/.test(c.arg) })));
     // The officer's paper application and a further application (actions.ts), the demo's two (demo-suppliers.ts), and the supplier's own send.
     expect(creates.length).toBeGreaterThanOrEqual(5);
-    expect(creates.filter((c) => !c.bySupplier && !namesAPerson(c.value)).map((c) => `${c.file} · ${c.method} · ${c.value ?? "no recorder"}`)).toEqual([]);
+    // ADR 0041 D6 (registration step 4): the application created at the last approval of a whole online application. Nobody recorded it: an applicant who was not signed in sent it, its
+    // officer is the route's requester (`submittedByPersonId`) and its decider is on its decision. Written in one place, on the portal channel, approved, naming the online application.
+    const fromPortal = (c: { arg: string }) => /\bportalApplicationId:/.test(c.arg);
+    expect(creates.filter((c) => !c.bySupplier && !fromPortal(c) && !namesAPerson(c.value)).map((c) => `${c.file} · ${c.method} · ${c.value ?? "no recorder"}`)).toEqual([]);
+    const approved = creates.filter(fromPortal);
+    expect(approved.map((c) => c.file)).toEqual(["src/lib/suppliers/portal-application-acts.ts"]);
+    for (const c of approved) {
+      expect(c.value, c.file).toBe("null");
+      expect(c.arg, c.file).toMatch(/channel:\s*"PORTAL"/);
+      expect(c.arg, c.file).toMatch(/status:\s*"APPROVED"/);
+    }
     const sent = creates.filter((c) => c.bySupplier);
     expect(sent.map((c) => c.file).sort()).toEqual([...SENT_BY_SUPPLIER].sort());
     // And that one writes no officer, on the portal channel, with the time it was sent.

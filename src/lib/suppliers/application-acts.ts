@@ -21,6 +21,7 @@ import { blocking } from "./types";
 import { activePerson, audit, CHANGED, GONE, label, Refusal, type LockedSupplier } from "./write";
 import type { AuditActor } from "@/lib/auth/types";
 import { inOrder } from "@/lib/series";
+import { CREDITOR_FIELDS } from "@/lib/portal/registration/types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
@@ -64,14 +65,19 @@ export const appInclude = { supplier: { select: { reference: true } }, routes: {
 export async function setAsideOnlineApplication(tx: Tx, actor: AuditActor, organisationId: string, i: { id: string; reason: string; personId: string | null; now: Date; /// How the officer set it aside, attributed in this transaction (Phase 2b). A loader that calls the core directly has none.
   act?: ActWriter }): Promise<FormState> {
   await tx.$queryRaw`SELECT id FROM "PortalApplication" WHERE id = ${i.id} AND "organisationId" = ${organisationId} FOR UPDATE`;
-  const pa = await tx.portalApplication.findFirst({ where: { id: i.id, organisationId } });
+  const pa = await tx.portalApplication.findFirst({ where: { id: i.id, organisationId }, include: { routes: { select: { status: true } } } });
   if (!pa) return { ok: false, message: "That online application no longer exists." };
   if (pa.status !== "RECEIVED") return { ok: false, message: "That online application is not waiting any more: it was recorded or set aside already. Nothing was changed." };
+  // ADR 0041: a whole application on its route is decided there first (the status stays RECEIVED while it waits).
+  if (pa.routes.some((r) => r.status === "PENDING")) return { ok: false, message: "Nothing was changed: A route is waiting. Decide it first." };
   const person = await activePerson(tx, organisationId, i.personId);
   if (!person) return { ok: false, errors: { recordedByPersonId: supplierFaultText({ code: "RECORDER_REQUIRED", level: "block" }) } };
   await tx.portalApplication.update({ where: { id: pa.id }, data: { status: "DISCARDED", decidedAt: i.now, decidedByPersonId: person.id, discardReason: i.reason, erasedAt: i.now, ...ERASED } });
+  // A whole application's bank details are erased with the words (every field at once, as trigger PA037 allows); its files (ADR 0011) and its agreements (append-only) are kept.
+  const whole = pa.form === "WHOLE";
+  if (whole) await tx.portalApplicationCreditor.updateMany({ where: { portalApplicationId: pa.id, erasedAt: null }, data: { ...Object.fromEntries(CREDITOR_FIELDS.map((k) => [k, ""])), erasedAt: i.now } });
   await audit(tx, actor, organisationId, SUPPLIER_ENTITY.onlineApplication, pa.id, label({ reference: pa.reference }, "Online application"), "UPDATE",
-    diffFields({ status: "Received", personalDetails: "Held on the application" }, { status: "Set aside", decidedBy: person.name, personalDetails: "Erased" }), i.reason);
+    diffFields({ status: "Received", personalDetails: "Held on the application", ...(whole ? { bankDetails: "Held on the application" } : {}) }, { status: "Set aside", decidedBy: person.name, personalDetails: "Erased", ...(whole ? { bankDetails: "Erased", filesAndAgreements: "Files and agreements kept" } : {}) }), i.reason);
   await i.act?.write(tx, pa.id);
   return { ok: true };
 }

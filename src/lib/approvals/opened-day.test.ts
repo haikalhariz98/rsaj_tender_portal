@@ -30,6 +30,8 @@ const WRITERS: readonly { file: string; openedAt: RegExp }[] = [
   { file: "src/app/suppliers/actions.ts", openedAt: /openedAt: dayToDate\(today\),/ },
   // 6.15a (faithful update, flagged: the scan's own list of writers): a blacklisting's and a special permission's route.
   { file: "src/app/suppliers/routes.ts", openedAt: /openedAt: dayToDate\(today\),/ },
+  // ADR 0041 D5 (registration step 4, the scan's own list of writers): a whole online application's registration route.
+  { file: "src/lib/suppliers/portal-application-acts.ts", openedAt: /openedAt: dayToDate\(today\),/ },
   // 6.13 Part A step 3 (faithful update, flagged: the scan's own list of writers): a certificate's route (614-C4).
   { file: "src/lib/certificate/route-write.ts", openedAt: /openedAt: on,/ },
   // 6.13 Part A step 4 (faithful update, flagged: the scan's own list of writers): a variation's route (614-C4).

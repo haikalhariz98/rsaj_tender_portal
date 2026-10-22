@@ -93,6 +93,8 @@ const supplierInclude = {
     include: {
       recordedBy: { select: { id: true, name: true } },
       submittedBy: { select: { id: true, name: true } },
+      // ADR 0041 D6: the whole online application it was approved from, whose route, agreements and first files stay on it.
+      portalApplication: { select: { id: true, reference: true, receivedAt: true } },
       decisions: { orderBy: { decidedAt: "desc" as const }, include: { decidedBy: { select: { id: true, name: true } }, items: true } },
       routes: {
         orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }],

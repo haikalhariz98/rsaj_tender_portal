@@ -34,6 +34,8 @@ export interface RoutedInstance {
   certificateId: string | null;
   /// The supplier's registration application the route decides, where it decides one (Phase 4b: a creditor profile is named by it).
   supplierApplicationId: string | null;
+  /// The whole online application the route decides, where it decides one (ADR 0041 D5: its bank details are named by it).
+  portalApplicationId: string | null;
   people: RoutePeople;
 }
 
@@ -53,6 +55,7 @@ export async function routePeopleOf(client: Tx, organisationId: string, where: P
       contractMatterId: true,
       certificateId: true,
       supplierApplicationId: true,
+      portalApplicationId: true,
       standingRequestId: true,
       specialPermissionId: true,
       specialPermission: { select: { exerciseId: true } },
@@ -94,7 +97,7 @@ export async function routePeopleOf(client: Tx, organisationId: string, where: P
   }
 
   return instances.map((i) => {
-    const supplier = !!(i.supplierApplicationId || i.standingRequestId || i.specialPermissionId);
+    const supplier = !!(i.supplierApplicationId || i.portalApplicationId || i.standingRequestId || i.specialPermissionId);
     const req = i.requisition ?? i.exercise?.requisition ?? i.certificate?.contract.award.exercise.requisition ?? i.variation?.contract.award.exercise.requisition ?? i.contractMatter?.contract.award.exercise.requisition ?? null;
     const unit = req ? req.sectionUnitCode || req.requestingUnitCode : null;
     const people = routePeople(
@@ -102,7 +105,7 @@ export async function routePeopleOf(client: Tx, organisationId: string, where: P
       (office) => (holdersAt ? holdersAt(office, unit, supplier) : null),
       isActive,
     );
-    return { instanceId: i.id, exerciseId: i.exerciseId ?? i.specialPermission?.exerciseId ?? null, requisitionId: i.requisitionId, variationId: i.variationId, matterId: i.contractMatterId, certificateId: i.certificateId, supplierApplicationId: i.supplierApplicationId, people };
+    return { instanceId: i.id, exerciseId: i.exerciseId ?? i.specialPermission?.exerciseId ?? null, requisitionId: i.requisitionId, variationId: i.variationId, matterId: i.contractMatterId, certificateId: i.certificateId, supplierApplicationId: i.supplierApplicationId, portalApplicationId: i.portalApplicationId, people };
   });
 }
 

@@ -273,11 +273,11 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // Phase 4b (FR-VND-005, CPD 2026-10-07): ONE officer checks a supplier's bank details, signing with their password, with their name and the day. Not paper-capable: the check is of the
   // statement the officer has open, and a changed profile is checked again by one officer (no second-officer step).
   slot("CreditorProfile", "verifiedBy", "Verified by", { signatureClass: true, holder: "SIGNATURE", entryPoints: ["src/app/suppliers/creditor-actions.ts#verifyCreditorProfile"] }),
-  // ADR 0041 (plan 6.1), registered with the schema in step 1: the officer who sends an online application for decision (the route's requester), and the officers who verify what it
-  // holds. Their acts arrive in step 4, which makes the bank-details check a signature, as `CreditorProfile.verifiedBy` is.
+  // ADR 0041 (plan 6.1): the officer who sends a whole online application for decision (the route's requester), and the officers who verify what it holds. Built in step 4: the
+  // bank-details check is a signature, as `CreditorProfile.verifiedBy` is (one officer, their own password, not from paper).
   slot("PortalApplication", "sentBy", "Sent by"),
   slot("PortalApplicationDocument", "verifiedBy", "Verified by"),
-  slot("PortalApplicationCreditor", "verifiedBy", "Verified by"),
+  slot("PortalApplicationCreditor", "verifiedBy", "Verified by", { signatureClass: true, holder: "SIGNATURE", entryPoints: ["src/app/suppliers/portal-actions.ts#verifyPortalCreditorAction"] }),
   slot("StandingRequest", "requestedBy", "Requested by"),
   slot("StandingRequest", "withdrawnBy", "Withdrawn by"),
   slot("StandingEvent", "recordedBy", "Recorded by"),

@@ -28,6 +28,7 @@ import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
 import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { appInclude, recordOutcome, rejectApplicant, setAsideOnlineApplication } from "@/lib/suppliers/application-acts";
+import { decidePortalRegistrationStep } from "@/lib/suppliers/portal-application-acts";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { expiryCorrected, lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
 import { applicationFaults, contactFaults, normaliseRegistrationNo, receiptFaults } from "@/lib/suppliers/identity";
@@ -214,6 +215,8 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
         await tx.$queryRaw`SELECT id FROM "PortalApplication" WHERE id = ${portalApplicationId} AND "organisationId" = ${org.id} FOR UPDATE`;
         portal = await tx.portalApplication.findFirst({ where: { id: portalApplicationId, organisationId: org.id } });
         if (!portal || portal.status !== "RECEIVED") return { ok: false, message: "That online application is not waiting any more: it was recorded or set aside already. Nothing was saved." };
+        // ADR 0041: a whole application is decided on its own page, on its route; no supplier is recorded from it here. The step-one form's keep this path (REG-5).
+        if (portal.form === "WHOLE") return { ok: false, message: "Nothing was saved: that online application is decided on its own page." };
         v.receivedOn = storedDay(portal.receivedOn);
         v.channel = "PORTAL";
       }
@@ -754,7 +757,33 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
   const act = begun.act;
   const personId = act.subjectPersonId;
   const on = dayToDate(act.day!);
-  const found = await db.approvalStep.findUnique({ where: { id: stepId, instance: { organisationId: actor.organisationId } }, select: { instance: { select: { supplierApplicationId: true } } } });
+  const found = await db.approvalStep.findUnique({ where: { id: stepId, instance: { organisationId: actor.organisationId } }, select: { instance: { select: { supplierApplicationId: true, portalApplicationId: true } } } });
+  // ADR 0041 D5, D6: a step on a whole online application's route is decided by its own core, which creates the supplier at the last approval.
+  const portalId = found?.instance.portalApplicationId ?? null;
+  if (portalId) {
+    let res: FormState;
+    try {
+      res = await db.$transaction(
+        async (tx) => {
+          const org = await supplierOrg(actor.organisationId, tx);
+          if (!org) return NO_ORG;
+          return decidePortalRegistrationStep({ tx, actor: toAuditActor(actor), org, now, act }, { stepId, decision, reason, personId, decidedOn: on, onBehalf: act.intent.mode === "RECORDED_ON_BEHALF" });
+        },
+        { timeout: 30_000, maxWait: 10_000 },
+      );
+    } catch (e) {
+      if (e instanceof Refusal) return e.state;
+      const attribution = attributionRefusalState(e);
+      if (attribution) return attribution;
+      throw e;
+    }
+    if (res.ok) {
+      revalidatePath(`/suppliers/online/${portalId}`);
+      revalidatePath("/suppliers");
+      revalidatePath("/approvals");
+    }
+    return res;
+  }
   const applicationId = found?.instance.supplierApplicationId ?? null;
   if (!applicationId) return { ok: false, message: "That step is not on a supplier's registration route." };
   const supplierId = await supplierOfApplication(applicationId);

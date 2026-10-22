@@ -58,6 +58,7 @@ describe("the worklist and the sweep ask it with the step and the route's value"
     expect(load).toMatch(/someoneCanAct\(h, available, stepOfRoute\.get\(routeId\) \?\? \{\}, valueOfRoute\.get\(routeId\)\)/);
     expect(load).toMatch(/ceilingValue\(r, supplierMatter\(r\)\)/);
     const acts = read("src/app/approvals/actions.ts");
-    expect(acts).toMatch(/someoneCanAct\(holders, available, step, ceilingValue\(inst, supplierId != null \|\| permissionId != null\)\)/);
+    // ADR 0041 D5 (registration step 4): a whole online application's route is a supplier matter too, routed on no value.
+    expect(acts).toMatch(/someoneCanAct\(holders, available, step, ceilingValue\(inst, supplierId != null \|\| permissionId != null \|\| portalId != null\)\)/);
   });
 });

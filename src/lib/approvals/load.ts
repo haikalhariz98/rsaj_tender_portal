@@ -42,6 +42,8 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
         award: { select: { id: true, reference: true, awardeeName: true } },
         // 6.15 (OD-2 A): a supplier's registration, decided on its own route.
         supplierApplication: { select: { kind: true, submittedByPersonId: true, supplier: { select: { id: true, reference: true, registeredName: true } } } },
+        // ADR 0041 D5: a whole online application, decided on its own route; the officer who sent it is the requester.
+        portalApplication: { select: { id: true, reference: true, registeredName: true, sentByPersonId: true } },
         // 6.15a (OD-8 A, FR-ADV-017): a blacklisting or its lifting, and a special permission.
         standingRequest: { select: { kind: true, requestedByPersonId: true, supplier: { select: { id: true, reference: true, registeredName: true } } } },
         specialPermission: { select: { requestedByPersonId: true, exercise: { select: { id: true, reference: true } }, party: { select: { name: true, vendorId: true } } } },
@@ -64,9 +66,9 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
   const barredOf = new Map<string, string[]>();
   const relationOf = new Map<string, Record<string, BarredRelation>>();
   const valueOf = new Map<string, bigint>();
-  const supplierMatter = (r: { supplierApplication: unknown; standingRequest: unknown; specialPermission: unknown }) => !!(r.supplierApplication || r.standingRequest || r.specialPermission);
+  const supplierMatter = (r: { supplierApplication: unknown; portalApplication: unknown; standingRequest: unknown; specialPermission: unknown }) => !!(r.supplierApplication || r.portalApplication || r.standingRequest || r.specialPermission);
   const requisitionOf = (r: (typeof routes)[number]) => r.requisition ?? r.exercise?.requisition ?? r.certificate?.contract.award.exercise.requisition ?? r.variation?.contract.award.exercise.requisition ?? null;
-  const kindOf = (r: (typeof routes)[number]): RequesterRouteKind | null => r.variation?.id ? "VARIATION" : r.certificate?.id ? "CERTIFICATE" : r.award && r.exercise ? "APPOINTMENT" : r.exercise ? "NAME_APPROVAL" : r.requisition ? "REQUISITION" : r.supplierApplication ? "SUPPLIER_APPLICATION" : r.standingRequest ? "STANDING_REQUEST" : r.specialPermission ? "SPECIAL_PERMISSION" : null;
+  const kindOf = (r: (typeof routes)[number]): RequesterRouteKind | null => r.variation?.id ? "VARIATION" : r.certificate?.id ? "CERTIFICATE" : r.award && r.exercise ? "APPOINTMENT" : r.exercise ? "NAME_APPROVAL" : r.requisition ? "REQUISITION" : r.supplierApplication || r.portalApplication ? "SUPPLIER_APPLICATION" : r.standingRequest ? "STANDING_REQUEST" : r.specialPermission ? "SPECIAL_PERMISSION" : null;
   // The officers who keyed a requisition for someone else (ruling of 2026-10-08 on log line 1792), in ONE query over the routes listed: the decision rule bars them as it bars the
   // person they keyed it for (`earlierRecordersOf`, `requesterRecorderIds`), and the sites that read it for a requisition's, a name's and an appointment's route pass the
   // requisition. A certificate's, a variation's and a contract matter's route read none, so none is looked for there.
@@ -82,7 +84,7 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
     // sender of the route; the others one person), never a union of the rules of every kind; and the officers who keyed the requisition for someone else.
     const kind = kindOf(r);
     const barred = kind
-      ? routeBarred(kind, { requisitionRaiserId: req?.requestingPersonId, routeSenderId: r.submittedByPersonId, applicationSenderId: r.supplierApplication?.submittedByPersonId, requestRaiserId: r.standingRequest?.requestedByPersonId ?? r.specialPermission?.requestedByPersonId })
+      ? routeBarred(kind, { requisitionRaiserId: req?.requestingPersonId, routeSenderId: r.submittedByPersonId, applicationSenderId: r.supplierApplication?.submittedByPersonId ?? r.portalApplication?.sentByPersonId, requestRaiserId: r.standingRequest?.requestedByPersonId ?? r.specialPermission?.requestedByPersonId })
       : [];
     const keyedFor = keyedRequisitionId(r);
     const keyed = keyedFor ? recordersOf(recorders, "Requisition", "requestingPerson", [keyedFor]).filter((id) => !barred.some((b) => b.personId === id)) : [];
@@ -106,6 +108,8 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
             ? { label: `${r.requisition.reference} · ${r.requisition.title}`, kind: "Requisition", href: `/requisitions/${r.requisition.id}?tab=approval` }
             : r.supplierApplication
               ? { label: `${r.supplierApplication.supplier.reference} · ${r.supplierApplication.supplier.registeredName}`, kind: APPLICATION_KIND_LABEL[r.supplierApplication.kind].en, href: `/suppliers/${r.supplierApplication.supplier.id}?tab=applications` }
+              : r.portalApplication
+              ? { label: `${r.portalApplication.reference} · ${r.portalApplication.registeredName}`, kind: APPLICATION_KIND_LABEL.NEW.en, href: `/suppliers/online/${r.portalApplication.id}?tab=decision` }
               : r.standingRequest
                 ? { label: `${r.standingRequest.supplier.reference} · ${r.standingRequest.supplier.registeredName}`, kind: REQUEST_KIND_LABEL[r.standingRequest.kind].en, href: `/suppliers/${r.standingRequest.supplier.id}?tab=standing` }
                 : r.specialPermission
@@ -115,7 +119,7 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
     items.push({ routeId: r.id, matterLabel: matter.label, matterKindLabel: matter.kind, href: matter.href, openedAt: r.openedAt, steps: r.steps, value: valueOf.get(r.id) ?? null, barredIds: barredOf.get(r.id) ?? [], barredRelations: relationOf.get(r.id) ?? {} });
   }
   // 6.15: a supplier matter has no unit; its offices are held organisation-wide (supplierHolders).
-  const supplierRoutes = new Set(routes.filter((r) => r.supplierApplication || r.standingRequest || r.specialPermission).map((r) => r.id));
+  const supplierRoutes = new Set(routes.filter((r) => r.supplierApplication || r.portalApplication || r.standingRequest || r.specialPermission).map((r) => r.id));
   const stepOfRoute = new Map(items.map((i) => [i.routeId, nextStep(i.steps)]));
   const valueOfRoute = new Map(items.map((i) => [i.routeId, i.value]));
   // Who holds the acting office for the route's matter today: the one reading both questions below ask, so "nobody able to act" and "whose step is it" cannot disagree.

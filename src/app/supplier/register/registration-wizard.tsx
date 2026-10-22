@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 
 import { RegistrationSummaryCards } from "@/components/registration-summary";
 import { CheckIcon } from "@/components/icons";
@@ -89,9 +89,14 @@ export function RegistrationWizard({
   config,
   token: initialToken,
   initialState,
+  header = null,
+  sentHeader = null,
 }: {
   config: PublicRegistrationConfig;
   token: string;
+  /// The page's header while the form is open ("Nothing is saved until you submit.", and the way back), and once the application is sent (neither: the card says what next).
+  header?: ReactNode;
+  sentHeader?: ReactNode;
   /// Where the page starts. Absent (always, on the page): empty, at step 1. A test starts a later step with something held.
   initialState?: State;
 }) {
@@ -264,7 +269,9 @@ export function RegistrationWizard({
   // ---- after Submit -------------------------------------------------------------
   if (done) {
     return (
-      <Card>
+      <>
+        {sentHeader}
+        <Card>
         <CardHeader
           icon={<CheckIcon size={17} />}
           title={
@@ -293,6 +300,7 @@ export function RegistrationWizard({
           </div>
         </CardBody>
       </Card>
+      </>
     );
   }
 
@@ -315,6 +323,8 @@ export function RegistrationWizard({
   const body = heldBody(state, config);
 
   return (
+    <>
+    {header}
     <div className="flex flex-col gap-6">
       <Stepper label={APPLY.stepsLabel.en} steps={steps} selected={step} />
       {/* The bait field: off the screen, out of the tab order and out of the accessibility tree, so only a script fills it. */}
@@ -433,6 +443,7 @@ export function RegistrationWizard({
         />
       )}
     </div>
+    </>
   );
 }
 

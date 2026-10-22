@@ -254,13 +254,15 @@ function accounts(src: SupplierExportSource): ExportRow[] {
 function declarations(src: SupplierExportSource): ExportRow[] {
   return src.declarations.map((raw) => {
     const d = pick("RegistrationDeclaration", raw);
+    // ADR 0041 D3, D4: made on the public form, with the application and no account: an agreement by someone not signed in, never called signed. The key is read, never written.
+    const agreed = typeof raw.portalApplicationId === "string" && raw.signedBySupplierAccountId == null;
     return row("declaration", enumWords(DECLARATION_KIND_EXPORT_WORDS, d.kind), {
       rows: details([
         row("textVersion", count(d.textVersion)),
-        row("signatoryName", text(d.signatoryName)),
-        row("signatoryDesignation", text(d.signatoryDesignation)),
-        row("signedOn", day(d.signedOn)),
-        row("signedAt", instant(d.signedAt)),
+        row(agreed ? "agreedBy" : "signatoryName", text(d.signatoryName)),
+        row(agreed ? "agreedDesignation" : "signatoryDesignation", text(d.signatoryDesignation)),
+        row(agreed ? "agreedOn" : "signedOn", day(d.signedOn)),
+        row(agreed ? "agreedAt" : "signedAt", instant(d.signedAt)),
         row("textEn", text(d.frozenTextEn)),
         row("textMs", text(d.frozenTextMs)),
         // ADR 0041 D4: on the terms row, the Personal Data Notice agreed by the same tick. Blank, and left out, on every other row.

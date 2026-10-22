@@ -95,7 +95,7 @@ describe("every Person relation is an act slot or is accounted for", () => {
     // FR-APR-009 and FR-EST-005 (Phase 3d, "conflict declarations are signed" and "panel verifications are signed"): the declaration and the verification are the signer's own sign-in,
     // never recorded for them from paper (the signed paper form of the panel stays attached and required; an open item for the product owner).
     // Phase 4b (CPD, 2026-10-07): the check of a supplier's bank details joins them. It is the officer's own sign-in, with the statement open in front of them, and is not recorded for them from paper.
-    const NOT_FROM_PAPER = ["ApprovalStep.declaredBy", "AuthorityMatrix.issuedByPerson", "BackdateConfirmation.confirmedBy", "ConfigurationChange.decidedBy", "EvaluationModel.issuedBy", "CreditorProfile.verifiedBy", "OpeningAuthorisation.person", "SpecPanelVerification.person", "OfficerExerciseKey.person", "PublishedKeyChange.by", "ShareRelease.releasedBy"];
+    const NOT_FROM_PAPER = ["ApprovalStep.declaredBy", "AuthorityMatrix.issuedByPerson", "BackdateConfirmation.confirmedBy", "ConfigurationChange.decidedBy", "EvaluationModel.issuedBy", "CreditorProfile.verifiedBy", "PortalApplicationCreditor.verifiedBy", "OpeningAuthorisation.person", "SpecPanelVerification.person", "OfficerExerciseKey.person", "PublishedKeyChange.by", "ShareRelease.releasedBy"];
     for (const s of SIGNATURE_SLOTS) {
       const key = slotKey(s.entity, s.field);
       expect(s.onBehalf, key).toBe(!NOT_FROM_PAPER.includes(key));
@@ -173,6 +173,8 @@ describe("the signature-class acts", () => {
         "OfficerExerciseKey.person",
         "OpeningAuthorisation.person",
         "OpeningSignature.person",
+        // ADR 0041 (registration step 4): the check of the bank details held on a whole online application, signed as a creditor profile's is.
+        "PortalApplicationCreditor.verifiedBy",
         "PublishedKeyChange.by",
         "ReconciliationAmendment.officer",
         // Wave 3b step 17 (ADR 0036 D11, ruling 11): the departing officer's release of their share at a substitution.

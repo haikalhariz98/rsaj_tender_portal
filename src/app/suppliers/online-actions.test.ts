@@ -81,7 +81,8 @@ vi.mock("@/lib/db", () => ({
           },
         },
         portalApplication: {
-          findFirst: async () => h.portal,
+          // Set aside now reads the application's routes too (ADR 0041: refused while one waits); a step-one application has none.
+          findFirst: async () => (h.portal ? { routes: [], ...h.portal } : h.portal),
           update: async ({ where, data }: { where: Row; data: Row }) => {
             h.updates.push({ model: "portalApplication", where, data });
             return { ...h.portal, ...data };

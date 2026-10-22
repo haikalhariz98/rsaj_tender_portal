@@ -15,7 +15,7 @@ import type { LoadedSupplier } from "@/lib/suppliers/repo";
  * wording's version, the signatory, the server's time), and the bank details. The SULIT parts are the reader's to see or not: the contacts by the supplier gate, the bank details by the
  * creditor profile's own. Read only while the Applications tab is open: the readings it logs are the tab's.
  */
-export async function ApplicationSummary({ actor, l, applicationId, contactsGate }: { actor: StaffActor; l: LoadedSupplier; applicationId: string; contactsGate: Sulit<true> }) {
+export async function ApplicationSummary({ actor, l, applicationId, contactsGate, agreedOnline = false }: { actor: StaffActor; l: LoadedSupplier; applicationId: string; contactsGate: Sulit<true>; /** Approved from a whole online application (ADR 0041): its agreements were ticked, not signed. */ agreedOnline?: boolean }) {
   const s = l.supplier;
   const scope = { organisationId: l.org.id, supplierId: s.id };
   const [company, documents, declarations, rows] = await Promise.all([
@@ -40,6 +40,7 @@ export async function ApplicationSummary({ actor, l, applicationId, contactsGate
     documents,
     creditor,
     declarations,
+    ...(agreedOnline ? { agreedOnline: true } : {}),
   };
   return <RegistrationSummaryCards sections={registrationSummary(record, { day: formatDate })} />;
 }

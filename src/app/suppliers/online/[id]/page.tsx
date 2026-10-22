@@ -16,10 +16,11 @@ import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { blocksRecording, flagWords } from "@/lib/portal/queue";
-import { loadPortalApplication } from "@/lib/portal/queue-repo";
+import { loadPortalApplication, loadWholeApplication } from "@/lib/portal/queue-repo";
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 
 import { DiscardOnlineApplicationDrawer } from "./discard-drawer";
+import { WholeApplicationPage } from "./whole-application";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,14 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
   }
   const { application: a, erased, flags } = loaded;
   const [cfg, people] = await Promise.all([loadSupplierConfig(org.id), db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })]);
+  // ADR 0041: a whole application (every step, with files, bank details and agreements) is decided on its own route, on its own page. One sent on the step-one form keeps this one.
+  if (a.form === "WHOLE") {
+    const whole = await loadWholeApplication(org.id, a.id);
+    if (whole) {
+      const { tab } = await props.searchParams;
+      return <WholeApplicationPage actor={actor} org={org} a={whole} flags={flags} cfg={cfg} people={people.map((p) => ({ value: p.id, label: p.name }))} tab={typeof tab === "string" ? tab : undefined} />;
+    }
+  }
   // The applicant's contact is SULIT as a supplier's is (6.15 condition 2): a supplier keeps no list of who is named, so only the organisation-wide permission opens it. Judged once, logged.
   const contact = await sulitGate(actor, { scope: "supplier", entity: "PortalApplication", id: a.id, label: a.reference }, CONTACT_FIELDS);
   const status = STATUS[a.status];

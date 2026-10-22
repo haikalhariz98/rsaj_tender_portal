@@ -52,6 +52,17 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
       </>
     );
   }
+  // ADR 0041: a whole application is decided on its own page, on its route; no supplier is recorded from it here.
+  if (online?.application.form === "WHOLE") {
+    return (
+      <>
+        {header}
+        <Card>
+          <EmptyState title="Decided on its own page" action={<Link href={`/suppliers/online/${online.application.id}`}>Open {online.application.reference}</Link>} />
+        </Card>
+      </>
+    );
+  }
   const a = online?.application;
   // Opening the contact's portal account while recording (Phase 4a): offered only to an officer who holds the permission, and only while the code's validity is set.
   const policy = await loadSecurityPolicy(db, org.id);

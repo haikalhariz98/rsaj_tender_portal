@@ -7,6 +7,8 @@ import type { Sulit } from "@/lib/auth/sulit-access";
 import { hiddenExercises, sulitGate } from "@/app/_auth/sulit";
 import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
+
+import { APPLICANT_WORDS } from "@/lib/audit/actor";
 import { historyEntityLabel, historyValueWords } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
@@ -398,7 +400,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
                                 { label: "Valid", value: d.notApplicable ? "—" : `${d.validFrom ? `from ${formatDate(d.validFrom)}` : "from issue"}${d.expiresOn ? ` to ${formatDate(d.expiresOn)}` : typeRow.expires === false ? ", no expiry" : ""}` },
                                 { label: "Codes", value: row.values.length ? row.values.map((v) => `${v.codeSnapshot} — ${v.labelSnapshot}`).join("; ") : "—" },
                                 ...(row.ratePercent != null ? [{ label: "Rate", value: `${row.ratePercent.toString()}%` }] : []),
-                                { label: "Lodged", value: <>{formatDate(d.lodgedOn)} · {row.recordedBy ? <ActedBy entity="SupplierDocument" id={row.id} slot="recordedBy" name={row.recordedBy.name} /> : "the supplier's own portal account"}</> },
+                                { label: "Lodged", value: <>{formatDate(d.lodgedOn)} · {row.recordedBy ? <ActedBy entity="SupplierDocument" id={row.id} slot="recordedBy" name={row.recordedBy.name} /> : row.recordedByPortalApplicationId ? APPLICANT_WORDS.toLowerCase() : "the supplier's own portal account"}</> },
                                 { label: "Checked", value: d.verification === "NOT_CHECKED" ? "Not yet" : <>{formatDate(d.verifiedOn)} · {row.verifiedBy ? <ActedBy entity="SupplierDocument" id={row.id} slot="verifiedBy" name={row.verifiedBy.name} /> : "Not recorded"}{row.verificationNote ? ` · “${row.verificationNote}”` : ""}</> },
                               ]}
                             />
@@ -479,15 +481,16 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
             <CardHeader
               icon={<ClipboardIcon size={17} />}
               title={`${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en}, received ${formatDate(day(a.receivedOn))}`}
-              subtitle={a.recordedBy ? <>{CHANNEL_LABEL[a.channel].en} · <ActedBy entity="SupplierApplication" id={a.id} slot="recordedBy" name={a.recordedBy.name} />, {formatOrgDateTime(a.recordedAt, l.org.timeZone)}</> : `${CHANNEL_LABEL[a.channel].en} · earlier online form, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}`}
-              actions={<span className="inline-flex items-center gap-1">{!a.recordedBy && <Badge tone="warn" outline>No recorder on file</Badge>}{!a.recordedBy && !a.declarationSignedOn && <MoreText label="Declaration" text="The signed declaration is still to come on paper." />}<Badge tone={QUEUE_STATE_TONE[st]} dot>{QUEUE_STATE_LABEL[st].en}</Badge></span>}
+              subtitle={a.portalApplication ? <>{CHANNEL_LABEL[a.channel].en} · <Link href={`/suppliers/online/${a.portalApplication.id}`}>{a.portalApplication.reference}</Link></> : a.recordedBy ? <>{CHANNEL_LABEL[a.channel].en} · <ActedBy entity="SupplierApplication" id={a.id} slot="recordedBy" name={a.recordedBy.name} />, {formatOrgDateTime(a.recordedAt, l.org.timeZone)}</> : `${CHANNEL_LABEL[a.channel].en} · earlier online form, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}`}
+              actions={<span className="inline-flex items-center gap-1">{!a.recordedBy && !a.portalApplication && <Badge tone="warn" outline>No recorder on file</Badge>}{!a.recordedBy && !a.portalApplication && !a.declarationSignedOn && <MoreText label="Declaration" text="The signed declaration is still to come on paper." />}<Badge tone={QUEUE_STATE_TONE[st]} dot>{QUEUE_STATE_LABEL[st].en}</Badge></span>}
             />
             <CardBody className="flex flex-col gap-4">
+              {a.portalApplication && <InfoChip tone="info" detail="Sent on the public form by an applicant who was not signed in. Its route, agreements and first files are on the online application.">Online application</InfoChip>}
               {a.submittedAt && <InfoChip tone="info" detail={`Sent from the portal on ${formatOrgDateTime(a.submittedAt, l.org.timeZone)}. Declaration signed online. ${extras.get(a.id)?.onlineDeclarationReplacesPaper === true ? "The organisation accepts it in place of the paper declaration." : "The paper declaration is still required."}`}>Sent online</InfoChip>}
               <KeyValues
                 columns={3}
                 items={[
-                  { label: "Declaration signed on", value: a.declarationSignedOn ? formatDate(day(a.declarationSignedOn)) : a.submittedAt ? <span>Online, {formatOrgDay(a.submittedAt, l.org.timeZone)}</span> : notSet("Not recorded") },
+                  { label: "Declaration signed on", value: a.declarationSignedOn ? formatDate(day(a.declarationSignedOn)) : a.portalApplication ? <span>Agreed online, {formatOrgDay(a.portalApplication.receivedAt, l.org.timeZone)}</span> : a.submittedAt ? <span>Online, {formatOrgDay(a.submittedAt, l.org.timeZone)}</span> : notSet("Not recorded") },
                   { label: "E-Payment form received on", value: a.epaymentFormReceivedOn ? formatDate(day(a.epaymentFormReceivedOn)) : notSet("Not recorded") },
                   { label: "Resubmit by", value: a.resubmitBy && a.status === "RESUBMISSION_REQUESTED" ? formatDate(day(a.resubmitBy)) : "—" },
                 ]}
@@ -573,10 +576,10 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
                 />
               </div>
             ))}
-            {summaryOpen && a.submittedAt && (
+            {summaryOpen && (a.submittedAt || a.portalApplication) && (
               <div className="border-t border-line p-4 sm:p-5">
                 <h3 className="mb-3 text-[14.5px] font-bold text-ink">Application summary</h3>
-                <ApplicationSummary actor={actor} l={l} applicationId={a.id} contactsGate={sulit} />
+                <ApplicationSummary actor={actor} l={l} applicationId={a.id} contactsGate={sulit} agreedOnline={a.portalApplication != null} />
               </div>
             )}
             <div className="border-t border-line p-4 sm:p-5">

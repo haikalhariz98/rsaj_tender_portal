@@ -9,9 +9,9 @@ import { inOrder } from "@/lib/series";
  * (the false-declaration acknowledgement, FR-VND-006) and whether the organisation has said that stands in for the paper, and whether the supplier's bank details have been checked
  * (BD-613-44). Judged by `approveFaults`; one reader, so the page that previews an approval and the act that makes it ask the same.
  */
-export async function reviewFacts(client: Tx, organisationId: string, supplierId: string, application: { id: string; channel: ApplicationChannel }): Promise<Pick<FileFacts, "channel" | "onlineDeclaration" | "onlineDeclarationReplacesPaper" | "creditorProfile">> {
+export async function reviewFacts(client: Tx, organisationId: string, supplierId: string, application: { id: string; channel: ApplicationChannel; /** ADR 0041 D6: the whole online application it was approved from, whose agreements stay on it. */ portalApplicationId?: string | null }): Promise<Pick<FileFacts, "channel" | "onlineDeclaration" | "onlineDeclarationReplacesPaper" | "creditorProfile">> {
   const [declaration, policy, profiles] = await inOrder(
-    () => client.registrationDeclaration.findFirst({ where: { applicationId: application.id, organisationId, kind: "FALSE_DECLARATION" }, select: { signedAt: true } }),
+    () => client.registrationDeclaration.findFirst({ where: { organisationId, kind: "FALSE_DECLARATION", OR: [{ applicationId: application.id }, ...(application.portalApplicationId ? [{ portalApplicationId: application.portalApplicationId }] : [])] }, select: { signedAt: true } }),
     () => client.supplierPolicy.findUnique({ where: { organisationId }, select: { onlineDeclarationReplacesPaper: true } }),
     () => client.creditorProfile.findMany({ where: { supplierId, organisationId }, select: { version: true, submittedAt: true, verification: true } }));
   const facts = profiles.map((p) => ({ version: p.version, sent: p.submittedAt != null, verification: p.verification as "NOT_CHECKED" | "VERIFIED" | "NOT_IN_ORDER" }));

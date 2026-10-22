@@ -15,7 +15,8 @@ export const EXPORT_SECTION_TITLE: Readonly<Record<ExportSectionKey, string>> = 
   company: "Company",
   contacts: "Contacts",
   accounts: "Portal accounts",
-  declarations: "Declarations signed",
+  // ADR 0041: an online applicant's agreements were ticked, never signed, so the section does not call them signed.
+  declarations: "Declarations and agreements",
   bank: "Bank details",
   documents: "Documents",
   standing: "Current standing",
@@ -67,6 +68,11 @@ export const EXPORT_LABEL = {
   signatoryDesignation: "Signatory's designation",
   signedOn: "Signed on",
   signedAt: "Signed at",
+  // ADR 0041 D3, D4: an agreement made on the public form, by someone not signed in: the name as typed, never a signature.
+  agreedBy: "Agreed by (as typed, not signed in)",
+  agreedDesignation: "Position, as typed",
+  agreedOn: "Agreed on",
+  agreedAt: "Agreed at",
   // Bank
   bankVersion: "Version",
   bankState: "Where it stands",

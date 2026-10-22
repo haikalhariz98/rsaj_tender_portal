@@ -3,7 +3,7 @@ import { cache } from "react";
 import { matterAmountScope } from "@/lib/committee/matter-amount";
 import type { MatterKind } from "@/lib/committee/labels";
 import { hiddenDecisionIds } from "@/lib/committee/hidden";
-import { creditorDecision, creditorNamedFacts, creditorPermissionState } from "@/lib/auth/creditor-access-store";
+import { creditorDecision, creditorNamedFacts, creditorPermissionState, portalCreditorNamedFacts } from "@/lib/auth/creditor-access-store";
 import { evaluationOfficeBases } from "@/lib/auth/evaluation-readers-store";
 import { applyDecision, sulitWithheld, type EvaluationOfficeBasis, type RoutedNamedFacts, type Sulit, type SulitDecision } from "@/lib/auth/sulit-access";
 import {
@@ -161,6 +161,18 @@ export async function sulitGates(actor: StaffActor, subjects: readonly GateSubje
 
 export async function sulitGate(actor: StaffActor, subject: GateSubject, fields: readonly string[]): Promise<Sulit<true>> {
   return (await sulitGates(actor, [subject], fields)).get(subject.id)!;
+}
+
+/**
+ * The bank details held on a whole online application (ADR 0041, REG-1: SULIT from receipt), for one reader: the creditor profile's rule, with the people named by the application's own
+ * registration route and the officer who checked them (`portalCreditorNamedFacts`), and `sulit.read.creditorProfile`. One answer, logged once, shown or refused.
+ */
+export async function heldCreditorGate(actor: StaffActor, subject: { portalApplicationId: string; creditorId: string; label: string }, fields: readonly string[]): Promise<Sulit<true>> {
+  const [named, permission] = await Promise.all([portalCreditorNamedFacts(db, actor.organisationId, [subject.portalApplicationId]).then((m) => m.get(subject.portalApplicationId)), actor.system ? Promise.resolve(null) : creditorPermissionOf(actor)]);
+  const decision: SulitDecision = named && permission ? creditorDecision(actor, named, permission, fields) : { state: "WITHHELD", basis: actor.system ? "NOT_A_PERSON" : "FIELD_NOT_FOR_THIS_RECORD" };
+  const logged = await log(actor, [{ scope: "creditorProfile", entity: "PortalApplicationCreditor", entityId: subject.creditorId, entityLabel: subject.label, fields: [...fields], decision }]);
+  const routeStarted = named?.routeStarted ?? false;
+  return !logged ? sulitWithheld<true>("NOT_LOGGED", "creditorProfile", { routeStarted }) : applyDecision(decision, "creditorProfile", true as const, { routeStarted });
 }
 
 /**

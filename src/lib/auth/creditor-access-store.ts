@@ -30,14 +30,16 @@ export async function creditorNamedFacts(
   if (asked.length === 0) return out;
   // Whose profile it is, and who checked it, are read from the profile itself, in this organisation: a caller's pairing of a profile with a supplier is never trusted, and a profile that is
   // not this organisation's has no names at all (and so is withheld from everyone).
-  const profiles = await client.creditorProfile.findMany({ where: { organisationId, id: { in: asked.map((p) => p.id) } }, select: { id: true, supplierId: true, verifiedByPersonId: true, supersedesId: true } });
+  const profiles = await client.creditorProfile.findMany({ where: { organisationId, id: { in: asked.map((p) => p.id) } }, select: { id: true, supplierId: true, verifiedByPersonId: true, supersedesId: true, enteredByPortalApplicationId: true } });
   if (profiles.length === 0) return out;
   const applicationOf = await applicationsNaming(client, organisationId, profiles);
-  const applicationIds = [...new Set(applicationOf.values())];
-  const routes = applicationIds.length ? await routePeopleOf(client, organisationId, { domain: "supplier_registration", supplierApplicationId: { in: applicationIds } }) : [];
+  const ids = (prefix: string) => [...new Set([...applicationOf.values()].filter((v) => v.startsWith(prefix)).map((v) => v.slice(prefix.length)))];
+  const applicationIds = ids(APP);
+  const portalIds = ids(PORTAL);
+  const routes = applicationIds.length || portalIds.length ? await routePeopleOf(client, organisationId, { domain: "supplier_registration", OR: [...(applicationIds.length ? [{ supplierApplicationId: { in: applicationIds } }] : []), ...(portalIds.length ? [{ portalApplicationId: { in: portalIds } }] : [])] }) : [];
   for (const p of profiles) {
-    const application = applicationOf.get(p.id);
-    const mine = application ? routes.filter((r) => r.supplierApplicationId === application) : [];
+    const named = applicationOf.get(p.id);
+    const mine = named?.startsWith(APP) ? routes.filter((r) => r.supplierApplicationId === named.slice(APP.length)) : named?.startsWith(PORTAL) ? routes.filter((r) => r.portalApplicationId === named.slice(PORTAL.length)) : [];
     out.set(p.id, {
       requesterId: null,
       stepHolderIds: [...new Set(mine.flatMap((r) => r.people.holderIds))],
@@ -49,8 +51,36 @@ export async function creditorNamedFacts(
   return out;
 }
 
+/// What names a profile, as one key: a supplier's application, or the whole online application it was promoted from (ADR 0041 D6).
+const APP = "app:";
+const PORTAL = "portal:";
+
 /**
- * The application whose registration route names each profile (Phase 4b, then 4c). The application a profile was SENT WITH is the application of its own GIRO authorisation (the
+ * The bank details held on whole online applications (ADR 0041, REG-1: "readable by the holders of the `supplier_registration` route steps and the verifying officer"): for each
+ * application, the holders and deciders of its registration routes, the officer who checked them, and whether a route was started. Keyed by the application's id.
+ */
+export async function portalCreditorNamedFacts(client: Tx, organisationId: string, portalApplicationIds: readonly string[]): Promise<Map<string, RoutedNamedFacts>> {
+  const out = new Map<string, RoutedNamedFacts>();
+  if (portalApplicationIds.length === 0) return out;
+  const held = await client.portalApplicationCreditor.findMany({ where: { organisationId, portalApplicationId: { in: [...portalApplicationIds] } }, select: { portalApplicationId: true, verifiedByPersonId: true } });
+  if (held.length === 0) return out;
+  const routes = await routePeopleOf(client, organisationId, { domain: "supplier_registration", portalApplicationId: { in: held.map((h) => h.portalApplicationId) } });
+  for (const h of held) {
+    const mine = routes.filter((r) => r.portalApplicationId === h.portalApplicationId);
+    out.set(h.portalApplicationId, {
+      requesterId: null,
+      stepHolderIds: [...new Set(mine.flatMap((r) => r.people.holderIds))],
+      stepDeciderIds: [...new Set(mine.flatMap((r) => r.people.deciderIds))],
+      verifierId: h.verifiedByPersonId,
+      routeStarted: mine.length > 0,
+    });
+  }
+  return out;
+}
+
+/**
+ * The application whose registration route names each profile (Phase 4b, then 4c). ADR 0041 D6: a profile promoted from a whole online application (version 1, `enteredByPortalApplicationId`)
+ * is named by that application's route, which is on the online application, not on the supplier's; a later version takes it through the chain like any other. The application a profile was SENT WITH is the application of its own GIRO authorisation (the
  * authorisation belongs to the profile it authorises); a supplier's other applications (an earlier one that was rejected, a renewal, an upgrade) have routes of their own, and
  * whoever holds or decided a step there is not named on this profile. A version the supplier sent later, to change its bank details after registration, has no application: it is
  * named by the application of the nearest earlier version that has one (the registration the supplier's bank details were first checked under), and a first profile sent after the
@@ -59,7 +89,10 @@ export async function creditorNamedFacts(
  */
 async function applicationsNaming(client: Tx, organisationId: string, profiles: readonly { id: string; supplierId: string; supersedesId: string | null }[]): Promise<Map<string, string>> {
   const own = async (ids: readonly string[]) =>
-    new Map((await client.registrationDeclaration.findMany({ where: { organisationId, kind: "GIRO_AUTHORISATION", creditorProfileId: { in: [...ids] }, applicationId: { not: null } }, select: { creditorProfileId: true, applicationId: true } })).flatMap((d) => (d.creditorProfileId && d.applicationId ? [[d.creditorProfileId, d.applicationId] as const] : [])));
+    new Map([
+      ...(await client.registrationDeclaration.findMany({ where: { organisationId, kind: "GIRO_AUTHORISATION", creditorProfileId: { in: [...ids] }, applicationId: { not: null } }, select: { creditorProfileId: true, applicationId: true } })).flatMap((d) => (d.creditorProfileId && d.applicationId ? [[d.creditorProfileId, `${APP}${d.applicationId}`] as const] : [])),
+      ...(await client.creditorProfile.findMany({ where: { organisationId, id: { in: [...ids] }, enteredByPortalApplicationId: { not: null } }, select: { id: true, enteredByPortalApplicationId: true } })).map((p) => [p.id, `${PORTAL}${p.enteredByPortalApplicationId!}`] as const),
+    ]);
   const found = await own(profiles.map((p) => p.id));
   // The earlier versions of a profile that no application carries, walked back one version at a time (a chain is short; the bound keeps a corrupt cycle from looping).
   const pending = profiles.filter((p) => !found.has(p.id));
@@ -88,7 +121,7 @@ async function applicationsNaming(client: Tx, organisationId: string, profiles: 
     });
     for (const p of unresolved) {
       const latest = bySupplier.find((a) => a.supplierId === p.supplierId);
-      if (latest) out.set(p.id, latest.id);
+      if (latest) out.set(p.id, `${APP}${latest.id}`);
     }
   }
   return out;

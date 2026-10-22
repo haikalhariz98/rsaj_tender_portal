@@ -7,7 +7,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { loadRegistrationForm } from "@/lib/portal/apply-repo";
+import { loadRegisterSettings } from "@/lib/portal/apply-repo";
 import { flagWords } from "@/lib/portal/queue";
 import { loadPortalQueue } from "@/lib/portal/queue-repo";
 import { daysBetween } from "@/lib/requisition/types";
@@ -61,7 +61,8 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     return <PageHeader title="Suppliers" />;
   }
   const { suppliers, expiring, standing: standingSuppliers, queue: openApplications } = data;
-  const [online, intake] = await Promise.all([loadPortalQueue(org0.id), loadRegistrationForm()]);
+  // The register's readiness, from the one reader the public form and its submit route ask (ADR 0041 D9): what the Online tab says is still missing.
+  const [online, intake] = await Promise.all([loadPortalQueue(org0.id), loadRegisterSettings()]);
   // Phase 4e (FR-VND-014): the announcements board, read only on its tab; whether the signed-in officer may publish is the organisation's grant, said in words where it is not.
   // 4e review fix: the register pages in the database (its own `apage`, so the supplier register's page is not moved).
   const board = tab === "announcements" ? await loadBoard(db, org0.id, org0.timeZone, { withdrawn: true, page: apage }) : null;
@@ -147,11 +148,11 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     const age = today ? daysBetween(a.receivedOn, today) : null;
     return {
       id: a.id,
-      views: [...(clash ? ["clash"] : []), ...(again ? ["again"] : [])],
+      views: [...(clash ? ["clash"] : []), ...(again ? ["again"] : []), ...(a.withApproval ? ["approval"] : [])],
       search: [a.registeredName, a.reference, a.registrationNo].join(" "),
       sortKeys: { received: a.receivedOn },
       cells: {
-        supplier: { kind: "link", text: a.registeredName, href: `/suppliers/online/${a.id}`, sub: `${a.reference} · ${a.registrationNo}` },
+        supplier: { kind: "link", text: a.registeredName, href: `/suppliers/online/${a.id}`, sub: `${a.reference} · ${a.registrationNo} · ${a.whole ? (a.withApproval ? "with approval" : plural(a.documents, "certificate", "certificates")) : "company details only"}` },
         received: { kind: "stack", title: formatDate(a.receivedOn), sub: age == null ? "Days not counted: no time zone" : age === 0 ? "Today" : `${plural(age, "day", "days")} ago` },
         check: {
           kind: "chips",
@@ -301,7 +302,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       count: online.total,
       panel: (
         <div className="flex flex-col gap-4">
-          {intake.ready && intake.missing.length > 0 && (
+          {intake && intake.missing.length > 0 && (
             <Callout tone="warn" title="Public form closed" action={<ButtonLink href="/configuration/suppliers#online-applications" size="sm">Open the settings</ButtonLink>}>
               Not set: {intake.missing.map((m) => m.en).join(", ")}.
             </Callout>
@@ -317,6 +318,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
               views={[
                 { id: "clash", label: "Number on the register" },
                 { id: "again", label: "Number sent more than once" },
+                { id: "approval", label: "With approval" },
               ]}
               rowAction={{ label: "Open", hrefTemplate: "/suppliers/online/{id}" }}
               rowOpens

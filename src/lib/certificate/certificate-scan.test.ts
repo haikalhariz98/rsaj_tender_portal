@@ -330,7 +330,8 @@ const RAW_ALLOW: Readonly<Record<string, RegExp>> = {
   // Phase 0 (stash@{0}, 6.13 Part B run 1b C8b): escalating a contract matter's route locks the matter's row after its contract's, as every matter act does.
   [`${P("src/app/approvals/actions.ts")} › escalateStep`]: /^\$queryRaw`SELECT id FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Variation|ContractMatter|Supplier|SupplierApplication|StandingRequest|SpecialPermission)" WHERE id = \$\{[\w.]+\} FOR UPDATE`$/,
   // Phase 3c: the body of escalateStep moved, unchanged and in the same order, into escalateOne so that the sweep after an absence takes the very same locks. The same text, the same rule.
-  [`${P("src/app/approvals/actions.ts")} › escalateOne`]: /^\$queryRaw`SELECT id FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Variation|ContractMatter|Supplier|SupplierApplication|StandingRequest|SpecialPermission)" WHERE id = \$\{[\w.]+\} FOR UPDATE`$/,
+  // ADR 0041 D5 (registration step 4): a whole online application's route locks the application, the same lock text.
+  [`${P("src/app/approvals/actions.ts")} › escalateOne`]: /^\$queryRaw`SELECT id FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Variation|ContractMatter|Supplier|SupplierApplication|StandingRequest|SpecialPermission|PortalApplication)" WHERE id = \$\{[\w.]+\} FOR UPDATE`$/,
 };
 const TABLE_ALT = CERT_TABLES.join("|");
 const WRITE_SQL = new RegExp(`\\b(UPDATE|INSERT\\s+INTO|DELETE\\s+FROM|MERGE\\s+INTO|TRUNCATE(?:\\s+TABLE)?|COPY|ALTER\\s+TABLE|DROP\\s+TABLE)\\s+(?:ONLY\\s+)?(?:\\\\?["\`]?\\w+\\\\?["\`]?\\s*\\.\\s*)?\\\\?["'\`]?(${TABLE_ALT})\\\\?["'\`]?(?![\\w])`, "gi");

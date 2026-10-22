@@ -17,7 +17,6 @@ import { loadStorePolicy, type DocumentOrg } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling } from "@/lib/documents/store";
 import { patternFaults, type NumberingReset } from "@/lib/numbering/series";
 import { inOrder } from "@/lib/series";
-import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 import { REGISTRATION_NO_FORMAT_KEY } from "@/lib/suppliers/types";
 
 import { deploymentOrganisation } from "./deployment";
@@ -30,53 +29,6 @@ import { loadRegistrationSettings, registrationContextFor, type RegistrationSett
 import type { DeclarationKind, RegistrationContext } from "./registration/types";
 import { acceptNote } from "./registration/view";
 import { loadUploadSettings, type UploadSettings } from "./registration/upload-settings";
-
-export interface RegistrationForm {
-  /// No organisation is set up: nothing can be said.
-  ready: boolean;
-  /// What the register still lacks before it can take an application. Empty: it is open.
-  missing: Words[];
-  entityTypes: { value: string; label: string }[];
-  /// `callingCode` is the country's dial code, or null where none is set.
-  countries: { value: string; label: string; callingCode: string | null }[];
-  states: { value: string; label: string }[];
-  /// The statuses an applicant may declare. Empty: the claim is not asked.
-  bumiputeraStatuses: { value: string; label: string }[];
-  /// `SupplierPolicy.contactNeedsEmailAndPhone`: true asks for both, anything else for either. The form says which.
-  contactNeedsEmailAndPhone: boolean | null;
-  formatExample: string | null;
-  /// The office's own words to an applicant, where it has set them.
-  notice: string | null;
-  /// How personal details are used (PDPA 2010), in the customer's own words. The English text, or the form stays closed.
-  personalDataNotice: { en: string } | null;
-}
-
-export async function loadRegistrationForm(): Promise<RegistrationForm> {
-  // The public registration form serves the deployment's one organisation (ADR 0034 D10): nobody is signed in to name one.
-  const deployment = await deploymentOrganisation();
-  const org = deployment ? await supplierOrg(deployment.id) : null;
-  if (!org) return { ready: false, missing: [], entityTypes: [], countries: [], states: [], bumiputeraStatuses: [], contactNeedsEmailAndPhone: null, formatExample: null, notice: null, personalDataNotice: null };
-  const cfg = await loadSupplierConfig(org.id);
-  const list = (kind: "ENTITY_TYPE" | "COUNTRY" | "STATE" | "BUMIPUTERA_STATUS") => cfg.lists.filter((l) => l.list === kind && cfg.live(l, org.today)).map((l) => ({ value: l.code, label: l.nameEn }));
-  const entityTypes = list("ENTITY_TYPE");
-  const countries = list("COUNTRY").map((c) => ({ ...c, callingCode: cfg.callingCodeOf(c.value) }));
-  const states = list("STATE");
-  const bumiputeraStatuses = list("BUMIPUTERA_STATUS");
-  const en = cfg.policy?.personalDataNoticeEn?.trim() ?? "";
-  return {
-    ready: true,
-    // The one-submission register's readiness (ADR 0041 D9): the same reader the submit route asks, so the page and the route cannot disagree.
-    missing: (await loadRegisterSettings())?.missing ?? [],
-    entityTypes,
-    countries,
-    states,
-    bumiputeraStatuses,
-    contactNeedsEmailAndPhone: cfg.policy?.contactNeedsEmailAndPhone ?? null,
-    formatExample: cfg.format?.example?.trim() || null,
-    notice: cfg.policy?.verificationNoticeEn?.trim() || null,
-    personalDataNotice: en ? { en } : null,
-  };
-}
 
 /// The lists step 1 is judged by.
 const STEP_ONE_LISTS = ["ENTITY_TYPE", "COUNTRY", "STATE", "BUMIPUTERA_STATUS"] as const;
