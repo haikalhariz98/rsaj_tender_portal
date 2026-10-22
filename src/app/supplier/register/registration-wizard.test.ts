@@ -121,6 +121,36 @@ describe("the public registration form (ADR 0041, plan 4.2)", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("a field's finding goes as soon as the field changes, and the summary above counts what is left (the step-3 rehearsal: filled in, still red)", async () => {
+    mount();
+    await click(button("Next"));
+    const first = text().match(/(\d+) things stand in the way/);
+    expect(first).not.toBeNull();
+    const before = Number(first![1]);
+    const name = host.querySelector<HTMLInputElement>('input[autocomplete="organization"]')!;
+    type(name, "Rehearsal Contractors Sdn Bhd");
+    expect(text()).not.toContain("Enter the company's registered name.");
+    expect(name.getAttribute("aria-invalid")).not.toBe("true");
+    expect(text()).toContain(`${before - 1} things stand in the way`);
+    // Next checks again: the step's findings are that check's.
+    await click(button("Next"));
+    expect(text()).toContain(`${before - 1} things stand in the way`);
+    expect(text()).not.toContain("Enter the company's registered name.");
+  });
+
+  it("the server's findings from Submit go the same way, and its refusal with them once none is left", async () => {
+    replies = [{ status: 422, body: { ok: false, code: "VALIDATION", message: "Nothing was sent. Check the fields marked below and send it again.", faults: [{ step: "review", field: "terms", level: "block", message: "Read the terms again." }] } }];
+    mount(held({ step: "review", reached: 4 }));
+    await click(button("Submit"));
+    await settle();
+    expect(text()).toContain("Step 5 of 5: Review & Submit");
+    expect(text()).toContain("Nothing was sent");
+    expect(text()).toContain("Read the terms again.");
+    await click(checkbox("I confirm I have read and agree"));
+    expect(text()).not.toContain("Read the terms again.");
+    expect(text()).not.toContain("Nothing was sent");
+  });
+
   it("step 5: Submit is blocked, with its reason, until the declaration and the terms are both ticked", async () => {
     mount(held({ step: "review", reached: 4, falseDeclaration: false, terms: false }));
     expect(text()).toContain("Step 5 of 5: Review & Submit");

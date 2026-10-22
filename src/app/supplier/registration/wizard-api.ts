@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 
 import { SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
+import { withoutFaultsAt } from "@/lib/portal/registration/changed-fields";
 import type { RegistrationStep } from "@/lib/portal/registration/types";
 
 import type { FaultView } from "./reply";
@@ -82,7 +83,10 @@ export function useStepSave(step: RegistrationStep, token: string | null, initia
     [step, token, version],
   );
 
-  return { version, setVersion, busy, message, saved, faults, stale, save, setMessage };
+  /// A change to fields takes away the findings about them (`changed-fields.ts`): they are about what was there before. The next save with Next checks again.
+  const answered = useCallback((fields: Iterable<string>) => setFaults((all) => withoutFaultsAt(all, fields)), []);
+
+  return { version, setVersion, busy, message, saved, faults, stale, save, setMessage, answered };
 }
 
 /// Placing the words beside the fields is shared with the public form (ADR 0041): one copy, in `src/components/registration/faults.ts`.

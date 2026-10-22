@@ -6,6 +6,7 @@ import { useState } from "react";
 import { blankDocRow, clickedRowKey, DocumentsFields, startingDocRows, type DocRowValue, type DocTypeView, type FileView } from "@/components/registration/documents-fields";
 import { SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { formatBytes } from "@/lib/documents/labels";
+import { documentsChangedFields, fileChangedFields } from "@/lib/portal/registration/changed-fields";
 
 import { StepFooter, FaultSummary } from "./step-footer";
 import { postJson, stepHref, useStepSave } from "./wizard-api";
@@ -30,7 +31,7 @@ const hasContent = (r: DocRowView) => !!(r.title || r.reference || r.issuingAuth
 
 export function DocumentsStep({ token, version, types, rows: initial, uploadClosed, acceptNote }: { token: string | null; version: number; types: DocTypeView[]; rows: DocRowView[]; uploadClosed: string | null; acceptNote: string | null }) {
   const router = useRouter();
-  const { version: current, setVersion, busy, message, saved, faults, stale, save, setMessage } = useStepSave("documents", token, version);
+  const { version: current, setVersion, busy, message, saved, faults, stale, save, setMessage, answered } = useStepSave("documents", token, version);
   const [rows, setRows] = useState<DocRowView[]>(() => startingDocRows(types, initial, blankRow));
 
   const patch = (id: string, change: Partial<DocRowView>) => setRows((all) => all.map((r) => (r.id === id ? { ...r, ...change } : r)));
@@ -51,12 +52,16 @@ export function DocumentsStep({ token, version, types, rows: initial, uploadClos
   }
 
   async function remove(row: DocRowView) {
-    if (row.id.startsWith("new:")) {
+    const gone = () => {
+      answered(documentsChangedFields(rows, rows.filter((r) => r.id !== row.id)));
       setRows((all) => all.filter((r) => r.id !== row.id));
+    };
+    if (row.id.startsWith("new:")) {
+      gone();
       return;
     }
     const done = await save({ step: "documents", documents: [] }, { remove: [row.id] });
-    if (done.ok) setRows((all) => all.filter((r) => r.id !== row.id));
+    if (done.ok) gone();
   }
 
   async function withdraw(row: DocRowView, file: FileView) {
@@ -64,6 +69,7 @@ export function DocumentsStep({ token, version, types, rows: initial, uploadClos
     if (status === 200 && body?.ok) {
       if (typeof body.version === "number") setVersion(body.version);
       patch(row.id, { files: row.files.filter((f) => f.versionId !== file.versionId) });
+      answered(fileChangedFields(row.id, row.typeId));
     } else setMessage(body?.message ?? "Not changed. Try again in a moment.");
   }
 
@@ -73,7 +79,10 @@ export function DocumentsStep({ token, version, types, rows: initial, uploadClos
       <DocumentsFields
         types={types}
         rows={rows}
-        onChange={setRows}
+        onChange={(next) => {
+          answered(documentsChangedFields(rows, next));
+          setRows(next);
+        }}
         faults={faults}
         newRow={(typeId) => blankRow(typeId)}
         onRemove={remove}
@@ -96,6 +105,7 @@ export function DocumentsStep({ token, version, types, rows: initial, uploadClos
               const rowId = typeof answer.rowId === "string" ? answer.rowId : r.id;
               const versionId = typeof answer.versionId === "string" ? answer.versionId : "";
               setRows((all) => all.map((x) => (x.id === r.id ? { ...x, id: rowId, files: [...x.files, { versionId, name: file.name, size: formatBytes(BigInt(file.size)) }] } : x)));
+              answered([...fileChangedFields(r.id, r.typeId), ...fileChangedFields(rowId, null)]);
             },
             onRefused: (text, isStale) => {
               if (isStale) setMessage(text);

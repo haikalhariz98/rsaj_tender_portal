@@ -112,7 +112,9 @@ export function RegistrationWizard({
   const [state, dispatch] = useReducer(wizardReducer<File>, undefined, () => initialState ?? emptyWizard<File>(EMPTY_COMPANY, startingDocRows(types, [], blankDocRow), EMPTY_CREDITOR));
   const [prefilled, setPrefilled] = useState<Record<string, string>>({});
   const [sending, setSending] = useState<number | null>(null);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  /// The last Submit's refusal, in the server's words. One that came with findings goes once the applicant has answered every blocking one of them (the reducer takes each away as its
+  /// field changes); the rest stay until the next Submit.
+  const [refusal, setRefusal] = useState<{ message: string; withFaults: boolean } | null>(null);
   const [done, setDone] = useState<{ reference: string | null } | null>(null);
   const [leaving, setLeaving] = useState<string | null>(null);
   const token = useRef(initialToken);
@@ -250,12 +252,12 @@ export function RegistrationWizard({
       case "faults": {
         const first = firstFaultStep(outcome.faults) ?? "review";
         dispatch({ type: "faults", faults: outcome.faults, step: first });
-        setRefusal(outcome.message);
+        setRefusal({ message: outcome.message, withFaults: outcome.faults.some((f) => f.level === "block") });
         focusFirst();
         return;
       }
       default:
-        setRefusal(outcome.message);
+        setRefusal({ message: outcome.message, withFaults: false });
     }
   }
 
@@ -412,7 +414,7 @@ export function RegistrationWizard({
             onTerms={(confirmed) => dispatch({ type: "terms", confirmed })}
             onSubmit={submit}
             sending={sending}
-            refusal={refusal}
+            refusal={refusal && (!refusal.withFaults || state.faults.some((f) => f.level === "block")) ? refusal.message : null}
           />
         )}
       </div>

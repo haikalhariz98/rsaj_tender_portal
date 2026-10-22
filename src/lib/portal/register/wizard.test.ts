@@ -70,6 +70,90 @@ describe("the page's state (plan 4.1: one reducer)", () => {
   });
 });
 
+describe("findings once the applicant changes what they were about (the step-3 rehearsal: filled in, still red)", () => {
+  const blank = (s: ReturnType<typeof heldState>) => ({ ...s.company, registeredName: "", registrationNo: "", contact: { ...s.company.contact, email: "", phone: "" } });
+
+  it("takes a field's finding away when that field changes, keeps the others, and the step's summary (the same list) with it", () => {
+    const empty = heldState({ step: "company", reached: 0, touched: false });
+    const s0 = wizardReducer(empty, { type: "company", value: blank(empty) });
+    const found = stepCheck("company", s0, config());
+    const s1 = wizardReducer(s0, { type: "next", faults: found });
+    const fields = s1.faults.map((f) => f.field);
+    expect(fields).toEqual(expect.arrayContaining(["registeredName", "registrationNo", "contactEmail"]));
+
+    const named = wizardReducer(s1, { type: "company", value: { ...s1.company, registeredName: "Rehearsal Contractors Sdn Bhd" } });
+    expect(named.faults.map((f) => f.field)).not.toContain("registeredName");
+    expect(named.faults.map((f) => f.field)).toContain("registrationNo");
+    expect(named.faults).toHaveLength(s1.faults.length - 1);
+    expect(named.step).toBe("company");
+
+    // A mobile number answers "an email or a telephone number", whose finding sits on the email.
+    const reached = wizardReducer(named, { type: "company", value: { ...named.company, contact: { ...named.company.contact, phone: "123456789" } } });
+    expect(reached.faults.map((f) => f.field)).not.toContain("contactEmail");
+
+    // Everything typed: nothing left to say until the next check.
+    const all = wizardReducer(reached, { type: "company", value: body().company });
+    expect(all.faults.filter((f) => f.step === "company" && f.field != null)).toEqual([]);
+  });
+
+  it("re-checks at Next: the step's findings are that check's, none kept from the one before", () => {
+    const s = heldState({ step: "company", reached: 0, faults: [{ step: "company", field: "registeredName", level: "block", message: "Enter the company's registered name." }] });
+    const again = wizardReducer(s, { type: "next", faults: stepCheck("company", s, config()) });
+    expect(again.faults.filter((f) => f.step === "company")).toEqual([]);
+    expect(again.step).toBe("documents");
+    const still = wizardReducer(s, { type: "next", faults: [{ step: "company", field: "registrationNo", level: "block", message: "Enter the company's registration number." }] });
+    expect(still.faults.map((f) => f.field)).toEqual(["registrationNo"]);
+  });
+
+  it("does the same with the server's findings from Submit, on any step, and leaves a finding with no field to the next check", () => {
+    const server = [
+      { step: "company", field: "registrationNo", level: "block", message: "Already registered." },
+      { step: "documents", field: "documents.new:reg.expiresOn", level: "block", message: "Expired." },
+      { step: "documents", field: "type.t-reg", level: "block", message: "Required." },
+      { step: "codes", field: "documents.new:works.values", level: "block", message: "Retired." },
+      { step: "epayment", field: "creditor.bankAccountNo", level: "block", message: "Wrong format." },
+      { step: "epayment", field: "creditor.statement", level: "block", message: "Not a PDF." },
+      { step: "review", field: "declaration.confirmed", level: "block", message: "Tick it." },
+      { step: "review", field: "terms", level: "block", message: "Tick it." },
+      { step: "review", field: null, level: "block", message: "Something about the whole." },
+    ] satisfies import("./contract").FaultView[];
+    let s = wizardReducer(heldState({ step: "review", reached: 4, falseDeclaration: false, terms: false }), { type: "faults", faults: server, step: "company" });
+    expect(s.faults).toHaveLength(server.length);
+
+    s = wizardReducer(s, { type: "company", value: { ...s.company, registrationNo: "202001000999 (000999-X)" } });
+    expect(s.faults.map((f) => f.field)).not.toContain("registrationNo");
+
+    s = wizardReducer(s, { type: "documents", rows: s.documents.map((r) => (r.id === "new:reg" ? { ...r, expiresOn: "2028-01-31" } : r)) });
+    expect(s.faults.map((f) => f.field)).not.toContain("documents.new:reg.expiresOn");
+    expect(s.faults.map((f) => f.field)).not.toContain("type.t-reg");
+
+    s = wizardReducer(s, { type: "codes", chosen: { "new:works": { GRADE: ["v-g1"] } } });
+    expect(s.faults.map((f) => f.field)).not.toContain("documents.new:works.values");
+
+    s = wizardReducer(s, { type: "epayment", creditor: { ...s.creditor, bankAccountNo: "9999" }, signatoryName: s.signatoryName, signatoryDesignation: s.signatoryDesignation, giroConfirmed: s.giroConfirmed });
+    expect(s.faults.map((f) => f.field)).not.toContain("creditor.bankAccountNo");
+
+    s = wizardReducer(s, { type: "addStatement", file: pdf("statement-2.pdf") });
+    s = wizardReducer(s, { type: "falseDeclaration", confirmed: true });
+    s = wizardReducer(s, { type: "terms", confirmed: true });
+    expect(s.faults).toEqual([server[8]]);
+  });
+
+  it("is not moved by what does not change a field: the same value, a search's names, a move between steps", () => {
+    const fault = { step: "company", field: "registeredName", level: "block", message: "Enter the company's registered name." } as const;
+    const s = heldState({ step: "company", reached: 4, faults: [fault] });
+    expect(wizardReducer(s, { type: "company", value: { ...s.company } }).faults).toEqual([fault]);
+    expect(wizardReducer(s, { type: "hits", hits: [] }).faults).toEqual([fault]);
+    expect(wizardReducer(s, { type: "goTo", step: "documents" }).faults).toEqual([fault]);
+  });
+
+  it("answers a row's file finding when a file is held or taken away on it", () => {
+    const s = heldState({ faults: [{ step: "documents", field: "documents.new:works.file", level: "block", message: "Add a file." }, { step: "documents", field: "type.t-works", level: "block", message: "Required." }] });
+    expect(wizardReducer(s, { type: "addFile", key: "new:works", file: pdf("b.pdf") }).faults).toEqual([]);
+    expect(wizardReducer(s, { type: "removeFile", key: "new:works", index: 0 }).faults).toEqual([]);
+  });
+});
+
 describe("what is sent (plan 4.2.4)", () => {
   it("builds the same body the server parses, the codes by row and every agreement on the text the page showed", () => {
     expect(heldBody(heldState(), config())).toEqual(body());

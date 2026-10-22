@@ -6,6 +6,7 @@ import { useState } from "react";
 import { banksClosedWords, EpaymentFields, type EpaymentValue, type GiroView, type ListOption } from "@/components/registration/epayment-fields";
 import { SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { formatBytes } from "@/lib/documents/labels";
+import { epaymentChangedFields, STATEMENT_FIELDS } from "@/lib/portal/registration/changed-fields";
 import type { CreditorInput } from "@/lib/portal/registration/types";
 
 import { StepFooter, FaultSummary } from "./step-footer";
@@ -63,7 +64,7 @@ export function EpaymentStep({
   prefilled: Partial<Record<keyof CreditorInput, string>>;
 }) {
   const router = useRouter();
-  const { version: current, setVersion, busy, message, saved, faults, stale, save, setMessage } = useStepSave("epayment", token, version);
+  const { version: current, setVersion, busy, message, saved, faults, stale, save, setMessage, answered } = useStepSave("epayment", token, version);
   const [value, setValue] = useState<EpaymentValue>({ creditor: initial, signatoryName: sn, signatoryDesignation: sd, giroConfirmed: gc });
   const [statement, setStatement] = useState<StatementFile[]>(initialStatement);
 
@@ -77,6 +78,7 @@ export function EpaymentStep({
     if (status === 200 && body?.ok) {
       if (typeof body.version === "number") setVersion(body.version);
       setStatement((all) => all.filter((f) => f.versionId !== file.versionId));
+      answered(STATEMENT_FIELDS);
     } else setMessage(body?.message ?? "Not changed. Try again in a moment.");
   }
 
@@ -87,7 +89,10 @@ export function EpaymentStep({
       <FaultSummary faults={faults} />
       <EpaymentFields
         value={value}
-        onChange={setValue}
+        onChange={(next) => {
+          answered(epaymentChangedFields(value, next));
+          setValue(next);
+        }}
         banks={banks}
         accountTypes={accountTypes}
         uploadClosed={uploadClosed}
@@ -112,6 +117,7 @@ export function EpaymentStep({
             onDone: (answer, file) => {
               if (typeof answer.version === "number") setVersion(answer.version);
               setStatement((all) => [...all, { versionId: typeof answer.versionId === "string" ? answer.versionId : "", name: file.name, size: formatBytes(BigInt(file.size)) }]);
+              answered(STATEMENT_FIELDS);
             },
             onRefused: (t, isStale) => {
               if (isStale) setMessage(t);

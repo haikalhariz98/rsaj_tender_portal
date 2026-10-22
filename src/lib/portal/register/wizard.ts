@@ -9,6 +9,7 @@
 import { FORM_TOKEN_MAX_AGE_MS, formTokenMadeAt } from "@/lib/auth/form-token-shape";
 import { HONEYPOT_FIELD } from "@/lib/portal/apply";
 import { APPLY } from "@/lib/portal/labels";
+import { codesChangedFields, companyChangedFields, DECLARATION_FIELDS, documentsChangedFields, epaymentChangedFields, fileChangedFields, STATEMENT_FIELDS, TERMS_FIELDS, withoutFaultsAt } from "@/lib/portal/registration/changed-fields";
 import { stepFaults } from "@/lib/portal/registration/faults";
 import { REGISTRATION_STEPS, type CreditorInput, type RegistrationContext, type RegistrationStep } from "@/lib/portal/registration/types";
 import { uploadFault, type UploadKind, type UploadUsage } from "@/lib/portal/registration/upload";
@@ -90,39 +91,50 @@ export function emptyWizard<F extends HeldFile>(company: WizardState<F>["company
   return { step: "company", reached: 0, company, documents, files: {}, chosen: {}, hits: {}, creditor, statement: [], signatoryName: "", signatoryDesignation: "", giroConfirmed: false, falseDeclaration: false, terms: false, faults: [], touched: false };
 }
 
-/// The one reducer of the page. A change to a field marks the form touched (the browser then warns before leaving); moving between steps does not.
+/// The one reducer of the page. A change to a field marks the form touched (the browser then warns before leaving); moving between steps does not. A change also takes away the
+/// findings about the fields it changed (`changed-fields.ts`), whether the page's check at Next found them or the server's at Submit: they are about what was there before. Nothing is
+/// found by a change; the next Next (or Submit) checks again.
 export function wizardReducer<F extends HeldFile>(s: WizardState<F>, a: WizardAction<F>): WizardState<F> {
-  const touched = { ...s, touched: true };
+  const changed = (fields: Iterable<string>, rest: Partial<WizardState<F>>): WizardState<F> => ({ ...s, ...rest, touched: true, faults: withoutFaultsAt(s.faults, fields) });
+  const typeOf = (key: string) => s.documents.find((r) => r.id === key)?.typeId ?? null;
   switch (a.type) {
     case "company":
-      return { ...touched, company: a.value };
+      return changed(companyChangedFields(s.company, a.value), { company: a.value });
     case "documents": {
       // A row taken away takes its files and codes with it.
       const keys = new Set(a.rows.map((r) => r.id));
-      return { ...touched, documents: a.rows, files: Object.fromEntries(Object.entries(s.files).filter(([k]) => keys.has(k))), chosen: Object.fromEntries(Object.entries(s.chosen).filter(([k]) => keys.has(k))) };
+      const gone = s.documents.filter((r) => !keys.has(r.id)).map((r) => `documents.${r.id}.values`);
+      return changed([...documentsChangedFields(s.documents, a.rows), ...gone], {
+        documents: a.rows,
+        files: Object.fromEntries(Object.entries(s.files).filter(([k]) => keys.has(k))),
+        chosen: Object.fromEntries(Object.entries(s.chosen).filter(([k]) => keys.has(k))),
+      });
     }
     case "addFile":
-      return { ...touched, files: { ...s.files, [a.key]: [...(s.files[a.key] ?? []), a.file] } };
+      return changed(fileChangedFields(a.key, typeOf(a.key)), { files: { ...s.files, [a.key]: [...(s.files[a.key] ?? []), a.file] } });
     case "removeFile":
-      return { ...touched, files: { ...s.files, [a.key]: (s.files[a.key] ?? []).filter((_, i) => i !== a.index) } };
+      return changed(fileChangedFields(a.key, typeOf(a.key)), { files: { ...s.files, [a.key]: (s.files[a.key] ?? []).filter((_, i) => i !== a.index) } });
     case "codes":
-      return { ...touched, chosen: a.chosen };
+      return changed(codesChangedFields(s.chosen, a.chosen), { chosen: a.chosen });
     case "hits":
       return { ...s, hits: { ...s.hits, ...Object.fromEntries(a.hits.map((h) => [h.id, h])) } };
-    case "epayment":
-      return { ...touched, creditor: a.creditor, signatoryName: a.signatoryName, signatoryDesignation: a.signatoryDesignation, giroConfirmed: a.giroConfirmed };
+    case "epayment": {
+      const now = { creditor: a.creditor, signatoryName: a.signatoryName, signatoryDesignation: a.signatoryDesignation, giroConfirmed: a.giroConfirmed };
+      return changed(epaymentChangedFields(s, now), now);
+    }
     case "addStatement":
-      return { ...touched, statement: [...s.statement, a.file] };
+      return changed(STATEMENT_FIELDS, { statement: [...s.statement, a.file] });
     case "removeStatement":
-      return { ...touched, statement: s.statement.filter((_, i) => i !== a.index) };
+      return changed(STATEMENT_FIELDS, { statement: s.statement.filter((_, i) => i !== a.index) });
     case "falseDeclaration":
-      return { ...touched, falseDeclaration: a.confirmed };
+      return changed(s.falseDeclaration === a.confirmed ? [] : DECLARATION_FIELDS, { falseDeclaration: a.confirmed });
     case "terms":
-      return { ...touched, terms: a.confirmed };
+      return changed(s.terms === a.confirmed ? [] : TERMS_FIELDS, { terms: a.confirmed });
     case "goTo":
       // Back to any step already reached; never on past it.
       return stepIndex(a.step) <= s.reached ? { ...s, step: a.step } : s;
     case "next": {
+      // The step's findings are this check's, all of them: none kept from an earlier one.
       const at = stepIndex(s.step);
       const others = s.faults.filter((f) => f.step !== s.step);
       if (a.faults.some((f) => f.level === "block")) return { ...s, faults: [...others, ...a.faults] };

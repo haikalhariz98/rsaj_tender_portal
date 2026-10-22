@@ -11,6 +11,7 @@ import { DeclarationCard } from "@/components/registration/declaration-card";
 import { TermsCard } from "@/components/registration/terms-card";
 import { APPLY } from "@/lib/portal/labels";
 import { SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
+import { DECLARATION_FIELDS, TERMS_FIELDS, withoutFaultsAt } from "@/lib/portal/registration/changed-fields";
 import type { DeclarationInput } from "@/lib/portal/registration/types";
 
 import type { FaultView } from "./reply";
@@ -107,14 +108,20 @@ export function ReviewStep({
         </Callout>
       )}
 
-      <TermsCard terms={termsText} notice={privacyNotice} confirmed={termsConfirmed} onConfirm={setTermsConfirmed} missing={termsMissing} />
+      <TermsCard terms={termsText} notice={privacyNotice} confirmed={termsConfirmed} onConfirm={(on: boolean) => {
+          setFaults((all) => withoutFaultsAt(all, TERMS_FIELDS));
+          setTermsConfirmed(on);
+        }} missing={termsMissing} />
 
       <DeclarationCard
         text={falseText?.en ?? null}
         subtitle="Read, tick and sign"
         byLine={`Signed by ${signatoryName || "the person you name in step 4"}${signatoryDesignation ? `, ${signatoryDesignation}` : ""}. Dated the day you send.`}
         confirmed={confirmed}
-        onConfirm={setConfirmed}
+        onConfirm={(on: boolean) => {
+          setFaults((all) => withoutFaultsAt(all, DECLARATION_FIELDS));
+          setConfirmed(on);
+        }}
       >
         <div className="mt-3 max-w-sm">
           <Field label="Your password" htmlFor={`${base}-password`} required hint="Signs your registration.">

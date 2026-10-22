@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { CodesFields, startingChosen, type ChosenCodes, type CodeSectionView } from "@/components/registration/codes-fields";
 import { SUPPLIER_REGISTRATION_GETS } from "@/lib/auth/routes";
+import { codesChangedFields } from "@/lib/portal/registration/changed-fields";
 
 import { StepFooter, FaultSummary } from "./step-footer";
 import { stepHref, useStepSave } from "./wizard-api";
@@ -19,7 +20,7 @@ export type { CodeDocumentView, CodeKindView, CodeSectionView } from "@/componen
 
 export function CodesStep({ token, version, sections }: { token: string | null; version: number; sections: CodeSectionView[] }) {
   const router = useRouter();
-  const { busy, message, saved, faults, stale, save } = useStepSave("codes", token, version);
+  const { busy, message, saved, faults, stale, save, answered } = useStepSave("codes", token, version);
   const [chosen, setChosen] = useState<ChosenCodes>(() => startingChosen(sections));
   const labels: Record<string, string> = Object.fromEntries(sections.flatMap((s) => s.documents.flatMap((d) => d.chosen.map((c) => [c.value, c.label]))));
 
@@ -39,7 +40,10 @@ export function CodesStep({ token, version, sections }: { token: string | null; 
       <CodesFields
         sections={sections}
         chosen={chosen}
-        onChange={setChosen}
+        onChange={(next) => {
+          answered(codesChangedFields(chosen, next));
+          setChosen(next);
+        }}
         labels={labels}
         faults={faults}
         searchFor={(bodyId, kind) => ({ url: `${SUPPLIER_REGISTRATION_GETS.values}?body=${encodeURIComponent(bodyId)}&kind=${encodeURIComponent(kind)}`, minChars: 0, token })}
