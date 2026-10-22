@@ -30,13 +30,7 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "LadWaiver.person": { why: "Waiving liquidated damages is a later 6.13 Part B increment: no act writes it.", writer: /\.ladWaiver\.(?:create|update|upsert)/ },
   "LossExpenseClaim.valuedBy": { why: "Valuing a loss-and-expense claim is a later 6.13 Part B increment: no act writes the valuation.", writer: /valuedByPersonId/ },
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
-  // ADR 0042 (plan step 1): the Project workspace's six staff slots are registered with the schema; step 4 builds their acts and takes each off this list.
-  "ProjectDocument.createdByPerson": { why: "Creating a Project workspace document is plan step 4: no act writes it yet.", writer: /\.projectDocument\.(?:create|createMany|update|updateMany|upsert)\(/ },
-  "ProjectDocumentVersion.uploadedByPerson": { why: "Uploading a version in the Project workspace is plan step 4: no act writes it yet.", writer: /\.projectDocumentVersion\.(?:create|createMany|createManyAndReturn)\(/ },
-  "ProjectDocumentRequest.requestedByPerson": { why: "Asking for a document in the Project workspace is plan step 4: no act writes it yet.", writer: /\.projectDocumentRequest\.(?:create|createMany|createManyAndReturn)\(/ },
-  "ProjectDocumentApprover.addedBy": { why: "Adding an approver to a Project workspace document is plan step 4: no act writes it yet.", writer: /\.projectDocumentApprover\.(?:create|createMany|createManyAndReturn)\(/ },
-  "ProjectDocumentApprover.removedBy": { why: "Removing an approver from a Project workspace document is plan step 4: no act writes it yet.", writer: /\.projectDocumentApprover\.(?:update|updateMany|upsert)\(/ },
-  "ProjectDocumentDecision.decidedBy": { why: "Approving or rejecting a Project workspace version is plan step 4: no act writes it yet.", writer: /\.projectDocumentDecision\.(?:create|createMany|createManyAndReturn)\(/ },
+  // ADR 0042 (plan step 4): the Project workspace's six staff slots are wired (`document-actions.ts`, `project-docs/store.ts`) and have left this list.
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -165,6 +159,8 @@ describe("a slot written beside an act can be recorded the way the act is", () =
   const HANDED: Readonly<Record<string, { target: string; main: string; mainFile: string; mainFn: string }[]>> = {
     "src/lib/bids/lodgement.ts": [{ target: "BidEnvelope.receivedBy", main: "EstimateEvent.person", mainFile: "src/app/sourcing/[id]/scope/actions.ts", mainFn: "lodgeEstimate" }],
     "src/lib/evaluation/versions.ts": [{ target: "Evaluation.startedBy", main: "EstimateEvent.person", mainFile: "src/app/sourcing/[id]/opening/actions.ts", mainFn: "finaliseOpening" }],
+    // ADR 0042: creating a Project workspace document also writes its first version's, its first request's and its approvers' slots, in the one act the officer begins (`onBehalf: false`).
+    "src/lib/project-docs/store.ts": ["ProjectDocumentVersion.uploadedByPerson", "ProjectDocumentRequest.requestedByPerson", "ProjectDocumentApprover.addedBy"].map((target) => ({ target, main: "ProjectDocument.createdByPerson", mainFile: "src/app/projects/[id]/document-actions.ts", mainFn: "createProjectDocument" })),
   };
   const paperCapable = (key: string) => ACT_SLOTS.find((s) => slotKey(s.entity, s.field) === key)?.onBehalf === true;
   /// The `beginAct` calls of a source text, each with the slot it is for and whether it narrows the slot to the officer's own.

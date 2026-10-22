@@ -271,6 +271,10 @@ describe("a document is attached only by someone who may already open it (OD-2, 
         // Changed for ADR 0041 D6 (registration step 4): the last approval of a whole online application moves the versions the applicant's submission stored onto the new supplier's
         // documents and creditor profile, as submit-store moves a draft's. The applicant's own files: no officer attaches anything, and their bytes are judged by the records they then hang on.
         "src/lib/suppliers/portal-application-acts.ts",
+        // ADR 0042 D8 (Project workspace step 4): an act pins the files it was handed, staged first by the same actor (`stagedFileFaults`), to the version it creates, in that act's transaction.
+        // No officer names a document to attach: the staged document is the actor's own and hangs on no exercise, and a project file is never SULIT or unclassified (`contractorMayDownload`,
+        // judged again at the pin), because the contractor downloads it.
+        "src/lib/project-docs/store.ts",
       ].sort(),
     );
   });

@@ -196,6 +196,16 @@ export function faultText(f: Finding, orgName = "the organisation"): string {
       return `${file} is not in the class for project files. ${AGAIN}`;
     case "DUPLICATE":
       return `${file} is named twice.`;
+    case "NOT_FOUND":
+      return "That document is not on this contract.";
+    case "ZONE_NOT_SET":
+      return "Time zone not set. An administrator sets it under Configuration › Organisation.";
+    case "FILE_UNKNOWN":
+      return `${file} was not found. ${AGAIN}`;
+    case "FILE_REFUSED":
+      return `${file} cannot be attached: ${str(d.words)}`;
+    case "FILE_NOT_FOR_CONTRACTOR":
+      return `${file} is unclassified or SULIT, and the contractor downloads project files. ${AGAIN}`;
     default:
       return "Refused.";
   }

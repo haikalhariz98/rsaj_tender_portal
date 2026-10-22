@@ -414,6 +414,8 @@ export function documentFaultText(f: Finding): string {
       return "That version is withdrawn, so it is not attached. Attach a version that stands.";
     case "CLASS_NOT_SET":
       return "Choose a class. If none is offered, add one under Documents.";
+    case "PROJECT_CLASS_NOT_SET":
+      return "Project files have no document class yet. An administrator sets the class for project files under Configuration › Documents.";
     case "CLASSES_NOT_CONFIGURED":
       return "No document classes. An administrator adds one under Documents.";
     case "CLASS_UNKNOWN":

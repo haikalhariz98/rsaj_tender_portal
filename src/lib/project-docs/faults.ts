@@ -39,6 +39,12 @@ function collector<C extends string>() {
   return { out, add };
 }
 
+// ------------------------------------------------------------------ what the store itself refuses
+
+/// Refusals the store raises on the rows it reads under the locks, beyond the pure rules above: the document is not on this contract, the organisation has no
+/// time zone, and a staged file that is not there or that the document store itself refuses to pin (`data.words` carries its words; `data.file` its place, from 1).
+export type StoreFault = "NOT_FOUND" | "ZONE_NOT_SET" | "FILE_UNKNOWN" | "FILE_REFUSED" | "FILE_NOT_FOR_CONTRACTOR";
+
 // ------------------------------------------------------------------ create
 
 export type CreateFault =

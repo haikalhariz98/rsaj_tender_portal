@@ -689,3 +689,90 @@ describe("configuration saves read under their lock (Phase 0, group E)", () => {
     expect(b).not.toMatch(/numberingSeries\.update|nextSerial|formatReference/);
   });
 });
+
+// ------------------------------------------------------------------ ADR 0042, plan step 4: the Project workspace's acts
+//
+// Not in CONTRACT_ACT_FILES above, on purpose: those scans read a file that itself calls `inContract` in every exported function and takes its own domain lock, and has
+// fifteen acts or more. The workspace splits the same work in two: the staff server actions own the edge and the contract's lock (`document-actions.ts`), and the cores
+// in `project-docs/store.ts` (also called by step 5's portal routes, inside `inHeldContract`) take the one row lock of the workspace after it. So the same properties are
+// held here, file by file, for the two files, and none of the scans above is loosened.
+
+const WORKSPACE_ACTIONS = "src/app/projects/[id]/document-actions.ts";
+const WORKSPACE_STORE = "src/lib/project-docs/store.ts";
+const WORKSPACE_CORES = ["createDocument", "addVersion", "requestDocument", "addApprover", "removeApprover", "decideVersion"];
+
+describe("the Project workspace: staff actions lock the contract, the store locks the document", () => {
+  const actionsSrc = read(WORKSPACE_ACTIONS);
+  const storeSrc = read(WORKSPACE_STORE);
+  const acts = actions(actionsSrc);
+  const cores = actions(storeSrc);
+
+  it("six actions, each reading the clock once before it enters the lock, and begun (the attribution) before it", () => {
+    expect([...acts.keys()].sort()).toEqual(["addProjectApprover", "createProjectDocument", "decideProjectVersion", "removeProjectApprover", "requestProjectDocument", "uploadProjectVersion"]);
+    for (const [name, body] of acts) {
+      const entry = body.indexOf("return inContract(");
+      expect(entry, name).toBeGreaterThan(-1);
+      expect(body.indexOf("const now = toSecond(new Date());"), name).toBeGreaterThan(-1);
+      expect(body.indexOf("const now = toSecond(new Date());"), name).toBeLessThan(entry);
+      expect((body.match(/new Date\(\)/g) ?? []).length, name).toBe(1);
+      const begun = [...body.matchAll(/\bbeginAct\(/g)].map((m) => m.index!);
+      expect(begun.length, name).toBe(1);
+      expect(begun[0], `${name}: beginAct after the lock was taken`).toBeLessThan(entry);
+    }
+    expect((actionsSrc.match(/new Date\(\)/g) ?? []).length).toBe(acts.size);
+  });
+
+  it("the actions' own helper locks the contract (withLockedContract) and asks the PROJECT_WORKSPACE row, then the day, inside it; the file locks no row and never uses the global client", () => {
+    const at = actionsSrc.indexOf("async function inContract(");
+    const helper = actionsSrc.slice(at, actionsSrc.indexOf("\n}\n", at));
+    expect(helper).toContain("withLockedContract(");
+    expect(helper.indexOf('actStatusFault("PROJECT_WORKSPACE", l.contract.status as ContractStatus)')).toBeGreaterThan(helper.indexOf("withLockedContract("));
+    expect(helper.indexOf("dayOf(now, l.org.timeZone)")).toBeGreaterThan(helper.indexOf("actStatusFault("));
+    expect(helper.indexOf("fn({ tx, l, now, today })")).toBeGreaterThan(helper.indexOf("dayOf("));
+    expect(lex(actionsSrc)).not.toMatch(/FOR UPDATE|FOR SHARE|\$transaction|\bdb\./);
+  });
+
+  it("the store has the six cores, never locks the contract or uses the global client, and reads the clock never (it is handed in)", () => {
+    expect([...cores.keys()].sort()).toEqual([...WORKSPACE_CORES].sort());
+    const code = lex(storeSrc);
+    expect(code).not.toMatch(/withLockedContract|withLockedAward|inHeldContract|\bdb\./);
+    expect(code).not.toMatch(/new Date\(\)/);
+  });
+
+  it("every core on an existing document takes the ProjectDocument lock before it reads the document's facts, and it is the only raw row lock in the file", () => {
+    expect([...storeSrc.matchAll(/FROM "(\w+)" WHERE id = \$\{\w+\} FOR UPDATE/g)].map((m) => m[1])).toEqual(["ProjectDocument"]);
+    const at = storeSrc.indexOf("async function lockedDocument(");
+    const locker = storeSrc.slice(at, storeSrc.indexOf("\n}\n", at));
+    expect(locker).toMatch(/FROM "ProjectDocument" WHERE id = \$\{documentId\} FOR UPDATE/);
+    expect(locker.indexOf("FOR UPDATE")).toBeLessThan(locker.indexOf("loadDocumentFacts("));
+    for (const name of WORKSPACE_CORES.filter((n) => n !== "createDocument")) {
+      const body = cores.get(name)!;
+      expect(body, name).toContain("lockedDocument(c, i.documentId)");
+      expect(body.indexOf("lockedDocument("), name).toBeLessThan(body.indexOf("stagedFiles(") === -1 ? Infinity : body.indexOf("stagedFiles("));
+      expect(body, name).not.toContain("loadDocumentFacts(");
+    }
+    // A new document is not locked: no other act can see it before this transaction commits.
+    expect(cores.get("createDocument")).not.toContain("lockedDocument(");
+  });
+
+  it("the staged files are locked after the ProjectDocument, in id order, and judged on the rows read after their lock", () => {
+    const at = storeSrc.indexOf("async function stagedFiles(");
+    const body = storeSrc.slice(at, storeSrc.indexOf("\n}\n", at));
+    expect(body.indexOf(".sort()")).toBeGreaterThan(-1);
+    expect(body.indexOf("lockDocument(c.tx, documentId)")).toBeGreaterThan(body.indexOf(".sort()"));
+    // The judging read is after the lock.
+    expect(body.lastIndexOf("documentVersion.findMany(")).toBeGreaterThan(body.indexOf("lockDocument("));
+  });
+
+  it("an attribution is written only inside the transaction, on the act's own tx, and only for a staff act", () => {
+    let written = 0;
+    for (const [name, body] of cores) {
+      for (const m of body.matchAll(/\bact\.(?:write|writeAlso)\(\s*([^,)]+)/g)) {
+        written++;
+        expect(m[1].trim(), `${name}: an attribution written on another client`).toMatch(/^(?:c\.)?tx$/);
+        expect(body.slice(Math.max(0, m.index! - 20), m.index!), `${name}: written for a portal act too`).toMatch(/if \(act\) await\s*$/);
+      }
+    }
+    expect(written).toBeGreaterThanOrEqual(9);
+  });
+});

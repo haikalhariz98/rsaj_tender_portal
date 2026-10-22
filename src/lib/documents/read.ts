@@ -261,7 +261,7 @@ export async function documentDrawer(organisationId: string, documentId: string,
       : a.creditorProfile ? `/suppliers/${a.creditorProfile.supplierId}?tab=creditor&version=${a.creditorProfile.version}`
       : a.portalApplicationDocument ? `/suppliers/online/${a.portalApplicationDocument.portalApplication.id}?tab=documents`
       : a.portalApplicationCreditor ? `/suppliers/online/${a.portalApplicationCreditor.portalApplication.id}?tab=bank`
-      : a.projectDocumentVersionId && a.projectDocumentVersion ? ownerHref("projectDocumentVersion", a.projectDocumentVersionId, a.projectDocumentVersion.document.contractId)
+      : a.projectDocumentVersionId && a.projectDocumentVersion ? ownerHref("projectDocumentVersion", a.projectDocumentVersionId, `${a.projectDocumentVersion.document.contractId}/documents/${a.projectDocumentVersion.document.id}`)
       : "/configuration/documents";
   return {
     id: d.id,

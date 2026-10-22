@@ -112,9 +112,10 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
     case "portalApplicationDocument":
     case "portalApplicationCreditor":
       return exerciseId ? `/suppliers/online/${exerciseId}` : "/suppliers/online";
-    // ADR 0042 D5: a Project workspace version is on its contract's Documents list (the tab id stays "submissions"); the third argument is the contract's id.
+    // ADR 0042 D5: a Project workspace version is on its document's page; the third argument is "<contractId>/documents/<documentId>". Without it, the contract's Documents list
+    // (the tab id stays "submissions") is the nearest place, and without a contract, the projects.
     case "projectDocumentVersion":
-      return exerciseId ? `/projects/${exerciseId}?tab=submissions` : "/projects";
+      return exerciseId ? (exerciseId.includes("/") ? `/projects/${exerciseId}` : `/projects/${exerciseId}?tab=submissions`) : "/projects";
   }
 }
 

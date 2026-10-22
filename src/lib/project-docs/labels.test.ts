@@ -104,6 +104,9 @@ describe("every refusal is worded", () => {
     WITHDRAWN: [{ file: 2 }],
     WRONG_CLASS: [{ file: 2 }],
     DUPLICATE: [{ file: 2 }],
+    FILE_UNKNOWN: [{ file: 2 }],
+    FILE_REFUSED: [{ file: 2, words: "That version is withdrawn, so it is not attached." }],
+    FILE_NOT_FOR_CONTRACTOR: [{ file: 2 }],
     ALREADY_MARKED: [{ kind: "DEFECTS_RECTIFIED" }],
   };
 
