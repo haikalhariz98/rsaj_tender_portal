@@ -18,7 +18,8 @@ import { requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/acto
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { eligibleFor } from "@/lib/auth/eligibility-store";
 import { loadDraftMakers, noteDraftMaker } from "@/lib/auth/draft-makers";
-import { draftIssueFault } from "@/lib/auth/maker-checker";
+import { draftIssueFault, issueReason } from "@/lib/auth/maker-checker";
+import { twoPersonOn } from "@/lib/auth/policy-store";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -510,6 +511,7 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
   const beforePassword = draftIssueFault({
     makerPersonIds: makersNow.personIds,
     issuerPersonId: actor.personId,
+    twoPersonChanges: await twoPersonOn(db, orgId),
     eligiblePersonIds: await eligibleFor(db, { organisationId: orgId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
   });
   if (beforePassword) return { ok: false, message: beforePassword.en };
@@ -523,9 +525,11 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
     const l = await lockedIssue(tx, orgId, scheduleId);
     if (!l) return GONE;
     const makers = await loadDraftMakers(tx, "RateSchedule", scheduleId);
+    const twoPerson = await twoPersonOn(tx, orgId);
     const makerFault = draftIssueFault({
       makerPersonIds: makers.personIds,
       issuerPersonId: actor.personId,
+      twoPersonChanges: twoPerson,
       eligiblePersonIds: await eligibleFor(tx, { organisationId: orgId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
     });
     if (makerFault) return { ok: false, message: makerFault.en };
@@ -543,7 +547,7 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
       await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, supersedes.id, issueLabel(supersedes.label, supersedes.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED }, { status: RATE_SCHEDULE_STATUS_LABEL.SUPERSEDED, supersededBy: `issue ${l.issue.issueNo}`, supersededOn: today });
     }
     await tx.rateSchedule.update({ where: { id: l.issue.id, organisationId: actor.organisationId }, data: { status: "ISSUED", effectiveFrom: dayToDate(effective!), issuedOn: dayToDate(today!), issuedByPersonId: issuer!.id } });
-    await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: issuer!.name, madeBy: makers.names.join(", "), items: l.issue.items.length });
+    await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: issuer!.name, madeBy: makers.names.join(", "), items: l.issue.items.length }, issueReason("", { makerPersonIds: makers.personIds, issuerPersonId: actor.personId, twoPersonChanges: twoPerson }));
     await act.write(tx, l.issue.id);
     revalidatePath("/sourcing", "layout");
     return done();

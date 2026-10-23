@@ -21,6 +21,7 @@ const unset: SecurityPolicyValues = {
   paperSignatureRecording: null,
   signInDetailRetentionDays: null,
   sealingPassphraseMinLength: null,
+  twoPersonChanges: true,
 };
 const signInSet: SecurityPolicyValues = {
   ...unset,

@@ -129,7 +129,12 @@ export function parseChange(kind: ChangeKind, raw: unknown): { ok: true; change:
         }
         const k = key as SecurityPolicyKey;
         const allowed = POLICY_ENUMS[k];
-        if (allowed) {
+        if (k === "twoPersonChanges") {
+          // The form posts On or Off; a stored payload holds the boolean.
+          if (value === "ON" || value === true) out[k] = true;
+          else if (value === "OFF" || value === false) out[k] = false;
+          else faults.push(bad(key, "BAD_CHOICE", "Choose one of the options offered."));
+        } else if (allowed) {
           if (typeof value !== "string" || !allowed.includes(value)) faults.push(bad(key, "BAD_CHOICE", "Choose one of the options offered."));
           else out[k] = value;
         } else if (typeof value !== "number") {

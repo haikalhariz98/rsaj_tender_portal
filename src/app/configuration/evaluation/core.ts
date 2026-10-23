@@ -16,7 +16,8 @@ import { requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/acto
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { eligibleFor } from "@/lib/auth/eligibility-store";
 import { loadDraftMakers, noteDraftMaker } from "@/lib/auth/draft-makers";
-import { draftIssueFault } from "@/lib/auth/maker-checker";
+import { draftIssueFault, issueReason } from "@/lib/auth/maker-checker";
+import { twoPersonOn } from "@/lib/auth/policy-store";
 import { permissionHeldThrough } from "@/lib/auth/permission-store";
 import type { AuditActor, StaffActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -153,6 +154,7 @@ export async function issueModel(_prev: FormState, data: FormData): Promise<Form
   const beforePassword = draftIssueFault({
     makerPersonIds: makersNow.personIds,
     issuerPersonId: actor.personId,
+    twoPersonChanges: await twoPersonOn(db, actor.organisationId),
     eligiblePersonIds: await eligibleFor(db, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
   });
   if (beforePassword) return { ok: false, message: beforePassword.en };
@@ -169,9 +171,11 @@ export async function issueModel(_prev: FormState, data: FormData): Promise<Form
       id,
       async (tx, org, m) => {
         const makers = await loadDraftMakers(tx, "EvaluationModel", id);
+        const twoPerson = await twoPersonOn(tx, org);
         const makerFault = draftIssueFault({
           makerPersonIds: makers.personIds,
           issuerPersonId: actor.personId,
+          twoPersonChanges: twoPerson,
           eligiblePersonIds: await eligibleFor(tx, { organisationId: org, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
         });
         if (makerFault) return { ok: false, message: makerFault.en };
@@ -182,7 +186,7 @@ export async function issueModel(_prev: FormState, data: FormData): Promise<Form
         const moved = await tx.evaluationModel.updateMany({ where: { id, status: "DRAFT" }, data: { status: "ISSUED", issuedAt: now, issuedByPersonId: actor.personId, contentSnapshot: snapshot as unknown as Prisma.InputJsonValue } });
         if (moved.count !== 1) return GONE;
         const warned = findings.filter((f) => f.level !== "block");
-        await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, id, modelLabel(m), "UPDATE", diffFields({ status: "Draft" }, { status: "Issued", issuedBy: actor.personName, madeBy: makers.names.join(", "), stages: content.stages.length, bandSets: content.bandSets.length, aspects: snapshot.aspects.length, issuedWith: warned.length ? said(warned) : null }));
+        await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, id, modelLabel(m), "UPDATE", diffFields({ status: "Draft" }, { status: "Issued", issuedBy: actor.personName, madeBy: makers.names.join(", "), stages: content.stages.length, bandSets: content.bandSets.length, aspects: snapshot.aspects.length, issuedWith: warned.length ? said(warned) : null }), issueReason("", { makerPersonIds: makers.personIds, issuerPersonId: actor.personId, twoPersonChanges: twoPerson }));
         await act.write(tx, id, { document: { entity: "EvaluationModel", id }, roleCode: heldThrough });
         return { ok: true, message: warned.length ? `Issued. ${said(warned)}` : "Issued." };
       },

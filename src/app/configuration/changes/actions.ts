@@ -51,14 +51,16 @@ async function propose(actor: StaffActor, data: FormData, kind: ChangeKind, payl
   if (!begun.ok) return begun.state;
   const act = begun.act;
   try {
-    const outcome = await proposeChange(actor, act, { kind, payload, reason: String(data.get("reason") ?? "") });
+    const outcome = await proposeChange(actor, act, { kind, payload, reason: String(data.get("reason") ?? "") }, new Date(), await currentRequestFacts());
     if (!outcome.ok) return stateOf(outcome, fieldMap);
+    refresh();
+    // A code made at once (the two-person switch is off) is said here, once, to the person who asked, and kept nowhere.
+    if (outcome.applied && outcome.code) return { ok: true, notice: `Code for ${outcome.code.personName}: ${outcome.code.code}. Valid until ${formatOrgDateTime(outcome.code.expiresAt, actor.organisationTimeZone)}. Hand it over by hand. The system sends nothing.` };
   } catch (e) {
     const refused = attributionRefusalState(e);
     if (refused) return refused;
     throw e;
   }
-  refresh();
   return { ok: true };
 }
 

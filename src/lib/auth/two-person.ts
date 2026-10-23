@@ -34,3 +34,6 @@ export function appliesAtOnce(kind: ConfigurationChangeKind, twoPersonChanges: b
 /// The reason every audit row of a one-person change carries: the list of changes made by one person is the audit rows with a person
 /// actor that carry it (ADR 0043 D3, plan 4.5 G1).
 export const ONE_PERSON_REASON = "Applied without a second person: two-person approval is off";
+
+/// A person's own reason with `ONE_PERSON_REASON` after it: what a one-person change records, so the reason they gave is never lost.
+export const withOnePersonReason = (reason: string): string => (reason ? `${reason} (${ONE_PERSON_REASON})` : ONE_PERSON_REASON);

@@ -16,6 +16,7 @@ import { authenticateStaff, confirmStaffPassword } from "./identity";
 import { randomPassword } from "@/lib/test-db/auth-fixtures";
 import { createStaffSession, readStaffSession } from "./session-store";
 import { hashToken } from "./token";
+import { ONE_PERSON_REASON } from "./two-person";
 import type { PermissionKey, StaffActor } from "./types";
 
 /**
@@ -79,7 +80,7 @@ async function decide(who: Who, changeId: string, decision: "APPLY" | "DECLINE" 
 }
 const proposed = async (who: Who, kind: ChangeKind, payload: unknown) => {
   const r = await propose(who, kind, payload);
-  if (!r.ok) throw new Error(`not proposed: ${JSON.stringify(r)}`);
+  if (!r.ok || r.applied) throw new Error(`not proposed: ${JSON.stringify(r)}`);
   return r.changeId;
 };
 const rowOf = (id: string) => db.configurationChange.findUniqueOrThrow({ where: { id } });
@@ -625,5 +626,81 @@ describe("who reads the queue", () => {
     expect(await decide(b, policyChange, "DECLINE", "not now")).toMatchObject({ ok: true });
     expect(ids((await loadChangesView(grantOnly)).decided)).not.toContain(policyChange);
     expect(ids((await loadChangesView(b.actor)).decided)).toContain(policyChange);
+  });
+});
+
+describe("with the two-person switch off (ADR 0043 D3)", () => {
+  beforeEach(async () => {
+    await db.securityPolicy.update({ where: { organisationId }, data: { twoPersonChanges: false } });
+  });
+  const rows = () => db.configurationChange.count({ where: { organisationId } });
+  const switchIsOn = async () => (await db.securityPolicy.findUniqueOrThrow({ where: { organisationId } })).twoPersonChanges;
+
+  it("applies a setting at once, with no change row, and every audit row carries the reason and the person", async () => {
+    const a = await administrator();
+    const before = await rows();
+    expect(await propose(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } })).toEqual({ ok: true, applied: true });
+    expect(await idle()).toBe(20);
+    expect(await rows()).toBe(before);
+    const audit = await db.auditEntry.findMany({ where: { entity: "SecurityPolicy", organisationId, actorPersonId: a.person.id } });
+    expect(audit).toHaveLength(1);
+    expect(audit[0].reason).toContain(ONE_PERSON_REASON);
+    expect(audit[0].reason).toContain("A reason it is proposed");
+  });
+
+  it("still refuses what the rules refuse, and a blank reason, and writes nothing", async () => {
+    const a = await administrator();
+    expect(await propose(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 30 } })).toMatchObject({ ok: false, faults: [{ code: "NO_CHANGE" }] });
+    expect(await propose(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } }, " ")).toMatchObject({ ok: false, faults: [{ code: "REASON_REQUIRED" }] });
+    expect(await idle()).toBe(30);
+  });
+
+  it("one administrator alone changes a setting", async () => {
+    const org = await db.organisation.create({ data: { code: `CHG_${randomId()}`, name: "Alone", timeZone: "Asia/Kuala_Lumpur" } });
+    await setPolicy(org.id, SETTINGS);
+    await db.securityPolicy.update({ where: { organisationId: org.id }, data: { twoPersonChanges: false } });
+    const only = await administrator(org.id);
+    expect(await propose(only, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } })).toEqual({ ok: true, applied: true });
+    expect(await db.configurationChange.count({ where: { organisationId: org.id } })).toBe(0);
+  });
+
+  it("makes an administrator at once", async () => {
+    const a = await administrator();
+    const target = await signedIn();
+    expect(await propose(a, "ADMINISTRATOR_GRANT", { accountId: target.account.id })).toEqual({ ok: true, applied: true });
+    expect(await db.staffAccount.findUniqueOrThrow({ where: { id: target.account.id } })).toMatchObject({ isAdministrator: true });
+  });
+
+  it("makes a code at once, shown to the one who asked, and never their own", async () => {
+    const a = await administrator();
+    const target = await signedIn();
+    await db.roleAssignment.create({ data: { personId: target.person.id, roleCode: "TEST_OFFICE", effectiveFrom: new Date("2020-01-01") } });
+    const r = await propose(a, "ACCOUNT_CODE", { accountId: target.account.id, purpose: "RESET" });
+    if (!r.ok || !r.applied || !r.code) throw new Error(`not made: ${JSON.stringify(r)}`);
+    expect(await db.oneTimeCode.findFirstOrThrow({ where: { staffAccountId: target.account.id } })).toMatchObject({ issuedByPersonId: a.person.id, usedAt: null });
+    expect(await propose(a, "ACCOUNT_CODE", { accountId: a.account.id, purpose: "RESET" })).toMatchObject({ ok: false, faults: [{ code: "OWN_ACCOUNT" }] });
+  });
+
+  it("turning it on is saved at once; turning it off, while on, is a proposal a second person decides", async () => {
+    const a = await administrator();
+    const b = await administrator();
+    expect(await propose(a, "SECURITY_POLICY", { changes: { twoPersonChanges: "ON" } })).toEqual({ ok: true, applied: true });
+    expect(await switchIsOn()).toBe(true);
+    const id = await proposed(a, "SECURITY_POLICY", { changes: { twoPersonChanges: "OFF" } });
+    expect(await switchIsOn()).toBe(true);
+    expect(await decide(a, id, "APPLY")).toMatchObject({ ok: false, faults: [{ code: "PROPOSER_IS_DECIDER" }] });
+    expect(await decide(b, id, "APPLY")).toMatchObject({ ok: true, status: "APPLIED" });
+    expect(await switchIsOn()).toBe(false);
+  });
+
+  it("a change proposed while it was on stays waiting, and is decided by a second person after it goes off", async () => {
+    await db.securityPolicy.update({ where: { organisationId }, data: { twoPersonChanges: true } });
+    const a = await administrator();
+    const b = await administrator();
+    const id = await proposed(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } });
+    await db.securityPolicy.update({ where: { organisationId }, data: { twoPersonChanges: false } });
+    expect((await rowOf(id)).status).toBe("PROPOSED");
+    expect(await decide(b, id, "APPLY")).toMatchObject({ ok: true, status: "APPLIED" });
+    expect(await idle()).toBe(20);
   });
 });

@@ -22,6 +22,7 @@ import { db } from "@/lib/db";
 import { eligibleFor } from "@/lib/auth/eligibility-store";
 import { loadDraftMakers } from "@/lib/auth/draft-makers";
 import { draftIssueFault } from "@/lib/auth/maker-checker";
+import { twoPersonOn } from "@/lib/auth/policy-store";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
   // Phase 5a (ADR 0034 D15): who made this draft, and whether the person looking may issue it. The issue is never the maker's.
   const makers = draft ? await loadDraftMakers(db, "EvaluationModel", m.id) : null;
   const issuance = draft
-    ? draftIssueFault({ makerPersonIds: makers!.personIds, issuerPersonId: actor.personId, eligiblePersonIds: await eligibleFor(db, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue") })
+    ? draftIssueFault({ makerPersonIds: makers!.personIds, issuerPersonId: actor.personId, twoPersonChanges: await twoPersonOn(db, actor.organisationId), eligiblePersonIds: await eligibleFor(db, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue") })
     : null;
   const needsAdopting = draft && makers!.personIds.length === 0;
 

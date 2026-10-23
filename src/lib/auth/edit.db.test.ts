@@ -14,6 +14,7 @@ import type { ChangeAct } from "./change-store";
 import { loadChangesView } from "./changes-view";
 import { auditActorOfStaff } from "./audit-actor";
 import { parseEditPayload } from "./configuration-edit";
+import { ONE_PERSON_REASON } from "./two-person";
 import { decideEdit, formOf, proposeEdit, type EditOperation, type EditRegistry, type EditRunResult } from "./edit-store";
 import { confirmStaffPassword } from "./identity";
 import { createStaffSession, readStaffSession } from "./session-store";
@@ -201,7 +202,7 @@ async function decide(who: Who, changeId: string, decision: "APPLY" | "DECLINE" 
 }
 async function proposed(who: Who, operation: string, f: [string, string][]) {
   const r = await propose(who, operation, f);
-  if (!r.ok) throw new Error(`not proposed: ${JSON.stringify(r)}`);
+  if (!r.ok || r.applied) throw new Error(`not proposed: ${JSON.stringify(r)}`);
   return r.changeId;
 }
 const series = (key: string) => db.numberingSeries.findFirst({ where: { organisationId, key } });
@@ -690,5 +691,65 @@ describe("a return correction's personal values are blanked when it is decided (
     const blanked = { operation: RETURN_CORRECTION_OPERATION, fields: f.map(([n, v]) => [n, listed(n) ? null : v]) };
     await expect(db.$executeRawUnsafe(`UPDATE "ConfigurationChange" SET "payload" = $2::jsonb WHERE "id" = $1`, id, JSON.stringify(blanked))).rejects.toThrow(/PA004/);
     expect((await payloadOf(id)).fields).toEqual(f);
+  });
+});
+
+describe("with the two-person switch off (ADR 0043 D3)", () => {
+  beforeEach(async () => {
+    await db.securityPolicy.update({ where: { organisationId }, data: { twoPersonChanges: false } });
+  });
+  const changeRows = () => db.configurationChange.count({ where: { organisationId } });
+
+  it("applies a save at once, writes no change row, and the audit carries the person's reason and the one-person reason", async () => {
+    const a = await administrator();
+    const k = key();
+    const before = await changeRows();
+    const r = await propose(a, "test.saveSeries", fields(k));
+    expect(r).toEqual({ ok: true, applied: true });
+    expect((await series(k))?.pattern).toBe("AB/{SERIAL}");
+    expect(await changeRows()).toBe(before);
+    const written = await db.auditEntry.findMany({ where: { entity: "NumberingSeries", entityLabel: k } });
+    expect(written).toHaveLength(1);
+    expect(written[0].reason).toBe(`Because the numbering changed (${ONE_PERSON_REASON})`);
+    expect(written[0].actorPersonId).toBe(a.person.id);
+  });
+
+  it("still tells the person what the editor refuses, and writes nothing", async () => {
+    const a = await administrator();
+    const k = key();
+    expect(await propose(a, "test.saveSeries", [["key", k], ["pattern", ""]])).toMatchObject({ ok: false, kind: "EDITOR", result: { errors: { pattern: "Enter a pattern." } } });
+    expect(await propose(a, "test.writeThenRefuse", [["key", k]])).toMatchObject({ ok: false, kind: "EDITOR" });
+    expect(await propose(a, "test.nothing", [])).toMatchObject({ ok: false, faults: [{ code: "NO_CHANGE" }] });
+    expect(await series(k)).toBeNull();
+    expect(await db.auditEntry.count({ where: { entity: "NumberingSeries", entityLabel: k } })).toBe(0);
+  });
+
+  it("still proposes a correction of the record, which a second person decides", async () => {
+    const maker = await officer();
+    await officer("corrections.decide");
+    const k = key();
+    const r = await propose(maker, "test.correction", [["key", k]]);
+    expect(r.ok && r.applied).toBeFalsy();
+    expect(r.ok).toBe(true);
+    expect(await series(k)).toBeNull();
+    expect(await db.configurationChange.count({ where: { organisationId, kind: "BASELINE_CORRECTION", status: "PROPOSED" } })).toBeGreaterThan(0);
+  });
+
+  it("applies a holder of the drafting permission's save at once, who could not decide it themselves", async () => {
+    const maker = await officer("configuration.draft");
+    const k = key();
+    expect(await propose(maker, "test.saveSeries", fields(k))).toEqual({ ok: true, applied: true });
+    expect(await series(k)).not.toBeNull();
+  });
+
+  it("proposes again once the switch is back on", async () => {
+    const a = await administrator();
+    await administrator();
+    await db.securityPolicy.update({ where: { organisationId }, data: { twoPersonChanges: true } });
+    const k = key();
+    const r = await propose(a, "test.saveSeries", fields(k));
+    expect(r.ok && r.applied).toBeFalsy();
+    expect(r.ok).toBe(true);
+    expect(await series(k)).toBeNull();
   });
 });

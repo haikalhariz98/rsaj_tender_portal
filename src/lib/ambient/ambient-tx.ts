@@ -40,7 +40,9 @@ export interface Ambient {
   /// Whether the editor is being rehearsed (a proposal: everything is undone) or applied (a second person's decision: it stays). An act an editor begins while it is
   /// applied is the applier's own, except an act that names its subject in its form (a delegation's grantor): that is the proposer's, made at the proposal, and is
   /// attributed to the person the form names (`beginActAmbientWith`, ruling 1982(h)(1)).
-  mode: "REHEARSAL" | "APPLY";
+  /// IMMEDIATE: a save applied at once by the one person who made it, because the organisation's two-person switch is off (ADR 0043 D3). The editor runs as it did
+  /// before two-person approval existed: an act it begins is the signed-in person's own, and a rule that asks for a second approver still does.
+  mode: "REHEARSAL" | "APPLY" | "IMMEDIATE";
   /// Under APPLY, who proposed the change, from the change's own row and never from a form: the person whose act a named subject is attributed through.
   proposer?: { personId: string; name: string };
   /// The transaction client that `db` stands for while this is set.

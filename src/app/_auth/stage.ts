@@ -74,6 +74,11 @@ async function propose(actor: StaffActor, key: EditKey, data: FormData): Promise
       if (outcome.kind === "EDITOR") return { ok: false, ...(outcome.result.errors ? { errors: outcome.result.errors } : {}), ...(outcome.result.message ? { message: outcome.result.message } : {}) };
       return { ok: false, message: outcome.faults.map((x) => x.en).join(" ") };
     }
+    // Applied at once (the two-person switch is off): saved, so the form closes as any save does.
+    if (outcome.applied) {
+      revalidatePath("/configuration", "layout");
+      return { ok: true };
+    }
   } catch (e) {
     const refused = attributionRefusalState(e);
     if (refused) return refused;

@@ -65,6 +65,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { loadMakers } from "@/lib/authority/maker-store";
 import { eligibleFor } from "@/lib/auth/eligibility-store";
 import { makerCheckerFault } from "@/lib/auth/maker-checker";
+import { twoPersonOn } from "@/lib/auth/policy-store";
 
 export const dynamic = "force-dynamic";
 
@@ -169,6 +170,7 @@ export default async function ApprovalMatrixPage({
         makerPersonIds: makers!.personIds,
         makersUnknownAtLanding: (await db.authorityMatrix.findUniqueOrThrow({ where: { id: selected.id, organisationId: actor.organisationId }, select: { makersUnknownAtLanding: true } })).makersUnknownAtLanding,
         issuerPersonId: actor.personId,
+        twoPersonChanges: await twoPersonOn(db, actor.organisationId),
         eligiblePersonIds: await eligibleFor(db, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now: on }, "configuration.issue"),
       })
     : null;

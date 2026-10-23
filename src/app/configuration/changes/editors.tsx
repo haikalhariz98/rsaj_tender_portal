@@ -59,6 +59,7 @@ export function ProposeSetting({
   label,
   current,
   choices,
+  atOnce,
 }: {
   setting: string;
   label: string;
@@ -66,11 +67,13 @@ export function ProposeSetting({
   current: string;
   /// The offered choices of a setting that is a choice; absent for a whole number.
   choices?: { value: string; label: string }[];
+  /// The organisation's two-person switch is off: the save applies at once.
+  atOnce?: boolean;
 }) {
   return (
     <RecordEditor
-      title={`Propose a change to: ${label}`}
-      description={`Now: ${current}. A second person decides. Until then it stays.`}
+      title={atOnce ? `Change: ${label}` : `Propose a change to: ${label}`}
+      description={atOnce ? `Now: ${current}. It applies at once.` : `Now: ${current}. A second person decides. Until then it stays.`}
       fields={[
         { kind: "hidden", name: "setting" },
         choices
@@ -81,8 +84,8 @@ export function ProposeSetting({
       ]}
       values={{ setting }}
       action={proposeSecurityPolicy}
-      submitLabel="Propose the change"
-      trigger={{ label: "Propose a change", className: buttonClass("secondary", "sm"), ariaLabel: `Propose a change to ${label}` }}
+      submitLabel={atOnce ? "Save" : "Propose the change"}
+      trigger={{ label: atOnce ? "Change" : "Propose a change", className: buttonClass("secondary", "sm"), ariaLabel: `${atOnce ? "Change" : "Propose a change to"} ${label}` }}
       size="md"
     />
   );

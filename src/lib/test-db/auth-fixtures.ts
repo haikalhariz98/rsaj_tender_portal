@@ -40,6 +40,7 @@ export const SETTINGS: SecurityPolicyValues = {
   paperSignatureRecording: null,
   signInDetailRetentionDays: null,
   sealingPassphraseMinLength: null,
+  twoPersonChanges: true,
 };
 
 export async function testOrganisation() {
@@ -52,7 +53,7 @@ export async function setPolicy(organisationId: string, values: Partial<Security
     await db.securityPolicy.deleteMany({ where: { organisationId } });
     return;
   }
-  const full = { ...Object.fromEntries(Object.keys(SETTINGS).map((k) => [k, null])), ...values } as SecurityPolicyValues;
+  const full = { ...Object.fromEntries(Object.keys(SETTINGS).map((k) => [k, k === "twoPersonChanges" ? true : null])), ...values } as SecurityPolicyValues;
   await db.securityPolicy.upsert({ where: { organisationId }, create: { organisationId, ...full }, update: full });
 }
 

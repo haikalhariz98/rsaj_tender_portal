@@ -477,7 +477,7 @@ describe("marking a share-holder as left (D11, 20t)", () => {
     // A proposal is allowed and changes nothing; its author cannot decide it.
     const proposed = await proposeEdit(a.actor, await actFor(a, "ConfigurationChange.proposedBy"), registry, { operation: leaverOperation.key, fields: [["id", leaver.person.id], ["isActive", ""], ["reason", "The officer has left the organisation"]], reason: "The officer has left the organisation" });
     expect(proposed.ok, JSON.stringify(proposed)).toBe(true);
-    if (!proposed.ok) return;
+    if (!proposed.ok || proposed.applied) return;
     expect((await db.person.findUniqueOrThrow({ where: { id: leaver.person.id } })).isActive).toBe(true);
     who.actor = a.actor;
     const own = await decideEdit(a.actor, await actFor(a, "ConfigurationChange.decidedBy", proposed.changeId), registry, { changeId: proposed.changeId, decision: "APPLY", reason: "" });

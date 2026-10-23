@@ -1,3 +1,4 @@
+import { withOnePersonReason } from "./two-person";
 import type { Fault } from "./types";
 
 /**
@@ -7,6 +8,9 @@ import type { Fault } from "./types";
  * A draft whose makers are not known (it existed when sign-in landed: `makersUnknownAtLanding`, or it simply has no maker on record) cannot be issued by
  * anyone until someone has adopted it: made an attributed edit, or taken the explicit adopt act, which makes them a maker. Then someone else issues it.
  * With only one eligible person nothing is faked: the fault says a second person is needed.
+ *
+ * While the organisation's two-person switch is off (`twoPersonChanges` false, ADR 0043 D3) a maker may issue their own draft, as the database's guard allows. A missing
+ * value reads as on. A draft nobody is on record as having made still needs adopting: the switch does not change that.
  */
 
 export function makerCheckerFault(i: {
@@ -15,6 +19,7 @@ export function makerCheckerFault(i: {
   issuerPersonId: string;
   /// Everyone who could issue (`eligiblePersonIds`), where the caller knows: with the issuer a maker and nobody else able to, the fault says a second person is needed.
   eligiblePersonIds?: readonly string[];
+  twoPersonChanges?: boolean;
 }): Fault | null {
   const makers = new Set(i.makerPersonIds);
   if (makers.size === 0) {
@@ -29,6 +34,7 @@ export function makerCheckerFault(i: {
         };
   }
   if (makers.has(i.issuerPersonId)) {
+    if (i.twoPersonChanges === false) return null;
     if (i.eligiblePersonIds && !secondPersonAvailable(i.makerPersonIds, i.eligiblePersonIds)) {
       return {
         code: "SECOND_PERSON_NEEDED",
@@ -54,7 +60,7 @@ export function secondPersonAvailable(makerPersonIds: readonly string[], eligibl
  * issuer is never one of the makers, and with nobody on record there is no one to keep the issuer apart from. Where the matrix is adopted by an act, these are
  * adopted by editing: any save of the draft by a holder of the drafting permission puts the person on record, and a different person issues it.
  */
-export function draftIssueFault(i: { makerPersonIds: readonly string[]; issuerPersonId: string; eligiblePersonIds?: readonly string[] }): Fault | null {
+export function draftIssueFault(i: { makerPersonIds: readonly string[]; issuerPersonId: string; eligiblePersonIds?: readonly string[]; twoPersonChanges?: boolean }): Fault | null {
   if (new Set(i.makerPersonIds).size === 0) {
     return {
       code: "NO_MAKER_ON_RECORD",
@@ -62,4 +68,10 @@ export function draftIssueFault(i: { makerPersonIds: readonly string[]; issuerPe
     };
   }
   return makerCheckerFault({ ...i, makersUnknownAtLanding: false });
+}
+
+/// The reason an issue's audit row carries: where the issuer is one of the makers (only possible with the switch off) it says nobody else put it in force.
+export function issueReason(reason: string, i: { makerPersonIds: readonly string[]; issuerPersonId: string; twoPersonChanges: boolean }): string {
+  if (i.twoPersonChanges || !i.makerPersonIds.includes(i.issuerPersonId)) return reason;
+  return withOnePersonReason(reason);
 }

@@ -31,7 +31,8 @@ import { staffForPermission, toAuditActor } from "@/app/_auth/actor";
 import { loadMakers, noteMaker } from "@/lib/authority/maker-store";
 import { draftFromIssue } from "@/lib/authority/revision";
 import { beginAct, attributionRefusalState } from "@/app/_auth/act";
-import { makerCheckerFault } from "@/lib/auth/maker-checker";
+import { issueReason, makerCheckerFault } from "@/lib/auth/maker-checker";
+import { twoPersonOn } from "@/lib/auth/policy-store";
 import { eligibleFor } from "@/lib/auth/eligibility-store";
 import { permissionHeldThrough } from "@/lib/auth/permission-store";
 import type { OrgScope } from "@/lib/org-scope";
@@ -788,6 +789,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     makerPersonIds: makersNow.personIds,
     makersUnknownAtLanding: early.makersUnknownAtLanding,
     issuerPersonId: actor.personId,
+    twoPersonChanges: await twoPersonOn(db, orgId),
     eligiblePersonIds: await eligibleFor(db, { organisationId: orgId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
   });
   if (beforePassword) return { ok: false, message: beforePassword.en };
@@ -811,10 +813,12 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     if (draft.issuedAt) return { ok: false, message: "That issue has already been issued." };
     // Maker-checker, on the makers as they stand under the lock: a draft with nobody on record is adopted first, and the issuer is not a maker.
     const makers = await loadMakers(tx, draft.id);
+    const twoPerson = await twoPersonOn(tx, orgId);
     const makerFault = makerCheckerFault({
       makerPersonIds: makers.personIds,
       makersUnknownAtLanding: draft.makersUnknownAtLanding,
       issuerPersonId: actor.personId,
+      twoPersonChanges: twoPerson,
       eligiblePersonIds: await eligibleFor(tx, { organisationId: orgId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
     });
     if (makerFault) return { ok: false, message: makerFault.en };
@@ -888,7 +892,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     });
     await writeAudit(
       tx,
-      { actor: toAuditActor(actor), organisationId: orgId, entity: "AuthorityMatrix", entityId: draft.id, entityLabel: draft.label, reason },
+      { actor: toAuditActor(actor), organisationId: orgId, entity: "AuthorityMatrix", entityId: draft.id, entityLabel: draft.label, reason: issueReason(reason!, { makerPersonIds: makers.personIds, issuerPersonId: actor.personId, twoPersonChanges: twoPerson }) },
       "UPDATE",
       diffFields(
         decimals({ issuedAt: null, effectiveFrom: draft.effectiveFrom }),

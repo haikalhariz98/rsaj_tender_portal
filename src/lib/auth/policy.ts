@@ -27,6 +27,7 @@ export const SETTING_LABELS: Record<SecurityPolicyKey, SettingLabel> = {
   paperSignatureRecording: { en: "Whether a paper decision may be recorded for someone else" },
   signInDetailRetentionDays: { en: "How long sign-in addresses are kept" },
   sealingPassphraseMinLength: { en: "Shortest unseal passphrase" },
+  twoPersonChanges: { en: "Settings changes need a second admin" },
 };
 
 export type PolicyNeed = "SIGN_IN" | "SUPPLIER_SIGN_IN" | "SET_PASSWORD" | "ISSUE_CODE" | "SET_OFFICER_SHARE";
@@ -170,6 +171,7 @@ export const EMPTY_POLICY: SecurityPolicyValues = {
   paperSignatureRecording: null,
   signInDetailRetentionDays: null,
   sealingPassphraseMinLength: null,
+  twoPersonChanges: true,
 };
 
 /**

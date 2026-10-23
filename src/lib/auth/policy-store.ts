@@ -22,5 +22,11 @@ export async function loadSecurityPolicy(client: Tx, organisationId: string): Pr
     paperSignatureRecording: row.paperSignatureRecording,
     signInDetailRetentionDays: row.signInDetailRetentionDays,
     sealingPassphraseMinLength: row.sealingPassphraseMinLength,
+    twoPersonChanges: row.twoPersonChanges,
   };
+}
+
+/// Whether the organisation's configuration changes need a second person (ADR 0043 D3). No policy row reads as on, as the database's guards do.
+export async function twoPersonOn(client: Tx, organisationId: string): Promise<boolean> {
+  return (await client.securityPolicy.findUnique({ where: { organisationId }, select: { twoPersonChanges: true } }))?.twoPersonChanges ?? true;
 }

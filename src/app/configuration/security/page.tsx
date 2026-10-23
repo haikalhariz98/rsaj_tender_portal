@@ -51,6 +51,11 @@ const GROUPS: { title: string; blurb: string; keys: SecurityPolicyKey[] }[] = [
     keys: ["sealingPassphraseMinLength"],
   },
   {
+    title: "Approval of changes",
+    blurb: "Whether a change to settings waits for a second admin. Turning it on is saved at once. Turning it off needs a second admin to agree.",
+    keys: ["twoPersonChanges"],
+  },
+  {
     title: "Signatures and records",
     blurb: "Whether a paper decision may be recorded for someone else, and how long sign-in addresses are kept.",
     keys: ["paperSignatureRecording", "signInDetailRetentionDays"],
@@ -62,6 +67,7 @@ const CAUTION: Partial<Record<SecurityPolicyKey, string>> = {
   paperSignatureRecording: "A choice for the organisation, and the product advises neither. While it is not set, a paper decision is refused and the form says so.",
   concurrentSessionAction: "A choice for the organisation, and the product advises neither. While it is not set, sign-in is refused.",
   signInDetailRetentionDays: "Not set: sign-in addresses are kept. Legal hold is not built.",
+  twoPersonChanges: "While it is off, a save applies at once and the history records that one person made it.",
   sealingPassphraseMinLength: "While it is not set, no opening officer can set a share of an online exercise's key. At least 12; a forgotten passphrase cannot be recovered.",
 };
 
@@ -87,6 +93,8 @@ export default async function SecurityPage() {
   // Which settings a change is already waiting on, so a second proposal is not made blind to the first.
   const proposed = new Set(waiting.flatMap((w) => Object.keys(((w.payload as { changes?: Record<string, unknown> }).changes ?? {}) as object)));
   const unset = unsetSettings(policy, "SIGN_IN", "SET_PASSWORD", "ISSUE_CODE", "SET_OFFICER_SHARE");
+  // Closed means sign-in itself cannot work: only its own needs are named here. The rest show as "Not set" on their own rows.
+  const signInUnset = unsetSettings(policy, "SIGN_IN");
 
   return (
     <>
@@ -109,9 +117,9 @@ export default async function SecurityPage() {
       {!policy && (
         <Callout tone="warn" title="No sign-in settings. Nobody can sign in. Contact the operator." className="mb-5" />
       )}
-      {policy && unset.length > 0 && (
+      {policy && signInUnset.length > 0 && (
         <Callout tone="warn" title="Sign-in closed. Not set:" className="mb-5">
-          {settingLabels(unset).join("; ")}.
+          {settingLabels(signInUnset).join("; ")}.
         </Callout>
       )}
 
@@ -143,7 +151,7 @@ export default async function SecurityPage() {
                       </div>
                     </Td>
                     <Td label="Change" className="text-right">
-                      {policy ? <ProposeSetting setting={key} label={SETTING_LABELS[key].en} current={value == null ? "Not set" : settingValueWords(key, value)} choices={settingChoices(key)} /> : <span className="text-[12.5px] text-ink-3">Set by the operator first</span>}
+                      {policy ? <ProposeSetting setting={key} label={SETTING_LABELS[key].en} current={value == null ? "Not set" : settingValueWords(key, value)} choices={settingChoices(key)} atOnce={policy?.twoPersonChanges === false} /> : <span className="text-[12.5px] text-ink-3">Set by the operator first</span>}
                     </Td>
                   </Tr>
                 );

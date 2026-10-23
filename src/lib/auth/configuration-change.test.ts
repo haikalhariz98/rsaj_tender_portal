@@ -36,6 +36,14 @@ describe("parsing a change narrows it and refuses what it does not know", () => 
       });
     });
 
+    it("takes the two-person switch as On or Off (or a boolean) and stores a boolean", () => {
+      expect(parsed("SECURITY_POLICY", { changes: { twoPersonChanges: "OFF" } }).payload).toEqual({ changes: { twoPersonChanges: false } });
+      expect(parsed("SECURITY_POLICY", { changes: { twoPersonChanges: "ON" } }).payload).toEqual({ changes: { twoPersonChanges: true } });
+      expect(parsed("SECURITY_POLICY", { changes: { twoPersonChanges: true } }).payload).toEqual({ changes: { twoPersonChanges: true } });
+      expect(fields("SECURITY_POLICY", { changes: { twoPersonChanges: "maybe" } })).toEqual(["twoPersonChanges:BAD_CHOICE"]);
+      expect(fields("SECURITY_POLICY", { changes: { twoPersonChanges: 1 } })).toEqual(["twoPersonChanges:BAD_CHOICE"]);
+    });
+
     it("refuses a setting that does not exist, a number out of range, a string for a number, and clearing a setting", () => {
       expect(fields("SECURITY_POLICY", { changes: { colour: 1 } })).toEqual(["colour:UNKNOWN_SETTING"]);
       expect(fields("SECURITY_POLICY", { changes: { passwordMinLength: 7 } })).toEqual(["passwordMinLength:OUT_OF_RANGE"]);

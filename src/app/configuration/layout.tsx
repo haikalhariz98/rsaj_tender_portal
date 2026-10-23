@@ -1,8 +1,10 @@
 import { requireStaff } from "@/app/_auth/actor";
 import { ButtonLink } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/feedback";
 import { mayReadQueue } from "@/lib/auth/configuration-change";
 import { editKindsReadBy } from "@/lib/auth/configuration-edit";
+import { twoPersonOn } from "@/lib/auth/policy-store";
 import { db } from "@/lib/db";
 
 /**
@@ -18,8 +20,11 @@ export default async function ConfigurationLayout({ children }: LayoutProps<"/co
   // Read only by those who read the queue (a maker, a checker, a reader of the audit trail): the number of saves waiting for a second person.
   const readable = editKindsReadBy(actor.permissions);
   const waiting = readable.length > 0 ? await db.configurationChange.count({ where: { organisationId: actor.organisationId, status: "PROPOSED", kind: { in: readable } } }) : 0;
+  // While the switch is off, those who may put changes in force are told, quietly (ADR 0043 D3).
+  const switchOff = actor.permissions.has("configuration.issue") && !(await twoPersonOn(db, actor.organisationId));
   return (
     <div className="min-w-0">
+      {switchOff && <div className="mb-3"><Badge tone="neutral">Approval by another admin: off</Badge></div>}
       {waiting > 0 && (
         <Callout
           tone="warn"

@@ -60,8 +60,9 @@ export const SECOND_APPROVER_WORDS =
  * Whether the act may run now. `mode` is how the two-person machinery is running it: a proposal's rehearsal, a second person's decision (the change is applied), or null for a run that is neither.
  * An exposure of kind UNFINALISABLE (the window between the unseal and finalising, 20t) or LATE_BID_WAITING (20ce a, a supplementary opening owed) is allowed only in the first two.
  */
-export function deactivationGate(i: { exposures: readonly HolderExposure[]; mode: "REHEARSAL" | "APPLY" | null }): { allowed: true } | { allowed: false; message: string } {
-  if (i.mode === null && i.exposures.some((x) => x.kind === "UNFINALISABLE" || x.kind === "LATE_BID_WAITING")) return { allowed: false, message: SECOND_APPROVER_WORDS };
+export function deactivationGate(i: { exposures: readonly HolderExposure[]; mode: "REHEARSAL" | "APPLY" | "IMMEDIATE" | null }): { allowed: true } | { allowed: false; message: string } {
+  // IMMEDIATE is one person alone, which this rule refuses whatever the switch says: it is about bids that could never be opened.
+  if ((i.mode === null || i.mode === "IMMEDIATE") && i.exposures.some((x) => x.kind === "UNFINALISABLE" || x.kind === "LATE_BID_WAITING")) return { allowed: false, message: SECOND_APPROVER_WORDS };
   return { allowed: true };
 }
 

@@ -56,6 +56,7 @@ const CHOICES: Partial<Record<SecurityPolicyKey, Readonly<Record<string, string>
 
 /// The choices a setting offers where it is a choice (not a number), as a select lists them: value and words. Undefined for a number.
 export function settingChoices(key: SecurityPolicyKey): { value: string; label: string }[] | undefined {
+  if (key === "twoPersonChanges") return [{ value: "ON", label: "On" }, { value: "OFF", label: "Off" }];
   const c = CHOICES[key];
   return c ? Object.entries(c).map(([value, label]) => ({ value, label })) : undefined;
 }
@@ -63,6 +64,7 @@ export function settingChoices(key: SecurityPolicyKey): { value: string; label: 
 /// One setting's value as a reader says it: with its unit, a choice in words, and "Not set" for a setting nobody has chosen.
 export function settingValueWords(key: SecurityPolicyKey, value: unknown): string {
   if (value == null) return "Not set";
+  if (key === "twoPersonChanges") return value === true ? "On" : value === false ? "Off" : "Not set";
   const choice = CHOICES[key];
   if (choice) return typeof value === "string" ? (choice[value] ?? "A choice no longer offered") : "Not set";
   if (typeof value !== "number") return "Not set";

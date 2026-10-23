@@ -31,6 +31,8 @@ import { blankWithheld, withholdRehearsal, WITHHELD_WORDS } from "@/lib/award/re
 import { loadCandidates } from "./eligibility-store";
 import { eligiblePersonIds } from "./eligibility";
 import { loadGrants } from "./permission-store";
+import { twoPersonOn } from "./policy-store";
+import { appliesAtOnce, withOnePersonReason } from "./two-person";
 import { organisationDay } from "@/lib/dates";
 import type { Fault, PermissionKey, StaffActor } from "./types";
 import { inOrder } from "@/lib/series";
@@ -73,7 +75,8 @@ export interface EditRegistry {
 }
 
 export type EditRefusal = { ok: false; kind: "EDITOR"; result: EditRunResult } | ChangeFaults;
-export type ProposeEditOutcome = { ok: true; changeId: string } | EditRefusal;
+/// Proposed, waiting for a second person (`changeId`); or applied at once, because the organisation's two-person switch is off (`applied`, no change row).
+export type ProposeEditOutcome = { ok: true; changeId: string; applied?: undefined } | { ok: true; applied: true; changeId?: undefined } | EditRefusal;
 
 const f = (code: string, en: string): Fault => ({ code, en });
 const refuse = (faults: Fault[]): ChangeFaults => ({ ok: false, kind: "FAULTS", faults });
@@ -199,6 +202,16 @@ export async function proposeEdit(
     const run = await attempt(ambient, () => registry.run(op.key, rehearsed), () => false);
     if (!run.result.ok) return { ok: false, kind: "EDITOR", result: run.result };
     if (run.captured.length === 0) return refuse([NO_CHANGE]);
+
+    // Switch off (ADR 0043 D3): the save applies at once, in this transaction, by the same editor run a decision makes, as the person. No change row is written (that table holds
+    // only two-person decisions), and every audit row the editor writes carries the one-person reason. Read without a lock: an editor takes its own locks in its own order, and
+    // a switch turned on in the meantime only makes this save one the person was entitled to a moment ago.
+    // shortcut: no organisation lock around the read, upgrade if editors are made to lock the organisation first.
+    if (appliesAtOnce(op.kind, await twoPersonOn(tx, actor.organisationId))) {
+      const real = newAmbient(tx, savepointSql(tx), "IMMEDIATE");
+      const applied = await attempt(real, () => registry.run(op.key, withReason(rehearsed, withOnePersonReason(reason))), (r) => r.ok);
+      return applied.result.ok ? { ok: true, applied: true } : { ok: false, kind: "EDITOR", result: applied.result };
+    }
 
     // Nobody else could decide it: refused here, with the reason said, rather than left in a queue that no one can clear.
     const others = await deciders(tx, actor, op, now, actor.personId);

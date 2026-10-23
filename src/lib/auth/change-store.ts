@@ -37,8 +37,9 @@ import { recordSignInEvent } from "./events";
 import { lockAccount } from "./identity";
 import { PERMISSIONS } from "./permissions";
 import { settingLabels, unsetSettings } from "./policy";
-import { loadSecurityPolicy } from "./policy-store";
+import { loadSecurityPolicy, twoPersonOn } from "./policy-store";
 import type { RequestFacts } from "./request";
+import { appliesAtOnce, ONE_PERSON_REASON } from "./two-person";
 import { revokeAccountSessions } from "./session-store";
 import type { Fault, StaffActor } from "./types";
 import type { WriteExtra } from "./act-begin";
@@ -157,13 +158,17 @@ function auditLines(kind: ChangeKind, change: ParsedChange, before: Record<strin
 
 // --------------------------------------------------------------------------------------------- proposing
 
-export type ProposeOutcome = { ok: true; changeId: string } | ChangeFaults;
+/// Proposed, waiting for a second person (`changeId`); or applied at once, because the organisation's two-person switch is off (`applied`, no change row; `code` where it made one).
+export type ProposeOutcome = { ok: true; changeId: string; applied?: undefined } | { ok: true; applied: true; changeId?: undefined; code?: IssuedChangeCode } | ChangeFaults;
+
+const NO_REQUEST: RequestFacts = { sourceAddress: null, userAgent: "" };
 
 export async function proposeChange(
   actor: StaffActor,
   act: ChangeAct,
   input: { kind: ChangeKind; payload: unknown; reason: string },
   now: Date = new Date(),
+  request: RequestFacts = NO_REQUEST,
 ): Promise<ProposeOutcome> {
   if (actor.system) return refuse([LOADER]);
   const reason = input.reason.trim();
@@ -188,6 +193,16 @@ export async function proposeChange(
       const unset = unsetSettings(policy, "ISSUE_CODE");
       if (unset.length > 0) return refuse([f("POLICY_NOT_SET", `A code cannot be issued until the organisation sets: ${settingLabels(unset).join("; ")}.`)]);
     }
+    const names = await namesFor(tx, actor.organisationId, change, target);
+    // Switch off (ADR 0043 D3): the person's save applies at once, by the same function a decision uses, with no change row (that table holds only two-person decisions).
+    // The audit rows say it was one person. Read under the organisation's lock, so a switch turned on in the meantime is seen.
+    if (appliesAtOnce(input.kind, await twoPersonOn(tx, actor.organisationId))) {
+      const lines = describeChange(input.kind, change.payload, snapshot(change, live), names).lines;
+      const applied = await applyChange(tx, actor, null, change, lines, reason, target, names, request, now, true);
+      if (!applied.ok) return applied;
+      await applied.afterDecision?.();
+      return { ok: true, applied: true, ...(applied.issued ? { code: applied.issued } : {}) };
+    }
     // Nobody else could decide it: refused here, with the reason said, rather than left in a queue that no one can clear. A code is never decided by the account's own Person.
     const eligible = (await eligibleFor(tx, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now }, KIND_PERMISSION[input.kind])).filter((p) => (change.kind === "ACCOUNT_CODE" ? p !== target.personId : true));
     const second = secondPersonFault(eligible, actor.personId);
@@ -206,7 +221,6 @@ export async function proposeChange(
       },
       select: { id: true },
     });
-    const names = await namesFor(tx, actor.organisationId, change, target);
     await writeAudit(
       tx,
       { organisationId: actor.organisationId, entity: "ConfigurationChange", entityId: row.id, entityLabel: KIND_WORDS[input.kind].en, reason, actor: auditActorOfStaff(actor) },
@@ -318,7 +332,7 @@ export async function decideChange(
     if (!plan.ok) return refuse(plan.faults);
 
     const lines = describeChange(row.kind, change.payload, nowBefore, names).lines;
-    const code = await applyChange(tx, actor, row.id, change, lines, row.reason, target, names, request, now);
+    const code = await applyChange(tx, actor, row.id, change, lines, row.reason, target, names, request, now, false);
     if (!code.ok) return code;
     const status = nextStatus("PROPOSED", "APPLY")!;
     await tx.configurationChange.update({ where: { id: row.id }, data: { status, ...decidedBy, decisionReason: reason } });
@@ -334,11 +348,12 @@ export async function decideChange(
 /// `afterDecision` is what must wait until the decision is attributed: ending the decider's own session, which the attribution of the decision is written in.
 type Applied = { ok: true; issued?: IssuedChangeCode; afterDecision?: () => Promise<unknown> } | ChangeFaults;
 
-/// Write the change to what it is about, with the trail of that row: the one place a change reaches the configuration it changes.
+/// Write the change to what it is about, with the trail of that row: the one place a change reaches the configuration it changes. `alone`: applied at once by the
+/// person who made it (the switch is off), so there is no change row (`changeId` null) and the trail says no second person was involved.
 async function applyChange(
   tx: Tx,
   actor: StaffActor,
-  changeId: string,
+  changeId: string | null,
   change: ParsedChange,
   lines: ChangeLine[],
   proposerReason: string,
@@ -346,9 +361,10 @@ async function applyChange(
   names: ChangeNames,
   request: RequestFacts,
   now: Date,
+  alone: boolean,
 ): Promise<Applied> {
   const audit = auditActorOfStaff(actor);
-  const why = `Applied by a second person (change ${KIND_WORDS[change.kind].en.toLowerCase()}): ${proposerReason}`;
+  const why = `${alone ? ONE_PERSON_REASON : "Applied by a second person"} (change ${KIND_WORDS[change.kind].en.toLowerCase()}): ${proposerReason}`;
   switch (change.kind) {
     case "SECURITY_POLICY": {
       const row = await tx.securityPolicy.update({ where: { organisationId: actor.organisationId }, data: change.payload.changes, select: { id: true } });
@@ -364,7 +380,7 @@ async function applyChange(
       const { permissionKey, roleCode, decision } = change.payload;
       const where = { organisationId_permissionKey_roleCode: { organisationId: actor.organisationId, permissionKey, roleCode } };
       const existing = await tx.rolePermission.findUnique({ where, select: { id: true } });
-      let entityId = existing?.id ?? changeId;
+      let entityId = existing?.id ?? changeId ?? "";
       if (decision === "UNDECIDED") {
         if (existing) await tx.rolePermission.delete({ where: { id: existing.id } });
       } else if (existing) {
@@ -425,13 +441,13 @@ async function applyChange(
       const ended = change.payload.purpose === "RESET" ? await revokeAccountSessions(tx, target.accountId!, "ADMINISTRATOR", now) : 0;
       await writeAudit(
         tx,
-        { organisationId: actor.organisationId, entity: "StaffAccount", entityId: target.accountId!, entityLabel: accountLabel(names.accountPerson ?? "a person"), reason: `${proposerReason} (proposed by another person, issued by a second)`, actor: audit },
+        { organisationId: actor.organisationId, entity: "StaffAccount", entityId: target.accountId!, entityLabel: accountLabel(names.accountPerson ?? "a person"), reason: alone ? `${proposerReason} (${ONE_PERSON_REASON})` : `${proposerReason} (proposed by another person, issued by a second)`, actor: audit },
         "UPDATE",
         [
           {
             field: "One-time code",
             before: voided.count > 0 ? `${voided.count} open, voided` : null,
-            after: `${change.payload.purpose === "ACTIVATION" ? "activation" : "reset"} code issued by a second person, valid until ${formatOrgDateTime(expiresAt, actor.organisationTimeZone)}`,
+            after: `${change.payload.purpose === "ACTIVATION" ? "activation" : "reset"} code issued by ${alone ? "one person" : "a second person"}, valid until ${formatOrgDateTime(expiresAt, actor.organisationTimeZone)}`,
           },
           ...(ended > 0 ? [{ field: "Open sessions", before: String(ended), after: "0" }] : []),
         ],

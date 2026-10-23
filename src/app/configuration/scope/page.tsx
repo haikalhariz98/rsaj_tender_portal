@@ -23,6 +23,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { eligibleFor } from "@/lib/auth/eligibility-store";
 import { loadDraftMakers } from "@/lib/auth/draft-makers";
 import { draftIssueFault } from "@/lib/auth/maker-checker";
+import { twoPersonOn } from "@/lib/auth/policy-store";
 
 export const dynamic = "force-dynamic";
 
@@ -135,7 +136,8 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
   const draftIds = c.schedules.flatMap((sch) => sch.issues.filter((i) => i.draft).map((i) => i.id));
   const eligible = draftIds.length ? await eligibleFor(db, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue") : [];
   const makersOf = new Map(await Promise.all(draftIds.map(async (id) => [id, await loadDraftMakers(db, "RateSchedule", id)] as const)));
-  const issuance = (id: string) => draftIssueFault({ makerPersonIds: makersOf.get(id)?.personIds ?? [], issuerPersonId: actor.personId, eligiblePersonIds: eligible })?.en ?? null;
+  const twoPerson = await twoPersonOn(db, actor.organisationId);
+  const issuance = (id: string) => draftIssueFault({ makerPersonIds: makersOf.get(id)?.personIds ?? [], issuerPersonId: actor.personId, eligiblePersonIds: eligible, twoPersonChanges: twoPerson })?.en ?? null;
 
   return (
     <>
