@@ -15,7 +15,7 @@ import { ButtonLink, iconButtonClass } from "@/components/ui/button";
 import { useSay } from "@/components/i18n/language-context";
 import { w, type Words } from "@/lib/contract/labels";
 import { CRUMB_WORDS, NESTED_LABEL, RECORD_LABEL, SEGMENT_LABEL, SHELL_WORDS } from "@/lib/i18n/catalogues/shell";
-import { workspaceFor } from "@/lib/nav";
+import { CONFIG_LABELS, FOLDER_SECTION, workspaceFor } from "@/lib/nav";
 import type { ShellUser } from "@/lib/shell";
 
 import { useRecordCrumb, useRecordParentCrumb } from "./record-crumb";
@@ -134,6 +134,10 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
     crumbs[3].label = CRUMB_WORDS.submissions;
     crumbs[3].href = `/supplier/projects/${segments[2]}?tab=submissions`;
   }
+
+  // Settings, then the section, then the page: a page sits under its section, whose own page is the one crumb after Settings.
+  const section = segments[0] === "configuration" ? FOLDER_SECTION[segments[1] ?? ""] : undefined;
+  if (section && segments[1] !== section) crumbs.splice(1, 0, { label: CONFIG_LABELS[section], href: `/configuration/${section}` });
 
   return crumbs;
 }

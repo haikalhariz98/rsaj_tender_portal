@@ -152,11 +152,10 @@ export function fieldLabel(field: string): string {
   // The bilingual pairs read as the forms print them: "Name (EN)", "Name (BM)".
   const lang = /En$/.test(field) ? " (EN)" : /Ms$/.test(field) ? " (BM)" : "";
   if (lang) return fieldLabel(field.slice(0, -2)) + lang;
-  // Where a rule's value came from (STATED, OBSERVED, ASSUMED): "Voting rule provenance"
-  // reads as what it is, not as the column's name.
+  // Where a rule's value came from (STATED, OBSERVED, ASSUMED) is History's "Source" line (plan 5.1): the screens no longer show it.
   const source = /^(.+)Provenance$/.exec(field);
-  if (source) return `Where the ${fieldLabel(source[1]).toLowerCase()} comes from`;
-  if (field === "provenance") return "Where it comes from";
+  if (source) return `Source of the ${fieldLabel(source[1]).toLowerCase()}`;
+  if (field === "provenance" || field === "whereItComesFrom") return "Source";
   const ref = /^(.+[a-z0-9])Id(s?)$/.exec(field);
   if (ref) return fieldLabel(ref[1]) + ref[2];
   const spaced = field

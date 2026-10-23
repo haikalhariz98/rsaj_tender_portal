@@ -113,8 +113,10 @@ describe("field labels that were column names", () => {
     expect(fieldLabel("matterKind")).toBe("Kind of matter");
     expect(fieldLabel("sequence")).toBe("Place on the agenda");
   });
-  it("says where a value came from, not that it has provenance", () => {
-    expect(fieldLabel("votingRuleProvenance")).toBe("Where the voting rule comes from");
+  it("says where a value came from as History's Source line, not that it has provenance", () => {
+    expect(fieldLabel("votingRuleProvenance")).toBe("Source of the voting rule");
+    expect(fieldLabel("provenance")).toBe("Source");
+    expect(fieldLabel("whereItComesFrom")).toBe("Source");
   });
 });
 

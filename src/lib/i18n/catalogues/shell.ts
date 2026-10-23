@@ -10,7 +10,7 @@ import { CONFIG_LABELS } from "@/lib/nav";
 /** The words the sidebar, top bar and user menu write themselves. */
 export const SHELL_WORDS = {
   backToDashboard: w("Back to dashboard"),
-  configuration: w("Configuration"),
+  configuration: w("Settings"),
   viewingAs: w("Viewing as"),
   switchWorkspace: w("Switch workspace"),
   switchWorkspaceButton: w("Switch workspace"),
@@ -40,7 +40,7 @@ export const SHELL_WORDS = {
 /// Path segment to the label the breadcrumb should read. A segment that only names a Configuration section takes its word from the rail
 /// (`CONFIG_LABELS`), so the two cannot split; the key is still needed here, because a key is how a known section word is told from a record's key.
 export const SEGMENT_LABEL: Readonly<Record<string, Words>> = {
-  configuration: w("Configuration"),
+  configuration: w("Settings"),
   "approval-matrix": CONFIG_LABELS["approval-matrix"],
   committees: w("Committees"),
   organisation: CONFIG_LABELS["organisation"],

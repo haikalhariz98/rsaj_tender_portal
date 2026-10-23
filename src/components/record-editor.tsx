@@ -1,6 +1,7 @@
 "use client";
 
 import { useActGate } from "@/components/act-gate";
+import { useMayDraft } from "@/components/setup/may-draft";
 import { formDataOf } from "@/components/ui/form-submit";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
@@ -219,6 +220,7 @@ export function RecordEditor({
   const submitLabel = submitLabelAsked ?? say(WORDS.save);
   const cancelLabel = cancelLabelAsked ?? say(WORDS.cancel);
   const gate = useActGate();
+  const mayDraft = useMayDraft();
   const submitBlock = gate ?? ownBlock;
   const [open, setOpenState] = useState(defaultOpen);
   // Closing forgets what the officer chose in the selects that drive `showWhen`: the
@@ -310,6 +312,8 @@ export function RecordEditor({
     .filter(([k]) => !placed.has(k))
     .map(([, v]) => v);
 
+  // Settings pages: a viewer who may not save is offered no Edit (MayDraft, in the Settings layout).
+  if (!mayDraft) return null;
   return (
     <>
       <button

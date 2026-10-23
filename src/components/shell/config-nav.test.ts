@@ -3,62 +3,63 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { CONFIG_LABELS, CONFIG_PINNED, CONFIG_SECTIONS } from "@/lib/nav";
+import { CONFIG_LABELS, FOLDER_SECTION, sectionOfPath, SETTINGS_RAIL, SETTINGS_SECTIONS } from "@/lib/nav";
 
 import { crumbTrail } from "./topbar";
 
-// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
-
 /**
- * Configuration's navigator is held to the pages beside it (founder, 2026-10-08: "more features are coming and it is becoming
- * unorganised; let's stay organised"). The rule for where a section goes is the comment above CONFIG_SECTIONS; this is what makes it
- * more than advice. There is deliberately no fixed count: a new section is added, and the test only insists it is placed.
+ * Settings is six sections (simplification plan 5.1). The table in `@/lib/nav` is the only place a page is placed; this is what makes
+ * that more than advice: a page folder with no section, or in two, fails here.
  */
 
 const CONFIG = path.join(__dirname, "../../app/configuration");
+const slugs = SETTINGS_SECTIONS.map((s) => s.slug);
+const folders = readdirSync(CONFIG, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && existsSync(path.join(CONFIG, d.name, "page.tsx")))
+  .map((d) => d.name);
+const pages = folders.filter((f) => !slugs.includes(f as never));
 
-const sections = CONFIG_SECTIONS.flatMap((g) => g.items);
-const all = [...CONFIG_PINNED, ...sections];
-
-describe("Configuration's navigator", () => {
-  it("every entry opens a page", () => {
-    for (const item of all) expect(existsSync(path.join(CONFIG, item.href.replace("/configuration/", ""), "page.tsx")), item.href).toBe(true);
+describe("Settings' sections", () => {
+  it("there are six, and the rail is Getting started then those six", () => {
+    expect(SETTINGS_SECTIONS).toHaveLength(6);
+    expect(SETTINGS_RAIL).toHaveLength(7);
+    expect(SETTINGS_RAIL.map((i) => i.href)).toEqual(["/configuration", ...slugs.map((s) => `/configuration/${s}`)]);
   });
 
-  it("every section folder has exactly one entry, so a new section cannot ship without a place", () => {
-    const folders = readdirSync(CONFIG, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && existsSync(path.join(CONFIG, d.name, "page.tsx")))
-      .map((d) => `/configuration/${d.name}`);
-    expect(folders.length).toBeGreaterThan(0);
-    for (const href of folders) expect(all.filter((i) => i.href === href).length, href).toBe(1);
-    for (const item of all) expect(folders, item.href).toContain(item.href);
+  it("every section has a page of its own", () => {
+    for (const s of slugs) expect(folders, s).toContain(s);
   });
 
-  it("every entry's address is unique", () => {
-    const hrefs = all.map((i) => i.href);
-    expect(new Set(hrefs).size).toBe(hrefs.length);
+  it("every page folder belongs to exactly one section, and every claimed folder exists", () => {
+    for (const f of pages) expect(SETTINGS_SECTIONS.filter((s) => s.folders.includes(f)).length, f).toBe(1);
+    for (const s of SETTINGS_SECTIONS) for (const f of s.folders) expect(pages, f).toContain(f);
   });
 
-  it("every group holds two to seven sections, and group names are unique", () => {
-    for (const g of CONFIG_SECTIONS) {
-      expect(g.items.length, g.group).toBeGreaterThanOrEqual(2);
-      expect(g.items.length, g.group).toBeLessThanOrEqual(7);
-    }
-    const names = CONFIG_SECTIONS.map((g) => g.group);
-    expect(new Set(names).size).toBe(names.length);
+  it("a page lights its own section in the rail", () => {
+    for (const f of pages) expect(sectionOfPath(`/configuration/${f}/anything`), f).toBe(FOLDER_SECTION[f]);
+    expect(sectionOfPath("/configuration")).toBeNull();
+    for (const s of slugs) expect(sectionOfPath(`/configuration/${s}`)).toBe(s);
   });
 
-  it("each entry reads the same in the breadcrumb as it does in the navigator", () => {
-    for (const item of all) {
-      const slug = item.href.slice("/configuration/".length);
-      // AC-63 N1 (NFR-LNG-001): labels are `Words`; the English is what these assertions always read, and the Malay must agree as well.
-      expect(CONFIG_LABELS[slug].en, item.href).toBe(item.label.en);
-      const crumbs = crumbTrail(["configuration", slug], null, null);
-      expect(crumbs.map((c) => c.label.en), item.href).toEqual(["Configuration", item.label.en]);
+  it("every old page is one link from its section (a section page lists each of its folders)", () => {
+    for (const s of SETTINGS_SECTIONS) {
+      for (const f of s.folders) expect(s.advanced.some((a) => a.href.split("?")[0] === `/configuration/${f}`), `${s.slug}: ${f}`).toBe(true);
+      for (const a of s.advanced) expect(s.folders, a.href).toContain(a.href.split("?")[0].split("/")[2]);
     }
   });
 
-  it("the section's name never shows a configuration code", () => {
-    for (const item of all) expect(item.label.en, item.href).not.toMatch(/[_/]|^[a-z]+(-[a-z]+)+$/);
+  it("each label reads the same in the breadcrumb as in the rail, under Settings", () => {
+    for (const s of SETTINGS_SECTIONS) {
+      expect(CONFIG_LABELS[s.slug].en).toBe(s.label.en);
+      expect(crumbTrail(["configuration", s.slug], null, null).map((c) => c.label.en)).toEqual(["Settings", s.label.en]);
+    }
+    for (const f of pages) {
+      const section = SETTINGS_SECTIONS.find((s) => s.folders.includes(f))!;
+      expect(crumbTrail(["configuration", f], null, null).map((c) => c.label.en), f).toEqual(["Settings", section.label.en, CONFIG_LABELS[f].en]);
+    }
+  });
+
+  it("no label holds a configuration code", () => {
+    for (const [slug, label] of Object.entries(CONFIG_LABELS)) expect(label.en, slug).not.toMatch(/[_/]|^[a-z]+(-[a-z]+)+$/);
   });
 });

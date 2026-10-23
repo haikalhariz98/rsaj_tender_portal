@@ -29,6 +29,23 @@ export const CODE_PATTERNS = [
   /\([1-9]\.\d{1,2}\)/,
 ];
 
+/// Phrases that no screen says (simplification plan section 6, "Enforced"): only the unambiguous ones. Single words such as "issue",
+/// "case", "act" and "window" are legitimate elsewhere, so they stay a review list. Held by the baseline ratchet in check-ui.mjs.
+export const BANNED_WORDS = [
+  ["(invented)", /\(invented\)/i],
+  ["Core routing", /core routing/i],
+  ["band famil...", /band famil/i],
+  ["Boundary ruling", /boundary ruling/i],
+  ["SULIT · withheld", /SULIT\s*·\s*withheld/i],
+  ["Gate met", /gate met/i],
+  ['"(A)", "(R)" or "(P)" after an action name', /[A-Za-z] \((?:A|R|P)\)(?![A-Za-z0-9])/],
+  ["Changes awaiting a second person", /changes awaiting a second person/i],
+  ["Not built", /not built/i],
+  ["Not emailed", /not emailed/i],
+  ["Recorded by demo loader", /recorded by demo loader/i],
+  ["Where it comes from", /where it comes from/i],
+];
+
 const SHOWN_TONES = new Set(["warn", "err", "ok"]);
 
 const words = (t) => t.split(/\s+/).filter(Boolean).length;
@@ -139,6 +156,7 @@ export function scanSource(file, source) {
     if (text && /\s/.test(text.trim()) === false ? CODE_PATTERNS.some((r) => r.test(text)) : text && CODE_PATTERNS.some((r) => r.test(text))) {
       add(node, "product-code", `a spec or ruling code in rendered text: "${text.trim().slice(0, 60)}"`);
     }
+    if (text) for (const [name, re] of BANNED_WORDS) if (re.test(text)) add(node, "banned-word", `"${name}" is not said on a screen: see the word list`);
     ts.forEachChild(node, visit);
   };
   visit(sf);

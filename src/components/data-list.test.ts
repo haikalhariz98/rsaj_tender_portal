@@ -112,10 +112,10 @@ describe("a chip's provenance tag (6.13A residual: the shared badge, never '(ass
   const cols: Column[] = [{ key: "phase", label: "Where it stands" }];
   const row = (provenance?: "ASSUMED"): Row => ({ id: "1", search: "a", cells: { phase: { kind: "chips", items: [{ text: "Active" }, { text: "In Delay", tone: "err", ...(provenance ? { provenance } : {}) }] } } });
   const render = (r: Row) => renderToStaticMarkup(createElement(DataList, { columns: cols, rows: [r] }));
-  it("a chip with provenance carries the shared Assumed badge beside it", () => {
+  it("a chip with provenance shows no badge (the source is recorded, read in History; plan 5.1)", () => {
     const out = render(row("ASSUMED"));
     expect(out).toContain(">In Delay<");
-    expect(out).toContain(">Assumed<");
+    expect(out).not.toContain(">Assumed<");
     expect(out).not.toContain("assumed reading");
   });
   it("without it, no badge", () => {

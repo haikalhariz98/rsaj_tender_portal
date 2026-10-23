@@ -1,4 +1,5 @@
 import { w, type Words } from "@/lib/contract/labels";
+import type { SettingsSection } from "@/lib/setup/types";
 
 /**
  * Navigation, taken from the approved prototype rather than invented.
@@ -83,7 +84,7 @@ export const STAFF_NAV: NavGroup[] = [
   },
   {
     label: w("Administration"),
-    items: [{ href: "/configuration", label: w("Configuration"), icon: "sliders", built: true }],
+    items: [{ href: "/configuration", label: w("Settings"), icon: "sliders", built: true }],
   },
 ];
 
@@ -127,6 +128,22 @@ export function navFor(workspace: Workspace): NavGroup[] {
   return workspace === "supplier" ? SUPPLIER_NAV : STAFF_NAV;
 }
 
+/// Settings is six sections (simplification plan 5.1). The section a page belongs to is read from this table alone: the rail, the
+/// breadcrumb, the section's own page and `config-nav.test.ts` all take it from here, so a folder cannot be placed twice or nowhere.
+/// `advanced` lists the section's pages in full (a tab where the page has one); the essentials above them come from the checklist.
+export interface SettingsSectionDef {
+  slug: SettingsSection;
+  label: Words;
+  icon: string;
+  /// One sentence for the info popover beside the section's title.
+  about: string;
+  /// The `src/app/configuration/<folder>` pages this section owns.
+  folders: readonly string[];
+  advanced: readonly { label: string; href: string }[];
+}
+
+export const SETTINGS_START: ConfigItem = { href: "/configuration", label: w("Getting started"), icon: "check", built: true };
+
 export interface ConfigItem {
   href: string;
   label: Words;
@@ -134,119 +151,134 @@ export interface ConfigItem {
   built?: boolean;
 }
 
-/// The groups of Configuration's navigator, as a fixed set: adding a group is a deliberate edit here, not a new string in a list.
-export type ConfigGroup =
-  | "People and access"
-  | "Governance"
-  | "Across every stage"
-  | "Requisitions"
-  | "Sourcing and award"
-  | "Contracts"
-  | "Records";
+export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
+  {
+    slug: "people",
+    label: w("Organisation & people"),
+    icon: "users",
+    about: "Who the organisation is and who works in it: details, structure, people, roles and what each may do.",
+    folders: ["organisation", "users", "accounts"],
+    advanced: [
+      { label: "Organisation, sites and branding", href: "/configuration/organisation" },
+      { label: "People and roles", href: "/configuration/users?tab=people" },
+      { label: "Permissions", href: "/configuration/users?tab=permissions" },
+      { label: "Reporting lines", href: "/configuration/users?tab=lines" },
+      { label: "Delegations", href: "/configuration/users?tab=delegation" },
+      { label: "Sign-in accounts", href: "/configuration/accounts" },
+    ],
+  },
+  {
+    slug: "approvals",
+    label: w("Approvals"),
+    icon: "award",
+    about: "Who approves what, by value, and the committees that recommend.",
+    folders: ["approval-matrix", "committees", "routing-sheets"],
+    advanced: [
+      { label: "Value bands and approval routes", href: "/configuration/approval-matrix" },
+      { label: "Committees", href: "/configuration/committees" },
+      { label: "Routing sheets", href: "/configuration/routing-sheets" },
+    ],
+  },
+  {
+    slug: "purchasing",
+    label: w("Purchasing & tenders"),
+    icon: "clipboard",
+    about: "How requisitions, tenders and quotations are run, from scope to evaluation.",
+    folders: ["reference-data", "requisitions", "scope", "tender-documents", "invitation", "evaluation"],
+    advanced: [
+      { label: "Reference lists", href: "/configuration/reference-data" },
+      { label: "Requisition checks", href: "/configuration/requisitions" },
+      { label: "Scope and estimate", href: "/configuration/scope" },
+      { label: "Tender documents", href: "/configuration/tender-documents" },
+      { label: "Invitation and opening", href: "/configuration/invitation" },
+      { label: "Evaluation models", href: "/configuration/evaluation" },
+    ],
+  },
+  {
+    slug: "contracts-payments",
+    label: w("Contracts & payments"),
+    icon: "files",
+    about: "How awards become contracts, and how contracts are supervised and paid.",
+    folders: ["awards", "contracts", "post-award", "budget"],
+    advanced: [
+      { label: "Awards", href: "/configuration/awards" },
+      { label: "Contracts", href: "/configuration/contracts" },
+      { label: "Supervision and payment", href: "/configuration/post-award" },
+      { label: "Budget", href: "/configuration/budget" },
+    ],
+  },
+  {
+    slug: "suppliers-portal",
+    label: w("Suppliers & portal"),
+    icon: "globe",
+    about: "What suppliers see and give when they register, and how the public portal behaves.",
+    folders: ["suppliers"],
+    advanced: [{ label: "Supplier register and portal", href: "/configuration/suppliers" }],
+  },
+  {
+    slug: "system",
+    label: w("System"),
+    icon: "sliders",
+    about: "Notifications, numbering, templates, sign-in and the audit trail.",
+    folders: ["notifications", "numbering", "templates", "documents", "security", "bid-sealing", "audit", "changes"],
+    advanced: [
+      { label: "Notifications", href: "/configuration/notifications" },
+      { label: "Numbering", href: "/configuration/numbering" },
+      { label: "Templates", href: "/configuration/templates" },
+      { label: "Documents", href: "/configuration/documents" },
+      { label: "Sign-in settings", href: "/configuration/security" },
+      { label: "Bid sealing", href: "/configuration/bid-sealing" },
+      { label: "Audit trail", href: "/configuration/audit" },
+      { label: "Settings changes to approve", href: "/configuration/changes" },
+    ],
+  },
+];
 
-/// The groups' own words (NFR-LNG-001). The union above stays the identifier that the placement rule and its test read; this is what the rail shows.
-export const CONFIG_GROUP_WORDS: Readonly<Record<ConfigGroup, Words>> = {
-  "People and access": w("People and access"),
-  Governance: w("Governance"),
-  "Across every stage": w("Across every stage"),
-  Requisitions: w("Requisitions"),
-  "Sourcing and award": w("Sourcing and award"),
-  Contracts: w("Contracts"),
-  Records: w("Records"),
+/// The rail: Getting started, then the six sections.
+export const SETTINGS_RAIL: ConfigItem[] = [
+  SETTINGS_START,
+  ...SETTINGS_SECTIONS.map((s) => ({ href: `/configuration/${s.slug}`, label: s.label, icon: s.icon, built: true })),
+];
+
+/// A page folder's section. The section's own page is its own entry: `people` maps to `people`.
+export const FOLDER_SECTION: Readonly<Record<string, SettingsSection>> = Object.fromEntries(
+  SETTINGS_SECTIONS.flatMap((s) => [[s.slug, s.slug], ...s.folders.map((f) => [f, s.slug])]),
+);
+
+/// The section a path under Settings lights in the rail, or null for Getting started.
+export const sectionOfPath = (pathname: string): SettingsSection | null => FOLDER_SECTION[pathname.split("/")[2] ?? ""] ?? null;
+
+/// Each page's own name, for its breadcrumb (the section's is its rail label).
+const PAGE_LABELS: Record<string, Words> = {
+  organisation: w("Organisation"),
+  users: w("Users & roles"),
+  accounts: w("Sign-in accounts"),
+  "approval-matrix": w("Approval matrix"),
+  committees: w("Committees"),
+  "routing-sheets": w("Routing sheets"),
+  "reference-data": w("Reference data"),
+  requisitions: w("Requisition controls"),
+  scope: w("Scope and estimate"),
+  "tender-documents": w("Tender documents"),
+  invitation: w("Invitation controls"),
+  evaluation: w("Evaluation models"),
+  awards: w("Award controls"),
+  contracts: w("Contract controls"),
+  "post-award": w("Post-award controls"),
+  budget: w("Budget"),
+  suppliers: w("Supplier register"),
+  notifications: w("Notifications"),
+  numbering: w("Numbering"),
+  templates: w("Templates"),
+  documents: w("Documents"),
+  security: w("Sign-in settings"),
+  "bid-sealing": w("Bid sealing"),
+  audit: w("Audit trail"),
+  changes: w("Settings changes to approve"),
 };
 
-/// Pinned above the groups, with no header (founder, 2026-10-08): Organisation, which everything else hangs from and where Configuration
-/// opens, and the changes waiting on a second person. The second one is shown to everyone; its page says who may decide. Its count is the
-/// viewer's own "waiting for you" number and never an organisation-wide one, so it arrives with the actor in `staffCounts`, not here.
-export const CONFIG_PINNED: ConfigItem[] = [
-  { href: "/configuration/organisation", label: w("Organisation"), icon: "building", built: true },
-  { href: "/configuration/changes", label: w("Changes awaiting a second person"), icon: "clipboard", built: true },
-];
-
-/**
- * Sections of the Configuration area (founder, 2026-10-08), grouped by where a setting acts and named by stage, following the main
- * navigation's modules. A grouping by owner was rejected: every owner would be a guess, it would build one customer's split of work
- * into the product, and several sections have more than one owner.
- *
- * Where a new section goes: take the first line that applies.
- *   1. Who someone is, or how they sign in                  -> People and access
- *   2. Who may decide, or how a body decides                -> Governance
- *   3. The screens of one main-navigation module            -> that module's group (Requisitions; Sourcing and award; Contracts)
- *   4. The paper the portal issues or keeps                 -> Records
- *   5. Two or more modules equally                          -> Across every stage
- * No group of one section, no "Other" or "General" group; a group past seven sections splits along module lines; once the rail nears
- * forty sections it gets a filter field, never collapsing groups. No rail item points at a tab inside another section (the active
- * item matches on the path, so two would light at once). A label never holds a code and reads on its own in a breadcrumb.
- * `config-nav.test.ts` fails when a section folder has no entry here, a group is outside two to seven, or a label differs from its crumb.
- */
-export const CONFIG_SECTIONS: { group: ConfigGroup; items: ConfigItem[] }[] = [
-  {
-    group: "People and access",
-    items: [
-      { href: "/configuration/users", label: w("Users & roles"), icon: "user", built: true },
-      // Phase 1b: the administrator's screen for who can sign in. Staff reach it by the link; the page itself says so to anyone who is not an administrator.
-      { href: "/configuration/accounts", label: w("Sign-in accounts"), icon: "shield", built: true },
-      // Phase 2c: the sign-in settings.
-      { href: "/configuration/security", label: w("Sign-in settings"), icon: "sliders", built: true },
-    ],
-  },
-  {
-    group: "Governance",
-    items: [
-      { href: "/configuration/approval-matrix", label: w("Approval matrix"), icon: "sliders", built: true },
-      { href: "/configuration/committees", label: w("Committees"), icon: "users", built: true },
-    ],
-  },
-  {
-    group: "Across every stage",
-    items: [
-      { href: "/configuration/reference-data", label: w("Reference data"), icon: "globe", built: true },
-      { href: "/configuration/notifications", label: w("Notifications"), icon: "inbox", built: true },
-    ],
-  },
-  {
-    group: "Requisitions",
-    items: [
-      { href: "/configuration/requisitions", label: w("Requisition controls"), icon: "clipboard", built: true },
-      { href: "/configuration/budget", label: w("Budget"), icon: "chart", built: true },
-    ],
-  },
-  {
-    // In the order a matter takes them: scope, the pack, the invitation, evaluation, the award.
-    group: "Sourcing and award",
-    items: [
-      { href: "/configuration/scope", label: w("Scope and estimate"), icon: "tools", built: true },
-      { href: "/configuration/tender-documents", label: w("Tender documents"), icon: "files", built: true },
-      { href: "/configuration/invitation", label: w("Invitation controls"), icon: "globe", built: true },
-      { href: "/configuration/bid-sealing", label: w("Bid sealing"), icon: "shield", built: true },
-      { href: "/configuration/evaluation", label: w("Evaluation models"), icon: "sliders", built: true },
-      { href: "/configuration/awards", label: w("Award controls"), icon: "award", built: true },
-    ],
-  },
-  {
-    group: "Contracts",
-    items: [
-      { href: "/configuration/contracts", label: w("Contract controls"), icon: "file", built: true },
-      { href: "/configuration/post-award", label: w("Post-award controls"), icon: "tools", built: true },
-    ],
-  },
-  {
-    // Routing sheets stay here, not under Contracts: the Documents register's Routing sheets tab and awards use them too.
-    group: "Records",
-    items: [
-      // 6.15a: the prototype keeps CIDB grades and MOF codes on Reference data; here every registration
-      // body's values sit with the register, per body, never as regulator columns (FR-VND-003).
-      { href: "/configuration/suppliers", label: w("Supplier register"), icon: "building", built: true },
-      { href: "/configuration/documents", label: w("Documents"), icon: "files", built: true },
-      { href: "/configuration/templates", label: w("Templates"), icon: "files", built: true },
-      { href: "/configuration/routing-sheets", label: w("Routing sheets"), icon: "clock", built: true },
-      { href: "/configuration/numbering", label: w("Numbering"), icon: "grid", built: true },
-      { href: "/configuration/audit", label: w("Audit trail"), icon: "clock", built: true },
-    ],
-  },
-];
-
-/// A section's folder name to its label, from the rail itself, so the breadcrumb and the rail cannot split.
-export const CONFIG_LABELS: Record<string, Words> = Object.fromEntries(
-  [...CONFIG_PINNED, ...CONFIG_SECTIONS.flatMap((g) => g.items)].map((item) => [item.href.slice("/configuration/".length), item.label]),
-);
+/// A folder's name to its label, for the breadcrumb: the pages above and the six sections.
+export const CONFIG_LABELS: Record<string, Words> = {
+  ...PAGE_LABELS,
+  ...Object.fromEntries(SETTINGS_SECTIONS.map((s) => [s.slug, s.label])),
+};

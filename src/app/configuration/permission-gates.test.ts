@@ -114,8 +114,12 @@ describe("the approval route is changed only by someone who holds the permission
 });
 
 describe("the Getting-started page is read only by those who work on configuration or its audit trail", () => {
-  const page = readFileSync(path.join(CONFIG, "page.tsx"), "utf8");
+  // Plan 5.1: the gate is one function, shared by Getting started and the six section pages.
+  const page = readFileSync(path.join(CONFIG, "section-route.tsx"), "utf8");
   it("sends anyone else Home, and names the three permissions and the administrator", () => {
+    expect(readFileSync(path.join(CONFIG, "page.tsx"), "utf8")).toContain("requireSettingsReader()");
+    expect(page).toContain("export async function SettingsSectionRoute");
+    expect(page.match(/requireSettingsReader\(\)/g)?.length).toBeGreaterThanOrEqual(2);
     expect(page).toMatch(/redirect\("\/"\)/);
     for (const key of ["configuration.draft", "configuration.issue", "audit.read"]) expect(page).toContain(`"${key}"`);
     expect(page).toContain("isAdministrator");

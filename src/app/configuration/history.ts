@@ -142,7 +142,8 @@ const VALUE_LABEL: Record<string, Record<string, string>> = {
   // 6.13 Part A: a contract type's delegation letters.
   delegationVariant: Object.fromEntries(Object.entries(VARIANT_WORDS).map(([k, v]) => [k, v.en])),
 };
-const PROVENANCE: Record<string, string> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
+/// History's words for a source (plan 5.1): working screens show none, so this is where a reader finds it. Some rows store the code, some the word.
+const SOURCE_WORDS: Record<string, string> = { STATED: "From a written rule", Stated: "From a written rule", OBSERVED: "Usual practice", Observed: "Usual practice", ASSUMED: "Assumed", Assumed: "Assumed" };
 
 /// Where one entity stores a code under a field name another uses for something else —
 /// a requisition's status is not a sitting's — the entity's own labels win.
@@ -195,7 +196,7 @@ async function valueReader(scope: OrgScope, entity = ""): Promise<(field: string
     if (field === "orgUnitCode") return units.get(value) ?? "A unit no longer in the structure";
     if (field === "scopeCommitteeCode" || field === "lateAdmissionCommitteeCode") return committees.find((c) => c.code === value)?.nameEn ?? "A committee no longer configured";
     if (VALUE_LABEL[field]?.[value]) return VALUE_LABEL[field][value];
-    if (/Provenance$|^provenance$/.test(field)) return PROVENANCE[value] ?? value;
+    if (/Provenance$|^provenance$|^whereItComesFrom$/.test(field)) return SOURCE_WORDS[value] ?? value;
     if (OFFICE_FIELDS.has(field)) return office.get(value) ?? "An office no longer configured";
     if (ids[field]) return ids[field].get(value) ?? "A record no longer on file";
     if (/Id$/.test(field)) return "Another record";
@@ -206,7 +207,7 @@ async function valueReader(scope: OrgScope, entity = ""): Promise<(field: string
 /// One record's history, newest first. An issue's history also holds the entries of its
 /// core routing rows and steps (found by their label, which begins with the issue's), so
 /// a row or step that has since been removed is still reachable.
-const SULIT_WITHHELD_IN_DRAWER = "SULIT · withheld";
+const SULIT_WITHHELD_IN_DRAWER = "Hidden (SULIT)";
 
 export async function historyOf(entity: string, entityId: string): Promise<HistoryEntry[]> {
   const actor = await requireStaff();
@@ -231,7 +232,7 @@ export async function historyOf(entity: string, entityId: string): Promise<Histo
     reason: r.reason,
     actorName: r.actorName,
     unattributed: r.unattributed,
-    part: issue && r.entity in CORE_ROUTING_ENTITY_NAME ? (coreRoutingEntryName(r.entityLabel, issue.label) ?? "Core routing") : null,
+    part: issue && r.entity in CORE_ROUTING_ENTITY_NAME ? (coreRoutingEntryName(r.entityLabel, issue.label) ?? "Standard route") : null,
     changes: r.changes.filter((c) => !(c.field === "code" && CODE_HIDDEN.has(entity))).map((c) => ({
       field: c.field,
       // This drawer is for configuration, which holds no SULIT value; a registered one that found its way here is withheld, never shown on a guess (Phase 3b).

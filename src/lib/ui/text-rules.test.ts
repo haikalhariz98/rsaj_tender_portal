@@ -17,7 +17,7 @@ describe("literal-text rules", () => {
 
   it("fails a spec or ruling code in rendered text", () => {
     expect(rules(`export const a = <p>Reads evaluations (FR-EVL-014).</p>;`)).toEqual(["product-code"]);
-    expect(rules(`export const a = "Not built (NFR-RET-002)";`)).toEqual(["product-code"]);
+    expect(rules(`export const a = "Kept for 7 years (NFR-RET-002)";`)).toEqual(["product-code"]);
     expect(rules("export const a = `Ruled in AC-52`;")).toEqual(["product-code"]);
     expect(rules(`export const a = <p>Per SR-08 and (6.16)</p>;`)).toEqual(["product-code"]);
   });
@@ -85,5 +85,15 @@ describe("paragraph rule on Bids and opening (0005 R14, 2026-10-20)", () => {
   it("covers the opening tab's files and leaves its print view alone", () => {
     expect(scanSource("src/app/sourcing/[id]/opening/workspace.tsx", `export const a = <p>${long}</p>;`).map((v) => v.rule)).toEqual(["paragraph-length"]);
     expect(scanSource("src/app/sourcing/[id]/opening/print/page.tsx", `export const a = <p>${long}</p>;`)).toEqual([]);
+  });
+
+  it("fails the phrases no screen says, in text and in string literals, and passes ordinary words", () => {
+    expect(rules(`export const a = <p>Where it comes from</p>;`)).toEqual(["banned-word"]);
+    expect(rules(`export const a = "Changes awaiting a second person";`)).toEqual(["banned-word"]);
+    expect(rules(`export const a = <b>Approve (A)</b>;`)).toEqual(["banned-word"]);
+    expect(rules(`export const a = <b>Not emailed</b>;`)).toEqual(["banned-word"]);
+    expect(rules(`export const a = <p>(invented)</p>;`)).toEqual(["banned-word"]);
+    expect(rules(`export const a = <p>Issue a case; act on the window. A (B) option and Plan (A1).</p>;`)).toEqual([]);
+    expect(rules(`export const a = <p>Where the value came from</p>;`)).toEqual([]);
   });
 });

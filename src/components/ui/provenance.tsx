@@ -3,38 +3,19 @@ import type { Language } from "@/lib/i18n/language";
 import { say } from "@/lib/i18n/say";
 import type { Words } from "@/lib/contract/labels";
 
-import type { Tone } from "./badge";
-import { InfoChip } from "./info-chip";
-
 /**
- * Where a configured fact came from. One chip and one vocabulary everywhere: a
- * written rule, an observed habit and an assumption must never render alike, and a
- * fact nobody has sourced is "Not set" — not any of the three. The detail sits in a
- * popover beside the chip (note 0005 §3.3), never in a native title a keyboard cannot reach.
+ * Where a configured fact came from. Working screens no longer show it (simplification plan 5.1, SP-18): the source is recorded
+ * with the fact and read in its History. Only a fact nobody has sourced still shows, as plain "Not set" - a gap is never hidden.
+ * A decision point says its source through `RuleInfo` instead.
  *
  * `lang` is optional and English by default; a converted screen passes the language it reads in (NFR-LNG-001, ADR 0040).
  */
-const PROVENANCE: Record<string, { label: Words; tone: Tone; hint: Words }> = {
-  STATED: { label: C.provStated, tone: "ok", hint: C.provStatedHint },
-  OBSERVED: { label: C.provObserved, tone: "info", hint: C.provObservedHint },
-  ASSUMED: { label: C.provAssumed, tone: "warn", hint: C.provAssumedHint },
-};
+const PROVENANCE: Record<string, Words> = { STATED: C.provStated, OBSERVED: C.provObserved, ASSUMED: C.provAssumed };
 
-/// The chip's word for a provenance, for text that cannot hold the chip (a list's search and CSV export).
-export const provenanceLabel = (value: string | null | undefined, lang: Language = "en"): string => say((value ? PROVENANCE[value]?.label : undefined) ?? C.provNotSet, lang);
+/// The word for a provenance, for text that cannot hold the chip (a list's search and CSV export).
+export const provenanceLabel = (value: string | null | undefined, lang: Language = "en"): string => say((value ? PROVENANCE[value] : undefined) ?? C.provNotSet, lang);
 
 export function ProvenanceBadge({ value, lang = "en" }: { value: string | null | undefined; lang?: Language }) {
-  const p = value ? PROVENANCE[value] : undefined;
-  if (!p) {
-    return (
-      <InfoChip outline detail={say(C.provNotSetHint, lang)}>
-        {say(C.provNotSet, lang)}
-      </InfoChip>
-    );
-  }
-  return (
-    <InfoChip tone={p.tone} detail={say(p.hint, lang)}>
-      {say(p.label, lang)}
-    </InfoChip>
-  );
+  if (value && PROVENANCE[value]) return null;
+  return <span className="text-[13px] text-ink-3">{say(C.provNotSet, lang)}</span>;
 }

@@ -2,7 +2,10 @@
 // server, one file per screen. Run before and after a UI change and diff the two
 // directories: a restyle must not drop a field, a warning or a provenance tag.
 //
-//   node scripts/text-snapshot.mjs <out-dir> [base-url] [extra-route …]
+//   node scripts/text-snapshot.mjs [--visible] <out-dir> [base-url] [extra-route …]
+//
+// --visible skips text a reader cannot see (under .sr-only or [hidden], and a popover's closed copy), so two runs
+// count the words on the screen. Without it the snapshot is the full text, which proves nothing was lost.
 //
 // Extra routes (a record's tab or section, say "/sourcing/demo_sx16?tab=bids&section=opening")
 // are snapshotted after the standard ones.
@@ -12,9 +15,11 @@ import { JSDOM } from "jsdom";
 
 import { signedInFetch } from "./signed-in-fetch.mjs";
 
-const out = process.argv[2];
-const base = process.argv[3] ?? "http://localhost:3000";
-if (!out) throw new Error("usage: node scripts/text-snapshot.mjs <out-dir> [base-url]");
+const visible = process.argv.includes("--visible");
+const argv = process.argv.filter((a) => a !== "--visible");
+const out = argv[2];
+const base = argv[3] ?? "http://localhost:3000";
+if (!out) throw new Error("usage: node scripts/text-snapshot.mjs [--visible] <out-dir> [base-url]");
 
 const ROUTES = [
   "/",
@@ -23,6 +28,8 @@ const ROUTES = [
   "/suppliers",
   // "/documents" is a permanent redirect to /projects (MN-02, AC-16): no screen of its own.
   "/configuration",
+  // Plan 5.1: the six section pages.
+  ...["people", "approvals", "purchasing", "contracts-payments", "suppliers-portal", "system"].map((s) => `/configuration/${s}`),
   "/configuration/organisation",
   "/configuration/approval-matrix",
   "/configuration/committees",
@@ -69,6 +76,7 @@ function lines(html) {
   const { document } = new JSDOM(html).window;
   const root = document.querySelector("main") ?? document.body;
   root.querySelectorAll("script, style, template, svg").forEach((n) => n.remove());
+  if (visible) root.querySelectorAll(".sr-only, [hidden]").forEach((n) => n.remove());
   const outLines = [];
   const walker = document.createTreeWalker(root, 4 /* SHOW_TEXT */);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
@@ -77,7 +85,7 @@ function lines(html) {
   }
   // Attributes a user reads too.
   root.querySelectorAll("[placeholder],[aria-label],[title]").forEach((el) => {
-    for (const a of ["placeholder", "aria-label", "title"]) {
+    for (const a of visible ? ["placeholder"] : ["placeholder", "aria-label", "title"]) {
       const v = el.getAttribute(a);
       if (v) outLines.push(`@${a}: ${v}`);
     }
@@ -97,7 +105,7 @@ for (const [list, re] of [
   if (hit) ROUTES.push(hit[1], ...(list === "/projects" || list === "/committees" ? [] : [`${hit[1]}/edit`]));
 }
 
-ROUTES.push(...(process.env.PEROLEHAN_SUPPLIER_COOKIE ? PORTAL_ROUTES : []), ...process.argv.slice(4));
+ROUTES.push(...(process.env.PEROLEHAN_SUPPLIER_COOKIE ? PORTAL_ROUTES : []), ...argv.slice(4));
 if (!process.env.PEROLEHAN_SUPPLIER_COOKIE) console.log("skipped the supplier portal's screens: set PEROLEHAN_SUPPLIER_COOKIE to read them");
 
 mkdirSync(out, { recursive: true });

@@ -14,12 +14,12 @@ describe("a chip with detail", () => {
     expect(out).toContain("<button");
     expect(out).not.toContain("title=");
   });
-  it("provenance keeps its four words and their detail without a native title", () => {
-    for (const [value, word, detail] of [["STATED", "Stated", "Written in a governing document"], ["OBSERVED", "Observed", "Seen in practice"], ["ASSUMED", "Assumed", "working default"], [null, "Not set", "Nobody has said"]] as const) {
+  it("provenance shows no chip on a working screen, but a gap stays visible as plain text (SP-18)", () => {
+    for (const value of ["STATED", "OBSERVED", "ASSUMED"]) expect(renderToStaticMarkup(createElement(ProvenanceBadge, { value })), value).toBe("");
+    for (const value of [null, undefined]) {
       const out = renderToStaticMarkup(createElement(ProvenanceBadge, { value }));
-      expect(out).toContain(word);
-      expect(out).toContain(detail);
-      expect(out).not.toContain("title=");
+      expect(out).toContain("Not set");
+      expect(out).not.toContain("<button");
     }
   });
 });

@@ -31,15 +31,13 @@ import { SHELL_WORDS } from "@/lib/i18n/catalogues/shell";
 import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { ShellOrganisation } from "@/lib/shell";
 import {
-  CONFIG_GROUP_WORDS,
-  CONFIG_PINNED,
-  CONFIG_SECTIONS,
   navFor,
+  SETTINGS_RAIL,
+  sectionOfPath,
   navItemDisabled,
   STAFF_NAV,
   SUPPLIER_NAV,
   workspaceFor,
-  type NavGroup,
   type NavItem,
   type Workspace,
 } from "@/lib/nav";
@@ -60,13 +58,8 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
   award: AwardIcon,
   shield: ShieldIcon,
   clock: ClockIcon,
+  check: CheckIcon,
 };
-
-/// Configuration's sections in the sidebar's own shape. Inside Configuration the
-/// sidebar becomes its navigator — the settings pattern — so the sections never have
-/// to sit in a second rail squeezed beside the screen. The pinned items are held apart,
-/// drawn above the groups with no header (founder, 2026-10-08).
-const CONFIG_NAV: NavGroup[] = CONFIG_SECTIONS.map((g) => ({ label: CONFIG_GROUP_WORDS[g.group], items: g.items }));
 
 export function Sidebar({
   organisation,
@@ -95,8 +88,9 @@ export function Sidebar({
   const router = useRouter();
   const workspace = workspaceFor(pathname);
   const inConfig = pathname === "/configuration" || pathname.startsWith("/configuration/");
-  const groups = inConfig ? CONFIG_NAV : navFor(workspace);
-  const pinned = inConfig ? CONFIG_PINNED : [];
+  // Inside Settings the sidebar is its navigator (the settings pattern): Getting started, then the six sections, with no group headers.
+  const groups = inConfig ? [] : navFor(workspace);
+  const pinned = inConfig ? SETTINGS_RAIL : [];
 
   const [switching, setSwitching] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -151,8 +145,12 @@ export function Sidebar({
 
   // Each section owns its subtree; the two workspace roots need an exact match so
   // /supplier/bids does not light Home as well.
+  // A Settings page lights its section through the folder map; Getting started is the Settings root alone.
+  const section = inConfig ? sectionOfPath(pathname) : null;
   const isActive = (href: string) =>
-    href === "/" || href === "/supplier" ? pathname === href : pathname.startsWith(href);
+    inConfig
+      ? section ? href === `/configuration/${section}` : href === pathname
+      : href === "/" || href === "/supplier" ? pathname === href : pathname.startsWith(href);
 
   const renderItem = (item: NavItem) => {
     const Ico = ICONS[item.icon] ?? GridIcon;

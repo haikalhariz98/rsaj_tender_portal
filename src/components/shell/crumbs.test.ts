@@ -38,17 +38,17 @@ describe("breadcrumbs of the certificate core's pages (S-1)", () => {
   it("before the page names them, the crumbs say what kind of record, never a key or \"Details\"", () => {
     expect(labels(trail("/projects/demo_con3/certificates/demo_hct1", null))).toEqual(["Contracts", "Contract", "Certificates", "Certificate"]);
   });
-  it("a routing sheet type: Configuration › Routing sheets › the type", () => {
+  it("a routing sheet type: Settings › Approvals › Routing sheets › the type", () => {
     const c = trail("/configuration/routing-sheets/demo_hrt1", "Demo interim certificate routing sheet");
-    expect(labels(c)).toEqual(["Configuration", "Routing sheets", "Demo interim certificate routing sheet"]);
+    expect(labels(c)).toEqual(["Settings", "Approvals", "Routing sheets", "Demo interim certificate routing sheet"]);
     for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
-    expect(labels(trail("/configuration/routing-sheets", null))).toEqual(["Configuration", "Routing sheets"]);
+    expect(labels(trail("/configuration/routing-sheets", null))).toEqual(["Settings", "Approvals", "Routing sheets"]);
   });
-  it("a form: Configuration › Templates › the form (as Committees)", () => {
+  it("a form: Settings › System › Templates › the form (as Committees)", () => {
     const c = trail("/configuration/templates/demo_dt30", "Demo interim certificate");
-    expect(labels(c)).toEqual(["Configuration", "Templates", "Demo interim certificate"]);
+    expect(labels(c)).toEqual(["Settings", "System", "Templates", "Demo interim certificate"]);
     for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
-    expect(labels(trail("/configuration/committees/TENDER_BOARD", "Tender Board"))).toEqual(["Configuration", "Committees", "Tender Board"]);
+    expect(labels(trail("/configuration/committees/TENDER_BOARD", "Tender Board"))).toEqual(["Settings", "Approvals", "Committees", "Tender Board"]);
   });
   it("6.13 Part A step 4, a variation: Projects › its contract › Variations (the contract's tab) › the variation", () => {
     const c = trail("/projects/demo_con3/variations/demo_vvo1", "Variation VO/1", "XI202600799");
@@ -118,11 +118,11 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
     expect(labels(c)).toEqual(["Contracts", "AW/1", "Print"]);
     expect(c[0].href).toBe("/projects");
     expect(c[2].href).toBe("/awards/aw1/print/loa");
-    expect(labels(trail("/configuration/contracts", null))).toEqual(["Configuration", "Contract controls"]);
-    expect(labels(trail("/configuration/post-award", null))).toEqual(["Configuration", "Post-award controls"]);
-    expect(labels(trail("/configuration/evaluation", null))).toEqual(["Configuration", "Evaluation models"]);
-    expect(labels(trail("/configuration/evaluation/m1", null))).toEqual(["Configuration", "Evaluation models", "Evaluation model"]);
-    expect(labels(trail("/configuration/evaluation/m1", "Two-envelope model"))).toEqual(["Configuration", "Evaluation models", "Two-envelope model"]);
+    expect(labels(trail("/configuration/contracts", null))).toEqual(["Settings", "Contracts & payments", "Contract controls"]);
+    expect(labels(trail("/configuration/post-award", null))).toEqual(["Settings", "Contracts & payments", "Post-award controls"]);
+    expect(labels(trail("/configuration/evaluation", null))).toEqual(["Settings", "Purchasing & tenders", "Evaluation models"]);
+    expect(labels(trail("/configuration/evaluation/m1", null))).toEqual(["Settings", "Purchasing & tenders", "Evaluation models", "Evaluation model"]);
+    expect(labels(trail("/configuration/evaluation/m1", "Two-envelope model"))).toEqual(["Settings", "Purchasing & tenders", "Evaluation models", "Two-envelope model"]);
   });
 });
 
