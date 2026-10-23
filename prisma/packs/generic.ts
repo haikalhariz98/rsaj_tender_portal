@@ -17,6 +17,9 @@ import type { PackGroup, PackList, StarterPack } from "../../src/lib/starter/typ
 const SOURCE = "generic starting value";
 /// SP-8. Written from memory: the page could not be read when this was written. Check it against the page before go-live.
 const BANK_SOURCE = "Bank Negara Malaysia, list of licensed commercial banks (bnm.gov.my): transcribed 2026-10-23 without access to the page, unverified; check it against the page before go-live";
+/// The licensed Islamic banks, so a supplier banking with one can pick it. The same caution: written from memory, unverified. Development
+/// financial institutions (a different licence) and the digital banks are left out until the list is checked.
+const ISLAMIC_BANK_SOURCE = "Bank Negara Malaysia, list of licensed Islamic banks (bnm.gov.my): transcribed 2026-10-23 without access to the page, unverified; check it against the page before go-live";
 
 /// The columns of each table this pack writes, from the generated client: a misspelt column does not compile.
 interface Models {
@@ -93,6 +96,25 @@ const BANKS = {
   uob: "United Overseas Bank (Malaysia) Bhd.",
 };
 
+const ISLAMIC_BANKS = {
+  affin_islamic: "Affin Islamic Bank Berhad",
+  al_rajhi: "Al Rajhi Banking & Investment Corporation (Malaysia) Berhad",
+  alliance_islamic: "Alliance Islamic Bank Berhad",
+  ambank_islamic: "AmBank Islamic Berhad",
+  bank_islam: "Bank Islam Malaysia Berhad",
+  bank_muamalat: "Bank Muamalat Malaysia Berhad",
+  cimb_islamic: "CIMB Islamic Bank Berhad",
+  hong_leong_islamic: "Hong Leong Islamic Bank Berhad",
+  hsbc_amanah: "HSBC Amanah Malaysia Berhad",
+  kuwait_finance_house: "Kuwait Finance House (Malaysia) Berhad",
+  maybank_islamic: "Maybank Islamic Berhad",
+  mbsb_bank: "MBSB Bank Berhad",
+  ocbc_al_amin: "OCBC Al-Amin Bank Berhad",
+  public_islamic: "Public Islamic Bank Berhad",
+  rhb_islamic: "RHB Islamic Bank Berhad",
+  standard_chartered_saadiq: "Standard Chartered Saadiq Berhad",
+};
+
 /// Every series the product numbers under a fixed key (the callers of `issueReference`). Series named by other configuration (a method's dossier
 /// series, the evaluation report's series, an award's contract-number series) are the organisation's to make.
 const SERIES = {
@@ -125,7 +147,7 @@ export const GENERIC_PACK = {
     list("SupplierListValue", "Entity type", { list: "ENTITY_TYPE" }, named({ sdn_bhd: "Private limited company (Sdn Bhd)", berhad: "Public limited company (Berhad)", sole_proprietorship: "Sole proprietorship", partnership: "Partnership", llp: "Limited liability partnership (LLP)" })),
     list("SupplierListValue", "Country", { list: "COUNTRY" }, [{ code: "MY", values: { nameEn: "Malaysia", callingCode: "+60" } }]),
     list("SupplierListValue", "State", { list: "STATE" }, named(STATES)),
-    list("SupplierListValue", "Bank", { list: "BANK" }, named(BANKS).map((r) => ({ ...r, source: BANK_SOURCE }))),
+    list("SupplierListValue", "Bank", { list: "BANK" }, [...named(BANKS).map((r) => ({ ...r, source: BANK_SOURCE })), ...named(ISLAMIC_BANKS).map((r) => ({ ...r, source: ISLAMIC_BANK_SOURCE }))]),
     list("SupplierListValue", "Account type", { list: "ACCOUNT_TYPE" }, named({ current: "Current account", savings: "Savings account" })),
     list("HolidayCalendar", "Holiday calendar", undefined, [{ code: "public_holidays", values: { name: "Public holidays", weekendDays: [6, 7], weekendProvenance: "ASSUMED" } }]),
     list("NumberingSeries", "Numbering", undefined, Object.entries(SERIES).map(([key, [nameEn, prefix]]) => ({ code: key, values: { key, nameEn, pattern: `${prefix}/{YEAR}/{SERIAL}`, padding: 4, resetOn: "CALENDAR_YEAR" } }))),

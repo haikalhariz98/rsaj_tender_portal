@@ -40,6 +40,14 @@ describe("the generic pack", () => {
     for (const l of GENERIC_PACK.lists) for (const r of l.rows) expect(r.source.length, `${l.label} ${r.code}`).toBeGreaterThan(10);
   });
 
+  it("lists the licensed Islamic banks beside the commercial ones, each saying it is unverified", () => {
+    const banks = GENERIC_PACK.lists.find((l) => l.label === "Bank")!.rows;
+    const islamic = banks.filter((b) => /Islamic banks/.test(b.source));
+    expect(islamic.map((b) => b.values.nameEn)).toEqual(expect.arrayContaining(["Bank Islam Malaysia Berhad", "Bank Muamalat Malaysia Berhad", "Maybank Islamic Berhad"]));
+    for (const b of banks) expect(b.source, b.code).toMatch(/unverified; check it against the page before go-live$/);
+    expect(new Set(banks.map((b) => b.values.nameEn)).size).toBe(banks.length);
+  });
+
   it("points the bank statement at a SULIT class and the uploads at a classified one", () => {
     const classes = GENERIC_PACK.lists.find((l) => l.model === "DocumentClass")!.rows;
     const classOf = (ref: unknown) => classes.find((c) => `DocumentClass:${c.code}` === (ref as { ref: string }).ref)!.values.classification;
