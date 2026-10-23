@@ -63,7 +63,11 @@ import { contractDocumentFacts } from "@/lib/certificate/register";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import { through, type Sulit } from "@/lib/auth/sulit-access";
 
+import type { StaffActor } from "@/lib/auth/types";
+import { CONTACT_NAME_FIELDS, loadKickOffCard } from "@/lib/project-docs/kick-off-read";
+import type { ContactSubject } from "@/lib/project-docs/team-read";
 import { BaselinePanel } from "./baseline-panel";
+import { KickOffCard } from "./kick-off-card";
 import { DocumentsPanel } from "./documents-panel";
 import { SubmissionsTab } from "./submissions-tab";
 import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
@@ -249,9 +253,9 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       case "baseline":
         return facts ? <BaselinePanel l={lc} facts={facts} timeZone={l.org.timeZone} /> : notice(t(R.notJudged), t(R.setTimeZoneFirst));
       case "overview":
-        return supervision && payments && variations && sulit ? <OverviewPanel sulit={sulit} l={lc} awardOpen={visibility === "WHOLE"} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> : null;
+        return supervision && payments && variations && sulit ? <OverviewPanel actor={actor} sulit={sulit} l={lc} awardOpen={visibility === "WHOLE"} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> : null;
       case "team":
-        return supervision ? <TeamPanel l={lc} v={supervision} people={people} today={today} /> : null;
+        return supervision ? <TeamPanel actor={actor} l={lc} v={supervision} people={people} today={today} /> : null;
       case "site":
         return supervision ? <SitePanel l={lc} v={supervision} people={people} today={today} section={siteSection} page={pageNo} hidden={hiddenActs} /> : null;
       case "payments":
@@ -375,7 +379,7 @@ type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 
 // ------------------------------------------------------------------ overview
 
-async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, payments, variations }: { sulit: Sulit<true>; l: LoadedContract; awardOpen: boolean; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
+async function OverviewPanel({ actor, sulit, l, awardOpen, facts, today, supervision, payments, variations }: { actor: StaffActor; sulit: Sulit<true>; l: LoadedContract; awardOpen: boolean; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
   const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
@@ -389,6 +393,8 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
   // S-1: the year the number was issued is the organisation's day of issue, never digits read from the number.
   const year = contractYearReading(c);
   return (
+    <div className="flex flex-col gap-6">
+    <KickOffSection actor={actor} l={l} />
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       {start && (
@@ -449,7 +455,15 @@ async function OverviewPanel({ sulit, l, awardOpen, facts, today, supervision, p
       </Card>
     </div>
     </ActGate>
+    </div>
   );
+}
+
+/// The kick-off meeting's card. It sits outside the formation family's gate on purpose: its acts are the Project workspace's, and their gates (with the table's PROJECT_WORKSPACE row first) come whole from the loader.
+async function KickOffSection({ actor, l }: { actor: StaffActor; l: LoadedContract }) {
+  const names = (s: ContactSubject) => sulitGate(actor, s, CONTACT_NAME_FIELDS);
+  const card = await loadKickOffCard(db, l, actor, new Date(), names);
+  return <KickOffCard card={card} contractId={l.contract.id} briefingHref={caseHref({ awardId: l.award.id, contractId: l.contract.id }, { stage: "signing", tab: "formation", section: "signing" })} />;
 }
 
 // ------------------------------------------------------------------ securities

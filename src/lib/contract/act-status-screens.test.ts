@@ -265,6 +265,7 @@ const NO_ACT: Readonly<Record<string, string>> = {
   VariationsPanel: "Dispatches to its sections, which gate themselves.",
   SubmissionsTab: "Dispatches to the Documents list and an earlier record's read-only view, each of which gates itself (the list by the Project workspace's row, the record's answer by the supervision family's).",
   ProjectDocumentPage: "Loads the document and renders DocumentPageView, whose gates come from the loader.",
+  KickOffSection: "Loads the kick-off meeting's card and renders KickOffCard, whose gates come from the loader. It sits beside the Overview's formation gate, not inside it.",
 };
 
 /// The Project workspace's screens (ADR 0042 D11): their gates come whole from a loader that asks the PROJECT_WORKSPACE row of the table first (`actStatusFault`) and the rules' own faults after, so the screen restates no rule and
@@ -272,6 +273,7 @@ const NO_ACT: Readonly<Record<string, string>> = {
 /// `gate`: the one ActGate the screen holds, which states that same row's words to every drawer and blocked button beneath it (the loader's `workspaceShut`); none where the screen holds none (the Documents list, which sits in a tab whose own gate is the supervision family's).
 const GATED_BY_LOADER: Readonly<Record<string, { loader: string; call: string; gate: RegExp | null }>> = {
   ProjectDocumentsCard: { loader: "src/lib/project-docs/page-store.ts", call: "loadWorkspaceStart", gate: null },
+  KickOffCard: { loader: "src/lib/project-docs/kick-off-read.ts", call: "loadKickOffCard", gate: null },
   DocumentPageView: { loader: "src/lib/project-docs/page-store.ts", call: "loadDocumentPage", gate: /<ActGate blocker=\{page\.workspaceShut\}>/ },
 };
 

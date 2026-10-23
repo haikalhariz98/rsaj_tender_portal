@@ -529,7 +529,7 @@ describe("the contractor's Project workspace documents (plan step 5)", () => {
   const DOWNLOAD = "app/supplier/projects/documents/file/[attachmentId]/route.ts";
   const POSTS = PROJECT_DOCUMENT_ROUTES.filter((f) => f.file !== DOWNLOAD);
   const JSON_POSTS = POSTS.filter((f) => f.file !== UPLOAD);
-  const LIBS = ["portal-acts.ts", "portal-api.ts", "portal-upload.ts", "portal-file.ts", "portal-read.ts"].map((n) => ({ file: `lib/project-docs/${n}`, src: read(`lib/project-docs/${n}`) }));
+  const LIBS = ["portal-acts.ts", "portal-api.ts", "portal-upload.ts", "portal-file.ts", "portal-read.ts", "kick-off-read.ts", "team-read.ts"].map((n) => ({ file: `lib/project-docs/${n}`, src: read(`lib/project-docs/${n}`) }));
   const bodyOf = (src: string, method: string): string => {
     const m = lex(src);
     const at = m.search(new RegExp(String.raw`export\s+async\s+function\s+${method}\b`));

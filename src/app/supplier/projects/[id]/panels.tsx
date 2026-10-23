@@ -16,11 +16,14 @@ import { OUTCOME_TONE, OUTCOME_WORDS, SUBMISSION_KIND_WORDS } from "@/lib/portal
 import { certificatesTab, DIARY_PAGE, diaryTab, overviewTab, paymentsTab, programmeTab } from "@/lib/portal/projects/workspace-store";
 import { EARLIER_RECORD } from "@/lib/project-docs/earlier";
 import { loadPortalEarlier } from "@/lib/project-docs/earlier-read";
+import { loadPortalKickOff } from "@/lib/project-docs/kick-off-read";
 import { loadWaitingForYou } from "@/lib/project-docs/portal-read";
+import { loadPortalTeam } from "@/lib/project-docs/team-read";
 import { delayWords, ENTRY_STATE_TONE, ENTRY_STATE_WORDS, PROGRAMME_DECISION_WORDS } from "@/lib/supervision/labels";
 
 import { AttestControl, DisputeDiaryControl, SignCertificateControl } from "./controls";
 import { PortalDocumentsPanel } from "./documents-panel";
+import { PortalKickOffCard, PortalTeamCard } from "./kick-off-portal";
 import { portalDocumentsHref } from "./portal-documents-card";
 import { WaitingList } from "./waiting-for-you";
 
@@ -34,6 +37,9 @@ type Props = { actor: SupplierActor; ctx: ProjectContext; token: string | null }
 export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
   const o = await overviewTab(db, actor, ctx);
   const waiting = await loadWaitingForYou(db, actor, { contractId: ctx.contract.id });
+  // The team and the meeting are read here, in the panel, never in `overviewTab`: each takes the supplier and organisation from the actor and the held contract.
+  const team = await loadPortalTeam(db, actor, ctx);
+  const kickOff = await loadPortalKickOff(db, actor, ctx);
   const todo = [
     ...(o.counts.toAttest ? [`${o.counts.toAttest} diary ${o.counts.toAttest === 1 ? "entry" : "entries"} to attest.`] : []),
     ...(o.counts.toSign ? [`${o.counts.toSign} ${o.counts.toSign === 1 ? "certificate" : "certificates"} to sign.`] : []),
@@ -85,6 +91,10 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
             />
           </CardBody>
         </Card>
+      </div>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <PortalKickOffCard card={kickOff} />
+        <PortalTeamCard team={team} />
       </div>
     </div>
   );

@@ -55,6 +55,8 @@ export type Field =
   /// and it only ever lives in this field while it is typed.
   | { kind: "money"; name: string; label: string; required?: boolean; hint?: string; sealed?: boolean }
   | { kind: "date"; name: string; label: string; required?: boolean; hint?: string }
+  /// A clock time on the native input: it posts `HH:MM`, 24-hour.
+  | { kind: "time"; name: string; label: string; required?: boolean; hint?: string }
   | {
       kind: "select";
       name: string;
@@ -108,6 +110,8 @@ export type Field =
       allChecked?: boolean;
       /// Said where there is nothing to tick.
       empty?: string;
+      /// Detail behind an information button after the label (the reason a list reads as it does), so it is not prose in the form.
+      info?: string;
     }
   /// Shown, never edited. A value the record implies rather than stores.
   | { kind: "readonly"; name: string; label: string; hint?: string; text: string }
@@ -561,8 +565,9 @@ function FieldInput({
     const labelId = `${id}-label`;
     return (
       <div role="group" aria-labelledby={labelId} aria-describedby={hint ? `${id}-hint` : undefined} className="min-w-0 sm:col-span-2">
-        <p id={labelId} className="text-[13px] font-semibold text-ink-2">
+        <p id={labelId} className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-2">
           {field.label}
+          {field.info && <MoreText text={field.info} label={`About ${field.label}`} />}
         </p>
         {hint && (
           <p id={`${id}-hint`} className="mt-0.5 text-[12.5px] text-ink-3">
@@ -672,7 +677,7 @@ function FieldInput({
       ) : (
         <Input
           id={id}
-          type={field.kind === "date" ? "date" : field.kind === "text" && field.secret ? "password" : "text"}
+          type={field.kind === "date" ? "date" : field.kind === "time" ? "time" : field.kind === "text" && field.secret ? "password" : "text"}
           autoComplete={field.kind === "text" && field.secret ? "new-password" : undefined}
           spellCheck={field.kind === "text" && field.secret ? false : undefined}
           name={field.name}

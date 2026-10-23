@@ -34,7 +34,7 @@ const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 const isChosen = (f: FormDataEntryValue): f is File => f instanceof File && (f.size > 0 || f.name !== "");
 
 /// Stage each chosen file (or reuse what an earlier press stored). Never throws: a refusal is a form state naming the file.
-async function stageFiles(data: FormData, staged: Map<string, string>): Promise<{ ok: true; ids: string[] } | { ok: false; state: FormState }> {
+export async function stageFiles(data: FormData, staged: Map<string, string>): Promise<{ ok: true; ids: string[] } | { ok: false; state: FormState }> {
   const files = data.getAll("file").filter(isChosen);
   if (files.length === 0) return { ok: false, state: { ok: false, errors: { file: "Choose at least one file." } } };
   const ids: string[] = [];
@@ -56,7 +56,7 @@ async function stageFiles(data: FormData, staged: Map<string, string>): Promise<
 }
 
 /// What the form posts, less the files, plus the staged ids.
-function withStaged(data: FormData, ids: string[]): FormData {
+export function withStaged(data: FormData, ids: string[]): FormData {
   const next = new FormData();
   for (const [k, v] of data.entries()) if (k !== "file") next.append(k, v);
   for (const id of ids) next.append("stagedVersionId", id);
@@ -64,9 +64,9 @@ function withStaged(data: FormData, ids: string[]): FormData {
 }
 
 const KEPT = "Your files are kept. Press again to retry.";
-const kept = (r: FormState): FormState => ({ ...r, message: [r.message, KEPT].filter(Boolean).join(" ") });
+export const kept = (r: FormState): FormState => ({ ...r, message: [r.message, KEPT].filter(Boolean).join(" ") });
 
-const FILES: Field = { kind: "file", name: "file", label: "Files", required: true, multiple: true };
+export const FILES: Field = { kind: "file", name: "file", label: "Files", required: true, multiple: true };
 const NOTE: Field = { kind: "textarea", name: "note", label: "Note" };
 
 /// A document, started by uploading its first files or by asking the contractor for it, with approvers named at once. Goes to the new document's page.

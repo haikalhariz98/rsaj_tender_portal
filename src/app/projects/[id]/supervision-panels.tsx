@@ -33,6 +33,10 @@ import { entryState, missingDays } from "@/lib/supervision/diary";
 import { delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn } from "@/lib/supervision/load";
 import { startRuleReading } from "@/lib/supervision/possession";
 import { possessionBlockerOf } from "./signing-acts";
+import { sulitGate } from "@/app/_auth/sulit";
+import type { StaffActor } from "@/lib/auth/types";
+import { CONTACT_NAME_FIELDS, loadContractorAccounts } from "@/lib/project-docs/team-read";
+import { ContractorAccountsCard } from "./contractor-accounts-card";
 import { openRevision, programmeInForce } from "@/lib/supervision/programme";
 import { BRANCH_OPENS } from "@/lib/supervision/records";
 import { reResolveReading, resolveSo, soFaults } from "@/lib/supervision/so";
@@ -180,7 +184,7 @@ export function OnSiteCard({ l, v }: { l: LoadedContract; v: SupervisionView }) 
 
 // ------------------------------------------------------------------ Team
 
-export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null }) {
+export async function TeamPanel({ actor, l, v, people, today }: { actor: StaffActor; l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("SUPERVISION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -316,6 +320,8 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
           </ul>
         )}
       </Card>
+
+      <ContractorAccountsCard accounts={await loadContractorAccounts(db, l, actor, (subject) => sulitGate(actor, subject, CONTACT_NAME_FIELDS))} />
     </div>
     </ActGate>
   );
