@@ -220,8 +220,8 @@ export function RecordEditor({
   const submitLabel = submitLabelAsked ?? say(WORDS.save);
   const cancelLabel = cancelLabelAsked ?? say(WORDS.cancel);
   const gate = useActGate();
-  const mayDraft = useMayDraft();
   const submitBlock = gate ?? ownBlock;
+  const mayDraft = useMayDraft();
   const [open, setOpenState] = useState(defaultOpen);
   // Closing forgets what the officer chose in the selects that drive `showWhen`: the
   // form reopens from the stored values.

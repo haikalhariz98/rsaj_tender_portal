@@ -15,9 +15,8 @@ export async function requireSettingsReader() {
   return actor;
 }
 
-/// The page of one Settings section; each section's `page.tsx` is this with its slug.
-export async function SettingsSectionRoute({ slug }: { slug: SettingsSection }) {
-  const actor = await requireSettingsReader();
+/// The page of one Settings section; each section's `page.tsx` asks `requireSettingsReader` first, then renders this with its slug.
+export async function SettingsSectionRoute({ slug, actor }: { slug: SettingsSection; actor: Awaited<ReturnType<typeof requireSettingsReader>> }) {
   const { items } = await loadChecklist(db, actor.organisationId);
   const section = SETTINGS_SECTIONS.find((s) => s.slug === slug)!;
   return <SectionPage section={section} items={items} at={(d) => formatOrgDay(d, actor.organisationTimeZone)} />;

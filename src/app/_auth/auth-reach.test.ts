@@ -41,7 +41,8 @@ const publicEntry = (file: string) => isPublicEntryFile(file);
 /// Phase 4b: `supplierUploadPost` (a multipart upload) and `supplierGet` (a read of codes or of the supplier's own file) are the same guard for the registration wizard's other handlers.
 /// Phase 5: `stageEdit` is a Configuration editor's exported action: it asks `staffForPermission("configuration.draft")` as its first awaited call, and `stageRecordEdit` (a correction of the
 /// record) asks `requireStaff()` (both pinned in `registry-scan.test.ts`).
-const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission(", "requireSupplier(", "supplierPost(", "supplierUploadPost(", "supplierGet(", "stageEdit(", "stageRecordEdit("];
+/// Simplification 5.1: `requireSettingsReader` is Settings' front-page wrapper; it asks `requireStaff` first (pinned below).
+const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission(", "requireSupplier(", "supplierPost(", "supplierUploadPost(", "supplierGet(", "stageEdit(", "stageRecordEdit(", "requireSettingsReader("];
 
 interface Entry {
   file: string;
@@ -139,6 +140,11 @@ describe("every page asks who is signed in first", () => {
     });
     expect(pages.filter((p) => p.defaults.length !== 1).map((p) => p.file)).toEqual([]);
     expect(pages.flatMap((p) => p.defaults).filter((e) => !asksFirst(e)).map((e) => `${e.file}: ${e.name}`)).toEqual([]);
+  });
+
+  it("requireSettingsReader asks requireStaff before anything else", () => {
+    const src = readFileSync(path.join(APP, "configuration", "section-route.tsx"), "utf8");
+    expect(src).toMatch(/export async function requireSettingsReader\(\) \{\n\s+const actor = await requireStaff\(\);/);
   });
 
   it("a page does not load its data in generateMetadata or generateStaticParams, which no guard would precede", () => {

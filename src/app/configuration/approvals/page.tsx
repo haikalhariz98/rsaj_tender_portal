@@ -1,7 +1,8 @@
-import { SettingsSectionRoute } from "../section-route";
+import { requireSettingsReader, SettingsSectionRoute } from "../section-route";
 
 export const dynamic = "force-dynamic";
 
-export default function Page() {
-  return <SettingsSectionRoute slug="approvals" />;
+export default async function Page() {
+  const actor = await requireSettingsReader();
+  return <SettingsSectionRoute slug="approvals" actor={actor} />;
 }
