@@ -224,7 +224,8 @@ export default async function ApprovalMatrixPage({
     if (rule.generateCoreChain === true && unchecked)
       return <span className="text-amber-800">{`${chainChoiceLabel(true)} · no standard route for ${officeName(rule.approverCode ?? "")} in this version`}</span>;
     if (rule.generateCoreChain === false) return <span>{`${chainChoiceLabel(false)} · ${rule.coreChainReason ?? "reason not recorded"}`}</span>;
-    if (rule.generateCoreChain === true) return <span>{chainChoiceLabel(true)}</span>;
+    // A cleanly generated chain says so on each step; the note would repeat it.
+    if (rule.generateCoreChain === true) return null;
     return <span>Not checked against the standard route</span>;
   };
 
@@ -478,7 +479,7 @@ export default async function ApprovalMatrixPage({
                           <Td label="Route" className="align-top">
                             <div className="flex items-start gap-1">
                               <div className="min-w-0 flex-1"><RuleChain steps={chainFor(rule)} /></div>
-                              <RuleInfo label="The rule behind this route" rule={rule.note ? `${rule.labelEn}. ${rule.note}` : rule.labelEn} clause={rule.clause} source={rule.isGap ? "ASSUMED" : null} />
+                              <RuleInfo label={`The rule behind ${rule.labelEn}`} rule={rule.note ? `${rule.labelEn}. ${rule.note}` : rule.labelEn} clause={rule.clause} source={rule.isGap ? "ASSUMED" : null} />
                             </div>
                             <div className="mt-1 text-[12.5px] break-words text-ink-3">{chainNote(rule)}</div>
                             {editable && (ruleRows[rule.ruleKey]?.recommenders.length ?? 0) > 0 && (
@@ -543,7 +544,7 @@ export default async function ApprovalMatrixPage({
           id="advanced"
           title="Advanced"
           summary={`${noun(coreRows.length, "standard route", "standard routes")} · ${noun(termsBands.length, "terms band", "terms bands")}`}
-          defaultOpen={ADVANCED_IDS.includes(section ?? "")}
+          defaultOpen={ADVANCED_IDS.includes(section ?? "") || coreRefusals.some((x) => !x.rule)}
         >
           <div className="flex flex-col gap-6">
             <Card className="overflow-hidden">
@@ -552,7 +553,7 @@ export default async function ApprovalMatrixPage({
                 title="Standard route"
                 collapsible
                 id="core-routing"
-                defaultOpen={startsOpen({}, { id: "core-routing", target: section })}
+                defaultOpen={startsOpen({ finding: coreRefusals.some((x) => !x.rule) }, { id: "core-routing", target: section })}
                 summary={
                   <>
                     <span>{noun(coreRows.length, "office", "offices")}</span>

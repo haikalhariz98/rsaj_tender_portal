@@ -56,7 +56,7 @@ export default async function RoutingSheetsPage() {
                   <CellStack
                     title={<span className="inline-flex items-center gap-1"><Link href={`/configuration/routing-sheets/${t.id}`} className="font-semibold">{t.labelEn}</Link><RuleInfo label={`The rule behind ${t.labelEn}`} rule="Its checks, and the targets elapsed days are judged against." source={t.provenance} /></span>}
                     aside={t.retiredOn ? <Badge tone="warn">{org?.today && storedDay(t.retiredOn) > org.today ? `no longer used from ${formatDate(t.retiredOn)}` : "no longer used"}</Badge> : undefined}
-                    sub={[`${t._count.checks} check${t._count.checks === 1 ? "" : "s"}`, t._count.targets ? `${t._count.targets} target${t._count.targets === 1 ? "" : "s"}` : "no target", t.template?.nameEn ?? null, `${t._count.certificates + t._count.awardSheets} sheet${t._count.certificates + t._count.awardSheets === 1 ? "" : "s"} on it`].filter(Boolean).join(" · ")}
+                    sub={[`${t._count.checks} check${t._count.checks === 1 ? "" : "s"}`, t._count.targets ? `${t._count.targets} target${t._count.targets === 1 ? "" : "s"}` : "no target", t.template?.nameEn ?? null, t.upperEdgeInclusive == null ? "band edge not set" : null, `${t._count.certificates + t._count.awardSheets} sheet${t._count.certificates + t._count.awardSheets === 1 ? "" : "s"} on it`].filter(Boolean).join(" · ")}
                   />
                 </Td>
                 <Td label="Drawn over" className="text-ink-2">{t.subject === "CERTIFICATE" ? (t.certificateKind ? KIND_WORDS[t.certificateKind].en : "Any certificate") : SUBJECT_WORDS[t.subject].en}</Td>

@@ -43,6 +43,7 @@ export default async function CommitteesPage() {
   ]);
   const offices = roster.offices.filter((o) => !o.isCommittee).map((o) => ({ code: o.code, nameEn: o.nameEn }));
   const now = new Date();
+  const liveOutcomes = outcomes.filter((o) => o.retiredOn == null || o.retiredOn > now).length;
   const committeeOptions = committees.map((c) => ({ id: c.id, nameEn: c.nameEn }));
 
   return (
@@ -133,11 +134,11 @@ export default async function CommitteesPage() {
         )}
       </Card>
 
-      <Disclosure id="not-approved-outcomes" title="Advanced" summary={`${outcomes.filter((o) => o.retiredOn == null || o.retiredOn > now).length} not-approved outcomes`}>
+      <Disclosure id="not-approved-outcomes" title="Advanced" summary={`${liveOutcomes} not-approved ${liveOutcomes === 1 ? "outcome" : "outcomes"}`}>
         <Card className="overflow-hidden">
           <CardHeader
             title="Not-approved outcomes"
-            subtitle="Next step for a rejected matter"
+            subtitle="Next step for a rejected item"
             actions={<AddNotApprovedOutcome committees={committeeOptions} />}
             divided={outcomes.length === 0}
           />

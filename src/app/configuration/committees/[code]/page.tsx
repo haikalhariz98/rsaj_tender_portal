@@ -142,7 +142,11 @@ export default async function CommitteePage({
             }
             actions={
               <>
-                <RuleInfo label="The rule behind the members" rule={`Who sits on ${committee.nameEn}.`} source={committee.compositionProvenance} />
+                {committee.compositionProvenance == null ? (
+                  <SettingValue value={null} unset="No members are defined yet." />
+                ) : (
+                  <RuleInfo label="The rule behind the members" rule={`Who sits on ${committee.nameEn}.`} source={committee.compositionProvenance} />
+                )}
                 {hasSecretary && (
                   <RuleInfo label="About the Secretary seat" rule="The Secretary attends but never votes or counts toward quorum, until the terms of reference say otherwise." source="ASSUMED" />
                 )}
