@@ -4,6 +4,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatusCounts } from "@/components/ui/status-counts";
 import { formatDate } from "@/lib/format";
 import { STATUS_LABEL, STATUS_ORDER, STATUS_TONE } from "@/lib/requisition/labels";
 import { listRequisitions, REQUISITIONS_PAGE } from "@/lib/requisition/repo";
@@ -12,6 +13,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { sulitGates } from "@/app/_auth/sulit";
 import { sulitCell } from "@/components/sulit-cell";
 
+export const metadata = { title: "Requisitions" };
 export const dynamic = "force-dynamic";
 
 const TONE = { neutral: undefined, brand: "brand", ok: "ok", warn: "warn", err: "err", info: "info" } as const;
@@ -25,7 +27,8 @@ const TONE = { neutral: undefined, brand: "brand", ok: "ok", warn: "warn", err: 
  */
 export default async function RequisitionsPage(props: PageProps<"/requisitions">) {
   const actor = await requireStaff();
-  const page = Math.max(0, Number.parseInt(((await props.searchParams) as { page?: string }).page ?? "0", 10) || 0);
+  const query = (await props.searchParams) as { page?: string; view?: string };
+  const page = Math.max(0, Number.parseInt(query.page ?? "0", 10) || 0);
   const { org, rows, total, counts } = await listRequisitions(actor.organisationId, page);
 
   // The department estimate is SULIT: a requisition keeps no list of who is named, so only the organisation-wide permission opens it (undecided until decided).
@@ -63,11 +66,7 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
       <PageHeader
         title="Requisitions"
         info={{ title: "Requisitions", text: "Requests to spend, checked and routed for approval. Search by reference or finance-system number." }}
-        meta={[
-          `${counts.open} open`,
-          `${counts.pending} pending approval`,
-          `${counts.overBudget} over budget`,
-        ]}
+        className="mb-4"
         actions={
           org ? (
             <ButtonLink href="/requisitions/new" variant="primary" size="md" icon={<PlusIcon size={16} />}>
@@ -75,6 +74,16 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
             </ButtonLink>
           ) : undefined
         }
+      />
+
+      <StatusCounts
+        label="Where requisitions stand"
+        className="mb-6"
+        items={[
+          { label: "Open", count: counts.open, href: "/requisitions", active: !query.view },
+          { label: "Pending approval", count: counts.pending, href: "/requisitions?view=pending", tone: "info", active: query.view === "pending" },
+          { label: "Over budget", count: counts.overBudget, href: "/requisitions?view=over", tone: "warn", active: query.view === "over" },
+        ]}
       />
 
       {org && !org.timeZone && (
@@ -99,6 +108,7 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
         <DataList
           flat
           selectable={false}
+          initialView={query.view}
           exportName="requisitions"
           searchPlaceholder="Search by title or number"
           emptyTitle="No requisitions yet"

@@ -19,6 +19,10 @@ describe("an approval route as a flow of steps (founder, 2026-10-05)", () => {
     expect(r[1].sub).toBe("A. Officer · 05 Oct 2026");
     expect(r[2].sub).toBe("Awaiting the committee");
   });
+  it("after an escalation the step names the office now holding it (UX finding 5)", () => {
+    const r = routeSteps({ status: "PENDING", openedOn: "x", steps: [{ ...step("hod", "PENDING"), actingLabel: "Finance Director" }] });
+    expect(r[1]).toMatchObject({ label: "Finance Director", state: "current", sub: "Escalated from HOD" });
+  });
   it("an approved route ends approved", () => {
     expect(states(routeSteps({ status: "APPROVED", openedOn: "x", steps: [step("hod", "DONE")] }))).toEqual(["Submitted:done", "HOD:done", "Approved:done"]);
   });

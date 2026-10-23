@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
@@ -12,6 +11,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { sulitGate } from "@/app/_auth/sulit";
 import { fieldsOfScope } from "@/lib/sulit-fields";
 
+export const metadata = { title: "Edit requisition" };
 export const dynamic = "force-dynamic";
 
 /// The way back to draft from where it stands, naming only actions that exist there.
@@ -45,7 +45,7 @@ export default async function EditRequisitionPage(props: PageProps<"/requisition
   return (
     <>
       <RecordCrumb label={r.reference} />
-      <PageHeader eyebrow={<Link href={`/requisitions/${id}`}>{r.reference}</Link>} title={`Edit ${r.title}`} />
+      <PageHeader title={`Edit ${r.title}`} />
       {r.status !== "DRAFT" ? (
         <Callout tone="warn" title="Fields are fixed once endorsed.">
           {backToDraft(r.status)}

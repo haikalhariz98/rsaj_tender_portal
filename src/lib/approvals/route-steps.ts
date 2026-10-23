@@ -5,6 +5,8 @@ export interface RouteStepIn {
   id: string;
   /// The office or committee that decides it.
   label: string;
+  /// The office that holds the step after an escalation, when it is not `label`: the step names who decides it now.
+  actingLabel?: string | null;
   decision: "PENDING" | "DONE" | "REJECTED";
   committee: boolean;
   /// Who decided it, and when, where it is decided.
@@ -39,13 +41,15 @@ export function routeSteps(
   // drawn amber and read aloud as such, so the hidden state word never says "rejected" (Q-3, §7.3.2).
   const returned = (step: StepperStep, text: string): StepperStep => (outcomeLabel && step.state === "rejected" ? { ...step, stateText: text, tone: "warn" } : step);
   const out: StepperStep[] = [{ key: "submitted", label: "Submitted", sub: route.openedOn, state: "done" }];
-  route.steps.forEach((s, i) => {
+  route.steps.forEach((step, i) => {
+    const s = { ...step, label: step.actingLabel || step.label };
+    const escalated = s.label !== step.label ? `Escalated from ${step.label}` : null;
     if (s.decision === "DONE") {
       out.push({ key: s.id, label: s.label, sub: [s.decidedBy, s.decidedOn].filter(Boolean).join(" · ") || undefined, state: "done" });
     } else if (s.decision === "REJECTED") {
       out.push(returned({ key: s.id, label: s.label, sub: [s.decidedBy, s.decidedOn].filter(Boolean).join(" · ") || undefined, state: "rejected" }, "sent the documents back"));
     } else if (open && i === firstPending) {
-      out.push({ key: s.id, label: s.label, sub: s.committee ? "Awaiting the committee" : "Awaiting decision", state: "current" });
+      out.push({ key: s.id, label: s.label, sub: s.committee ? "Awaiting the committee" : (escalated ?? "Awaiting decision"), state: "current" });
     } else {
       out.push({ key: s.id, label: s.label, state: "waiting" });
     }

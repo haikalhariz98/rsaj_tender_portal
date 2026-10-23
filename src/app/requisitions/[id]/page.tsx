@@ -18,7 +18,11 @@ import { EscalateDrawer } from "@/app/approvals/editors";
 import { escalationText } from "@/lib/authority/escalation-labels";
 import { absentOffices } from "@/lib/authority/absence";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
-import { buttonClass, ButtonLink } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
+import { MoreActions, MoreItem } from "@/components/ui/more-actions";
+import { moreItemClass } from "@/components/ui/more-item-class";
+import { RuleInfo } from "@/components/ui/rule-info";
+import { primaryAction } from "@/lib/requisition/primary-action";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
@@ -134,6 +138,7 @@ import { addSen, formatMoney } from "@/lib/money";
 import { historyMoneyText, linesSubtitle } from "@/lib/requisition/money-text";
 import { requireStaff } from "@/app/_auth/actor";
 
+export const metadata = { title: "Requisition" };
 export const dynamic = "force-dynamic";
 
 const TONE = { neutral: "neutral", brand: "brand", ok: "ok", warn: "warn", err: "err", info: "info" } as const;
@@ -243,6 +248,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   // Submission, as far as it can be judged before the lock: the same pure checks.
   const noBudgetCode = missingBudgetCode(r.status, r.budgetCodeId);
   let submitBlocker: string | null = null;
+  let checkNeeded = false;
   let overBudget: { invocation: boolean; controlNotSet: boolean; auto: boolean; ifRechecked?: boolean } | null = null;
   let preview: ReturnType<typeof resolveRequisitionRoute> | null = null;
   let previewRoles: Record<string, { nameEn: string }> = {};
@@ -256,6 +262,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     else if (gate.faults.length > 0) submitBlocker = fundingFaultText(gate.faults[0]);
     else if (!lastCheck) submitBlocker = "Run the budget check first.";
     else if (stale && controls.budgetCheckSource === "MANUAL_ERP_ENTRY") submitBlocker = "Last check is stale. Enter a fresh one.";
+    checkNeeded = !lastCheck || (stale && controls.budgetCheckSource === "MANUAL_ERP_ENTRY");
     if (lastCheck) {
       const d = overBudgetDisposition(lastCheck.verdict, controls.availabilityCheck, false);
       if (!d.proceed && (d.fault === "NO_BUDGET" || d.fault === "AMBIGUOUS")) {
@@ -350,7 +357,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   );
   const deciderOptions = (step: { id: string; roleCode: string | null; actingRoleCode: string | null; declaredByPersonId: string | null; committeeCode: string | null; nonDelegable: boolean; decision: string }) => {
     const office = step.actingRoleCode ?? step.roleCode;
-    if (!open || !today || !office) return { options: people, candidates: 0, eligible: 0, barred: [] as string[] };
+    if (!open || !today || !office) return { options: people, candidates: 0, eligible: 0, eligibleIds: [] as string[], barred: [] as string[] };
     const path = pathTo(lookups.units, unit, on).reverse().map((u) => u.code);
     const h = holdersFor(office, path, roster, delegations, today);
     const eligibleIds: string[] = [];
@@ -391,25 +398,51 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     }
     const eligibleOpts = eligibleIds.map((pid) => ({ value: pid, label: labelled.get(pid)! }));
     const rest = people.filter((p) => !labelled.has(p.value));
-    return { options: [...eligibleOpts, ...barredOpts, ...rest], candidates: labelled.size, eligible: eligibleIds.length, barred };
+    return { options: [...eligibleOpts, ...barredOpts, ...rest], candidates: labelled.size, eligible: eligibleIds.length, eligibleIds, barred };
   };
 
   const recallBlock = r.status === "PENDING_APPROVAL" ? transitionFault(r.status, "RECALLED", { today, anyStepDone: open?.steps.some((s) => s.decision !== "PENDING") ?? false }) : null;
   // FR-APR-017: only the originator recalls. The action asks the same rule again, and also whether the matter is on a committee's agenda.
   const requisitionStanding = r.status === "PENDING_APPROVAL" && open ? await committeeStandingOf(db, { requisitionId: r.id }, open.domain, open.openedAt) : null;
-  const recallRule = r.status === "PENDING_APPROVAL" && open ? recallFault({ routeStatus: open.status, steps: open.steps, tabledAwaitingDecision: requisitionStanding?.awaiting ?? 0, committeeDecided: requisitionStanding?.decided ?? 0, originatorIds: [...new Set([r.requestingPersonId, open.submittedByPersonId].filter((x): x is string => !!x))], actorPersonId: actor.personId, reason: "asked" }) : null;
+  const originatorIds = open ? [...new Set([r.requestingPersonId, open.submittedByPersonId].filter((x): x is string => !!x))] : [];
+  const recallRule = r.status === "PENDING_APPROVAL" && open ? recallFault({ routeStatus: open.status, steps: open.steps, tabledAwaitingDecision: requisitionStanding?.awaiting ?? 0, committeeDecided: requisitionStanding?.decided ?? 0, originatorIds, actorPersonId: actor.personId, reason: "asked" }) : null;
+  // Recall is drawn only for the people who could ever use it (FR-APR-017); the action asks the same rule again.
+  const isOriginator = r.status === "PENDING_APPROVAL" && originatorIds.includes(actor.personId);
+  const recallBlocker = recallBlock ? transitionFaultText(recallBlock) : recallRule ? RECALL_FAULT_TEXT[recallRule] : null;
   const locked = !["DRAFT"].includes(r.status);
   const sentBack = sentBackBy(r.status, r.approvalInstances, r.returnedOn);
   const erpFirst = r.erpRequisitionNo ? `${r.erpRequisitionNo} · ${r.reference}` : r.reference;
 
-  // Why a header action is unavailable, stated once under the action row.
-  const unavailable: [string, string | null][] = [
-    ["Mark endorsed", r.status === "DRAFT" ? endorseText : null],
-    ["Check budget", PRE_SUBMIT.includes(r.status) ? (checkBlocker ?? (controls.budgetCheckSource ? null : "The budget check source is not set.")) : null],
-    ["Submit for approval", PRE_SUBMIT.includes(r.status) ? submitBlocker : null],
-    ["Recall", r.status === "PENDING_APPROVAL" && recallBlock ? transitionFaultText(recallBlock) : null],
-  ];
-  const notes = unavailable.filter((x): x is [string, string] => x[1] != null);
+  // The header's one primary action, chosen by status and by what this viewer may do (plan 6.3); the rest sit in the menu.
+  const pendingStep = open?.steps.find((s) => s.decision === "PENDING") ?? null;
+  const plainStep = pendingStep && !pendingStep.committeeCode && pendingStep.roleCode ? pendingStep : null;
+  const liveHere = exercises.filter((x) => x.status !== "CANCELLED");
+  const kind = primaryAction({
+    status: r.status,
+    step: plainStep ? { committee: false } : pendingStep ? { committee: true } : null,
+    viewerDecides: plainStep ? deciderOptions(plainStep).eligibleIds.includes(actor.personId) : false,
+    viewerMayRecall: isOriginator && !recallBlocker,
+    budgetCheckNeeded: checkNeeded,
+    awaitingChoice: !!awaitingChoice,
+    canSource: !exerciseFault,
+    liveExercises: liveHere.length,
+  });
+  const decideBlocker = plainStep && !today ? DECIDER_FAULT_TEXT.TIME_ZONE_UNSET : null;
+  const decider = (asPrimary: boolean, label?: string) =>
+    plainStep ? (
+      <DecisionDrawer id={r.id} stepId={plainStep.id} roleLabel={plainStep.actingRoleLabel ?? plainStep.roleLabel} act={ACT_LABEL[plainStep.act]} done={ACT_DONE_LABEL[plainStep.act] ?? "Done"} people={deciderOptions(plainStep).options} today={today} blocker={decideBlocker} label={label} menu={!asPrimary} />
+    ) : null;
+  const exerciseHref = liveHere.length === 1 ? `/sourcing/${liveHere[0].id}` : `/requisitions/${r.id}?tab=sourcing`;
+
+  // Why the primary action is unavailable, stated once under the action row.
+  const notes = (
+    [
+      ["Mark endorsed", kind === "endorse" ? endorseText : null],
+      ["Check budget", kind === "check" ? (checkBlocker ?? (controls.budgetCheckSource ? null : "The budget check source is not set.")) : null],
+      ["Submit for approval", kind === "submit" ? submitBlocker : null],
+      ["Record decision", kind === "approve" || kind === "record" ? decideBlocker : null],
+    ] as [string, string | null][]
+  ).filter((x): x is [string, string] => x[1] != null);
   // The same reason for two buttons (no time zone, say) is said once.
   const distinct = [...new Map(notes.map(([label, why]) => [why, label])).entries()];
   const headerNote =
@@ -426,41 +459,62 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       </span>
     );
 
+  const approver = plainStep ? (plainStep.actingRoleLabel ?? plainStep.roleLabel) : null;
+  const why =
+    (kind === "approve" || kind === "record") && inst?.checkedAgainstMatrix && inst.ruleLabel && approver ? (
+      <RuleInfo label="Why this approver?" rule={`${approver} decides this step under ${inst.ruleLabel}${routeBand ? `, ${routeBand}` : ""}.`} clause={inst.ruleClause} />
+    ) : null;
+  const downloadable = prRefusal(r.status, !!approvedRoute) === null;
+  const inMenu = {
+    edit: r.status === "DRAFT",
+    check: PRE_SUBMIT.includes(r.status) && kind !== "check",
+    ret: PRE_SUBMIT.includes(r.status),
+    record: !!plainStep && kind !== "approve" && kind !== "record",
+    recall: isOriginator && kind !== "recall",
+    cancel: ["DRAFT", "ENDORSED", "RETURNED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"].includes(r.status),
+    download: downloadable,
+  };
+
   const actions = (
     <>
-      {r.status === "DRAFT" && (
-        <>
-          <ButtonLink href={`/requisitions/${r.id}/edit`} variant="secondary" size="sm">
-            Edit
-          </ButtonLink>
-          <MarkEndorsed id={r.id} blocker={endorseText} source={controls.budgetCheckSource} />
-        </>
+      {kind === "endorse" && <MarkEndorsed id={r.id} blocker={endorseText} source={controls.budgetCheckSource} />}
+      {kind === "check" && <CheckBudgetDrawer id={r.id} source={controls.budgetCheckSource} blocker={checkBlocker} today={today} primary />}
+      {kind === "submit" && <SubmitDrawer id={r.id} blocker={submitBlocker} overBudget={overBudget} />}
+      {kind === "approve" && decider(true, ACT_LABEL[plainStep!.act])}
+      {kind === "record" && decider(true)}
+      {kind === "recall" && <RecallDrawer id={r.id} blocker={null} primary />}
+      {kind === "reopen" && <ReopenDrawer id={r.id} />}
+      {kind === "choose" && awaitingChoice && (
+        <WhereItGoesDrawer id={r.id} kinds={awaitingChoice.offered.map((k) => ({ value: k, label: REJECTION_KIND_LABEL[k] }))} steps={awaitingChoice.steps} people={people} />
       )}
-      {/* Founder, 2026-10-06: returnable as incomplete until it is submitted, also after the budget check. */}
-      {["ENDORSED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"].includes(r.status) && <ReturnDrawer id={r.id} people={people} today={today} />}
-      {PRE_SUBMIT.includes(r.status) && (
-        <>
-          <CheckBudgetDrawer id={r.id} source={controls.budgetCheckSource} blocker={checkBlocker} today={today} />
-          <SubmitDrawer id={r.id} blocker={submitBlocker} overBudget={overBudget} />
-        </>
+      {kind === "source" && (
+        <ButtonLink href={`/sourcing/new?requisition=${r.id}`} variant="primary" size="sm">
+          Start sourcing
+        </ButtonLink>
       )}
-      {r.status === "PENDING_APPROVAL" && <RecallDrawer id={r.id} blocker={recallBlock ? transitionFaultText(recallBlock) : recallRule ? RECALL_FAULT_TEXT[recallRule] : null} />}
-      {["RETURNED", "RECALLED"].includes(r.status) && <ReopenDrawer id={r.id} />}
-      {awaitingChoice && (
-        <WhereItGoesDrawer
-          id={r.id}
-          kinds={awaitingChoice.offered.map((k) => ({ value: k, label: REJECTION_KIND_LABEL[k] }))}
-          steps={awaitingChoice.steps}
-          people={people}
-        />
+      {kind === "exercise" && (
+        <ButtonLink href={exerciseHref} variant="primary" size="sm">
+          {liveHere.length === 1 ? "Open tender or quotation" : "Open sourcing"}
+        </ButtonLink>
       )}
-      {["DRAFT", "ENDORSED", "RETURNED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"].includes(r.status) && <CancelDrawer id={r.id} />}
-      {/* Founder, 2026-10-05: the expenditure request form, once approved. A plain link: it is a file, not a page. */}
-      {prRefusal(r.status, !!approvedRoute) === null && (
-        <a href={`/requisitions/${r.id}/pr.pdf`} download className={buttonClass("secondary", "sm")}>
-          <DownloadIcon size={15} />
-          Download PR
-        </a>
+      {why}
+      {Object.values(inMenu).some(Boolean) && (
+        <MoreActions>
+          {inMenu.edit && <MoreItem href={`/requisitions/${r.id}/edit`}>Edit</MoreItem>}
+          {inMenu.check && <CheckBudgetDrawer id={r.id} source={controls.budgetCheckSource} blocker={checkBlocker} today={today} menu />}
+          {/* Founder, 2026-10-06: returnable as incomplete until it is submitted, also after the budget check. */}
+          {inMenu.ret && <ReturnDrawer id={r.id} people={people} today={today} />}
+          {inMenu.record && decider(false)}
+          {inMenu.recall && <RecallDrawer id={r.id} blocker={recallBlocker} />}
+          {inMenu.cancel && <CancelDrawer id={r.id} />}
+          {/* Founder, 2026-10-05: the expenditure request form, once approved. A plain link: it is a file, not a page. */}
+          {inMenu.download && (
+            <a href={`/requisitions/${r.id}/pr.pdf`} download className={moreItemClass()}>
+              <DownloadIcon size={15} />
+              Download PR
+            </a>
+          )}
+        </MoreActions>
       )}
     </>
   );
@@ -469,7 +523,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     <>
       <RecordCrumb label={r.reference} />
       <PageHeader
-        eyebrow={<Link href="/requisitions">Requisitions</Link>}
         title={r.title}
         badge={
           <>
@@ -687,7 +740,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                   if (d.eligible > 0) return null;
                   return `Every holder is barred: ${d.barred.join("; ")}. Record a delegation.`;
                 }}
-                today={today}
               />
             ),
           },
@@ -1168,7 +1220,6 @@ async function ApprovalPanel({
   decide,
   suggestions,
   stepFaultPreview,
-  today,
   routeBand,
   previewNote,
   previewRefusal,
@@ -1189,7 +1240,6 @@ async function ApprovalPanel({
   decide: (s: Step) => string | null;
   suggestions: (s: Step) => { value: string; label: string }[];
   stepFaultPreview: (s: Step) => string | null;
-  today: string | null;
 }) {
   const r = l.req;
   const [inst, ...earlier] = r.approvalInstances;
@@ -1268,6 +1318,7 @@ async function ApprovalPanel({
               steps: inst.steps.map((s) => ({
                 id: s.id,
                 label: s.roleLabel,
+                actingLabel: s.actingRoleLabel,
                 decision: s.decision,
                 committee: !!s.committeeCode,
                 decidedBy: s.committeeDecision ? (s.committeeDecision.meeting?.reference ?? null) : s.decidedByName,
@@ -1289,7 +1340,7 @@ async function ApprovalPanel({
             <KeyValues
               columns={2}
               items={[
-                { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
+                { label: "Rule", value: inst.ruleLabel ? <span className="inline-flex items-center gap-1.5">{inst.ruleLabel}<RuleInfo rule={`The rule this route was chosen under: ${inst.ruleLabel}.`} clause={inst.ruleClause} /></span> : "Not recorded" },
                 { label: "Chain beneath the approver", value: routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n }; }).en },
                 { label: "Routed on", value: routedOnLabel(inst.cond) },
                 { label: "Value band", value: routeBand ?? "Band not recorded" },
@@ -1392,9 +1443,6 @@ async function ApprovalPanel({
                   {s.decision !== "PENDING" && <Badge tone={stepTone(s.decision)}>{DECISION_LABEL[s.decision]}</Badge>}
                   {open && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
                     <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={suggestions(s)} />
-                  )}
-                  {open && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
-                    <DecisionDrawer id={r.id} stepId={s.id} roleLabel={s.actingRoleLabel ?? s.roleLabel} act={ACT_LABEL[s.act]} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s)} today={today} blocker={blocker} />
                   )}
                   {open && s.decision === "PENDING" && s.committeeCode && (
                     <CiteCommitteeDrawer

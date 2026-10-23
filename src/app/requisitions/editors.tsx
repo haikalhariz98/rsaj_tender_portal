@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { moreItemClass } from "@/components/ui/more-item-class";
 import { actorField } from "@/lib/auth/actor-field";
 
 import {
@@ -99,14 +100,14 @@ export function ReturnDrawer({ id, people, today }: { id: string; people: Option
       values={{ id, returnedOn: today }}
       action={returnRequisition}
       submitLabel="Return"
-      trigger={{ label: "Return", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Return as incomplete", className: moreItemClass() }}
       size="md"
     />
   );
 }
 
-export function CheckBudgetDrawer({ id, source, blocker, today }: { id: string; source: "PORTAL_LEDGER" | "MANUAL_ERP_ENTRY" | null; blocker: string | null; today: string | null }) {
-  if (blocker || !source) return <Blocked label="Check budget" reason={blocker ?? "Budget check source not set."} noteId={HEADER_NOTE_ID} />;
+export function CheckBudgetDrawer({ id, source, blocker, today, primary, menu }: { id: string; source: "PORTAL_LEDGER" | "MANUAL_ERP_ENTRY" | null; blocker: string | null; today: string | null; /** The header's one primary action; otherwise a card button, or a menu entry. */ primary?: boolean; menu?: boolean }) {
+  if (blocker || !source) return <Blocked label="Check budget" reason={blocker ?? "Budget check source not set."} primary={primary} noteId={menu ? undefined : HEADER_NOTE_ID} />;
   const manual = source === "MANUAL_ERP_ENTRY";
   return (
     <RecordEditor
@@ -131,7 +132,7 @@ export function CheckBudgetDrawer({ id, source, blocker, today }: { id: string; 
       values={{ id, asAt: today }}
       action={checkBudget}
       submitLabel="Run check"
-      trigger={{ label: "Check budget", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Check budget", className: menu ? moreItemClass() : buttonClass(primary ? "primary" : "secondary", "sm") }}
       size="md"
     />
   );
@@ -180,8 +181,8 @@ export function SubmitDrawer({
   );
 }
 
-export function RecallDrawer({ id, blocker }: { id: string; blocker: string | null }) {
-  if (blocker) return <Blocked label="Recall" reason={blocker} noteId={HEADER_NOTE_ID} />;
+export function RecallDrawer({ id, blocker, primary }: { id: string; blocker: string | null; /** The header's one primary action; otherwise a menu entry. */ primary?: boolean }) {
+  if (blocker) return <Blocked label="Recall" reason={blocker} />;
   return (
     <RecordEditor
       title="Recall"
@@ -191,7 +192,7 @@ export function RecallDrawer({ id, blocker }: { id: string; blocker: string | nu
       action={recallRequisition}
       submitLabel="Recall"
       destructive={{ reasonLabel: "Why is it being recalled?" }}
-      trigger={{ label: "Recall", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Recall", className: primary ? buttonClass("primary", "sm") : moreItemClass(true) }}
       size="sm"
     />
   );
@@ -207,7 +208,7 @@ export function CancelDrawer({ id }: { id: string }) {
       action={cancelRequisition}
       submitLabel="Cancel requisition"
       destructive={{ reasonLabel: "Why is it cancelled?" }}
-      trigger={{ label: "Cancel requisition", className: buttonClass("destructive", "sm") }}
+      trigger={{ label: "Cancel requisition", className: moreItemClass(true) }}
       size="sm"
     />
   );
@@ -275,7 +276,13 @@ export function DecisionDrawer({
   people,
   today,
   blocker,
+  label = "Record decision",
+  menu,
 }: {
+  /** A menu entry rather than the header's primary button. */
+  menu?: boolean;
+  /** The trigger's words: the act when the viewer is the one deciding ("Approve"). */
+  label?: string;
   id: string;
   stepId: string;
   roleLabel: string;
@@ -286,7 +293,7 @@ export function DecisionDrawer({
   today: string | null;
   blocker: string | null;
 }) {
-  if (blocker) return <Blocked label="Record decision" reason={blocker} />;
+  if (blocker) return <Blocked label={label} reason={blocker} primary={!menu} noteId={menu ? undefined : HEADER_NOTE_ID} />;
   return (
     <RecordEditor
       title={`Record ${roleLabel}'s decision`}
@@ -313,7 +320,7 @@ export function DecisionDrawer({
       values={{ id, stepId, decidedOn: today }}
       action={recordDecision}
       submitLabel="Record decision"
-      trigger={{ label: "Record decision", className: buttonClass("primary", "sm") }}
+      trigger={{ label, className: menu ? moreItemClass() : buttonClass("primary", "sm") }}
       size="md"
     />
   );

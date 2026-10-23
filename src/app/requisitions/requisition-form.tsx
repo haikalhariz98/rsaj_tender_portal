@@ -84,7 +84,7 @@ const names = (fields: PrefillField[]) => fields.map((f) => FIELD_NAME[f]).join(
 
 /// What choosing the officer did, in words: only the fields it actually filled, and why any were not.
 function officerNoteText(note: PrefillResult | "no-unit"): string {
-  if (note === "no-unit") return "No unit on record. Nothing filled in.";
+  if (note === "no-unit") return "They have no department on record. Choose one below.";
   if (!note.gave) return "Nothing filled in from their unit.";
   const parts: string[] = [];
   if (note.filled.length) parts.push(`Filled from their unit: ${names(note.filled)}.`);
@@ -294,9 +294,7 @@ export function RequisitionForm({
               setFilled((f) => ({ ...f, costCentre: undefined }));
             },
           })}
-          {select("fundingRouteCode", "Funding route", options.fundingRoutes.map((r) => ({ value: r.code, label: r.name })), {
-            hint: "Required to submit.",
-          })}
+          {select("fundingRouteCode", "Funding route", options.fundingRoutes.map((r) => ({ value: r.code, label: r.name })), { required: true })}
           {select("accountCode", "Account code", coded(options.accounts), { required: true, searchable: true, onChange: setAccount })}
           {/* Founder, 2026-10-05: required. Only the budget codes on the chosen account are offered, so the pair always agrees. */}
           {select("budgetCodeId", "Budget code", budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), {

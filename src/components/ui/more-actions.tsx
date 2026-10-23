@@ -9,6 +9,7 @@ import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 
 import { iconButtonClass } from "./button";
 import { cx } from "./cx";
+import { moreItemClass } from "./more-item-class";
 
 /// The "…" menu of a `PageHeader`: the secondary and the destructive actions, so the header keeps one or two primary buttons. Native
 /// `details`/`summary` (keyboard-operable with no script, as `Disclosure` is); the small effect only closes it on Escape, returning focus
@@ -47,12 +48,9 @@ export function MoreActions({ children, label }: { children: ReactNode; label?: 
   );
 }
 
-const ITEM = "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13.5px] font-medium no-underline transition hover:no-underline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-45";
-const TONE = { normal: "text-ink-2 hover:bg-ink/5 hover:text-ink", danger: "text-rose-700 hover:bg-rose-50" } as const;
-
 /// One entry of the menu: a link with `href`, otherwise a button. `danger` marks a destructive one.
 export function MoreItem({ href, danger, icon, children, ...button }: { href?: string; danger?: boolean; icon?: ReactNode; children: ReactNode } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className">) {
-  const className = cx(ITEM, TONE[danger ? "danger" : "normal"]);
+  const className = moreItemClass(danger);
   if (href) {
     return (
       <Link href={href} className={className}>
