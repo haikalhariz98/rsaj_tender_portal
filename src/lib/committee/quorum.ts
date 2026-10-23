@@ -11,7 +11,9 @@
  * is how a system ends up asserting a compliance it cannot support.
  */
 
-export type VoteChoice = "SETUJU" | "TIDAK_SETUJU" | "ABSTAIN";
+import { MANDATORY_ACTS as AUTHORITY_MANDATORY_ACTS } from "@/lib/authority/types";
+
+export type VoteChoice ="SETUJU" | "TIDAK_SETUJU" | "ABSTAIN";
 
 export type QuorumState = "MET" | "NOT_MET" | "UNCONFIGURED";
 
@@ -108,9 +110,9 @@ export interface DecisionReadiness {
   messageEn: string;
 }
 
-/// Acts a committee cannot discharge with part of its body (MR, MJR, MA). The one
-/// definition: the badge, the decision rule and the matter rule all read it.
-export const MANDATORY_ACTS: ReadonlySet<string> = new Set(["MR", "MJR", "MA"]);
+/// Acts a committee cannot discharge with part of its body (MR, MJR, MA): the authority
+/// grammar's one set, read here as strings because a decision row's act is a column.
+export const MANDATORY_ACTS: ReadonlySet<string> = AUTHORITY_MANDATORY_ACTS;
 
 /**
  * Whether a committee decision may be recorded as final.
