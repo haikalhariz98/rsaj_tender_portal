@@ -10,7 +10,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { RULE_LABEL } from "@/lib/window/labels";
-import { ProvenanceBadge } from "@/components/ui/provenance";
+import { SettingValue } from "@/components/setup/setting-value";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { db } from "@/lib/db";
@@ -28,6 +28,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployment";
 import { Disclosure } from "@/components/ui/disclosure";
 
+export const metadata = { title: "Invitation controls" };
 export const dynamic = "force-dynamic";
 
 /// What a setting leaves undecided while it is unset: said beside "Not set", never a zero.
@@ -42,23 +43,6 @@ const UNSET = {
   attendance: "No event may be made mandatory, and no sale is refused for missing one.",
   template: "Its text cannot be produced, so the act that needs it is held back.",
 } as const;
-
-function Setting({ value, unset, source }: { value: string; unset: string; source?: string | null }) {
-  if (value.startsWith("Not set")) {
-    return (
-      <span className="flex flex-col items-start gap-1.5">
-        <Badge tone="warn">Not set</Badge>
-        <span className="text-[12.5px] text-ink-3">{unset}</span>
-      </span>
-    );
-  }
-  return (
-    <span className="flex flex-col items-start gap-1.5">
-      <span className="break-words">{value}</span>
-      {source !== undefined && <ProvenanceBadge value={source} />}
-    </span>
-  );
-}
 
 const tri = (v: boolean | null | undefined) => (v === true ? "yes" : v === false ? "no" : "unset");
 const days = (n: number | null | undefined) => (n == null ? "Not set" : `${n} day${n === 1 ? "" : "s"}`);
@@ -155,9 +139,7 @@ export default async function InvitationControlsPage() {
       />
       <div className="flex flex-col gap-6">
         {c.notSet > 0 && (
-          <Callout tone="warn" title={`${c.notSet} ${c.notSet === 1 ? "setting is" : "settings are"} not set`}>
-            Each holds back the act it governs.
-          </Callout>
+          <Callout tone="warn" title={`${c.notSet} ${c.notSet === 1 ? "setting is" : "settings are"} not set`} />
         )}
 
         <Card id="rules" className="scroll-mt-24">
@@ -166,27 +148,21 @@ export default async function InvitationControlsPage() {
             <KeyValues
               columns={2}
               items={[
-                setting("Minimum days from advertisement to closing", <Setting value={days(p.minAdvertisementDays)} unset={UNSET.min} source={p.dateRulesProvenance} />),
-                setting("Target days from advertisement to closing", <Setting value={days(p.targetAdvertisementDays)} unset={UNSET.target} source={p.dateRulesProvenance} />),
-                setting("Margin for a late newspaper", <Setting value={days(p.newspaperWarnDays)} unset={UNSET.margin} source={p.dateRulesProvenance} />),
-                setting(RULE_LABEL.purchaseCutoff, <Setting value={days(p.purchaseCutoffDays)} unset={UNSET.cutoff} source={p.dateRulesProvenance} />),
-                setting("Where the date rules are written", p.dateRuleSource || "No source is cited: the messages that refuse a date cite none"),
-                setting("Default closing time", <Setting value={r.time.value} unset={UNSET.time} source={p.closingTimeProvenance} />),
-                setting("Advertisement day", <Setting value={r.day.value} unset={UNSET.dayRule} source={p.dayRuleProvenance} />),
-                setting("Holiday calendar", <Setting value={named(c.calendars, p.calendarId)?.name ?? "Not set"} unset={UNSET.calendar} />),
-                setting(RULE_LABEL.mandatoryAttendance, <Setting value={r.attendance.value} unset={UNSET.attendance} source={p.attendanceProvenance} />),
-                setting("Release the tender documents online after payment", <Setting value={release?.electronicDocumentRelease == null ? "Not set" : release.electronicDocumentRelease ? "Released online once an officer records the payment" : "Collected at the counter only"} unset="Not set, so documents are collected at the counter and nothing is released online." source={release?.electronicReleaseProvenance ?? null} />),
-                setting("How the tender documents are sold", <Setting value={release?.documentSaleMode ? saleModeWords(release.documentSaleMode) : "Not set"} unset="Not set, so an exercise made now cannot be published until the organisation says how its documents are sold." />),
-                setting("How bids are submitted", <Setting value={release?.submissionChannel === "PAPER" ? "On paper, in a sealed envelope" : release?.submissionChannel === "ONLINE" ? "Online, sealed in the portal" : "Not set"} unset="Not set, so an exercise made now cannot be published until the organisation says how bids are submitted." />),
-                setting("Demonstration payment simulator", <Setting value={release?.paymentSimulatorOn == null ? "Not set" : release.paymentSimulatorOn ? (simulatorAllowedByDeployment() ? "On: a demonstration, no money moves" : "On, but this copy of the system is not set up for demonstrations, so no one can pay on it and a payment already made on it releases nothing") : "Off"} unset="Not set, so a buyer cannot pay online: the office records the payment instead." />),
-                setting("Payment methods the simulator offers", <Setting value={release?.simulatedPaymentMethods.length ? release.simulatedPaymentMethods.join(", ") : "Not set"} unset="None set, so the simulator offers nothing to choose from." />),
-                setting("Template for the published notice", <Setting value={c.policy.templates.notice} unset={UNSET.template} />),
-                setting("Template for a letter of invitation", <Setting value={c.policy.templates.invitation} unset={UNSET.template} />),
-                setting("Template for an addendum", <Setting value={c.policy.templates.addendum} unset={UNSET.template} />),
+                setting("Minimum days from advertisement to closing", <SettingValue value={days(p.minAdvertisementDays)} unset={UNSET.min} />),
+                setting("Target days from advertisement to closing", <SettingValue value={days(p.targetAdvertisementDays)} unset={UNSET.target} />),
+                setting("Margin for a late newspaper", <SettingValue value={days(p.newspaperWarnDays)} unset={UNSET.margin} />),
+                setting(RULE_LABEL.purchaseCutoff, <SettingValue value={days(p.purchaseCutoffDays)} unset={UNSET.cutoff} />),
+                setting("Where the date rules are written", p.dateRuleSource || <SettingValue value={null} unset="No source is cited, so the messages that refuse a date cite none." />),
+                setting("Default closing time", <SettingValue value={r.time.value} unset={UNSET.time} />),
+                setting("Advertisement day", <SettingValue value={r.day.value} unset={UNSET.dayRule} />),
+                setting("Holiday calendar", <SettingValue value={named(c.calendars, p.calendarId)?.name ?? "Not set"} unset={UNSET.calendar} />),
+                setting(RULE_LABEL.mandatoryAttendance, <SettingValue value={r.attendance.value} unset={UNSET.attendance} />),
+                setting("Release the tender documents online after payment", <SettingValue value={release?.electronicDocumentRelease == null ? "Not set" : release.electronicDocumentRelease ? "Released online after payment is recorded" : "Collected at the counter only"} unset="Documents are collected at the counter; nothing is released online." />),
+                setting("How the tender documents are sold", <SettingValue value={release?.documentSaleMode ? saleModeWords(release.documentSaleMode) : "Not set"} unset="An exercise made now cannot be published until this is set." />),
+                setting("How bids are submitted", <SettingValue value={release?.submissionChannel === "PAPER" ? "On paper, in a sealed envelope" : release?.submissionChannel === "ONLINE" ? "Online, sealed in the portal" : "Not set"} unset="An exercise made now cannot be published until this is set." />),
               ]}
             />
             {row?.notes && <p className="mt-4 text-[13px] break-words whitespace-pre-line text-ink-2">{row.notes}</p>}
-            <p className="mt-4 text-[12.5px] text-ink-3">The templates&apos; wording is written under <Link href="/configuration/templates">Templates</Link>.</p>
           </CardBody>
         </Card>
 
@@ -219,72 +195,13 @@ export default async function InvitationControlsPage() {
                 {bidMethods.map((m) => (
                   <Tr key={m.id}>
                     <Td label="Method"><CellStack title={m.nameEn} /></Td>
-                    <Td label="Late admission decided by"><Setting value={m.lateAdmissionCommitteeCode ? (committees.find((c) => c.code === m.lateAdmissionCommitteeCode)?.nameEn ?? "A committee no longer configured") : "Not set"} unset={BID_RULE_UNSET.committee} source={m.lateAdmissionProvenance} /></Td>
-                    <Td label="Fewest bids"><Setting value={m.minimumBids == null ? "Not set" : String(m.minimumBids)} unset={BID_RULE_UNSET.minimum} source={m.minimumBidsProvenance} /></Td>
-                    <Td label="An incomplete bid"><Setting value={m.completenessEliminates == null ? "Not set" : m.completenessEliminates ? "Is eliminated" : "Is reported to the committee"} unset={BID_RULE_UNSET.eliminates} source={m.completenessProvenance} /></Td>
+                    <Td label="Late admission decided by"><SettingValue value={m.lateAdmissionCommitteeCode ? (committees.find((c) => c.code === m.lateAdmissionCommitteeCode)?.nameEn ?? "A committee no longer configured") : "Not set"} unset={BID_RULE_UNSET.committee} /></Td>
+                    <Td label="Fewest bids"><SettingValue value={m.minimumBids == null ? "Not set" : String(m.minimumBids)} unset={BID_RULE_UNSET.minimum} /></Td>
+                    <Td label="An incomplete bid"><SettingValue value={m.completenessEliminates == null ? "Not set" : m.completenessEliminates ? "Is eliminated" : "Is reported to the committee"} unset={BID_RULE_UNSET.eliminates} /></Td>
                     <Td>
                       <RowActions>
                         <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
                         <EditMethodBidRule id={m.id} name={m.nameEn} committees={committees.filter((c) => c.retiredOn == null).map((c) => ({ value: c.code, label: c.nameEn }))} values={{ lateAdmissionCommitteeCode: m.lateAdmissionCommitteeCode ?? "", lateAdmissionProvenance: m.lateAdmissionProvenance ?? "", minimumBids: m.minimumBids == null ? "" : String(m.minimumBids), minimumBidsProvenance: m.minimumBidsProvenance ?? "", completenessEliminates: tri(m.completenessEliminates), completenessProvenance: m.completenessProvenance ?? "" }} />
-                      </RowActions>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
-        </Card>
-
-        <Card id="opening" className="scroll-mt-24 overflow-hidden">
-          <CardHeader
-            icon={<SlidersIcon size={17} />}
-            title={<span className="inline-flex flex-wrap items-center gap-2">Opening{openingNotSet > 0 && <Badge tone="warn">{openingNotSet} not set</Badge>}</span>}
-            subtitle={`${OPENING_RULES_APPLY_TEXT}`}
-            actions={
-              <span className="flex flex-wrap items-center gap-1">
-                {op && <HistoryButton iconOnly entity="OpeningPolicy" entityId={op.id} label="the opening policy" />}
-                <EditOpeningPolicy values={{ invitedCountReading: op?.invitedCountReading ?? "", invitedCountProvenance: op?.invitedCountProvenance ?? "", qualifiedLabelEn: op?.qualifiedLabelEn ?? "", qualifiedLabelMs: op?.qualifiedLabelMs ?? "", notQualifiedLabelEn: op?.notQualifiedLabelEn ?? "", notQualifiedLabelMs: op?.notQualifiedLabelMs ?? "", lowestLabelEn: op?.lowestLabelEn ?? "", lowestLabelMs: op?.lowestLabelMs ?? "", labelsProvenance: op?.labelsProvenance ?? "", governingSource: op?.governingSource ?? "" }} />
-              </span>
-            }
-          />
-          <CardBody className="border-b border-line/70">
-            <KeyValues
-              columns={2}
-              items={[
-                setting("The tenderers invited are", <Setting value={op?.invitedCountReading ? INVITED_READING_LABEL[op.invitedCountReading] : "Not set"} unset={OPENING_RULE_UNSET.reading} source={op?.invitedCountProvenance ?? null} />),
-                setting("Where it is written", op?.governingSource || "No source is cited"),
-                setting("A bid that passed", <Setting value={word(op?.qualifiedLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.qualified}".`} source={op?.qualifiedLabelEn ? op.labelsProvenance : undefined} />),
-                setting("A bid that did not pass", <Setting value={word(op?.notQualifiedLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.notQualified}".`} source={op?.notQualifiedLabelEn ? op.labelsProvenance : undefined} />),
-                setting("The lowest qualifying offer", <Setting value={word(op?.lowestLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.lowest}".`} source={op?.lowestLabelEn ? op.labelsProvenance : undefined} />),
-              ]}
-            />
-          </CardBody>
-          {bidMethods.length === 0 ? (
-            <EmptyState title="No method takes bids" />
-          ) : (
-            <Table minWidth={720}>
-              <colgroup>
-                <col />
-                <col style={{ width: 240 }} />
-                <col style={{ width: 260 }} />
-                <ActionsCol icons={1} labelled={1} />
-              </colgroup>
-              <THead>
-                <Th>Method</Th>
-                <Th>Bids opened by</Th>
-                <Th>A bid with no live purchase</Th>
-                <Th className="text-right">Actions</Th>
-              </THead>
-              <tbody>
-                {bidMethods.map((m) => (
-                  <Tr key={m.id}>
-                    <Td label="Method"><CellStack title={m.nameEn} /></Td>
-                    <Td label="Bids opened by"><Setting value={m.openingCommitteeCode ? (committees.find((x) => x.code === m.openingCommitteeCode)?.nameEn ?? "A committee no longer configured") : "Not set"} unset={OPENING_RULE_UNSET.committee} source={m.openingCommitteeProvenance} /></Td>
-                    <Td label="A bid with no live purchase"><Setting value={m.unpurchasedBidConsequence ? UNPURCHASED_LABEL[m.unpurchasedBidConsequence] : "Not set"} unset={OPENING_RULE_UNSET.unpurchased} source={m.unpurchasedProvenance} /></Td>
-                    <Td>
-                      <RowActions>
-                        <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
-                        <EditMethodOpeningRule id={m.id} name={m.nameEn} committees={liveCommittees} values={{ openingCommitteeCode: m.openingCommitteeCode ?? "", openingCommitteeProvenance: m.openingCommitteeProvenance ?? "", unpurchasedBidConsequence: m.unpurchasedBidConsequence ?? "", unpurchasedProvenance: m.unpurchasedProvenance ?? "" }} />
                       </RowActions>
                     </Td>
                   </Tr>
@@ -309,13 +226,11 @@ export default async function InvitationControlsPage() {
               <colgroup>
                 <col />
                 <col style={{ width: 170 }} />
-                <col style={{ width: 110 }} />
                 <ActionsCol icons={1} labelled={2} />
               </colgroup>
               <THead>
                 <Th>Channel</Th>
                 <Th>Required</Th>
-                <Th>Source</Th>
                 <Th className="text-right">Actions</Th>
               </THead>
               <tbody>
@@ -324,60 +239,12 @@ export default async function InvitationControlsPage() {
                   return (
                     <Tr key={x.id}>
                       <Td label="Channel"><CellStack title={x.nameEn} sub={[x.governingSource, x.retired].filter(Boolean).join(" · ") || undefined} /></Td>
-                      <Td label="Required">{x.required === "Not set" ? <Badge tone="warn" title="Publication is held back until this is set">Not set</Badge> : x.required}</Td>
-                      <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
+                      <Td label="Required">{x.required === "Not set" ? <SettingValue value={null} unset="Publication is held back until this is set." /> : x.required}</Td>
                       <Td>
                         <RowActions>
                           <HistoryButton iconOnly entity="PublicationChannel" entityId={x.id} label={x.nameEn} />
                           <ChannelDrawer channel={{ id: x.id, name: x.nameEn, values: { code: x.code, nameEn: x.nameEn, nameMs: raw?.nameMs ?? "", requiredWhenAdvertised: tri(x.requiredWhenAdvertised), sortOrder: String(x.sortOrder), governingSource: x.governingSource, provenance: x.provenance, notes: raw?.notes ?? "" } }} />
                           <RetireChannelDrawer id={x.id} name={x.nameEn} retired={!!x.retired} />
-                        </RowActions>
-                      </Td>
-                    </Tr>
-                  );
-                })}
-              </tbody>
-            </Table>
-          )}
-        </Card>
-
-        <Card id="floors" className="scroll-mt-24 overflow-hidden">
-          <CardHeader
-            icon={<FileIcon size={17} />}
-            title={<span className="inline-flex items-center gap-2">The least document fee{c.floors.length > 0 && <Badge outline>{c.floors.length}</Badge>}</span>}
-            subtitle="Refused below the band's least"
-            actions={<FloorDrawer regimes={(Object.keys(REGIME_LABEL) as (keyof typeof REGIME_LABEL)[]).filter((k) => !c.floors.some((f) => f.regime === k)).map((k) => ({ value: k, label: REGIME_LABEL[k] }))} />}
-            divided={c.floors.length === 0}
-          />
-          {c.floors.length === 0 ? (
-            <EmptyState title="None configured" />
-          ) : (
-            <Table minWidth={560}>
-              <colgroup>
-                <col />
-                <col style={{ width: 150 }} />
-                <col style={{ width: 110 }} />
-                <ActionsCol icons={1} labelled={2} />
-              </colgroup>
-              <THead>
-                <Th>Band</Th>
-                <Th numeric>Least fee</Th>
-                <Th>Source</Th>
-                <Th className="text-right">Actions</Th>
-              </THead>
-              <tbody>
-                {c.floors.map((f) => {
-                  const raw = rawFloors.find((y) => y.id === f.id);
-                  return (
-                    <Tr key={f.id}>
-                      <Td label="Band"><CellStack title={f.band} sub={f.source ?? undefined} /></Td>
-                      <Td numeric label="Least fee"><span className="font-semibold">{f.minimum}</span></Td>
-                      <Td label="Source">{raw ? <ProvenanceBadge value={raw.provenance} /> : null}</Td>
-                      <Td>
-                        <RowActions>
-                          <HistoryButton iconOnly entity="DocumentFeeFloor" entityId={f.id} label={f.band} />
-                          <FloorDrawer regimes={[{ value: f.regime, label: f.band }]} floor={{ id: f.id, label: f.band, values: { regime: f.regime, minimum: raw ? senToDecimalString(parseSen(raw.minimum.toString())) : "", governingSource: raw?.governingSource ?? "", provenance: raw?.provenance ?? "", notes: raw?.notes ?? "" } }} />
-                          <RemoveFloorDrawer id={f.id} label={f.band} />
                         </RowActions>
                       </Td>
                     </Tr>
@@ -420,7 +287,6 @@ export default async function InvitationControlsPage() {
                   <div className="flex flex-wrap items-center gap-2 border-b border-line/70 px-5 py-3 text-[13.5px] sm:px-6">
                     <span className="font-semibold text-ink">Weekend</span>
                     <span className="text-ink-2">{cal.weekend}</span>
-                    <ProvenanceBadge value={raw?.weekendProvenance ?? null} />
                   </div>
                 )}
                 {cal.weekend === "Not set" && (
@@ -441,7 +307,6 @@ export default async function InvitationControlsPage() {
                         <span className="font-semibold text-ink">{y.year}</span>
                         <Badge tone={y.complete.startsWith("Maintained") ? "ok" : "warn"}>{y.complete.startsWith("Maintained") ? "Complete" : "Not complete"}</Badge>
                         <span className="order-last w-full min-w-0 text-ink-2 sm:order-none sm:w-auto sm:flex-1">{y.complete.startsWith("Maintained") ? y.source ?? "No source recorded" : y.complete}</span>
-                        <ProvenanceBadge value={y.from.toUpperCase()} />
                         <HistoryButton iconOnly entity="HolidayCalendarYear" entityId={y.id} label={`${cal.name}, ${y.year}`} />
                         <YearDrawer calendarId={cal.id} calendar={cal.name} year={{ year: y.year, complete: y.complete.startsWith("Maintained"), source: y.source ?? "", provenance: y.from.toUpperCase() }} />
                       </li>
@@ -454,13 +319,11 @@ export default async function InvitationControlsPage() {
                       <colgroup>
                         <col style={{ width: 140 }} />
                         <col />
-                        <col style={{ width: 110 }} />
                         <ActionsCol icons={0} labelled={1} />
                       </colgroup>
                       <THead>
                         <Th>Day</Th>
                         <Th>Holiday</Th>
-                        <Th>Source</Th>
                         <Th className="text-right">Actions</Th>
                       </THead>
                       <tbody>
@@ -468,7 +331,6 @@ export default async function InvitationControlsPage() {
                           <Tr key={h.id}>
                             <Td label="Day">{h.day}</Td>
                             <Td label="Holiday"><CellStack title={h.name} sub={[h.gazette].filter(Boolean).join(" · ") || undefined} /></Td>
-                            <Td label="Source"><ProvenanceBadge value={h.from.toUpperCase()} /></Td>
                             <Td><RowActions><RemoveHolidayDrawer id={h.id} name={h.name} /></RowActions></Td>
                           </Tr>
                         ))}
@@ -480,10 +342,132 @@ export default async function InvitationControlsPage() {
             );
           })}
         </div>
+        <Disclosure id="advanced" title="Advanced">
+          <div className="flex flex-col gap-6">
+            <Card>
+              <CardHeader icon={<SlidersIcon size={17} />} title="Payment and templates" />
+              <CardBody>
+                <KeyValues
+                  columns={2}
+                  items={[
+                    setting("Demonstration payment simulator", <SettingValue value={release?.paymentSimulatorOn == null ? "Not set" : release.paymentSimulatorOn ? (simulatorAllowedByDeployment() ? "On: a demonstration, no money moves" : "On, but this system is not set up for demonstrations") : "Off"} unset="A buyer cannot pay online; the office records the payment." />),
+                    setting("Payment methods the simulator offers", <SettingValue value={release?.simulatedPaymentMethods.length ? release.simulatedPaymentMethods.join(", ") : "Not set"} unset="The simulator offers nothing to choose from." />),
+                    setting("Template for the published notice", <SettingValue value={c.policy.templates.notice} unset={UNSET.template} />),
+                    setting("Template for a letter of invitation", <SettingValue value={c.policy.templates.invitation} unset={UNSET.template} />),
+                    setting("Template for an addendum", <SettingValue value={c.policy.templates.addendum} unset={UNSET.template} />),
+                  ]}
+                />
+                <p className="mt-4 text-[12.5px] text-ink-3">Template wording: <Link href="/configuration/templates">Templates</Link></p>
+              </CardBody>
+            </Card>
+        <Card id="opening" className="scroll-mt-24 overflow-hidden">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title={<span className="inline-flex flex-wrap items-center gap-2">Opening{openingNotSet > 0 && <Badge tone="warn">{openingNotSet} not set</Badge>}</span>}
+            subtitle={`${OPENING_RULES_APPLY_TEXT}`}
+            actions={
+              <span className="flex flex-wrap items-center gap-1">
+                {op && <HistoryButton iconOnly entity="OpeningPolicy" entityId={op.id} label="the opening policy" />}
+                <EditOpeningPolicy values={{ invitedCountReading: op?.invitedCountReading ?? "", invitedCountProvenance: op?.invitedCountProvenance ?? "", qualifiedLabelEn: op?.qualifiedLabelEn ?? "", qualifiedLabelMs: op?.qualifiedLabelMs ?? "", notQualifiedLabelEn: op?.notQualifiedLabelEn ?? "", notQualifiedLabelMs: op?.notQualifiedLabelMs ?? "", lowestLabelEn: op?.lowestLabelEn ?? "", lowestLabelMs: op?.lowestLabelMs ?? "", labelsProvenance: op?.labelsProvenance ?? "", governingSource: op?.governingSource ?? "" }} />
+              </span>
+            }
+          />
+          <CardBody className="border-b border-line/70">
+            <KeyValues
+              columns={2}
+              items={[
+                setting("The tenderers invited are", <SettingValue value={op?.invitedCountReading ? INVITED_READING_LABEL[op.invitedCountReading] : "Not set"} unset={OPENING_RULE_UNSET.reading} />),
+                setting("Where it is written", op?.governingSource || <SettingValue value={null} unset="No source is cited." />),
+                setting("A bid that passed", <SettingValue value={word(op?.qualifiedLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.qualified}".`} />),
+                setting("A bid that did not pass", <SettingValue value={word(op?.notQualifiedLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.notQualified}".`} />),
+                setting("The lowest qualifying offer", <SettingValue value={word(op?.lowestLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.lowest}".`} />),
+              ]}
+            />
+          </CardBody>
+          {bidMethods.length === 0 ? (
+            <EmptyState title="No method takes bids" />
+          ) : (
+            <Table minWidth={720}>
+              <colgroup>
+                <col />
+                <col style={{ width: 240 }} />
+                <col style={{ width: 260 }} />
+                <ActionsCol icons={1} labelled={1} />
+              </colgroup>
+              <THead>
+                <Th>Method</Th>
+                <Th>Bids opened by</Th>
+                <Th>A bid with no live purchase</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {bidMethods.map((m) => (
+                  <Tr key={m.id}>
+                    <Td label="Method"><CellStack title={m.nameEn} /></Td>
+                    <Td label="Bids opened by"><SettingValue value={m.openingCommitteeCode ? (committees.find((x) => x.code === m.openingCommitteeCode)?.nameEn ?? "A committee no longer configured") : "Not set"} unset={OPENING_RULE_UNSET.committee} /></Td>
+                    <Td label="A bid with no live purchase"><SettingValue value={m.unpurchasedBidConsequence ? UNPURCHASED_LABEL[m.unpurchasedBidConsequence] : "Not set"} unset={OPENING_RULE_UNSET.unpurchased} /></Td>
+                    <Td>
+                      <RowActions>
+                        <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
+                        <EditMethodOpeningRule id={m.id} name={m.nameEn} committees={liveCommittees} values={{ openingCommitteeCode: m.openingCommitteeCode ?? "", openingCommitteeProvenance: m.openingCommitteeProvenance ?? "", unpurchasedBidConsequence: m.unpurchasedBidConsequence ?? "", unpurchasedProvenance: m.unpurchasedProvenance ?? "" }} />
+                      </RowActions>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+
+        <Card id="floors" className="scroll-mt-24 overflow-hidden">
+          <CardHeader
+            icon={<FileIcon size={17} />}
+            title={<span className="inline-flex items-center gap-2">The least document fee{c.floors.length > 0 && <Badge outline>{c.floors.length}</Badge>}</span>}
+            subtitle="Refused below the band's least"
+            actions={<FloorDrawer regimes={(Object.keys(REGIME_LABEL) as (keyof typeof REGIME_LABEL)[]).filter((k) => !c.floors.some((f) => f.regime === k)).map((k) => ({ value: k, label: REGIME_LABEL[k] }))} />}
+            divided={c.floors.length === 0}
+          />
+          {c.floors.length === 0 ? (
+            <EmptyState title="None configured" />
+          ) : (
+            <Table minWidth={560}>
+              <colgroup>
+                <col />
+                <col style={{ width: 150 }} />
+                <ActionsCol icons={1} labelled={2} />
+              </colgroup>
+              <THead>
+                <Th>Band</Th>
+                <Th numeric>Least fee</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {c.floors.map((f) => {
+                  const raw = rawFloors.find((y) => y.id === f.id);
+                  return (
+                    <Tr key={f.id}>
+                      <Td label="Band"><CellStack title={f.band} sub={f.source ?? undefined} /></Td>
+                      <Td numeric label="Least fee"><span className="font-semibold">{f.minimum}</span></Td>
+                      <Td>
+                        <RowActions>
+                          <HistoryButton iconOnly entity="DocumentFeeFloor" entityId={f.id} label={f.band} />
+                          <FloorDrawer regimes={[{ value: f.regime, label: f.band }]} floor={{ id: f.id, label: f.band, values: { regime: f.regime, minimum: raw ? senToDecimalString(parseSen(raw.minimum.toString())) : "", governingSource: raw?.governingSource ?? "", provenance: raw?.provenance ?? "", notes: raw?.notes ?? "" } }} />
+                          <RemoveFloorDrawer id={f.id} label={f.band} />
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+
+          </div>
+        </Disclosure>
         <p className="text-[12.5px] text-ink-3">
-          Judged as they stand at the time.{" "}
           <MoreText label="About these limits" text="Closing and publication are judged against these as they stand at the time; what a published window was judged under is kept with it." />{" "}
-          <ButtonLink href="/configuration/audit" variant="link" size="sm">See every change in the audit trail</ButtonLink>
+          <ButtonLink href="/configuration/audit" variant="link" size="sm">Audit trail</ButtonLink>
         </p>
       </div>
     </>

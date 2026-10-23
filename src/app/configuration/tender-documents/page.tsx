@@ -9,7 +9,8 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { mediaLabel } from "@/lib/documents/labels";
 import { megabytesFromBytes } from "@/lib/tender-docs/bid-part-rules";
-import { ProvenanceBadge } from "@/components/ui/provenance";
+import { SettingValue } from "@/components/setup/setting-value";
+import { Disclosure } from "@/components/ui/disclosure";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { db } from "@/lib/db";
@@ -26,6 +27,7 @@ import { uploadContext } from "@/lib/documents/read";
 import { uploadView } from "@/lib/documents/views";
 import { requireStaff } from "@/app/_auth/actor";
 
+export const metadata = { title: "Tender documents" };
 export const dynamic = "force-dynamic";
 
 /// What a setting leaves undecided while it is unset: said beside "Not set", never a zero.
@@ -39,23 +41,6 @@ const UNSET = {
   insurance: "The end of the insurance period cannot be worked out.",
   designAndBuild: "The end of the insurance period for a design and build contract cannot be worked out.",
 } as const;
-
-function Setting({ value, unset, source }: { value: string; unset: string; source?: string | null }) {
-  if (value === NOT_SET) {
-    return (
-      <span className="flex flex-col items-start gap-1.5">
-        <Badge tone="warn">Not set</Badge>
-        <span className="text-[12.5px] text-ink-3">{unset}</span>
-      </span>
-    );
-  }
-  return (
-    <span className="flex flex-col items-start gap-1.5">
-      <span className="break-words whitespace-pre-line">{value}</span>
-      {source !== undefined && <ProvenanceBadge value={source} />}
-    </span>
-  );
-}
 
 const tri = (v: boolean | null) => (v === true ? "yes" : v === false ? "no" : "unset");
 
@@ -186,120 +171,20 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
             <KeyValues
               columns={2}
               items={[
-                setting("Wording stamped on a restricted tender (English)", <Setting value={p.restrictionStampEn} unset={UNSET.stamp} />),
-                setting("The restriction, as the exercise asks it", <Setting value={k?.policy.restrictionAskedAs ?? NOT_SET} unset={UNSET.restriction} source={k?.policy.restrictionProvenance ?? null} />),
-                setting("Assurance confirmations required", <Setting value={p.assuranceRequired} unset={UNSET.assurance} source={p.assuranceRequired === NOT_SET ? undefined : (k?.policy.assuranceProvenance ?? null)} />),
-                setting("The list of regulator permits", <Setting value={k?.policy.permitList ?? NOT_SET} unset={UNSET.permits} />),
-                setting("Liquidated damages a day", <Setting value={p.ladDailyRate} unset={UNSET.lad} source={policyRow?.ladDailyPctProvenance ?? null} />),
-                setting("First interim certificate's minimum", <Setting value={p.firstCertificate} unset={UNSET.certificate} source={policyRow?.firstCertificateProvenance ?? null} />),
-                setting("Insurance beyond the defects liability period", <Setting value={p.insuranceTail} unset={UNSET.insurance} source={policyRow?.insuranceExtraProvenance ?? null} />),
-                setting("The same, for design and build", <Setting value={p.designAndBuildTail} unset={UNSET.designAndBuild} source={policyRow?.dbInsuranceExtraProvenance ?? null} />),
+                setting("Wording stamped on a restricted tender (English)", <SettingValue value={p.restrictionStampEn} unset={UNSET.stamp} />),
+                setting("The restriction, as the exercise asks it", <SettingValue value={k?.policy.restrictionAskedAs ?? NOT_SET} unset={UNSET.restriction} />),
+                setting("Assurance confirmations required", <SettingValue value={p.assuranceRequired} unset={UNSET.assurance} />),
+                setting("The list of regulator permits", <SettingValue value={k?.policy.permitList ?? NOT_SET} unset={UNSET.permits} />),
+                setting("Liquidated damages a day", <SettingValue value={p.ladDailyRate} unset={UNSET.lad} />),
+                setting("First interim certificate's minimum", <SettingValue value={p.firstCertificate} unset={UNSET.certificate} />),
+                setting("Insurance beyond the defects liability period", <SettingValue value={p.insuranceTail} unset={UNSET.insurance} />),
+                setting("The same, for design and build", <SettingValue value={p.designAndBuildTail} unset={UNSET.designAndBuild} />),
                 ...(p.governingSource ? [setting("Where the policy is written", p.governingSource)] : []),
               ]}
             />
             {policyRow?.notes && <p className="mt-4 text-[13px] break-words whitespace-pre-line text-ink-2">{policyRow.notes}</p>}
           </CardBody>
         </Card>
-
-        {k && (
-          <Card id="registration-bodies" className="scroll-mt-24 overflow-hidden">
-            <CardHeader
-              title={
-                <span className="inline-flex items-center gap-2">
-                  Registration bodies
-                  {k.bodies.length > 0 && <Badge outline>{k.bodies.length}</Badge>}
-                </span>
-              }
-              subtitle="Exercises list the ones they require"
-              actions={<BodyDrawer />}
-              divided={k.bodies.length === 0}
-            />
-            {k.bodies.length === 0 ? (
-              <EmptyState title="None configured" />
-            ) : (
-              <Table minWidth={620}>
-                <colgroup>
-                  <col />
-                  <col style={{ width: "30%" }} />
-                  <col style={{ width: 120 }} />
-                  <ActionsCol icons={1} labelled={2} />
-                </colgroup>
-                <THead>
-                  <Th>Body</Th>
-                  <Th>Stated with it</Th>
-                  <Th>Source</Th>
-                  <Th className="text-right">Actions</Th>
-                </THead>
-                <tbody>
-                  {k.bodies.map((b) => (
-                    <Tr key={b.id}>
-                      <Td label="Body"><CellStack title={b.name} sub={[b.governingSource, b.retired ? `Retired${b.retiredOn ? ` from ${formatDate(b.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ") || undefined} /></Td>
-                      <Td label="Stated with it">{b.statedWithIt}</Td>
-                      <Td label="Source"><ProvenanceBadge value={b.provenance} /></Td>
-                      <Td>
-                        <RowActions>
-                          <HistoryButton iconOnly entity="RegistrationBody" entityId={b.id} label={b.name} />
-                          <BodyDrawer body={{ id: b.id, name: b.name, values: b.values }} />
-                          {b.retired ? <RestoreDrawer kind="body" id={b.id} label={b.name} /> : <RetireDrawer kind="body" id={b.id} label={b.name} />}
-                        </RowActions>
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-            )}
-          </Card>
-        )}
-
-        {k && (
-          <Card id="clauses" className="scroll-mt-24 overflow-hidden">
-            <CardHeader
-              title={
-                <span className="inline-flex items-center gap-2">
-                  Clauses
-                  {k.clauses.length > 0 && <Badge outline>{k.clauses.length}</Badge>}
-                </span>
-              }
-              subtitle="Endorsement can leave one out"
-              actions={<ClauseDrawer />}
-              divided={k.clauses.length === 0}
-            />
-            {k.clauses.length === 0 ? (
-              <EmptyState title="None configured" />
-            ) : (
-              <Table minWidth={620}>
-                <colgroup>
-                  <col />
-                  <col style={{ width: 170 }} />
-                  <col style={{ width: 120 }} />
-                  <ActionsCol icons={1} labelled={2} />
-                </colgroup>
-                <THead>
-                  <Th>Clause</Th>
-                  <Th>Every agreement</Th>
-                  <Th>Source</Th>
-                  <Th className="text-right">Actions</Th>
-                </THead>
-                <tbody>
-                  {k.clauses.map((x) => (
-                    <Tr key={x.id}>
-                      <Td label="Clause"><CellStack title={x.title} sub={[x.version, x.citedBy.length ? `Cited by ${x.citedBy.join(", ")}` : "Cited by no template", x.governingSource, x.retired ? `Retired${x.retiredOn ? ` from ${formatDate(x.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ")} /></Td>
-                      <Td label="Every agreement">{x.mandatory === NOT_SET ? <Badge tone="warn" title="Every submission is held back until this is set">Not set</Badge> : x.mandatory === "Yes" ? "Carries it" : "Not required"}</Td>
-                      <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
-                      <Td>
-                        <RowActions>
-                          <HistoryButton iconOnly entity="ClauseText" entityId={x.id} label={x.title} />
-                          <ClauseDrawer clause={{ id: x.id, title: x.title, values: x.values }} />
-                          {x.retired ? <RestoreDrawer kind="clause" id={x.id} label={x.title} /> : <RetireDrawer kind="clause" id={x.id} label={x.title} />}
-                        </RowActions>
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-            )}
-          </Card>
-        )}
 
         <Card id="methods" className="scroll-mt-24 overflow-hidden">
           <CardHeader
@@ -309,8 +194,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                 {c.methods.length > 0 && <Badge outline>{c.methods.length}</Badge>}
               </span>
             }
-            subtitle="Not set holds preparation back"
-            divided={c.methods.length === 0}
+                        divided={c.methods.length === 0}
           />
           {c.methods.length === 0 ? (
             <EmptyState title="Not set" />
@@ -319,21 +203,18 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
               <colgroup>
                 <col />
                 <col style={{ width: "30%" }} />
-                <col style={{ width: "18%" }} />
                 <ActionsCol icons={1} labelled={1} />
               </colgroup>
               <THead>
                 <Th>Method</Th>
                 <Th>Documents assembled</Th>
-                <Th>Source</Th>
                 <Th className="text-right">Actions</Th>
               </THead>
               <tbody>
                 {c.methods.map((m) => (
                   <Tr key={m.id}>
                     <Td label="Method"><CellStack title={m.name} sub={m.retired ? "Retired" : undefined} /></Td>
-                    <Td label="Documents assembled">{m.documentPack === NOT_SET ? <Badge tone="warn">Not set</Badge> : m.documentPack}</Td>
-                    <Td label="Source">{m.documentPack === NOT_SET ? <span className="text-ink-3">—</span> : <ProvenanceBadge value={m.raw.documentPackKindProvenance} />}</Td>
+                    <Td label="Documents assembled">{m.documentPack === NOT_SET ? <SettingValue value={null} unset="Preparation is held back until this is set." /> : m.documentPack}</Td>
                     <Td>
                       <RowActions>
                         <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.name} />
@@ -380,14 +261,12 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                         <col style={{ minWidth: 260 }} />
                         <col style={{ width: 150 }} />
                         <col style={{ width: 150 }} />
-                        <col style={{ width: 120 }} />
                         <ActionsCol icons={1} labelled={4} />
                       </colgroup>
                       <THead>
                         <Th>Part</Th>
                         <Th>Prepared by</Th>
                         <Th>Mandatory</Th>
-                        <Th>Source</Th>
                         <Th className="text-right">Actions</Th>
                       </THead>
                       <tbody>
@@ -398,22 +277,21 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                               <Td><CellStack title={`${r.printedNumber}. ${r.label}`} sub={sub} /></Td>
                               <Td label="Prepared by">{r.preparedBy === NOT_SET ? <span className="text-ink-3">Any office</span> : r.preparedBy}</Td>
                               <Td label="Mandatory">
-                                {r.mandatory === NOT_SET ? <Badge tone="warn" title="Submission is held back until this is set">Not set</Badge> : r.mandatory}
+                                {r.mandatory === NOT_SET ? <SettingValue value={null} unset="Submission is held back until this is set." /> : r.mandatory}
                                 {r.inTableDocument === "Yes" && <span className="block text-[12.5px] text-ink-3">In the Tender Table Document</span>}
                                 {r.inTableDocument === NOT_SET && (
                                   <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-3">
-                                    <Badge tone="warn" title="Submission is held back until this is set">Not set</Badge> In the Tender Table Document
+                                    <SettingValue value={null} unset="Submission is held back until this is set." /> In the Tender Table Document
                                   </span>
                                 )}
                                 {r.returned === NOT_SET ? (
                                   <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-3">
-                                    <Badge tone="warn" title="An opening cannot finalise against this part until it is set">Not set</Badge> Returned by the bidder
+                                    <SettingValue value={null} unset="An opening cannot finalise against this part until it is set." /> Returned by the bidder
                                   </span>
                                 ) : (
                                   r.returned && <span className="block text-[12.5px] text-ink-3">{r.returned}</span>
                                 )}
                               </Td>
-                              <Td label="Source"><ProvenanceBadge value={r.raw.provenance} /></Td>
                               <Td>
                                 <RowActions>
                                   <HistoryButton iconOnly entity="TenderDocumentPart" entityId={r.id} label={`${r.printedNumber}. ${r.label}`} />
@@ -435,6 +313,106 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
             </Card>
           );
         })}
+        {k && (
+          <Disclosure id="advanced" title="Advanced">
+            <div className="flex flex-col gap-6">
+        {k && (
+          <Card id="registration-bodies" className="scroll-mt-24 overflow-hidden">
+            <CardHeader
+              title={
+                <span className="inline-flex items-center gap-2">
+                  Registration bodies
+                  {k.bodies.length > 0 && <Badge outline>{k.bodies.length}</Badge>}
+                </span>
+              }
+              subtitle="Exercises list the ones they require"
+              actions={<BodyDrawer />}
+              divided={k.bodies.length === 0}
+            />
+            {k.bodies.length === 0 ? (
+              <EmptyState title="None configured" />
+            ) : (
+              <Table minWidth={620}>
+                <colgroup>
+                  <col />
+                  <col style={{ width: "30%" }} />
+                  <ActionsCol icons={1} labelled={2} />
+                </colgroup>
+                <THead>
+                  <Th>Body</Th>
+                  <Th>Stated with it</Th>
+                  <Th className="text-right">Actions</Th>
+                </THead>
+                <tbody>
+                  {k.bodies.map((b) => (
+                    <Tr key={b.id}>
+                      <Td label="Body"><CellStack title={b.name} sub={[b.governingSource, b.retired ? `Retired${b.retiredOn ? ` from ${formatDate(b.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ") || undefined} /></Td>
+                      <Td label="Stated with it">{b.statedWithIt}</Td>
+                      <Td>
+                        <RowActions>
+                          <HistoryButton iconOnly entity="RegistrationBody" entityId={b.id} label={b.name} />
+                          <BodyDrawer body={{ id: b.id, name: b.name, values: b.values }} />
+                          {b.retired ? <RestoreDrawer kind="body" id={b.id} label={b.name} /> : <RetireDrawer kind="body" id={b.id} label={b.name} />}
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+        )}
+
+        {k && (
+          <Card id="clauses" className="scroll-mt-24 overflow-hidden">
+            <CardHeader
+              title={
+                <span className="inline-flex items-center gap-2">
+                  Clauses
+                  {k.clauses.length > 0 && <Badge outline>{k.clauses.length}</Badge>}
+                </span>
+              }
+              subtitle="Endorsement can leave one out"
+              actions={<ClauseDrawer />}
+              divided={k.clauses.length === 0}
+            />
+            {k.clauses.length === 0 ? (
+              <EmptyState title="None configured" />
+            ) : (
+              <Table minWidth={620}>
+                <colgroup>
+                  <col />
+                  <col style={{ width: 170 }} />
+                  <ActionsCol icons={1} labelled={2} />
+                </colgroup>
+                <THead>
+                  <Th>Clause</Th>
+                  <Th>Every agreement</Th>
+                  <Th className="text-right">Actions</Th>
+                </THead>
+                <tbody>
+                  {k.clauses.map((x) => (
+                    <Tr key={x.id}>
+                      <Td label="Clause"><CellStack title={x.title} sub={[x.version, x.citedBy.length ? `Cited by ${x.citedBy.join(", ")}` : "Cited by no template", x.governingSource, x.retired ? `Retired${x.retiredOn ? ` from ${formatDate(x.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ")} /></Td>
+                      <Td label="Every agreement">{x.mandatory === NOT_SET ? <SettingValue value={null} unset="Every submission is held back until this is set." /> : x.mandatory === "Yes" ? "Carries it" : "Not required"}</Td>
+                      <Td>
+                        <RowActions>
+                          <HistoryButton iconOnly entity="ClauseText" entityId={x.id} label={x.title} />
+                          <ClauseDrawer clause={{ id: x.id, title: x.title, values: x.values }} />
+                          {x.retired ? <RestoreDrawer kind="clause" id={x.id} label={x.title} /> : <RetireDrawer kind="clause" id={x.id} label={x.title} />}
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+        )}
+
+            </div>
+          </Disclosure>
+        )}
       </div>
     </>
   );

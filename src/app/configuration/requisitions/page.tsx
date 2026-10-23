@@ -6,7 +6,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
+import { SettingValue } from "@/components/setup/setting-value";
 import { KeyValues } from "@/components/ui/stat";
 import { db } from "@/lib/db";
 import { SOURCE_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
@@ -21,19 +21,8 @@ import { storedDay } from "@/lib/dates";
 import { EditCheckSource, EditPolicy, GateRuleEditor } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
+export const metadata = { title: "Requisition controls" };
 export const dynamic = "force-dynamic";
-
-/// A setting's value, or "Not set" and what that stops.
-function Setting({ value, unset, action }: { value: React.ReactNode | null; unset: string; action?: React.ReactNode }) {
-  if (value != null) return <>{value}</>;
-  return (
-    <span className="flex flex-col items-start gap-1.5">
-      <Badge tone="warn">Not set</Badge>
-      <span className="text-[12.5px] text-ink-3">{unset}</span>
-      {action}
-    </span>
-  );
-}
 
 /**
  * Requisition controls: the customer's policy for requisitions. Every control ships
@@ -77,11 +66,6 @@ export default async function RequisitionControlsPage() {
         title="Requisition controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
         info={{ title: "Requisition controls", text: "Endorsements, and where the budget check comes from." }}
-        meta={[
-          <span key="p" className="inline-flex items-center gap-1.5">
-            Where these controls come from <ProvenanceBadge value={policy.provenance} />
-          </span>,
-        ]}
         actions={
           <>
             {policy.id && <HistoryButton entity="RequisitionPolicy" entityId={policy.id} label="Requisition controls" />}
@@ -99,7 +83,7 @@ export default async function RequisitionControlsPage() {
                 {
                   label: "Tiers whose heads endorse",
                   value: (
-                    <Setting
+                    <SettingValue
                       value={policy.endorsementTiers.length ? policy.endorsementTiers.map((t) => TIER_LABEL[t]).join(", then ") : null}
                       unset="No requisition can be endorsed, so none can be registered or submitted. Nothing is assumed."
                       action={<EditPolicy policy={policy} notes={policy.notes} label="Set it" quiet />}
@@ -132,7 +116,7 @@ export default async function RequisitionControlsPage() {
                 {
                   label: "Source",
                   value: (
-                    <Setting
+                    <SettingValue
                       value={controls.budgetCheckSource ? SOURCE_LABEL[controls.budgetCheckSource] : null}
                       unset="No budget check can run, so nothing can be submitted. It never falls back to either source."
                     />
@@ -140,12 +124,12 @@ export default async function RequisitionControlsPage() {
                 },
                 {
                   label: "Re-checked on submission when older than",
-                  value: <Setting value={policy.budgetRecheckDays == null ? null : `${policy.budgetRecheckDays} days`} unset="A check never goes stale, and is not re-run on submission." action={<EditPolicy policy={policy} notes={policy.notes} label="Set it" quiet />} />,
+                  value: <SettingValue value={policy.budgetRecheckDays == null ? null : `${policy.budgetRecheckDays} days`} unset="A check never goes stale, and is not re-run on submission." action={<EditPolicy policy={policy} notes={policy.notes} label="Set it" quiet />} />,
                 },
                 {
                   label: "Over budget (Budget controls)",
                   value: (
-                    <Setting
+                    <SettingValue
                       value={
                         controls.availabilityCheck === "advisory"
                           ? "Routes to the over-budget approvers on its own, with a warning"
@@ -160,7 +144,7 @@ export default async function RequisitionControlsPage() {
                 {
                   label: "Commit on approval (Budget controls)",
                   value: (
-                    <Setting
+                    <SettingValue
                       value={controls.commitOnApproval == null ? null : controls.commitOnApproval ? "Yes — approval writes the commitment" : "No"}
                       unset="Approval writes no commitment, and the requisition says so."
                     />
@@ -209,12 +193,7 @@ export default async function RequisitionControlsPage() {
                     <Td label="Route and committee">
                       <CellStack title={committeeName(g.committeeCode)} sub={`${routeName(g.fundingRouteCode)} · ${actLabel(g.act)}`} />
                     </Td>
-                    <Td label="What is put to it" className="text-ink-2">
-                      <span className="break-words">{g.subjectEn}</span>
-                      <div className="mt-1">
-                        <ProvenanceBadge value={g.provenance} />
-                      </div>
-                    </Td>
+                    <Td label="What is put to it" className="text-ink-2"><span className="break-words">{g.subjectEn}</span></Td>
                     <Td label="Applies above" className="tabular-nums text-ink-2">{g.aboveValue ? formatMoney(parseSen(g.aboveValue.toString())) : "Any value"}</Td>
                     <Td label="In force" className="text-ink-2">
                       {g.effectiveTo ? periodText(g) : `${formatDate(g.effectiveFrom)} onwards`}

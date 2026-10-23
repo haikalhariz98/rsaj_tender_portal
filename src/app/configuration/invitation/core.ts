@@ -189,7 +189,7 @@ export async function saveChannel(_prev: FormState, data: FormData): Promise<For
     nameMs: r.optionalText("nameMs"),
     requiredWhenAdvertised: tri(r.choice("requiredWhenAdvertised", "Required for an advertised exercise", TRI)),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE, { required: true }),
+    provenance: r.choice("provenance", "Kind of source", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
@@ -253,7 +253,7 @@ export async function saveFeeFloor(_prev: FormState, data: FormData): Promise<Fo
     regime: r.text("regime", "Band", { required: true, max: 20 }),
     minimum: r.money("minimum", "Minimum fee", { required: true }),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE, { required: true }),
+    provenance: r.choice("provenance", "Kind of source", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
   };
   if (r.failed || !v.minimum || !v.provenance) return { ok: false, errors: r.errors };
@@ -319,7 +319,7 @@ export async function saveCalendar(_prev: FormState, data: FormData): Promise<Fo
     name: r.text("name", "Name", { required: true, max: 240 }),
     weekendProvenance: r.choice("weekendProvenance", "Where the weekend comes from", PROVENANCE),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE, { required: true }),
+    provenance: r.choice("provenance", "Kind of source", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
@@ -379,7 +379,7 @@ export async function saveCalendarYear(_prev: FormState, data: FormData): Promis
   const year = r.int("year", "Year", { required: true });
   const complete = r.bool("complete");
   const source = r.text("source", "Where the year's list comes from", { max: 240 });
-  const provenance = r.choice("provenance", "Where it comes from", PROVENANCE, { required: true });
+  const provenance = r.choice("provenance", "Kind of source", PROVENANCE, { required: true });
   const yf = year == null ? null : yearFault(year);
   if (yf) r.reject("year", configFaultText(yf));
   if (r.failed || year == null || !provenance) return { ok: false, errors: r.errors };
@@ -415,7 +415,7 @@ export async function saveHoliday(_prev: FormState, data: FormData): Promise<For
   const nameEn = r.text("nameEn", "Name", { required: true, max: 240 });
   const nameMs = r.optionalText("nameMs");
   const gazetteRef = r.text("gazetteRef", "Gazette reference", { max: 240 });
-  const provenance = r.choice("provenance", "Where it comes from", PROVENANCE, { required: true });
+  const provenance = r.choice("provenance", "Kind of source", PROVENANCE, { required: true });
   if (r.failed || !day || !provenance) return { ok: false, errors: r.errors };
   const reason = String(data.get("reason") ?? "");
   return db.$transaction(async (tx): Promise<FormState> => {
@@ -461,7 +461,7 @@ export async function importHolidayYear(_prev: FormState, data: FormData): Promi
   const r = new FormReader(data);
   const year = r.int("year", "Year", { required: true });
   const csv = String(data.get("csv") ?? "");
-  const provenance = r.choice("provenance", "Where it comes from", PROVENANCE, { required: true });
+  const provenance = r.choice("provenance", "Kind of source", PROVENANCE, { required: true });
   if (!csv.trim()) r.reject("csv", "Paste the year's holidays, one per line.");
   if (csv.length > 100_000) r.reject("csv", "The list is too long for one year.");
   if (r.failed || year == null || !provenance) return { ok: false, errors: r.errors };

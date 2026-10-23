@@ -1,13 +1,13 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
+import { Disclosure } from "@/components/ui/disclosure";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
+import { SettingValue } from "@/components/setup/setting-value";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { evaluationConfiguration } from "@/lib/evaluation/config-read";
@@ -20,18 +20,8 @@ import { requireStaff } from "@/app/_auth/actor";
 import { anonymisedScoringWords } from "@/lib/evaluation/anonymise";
 import { READER_OFFICE_LABEL, READER_OFFICE_UNSET } from "@/lib/evaluation/readers";
 
+export const metadata = { title: "Evaluation models" };
 export const dynamic = "force-dynamic";
-
-/// A setting's value, or "Not set" and what that holds back.
-function Setting({ value, unset }: { value: ReactNode | null; unset: string }) {
-  if (value != null && value !== "") return <>{value}</>;
-  return (
-    <span className="flex flex-col items-start gap-1.5">
-      <Badge tone="warn">Not set</Badge>
-      <span className="text-[12.5px] text-ink-3">{unset}</span>
-    </span>
-  );
-}
 
 /**
  * Configuration › Evaluation models (6.8, FR-EVL-006, 008, 009; ADR 0018): the models, each version a
@@ -77,9 +67,9 @@ export default async function EvaluationConfigurationPage() {
       />
 
       <Stats>
-        <Stat label="Issued models" value={issued.length} hint={issued.length ? "Offered on an exercise's Window card." : "None issued: no exercise with a tender or quotation pack can be published."} warn={issued.length === 0} />
-        <Stat label="Policy settings not set" value={policyUnset} hint="Each holds back the act it governs." warn={policyUnset > 0} />
-        <Stat label="Contract bases with no route" value={basesUnset} hint="An exercise on one is not published." warn={basesUnset > 0} />
+        <Stat label="Issued models" value={issued.length} hint={issued.length ? "Offered when an exercise is published" : "None: nothing can be published"} warn={issued.length === 0} />
+        <Stat label="Policy settings not set" value={policyUnset} hint="Each holds work back" warn={policyUnset > 0} />
+        <Stat label="Contract bases with no route" value={basesUnset} hint="Exercises on them are held" warn={basesUnset > 0} />
       </Stats>
 
       <Section id="models" title="Models" blurb="A model is drafted, checked and issued; an issued version never changes, and a change is a new version. An exercise pins the version it publishes with, and is evaluated by what it pinned." empty="No model is configured. Start one: a draft is checked when it is issued." count={c.models.length} action={<ModelDrawer />}>
@@ -89,7 +79,6 @@ export default async function EvaluationConfigurationPage() {
             <col style={{ width: 120 }} />
             <col style={{ width: 120 }} />
             <col style={{ width: 150 }} />
-            <col style={{ width: 130 }} />
             <ActionsCol labelled={1} icons={1} />
           </colgroup>
           <THead>
@@ -97,7 +86,6 @@ export default async function EvaluationConfigurationPage() {
             <Th>Route</Th>
             <Th>Status</Th>
             <Th>Chosen on</Th>
-            <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -107,7 +95,6 @@ export default async function EvaluationConfigurationPage() {
                 <Td label="Route">{ROUTE_LABEL[m.route]}</Td>
                 <Td label="Status"><Badge tone={MODEL_STATUS_TONE[m.status]}>{MODEL_STATUS_LABEL[m.status]}</Badge></Td>
                 <Td label="Chosen on">{m._count.exercises ? `${m._count.exercises} ${m._count.exercises === 1 ? "exercise" : "exercises"}` : <span className="text-ink-3">None</span>}</Td>
-                <Td label="Source"><ProvenanceBadge value={m.provenance} /></Td>
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="EvaluationModel" entityId={m.id} label={`${m.nameEn}, version ${m.version}`} />
@@ -116,45 +103,6 @@ export default async function EvaluationConfigurationPage() {
                 </Td>
               </Tr>
             ))}
-          </tbody>
-        </Table>
-      </Section>
-
-      <Section id="aspects" title="Aspects assessed" blurb="Each bidder is assessed on these, with a verdict and a narrative. One required on a route is assessed on the aspects stage of every model of that route; a model freezes the aspects in force when it is issued." empty="No aspect is configured. A traditional model that has an aspects stage cannot be issued without the four the requirement names." count={c.aspects.length} action={<AspectDrawer />}>
-        <Table minWidth={680}>
-          <colgroup>
-            <col />
-            <col style={{ width: 200 }} />
-            <col style={{ width: 140 }} />
-            <col style={{ width: 130 }} />
-            <ActionsCol labelled={1} icons={2} />
-          </colgroup>
-          <THead>
-            <Th>Aspect</Th>
-            <Th>Assesses</Th>
-            <Th>Required on</Th>
-            <Th>Source</Th>
-            <Th className="text-right">Actions</Th>
-          </THead>
-          <tbody>
-            {c.aspects.map((a) => {
-              const retired = a.retiredOn != null && a.retiredOn <= now;
-              return (
-                <Tr key={a.id}>
-                  <Td label="Aspect"><CellStack title={<span className="inline-flex items-center gap-2"><span>{a.labelEn}</span>{retired && <Badge>retired</Badge>}</span>} /></Td>
-                  <Td label="Assesses">{ASPECT_KIND_LABEL[a.kind]}</Td>
-                  <Td label="Required on">{a.requiredOnRoute ? ROUTE_LABEL[a.requiredOnRoute] : <span className="text-ink-3">Not required</span>}</Td>
-                  <Td label="Source"><ProvenanceBadge value={a.provenance} /></Td>
-                  <Td>
-                    <RowActions>
-                      <HistoryButton iconOnly entity="EvaluationAspect" entityId={a.id} label={a.labelEn} />
-                      {!retired && <AspectDrawer aspect={{ id: a.id, label: a.labelEn, values: { kind: a.kind, labelEn: a.labelEn, labelMs: a.labelMs, requiredOnRoute: a.requiredOnRoute, provenance: a.provenance, governingSource: a.governingSource, sortOrder: String(a.sortOrder) } }} />}
-                      {!retired && <RetireAspectDrawer id={a.id} label={a.labelEn} />}
-                    </RowActions>
-                  </Td>
-                </Tr>
-              );
-            })}
           </tbody>
         </Table>
       </Section>
@@ -179,17 +127,17 @@ export default async function EvaluationConfigurationPage() {
           <KeyValues
             columns={2}
             items={[
-              { label: "Report reference series", value: <Setting value={p?.reportSeriesKey ? (c.series.find((s) => s.key === p.reportSeriesKey)?.nameEn ?? "A series no longer configured") : null} unset="No report can be issued: it has no reference to take." /> },
-              { label: "Decimal places a score is judged at", value: <Setting value={p?.scoreDecimals != null ? <span className="flex flex-wrap items-center gap-2"><span>{p.scoreDecimals}</span>{p.scoreDecimalsProvenance && <ProvenanceBadge value={p.scoreDecimalsProvenance} />}</span> : null} unset="No evaluation starts: a score could not be shown as it is judged." /> },
-              { label: "Anonymised technical scoring", value: <Setting value={p?.anonymisedScoring != null ? <span className="flex flex-wrap items-center gap-2"><span>{anonymisedScoringWords(p.anonymisedScoring).en}</span>{p.anonymisedScoringProvenance && <ProvenanceBadge value={p.anonymisedScoringProvenance} />}</span> : null} unset={anonymisedScoringWords(null).en} /> },
-              { label: "Office checking the Proposal paper", value: <Setting value={office(p?.checkerRoleCode)} unset="The paper cannot be checked." /> },
-              { label: "Office recommending it", value: <Setting value={office(p?.recommenderRoleCode)} unset="The paper cannot be recommended." /> },
+              { label: "Report reference series", value: <SettingValue value={p?.reportSeriesKey ? (c.series.find((s) => s.key === p.reportSeriesKey)?.nameEn ?? "A series no longer configured") : null} unset="No report can be issued: it has no reference to take." /> },
+              { label: "Decimal places a score is judged at", value: <SettingValue value={p?.scoreDecimals != null ? p.scoreDecimals : null} unset="No evaluation starts: a score could not be shown as it is judged." /> },
+              { label: "Anonymised technical scoring", value: <SettingValue value={p?.anonymisedScoring != null ? anonymisedScoringWords(p.anonymisedScoring).en : null} unset={anonymisedScoringWords(null).en} /> },
+              { label: "Office checking the Proposal paper", value: <SettingValue value={office(p?.checkerRoleCode)} unset="The paper cannot be checked." /> },
+              { label: "Office recommending it", value: <SettingValue value={office(p?.recommenderRoleCode)} unset="The paper cannot be recommended." /> },
               // Customer policy with no default (ruling of 2026-10-08 on log line 1735): unset grants nothing, and the screen says so. Not counted among the settings that hold work back.
-              { label: READER_OFFICE_LABEL.secretariatRoleCode, value: <Setting value={p?.secretariatRoleCode ? <span className="flex flex-wrap items-center gap-2"><span>{office(p.secretariatRoleCode)}</span>{p.secretariatRoleProvenance && <ProvenanceBadge value={p.secretariatRoleProvenance} />}</span> : null} unset={READER_OFFICE_UNSET.secretariatRoleCode} /> },
-              { label: READER_OFFICE_LABEL.internalAuditRoleCode, value: <Setting value={p?.internalAuditRoleCode ? <span className="flex flex-wrap items-center gap-2"><span>{office(p.internalAuditRoleCode)}</span>{p.internalAuditRoleProvenance && <ProvenanceBadge value={p.internalAuditRoleProvenance} />}</span> : null} unset={READER_OFFICE_UNSET.internalAuditRoleCode} /> },
-              { label: "Report template", value: <Setting value={p?.reportTemplate?.nameEn ?? null} unset="No report can be issued: it has no text." /> },
-              { label: "Proposal paper template", value: <Setting value={p?.proposalTemplate?.nameEn ?? null} unset="The paper cannot be produced: it has no text." /> },
-              { label: "Annex labels", value: "The product's labels, A to F" },
+              { label: READER_OFFICE_LABEL.secretariatRoleCode, value: <SettingValue value={p?.secretariatRoleCode ? office(p.secretariatRoleCode) : null} unset={READER_OFFICE_UNSET.secretariatRoleCode} /> },
+              { label: READER_OFFICE_LABEL.internalAuditRoleCode, value: <SettingValue value={p?.internalAuditRoleCode ? office(p.internalAuditRoleCode) : null} unset={READER_OFFICE_UNSET.internalAuditRoleCode} /> },
+              { label: "Report template", value: <SettingValue value={p?.reportTemplate?.nameEn ?? null} unset="No report can be issued: it has no text." /> },
+              { label: "Proposal paper template", value: <SettingValue value={p?.proposalTemplate?.nameEn ?? null} unset="The paper cannot be produced: it has no text." /> },
+              { label: "Annex labels", value: "Fixed, A to F" },
             ]}
           />
         </CardBody>
@@ -200,21 +148,18 @@ export default async function EvaluationConfigurationPage() {
           <colgroup>
             <col />
             <col style={{ width: 180 }} />
-            <col style={{ width: 140 }} />
             <ActionsCol icons={2} />
           </colgroup>
           <THead>
             <Th>Contract basis</Th>
             <Th>Evaluation route</Th>
-            <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
             {liveBases.map((b) => (
               <Tr key={b.id}>
                 <Td label="Contract basis"><CellStack title={b.nameEn} /></Td>
-                <Td label="Evaluation route">{b.evaluationRoute ? ROUTE_LABEL[b.evaluationRoute] : <Badge tone="warn">Not set</Badge>}</Td>
-                <Td label="Source">{b.evaluationRouteProvenance ? <ProvenanceBadge value={b.evaluationRouteProvenance} /> : <span className="text-ink-3">—</span>}</Td>
+                <Td label="Evaluation route">{b.evaluationRoute ? ROUTE_LABEL[b.evaluationRoute] : <SettingValue value={null} unset="An exercise on this basis is not published." />}</Td>
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="ContractBasis" entityId={b.id} label={b.nameEn} />
@@ -223,6 +168,43 @@ export default async function EvaluationConfigurationPage() {
                 </Td>
               </Tr>
             ))}
+          </tbody>
+        </Table>
+      </Section>
+
+      <Disclosure id="advanced" title="Advanced" className="mb-6">
+      <Section id="aspects" title="Aspects assessed" blurb="Each bidder is assessed on these, with a verdict and a narrative. One required on a route is assessed on the aspects stage of every model of that route; a model freezes the aspects in force when it is issued." empty="No aspect is configured. A traditional model that has an aspects stage cannot be issued without the four the requirement names." count={c.aspects.length} action={<AspectDrawer />}>
+        <Table minWidth={680}>
+          <colgroup>
+            <col />
+            <col style={{ width: 200 }} />
+            <col style={{ width: 140 }} />
+            <ActionsCol labelled={1} icons={2} />
+          </colgroup>
+          <THead>
+            <Th>Aspect</Th>
+            <Th>Assesses</Th>
+            <Th>Required on</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
+          <tbody>
+            {c.aspects.map((a) => {
+              const retired = a.retiredOn != null && a.retiredOn <= now;
+              return (
+                <Tr key={a.id}>
+                  <Td label="Aspect"><CellStack title={<span className="inline-flex items-center gap-2"><span>{a.labelEn}</span>{retired && <Badge>retired</Badge>}</span>} /></Td>
+                  <Td label="Assesses">{ASPECT_KIND_LABEL[a.kind]}</Td>
+                  <Td label="Required on">{a.requiredOnRoute ? ROUTE_LABEL[a.requiredOnRoute] : <span className="text-ink-3">Not required</span>}</Td>
+                  <Td>
+                    <RowActions>
+                      <HistoryButton iconOnly entity="EvaluationAspect" entityId={a.id} label={a.labelEn} />
+                      {!retired && <AspectDrawer aspect={{ id: a.id, label: a.labelEn, values: { kind: a.kind, labelEn: a.labelEn, labelMs: a.labelMs, requiredOnRoute: a.requiredOnRoute, provenance: a.provenance, governingSource: a.governingSource, sortOrder: String(a.sortOrder) } }} />}
+                      {!retired && <RetireAspectDrawer id={a.id} label={a.labelEn} />}
+                    </RowActions>
+                  </Td>
+                </Tr>
+              );
+            })}
           </tbody>
         </Table>
       </Section>
@@ -255,6 +237,7 @@ export default async function EvaluationConfigurationPage() {
           </tbody>
         </Table>
       </Section>
+      </Disclosure>
     </>
   );
 }

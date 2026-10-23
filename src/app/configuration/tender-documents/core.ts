@@ -115,7 +115,7 @@ export async function saveTenderPart(_prev: FormState, data: FormData): Promise<
     ownerOrgUnitCode: r.optionalText("ownerOrgUnitCode"),
     templateCode: r.optionalText("templateCode"),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE, { required: true }),
+    provenance: r.choice("provenance", "Kind of source", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
   };
   if (r.failed || !v.packKind || !v.role || !v.content || !v.source || !v.provenance) return { ok: false, errors: r.errors };
@@ -273,20 +273,20 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
     restrictionStampTextEn: r.optionalText("restrictionStampTextEn"),
     restrictionStampTextMs: r.optionalText("restrictionStampTextMs"),
     restrictionLabelEn: r.optionalText("restrictionLabelEn"),
-    restrictionProvenance: r.choice("restrictionProvenance", "Where it comes from", PROVENANCE),
+    restrictionProvenance: r.choice("restrictionProvenance", "Kind of source", PROVENANCE),
     assuranceRequired: tri(r.choice("assuranceRequired", "Assurance confirmations required", TRI)),
-    assuranceProvenance: r.choice("assuranceProvenance", "Where it comes from", PROVENANCE),
+    assuranceProvenance: r.choice("assuranceProvenance", "Kind of source", PROVENANCE),
     ladDailyPct: r.optionalText("ladDailyPct"),
-    ladDailyPctProvenance: r.choice("ladDailyPctProvenance", "Where it comes from", PROVENANCE),
+    ladDailyPctProvenance: r.choice("ladDailyPctProvenance", "Kind of source", PROVENANCE),
     firstCertificateFloor: r.money("firstCertificateFloor", "First certificate floor"),
     firstCertificatePct: r.optionalText("firstCertificatePct"),
-    firstCertificateProvenance: r.choice("firstCertificateProvenance", "Where it comes from", PROVENANCE),
+    firstCertificateProvenance: r.choice("firstCertificateProvenance", "Kind of source", PROVENANCE),
     insuranceExtraMonths: r.int("insuranceExtraMonths", "Months", { min: 0 }),
     insuranceExtraDays: r.int("insuranceExtraDays", "Days", { min: 0 }),
-    insuranceExtraProvenance: r.choice("insuranceExtraProvenance", "Where it comes from", PROVENANCE),
+    insuranceExtraProvenance: r.choice("insuranceExtraProvenance", "Kind of source", PROVENANCE),
     dbInsuranceExtraMonths: r.int("dbInsuranceExtraMonths", "Months", { min: 0 }),
     dbInsuranceExtraDays: r.int("dbInsuranceExtraDays", "Days", { min: 0 }),
-    dbInsuranceExtraProvenance: r.choice("dbInsuranceExtraProvenance", "Where it comes from", PROVENANCE),
+    dbInsuranceExtraProvenance: r.choice("dbInsuranceExtraProvenance", "Kind of source", PROVENANCE),
     regulatorPermitTaxonomyCode: r.optionalText("regulatorPermitTaxonomyCode"),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
     notes: r.text("notes", "Notes", { max: 2000 }),
@@ -330,7 +330,7 @@ export async function saveMethodDocumentPack(_prev: FormState, data: FormData): 
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const raw = r.choice("documentPackKind", "Document pack", [...PACK_KINDS, "unset"] as const, { required: true });
-  const provenance = r.choice("documentPackKindProvenance", "Where it comes from", PROVENANCE);
+  const provenance = r.choice("documentPackKindProvenance", "Kind of source", PROVENANCE);
   if (r.failed || !raw) return { ok: false, errors: r.errors };
   const kind = raw === "unset" ? null : raw;
   const fault = methodPackFault(kind, provenance);

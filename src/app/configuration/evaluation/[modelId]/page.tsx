@@ -8,7 +8,6 @@ import { Badge, Chip } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { draftFindings, loadModel, stageChoices } from "@/lib/evaluation/config-read";
@@ -24,6 +23,7 @@ import { loadDraftMakers } from "@/lib/auth/draft-makers";
 import { draftIssueFault } from "@/lib/auth/maker-checker";
 import { twoPersonOn } from "@/lib/auth/policy-store";
 
+export const metadata = { title: "Evaluation model" };
 export const dynamic = "force-dynamic";
 
 /// A stored decimal as typed: trailing zeros after the point dropped, never those of a whole number.
@@ -91,7 +91,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
       <Card className="my-6">
         <CardHeader title="The model" subtitle="Same route as the contract basis" />
         <CardBody>
-          <KeyValues columns={3} items={[{ label: "Route", value: ROUTE_LABEL[m.route] }, { label: "Source", value: <span className="flex flex-wrap items-center gap-2"><ProvenanceBadge value={m.provenance} />{m.governingSource && <span className="text-[12.5px] text-ink-3">{m.governingSource}</span>}</span> }, { label: "Stages", value: String(m.stages.length) }]} />
+          <KeyValues columns={3} items={[{ label: "Route", value: ROUTE_LABEL[m.route] }, ...(m.governingSource ? [{ label: "Written in", value: m.governingSource }] : []), { label: "Stages", value: String(m.stages.length) }]} />
           {m.notes && <p className="mt-4 text-[13px] whitespace-pre-line text-ink-2">{m.notes}</p>}
         </CardBody>
       </Card>
@@ -136,7 +136,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
                   ...(s.committeeCode ? [{ label: "Committee deciding it", value: committee(s.committeeCode)! }] : []),
                   ...(s.shortlistRule ? [{ label: "Shortlist", value: `${SHORTLIST_RULE_LABEL[s.shortlistRule]}${s.shortlistRule === "COUNT_RANGE" ? `: ${s.shortlistMin ?? "?"} to ${s.shortlistMax ?? "?"}` : s.shortlistRule === "DECIDED_BY_OFFICE" ? `: ${office(s.shortlistOfficeCode) ?? "no office set"}` : ""}` }] : []),
                   ...(s.capitalBase ? [{ label: "Minimum capital is a percentage of", value: CAPITAL_BASE_LABEL[s.capitalBase] }] : []),
-                  { label: "Source", value: <span className="flex flex-wrap items-center gap-2"><ProvenanceBadge value={s.provenance} />{s.governingSource && <span className="text-[12.5px] text-ink-3">{s.governingSource}</span>}</span> },
+                  ...(s.governingSource ? [{ label: "Written in", value: s.governingSource }] : []),
                 ]}
               />
             </CardBody>
@@ -155,7 +155,6 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
                       <col style={{ width: 150 }} />
                       <col style={{ width: 90 }} />
                       <col style={{ width: 210 }} />
-                      <col style={{ width: 120 }} />
                       {draft && <ActionsCol labelled={1} icons={1} />}
                     </colgroup>
                     <THead>
@@ -163,7 +162,6 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
                       <Th>Judged</Th>
                       <Th numeric>Marks</Th>
                       <Th>Worked from</Th>
-                      <Th>Source</Th>
                       {draft && <Th className="text-right">Actions</Th>}
                     </THead>
                     <tbody>
@@ -176,7 +174,6 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
                             <Td label="Judged">{isGroup ? "Its criteria's marks" : SCALE_LABEL[c.scale]}</Td>
                             <Td numeric label="Marks">{c.maxMarks != null ? num(c.maxMarks) : "—"}</Td>
                             <Td label="Worked from">{c.computedInput === "NONE" ? dash : <span className="flex flex-col"><span>{INPUT_LABEL[c.computedInput]}</span>{c.bandSetCode && <span className="text-[12.5px] text-ink-3">{`Banded by ${bandSetName(c.bandSetCode)}`}</span>}</span>}</Td>
-                            <Td label="Source"><ProvenanceBadge value={c.provenance} /></Td>
                             {draft && (
                               <Td>
                                 <RowActions>
@@ -206,13 +203,11 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
                     <colgroup>
                       <col />
                       <col style={{ width: 120 }} />
-                      <col style={{ width: 120 }} />
                       {draft && <ActionsCol labelled={1} icons={1} />}
                     </colgroup>
                     <THead>
                       <Th>Option</Th>
                       <Th numeric>Percentage</Th>
-                      <Th>Source</Th>
                       {draft && <Th className="text-right">Actions</Th>}
                     </THead>
                     <tbody>
@@ -220,7 +215,6 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
                         <Tr key={x.id}>
                           <Td label="Option"><CellStack title={x.labelEn} /></Td>
                           <Td numeric label="Percentage">{`${num(x.factorPct)}%`}</Td>
-                          <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                           {draft && (
                             <Td>
                               <RowActions>
@@ -253,7 +247,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
         <Card key={set.id} className="mb-6 overflow-hidden">
           <CardHeader
             title={set.nameEn}
-            subtitle={<span className="inline-flex flex-wrap items-center gap-2"><ProvenanceBadge value={set.provenance} />{set.governingSource && <span>{set.governingSource}</span>}</span>}
+            subtitle={set.governingSource || undefined}
             actions={
               draft ? (
                 <RowActions>

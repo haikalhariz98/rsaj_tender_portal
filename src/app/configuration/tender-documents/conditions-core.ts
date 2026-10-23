@@ -67,7 +67,7 @@ export async function saveRegistrationBody(_prev: FormState, data: FormData): Pr
     qualifierLabelEn: r.optionalText("qualifierLabelEn"),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
     governingSource: r.text("governingSource", "Source", { max: 240 }),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE, { required: true }),
+    provenance: r.choice("provenance", "Kind of source", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
   };
   if (r.failed || !v.provenance) return { ok: false, errors: r.errors };
@@ -132,7 +132,7 @@ export async function saveClause(_prev: FormState, data: FormData): Promise<Form
     mandatoryInAgreements: tri(r.choice("mandatoryInAgreements", "Every agreement carries it", TRI, { required: true })),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
     governingSource: r.text("governingSource", "Source", { max: 240 }),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE, { required: true }),
+    provenance: r.choice("provenance", "Kind of source", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
   };
   if (r.failed) return { ok: false, errors: r.errors };

@@ -6,7 +6,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
+import { SettingValue } from "@/components/setup/setting-value";
+import { Disclosure } from "@/components/ui/disclosure";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { SlidersIcon } from "@/components/icons";
@@ -25,18 +26,8 @@ import { loadDraftMakers } from "@/lib/auth/draft-makers";
 import { draftIssueFault } from "@/lib/auth/maker-checker";
 import { twoPersonOn } from "@/lib/auth/policy-store";
 
+export const metadata = { title: "Scope and estimate" };
 export const dynamic = "force-dynamic";
-
-/// A setting's value, or "Not set" and what that leaves undecided.
-function Setting({ value, unset }: { value: string; unset: string }) {
-  if (value !== NOT_SET) return <>{value}</>;
-  return (
-    <span className="flex flex-col items-start gap-1.5">
-      <Badge tone="warn">Not set</Badge>
-      <span className="text-[12.5px] text-ink-3">{unset}</span>
-    </span>
-  );
-}
 
 /// What each policy field leaves undecided while it is unset, in the order of the read model.
 const UNSET: Record<string, string> = {
@@ -93,8 +84,11 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
     templates: visibleRows(c.templates, (m) => m.retiredOn != null, showRetired),
     columns: visibleRows(c.columns, (m) => m.retiredOn != null, showRetired),
   };
-  const retiredCount = c.methods.filter((m) => m.retired).length + c.bases.filter((m) => m.retired).length + c.qualifications.filter((m) => m.retiredOn != null).length + c.templates.filter((m) => m.retiredOn != null).length + c.columns.filter((m) => m.retiredOn != null).length;
+  const retiredCount = c.methods.filter((m) => m.retired).length + c.bases.filter((m) => m.retired).length + c.qualifications.filter((m) => m.retiredOn != null).length + (p.onScreenBillUsed === true ? c.templates.filter((m) => m.retiredOn != null).length : 0) + (p.specPanelUsed === true ? c.columns.filter((m) => m.retiredOn != null).length : 0);
   const emptyText = (all: readonly unknown[], shown: readonly unknown[], text: string) => (all.length > 0 && shown.length === 0 ? "All rows retired" : text);
+  // Rows 53 and 54 (SP-6): bill templates and panel columns show only while their switch is on.
+  const showTemplates = p.onScreenBillUsed === true;
+  const showColumns = p.specPanelUsed === true;
   const leadUnset = p.estimateLeadDays == null;
 
   const policyValues: Record<string, string> = {
@@ -118,19 +112,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
   };
   const people = c.options.people;
 
-  const setting = (label: string): { label: string; value: ReactNode } => {
-    const x = f(label);
-    const raw = (x as { rawProvenance?: string | null }).rawProvenance;
-    return {
-      label,
-      value: (
-        <span className="flex flex-col items-start gap-1.5">
-          <Setting value={x.value} unset={UNSET[label] ?? ""} />
-          {x.value !== NOT_SET && raw !== undefined && <ProvenanceBadge value={raw} />}
-        </span>
-      ),
-    };
-  };
+  const setting = (label: string): { label: string; value: ReactNode } => ({ label, value: <SettingValue value={f(label).value === NOT_SET ? null : f(label).value} unset={UNSET[label] ?? ""} /> });
 
   // Phase 5a (ADR 0034 D15): who made each draft of a schedule, and whether the person looking may issue it. The issue is never the maker's.
   const draftIds = c.schedules.flatMap((sch) => sch.issues.filter((i) => i.draft).map((i) => i.id));
@@ -163,9 +145,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
 
       <div className="flex flex-col gap-6">
         {leadUnset && (
-          <Callout tone="warn" title="Estimate lead time is not set">
-            Set it below.
-          </Callout>
+          <Callout tone="warn" title="Estimate lead time is not set" />
         )}
 
         <Card>
@@ -182,7 +162,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
                 setting("Office holding the estimate's copies"),
                 setting("Office auditing the estimate"),
                 { label: "Office that may accept a late estimate", value: f("Office that may accept a late estimate").value },
-                { label: "Most verifiers on a specification panel", value: <span className="flex flex-col items-start gap-1.5"><span>{f("Most verifiers on a specification panel").value}</span>{p.panelSignatoryLimit != null && <ProvenanceBadge value={p.panelSignatoryLimitProvenance} />}</span> },
+                { label: "Most verifiers on a specification panel", value: f("Most verifiers on a specification panel").value },
                 setting("List of contract kinds"),
                 setting("List of project statuses"),
                 setting("Opening benchmark row is called"),
@@ -197,21 +177,18 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
             <colgroup>
               <col />
               <col style={{ width: "26%" }} />
-              <col style={{ width: "20%" }} />
               <ActionsCol icons={1} labelled={1} />
             </colgroup>
             <THead>
               <Th>Method</Th>
               <Th>Needs an estimate</Th>
-              <Th>Source</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
               {rows.methods.map((m) => (
                 <Tr key={m.id}>
                   <Td label="Method"><CellStack title={m.name} sub={m.retired ? "Retired" : undefined} /></Td>
-                  <Td label="Needs an estimate">{m.raw === "unset" ? <Badge tone="warn">Not set</Badge> : m.needsEstimate}</Td>
-                  <Td label="Source">{m.raw === "unset" ? <span className="text-ink-3">—</span> : <ProvenanceBadge value={m.rawProvenance} />}</Td>
+                  <Td label="Needs an estimate">{m.raw === "unset" ? <SettingValue value={null} unset="The estimate check is held back until this is set." /> : m.needsEstimate}</Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.name} />
@@ -230,7 +207,6 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
               <col style={{ width: "26%", minWidth: "200px" }} />
               <col style={{ width: "15%" }} />
               <col style={{ width: "20%" }} />
-              <col style={{ width: "13%" }} />
               <col style={{ width: "19%" }} />
               <ActionsCol icons={1} labelled={1} />
             </colgroup>
@@ -238,25 +214,20 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
               <Th>Method</Th>
               <Th>Scope approved</Th>
               <Th>By</Th>
-              <Th>Source</Th>
-              <Th>Act and its source</Th>
+              <Th>Act</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
               {rows.scopeRules.map((m) => (
                 <Tr key={m.id}>
                   <Td label="Method"><CellStack title={m.name} sub={m.retired ? "Retired" : undefined} /></Td>
-                  <Td label="Scope approved">{m.raw.scopeApprovalRequired === "unset" ? <Badge tone="warn">Not set</Badge> : m.required}</Td>
+                  <Td label="Scope approved">{m.raw.scopeApprovalRequired === "unset" ? <SettingValue value={null} unset="The scope-approval check is held back until this is set." /> : m.required}</Td>
                   <Td label="By">{m.committee == null ? <span className="text-ink-3">—</span> : m.raw.scopeCommitteeCode ? m.committee : <Badge tone="warn">{m.committee}</Badge>}</Td>
-                  <Td label="Source">{m.raw.scopeApprovalRequired === "unset" ? <span className="text-ink-3">—</span> : <ProvenanceBadge value={m.raw.scopeApprovalProvenance} />}</Td>
-                  <Td label="Act and its source">
+                  <Td label="Act">
                     {m.act == null ? (
                       <span className="text-ink-3">—</span>
                     ) : (
-                      <span className="flex flex-col items-start gap-1">
-                        {m.raw.scopeAct ? m.act : <Badge tone="warn">Not set</Badge>}
-                        {m.raw.scopeAct && <ProvenanceBadge value={m.raw.scopeActProvenance} />}
-                      </span>
+                      m.raw.scopeAct ? m.act : <SettingValue value={null} unset="The documents wait for a matter under an act that is not named." />
                     )}
                   </Td>
                   <Td>
@@ -276,21 +247,18 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
             <colgroup>
               <col />
               <col style={{ width: "26%" }} />
-              <col style={{ width: "20%" }} />
               <ActionsCol icons={1} labelled={1} />
             </colgroup>
             <THead>
               <Th>Contract basis</Th>
               <Th>Let on a bill</Th>
-              <Th>Source</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
               {rows.bases.map((b) => (
                 <Tr key={b.id}>
                   <Td label="Contract basis"><CellStack title={b.name} sub={b.retired ? "Retired" : undefined} /></Td>
-                  <Td label="Let on a bill">{b.raw === "unset" ? <Badge tone="warn">Not set</Badge> : b.letOnBill}</Td>
-                  <Td label="Source">{b.raw === "unset" ? <span className="text-ink-3">—</span> : <ProvenanceBadge value={b.rawProvenance} />}</Td>
+                  <Td label="Let on a bill">{b.raw === "unset" ? <SettingValue value={null} unset="The bill check is held back until this is set." /> : b.letOnBill}</Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="ContractBasis" entityId={b.id} label={b.name} />
@@ -308,13 +276,11 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
             <colgroup>
               <col style={{ width: "30%" }} />
               <col />
-              <col style={{ width: "14%" }} />
               <ActionsCol icons={1} labelled={1} />
             </colgroup>
             <THead>
               <Th>Qualification</Th>
               <Th>Held by</Th>
-              <Th>Source</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
@@ -340,7 +306,6 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
                       <HoldingDrawer qualificationCode={q.code} qualificationName={q.name} people={people} />
                     </div>
                   </Td>
-                  <Td label="Source"><ProvenanceBadge value={q.rawProvenance} /></Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="Qualification" entityId={q.id} label={q.name} />
@@ -353,18 +318,19 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
           </Table>
         </Section>
 
+        <Disclosure id="advanced" title="Advanced">
+          <div className="flex flex-col gap-6">
+            {showTemplates && (
         <Section title="Bill templates" blurb="Section headings a new bill can start from. A template brings no lines." empty={emptyText(c.templates, rows.templates, "No templates are configured: a bill's sections are added by hand.")} count={rows.templates.length} action={<TemplateDrawer />}>
           <Table minWidth={720}>
             <colgroup>
               <col style={{ width: "30%" }} />
               <col />
-              <col style={{ width: "14%" }} />
               <ActionsCol icons={1} labelled={1} />
             </colgroup>
             <THead>
               <Th>Template</Th>
               <Th>Sections</Th>
-              <Th>Source</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
@@ -388,7 +354,6 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
                       <TemplateSectionDrawer templateId={t.id} templateName={t.name} />
                     </div>
                   </Td>
-                  <Td label="Source"><ProvenanceBadge value={t.rawProvenance} /></Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="BqTemplate" entityId={t.id} label={t.name} />
@@ -401,18 +366,18 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
           </Table>
         </Section>
 
+            )}
+            {showColumns && (
         <Section title="Specification panel columns" blurb="The columns of the signed panel form. Each is verified by a named person. With none configured nothing can be verified." empty={emptyText(c.columns, rows.columns, "No columns are configured, so no panel can be verified.")} count={rows.columns.length} action={<ColumnDrawer units={c.options.units} />}>
           <Table minWidth={640}>
             <colgroup>
               <col />
               <col style={{ width: "26%" }} />
-              <col style={{ width: "14%" }} />
               <ActionsCol icons={1} labelled={1} />
             </colgroup>
             <THead>
               <Th>Column</Th>
               <Th>Unit whose officer verifies</Th>
-              <Th>Source</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
@@ -420,7 +385,6 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
                 <Tr key={col.id}>
                   <Td label="Column"><CellStack title={col.label} sub={col.retiredOn ? `Retired from ${day(col.retiredOn)}` : undefined} /></Td>
                   <Td label="Unit" className="text-ink-2">{col.unit ?? "Not tied to a unit"}</Td>
-                  <Td label="Source"><ProvenanceBadge value={col.rawProvenance} /></Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="SpecPanelColumn" entityId={col.id} label={col.label} />
@@ -433,6 +397,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
           </Table>
         </Section>
 
+            )}
         <Section
           title="Schedules of rates"
           blurb="Issued issue by issue. A bill line takes the rate of the issue in force that day and keeps it. None ships."
@@ -455,7 +420,6 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
                           <span className="text-[14px] font-semibold text-ink">{i.title}</span>
                           <Badge tone={i.statusTone} dot>{i.status}</Badge>
                           {i.inForceNow && <Badge tone="brand">In force today</Badge>}
-                          <ProvenanceBadge value={i.rawProvenance} />
                         </span>
                         <span className="text-[12.5px] break-words text-ink-3">
                           {i.draft ? "Not issued yet." : `Takes effect from ${i.effective}. Issued ${i.issued}.${i.superseded ? ` Superseded ${i.superseded}.` : ""}`}
@@ -518,6 +482,8 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
             ))}
           </div>
         </Section>
+          </div>
+        </Disclosure>
       </div>
     </>
   );

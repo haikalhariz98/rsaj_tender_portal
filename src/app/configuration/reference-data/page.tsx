@@ -32,7 +32,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { CardBody } from "@/components/ui/card";
 import { db } from "@/lib/db";
 import { loadReferenceData } from "@/lib/reference/load";
-import type { ListReadiness, Provenance, SourcingMethod } from "@/lib/reference/types";
+import type { ListReadiness, SourcingMethod } from "@/lib/reference/types";
 import {
   activeOn,
   assessReferenceData,
@@ -45,12 +45,12 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { formatDate } from "@/lib/format";
 import { Badge, Chip, type Tone } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/feedback";
-import { ProvenanceBadge } from "@/components/ui/provenance";
 import { Stat } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
 import { requireStaff } from "@/app/_auth/actor";
 
+export const metadata = { title: "Reference data" };
 export const dynamic = "force-dynamic";
 
 const POSTURE_LABEL = {
@@ -163,7 +163,7 @@ export default async function ReferenceDataPage() {
             <Th>Posture</Th>
             <Th>Authority</Th>
             <Th>Triggered by</Th>
-            <Th>Source</Th>
+            <Th>Written in</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -204,8 +204,8 @@ export default async function ReferenceDataPage() {
                     )}
                   </Td>
                   <Td label="Triggered by" className="text-ink-2">{r.trigger || "—"}</Td>
-                  <Td label="Source">
-                    <ProvenanceCell value={r.provenance} source={r.governingSource} />
+                  <Td label="Written in">
+                    <ProvenanceCell source={r.governingSource} />
                   </Td>
                   <Td>
                     <RowActions>
@@ -242,7 +242,7 @@ export default async function ReferenceDataPage() {
             <Th>Bands</Th>
             <Th>Asks for</Th>
             <Th>Approach and award</Th>
-            <Th>Source</Th>
+            <Th>Written in</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -268,8 +268,8 @@ export default async function ReferenceDataPage() {
                 <Td label="Approach and award">
                   <CellStack title={<span className="font-normal text-ink-2">{approachOf(m)}</span>} sub={m.awardInstrument ? `Awarded by ${m.awardInstrument.toLowerCase()}` : undefined} />
                 </Td>
-                <Td label="Source">
-                  <ProvenanceCell value={m.provenance} source={m.governingSource} />
+                <Td label="Written in">
+                  <ProvenanceCell source={m.governingSource} />
                 </Td>
                 <Td>
                   <RowActions>
@@ -301,7 +301,7 @@ export default async function ReferenceDataPage() {
           <THead>
             <Th>Type</Th>
             <Th>What it drives</Th>
-            <Th>Source</Th>
+            <Th>Written in</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -329,8 +329,8 @@ export default async function ReferenceDataPage() {
                   })()}</div>
                   {c.notes && <div className="break-words text-[12.5px] text-ink-3">{c.notes}</div>}
                 </Td>
-                <Td label="Source">
-                  <ProvenanceCell value={c.provenance} source={c.governingSource} />
+                <Td label="Written in">
+                  <ProvenanceCell source={c.governingSource} />
                 </Td>
                 <Td>
                   <RowActions>
@@ -402,7 +402,7 @@ export default async function ReferenceDataPage() {
           <THead>
             <Th>Reason</Th>
             <Th>Offered for</Th>
-            <Th>Source</Th>
+            <Th>Written in</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -412,8 +412,8 @@ export default async function ReferenceDataPage() {
                   <CellStack title={r.nameEn} />
                 </Td>
                 <Td label="Offered for" className="text-ink-2">{r.sourcingMethodCode ? (methodRow(r.sourcingMethodCode)?.nameEn ?? "A method no longer configured") : "Every method that asks"}</Td>
-                <Td label="Source">
-                  <ProvenanceCell value={r.provenance as Provenance} source={r.governingSource} />
+                <Td label="Written in">
+                  <ProvenanceCell source={r.governingSource} />
                 </Td>
                 <Td>
                   <RowActions>
@@ -445,7 +445,7 @@ export default async function ReferenceDataPage() {
           <THead>
             <Th>Basis</Th>
             <Th>Standard contract form</Th>
-            <Th>Source</Th>
+            <Th>Written in</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -455,8 +455,8 @@ export default async function ReferenceDataPage() {
                   <CellStack title={b.nameEn} />
                 </Td>
                 <Td label="Standard contract form" className="text-ink-2">{b.standardFormLabel || "Not set"}</Td>
-                <Td label="Source">
-                  <ProvenanceCell value={b.provenance as Provenance} source={b.governingSource} />
+                <Td label="Written in">
+                  <ProvenanceCell source={b.governingSource} />
                 </Td>
                 <Td>
                   <RowActions>
@@ -488,7 +488,7 @@ export default async function ReferenceDataPage() {
           <THead>
             <Th>Classification</Th>
             <Th>Values</Th>
-            <Th>Source</Th>
+            <Th>Written in</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -510,8 +510,8 @@ export default async function ReferenceDataPage() {
                     <TaxonomyValueDrawer taxonomyId={t.id} taxonomy={t.nameEn} />
                   </div>
                 </Td>
-                <Td label="Source">
-                  <ProvenanceCell value={t.provenance as Provenance} source={t.governingSource} />
+                <Td label="Written in">
+                  <ProvenanceCell source={t.governingSource} />
                 </Td>
                 <Td>
                   <RowActions>
@@ -552,7 +552,7 @@ export default async function ReferenceDataPage() {
             <Th>Contract type</Th>
             <Th>Classification</Th>
             <Th>Value, and when</Th>
-            <Th>Source</Th>
+            <Th>Written in</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -574,8 +574,8 @@ export default async function ReferenceDataPage() {
                     </div>
                   )}
                 </Td>
-                <Td label="Source">
-                  <ProvenanceCell value={m.provenance as Provenance} source={m.governingSource} />
+                <Td label="Written in">
+                  <ProvenanceCell source={m.governingSource} />
                 </Td>
                 <Td>
                   <RowActions>
@@ -602,7 +602,6 @@ export default async function ReferenceDataPage() {
                 label: "Mixed-scope threshold",
                 value: policy?.dominanceSharePct != null ? `The largest deliverable's share must be above ${Number(policy.dominanceSharePct.toString()).toFixed(2)}%` : <span className="text-ink-3">Not set: no default for mixed scope. The officer chooses the type, with a reason.</span>,
               },
-              { label: "Where it comes from", value: policy?.provenance ? <ProvenanceBadge value={policy.provenance} /> : "Not set" },
             ]}
           />
         </CardBody>
@@ -672,27 +671,22 @@ function ReadinessStat({ label, readiness }: { label: string; readiness: ListRea
       icon={readiness.needsSignOff ? <AlertTriangle size={16} /> : undefined}
       hint={
         unset
-          ? "Nobody has configured this list. That is not the same as none."
+          ? "Not configured"
           : readiness.needsSignOff
-            ? `${readiness.assumed} resting on a working default, awaiting sign-off`
-            : "Every entry traced to a source"
+            ? `${readiness.assumed} to confirm`
+            : "Complete"
       }
     />
   );
 }
 
-/// Where an entry came from, with the document that states it beneath.
-function ProvenanceCell({ value, source }: { value: Provenance; source: string }) {
-  return (
-    <div className="flex min-w-0 flex-col items-start gap-1">
-      <ProvenanceBadge value={value} />
-      {source && (
-        <span className="block max-w-full truncate text-[12.5px] text-ink-3" title={source}>
-          {source}
-        </span>
-      )}
-    </div>
-  );
+/// The document that states an entry, when one is cited. Where it came from is read in History.
+function ProvenanceCell({ source }: { source: string }) {
+  return source ? (
+    <span className="block max-w-full truncate text-[12.5px] text-ink-3" title={source}>
+      {source}
+    </span>
+  ) : null;
 }
 
 /// The bands a method may be used in, named the way the matrix names them.
