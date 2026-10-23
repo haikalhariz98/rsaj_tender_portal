@@ -25,8 +25,6 @@ export type RejectionSource = "CONFIGURED" | "COMMITTEE_OUTCOME" | "OFFICER_CHOI
 
 /// The matter types a destination is configured for: the engine's approval domains.
 export const REJECTION_DOMAINS = ["requisition", "name_approval", "appointment"] as const;
-export type RejectionDomain = (typeof REJECTION_DOMAINS)[number];
-
 export interface DestinationRow {
   id: string;
   domain: string;

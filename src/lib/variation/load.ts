@@ -6,7 +6,7 @@
 
 import type { Tx } from "@/lib/audit/record";
 import { issuedAdjustmentsFrom } from "@/lib/adjustment/ppjhk";
-import { storedDay } from "@/lib/dates";
+import { storedDay, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import { recordOf } from "@/lib/requisition/repo";
@@ -17,7 +17,6 @@ import { VARIATION_DOMAINS } from "./domains";
 import type { MatterFact } from "./tabling";
 import type { SoDecision, VariationEvent, VariationExemption, VariationStatus } from "./types";
 
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const certSelect = { id: true, kind: true, status: true, number: true, sequence: true, certificateDate: true, issuedAt: true, issueSnapshot: true, computedSnapshot: true, openedOn: true, signatures: { select: { blockKind: true, refused: true, refusalNote: true, name: true, signedOn: true } } } as const;
 const name = { select: { id: true, name: true } } as const;
 
@@ -93,12 +92,6 @@ export function factsOf(v: VariationRow): VariationFacts {
   };
 }
 
-/// The latest route of an event, as loaded.
-export const latestApproval = (v: VariationRow, e: VariationEvent) => [...v.approvals].filter((a) => a.event === e).at(-1) ?? null;
-
-/// The open route (one at a time).
-export const openApproval = (v: VariationRow) => v.approvals.find((a) => a.approvalInstance.status === "PENDING") ?? null;
-
 /// The funder's consent: the latest matter tabled for it (on the consent domain), as its committee decided it.
 export const CONSENT_DOMAIN = VARIATION_DOMAINS[4];
 export function consentOf(v: VariationRow): { state: ConsentState; matter: VariationRow["matters"][number] | null } {
@@ -148,11 +141,6 @@ export const adjustmentInProgress = (rows: readonly AdjustmentRow[]) => rows.fin
 
 /// The orders already on an adjustment that is not void.
 export const ordersAdjusted = (rows: readonly AdjustmentRow[]): string[] => rows.filter((a) => a.certificate.status !== "VOID").flatMap((a) => a.lines.map((l) => l.variationCertificateId).filter((x): x is string => !!x));
-
-/// The issued adjustments' nets, by the contract's id, for the interim certificate and the variation base (FR-PAD-003).
-export async function issuedAdjustmentNets(contractId: string, client: Tx = db): Promise<{ id: string; net: Sen }[]> {
-  return issuedAdjustments(await loadAdjustments(contractId, client)).map((a) => ({ id: a.id, net: a.net }));
-}
 
 /// The matters tabled from a variation, as the tabling rule reads them (tabling.ts).
 export const matterFactsOf = (v: Pick<VariationRow, "matters">): MatterFact[] =>

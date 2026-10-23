@@ -27,13 +27,11 @@ export interface Finding<C extends string = string> {
 export const blocking = <C extends string>(fs: readonly Finding<C>[]) => fs.filter((f) => f.level === "block");
 
 export type EnvelopeKind = "BID" | "ALTERNATIVE" | "COMPANY_ESTIMATE";
-export const ENVELOPE_KINDS: readonly EnvelopeKind[] = ["BID", "ALTERNATIVE", "COMPANY_ESTIMATE"];
 /// The kinds an officer records at receipt; the estimate is lodged by 6.2's act (`recordEstimateLodgement`).
 export const RECEIPT_KINDS: readonly EnvelopeKind[] = ["BID", "ALTERNATIVE"];
 
 /// Wave 3b (SR-13, ADR 0036 D12) adds ONLINE: submitted through the supplier portal, sealed. No officer receives it, and its stamp is the database's.
 export type EnvelopeChannel = "COUNTER" | "POST" | "COURIER" | "BOX" | "ONLINE";
-export const ENVELOPE_CHANNELS: readonly EnvelopeChannel[] = ["COUNTER", "POST", "COURIER", "BOX", "ONLINE"];
 /// The channels an officer records a receipt through. A bid in the box is registered at opening (6.7, OD-4).
 export const OFFICER_CHANNELS: readonly EnvelopeChannel[] = ["COUNTER", "POST", "COURIER"];
 

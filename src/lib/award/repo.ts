@@ -14,7 +14,7 @@ import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
 import type { Tx } from "@/lib/audit/record";
 import type { DecisionRecord } from "@/lib/committee/record";
-import { dayOf, dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayToDate, storedDay, dayOrNull as day } from "@/lib/dates";
 import { readConditionsSnapshot } from "@/lib/tender-docs/conditions";
 import { evidenceCount, isEvidenceSnapshot } from "@/lib/documents/evidence";
 import { attachmentFacts } from "@/lib/documents/repo";
@@ -47,7 +47,6 @@ import { inOrder } from "@/lib/series";
 
 const dec = (v: { toString(): string } | null | undefined) => (v == null ? null : v.toString());
 const senOrNull = (v: { toString(): string } | null | undefined) => (v == null ? null : parseSen(v.toString()));
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 const decisionInclude = { meeting: { include: { committee: { select: { code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } };
 
@@ -226,8 +225,6 @@ export async function loadAwardConfig(organisationId: string, client: Tx = db) {
     unitName: (code: string | null) => (code ? (unitNames.get(code) ?? "A section no longer configured") : null),
   };
 }
-
-export type AwardConfig = Awaited<ReturnType<typeof loadAwardConfig>>;
 
 /// The award's own step facts, with each committee step's cited decision read through `decisionRecord()`.
 export function routeSteps(inst: AwardRow["approvalInstances"][number]): RouteStepFact[] {
@@ -439,8 +436,6 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
   };
   return { facts, issue, cfg, config, method, roster, delegations, unitPath, holdersOf, contractType, org: org as ExerciseOrg };
 }
-
-export type AwardFactsResult = Awaited<ReturnType<typeof awardFacts>>;
 
 /**
  * The exercise's dossier evidence as the document store counts it, and — for the pins

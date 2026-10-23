@@ -117,13 +117,6 @@ export const FileIcon = (p: IconProps) => (
   </Icon>
 );
 
-export const PanelLeftIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <rect x="3" y="4" width="18" height="16" rx="2" />
-    <path d="M9 4v16" />
-  </Icon>
-);
-
 export const BellIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" />
@@ -218,21 +211,6 @@ export const PencilIcon = (p: IconProps) => (
 export const SwapIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M7 4 4 7l3 3M4 7h13a3 3 0 0 1 3 3M17 20l3-3-3-3M20 17H7a3 3 0 0 1-3-3" />
-  </Icon>
-);
-
-export const RowsWideIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <rect x="3" y="4" width="18" height="7" rx="1" />
-    <rect x="3" y="13" width="18" height="7" rx="1" />
-  </Icon>
-);
-
-export const RowsTightIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <rect x="3" y="4" width="18" height="4" rx="1" />
-    <rect x="3" y="10" width="18" height="4" rx="1" />
-    <rect x="3" y="16" width="18" height="4" rx="1" />
   </Icon>
 );
 

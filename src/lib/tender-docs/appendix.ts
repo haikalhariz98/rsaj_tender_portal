@@ -16,7 +16,7 @@
 import type { Sen } from "@/lib/money";
 import { addPeriod, type Day } from "@/lib/securities/period";
 
-import { isPct, parsePct, PCT_COLUMN, pctOf, type PctColumn } from "./percent";
+import { isPct, PCT_COLUMN, pctOf, type PctColumn } from "./percent";
 import type { AppendixStatus, Finding, LadKind, UpliftKind } from "./types";
 
 export interface AppendixSectionFacts {
@@ -319,6 +319,3 @@ export function awardTermsFrom(a: AppendixFacts) {
     honourCertificateDays: a.honourCertificateDays,
   };
 }
-
-/// Whether a percentage is above nothing ("0" and "0.000000" are not), read exactly.
-export const pctAboveZero = (pct: string | null) => pct != null && isPct(pct) && parsePct(pct) > 0n;

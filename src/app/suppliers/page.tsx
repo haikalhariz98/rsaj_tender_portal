@@ -10,8 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { loadRegisterSettings } from "@/lib/portal/apply-repo";
 import { flagWords } from "@/lib/portal/queue";
 import { loadPortalQueue } from "@/lib/portal/queue-repo";
-import { daysBetween } from "@/lib/requisition/types";
-import { storedDay } from "@/lib/dates";
+import { daysFrom, storedDay, dayOrNull as day } from "@/lib/dates";
 import { addDays } from "@/lib/securities/period";
 import { formatDate } from "@/lib/format";
 import { routeState } from "@/lib/suppliers/blacklist";
@@ -33,7 +32,6 @@ import { PinDrawer, PublishDrawer, WithdrawDrawer } from "./announcement-editors
 export const dynamic = "force-dynamic";
 
 const TONE = { ok: "ok", warn: "warn", err: "err", info: "info", neutral: undefined, brand: "brand" } as const;
-const day = (d: Date | null) => (d ? storedDay(d) : null);
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
@@ -127,7 +125,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     const s = a.supplier;
     const st: QueueState = queueState({ ...a, resubmitBy: day(a.resubmitBy), answeredOnTime: answered.has(a.id) }, today);
     const received = storedDay(a.receivedOn);
-    const age = today ? daysBetween(received, today) : null;
+    const age = today ? daysFrom(received, today) : null;
     return {
       id: a.id,
       views: [st === "WITH_APPROVAL" ? "approval" : st === "LAPSED" ? "lapsed" : st === "RESUBMISSION_REQUESTED" ? "resubmission" : "received"],
@@ -145,7 +143,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   const onlineRows: Row[] = online.rows.map((a) => {
     const clash = a.flags.some((f) => f.code === "NUMBER_ON_REGISTER");
     const again = a.flags.some((f) => f.code === "NUMBER_SENT_AGAIN");
-    const age = today ? daysBetween(a.receivedOn, today) : null;
+    const age = today ? daysFrom(a.receivedOn, today) : null;
     return {
       id: a.id,
       views: [...(clash ? ["clash"] : []), ...(again ? ["again"] : []), ...(a.withApproval ? ["approval"] : [])],

@@ -6,7 +6,7 @@ import { Badge, Chip } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import type { RejectionKind } from "@/lib/authority/rejection";
-import { storedDay } from "@/lib/dates";
+import { dayOrNull as day } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatSen as formatMoney, parseSen } from "@/lib/money";
 
@@ -16,8 +16,6 @@ import { formatSen as formatMoney, parseSen } from "@/lib/money";
  * value, each step's office, act and decision (who decided it, signed or recorded from paper, read from its attribution), an escalation, and where a
  * refusal went. The caller supplies the act on a waiting step (deciding it, citing a committee, escalating it).
  */
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 export interface RouteForCard {
   id: string;

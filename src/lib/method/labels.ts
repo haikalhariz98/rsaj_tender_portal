@@ -376,9 +376,6 @@ export function findingText(f: Finding): string {
   }
 }
 
-/// Faults, as one sentence each, with the cancel reason worded for its act.
-export const findingsText = (fs: readonly Finding[]) => fs.map(findingText);
-
 /**
  * A finding's text for a reader who may not read the exercise's estimate (Phase 3a, ADR 0034 D14). Two findings state amounts that are made of it
  * (the combined value of a requisition's live exercises, and the value its approval covered): for that reader they say so without the figures.

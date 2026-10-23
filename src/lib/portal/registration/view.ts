@@ -7,7 +7,7 @@ import { supplierAcceptedTypes } from "@/lib/documents/media";
 import { codeSections } from "./codes";
 import { fillText } from "./declaration";
 import { draftOf, type DraftView } from "./draft-view";
-import { uploadFault, uploadSettingFault, type UploadKind, type UploadPolicy, type UploadStore } from "./upload";
+import { uploadSettingFault, type UploadKind, type UploadPolicy, type UploadStore } from "./upload";
 import { valueLabel } from "./values";
 import { uploadFaultText } from "./words";
 import type { DeclarationKind, DocumentTypeConfig, Draft, RegistrationContext, RegistrationStep } from "./types";
@@ -59,12 +59,6 @@ export function acceptNote(store: UploadStore, mediaLabel: (type: string) => str
 /// Why an upload of this kind is closed, in words naming the setting, or null where it is open. The quota is judged when a file arrives, not here.
 export function uploadClosedWords(store: UploadStore, policy: UploadPolicy, kind: UploadKind): string | null {
   const f = uploadSettingFault(store, policy, kind);
-  return f ? uploadFaultText(f, kind).en : null;
-}
-
-/// The same for a file just chosen: the first reason it will not be taken, for the page to say before it is sent (the server judges again).
-export function fileWords(file: { size: bigint; type: string | null }, store: UploadStore, policy: UploadPolicy, usage: { files: number; bytes: bigint }, kind: UploadKind): string | null {
-  const f = uploadFault({ size: file.size, sniffedType: file.type }, store, policy, usage, kind);
   return f ? uploadFaultText(f, kind).en : null;
 }
 

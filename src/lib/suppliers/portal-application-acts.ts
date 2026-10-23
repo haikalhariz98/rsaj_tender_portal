@@ -24,7 +24,7 @@ import { actingOffice } from "@/lib/authority/escalation";
 import { lockOrganisation } from "@/lib/authority/locks";
 import { loadIssue } from "@/lib/authority/load";
 import { boundaryOperatorFor } from "@/lib/authority/resolve";
-import { dayToDate, storedDay, todayIn } from "@/lib/dates";
+import { dayToDate, storedDay, todayIn, dayOrNull as day } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { ACT_LABEL } from "@/lib/labels";
 import { issueReference, NumberingError } from "@/lib/numbering/issue";
@@ -56,7 +56,6 @@ export interface PortalActContext {
   act?: ActWriter;
 }
 
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const NOT_WAITING: FormState = { ok: false, message: "That online application is not waiting any more: it was decided or set aside already. Nothing was saved." };
 const GONE_APP: FormState = { ok: false, message: "That online application no longer exists." };
 const NOT_WHOLE: FormState = { ok: false, message: "That online application holds company information only. Record the supplier from it instead." };

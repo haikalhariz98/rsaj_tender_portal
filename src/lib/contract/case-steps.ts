@@ -47,14 +47,6 @@ export type CaseAction =
 /// The five steps, in the order the bar shows them.
 export const CASE_STEP_KEYS: readonly CaseStepKey[] = ["award", "before-signing", "signing", "project", "close-out"];
 
-export const CASE_STEP_LABEL: Readonly<Record<CaseStepKey, string>> = {
-  award: "Award",
-  "before-signing": "Before signing",
-  signing: "Signing",
-  project: "Project",
-  "close-out": "Close-out",
-};
-
 /// The acts that run through withLockedAwardFor: never offered under CONTRACT_STAGES_ONLY.
 export const AWARD_ACTS: readonly CaseAction[] = ["SEND_FOR_APPROVAL", "ISSUE", "RECORD_DESPATCH", "RECORD_RETURN", "RECORD_COMMENCEMENT", "LODGE_SECURITY", "VERIFY_SECURITY"];
 

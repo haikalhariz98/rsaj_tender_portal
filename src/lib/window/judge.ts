@@ -10,7 +10,6 @@ import { latestFirst, nameRoutesOf, windowChangeRoutesOf } from "@/lib/method/ap
 import { parseSen } from "@/lib/money";
 
 import { addendumFieldValues, inviteeFieldValues, renderInstrument, windowFieldValues, type WindowFieldContext } from "./fields";
-import { regKey } from "./invitees";
 import { mandatoryPermittedFor } from "./events";
 import { windowPhase } from "./phase";
 import { evaluationPin, publishFaults, windowPathOf, type PublishInput } from "./publish";
@@ -165,6 +164,3 @@ export function judgePublish(d: WindowData, ex: ExerciseForWindow, org: { timeZo
 
 /// The closing day as the organisation reads it.
 export const closingDay = (closingAt: Date | null, timeZone: string | null) => (closingAt && timeZone ? dayIn(closingAt, timeZone) : null);
-
-/// Whether two registration numbers are the same contractor's.
-export const sameRegistration = (a: string, b: string) => regKey(a) === regKey(b);

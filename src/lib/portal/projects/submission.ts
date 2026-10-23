@@ -11,7 +11,7 @@
  * - The officer answers once: taken up (recorded on the contract through the act it calls for) or returned with a note the contractor reads.
  */
 
-import { dayPlus, isDay } from "@/lib/dates";
+import { dayPlus, daysFrom, isDay } from "@/lib/dates";
 import { parseSen } from "@/lib/money";
 
 import { BODY_MAX, DISAGREEMENT_MAX, LINES_MAX, NOTE_MAX, TITLE_MAX, type ProjectFinding, type SubmissionKind, type SubmissionOutcome } from "./types";
@@ -109,12 +109,8 @@ export type ServiceState = { state: "NOT_SET" } | { state: "DUE"; dueOn: string;
 export function serviceState(i: { dueOn: string | null; decidedOn: string | null; today: string }): ServiceState {
   if (i.decidedOn) return { state: "ANSWERED", dueOn: i.dueOn, onTime: i.dueOn ? i.decidedOn <= i.dueOn : null };
   if (!i.dueOn) return { state: "NOT_SET" };
-  const diff = daysBetween(i.today, i.dueOn);
+  const diff = daysFrom(i.today, i.dueOn);
   return diff >= 0 ? { state: "DUE", dueOn: i.dueOn, daysLeft: diff } : { state: "OVERDUE", dueOn: i.dueOn, daysOver: -diff };
-}
-
-function daysBetween(from: string, to: string): number {
-  return Math.round((Date.UTC(+to.slice(0, 4), +to.slice(5, 7) - 1, +to.slice(8, 10)) - Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10))) / 86_400_000);
 }
 
 /// The officer's answer: once, with a note where it is returned.

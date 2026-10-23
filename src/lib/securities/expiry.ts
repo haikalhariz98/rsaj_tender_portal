@@ -4,10 +4,11 @@
  */
 
 import { EXPIRY_WORDS } from "@/lib/contract/case-page-words";
+import { daysFrom } from "@/lib/dates";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
 
-import { addDays, daysFrom, type Day } from "./period";
+import { addDays, type Day } from "./period";
 
 export type ExpiryAlert =
   | { state: "NO_EXPIRY" }

@@ -19,8 +19,6 @@ import { MANDATORY_ACTS } from "./types";
 /// The acts a core row may give an office beneath the approver (6.9 note D-4). Mandatory
 /// acts come only from rules, so whether a rule may be delegated stays the rule's own.
 export const CORE_ACTS = ["P", "JP", "R", "JR"] as const satisfies readonly AuthorityAct[];
-export type CoreAct = (typeof CORE_ACTS)[number];
-
 /**
  * The strength of each act, for "a rule may strengthen a step, never weaken it".
  *

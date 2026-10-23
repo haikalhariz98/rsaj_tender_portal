@@ -195,28 +195,6 @@ export async function loadMatrixVersion(organisationCode: string, asOf: Date = n
   });
 }
 
-/// Label of the DAL issue in force, for display and for stamping onto decisions.
-export async function activeVersionLabel(
-  organisationCode: string,
-  asOf: Date = new Date(),
-): Promise<string | null> {
-  const organisation = await db.organisation.findUnique({
-    where: { code: organisationCode },
-    select: { id: true },
-  });
-  if (!organisation) return null;
-
-  const version = await db.authorityMatrix.findFirst({
-    where: {
-      organisationId: organisation.id,
-      ...issuedInForce(asOf),
-    },
-    orderBy: { effectiveFrom: "desc" },
-    select: { label: true },
-  });
-  return version?.label ?? null;
-}
-
 /// Every issue, newest first, with its state — for choosing which one to look at.
 export async function listIssues(organisationCode: string) {
   const organisation = await db.organisation.findUnique({
@@ -275,8 +253,6 @@ export async function loadCoreRows(issueId: string) {
   });
   return rows;
 }
-
-export type CoreRow = Awaited<ReturnType<typeof loadCoreRows>>[number];
 
 /**
  * The rule a route was opened under, read from the issue it pinned (FR-APR-019, ruling

@@ -92,7 +92,6 @@ export const APPLICATION_STATUS_LABEL: Readonly<Record<ApplicationStatus, Words>
   APPROVED: w("Approved"),
   REJECTED: w("Rejected"),
 };
-export const APPLICATION_STATUS_TONE: Readonly<Record<ApplicationStatus, "ok" | "warn" | "err" | "info" | "neutral">> = { RECEIVED: "info", RESUBMISSION_REQUESTED: "warn", APPROVED: "ok", REJECTED: "err" };
 
 /// An application whose resubmission deadline has passed: derived (no scheduler), shown before it is recorded.
 export const LAPSED_LABEL = w("Lapsed: deadline passed");
@@ -162,14 +161,6 @@ export const LIST_KIND_SINGULAR: Readonly<Record<SupplierListKind, Words>> = {
   BANK: w("Bank"),
   ACCOUNT_TYPE: w("Bank account type"),
 };
-
-/// Condition (2), as Phase 3b closes it: a supplier's contacts and the scans of its papers are SULIT. A supplier keeps no list of who is named on it, so they are read by the
-/// roles the organisation has chosen (`sulit.read.organisation`), and by no one else until it chooses. Every reading and every download is logged.
-export const SCANS_SULIT = w(
-  "Scans are SULIT: they are downloaded by the roles the organisation has chosen, and every download, allowed or refused, is logged.",
-);
-/// OD-3 B: the E-Payment form carries bank details and is SULIT at upload.
-export const EPAYMENT_SULIT = w("The E-Payment form is SULIT at upload, and its downloads are logged.");
 export const PAPER_CALLOUT = w(
   "Recorded from the paper application by an officer; the supplier cannot sign in yet.",
 );
@@ -177,7 +168,6 @@ export const NOT_VALIDATED = w(
   "Documents are not validated automatically against any registry: each is checked by an officer, who is named with the day of the check.",
 );
 export const NOT_SENT = w("Shown here, not sent: nothing is sent from the portal in this phase.");
-export const FORMAT_NOT_CHECKED_CHIP = w("Format not checked");
 export const ERP_NOT_SYNCED = w("Approved, not in the finance system");
 
 const TYPE_STATE = (s: unknown) => DOCUMENT_STATE_LABEL[s as DocumentState] ?? w("not standing");
@@ -487,7 +477,6 @@ export function eventReasonWords(e: { kind: string; reasonLabel: string; cancell
   return w(e.reasonLabel);
 }
 
-export const REASON_USE_LABEL: Readonly<Record<"SUSPEND" | "BLACKLIST", Words>> = { SUSPEND: w("Suspension"), BLACKLIST: w("Blacklisting") };
 export const REQUEST_KIND_LABEL: Readonly<Record<"BLACKLIST" | "BLACKLIST_LIFT", Words>> = { BLACKLIST: w("Blacklisting"), BLACKLIST_LIFT: w("Lifting a blacklisting") };
 export const CONSEQUENCE_LABEL: Readonly<Record<"ELIMINATE" | "REPORT", Words>> = { ELIMINATE: w("Eliminated at the opening"), REPORT: w("Reported to the committee, which decides") };
 export const RELAXES_LABEL: Readonly<Record<"GRADE" | "FIELD_CODE", Words>> = { GRADE: w("The grade"), FIELD_CODE: w("The field codes") };

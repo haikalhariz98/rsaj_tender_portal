@@ -27,8 +27,6 @@ export function originLabel(origin: string | null | undefined, lang: Lang = "en"
   return (w ?? NOT_RECORDED)[lang];
 }
 
-/// The rule editor's three-way choice, as the select's values carry it.
-export type ChainChoice = "" | "yes" | "no";
 export const CHAIN_CHOICE_LABEL: Record<"NOT_SET" | "GENERATED" | "AS_ENTERED", Words> = {
   NOT_SET: NOT_SET,
   GENERATED: { en: "Generated from core routing" },

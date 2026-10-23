@@ -34,11 +34,6 @@ export function addPeriod(day: Day, p: { months?: number; days?: number }): Day 
   return addDays(addMonths(day, p.months ?? 0), p.days ?? 0);
 }
 
-/// Whole days from `a` to `b`.
-export function daysFrom(a: Day, b: Day): number {
-  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
-}
-
 export type PeriodUnit = "DAYS" | "WEEKS" | "MONTHS";
 
 /// A contract period as months and days.

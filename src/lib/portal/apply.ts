@@ -19,15 +19,6 @@ import { blocking, type Finding } from "@/lib/suppliers/types";
 
 import { APPLY, type Words } from "./labels";
 
-/// What the public form is told. Never an echo of what was typed, and never a name from the register.
-export interface ApplyState {
-  ok: boolean;
-  errors?: Record<string, string>;
-  message?: string;
-  /// The application's reference. Null on a success that created nothing (a dropped bot).
-  reference?: string | null;
-}
-
 /// The series that numbers online applications: its own, so no supplier reference is spent on a stranger.
 export const PORTAL_APPLICATION_SERIES_KEY = "portal_application";
 

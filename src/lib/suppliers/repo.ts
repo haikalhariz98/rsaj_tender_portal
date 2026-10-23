@@ -6,7 +6,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayToDate, storedDay, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { exerciseOrg } from "@/lib/method/repo";
 
@@ -20,8 +20,6 @@ import { inOrder } from "@/lib/series";
 
 export const supplierOrg = exerciseOrg;
 export type SupplierOrg = NonNullable<Awaited<ReturnType<typeof supplierOrg>>>;
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 /// A document type row as the rules read it.
 export function typeFacts(t: { id: string; nameEn: string; bodyId: string | null; valueKinds: string[]; expires: boolean | null; mandatoryAtRegistration: boolean | null; notApplicableAllowed: boolean | null; retiredOn: Date | null }): DocumentTypeFacts {

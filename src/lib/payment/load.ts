@@ -10,7 +10,7 @@ import { baselineFor } from "@/lib/contract/baseline";
 import { baselineRows, contractGate, valuesOf } from "@/lib/contract/load";
 import type { LoadedContract } from "@/lib/contract/repo";
 import type { BaselineReason } from "@/lib/contract/types";
-import { storedDay } from "@/lib/dates";
+import { storedDay, dayOrNull as day } from "@/lib/dates";
 import { decimalText } from "@/lib/format";
 import { db } from "@/lib/db";
 import type { Decision } from "@/lib/lad/charge";
@@ -31,10 +31,9 @@ import { readJudgedUnder, type AssembleInput, type DamagesIn, type IssuedInterim
 import { EXECUTED_STATUSES, type CreditorFacts } from "./eligibility";
 import { OPENING_GROUP_WORDS } from "./labels";
 import { assumedGroups, openingAsIssued, openingReconciles, openingReleaseRow, releaseState, type OpeningProvenance } from "./opening";
-import type { Finding, KeyedDeductionKind, PackItem, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
+import type { Finding, KeyedDeductionKind, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
 import { inOrder } from "@/lib/series";
 
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const pct = (v: { toString(): string } | null | undefined) => decimalText(v);
 const senOrNull = (v: { toString(): string } | null | undefined): Sen | null => (v == null ? null : parseSen(v.toString()));
 
@@ -243,9 +242,6 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
     ...(creditor ? { creditor } : {}),
   };
 }
-
-/// The four pack items as stored.
-export const packOf = (json: unknown): { item: PackItem; text: string; notRequired: boolean }[] => (Array.isArray(json) ? (json as { item: PackItem; text: string; notRequired: boolean }[]) : []);
 
 /// What has been released already (the system's records and the opening position's), for the release act and its preview.
 export const releaseStateOf = (p: PaymentRows) =>

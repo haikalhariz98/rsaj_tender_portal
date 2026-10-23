@@ -4,7 +4,7 @@ import { explainRefusal } from "./permission-store";
 import type { PermissionState } from "./permissions";
 import { routePeopleOf } from "./routed-people-store";
 import { lineageApplication } from "./creditor-lineage";
-import { sulitAccessAll, type RoutedNamedFacts, type SulitDecision } from "./sulit-access";
+import type { RoutedNamedFacts, SulitDecision } from "./sulit-access";
 import { decisionForFields, type SulitEventRow, type SulitReader } from "./sulit-store";
 import type { SupplierActor } from "./types";
 import { fieldsOfScope } from "@/lib/sulit-fields";
@@ -172,7 +172,3 @@ export async function writeSupplierSulitEvent(client: Tx, actor: Pick<SupplierAc
     },
   });
 }
-
-/// The rule without a reader: for a test, and for a place that must say what an unnamed, ungranted reader is told.
-export const creditorDecisionFor = (named: boolean, permission: PermissionState, isAdministrator = false): SulitDecision =>
-  sulitAccessAll({ personId: "reader", isAdministrator, system: false }, { scope: "creditorProfile", restricted: false, named, organisationPermission: permission }, CREDITOR_PROFILE_FIELDS);

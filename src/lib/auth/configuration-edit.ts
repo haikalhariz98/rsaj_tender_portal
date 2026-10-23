@@ -200,12 +200,6 @@ export function samePayload(a: Pick<EditPayload, "operation" | "fields">, b: Pic
   return key(a) === key(b);
 }
 
-/// The value of a posted field, or null. Several of one name (a multiple choice) are all kept in the list, in order, and this reads the first.
-export function fieldValue(payload: EditPayload, name: string): string | null {
-  const hit = payload.fields.find(([n]) => n === name);
-  return hit && typeof hit[1] === "string" ? hit[1] : null;
-}
-
 // --------------------------------------------------------------------------------------------- what it did, rehearsed
 
 /// What the rehearsal left: the audit rows the editor wrote, as the trail would hold them. The `before` of the change.

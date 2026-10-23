@@ -4,7 +4,7 @@ import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
 import type { Tx } from "@/lib/audit/record";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayToDate, storedDay, dayOrNull as day } from "@/lib/dates";
 import { hiddenExerciseIds } from "@/lib/auth/sulit-store";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -39,8 +39,6 @@ import { inOrder } from "@/lib/series";
  * not signed". Events are append-only: the one update is the withdrawal of a registration cancelled recorded in error
  * (615-C2), which writes only its three withdrawal columns and keeps the row.
  */
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 /// The standing read under the lock, with the supplier's events, documents and requests.
 async function lockedStanding(tx: Tx, l: LockedSupplier) {

@@ -31,7 +31,6 @@ export function renderFaults(i: { rendered: boolean; checkerRoleCode: string | n
   return out;
 }
 
-export type SignerRole = "CHECKER" | "RECOMMENDER";
 export type SignerFault = "NOT_RENDERED" | "ALREADY_RECORDED" | "SAME_PERSON" | "NOT_OFFICE_HOLDER" | "PERSON_REQUIRED" | "DAY_REQUIRED" | "DAY_IN_FUTURE" | "DAY_BEFORE_PAPER" | "TIME_ZONE_NOT_SET";
 
 /// Recording the checking or recommending officer: the office's holder on the day, never the other one.

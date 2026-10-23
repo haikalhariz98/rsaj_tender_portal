@@ -79,6 +79,3 @@ export function recommendationFaults(f: EvaluationFacts, i: { bidderId: string; 
   if (!i.personActive) out.push({ code: "PERSON_REQUIRED", level: "block" });
   return { faults: out, topRanked };
 }
-
-/// What a recommendation records of its bidder: the price after negotiation where negotiated, the period as read.
-export const recommendationOf = (b: BidderFacts) => ({ price: recommendedPriceOf(b), period: b.period });

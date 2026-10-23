@@ -7,7 +7,7 @@
 import type { Tx } from "@/lib/audit/record";
 import { awardFacts } from "@/lib/award/repo";
 import { checkSignatory, resolveSignatoryFor, type Signatory } from "@/lib/award/signatory";
-import { dayOf, storedDay } from "@/lib/dates";
+import { dayOf, storedDay, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { senFromDecimal, senToDecimalString } from "@/lib/money";
 import { commitmentFault } from "@/lib/requisition/commitment";
@@ -23,8 +23,6 @@ import { readFormationSnapshot } from "./preparation";
 import type { LoadedContract } from "./repo";
 import type { AssemblyPartState, ContractStatus, FormationCheckKind, LegalDecision, ReconciliationComparison, ReconciliationOutcome } from "./types";
 import { signFaults, type SignInputs } from "./sign";
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 /// The formation records as the pure rules read them.
 export function formationOf(c: LoadedContract["contract"]) {

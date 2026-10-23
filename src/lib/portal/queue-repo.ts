@@ -95,8 +95,6 @@ export async function loadPortalApplication(organisationId: string, id: string) 
     flags: a.status === "RECEIVED" ? portalFlags({ holder: holder ? { reference: holder.reference, name: holder.registeredName, status: holder.status as SupplierStatus } : null, othersWaiting: others }) : [],
   };
 }
-export type LoadedPortalApplication = NonNullable<Awaited<ReturnType<typeof loadPortalApplication>>>;
-
 /**
  * A whole online application in full, for its page (ADR 0041, plan 6.1): the held certificates with their codes, files (name, size, type, scan state, whether moved since) and checks; the
  * bank details' check and statement files, never their values (those are read only through the creditor gate, `loadHeldCreditorValues`); the agreements as made; the routes with their

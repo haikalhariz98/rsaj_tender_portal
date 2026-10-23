@@ -31,9 +31,6 @@ export function openSheetsWhere(organisationId: string, onCancelled: boolean) {
 export const likePatterns = (variants: readonly string[]): string[] => variants.map((v) => `%${v.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
 
 export const LIBRARY_PAGE = 50;
-export const DISTRIBUTION_PAGE = 50;
-export const SHEETS_PAGE = 50;
-
 /// The page asked for, clamped to the pages there are (a page past the end shows the last).
 export function pageOf(asked: string | undefined, total: number, size: number): number {
   const n = Number.parseInt(asked ?? "", 10);
@@ -55,13 +52,6 @@ export function copyState(c: CopyFacts): CopyState {
   if (!c.despatchedOn) return "NOT_SENT";
   if (c.ackRequired && !c.acknowledgedOn) return "ACK_AWAITED";
   return "DONE";
-}
-
-/// Counted over every outstanding copy of every issued certificate.
-export interface DistributionCounts {
-  notSent: number;
-  notSentMandatory: number;
-  ackAwaited: number;
 }
 
 /// The open routing sheets, judged over all of them.

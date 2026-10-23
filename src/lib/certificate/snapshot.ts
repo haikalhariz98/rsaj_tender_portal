@@ -16,8 +16,6 @@ import { parsePercent } from "@/lib/securities/money";
 import type { Finding } from "./types";
 
 export type FigureType = "MONEY" | "PERCENT" | "DAYS" | "TEXT" | "DATE";
-export const FIGURE_TYPES: readonly FigureType[] = ["MONEY", "PERCENT", "DAYS", "TEXT", "DATE"];
-
 export interface FigureLine {
   key: string;
   labelEn: string;

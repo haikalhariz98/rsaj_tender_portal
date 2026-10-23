@@ -20,7 +20,7 @@
  * mandatory answers (OD-8) and the instrument's configured template.
  */
 
-import { blocking, type ChannelFacts, type EventFacts, type Finding, type PublicationFacts, type WindowPath, type WindowPolicyFacts, type CalendarFacts, type FeeFloorFacts } from "./types";
+import type { ChannelFacts, EventFacts, Finding, PublicationFacts, WindowPath, WindowPolicyFacts, CalendarFacts, FeeFloorFacts } from "./types";
 import { advertisementDay, closingFaults } from "./dates";
 import { eventFaults } from "./events";
 import { itemFaults, UNPREPARED_ITEM_CODES } from "./items";
@@ -32,8 +32,6 @@ import type { Sen } from "@/lib/money";
 import { pinFaults, type PinInput } from "@/lib/evaluation/pin";
 import type { EvaluationRoute, ModelStatus } from "@/lib/evaluation/types";
 import type { ExerciseStatus, PackKind } from "@/lib/method/types";
-
-export type PathFault = "PATH_NOT_SET";
 
 /// The window's path from the method's flags. Both or neither: not set, and nothing is published.
 export function windowPathOf(m: { requiresAdvertisement: boolean; invitesNamedSuppliers: boolean } | null): WindowPath | null {
@@ -200,8 +198,6 @@ export function publishFaults(i: PublishInput): PublishResult {
   }
   return { findings: out, advertisementDay: adDay };
 }
-
-export const publishBlocks = (r: PublishResult) => blocking(r.findings);
 
 /// What an unprepared window leaves empty: each of these is the same fact, that the window's items
 /// are not written yet.

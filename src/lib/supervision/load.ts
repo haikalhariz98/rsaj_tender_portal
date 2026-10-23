@@ -16,7 +16,7 @@ import { db } from "@/lib/db";
 
 import { recorderFaultOver, type ActNeed, type AuthorityFault, type DelegationFacts, type RecorderDay, type SoOffice } from "./authority";
 import { supervisedHolders, type SupervisedRule } from "./blocks";
-import { delayReadingsOf as delayReadingsBatch } from "./delay-batch";
+import { delayReadingsOf } from "./delay-batch";
 import { assumedDelayIds, contractEnded, FINISHED_CONTRACT_STATUSES, inDelay, inDelayIds, type DelayReading } from "./delay";
 import { programmeInForce, type PointIn, type RevisionFacts } from "./programme";
 import { soOn } from "./so";
@@ -135,11 +135,6 @@ export function delayOn(s: SupervisionRows, i: { today: string; dateForCompletio
   });
 }
 
-/// In Delay for a set of contracts, in O(contracts) rows (6.13A residual D3): see delay-batch.ts.
-export async function delayReadingsOf(organisationId: string, rows: readonly { id: string; dateForCompletion: Date | null }[], today: string, client: Tx = db): Promise<Map<string, DelayReading>> {
-  return delayReadingsBatch(organisationId, rows, today, client);
-}
-
 /// Everything a person was recorded for on the contract, by day (review 6): the supervision's rows and the
 /// certificate signatures on the contract's certificates.
 export async function actsByPerson(s: SupervisionRows, contractId: string, client: Tx = db): Promise<{ personId: string | null; day: string | null }[]> {
@@ -206,4 +201,3 @@ export async function inDelayContractIds(organisationId: string, today: string, 
 export async function loadPostAwardPolicy(organisationId: string, client: Tx = db) {
   return client.postAwardPolicy.findUnique({ where: { organisationId } });
 }
-export type PostAwardPolicyRow = Awaited<ReturnType<typeof loadPostAwardPolicy>>;

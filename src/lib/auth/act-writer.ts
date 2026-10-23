@@ -15,6 +15,3 @@ export interface ActWriter {
   write(tx: Tx, entityId: string, extra?: { document?: { entity: string; id: string } | null; roleCode?: string | null }): Promise<void>;
   writeAlso(tx: Tx, slotKey: string, entityId: string, extra?: { document?: { entity: string; id: string } | null; roleCode?: string | null }): Promise<void>;
 }
-
-/// What an audit row says of an act that was recorded for someone: nothing for a signed (or the person's own) act.
-export const onBehalfAudit = (act: Pick<ActWriter, "intent">, words: string): string | null => (act.intent.mode === "RECORDED_ON_BEHALF" ? words : null);

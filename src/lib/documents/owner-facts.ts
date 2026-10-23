@@ -217,7 +217,6 @@ export const eotClaimLabel = (c: EotClaimRow) => `Contract ${c.contract.number} 
 /// ADR 0042 D1: what a Project workspace version is judged and named by.
 export const PROJECT_DOCUMENT_VERSION_FACTS_SELECT = { number: true, document: { select: { id: true, title: true, contractId: true, contract: { select: { status: true, number: true } } } } } as const;
 type ProjectDocumentVersionRow = { number: number; document: { id: string; title: string; contractId: string; contract: { status: ContractStatus; number: string } } };
-export const projectDocumentVersionFacts = (v: ProjectDocumentVersionRow): OwnerFacts => ({ kind: "projectDocumentVersion", contractStatus: v.document.contract.status });
 export const projectDocumentVersionLabel = (v: ProjectDocumentVersionRow) => `Contract ${v.document.contract.number} · ${v.document.title}, version ${v.number}`;
 export const variationInstructionLabel = (i: InstructionRow) =>
   `Contract ${i.variation.contract.number} · variation ${i.variation.reference ?? "(not yet numbered)"} · the S.O.'s instruction ${i.certificate.number ?? "(not yet numbered)"}`;

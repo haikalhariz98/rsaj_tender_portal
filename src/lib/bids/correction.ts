@@ -13,8 +13,6 @@ import { OFFICER_CHANNELS, type EnvelopeChannel, type EnvelopeFacts, type Exerci
 
 /// The fields a correction may touch, and those it may never.
 export const CORRECTABLE_FIELDS = ["markings", "channel", "receivedByPersonId"] as const;
-export const IMMUTABLE_FIELDS = ["receivedAt", "sequence", "late", "kind", "statedReceivedAt", "closingAtJudged", "recordedAfterClosing", "partyId", "status"] as const;
-
 /// Wave 3b (SR-13, ADR 0036 D12): ONLINE_NOT_CORRECTED, an envelope submitted through the portal is the database's record (its trigger refuses every change but its status).
 export type CorrectionFault = ReceiptFault | "CORRECTION_CLOSED" | "REASON_REQUIRED" | "IMMUTABLE_FIELD" | "NOTHING_CHANGED" | "WITHDRAWN" | "NOT_A_BID" | "ONLINE_NOT_CORRECTED";
 

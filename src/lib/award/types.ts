@@ -19,8 +19,6 @@ export type QuotationContractKey = "INDENT_NUMBER" | "CONTRACT_SERIES";
 export type Provenance = "STATED" | "OBSERVED" | "ASSUMED";
 
 export const AWARD_STATUSES: readonly AwardStatus[] = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "ISSUED", "ACCEPTED", "CANCELLED"];
-export const INSTRUMENT_KINDS: readonly InstrumentKind[] = ["LETTER_OF_ACCEPTANCE", "WORK_INDENT"];
-
 /// The matter the signatory rows route on: vocabulary, not policy (FR-AWD-002).
 export const SIGNATORY_DOMAIN = "award_signatory";
 

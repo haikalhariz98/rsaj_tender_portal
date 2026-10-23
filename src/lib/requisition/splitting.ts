@@ -12,7 +12,8 @@ import { regimeFor, resolveApproval } from "@/lib/authority/resolve";
 import type { Matrix } from "@/lib/authority/types";
 import { addSen, senToDecimalString, type Sen } from "@/lib/money";
 
-import { daysBetween, REQUISITION_DOMAIN, type RequisitionStatus, type SplitKey, type SplitState } from "./types";
+import { daysFrom } from "@/lib/dates";
+import { REQUISITION_DOMAIN, type RequisitionStatus, type SplitKey, type SplitState } from "./types";
 
 export interface SplitSubject {
   id: string;
@@ -79,7 +80,7 @@ export function assessSplitting(
     if (o.id === req.id || EXCLUDED.has(o.status)) return false;
     // Every key must be present and equal on both: a key one side lacks relates nothing.
     if (!policy.matchOn.every((k) => req.keys[k] != null && req.keys[k] === o.keys[k])) return false;
-    if (Math.abs(daysBetween(o.raisedOn, req.raisedOn)) <= window) return true;
+    if (Math.abs(daysFrom(o.raisedOn, req.raisedOn)) <= window) return true;
     return (
       policy.aggregateAcrossYear === true &&
       financialYearOf(o.raisedOn, policy.financialYearStart!) === financialYearOf(req.raisedOn, policy.financialYearStart!)

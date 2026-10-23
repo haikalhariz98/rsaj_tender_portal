@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { BudgetCode, Movement } from "@/lib/budget/codes";
 
-import { dayIn } from "@/lib/dates";
+import { dayIn, storedDay } from "@/lib/dates";
 
-import { ageDay, approvalBudgetFault, approvalBudgetOutcome, approvalCommitment, approvalRechecks, identityHolds, unpostedIntakeReason, intakeCommitment, isStale, ledgerCheck, manualSnapshot, overBudgetDisposition, snapshotFromLedger, verdictFor } from "./budget";
+import { approvalBudgetOutcome, approvalCommitment, approvalRechecks, identityHolds, unpostedIntakeReason, intakeCommitment, isStale, ledgerCheck, manualSnapshot, overBudgetDisposition, snapshotFromLedger, verdictFor } from "./budget";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const code: BudgetCode = {
@@ -110,26 +110,6 @@ describe("the day a check was made", () => {
   });
 });
 
-describe("approval re-checks the ledger before committing (ruling Q2)", () => {
-  // Two requisitions of RM40,000 against RM50,000 available: the first approval
-  // commits, and the second no longer fits.
-  const ledger = [mv("ORIGINAL", "120000.00"), mv("COMMITMENT", "70000.00")];
-  const req = { accountCode: "6200200", costCentreUnitCode: "NTH", requested: 4_000_000n };
-
-  it("lets the first approval commit and refuses the second", () => {
-    const first = ledgerCheck(code, ledger, req, on);
-    expect(approvalBudgetFault(first, null)).toBeNull();
-    const afterFirst = [...ledger, mv("COMMITMENT", "40000.00", "2026-09-29")];
-    const second = ledgerCheck(code, afterFirst, req, on);
-    expect(approvalBudgetFault(second, null)).toBe("EXCEEDS_AT_APPROVAL");
-  });
-
-  it("exempts a requisition already on the over-budget route", () => {
-    const afterFirst = [...ledger, mv("COMMITMENT", "40000.00", "2026-09-29")];
-    expect(approvalBudgetFault(ledgerCheck(code, afterFirst, req, on), "over_budget")).toBeNull();
-  });
-});
-
 describe("whether approval writes a commitment (ruling BD-13)", () => {
   it("writes only where both the setting and the funding route commit", () => {
     expect(approvalCommitment(true, true)).toBe("WRITE");
@@ -164,8 +144,8 @@ describe("a requisition received already approved (ruling BD-10)", () => {
 describe("a hand-entered check's age (ruling on hand-entered staleness)", () => {
   it("counts from the date its figures are as at, not the day they were typed", () => {
     const typedToday = { asAt: d("2026-09-10"), checkedAt: new Date("2026-09-30T02:00:00Z") };
-    expect(ageDay(typedToday)).toBe("2026-09-10");
-    expect(isStale(ageDay(typedToday), 14, "2026-09-30")).toBe(true);
+    expect(storedDay(typedToday.asAt)).toBe("2026-09-10");
+    expect(isStale(storedDay(typedToday.asAt), 14, "2026-09-30")).toBe(true);
   });
 });
 

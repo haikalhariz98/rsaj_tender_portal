@@ -13,7 +13,8 @@ import { inForceOn } from "@/lib/effective";
 import { figuresFor, type BudgetCode, type Movement } from "@/lib/budget/codes";
 import { addSen, compareSen, subtractSen, type Sen } from "@/lib/money";
 
-import { daysBetween, type BudgetCheckSource, type BudgetVerdict, type Provenance } from "./types";
+import { daysFrom } from "@/lib/dates";
+import type { BudgetCheckSource, BudgetVerdict, Provenance } from "./types";
 
 export interface BudgetSnapshot {
   source: BudgetCheckSource;
@@ -133,7 +134,7 @@ export function manualSnapshot(
  */
 export function isStale(checkedOn: string, days: number | null, today: string): boolean {
   if (days == null) return false;
-  return daysBetween(checkedOn, today) > days;
+  return daysFrom(checkedOn, today) > days;
 }
 
 export type Disposition =
@@ -165,25 +166,6 @@ export function overBudgetDisposition(
     return { proceed: false, fault: controlNotSet ? "INVOCATION_REQUIRED" : "INSUFFICIENT_FUNDS", controlNotSet };
   }
   return { proceed: true, cond: "over_budget", controlNotSet, autoRouted: false };
-}
-
-/**
- * The day a check's figures are as at: the day it is aged from (ruling on hand-entered
- * checks). A ledger check is as at the organisation's day it ran; a hand-entered one
- * is as at the date the finance system's figures were for, not the day they were typed.
- */
-export function ageDay(check: { asAt: Date }): string {
-  return check.asAt.toISOString().slice(0, 10);
-}
-
-/**
- * Whether the final approval may commit the budget (ruling Q2). Re-checked on the
- * ledger under the budget code's lock at approval; if the requisition no longer fits,
- * it is refused and goes back for a fresh check, which then routes it over budget. A
- * requisition already on the over-budget route was approved to exceed: exempt.
- */
-export function approvalBudgetFault(fresh: BudgetSnapshot, cond: string | null): "EXCEEDS_AT_APPROVAL" | null {
-  return approvalBudgetOutcome(fresh.verdict, cond) === "RETURN" ? "EXCEEDS_AT_APPROVAL" : null;
 }
 
 /**

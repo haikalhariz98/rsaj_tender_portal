@@ -18,7 +18,7 @@ import { conditionsFaultText, conditionsFixHref } from "./conditions-labels";
 import type { BehaviourFault } from "./behaviour";
 import type { ContentFault, EditFault, PartActFault, ReadinessFault, RouteFault, StartFault, SubmitFindings } from "./pack";
 import type { DatesFault } from "./tendering";
-import type { AppendixStatus, Finding, LadKind, PackKind, PackPartState, PartContent, PartRole, PartSource, TenderPackStatus, UpliftKind } from "./types";
+import type { Finding, LadKind, PackKind, PackPartState, PartContent, PartRole, PartSource, TenderPackStatus, UpliftKind } from "./types";
 
 export const NOT_SET = "Not set";
 /// For an exercise prepared before tender documents were assembled here: nothing is missing, so it is not "Not set".
@@ -130,11 +130,6 @@ export const LAD_KIND_LABEL: Readonly<Record<LadKind, string>> = {
 export const UPLIFT_KIND_LABEL: Readonly<Record<UpliftKind, string>> = {
   AMOUNT: "An amount",
   PERCENT: "A percentage of the contract sum",
-};
-
-export const APPENDIX_STATUS_LABEL: Readonly<Record<AppendixStatus, string>> = {
-  DRAFT: "Being entered",
-  COMPLETE: "Complete",
 };
 
 /// A three-state answer in words: never a null read as "no".

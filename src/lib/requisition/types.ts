@@ -65,8 +65,3 @@ export const UNSET_POLICY: RequisitionPolicy = {
   splitJustifyingRoleCode: null,
   provenance: null,
 };
-
-/// Whole days from `a` to `b`, both YYYY-MM-DD.
-export function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
-}

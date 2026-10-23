@@ -92,7 +92,6 @@ export const awaitingChoice = (v: Pick<VariationFacts, "routes">): RouteFact | n
 
 export const liveInstruction = (v: Pick<VariationFacts, "instructions">) => v.instructions.find((i) => live(i.certificateStatus)) ?? null;
 export const issuedInstruction = (v: Pick<VariationFacts, "instructions">) => v.instructions.find((i) => i.certificateStatus === "ISSUED") ?? null;
-export const liveOrder = (v: Pick<VariationFacts, "orders">) => v.orders.find((o) => live(o.certificateStatus)) ?? null;
 export const issuedOrder = (v: Pick<VariationFacts, "orders">) => v.orders.find((o) => o.certificateStatus === "ISSUED") ?? null;
 
 /**
@@ -385,9 +384,6 @@ export function scheduleFormOf(agreedRateExists: boolean | null, rule: { withAgr
 
 /// The new contract sum the application states (VO-660 §3.5–3.6): the contract sum + the cumulative approved + this.
 export const newSumOf = (contractSum: Sen, cumulative: Sen, thisValue: Sen): Sen => contractSum + cumulative + thisValue;
-
-/// The variation's own figures for an event's reading: what it has approved so far (for an increase).
-export const approvedSoFarOf = (v: VariationFacts): Sen => approvedValue(v);
 
 /// The routes waiting for a decision on any of the contract's variations, as value approvals (prior, increase).
 export const pendingValueRoutes = (all: readonly VariationFacts[], exceptId: string): { variationId: string; event: VariationEvent }[] =>

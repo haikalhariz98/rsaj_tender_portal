@@ -67,5 +67,3 @@ export function frozenConditionsView(s: ConditionsSnapshot, versionNo: number) {
     clauses: s.clauses.map((c) => ({ title: c.title, version: `Text version ${c.bodyVersion}`, status: c.overriddenBy ? CLAUSE_STATUS.endorsed : CLAUSE_STATUS.carried, override: c.overriddenBy ? `Endorsed by ${c.overriddenBy}: “${c.overrideReason ?? ""}”` : null })),
   };
 }
-
-export type FrozenConditionsView = ReturnType<typeof frozenConditionsView>;

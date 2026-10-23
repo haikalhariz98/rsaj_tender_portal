@@ -18,7 +18,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { baselineFor } from "@/lib/contract/baseline";
 import type { LoadedContract } from "@/lib/contract/repo";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayToDate, storedDay, dayOrNull as day } from "@/lib/dates";
 import { formatSen, parseSen } from "@/lib/money";
 import { issueReference, NumberingError } from "@/lib/numbering/issue";
 import { isSupervisedRule } from "@/lib/supervision/blocks";
@@ -82,7 +82,6 @@ export interface CertCtx {
 
 const labelOf = (c: CertCtx) => certificateLabel(c.l, c.l.cert);
 const statusOf = (c: CertCtx) => c.l.cert.status as CertificateStatus;
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const money = (v: string | null) => (v == null ? null : formatSen(parseSen(v)));
 
 async function audit(c: { tx: Tx; l: LoadedContract; actor: AuditActor }, entity: string, entityId: string, label: string, action: "CREATE" | "UPDATE" | "DELETE", changes: ReturnType<typeof diffFields>, reason = "") {

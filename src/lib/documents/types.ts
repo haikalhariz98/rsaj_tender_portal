@@ -290,8 +290,6 @@ export interface StorePolicy {
   maxBytes: bigint | null;
 }
 
-export const UNSET_STORE_POLICY: StorePolicy = { allowedMediaTypes: [], maxBytes: null };
-
 export type Level = "block" | "warn" | "info";
 
 export interface Finding<C extends string = string> {

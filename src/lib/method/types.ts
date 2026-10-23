@@ -158,8 +158,6 @@ export interface ClassificationPolicy {
   provenance: Provenance | null;
 }
 
-export const UNSET_CLASSIFICATION_POLICY: ClassificationPolicy = { dominanceSharePct: null, provenance: null };
-
 /// A finding about an exercise: a fault that blocks, or a warning shown with it. The
 /// code is a key for `findingText`, never rendered.
 export type Level = "block" | "warn" | "info";

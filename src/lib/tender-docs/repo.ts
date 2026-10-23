@@ -29,7 +29,7 @@ import type { RegistrationBodyFacts, RequirementFacts } from "./eligibility";
 import type { PermitList } from "./permit";
 import type { InsuranceTailPolicy } from "./appendix";
 import type { PinnedFile } from "./freeze";
-import type { ConfiguredPart, DocumentLanguage, PackKind, PackPartFacts, PartRole, Provenance, TemplateFacts } from "./types";
+import type { ConfiguredPart, DocumentLanguage, PackPartFacts, PartRole, Provenance, TemplateFacts } from "./types";
 import { inOrder } from "@/lib/series";
 
 const dec = (v: { toString(): string } | null | undefined): Sen | null => (v == null ? null : senFromDecimal(v));
@@ -294,9 +294,6 @@ export async function billFileOf(exerciseId: string, client: Tx = db): Promise<B
     history: all.map((x) => ({ id: x.version.id, versionNo: x.version.versionNo })),
   };
 }
-
-/// The pack kind an exercise assembles now, from its snapshot; null before document assembly.
-export const packKindOf = (ex: { packKindSnapshot: PackKind | null }) => ex.packKindSnapshot;
 
 // ------------------------------------------------------------------ increment 2: the tender's conditions
 

@@ -40,12 +40,6 @@ export function exerciseOfDecisionRow(r: DecisionExerciseRow): string | null {
   return r.exerciseId ?? r.bqVersion?.exerciseId ?? r.scopeExerciseId ?? r.bidEnvelope?.exerciseId ?? r.evaluationBidder?.evaluation.exerciseId ?? null;
 }
 
-/// The exercise of one decision, by the four links (read inside the caller's transaction where it has one).
-export async function exerciseOfDecision(decisionId: string, client: Tx | typeof db = db): Promise<string | null> {
-  const row = await client.committeeDecision.findUnique({ where: { id: decisionId }, select: DECISION_EXERCISE_SELECT });
-  return row ? exerciseOfDecisionRow(row) : null;
-}
-
 /// The ids, among `decisionIds`, of matters of the `hidden` exercises.
 export async function hiddenDecisionIds(decisionIds: readonly string[], hidden: readonly string[], client: Tx | typeof db = db): Promise<Set<string>> {
   if (decisionIds.length === 0 || hidden.length === 0) return new Set();

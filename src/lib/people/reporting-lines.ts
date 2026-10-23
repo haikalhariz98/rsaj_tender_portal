@@ -103,8 +103,6 @@ export const LINE_FAULT_TEXT: Readonly<Record<LineFault, string>> = {
 
 /// How a set of lines reads on a screen that needs a superior. Said once, so every screen uses the same words.
 export const REPORTING_LINE_NOT_SET = "Reporting line not set";
-export const REPORTING_LINE_NOT_SET_WHY = "No reporting line is recorded, so no one is named as an immediate superior and nothing is moved or promoted on the strength of one. Record the reporting lines under Configuration, Users & roles, Reporting lines.";
-
 /**
  * Who is above the people who hold an office, said in words for an audit row or a notice (FR-APR-010: "names the immediate superior when set").
  * Not set is said as "Reporting line not set": the words that tell a reader nothing was derived from a unit head.

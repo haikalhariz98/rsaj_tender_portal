@@ -30,7 +30,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import { loadIssue } from "@/lib/authority/load";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayToDate, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { isLive } from "@/lib/documents/evidence";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
@@ -86,7 +86,6 @@ import { loadAttributions } from "@/lib/auth/attribution-read";
 export const dynamic = "force-dynamic";
 
 type Option = { value: string; label: string };
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const notSet = (what = "Not set") => <span className="text-ink-4">{what}</span>;
 const first = (fs: readonly Finding[]) => (blocking(fs).length ? supplierFaultText(blocking(fs)[0]) : null);
 

@@ -54,9 +54,6 @@ export const SCOPE_ENTITY_LABEL: Readonly<Record<string, string>> = {
 /// Increment 2: schedules of rates are configuration, labelled by their own name, not an exercise's.
 export const RATE_ENTITY = { schedule: "RateSchedule", item: "RateScheduleItem" } as const;
 
-/// The entities whose rows are labelled `${exercise reference} · …`, for the exercise's History.
-export const SCOPE_ENTITIES: readonly string[] = Object.values(ENTITY);
-
 const named = (name: string | null | undefined) => (name ? name : null);
 
 // ------------------------------------------------------------------ estimate

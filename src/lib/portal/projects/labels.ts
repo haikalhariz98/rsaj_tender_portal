@@ -61,6 +61,3 @@ export function serviceWords(s: ServiceState, lang: Language = "en"): { text: st
       return s.onTime == null ? { text: say(S.svcAnsweredNoLevel, lang), tone: "ok" } : s.onTime ? { text: sayWith(S.svcAnsweredOnTime, lang, { date: date(s.dueOn!) }), tone: "ok" } : { text: sayWith(S.svcAnsweredLate, lang, { date: date(s.dueOn!) }), tone: "warn" };
   }
 }
-
-/// Said on every screen that shows a routed submission or a notice of one: the delivery is a fact of the product.
-export const ROUTING_STATEMENT = "Routed to the Superintending Officer in the portal. Not emailed.";

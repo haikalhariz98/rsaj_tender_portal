@@ -25,7 +25,7 @@ import { through, type Sulit } from "@/lib/auth/sulit-access";
 import type { StaffActor } from "@/lib/auth/types";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import { loadIssue } from "@/lib/authority/load";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayToDate, storedDay, dayOrNull as day } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { formatBytes, mediaLabel } from "@/lib/documents/labels";
 import { malwareScanner } from "@/lib/documents/store";
@@ -71,7 +71,6 @@ const first = (fs: readonly Finding[]) => {
   const b = blocking(fs)[0];
   return b ? supplierFaultText(b) : null;
 };
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 export async function WholeApplicationPage({ actor, org, a, flags, cfg, people, tab }: { actor: StaffActor; org: SupplierOrg; a: WholeApplication; flags: PortalFlag[]; cfg: SupplierConfig; people: Option[]; tab: string | undefined }) {
   const today = org.today;

@@ -15,9 +15,6 @@ export const SCRYPT = { ln: 15, r: 8, p: 3, keyBytes: 32, saltBytes: 16, maxmem:
 
 /// The longest password accepted, in characters. Longer is refused rather than cut.
 export const PASSWORD_MAX_LENGTH = 256;
-/// The shortest the database allows `SecurityPolicy.passwordMinLength` to be (NIST SP 800-63B).
-export const PASSWORD_FLOOR = 8;
-
 interface Parsed {
   ln: number;
   r: number;

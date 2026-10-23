@@ -127,8 +127,6 @@ export async function loadDocumentsTab(client: Tx, actor: SupplierActor) {
     types: config.types.filter((t) => t.retiredOn == null || (today != null && storedDay(t.retiredOn) > today)).map((t) => ({ id: t.id, name: t.nameEn, bodyId: t.bodyId, valueKinds: t.valueKinds as string[], expires: t.expires, recordsRate: t.recordsRate === true, repeatable: t.repeatable === true })),
   };
 }
-export type DocumentsTab = NonNullable<Awaited<ReturnType<typeof loadDocumentsTab>>>;
-
 // ------------------------------------------------------------------ the Overview tab
 
 export async function loadOverviewTab(client: Tx, actor: SupplierActor, day: (d: string) => string) {
@@ -164,8 +162,6 @@ export async function loadOverviewTab(client: Tx, actor: SupplierActor, day: (d:
     bumiputera: company ? { reading: company.bumiputera, flagged: bumiputeraNeedsAttention(company.bumiputera), evidenceExpiry, evidenceState } : null,
   };
 }
-export type OverviewTab = NonNullable<Awaited<ReturnType<typeof loadOverviewTab>>>;
-
 // ------------------------------------------------------------------ the Bank details tab
 
 /// The supplier's bank-detail versions as the rules read them (the existence and state of each, never a value).

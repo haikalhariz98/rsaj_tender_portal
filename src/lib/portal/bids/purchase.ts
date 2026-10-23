@@ -21,11 +21,6 @@ import type { PreSaleCheck } from "./checks";
 export type PurchaseState = "AWAITING_PAYMENT" | "PAID";
 export type PaidChannel = "SIMULATED" | "FINANCE_RECEIPT";
 
-export const PURCHASE_STATE_WORDS: Readonly<Record<PurchaseState, string>> = {
-  AWAITING_PAYMENT: "Awaiting payment",
-  PAID: "Paid",
-};
-
 /// How a paid purchase was paid, as every screen and export says it.
 export const PAID_CHANNEL_WORDS: Readonly<Record<PaidChannel, string>> = {
   SIMULATED: "Simulated payment",

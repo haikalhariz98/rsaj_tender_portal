@@ -92,8 +92,6 @@ export async function listSittings(scope: OrgScope, page = 0) {
   };
 }
 
-export type SittingSummary = Awaited<ReturnType<typeof listSittings>>["sittings"][number];
-
 type RosterData = Awaited<ReturnType<typeof loadRoster>>;
 
 /**

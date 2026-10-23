@@ -13,7 +13,6 @@ import { simulatorAllowedByDeployment } from "@/lib/integration/payment-deployme
 import type { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
 import { lockedAtOrAfterClosing } from "@/lib/bids/box";
-import { admittedEnvelopeIdsOf } from "@/lib/bids/envelope-status";
 import { loadBidRule, loadBoxEvents, loadEnvelopes, loadLateMatters, loadWithdrawals } from "@/lib/bids/repo";
 import { POSITION_LABEL } from "@/lib/committee/labels";
 import { alternatesOn, nonVotingMembersOn, votingSeatsOn, type Seat } from "@/lib/committee/sitting";
@@ -74,8 +73,6 @@ export async function loadOpenings(exerciseId: string, client: Tx = db) {
   return client.opening.findMany({ where: { exerciseId }, orderBy: { sequenceNo: "asc" }, include: OPENING_INCLUDE });
 }
 export type OpeningRow = Awaited<ReturnType<typeof loadOpenings>>[number];
-export type OpenedBidRow = OpeningRow["bids"][number];
-
 /// The rules' view of an opening row, on its exercise's status (a cancelled exercise records nothing more, review M-1).
 export const stateOf = (o: OpeningRow, exerciseStatus: string): OpeningState =>
   openingState({ ...o, exerciseStatus, online: o.exercise.submissionChannel === "ONLINE" }, o.sittings, o.authorisations, o.panel.map((p) => ({ personId: p.personId, present: p.present })), authorisationsRequired(o));
@@ -192,16 +189,6 @@ export async function openingContext(l: { org: { id: string; code: string; timeZ
   };
 }
 export type OpeningContext = Awaited<ReturnType<typeof openingContext>>;
-
-/// The parties carried to evaluation from the openings, and what the award gate reads (C-7, C-8).
-export function gateFacts(c: Pick<OpeningContext, "window" | "ex" | "openings" | "lateMatters" | "envelopes">) {
-  return {
-    applies: c.window?.publishedAt != null && (c.ex.packKindSnapshot === "TENDER" || c.ex.packKindSnapshot === "QUOTATION"),
-    openings: c.openings.map((o) => ({ kind: o.kind, sequenceNo: o.sequenceNo, finalised: o.finalisedAt != null, liveScans: liveScans(o), copyCheck: o.estimateCopyCheck, explained: o.copyExplanation != null, admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null })),
-    admittedEnvelopeIds: admittedEnvelopeIdsOf(c.envelopes, c.lateMatters),
-    carriedPartyIds: new Set(c.openings.filter((o) => o.finalisedAt).flatMap((o) => o.bids.filter((b) => b.verdict === "PASS").map((b) => b.partyId))),
-  };
-}
 
 /// The invited count's two readings (OD-9): bidders holding a live sale, and bidders sent a letter.
 export function invitedCounts(c: Pick<OpeningContext, "sales" | "invitedPartyIds">) {

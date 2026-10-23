@@ -1,4 +1,4 @@
-import { SULIT_FIELDS, SULIT_SCOPES, type SulitScope } from "@/lib/sulit-fields";
+import { SULIT_FIELDS, type SulitScope } from "@/lib/sulit-fields";
 
 import { holds, type PermissionState } from "./permissions";
 import { ROUTED_NAMED_WORDS } from "./routed-people";
@@ -435,5 +435,3 @@ export function through<T>(gate: Sulit<true>, value: T | (() => T)): Sulit<T> {
 export const sulitValue = <T>(s: Sulit<T>): T | null => (s.state === "GRANTED" ? s.value : null);
 
 export const mapSulit = <T, U>(s: Sulit<T>, f: (v: T) => U): Sulit<U> => (s.state === "GRANTED" ? { state: "GRANTED", value: f(s.value), basis: s.basis } : s);
-
-export const isSulitScope = (s: string): s is SulitScope => (SULIT_SCOPES as readonly string[]).includes(s);

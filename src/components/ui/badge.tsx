@@ -27,10 +27,6 @@ const DOT: Record<Tone, string> = {
   info: "bg-sky-500",
 };
 
-export function dotClass(tone: Tone = "neutral"): string {
-  return DOT[tone];
-}
-
 /// A small rounded status label. `dot` prefixes a coloured dot; `outline` swaps the
 /// fill for a hairline border (for counts and overflow such as "+3").
 export function Badge({

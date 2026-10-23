@@ -76,8 +76,6 @@ export async function loadMethodConfig(organisationId: string, client: Tx = db) 
   return { config, checklist, permitList: permitListRow ? { code: permitListRow.code, nameEn: permitListRow.nameEn } : null, rows: { methods, reasons, types, bases, taxonomies, mappings, policy } };
 }
 
-export type LoadedMethodConfig = Awaited<ReturnType<typeof loadMethodConfig>>;
-
 export async function loadTermsBands(authorityMatrixId: string, client: Tx = db): Promise<(TermsBand & { id: string; labelMs: string | null })[]> {
   // In value order (UX 13, BD-24), by the same rule the lib reads them in.
   const rows = await client.termsBand.findMany({ where: { authorityMatrixId } });

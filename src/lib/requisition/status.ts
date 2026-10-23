@@ -47,11 +47,6 @@ export function isLocked(status: RequisitionStatus): boolean {
   return !["DRAFT", "ENDORSED", "RETURNED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET", "PENDING_APPROVAL", "RECALLED", "REJECTED"].includes(status);
 }
 
-/// Whether the draft's own fields may be edited.
-export function isEditable(status: RequisitionStatus): boolean {
-  return status === "DRAFT";
-}
-
 export type TransitionFault =
   | { code: "NOT_ALLOWED"; from: RequisitionStatus; to: RequisitionStatus }
   | { code: "TIME_ZONE_UNSET" }

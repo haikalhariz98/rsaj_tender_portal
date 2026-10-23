@@ -66,8 +66,6 @@ export async function listCommittees(organisationId: string) {
   }));
 }
 
-export type CommitteeSummary = Awaited<ReturnType<typeof listCommittees>>[number];
-
 export async function getCommittee(organisationId: string, code: string) {
   const id = organisationId;
 
@@ -96,8 +94,6 @@ export async function getCommittee(organisationId: string, code: string) {
     meetings: committee.meetings,
   };
 }
-
-export type CommitteeDetail = NonNullable<Awaited<ReturnType<typeof getCommittee>>>;
 
 /// Which DAL rows route to this body — the reason it exists, drawn from the matrix
 /// rather than restated by hand.

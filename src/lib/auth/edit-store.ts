@@ -5,7 +5,6 @@ import { db, savepointSql } from "@/lib/db";
 import { auditActorOfStaff } from "./audit-actor";
 import type { ChangeAct, ChangeFaults } from "./change-store";
 import {
-  CHANGE_MACHINE,
   nextStatus,
   STALE_WORDS,
   STATUS_WORDS,
@@ -333,8 +332,5 @@ export async function decideEdit(
     return { ok: true, status: "APPLIED" };
   }, TX_OPTIONS);
 }
-
-/// What the machine allows from a state (the same machine as the other kinds).
-export const editDecisionsFrom = (status: ChangeStatus): ChangeDecision[] => Object.keys(CHANGE_MACHINE[status]) as ChangeDecision[];
 
 export { EDIT_KIND_WORDS };

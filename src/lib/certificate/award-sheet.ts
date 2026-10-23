@@ -33,8 +33,6 @@ const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new CertificateRefusal(refusalText(lead, fs));
 };
 
-export const awardSheetInclude = { type: { select: { id: true, labelEn: true } } } as const;
-
 export interface AwardSheetRows {
   sheet: { id: string; typeSnapshot: unknown; receivedOn: Date | null } | null;
   checks: readonly { iteration: number; defOrder: number; personName: string; on: Date; note: string }[];

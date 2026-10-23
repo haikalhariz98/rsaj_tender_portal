@@ -10,7 +10,6 @@ import { auditActorOfStaff } from "./audit-actor";
 import { codeExpiry, formatCode, generateCode, hashCode } from "./codes";
 import {
   accountCodeTargetFaults,
-  CHANGE_MACHINE,
   decisionFaults,
   isStale,
   KIND_PERMISSION,
@@ -442,6 +441,3 @@ async function applyChange(
     }
   }
 }
-
-/// What the machine allows from a state, for a caller that wants to say so (the screens offer only what is allowed).
-export const decisionsFrom = (status: ChangeStatus): ChangeDecision[] => Object.keys(CHANGE_MACHINE[status]) as ChangeDecision[];

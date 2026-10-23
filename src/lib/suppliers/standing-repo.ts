@@ -5,7 +5,7 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
-import { dayIn, storedDay } from "@/lib/dates";
+import { dayIn, storedDay, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import { awardStanding, type AwardStanding } from "./award-standing";
@@ -16,8 +16,6 @@ import { documentFacts, typeFacts } from "./repo";
 import { standing, type StandingEventFacts, type StandingEventKind, type StandingReading } from "./standing";
 import type { RegistrationValueKind } from "./types";
 import { inOrder } from "@/lib/series";
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 /// A stored standing event as the rules read it. BD-613-105(e) / S-3: a registration cancelled carries its body and reference
 /// (its reason line is composed from them at read, never stored as words).

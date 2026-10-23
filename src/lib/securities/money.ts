@@ -3,7 +3,7 @@
  *
  * A percentage arrives as its Decimal(9,4) string ("5", "5.0000", "12.5") and is read
  * as whole ten-thousandths, so a bond or a retention figure never passes through a
- * float. Rounded half up to the sen, the rule `percentOfSen` states for the portal.
+ * float. Rounded half up to the sen: the one percentage-of-money rule.
  */
 
 import type { Sen } from "@/lib/money";

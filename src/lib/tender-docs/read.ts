@@ -20,7 +20,6 @@ import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { holdersFor } from "@/lib/requisition/holders";
 import { PROVENANCE_LABEL } from "@/lib/scope/labels";
-import { loadScopePolicy } from "@/lib/scope/repo";
 import { renderedText, renderWith } from "@/lib/templates/merge";
 
 import { APPENDIX_FIELD_LABEL, appendixComplete, appendixFaults, ladDaily, type AppendixFacts } from "./appendix";
@@ -591,9 +590,6 @@ export async function mergedDraft(organisationId: string, exerciseId: string, pa
   return { filename: `${safe}.txt`, text: [head, ...blocks].join("\n\n----\n\n") + "\n" };
 }
 
-/// The frozen text of one part, joined (the print view and tests read it as one string).
-export const frozenText = (paragraphs: readonly string[]) => renderedText({ paragraphs: [...paragraphs], missing: [], unknown: [] });
-
 // ------------------------------------------------------------------ Configuration › Tender documents
 
 export async function tenderDocsConfig(organisationId: string, showRetired = false) {
@@ -685,9 +681,3 @@ export async function tenderDocsConfig(organisationId: string, showRetired = fal
     },
   };
 }
-
-/// The routes' closing as a day in the organisation's zone, for 6.5 and the screens.
-export const closingDayText = (at: Date | null, timeZone: string | null) => (at && timeZone ? formatDate(storedDayIn(at, timeZone)) : NOT_SET);
-
-/// The estimate lead's policy, for the approver's warning (read-only).
-export const estimateLeadPolicy = (organisationId: string) => loadScopePolicy(organisationId);

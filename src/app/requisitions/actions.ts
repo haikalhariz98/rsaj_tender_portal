@@ -23,7 +23,7 @@ import { parseSen, senToDecimalString } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
-import { ageDay, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
+import { isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { endorsementEntryFault, endorsementFaults } from "@/lib/requisition/endorsement";
 import { blocking, requisitionFaults, type DraftLine, type RequisitionDraft } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
@@ -701,7 +701,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     let check: BudgetSnapshot & { budgetCodeCode: string | null } | null = null;
     let verdict = last.verdict;
     // A check ages from the day its figures are as at (ruling on hand-entered checks).
-    if (isStale(ageDay(last), policy.budgetRecheckDays, todayStr)) {
+    if (isStale(storedDay(last.asAt), policy.budgetRecheckDays, todayStr)) {
       if (controls.budgetCheckSource !== "PORTAL_LEDGER") {
         return {
           ok: false,

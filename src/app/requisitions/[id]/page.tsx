@@ -45,7 +45,7 @@ import { ACT_DONE_LABEL, ACT_LABEL, condLabel, routedOnLabel } from "@/lib/label
 import { parseSen } from "@/lib/money";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
-import { ageDay, approvalCommitment, identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
+import { approvalCommitment, identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { eligibleEndorsers, endorsementFaults, endorsersFor } from "@/lib/requisition/endorsement";
 import { blocking, requisitionFaults } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
@@ -249,7 +249,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   let previewNote: string | null = null;
   let previewRefusal: string | null = null;
   if (PRE_SUBMIT.includes(r.status)) {
-    const stale = lastCheck && today ? isStale(ageDay(lastCheck), policy.budgetRecheckDays, today) : false;
+    const stale = lastCheck && today ? isStale(storedDay(lastCheck.asAt), policy.budgetRecheckDays, today) : false;
     if (!today) submitBlocker = transitionFaultText({ code: "TIME_ZONE_UNSET" });
     else if (noBudgetCode) submitBlocker = MISSING_BUDGET_CODE_TEXT[noBudgetCode];
     else if (fieldFaults.length > 0) submitBlocker = fieldFaultText(fieldFaults[0]);
@@ -1018,7 +1018,7 @@ function BudgetPanel({
     } as BudgetSnapshot);
   // Staleness matters only while a submission could re-run it; after submission the
   // route keeps the check it was judged under.
-  const stale = c && l.org.today && PRE_SUBMIT.includes(r.status) ? isStale(ageDay(c), recheckDays, l.org.today) : false;
+  const stale = c && l.org.today && PRE_SUBMIT.includes(r.status) ? isStale(storedDay(c.asAt), recheckDays, l.org.today) : false;
   const noCheck =
     r.origin === "EXTERNAL"
       ? { title: "No budget check entered" }

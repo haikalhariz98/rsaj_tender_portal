@@ -32,7 +32,6 @@ export function employerSigning(i: { configuredCode: string | null; held: readon
 
 /// What a screen says where the setting is unset.
 export const EMPLOYER_SIGNING_NOT_SET = "Employer's signing office not set";
-export const EMPLOYER_SIGNING_NOT_SET_MS = "Pejabat penandatangan majikan belum ditetapkan";
 /// The longer sentence beside it: what happens meanwhile.
 export const EMPLOYER_SIGNING_NOT_SET_WHY = "An amendment is still recorded, with the offices its signer held on the day.";
 

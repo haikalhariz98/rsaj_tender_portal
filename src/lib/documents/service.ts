@@ -6,7 +6,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { dayToDate, storedDay, todayIn } from "@/lib/dates";
+import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import { filenameFault } from "./access";
@@ -293,6 +293,3 @@ async function refuseUploadToClosedDocument(reader: SulitReader, organisationId:
   if (found?.classificationSnapshot !== "SULIT") return;
   if (!(await documentBytesAccess(db, reader, documentId)).entitled) throw new UploadRefusal({ code: "DOCUMENT_UNKNOWN", level: "block" }, 404);
 }
-
-/// A stored day as YYYY-MM-DD, or null.
-export const dayOf = (d: Date | null | undefined) => (d ? storedDay(d) : null);

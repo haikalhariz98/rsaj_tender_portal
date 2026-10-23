@@ -12,7 +12,6 @@
  * copied from the latest finalised version, and finalising it supersedes that one.
  */
 
-import { dayIn } from "@/lib/dates";
 import { fitsMoneyColumn, senToDecimalString, type Sen } from "@/lib/money";
 import { lineAmount } from "@/lib/requisition/lines";
 import type { ExerciseStatus } from "@/lib/method/types";
@@ -330,6 +329,3 @@ export function unpricedBq(frozen: FrozenBq): { versionNo: number; sections: { n
     })),
   };
 }
-
-/// The organisation's day for an instant, for stamping a finalised bill. Null while no zone is set.
-export const finalisingDay = (now: Date, timeZone: string | null) => (timeZone ? dayIn(now, timeZone) : null);

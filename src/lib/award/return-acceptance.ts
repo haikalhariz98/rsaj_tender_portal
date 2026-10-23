@@ -9,7 +9,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { storedDay } from "@/lib/dates";
+import { dayOrNull as day } from "@/lib/dates";
 import { evidenceSnapshot, isLive } from "@/lib/documents/evidence";
 import { attachmentFacts } from "@/lib/documents/repo";
 import type { AttachmentFact } from "@/lib/documents/types";
@@ -19,8 +19,6 @@ import { countedReturnComplete, RETURN_SCANS, scansMissing, type ReturnRecord, t
 import { awardTransition } from "./status";
 import type { InstrumentKind } from "./types";
 import type { AuditActor } from "@/lib/auth/types";
-
-const day = (d: Date | null) => (d ? storedDay(d) : null);
 
 export function returnRecordOf(r: NonNullable<LoadedAward["award"]["awardReturn"]>): ReturnRecord {
   return {

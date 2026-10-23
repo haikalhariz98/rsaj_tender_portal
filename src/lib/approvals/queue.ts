@@ -9,7 +9,7 @@
  * Pure.
  */
 
-import { daysBetween } from "@/lib/requisition/types";
+import { daysFrom } from "@/lib/dates";
 
 import type { BarredRelation } from "./requester";
 
@@ -115,7 +115,7 @@ export function openStepOf(
     officeLabel: s.actingRoleLabel ?? s.roleLabel,
     escalatedFrom: s.actingRoleCode ? s.roleLabel : null,
     waitingSince: since,
-    waitingDays: today ? Math.max(0, daysBetween(since, today)) : null,
+    waitingDays: today ? Math.max(0, daysFrom(since, today)) : null,
   };
 }
 

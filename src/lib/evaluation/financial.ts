@@ -13,9 +13,6 @@ import { placeInBands, type Band, type BandPlacement } from "./bands";
 import type { Sen } from "@/lib/money";
 import type { CapitalBase } from "./types";
 
-/// The reading of the ratio, shown beside every capital figure (plan §3: ASSUMED, shown).
-export const CAPITAL_RATIO_READING = "The capital ratio is the average balance as a percentage of the base, so a ratio at the factor is a capital at the minimum (assumed).";
-
 /// What the base is for one bidder: its tender amount, or the disclosed estimate, or why there is none.
 export type CapitalBaseValue = { base: Sen } | { fault: "ESTIMATE_SEALED" | "ESTIMATE_NOT_AVAILABLE" | "BASE_NOT_SET" };
 

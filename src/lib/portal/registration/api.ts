@@ -164,7 +164,6 @@ export interface ValuesQuery {
 }
 
 export const VALUES_PAGE = 30;
-export const VALUES_MIN_CHARS = 2;
 export const VALUES_MAX_QUERY = 80;
 
 export function parseValuesQuery(params: URLSearchParams): Parsed<ValuesQuery> {

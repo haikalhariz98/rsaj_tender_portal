@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { dayToDate } from "@/lib/dates";
 import { formatOrgDateTime } from "@/lib/format";
 import { hashPool } from "./hash-pool";
 
@@ -257,6 +256,3 @@ export async function disableAccountOfRetiredContact(tx: Tx, input: { actor: Sta
   await recordSignInEvent(tx, { organisationId: actor.organisationId, supplierAccountId: account.id, kind: "ACCOUNT_DISABLED", request: input.request, at: now });
   return ended;
 }
-
-/// The day a contact is retired on, stored as a day.
-export const retiredOnDay = (today: string) => dayToDate(today);

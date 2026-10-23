@@ -90,25 +90,6 @@ export function subtractSen(a: Sen, b: Sen): Sen {
   return a - b;
 }
 
-/**
- * A percentage of an amount, rounded half up to the sen.
- *
- * Retention, delay damages and variation limits are all percentages of a contract
- * sum, and the rounding rule has to be stated once rather than per caller.
- */
-export function percentOfSen(sen: Sen, percent: number): Sen {
-  if (!Number.isFinite(percent)) throw new MoneyFormatError(`Not a percentage: ${percent}`);
-  // Percent carries up to four decimal places, matching the Decimal(9,4) columns.
-  const scaled = BigInt(Math.round(percent * 10_000));
-  const numerator = sen * scaled;
-  const denominator = 1_000_000n;
-
-  const negative = numerator < 0n;
-  const abs = negative ? -numerator : numerator;
-  const rounded = (abs + denominator / 2n) / denominator;
-  return negative ? -rounded : rounded;
-}
-
 export function compareSen(a: Sen, b: Sen): -1 | 0 | 1 {
   return a < b ? -1 : a > b ? 1 : 0;
 }

@@ -9,7 +9,8 @@
  * EXPIRED. Any threshold not set: nothing is banded, and the band says so (never "valid").
  */
 
-import { addDays, daysFrom } from "@/lib/securities/period";
+import { daysFrom } from "@/lib/dates";
+import { addDays } from "@/lib/securities/period";
 
 import type { Finding } from "./types";
 

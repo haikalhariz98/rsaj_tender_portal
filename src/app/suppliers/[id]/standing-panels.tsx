@@ -16,7 +16,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AWARD_STATUS_LABEL } from "@/lib/award/labels";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
-import { storedDay } from "@/lib/dates";
+import { storedDay, dayOrNull as day } from "@/lib/dates";
 import { loadAttributions } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
@@ -42,7 +42,6 @@ import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { DecideRouteStepDrawer, GrantPermissionDrawer, LinkAwardDrawer, LinkPartyDrawer, PermissionDrawer, RecordCancellationDrawer, ReinstateDrawer, RecordStandingDrawer, RequestBlacklistDrawer, RequestLiftDrawer, SuspendDrawer, WithdrawCancellationDrawer, WithdrawRequestDrawer } from "./standing-editors";
 
 type Option = { value: string; label: string };
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const first = (fs: readonly Finding[]) => (blocking(fs).length ? supplierFaultText(blocking(fs)[0]) : null);
 
 /// Who may decide a supplier route's step today, those holding the office first.

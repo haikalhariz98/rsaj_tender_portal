@@ -32,12 +32,6 @@ export function saleFinding(partyId: string, sales: readonly SaleFacts[], path: 
   return liveSaleOf(partyId, sales) ? "LIVE_SALE" : "NO_LIVE_SALE";
 }
 
-/// The reading the screen shows beside the restriction finding.
-export const RESTRICTION_READING = {
-  text: "A certificate counts where it is valid on the closing day itself.",
-  provenance: "ASSUMED" as const,
-};
-
 /// `closingDay` null: the closing day cannot be told (no time zone, review R-5) — a restricted tender's certificate is then not judged, never read against an empty day.
 export function restrictionFinding(restricted: boolean | null, sale: SaleFacts | null, closingDay: string | null): { finding: RestrictionFinding } | { fault: Finding<"RESTRICTION_NOT_ANSWERED" | "TIME_ZONE_NOT_SET"> } {
   if (restricted == null) return { fault: { code: "RESTRICTION_NOT_ANSWERED", level: "block" } };

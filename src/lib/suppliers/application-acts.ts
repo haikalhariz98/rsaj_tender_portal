@@ -10,7 +10,7 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import type { ActWriter } from "@/lib/auth/act-writer";
 import type { Tx } from "@/lib/audit/record";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayToDate, dayOrNull as day } from "@/lib/dates";
 
 import { SUPPLIER_ENTITY } from "./audit-view";
 import { OUTCOME_LABEL, supplierFaultText } from "./labels";
@@ -22,8 +22,6 @@ import { activePerson, audit, CHANGED, GONE, label, Refusal, type LockedSupplier
 import type { AuditActor } from "@/lib/auth/types";
 import { inOrder } from "@/lib/series";
 import { CREDITOR_FIELDS } from "@/lib/portal/registration/types";
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 /**
  * What an online application holds of the applicant's own words, blanked when it is SET ASIDE. Phase 4a (CPD's registration, ruling of 2026-10-07, "acceptance must stop

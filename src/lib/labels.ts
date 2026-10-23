@@ -126,6 +126,3 @@ export const SIMULATOR_HINT = {
   noFundingRoute: "No funding route configured yet",
   fundingRoute: "Whether a funder overrides these limits is set per route",
 } as const;
-
-/// Every matter's name in both languages, for the customer's review of the Malay (NFR-LNG-001, ADR 0040). The keys are configuration keys and are never rendered.
-export const MATTER_WORDS: Readonly<Record<string, Label>> = MATTERS;

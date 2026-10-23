@@ -322,8 +322,6 @@ export function modelFromSnapshot(json: unknown): ModelSnapshot | null {
 export const stageOf = (m: Pick<ModelSnapshot, "stages">, code: string) => m.stages.find((s) => s.code === code) ?? null;
 /// The criteria scores are entered on: leaves (not groups) of ENTERED_MARKS or PASS_FAIL.
 export const scoredCriteria = (s: StageSnap) => s.criteria.filter((c) => (c.scale === "ENTERED_MARKS" || c.scale === "PASS_FAIL") && !s.criteria.some((x) => x.parentCode === c.code));
-/// The banded criteria of a stage.
-export const bandedCriteria = (s: StageSnap) => s.criteria.filter((c) => c.scale === "BANDED");
 /// A band set of a snapshot.
 export const bandSetOf = (m: Pick<ModelSnapshot, "bandSets">, code: string | null) => (code ? (m.bandSets.find((b) => b.code === code) ?? null) : null);
 /// The stages a composite weighs.

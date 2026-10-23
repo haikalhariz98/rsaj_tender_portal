@@ -21,9 +21,7 @@ export function indentState(receivedOn: Day | null, validityDays: number | null,
   return today > expiresOn ? { state: "EXPIRED", expiresOn } : { state: "VALID", expiresOn };
 }
 
-/// The reading the expiry day rests on, said wherever it is shown.
-export const INDENT_READING = "Valid through its expiry day. Assumed reading.";
-/// The same reading behind an Assumed chip (0005 R15).
+/// The reading the expiry day rests on, behind an Assumed chip (0005 R15).
 export const INDENT_READING_DETAIL = "Valid through its expiry day.";
 
 /**

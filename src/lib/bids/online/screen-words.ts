@@ -197,8 +197,6 @@ export const SCREEN_WORDS = {
   ),
 } as const satisfies Record<string, Words>;
 
-export type ScreenWord = keyof typeof SCREEN_WORDS;
-
 /** A bid's status, in words. */
 export const BID_STATUS_WORDS: Readonly<Record<"SUBMITTED" | "REPLACED" | "WITHDRAWN" | "OPENED", Words>> = {
   SUBMITTED: SCREEN_WORDS.statusSubmitted,

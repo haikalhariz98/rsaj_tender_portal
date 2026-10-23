@@ -27,10 +27,6 @@ export const HOME_TITLE = w("Supplier portal");
 export const homeSubtitle = (organisation: string): Words =>
   w(`Tenders and quotations from ${organisation}`);
 
-export const OPEN_ACCESS_NOTE = w(
-  "No account needed to read opportunities or to apply.",
-);
-
 export interface HomeLink {
   key: "opportunities" | "results" | "register";
   href: string;
@@ -103,12 +99,6 @@ export const TAKE_PART_STEPS: readonly { title: Words; text: Words }[] = [
     ),
   },
 ];
-
-export const SIGN_IN_TITLE = w("Arrives with sign-in");
-export const SIGN_IN_SUBTITLE = w(
-  "These wait for sign-in.",
-);
-
 // Phase 4e: My Projects and the announcements board are built, so nothing is left arriving with sign-in. The list stays (empty) so the home page and the navigation test keep one source.
 export const SIGN_IN_ITEMS: readonly { href: string; title: Words; text: Words }[] = [];
 
@@ -121,12 +111,6 @@ export const SIGNED_IN_LINKS: readonly { key: "bids" | "projects" | "company" | 
   { key: "company", href: PORTAL_PATH.company, title: w("Company"), text: w("Your registration, documents, bank details and eligibility.") },
   { key: "announcements", href: PORTAL_PATH.announcements, title: w("Announcements"), text: w("Notices from the procurement office.") },
 ];
-
-export const SIGN_IN_REASON = w(
-  "Sign in to reach this part of the portal.",
-);
-export const SIGN_IN_BADGE = w("Arrives with sign-in");
-export const BACK_TO_PORTAL = w("Back to the supplier portal");
 
 /* Opportunities (the public board and an opportunity's page) */
 

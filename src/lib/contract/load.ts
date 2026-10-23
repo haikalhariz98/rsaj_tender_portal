@@ -12,7 +12,7 @@ import type { Tx } from "@/lib/audit/record";
 import { awardReadiness, type ReadinessAward } from "@/lib/award/gate-read";
 import { baselineOf, type FrozenTender } from "@/lib/award/appendix-baseline";
 import { frozenTenderOf, frozenTendersOf, loadAwardConfig, type LoadedAward } from "@/lib/award/repo";
-import { dayOf, dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayToDate, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { isLive } from "@/lib/documents/evidence";
 import { isBandSnapshot, isClassificationSnapshot } from "@/lib/method/snapshot";
@@ -31,7 +31,6 @@ import { inOrder } from "@/lib/series";
 
 const dec = (v: { toString(): string } | null | undefined) => (v == null ? null : v.toString());
 const senOrNull = (v: { toString(): string } | null | undefined) => (v == null ? null : parseSen(v.toString()));
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 /// A Decimal percentage as the exact string the pure code reads ("10.0000" → "10", "0.025000" → "0.025").
 export const pctString = (v: { toString(): string } | null | undefined) => decimalText(v);
 
@@ -48,8 +47,6 @@ export async function loadContractConfig(organisationId: string, client: Tx = db
   const unitName = (code: string | null, today: string) => unitInForce(code, units, today)?.nameEn ?? null;
   return { policy, parts, recipients, units, bases, unitName };
 }
-export type ContractConfig = Awaited<ReturnType<typeof loadContractConfig>>;
-
 export { preparationSettings };
 
 // ------------------------------------------------------------------ the gate
@@ -274,9 +271,6 @@ export function rowOf(v: BaselineValues) {
 export const sectionRows = (v: BaselineValues, organisationId: string) =>
   v.sections.map((s, n) => ({ organisationId, ref: s.ref, description: s.description, ladKind: s.ladKind, ladAmount: m(s.ladAmount), ladPct: s.ladPct, ladDaily: m(s.ladDaily), extensionDays: s.extensionDays ?? 0, sortOrder: n }));
 
-/// The baseline in a version row's terms (for baselineFor), with the organisation's day it was recorded.
-export const versionRowOf = (b: BaselineRow) => ({ ...b, version: b.version, reason: b.reason as BaselineReason | null, recordedOn: day(b.recordedOn) });
-
 /// The draft, and the numbered versions oldest first.
 export function baselineRows(c: LoadedContract["contract"]) {
   return { draft: c.baselines.find((b) => b.version == null) ?? null, versions: c.baselines.filter((b) => b.version != null).sort((x, y) => x.version! - y.version!) };
@@ -287,11 +281,6 @@ export const frozenInputsOf = (c: LoadedContract["contract"]) => {
   const d = baselineRows(c).draft;
   return d ? inputsFromJson((d.snapshot as { inputs?: unknown } | null)?.inputs) : null;
 };
-
-/// The values a fresh build of the frozen inputs gives with what was keyed (each keyed group's value, as saved).
-export function rebuiltDraft(inputs: BaselineInputs, entered: unknown) {
-  return buildBaseline(inputs, enteredValuesOf(entered));
-}
 
 /// The keyed values as stored on the draft (`entered` JSON: per group, value + provenance + note).
 export function enteredValuesOf(json: unknown) {

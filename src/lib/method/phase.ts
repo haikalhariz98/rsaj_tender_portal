@@ -23,12 +23,6 @@ export const EXERCISE_PHASE: Record<Exclude<ExerciseStatus, "CANCELLED">, Exerci
   EVALUATED: "EVALUATING",
 };
 
-export const EXERCISE_PHASE_LABEL: Record<ExercisePhase, string> = {
-  PREPARING: "preparing",
-  IN_MARKET: "out to market",
-  EVALUATING: "at opening or evaluation",
-};
-
 const PHASE_ORDER: readonly ExercisePhase[] = ["PREPARING", "IN_MARKET", "EVALUATING"];
 
 type Bucket = { status: ExerciseStatus; count: number };

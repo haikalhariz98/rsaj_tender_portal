@@ -77,11 +77,6 @@ export function isFrozen(status: MeetingStatus): boolean {
   return status === "MINUTED" || status === "CANCELLED";
 }
 
-/// The transitions a sitting in this status offers.
-export function nextStatuses(from: MeetingStatus): readonly MeetingStatus[] {
-  return NEXT[from];
-}
-
 export type SittingAct = "VOTE" | "ATTENDANCE" | "OUTCOME" | "TABLE" | "RECUSE" | "MINUTES" | "EDIT";
 
 /**

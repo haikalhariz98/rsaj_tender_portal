@@ -63,6 +63,9 @@ export function storedDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/// `storedDay` of a date column that may be empty.
+export const dayOrNull = (d: Date | null | undefined): string | null => (d ? storedDay(d) : null);
+
 /// The stored form of a day: midnight UTC.
 export function dayToDate(day: string): Date {
   return new Date(`${day}T00:00:00.000Z`);

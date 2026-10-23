@@ -4,7 +4,7 @@
  * a form is not ready when the act would pin it, nor the reverse.
  */
 
-import { storedDay } from "@/lib/dates";
+import { dayOrNull as day } from "@/lib/dates";
 import { fieldsNamed } from "@/lib/templates/merge";
 
 import { mergeFields } from "./fields";
@@ -34,8 +34,6 @@ export interface PinSource extends SheetSource {
   routingTypeId: string | null;
   baseline: { contractDate: Date | null };
 }
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 /// The routing sheet as it stands, on the certificate's frozen type. Null: its sheet has not started.
 export function sheetOf(cert: SheetSource, today: string): Sheet | null {

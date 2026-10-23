@@ -36,8 +36,6 @@ export interface ReleasedText {
   partLabel: string;
   title: string;
 }
-export type ReleasedItem = ReleasedFile | ReleasedText;
-
 export interface ReleasedPack {
   packVersion: number;
   files: ReleasedFile[];

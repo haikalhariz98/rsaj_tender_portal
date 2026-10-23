@@ -43,27 +43,3 @@ export async function attachmentFacts(owner: OwnerRef, client: Tx = db, purposes
     version: { id: r.version.id, documentId: r.version.documentId, versionNo: r.version.versionNo, sha256: r.version.sha256, withdrawnAt: r.version.withdrawnAt, title: r.version.document.title },
   }));
 }
-
-/// The same for many owners of one kind at once, keyed by owner id (lists, gate cards).
-export async function attachmentFactsFor(kind: OwnerKind, ids: readonly string[], client: Tx = db, purposes?: readonly AttachmentPurpose[]): Promise<Map<string, AttachmentFact[]>> {
-  const out = new Map<string, AttachmentFact[]>(ids.map((id) => [id, []]));
-  if (ids.length === 0) return out;
-  const col = OWNER_COLUMN[kind];
-  const rows = await client.documentAttachment.findMany({
-    where: { [col]: { in: [...ids] }, ...(purposes ? { purpose: { in: [...purposes] } } : {}) },
-    select: { ...factSelect, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true, openingId: true, evaluationId: true, evaluationMeetingId: true, evaluationBidderId: true, supplierDocumentId: true, supplierApplicationId: true, contractId: true, variationInstructionId: true, standingEventId: true, delayNoticeId: true, eotClaimId: true, registrationDraftDocumentId: true, creditorProfileId: true, onlineBidFileId: true, portalApplicationDocumentId: true, portalApplicationCreditorId: true, projectDocumentVersionId: true },
-    orderBy: [{ attachedAt: "asc" }, { id: "asc" }],
-  });
-  for (const r of rows) {
-    const id = r[col];
-    if (!id) continue;
-    out.get(id)?.push({
-      id: r.id,
-      purpose: r.purpose,
-      detachedAt: r.detachedAt,
-      attachedAt: r.attachedAt,
-      version: { id: r.version.id, documentId: r.version.documentId, versionNo: r.version.versionNo, sha256: r.version.sha256, withdrawnAt: r.version.withdrawnAt, title: r.version.document.title },
-    });
-  }
-  return out;
-}

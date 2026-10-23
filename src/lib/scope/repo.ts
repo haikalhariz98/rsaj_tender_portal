@@ -6,7 +6,7 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
-import { storedDay } from "@/lib/dates";
+import { storedDay, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { parseSen } from "@/lib/money";
 import type { Provenance } from "@/lib/reference/types";
@@ -18,8 +18,6 @@ import type { RateIssue } from "./rates";
 import type { ScopeMatter } from "./scope-matter";
 import type { BqItemKind, BqLine, EstimateState, QualificationHolding, QualificationRow, ScopePolicy } from "./types";
 import { UNSET_SCOPE_POLICY } from "./types";
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 export async function loadScopePolicy(organisationId: string, client: Tx = db): Promise<ScopePolicy & { exists: boolean; notes: string }> {
   const p = await client.scopePolicy.findUnique({ where: { organisationId } });
@@ -99,8 +97,6 @@ export async function loadPanel(exerciseId: string, client: Tx = db) {
   return { ...p, liveSulitScans: live.length, liveScanVersionIds: live.map((a) => a.versionId) };
 }
 
-export type PanelRow = NonNullable<Awaited<ReturnType<typeof loadPanel>>>;
-
 /// The exercise's estimates (void ones included), newest first: versions without their
 /// figure or reason (omitted by the client), and every custody event.
 export async function loadEstimates(exerciseId: string, client: Tx = db) {
@@ -114,8 +110,6 @@ export async function loadEstimates(exerciseId: string, client: Tx = db) {
     },
   });
 }
-
-export type EstimateRow = Awaited<ReturnType<typeof loadEstimates>>[number];
 
 /// An estimate as the rules see it: never its figure.
 export function estimateFactsOf(e: { id: string; state: string; preparerPersonId: string; currentVersionNo: number; classification: string; events: readonly { kind: string; versionNo: number | null }[] }): EstimateFacts & { id: string } {

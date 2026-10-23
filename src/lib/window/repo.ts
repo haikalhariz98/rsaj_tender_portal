@@ -169,9 +169,6 @@ export function eventFactsOf(w: Pick<WindowRow, "events">): EventFacts[] {
 /// The basis's total, from the stored lines.
 export const basisTotalOf = (w: Pick<WindowRow, "feeLines">) => feeBasisTotal(w.feeLines.map((l) => ({ amount: parseSen(l.amount.toString()) })));
 
-/// The stored day, as YYYY-MM-DD, or null.
-export const dayOrNull = (d: Date | null | undefined) => (d ? storedDay(d) : null);
-
 /// The closing day in the organisation's zone, or null.
 export const closingDayOf = (closingAt: Date | null, timeZone: string | null) => (closingAt && timeZone ? dayIn(closingAt, timeZone) : null);
 
@@ -181,9 +178,6 @@ export async function tenderFacts(organisationId: string, exerciseId: string, cl
   const policy = await loadTenderPolicy(organisationId, client);
   return { requirements, stamp: { EN: policy.restrictionStampTextEn, MS: policy.restrictionStampTextMs }, restrictionLabel: policy.restrictionLabelEn };
 }
-
-/// Whether a window_change route is pending on the exercise (one change at a time).
-export const changePendingOf = (routes: readonly { status: string }[]) => routes.some((r) => r.status === "PENDING");
 
 /// What the window's rules read of the exercise (a row from the method module's loader).
 export interface ExerciseForWindow {

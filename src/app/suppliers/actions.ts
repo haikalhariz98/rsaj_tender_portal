@@ -17,7 +17,7 @@ import { personDecisionWrite } from "@/lib/authority/decided-step";
 import { actingOffice } from "@/lib/authority/escalation";
 import { loadIssue } from "@/lib/authority/load";
 import { boundaryOperatorFor } from "@/lib/authority/resolve";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayToDate, storedDay, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { isLive } from "@/lib/documents/evidence";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
@@ -64,7 +64,6 @@ import { inOrder } from "@/lib/series";
  */
 
 const NOT_SET = "Not set";
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in force, so nobody can be shown as approving a supplier's registration. Issue one under Configuration › Approval matrix." };
 
 /// The field each identity or receipt fault belongs to, so the form marks it.
