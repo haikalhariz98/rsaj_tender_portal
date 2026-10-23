@@ -24,7 +24,7 @@ describe("body labels as headings (fix S-4 c)", () => {
 
   it("the configuration headings and the value and requirement labels use it (source)", () => {
     const cfg = readFileSync("src/app/configuration/suppliers/page.tsx", "utf8");
-    expect(cfg).toMatch(/font-semibold text-ink">\{asHeading\(b\.labelEn\)\}/);
+    expect(cfg).toMatch(/title=\{<>\{asHeading\(b\.labelEn\)\}/);
     expect(readFileSync("src/app/suppliers/[id]/page.tsx", "utf8")).toMatch(/label: `\$\{asHeading\(b\.labelEn\)\}: \$\{v\.nameEn\}`/);
     expect(readFileSync("src/app/suppliers/link-actions.ts", "utf8")).toMatch(/const reqLabel = `\$\{asHeading\(req\.bodyLabelSnapshot\)\}/);
   });

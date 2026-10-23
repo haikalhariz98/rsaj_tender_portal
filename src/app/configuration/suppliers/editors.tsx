@@ -19,7 +19,7 @@ const PROVENANCE_OPTIONS: Option[] = [
   { value: "OBSERVED", label: "Observed: seen in practice" },
   { value: "ASSUMED", label: "Assumed: a working default, needs sign-off" },
 ];
-const provenance = (name: string, label = "Where this came from", required = false): Field => ({ kind: "select", name, label, required, placeholder: required ? "Choose" : "Not set", options: PROVENANCE_OPTIONS });
+const provenance = (name: string, label = "Basis", required = false): Field => ({ kind: "select", name, label, required, placeholder: required ? "Choose" : "Not set", options: PROVENANCE_OPTIONS });
 const KIND_OPTIONS: Option[] = REGISTRATION_VALUE_KINDS.map((k) => ({ value: k, label: VALUE_KIND_LABEL[k].en }));
 const three = (yes: string, no: string, unset: string): Option[] => [
   { value: "yes", label: yes },
@@ -40,13 +40,12 @@ export function ValueDrawer({ bodyId, bodyName, categories, value }: { bodyId: s
         hidden("bodyId"),
         ...(value ? [hidden("kind"), hidden("code")] : [{ kind: "select", name: "kind", label: "Kind of value", required: true, placeholder: "Choose", options: KIND_OPTIONS } as Field, { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "As the body publishes it. Cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
-        { kind: "hidden", name: "nameMs" },
         { kind: "select", name: "parentCode", label: "Under the category", placeholder: "None", options: categories, hint: "A specialisation only." },
         { kind: "number", name: "rank", label: "Rank", min: 1, hint: "Grade only. Ranks are unique per body." },
         { kind: "money", name: "valueCeiling", label: "Value ceiling", hint: "Grade only, as the body publishes it." },
         provenance("ceilingProvenance", "Where the ceiling comes from"),
         { kind: "text", name: "governingSource", label: "Source", hint: "The list it is taken from." },
-        provenance("provenance", "Where it comes from", true),
+        provenance("provenance", "Basis", true),
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
       values={{ bodyId, ...(value?.values ?? {}) }}
@@ -73,18 +72,16 @@ export function DocumentTypeDrawer({ bodies, type }: { bodies: Option[]; type?: 
         hidden("id"),
         ...(type ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
-        { kind: "hidden", name: "nameMs" },
         { kind: "select", name: "bodyId", label: "Registration body", placeholder: "None", options: bodies, hint: "The body whose values it records." },
         { kind: "tokens", name: "valueKinds", label: "Values it records", options: KIND_OPTIONS, hint: "Only of the body named." },
         { kind: "select", name: "expires", label: "Whether it expires", placeholder: "Not set", options: three("Carries an expiry", "Does not expire", "Not set: none can be lodged") },
         { kind: "select", name: "mandatoryAtRegistration", label: "Mandatory for every registration", placeholder: "Not set", options: three("Mandatory", "Not mandatory", "Not set: no application can be decided") },
         { kind: "select", name: "notApplicableAllowed", label: "May be recorded as not applicable", placeholder: "Not set", options: three("Yes", "No", "Not set: none is recorded so") },
         { kind: "text", name: "hintEn", label: "What the applicant is told it is", hint: "Shown beside the upload, e.g. the form's name." },
-        { kind: "hidden", name: "hintMs" },
         { kind: "select", name: "recordsRate", label: "Whether it records a rate", placeholder: "Not set", options: three("Records a rate (such as a tax rate)", "Records no rate", "Not set: no rate is asked") },
         { kind: "select", name: "repeatable", label: "Whether several may be lodged", placeholder: "Not set", options: three("Several, each with a title", "One only", "Not set: one only") },
         { kind: "text", name: "governingSource", label: "Source" },
-        provenance("provenance", "Where it comes from", true),
+        provenance("provenance", "Basis", true),
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
       values={type?.values ?? {}}
@@ -112,10 +109,9 @@ export function ListValueDrawer({ list, listName, value }: { list: string; listN
         hidden("list"),
         ...(value ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
-        { kind: "hidden", name: "nameMs" },
         // A dial code belongs to a country: shown before the mobile number on the public form. Not set: no prefix is shown and a number is taken as typed.
         ...(list === "COUNTRY" ? [{ kind: "text", name: "callingCode", label: "Dial code", mono: true, hint: "A plus sign and up to 6 digits." } as Field] : []),
-        provenance("provenance", "Where it comes from", true),
+        provenance("provenance", "Basis", true),
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
       values={{ list, ...(value?.values ?? {}) }}
@@ -138,7 +134,6 @@ export function EditSupplierPolicy({ values }: { values: Record<string, string> 
       description="What the supplier is told about document checks. Not set if undecided."
       fields={[
         { kind: "textarea", name: "verificationNoticeEn", label: "Verification notice" },
-        { kind: "hidden", name: "verificationNoticeMs" },
         provenance("noticeProvenance", "Where the notice comes from"),
         {
           kind: "select",
@@ -157,7 +152,7 @@ export function EditSupplierPolicy({ values }: { values: Record<string, string> 
       values={values}
       reason={{ label: "Why the policy changes" }}
       action={saveSupplierPolicy}
-      trigger={{ label: "Edit the policy", className: buttonClass("primary", "sm") }}
+      trigger={{ label: "Edit", className: ghost, ariaLabel: "Edit the verification notice and contact rule" }}
     />
   );
 }
@@ -186,7 +181,7 @@ export function EditRegistrationSettings({ values, classes }: { values: Record<s
       values={values}
       reason={{ label: "Why this changes" }}
       action={saveRegistrationSettings}
-      trigger={{ label: "Edit registration online", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Edit", className: ghost, ariaLabel: "Edit help contact and uploads" }}
       size="lg"
     />
   );
@@ -207,9 +202,8 @@ export function DeclarationTextDrawer({ text }: { text?: { id: string; name: str
         hidden("id"),
         ...(text ? [hidden("kind")] : [{ kind: "select", name: "kind", label: "Which declaration", required: true, placeholder: "Choose", options: DECLARATION_OPTIONS } as Field]),
         { kind: "textarea", name: "bodyEn", label: "Wording", required: true },
-        { kind: "hidden", name: "bodyMs" },
         { kind: "text", name: "governingSource", label: "Source", hint: "The document the wording is taken from." },
-        provenance("provenance", "Where it comes from", true),
+        provenance("provenance", "Basis", true),
       ]}
       values={text?.values ?? {}}
       reason={{ label: text ? "Why the wording changes" : "Why a new version is issued" }}
@@ -233,7 +227,6 @@ export function EditPortalIntake({ values }: { values: Record<string, string> })
       columns={2}
       fields={[
         { kind: "textarea", name: "personalDataNoticeEn", label: "Notice about personal details", hint: "Say why collected, who sees, retention, access." },
-        { kind: "hidden", name: "personalDataNoticeMs" },
         provenance("personalDataProvenance", "Where the notice comes from"),
         { kind: "number", name: "portalDailyLimit", label: "Applications taken in any 24 hours", min: 1, hint: "Once reached, the form says it is busy." },
         { kind: "number", name: "portalDailyLimitPerNumber", label: "Applications taken for one registration number in 24 hours", min: 1, hint: "Must not exceed the figure beside it." },
@@ -245,7 +238,7 @@ export function EditPortalIntake({ values }: { values: Record<string, string> })
       values={values}
       reason={{ label: "Why this changes" }}
       action={savePortalIntake}
-      trigger={{ label: "Edit online applications", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Edit", className: ghost, ariaLabel: "Edit the personal data notice and intake limits" }}
       size="lg"
     />
   );
@@ -267,9 +260,8 @@ export function StandingReasonDrawer({ reason }: { reason?: { id: string; name: 
               { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key; cannot be changed." },
             ] as Field[])),
         { kind: "text", name: "nameEn", label: "Reason", required: true },
-        { kind: "hidden", name: "nameMs" },
         { kind: "text", name: "governingSource", label: "Source", hint: "The clause or circular it comes from." },
-        provenance("provenance", "Where it comes from", true),
+        provenance("provenance", "Basis", true),
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
       values={reason?.values ?? {}}
@@ -312,7 +304,7 @@ export function EditStandingRules({ values, suspensionReasons, documentTypes }: 
       values={values}
       reason={{ label: "Why the rules change" }}
       action={saveStandingRules}
-      trigger={{ label: "Edit the standing rules", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Edit", className: ghost, ariaLabel: "Edit the expiry bands and standing rules" }}
       size="lg"
     />
   );

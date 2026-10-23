@@ -57,10 +57,9 @@ const retiredWords = (d: Date | null) => (d ? formatDate(storedDay(d)) : null);
 
 // ------------------------------------------------------------------ registration values (FR-VND-003)
 
-const valueWords = (v: { kind: string; nameEn: string; nameMs: string | null; parentCode: string | null; rank: number | null; valueCeiling: { toString(): string } | string | null; ceilingProvenance: string | null; governingSource: string; provenance: string; retiredOn?: Date | null }) => ({
+const valueWords = (v: { kind: string; nameEn: string; parentCode: string | null; rank: number | null; valueCeiling: { toString(): string } | string | null; ceilingProvenance: string | null; governingSource: string; provenance: string; retiredOn?: Date | null }) => ({
   kindOfValue: VALUE_KIND_LABEL[v.kind as RegistrationValueKind]?.en ?? null,
   name: v.nameEn,
-  nameInMalay: v.nameMs,
   underCategory: v.parentCode,
   rank: v.rank,
   valueCeiling: v.valueCeiling == null ? null : formatMoney(parseSen(v.valueCeiling.toString())),
@@ -82,13 +81,12 @@ export async function saveRegistrationValue(_prev: FormState, data: FormData): P
     kind: r.choice("kind", "Kind of value", REGISTRATION_VALUE_KINDS),
     code: r.code("code", "Code"),
     nameEn: r.text("nameEn", "Name", { required: true, max: 240 }),
-    nameMs: r.optionalText("nameMs"),
     parentCode: r.optionalText("parentCode"),
     rank: r.int("rank", "Rank", { min: 1 }),
     valueCeiling: r.money("valueCeiling", "Value ceiling"),
     ceilingProvenance: r.choice("ceilingProvenance", "Where the ceiling comes from", PROVENANCE),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE),
+    provenance: r.choice("provenance", "Basis", PROVENANCE),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
   if (r.failed) return { ok: false, errors: r.errors };
@@ -115,7 +113,7 @@ export async function saveRegistrationValue(_prev: FormState, data: FormData): P
       },
     );
     if (fs.length) return refusal(fs);
-    const row = { nameEn: v.nameEn, nameMs: v.nameMs, parentCode: v.parentCode, rank: v.rank, valueCeiling: v.valueCeiling, ceilingProvenance: v.valueCeiling ? v.ceilingProvenance : null, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder };
+    const row = { nameEn: v.nameEn, parentCode: v.parentCode, rank: v.rank, valueCeiling: v.valueCeiling, ceilingProvenance: v.valueCeiling ? v.ceilingProvenance : null, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder };
     const what = `Registration value · ${asHeading(body!.labelEn)} · ${v.nameEn}`;
     if (!before) {
       const created = await tx.registrationValue.create({ data: { organisationId: org.id, bodyId, kind: kind!, code, ...row } });
@@ -139,16 +137,14 @@ export async function setRegistrationValueRetired(_prev: FormState, data: FormDa
 
 // ------------------------------------------------------------------ document types (FR-VND-002)
 
-const typeWords = (t: { nameEn: string; nameMs: string | null; valueKinds: string[]; expires: boolean | null; mandatoryAtRegistration: boolean | null; notApplicableAllowed: boolean | null; hintEn: string | null; hintMs: string | null; recordsRate: boolean | null; repeatable: boolean | null; governingSource: string; provenance: string; retiredOn?: Date | null }, bodyName: string | null) => ({
+const typeWords = (t: { nameEn: string; valueKinds: string[]; expires: boolean | null; mandatoryAtRegistration: boolean | null; notApplicableAllowed: boolean | null; hintEn: string | null; recordsRate: boolean | null; repeatable: boolean | null; governingSource: string; provenance: string; retiredOn?: Date | null }, bodyName: string | null) => ({
   name: t.nameEn,
-  nameInMalay: t.nameMs,
   registrationBody: bodyName,
   valuesRecorded: t.valueKinds.length ? t.valueKinds.map((k) => VALUE_KIND_LABEL[k as RegistrationValueKind]?.en ?? k).join(", ") : null,
   expires: triWords(t.expires, "Carries an expiry", "Does not expire"),
   mandatoryAtRegistration: triWords(t.mandatoryAtRegistration, "Mandatory for every registration", "Not mandatory"),
   notApplicableAllowed: triWords(t.notApplicableAllowed, "May be recorded as not applicable", "May not be recorded as not applicable"),
   whatTheApplicantIsTold: t.hintEn,
-  whatTheApplicantIsToldInMalay: t.hintMs,
   recordsARate: triWords(t.recordsRate, "Records a rate", "Records no rate"),
   severalMayBeLodged: triWords(t.repeatable, "Several, each with a title", "One"),
   governingSource: t.governingSource || null,
@@ -166,17 +162,15 @@ export async function saveDocumentType(_prev: FormState, data: FormData): Promis
   const v = {
     code: r.code("code", "Code"),
     nameEn: r.text("nameEn", "Name", { required: true, max: 240 }),
-    nameMs: r.optionalText("nameMs"),
     bodyId: r.optionalText("bodyId"),
     expires: tri(r.choice("expires", "Whether it expires", TRI)),
     mandatoryAtRegistration: tri(r.choice("mandatoryAtRegistration", "Mandatory for every registration", TRI)),
     notApplicableAllowed: tri(r.choice("notApplicableAllowed", "May be not applicable", TRI)),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE),
+    provenance: r.choice("provenance", "Basis", PROVENANCE),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
     // Phase 4b: what the applicant is told the document is, whether it carries a rate, whether several may be lodged.
     hintEn: r.optionalText("hintEn"),
-    hintMs: r.optionalText("hintMs"),
     recordsRate: tri(r.choice("recordsRate", "Whether it records a rate", TRI)),
     repeatable: tri(r.choice("repeatable", "Whether several may be lodged", TRI)),
   };
@@ -198,7 +192,7 @@ export async function saveDocumentType(_prev: FormState, data: FormData): Promis
     if (before && !reason && (before.expires !== v.expires || before.mandatoryAtRegistration !== v.mandatoryAtRegistration || before.notApplicableAllowed !== v.notApplicableAllowed || before.bodyId !== v.bodyId || before.recordsRate !== v.recordsRate || before.repeatable !== v.repeatable) && (await tx.supplierDocument.count({ where: { typeId: before.id } })) > 0) {
       return { ok: false, errors: { reason: "Documents of this type are on file: say why its setting changes." } };
     }
-    const row = { nameEn: v.nameEn, nameMs: v.nameMs, bodyId: v.bodyId, valueKinds, expires: v.expires, mandatoryAtRegistration: v.mandatoryAtRegistration, notApplicableAllowed: v.notApplicableAllowed, hintEn: v.hintEn, hintMs: v.hintMs, recordsRate: v.recordsRate, repeatable: v.repeatable, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder };
+    const row = { nameEn: v.nameEn, bodyId: v.bodyId, valueKinds, expires: v.expires, mandatoryAtRegistration: v.mandatoryAtRegistration, notApplicableAllowed: v.notApplicableAllowed, hintEn: v.hintEn, recordsRate: v.recordsRate, repeatable: v.repeatable, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder };
     const bodyName = async (bid: string | null) => (bid ? ((await tx.registrationBody.findFirst({ where: { id: bid, organisationId: actor.organisationId } }))?.labelEn ?? "A body no longer configured") : null);
     if (!before) {
       const created = await tx.supplierDocumentType.create({ data: { organisationId: org.id, code, ...row } });
@@ -233,10 +227,9 @@ export async function saveListValue(_prev: FormState, data: FormData): Promise<F
     list: r.choice("list", "List", SUPPLIER_LIST_KINDS),
     code: r.code("code", "Code"),
     nameEn: r.text("nameEn", "Name", { required: true, max: 240 }),
-    nameMs: r.optionalText("nameMs"),
     // Phase 4a: the country's dial code, shown before the mobile number on the public form. Only a country has one.
     callingCode: r.optionalText("callingCode"),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE),
+    provenance: r.choice("provenance", "Basis", PROVENANCE),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
   if (r.failed) return { ok: false, errors: r.errors };
@@ -248,13 +241,13 @@ export async function saveListValue(_prev: FormState, data: FormData): Promise<F
     const code = before?.code ?? v.code;
     const fs = listValueFaults({ ...v, code }, { kindListed: !!list, list, codeTaken: !before && !!list && !!(await tx.supplierListValue.findFirst({ where: { organisationId: org.id, list, code }, select: { id: true } })) });
     if (fs.length) return refusal(fs);
-    const words = (x: { nameEn: string; nameMs: string | null; provenance: string; callingCode?: string | null }) => ({ name: x.nameEn, nameInMalay: x.nameMs, ...(list === "COUNTRY" ? { dialCode: x.callingCode ?? "Not set" } : {}), whereItComesFrom: prov(x.provenance) });
+    const words = (x: { nameEn: string; provenance: string; callingCode?: string | null }) => ({ name: x.nameEn, ...(list === "COUNTRY" ? { dialCode: x.callingCode ?? "Not set" } : {}), whereItComesFrom: prov(x.provenance) });
     const what = `${LIST_KIND_SINGULAR[list!].en} · ${v.nameEn}`;
     if (!before) {
-      const created = await tx.supplierListValue.create({ data: { organisationId: org.id, list: list!, code, nameEn: v.nameEn, nameMs: v.nameMs, callingCode: v.callingCode, provenance: v.provenance!, sortOrder: v.sortOrder } });
+      const created = await tx.supplierListValue.create({ data: { organisationId: org.id, list: list!, code, nameEn: v.nameEn, callingCode: v.callingCode, provenance: v.provenance!, sortOrder: v.sortOrder } });
       await audit(tx, toAuditActor(actor), org.id, "SupplierListValue", created.id, what, "CREATE", diffFields(null, words(created)));
     } else {
-      const after = await tx.supplierListValue.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { nameEn: v.nameEn, nameMs: v.nameMs, callingCode: v.callingCode, provenance: v.provenance!, sortOrder: v.sortOrder } });
+      const after = await tx.supplierListValue.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { nameEn: v.nameEn, callingCode: v.callingCode, provenance: v.provenance!, sortOrder: v.sortOrder } });
       await audit(tx, toAuditActor(actor), org.id, "SupplierListValue", before.id, what, "UPDATE", diffFields(words(before), words(after)), String(data.get("reason") ?? ""));
     }
     return done();
@@ -279,14 +272,13 @@ export async function saveSupplierPolicy(_prev: FormState, data: FormData): Prom
   const r = new FormReader(data);
   const v = {
     verificationNoticeEn: r.optionalText("verificationNoticeEn"),
-    verificationNoticeMs: r.optionalText("verificationNoticeMs"),
     noticeProvenance: r.choice("noticeProvenance", "Where the notice comes from", PROVENANCE),
     // Phase 4a: whether a contact must give an email AND a mobile number. Not set keeps "an email or a telephone". Tri-state: "" is not set.
     contactRule: r.choice("contactRule", "Contact rule", ["both", "either"] as const),
     contactRuleProvenance: r.choice("contactRuleProvenance", "Where the contact rule comes from", PROVENANCE),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
   };
-  if ((v.verificationNoticeEn || v.verificationNoticeMs) && !v.noticeProvenance) r.reject("noticeProvenance", "Say where the notice comes from.");
+  if (v.verificationNoticeEn && !v.noticeProvenance) r.reject("noticeProvenance", "Say where the notice comes from.");
   if (v.contactRule && !v.contactRuleProvenance) r.reject("contactRuleProvenance", "Say where the contact rule comes from.");
   if (r.failed) return { ok: false, errors: r.errors };
   return db.$transaction(async (tx): Promise<FormState> => {
@@ -296,7 +288,7 @@ export async function saveSupplierPolicy(_prev: FormState, data: FormData): Prom
     const { contactRule, ...rest } = v;
     const row = { ...rest, contactNeedsEmailAndPhone: contactRule === "both" ? true : contactRule === "either" ? false : null, contactRuleProvenance: contactRule ? v.contactRuleProvenance : null };
     const ruleWords = (b: boolean | null | undefined) => (b == null ? "Not set: an email or a telephone is enough" : b ? "An email and a mobile number" : "An email or a mobile number");
-    const words = (p: typeof row | NonNullable<typeof before> | null) => (p ? { verificationNotice: p.verificationNoticeEn ?? "Not set", verificationNoticeInMalay: p.verificationNoticeMs ?? "Not set", noticeFrom: prov(p.noticeProvenance), contactRule: ruleWords(p.contactNeedsEmailAndPhone), contactRuleFrom: prov(p.contactRuleProvenance), governingSource: p.governingSource || null } : null);
+    const words = (p: typeof row | NonNullable<typeof before> | null) => (p ? { verificationNotice: p.verificationNoticeEn ?? "Not set", noticeFrom: prov(p.noticeProvenance), contactRule: ruleWords(p.contactNeedsEmailAndPhone), contactRuleFrom: prov(p.contactRuleProvenance), governingSource: p.governingSource || null } : null);
     if (!before) {
       const created = await tx.supplierPolicy.create({ data: { organisationId: org.id, ...row } });
       await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", created.id, "Supplier register · policy", "CREATE", diffFields(null, words(row)!), String(data.get("reason") ?? ""));
@@ -320,7 +312,6 @@ export async function savePortalIntake(_prev: FormState, data: FormData): Promis
   const r = new FormReader(data);
   const v = {
     personalDataNoticeEn: r.optionalText("personalDataNoticeEn"),
-    personalDataNoticeMs: r.optionalText("personalDataNoticeMs"),
     personalDataProvenance: r.choice("personalDataProvenance", "Where the notice comes from", PROVENANCE),
     portalDailyLimit: r.int("portalDailyLimit", "Applications taken in any 24 hours", { min: 1 }),
     portalDailyLimitPerNumber: r.int("portalDailyLimitPerNumber", "Applications taken for one registration number in 24 hours", { min: 1 }),
@@ -334,7 +325,7 @@ export async function savePortalIntake(_prev: FormState, data: FormData): Promis
   if ((v.portalAddressAttempts != null || v.portalAddressMinutes != null) && !v.portalAddressProvenance) r.reject("portalAddressProvenance", "Say where the address limit comes from.");
   if (v.portalAddressAttempts != null && v.portalAddressAttempts > ADDRESS_LIMIT_BOUNDS.attempts.max) r.reject("portalAddressAttempts", `Use a whole number from 1 to ${ADDRESS_LIMIT_BOUNDS.attempts.max.toLocaleString("en-GB")}.`);
   if (v.portalAddressMinutes != null && v.portalAddressMinutes > ADDRESS_LIMIT_BOUNDS.minutes.max) r.reject("portalAddressMinutes", `Use a whole number from 1 to ${ADDRESS_LIMIT_BOUNDS.minutes.max.toLocaleString("en-GB")}.`);
-  if ((v.personalDataNoticeEn || v.personalDataNoticeMs) && !v.personalDataProvenance) r.reject("personalDataProvenance", "Say where the notice comes from.");
+  if (v.personalDataNoticeEn && !v.personalDataProvenance) r.reject("personalDataProvenance", "Say where the notice comes from.");
   if ((v.portalDailyLimit != null || v.portalDailyLimitPerNumber != null) && !v.portalLimitProvenance) r.reject("portalLimitProvenance", "Say where the limits come from.");
   if ((v.portalDailyLimit == null) !== (v.portalDailyLimitPerNumber == null)) r.reject(v.portalDailyLimit == null ? "portalDailyLimit" : "portalDailyLimitPerNumber", "Set both limits, or neither.");
   for (const f of ["portalDailyLimit", "portalDailyLimitPerNumber"] as const) if (v[f] != null && !validLimit(v[f]!)) r.reject(f, "Use a whole number from 1 to 100,000.");
@@ -347,7 +338,6 @@ export async function savePortalIntake(_prev: FormState, data: FormData): Promis
       p
         ? {
             personalDataNotice: p.personalDataNoticeEn ?? "Not set",
-            personalDataNoticeInMalay: p.personalDataNoticeMs ?? "Not set",
             noticeFrom: prov(p.personalDataProvenance),
             applicationsPerDay: p.portalDailyLimit ?? "Not set",
             applicationsPerNumberPerDay: p.portalDailyLimitPerNumber ?? "Not set",
@@ -442,7 +432,7 @@ export async function saveRegistrationSettings(_prev: FormState, data: FormData)
 }
 
 /**
- * A declaration's wording (FR-VND-005, FR-VND-006): the customer's, in English and Malay, versioned. A new wording is a new version, in force from the organisation's day it is saved and
+ * A declaration's wording (FR-VND-005, FR-VND-006): the customer's, versioned. A new wording is a new version, in force from the organisation's day it is saved and
  * superseding the one before it; a supplier mid-way is asked to read the new one again, because a signature names the wording it was shown. A version some supplier has signed is never edited in
  * place: its wording is what they signed. A version nobody has signed may be corrected, with the reason.
  */
@@ -455,7 +445,6 @@ export async function saveDeclarationText(_prev: FormState, data: FormData): Pro
   const v = {
     kind: r.choice("kind", "Which declaration", DECLARATION_KINDS),
     bodyEn: r.text("bodyEn", "Wording", { required: true, max: 8000 }),
-    bodyMs: r.optionalText("bodyMs"),
     provenance: r.choice("provenance", "Where the wording comes from", PROVENANCE),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
   };
@@ -465,11 +454,10 @@ export async function saveDeclarationText(_prev: FormState, data: FormData): Pro
   if (errors.length) return { ok: false, errors: Object.fromEntries(errors.map((e) => [e.field, e.message])) };
   const today = todayIn(new Date(), org.timeZone);
   if (!today) return NO_ZONE;
-  const words = (t: { kind: string; version: number; bodyEn: string; bodyMs: string | null; provenance: string; governingSource: string }) => ({
+  const words = (t: { kind: string; version: number; bodyEn: string; provenance: string; governingSource: string }) => ({
     declaration: DECLARATION_KIND_WORDS[t.kind as DeclarationKindName] ?? t.kind,
     version: t.version,
     wording: t.bodyEn,
-    wordingInMalay: t.bodyMs ?? "Not set",
     whereItComesFrom: prov(t.provenance),
     governingSource: t.governingSource || null,
   });
@@ -483,12 +471,12 @@ export async function saveDeclarationText(_prev: FormState, data: FormData): Pro
     if (before) {
       if (before._count.signed > 0) return { ok: false, message: `Version ${before.version} has been signed by ${before._count.signed} ${before._count.signed === 1 ? "supplier" : "suppliers"}, so its wording cannot change. Add a new version instead.` };
       if (!reason) return { ok: false, errors: { reason: "Say why the wording changes." } };
-      const after = await tx.declarationText.update({ where: { id: before.id, organisationId: org.id }, data: { bodyEn: v.bodyEn, bodyMs: v.bodyMs, provenance: v.provenance!, governingSource: v.governingSource } });
+      const after = await tx.declarationText.update({ where: { id: before.id, organisationId: org.id }, data: { bodyEn: v.bodyEn, provenance: v.provenance!, governingSource: v.governingSource } });
       await audit(tx, toAuditActor(actor), org.id, "DeclarationText", before.id, `${DECLARATION_KIND_WORDS[before.kind as DeclarationKindName]} · version ${before.version}`, "UPDATE", diffFields(words(before), words(after)), reason);
       return done();
     }
     const latest = await tx.declarationText.aggregate({ where: { organisationId: org.id, kind: v.kind! }, _max: { version: true } });
-    const created = await tx.declarationText.create({ data: { organisationId: org.id, kind: v.kind!, version: (latest._max.version ?? 0) + 1, bodyEn: v.bodyEn, bodyMs: v.bodyMs, provenance: v.provenance!, governingSource: v.governingSource, issuedOn: dayToDate(today) } });
+    const created = await tx.declarationText.create({ data: { organisationId: org.id, kind: v.kind!, version: (latest._max.version ?? 0) + 1, bodyEn: v.bodyEn, provenance: v.provenance!, governingSource: v.governingSource, issuedOn: dayToDate(today) } });
     await audit(tx, toAuditActor(actor), org.id, "DeclarationText", created.id, `${DECLARATION_KIND_WORDS[v.kind!]} · version ${created.version}`, "CREATE", diffFields(null, { ...words(created), inForceFrom: formatDate(today) }), reason);
     return done();
   });
@@ -538,9 +526,8 @@ export async function saveStandingReason(_prev: FormState, data: FormData): Prom
     appliesTo: r.choice("appliesTo", "Given for", ["SUSPEND", "BLACKLIST"] as const, { required: !id }),
     code: r.code("code", "Code"),
     nameEn: r.text("nameEn", "Reason", { required: true, max: 400 }),
-    nameMs: r.text("nameMs", "Reason (Malay)", { max: 400 }),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
-    provenance: r.choice("provenance", "Where it comes from", PROVENANCE, { required: true }),
+    provenance: r.choice("provenance", "Basis", PROVENANCE, { required: true }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
   if (r.failed) return { ok: false, errors: r.errors };
@@ -551,13 +538,13 @@ export async function saveStandingReason(_prev: FormState, data: FormData): Prom
     const code = before?.code ?? v.code;
     if (!code) return { ok: false, errors: { code: supplierFaultText({ code: "CODE_REQUIRED", level: "block" }) } };
     if (!before && (await tx.standingReason.findFirst({ where: { organisationId: org.id, code }, select: { id: true } }))) return { ok: false, errors: { code: supplierFaultText({ code: "CODE_TAKEN", level: "block" }) } };
-    const words = (x: { appliesTo: string; nameEn: string; nameMs: string; governingSource: string; provenance: string }) => ({ givenFor: x.appliesTo === "SUSPEND" ? "Suspension" : "Blacklisting", reason: x.nameEn, reasonInMalay: x.nameMs || null, governingSource: x.governingSource || null, whereItComesFrom: prov(x.provenance) });
+    const words = (x: { appliesTo: string; nameEn: string; governingSource: string; provenance: string }) => ({ givenFor: x.appliesTo === "SUSPEND" ? "Suspension" : "Blacklisting", reason: x.nameEn, governingSource: x.governingSource || null, whereItComesFrom: prov(x.provenance) });
     if (!before) {
-      const created = await tx.standingReason.create({ data: { organisationId: org.id, code, appliesTo: v.appliesTo!, nameEn: v.nameEn, nameMs: v.nameMs, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder } });
+      const created = await tx.standingReason.create({ data: { organisationId: org.id, code, appliesTo: v.appliesTo!, nameEn: v.nameEn, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder } });
       await audit(tx, toAuditActor(actor), org.id, "StandingReason", created.id, `Standing reason · ${v.nameEn}`, "CREATE", diffFields(null, words(created)));
     } else {
       // Its use (suspension or blacklisting) is fixed once made: events recorded under it say which.
-      const after = await tx.standingReason.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { nameEn: v.nameEn, nameMs: v.nameMs, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder } });
+      const after = await tx.standingReason.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { nameEn: v.nameEn, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder } });
       await audit(tx, toAuditActor(actor), org.id, "StandingReason", before.id, `Standing reason · ${v.nameEn}`, "UPDATE", diffFields(words(before), words(after)), String(data.get("reason") ?? ""));
     }
     return done();
@@ -602,7 +589,7 @@ export async function saveStandingRules(_prev: FormState, data: FormData): Promi
     ineligibleBidConsequence: (() => { const c = r.choice("ineligibleBidConsequence", "A bidder found not eligible at the opening", ["ELIMINATE", "REPORT", "unset"] as const); return c === "unset" ? null : c; })(),
     ineligibleProvenance: r.choice("ineligibleProvenance", "Where that comes from", PROVENANCE),
   };
-  const need = (set: boolean, field: string) => { if (set && !(v as Record<string, unknown>)[field]) r.reject(field, "Say where it comes from."); };
+  const need = (set: boolean, field: string) => { if (set && !(v as Record<string, unknown>)[field]) r.reject(field, "Choose the basis."); };
   need(v.criticalDays != null || v.warningDays != null || v.upcomingDays != null, "bandsProvenance");
   need(v.expiryOnClosingDayCounts != null, "closingDayProvenance");
   need(v.autoSuspendOnLapse != null, "lapseProvenance");

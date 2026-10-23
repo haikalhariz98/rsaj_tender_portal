@@ -72,7 +72,7 @@ export function registrationSettingErrors(v: RegistrationSettingsInput, ctx: { c
 export interface DeclarationTextInput {
   kind: string | null;
   bodyEn: string;
-  bodyMs: string | null;
+  bodyMs?: string | null;
   provenance: string | null;
 }
 

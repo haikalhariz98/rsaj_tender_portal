@@ -78,7 +78,7 @@ describe("the registration's settings", () => {
 });
 
 describe("the declarations' wording", () => {
-  const text = (over: Record<string, string> = {}) => form({ kind: "GIRO_AUTHORISATION", bodyEn: "We authorise {organisation} to pay.", bodyMs: "Kami membenarkan {organisation} membayar.", provenance: "ASSUMED", governingSource: "A demonstration wording", ...over });
+  const text = (over: Record<string, string> = {}) => form({ kind: "GIRO_AUTHORISATION", bodyEn: "We authorise {organisation} to pay.", provenance: "ASSUMED", governingSource: "A demonstration wording", ...over });
 
   it("a wording needs its kind, its words and where it comes from", async () => {
     expect(await saveDeclarationText({ ok: true }, text({ bodyEn: " " }))).toMatchObject({ ok: false });
@@ -120,19 +120,20 @@ describe("the declarations' wording", () => {
   });
 });
 
-// Founder, 2026-10-20: the notice is English only. The editor no longer asks for the Malay one, and a save posts the stored Malay through unchanged.
+// Founder, 2026-10-20: the notice is English only. The editor and the save no longer touch the Malay one; a stored value stays as it is.
 describe("the personal data notice is English only", () => {
   const intake = (over: Record<string, string> = {}) =>
-    form({ personalDataNoticeEn: "We use your details to review this application.", personalDataNoticeMs: "", personalDataProvenance: "ASSUMED", portalDailyLimit: "50", portalDailyLimitPerNumber: "3", portalLimitProvenance: "ASSUMED", ...over });
+    form({ personalDataNoticeEn: "We use your details to review this application.", personalDataProvenance: "ASSUMED", portalDailyLimit: "50", portalDailyLimitPerNumber: "3", portalLimitProvenance: "ASSUMED", ...over });
 
   it("saves with the English notice alone", async () => {
     expect((await savePortalIntake({ ok: true }, intake())).ok).toBe(true);
     expect(await policy()).toMatchObject({ personalDataNoticeEn: "We use your details to review this application.", personalDataNoticeMs: null });
   });
 
-  it("keeps a stored Malay notice when the hidden field carries it", async () => {
-    expect((await savePortalIntake({ ok: true }, intake({ personalDataNoticeMs: "Notis yang disimpan." }))).ok).toBe(true);
-    expect((await savePortalIntake({ ok: true }, intake({ personalDataNoticeEn: "A revised English notice.", personalDataNoticeMs: "Notis yang disimpan." }))).ok).toBe(true);
+  it("leaves a stored Malay notice as it is", async () => {
+    expect((await savePortalIntake({ ok: true }, intake())).ok).toBe(true);
+    await db.supplierPolicy.update({ where: { organisationId }, data: { personalDataNoticeMs: "Notis yang disimpan." } });
+    expect((await savePortalIntake({ ok: true }, intake({ personalDataNoticeEn: "A revised English notice." }))).ok).toBe(true);
     expect(await policy()).toMatchObject({ personalDataNoticeEn: "A revised English notice.", personalDataNoticeMs: "Notis yang disimpan." });
   });
 });

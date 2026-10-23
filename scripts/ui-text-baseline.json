@@ -4,8 +4,6 @@
  "src/app/configuration/awards/editors.tsx|banned-word": 1,
  "src/app/configuration/changes/page.tsx|banned-word": 4,
  "src/app/configuration/security/page.tsx|banned-word": 2,
- "src/app/configuration/suppliers/core.ts|banned-word": 5,
- "src/app/configuration/suppliers/editors.tsx|banned-word": 5,
  "src/app/projects/[id]/page.tsx|banned-word": 2,
  "src/app/projects/[id]/payment-editors.tsx|banned-word": 1,
  "src/app/projects/[id]/payment-panels.tsx|banned-word": 1,
