@@ -1284,6 +1284,7 @@ model CommitteeDecision {
   recusals DecisionRecusal[]
 
   @@index([meetingId])
+  @@index([outcome])
   @@index([requisitionId])
   @@index([exerciseId])
   @@index([requisitionGateId])
@@ -2940,6 +2941,7 @@ model ApprovalInstance {
   negotiationMeetings EvaluationMeeting[] @relation("NegotiationMeetingRoute")
 
   @@index([organisationId, matterKind])
+  @@index([organisationId, status])
   @@index([requisitionId])
   @@index([exerciseId])
   @@index([awardId])
@@ -12995,9 +12997,14 @@ model SulitAccessEvent {
 
   at DateTime @default(now())
 
+  /// Set only on a list read, to the day: a list shows the same records again and again, so a partial unique index (in the migration) keeps one row for each person, record, kind and day.
+  /// Null on every other read, which is logged every time.
+  listDay DateTime? @db.Date
+
   @@index([organisationId, at])
   @@index([entity, entityId])
   @@index([actorPersonId, at])
+  
 }
 
 /// Who a person reports to (FR-APR-010, FR-APR-011), for a period. Configuration per organisation, and it ships EMPTY: the sources name no reporting
@@ -13065,6 +13072,7 @@ model StaffNotice {
 
   @@unique([organisationId, recipientPersonId, kind, subjectEntity, subjectId, occurrence])
   @@index([recipientPersonId, readAt, raisedAt])
+  @@index([recipientPersonId, raisedAt])
   @@index([organisationId, subjectEntity, subjectId])
 }
 
