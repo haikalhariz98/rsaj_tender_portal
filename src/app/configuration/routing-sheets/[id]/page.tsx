@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { HistoryButton } from "@/components/history-drawer";
@@ -51,7 +50,6 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
     <>
       <RecordCrumb label={t.labelEn} />
       <PageHeader
-        eyebrow={<Link href="/configuration/routing-sheets">Routing sheets</Link>}
         title={t.labelEn}
         badge={retired ? <Badge tone="warn" dot>{org.today && retired > org.today ? `Retires ${formatDate(retired)}` : `Retired ${formatDate(retired)}`}</Badge> : undefined}
         meta={[t.subject === "CERTIFICATE" ? (t.certificateKind ? KIND_WORDS[t.certificateKind].en : "Any certificate") : SUBJECT_WORDS[t.subject].en, t.template?.nameEn ?? "No printed sheet chosen"]}

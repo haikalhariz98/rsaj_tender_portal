@@ -27,7 +27,7 @@ export function StatusCounts({ items, label, className }: { items: StatusCount[]
           href={i.href}
           aria-current={i.active ? "true" : undefined}
           className={cx(
-            "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-[13px] font-medium no-underline transition hover:no-underline",
+            "inline-flex h-8 items-center gap-2 whitespace-nowrap rounded-full border px-3 text-[13px] font-medium no-underline transition hover:no-underline",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500",
             i.active ? "border-brand-300 bg-brand-50 text-brand-800" : "border-line-2 bg-surface text-ink-2 hover:bg-sunken hover:text-ink",
           )}

@@ -10,6 +10,8 @@ import { acknowledgeResetAction } from "../account/actions";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Welcome" };
+
 /**
  * The first page after signing in. It says what a person most needs to know on arrival, before the work: that their password was reset, or must be
  * changed, and when and from where this account last signed in (ruling O-2), so that a password in the wrong hands is noticed. Then on to the dashboard.

@@ -36,7 +36,7 @@ function StandingLine({ tone, headline, detail }: { tone: string; headline: stri
   );
 }
 
-const NOT_EMAILED = "Shown here, not emailed";
+const NOT_EMAILED = "Shown here only";
 
 export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
   const o = await overviewTab(db, actor, ctx);

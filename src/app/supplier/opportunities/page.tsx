@@ -31,6 +31,8 @@ export const dynamic = "force-dynamic";
 /// Open first, soonest closing at the top; then the closed, most recent first; then the cancelled.
 const GROUP: Record<OpportunityState, number> = { OPEN: 0, CLOSED: 1, CANCELLED: 2, AWARDED: 3 };
 
+export const metadata = { title: "Opportunities" };
+
 /**
  * The public board of advertised opportunities. No sign-in. Everything on it passed the public
  * rule (`isPublicOpportunity`) and was reduced to plain strings on the server (`toPublicOpportunity`).

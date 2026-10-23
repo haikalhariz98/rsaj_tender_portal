@@ -22,6 +22,8 @@ import { PayControls } from "./pay-controls";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Pay for the documents" };
+
 /**
  * Paying for the documents bought online (SR-10, ruling 17 as amended). Where the organisation has switched the payment simulator on, the buyer chooses one of the methods it offers and is taken to a
  * simulated provider's page, which says in its first line that it is simulated, and chooses "Pay successfully" or "Payment fails". Where the simulator is not switched on it says so, in the organisation's own
@@ -39,7 +41,7 @@ export default async function PayPage({ params, searchParams }: { params: Promis
   const head = (title: string, badge?: { text: string; tone: "ok" | "warn" | "neutral" }) => (
     <>
       <RecordCrumb label={ctx.ex.reference} />
-      <PageHeader eyebrow={<Link href={back}>Back to the documents</Link>} title={title} badge={badge ? <Badge tone={badge.tone}>{badge.text}</Badge> : undefined} subtitle={`${ctx.ex.reference} · ${ctx.ex.title}`} />
+      <PageHeader title={title} badge={badge ? <Badge tone={badge.tone}>{badge.text}</Badge> : undefined} subtitle={`${ctx.ex.reference} · ${ctx.ex.title}`} />
     </>
   );
 

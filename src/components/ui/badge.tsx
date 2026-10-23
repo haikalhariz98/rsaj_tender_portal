@@ -75,11 +75,11 @@ export function Dot({ tone = "neutral", className }: { tone?: Tone; className?: 
 export function Chip({
   tone = "neutral",
   icon,
-  wrap = true,
+  wrap = false,
   className,
   children,
   ...props
-}: HTMLAttributes<HTMLSpanElement> & { tone?: Tone; icon?: ReactNode; wrap?: boolean }) {
+}: HTMLAttributes<HTMLSpanElement> & { tone?: Tone; icon?: ReactNode; /** One line, cut with an ellipsis (pass `title` for the full text); `wrap` lets a chip run to two lines. */ wrap?: boolean }) {
   const ring: Record<Tone, string> = {
     neutral: "border-line-2 bg-surface text-ink-2",
     brand: "border-brand-200 bg-brand-50 text-brand-800",
@@ -92,7 +92,7 @@ export function Chip({
     <span
       className={cx(
         "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[12.5px] font-medium",
-        !wrap && "whitespace-nowrap",
+        !wrap && "max-w-[24rem] whitespace-nowrap",
         ring[tone],
         className,
       )}

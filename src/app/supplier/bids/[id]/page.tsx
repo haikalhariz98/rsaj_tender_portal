@@ -22,6 +22,8 @@ import { AddendaPanel, BriefingsPanel, DocumentsPanel, OutcomePanel, OverviewPan
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Your bid" };
+
 /**
  * One exercise as the signed-in supplier takes part in it (Phase 4d): where it stands, the briefings and site visits to sign up for, the addenda to acknowledge, the documents to ask for and inspect, and the
  * outcome. The supplier is the SESSION's; the id in the address is an exercise's, and the page answers "not found" for one that does not exist, is another organisation's, is confidential and not linked to this
@@ -53,7 +55,6 @@ export default async function BidExercisePage({ params, searchParams }: { params
     <>
       <RecordCrumb label={ctx.ex.reference} />
       <PageHeader
-        eyebrow={<Link href="/supplier/bids">My Bids</Link>}
         title={ctx.ex.title}
         badge={<Badge tone={state.tone ?? "neutral"}>{state.label.en}</Badge>}
         subtitle={`${ctx.ex.reference} · ${actor.supplierName}`}

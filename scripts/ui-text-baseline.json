@@ -2,13 +2,5 @@
  "src/app/projects/[id]/page.tsx|banned-word": 2,
  "src/app/projects/[id]/payment-editors.tsx|banned-word": 1,
  "src/app/projects/[id]/payment-panels.tsx|banned-word": 1,
- "src/app/projects/new/page.tsx|banned-word": 1,
- "src/app/supplier/activate/page.tsx|banned-word": 1,
- "src/app/supplier/announcements/page.tsx|banned-word": 1,
- "src/app/supplier/bids/[id]/panels.tsx|banned-word": 1,
- "src/app/supplier/bids/panels.tsx|banned-word": 1,
- "src/app/supplier/company/bank-drawer.tsx|banned-word": 1,
- "src/app/supplier/company/panels.tsx|banned-word": 2,
- "src/app/supplier/company/replace-drawer.tsx|banned-word": 1,
- "src/app/supplier/registration/page.tsx|banned-word": 1
+ "src/app/projects/new/page.tsx|banned-word": 1
 }

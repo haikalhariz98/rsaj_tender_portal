@@ -27,6 +27,8 @@ const COLUMNS: Column[] = [
   { key: "this", label: "", width: "120px", mobile: "meta" },
 ];
 
+export const metadata = { title: "Your account" };
+
 export default async function AccountPage() {
   const actor = await requireStaff();
   const view = await loadAccountView(actor);

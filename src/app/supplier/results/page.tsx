@@ -9,6 +9,8 @@ import { loadPublicShell } from "@/lib/portal/deployment";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Results" };
+
 /**
  * The public results: advertised exercises that were awarded, and when. No sign-in. No award party and
  * no figure (founder, 2026-10-20; ruling R3): rows come from `toPublicResult`, whose read selects

@@ -19,6 +19,8 @@ import { CrossSiteRefusal } from "../cross-site-refusal";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Your copy of the documents" };
+
 /**
  * The tender documents released to a supplier online (Phase 4d, FR-VND-012). Shown only when the organisation has set that documents are released online, a sale to this supplier stands, an officer has recorded
  * its payment receipt, and the window is between publication and the closing; only in the approved, frozen form. Opening it is logged before it is shown. Otherwise the reason is said in words.
@@ -37,7 +39,7 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
     return (
       <>
         <RecordCrumb label={r.ctx!.ex.reference} />
-        <PageHeader eyebrow={<Link href={back}>Back to the documents</Link>} title="Your copy of the documents" subtitle={`${r.ctx!.ex.reference} · ${r.ctx!.ex.title}`} />
+        <PageHeader title="Your copy of the documents" subtitle={`${r.ctx!.ex.reference} · ${r.ctx!.ex.title}`} />
         <Card>
           <EmptyState title={r.headline} action={<div className="flex flex-col items-center gap-3"><p className="text-[13.5px] text-ink-2">{r.detail}</p><ButtonLink href={back} variant="secondary" size="sm">Back to the documents</ButtonLink></div>} />
         </Card>

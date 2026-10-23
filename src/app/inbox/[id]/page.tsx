@@ -15,6 +15,8 @@ import { ConfirmBackdating } from "./editors";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Confirm a back-dated signature" };
+
 /**
  * A back-dated signature that names you as authorising it (NFR-AUD-006, ruling item 9, Phase 5a). The signer dated the act earlier than the day they recorded it and named you as
  * the one who authorised that; until you confirm it, in a signature of your own, every screen reads it as the signer's claim, not confirmed. Only the person named reads this

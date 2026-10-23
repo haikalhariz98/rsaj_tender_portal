@@ -55,7 +55,7 @@ export default async function SupplierAnnouncementsPage({ searchParams }: { sear
   );
   return (
     <>
-      <PageHeader title="Announcements" subtitle="Shown here, not emailed" meta={[actor.supplierName, actor.displayName]} />
+      <PageHeader title="Announcements" subtitle="Shown here only" meta={[actor.supplierName, actor.displayName]} />
       {items.length === 0 ? (
         <Card>
           <EmptyState title="Nothing announced" icon={<BellIcon size={22} />} />

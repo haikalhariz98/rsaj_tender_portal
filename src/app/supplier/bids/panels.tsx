@@ -85,7 +85,7 @@ export async function NoticesPanel({ actor }: { actor: SupplierActor }) {
   }));
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<InboxIcon size={17} />} title="Notices" subtitle="Shown here, not emailed" divided={false} />
+      <CardHeader icon={<InboxIcon size={17} />} title="Notices" subtitle="Shown here only" divided={false} />
       {toAck > 0 && (
         <div className="px-5 pb-4 sm:px-6">
           <Callout tone="warn" title={toAck === 1 ? "1 addendum to acknowledge" : `${toAck} addenda to acknowledge`} />

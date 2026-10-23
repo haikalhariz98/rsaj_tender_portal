@@ -9,7 +9,7 @@ import { APPROVES_ALONE, chainChoiceLabel, coreLevelFaultText, issueRefusal, ori
 import { coreChainFaultsAcross, coreLevelFaults } from "@/lib/authority/core-routing";
 import { actLabel } from "@/components/ui/act";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
-import { actWithCode, condLabel, matterLabel, methodLabel } from "@/lib/labels";
+import { condLabel, matterLabel, methodLabel } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
 import { loadReferenceData } from "@/lib/reference/load";
 import { activeOn } from "@/lib/reference/vocabulary";
@@ -485,7 +485,7 @@ export default async function ApprovalMatrixPage({
                             {editable && (ruleRows[rule.ruleKey]?.recommenders.length ?? 0) > 0 && (
                               <div className="mt-1.5 flex flex-wrap gap-1">
                                 {ruleRows[rule.ruleKey]!.recommenders.map((step) => {
-                                  const text = `${roleName(step.roleCode)} · ${actWithCode(step.act)}`;
+                                  const text = `${roleName(step.roleCode)} · ${actLabel(step.act)}`;
                                   return (
                                     <span key={step.id} className="inline-flex max-w-full items-center gap-1 rounded-full bg-ink/[0.05] py-0.5 pr-0.5 pl-2.5 text-[12px] text-ink-2">
                                       <span className="truncate" title={text}>{text}</span>
@@ -503,7 +503,7 @@ export default async function ApprovalMatrixPage({
                                 {rule.committeeAct && (
                                   <span className="inline-flex items-start gap-1.5 text-[12px] text-ink-2">
                                     <ActBadge act={rule.committeeAct} />
-                                    <span className="pt-0.5 leading-tight">{actWithCode(rule.committeeAct)}</span>
+                                    <span className="pt-0.5 leading-tight">{actLabel(rule.committeeAct)}</span>
                                   </span>
                                 )}
                               </div>

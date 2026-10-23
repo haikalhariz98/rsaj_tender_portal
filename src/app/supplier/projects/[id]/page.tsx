@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CalendarIcon, CheckIcon, ClipboardIcon, FileIcon, InboxIcon, WalletIcon } from "@/components/icons";
@@ -17,6 +16,8 @@ import { requireSupplier } from "../../../_auth/supplier";
 import { CertificatesPanel, DiaryPanel, OverviewPanel, PaymentsPanel, ProgrammePanel, SubmissionsPanel } from "./panels";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = { title: "Your contract" };
 
 /**
  * One contract as the signed-in contractor holds it (Phase 4e): where it stands, the programme and progress, the site diary to attest, the certificates certified against what was paid, the
@@ -47,7 +48,6 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     <>
       <RecordCrumb label={`Contract ${ctx.contract.number}`} />
       <PageHeader
-        eyebrow={<Link href="/supplier/projects">My Projects</Link>}
         title={ctx.contract.title}
         badge={<Badge tone={ctx.contract.status === "ACTIVE" ? "ok" : ctx.contract.status === "CANCELLED" || ctx.contract.status === "TERMINATED" ? "err" : "neutral"}>{status}</Badge>}
         subtitle={`Contract ${ctx.contract.number} · ${ctx.contract.reference} · ${actor.supplierName}`}

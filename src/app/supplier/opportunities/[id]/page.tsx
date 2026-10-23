@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CalendarIcon, ClipboardIcon, FileIcon, ShieldIcon, WalletIcon } from "@/components/icons";
@@ -12,7 +11,6 @@ import {
   DETAIL,
   METHOD_NOT_STATED,
   OPPORTUNITY_STATE,
-  PORTAL_PATH,
   SALE_STATE,
   SITE_EVENT_KIND_WORDS,
   STATE_BANNER,
@@ -29,6 +27,8 @@ export const dynamic = "force-dynamic";
 
 const NOT_STATED = DETAIL.notStated.en;
 const or = (text: string) => (text.trim() ? text : NOT_STATED);
+
+export const metadata = { title: "Opportunity" };
 
 /**
  * One advertised opportunity, in the public's words. The page can only render what
@@ -48,7 +48,6 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
     <>
       <RecordCrumb label={o.reference} />
       <PageHeader
-        eyebrow={<Link href={PORTAL_PATH.opportunities}>{DETAIL.back.en}</Link>}
         title={o.title}
         badge={<Badge tone={state.tone ?? "neutral"}>{state.label.en}</Badge>}
         subtitle={`${o.reference} · ${o.method || METHOD_NOT_STATED.en}`}

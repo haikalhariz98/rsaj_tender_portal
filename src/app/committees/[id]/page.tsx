@@ -15,6 +15,7 @@ import { Tabs } from "@/components/tabs";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { actLabel } from "@/components/ui/act";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, Meter } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
@@ -59,7 +60,7 @@ import { tablePrefillFromQuery } from "@/lib/committee/table-prefill";
 import { tablingAmount } from "@/lib/committee/repo";
 import { notLinkedFor } from "@/lib/committee/auto-link-write";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
-import { actWithCode, matterLabel } from "@/lib/labels";
+import { matterLabel } from "@/lib/labels";
 import { scopeMatterRecordNote } from "@/lib/scope/labels";
 import { formatMoney, parseSen } from "@/lib/money";
 
@@ -783,7 +784,7 @@ function HistoryPanel({
     if (field === "status") return MEETING_STATUS_LABEL[value as keyof typeof MEETING_STATUS_LABEL] ?? value;
     if (field === "outcome") return OUTCOME_LABEL[value as keyof typeof OUTCOME_LABEL] ?? value;
     if (field === "choice") return CHOICE_LABEL[value] ?? value;
-    if (field === "act") return actWithCode(value);
+    if (field === "act") return actLabel(value);
     // Money is recorded as typed; it reads as the portal writes money everywhere.
     if (field === "amount" && /^\d+(\.\d{1,2})?$/.test(value)) return formatMoney(parseSen(value));
     if (field === "domain") return matterLabel(value);

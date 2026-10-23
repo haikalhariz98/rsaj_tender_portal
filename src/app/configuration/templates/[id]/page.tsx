@@ -60,7 +60,6 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
     <>
       <RecordCrumb label={t.nameEn} />
       <PageHeader
-        eyebrow={<Link href="/configuration/templates">Templates</Link>}
         title={t.nameEn}
         badge={undecided ? <Badge tone="warn" dot>{`${undecided} block${undecided === 1 ? "" : "s"} undecided`}</Badge> : undefined}
         info={{ title: "Template", text: "Signature order, recipients and printed form. A certificate keeps them as they were at its first signature." }}

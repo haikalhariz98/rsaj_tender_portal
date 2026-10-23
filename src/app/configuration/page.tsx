@@ -15,6 +15,8 @@ import { loadChecklist } from "@/lib/setup/checklist-repo";
 export const dynamic = "force-dynamic";
 
 /// Configuration opens on the Getting-started checklist (ADR 0043 D4): what is set, what is not, one link to each. The rail is still the index.
+export const metadata = { title: "Getting started" };
+
 export default async function ConfigurationPage() {
   const actor = await requireSettingsReader();
   const { items } = await loadChecklist(db, actor.organisationId);

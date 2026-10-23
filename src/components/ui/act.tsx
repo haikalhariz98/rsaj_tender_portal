@@ -1,5 +1,5 @@
 import { MANDATORY_ACTS as MANDATORY } from "@/lib/committee/quorum";
-import { actWithCode } from "@/lib/labels";
+import { ACT_LABEL, actWithCode } from "@/lib/labels";
 
 import { CheckIcon, EyeIcon, FileIcon, ShieldIcon } from "@/components/icons";
 
@@ -36,13 +36,12 @@ export function isMandatoryAct(act: string): boolean {
 }
 
 /**
- * An act in words with its DAL code (close-out ruling CO-9, FR-APR-003): "Mandatory
- * recommendation (MR)". The code is the manual's own vocabulary (Appendix B.1), printed
- * on every routing sheet — not a configuration key — so it is shown beside the words,
- * and an MR step never reads like an R one.
+ * An act in words only: "Mandatory recommendation", so an MR step never reads like an R one.
+ * The DAL code (manual Appendix B.1, ruling CO-9) stays in the hover and screen-reader text
+ * of `ActBadge`, not in the visible line.
  */
 export function actLabel(act: string): string {
-  return actWithCode(act);
+  return ACT_LABEL[act] ?? "Unknown act";
 }
 
 /// A neutral role glyph for an act: a document for proposing, an eye for recommending,
@@ -60,9 +59,9 @@ function ActGlyph({ act }: { act: string }) {
 export function ActBadge({ act, step, className }: { act: string; step?: number; className?: string }) {
   return (
     <span
-      title={actLabel(act)}
+      title={actWithCode(act)}
       role="img"
-      aria-label={actLabel(act)}
+      aria-label={actWithCode(act)}
       className={cx(
         "inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-full px-1.5 text-[11px] leading-none font-bold tabular-nums",
         actTint(act),

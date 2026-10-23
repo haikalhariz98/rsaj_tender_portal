@@ -26,6 +26,8 @@ const LINK_ICON = { opportunities: GlobeIcon, results: AwardIcon, register: Buil
 // Phase 4e: every signed-in part is built; the home page lists them, and each asks the visitor to sign in.
 const SIGNED_IN_ICON = { bids: InboxIcon, projects: ToolsIcon, company: BuildingIcon, announcements: BellIcon } as const;
 
+export const metadata = { title: "Home" };
+
 export default async function SupplierHomePage() {
   const [{ organisation }, { registerOpen, channel }] = await Promise.all([loadPublicShell(), loadPortalFacts()]);
   // A closed register hides "Apply to register" (and its card); the way to bid follows the configured channel, and is left out while unset.

@@ -12,6 +12,8 @@ import { PortalDocumentView } from "./document-view";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Contract document" };
+
 /**
  * One document of a contract the signed-in contractor holds (the simple Project workspace, plan step 5). The supplier is the SESSION's; the ids in the address are a contract's and a
  * document's, and the page answers "not found" for every cause alike: no such contract, another organisation's, another contractor's, a document that is not on this contract, or an

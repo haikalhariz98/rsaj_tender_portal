@@ -28,7 +28,7 @@ export default async function SupplierActivatePage() {
         <StaffPortalCard path="/supplier/activate" address={branding.view.publicAddress} canSet={await staffMaySetPortal()} />
       ) : (
         <>
-          <PageHeader title="Activate your account" subtitle="Use the code the office gave. Not emailed." />
+          <PageHeader title="Activate your account" subtitle="Use the code the office gave you." />
           {closed || !token ? (
             <Callout tone="warn" title={closed?.title ?? "The portal's forms are closed"}>
               {closed?.body ?? AUTH_WORDS.portalFormsClosed.en}

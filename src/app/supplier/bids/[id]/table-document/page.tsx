@@ -15,6 +15,8 @@ import { CrossSiteRefusal } from "../cross-site-refusal";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Tender Table Document" };
+
 /**
  * The Tender Table Document for inspection (Phase 4d, FR-DOC-010). Opened by a signed-in supplier while it is available (from publication to the closing), only in its approved, frozen form. The opening is written
  * to the inspection log before any of it is shown; where it cannot be written, nothing is shown. Where it is closed, the reason is said in words.
@@ -33,7 +35,7 @@ export default async function TableDocumentPage({ params }: { params: Promise<{ 
     return (
       <>
         <RecordCrumb label={r.ctx!.ex.reference} />
-        <PageHeader eyebrow={<Link href={back}>Back to the documents</Link>} title="The Tender Table Document" subtitle={`${r.ctx!.ex.reference} · ${r.ctx!.ex.title}`} />
+        <PageHeader title="The Tender Table Document" subtitle={`${r.ctx!.ex.reference} · ${r.ctx!.ex.title}`} />
         <Card>
           <EmptyState title={r.headline} action={<span className="flex flex-col items-center gap-3"><span className="text-[13.5px] text-ink-2">{r.detail}</span><ButtonLink href={back} variant="secondary" size="sm">Back to the documents</ButtonLink></span>} />
         </Card>

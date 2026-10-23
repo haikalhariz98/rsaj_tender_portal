@@ -99,7 +99,6 @@ export default async function CommitteePage({
     <>
       <RecordCrumb label={committee.nameEn} />
       <PageHeader
-        eyebrow="Committee"
         title={committee.nameEn}
         actions={<HistoryButton entity="Committee" entityId={committee.id} label={committee.nameEn} />}
         badge={committee.isExternal ? <Badge tone="warn">External body</Badge> : undefined}

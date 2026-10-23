@@ -315,7 +315,7 @@ async function Sent({ actor, settings }: { actor: Awaited<ReturnType<typeof requ
   return (
     <>
       <PageHeader title="Registration" badge={<Badge tone="ok">Sent to the procurement office</Badge>} subtitle={actor.supplierName} meta={[draft?.submittedAt ? `Sent ${formatOrgDateTime(draft.submittedAt, zone)}` : "Sent"]} actions={<ButtonLink href="/supplier/account" variant="secondary">Where it stands</ButtonLink>} />
-      <p className="mb-6 text-[14px] text-ink">Not emailed. The result shows on your account page.</p>
+      <p className="mb-6 text-[14px] text-ink">The result shows on your account page.</p>
       {/* The supplier's copy: the state and the day of the office's checks, never the officer's name or note. */}
       <RegistrationSummaryCards sections={registrationSummary(forSupplier(record), { day: formatDate })} />
     </>

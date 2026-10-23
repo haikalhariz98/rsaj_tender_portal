@@ -221,7 +221,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
                 </li>
               ))}
             </ul>
-            <p className="text-[12.5px] text-ink-3">Send each below. Answers are not emailed.</p>
+            <p className="text-[12.5px] text-ink-3">Send each below. Answers show on this page.</p>
           </CardBody>
         </Card>
       )}
@@ -288,7 +288,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
 
                   {row.reminder && row.effective?.expiresOn && (
                     <p className="text-[13px] text-amber-800">
-                      Expires {formatDate(row.effective.expiresOn)}. {row.reminder.offset}-day reminder, due {formatDate(row.reminder.dueOn)}. Not emailed.
+                      Expires {formatDate(row.effective.expiresOn)}. {row.reminder.offset}-day reminder, due {formatDate(row.reminder.dueOn)}.
                     </p>
                   )}
                   {row.state === "EXPIRED" && row.effective?.expiresOn && <p className="text-[13px] text-rose-700">This expired on {formatDate(row.effective.expiresOn)}. Send a current copy.</p>}

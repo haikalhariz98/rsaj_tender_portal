@@ -139,7 +139,7 @@ export function ReplaceDrawer(p: ReplaceDrawerProps) {
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {sent ? (
                 <Callout tone="ok" title="Sent for checking">
-                  {p.renewal ? "The current one stays in force. " : ""}Not emailed.
+                  {p.renewal ? "The current one stays in force. " : ""}
                 </Callout>
               ) : (
                 <div className="flex flex-col gap-1">

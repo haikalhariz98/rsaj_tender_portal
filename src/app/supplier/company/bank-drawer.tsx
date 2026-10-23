@@ -140,7 +140,7 @@ export function BankDrawer(p: BankDrawerProps) {
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {sent != null ? (
                 <Callout tone="ok" title="Sent for checking">
-                  Not emailed. The result shows on this page.
+                  The result shows on this page.
                 </Callout>
               ) : (
                 <div className="flex flex-col gap-1">

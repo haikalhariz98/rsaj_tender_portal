@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ShieldIcon } from "@/components/icons";
@@ -33,12 +32,10 @@ export default async function SubmitBidPage({ params }: { params: Promise<{ id: 
   const screen = await loadBidScreen(db, actor, id);
   if (!screen) notFound();
   const token = issueFormToken("bids");
-  const back = `/supplier/bids/${screen.exercise.id}?tab=bid`;
   const head = (
     <>
       <RecordCrumb label={screen.exercise.reference} />
       <PageHeader
-        eyebrow={<Link href={back}><Bi words={SCREEN_WORDS.backToExercise} inline /></Link>}
         title={<Bi words={SCREEN_WORDS.submitTitle} inline />}
         badge={screen.demonstration ? <Badge tone="warn"><Bi words={DEMONSTRATION_WORDS} inline /></Badge> : undefined}
         subtitle={`${screen.exercise.reference} · ${screen.exercise.title}`}

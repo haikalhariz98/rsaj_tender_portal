@@ -44,7 +44,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
 
   return (
     <SignInScreen branding={branding}>
-      <PageHeader eyebrow={branding.view.portalName ? AUTH_WORDS.welcomeTo.en : undefined} title={branding.view.title} subtitle={AUTH_WORDS.signInSubtitle.en} />
+      <PageHeader title={branding.view.title} subtitle={AUTH_WORDS.signInSubtitle.en} />
       {password === "set" && (
         <Callout tone="ok" className="mb-5">
           {AUTH_WORDS.codeUsed.en}

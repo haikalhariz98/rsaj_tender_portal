@@ -16,6 +16,8 @@ import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Print an award document" };
+
 /**
  * A document of an award, printable (ADR 0008). Once issued, only the text frozen at
  * issue is rendered — never today's template — with its reference, version, form code

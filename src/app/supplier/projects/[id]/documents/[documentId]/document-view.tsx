@@ -47,11 +47,10 @@ export function PortalDocumentView({ page, contractNumber, token }: { page: Port
   return (
     <>
       <PageHeader
-        eyebrow={<Link href={portalDocumentsHref(page.contractId)}>{`Contract ${contractNumber}`}</Link>}
         title={page.title}
         badge={<Badge tone={tone} dot>{page.stateLabel}</Badge>}
         subtitle={page.note || undefined}
-        meta={[mine ? "Your document" : `${page.fromLabel}'s document`, page.kindLabel, page.waitsOnLabel]}
+        meta={[mine ? "Your document" : `${page.fromLabel}'s document`, page.kindLabel, page.waitsOnLabel, <Link key="contract" href={portalDocumentsHref(page.contractId)}>{`Contract ${contractNumber}`}</Link>]}
         actionsNote={headerNote ?? undefined}
         actionsNoteId={HEADER_NOTE}
         actions={

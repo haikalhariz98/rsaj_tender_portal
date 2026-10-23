@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { decimalText } from "@/lib/format";
 import { notFound } from "next/navigation";
 
@@ -64,7 +63,6 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
     <>
       <RecordCrumb label={label} />
       <PageHeader
-        eyebrow={<Link href="/configuration/evaluation">Evaluation models</Link>}
         title={label}
         badge={<Badge tone={MODEL_STATUS_TONE[m.status]} dot>{MODEL_STATUS_LABEL[m.status]}</Badge>}
         subtitle={draft ? "Draft · issuing freezes it" : m.status === "ISSUED" ? `Issued ${m.issuedAt ? formatOrgDay(m.issuedAt, org.timeZone) : ""} · read-only` : "Retired · pinned exercises keep it"}

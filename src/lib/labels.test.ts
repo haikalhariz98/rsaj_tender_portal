@@ -19,7 +19,7 @@ describe("an authority act reads as words with its DAL code (ruling CO-9, FR-APR
   });
   it("tells a mandatory recommendation from a recommendation at a glance", () => {
     expect(actLabel("MR")).not.toBe(actLabel("R"));
-    expect(actLabel("R")).toBe("Recommend (R)");
+    expect(actLabel("R")).toBe("Recommend");
   });
   it("never shows a code it does not know as if it were one", () => {
     expect(actWithCode("ZZ")).toBe("Unknown act");
