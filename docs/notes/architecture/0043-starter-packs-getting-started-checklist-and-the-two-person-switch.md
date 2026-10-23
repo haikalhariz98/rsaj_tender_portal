@@ -1,8 +1,8 @@
 # 0043 — Starter packs, the Getting-started checklist, and the two-person switch
 
-- **Status:** proposed 2026-10-23. It becomes accepted when the product owner rules SP-3, SP-4, SP-22 and SP-23 of the
-  plan. The founder approved the direction (working defaults, a checklist, two-person approval off until go-live) on
-  2026-10-23: "please proceed dont stop unitil it complete".
+- **Status:** accepted 2026-10-23 (product owner rulings SP-1 to SP-23 of the plan). The founder approved the direction
+  (working defaults, a checklist, two-person approval off until go-live) on 2026-10-23: "please proceed dont stop unitil
+  it complete".
 - **Supersedes in part:** ADR 0034 D15, the clause "Phase 5b moves every remaining Configuration section onto it". Two-person
   approval of configuration becomes an organisation switch (D3 below). Everything else in D15 stands.
 - **Retires:** the "creates the organisation and nothing else" stance in `prisma/seed.ts`, `prisma/demo.ts` and AGENTS.md
@@ -65,8 +65,9 @@
 - **Dry run by default.** Without `--apply` the command prints what it would write and what it would skip, and writes nothing.
 - **Validation.** Each value is judged by the product's own pure validators where they exist in `src/lib`, for example
   `policyFault` and `channelSettingFaults`. One fault refuses the whole run.
-- **Packs load only while two-person approval is off** (D3). A live organisation's configuration changes through people,
-  not through an operator's script.
+- **Packs load only while two-person approval is off** (D3). The one exception is the development fill on a demonstration
+  database (D3, "Moving the switch"). A live organisation's configuration changes through people, not through an
+  operator's script.
 - **At setup:** `prisma/seed.ts` creates the organisation and then loads `STARTER_PACKS`. The default is `generic`; an RSAJ
   deployment sets `rsaj,generic`. The test database is migrated, never seeded, so tests keep the "unset" states they
   assert.
@@ -111,13 +112,19 @@
   - **Off to on:** one person. It tightens the control.
   - **On to off:** a `SECURITY_POLICY` change that a second person decides, like any other change while the switch is on.
     One administrator can never switch the control off and then act alone.
+  - **The only exception (SP-23):** the development fill, on a database where `demoIsLoaded` holds, may turn the switch
+    off itself. Its audit row has a SYSTEM actor, "Development fill (founder's instruction 2026-10-23)", and the founder's
+    instruction as the reason. On any other database the development fill refuses. No other pack, script or screen turns
+    the switch off while it is on.
+  - Creating the row is not moving the switch: the generic pack writes a new organisation's first `SecurityPolicy` row
+    with the switch off at setup (SP-3). It never changes an existing row's switch.
 - **Nothing fakes a second person.** No row names a decider who did not decide.
   - The changes made by one person are the audit rows that have a person actor and carry the reason
     `ONE_PERSON_REASON`. Pack and system rows have no person actor, so they are not in the list. The switch's own audit
     rows show when it was off.
   - A matrix or draft whose issuer is among its makers was put in force by one person, and History says so.
 - **The go-live rule.** The checklist's "Before go-live" item is done only when the switch is on. While it is off:
-  - Settings shows one quiet chip, "Two-person approval off", to holders of `configuration.issue`;
+  - Settings shows one quiet chip, "Approval by another admin: off", to holders of `configuration.issue`;
   - the item links to the list of changes made by one person.
 
   RSAJ's NFR-SEC-004 and FR-APR-020 are met from the moment the switch is on.
@@ -160,7 +167,8 @@
     - the product owner reviews the pack against the specification before its first load.
 - **Ruled out:**
   - a pack that overwrites a set value;
-  - a pack loaded into a live organisation (switch on);
+  - a pack loaded into a live organisation (switch on). The only exception is the development fill on a database where
+    `demoIsLoaded` holds, which turns the switch off itself as a SYSTEM actor (D3) and refuses everywhere else;
   - any default in product code;
   - a configuration-gap list on the public portal;
   - a "second approval" recorded by anyone but a second person.

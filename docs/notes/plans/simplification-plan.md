@@ -124,9 +124,9 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
 ### 4.1 Switch migration and contracts
 
 - **Agent:** data-modeler.
-- **Migration:** yes, two new migrations.
-  - `<ts>_two_person_switch`: `SecurityPolicy.twoPersonChanges BOOLEAN NOT NULL DEFAULT true`.
-  - `<ts>_two_person_switch_triggers`: `CREATE OR REPLACE` of `guard_matrix_issue` and `guard_draft_issue`. The "issuer is
+- **Migration:** yes, one new migration, `20261127000000_two_person_switch`:
+  - `SecurityPolicy.twoPersonChanges BOOLEAN NOT NULL DEFAULT true`;
+  - `CREATE OR REPLACE` of `guard_matrix_issue` and `guard_draft_issue` (keeping their pinned `search_path`). The "issuer is
     one of the makers" refusal becomes:
 
     ```sql
@@ -148,7 +148,7 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
   - `two-person.test.ts`: every kind is classified, and the five are never covered;
   - a `*.db.test.ts` for the trigger: a maker's issue is refused while the switch is on (PA005), accepted while it is off,
     and refused when there is no `SecurityPolicy` row.
-- **Done when:** both migrations apply, with `npm run db:deploy`, on a **scratch database**: a new database name in
+- **Done when:** the migration applies, with `npm run db:deploy`, on a **scratch database**: a new database name in
   `DATABASE_URL`, made with `createdb`. The tests pass. **Never** run `npm run db:reset` or `docker compose down -v`.
   They destroy the volume that holds `perolehan`.
 
@@ -178,7 +178,7 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
      - Off to on is saved at once.
      - On to off is a normal proposal.
   4. The configuration layout banner ("N changes wait for a second person") stays as it is. While the switch is off, it
-     also shows the quiet chip "Two-person approval off" to holders of `configuration.issue`, with no sentence.
+     also shows the quiet chip "Approval by another admin: off" to holders of `configuration.issue`, with no sentence.
   5. The sign-in banner fix (UX finding 9; 4.7 note). The "Sign-in closed" callout lists only the sign-in needs, not
      every unset key. An unset unseal passphrase length is reported on Bid sealing instead.
 - **Tests:**
@@ -206,7 +206,8 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
      wins.
   2. The store:
      - opens one transaction and takes the organisation lock;
-     - **refuses** unless `twoPersonChanges` is false, or the run is about to create the `SecurityPolicy` row;
+     - **refuses** unless `twoPersonChanges` is false, or the run is about to create the `SecurityPolicy` row (SP-3). The
+       only other case is the development fill on a demonstration database (4.6, SP-23);
      - writes each row with one `writeAudit` (SYSTEM actor `Starter pack: <Name> v<version>`), recording
        `whereItComesFrom` and the governing source.
   3. The CLI:
@@ -272,8 +273,9 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
     - the three not-approved outcomes (FR-CTE-009);
     - routing sheet types and ICC targets (FR-CRT-007, FR-CRT-008).
 
-    Slashed codes ("JR/R", "JR/P") are read as in `dal-fixture.ts`'s header, each with its reason in the source line, and
-    listed as SP-2a for the product owner.
+    Slashed codes are transcribed as `dal-fixture.ts` reads them ("JR/R" as JR, "JR/P" as P), but those rows load as
+    **ASSUMED**, with that reading as their source, not STATED (SP-2a). The joint partner office stays unmodelled; it goes
+    to the open questions for RSAJ.
   - **Purchasing:**
     - funding routes F1 to F5;
     - sourcing methods, contract types and their behaviours, contract bases, and selected-tender proposal items;
@@ -289,7 +291,8 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
     - `ScopePolicy.specPanelUsed` false and `onScreenBillUsed` false (SR-08, SR-09; SP-6).
 - **Tests:**
   - `rsaj-pack.test.ts`:
-    - every entry has a `requirement` and a `source`, and none is ASSUMED;
+    - every entry has a `requirement` and a `source`, and none is ASSUMED except the slashed-code rows (SP-2a), which
+      the test names one by one;
     - the matrix's figures equal `dal-fixture.ts`'s for every shared row;
     - no matrix is issued;
     - no file outside `prisma/rsaj/` imports the pack (a source scan);
@@ -389,9 +392,10 @@ The Suppliers & portal card also shows one status line, "Online registration: op
     - suspension and blacklist reasons (FR-VND-010).
   - **System:** the RSAJ numbering patterns (RSAJ/KP/T/…; NFR-USE-004, FR-CON-002, FR-ADV-014).
   - **The development fill:**
-    - It refuses unless `demoIsLoaded(db)`.
+    - It refuses unless `demoIsLoaded(db)`, whatever the switch reads.
     - It sets `twoPersonChanges` false with the SYSTEM actor "Development fill (founder's instruction 2026-10-23)" and the
-      founder's words as the reason.
+      founder's words as the reason. This is the **only** exception to SP-23 (ADR 0043 D3): no other pack or script turns
+      the switch off while it is on.
     - It then writes the three invented texts and the notice, marked "development wording, invented", ASSUMED.
     - Where the `SupplierPolicy` class group is still null **and** the organisation's class list is not empty (so generic
       will skip its own classes), it sets the upload class and statement class to the demo's classes. This is checkable
@@ -400,7 +404,7 @@ The Suppliers & portal card also shows one status line, "Online registration: op
     This supersedes the scratchpad `open-register-dev.ts`, which was never run.
 - **Tests:**
   - `rsaj-pack.test.ts`, extended to these parts;
-  - `dev-fill.db.test.ts`: it refuses on a non-demo organisation; on a demo organisation it sets the switch off with one
+  - `dev-fill.db.test.ts`: it refuses on a non-demo organisation, with the switch on or off; on a demo organisation it sets the switch off with one
     audit row, and a second run writes nothing.
 - **Done when:** the dry run of `rsaj,generic` on a fresh organisation shows every STATED group in §7 marked "R-pack", and
   `dev-fill` on a demo copy opens the register (given the environment values).
@@ -439,7 +443,9 @@ The Suppliers & portal card also shows one status line, "Online registration: op
      - Can on-to-off be made by one person?
      - Is any record-correction kind covered?
      - Are all three triggers still `ENABLE ALWAYS`?
-     - Can a pack load into an organisation that is on?
+     - Can a pack load into an organisation that is on? Only the development fill on a `demoIsLoaded` database may
+       (SP-23); confirm it refuses elsewhere and that no other writer of `twoPersonChanges` exists, including outside
+       `src/` (the writer scan covers `src/` only, so `prisma/dev-fill.ts` is checked by hand).
      - Can the app's database role change `twoPersonChanges` other than through a decided change (while on) or the
        editor (while off)?
 
@@ -468,7 +474,8 @@ The Suppliers & portal card also shows one status line, "Online registration: op
        second person";
      - in "This is a product…", replace "Every screen handles the unconfigured state" with a line on the packs;
      - in "Provenance: the pattern to copy", say that provenance is recorded on every value and shown in History and in
-       `RuleInfo` at the decision point, not as chips on working screens (SP-18).
+       `RuleInfo` at the decision point (which flags OBSERVED and ASSUMED), not as chips on working screens; gap warnings
+       stay visible on screen (SP-18).
   4. `prisma/demo.ts` header: replace "`npm run setup` still creates one empty organisation and nothing else" with a
      pointer to ADR 0043.
 - **Done when:**
@@ -525,8 +532,10 @@ section, then the page.
      - `info-chip.test.ts` and `part-b-provenance.test.ts` are rewritten to assert that the provenance is **recorded** (the
        columns are written and History renders them), not that a chip shows.
   4. **The decision-point rule** (NFR-USE-001, FR-APR-019) gets a shared `RuleInfo` popover in
-     `src/components/ui/rule-info.tsx`. It shows the rule in one sentence and its clause. Where the source is ASSUMED, it
-     adds "Assumed, not from a written rule". Steps 5 and 6 use it beside primary actions.
+     `src/components/ui/rule-info.tsx`. It shows the rule in one sentence and its clause. Where the source is OBSERVED, it
+     adds "Usual practice, not a written rule"; where ASSUMED, "Assumed, not from a written rule" (SP-18). Steps 5 and 6
+     use it beside primary actions. Gap warnings are not `RuleInfo` text: a route assumed because no rule matches, a
+     quorum not set, and a plain "Not set" stay visible on the screen, never only in a popover.
   5. **Word rules:** add `BANNED_WORDS` to `ui-text-rules.mjs` as a rule with the baseline ratchet, so a file may hold
      fewer, never more. It holds only the unambiguous phrases in §6's "Enforced" list. The single words are a review list,
      because "issue", "case", "act" and "window" also appear in legitimate text. Parallel passes do **not** edit the
@@ -551,7 +560,8 @@ Each pass does the same seven things inside the folders it owns, and nothing out
 2. Delete the dead `ProvenanceBadge` calls and every on-screen "Where it comes from" or "(invented)" line. They are already
    in History (5.1).
 3. Turn each consequence sentence ("While unset, …") into the field's info popover (`MoreText` or `InfoChip`), at most 25
-   words. Show "Not set" as plain grey text, not a chip.
+   words. Show "Not set" as plain grey text, not a chip. Gap warnings stay on screen, not in a popover (SP-18): a route
+   assumed because no rule matches, a quorum not set, and "Not set" itself.
 4. Apply the word list (§6) to every literal in the folder.
 5. Give each page `export const metadata = { title: "<page label>" }` (the template arrives in 6.1).
 6. Delete repeated notes: say once per page.
@@ -563,7 +573,7 @@ Each pass does the same seven things inside the folders it owns, and nothing out
 | 5.2 | Purchasing & tenders | 5-b, with 5.3 | Invitation (1,028 words) and Evaluation (633) first. Render the BQ template and spec-panel column cards only while their `ScopePolicy` switch is true (SP-6). The requisition controls' splitting fields are left alone (5.8 removes them). |
 | 5.3 | Organisation & people | 5-b, with 5.2 | Merge Sign-in accounts into People: the People list gains a "Sign-in" column (Active, Not activated, Locked or Disabled) and the account actions (create, issue code, disable, unlock) from `accounts/editors.tsx`, which move into `users/`. `/configuration/accounts` redirects to `/configuration/users?tab=people`. Branding cards go into Advanced. |
 | 5.4 | Approvals | 5-c, with 5.5 | Committees table: the "Retire" column no longer clips at 1440 and 1280 (give the actions column a fixed width and wrap the name; check `matrix-width.test.ts`). The simulator becomes a "Test a route" button that opens the existing simulator in a drawer. Labels: "Value bands", "Approval routes", "Standard route", and "Exact amount at a limit" for the boundary switch. |
-| 5.5 | Suppliers & portal | 5-c, with 5.4 | The wordiest page (1,325 words). Hide the Malay text fields under Advanced, marked for removal when RSAJ accepts English-only (row 72; this is a go-live condition, not cut now). |
+| 5.5 | Suppliers & portal | 5-c, with 5.4 | The wordiest page (1,325 words). Delete the Malay text fields from the page and its editors, not hide them (English only; Malay removed 2026-10-19). The columns stay; dropping them is a separate schema item. |
 | 5.6 | Contracts & payments | 5-d, with 5.7 | Do not render row 96b's groups (termination, nominated parties, design bond, release points, final account) until close-out ships. The data and the pack values stay. Budget's ledger pages go under Advanced (SP-12). |
 | 5.7 | System | 5-d, with 5.6 | **Move the two-person queue:** `configuration/changes/changes-list.tsx` is shared as is. `/approvals` gains `Tabs`: "Steps" and "Settings changes (n)". The second tab renders the list for those who may read the queue. `/configuration/changes` redirects to `/approvals?tab=changes`. This step owns `src/app/approvals/page.tsx` for the tab only. Security page wording; the payment simulator under Advanced; the audit trail read-only under Advanced. |
 
@@ -816,7 +826,7 @@ Each pass does the same seven things inside the folders it owns, and nothing out
 - Recorded by demo loader
 - Where it comes from
 
-**The full list** is applied by review in each pass. "Assumed" stays allowed inside `RuleInfo`.
+**The full list** is applied by review in each pass. "Assumed" and "Usual practice" stay allowed inside `RuleInfo` (SP-18).
 
 | Do not write | Write |
 | --- | --- |
@@ -923,7 +933,7 @@ Every row keeps its data, its editor and its History. Only where the row shows c
 | 68 | Fee floors | FR-ADV-008 | Top; checklist 6 | Unchanged |
 | 69 | Holidays and weekend | FR-ADV-005 | Top; G-pack weekend; checklist 7 for dates (SP-7) | Unchanged checks |
 | 70, 71 | Receipt and opening per method | FR-BID-003/007/011, FR-OPN-001, FR-ADV-012, SR-14 | Adv | Unchanged |
-| 72 | Opening policy; Malay Grand Summary words | FR-OPN-005/010; NFR-LNG-001 | Adv; the Malay fields hidden, removed once RSAJ accepts English-only | Go-live condition unchanged |
+| 72 | Opening policy; Malay Grand Summary words | FR-OPN-005/010; NFR-LNG-001 | Adv; the Malay fields deleted from the screens (5.5; English only); columns dropped later | Go-live condition unchanged |
 | 73 | Sale mode, channel, simulator | SR-10, SR-13 | R-pack sale mode ONLINE; channel unset (paper path until LIVE); simulator Adv (system) | Simulator still a go-live item |
 | 74 | Bid sealing and attestations | FR-BID-001, NFR-SEC-003 | Adv (system); covered by the switch like any setting (ADR 0043 D3) | LIVE issue conditions unchanged |
 | 75 | Evaluation models | FR-EVL-006/007/008/009 | Top; R-pack as **drafts**; checklist 8 | Put in force by a named person |
@@ -964,8 +974,10 @@ Each decision states the recommendation it carries.
   counts. A second customer gets generic values plus the checklist, never RSAJ's DAL. *Recommend: as written.*
 - **SP-2. Confirming the DAL means putting the draft in force.** No separate "confirmed" table. Evaluation models work the
   same way.
-  - **SP-2a.** The slashed DAL codes JR/R and JR/P are transcribed as the test fixture reads them, each with its reason.
-    The joint partner office stays unmodelled, and that is a question for RSAJ. *Recommend: as written.*
+  - **SP-2a.** The slashed DAL codes JR/R and JR/P are transcribed as the test fixture reads them (JR, P), each with its
+    reason, but load as ASSUMED with that reading as the source, not STATED. `rsaj-pack.test.ts` exempts only those rows
+    from "none ASSUMED". The joint partner office stays unmodelled, and that is a question for RSAJ. *Ruled (product
+    owner, 2026-10-23): changed to ASSUMED as here.*
 - **SP-3. The switch default.**
   - The schema default is ON, so existing organisations stay on.
   - The generic pack sets it OFF only when it creates the `SecurityPolicy` row of a new organisation at setup.
@@ -973,8 +985,9 @@ Each decision states the recommendation it carries.
 
   *Recommend: as written. Setup is before go-live, and one administrator must be able to configure.*
 - **SP-4. While the switch is off, a save applies directly, with no `ConfigurationChange` row.** The changes made by one
-  person are found through the switch's own audit periods. *Recommend: as written. This keeps the change table's database
-  guards absolute.*
+  person are the audit rows with a person actor that carry the fixed reason `ONE_PERSON_REASON` (ADR 0043 D3, 4.5 G1).
+  This keeps the change table's database guards absolute. *Ruled (product owner, 2026-10-23): as written, with this
+  wording.*
 - **SP-5. The founder's database gets the development fill and the generic pack, not the RSAJ pack.** The RSAJ lists would
   land beside the demo's invented ones. *Recommend: as written. A fresh RSAJ organisation shows the RSAJ pack.*
 - **SP-6. Rows 53 and 54 are hidden now, not dropped.**
@@ -1009,7 +1022,10 @@ Each decision states the recommendation it carries.
   amber is for warnings only. *Recommend: as written.*
 - **SP-18. Provenance leaves working screens entirely,** including contract figures.
   - It stays in the data and in History.
-  - At a decision point, `RuleInfo` says "Assumed, not from a written rule" where that is true.
+  - At a decision point, `RuleInfo` flags OBSERVED ("Usual practice, not a written rule") and ASSUMED ("Assumed, not
+    from a written rule").
+  - Gap warnings (a route assumed because no rule matches, a quorum not set, a plain "Not set") stay visible on screen,
+    not in popovers.
   - AGENTS.md's Provenance section is amended in 4.8 to say this.
 
   *Recommend: as written.*
@@ -1021,6 +1037,9 @@ Each decision states the recommendation it carries.
   and to administrators. Edit buttons show only to `configuration.draft` holders. *Recommend: as written.*
 - **SP-22. Record corrections and lowering a classification are never covered by the switch.** *Recommend: as written.*
 - **SP-23. Packs refuse to load into an organisation whose switch is on.** A live organisation changes through people.
+  The one exception: the development fill, on a database where `demoIsLoaded` holds, may turn the switch off itself,
+  audited as a SYSTEM actor with the founder's 2026-10-23 instruction as the reason; it refuses on any other database. ADR
+  0043 D3 names it as the only exception. *Ruled (product owner, 2026-10-23): with this exception.*
   *Recommend: as written.*
 
 ## 9. Risks and dependencies
