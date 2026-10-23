@@ -20,3 +20,11 @@ Open questions the product cannot answer from RSAJ's documents. Each one is load
 16. **Decision D2 (already open in the specification).** Termination (SK008 vs DAL), extension of time with no financial impact, and extension of the contract period.
 17. **Missing document.** Please supply "Syarat-syarat Sebutharga Untuk Kerja" (conditions of quotation; FR-DOC-013 note).
 18. **Bank list.** The supplier bank list (conventional and Islamic) was entered without access to Bank Negara Malaysia's published list; confirm or supply the list RSAJ accepts.
+19. **Contract document parts.** The parts and their order for each contract basis (SK004 §7.3.1 is cited but not supplied).
+20. **Appointment-letter variants.** Which contract types (work, service, supply) each of the six variants serves, and the six templates (FR-AWD-007).
+21. **Consultancy series.** Which contract type takes the consultancy contract number series (RSAJ/KP/P)?
+22. **Other numbering patterns.** Which records the §9.5 patterns RSAJ/TA/NNN/YYYY, RSAJ/KP/Q(JB|MR|IP)/NNN/YY and RSAJ/KP/ST/NN/YY number; and the pattern for an addendum or corrigendum (FR-ADV-014).
+23. **Suruhanjaya Tenaga.** Should it be a registration body, so its class can be recorded?
+24. **Mandatory documents.** Which supplier document types are mandatory at registration?
+25. **Contract number restart.** Numbers restart "in the year the contract starts"; the product restarts by the calendar year the number is allocated. Acceptable?
+26. **Requisition note number.** An example NM/YYYY/NNNNN number.
