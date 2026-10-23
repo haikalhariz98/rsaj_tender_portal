@@ -15,10 +15,14 @@ import { formatDate } from "@/lib/format";
 import { REPORTING_LINE_NOT_SET } from "@/lib/people/reporting-lines";
 import { BARRED_WORDS } from "@/lib/approvals/requester";
 import { requireStaff } from "@/app/_auth/actor";
+import { mayReadQueue } from "@/lib/auth/configuration-change";
+
+import { ChangesQueue, queueCount } from "../configuration/changes/queue-panel";
 
 import { MoveAwayButton } from "./move-away-button";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "My approvals" };
 
 /**
  * My approvals (FR-APR-010, FR-APR-018, ruling CO-7): the steps waiting for the person signed in, and every open route's next step under the office acting for it.
@@ -34,6 +38,9 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   const all = w?.groups.flatMap((g) => g.items) ?? [];
   const mine = w ? myStepsOf(w.groups, actor.personId) : [];
   const waiting = waitingForCount(mine);
+  // The settings-changes tab (NFR-SEC-004, FR-APR-020) is there only for those who may read the queue; its list is read only while the tab is open.
+  const showQueue = mayReadQueue(actor.permissions);
+  const queueTotal = showQueue ? await queueCount(actor) : 0;
 
   const waitingCell = (i: QueueItem) => ({
     kind: "stack" as const,
@@ -174,6 +181,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         tabs={[
           { id: "mine", label: "My steps", count: waiting, panel: minePanel },
           { id: "office", label: "By office", count: all.length, panel: officePanel },
+          ...(showQueue ? [{ id: "changes", label: "Settings changes", count: queueTotal, lazy: true, panel: tab === "changes" ? <ChangesQueue actor={actor} /> : null }] : []),
         ]}
       />
     </>

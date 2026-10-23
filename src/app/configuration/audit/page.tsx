@@ -17,6 +17,7 @@ import { AuditExportForm } from "./export-form";
 import { permissionGate, requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Audit trail" };
 
 /**
  * The audit trail and its export (FR-APR-015, partly met by ruling). Every write records
@@ -73,7 +74,7 @@ export default async function AuditTrailPage({ searchParams }: { searchParams: P
     <>
       <PageHeader
         title="Audit trail"
-        info={{ title: "Audit trail", text: "Each export is a CSV with a SHA-256 digest, itself recorded. SULIT values are withheld. The digest proves the file is what the portal produced, not that the database was never altered." }}
+        info={{ title: "Audit trail", text: "Every change, with what it was before and after. Each export is a CSV with a SHA-256 digest, itself recorded. SULIT values are withheld. The digest proves the file is what the portal produced, not that the database was never altered." }}
         meta={[<InfoChip key="online" tone="warn" detail={ONLINE_RECORDS_NOT_SHOWN_WORDS}>Online held back</InfoChip>, `${count} ${count === 1 ? "entry" : "entries"}`, first ? `since ${formatOrgDay(first.at, org.timeZone)}` : "nothing recorded yet", `${exports.length} ${exports.length === 1 ? "export" : "exports"}`]}
       />
       <div className="flex flex-col gap-6">
@@ -163,7 +164,7 @@ export default async function AuditTrailPage({ searchParams }: { searchParams: P
             <CardHeader
               icon={<ShieldIcon size={17} />}
               title="Back-dated signatures"
-              subtitle="Signer's claim until confirmed"
+              subtitle="The signer's claim until confirmed"
               actions={<Badge tone={unconfirmed > 0 ? "warn" : "ok"} outline>{unconfirmed} not confirmed</Badge>}
             />
             {backdated.length === 0 ? (

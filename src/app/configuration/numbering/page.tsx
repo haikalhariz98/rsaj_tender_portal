@@ -3,17 +3,17 @@ import { patternFaults, periodFor, previewNext, serialFor } from "@/lib/numberin
 import { organisationDay } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
 
-import { ProvenanceChip, Section } from "../records-ui";
+import { Section } from "../records-ui";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AddSeries, EditSeries } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
-import { InfoChip } from "@/components/ui/info-chip";
 import { Callout } from "@/components/ui/feedback";
 import { HistoryButton } from "@/components/history-drawer";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Numbering" };
 
 const RESET_LABEL: Record<string, string> = {
   NEVER: "Never",
@@ -42,7 +42,7 @@ export default async function NumberingPage() {
             </Badge>
           ) : undefined
         }
-        info={{ title: "Numbering", text: "How exercise, contract and certificate references are formed." }}
+        info={{ title: "Numbering", text: "How references are formed. A reference is the business key of a record, so it is configured. A cancelled record's number is not reused; the gap is recorded." }}
       />
 
       {!day && (
@@ -51,17 +51,17 @@ export default async function NumberingPage() {
         </Callout>
       )}
       {faulty.length > 0 && (
-        <Callout tone="err" title="A pattern would produce references that collide" className="mb-6">
+        <Callout tone="err" title="A pattern would repeat references" className="mb-6">
           <ul className="mt-1.5 flex flex-col gap-1.5">
             {faulty.map((s) =>
               patternFaults(s).map((f) => (
                 <li key={`${s.id}-${f.kind}`} className="text-[13px]">
-                  <strong>{s.nameEn}</strong> —{" "}
+                  <strong>{s.nameEn}</strong>: 
                   {f.kind === "NO_SERIAL"
-                    ? "no {SERIAL} in the pattern, so every reference would be identical."
+                    ? "no {SERIAL} in the pattern, so every reference would be the same."
                     : f.kind === "UNKNOWN_TOKEN"
                       ? `{${f.token}} is not a token and is rendered literally.`
-                      : "it starts again each period but shows no year, so next period's first reference repeats this one."}
+                      : "it starts again each period but shows no year, so the next period repeats this one."}
                 </li>
               )),
             )}
@@ -71,8 +71,8 @@ export default async function NumberingPage() {
 
       <Section
         title="Series"
-        blurb="A reference is the business key of a matter, so it is configured rather than improvised. Allocated numbers are never reused."
-        empty="No series has been set. Nothing can be numbered until one is, and a record without a reference cannot be cited on a contract or a certificate."
+        blurb="Allocated numbers are never reused."
+        empty="No series yet. Nothing can be numbered."
         count={series.length}
         action={<AddSeries />}
       >
@@ -82,7 +82,6 @@ export default async function NumberingPage() {
             <col style={{ width: "26%" }} />
             <col style={{ width: "24%" }} />
             <col style={{ width: "14%" }} />
-            <col style={{ width: "11%" }} />
             <ActionsCol icons={2} />
           </colgroup>
           <THead>
@@ -90,7 +89,6 @@ export default async function NumberingPage() {
             <Th>Pattern</Th>
             <Th>Next reference</Th>
             <Th>Starts again</Th>
-            <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -116,9 +114,9 @@ export default async function NumberingPage() {
                   </Td>
                   <Td label="Next reference" className="[overflow-wrap:anywhere]">
                     {next == null ? (
-                      <Badge tone="warn">Would collide</Badge>
+                      <Badge tone="warn">Would repeat</Badge>
                     ) : !day ? (
-                      <span className="text-[12.5px] text-ink-3">Not shown: time zone not set</span>
+                      <span className="text-[12.5px] text-ink-3">Time zone not set</span>
                     ) : (
                       <span className="font-mono text-[12.5px] tabular-nums text-ink">{next}</span>
                     )}
@@ -128,9 +126,6 @@ export default async function NumberingPage() {
                     {s.resetOn === "FINANCIAL_YEAR" && s.financialYearStartMonth !== 1
                       ? ` (from month ${s.financialYearStartMonth})`
                       : ""}
-                  </Td>
-                  <Td label="Source">
-                    <ProvenanceChip value={s.provenance} />
                   </Td>
                   <Td>
                     <RowActions>
@@ -145,7 +140,6 @@ export default async function NumberingPage() {
         </Table>
       </Section>
 
-      <InfoChip detail="A cancelled matter's reference is not reused. The gap is recorded.">Serials only move forward</InfoChip>
     </>
   );
 }

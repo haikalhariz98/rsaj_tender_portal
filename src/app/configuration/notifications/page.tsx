@@ -1,7 +1,7 @@
 import { loadRoster } from "@/lib/people/load";
 import { loadNotificationRules } from "@/lib/records/load";
 
-import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
+import { Section } from "../records-ui";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AddRule, EditRule } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
@@ -10,6 +10,7 @@ import { HistoryButton } from "@/components/history-drawer";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Notifications" };
 
 export default async function NotificationsPage() {
   const actor = await requireStaff();
@@ -22,7 +23,6 @@ export default async function NotificationsPage() {
   const officeName = (code: string) =>
     roster.offices.find((o) => o.code === code)?.nameEn ?? code;
 
-  const active = rules.filter((r) => r.isActive);
   const silent = rules.filter((r) => !r.isActive);
 
   return (
@@ -34,31 +34,13 @@ export default async function NotificationsPage() {
             <Badge outline>{silent.length === 1 ? "1 switched off" : `${silent.length} switched off`}</Badge>
           ) : undefined
         }
-        info={{ title: "Notifications", text: "What the portal sends, to whom, and when reminders are issued." }}
+        info={{ title: "Notifications", text: "What the portal sends, to whom, and when reminders go out. A rule switched off is a recorded decision; a rule that is missing is an oversight, and the two must not look alike." }}
       />
-
-      <Stats>
-        <Stat
-          label="Rules"
-          value={rules.length === 0 ? null : rules.length}
-          hint={rules.length === 0 ? "The portal sends nothing" : "Configured events"}
-        />
-        <Stat
-          label="Sending"
-          value={rules.length === 0 ? null : active.length}
-          hint="Rules that reach somebody"
-        />
-        <Stat
-          label="Deliberately silent"
-          value={rules.length === 0 ? null : silent.length}
-          hint="Recorded as notifying nobody, rather than left unset"
-        />
-      </Stats>
 
       <Section
         title="Notifications"
-        blurb="A rule that is switched off is a recorded decision. A rule that is absent is an oversight — the two must not look alike."
-        empty="No notification has been set. The portal sends nothing, and nothing records whether that was decided or overlooked."
+        blurb="Who is told about each event, and who is reminded."
+        empty="No notification rule yet. The portal sends nothing."
         count={rules.length}
         action={<AddRule officeCodes={officeCodes} />}
       >
@@ -68,7 +50,6 @@ export default async function NotificationsPage() {
             <col style={{ width: "24%" }} />
             <col style={{ width: "16%" }} />
             <col style={{ width: "14%" }} />
-            <col style={{ width: "12%" }} />
             <ActionsCol icons={2} />
           </colgroup>
           <THead>
@@ -76,7 +57,6 @@ export default async function NotificationsPage() {
             <Th>Notifies</Th>
             <Th>Reminds</Th>
             <Th>Escalates to</Th>
-            <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -95,14 +75,11 @@ export default async function NotificationsPage() {
                 </Td>
                 <Td label="Reminds" className="text-ink-2 tabular-nums">
                   {r.reminderOffsetDays.length === 0
-                    ? "Does not chase"
+                    ? "No reminders"
                     : r.reminderOffsetDays.map((d) => `${d}d`).join(" · ")}
                 </Td>
                 <Td label="Escalates to" className="text-ink-2">
                   {r.escalatesToRoleCode ? officeName(r.escalatesToRoleCode) : "—"}
-                </Td>
-                <Td label="Source">
-                  <ProvenanceChip value={r.provenance} />
                 </Td>
                 <Td>
                   <RowActions>

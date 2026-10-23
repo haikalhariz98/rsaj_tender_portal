@@ -12,7 +12,8 @@ import { InfoChip } from "@/components/ui/info-chip";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
+import { SettingValue } from "@/components/setup/setting-value";
+import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { db } from "@/lib/db";
@@ -28,12 +29,13 @@ import { LIVE_ISSUE_WORDS, liveIssueFaults, RUNTIME_ROLE_UNKNOWN } from "@/lib/s
 import { EditBidSealingPolicy } from "./editors";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Bid sealing" };
 
 /// The published statuses, from the one rule (`isPublished`), not restated.
 const PUBLISHED = EXERCISE_STATUSES.filter(isPublished);
 
 function Recorded({ text, at, by }: { text: string; at: Date | null; by?: string | null }) {
-  if (!text) return <Badge tone="warn">Not recorded</Badge>;
+  if (!text) return <SettingValue value={null} unset="" />;
   return (
     <span className="flex flex-col items-start gap-1">
       <span className="break-words whitespace-pre-line">{text}</span>
@@ -47,13 +49,14 @@ export default async function BidSealingPage() {
   const org = actor.organisationId;
   // A restricted exercise the reader may not see is not listed (FR-MTD-007).
   const hidden = await hiddenExercises(actor);
-  const [row, exercises] = await Promise.all([
+  const [row, exercises, policy] = await Promise.all([
     db.bidSealingPolicy.findUnique({ where: { organisationId: org }, include: { publicRoleAttestedBy: { select: { name: true } }, hardeningAttestedBy: { select: { name: true } } } }),
     db.sourcingExercise.findMany({
       where: { organisationId: org, submissionChannel: "ONLINE", status: { in: PUBLISHED }, ...(hidden.length ? { id: { notIn: hidden } } : {}) },
       orderBy: { reference: "asc" },
       select: { id: true, reference: true, title: true, status: true, closingAt: true, onlineSubmissionMode: true, submissionChannel: true },
     }),
+    loadSecurityPolicy(db, org),
   ]);
   const started = new Set((await db.opening.findMany({ where: { organisationId: org, kind: "MAIN", exerciseId: { in: exercises.map((e) => e.id) } }, select: { exerciseId: true } })).map((o) => o.exerciseId));
   const taking = exercisesStillTakingBids(exercises.map((e) => ({ ...e, channel: e.submissionChannel, mainOpeningStarted: started.has(e.id) })));
@@ -102,7 +105,7 @@ export default async function BidSealingPage() {
       <PageHeader
         title="Bid sealing"
         badge={mode ? <Badge tone={mode === "LIVE" ? "ok" : "info"} dot>{mode === "LIVE" ? "Live" : "Demonstration"}</Badge> : <Badge tone="warn" dot>Not set</Badge>}
-        info={{ title: "Bid sealing", text: "Whether bids may be submitted online and sealed, and what is recorded first." }}
+        info={{ title: "Bid sealing", text: "Whether bids may be submitted online and sealed, and what is recorded first. One person proposes a change and another decides it, unless the organisation has turned that off." }}
         actions={
           <>
             {row && <HistoryButton entity="BidSealingPolicy" entityId={row.id} label="the bid sealing policy" />}
@@ -114,13 +117,13 @@ export default async function BidSealingPage() {
         <div><InfoChip tone="warn" detail="Encrypted under the opening officers' keys. The server reads each file once as it arrives. Who bid is not hidden from database users.">Independent review pending</InfoChip></div>
 
         <Card id="switch" className="scroll-mt-24">
-          <CardHeader icon={<ShieldCheckIcon size={17} />} title="The switch" subtitle="One proposes, another decides" />
+          <CardHeader icon={<ShieldCheckIcon size={17} />} title="The switch" />
           <CardBody>
             <KeyValues
               columns={2}
               items={[
-                item("Online submission of bids", mode ? sealingModeWords(mode) : <span className="flex flex-col items-start gap-1.5"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">Online submission is not set, so no exercise can be published for online bids.</span></span>),
-                item("Where this comes from", <ProvenanceBadge value={row?.provenance} />),
+                item("Online submission of bids", mode ? sealingModeWords(mode) : <SettingValue value={null} unset="No exercise can be published for online bids." />),
+                item("Shortest unseal passphrase", policy?.sealingPassphraseMinLength != null ? `${policy.sealingPassphraseMinLength} characters` : <SettingValue value={null} unset="No opening officer can set a share of an online exercise's key. Set it under Sign-in settings." />),
                 item("The outside cryptography review", <Recorded text={row?.cryptoReviewReference ?? ""} at={row?.cryptoReviewRecordedAt ?? null} />),
                 item("The amendment of the bid procedure", <Recorded text={row?.procedureAmendmentReference ?? ""} at={row?.procedureAmendmentRecordedAt ?? null} />),
                 item("The organisation's written acceptance of the limits", <Recorded text={row?.customerAcceptanceReference ?? ""} at={row?.customerAcceptanceRecordedAt ?? null} />),
@@ -133,7 +136,7 @@ export default async function BidSealingPage() {
         </Card>
 
         <Card id="deployment" className="scroll-mt-24">
-          <CardHeader title="This copy of the system" subtitle="Set by the operator. Read only." />
+          <CardHeader title="This copy of the system" subtitle="Set by the operator" />
           <CardBody>
             <KeyValues
               columns={2}
@@ -148,10 +151,10 @@ export default async function BidSealingPage() {
         </Card>
 
         <Card id="live" className="scroll-mt-24">
-          <CardHeader title="What live bids still need" subtitle="Rechecked when decided" />
+          <CardHeader title="What live bids still need" subtitle="Checked again when decided" />
           <CardBody>
             {missing.length === 0 ? (
-              <p className="text-[13px] text-ink-2">Every condition for live bids is recorded or present.</p>
+              <p className="text-[13px] text-ink-2">Nothing more is needed.</p>
             ) : (
               <ul className="list-disc pl-5 text-[13px] text-ink-2">
                 {missing.map((f) => (
@@ -163,7 +166,7 @@ export default async function BidSealingPage() {
         </Card>
 
         <Card id="pepper" className="scroll-mt-24 overflow-hidden">
-          <CardHeader title="Exercises that still need the sealing pepper" subtitle="Read only" divided={pepperState !== "SOME"} />
+          <CardHeader title="Exercises that still need the sealing pepper" divided={pepperState !== "SOME"} />
           <CardBody className="flex flex-col gap-2">
             <p className="text-[13px] text-ink-2">{PEPPER_LIST_WORDS.scope}</p>
             <p className="text-[13px] text-ink-2">{PEPPER_LIST_WORDS.restricted}</p>
@@ -201,8 +204,8 @@ export default async function BidSealingPage() {
         {mode !== "LIVE" && (
           <Card id="taking" className="scroll-mt-24 overflow-hidden">
             <CardHeader
-              title="Online exercises still taking bids"
-              subtitle="Published exercises keep their mode."
+              title="Online exercises taking bids"
+              subtitle="Each keeps its published mode"
               divided={taking.length === 0}
             />
             {taking.length === 0 ? (
@@ -212,7 +215,7 @@ export default async function BidSealingPage() {
                 <THead>
                   <Tr>
                     <Th>Exercise</Th>
-                    <Th>Mode it was published with</Th>
+                    <Th>Mode</Th>
                     <Th>Closing</Th>
                     <ActionsCol />
                   </Tr>
@@ -222,7 +225,7 @@ export default async function BidSealingPage() {
                     <Tr key={e.id}>
                       <Td>{`${e.reference} · ${e.title}`}</Td>
                       <Td>{e.onlineSubmissionMode === "LIVE" ? "Live" : e.onlineSubmissionMode === "DEMONSTRATION" ? "Demonstration" : "Not recorded"}</Td>
-                      <Td>{e.closingAt ? formatDate(e.closingAt) : "Not set"}</Td>
+                      <Td>{e.closingAt ? formatDate(e.closingAt) : "—"}</Td>
                       <RowActions>
                         <Link href={`/sourcing/${e.id}`}>Open</Link>
                       </RowActions>

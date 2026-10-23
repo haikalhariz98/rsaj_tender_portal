@@ -38,7 +38,7 @@ export function EditBidSealingPolicy({ values }: { values: Record<string, string
         {
           kind: "select",
           name: "provenance",
-          label: "Where this comes from",
+          label: "Basis",
           placeholder: "Not set",
           options: [
             { value: "STATED", label: "Stated: written in a governing document" },

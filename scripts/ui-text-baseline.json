@@ -1,8 +1,6 @@
 {
  "src/app/approvals/editors.tsx|banned-word": 1,
  "src/app/approvals/page.tsx|banned-word": 2,
- "src/app/configuration/changes/page.tsx|banned-word": 4,
- "src/app/configuration/security/page.tsx|banned-word": 2,
  "src/app/projects/[id]/page.tsx|banned-word": 2,
  "src/app/projects/[id]/payment-editors.tsx|banned-word": 1,
  "src/app/projects/[id]/payment-panels.tsx|banned-word": 1,

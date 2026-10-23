@@ -34,7 +34,7 @@ export default async function ConfigurationLayout({ children }: LayoutProps<"/co
             tone="warn"
             className="mb-5"
             title={`${waiting} ${waiting === 1 ? "change waits" : "changes wait"} for a second person. Shown is in force.`}
-            action={mayReadQueue(actor.permissions) ? <ButtonLink href="/configuration/changes" variant="secondary" size="sm">See changes</ButtonLink> : undefined}
+            action={mayReadQueue(actor.permissions) ? <ButtonLink href="/approvals?tab=changes" variant="secondary" size="sm">See changes</ButtonLink> : undefined}
           />
         )}
         {children}

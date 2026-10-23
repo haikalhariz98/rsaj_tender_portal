@@ -11,7 +11,6 @@ import { Blocked } from "@/components/ui/blocked";
 import { EmptyState } from "@/components/ui/feedback";
 import { MoreText } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { notACertificateFormText, notAPrintedFormText, otherUsesOf, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
 import { boundFieldWords, isSheetField, PRINTABLE_FIELDS } from "@/lib/certificate/printed";
@@ -24,6 +23,7 @@ import { AddBlock, AddPrintedField, AddRecipient, EditBlock, EditPageCount, Edit
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Template" };
 
 const USE_COUNTS = Object.fromEntries(Object.keys(TEMPLATE_OTHER_USES).map((k) => [k, true])) as Record<keyof typeof TEMPLATE_OTHER_USES, true>;
 
@@ -50,7 +50,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
   const uses = otherUsesOf(t._count as unknown as Record<string, number>);
   const notAForm = uses.length ? notACertificateFormText(uses).en : null;
   const undecided = t.signatureBlocks.filter((b) => b.delegable == null).length;
-  // 6.14 increment 2: the values a printed field may print, in the product's words (EN; MS kept beside them).
+  // 6.14 increment 2: the values a printed field may print, in the product's words .
   // Code review M-1: a routing sheet's value is offered with the note that it needs a routing type.
   const printable = [...PRINTABLE_FIELDS].map((k) => ({ value: k, label: isSheetField(k) ? `${boundFieldWords(k).en} (routing sheet: only on a certificate with a routing type)` : boundFieldWords(k).en }));
   const notAPrinted = uses.length ? notAPrintedFormText(uses).en : null;
@@ -63,7 +63,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
         eyebrow={<Link href="/configuration/templates">Templates</Link>}
         title={t.nameEn}
         badge={undecided ? <Badge tone="warn" dot>{`${undecided} block${undecided === 1 ? "" : "s"} undecided`}</Badge> : undefined}
-        info={{ title: "Signature order, recipients and printed form, pinned at a certificate's first signature.", text: "Signature order, recipients and printed form, pinned at a certificate's first signature." }}
+        info={{ title: "Template", text: "Signature order, recipients and printed form. A certificate keeps them as they were at its first signature." }}
         meta={[t.formCode || "No form code", t.revisionDate ? `Revision ${formatDate(t.revisionDate)}` : "No revision date", notAForm ? `Version ${t.bodyVersion} (its text)` : `Version ${t.bodyVersion} (its text, signature blocks, distribution list and printed form)`, t.pageCount == null ? "Printed pages not recorded" : `${t.pageCount} printed page${t.pageCount === 1 ? "" : "s"}`, `${t._count.certificates} certificate${t._count.certificates === 1 ? "" : "s"} printed on it`]}
       />
       <div className="flex flex-col gap-6">
@@ -76,12 +76,10 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
             <Table minWidth={640}>
               <colgroup>
                 <col />
-                <col style={{ width: 130 }} />
                 <ActionsCol icons={2} labelled={1} />
               </colgroup>
               <THead>
                 <Th>Block</Th>
-                <Th>Source</Th>
                 <Th className="text-right">Actions</Th>
               </THead>
               <tbody>
@@ -101,7 +99,6 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
                           .join(" · ")}
                       />
                     </Td>
-                    <Td label="Source"><ProvenanceBadge value={b.provenance} /></Td>
                     <Td>
                       <RowActions>
                         <HistoryButton iconOnly entity="FormSignatureBlock" entityId={b.id} label={b.labelEn} />
@@ -124,12 +121,10 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
             <Table minWidth={640}>
               <colgroup>
                 <col />
-                <col style={{ width: 130 }} />
                 <ActionsCol icons={2} labelled={1} />
               </colgroup>
               <THead>
                 <Th>Recipient</Th>
-                <Th>Source</Th>
                 <Th className="text-right">Actions</Th>
               </THead>
               <tbody>
@@ -138,7 +133,6 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
                     <Td label="Recipient">
                       <CellStack title={d.labelEn} aside={d.isOriginal ? <Chip tone="info">Original</Chip> : undefined} sub={[d.mandatory ? "Mandatory" : "Optional", d.ackRequired ? "acknowledgement asked for" : null, CONDITION_WORDS[d.condition].en].filter(Boolean).join(" · ")} />
                     </Td>
-                    <Td label="Source"><ProvenanceBadge value={d.provenance} /></Td>
                     <Td>
                       <RowActions>
                         <HistoryButton iconOnly entity="FormDistribution" entityId={d.id} label={d.labelEn} />
@@ -172,12 +166,10 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
             <Table minWidth={640}>
               <colgroup>
                 <col />
-                <col style={{ width: 130 }} />
                 <ActionsCol icons={2} labelled={1} />
               </colgroup>
               <THead>
                 <Th>Field</Th>
-                <Th>Source</Th>
                 <Th className="text-right">Actions</Th>
               </THead>
               <tbody>
@@ -186,7 +178,6 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
                     <Td label="Field">
                       <CellStack title={f.labelEn} sub={f.bound && f.computedKey ? `Filled by the portal: ${boundFieldWords(f.computedKey).en}` : "Completed by hand on the paper"} />
                     </Td>
-                    <Td label="Source"><ProvenanceBadge value={f.provenance} /></Td>
                     <Td>
                       <RowActions>
                         <HistoryButton iconOnly entity="FormField" entityId={f.id} label={f.labelEn} />
@@ -201,7 +192,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
           )}
         </Card>
         <p className="flex items-center gap-2 text-[12.5px] text-ink-3">
-          <FilesIcon size={14} /> The form&apos;s text and merge fields are edited on <Link href="/configuration/templates" className="font-semibold">Templates</Link>.
+          <FilesIcon size={14} /> Edit the text on <Link href="/configuration/templates" className="font-semibold">Templates</Link>.
         </p>
       </div>
     </>

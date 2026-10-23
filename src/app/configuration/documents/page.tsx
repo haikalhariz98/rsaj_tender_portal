@@ -27,14 +27,18 @@ import { classificationTone, recorderWords } from "@/lib/documents/views";
 import { formatOrgDay } from "@/lib/format";
 import { loadDocumentClasses } from "@/lib/records/load";
 
-import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
+import { SettingValue } from "@/components/setup/setting-value";
+import { MoreText } from "@/components/ui/more-text";
+
+import { Section } from "../records-ui";
 import { ProjectClassValue } from "./project-class-value";
 import { AddDocumentClass, EditDocumentClass, EditStorePolicy, LowerClassClassification, ReleaseHold } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Documents" };
 
-const NOT_SET = <span className="text-ink-4">Not set</span>;
+const NOT_SET = <SettingValue value={null} unset="" />;
 
 export default async function DocumentsConfigPage() {
   const actor = await requireStaff();
@@ -68,31 +72,8 @@ export default async function DocumentsConfigPage() {
             </Badge>
           ) : undefined
         }
-        info={{ title: "Documents", text: "Classification, retention, upload rules and the files received." }}
+        info={{ title: "Documents", text: "Classification, retention, upload rules and the files received. A class is ready once it has a keep-for period and what starts it; an unset period is not a period of zero." }}
       />
-
-      <Stats>
-        <Stat
-          label="Classes"
-          value={classes.length === 0 ? null : classes.length}
-          hint={classes.length === 0 ? "Nobody has classified anything yet" : "In use"}
-        />
-        <Stat
-          label="Ready to run"
-          value={classes.length === 0 ? null : `${readiness.ready} / ${readiness.total}`}
-          warn={readiness.ready < readiness.total}
-          hint={
-            readiness.ready < readiness.total
-              ? "Ready needs a period and what starts it. An unset period is not a period of zero"
-              : "Every class says how long to keep it and what starts the clock"
-          }
-        />
-        <Stat
-          label="Controlled copy"
-          value={classes.length === 0 ? null : classes.filter((c) => c.controlledCopy).length}
-          hint="Numbered on issue and recalled"
-        />
-      </Stats>
 
       {unclassified.length > 0 && (
         <Callout tone="warn" className="mb-6" title={unclassified.length === 1 ? "1 class has no classification" : `${unclassified.length} classes have no classification`}>
@@ -102,8 +83,8 @@ export default async function DocumentsConfigPage() {
 
       <Section
         title="Document classes"
-        blurb="What a document is, how it is classified, how long it must survive and who decides its disposal."
-        empty="No document class has been set. Until one is, nothing the portal issues or receives can be classified, retained or recalled, and nothing can be uploaded."
+        blurb="How a document is classified, how long it is kept and who decides its disposal. A controlled copy is numbered on issue and recalled."
+        empty="No document class yet. Nothing can be classified, retained, recalled or uploaded."
         count={classes.length}
         action={<AddDocumentClass offices={offices} />}
       >
@@ -114,7 +95,6 @@ export default async function DocumentsConfigPage() {
             <col style={{ width: "16%" }} />
             <col style={{ width: "17%" }} />
             <col style={{ width: "17%" }} />
-            <col style={{ width: "9%" }} />
             <ActionsCol icons={2} long={1} />
           </colgroup>
           <THead>
@@ -123,7 +103,6 @@ export default async function DocumentsConfigPage() {
             <Th>Keep for</Th>
             <Th>Disposal</Th>
             <Th>Handling</Th>
-            <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -133,11 +112,11 @@ export default async function DocumentsConfigPage() {
                   <CellStack title={c.nameEn} />
                 </Td>
                 <Td label="Classification">
-                  {c.classification ? <Badge tone={classificationTone(c.classification)}>{classificationLabel(c.classification)}</Badge> : <Badge tone="warn">Not set</Badge>}
+                  {c.classification ? <Badge tone={classificationTone(c.classification)}>{classificationLabel(c.classification)}</Badge> : NOT_SET}
                 </Td>
                 <Td label="Keep for">
                   <CellStack
-                    title={c.retentionMonths == null ? <Badge tone="warn">Not set</Badge> : `${c.retentionMonths} months`}
+                    title={c.retentionMonths == null ? NOT_SET : `${c.retentionMonths} months`}
                     sub={c.retentionTrigger ? RETENTION_TRIGGER_LABEL[c.retentionTrigger] : "Start not set"}
                   />
                 </Td>
@@ -146,9 +125,6 @@ export default async function DocumentsConfigPage() {
                 </Td>
                 <Td label="Handling" className="text-ink-2">
                   <CellStack title={c.controlledCopy ? "Numbered and recalled" : "Not a controlled copy"} sub={c.releaseNeedsApproval ? "Release needs approval" : "No approval needed to release"} />
-                </Td>
-                <Td label="Source">
-                  <ProvenanceChip value={c.provenance} />
                 </Td>
                 <Td>
                   <RowActions>
@@ -189,41 +165,36 @@ export default async function DocumentsConfigPage() {
                   policy && policy.allowedMediaTypes.length > 0 ? (
                     <span className="flex flex-col gap-1.5">
                       <span className="flex flex-wrap gap-1.5">{policy.allowedMediaTypes.map((t) => <Badge key={t}>{mediaLabel(t)}</Badge>)}</span>
-                      {policy.allowedMediaTypes.some((t) => !supplierAcceptedTypes([t]).length) && <span className="text-[12.5px] text-ink-3">Excel workbooks and Word documents apply to staff uploads only. Suppliers are not offered them and cannot upload them.</span>}
+                      {policy.allowedMediaTypes.some((t) => !supplierAcceptedTypes([t]).length) && <span className="text-[12.5px] text-ink-3">Excel and Word files are for staff only.</span>}
                     </span>
                   ) : (
-                    <Badge tone="warn">Not set, uploads refused</Badge>
+                    <SettingValue value={null} unset="Uploads are refused." />
                   ),
               },
               {
                 label: "Largest file",
-                value: policy?.maxBytes != null ? `${formatBytes(policy.maxBytes)} (${policy.maxBytes.toLocaleString("en-GB")} bytes)` : <Badge tone="warn">Not set, uploads refused</Badge>,
+                value: policy?.maxBytes != null ? formatBytes(policy.maxBytes) : <SettingValue value={null} unset="Uploads are refused." />,
               },
               {
-                label: "Deployment's technical limit",
+                label: "Limit of this installation",
                 value: upload?.ceiling ? (
-                  <span className="flex flex-col">
-                    <span>{formatBytes(upload.ceiling)}</span>
-                    <span className="text-[12.5px] text-ink-3">A limit of this installation, set by whoever runs the portal. It is not a policy and cannot be raised here.</span>
+                  <span className="inline-flex items-center gap-1">
+                    {formatBytes(upload.ceiling)}
+                    <MoreText text="Set by whoever runs the portal. It is not a policy and cannot be raised here." label="About this limit" />
                   </span>
                 ) : (
-                  <span className="flex flex-col">
-                    <Badge tone="warn">Not set, uploads refused</Badge>
-                    <span className="mt-1 text-[12.5px] text-ink-3">A limit of this installation, set by whoever runs the portal.</span>
-                  </span>
+                  <SettingValue value={null} unset="Set by whoever runs the portal. Uploads are refused until it is." />
                 ),
               },
               {
                 label: "Limit in force",
-                value: upload?.cap ? `${formatBytes(upload.cap.bytes)}, from ${upload.cap.from === "CEILING" ? "the deployment's limit" : "the largest file above"}` : NOT_SET,
+                value: upload?.cap ? `${formatBytes(upload.cap.bytes)}, from ${upload.cap.from === "CEILING" ? "the installation's limit" : "the largest file"}` : NOT_SET,
               },
               {
                 label: "Class of a filed online bid file",
-                value: policy?.onlineBidFileClassId ? (classes.find((c) => c.id === policy.onlineBidFileClassId)?.nameEn ?? NOT_SET) : <Badge tone="warn">Not set, an online opening cannot be finalised</Badge>,
+                value: policy?.onlineBidFileClassId ? (classes.find((c) => c.id === policy.onlineBidFileClassId)?.nameEn ?? NOT_SET) : <SettingValue value={null} unset="An online opening cannot be finalised." />,
               },
               { label: "Class for project files", value: <ProjectClassValue classId={policy?.projectDocumentClassId ?? null} classes={classes} /> },
-              { label: "Where this came from", value: policy?.provenance ? <ProvenanceChip value={policy.provenance} /> : NOT_SET },
-              { label: "Megabytes", value: "1 MB is 1,048,576 bytes" },
               ...(policy?.notes ? [{ label: "Notes", value: policy.notes }] : []),
             ]}
           />
@@ -243,7 +214,7 @@ export default async function DocumentsConfigPage() {
               {staged.length > 0 && <Badge outline>{staged.length}</Badge>}
             </span>
           }
-          subtitle="Uploaded, not attached. Kept until attached."
+          subtitle="Kept until attached"
           divided={staged.length === 0}
         />
         {staged.length === 0 ? (

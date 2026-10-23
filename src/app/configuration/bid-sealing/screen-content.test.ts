@@ -17,7 +17,8 @@ describe("the Bid sealing screen", () => {
   it("says an attestation is attested and not checked by the portal, and keeps the not-set state of the switch", () => {
     expect(page.match(/attested, not checked by the portal/g)?.length).toBeGreaterThanOrEqual(2);
     expect(page).toContain("Not set");
-    expect(page).toContain("Where this comes from");
+    // 5.7: the source is in History, not on the page.
+    expect(page).toContain("Shortest unseal passphrase");
     // 0005, founder 2026-10-19: the callout is a chip; the claim it guards (review pending) is still on the surface.
     expect(page).toContain("Independent review pending");
   });
@@ -91,7 +92,10 @@ describe("the Security screen", () => {
   it("keeps the unseal passphrase minimum with its not-set words", () => {
     const page = src("src/app/configuration/security/page.tsx");
     expect(page).toContain("sealingPassphraseMinLength");
-    expect(page).toContain("no opening officer can set a share");
+    // 5.7: the gap is reported on Bid sealing, not on the sign-in page.
+    const sealing = src("src/app/configuration/bid-sealing/page.tsx");
+    expect(sealing).toContain("sealingPassphraseMinLength");
+    expect(sealing).toContain("No opening officer can set a share");
   });
 });
 

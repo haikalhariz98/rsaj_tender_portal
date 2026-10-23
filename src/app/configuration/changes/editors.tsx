@@ -85,7 +85,7 @@ export function ProposeSetting({
       values={{ setting }}
       action={proposeSecurityPolicy}
       submitLabel={atOnce ? "Save" : "Propose the change"}
-      trigger={{ label: atOnce ? "Change" : "Propose a change", className: buttonClass("secondary", "sm"), ariaLabel: `${atOnce ? "Change" : "Propose a change to"} ${label}` }}
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm"), ariaLabel: `${atOnce ? "Change" : "Propose a change to"} ${label}` }}
       size="md"
     />
   );

@@ -78,7 +78,7 @@ export async function saveBidSealingPolicy(
       "The deployment's hardening",
       { max: 2000 },
     ),
-    provenance: r.choice("provenance", "Where this comes from", PROVENANCE),
+    provenance: r.choice("provenance", "Basis", PROVENANCE),
     notes: r.text("notes", "Notes", { max: 2000 }),
   };
   if (r.failed) return { ok: false, errors: r.errors };

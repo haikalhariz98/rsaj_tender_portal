@@ -4,7 +4,7 @@ import { dayToDate, todayIn } from "@/lib/dates";
 import { liveClauses } from "@/lib/tender-docs/clauses";
 import { loadClauses } from "@/lib/tender-docs/repo";
 
-import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
+import { Section } from "../records-ui";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AddTemplate, EditTemplate } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,12 +16,13 @@ import { Tabs } from "@/components/tabs";
 import { FilesIcon, InboxIcon, ToolsIcon } from "@/components/icons";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
-import { ProvenanceBadge } from "@/components/ui/provenance";
 import { otherUsesOf, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
 import { formNeeds, NEED_STATE_WORDS, type FormOf } from "@/lib/certificate/form-needs";
 import type { CertificateKind } from "@/lib/certificate/types";
 import { AddCorrection, AddTerm, EditCorrection, EditTerm, RemoveCorrection, RemoveTerm } from "./glossary-editors";
 import { requireStaff } from "@/app/_auth/actor";
+
+export const metadata = { title: "Templates" };
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,6 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
   const today = org ? todayIn(new Date(), org.timeZone) : null;
   const clauses = org && today ? liveClauses(await loadClauses(org.id), today).map((c) => ({ code: c.code, title: c.titleEn })) : [];
   const unclassified = templates.filter((t) => t.documentClassId == null);
-  const withText = templates.filter((t) => t.bodyEn?.trim()).length;
 
   // 6.14 increment 2: the forms the certificates need (FR-CRT-012), the typing corrections and the terms.
   const [kindSettings, policy, sheetTypes, corrections, terms, formRows] = org
@@ -94,42 +94,19 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
 
   const templatesPanel = (
     <>
-      <Stats>
-        <Stat
-          label="Templates"
-          value={templates.length === 0 ? null : templates.length}
-          hint={templates.length === 0 ? "Nothing is issued yet" : withText === templates.length ? "Each has its text" : `${withText} with text; ${templates.length - withText} without, so not issued`}
-        />
-        <Stat
-          label="Classified"
-          value={
-            templates.length === 0
-              ? null
-              : `${templates.length - unclassified.length} / ${templates.length}`
-          }
-          warn={unclassified.length > 0}
-          hint={
-            unclassified.length > 0
-              ? "An unclassified template has no retention rule"
-              : "Every template has a class"
-          }
-        />
-      </Stats>
-
       <Section
         title="Templates"
-        blurb="A generated form has to stand next to the printed one it replaces, so each carries its form code and revision. Open a template for its signature blocks in printed order, its distribution list and its printed form."
-        empty="No template has been set. Nothing can be issued until one exists."
+        blurb="Each carries the form code and revision of the printed form it replaces. Open one for its signature blocks, distribution list and printed form. An unclassified template has no retention rule; one without text is not issued."
+        empty="No template yet. Nothing can be issued."
         count={templates.length}
         action={<AddTemplate classes={classes} clauses={clauses} terms={termOptions} />}
       >
         <Table>
           <colgroup>
             <col />
+            <col style={{ width: "16%" }} />
             <col style={{ width: "14%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: "22%" }} />
             <ActionsCol icons={2} />
           </colgroup>
           <THead>
@@ -137,7 +114,6 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
             <Th>Form code</Th>
             <Th>Revision</Th>
             <Th>Class</Th>
-            <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -158,9 +134,6 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
                   <Td label="Class" className="truncate" title={cls?.nameEn}>
                     {cls ? cls.nameEn : <Badge tone="warn">Not classified</Badge>}
                   </Td>
-                  <Td label="Source">
-                    <ProvenanceChip value={t.provenance} />
-                  </Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="DocumentTemplate" entityId={t.id} label={t.nameEn} />
@@ -178,9 +151,8 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
         <CardHeader
           icon={<ToolsIcon size={17} />}
           title="Forms the certificates need"
-          actions={gaps ? <Badge tone="warn" dot>{`${gaps} without a written form`}</Badge> : <Badge tone="ok">Each has its written form</Badge>}
-          subtitle="Written by the organisation"
-          divided={needs.length === 0}
+          actions={gaps ? <Badge tone="warn" dot>{`${gaps} to write`}</Badge> : <Badge tone="ok">All written</Badge>}
+                    divided={needs.length === 0}
         />
         {needs.length === 0 ? (
           <EmptyState size="sm" title="Nothing listed" />
@@ -200,14 +172,14 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
               {needs.map((n) => (
                 <Tr key={n.key}>
                   <Td label="What needs a form">
-                    <CellStack title={n.need.en} sub={n.setAt === "POST_AWARD" ? "Chosen under Post-award controls" : "Its printed sheet, named under Routing sheets"} />
+                    <CellStack title={n.need.en} sub={n.setAt === "POST_AWARD" ? "Chosen under Supervision and payment" : "Named under Routing sheets"} />
                   </Td>
                   <Td label="Form" className="break-words">
                     {n.form ? <Link href={`/configuration/templates/${n.form.id}`} className="font-semibold">{n.form.nameEn}</Link> : <span className="text-ink-4">None chosen</span>}
                   </Td>
                   <Td label="State">
                     {n.setAt === "ROUTING_SHEETS" ? (
-                      n.state === "READY" ? <Badge tone="ok">Printed sheet named</Badge> : <Badge>None named: the sheet shows the product&apos;s words only</Badge>
+                      n.state === "READY" ? <Badge tone="ok">Printed sheet named</Badge> : <Badge>None named</Badge>
                     ) : (
                       <Badge tone={n.state === "READY" ? "ok" : "warn"}>{NEED_STATE_WORDS[n.state].en}</Badge>
                     )}
@@ -226,7 +198,7 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
       <CardHeader
         icon={<FilesIcon size={17} />}
         title="Typing corrections"
-        subtitle="Corrected on render. None ships."
+        subtitle="Applied when a form is shown"
         actions={<AddCorrection forms={certificateForms} />}
         divided={corrections.length === 0}
       />
@@ -236,12 +208,10 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
         <Table minWidth={640}>
           <colgroup>
             <col />
-            <col style={{ width: 130 }} />
             <ActionsCol icons={2} labelled={1} />
           </colgroup>
           <THead>
             <Th>Correction</Th>
-            <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -250,7 +220,6 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
                 <Td label="Correction">
                   <CellStack title={`${c.fromText} → ${c.toText}`} sub={`On ${c.forms.map((f) => f.template.nameEn).sort().join(", ")}`} />
                 </Td>
-                <Td label="Source"><ProvenanceBadge value={c.provenance} /></Td>
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="TextCorrection" entityId={c.id} label={c.fromText} />
@@ -271,7 +240,7 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
       <CardHeader
         icon={<InboxIcon size={17} />}
         title="Terms"
-        subtitle="One wording per concept. None ships."
+        subtitle="One wording for each idea"
         actions={<AddTerm />}
         divided={terms.length === 0}
       />
@@ -281,12 +250,10 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
         <Table minWidth={640}>
           <colgroup>
             <col />
-            <col style={{ width: 130 }} />
             <ActionsCol icons={2} labelled={1} />
           </colgroup>
           <THead>
             <Th>Term</Th>
-            <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
           <tbody>
@@ -298,7 +265,6 @@ export default async function TemplatesPage(props: PageProps<"/configuration/tem
                     sub={[t.aliases.length ? `Also written: ${t.aliases.map((a) => a.alias).join("; ")}` : "No other wording", `Cited in a form's text as {{term:${t.code}}}`].join(" · ")}
                   />
                 </Td>
-                <Td label="Source"><ProvenanceBadge value={t.provenance} /></Td>
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="Term" entityId={t.id} label={t.canonicalEn ?? t.canonicalMs ?? "Term"} />

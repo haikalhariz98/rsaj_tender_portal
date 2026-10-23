@@ -39,7 +39,7 @@ function templateFields(editing: boolean, classes: DocumentClass[]): Field[] {
   {
     kind: "select",
     name: "provenance",
-    label: "Where this came from",
+    label: "Basis",
     required: true,
     placeholder: "Choose",
     options: [

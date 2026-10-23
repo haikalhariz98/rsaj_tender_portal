@@ -24,7 +24,7 @@ import { formatOrgDateTime } from "@/lib/format";
  * answers in words. Who proposes and who decides is the session's person, never a field. A decision is a signature: the password is asked again, every time.
  */
 
-const PATH = "/configuration/changes";
+const PATH = "/approvals";
 
 function refresh() {
   revalidatePath(PATH);

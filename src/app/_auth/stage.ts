@@ -84,6 +84,6 @@ async function propose(actor: StaffActor, key: EditKey, data: FormData): Promise
     if (refused) return refused;
     throw e;
   }
-  revalidatePath("/configuration/changes");
+  revalidatePath("/approvals");
   return { ok: true, notice: editRegistry.find(key)?.decidePermission === "configuration.issue" ? PROPOSED_NOTICE : PROPOSED_CORRECTION_NOTICE };
 }

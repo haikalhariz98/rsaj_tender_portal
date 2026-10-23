@@ -89,7 +89,7 @@ function classFields(editing: boolean, offices: OfficeOption[], classification: 
   {
     kind: "select",
     name: "provenance",
-    label: "Where this came from",
+    label: "Basis",
     required: true,
     placeholder: "Choose",
     options: PROVENANCE_OPTIONS,
@@ -189,7 +189,7 @@ export function EditStorePolicy({ policy, sulitClasses, projectClasses }: { poli
         },
         { kind: "select", name: "onlineBidFileClassId", label: "Class of a filed online bid file", placeholder: "Not set", options: sulitClasses, hint: "Must be classified SULIT. Empty blocks online openings." },
         { kind: "select", name: "projectDocumentClassId", label: "Class for project files", placeholder: "Not set", options: projectClasses, hint: "Classified, not SULIT. Empty blocks project files." },
-        { kind: "select", name: "provenance", label: "Where this came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
+        { kind: "select", name: "provenance", label: "Basis", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
       reason={{ label: "Why is it being changed?" }}
