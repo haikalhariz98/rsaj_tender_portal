@@ -41,8 +41,22 @@ export interface PackMatrixDraft {
   policy: Omit<Policy, "clauses">;
   coreRouting: CoreLevel[];
   rules: PackRule[];
+  /// The contract terms bands (FR-MTD-001): which terms set applies at a value, never the retention or defects figures.
+  termsBands?: PackTermsBand[];
   source: string;
   requirement?: string;
+}
+export interface PackTermsBand {
+  bandKey: string;
+  regime: "below" | "quotation" | "tender" | null;
+  minValue: number | null;
+  maxValue: number | null;
+  labelEn: string;
+  retentionApplies: boolean | null;
+  defectsLiabilityApplies: boolean | null;
+  followsBoundarySwitch: boolean | null;
+  clause: string;
+  provenance: PackProvenance;
 }
 
 /// A draft evaluation model (ADR 0043 D2): status DRAFT, version 1, no issuer and no maker. Its content carries its own provenance.

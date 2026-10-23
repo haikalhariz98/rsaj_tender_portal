@@ -25,10 +25,10 @@ const WORDS = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" } as 
 /// Columns kept out of the audit row: keys, kinds and the list a row is on (codes never reach a screen; the entity label names the list), and the
 /// provenance and source, which it records in words.
 const UNSHOWN = ["code", "key", "list", "domain", "kind", "provenance", "governingSource"];
-/// Also kept out: a column holding another row's code or a kind (`approverCode`, `packKind`, `authorityMethodKey`), and a value that is a code of
-/// the schema's own (`BILL_OF_QUANTITIES`, `LOOP`), except in a name, which is words whatever its case.
-const codeColumn = (c: string) => /(Code|Kind|Key)$/.test(c);
-const codeValue = (c: string, v: unknown) => typeof v === "string" && /^[A-Z][A-Z0-9_]+$/.test(v) && !/^(name|label)/.test(c);
+/// Also kept out: a column holding another row's code (`approverCode`, `authorityMethodKey`). A value that is one of the schema's own codes
+/// (`BILL_OF_QUANTITIES`, `ONLINE`) is written in words ("Bill of quantities"), except in a name, which is words whatever its case.
+const codeColumn = (c: string) => /(Code|Key)$/.test(c);
+const inWords = (c: string, v: unknown) => (typeof v === "string" && /^[A-Z][A-Z0-9_]+$/.test(v) && !/^(name|label)/.test(c) ? v.charAt(0) + v.slice(1).toLowerCase().replace(/_/g, " ") : v);
 
 type Writer = { create(a: unknown): Promise<{ id: string }>; update(a: unknown): Promise<{ id: string }> };
 
@@ -59,7 +59,7 @@ async function runWrites(tx: Tx, organisationId: string, writes: readonly PackWr
   const refOf = (v: unknown) => (v && typeof v === "object" && "ref" in v ? String((v as { ref: unknown }).ref) : null);
   const resolved = (values: Record<string, unknown>) => Object.fromEntries(Object.entries(values).map(([c, v]) => [c, refOf(v) ? made.get(refOf(v)!)!.id : v]));
   const shown = (values: Record<string, unknown>, also: readonly string[] = []) =>
-    Object.fromEntries(Object.entries(values).filter(([c, v]) => !UNSHOWN.includes(c) && !also.includes(c) && !codeColumn(c) && !codeValue(c, v)).map(([c, v]) => [c, refOf(v) ? made.get(refOf(v)!)!.label : v]));
+    Object.fromEntries(Object.entries(values).filter(([c]) => !UNSHOWN.includes(c) && !also.includes(c) && !codeColumn(c)).map(([c, v]) => [c, refOf(v) ? made.get(refOf(v)!)!.label : inWords(c, v)]));
 
   for (const w of writes) {
     const actor: AuditActor = { kind: "SYSTEM", label: w.actor };
@@ -110,7 +110,7 @@ type DraftAudit = { actor: AuditActor; reason: string };
 const money = (n: number | null) => (n == null ? null : String(n));
 const draftOrigin = (provenance: keyof typeof WORDS, source: string) => ({ whereItComesFrom: WORDS[provenance], governingSource: source });
 
-/// The draft matrix, its core routing and its rules, each one audit row. Never `issuedAt`, never a maker: a person adopts it and issues it.
+/// The draft matrix, its core routing, its terms bands and its rules, each one audit row. Never `issuedAt`, never a maker: a person adopts it and issues it.
 async function writeMatrixDraft(tx: Tx, organisationId: string, m: PackMatrixDraft, effectiveFrom: Date, a: DraftAudit & { office: (code: string) => string }) {
   const p = m.policy;
   const matrix = await tx.authorityMatrix.create({
@@ -126,6 +126,13 @@ async function writeMatrixDraft(tx: Tx, organisationId: string, m: PackMatrixDra
       select: { id: true },
     });
     await audit("CoreRoutingLevel", level.id, `${m.label} · core routing · ${a.office(l.approverCode)}`, { approver: a.office(l.approverCode), beneath: chain(l.steps), ...draftOrigin(l.provenance, l.clause) });
+  }
+  for (const [i, t] of (m.termsBands ?? []).entries()) {
+    const band = await tx.termsBand.create({
+      data: { authorityMatrixId: matrix.id, bandKey: t.bandKey, regime: t.regime, minValue: money(t.minValue), maxValue: money(t.maxValue), labelEn: t.labelEn, retentionApplies: t.retentionApplies, defectsLiabilityApplies: t.defectsLiabilityApplies, followsBoundarySwitch: t.followsBoundarySwitch, clause: t.clause, provenance: t.provenance, sortOrder: i + 1 },
+      select: { id: true },
+    });
+    await audit("TermsBand", band.id, `${m.label} · ${t.labelEn}`, { labelEn: t.labelEn, minValue: money(t.minValue), maxValue: money(t.maxValue), retentionApplies: t.retentionApplies, defectsLiabilityApplies: t.defectsLiabilityApplies, clause: t.clause, ...draftOrigin(t.provenance, t.clause) });
   }
   for (const [i, r] of m.rules.entries()) {
     const rule = await tx.authorityRule.create({

@@ -51,14 +51,15 @@ describe("loading the generic pack", () => {
     expect(unsetSettings(await loadSecurityPolicy(db, orgId), "SIGN_IN", "SUPPLIER_SIGN_IN", "SET_PASSWORD", "ISSUE_CODE", "SET_OFFICER_SHARE")).toEqual([]);
   });
 
-  it("shows no code in the trail: no key, kind or list column, and no value of the schema's own codes", async () => {
+  it("shows no code in the trail: no key, kind or list column, and the schema's own codes in words", async () => {
     const rows = await db.auditEntry.findMany({ where: { organisationId: orgId }, select: { changes: true } });
     const changes = rows.flatMap((r) => r.changes as { field: string; after: unknown }[]);
     expect(changes.map((c) => c.field)).not.toContain("kind");
     expect(changes.map((c) => c.field)).not.toContain("code");
     expect(changes.filter((c) => typeof c.after === "string" && /^[A-Z][A-Z0-9_]+$/.test(c.after) && !/^name|^label/.test(c.field))).toEqual([]);
-    // A name in capitals is words, not a code: the SULIT class keeps its name.
+    // A name in capitals is words, not a code: the SULIT class keeps its name, and its classification is in words.
     expect(changes).toContainEqual(expect.objectContaining({ field: "nameEn", after: "SULIT" }));
+    expect(changes).toContainEqual(expect.objectContaining({ field: "classification", after: "Sulit" }));
   });
 
   it("leaves the register lacking only the customer's texts, its document types and the deployment's values", async () => {
