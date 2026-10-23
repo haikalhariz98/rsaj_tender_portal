@@ -48,6 +48,7 @@ import { addProjectApprover, createProjectDocument, decideProjectVersion, markPr
 import { documentState } from "./state";
 import { loadDocumentFacts } from "./facts";
 import { loadDocumentPage } from "./page-store";
+import { loadPortalEarlier, loadStaffEarlier } from "./earlier-read";
 import { loadPortalRegister, loadWaitingForYou } from "./portal-read";
 import { loadRegister } from "./register";
 import { addVersion, createDocument, WorkspaceRefused, type WorkspaceCtx } from "./store";
@@ -337,6 +338,23 @@ describe("the earlier records in the one list (PW-11)", () => {
     expect(r.href).toBe(`/projects/${encodeURIComponent(contractId)}?stage=project&tab=submissions&earlier=${row.id}`);
     // Returned, it is not "Waiting for you": the earlier path is closed.
     expect((await loadWaitingForYou(db, c.actor, { contractId })).rows).toEqual([]);
+  });
+
+  it("one earlier record is read by id for its read-only view: only on its own contract and organisation, and by the contractor only its own supplier's", async () => {
+    const c = await contractor();
+    const other = await contractor();
+    const contractId = await contract(c.supplierId);
+    const otherContractId = await contract(other.supplierId);
+    const mine = await earlier(c, contractId, { title: "Old programme", at: at(-5) });
+    const theirs = await earlier(c, contractId, { title: "Another supplier's", at: at(-4), supplierId: other.supplierId });
+    expect(await loadStaffEarlier(db, { organisationId, contractId, id: mine.id })).toMatchObject({ title: "Old programme", answerable: true, answerShut: null });
+    // Not on another contract, not under another organisation, not a made-up id: the same null.
+    expect(await loadStaffEarlier(db, { organisationId, contractId: otherContractId, id: mine.id })).toBeNull();
+    expect(await loadStaffEarlier(db, { organisationId: "no-such-organisation", contractId, id: mine.id })).toBeNull();
+    expect(await loadStaffEarlier(db, { organisationId, contractId, id: "no-such-record" })).toBeNull();
+    expect(await loadPortalEarlier(db, { organisationId, contractId, supplierId: c.supplierId, id: mine.id })).toMatchObject({ title: "Old programme" });
+    expect(await loadPortalEarlier(db, { organisationId, contractId, supplierId: c.supplierId, id: theirs.id })).toBeNull();
+    expect(JSON.stringify(await loadPortalEarlier(db, { organisationId, contractId, supplierId: c.supplierId, id: mine.id }))).not.toMatch(/answeredBy|answerable/);
   });
 
   it("both lists interleave documents and earlier records newest first, filter them, page them once each, and the portal shows only its own supplier's", async () => {

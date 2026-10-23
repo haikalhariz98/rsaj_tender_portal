@@ -142,3 +142,16 @@ export function earlierRowReading(r: Pick<EarlierRow, "outcome" | "kind">): { st
   const e = earlierReading(r.outcome);
   return { state: e.state, stateLabel: stateWords(e.state, r.kind), waitsOn: e.waitsOn };
 }
+
+/// One earlier record of a contract for the staff's read-only view (`earlier=` in the Documents tab's address), or null where there is none under that id on this contract of this
+/// organisation. Read by id, not from the list's page: the list is paged and filtered, and a link to an older record must still open it.
+export async function loadStaffEarlier(client: Tx, i: { organisationId: string; contractId: string; id: string }): Promise<StaffEarlier | null> {
+  const [row] = await earlierLoader(client, { id: i.id, organisationId: i.organisationId, contractId: i.contractId }).load(null, 1);
+  return row ? staffEarlier(row) : null;
+}
+
+/// The contractor's twin of `loadStaffEarlier`: its own supplier's record only. The caller has already established that the supplier holds the contract (`loadProjectContext`).
+export async function loadPortalEarlier(client: Tx, i: { organisationId: string; contractId: string; supplierId: string; id: string }): Promise<PortalEarlier | null> {
+  const [row] = await earlierLoader(client, { id: i.id, organisationId: i.organisationId, contractId: i.contractId, supplierId: i.supplierId }).load(null, 1);
+  return row ? portalEarlier(row) : null;
+}

@@ -1,53 +1,54 @@
+import { AnswerDrawer } from "@/app/documents/review-editors";
 import { ActGate } from "@/components/act-gate";
-import { ENGLISH, type Language } from "@/lib/i18n/language";
+import { EarlierRecordCard } from "@/components/earlier-record-card";
+import { Blocked } from "@/components/ui/blocked";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { db } from "@/lib/db";
 import type { StaffActor } from "@/lib/auth/types";
 import type { LoadedContract } from "@/lib/contract/repo";
-import { loadReviewQueue } from "@/lib/portal/projects/review-store";
+import { EARLIER_RECORD } from "@/lib/project-docs/earlier";
+import { loadStaffEarlier, type StaffEarlier } from "@/lib/project-docs/earlier-read";
 import { loadWorkspaceStart } from "@/lib/project-docs/page-store";
 import { isRegisterFilter, loadRegister } from "@/lib/project-docs/register";
 
-import { SubmissionsPanel } from "../submissions-panel";
-import { ProjectDocumentsCard } from "./project-documents-card";
+import { documentsHref, ProjectDocumentsCard } from "./project-documents-card";
 
 /**
- * The contract's Documents list comes first (the simple Project workspace, ADR 0042): every document of the contract, started by an upload or a request, with the day of its latest
- * version, its state and who it waits on. It is outside the supervision gate below on purpose: the workspace is open from Executed through Terminated (PW-22), and its own acts
- * judge the contract's state. The queue below it is the earlier Submissions tab, unchanged until the six kinds move in (step 6).
+ * The contract's Documents tab (the simple Project workspace, ADR 0042): every document of the contract in one list, the six kinds the contractor sends and the earlier records
+ * (the contractor's earlier submissions, read only, PW-11) among them. It is outside the supervision gate on purpose: the workspace is open from Executed through Terminated
+ * (PW-22), and its own acts judge the contract's state.
  *
- * The contract's Submissions tab (FR-SUP-006, 009; AC-16): this contract's submissions from the contractor's portal account, waiting and answered, answered here with the same drawer as the
- * Contracts list's "Submissions waiting" view. Not hidden for a restricted exercise (AC-18, AC-19): the contract's supervising officer answers it whether or not named on the exercise.
+ * An earlier record opens in its own read-only card above the list (`earlier` in the address), read by its id so an older record opens whatever page the list is on. Answering
+ * one that is still unanswered is the supervision family's act (AC-16, AC-18, AC-19: the contract's supervising officer answers it whether or not named on the exercise), so
+ * the answer alone sits under that gate, in the contract's own words when the state shuts it.
  */
-export async function SubmissionsTab({ l, actor, organisationId, contractId, status, today, waiting, answered, docs, docsAfter }: { l: LoadedContract; actor: StaffActor; organisationId: string; contractId: string; status: ContractStatus; today: string | null; waiting: string | undefined; answered: string | undefined; docs: string | undefined; docsAfter: string | undefined }) {
-  const lang = ENGLISH;
+export async function SubmissionsTab({ l, actor, organisationId, contractId, status, docs, docsAfter, earlier }: { l: LoadedContract; actor: StaffActor; organisationId: string; contractId: string; status: ContractStatus; docs: string | undefined; docsAfter: string | undefined; earlier: string | undefined }) {
   const filter = isRegisterFilter(docs) ? docs : "ALL";
   const after = docsAfter || null;
-  const [review, register, start] = await Promise.all([
-    loadReviewQueue(db, organisationId, today, { waiting, answered }, { contractId }, lang),
+  const [register, start, record] = await Promise.all([
     loadRegister(db, { organisationId, contractId, orgName: l.org.name, filter, after }),
     loadWorkspaceStart(db, l, actor),
+    earlier ? loadStaffEarlier(db, { organisationId, contractId, id: earlier }) : Promise.resolve(null),
   ]);
-  const href = (w: number, a: number) => {
-    const q = new URLSearchParams({ tab: "submissions", ...(w ? { waiting: String(w) } : {}), ...(a ? { answered: String(a) } : {}) });
-    return `/projects/${contractId}?${q.toString()}`;
-  };
-  // Answering is an act of the contract's supervision: its refusal for the contract's status is stated once, and the drawer is blocked in those words.
   return (
     <div className="flex flex-col gap-6">
+      {record && <EarlierRecord record={record} status={status} backHref={documentsHref(contractId, filter, after)} />}
       <ProjectDocumentsCard contractId={contractId} orgName={l.org.name} rows={register.rows} filter={filter} next={register.next} after={after} start={start} />
-      <EarlierQueue review={review} status={status} judged={!!today} hrefOf={href} lang={lang} />
     </div>
   );
 }
 
-/// The earlier queue of contractors' submissions, under the supervision family's gate: a submission is answered by the contract's supervision, whatever the Documents list above allows.
-function EarlierQueue({ review, status, judged, hrefOf, lang }: { review: Parameters<typeof SubmissionsPanel>[0]["review"]; status: ContractStatus; judged: boolean; hrefOf: Parameters<typeof SubmissionsPanel>[0]["hrefOf"]; lang: Language }) {
+const ANSWER_NOTE = "earlier-answer-note";
+
+/// An earlier record, read only; while it is unanswered its answer is offered under the supervision family's gate, or blocked with the reason the record itself gives.
+export function EarlierRecord({ record, status, backHref }: { record: StaffEarlier; status: ContractStatus; backHref: string }) {
   const shut = actStatusBlocker("SUPERVISION", status);
+  const action = !record.answerable ? undefined : record.answerShut ? <Blocked label="Answer" reason={record.answerShut} noteId={ANSWER_NOTE} /> : <AnswerDrawer id={record.id} label={`${record.kindLabel}: ${record.title}`} contractor={record.contractor} />;
   return (
     <ActGate blocker={shut}>
-      <SubmissionsPanel review={review} judged={judged} hrefOf={hrefOf} withContract={false} lang={lang} />
+      <EarlierRecordCard record={record} label={EARLIER_RECORD} backHref={backHref} answeredBy={record.answeredBy} action={action} />
+      {record.answerShut && <p id={ANSWER_NOTE} className="mt-2 px-1 text-[12.5px] text-ink-3">{record.answerShut}</p>}
     </ActGate>
   );
 }

@@ -1,6 +1,9 @@
 import type { Tone } from "@/components/ui/badge";
 import { stateWords } from "@/lib/project-docs/labels";
 
+/// The state words that are final and good: approved, taken up, noted.
+const FINAL_WORDS: ReadonlySet<string> = new Set([stateWords("APPROVED", null), stateWords("TAKEN_UP", null), stateWords("TAKEN_UP", "DEFECTS_RECTIFIED")]);
+
 /**
  * How the contractor's Documents list and document page colour what the portal's loaders already said in words (`portal-read.ts`). Colour only: no rule and no state is decided
  * here. The loaders give words, not the staff state, so the tone is read from what the contractor is told: it is asked to act (warn), the document is final (ok), the organisation
@@ -9,7 +12,8 @@ import { stateWords } from "@/lib/project-docs/labels";
 export function portalTone(r: { stateLabel: string; shown: "VERSIONS" | "BEING_PREPARED"; waitsOnYou: boolean; waitsOnLabel: string | null }): Tone {
   if (r.waitsOnYou) return "warn";
   if (r.shown === "BEING_PREPARED") return "info";
-  if (r.stateLabel === stateWords("APPROVED", null)) return "ok";
+  // Approved, and the six kinds' final words: Taken up, and Noted on defects rectified (the words are `stateWords`'s, never restated).
+  if (FINAL_WORDS.has(r.stateLabel)) return "ok";
   if (r.waitsOnLabel) return "info";
   return "neutral";
 }

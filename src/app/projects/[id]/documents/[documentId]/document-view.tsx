@@ -5,7 +5,7 @@ import { documentsHref } from "@/app/projects/[id]/project-documents-card";
 import { FileIcon, UsersIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
-import { buttonClass } from "@/components/ui/button";
+import { ButtonLink, buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,7 +14,7 @@ import { formatDate } from "@/lib/format";
 import { NOT_SCANNED_LABEL } from "@/lib/ui/upload-logic";
 import type { DocumentPage, Gate } from "@/lib/project-docs/page-store";
 
-import { AddApproverDrawer, ApproveDrawer, AskDrawer, RejectDrawer, RemoveApproverDrawer, UploadVersionDrawer } from "../../document-editors";
+import { AddApproverDrawer, ApproveDrawer, AskDrawer, MarkDrawer, RejectDrawer, RemoveApproverDrawer, UploadVersionDrawer } from "../../document-editors";
 import { gateNote, STATE_TONE } from "../../document-words";
 
 const HEADER_NOTE = "document-actions-note";
@@ -34,14 +34,24 @@ export function DocumentPageView({ page, contractNumber }: { page: DocumentPage;
   const { actions } = page;
   const decideId = actions.decideVersionId;
   const common = { contractId: page.contractId, documentId: page.id, title: page.title };
+  // A document of one of the six kinds (plan step 6) is taken up or returned, never approved: no approve, reject or approver is offered or explained (PW-24), and the marks are
+  // the answer. An ordinary document keeps its four acts.
+  const marks = page.markWords;
+  // Once a kind's version is marked and final, the two marks are over: neither is shown as a disabled button.
+  const showMarks = !!marks && !(page.final && !actions.markTakenUp.allowed && !actions.markReturned.allowed);
+  const markGates = marks && showMarks ? [{ label: marks.takenUp, gate: actions.markTakenUp }, { label: marks.returned, gate: actions.markReturned }] : [];
   // One primary: the answer when it is the reader's to give, else the next version.
-  const primary = actions.approve.allowed && decideId ? "approve" : actions.upload.allowed ? "upload" : null;
-  const headerNote = gateNote([
-    { label: "Upload a new version", gate: actions.upload },
-    { label: "Ask for it", gate: actions.request },
-    { label: "Approve", gate: actions.approve },
-    { label: "Reject", gate: actions.reject },
-  ]);
+  const primary = marks ? (actions.markTakenUp.allowed && decideId ? "takenUp" : null) : actions.approve.allowed && decideId ? "approve" : actions.upload.allowed ? "upload" : null;
+  const headerNote = gateNote(
+    marks
+      ? markGates
+      : [
+          { label: "Upload a new version", gate: actions.upload },
+          { label: "Ask for it", gate: actions.request },
+          { label: "Approve", gate: actions.approve },
+          { label: "Reject", gate: actions.reject },
+        ],
+  );
   const blocked = (label: string, gate: Gate) => <Blocked label={label} reason={gate.reasons.join(" ")} noteId={HEADER_NOTE} />;
 
   const facts = [page.side === "CONTRACTOR" ? "The contractor's document" : `${page.sideLabel}'s document`, page.kindLabel, page.waitsOnLabel];
@@ -63,12 +73,27 @@ export function DocumentPageView({ page, contractNumber }: { page: DocumentPage;
         actionsNote={headerNote ?? undefined}
         actionsNoteId={HEADER_NOTE}
         actions={
-          <>
-            {actions.upload.allowed ? <UploadVersionDrawer {...common} tone={primary === "upload" ? "primary" : "secondary"} /> : blocked("Upload a new version", actions.upload)}
-            {actions.request.allowed ? <AskDrawer {...common} /> : blocked("Ask for it", actions.request)}
-            {actions.approve.allowed && decideId && latest ? <ApproveDrawer {...common} versionId={decideId} versionLabel={latest.label} tone={primary === "approve" ? "primary" : "secondary"} /> : blocked("Approve", actions.approve)}
-            {actions.reject.allowed && decideId && latest ? <RejectDrawer {...common} versionId={decideId} versionLabel={latest.label} /> : blocked("Reject", actions.reject)}
-          </>
+          marks ? (
+            <>
+              {/* The contractor's document: the organisation marks it, and may ask for it again or send its own version only where the loader allows (no blocked copy of an act that never applies). */}
+              {actions.upload.allowed && <UploadVersionDrawer {...common} tone="secondary" />}
+              {actions.request.allowed && <AskDrawer {...common} />}
+              {page.takenUpLink && <ButtonLink href={page.takenUpLink.href} size="sm" variant="secondary">{page.takenUpLink.words}</ButtonLink>}
+              {showMarks && (
+                <>
+                  {actions.markReturned.allowed && decideId ? <MarkDrawer {...common} versionId={decideId} outcome="RETURNED" label={marks.returned} /> : blocked(marks.returned, actions.markReturned)}
+                  {actions.markTakenUp.allowed && decideId ? <MarkDrawer {...common} versionId={decideId} outcome="TAKEN_UP" label={marks.takenUp} tone={primary === "takenUp" ? "primary" : "secondary"} /> : blocked(marks.takenUp, actions.markTakenUp)}
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              {actions.upload.allowed ? <UploadVersionDrawer {...common} tone={primary === "upload" ? "primary" : "secondary"} /> : blocked("Upload a new version", actions.upload)}
+              {actions.request.allowed ? <AskDrawer {...common} /> : blocked("Ask for it", actions.request)}
+              {actions.approve.allowed && decideId && latest ? <ApproveDrawer {...common} versionId={decideId} versionLabel={latest.label} tone={primary === "approve" ? "primary" : "secondary"} /> : blocked("Approve", actions.approve)}
+              {actions.reject.allowed && decideId && latest ? <RejectDrawer {...common} versionId={decideId} versionLabel={latest.label} /> : blocked("Reject", actions.reject)}
+            </>
+          )
         }
       />
       <div className="flex flex-col gap-6">
@@ -89,7 +114,7 @@ export function DocumentPageView({ page, contractNumber }: { page: DocumentPage;
             <CardHeader
               icon={<FileIcon size={17} />}
               title={v.label}
-              subtitle={`${formatDate(v.uploadedOn)} · ${v.uploadedByName}`}
+              subtitle={`${v.uploadedAtText} · ${v.uploadedByName}`}
               actions={v.answersRequest ? <Chip>Answers the request</Chip> : undefined}
               divided={v.files.length > 0 || v.decisions.length > 0 || !!v.note}
             />
@@ -127,6 +152,7 @@ export function DocumentPageView({ page, contractNumber }: { page: DocumentPage;
           </Card>
         ))}
 
+        {!marks && (
         <Card className="overflow-hidden">
           <CardHeader
             icon={<UsersIcon size={17} />}
@@ -160,6 +186,7 @@ export function DocumentPageView({ page, contractNumber }: { page: DocumentPage;
             </ul>
           )}
         </Card>
+        )}
       </div>
     </ActGate>
   );

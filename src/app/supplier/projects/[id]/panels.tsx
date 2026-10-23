@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { CalendarIcon, CheckIcon, ClipboardIcon, FileIcon, InboxIcon, WalletIcon } from "@/components/icons";
+import { EarlierRecordCard } from "@/components/earlier-record-card";
 import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardFooter, CardHeader } from "@/components/ui/card";
@@ -9,14 +12,16 @@ import { formatDate } from "@/lib/format";
 import { STATUS_WORDS as CERTIFICATE_STATUS_WORDS } from "@/lib/certificate/labels";
 import { db } from "@/lib/db";
 import type { ProjectContext } from "@/lib/portal/projects/context-store";
-import { OUTCOME_TONE, OUTCOME_WORDS, ROUTING_STATEMENT, serviceWords, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
-import type { SubmissionKind } from "@/lib/portal/projects/types";
-import { certificatesTab, DIARY_PAGE, diaryTab, overviewTab, paymentsTab, programmeTab, submissionsTab } from "@/lib/portal/projects/workspace-store";
+import { OUTCOME_TONE, OUTCOME_WORDS, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
+import { certificatesTab, DIARY_PAGE, diaryTab, overviewTab, paymentsTab, programmeTab } from "@/lib/portal/projects/workspace-store";
+import { EARLIER_RECORD } from "@/lib/project-docs/earlier";
+import { loadPortalEarlier } from "@/lib/project-docs/earlier-read";
 import { loadWaitingForYou } from "@/lib/project-docs/portal-read";
 import { delayWords, ENTRY_STATE_TONE, ENTRY_STATE_WORDS, PROGRAMME_DECISION_WORDS } from "@/lib/supervision/labels";
 
-import { AttestControl, DisputeDiaryControl, SignCertificateControl, SubmitControl } from "./controls";
+import { AttestControl, DisputeDiaryControl, SignCertificateControl } from "./controls";
 import { PortalDocumentsPanel } from "./documents-panel";
+import { portalDocumentsHref } from "./portal-documents-card";
 import { WaitingList } from "./waiting-for-you";
 
 /**
@@ -26,17 +31,14 @@ import { WaitingList } from "./waiting-for-you";
 
 type Props = { actor: SupplierActor; ctx: ProjectContext; token: string | null };
 
-const CLAIM_KINDS: SubmissionKind[] = ["INTERIM_CLAIM", "MATERIALS_ON_SITE"];
-const NOTICE_KINDS: SubmissionKind[] = ["DELAY_NOTICE", "DEFECTS_RECTIFIED", "STATUTORY_DECLARATION"];
-
 export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
   const o = await overviewTab(db, actor, ctx);
   const waiting = await loadWaitingForYou(db, actor, { contractId: ctx.contract.id });
   const todo = [
     ...(o.counts.toAttest ? [`${o.counts.toAttest} diary ${o.counts.toAttest === 1 ? "entry" : "entries"} to attest.`] : []),
     ...(o.counts.toSign ? [`${o.counts.toSign} ${o.counts.toSign === 1 ? "certificate" : "certificates"} to sign.`] : []),
-    ...(o.counts.returned ? [`${o.counts.returned} ${o.counts.returned === 1 ? "submission" : "submissions"} returned to you.`] : []),
-    ...(o.counts.waiting ? [`${o.counts.waiting} ${o.counts.waiting === 1 ? "submission" : "submissions"} with the office.`] : []),
+    ...(o.counts.returned ? [`${o.counts.returned} ${o.counts.returned === 1 ? "document" : "documents"} returned to you.`] : []),
+    ...(o.counts.waiting ? [`${o.counts.waiting} ${o.counts.waiting === 1 ? "document" : "documents"} with the office.`] : []),
   ];
   return (
     <div className="flex flex-col gap-6">
@@ -44,7 +46,7 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Diary entries to attest" value={o.counts.toAttest} tone={o.counts.toAttest ? "warn" : "brand"} />
         <Stat label="Certificates to sign" value={o.counts.toSign} tone={o.counts.toSign ? "warn" : "brand"} />
-        <Stat label="With the office" value={o.counts.waiting} hint="Submissions waiting for an answer" />
+        <Stat label="With the office" value={o.counts.waiting} hint="Documents waiting for an answer" />
         <Stat label="Days with no diary entry" value={o.counts.missingDays} hint={o.facts.possessionOn ? "Since possession, to yesterday" : "The site has not been handed over"} tone={o.counts.missingDays ? "warn" : "brand"} />
       </div>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -78,7 +80,7 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
                 { label: "Contract sum", value: o.facts.contractSum },
                 { label: "Possession of the site", value: o.facts.possessionOn ?? "Not yet recorded" },
                 { label: "Date for completion", value: o.facts.dateForCompletion ?? "Not set on the baseline" },
-                { label: "Superintending Officer", value: o.facts.soOffice ?? "Not assigned. Submissions reach nobody." },
+                { label: "Superintending Officer", value: o.facts.soOffice ?? "Not assigned. Documents sent to the office reach nobody." },
               ]}
             />
           </CardBody>
@@ -88,9 +90,8 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
   );
 }
 
-export async function ProgrammePanel({ actor, ctx, token }: Props) {
+export async function ProgrammePanel({ actor, ctx }: Omit<Props, "token">) {
   const p = await programmeTab(db, actor, ctx);
-  const closed = (await overviewTab(db, actor, ctx)).closed;
   const delay = p.delay ? delayWords(p.delay) : null;
   return (
     <div className="flex flex-col gap-6">
@@ -98,7 +99,7 @@ export async function ProgrammePanel({ actor, ctx, token }: Props) {
         <CardHeader
           icon={<CalendarIcon size={17} />}
           title="Programme in force"
-          actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={["WORK_PROGRAMME"]} why={closed} label="Send a programme" />}
+          actions={<ButtonLink href={`/supplier/projects/${ctx.contract.id}?tab=submissions`} size="sm" variant="secondary">Send in Documents</ButtonLink>}
         />
         <CardBody>
           {p.inForce ? (
@@ -197,9 +198,8 @@ export async function DiaryPanel({ actor, ctx, token, page }: Props & { page?: s
   );
 }
 
-export async function PaymentsPanel({ actor, ctx, token }: Props) {
+export async function PaymentsPanel({ actor, ctx }: Omit<Props, "token">) {
   const p = await paymentsTab(db, actor, ctx);
-  const closed = (await overviewTab(db, actor, ctx)).closed;
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -234,7 +234,7 @@ export async function PaymentsPanel({ actor, ctx, token }: Props) {
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<InboxIcon size={17} />} title="Your claims and materials lists" actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={CLAIM_KINDS} why={closed} label="Send a claim or list" />} divided={p.claims.length > 0} />
+        <CardHeader icon={<InboxIcon size={17} />} title="Your claims and materials lists" actions={<ButtonLink href={`/supplier/projects/${ctx.contract.id}?tab=submissions`} size="sm" variant="secondary">Send in Documents</ButtonLink>} divided={p.claims.length > 0} />
         {p.claims.length === 0 ? (
           <EmptyState title="No claim sent" size="sm" />
         ) : (
@@ -242,7 +242,8 @@ export async function PaymentsPanel({ actor, ctx, token }: Props) {
             {p.claims.map((c) => (
               <li key={c.id} className="flex flex-col gap-1 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <span className="min-w-0">
-                  <span className="block text-[14px] font-semibold text-ink">{c.title}</span>
+                  {/* A claim sent as a document opens its page; an earlier claim has none. No figure is written for a document (it carries none, PW-10). */}
+                  {c.href ? <Link href={c.href} className="block text-[14px] font-semibold text-ink hover:underline">{c.title}</Link> : <span className="block text-[14px] font-semibold text-ink">{c.title}</span>}
                   <span className="block text-[12.5px] text-ink-3">{[SUBMISSION_KIND_WORDS[c.kind].en, c.amount, c.upTo ? `up to ${c.upTo}` : null, `sent ${c.sentOn}`].filter(Boolean).join(" · ")}</span>
                 </span>
                 {c.outcome ? <Badge tone={OUTCOME_TONE[c.outcome]}>{OUTCOME_WORDS[c.outcome].en}</Badge> : <Badge tone="info">With the office</Badge>}
@@ -325,61 +326,14 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
   );
 }
 
-export async function SubmissionsPanel({ actor, ctx, token, docsAfter }: Props & { docsAfter: string | null }) {
-  const s = await submissionsTab(db, actor, ctx);
+export async function SubmissionsPanel({ actor, ctx, token, docsAfter, earlier }: Props & { docsAfter: string | null; earlier: string | null }) {
+  // One list, the documents and the earlier records together (PW-11). An earlier record opens read only above it, read by its id so an older one opens whatever page the list is on;
+  // its own supplier's only, and it names the organisation, never an officer.
+  const record = earlier ? await loadPortalEarlier(db, { organisationId: actor.organisationId, contractId: ctx.contract.id, supplierId: actor.supplierId, id: earlier }) : null;
   return (
     <div className="flex flex-col gap-6">
-      {/* The Documents list first (the simple Project workspace). The earlier list and its send form stay below it until the six kinds move into Documents. */}
+      {record && <EarlierRecordCard record={record} label={EARLIER_RECORD} backHref={portalDocumentsHref(ctx.contract.id, docsAfter)} />}
       <PortalDocumentsPanel actor={actor} ctx={ctx} token={token} after={docsAfter} />
-      <Card className="overflow-hidden">
-        <CardHeader
-          icon={<InboxIcon size={17} />}
-          title="Submissions"
-          subtitle={`${ROUTING_STATEMENT}${s.total > s.rows.length ? ` Newest ${s.rows.length} of ${s.total}.` : ""}`}
-          actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={NOTICE_KINDS} why={s.closed} label="Send a notice" />}
-          divided={s.rows.length > 0}
-        />
-        {s.signing && (
-          <CardBody pad="tight">
-            <p className="text-[12.5px] text-amber-800">{`That notice cannot be signed here. ${s.signing}`}</p>
-          </CardBody>
-        )}
-        {s.rows.length === 0 ? (
-          <EmptyState title="Nothing sent yet" size="sm" />
-        ) : (
-          <ul className="divide-y divide-line/70">
-            {s.rows.map((r) => {
-              const sv = serviceWords(r.service);
-              return (
-                <li key={r.id} className="flex flex-col gap-2 px-5 py-4 sm:px-6">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                    <span className="min-w-0">
-                      <span className="block text-[14.5px] font-semibold text-ink">{r.title}</span>
-                      <span className="block text-[12.5px] text-ink-3">{[SUBMISSION_KIND_WORDS[r.kind].en, `sent ${r.sentOn}`, r.signed ? "signed with your password" : null, r.amount, r.aboutDay ? `day ${r.aboutDay}` : null, r.routedTo ? `routed to ${r.routedTo}` : "not routed: no Superintending Officer assigned"].filter(Boolean).join(" · ")}</span>
-                    </span>
-                    <span className="flex flex-wrap items-center gap-2">
-                      {r.outcome ? <Badge tone={OUTCOME_TONE[r.outcome]}>{`${OUTCOME_WORDS[r.outcome].en}${r.decidedOn ? ` ${r.decidedOn}` : ""}`}</Badge> : <Badge tone="info">With the office</Badge>}
-                      <Chip tone={sv.tone === "neutral" ? undefined : sv.tone}>{sv.text}</Chip>
-                    </span>
-                  </div>
-                  <p className="text-[13.5px] break-words whitespace-pre-line text-ink-2">{r.body}</p>
-                  {r.lines.length > 0 && (
-                    <ul className="list-disc pl-5 text-[13px] text-ink-2">
-                      {r.lines.map((l, n) => (
-                        <li key={n}>{`${l.description} · ${l.quantity} · ${l.location} · ${l.value}`}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {r.outcome === "RETURNED" && r.outcomeNote && (
-                    <Callout tone="warn" title="Returned by the office">{r.outcomeNote}</Callout>
-                  )}
-                  {r.outcome === "TAKEN_UP" && r.outcomeNote && <p className="text-[12.5px] text-ink-3">{`The office: ${r.outcomeNote}`}</p>}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Card>
     </div>
   );
 }

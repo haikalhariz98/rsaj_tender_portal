@@ -12,6 +12,7 @@ import { formatBytes, SCAN_LABEL } from "@/lib/documents/labels";
 import { formatDate } from "@/lib/format";
 import type { Gate } from "@/lib/project-docs/page-store";
 import { FROM_YOU } from "@/lib/project-docs/contractor-view";
+import { kindChoices } from "@/lib/project-docs/labels";
 import type { PortalDocumentPage } from "@/lib/project-docs/portal-read";
 import { NOT_SCANNED_LABEL } from "@/lib/ui/upload-logic";
 
@@ -55,7 +56,7 @@ export function PortalDocumentView({ page, contractNumber, token }: { page: Port
         actionsNoteId={HEADER_NOTE}
         actions={
           <>
-            {upload.allowed ? <UploadVersionDrawer {...common} tone="primary" /> : blocked("Upload a new version", upload)}
+            {upload.allowed ? <UploadVersionDrawer {...common} tone="primary" asksPassword={page.asksPassword} mayPickKind={page.mayPickKind} kinds={kindChoices()} /> : blocked("Upload a new version", upload)}
             {request.allowed ? <AskDrawer {...common} organisationName={page.organisationName} /> : blocked("Ask for it", request)}
           </>
         }

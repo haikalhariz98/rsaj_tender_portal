@@ -253,8 +253,8 @@ const SECTION_FAMILIES: Readonly<Record<string, readonly ContractAct[]>> = {
   AdjustmentsSection: ["SUM_ADJUSTMENT"],
   OverviewPanel: ["FORMATION"],
   SecuritiesPanel: ["FORMATION"],
-  // AC-16: answering a contractor's submission is an act of the contract's supervision (answerContractorSubmission). The queue is its own section under the Documents list.
-  EarlierQueue: ["SUPERVISION"],
+  // AC-16, PW-11: answering an earlier contractor submission is an act of the contract's supervision (answerContractorSubmission). Its read-only record sits above the Documents list (plan step 6, which replaced the queue); the answer alone is under this gate.
+  EarlierRecord: ["SUPERVISION"],
 };
 
 /// Components that offer no act of their own, each with why.
@@ -263,7 +263,7 @@ const NO_ACT: Readonly<Record<string, string>> = {
   SitePanel: "Dispatches to its sections, which gate themselves.",
   FormationPanel: "Dispatches to its sections, which gate themselves.",
   VariationsPanel: "Dispatches to its sections, which gate themselves.",
-  SubmissionsTab: "Dispatches to the Documents list and the earlier queue, each of which gates itself (the list by the Project workspace's row, the queue by the supervision family's).",
+  SubmissionsTab: "Dispatches to the Documents list and an earlier record's read-only view, each of which gates itself (the list by the Project workspace's row, the record's answer by the supervision family's).",
   ProjectDocumentPage: "Loads the document and renders DocumentPageView, whose gates come from the loader.",
 };
 

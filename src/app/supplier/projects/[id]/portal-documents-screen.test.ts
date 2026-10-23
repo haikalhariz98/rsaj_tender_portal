@@ -96,6 +96,9 @@ describe("a state's colour", () => {
     expect(portalTone({ ...r, waitsOnYou: true, waitsOnLabel: "Waiting for you", stateLabel: "Rejected" })).toBe("warn");
     expect(portalTone({ ...r, shown: "BEING_PREPARED", stateLabel: `Being prepared by ${ORG}` })).toBe("info");
     expect(portalTone({ ...r, stateLabel: "Approved" })).toBe("ok");
+    // The six kinds' final words (plan step 6): taken up, and noted on defects rectified.
+    expect(portalTone({ ...r, stateLabel: "Taken up", waitsOnLabel: null })).toBe("ok");
+    expect(portalTone({ ...r, stateLabel: "Noted", waitsOnLabel: null })).toBe("ok");
     expect(portalTone({ ...r, waitsOnLabel: `Waiting on ${ORG}`, stateLabel: "Waiting for approval" })).toBe("info");
     expect(portalTone(r)).toBe("neutral");
   });
@@ -254,12 +257,71 @@ describe("Waiting for you", () => {
   });
 });
 
-describe("the Submissions tab of a project", () => {
-  const src = readFileSync(join(process.cwd(), "src/app/supplier/projects/[id]/panels.tsx"), "utf8");
-  it("shows the new Documents list above the earlier list and its send form", () => {
-    const tab = src.slice(src.indexOf("export async function SubmissionsPanel"));
-    expect(tab.indexOf("<PortalDocumentsPanel")).toBeGreaterThan(-1);
-    expect(tab.indexOf("<PortalDocumentsPanel")).toBeLessThan(tab.indexOf('title="Submissions"'));
-    expect(tab).toContain('label="Send a notice"');
+describe("the Documents tab of a project (plan step 6)", () => {
+  const read = (f: string) => readFileSync(join(process.cwd(), f), "utf8");
+  const src = read("src/app/supplier/projects/[id]/panels.tsx");
+  const tab = src.slice(src.indexOf("export async function SubmissionsPanel"));
+
+  it("is named Documents, and its address id is unchanged", () => {
+    const page = read("src/app/supplier/projects/[id]/page.tsx");
+    expect(page).toContain('{ id: "submissions", label: "Documents"');
+    expect(page).not.toContain('label: "Submissions"');
+  });
+
+  it("is one list: the earlier list card and every send form are gone, and an earlier record opens read only above the list, read by its id", () => {
+    expect(tab).not.toMatch(/SubmitControl|Send a notice|title="Submissions"|submissionsTab\(/);
+    expect(src).not.toMatch(/SubmitControl|submissionsTab/);
+    expect(tab.indexOf("<EarlierRecordCard")).toBeGreaterThan(-1);
+    expect(tab.indexOf("<EarlierRecordCard")).toBeLessThan(tab.indexOf("<PortalDocumentsPanel"));
+    expect(tab).toContain("loadPortalEarlier(db, { organisationId: actor.organisationId, contractId: ctx.contract.id, supplierId: actor.supplierId, id: earlier })");
+    // The contractor's card is never given an officer.
+    expect(tab).not.toContain("answeredBy");
+    expect(read("src/app/supplier/projects/[id]/controls.tsx")).not.toContain("SubmitControl");
+  });
+
+  it("the Programme and Payments tabs read nothing of a sibling tab now that they send nothing: they point to Documents", () => {
+    const programme = src.slice(src.indexOf("export async function ProgrammePanel"), src.indexOf("export async function DiaryPanel"));
+    const payments = src.slice(src.indexOf("export async function PaymentsPanel"), src.indexOf("export async function CertificatesPanel"));
+    for (const body of [programme, payments]) {
+      expect(body).not.toContain("overviewTab(");
+      expect(body).toContain("tab=submissions");
+    }
+  });
+
+  it("a claim sent as a document links to its page with no figure; an earlier claim keeps its stored one", () => {
+    const payments = src.slice(src.indexOf("export async function PaymentsPanel"), src.indexOf("export async function CertificatesPanel"));
+    expect(payments).toMatch(/c\.href \? <Link href=\{c\.href\}/);
+  });
+
+  it("the overview words documents, not submissions", () => {
+    const overview = src.slice(src.indexOf("export async function OverviewPanel"), src.indexOf("export async function ProgrammePanel"));
+    // The address id `tab=submissions` stays; no word of it is shown.
+    expect(overview.replaceAll("tab=submissions", "")).not.toMatch(/ubmissions?\b/);
+    expect(overview).toContain("with the office");
+  });
+});
+
+describe("the contractor's drawers carry the kind and the password (plan step 6; PW-9, PW-10)", () => {
+  const drawers = readFileSync(join(process.cwd(), "src/app/supplier/projects/[id]/document-drawers.tsx"), "utf8");
+
+  it("the password field is a password input that asks the browser for the current password, and is cleared after every answer and on close", () => {
+    expect(drawers).toMatch(/type="password" autoComplete="current-password"/);
+    expect(drawers.match(/setPassword\(""\)/g)!.length).toBeGreaterThanOrEqual(4);
+    expect(drawers).not.toMatch(/localStorage|sessionStorage|defaultValue=\{password/);
+  });
+
+  it("never uses the old hints, which describe amounts and days, and never prints a code", () => {
+    expect(drawers).not.toMatch(/SUBMISSION_KIND_HINT|KIND_SHAPE/);
+    expect(drawers).not.toMatch(/\.code\b/);
+  });
+
+  it("the version drawer is given what the page says: asks the password, may pick a kind, the six kinds", () => {
+    const view = readFileSync(join(process.cwd(), "src/app/supplier/projects/[id]/documents/[documentId]/document-view.tsx"), "utf8");
+    expect(view).toContain("asksPassword={page.asksPassword} mayPickKind={page.mayPickKind} kinds={kindChoices()}");
+  });
+
+  it("the list hands the new-document drawer the loader's kinds", () => {
+    const card = readFileSync(join(process.cwd(), "src/app/supplier/projects/[id]/portal-documents-card.tsx"), "utf8");
+    expect(card).toContain("kinds={start.kinds}");
   });
 });

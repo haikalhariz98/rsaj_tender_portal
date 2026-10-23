@@ -36,7 +36,7 @@ export function ProjectDocumentsCard({ contractId, orgName, rows, filter, next, 
       <CardHeader
         icon={<FilesIcon size={17} />}
         title="Documents"
-        subtitle={<MoreText label="About documents" text={`Start a document by uploading files, or ask the contractor for it. A document can have approvers. A rejection goes back with remarks until a new version is approved.`} />}
+        subtitle={<MoreText label="About documents" text={`Start a document by uploading files, or ask the contractor for it. A document can have approvers. A rejection goes back with remarks until a new version is approved. Notices and claims the contractor sends are here too: mark each taken up, or return it with remarks. Earlier records are what the contractor sent before documents; they are read only.`} />}
         divided={false}
         actions={blocked ? <Blocked label="New document" reason={start.create.reasons.join(" ")} noteId={NOTE_ID} /> : <NewDocumentDrawer contractId={contractId} picker={start.picker} />}
       />
@@ -77,7 +77,8 @@ export function ProjectDocumentsCard({ contractId, orgName, rows, filter, next, 
           sortKeys: { title: r.title.toLowerCase(), latest: r.latestOn ?? "", state: r.stateLabel },
           cells: {
             title: { kind: "link", text: r.title, href: r.href },
-            ...(r.kindLabel ? { kind: { kind: "text", text: r.kindLabel } } : {}),
+            // An earlier record is marked beside its kind, so it reads as what it is (PW-11).
+            ...(r.kindLabel ? { kind: r.earlier ? { kind: "chips", items: [{ text: r.kindLabel }, { text: r.earlier.label, tone: "info" }] } : { kind: "text", text: r.kindLabel } } : {}),
             latest: { kind: "text", text: r.latestOn ? formatDate(r.latestOn) : "Not yet", dim: !r.latestOn },
             state: { kind: "badge", text: r.stateLabel, ...(tone === "neutral" ? {} : { tone }) },
             waits: r.waitsOnLabel ? { kind: "text", text: r.waitsOnLabel } : { kind: "text", text: "Nobody", dim: true },

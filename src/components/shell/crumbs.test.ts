@@ -56,18 +56,18 @@ describe("breadcrumbs of the certificate core's pages (S-1)", () => {
     expect(c[2].href).toBe("/projects/demo_con3?tab=variations");
     expect(labels(trail("/projects/demo_con3/variations/demo_vvo1", null))).toEqual(["Contracts", "Contract", "Variations", "Variation"]);
   });
-  it("a Project document: Contracts › its contract › Submissions (the contract's tab, where the Documents list is) › the document", () => {
+  it("a Project document: Contracts › its contract › Documents (the contract's tab, id `submissions`) › the document", () => {
     const c = trail("/projects/demo_con3/documents/demo_pd1", "Drainage layout", "XI202600799");
-    expect(labels(c)).toEqual(["Contracts", "XI202600799", "Submissions", "Drainage layout"]);
+    expect(labels(c)).toEqual(["Contracts", "XI202600799", "Documents", "Drainage layout"]);
     expect(c[2].href).toBe("/projects/demo_con3?stage=project&tab=submissions");
-    expect(labels(trail("/projects/demo_con3/documents/demo_pd1", null))).toEqual(["Contracts", "Contract", "Submissions", "Document"]);
+    expect(labels(trail("/projects/demo_con3/documents/demo_pd1", null))).toEqual(["Contracts", "Contract", "Documents", "Document"]);
   });
-  it("a Project document in the portal: My Projects › its contract › Submissions (the contract's tab) › the document", () => {
+  it("a Project document in the portal: My Projects › its contract › Documents (the contract's tab) › the document", () => {
     const c = trail("/supplier/projects/demo_con3/documents/demo_pd1", "Drainage layout", "XI202600799");
-    expect(labels(c).slice(-3)).toEqual(["XI202600799", "Submissions", "Drainage layout"]);
-    expect(c.find((x) => x.label.en === "Submissions")!.href).toBe("/supplier/projects/demo_con3?tab=submissions");
+    expect(labels(c).slice(-3)).toEqual(["XI202600799", "Documents", "Drainage layout"]);
+    expect(c.find((x) => x.label.en === "Documents")!.href).toBe("/supplier/projects/demo_con3?tab=submissions");
     for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
-    expect(labels(trail("/supplier/projects/demo_con3/documents/demo_pd1", null)).slice(-2)).toEqual(["Submissions", "Document"]);
+    expect(labels(trail("/supplier/projects/demo_con3/documents/demo_pd1", null)).slice(-2)).toEqual(["Documents", "Document"]);
   });
   it("the contract itself is unchanged: Projects › its number", () => {
     expect(labels(trail("/projects/demo_con3", "XI202600799"))).toEqual(["Contracts", "XI202600799"]);

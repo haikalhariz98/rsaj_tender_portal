@@ -20,27 +20,27 @@ export const dynamic = "force-dynamic";
 
 /**
  * One contract as the signed-in contractor holds it (Phase 4e): where it stands, the programme and progress, the site diary to attest, the certificates certified against what was paid, the
- * certificates to sign or dispute, and the submissions sent to the office. The supplier is the SESSION's; the id in the address is a contract's, and the page answers "not found" for one that
+ * certificates to sign or dispute, and the documents sent to the office. The supplier is the SESSION's; the id in the address is a contract's, and the page answers "not found" for one that
  * does not exist, is another organisation's or is another contractor's, all alike. One tab is read at a time, and only its own slice.
  */
-export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; docsAfter?: string }> }) {
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; docsAfter?: string; earlier?: string }> }) {
   const actor = await requireSupplier();
   const { id } = await params;
-  const { tab: asked, page, docsAfter } = await searchParams;
+  const { tab: asked, page, docsAfter, earlier } = await searchParams;
   const ctx = await loadProjectContext(db, actor, id);
   if (!ctx) notFound();
   const tab: ProjectTab = isProjectTab(asked) ? asked : "overview";
-  const acting = tab === "diary" || tab === "certificates" || tab === "submissions" || tab === "payments" || tab === "programme";
+  const acting = tab === "diary" || tab === "certificates" || tab === "submissions";
   const token = acting ? issueFormToken("projects") : null;
   const status = CONTRACT_STATUS_WORDS[ctx.contract.status].en;
 
   const tabs = [
     { id: "overview", label: "Overview", icon: <ClipboardIcon size={15} />, lazy: true, panel: tab === "overview" ? <OverviewPanel actor={actor} ctx={ctx} /> : null },
-    { id: "programme", label: "Programme", icon: <CalendarIcon size={15} />, lazy: true, panel: tab === "programme" ? <ProgrammePanel actor={actor} ctx={ctx} token={token} /> : null },
+    { id: "programme", label: "Programme", icon: <CalendarIcon size={15} />, lazy: true, panel: tab === "programme" ? <ProgrammePanel actor={actor} ctx={ctx} /> : null },
     { id: "diary", label: "Site diary", icon: <FileIcon size={15} />, lazy: true, panel: tab === "diary" ? <DiaryPanel actor={actor} ctx={ctx} token={token} page={page} /> : null },
-    { id: "payments", label: "Payments", icon: <WalletIcon size={15} />, lazy: true, panel: tab === "payments" ? <PaymentsPanel actor={actor} ctx={ctx} token={token} /> : null },
+    { id: "payments", label: "Payments", icon: <WalletIcon size={15} />, lazy: true, panel: tab === "payments" ? <PaymentsPanel actor={actor} ctx={ctx} /> : null },
     { id: "certificates", label: "Certificates", icon: <CheckIcon size={15} />, lazy: true, panel: tab === "certificates" ? <CertificatesPanel actor={actor} ctx={ctx} token={token} /> : null },
-    { id: "submissions", label: "Submissions", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "submissions" ? <SubmissionsPanel actor={actor} ctx={ctx} token={token} docsAfter={docsAfter || null} /> : null },
+    { id: "submissions", label: "Documents", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "submissions" ? <SubmissionsPanel actor={actor} ctx={ctx} token={token} docsAfter={docsAfter || null} earlier={earlier || null} /> : null },
   ];
 
   return (

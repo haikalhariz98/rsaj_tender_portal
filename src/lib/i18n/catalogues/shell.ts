@@ -160,6 +160,7 @@ export const CRUMB_WORDS = {
   saleLabel: w("Sale label"),
   documents: w("Documents"),
   variations: w("Variations"),
-  submissions: w("Submissions"),
+  // The contract's Documents tab keeps the id `submissions` (addresses and notices name it); its word is Documents since the six kinds moved in (plan step 6).
+  submissions: w("Documents"),
 } as const satisfies Record<string, Words>;
 

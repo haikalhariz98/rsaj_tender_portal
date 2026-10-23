@@ -30,9 +30,9 @@ export function PortalDocumentsCard({ contractId, rows, next, after, start, toke
       <CardHeader
         icon={<FilesIcon size={17} />}
         title="Documents"
-        subtitle={<MoreText label="About documents" text={`Send files, or ask ${start.organisationName} for a document. If one is sent back, the remarks come with it. Send a new version until it is approved.`} />}
+        subtitle={<MoreText label="About documents" text={`Send files, or ask ${start.organisationName} for a document. If one is sent back, the remarks come with it. Notices and claims are sent here too: pick the kind. Send a new version until it is approved or taken up.`} />}
         divided={false}
-        actions={reason ? <Blocked label="New document" reason={reason} noteId={NOTE_ID} /> : <NewDocumentDrawer contractId={contractId} token={token} organisationName={start.organisationName} />}
+        actions={reason ? <Blocked label="New document" reason={reason} noteId={NOTE_ID} /> : <NewDocumentDrawer contractId={contractId} token={token} organisationName={start.organisationName} kinds={start.kinds} />}
       />
       {reason && (
         <p id={NOTE_ID} className="px-5 pb-4 text-[12.5px] text-ink-3 sm:px-6">
@@ -62,7 +62,8 @@ export function PortalDocumentsCard({ contractId, rows, next, after, start, toke
             sortKeys: { title: r.title.toLowerCase(), latest: r.latestOn ?? "", state: r.stateLabel },
             cells: {
               title: { kind: "link", text: r.title, href: r.href },
-              ...(r.kindLabel ? { kind: { kind: "text", text: r.kindLabel } } : {}),
+              // An earlier record is marked beside its kind, so it reads as what it is (PW-11).
+              ...(r.kindLabel ? { kind: r.earlier ? { kind: "chips", items: [{ text: r.kindLabel }, { text: r.earlier.label, tone: "info" }] } : { kind: "text", text: r.kindLabel } } : {}),
               latest: { kind: "text", text: r.latestOn ? formatDate(r.latestOn) : "Not yet", dim: !r.latestOn },
               state: { kind: "badge", text: r.stateLabel, ...(tone === "neutral" ? {} : { tone }) },
               waits: r.waitsOnLabel ? { kind: "text", text: r.waitsOnLabel } : { kind: "text", text: "Nobody", dim: true },

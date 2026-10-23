@@ -12,6 +12,7 @@ import { SUPPLIER_PROJECT_DOCUMENTS_POSTS } from "@/lib/auth/routes";
 
 import { answerWords, postBids as postJson } from "../../bids/post-json";
 import { postForm, answerWords as formWords } from "../../company/post-form";
+import { createBody, kindOffered, passwordShown, versionBody, type KindChoice } from "./document-form";
 
 /**
  * What the contractor does from the Documents list and a document's page (the simple Project workspace, plan step 5): start a document by sending files or asking the
@@ -20,7 +21,8 @@ import { postForm, answerWords as formWords } from "../../company/post-form";
  * field it concerns, and a code is never printed.
  *
  * A file that is staged stays staged: a refusal and a second press reuse what was already stored, because every staged file counts toward the account's hourly allowance whether
- * or not it is ever sent. Nothing here sends a kind (the six kinds arrive in a later step).
+ * or not it is ever sent. A document's first version may name one of the six kinds (plan step 6); a statutory declaration is signed with the password, asked again here, posted once
+ * with the act, kept in no state past the answer and never echoed back (`autocomplete="current-password"`). What the server refuses is shown in its own words; a code is never printed.
  */
 
 type Errors = Record<string, string>;
@@ -94,26 +96,59 @@ function refusal(res: { status: number; body: { message?: string; errors?: Error
 
 type Common = { contractId: string; token: string | null };
 
+/// The kind picker (never offered with a request) and, for a kind that is signed, the password, each beside the field the server's answer names.
+export function KindFields({ id, kinds, kind, onKind, showKind, showPassword, password, onPassword, errors }: { id: string; kinds: readonly KindChoice[]; kind: string; onKind: (v: string) => void; showKind: boolean; showPassword: boolean; password: string; onPassword: (v: string) => void; errors: Errors }) {
+  return (
+    <>
+      {showKind && (
+        <Field label="Kind" htmlFor={`${id}-kind`} error={errors.kind}>
+          <Select id={`${id}-kind`} value={kind} onChange={(e) => onKind(e.target.value)}>
+            <Option value="">None, an ordinary document</Option>
+            {kinds.map((k) => (
+              <Option key={k.value} value={k.value}>{k.label}</Option>
+            ))}
+          </Select>
+        </Field>
+      )}
+      {showPassword && (
+        <Field label="Your password" htmlFor={`${id}-password`} required error={errors.password}>
+          <Input id={`${id}-password`} type="password" autoComplete="current-password" value={password} onChange={(e) => onPassword(e.target.value)} />
+        </Field>
+      )}
+    </>
+  );
+}
+
 /// A document, started by sending its first files or by asking the organisation for it. Goes to the new document's page.
-export function NewDocumentDrawer({ contractId, token, organisationName }: Common & { organisationName: string }) {
+export function NewDocumentDrawer({ contractId, token, organisationName, kinds }: Common & { organisationName: string; kinds: readonly KindChoice[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [mode, setMode] = useState<"upload" | "request">("upload");
   const [files, setFiles] = useState<File[]>([]);
+  const [kind, setKind] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const staged = useRef<Staged>(new Map());
   const heading = useId();
   const f = useId();
-  const close = () => setOpen(false);
+  // The password is never kept past the drawer or an answer.
+  const close = () => {
+    setPassword("");
+    setOpen(false);
+  };
   useEscape(open, busy, close);
+  const showKind = kindOffered(mode, kinds);
+  const showPassword = showKind && passwordShown(kinds, kind);
 
   const reset = () => {
     setTitle("");
     setNote("");
+    setKind("");
+    setPassword("");
     setMode("upload");
     setFiles([]);
     setError(null);
@@ -140,8 +175,9 @@ export function NewDocumentDrawer({ contractId, token, organisationName }: Commo
       }
       ids = s.ids;
     }
-    const res = await postJson(SUPPLIER_PROJECT_DOCUMENTS_POSTS.create, token, { contractId, title, note, mode, ...(mode === "upload" ? { versionIds: ids } : {}) });
+    const res = await postJson(SUPPLIER_PROJECT_DOCUMENTS_POSTS.create, token, createBody({ contractId, title, note, mode, versionIds: ids, kinds, kind, password }));
     setBusy(false);
+    setPassword("");
     const made = res.body as { ok?: boolean; documentId?: string } | null;
     if (res.status === 201 && made?.ok && made.documentId) {
       const href = `/supplier/projects/${encodeURIComponent(contractId)}/documents/${encodeURIComponent(made.documentId)}`;
@@ -161,7 +197,7 @@ export function NewDocumentDrawer({ contractId, token, organisationName }: Commo
         New document
       </Button>
       {open && (
-        <Frame title="New document" heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && title.trim() !== ""} sendLabel={mode === "upload" ? "Send" : "Ask"}>
+        <Frame title="New document" heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && title.trim() !== "" && (!showPassword || password !== "")} sendLabel={mode === "upload" ? (showPassword ? "Sign and send" : "Send") : "Ask"}>
           <Field label="Title" htmlFor={`${f}-title`} required error={errors.title}>
             <Input id={`${f}-title`} value={title} maxLength={200} autoFocus onChange={(e) => setTitle(e.target.value)} />
           </Field>
@@ -179,6 +215,7 @@ export function NewDocumentDrawer({ contractId, token, organisationName }: Commo
               <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => setFiles([...(e.currentTarget.files ?? [])])} />
             </Field>
           )}
+          <KindFields id={f} kinds={kinds} kind={kind} onKind={(v) => { setKind(v); setPassword(""); }} showKind={showKind} showPassword={showPassword} password={password} onPassword={setPassword} errors={errors} />
         </Frame>
       )}
     </>
@@ -186,19 +223,27 @@ export function NewDocumentDrawer({ contractId, token, organisationName }: Commo
 }
 
 /// A new version of the contractor's own document: files, and a note.
-export function UploadVersionDrawer({ contractId, documentId, title, token, tone = "secondary" }: Common & { documentId: string; title: string; tone?: "primary" | "secondary" }) {
+export function UploadVersionDrawer({ contractId, documentId, title, token, tone = "secondary", asksPassword = false, mayPickKind = false, kinds = [] }: Common & { documentId: string; title: string; tone?: "primary" | "secondary"; asksPassword?: boolean; mayPickKind?: boolean; kinds?: readonly KindChoice[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [kind, setKind] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const staged = useRef<Staged>(new Map());
   const heading = useId();
   const f = useId();
-  const close = () => setOpen(false);
+  // The password is never kept past the drawer or an answer.
+  const close = () => {
+    setPassword("");
+    setOpen(false);
+  };
   useEscape(open, busy, close);
+  const showKind = mayPickKind && kinds.length > 0;
+  const showPassword = passwordShown(showKind ? kinds : [], kind, asksPassword);
 
   async function send() {
     setBusy(true);
@@ -215,11 +260,13 @@ export function UploadVersionDrawer({ contractId, documentId, title, token, tone
       setErrors({ file: s.message });
       return;
     }
-    const res = await postJson(SUPPLIER_PROJECT_DOCUMENTS_POSTS.version, token, { contractId, documentId, versionIds: s.ids, note });
+    const res = await postJson(SUPPLIER_PROJECT_DOCUMENTS_POSTS.version, token, versionBody({ contractId, documentId, versionIds: s.ids, note, mayPickKind, kinds, kind, pageAsksPassword: asksPassword, password }));
     setBusy(false);
+    setPassword("");
     if (res.status === 201 && res.body?.ok) {
       close();
       setNote("");
+      setKind("");
       setFiles([]);
       staged.current = new Map();
       router.refresh();
@@ -236,13 +283,14 @@ export function UploadVersionDrawer({ contractId, documentId, title, token, tone
         Upload a new version
       </Button>
       {open && (
-        <Frame title={`Upload a new version of ${title}`} heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token} sendLabel="Send">
+        <Frame title={`Upload a new version of ${title}`} heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && (!showPassword || password !== "")} sendLabel={showPassword ? "Sign and send" : "Send"}>
           <Field label="Files" htmlFor={`${f}-file`} required error={errors.file ?? errors.versionIds}>
             <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => setFiles([...(e.currentTarget.files ?? [])])} />
           </Field>
           <Field label="Note" htmlFor={`${f}-note`} error={errors.note}>
             <Textarea id={`${f}-note`} value={note} maxLength={2000} rows={3} onChange={(e) => setNote(e.target.value)} />
           </Field>
+          <KindFields id={f} kinds={kinds} kind={kind} onKind={(v) => { setKind(v); setPassword(""); }} showKind={showKind} showPassword={showPassword} password={password} onPassword={setPassword} errors={errors} />
         </Frame>
       )}
     </>

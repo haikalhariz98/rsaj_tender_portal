@@ -27,8 +27,8 @@ function files(dir: string): string[] {
 /// Every reader of the earlier table, and why it may read it. "BOTH" means it reads the documents too, as held below.
 const READERS: Readonly<Record<string, string>> = {
   "src/app/documents/review-actions.ts": "The answer to an unanswered earlier record (PW-11: it stays answerable through its own act). It acts on one row, and lists nothing.",
-  "src/lib/portal/projects/review-store.ts": "BOTH in `reviewCounts` (its waiting is `documentsWaitingCount`); the earlier queue (`loadReviewQueue`) pages the earlier rows alone, for the old panel the screen step folds into the one list.",
-  "src/lib/portal/projects/workspace-store.ts": "BOTH in the overview's counts (`contractorDocumentTally`) and the Payments tab's claims (`contractorClaimDocuments`); `submissionsTab` is the earlier list the screen step folds into the one list.",
+  "src/lib/portal/projects/review-store.ts": "BOTH in `reviewCounts` (its waiting is `documentsWaitingCount`); the earlier queue (`loadReviewQueue`) pages the earlier rows alone and has NO SCREEN since plan step 6 removed the old panel and the Submissions waiting view (the one Documents list and `loadDocumentsWaiting` hold earlier records now); kept with its db tests until close-out retires it.",
+  "src/lib/portal/projects/workspace-store.ts": "BOTH in the overview's counts (`contractorDocumentTally`) and the Payments tab's claims (`contractorClaimDocuments`); `submissionsTab` is the earlier list and has NO SCREEN since plan step 6 folded it into the one Documents list; kept with its db tests until close-out retires it.",
   "src/lib/project-docs/earlier-read.ts": "The earlier source of the merged lists (`register.ts`, `portal-read.ts`, `waiting-read.ts`), read-only.",
   "src/lib/project-docs/waiting-read.ts": "BOTH: the count's earlier half beside the documents waiting on the organisation (`documentsWaitingCount`).",
 };

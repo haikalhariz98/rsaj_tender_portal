@@ -31,7 +31,8 @@ describe("the service-level editor has left Configuration (PW-27)", () => {
   });
 
   it("nothing reads the settings to show a live service level or a 'not set' prompt: the queue and the portal tab read only what each row stored", () => {
-    const readers = ["src/lib/portal/projects/review-store.ts", "src/lib/portal/projects/workspace-store.ts", "src/app/projects/submissions-panel.tsx", "src/app/supplier/projects/[id]/panels.tsx"];
+    // Plan step 6: `src/app/projects/submissions-panel.tsx` left with the earlier queue's screen (the one Documents list holds earlier records now), so the guard follows to the screens that show an earlier record: the shared card, the contract's Documents tab, the Documents waiting view and the portal's panels.
+    const readers = ["src/lib/portal/projects/review-store.ts", "src/lib/portal/projects/workspace-store.ts", "src/components/earlier-record-card.tsx", "src/app/projects/[id]/submissions-tab.tsx", "src/app/projects/documents-waiting-view.tsx", "src/app/supplier/projects/[id]/panels.tsx"];
     for (const f of readers) {
       const src = read(f);
       expect(src, f).not.toMatch(/contractorSubmissionSetting|unsetKinds|serviceLevels|SERVICE_NOT_SET|post-award/);

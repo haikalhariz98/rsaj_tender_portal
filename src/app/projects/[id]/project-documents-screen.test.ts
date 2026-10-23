@@ -248,19 +248,19 @@ describe("a Project document's page", () => {
   });
 });
 
-describe("the Project stage's Submissions tab", () => {
+describe("the Project stage's Documents tab", () => {
   // The tab loads from the database, so its order is read from the source, as the content guards of the other unauthenticated screens are (the text snapshot needs a signed-in session).
   const src = readFileSync(join(process.cwd(), "src/app/projects/[id]/submissions-tab.tsx"), "utf8");
 
-  it("shows the new Documents list above the earlier queue, and outside the supervision gate (the workspace is open to Terminated, PW-22)", () => {
-    const tab = src.slice(0, src.indexOf("function EarlierQueue("));
-    const list = tab.indexOf("<ProjectDocumentsCard");
-    const queue = tab.indexOf("<EarlierQueue");
-    expect(list).toBeGreaterThan(-1);
-    expect(list).toBeLessThan(queue);
-    // The tab itself holds no gate: the supervision family's gate wraps the queue alone.
+  it("is one list: the earlier queue and its second listing are gone (plan step 6), the earlier record opens above the list and is read by its id, outside the supervision gate except for its answer (PW-22)", () => {
+    expect(src).not.toMatch(/EarlierQueue|SubmissionsPanel|loadReviewQueue/);
+    const tab = src.slice(0, src.indexOf("const ANSWER_NOTE"));
+    expect(tab.indexOf("<EarlierRecord")).toBeGreaterThan(-1);
+    expect(tab.indexOf("<EarlierRecord")).toBeLessThan(tab.indexOf("<ProjectDocumentsCard"));
+    expect(src).toContain("loadStaffEarlier(db, { organisationId, contractId, id: earlier })");
+    // The tab itself holds no gate: the supervision family's gate wraps the earlier record's answer alone (the workspace is open to Terminated).
     expect(tab).not.toContain("<ActGate");
-    expect(src.slice(src.indexOf("function EarlierQueue("))).toMatch(/actStatusBlocker\("SUPERVISION", status\)[\s\S]*<ActGate blocker=\{shut\}>[\s\S]*<SubmissionsPanel/);
+    expect(src.slice(src.indexOf("export function EarlierRecord("))).toMatch(/actStatusBlocker\("SUPERVISION", status\)[\s\S]*<AnswerDrawer[\s\S]*<ActGate blocker=\{shut\}>[\s\S]*<EarlierRecordCard/);
   });
 
   it("reads the list through the register's filter and cursor, never the whole contract at once", () => {

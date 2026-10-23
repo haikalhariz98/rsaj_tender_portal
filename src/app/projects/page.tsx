@@ -38,7 +38,7 @@ import { CaseViewSelect, type ViewGroup } from "./case-view-select";
 import { SecuritiesView } from "./securities-view";
 import { documentsWaitingCount } from "@/lib/project-docs/waiting-read";
 
-import { SubmissionsView } from "./submissions-view";
+import { DocumentsWaitingView } from "./documents-waiting-view";
 
 export const dynamic = "force-dynamic";
 
@@ -63,11 +63,11 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   const n = (words: Words, count: number) => sayWith(words, lang, { count: String(count) });
-  const { page: p, view, sv, waiting, answered } = (await props.searchParams) as { page?: string; view?: string; sv?: string; waiting?: string; answered?: string };
+  const { page: p, view, sv, waiting, waitingAfter } = (await props.searchParams) as { page?: string; view?: string; sv?: string; waiting?: string; waitingAfter?: string };
   // AC-15: the organisation-wide securities view (the old Securities menu) stands alone, so no other view's data is read.
   if (view === "securities") return <SecuritiesView actor={actor} sv={sv} pageParam={p} lang={lang} />;
-  // AC-16: "Submissions waiting" (the old Documents menu's review queue) stands alone as well.
-  if (view === "submissions") return <SubmissionsView actor={actor} waiting={waiting} answered={answered} lang={lang} />;
+  // AC-16, PW-11: "Documents waiting" (the old Submissions waiting view; its address keeps `view=submissions`) stands alone as well: both sources, filtered and paged by the loader.
+  if (view === "submissions") return <DocumentsWaitingView actor={actor} filterParam={waiting} afterParam={waitingAfter} />;
   const page = Math.max(0, Number.parseInt(p ?? "0", 10) || 0);
   const parsed = parseCaseListView(view);
   // 6.13 Part A review 14: In Delay is a view over the whole set, judged across every possessed contract, then paged.
