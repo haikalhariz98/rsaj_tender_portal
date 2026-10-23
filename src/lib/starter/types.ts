@@ -18,8 +18,10 @@ export interface PackGroup {
 /// One list: loaded only into an empty list (ADR 0043 D1).
 export interface PackList {
   model: string; // e.g. "Committee", "SupplierListValue"
+  label: string; // the list in words, the start of each row's audit entityLabel, e.g. "State"
   scope?: Record<string, unknown>; // narrows "the list", e.g. { list: "STATE" }
-  rows: Array<{ code: string; values: Record<string, unknown>; source: string; requirement?: string }>;
+  /// `label`: the row in words, where its table has no `nameEn` or `name` (the audit row never shows the code).
+  rows: Array<{ code: string; label?: string; values: Record<string, unknown>; source: string; requirement?: string }>;
 }
 
 export interface StarterPack {

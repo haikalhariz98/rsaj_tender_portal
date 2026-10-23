@@ -21,7 +21,7 @@ Requires Node 20+ and Docker Desktop running.
 ```bash
 cp .env.example .env
 npm install
-npm run setup           # Postgres, migrations, and one empty organisation
+npm run setup           # Postgres, migrations, one organisation and its starter pack
 npm run dev             # http://localhost:3000
 ```
 
@@ -32,6 +32,13 @@ ORGANISATION_CODE=ACME
 ORGANISATION_NAME=Acme Water
 ORGANISATION_STRAPLINE=Procurement
 ```
+
+Setup loads the starter packs named in `STARTER_PACKS` (ADR 0043): `generic` when unset, which fills working values
+that are not authority (sign-in settings, upload rules, document classes, supplier lists, numbering), each marked
+Assumed. **An RSAJ deployment sets `STARTER_PACKS=rsaj,generic` before its first `npm run setup`**: the first pack
+wins, so loading generic first would leave RSAJ's stated lists skipped. A pack fills only what is unset and refuses
+once approval by another admin is on. Load one later with `npm run pack -- <pack>[,<pack>]` (a dry run; add `--apply`
+to write).
 
 ## What is built
 
@@ -84,7 +91,9 @@ own authority.
 prisma/
   schema.prisma        Organisation, AuthorityRole, AuthorityMatrix, AuthorityRule,
                        Committee, Meeting, CommitteeDecision, Vote
-  seed.ts              Creates one empty organisation and nothing else
+  seed.ts              Creates the organisation and loads STARTER_PACKS
+  packs/               The generic starter pack and the pack registry
+src/lib/starter/       The pack loader: planner, snapshot, store
 src/lib/authority/     The routing engine, its types, its loader and its test fixture
 src/lib/committee/     Quorum and vote arithmetic
 src/app/               Dashboard, Configuration, and the module placeholders
@@ -101,7 +110,8 @@ scripts/               Tooling to render a prototype and diff this app's DOM aga
 | `npm run dev` / `build` / `start` | Next dev server / production build / serve |
 | `npm test` / `test:watch` | Vitest |
 | `npm run lint` / `typecheck` | ESLint / `next typegen` + `tsc --noEmit` |
-| `npm run setup` | `db:up` → `db:migrate` → `db:seed` |
+| `npm run setup` | `db:up` → `db:migrate` → `db:seed` (the organisation and `STARTER_PACKS`) |
+| `npm run pack -- <packs> [--apply]` | Load starter packs into the organisation: a dry run unless `--apply` |
 | `npm run db:up` / `db:down` | Start (wait for healthy) / stop Postgres |
 | `npm run db:reset` | **Destroys the volume**, then re-runs setup |
 | `npm run db:migrate` | Prompts for a migration name — pass `--name` in scripts. Then runs `db:roles` |
