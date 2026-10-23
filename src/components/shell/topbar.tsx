@@ -109,11 +109,11 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
     if (last === 2 && recordName && crumbs[2].label.en === recordName) crumbs[2].label = SEGMENT_LABEL[segments[2]] ?? (segments[2] === "edit" ? CRUMB_WORDS.edit : crumbs[2].label);
   }
 
-  // A certificate sits on its contract's Documents tab: "Projects › <contract> › Documents › <certificate>"; no page
+  // A certificate sits on its contract's Certificates tab (id `documents`): "Projects › <contract> › Certificates › <certificate>"; no page
   // of its own sits at …/certificates, so that crumb is the tab.
   if (segments[0] === "projects" && segments[2] === "certificates" && crumbs.length >= 3) {
     if (parentName) crumbs[1].label = named(parentName);
-    crumbs[2].label = CRUMB_WORDS.documents;
+    crumbs[2].label = CRUMB_WORDS.certificates;
     crumbs[2].href = `/projects/${segments[1]}?tab=documents`;
   }
   // 6.13 Part A step 4: a variation sits on its contract's Variations tab: "Projects › <contract> › Variations › <variation>".

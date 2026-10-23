@@ -2,6 +2,7 @@ import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { takenUpLink } from "@/lib/project-docs/labels";
 import type { DocumentPage, Gate } from "@/lib/project-docs/page-store";
 import type { RegisterRow } from "@/lib/project-docs/register";
 import type { StaffEarlier } from "@/lib/project-docs/earlier-read";
@@ -90,12 +91,18 @@ describe("a document of one of the six kinds, on the staff's page (plan step 6; 
     expect(html).toContain("22 Oct 2026 · 14:02");
   });
 
-  it("links to where it is recorded only when the loader has a link, and never words it without one", () => {
-    const withLink = view(page({ kind: "INTERIM_CLAIM", kindLabel: "Interim claim", takenUpLink: { words: "Record it on Payments", href: "/projects/c1?stage=project&tab=payments&section=valuations" } }));
-    expect(withLink).toContain("Record it on Payments");
-    expect(withLink).toContain('href="/projects/c1?stage=project&amp;tab=payments&amp;section=valuations"');
-    const without = view(page());
-    expect(without).not.toMatch(/[Rr]ecorded in|Record it|tab=payments/);
+  it("says where it is recorded only once it is taken up, only with the loader's link, and never in words without one", () => {
+    // The words are the real ones (`takenUpLink`): they say where it IS recorded, so they are not drawn before it is taken up.
+    const link = takenUpLink("INTERIM_CLAIM")!;
+    const given = { words: link.words, href: "/projects/c1?stage=project&tab=payments&section=valuations" };
+    const received = view(page({ kind: "INTERIM_CLAIM", kindLabel: "Interim claim", takenUpLink: given }));
+    expect(received).not.toContain(link.words);
+    const taken = view(page({ kind: "INTERIM_CLAIM", kindLabel: "Interim claim", state: "TAKEN_UP", stateLabel: "Taken up", takenUpLink: given }));
+    expect(taken).toContain(link.words);
+    expect(taken).toContain('href="/projects/c1?stage=project&amp;tab=payments&amp;section=valuations"');
+    // No link from the loader (a delay notice, defects rectified): no words and no button, at any state.
+    const none = view(page({ state: "TAKEN_UP", stateLabel: "Taken up" }));
+    expect(none).not.toMatch(/[Rr]ecorded (in|under)|tab=payments/);
   });
 
   it("on defects rectified the mark and the state read Noted, never Taken up", () => {

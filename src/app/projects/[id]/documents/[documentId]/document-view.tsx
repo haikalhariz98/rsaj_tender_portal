@@ -78,7 +78,8 @@ export function DocumentPageView({ page, contractNumber }: { page: DocumentPage;
               {/* The contractor's document: the organisation marks it, and may ask for it again or send its own version only where the loader allows (no blocked copy of an act that never applies). */}
               {actions.upload.allowed && <UploadVersionDrawer {...common} tone="secondary" />}
               {actions.request.allowed && <AskDrawer {...common} />}
-              {page.takenUpLink && <ButtonLink href={page.takenUpLink.href} size="sm" variant="secondary">{page.takenUpLink.words}</ButtonLink>}
+              {/* "Recorded under …": said only once it is taken up, and only with its link (PW-24). */}
+              {page.takenUpLink && page.state === "TAKEN_UP" && <ButtonLink href={page.takenUpLink.href} size="sm" variant="secondary">{page.takenUpLink.words}</ButtonLink>}
               {showMarks && (
                 <>
                   {actions.markReturned.allowed && decideId ? <MarkDrawer {...common} versionId={decideId} outcome="RETURNED" label={marks.returned} /> : blocked(marks.returned, actions.markReturned)}

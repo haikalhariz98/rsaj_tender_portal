@@ -159,6 +159,8 @@ export const CRUMB_WORDS = {
   bidOpening: w("Bid opening"),
   saleLabel: w("Sale label"),
   documents: w("Documents"),
+  // The contract's `documents` tab is Certificates since plan step 6 (the certificate core's records); its crumb says so.
+  certificates: w("Certificates"),
   variations: w("Variations"),
   // The contract's Documents tab keeps the id `submissions` (addresses and notices name it); its word is Documents since the six kinds moved in (plan step 6).
   submissions: w("Documents"),
