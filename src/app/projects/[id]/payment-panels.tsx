@@ -1,4 +1,5 @@
 import { Say } from "@/components/i18n/language-context";
+import { Sections } from "./sections";
 import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { ActedBy } from "@/components/attribution";
 import { ActGate } from "@/components/act-gate";
@@ -81,13 +82,6 @@ const zone = (today: string | null) => (today ? null : "Set the organisation's t
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
 export const VALUATION_PAGE = 12;
 
-export const PAYMENT_SECTIONS = [
-  { id: "valuations", label: "Valuations" },
-  { id: "retention", label: "Retention" },
-  { id: "advance", label: "Advance payment" },
-  { id: "damages", label: "Liquidated damages" },
-] as const;
-export type PaymentSection = (typeof PAYMENT_SECTIONS)[number]["id"];
 
 /// Everything the tab reads, once.
 export async function paymentView(l: LoadedContract, today: string | null) {
@@ -147,19 +141,17 @@ export function PaymentSummaryCard({ l, v }: { l: LoadedContract; v: PaymentView
 // ------------------------------------------------------------------ the tab
 
 /// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
-export function PaymentsPanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; section: PaymentSection; page: number; hidden?: readonly HiddenAct[] }) {
-  const body = (() => {
-    switch (section) {
-      case "valuations":
-        return <ValuationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} />;
-      case "retention":
-        return <RetentionSection l={l} v={v} people={people} today={today} hidden={hidden} />;
-      case "advance":
-        return <AdvanceSection l={l} v={v} people={people} hidden={hidden} />;
-      case "damages":
-        return <DamagesSection l={l} v={v} people={people} today={today} hidden={hidden} />;
-    }
-  })();
+export function PaymentsPanel({ l, v, people, today, page, hidden = [] }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; page: number; hidden?: readonly HiddenAct[] }) {
+  const body = (
+    <Sections
+      items={[
+        { id: "valuations", label: "Valuations", node: <ValuationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} /> },
+        { id: "retention", label: "Retention", node: <RetentionSection l={l} v={v} people={people} today={today} hidden={hidden} /> },
+        { id: "advance", label: "Advance payment", node: <AdvanceSection l={l} v={v} people={people} hidden={hidden} /> },
+        { id: "damages", label: "Liquidated damages", node: <DamagesSection l={l} v={v} people={people} today={today} hidden={hidden} /> },
+      ]}
+    />
+  );
   return <WithHiddenNote hidden={hidden}>{body}</WithHiddenNote>;
 }
 
@@ -263,8 +255,7 @@ function ValuationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
               items={[
                 { label: "Valuation day", value: `Day ${cal.dayOfMonth} of each month (the last day of a shorter month)` },
                 { label: "Agreed", value: `${formatDate(day(cal.agreedOn))} with ${cal.agreedWith}, recorded for ${cal.person.name}` },
-                { label: "The parties notified", value: "Not emailed." },
-              ]}
+                              ]}
             />
           ) : (
             <p className="text-[13px] text-ink-3">Not agreed yet.</p>

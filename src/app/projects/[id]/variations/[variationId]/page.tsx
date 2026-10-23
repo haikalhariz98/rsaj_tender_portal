@@ -76,6 +76,8 @@ import {
 import { requireStaff } from "@/app/_auth/actor";
 import { stepActed } from "@/lib/auth/attribution-read";
 
+export const metadata = { title: "Variation" };
+
 export const dynamic = "force-dynamic";
 
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
@@ -168,7 +170,6 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
     <>
       <RecordCrumb label={title} parent={l.contract.number} />
       <PageHeader
-        eyebrow={<Link href={`/projects/${l.contract.id}?tab=variations`}>{`Contract ${l.contract.number}`}</Link>}
         title={title}
         badge={<Badge tone={TONE[STAGE_TONE[stage]]} dot>{STAGE_WORDS[stage].en}</Badge>}
         subtitle={v.description}

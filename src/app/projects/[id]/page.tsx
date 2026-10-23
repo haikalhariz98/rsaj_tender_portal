@@ -8,7 +8,7 @@ import { ENGLISH } from "@/lib/i18n/language";
 import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
-import { AWARD_STATUS_WORDS, CASE_HEADER_WORDS as H, CASE_LINK_ACTION_WORDS, CASE_PANEL_TITLE_WORDS as P, CASE_REFUSAL_WORDS as R, CASE_SECTION_WORDS, CASE_STEP_WORDS, CASE_TAB_WORDS, INSTRUMENT_SHORT_WORDS } from "@/lib/contract/case-page-words";
+import { AWARD_STATUS_WORDS, CASE_HEADER_WORDS as H, CASE_LINK_ACTION_WORDS, CASE_PANEL_TITLE_WORDS as P, CASE_REFUSAL_WORDS as R, CASE_STEP_WORDS, CASE_TAB_WORDS, INSTRUMENT_SHORT_WORDS } from "@/lib/contract/case-page-words";
 import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
 import { notFound, redirect } from "next/navigation";
 import { AWARD_NOTE_ID } from "@/app/awards/editors";
@@ -18,7 +18,9 @@ import { AWARD_STATUS_TONE } from "@/lib/award/labels";
 import { loadAward } from "@/lib/award/repo";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { caseStage } from "@/lib/contract/case-stage";
-import { caseSteps, type CaseAction, type CaseFacts } from "@/lib/contract/case-steps";
+import { caseSteps, earlierOpenSteps, SIGNED_CONTRACT_STATUSES, type CaseAction, type CaseFacts } from "@/lib/contract/case-steps";
+import { nextLine, primaryAction } from "@/lib/contract/primary-action";
+import { MoreActions } from "@/components/ui/more-actions";
 import { CASE_TABS, HISTORY_TAB } from "@/lib/contract/case-tabs";
 import { caseHistorySources, resolveCaseView } from "@/lib/contract/case-view";
 import { CASE_ACTION_AT, caseHref, keepQuery } from "@/lib/contract/links";
@@ -35,7 +37,6 @@ import { Blocked } from "@/components/ui/blocked";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
-import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { INSURANCE_KIND_LABEL, REGISTER_STATUS_LABEL, REGISTER_STATUS_TONE, SECURITY_KIND_LABEL, WC_BASIS_LABEL } from "@/lib/award/labels";
@@ -71,16 +72,18 @@ import { KickOffCard } from "./kick-off-card";
 import { DocumentsPanel } from "./documents-panel";
 import { SubmissionsTab } from "./submissions-tab";
 import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
-import { FormationPanel, FORMATION_SECTIONS, type FormationSection } from "./formation-panels";
-import { PAYMENT_SECTIONS, PaymentsPanel, PaymentSummaryCard, paymentView, type PaymentSection, type PaymentView } from "./payment-panels";
-import { OnSiteCard, SITE_SECTIONS, SitePanel, supervisionView, TeamPanel, type SiteSection, type SupervisionView } from "./supervision-panels";
+import { FormationPanel } from "./formation-panels";
+import { PaymentsPanel, PaymentSummaryCard, paymentView, type PaymentView } from "./payment-panels";
+import { OnSiteCard, SitePanel, supervisionView, TeamPanel, type SupervisionView } from "./supervision-panels";
 import { hiddenFor } from "@/lib/supervision/authority";
 import { delegationFactsOf } from "@/lib/supervision/load";
 import { SUPERVISION_ACTS } from "@/lib/supervision/types";
-import { VARIATION_SECTIONS, VariationsPanel, VariationSummaryCard, type VariationSection } from "./variation-panels";
+import { VariationsPanel, VariationSummaryCard } from "./variation-panels";
 import { variationView, type VariationView } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden } from "@/app/_auth/sulit";
+
+export const metadata = { title: "Project" };
 
 export const dynamic = "force-dynamic";
 
@@ -111,8 +114,6 @@ const TAB_ICON: Readonly<Record<string, ReactNode>> = {
   submissions: <InboxIcon size={15} />,
 };
 
-/// The tabs that have a second level, with the sections the case page reads from its address.
-const SECTIONED = { formation: FORMATION_SECTIONS, site: SITE_SECTIONS, payments: PAYMENT_SECTIONS, variations: VARIATION_SECTIONS } as const;
 
 const STEP_STATE = { done: "done", "in-progress": "current", waiting: "waiting", parked: "parked" } as const;
 
@@ -153,7 +154,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const status = c ? (c.status as ContractStatus) : null;
   const today = l.org.today;
   const ref = { awardId: award.id, contractId: c?.id ?? null };
-  const { tab, section, page, docs, docsAfter, earlier } = { tab: first("tab"), section: first("section"), page: first("page"), docs: first("docs"), docsAfter: first("docsAfter"), earlier: first("earlier") };
+  const { tab, page, docs, docsAfter, earlier } = { tab: first("tab"), page: first("page"), docs: first("docs"), docsAfter: first("docsAfter"), earlier: first("earlier") };
   const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
 
   // ----------------------------------------------------------------- what the step bar needs
@@ -221,11 +222,6 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const matterIds = history ? [...new Set(history.entries.filter((e) => e.entity === "ContractMatter" && e.changes.some((ch) => ch.field === ROUTED_MATTER_VALUE_FIELD)).map((e) => e.entityId))] : [];
   const matterGates = matterIds.length ? await sulitGates(actor, matterIds.map((id) => ({ scope: "contract" as const, entity: "ContractMatter", id, label: "A contract matter" })), [ROUTED_MATTER_VALUE_FIELD]) : new Map<string, Sulit<true>>();
 
-  const formationSection = (FORMATION_SECTIONS.find((s) => s.id === section)?.id ?? "assembly") as FormationSection;
-  const siteSection = (SITE_SECTIONS.find((s) => s.id === section)?.id ?? "start") as SiteSection;
-  const paymentSection = (PAYMENT_SECTIONS.find((s) => s.id === section)?.id ?? "valuations") as PaymentSection;
-  const variationSection = (VARIATION_SECTIONS.find((s) => s.id === section)?.id ?? "variations") as VariationSection;
-  const sectionOf: Record<string, string> = { formation: formationSection, site: siteSection, payments: paymentSection, variations: variationSection };
 
   const notice = (title: string, body: string) => (
     <Card>
@@ -248,7 +244,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
           </div>
         );
       case "formation":
-        return facts && sulit ? <FormationPanel sulit={sulit!} l={lc} section={formationSection} facts={facts} people={people} today={today} /> : notice(t(R.notJudged), t(R.setTimeZoneFirst));
+        return facts && sulit ? <FormationPanel sulit={sulit!} l={lc} facts={facts} people={people} today={today} /> : notice(t(R.notJudged), t(R.setTimeZoneFirst));
       case "baseline":
         return facts ? <BaselinePanel l={lc} facts={facts} timeZone={l.org.timeZone} /> : notice(t(R.notJudged), t(R.setTimeZoneFirst));
       case "overview":
@@ -256,11 +252,11 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       case "team":
         return supervision ? <TeamPanel actor={actor} l={lc} v={supervision} people={people} today={today} /> : null;
       case "site":
-        return supervision ? <SitePanel l={lc} v={supervision} people={people} today={today} section={siteSection} page={pageNo} hidden={hiddenActs} /> : null;
+        return supervision ? <SitePanel l={lc} v={supervision} people={people} today={today} page={pageNo} hidden={hiddenActs} /> : null;
       case "payments":
-        return supervision && payments ? <PaymentsPanel l={lc} v={payments} people={people} today={today} section={paymentSection} page={pageNo} hidden={hiddenActs} /> : null;
+        return supervision && payments ? <PaymentsPanel l={lc} v={payments} people={people} today={today} page={pageNo} hidden={hiddenActs} /> : null;
       case "variations":
-        return supervision && variations ? <VariationsPanel l={lc} v={variations} people={people} today={today} section={variationSection} page={pageNo} hidden={hiddenActs} /> : null;
+        return supervision && variations ? <VariationsPanel l={lc} v={variations} people={people} today={today} page={pageNo} hidden={hiddenActs} /> : null;
       case "documents":
         return documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null;
       case "submissions":
@@ -281,8 +277,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const stageTabs = stage === "close-out" ? [] : CASE_TABS[stage];
   const tabs: TabSpec[] = [
     ...stageTabs.map((tabId): TabSpec => {
-      const sections = SECTIONED[tabId as keyof typeof SECTIONED];
-      return { id: tabId, label: t(CASE_TAB_WORDS[tabId]), icon: TAB_ICON[tabId], lazy: true, ...(sections ? { sections: sections.map((x) => ({ id: x.id, label: t(CASE_SECTION_WORDS[`${tabId}.${x.id}`]) })), section: sectionOf[tabId] } : {}), panel: !view.history && view.tab === tabId ? panelFor(tabId) : null };
+      return { id: tabId, label: t(CASE_TAB_WORDS[tabId]), icon: TAB_ICON[tabId], lazy: true, panel: !view.history && view.tab === tabId ? panelFor(tabId) : null };
     }),
     { id: HISTORY_TAB, label: t(COMPONENT_WORDS.history), icon: <ClockIcon size={15} />, lazy: true, panel: view.history ? historyPanel : null },
   ];
@@ -298,23 +293,30 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   }));
   // Review S1: the family's row first, in the acts' own words, for the one drawer the header offers.
   const formationShut = status ? actStatusBlocker("FORMATION", status) : null;
-  const linkAt = viewed.action ? CASE_ACTION_AT[viewed.action] : undefined;
+  // The header's one primary action (plan 6.6): the viewed stage's own; the award's other drawers sit in the menu.
+  const act = primaryAction(stage, steps);
+  const linkAt = act ? CASE_ACTION_AT[act] : undefined;
   const mainNode =
-    viewed.action && av && (viewed.action === "SEND_FOR_APPROVAL" || viewed.action === "ISSUE" || viewed.action === "RECORD_COMMENCEMENT")
-      ? av.main[viewed.action]
-      : viewed.action === "START_PREPARATION" && lc && start
+    act && av && (act === "SEND_FOR_APPROVAL" || act === "ISSUE" || act === "RECORD_COMMENCEMENT")
+      ? av.main[act]
+      : act === "START_PREPARATION" && lc && start
         ? <ActGate blocker={formationShut}><StartPreparationDrawer id={lc.contract.id} blocker={start.blocker} frozen={start.frozen} /></ActGate>
         : null;
-  const mainLink = linkAt && viewed.action ? <ButtonLink href={caseHref(ref, linkAt)} size="sm" variant="primary">{LINK_ACTION_WORDS[viewed.action] ? t(LINK_ACTION_WORDS[viewed.action]!) : null}</ButtonLink> : null;
-  // On the Award stage the award's own drawers stay in the header, as on the award's page (C-3); the step's main act is one of them.
-  const actions = fin?.chrome ? <>{fin.chrome.actions}{mainLink}</> : <>{mainNode}{mainLink}</>;
+  const mainLink = linkAt && act ? <ButtonLink href={caseHref(ref, linkAt)} size="sm" variant="primary">{LINK_ACTION_WORDS[act] ? t(LINK_ACTION_WORDS[act]!) : null}</ButtonLink> : null;
+  // On the Award stage the award's own drawers (C-3) sit in the menu; a step with no act of its own shows the blocked one, with its reason.
+  const actions = (
+    <>
+      {mainNode ?? mainLink ?? fin?.chrome?.fallback}
+      {fin?.chrome?.menu && <MoreActions>{fin.chrome.menu}</MoreActions>}
+    </>
+  );
+  const leftovers = earlierOpenSteps(steps, standing, stage);
   const awardStatus = award.status as AwardStatus;
 
   return (
     <>
       <RecordCrumb label={c?.number ?? award.reference} />
       <PageHeader
-        eyebrow={<Link href="/projects">{t(H.contracts)}</Link>}
         title={c ? sayWith(H.contractNumber, lang, { number: c.number }) : award.awardeeName}
         badge={c && phase ? <Badge tone={TONE[PHASE_TONE[phase as keyof typeof PHASE_TONE]]} dot>{t(PHASE_WORDS[phase as keyof typeof PHASE_WORDS])}</Badge> : <Badge tone={AWARD_STATUS_TONE[awardStatus]} dot>{t(AWARD_STATUS_WORDS[awardStatus])}</Badge>}
         subtitle={ex.title}
@@ -331,6 +333,11 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         actionsNoteId={AWARD_NOTE_ID}
       />
       <div className="mb-6 flex flex-col gap-3">
+        {leftovers.map((x) => (
+          <Callout key={x.key} tone="warn" title={`${t(CASE_STEP_WORDS[x.key])} is not finished`} action={<ButtonLink href={caseHref(ref, { stage: x.key })} size="sm">Open</ButtonLink>}>
+            {x.next}
+          </Callout>
+        ))}
         {awardCallouts}
         {fin?.chrome?.callouts}
         {c && !today && !fin?.chrome && (
@@ -356,9 +363,11 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       <Card className="mb-6">
         <CardBody className="flex flex-col gap-5">
           <Stepper steps={stepperSteps} label={t(H.stagesLabel)} selected={stage} />
-          <p className="text-[13.5px] text-ink-2">
-            <span className="font-semibold text-ink">{t(H.whatsNextOn)}</span> {viewed.next}
-          </p>
+          {nextLine(viewed) && (
+            <p className="text-[13.5px] text-ink-2">
+              <span className="font-semibold text-ink">{t(H.whatsNextOn)}</span> {nextLine(viewed)}
+            </p>
+          )}
         </CardBody>
       </Card>
       {view.awardRefused ? (
@@ -413,7 +422,7 @@ async function OverviewPanel({ actor, sulit, l, awardOpen, facts, today, supervi
             items={[
               { label: "Contract number", value: <span className="flex flex-col items-start gap-1"><span className="font-mono text-[13px]">{c.number}</span>{year.seriesNumber && <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_WORDS.series(year.issueYear).en}</span>}</span> },
               { label: "Contractor", value: l.award.awardeeName },
-              { label: "Contract sum", value: <span className="flex flex-col items-start gap-1"><span className="tabular-nums">{formatMoney(senFromDecimal(c.contractSum))}</span><InfoChip tone="warn" detail="Corrections do not change the Letter of Acceptance sum.">Assumed</InfoChip></span> },
+              { label: "Contract sum", value: <span className="flex flex-col items-start gap-1"><span className="tabular-nums">{formatMoney(senFromDecimal(c.contractSum))}</span></span> },
               { label: "Arithmetic corrections", value: variance == null ? notSet("None recorded") : <span className="flex flex-col items-start gap-1"><SulitValue of={through(sulit, `${variance < 0n ? "−" : "+"}${formatMoney(variance < 0n ? -variance : variance)}`)} /><Chip tone="neutral">Not applied</Chip></span> },
               {
                 label: "Contract Date",
@@ -433,10 +442,13 @@ async function OverviewPanel({ actor, sulit, l, awardOpen, facts, today, supervi
           />
         </CardBody>
       </Card>
-      <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title={t(P.readyToSign)} actions={facts ? <Badge tone={facts.gate.ready ? "ok" : "warn"}>{facts.gate.ready ? "Gate met" : "Gate not met"}</Badge> : undefined} />
-        {facts ? <ReadinessGateList items={facts.gate.items} bondNotRequiredReason={l.award.bondNotRequiredReason} /> : <EmptyState size="sm" title={t(R.notJudged)} action={<MoreText text={t(R.setTimeZoneFirst)} label="Why" />} />}
-      </Card>
+      {/* Once the contract is signed the question is answered: the card goes (plan 6.6). */}
+      {!SIGNED_CONTRACT_STATUSES.includes(c.status as ContractStatus) && (
+        <Card className="overflow-hidden">
+          <CardHeader icon={<ShieldIcon size={17} />} title={t(P.readyToSign)} actions={facts ? <Badge tone={facts.gate.ready ? "ok" : "warn"}>{facts.gate.ready ? "Ready" : "Not ready"}</Badge> : undefined} />
+          {facts ? <ReadinessGateList items={facts.gate.items} bondNotRequiredReason={l.award.bondNotRequiredReason} /> : <EmptyState size="sm" title={t(R.notJudged)} action={<MoreText text={t(R.setTimeZoneFirst)} label="Why" />} />}
+        </Card>
+      )}
       <Card className="overflow-hidden">
         <CardHeader icon={<CheckIcon size={17} />} title={t(P.awardConditions)} divided={l.award.conditions.length > 0} />
         {l.award.conditions.length === 0 ? (
@@ -540,7 +552,7 @@ async function SecuritiesPanel({ l, people, today, wagesCheckOnly }: { l: Loaded
   }
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ShieldIcon size={17} />} title={t(P.securitiesAndInsurances)} subtitle={`Read-only here. ${remindersText(offsets)}, not emailed.`} divided={c.securities.length + c.policies.length === 0} />
+      <CardHeader icon={<ShieldIcon size={17} />} title={t(P.securitiesAndInsurances)} subtitle={`Read-only here. ${remindersText(offsets)}.`} divided={c.securities.length + c.policies.length === 0} />
       {c.securities.length + c.policies.length === 0 ? (
         <EmptyState size="sm" title="Nothing lodged" />
       ) : (

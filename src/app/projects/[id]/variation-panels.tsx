@@ -1,4 +1,5 @@
 import { Say } from "@/components/i18n/language-context";
+import { Sections } from "./sections";
 import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { ActGate } from "@/components/act-gate";
 import Link from "next/link";
@@ -46,19 +47,19 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 export const VARIATION_PAGE = 50;
 
-export const VARIATION_SECTIONS = [
-  { id: "variations", label: "Variations" },
-  { id: "adjustments", label: "Adjustments of the contract sum" },
-] as const;
-export type VariationSection = (typeof VARIATION_SECTIONS)[number]["id"];
 
 const pct = (num: bigint, den: bigint | null, edges: readonly string[]) => (den && den > 0n ? percentLabelText(percentLabel({ num, den }, edges)).en : null);
 
 /// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
-export function VariationsPanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; section: VariationSection; page: number; hidden?: readonly HiddenAct[] }) {
+export function VariationsPanel({ l, v, people, today, page, hidden = [] }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; page: number; hidden?: readonly HiddenAct[] }) {
   return (
     <WithHiddenNote hidden={hidden}>
-      {section === "adjustments" ? <AdjustmentsSection l={l} v={v} people={people} today={today} hidden={hidden} /> : <VariationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} />}
+      <Sections
+        items={[
+          { id: "variations", label: "Variations", node: <VariationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} /> },
+          { id: "adjustments", label: "Adjustments of the contract sum", node: <AdjustmentsSection l={l} v={v} people={people} today={today} hidden={hidden} /> },
+        ]}
+      />
     </WithHiddenNote>
   );
 }

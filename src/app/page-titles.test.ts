@@ -16,8 +16,6 @@ describe("every page names its tab", () => {
   it("has a metadata title or generateMetadata", () => {
     const missing = pages(APP)
       .map((p) => ({ p: p.slice(APP.length + 1).replaceAll("\\", "/"), s: readFileSync(p, "utf8") }))
-      // shortcut: src/app/projects/** is skipped until step 6.6 titles it; drop this filter then.
-      .filter(({ p }) => !p.startsWith("projects/"))
       .filter(({ s }) => !/export (const metadata|async function generateMetadata|function generateMetadata)/.test(s) && !(/redirect\(/i.test(s) && !s.includes("<PageHeader")))
       .map(({ p }) => p);
     expect(missing).toEqual([]);

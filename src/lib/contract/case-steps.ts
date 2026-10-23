@@ -24,7 +24,7 @@ import { GATE_LABEL, GATE_STATE_LABEL, awardFindingTextFor } from "@/lib/award/l
 import type { readinessGate } from "@/lib/award/readiness";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
 
-import { BEFORE_ACTIVE_CONTRACT_STATUSES, COMPLETED_CONTRACT_STATUSES, type CaseEnded, type CaseStanding } from "./case-stage";
+import { BEFORE_ACTIVE_CONTRACT_STATUSES, COMPLETED_CONTRACT_STATUSES, type CaseEnded, type CaseStage, type CaseStanding } from "./case-stage";
 import type { CaseVisibility } from "./case-visibility";
 import type { ContractStatus } from "./types";
 
@@ -289,17 +289,31 @@ export function caseSteps(f: CaseFacts): CaseStep[] {
   });
 }
 
+/// The first step a live stage can land on: an earlier step still open is a warning on the live stage, never the landing (plan 6.6).
+const LIVE_FLOOR: Readonly<Record<CaseStage, CaseStepKey>> = { AWARDING: "award", SIGNING: "before-signing", ON_SITE: "project", COMPLETED: "project", CLOSED: "project" };
+
 /**
  * The step a case opens on when the address names none.
  * - Ended (F0-6): where it ended.
- * - Live: the earliest step with an action; else the last in progress; else the last done; else Award.
+ * - Live: the live stage first (an earlier step left open does not pull the case back to it), then within it the earliest
+ *   step with an action; else the last in progress; else the last done; else Award.
  */
 export function defaultCaseStep(steps: readonly CaseStep[], standing: CaseStanding): CaseStepKey {
   if (standing.kind === "ENDED") return CASE_ENDED_STEP[standing.ended];
-  const withAction = steps.find((s) => s.action);
+  // Without a contract (signing waiting) the later stages have nothing to show, so the floor stays at Award.
+  const floorKey = steps.find((s) => s.key === "signing")?.state === "waiting" ? "award" : LIVE_FLOOR[standing.stage];
+  const live = steps.slice(Math.max(0, steps.findIndex((s) => s.key === floorKey)));
+  const withAction = live.find((s) => s.action);
   if (withAction) return withAction.key;
-  const inProgress = steps.filter((s) => s.state === "in-progress").at(-1);
+  const inProgress = live.filter((s) => s.state === "in-progress").at(-1);
   if (inProgress) return inProgress.key;
-  const done = steps.filter((s) => s.state === "done").at(-1);
+  const done = live.filter((s) => s.state === "done").at(-1);
   return done?.key ?? "award";
+}
+
+/// The earlier steps of a live case still open while `viewing` is on screen: shown as a warning there, with a link back (plan 6.6).
+export function earlierOpenSteps(steps: readonly CaseStep[], standing: CaseStanding, viewing: CaseStepKey): CaseStep[] {
+  if (standing.kind === "ENDED") return [];
+  const at = CASE_STEP_KEYS.indexOf(viewing);
+  return steps.filter((s) => CASE_STEP_KEYS.indexOf(s.key) < at && s.state === "in-progress" && s.key !== "close-out");
 }

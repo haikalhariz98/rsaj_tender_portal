@@ -3,6 +3,7 @@ import { FileIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatusCounts } from "@/components/ui/status-counts";
 import { CASE_PAGE, listCases, parseCaseListView, type CaseRow, type CaseRowView } from "@/lib/contract/case-load";
 import { CASE_WORK_VIEWS } from "@/lib/contract/case-work-views";
 import { awardChips, CASE_ENDED_TONE, CASE_ENDED_WORDS, CASE_VIEW_WORDS, standingWords } from "@/lib/contract/case-list-words";
@@ -39,6 +40,8 @@ import { SecuritiesView } from "./securities-view";
 import { documentsWaitingCount } from "@/lib/project-docs/waiting-read";
 
 import { DocumentsWaitingView } from "./documents-waiting-view";
+
+export const metadata = { title: "Projects" };
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +104,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const inDelay = new Set(delayIds);
   const policy = org0 ? await loadAwardPolicy(org0.id) : null;
 
-  const rows: Row[] = commencedView ? [] : data.rows.map((r) => caseRow(r, { derived, inDelay, delayAssumed: delay.assumed, policy, today: org0?.today ?? null, lang }));
+  const rows: Row[] = commencedView ? [] : data.rows.map((r) => caseRow(r, { derived, inDelay, policy, today: org0?.today ?? null, lang }));
   const at = (v: CaseRowView | undefined, n = 0) => {
     const q = new URLSearchParams();
     if (v) q.set("view", v);
@@ -151,7 +154,17 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
       <PageHeader
         title={t(L.title)}
         info={{ title: t(L.infoTitle), text: t(L.infoText) }}
-        meta={[n(L.nAwarding, data.counts.awarding), n(L.nSigning, data.counts.signing), n(L.nOnSite, data.counts.on_site), n(L.nAwaitingConditions, awaiting), n(L.nReadyToSign, ready)]}
+      />
+      <StatusCounts
+        label={t(L.statusCountsLabel)}
+        className="mb-6"
+        items={[
+          { label: t(L.awarding), count: data.counts.awarding, href: at("awarding"), tone: "info", active: current === "awarding" },
+          { label: t(L.signing), count: data.counts.signing, href: at("signing"), tone: "info", active: current === "signing" },
+          { label: t(L.onSite), count: data.counts.on_site, href: at("on_site"), tone: "ok", active: current === "on_site" },
+          { label: t(L.awaitingConditions), count: awaiting, href: at("signing"), tone: "warn" },
+          { label: t(L.readyToSign), count: ready, href: at("signing"), tone: "ok" },
+        ]}
       />
       {commencedView ? (
         <CommencedCard rows={commenced} exposure={exposure} page={page} today={today} lang={lang} />
@@ -169,10 +182,9 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
           rowOpens
           stackBelow="xl"
           columns={[
-            { key: "contract", label: t(L.colCase), sortable: true, mobile: "primary" },
+            { key: "contract", label: t(L.colProject), sortable: true, mobile: "primary" },
             { key: "contractor", label: t(L.colContractor), width: "200px", hideBelow: "2xl", mobile: "meta" },
             { key: "sum", label: t(L.colValue), width: "140px", numeric: true, sortable: true, mobile: "meta" },
-            { key: "stage", label: t(L.colStage), width: "140px", sortable: true, mobile: "meta" },
             { key: "phase", label: t(L.colStatus), width: "240px", mobile: "meta" },
             { key: "dates", label: t(L.colDates), width: "220px", mobile: "meta" },
           ]}
@@ -198,7 +210,6 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
 interface RowContext {
   derived: Map<string, ContractPhase>;
   inDelay: Set<string>;
-  delayAssumed: Set<string>;
   policy: Awaited<ReturnType<typeof loadAwardPolicy>> | null;
   today: string | null;
   lang: Language;
@@ -229,7 +240,7 @@ function caseRow(r: CaseRow, cx: RowContext): Row {
   if (ended) chips.push({ kind: endedKind(ended), text: t(CASE_ENDED_WORDS[ended]), ...toneOf(CASE_ENDED_TONE[ended]) });
   else if (phase) chips.push({ kind: phaseKind(phase), text: t(PHASE_WORDS[phase]), ...toneOf(PHASE_TONE[phase]) });
   else if (a) chips.push({ kind: "LIFECYCLE", text: t(AWARD_STATUS_WORDS[a.status as AwardStatus]), ...toneOf(AWARD_STATUS_TONE[a.status as AwardStatus]) });
-  if (c && cx.inDelay.has(c.id)) chips.push({ kind: "IN_DELAY", text: t(L.inDelay), tone: "err", ...(cx.delayAssumed.has(c.id) ? { provenance: "ASSUMED" as const } : {}) });
+  if (c && cx.inDelay.has(c.id)) chips.push({ kind: "IN_DELAY", text: t(L.inDelay), tone: "err" });
   if (a && kind && !ended) {
     const awardStatus = a.status as AwardStatus;
     // OD-5: before acceptance counted with its scans; an accepted award is not re-judged.
@@ -254,7 +265,6 @@ function caseRow(r: CaseRow, cx: RowContext): Row {
       contractor: { kind: "text", text: awardee },
       // Money in sen, shown and sorted exactly by the list (never a float).
       sum: { kind: "money", sen: money.toString() },
-      stage: { kind: "badge", text: stageWords },
       phase: primary ? { kind: "status", main: strip(primary), others: others.map(strip) } : { kind: "chips", items: [] },
       dates: c
         ? { kind: "stack", title: c.contractDate ? sayWith(L.contractDate, lang, { date: formatDate(storedDay(c.contractDate), lang) }) : t(L.notSigned), sub: completion ? sayWith(L.completion, lang, { date: formatDate(storedDay(completion), lang) }) : t(L.completionNotSet) }

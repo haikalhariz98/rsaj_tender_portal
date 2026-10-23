@@ -1,4 +1,5 @@
 import { Say, SayWith } from "@/components/i18n/language-context";
+import { Sections } from "./sections";
 import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { ActedBy } from "@/components/attribution";
 import { ActGate } from "@/components/act-gate";
@@ -60,14 +61,6 @@ import {
   SubmitLegalDrawer,
 } from "./editors";
 
-export const FORMATION_SECTIONS = [
-  { id: "assembly", label: "Assembly" },
-  { id: "checks", label: "Reconciliation and checks" },
-  { id: "legal", label: "Legal review" },
-  { id: "signing", label: "Signing" },
-  { id: "copies", label: "Copies and custody" },
-] as const;
-export type FormationSection = (typeof FORMATION_SECTIONS)[number]["id"];
 
 type Option = { value: string; label: string };
 type Facts = Awaited<ReturnType<typeof signingFacts>>;
@@ -75,7 +68,7 @@ const notSet = (what = "Not set") => <span className="text-ink-4">{what}</span>;
 const open = (s: string) => s === "IN_PREPARATION" || s === "RETURNED_FOR_AMENDMENT";
 const money = (v: { toString(): string }) => formatMoney(senFromDecimal(v));
 
-export function FormationPanel({ sulit, l, section, facts, people, today }: { sulit: Sulit<true>; l: LoadedContract; section: FormationSection; facts: Facts; people: Option[]; today: string | null }) {
+export function FormationPanel({ sulit, l, facts, people, today }: { sulit: Sulit<true>; l: LoadedContract; facts: Facts; people: Option[]; today: string | null }) {
   const status = l.contract.status as ContractStatus;
   const notStarted = status === "NUMBER_ALLOCATED";
   return (
@@ -83,11 +76,17 @@ export function FormationPanel({ sulit, l, section, facts, people, today }: { su
       {notStarted && (
         <Callout tone="warn" title="Preparation not started. Start it on the Overview." />
       )}
-      {!notStarted && section === "assembly" && <AssemblySection l={l} facts={facts} />}
-      {!notStarted && section === "checks" && <ChecksSection sulit={sulit} l={l} facts={facts} people={people} today={today} />}
-      {!notStarted && section === "legal" && <LegalSection l={l} facts={facts} people={people} today={today} />}
-      {!notStarted && section === "signing" && <SigningSection l={l} facts={facts} people={people} today={today} />}
-      {!notStarted && section === "copies" && <CopiesSection l={l} people={people} today={today} />}
+      {!notStarted && (
+        <Sections
+          items={[
+            { id: "assembly", label: "Assembly", node: <AssemblySection l={l} facts={facts} /> },
+            { id: "checks", label: "Reconciliation and checks", node: <ChecksSection sulit={sulit} l={l} facts={facts} people={people} today={today} /> },
+            { id: "legal", label: "Legal review", node: <LegalSection l={l} facts={facts} people={people} today={today} /> },
+            { id: "signing", label: "Signing", node: <SigningSection l={l} facts={facts} people={people} today={today} /> },
+            { id: "copies", label: "Copies and custody", node: <CopiesSection l={l} people={people} today={today} /> },
+          ]}
+        />
+      )}
     </div>
   );
 }

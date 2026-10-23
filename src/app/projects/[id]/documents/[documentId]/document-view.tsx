@@ -1,7 +1,5 @@
-import Link from "next/link";
 
 import { ActGate } from "@/components/act-gate";
-import { documentsHref } from "@/app/projects/[id]/project-documents-card";
 import { FileIcon, UsersIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
@@ -29,7 +27,7 @@ const OUTCOME_TONE = { APPROVED: "ok", REJECTED: "err", TAKEN_UP: "ok", RETURNED
  * new version, ask for it, approve, reject). Every act is the loader's gate: allowed, the drawer; not, a disabled button and the reason, said once under the header, never hidden.
  * No figure and no count anywhere. A reader with no authority reads the whole document.
  */
-export function DocumentPageView({ page, contractNumber }: { page: DocumentPage; contractNumber: string }) {
+export function DocumentPageView({ page }: { page: DocumentPage }) {
   const latest = page.versions.at(-1) ?? null;
   const { actions } = page;
   const decideId = actions.decideVersionId;
@@ -65,7 +63,6 @@ export function DocumentPageView({ page, contractNumber }: { page: DocumentPage;
     // The Project workspace's row of the act x status table, in its own words, to every drawer and blocked button below (the loader folded it into each gate already; this says it once for the scan that every act is gated).
     <ActGate blocker={page.workspaceShut}>
       <PageHeader
-        eyebrow={<Link href={documentsHref(page.contractId, "ALL")}>{`Contract ${contractNumber}`}</Link>}
         title={page.title}
         badge={<Badge tone={STATE_TONE[page.state]} dot>{page.stateLabel}</Badge>}
         subtitle={page.note || undefined}

@@ -176,7 +176,7 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
   takenUpLink: null,
   ...o,
 });
-const view = (p: DocumentPage) => renderToStaticMarkup(h(DocumentPageView, { page: p, contractNumber: "JKR/2026/01" }));
+const view = (p: DocumentPage) => renderToStaticMarkup(h(DocumentPageView, { page: p }));
 
 describe("a Project document's page", () => {
   it("heads with the title, the state, and the side, the kind and who it waits on; versions run newest first, with their files, decisions and remarks", () => {
@@ -194,7 +194,6 @@ describe("a Project document's page", () => {
     expect(html).toContain('href="/api/documents/versions/f2"');
     expect(html).toContain("The levels are wrong.");
     expect(html).toContain("22 Oct 2026");
-    expect(html).toContain("Contract JKR/2026/01");
   });
 
   it("PW-44: a declaration's version signed with the password says so, from the column, with no moment; an unsigned version says nothing", () => {

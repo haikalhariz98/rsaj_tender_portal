@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { moreItemClass } from "@/components/ui/more-item-class";
 import { actorField } from "@/lib/auth/actor-field";
 
 import { INSURANCE_KIND_LABEL, RETURN_DRAWER_NOTE } from "@/lib/award/labels";
@@ -75,7 +76,7 @@ export function detailFields(parties?: Option[], recommended?: { valueText: stri
   ];
 }
 
-export function EditDetailsDrawer({ id, values, parties, recommended }: { id: string; values: Values; parties?: Option[]; recommended?: { valueText: string } | null }) {
+export function EditDetailsDrawer({ id, values, parties, recommended, menu }: { id: string; values: Values; parties?: Option[]; recommended?: { valueText: string } | null; /** A menu entry rather than a header button. */ menu?: boolean }) {
   return (
     <RecordEditor
       title="Edit the award"
@@ -84,7 +85,7 @@ export function EditDetailsDrawer({ id, values, parties, recommended }: { id: st
       values={{ id, ...values }}
       action={updateAwardDetails}
       submitLabel="Save"
-      trigger={{ label: "Edit", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Edit", className: menu ? moreItemClass() : buttonClass("secondary", "sm") }}
       size="md"
     />
   );
@@ -96,6 +97,7 @@ export function EditTermsDrawer({
   regulatedLabel,
   asked,
   label = "Edit terms",
+  menu,
   tender = null,
   insuranceMinimums = null,
 }: {
@@ -106,6 +108,8 @@ export function EditTermsDrawer({
   /// period; false says so beside the field, which stays on the form.
   asked: { retention: boolean | null; dlp: boolean | null };
   label?: string;
+  /** A menu entry rather than a header button. */
+  menu?: boolean;
   /// 64-C4: what the frozen tender states for each term, in words (null: states nothing).
   /// Not given: the exercise froze no Appendix, and the form is as before.
   tender?: { lad: string | null; dlp: string | null; regulated: string | null; worksInsured?: string | null; liabilityInsured?: string | null; wcInsured?: string | null } | null;
@@ -214,14 +218,14 @@ export function EditTermsDrawer({
       values={{ id, ...values }}
       action={updateAwardTerms}
       submitLabel="Save terms"
-      trigger={{ label, className: buttonClass("secondary", "sm") }}
+      trigger={{ label, className: menu ? moreItemClass() : buttonClass("secondary", "sm") }}
       size="lg"
     />
   );
 }
 
-export function RecallAwardDrawer({ id, blocker }: { id: string; blocker: string | null }) {
-  if (blocker) return <Blocked label="Recall" reason={blocker} noteId={AWARD_NOTE_ID} />;
+export function RecallAwardDrawer({ id, blocker, menu }: { id: string; blocker: string | null; menu?: boolean }) {
+  if (blocker) return <Blocked label="Recall" reason={blocker} noteId={menu ? undefined : AWARD_NOTE_ID} />;
   return (
     <RecordEditor
       title="Recall the award"
@@ -231,7 +235,7 @@ export function RecallAwardDrawer({ id, blocker }: { id: string; blocker: string
       action={recallAward}
       submitLabel="Recall"
       destructive={{ reasonLabel: "Why is it being recalled?" }}
-      trigger={{ label: "Recall", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Recall", className: menu ? moreItemClass() : buttonClass("secondary", "sm") }}
       size="sm"
     />
   );
@@ -302,7 +306,7 @@ export function CiteDecisionDrawer({ id, stepId, committee, matters }: { id: str
   );
 }
 
-export function RecordCommitmentDrawer({ id, indent, example, today }: { id: string; indent: boolean; example: string | null; today: string | null }) {
+export function RecordCommitmentDrawer({ id, indent, example, today, menu }: { id: string; indent: boolean; example: string | null; today: string | null; menu?: boolean }) {
   return (
     <RecordEditor
       title="Record the commitment number"
@@ -317,7 +321,7 @@ export function RecordCommitmentDrawer({ id, indent, example, today }: { id: str
       values={{ id, erpCommitmentKind: indent ? "INDENT" : null, receivedOn: today }}
       action={recordCommitment}
       submitLabel="Record number"
-      trigger={{ label: "Record commitment number", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Record commitment number", className: menu ? moreItemClass() : buttonClass("secondary", "sm") }}
       size="md"
     />
   );
@@ -418,7 +422,7 @@ export function ReturnDrawer({ id, loa, values, people, correcting }: { id: stri
   );
 }
 
-export function CommencementDrawer({ id, today }: { id: string; today: string | null }) {
+export function CommencementDrawer({ id, today, menu }: { id: string; today: string | null; menu?: boolean }) {
   return (
     <RecordEditor
       title="Record commencement"
@@ -427,13 +431,13 @@ export function CommencementDrawer({ id, today }: { id: string; today: string | 
       values={{ id, commencedOn: today }}
       action={recordCommencement}
       submitLabel="Record"
-      trigger={{ label: "Record commencement", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Record commencement", className: menu ? moreItemClass() : buttonClass("secondary", "sm") }}
       size="sm"
     />
   );
 }
 
-export function CancelAwardDrawer({ id, issued, consequence }: { id: string; issued: boolean; consequence: string | null }) {
+export function CancelAwardDrawer({ id, issued, consequence, menu }: { id: string; issued: boolean; consequence: string | null; menu?: boolean }) {
   return (
     <RecordEditor
       title="Cancel this award"
@@ -448,7 +452,7 @@ export function CancelAwardDrawer({ id, issued, consequence }: { id: string; iss
       destructive={{ reasonLabel: "Why it is cancelled" }}
       submitLabel="Cancel award"
       cancelLabel="Keep the award"
-      trigger={{ label: "Cancel award", className: buttonClass("destructive", "sm") }}
+      trigger={{ label: "Cancel award", className: menu ? moreItemClass(true) : buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

@@ -1,4 +1,5 @@
 import { Say } from "@/components/i18n/language-context";
+import { Sections } from "./sections";
 import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { ActedBy } from "@/components/attribution";
 import { ActGate } from "@/components/act-gate";
@@ -105,13 +106,6 @@ const sub = "block text-[12.5px] break-words text-ink-3";
 const head = "flex flex-wrap items-center gap-2 text-[13.5px] font-semibold break-words text-ink";
 export const DIARY_PAGE = 20;
 
-export const SITE_SECTIONS = [
-  { id: "start", label: "Possession and progress" },
-  { id: "diary", label: "Site diary" },
-  { id: "oversight", label: "Oversight" },
-  { id: "records", label: "Site records" },
-] as const;
-export type SiteSection = (typeof SITE_SECTIONS)[number]["id"];
 
 /// Everything the two tabs read, once.
 export async function supervisionView(l: LoadedContract, today: string | null) {
@@ -329,19 +323,17 @@ export async function TeamPanel({ actor, l, v, people, today }: { actor: StaffAc
 // ------------------------------------------------------------------ Site
 
 /// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
-export async function SitePanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; section: SiteSection; page: number; hidden?: readonly HiddenAct[] }) {
-  const body = (() => {
-    switch (section) {
-      case "start":
-        return <StartSection l={l} v={v} people={people} today={today} hidden={hidden} />;
-      case "diary":
-        return <DiarySection l={l} v={v} people={people} today={today} page={page} hidden={hidden} />;
-      case "oversight":
-        return <OversightSection l={l} v={v} people={people} today={today} hidden={hidden} />;
-      case "records":
-        return <RecordsSection l={l} v={v} people={people} today={today} />;
-    }
-  })();
+export async function SitePanel({ l, v, people, today, page, hidden = [] }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; page: number; hidden?: readonly HiddenAct[] }) {
+  const body = (
+    <Sections
+      items={[
+        { id: "start", label: "Possession and progress", node: <StartSection l={l} v={v} people={people} today={today} hidden={hidden} /> },
+        { id: "diary", label: "Site diary", node: <DiarySection l={l} v={v} people={people} today={today} page={page} hidden={hidden} /> },
+        { id: "oversight", label: "Oversight", node: <OversightSection l={l} v={v} people={people} today={today} hidden={hidden} /> },
+        { id: "records", label: "Site records", node: <RecordsSection l={l} v={v} people={people} today={today} /> },
+      ]}
+    />
+  );
   return <WithHiddenNote hidden={hidden}>{body}</WithHiddenNote>;
 }
 

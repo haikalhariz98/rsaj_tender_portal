@@ -26,7 +26,6 @@ export function PageHeader({
   actions,
   actionsNote,
   actionsNoteId,
-  eyebrow,
   actionsBelow,
   className,
   info,
@@ -48,8 +47,6 @@ export function PageHeader({
   actionsNote?: ReactNode;
   /// Id for the note, when a caller needs to reference it. Generated when omitted.
   actionsNoteId?: string;
-  /// A small label above the title, e.g. the section it belongs to.
-  eyebrow?: ReactNode;
   /// Put the actions on their own row under the title, left-aligned — for a record
   /// whose title and facts need the full width and whose actions are several.
   actionsBelow?: boolean;
@@ -69,11 +66,6 @@ export function PageHeader({
           actions do not fit beside it they wrap onto their own row below, instead of
           squeezing the title into a narrow column. */}
       <div className="min-w-[min(100%,40rem)] flex-1">
-        {eyebrow && (
-          <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-brand-700 uppercase [&_a]:no-underline">
-            {eyebrow}
-          </div>
-        )}
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[28px] leading-tight font-bold tracking-[-0.02em] text-ink">
             {title}

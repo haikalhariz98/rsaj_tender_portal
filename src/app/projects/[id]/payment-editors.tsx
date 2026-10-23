@@ -55,7 +55,7 @@ export function CalendarDrawer({ id, people, today, current }: { id: string; peo
   return (
     <RecordEditor
       title={current ? "Change the valuation day" : "Record the valuation day"}
-      description="Day of the month; a shorter month uses its last day. Not emailed."
+      description="Day of the month; a shorter month uses its last day."
       fields={[hidden("id"), { kind: "number", name: "dayOfMonth", label: "Day of the month", required: true, hint: "1 to 31." }, { kind: "date", name: "agreedOn", label: "Agreed on", required: true }, { kind: "text", name: "agreedWith", label: "Agreed with, for the contractor", required: true }, by("PaymentCalendar.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, dayOfMonth: current ? String(current.dayOfMonth) : null, agreedWith: current?.agreedWith ?? null, agreedOn: today }}
       action={recordValuationCalendar}

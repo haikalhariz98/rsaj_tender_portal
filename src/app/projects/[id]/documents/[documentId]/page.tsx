@@ -9,6 +9,8 @@ import { loadDocumentPage } from "@/lib/project-docs/page-store";
 
 import { DocumentPageView } from "./document-view";
 
+export const metadata = { title: "Document" };
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -27,7 +29,7 @@ export default async function ProjectDocumentPage(props: PageProps<"/projects/[i
   return (
     <>
       <RecordCrumb label={page.title} parent={l.contract.number} />
-      <DocumentPageView page={page} contractNumber={l.contract.number} />
+      <DocumentPageView page={page} />
     </>
   );
 }

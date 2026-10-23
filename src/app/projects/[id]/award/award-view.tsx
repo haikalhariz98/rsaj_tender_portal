@@ -66,7 +66,8 @@ export type AwardPanelId = "overview" | "approval" | "instrument" | "distributio
  */
 export interface AwardFinish {
   /// The header's drawers and the notes under it; null unless asked for.
-  chrome: { actions: ReactNode; headerNote: ReactNode; callouts: ReactNode } | null;
+  /// `fallback` is the one primary button when the step offers no action of its own (a blocked Send or Issue, with its reason in `headerNote`); `menu` holds the rest (plan 6.6).
+  chrome: { fallback: ReactNode; menu: ReactNode; headerNote: ReactNode; callouts: ReactNode } | null;
   /// One panel at a time: the caller asks only for the one it shows.
   panel: (id: AwardPanelId, opts?: { termsReadOnly?: boolean }) => ReactNode;
   /// The number beside a counted tab; `history` only when the history was read.
@@ -284,30 +285,32 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
       const carriedRegister = carried ? await partyRegister(carried.map((p) => p.id), org, formatDate) : new Map();
       const carriedParties = carried ? carried.map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})${carriedRegister.get(p.id) ? ` — ${carriedRegister.get(p.id)!.standing.words.en} on the register` : ""}` })) : undefined;
       const recommendedText = recommendationShown && evaluationGate?.facts.issued ? { valueText: formatMoney(evaluationGate.facts.issued.price) } : null;
-      const actions = (
+      const menu = (
         <>
           {edits.details && (
             <EditDetailsDrawer
+              menu
               id={award.id}
               values={{ awardeePartyId: award.awardeePartyId ?? "", awardeeName: award.awardeeName, awardeeRegistrationNo: award.awardeeRegistrationNo, awardeeAddress: award.awardeeAddress, awardedValue: award.awardedValue.toString(), completionPeriod: String(award.completionPeriod), completionUnit: award.completionUnit, recValueDiffersReason: award.recValueDiffersReason ?? "", recPeriodDiffersReason: award.recPeriodDiffersReason ?? "" }}
               parties={carriedParties}
               recommended={recommendedText}
             />
           )}
-          {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} tender={tenderTexts} insuranceMinimums={insuranceMinimums} />}
-          {main.SEND_FOR_APPROVAL}
-          {status === "PENDING_APPROVAL" && openAppointment && <RecallAwardDrawer id={award.id} blocker={awardRecallRule ? RECALL_FAULT_TEXT[awardRecallRule] : null} />}
-          {canRecordCommitment && <RecordCommitmentDrawer id={award.id} indent={!loa} example={f.config.indentFormat?.example || null} today={today} />}
-          {status === "APPROVED" && !(issueReady && ev.signatory?.ok) && (
-            <Button size="sm" variant="primary" disabled aria-describedby={AWARD_NOTE_ID}>
-              Issue
-            </Button>
-          )}
-          {main.ISSUE}
-          {main.RECORD_COMMENCEMENT}
-          {canCancel && <CancelAwardDrawer id={award.id} issued={status === "ISSUED"} consequence={ev.commencement?.state === "LATE" && consequenceText ? `Work has not commenced within the grace period: the consequence recorded is ${consequenceText.toLowerCase()}.` : null} />}
+          {edits.terms && <EditTermsDrawer menu id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} tender={tenderTexts} insuranceMinimums={insuranceMinimums} />}
+          {status === "PENDING_APPROVAL" && openAppointment && <RecallAwardDrawer menu id={award.id} blocker={awardRecallRule ? RECALL_FAULT_TEXT[awardRecallRule] : null} />}
+          {canRecordCommitment && <RecordCommitmentDrawer menu id={award.id} indent={!loa} example={f.config.indentFormat?.example || null} today={today} />}
+          {status === "ISSUED" && !loa && !award.commencedOn && <CommencementDrawer menu id={award.id} today={today} />}
+          {canCancel && <CancelAwardDrawer menu id={award.id} issued={status === "ISSUED"} consequence={ev.commencement?.state === "LATE" && consequenceText ? `Work has not commenced within the grace period: the consequence recorded is ${consequenceText.toLowerCase()}.` : null} />}
         </>
       );
+      const fallback =
+        status === "DRAFT" ? (
+          main.SEND_FOR_APPROVAL
+        ) : status === "APPROVED" && !(issueReady && ev.signatory?.ok) ? (
+          <Button size="sm" variant="primary" disabled aria-describedby={AWARD_NOTE_ID}>
+            Issue
+          </Button>
+        ) : null;
       const issueShownCount = findingsForReader(ev.issueFaults, recommendationShown).length;
       const headerNote =
         status === "DRAFT" && submitBlocks.length ? (
@@ -339,7 +342,8 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
           ))}
         </>
       );
-      chromeParts = { actions, headerNote, callouts };
+      const hasMenu = edits.details || edits.terms || (status === "PENDING_APPROVAL" && !!openAppointment) || canRecordCommitment || (status === "ISSUED" && !loa && !award.commencedOn) || canCancel;
+      chromeParts = { fallback, menu: hasMenu ? menu : null, headerNote, callouts };
     }
 
     // ------------------------------------------------------------------- the panels

@@ -71,7 +71,7 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
   takenUpLink: null,
   ...o,
 });
-const view = (p: DocumentPage) => renderToStaticMarkup(h(DocumentPageView, { page: p, contractNumber: "JKR/2026/01" }));
+const view = (p: DocumentPage) => renderToStaticMarkup(h(DocumentPageView, { page: p }));
 
 describe("a document of one of the six kinds, on the staff's page (plan step 6; PW-24)", () => {
   it("offers the two marks, taken up as the one primary, and no approve, reject or approver anywhere (no dead buttons)", () => {

@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { ActedBy } from "@/components/attribution";
-import Link from "next/link";
 import type { CertificateKind } from "@/lib/certificate/types";
 import type { ContractStatus } from "@/lib/contract/types";
 import { actStatusFault, actStatusText, statusCalloutTitle, certificateAct, certificateGates, certificatePhase } from "@/lib/contract/act-status";
@@ -76,6 +75,8 @@ import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import type { Sulit } from "@/lib/auth/sulit-access";
 import { fieldsOfScope } from "@/lib/sulit-fields";
 import { loadAttributions, stepActed } from "@/lib/auth/attribution-read";
+
+export const metadata = { title: "Certificate" };
 
 export const dynamic = "force-dynamic";
 
@@ -190,7 +191,6 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     <>
       <RecordCrumb label={cert.number ?? kind} parent={l.contract.number} />
       <PageHeader
-        eyebrow={<Link href={`/projects/${l.contract.id}?tab=documents`}>{`Contract ${l.contract.number}`}</Link>}
         title={cert.number ? `${kind} ${cert.number}` : kind}
         badge={<Badge tone={TONE[STATUS_TONE[status]]} dot>{STATUS_WORDS[status].en}</Badge>}
         subtitle={l.ex.title}

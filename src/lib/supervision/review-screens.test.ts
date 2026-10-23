@@ -49,8 +49,9 @@ describe("BD-613-12 ruling: the In Delay reading is tagged ASSUMED wherever show
     // DataList chip's provenance), and only on a reading that rests on the straight line.
     // AC-17 (C9): the chip is built in the case row (cx is the row context).
     const list = read("src/app/projects/page.tsx");
-    // N1 step 4: the chip's text is the language layer's word (`t(L.inDelay)`), same tone and same ASSUMED rule.
-    expect(list).toMatch(/\{ kind: "IN_DELAY", text: t\(L\.inDelay\), tone: "err", \.\.\.\(cx\.delayAssumed\.has\(c\.id\) \? \{ provenance: "ASSUMED" as const \} : \{\}\) \}/);
+    // Plan 6.6 (SP-18): the row chip carries no provenance tag; the source of the reading is read in History.
+    expect(list).toMatch(/\{ kind: "IN_DELAY", text: t\(L\.inDelay\), tone: "err" \}/);
+    expect(list).not.toMatch(/delayAssumed/);
     // Founder 2026-10-20: the header's "N on the straight-line reading" fact and its Assumed chip were removed; the row chip above keeps the tag.
     expect(list).not.toMatch(/nStraightLine/);
     expect(list).not.toMatch(/assumed reading|\(assumed\)/);

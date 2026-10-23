@@ -1,6 +1,5 @@
 import { exerciseIsHidden, sulitExerciseGate, sulitGate } from "@/app/_auth/sulit";
 import { RECOMMENDATION_FIELDS } from "@/lib/evaluation/recommendation-fields";
-import Link from "next/link";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { ButtonLink } from "@/components/ui/button";
@@ -33,6 +32,8 @@ import { partyRegister } from "@/lib/suppliers/standing-repo";
 import { AwardForm } from "./award-form";
 import { requireStaff } from "@/app/_auth/actor";
 
+export const metadata = { title: "New award" };
+
 export const dynamic = "force-dynamic";
 
 /// Open an award on an exercise in preparation (6.11), from the exercise's Award tab.
@@ -44,7 +45,7 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
   const header = (
     <>
       <RecordCrumb label="New award" />
-      <PageHeader eyebrow={<Link href="/projects">Contracts</Link>} title="New award" />
+      <PageHeader title="New award" />
     </>
   );
   if (!l) {
@@ -131,7 +132,7 @@ export default async function NewAwardPage(props: PageProps<"/projects/new">) {
     { label: "Contract type", value: cfg.config.types.find((t) => t.code === ex.contractTypeCode)?.nameEn ?? "Not set" },
     { label: "Band", value: ex.regime ? REGIME_LABEL[ex.regime as Regime] : "Not determined" },
     { label: "Contract terms band", value: bands?.terms.label ?? (ex.termsState === "NONE_IN_REGIME" ? "Not applicable" : "Not set") },
-    { label: "Estimate", value: estimate.state === "GRANTED" ? formatMoney(parseSen(ex.estimatedValue.toString())) : `SULIT · withheld. ${estimate.words.en}` },
+    { label: "Estimate", value: estimate.state === "GRANTED" ? formatMoney(parseSen(ex.estimatedValue.toString())) : `Withheld. ${estimate.words.en}` },
     { label: "Instrument", value: "kind" in instrument ? INSTRUMENT_LABEL[instrument.kind] : "Not set" },
     // 64-C4 (6.4 Q-1 B): the terms open as the frozen tender Appendix states them.
     ...(tender ? [{ label: "Letter's terms", value: `Tender Appendix, documents version ${tender.packVersion}` }] : []),

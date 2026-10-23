@@ -1,7 +1,6 @@
 import { DataList, type Row } from "@/components/data-list";
 import { ShieldIcon } from "@/components/icons";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
-import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import { REGISTER_STATUS_TONE } from "@/lib/award/labels";
 import { INSURANCE_KIND_WORDS, REGISTER_STATUS_WORDS, CASES_LIST_WORDS, SECURITIES_VIEW_WORDS as V, SECURITY_KIND_WORDS } from "@/lib/contract/case-page-words";
@@ -86,7 +85,7 @@ export async function SecuritiesView({ actor, sv, pageParam, lang = "en" }: { ac
   const rows = order.map((o) => byId.get(o.id)).filter((r): r is Row => !!r);
   return (
     <>
-      <PageHeader title={t(V.title)} meta={[sayWith(V.nLodgedNotVerified, lang, { count: String(counts.unverified) }), sayWith(V.nExpiring, lang, { count: String(counts.expiring) }), remindersText(offsets, lang), <InfoChip key="ne" outline detail={t(V.notEmailedDetail)}>{t(V.notEmailed)}</InfoChip>]} />
+      <PageHeader title={t(V.title)} meta={[sayWith(V.nLodgedNotVerified, lang, { count: String(counts.unverified) }), sayWith(V.nExpiring, lang, { count: String(counts.expiring) }), remindersText(offsets, lang)] } />
       <Card className="overflow-hidden">
         <CardHeader icon={<ShieldIcon size={17} />} title={t(V.cardTitle)} subtitle={t(V.cardSubtitle)}
           divided={false}
