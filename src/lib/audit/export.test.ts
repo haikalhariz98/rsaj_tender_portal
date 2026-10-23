@@ -47,6 +47,12 @@ describe("the audit export (FR-APR-015)", () => {
     expect(file.endsWith("\r\n")).toBe(true);
   });
 
+  it("guards a cell a spreadsheet would run as a formula (a reason a person typed)", () => {
+    const file = auditCsv([row("c", "2026-09-30T02:00:00Z", { reason: "=HYPERLINK(\"http://x\")" }), row("d", "2026-09-30T02:00:00Z", { reason: "@SUM(A1)" })], "UTC");
+    expect(file).toContain(`"'=HYPERLINK(""http://x"")"`);
+    expect(file).toContain(",'@SUM(A1),");
+  });
+
   it("names who acted: a person by name, the system by what ran, never a person gone for a row the system wrote (Phase 1b review)", () => {
     const written = (id: string, who: { actorPerson?: { name: string } | null; actorSystemLabel?: string | null }, unattributed = false) =>
       row(id, "2026-09-30T01:00:00Z", { unattributed, actorName: actorDisplayName(who) });

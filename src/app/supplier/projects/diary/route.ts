@@ -4,6 +4,7 @@ import { parseDiaryBody, PROJECTS_BODY_LIMIT } from "@/lib/portal/projects/api";
 import { attestDiaryAsAgent, disputeDiaryAsAgent } from "@/lib/portal/projects/diary-store";
 
 import { passwordReply, refusalReply, reply } from "../reply";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,6 @@ export async function POST(request: Request) {
   } catch (e) {
     const refused = refusalReply(e);
     if (refused) return refused;
-    throw e;
+    return unexpectedFailure(e);
   }
 }

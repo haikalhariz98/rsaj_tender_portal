@@ -269,5 +269,4 @@ export function parseCsv(input: string): string[][] {
   return rows;
 }
 
-/// A value written for a CSV cell: quoted where it holds a comma, a quote or a line break.
-export const csvCell = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+export { csvCell } from "@/lib/csv-cell";

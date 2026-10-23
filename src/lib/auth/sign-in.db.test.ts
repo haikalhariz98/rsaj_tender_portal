@@ -435,6 +435,31 @@ describe("the password asked again", () => {
     // Locked: even the right password is refused.
     expect(await confirmStaffPassword(read.actor, password, facts())).toEqual({ ok: false, kind: "LOCKED" });
   });
+
+  it("hashes nothing for a locked account, and refuses at once when the queue for a hash slot is full (one session cannot fill the pool the sign-in shares)", async () => {
+    const { account, password, loginName } = await makeAccount(organisationId);
+    const outcome = await signIn(loginName, password);
+    if (!outcome.ok) throw new Error("sign-in failed");
+    const read = await readStaffSession(outcome.token, { sourceAddress: null });
+    if (!read.ok) throw new Error("read failed");
+    await db.staffAccount.update({ where: { id: account.id }, data: { failedAttempts: 5, lockedUntil: new Date(Date.now() + 600_000) } });
+    verify.mockClear();
+    expect(await confirmStaffPassword(read.actor, password, facts())).toEqual({ ok: false, kind: "LOCKED" });
+    expect(verify).not.toHaveBeenCalled();
+    await db.staffAccount.update({ where: { id: account.id }, data: { failedAttempts: 0, lockedUntil: null } });
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const held = Array.from({ length: HASH_CONCURRENCY + HASH_QUEUE_LIMIT }, () => hashPool.run(() => gate));
+    try {
+      expect(await confirmStaffPassword(read.actor, password, facts())).toEqual({ ok: false, kind: "THROTTLED" });
+      expect(verify).not.toHaveBeenCalled();
+    } finally {
+      release();
+      await Promise.all(held);
+    }
+    expect((await confirmStaffPassword(read.actor, password, facts())).ok).toBe(true);
+  });
 });
 
 describe("the previous sign-in (the compensating control for the missing second factor)", () => {

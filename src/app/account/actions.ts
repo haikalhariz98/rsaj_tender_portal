@@ -37,6 +37,8 @@ export async function changePasswordAction(_prev: FormState, data: FormData): Pr
         return { ok: false, errors: Object.fromEntries(Object.entries(outcome.faults).map(([field, fault]) => [field, fault.en])) };
       case "LOCKED":
         return { ok: false, message: "This account is locked after too many wrong passwords. Try again later." };
+      case "THROTTLED":
+        return { ok: false, message: "Too many attempts just now. Wait a few minutes and try again." };
       case "POLICY_NOT_SET":
         return { ok: false, message: `${AUTH_WORDS.policyNotSet.en}: ${settingLabels(outcome.unset).join("; ")}.` };
     }

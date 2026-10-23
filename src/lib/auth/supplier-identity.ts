@@ -6,7 +6,7 @@ import { signInOrganisation } from "./deployment";
 import { failedSignInsFrom, recordSignInEvent } from "./events";
 import { HASH_QUEUE_LIMIT, hashPool } from "./hash-pool";
 import { loginKeyOf, type Credentials, type IdentityProvider } from "./identity";
-import { afterFailedAttempt, afterSuccess, isLocked, lockoutVerdict, throttleSince, type AccountLockState } from "./lockout";
+import { afterFailedAttempt, afterSuccess, isLocked, lockoutVerdict, throttleSince } from "./lockout";
 import { dummyHash, hashParameters, hashPassword, verifyPassword } from "./password";
 import { supplierSignInSettings, unsetSettings, type SupplierSignInSettings } from "./policy";
 import { loadSecurityPolicy } from "./policy-store";
@@ -50,7 +50,8 @@ const usable = (account: Found | null) => account != null && account.status === 
 
 async function failAttempt(organisationId: string, account: { id: string; status: string; contact: { retiredOn: Date | null } } | null, verdict: "ALLOW" | "LOCKED" | "THROTTLED", settings: SupplierSignInSettings, request: RequestFacts, now: Date): Promise<void> {
   const fit = account != null && account.status === "ACTIVE" && account.contact.retiredOn == null;
-  if (!fit || verdict !== "ALLOW") {
+  // With a known address the lock is the account's failures from that address (`pairLocked`): the account's own lock is not moved, or a stranger could lock the owner out of a tender closing.
+  if (!fit || verdict !== "ALLOW" || request.sourceAddress != null) {
     await recordSignInEvent(db, { organisationId, store: "SUPPLIER", supplierAccountId: account?.id ?? null, kind: verdict === "LOCKED" ? "LOCKED_OUT" : "FAILED", request, at: now });
     return;
   }
@@ -77,6 +78,13 @@ export const SupplierCredentials: IdentityProvider<SupplierActor, SupplierSignIn
   },
 };
 
+/// Whether this account has had its allowed wrong passwords from this address inside the lockout window, counting from its last good sign-in. Only `FAILED` counts: a refusal while locked does not extend the lock.
+async function pairLocked(account: { id: string; organisationId: string; lastSignInAt: Date | null }, sourceAddress: string, settings: SupplierSignInSettings, now: Date): Promise<boolean> {
+  const since = Math.max(throttleSince(now, settings.lockoutMinutes).getTime(), account.lastSignInAt?.getTime() ?? 0);
+  const failures = await db.signInEvent.count({ where: { organisationId: account.organisationId, supplierAccountId: account.id, kind: "FAILED", at: { gt: new Date(since) }, detail: { is: { sourceAddress } } } });
+  return failures >= settings.maxFailedAttempts;
+}
+
 export async function authenticateSupplier(credentials: Credentials, request: RequestFacts, replacingToken: string | null, now: Date = new Date()): Promise<SupplierSignInOutcome> {
   const organisation = await signInOrganisation();
   if (!organisation) return { ok: false, kind: "NOT_CONFIGURED" };
@@ -97,7 +105,9 @@ export async function authenticateSupplier(credentials: Credentials, request: Re
   const recent = await failedSignInsFrom(db, organisation.id, request.sourceAddress, since, "SUPPLIER");
   const found = await db.supplierAccount.findUnique({ where: { loginKey }, include: { contact: { select: { retiredOn: true } } } });
   const account = found && found.organisationId === organisation.id ? found : null;
-  const verdict = lockoutVerdict(account, recent, settings, now);
+  // Locked per account AND address when the address is known; the account's own lock only when it is not.
+  const lockView = account && request.sourceAddress != null ? { failedAttempts: 0, lockedUntil: (await pairLocked(account, request.sourceAddress, settings, now)) ? new Date(now.getTime() + 1) : null } : account;
+  const verdict = lockoutVerdict(lockView, recent, settings, now);
   if (verdict === "THROTTLED") {
     await recordSignInEvent(db, { organisationId: organisation.id, store: "SUPPLIER", supplierAccountId: account?.id ?? null, kind: "THROTTLED", request, at: now });
     return { ok: false, kind: "FAILED" };
@@ -200,40 +210,37 @@ async function completeSignIn(input: {
 
 /**
  * The signed-in supplier gives their password again, for an act that asks it (the registration's declarations, a signature of the contractor's: Phase 4b on). The
- * B0 prerequisite of the CPD registration: asked every time, with no window; a wrong one counts towards the account's lockout like any other and is logged
- * (`STEP_UP_FAILED`, which also counts against the address); a right one is logged and stamped on the session.
+ * B0 prerequisite of the CPD registration: asked every time, with no window; a wrong one is logged (`STEP_UP_FAILED`, which also counts against the address) and, as often as
+ * the organisation allows, ends the session; a right one is logged and stamped on the session.
  */
 export async function confirmSupplierPassword(actor: SupplierActor, password: string, request: RequestFacts, now: Date = new Date()): Promise<SupplierConfirmOutcome> {
   const settings = supplierSignInSettings(await loadSecurityPolicy(db, actor.organisationId));
   if (!settings) return { ok: false, kind: "POLICY_NOT_SET" };
-  const account = await db.supplierAccount.findUnique({ where: { id: actor.accountId }, select: { passwordHash: true, failedAttempts: true, lockedUntil: true, status: true, organisationId: true, contact: { select: { retiredOn: true } } } });
-  const locked = account != null && isLocked(account, now);
-  const fit = account != null && account.status === "ACTIVE" && account.contact.retiredOn == null && account.organisationId === actor.organisationId && !locked && password.length <= MAX_PASSWORD_INPUT;
+  const account = await db.supplierAccount.findUnique({ where: { id: actor.accountId }, select: { passwordHash: true, status: true, organisationId: true, contact: { select: { retiredOn: true } } } });
+  const fit = account != null && account.status === "ACTIVE" && account.contact.retiredOn == null && account.organisationId === actor.organisationId && password.length <= MAX_PASSWORD_INPUT;
 
-  // The caller is already signed in, so a quick refusal reveals nothing: a locked or unfit account is refused WITHOUT a hash. Otherwise one session could queue a hash per request
+  // The caller is already signed in, so a quick refusal reveals nothing: an unfit account, or a session that has failed too often, is refused WITHOUT a hash. Otherwise one session could queue a hash per request
   // and fill the pool the public sign-in shares (threat model B2); an address that has failed too often, or a queue that is full, is held back the way the sign-in holds it.
-  if (!fit) {
-    await failStepUp(actor, settings, request, now);
-    return { ok: false, kind: locked ? "LOCKED" : "WRONG" };
-  }
+  // The lock here is the session's own failures, never the account's lock: a stranger can lock the account by guessing at the public sign-in, and must not be able to stop the owner signing a bid.
+  if (!fit) return { ok: false, kind: (await failStepUp(actor, settings, request, now)) ? "LOCKED" : "WRONG" };
   const since = throttleSince(now, settings.addressThrottleMinutes);
   if (hashPool.waiting >= HASH_QUEUE_LIMIT || (await failedSignInsFrom(db, actor.organisationId, request.sourceAddress, since, "SUPPLIER")) >= settings.addressThrottleAttempts) {
     await recordSignInEvent(db, { organisationId: actor.organisationId, store: "SUPPLIER", supplierAccountId: actor.accountId, kind: "THROTTLED", request, at: now });
     return { ok: false, kind: "THROTTLED" };
   }
+  if ((await sessionStepUpFailures(db, actor, settings, now)) >= settings.maxFailedAttempts) return { ok: false, kind: "LOCKED" };
   const checked = await hashPool.run(async () => {
     // The count above was taken before this attempt waited for a hash slot: take it again at the front of the queue, so that a burst is held to the limit.
     if ((await failedSignInsFrom(db, actor.organisationId, request.sourceAddress, since, "SUPPLIER")) >= settings.addressThrottleAttempts) return null;
     const result = await verifyPassword(account!.passwordHash, password);
     // A failure is written before the slot is given up, or the next attempt in the queue would count without it.
-    if (!result.ok) await failStepUp(actor, settings, request, now);
-    return result;
+    return result.ok ? "RIGHT" : (await failStepUp(actor, settings, request, now)) ? "ENDED" : "WRONG";
   });
   if (checked === null) {
     await recordSignInEvent(db, { organisationId: actor.organisationId, store: "SUPPLIER", supplierAccountId: actor.accountId, kind: "THROTTLED", request, at: now });
     return { ok: false, kind: "THROTTLED" };
   }
-  if (!checked.ok) return { ok: false, kind: "WRONG" };
+  if (checked !== "RIGHT") return { ok: false, kind: checked === "ENDED" ? "LOCKED" : "WRONG" };
 
   await db.$transaction(async (tx) => {
     await lockSupplierAccount(tx, actor.accountId);
@@ -245,14 +252,21 @@ export async function confirmSupplierPassword(actor: SupplierActor, password: st
   return { ok: true, at: now };
 }
 
-/// A step-up that failed: counted against the account (a locked account's count does not move) and logged, which also counts against the address.
-async function failStepUp(actor: SupplierActor, settings: SupplierSignInSettings, request: RequestFacts, now: Date): Promise<void> {
-  await db.$transaction(async (tx) => {
-    await lockSupplierAccount(tx, actor.accountId);
-    const row = await tx.supplierAccount.findUniqueOrThrow({ where: { id: actor.accountId }, select: { failedAttempts: true, lockedUntil: true } });
-    const next: AccountLockState = afterFailedAttempt(row, settings, now);
-    await tx.supplierAccount.update({ where: { id: actor.accountId }, data: { failedAttempts: next.failedAttempts, lockedUntil: next.lockedUntil } });
+/// This session's wrong passwords: the account's `STEP_UP_FAILED` events since the session began, its last good step-up, or the lockout window, whichever is latest. Only a signed-in session
+/// can make one, so a stranger cannot move the count.
+async function sessionStepUpFailures(client: Tx, actor: SupplierActor, settings: SupplierSignInSettings, now: Date): Promise<number> {
+  const since = Math.max(actor.sessionCreatedAt.getTime(), actor.stepUpAt?.getTime() ?? 0, throttleSince(now, settings.lockoutMinutes).getTime());
+  return client.signInEvent.count({ where: { supplierAccountId: actor.accountId, kind: "STEP_UP_FAILED", at: { gte: new Date(since) } } });
+}
+
+/// A step-up that failed: logged (which also counts against the address), and the session ended once it has failed as often as the organisation allows. Says whether it ended. The account's own lock does not move.
+async function failStepUp(actor: SupplierActor, settings: SupplierSignInSettings, request: RequestFacts, now: Date): Promise<boolean> {
+  return db.$transaction(async (tx) => {
     await recordSignInEvent(tx, { organisationId: actor.organisationId, supplierAccountId: actor.accountId, kind: "STEP_UP_FAILED", request, at: now });
+    if ((await sessionStepUpFailures(tx, actor, settings, now)) < settings.maxFailedAttempts) return false;
+    await tx.supplierSession.updateMany({ where: { id: actor.sessionId, revokedAt: null }, data: { revokedAt: now, revokedReason: "ACCOUNT_CHANGED" } });
+    await recordSignInEvent(tx, { organisationId: actor.organisationId, supplierAccountId: actor.accountId, kind: "REVOKED", at: now });
+    return true;
   });
 }
 

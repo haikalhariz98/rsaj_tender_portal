@@ -18,6 +18,7 @@ import { uploadFaultText } from "@/lib/portal/registration/words";
 import type { Finding } from "@/lib/suppliers/types";
 
 import { refusalReply, reply } from "../reply";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +136,6 @@ async function upload(actor: SupplierActor, request: Request) {
     }
     const refused = e instanceof DraftRefused ? refusalReply(e) : null;
     if (refused) return refused;
-    throw e;
+    return unexpectedFailure(e);
   }
 }

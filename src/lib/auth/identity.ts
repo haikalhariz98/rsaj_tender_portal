@@ -43,7 +43,7 @@ export type SignInOutcome =
   | { ok: false; kind: "UNSAFE_DATABASE_ROLE" }
   | { ok: false; kind: "POLICY_NOT_SET"; unset: SecurityPolicyKey[] };
 
-export type ConfirmOutcome = { ok: true; at: Date } | { ok: false; kind: "WRONG" | "LOCKED" | "POLICY_NOT_SET" };
+export type ConfirmOutcome = { ok: true; at: Date } | { ok: false; kind: "WRONG" | "LOCKED" | "THROTTLED" | "POLICY_NOT_SET" };
 
 /// One façade, two stores (ADR 0034 D1): `StaffCredentials` (here) and `SupplierCredentials` (`supplier-identity.ts`, Phase 4a) differ in the actor they confirm and in what a refusal can be.
 export interface IdentityProvider<A = StaffActor, S = SignInOutcome, C = ConfirmOutcome> {
@@ -261,18 +261,29 @@ export async function confirmStaffPassword(actor: StaffActor, password: string, 
   const account = await db.staffAccount.findUnique({ where: { id: actor.accountId }, select: { passwordHash: true, failedAttempts: true, lockedUntil: true, status: true } });
   const locked = account != null && isLocked(account, now);
   const usable = account != null && account.status === "ACTIVE" && !locked && password.length <= MAX_PASSWORD_INPUT;
-  const stored = usable ? account.passwordHash : await dummyHash();
-  const checked = await hashPool.run(() => verifyPassword(stored, password));
-
-  if (!usable || !checked.ok) {
-    await db.$transaction(async (tx) => {
+  const fail = () =>
+    db.$transaction(async (tx) => {
       await lockAccount(tx, actor.accountId);
       const row = await tx.staffAccount.findUniqueOrThrow({ where: { id: actor.accountId }, select: { failedAttempts: true, lockedUntil: true } });
       const next: AccountLockState = afterFailedAttempt(row, settings, now);
       await tx.staffAccount.update({ where: { id: actor.accountId }, data: { failedAttempts: next.failedAttempts, lockedUntil: next.lockedUntil } });
       await recordSignInEvent(tx, { organisationId: actor.organisationId, staffAccountId: actor.accountId, kind: "STEP_UP_FAILED", request, at: now });
     });
+
+  // The caller is already signed in, so a quick refusal reveals nothing: a locked or unfit account is refused WITHOUT a hash, and a full queue is refused at once (as the supplier's is),
+  // or one session could queue a hash per request and fill the pool the public sign-in shares.
+  if (!usable) {
+    await fail();
     return { ok: false, kind: locked ? "LOCKED" : "WRONG" };
+  }
+  if (hashPool.waiting >= HASH_QUEUE_LIMIT) {
+    await recordSignInEvent(db, { organisationId: actor.organisationId, staffAccountId: actor.accountId, kind: "THROTTLED", request, at: now });
+    return { ok: false, kind: "THROTTLED" };
+  }
+  const checked = await hashPool.run(() => verifyPassword(account.passwordHash, password));
+  if (!checked.ok) {
+    await fail();
+    return { ok: false, kind: "WRONG" };
   }
 
   await db.$transaction(async (tx) => {

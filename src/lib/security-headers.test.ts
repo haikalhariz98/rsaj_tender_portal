@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { DOWNLOAD_POLICY, headerRules, SECURITY_HEADERS } from "./security-headers";
 
@@ -25,6 +25,12 @@ describe("the rules handed to Next", () => {
     const [all] = headerRules();
     expect(all.source).toBe("/:path*");
     expect(all.headers).toEqual(SECURITY_HEADERS);
+  });
+  it("add HSTS in production only", () => {
+    expect(headerRules()[0].headers.some((h) => h.key === "Strict-Transport-Security")).toBe(false);
+    vi.stubEnv("NODE_ENV", "production");
+    expect(headerRules()[0].headers).toContainEqual({ key: "Strict-Transport-Security", value: "max-age=31536000" });
+    vi.unstubAllEnvs();
   });
   it("keep the download's own strict policy, which a general rule would otherwise replace", () => {
     const rules = headerRules();

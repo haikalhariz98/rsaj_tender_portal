@@ -9,6 +9,7 @@
  * Pure.
  */
 
+import { csvCell } from "@/lib/csv-cell";
 import { dayIn } from "@/lib/dates";
 
 import type { EventFacts, Finding } from "./types";
@@ -77,12 +78,6 @@ export function heldFault(e: Pick<EventFacts, "startsAt" | "heldOn" | "cancelled
   return null;
 }
 
-/// A CSV cell: quoted where it must be, never starting with a formula character.
-function cell(v: string): string {
-  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
-  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-}
-
 /**
  * The attendance register as CSV (FR-ADV-013, Lampiran E of the evaluation report): one line per
  * attendee, in the order recorded, with the event's heading lines. Words only, never codes.
@@ -99,5 +94,5 @@ export function attendanceCsv(event: { kindLabel: string; startsText: string; pl
     ["No.", "Contractor", "Registration number", "Representative", "Recorded by", "Recorded"],
     ...rows.map((r, i) => [String(i + 1), r.name, r.registrationNo, r.representative, r.recordedBy, r.recordedText]),
   ];
-  return lines.map((l) => l.map(cell).join(",")).join("\r\n") + "\r\n";
+  return lines.map((l) => l.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }

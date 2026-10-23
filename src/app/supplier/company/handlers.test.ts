@@ -248,7 +248,12 @@ describe("a document", () => {
 
   it("does not hold the upload slot after it answers", async () => {
     h.storeReplacement.mockRejectedValueOnce(new Error("the store fell over"));
-    await expect(send()).rejects.toThrow("the store fell over");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failed = await send();
+    expect(failed.status).toBe(500);
+    // The log holds the kind of failure, never its message (a database error prints its arguments, bank details among them).
+    expect(JSON.stringify(log.mock.calls)).not.toContain("the store fell over");
+    log.mockRestore();
     expect((await send()).status).toBe(201);
   });
 });

@@ -4,6 +4,7 @@ import { parseCertificateBody, PROJECTS_BODY_LIMIT } from "@/lib/portal/projects
 import { signContractorBlock } from "@/lib/portal/projects/certificate-store";
 
 import { passwordReply, refusalReply, reply } from "../reply";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,6 @@ export async function POST(request: Request) {
   } catch (e) {
     const refusedAct = refusalReply(e);
     if (refusedAct) return refusedAct;
-    throw e;
+    return unexpectedFailure(e);
   }
 }

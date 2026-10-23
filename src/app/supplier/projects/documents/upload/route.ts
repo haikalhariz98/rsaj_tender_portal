@@ -12,6 +12,7 @@ import { PROJECT_BODY_DEADLINE_SECONDS, PROJECT_BODY_GRACE_SECONDS, PROJECT_BODY
 import { parseUploadForm, parseUploadQuery } from "@/lib/project-docs/portal-api";
 import { preflightProjectUpload, storeProjectFile, WindowRefused, windowRefusalOutcome, type PortalOutcome } from "@/lib/project-docs/portal-upload";
 import { uploadFaultWords } from "@/lib/project-docs/upload-words";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -111,6 +112,6 @@ async function upload(actor: SupplierActor, request: Request) {
       return send(outcome);
     }
     if (e instanceof UploadRefusal) return refuse(e.status, e.finding, at);
-    throw e;
+    return unexpectedFailure(e);
   }
 }

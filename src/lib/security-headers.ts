@@ -24,7 +24,8 @@ export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
 /// The rules for `headers()` in `next.config.ts`; where two match, the later one wins per header.
 export function headerRules(): { source: string; headers: { key: string; value: string }[] }[] {
   return [
-    { source: "/:path*", headers: SECURITY_HEADERS.map((h) => ({ ...h })) },
+    // HSTS only in production: on http://localhost it would pin the browser to https for a year.
+    { source: "/:path*", headers: [...SECURITY_HEADERS, ...(process.env.NODE_ENV === "production" ? [{ key: "Strict-Transport-Security", value: "max-age=31536000" }] : [])].map((h) => ({ ...h })) },
     { source: "/api/opening/sealed-file", headers: [{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }] },
     { source: "/api/documents/versions/:path*", headers: [{ key: "Content-Security-Policy", value: DOWNLOAD_POLICY }] },
     // The supplier file routes set their own policy too, and a header set in the global rule replaces it.

@@ -140,8 +140,10 @@ export async function stepUp(actor: StaffActor, password: string): Promise<{ ok:
     message:
       result.kind === "LOCKED"
         ? "This account is locked after too many wrong passwords. Try again later."
-        : result.kind === "POLICY_NOT_SET"
-          ? "The organisation's sign-in settings are not set, so the password cannot be checked."
-          : "That password is not right.",
+        : result.kind === "THROTTLED"
+          ? "Too many attempts just now. Wait a few minutes and try again."
+          : result.kind === "POLICY_NOT_SET"
+            ? "The organisation's sign-in settings are not set, so the password cannot be checked."
+            : "That password is not right.",
   };
 }

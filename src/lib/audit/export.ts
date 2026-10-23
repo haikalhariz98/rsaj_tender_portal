@@ -21,6 +21,7 @@
 import { historyEntityLabel, historyValueWords } from "./entity-labels";
 import { createHash } from "node:crypto";
 
+import { csvCell } from "@/lib/csv-cell";
 import { dayIn } from "@/lib/dates";
 import { sulitFieldOf } from "@/lib/sulit-trail";
 
@@ -76,11 +77,6 @@ function labelledChanges(changes: unknown, entity = ""): unknown {
   });
 }
 
-/// One CSV field: quoted where it holds a comma, a quote or a line break.
-function field(v: string): string {
-  return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-}
-
 /**
  * The file, byte for byte: a header, then one line per entry in the order given,
  * lines ended with CRLF as RFC 4180 has it. Nothing in it depends on the clock or the
@@ -102,7 +98,7 @@ export function auditCsv(rows: readonly ExportRow[], timeZone: string): string {
         r.reason,
         r.unattributed ? "Not attributed: before sign-in" : (r.actorName ?? "A person no longer on record"),
       ]
-        .map(field)
+        .map(csvCell)
         .join(","),
     );
   }

@@ -12,6 +12,7 @@ import { companyFaultViews } from "@/lib/portal/company/words";
 import { CREDITOR_FIELDS, EMPTY_CREDITOR } from "@/lib/portal/registration/types";
 
 import { readUpload, storeRefusalReply } from "../upload-request";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
       }
       if (e instanceof UploadRefusal) return storeRefusalReply(e.finding as StoreFinding, e.status, "statement");
       if (e instanceof AttributionRefused) return reply({ ok: false, code: "SIGNATURE_REFUSED", message: e.faults.map((f) => f.en).join(" ") }, 403);
-      throw e;
+      return unexpectedFailure(e);
     }
   } finally {
     slot();

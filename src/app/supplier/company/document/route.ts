@@ -7,6 +7,7 @@ import { storeReplacement, type ReplacementTarget } from "@/lib/portal/company/r
 import { companyFaultViews } from "@/lib/portal/company/words";
 
 import { readUpload, storeRefusalReply } from "../upload-request";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
         return reply({ ok: false, code: e.status === 404 ? "NOT_FOUND" : "VALIDATION", message: faults.find((f) => f.level === "block")?.message ?? "Check what you entered.", faults }, e.status);
       }
       if (e instanceof UploadRefusal) return storeRefusalReply(e.finding as StoreFinding, e.status, "document");
-      throw e;
+      return unexpectedFailure(e);
     }
   } finally {
     slot();

@@ -159,6 +159,7 @@ Sign-in (ADR 0034) assumes all of the following. None is optional.
 
 - **HTTPS, end to end to the browser.** The session cookies are `__Host-`, Secure, HttpOnly and
   SameSite=Lax; over plain HTTP a browser drops them and nobody can sign in.
+  In production the app sends `Strict-Transport-Security: max-age=31536000`; do not serve it over HTTP.
 - **The app's own database login.** Set `APP_DB_PASSWORD`, run `npm run db:deploy` (migrations as
   the owner, then `db:roles`), point `DATABASE_URL` at `perolehan_app` and `MIGRATE_DATABASE_URL`
   at the owner, and restart. Run `db:roles` again after **every** `migrate deploy`: a table a

@@ -37,6 +37,7 @@ import { gate, SURFACE_ENV, surfaceOf } from "@/lib/portal/surface";
 import { normaliseRegistrationNo } from "@/lib/suppliers/identity";
 
 import { stampNow } from "../../../suppliers/shared";
+import { errorKind } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -104,12 +105,6 @@ export async function POST(request: Request) {
     console.error("Public supplier application failed", errorKind(e));
     return reply({ ok: false, code: "TRY_AGAIN", message: APPLY.tryAgainLater.en }, 500);
   }
-}
-
-/// What a failure was, for the server's log: its kind and code, never its message or arguments.
-function errorKind(e: unknown): { name: string; code: string | null } {
-  const x = (typeof e === "object" && e !== null ? e : {}) as { name?: unknown; code?: unknown };
-  return { name: typeof x.name === "string" ? x.name : typeof e, code: typeof x.code === "string" ? x.code : null };
 }
 
 /// A reference as the series would give the next application, read without moving it (security audit L5). The form only: the bait's answer must look like a real one.

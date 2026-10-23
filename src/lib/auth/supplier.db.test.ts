@@ -31,7 +31,7 @@ beforeEach(async () => {
   await ensureAdministrator(organisationId);
 });
 
-const signIn = (loginName: string, password: string, address = randomAddress(), replacing: string | null = null, now = new Date()) => authenticateSupplier({ loginName, password }, facts(address), replacing, now);
+const signIn = (loginName: string, password: string, address: string | null = randomAddress(), replacing: string | null = null, now = new Date()) => authenticateSupplier({ loginName, password }, facts(address), replacing, now);
 const read = (token: string, now = new Date()) => readSupplierSession(token, { sourceAddress: "203.0.113.9" }, now);
 
 /// An officer who holds the permission to manage supplier accounts, as a signed-in actor.
@@ -115,12 +115,31 @@ describe("a supplier signs in", () => {
 
   it("locks an account after the wrong passwords the organisation allows, and then refuses the right one", async () => {
     const { account, password, loginName } = await makeSupplierAccount(organisationId);
-    for (let i = 0; i < SUPPLIER_SETTINGS.maxFailedAttempts!; i++) await signIn(loginName, "wrong password here");
-    const locked = await db.supplierAccount.findUniqueOrThrow({ where: { id: account!.id } });
-    expect(locked.failedAttempts).toBe(SUPPLIER_SETTINGS.maxFailedAttempts);
-    expect(locked.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
-    expect(await signIn(loginName, password)).toEqual({ ok: false, kind: "FAILED" });
+    const address = randomAddress();
+    for (let i = 0; i < SUPPLIER_SETTINGS.maxFailedAttempts!; i++) await signIn(loginName, "wrong password here", address);
+    expect(await signIn(loginName, password, address)).toEqual({ ok: false, kind: "FAILED" });
     expect((await supplierKindsOf(account!.id)).filter((k) => k === "LOCKED_OUT").length).toBeGreaterThan(0);
+  });
+
+  it("locks the account for the address that guessed, not for its owner: a stranger cannot keep a rival out of a tender closing", async () => {
+    const { account, password, loginName } = await makeSupplierAccount(organisationId);
+    const stranger = randomAddress();
+    for (let i = 0; i < SUPPLIER_SETTINGS.maxFailedAttempts!; i++) await signIn(loginName, "wrong password here", stranger);
+    expect(await signIn(loginName, password, stranger)).toEqual({ ok: false, kind: "FAILED" });
+    // The account's own lock was never set, so the owner, from another address, signs in and can still give the password again.
+    expect(await db.supplierAccount.findUniqueOrThrow({ where: { id: account!.id } })).toMatchObject({ failedAttempts: 0, lockedUntil: null });
+    const owner = await signIn(loginName, password);
+    if (!owner.ok) throw new Error("sign-in failed");
+    const session = await read(owner.token);
+    if (!session.ok) throw new Error("read failed");
+    expect((await confirmSupplierPassword(session.actor, password, facts())).ok).toBe(true);
+  });
+
+  it("keeps the account's own lock when the address is not known", async () => {
+    const { account, password, loginName } = await makeSupplierAccount(organisationId);
+    for (let i = 0; i < SUPPLIER_SETTINGS.maxFailedAttempts!; i++) await signIn(loginName, "wrong password here", null);
+    expect((await db.supplierAccount.findUniqueOrThrow({ where: { id: account!.id } })).lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+    expect(await signIn(loginName, password, null)).toEqual({ ok: false, kind: "FAILED" });
   });
 
   it("counts failures from one address against that address, for the supplier store only", async () => {
@@ -217,7 +236,7 @@ describe("a session is re-checked on every read", () => {
 });
 
 describe("the password asked again", () => {
-  it("counts a wrong one towards the lockout and the log, and a right one stamps the session (the B0 prerequisite of the registration)", async () => {
+  it("logs a wrong one, and a right one stamps the session (the B0 prerequisite of the registration)", async () => {
     const { account, password, loginName } = await makeSupplierAccount(organisationId);
     const outcome = await signIn(loginName, password);
     if (!outcome.ok) throw new Error("sign-in failed");
@@ -225,7 +244,8 @@ describe("the password asked again", () => {
     if (!session.ok) throw new Error("read failed");
 
     expect(await confirmSupplierPassword(session.actor, "not the password", facts())).toEqual({ ok: false, kind: "WRONG" });
-    expect((await db.supplierAccount.findUniqueOrThrow({ where: { id: account!.id } })).failedAttempts).toBe(1);
+    // The account's own count is the sign-in's, which a stranger can move: a wrong step-up leaves it alone.
+    expect((await db.supplierAccount.findUniqueOrThrow({ where: { id: account!.id } })).failedAttempts).toBe(0);
     expect(await supplierKindsOf(account!.id)).toContain("STEP_UP_FAILED");
 
     const right = await confirmSupplierPassword(session.actor, password, facts());
@@ -235,7 +255,17 @@ describe("the password asked again", () => {
     expect(await supplierKindsOf(account!.id)).toContain("STEP_UP_OK");
   });
 
-  it("locks the account after too many wrong ones, and then refuses even the right one", async () => {
+  it("is not stopped by a lock a stranger put on the account at the sign-in", async () => {
+    const { password, loginName } = await makeSupplierAccount(organisationId);
+    const outcome = await signIn(loginName, password);
+    if (!outcome.ok) throw new Error("sign-in failed");
+    const session = await read(outcome.token);
+    if (!session.ok) throw new Error("read failed");
+    await db.supplierAccount.update({ where: { id: session.actor.accountId }, data: { failedAttempts: 5, lockedUntil: new Date(Date.now() + 600_000) } });
+    expect((await confirmSupplierPassword(session.actor, password, facts())).ok).toBe(true);
+  });
+
+  it("ends the session after too many wrong ones, and then refuses even the right one", async () => {
     const { password, loginName } = await makeSupplierAccount(organisationId);
     const outcome = await signIn(loginName, password);
     if (!outcome.ok) throw new Error("sign-in failed");
@@ -243,6 +273,8 @@ describe("the password asked again", () => {
     if (!session.ok) throw new Error("read failed");
     for (let i = 0; i < SUPPLIER_SETTINGS.maxFailedAttempts!; i++) await confirmSupplierPassword(session.actor, "wrong", facts());
     expect(await confirmSupplierPassword(session.actor, password, facts())).toEqual({ ok: false, kind: "LOCKED" });
+    expect((await db.supplierSession.findUniqueOrThrow({ where: { id: session.actor.sessionId } })).revokedAt).not.toBeNull();
+    expect((await read(outcome.token)).ok).toBe(false);
   });
 
   it("refuses a locked account at once, without a hash, and holds back an address that has failed too often (one session cannot fill the pool the sign-in shares)", async () => {
@@ -258,10 +290,8 @@ describe("the password asked again", () => {
     expect(await supplierKindsOf(session.actor.accountId)).toContain("THROTTLED");
     // The password was not checked, so it was not stamped on the session.
     expect((await db.supplierSession.findUniqueOrThrow({ where: { id: session.actor.sessionId } })).stepUpAt).toBeNull();
-    // A locked account is refused as locked and its count does not move.
-    await db.supplierAccount.update({ where: { id: session.actor.accountId }, data: { failedAttempts: 5, lockedUntil: new Date(Date.now() + 600_000) } });
+    // A session that has failed as often as allowed is refused as locked, with no hash.
     expect(await confirmSupplierPassword(session.actor, password, facts())).toEqual({ ok: false, kind: "LOCKED" });
-    expect((await db.supplierAccount.findUniqueOrThrow({ where: { id: session.actor.accountId } })).failedAttempts).toBe(5);
   });
 });
 
@@ -515,8 +545,8 @@ describe("an officer's acts on a supplier's portal account", () => {
     const { account, supplier, loginName, password } = await makeSupplierAccount(organisationId);
     const unlock = (identityCheck = "Seen at the counter") => db.$transaction((tx) => unlockSupplierAccount(tx, { actor: o, supplier, accountId: account!.id, identityCheck, request, now: new Date() }));
     expect(await unlock()).toMatchObject({ ok: false, faults: [{ code: "NOT_LOCKED" }] });
-    for (let i = 0; i < SUPPLIER_SETTINGS.maxFailedAttempts!; i++) await signIn(loginName, "wrong password here");
-    expect(await signIn(loginName, password)).toEqual({ ok: false, kind: "FAILED" });
+    for (let i = 0; i < SUPPLIER_SETTINGS.maxFailedAttempts!; i++) await signIn(loginName, "wrong password here", null);
+    expect(await signIn(loginName, password, null)).toEqual({ ok: false, kind: "FAILED" });
     expect(await unlock(" ")).toMatchObject({ ok: false });
     expect(await unlock()).toEqual({ ok: true });
     expect((await signIn(loginName, password)).ok).toBe(true);

@@ -30,6 +30,7 @@ export type ChangePasswordOutcome =
   | { ok: true; token: string; maxAgeSeconds: number }
   | { ok: false; kind: "FIELDS"; faults: FieldFaults }
   | { ok: false; kind: "LOCKED" }
+  | { ok: false; kind: "THROTTLED" }
   | { ok: false; kind: "POLICY_NOT_SET"; unset: SecurityPolicyKey[] };
 
 const WRONG_CURRENT: Fault = { code: "WRONG_CURRENT", en: "That is not your current password." };
@@ -46,7 +47,7 @@ export async function changePassword(actor: StaffActor, input: { current: string
   if (unset.length > 0 || !settings || policy?.passwordMinLength == null) return { ok: false, kind: "POLICY_NOT_SET", unset };
 
   const confirmed = await confirmStaffPassword(actor, input.current, request, now);
-  if (!confirmed.ok) return confirmed.kind === "WRONG" ? { ok: false, kind: "FIELDS", faults: { current: WRONG_CURRENT } } : confirmed.kind === "LOCKED" ? { ok: false, kind: "LOCKED" } : { ok: false, kind: "POLICY_NOT_SET", unset };
+  if (!confirmed.ok) return confirmed.kind === "WRONG" ? { ok: false, kind: "FIELDS", faults: { current: WRONG_CURRENT } } : confirmed.kind === "LOCKED" ? { ok: false, kind: "LOCKED" } : confirmed.kind === "THROTTLED" ? { ok: false, kind: "THROTTLED" } : { ok: false, kind: "POLICY_NOT_SET", unset };
 
   const account = await db.staffAccount.findUniqueOrThrow({ where: { id: actor.accountId }, select: { loginName: true, passwordChangedAt: true, mustChangePassword: true } });
   const faults = passwordFaults(input.next, { loginName: account.loginName, minLength: policy.passwordMinLength });

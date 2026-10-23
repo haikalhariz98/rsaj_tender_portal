@@ -3,6 +3,7 @@ import { BIDS_BODY_LIMIT, parseEventBody } from "@/lib/portal/bids/api";
 import { signUp, withdrawSignUp } from "@/lib/portal/bids/signup-store";
 
 import { refusalReply, reply } from "../reply";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,6 @@ export async function POST(request: Request) {
   } catch (e) {
     const refused = refusalReply(e);
     if (refused) return refused;
-    throw e;
+    return unexpectedFailure(e);
   }
 }

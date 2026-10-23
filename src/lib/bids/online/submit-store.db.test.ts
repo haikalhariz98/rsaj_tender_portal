@@ -598,7 +598,7 @@ describe("through the route, against the real stores", () => {
     });
   };
 
-  it("a wrong password increments the lockout counter and submits nothing; the right one submits and answers the receipt", async () => {
+  it("a wrong password is logged against the session and submits nothing; the right one submits and answers the receipt", async () => {
     const ex = await exercise();
     const s = await bidder(ex);
     const file = await upload(s, ex);
@@ -606,7 +606,8 @@ describe("through the route, against the real stores", () => {
     const body = { exerciseId: ex.id, kind: "BID" as OnlineBidKind, fileIds: [file], declaration: DECLARATION };
     const wrong = await submitRoute(post({ ...body, password: "not the password" }));
     expect([wrong.status, (await wrong.json()).code]).toEqual([403, "WRONG_PASSWORD"]);
-    expect((await db.supplierAccount.findUniqueOrThrow({ where: { id: s.actor.accountId } })).failedAttempts).toBe(1);
+    // The wrong password is the session's failure, logged; the account's own lock is the sign-in's and does not move.
+    expect(await db.signInEvent.count({ where: { supplierAccountId: s.actor.accountId, kind: "STEP_UP_FAILED" } })).toBe(1);
     expect(await db.onlineBid.count({ where: { exerciseId: ex.id } })).toBe(0);
     const right = await submitRoute(post({ ...body, password: s.identity.password }));
     const answer = await right.json();

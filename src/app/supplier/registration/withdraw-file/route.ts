@@ -3,6 +3,7 @@ import { parseWithdrawBody } from "@/lib/portal/registration/api";
 import { withdrawDraftFile } from "@/lib/portal/registration/upload-store";
 
 import { refusalReply, reply } from "../reply";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,6 @@ export async function POST(request: Request) {
   } catch (e) {
     const refused = refusalReply(e);
     if (refused) return refused;
-    throw e;
+    return unexpectedFailure(e);
   }
 }

@@ -5,6 +5,7 @@ import { parseSaveBody } from "@/lib/portal/registration/api";
 import { blockingFaults } from "@/lib/portal/registration/faults";
 
 import { faultViews, refusalReply, reply } from "../reply";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,6 @@ export async function POST(request: Request) {
   } catch (e) {
     const refused = refusalReply(e);
     if (refused) return refused;
-    throw e;
+    return unexpectedFailure(e);
   }
 }

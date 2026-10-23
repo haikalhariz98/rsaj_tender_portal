@@ -16,6 +16,7 @@ import { BID_BODY_DEADLINE_SECONDS, BID_BODY_GRACE_SECONDS, BID_BODY_MIN_BYTES_P
 import { countAndJudgeCounted } from "@/lib/portal/bids/rate-store";
 
 import { reply } from "../reply";
+import { unexpectedFailure } from "@/lib/unexpected-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -129,7 +130,7 @@ async function upload(actor: SupplierActor, request: Request) {
     return reply({ ok: true, fileId: stored.fileId, packPartId: stored.packPartId, plainSha256: stored.plainSha256, plainBytes: stored.plainBytes, scan: stored.scan }, 201);
   } catch (e) {
     if (e instanceof PartRefused) return await refuse(e.faults, e.status);
-    throw e;
+    return unexpectedFailure(e);
   } finally {
     bytes.fill(0);
   }
