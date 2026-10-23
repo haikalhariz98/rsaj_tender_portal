@@ -112,3 +112,15 @@ describe("the approval route is changed only by someone who holds the permission
     expect([...known].filter((d) => !dirs.includes(d))).toEqual([]);
   });
 });
+
+describe("the Getting-started page is read only by those who work on configuration or its audit trail", () => {
+  const page = readFileSync(path.join(CONFIG, "page.tsx"), "utf8");
+  it("sends anyone else Home, and names the three permissions and the administrator", () => {
+    expect(page).toMatch(/redirect\("\/"\)/);
+    for (const key of ["configuration.draft", "configuration.issue", "audit.read"]) expect(page).toContain(`"${key}"`);
+    expect(page).toContain("isAdministrator");
+  });
+  it("shows the one-person list only to a reader of the audit trail", () => {
+    expect(readFileSync(path.join(CONFIG, "audit", "page.tsx"), "utf8")).toMatch(/showOnePerson = exportGate\.ok && /);
+  });
+});

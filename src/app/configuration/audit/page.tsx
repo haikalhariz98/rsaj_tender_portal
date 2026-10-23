@@ -6,6 +6,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ButtonLink } from "@/components/ui/button";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { ONE_PERSON_REASON } from "@/lib/auth/two-person";
 import { slotOf } from "@/lib/auth/act-slots";
 import { ONLINE_RECORDS_NOT_SHOWN_WORDS } from "@/lib/bids/online/audit-mask";
 import { storedDay, todayIn } from "@/lib/dates";
@@ -24,9 +25,10 @@ export const dynamic = "force-dynamic";
  */
 const BACKDATED_PAGE = 50;
 
-export default async function AuditTrailPage({ searchParams }: { searchParams: Promise<{ backdated?: string }> }) {
+export default async function AuditTrailPage({ searchParams }: { searchParams: Promise<{ backdated?: string; filter?: string }> }) {
   const actor = await requireStaff();
-  const requested = Number((await searchParams).backdated ?? "0");
+  const query = await searchParams;
+  const requested = Number(query.backdated ?? "0");
   const offset = Number.isInteger(requested) && requested > 0 ? requested : 0;
   const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, timeZone: true } });
   if (!org) {
@@ -55,6 +57,12 @@ export default async function AuditTrailPage({ searchParams }: { searchParams: P
         return [[...first, ...rest], open, all] as const;
       })()
     : ([[], 0, 0] as const);
+  // Rows a person put in force alone while the switch was off (ADR 0043 D3): a person actor, and the fixed reason. Newest first; the count says if the page is not all of them.
+  const onePerson = { organisationId: org.id, actorKind: "STAFF", actorPersonId: { not: null }, reason: { contains: ONE_PERSON_REASON } } as const;
+  const showOnePerson = exportGate.ok && query.filter === "one-person";
+  const [onePersonRows, onePersonTotal] = showOnePerson
+    ? await Promise.all([db.auditEntry.findMany({ where: onePerson, orderBy: [{ at: "desc" }, { id: "desc" }], take: BACKDATED_PAGE, select: { id: true, at: true, entityLabel: true, reason: true, actorPerson: { select: { name: true } } } }), db.auditEntry.count({ where: onePerson })])
+    : [[], 0];
   const [count, first, exports] = await Promise.all([
     db.auditEntry.count({ where: { organisationId: org.id } }),
     db.auditEntry.findFirst({ where: { organisationId: org.id }, orderBy: { at: "asc" }, select: { at: true } }),
@@ -69,6 +77,40 @@ export default async function AuditTrailPage({ searchParams }: { searchParams: P
         meta={[<InfoChip key="online" tone="warn" detail={ONLINE_RECORDS_NOT_SHOWN_WORDS}>Online held back</InfoChip>, `${count} ${count === 1 ? "entry" : "entries"}`, first ? `since ${formatOrgDay(first.at, org.timeZone)}` : "nothing recorded yet", `${exports.length} ${exports.length === 1 ? "export" : "exports"}`]}
       />
       <div className="flex flex-col gap-6">
+        {exportGate.ok && (
+          <div className="flex gap-2">
+            <ButtonLink href="/configuration/audit" size="sm" variant={showOnePerson ? "secondary" : "primary"}>All changes</ButtonLink>
+            <ButtonLink href="/configuration/audit?filter=one-person" size="sm" variant={showOnePerson ? "primary" : "secondary"}>Made without a second person</ButtonLink>
+          </div>
+        )}
+        {showOnePerson && (
+          <Card className="overflow-hidden">
+            <CardHeader icon={<ShieldIcon size={17} />} title="Made without a second person" subtitle="Newest first" actions={<Badge outline>{onePersonTotal}</Badge>} />
+            {onePersonRows.length === 0 ? (
+              <EmptyState size="sm" title="No change was made by one person" />
+            ) : (
+              <Table minWidth={720}>
+                <THead>
+                  <Th>When</Th>
+                  <Th>Change</Th>
+                  <Th>Made by</Th>
+                  <Th>Reason</Th>
+                </THead>
+                <tbody>
+                  {onePersonRows.map((r) => (
+                    <Tr key={r.id}>
+                      <Td label="When" className="text-ink-2">{formatOrgDay(r.at, org.timeZone)}</Td>
+                      <Td label="Change">{r.entityLabel}</Td>
+                      <Td label="Made by" className="text-ink-2">{r.actorPerson?.name ?? "A person no longer on record"}</Td>
+                      <Td label="Reason" className="text-ink-2">{r.reason}</Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+            {onePersonTotal > onePersonRows.length && <p className="border-t border-line px-5 py-3 text-[13px] text-ink-2">Showing the newest {onePersonRows.length} of {onePersonTotal}. The export has all of them.</p>}
+          </Card>
+        )}
         <Card>
           <CardHeader icon={<FileIcon size={17} />} title="Export" subtitle="Oldest first" />
           <CardBody>

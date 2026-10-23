@@ -12,5 +12,6 @@ export interface ChecklistItem {
   href: string; // the edit page, with the tab where there is one
   state: ChecklistState;
   detail?: string; // the popover; at most 25 words; may name the clause
+  also?: { label: string; href: string }; // a second link, e.g. the one-person changes
   confirmedBy?: { name: string; at: Date }; // "confirm" items: the issuer and when
 }
