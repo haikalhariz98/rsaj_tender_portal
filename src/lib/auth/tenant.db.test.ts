@@ -149,7 +149,7 @@ async function tenantFixture() {
 
   await once(
     () => db.approvalInstance.findUnique({ where: { id: A.route } }),
-    () => db.approvalInstance.create({ data: { id: A.route, organisationId: orgA, matterKind: "REQUISITION", domain: "requisition", requisitionId: A.requisition, openedAt: new Date("2026-10-03T02:00:00Z") } }),
+    () => db.approvalInstance.create({ data: { id: A.route, organisationId: orgA, matterKind: "REQUISITION", domain: "requisition", requisitionId: A.requisition, value: "1000.00", openedAt: new Date("2026-10-03T02:00:00Z") } }),
   );
   await once(() => db.approvalStep.findUnique({ where: { id: A.step } }), () => db.approvalStep.create({ data: { id: A.step, instanceId: A.route, sequence: 1, roleLabel: "Tenant A office", act: "A" } }));
   await once(() => db.roleAssignment.findUnique({ where: { id: A.assignment } }), () => db.roleAssignment.create({ data: { id: A.assignment, personId: A.person, roleCode: "TNA_OFFICE", effectiveFrom: day("2026-01-01") } }));

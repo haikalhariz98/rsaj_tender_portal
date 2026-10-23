@@ -68,13 +68,31 @@ export interface Figures {
 
 const ALLOCATING: MovementKind[] = ["ORIGINAL", "REVISION", "TRANSFER_IN"];
 
+/// The ledger grouped by code, once per array: every screen asks for each code in turn, and a scan of the whole ledger per code
+/// grows as codes × movements. Keyed on the array itself, so it is gone with it; the arrays are read-only, never pushed to.
+const byCode = new WeakMap<readonly Movement[], Map<string, Movement[]>>();
+
+function groupedByCode(movements: readonly Movement[]): Map<string, Movement[]> {
+  let grouped = byCode.get(movements);
+  if (!grouped) {
+    grouped = new Map();
+    for (const m of movements) {
+      const mine = grouped.get(m.budgetCodeId);
+      if (mine) mine.push(m);
+      else grouped.set(m.budgetCodeId, [m]);
+    }
+    byCode.set(movements, grouped);
+  }
+  return grouped;
+}
+
 /// Movements belonging to one code, on a date. Anything dated later is not yet real.
 export function movementsFor(
   movements: readonly Movement[],
   budgetCodeId: string,
   on: Date,
 ): Movement[] {
-  return movements.filter((m) => m.budgetCodeId === budgetCodeId && m.occurredOn <= on);
+  return (groupedByCode(movements).get(budgetCodeId) ?? []).filter((m) => m.occurredOn <= on);
 }
 
 export function figuresFor(

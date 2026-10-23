@@ -61,7 +61,7 @@ async function requisition(status: "PENDING_APPROVAL" | "DRAFT" = "PENDING_APPRO
 async function route(over: { requisitionId?: string; exerciseId?: string; awardId?: string; domain: string; submittedBy?: string | null; decided?: boolean }) {
   const id = `rc_route_${randomId()}`;
   await db.approvalInstance.create({
-    data: { id, organisationId, matterKind: over.exerciseId ? "EXERCISE" : "REQUISITION", domain: over.domain, requisitionId: over.requisitionId ?? null, exerciseId: over.exerciseId ?? null, awardId: over.awardId ?? null, openedAt: OPENED, submittedByPersonId: over.submittedBy ?? null },
+    data: { id, organisationId, matterKind: over.exerciseId ? "EXERCISE" : "REQUISITION", domain: over.domain, requisitionId: over.requisitionId ?? null, exerciseId: over.exerciseId ?? null, awardId: over.awardId ?? null, value: "1000.00", openedAt: OPENED, submittedByPersonId: over.submittedBy ?? null },
   });
   const first = `rc_step_${randomId()}`;
   await db.approvalStep.create({ data: { id: first, instanceId: id, sequence: 1, roleCode: ROLE, roleLabel: "The office", act: "A", ...(over.decided ? { decision: "DONE", decidedOn: OPENED, decidedByPersonId: holder } : {}) } });

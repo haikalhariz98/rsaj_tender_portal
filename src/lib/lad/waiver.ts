@@ -53,7 +53,6 @@ export function ladAmountAt(i: LadAmountInput): Sen {
 }
 
 export const waiverRatio = (waived: Sen, ladAmount: Sen): ExactRatio => ({ num: waived, den: ladAmount });
-export const netOfWaiver = (gross: Sen, waived: Sen): Sen => gross - waived;
 
 export function waiverRecordFaults(i: { decision: { charging: boolean; label: string } | null; waived: Sen | null; ladAmount: Sen; reason: string; asOf: Day; today: Day }): Finding[] {
   const out: Finding[] = [];

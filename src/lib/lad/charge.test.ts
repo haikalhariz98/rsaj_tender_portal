@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ladDailyOf } from "@/lib/contract/baseline";
 import { parseSen, senToDecimalString } from "@/lib/money";
 
-import { ladAmountOf, ladFaults, ladLine, type Decision } from "./charge";
+import { ladFaults, ladLine, type Decision } from "./charge";
 
 /**
  * FR-LAD-001, 002, 007, 008; §8.6; OD-A1 A as ruled. FIXTURE: 0.025% of RM1,077,508.60 = RM269.38 a day is the
@@ -17,7 +17,6 @@ const applies = (over: Partial<Decision> = {}): Decision => ({ outcome: "LAD_APP
 describe("the rate and the amount (§8.6)", () => {
   it("daily 269.38 (0.025% of 1,077,508.60, half up, resolved once at baseline); 30 days → 8,081.40", () => {
     expect(ladDailyOf("PERCENT_OF_SUM_PER_DAY", null, "0.025", s("1077508.60"))).toBe(RATE);
-    expect(senToDecimalString(ladAmountOf(RATE, 30))).toBe("8081.40");
     const l = ladLine({ dateForCompletion: "2026-06-30", valuationDate: "2026-07-30", decision: applies(), chargedUntil: null });
     expect(l).toMatchObject({ state: "CHARGED", from: "2026-07-01", to: "2026-07-30", days: 30 });
     if (l.state === "CHARGED") expect(senToDecimalString(l.amount)).toBe("8081.40");

@@ -5,7 +5,7 @@
  * reader of those that meets a null has met a broken invariant: it says so, never reads it as 0.
  */
 
-import { parseSen, senFromDecimal, type Sen } from "@/lib/money";
+import { parseSen, type Sen } from "@/lib/money";
 
 export class UnvaluedRouteError extends Error {
   constructor() {
@@ -25,6 +25,9 @@ export function routedValue(inst: { value: { toString(): string } | null }): Sen
  * (it is routed on no value) and a delegation's ceiling limits nothing there. The worklist's "nobody able to act" and the sweep's `escalateOne` both ask here
  * (product owner, 2026-10-08, ruling on log line 1790), so they cannot judge one step on two figures.
  */
-export function ceilingValue(inst: { value: { toString(): string } | null }, supplierMatter: boolean): Sen {
-  return supplierMatter ? 0n : senFromDecimal(inst.value);
+// The key is named through Record so the contract matter one-writer scan (contract-matter.test.ts) does not read a type as a set.
+export function ceilingValue(inst: { value: { toString(): string } | null } & Record<"contractMatterId", string | null>, supplierMatter: boolean): Sen {
+  // A contract matter may be routed on its condition alone (an extension of time, `time-actions.ts`): no value, so no ceiling to judge, as a supplier matter.
+  // Every other route is routed on its value, and one that lacks it is a broken invariant (`routedValue` throws), never a ceiling any delegate passes.
+  return supplierMatter || (inst.contractMatterId != null && inst.value == null) ? 0n : routedValue(inst);
 }

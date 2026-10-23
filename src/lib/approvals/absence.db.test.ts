@@ -54,7 +54,7 @@ async function route(sequenceActs: { roleCode: string; act: "A" | "MA" | "R"; co
       dateRequired: day("2026-12-31"), estimatedValue: "1000.00", raisedOn: day("2026-10-01"),
     },
   });
-  await db.approvalInstance.create({ data: { id, organisationId, matterKind: "REQUISITION", domain: "requisition", requisitionId: req.id, openedAt: OPENED } });
+  await db.approvalInstance.create({ data: { id, organisationId, matterKind: "REQUISITION", domain: "requisition", requisitionId: req.id, value: "1000.00", openedAt: OPENED } });
   const ids: string[] = [];
   for (const [i, s] of sequenceActs.entries()) {
     const stepId = `abs_step_${randomId()}`;

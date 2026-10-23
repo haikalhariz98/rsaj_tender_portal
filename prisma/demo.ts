@@ -494,14 +494,6 @@ async function load() {
   });
 
   // ------------------------------------------------------------------ budget
-  await db.budgetAllocation.createMany({
-    data: [
-      { id: `${P}b1`, organisationId, costCentreCode: "CC-100", accountCodeCode: "6100100", periodLabel: "2026", amount: "500000.00", provenance: "STATED", sortOrder: 1, effectiveFrom: day("2026-01-01") },
-      { id: `${P}b2`, organisationId, costCentreCode: "CC-200", accountCodeCode: "6200200", periodLabel: "2026", amount: "1250000.00", provenance: "STATED", sortOrder: 2, effectiveFrom: day("2026-01-01") },
-      { id: `${P}b3`, organisationId, costCentreCode: "CC-300", accountCodeCode: "7300300", periodLabel: "2026", amount: "80000.00", provenance: "ASSUMED", sortOrder: 3, effectiveFrom: day("2026-01-01") },
-    ],
-  });
-
   // A finance integration that is configured but has nothing behind it, and three
   // codes the two sides disagree about. Invented figures.
   await db.financeIntegration.create({
@@ -584,12 +576,7 @@ async function load() {
       organisationId,
       availabilityCheck: "blocking",
       warningThresholdPercent: 85,
-      overCommitmentTolerancePercent: 5,
       commitOnApproval: true,
-      overrideRoleCodes: ["FD", "CEO"],
-      advanceRecoupmentRatePercent: 25,
-      minimumInterimCertificate: "1000.00",
-      paymentTargetDays: 30,
     },
   });
 
@@ -619,16 +606,6 @@ async function load() {
       // A commitment that was released without being spent.
       { id: `${P}bm10`, budgetCodeId: `${P}bcode3`, kind: "COMMITMENT", amount: "60000.00", occurredOn: day("2026-02-10"), reference: "DEMO/REQ/0012", releasedOn: day("2026-04-01"), releaseNote: "Requirement withdrawn" },
       // A code with no allocation at all, so "not set" renders rather than 0%.
-    ],
-  });
-
-  await db.budgetCommitment.createMany({
-    data: [
-      { id: `${P}bc1`, allocationId: `${P}b1`, reference: "DEMO/REQ/0001", description: "Office consumables, first quarter", amount: "120000.00", committedOn: day("2026-02-01") },
-      { id: `${P}bc2`, allocationId: `${P}b2`, reference: "DEMO/REQ/0002", description: "Pipeline maintenance", amount: "400000.00", committedOn: day("2026-03-01") },
-      // Deliberately over-commits CC-300, so the negative balance path renders.
-      { id: `${P}bc3`, allocationId: `${P}b3`, reference: "DEMO/REQ/0003", description: "Pump replacement", amount: "95000.00", committedOn: day("2026-03-15") },
-      { id: `${P}bc4`, allocationId: `${P}b1`, reference: "DEMO/REQ/0004", description: "Cancelled order", amount: "50000.00", committedOn: day("2026-02-10"), releasedOn: day("2026-04-01"), releaseNote: "Requirement withdrawn" },
     ],
   });
 

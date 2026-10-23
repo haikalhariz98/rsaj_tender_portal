@@ -91,9 +91,6 @@ export function ladFaults(l: LadLine): Finding[] {
   }
 }
 
-/// The daily rate × days, for the figure the spec prints (§8.6: 269.38 × 30 = 8,081.40).
-export const ladAmountOf = (rate: Sen, days: number): Sen => rate * BigInt(days);
-
 /// BD-613-48: where the baseline the certificate pins now states another rate or date for completion than the
 /// decision in force recorded, the certificate says the CNC's rate still applies until a new decision and CNC are
 /// recorded; it never re-rates silently.

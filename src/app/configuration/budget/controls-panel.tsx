@@ -21,7 +21,6 @@ import { type BudgetCode, type Movement } from "@/lib/budget/codes";
 import type { BudgetControls } from "@/lib/budget/load";
 import { exampleSentence, outcomeTitle, workedExample } from "@/lib/budget/controls";
 import { formatCompactRM } from "@/lib/format";
-import { parseSen, senToDecimalString } from "@/lib/money";
 
 import { clearBudgetControls, saveBudgetControls } from "./actions";
 
@@ -38,13 +37,11 @@ export function ControlsPanel({
   settings,
   codes,
   movements,
-  roles,
   on,
 }: {
   settings: BudgetControls | null;
   codes: BudgetCode[];
   movements: Movement[];
-  roles: { code: string; nameEn: string }[];
   on: Date;
 }) {
   const [pending, startTransition] = useTransition();
@@ -60,7 +57,6 @@ export function ControlsPanel({
   const [confirming, setConfirming] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const [check, setCheck] = useState(settings?.availabilityCheck ?? "");
-  const [overrides, setOverrides] = useState<string[]>(settings?.overrideRoleCodes ?? []);
 
   const example = workedExample(codes, movements, check || null, on);
 
@@ -90,7 +86,6 @@ export function ControlsPanel({
         return;
       }
       setCheck("");
-      setOverrides([]);
       setSaved(false);
       setDirty(false);
       setState({ ok: false });
@@ -162,30 +157,6 @@ export function ControlsPanel({
                   value={settings?.warningThresholdPercent}
                   invalid={!!state.errors?.warningThresholdPercent}
                 />
-              </Field>
-
-              <Field
-                label="Over-commitment tolerance"
-                htmlFor="ctl-overCommitmentTolerancePercent"
-                hint="Allowed overspend before the check bites."
-                error={state.errors?.overCommitmentTolerancePercent}
-              >
-                <Suffixed
-                  name="overCommitmentTolerancePercent"
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  value={settings?.overCommitmentTolerancePercent}
-                  invalid={!!state.errors?.overCommitmentTolerancePercent}
-                />
-              </Field>
-
-              <Field
-                label="May override the check"
-                htmlFor="ctl-overrideRoleCodes"
-                hint="Roles that may proceed. Nobody unless named."
-              >
-                <RoleTokens roles={roles} chosen={overrides} onChange={(next) => { setOverrides(next); setDirty(true); }} />
               </Field>
 
               <Switch
@@ -277,70 +248,6 @@ export function ControlsPanel({
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHeader
-            icon={<SaveIcon size={17} />}
-            title="Payment defaults"
-            subtitle="Applied unless the contract says otherwise"
-          />
-          <CardBody>
-            <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
-              <Field
-                label="Advance recoupment rate"
-                htmlFor="ctl-advanceRecoupmentRatePercent"
-                hint="Share of each certificate recovering an advance"
-                error={state.errors?.advanceRecoupmentRatePercent}
-              >
-                <Suffixed
-                  name="advanceRecoupmentRatePercent"
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  value={settings?.advanceRecoupmentRatePercent}
-                  invalid={!!state.errors?.advanceRecoupmentRatePercent}
-                />
-              </Field>
-
-              <Field
-                label="Minimum interim certificate"
-                htmlFor="ctl-minimumInterimCertificate"
-                hint="Below this, it waits for the next certificate"
-                error={state.errors?.minimumInterimCertificate}
-              >
-                <AffixInput
-                  id="ctl-minimumInterimCertificate"
-                  prefix="RM"
-                  name="minimumInterimCertificate"
-                  inputMode="decimal"
-                  className="[&_input]:text-right"
-                  aria-invalid={state.errors?.minimumInterimCertificate ? true : undefined}
-                  defaultValue={
-                    settings?.minimumInterimCertificate
-                      ? senToDecimalString(parseSen(settings.minimumInterimCertificate))
-                      : ""
-                  }
-                />
-              </Field>
-
-              <Field
-                label="Payment target"
-                htmlFor="ctl-paymentTargetDays"
-                hint="Days from certification to payment."
-                error={state.errors?.paymentTargetDays}
-              >
-                <Suffixed
-                  name="paymentTargetDays"
-                  suffix="days"
-                  min={0}
-                  max={365}
-                  value={settings?.paymentTargetDays}
-                  invalid={!!state.errors?.paymentTargetDays}
-                />
-              </Field>
-            </div>
-          </CardBody>
-        </Card>
-
         {dirty && (
           <SaveBar
             message={state.message ?? "Leaving this screen will lose them."}
@@ -348,7 +255,6 @@ export function ControlsPanel({
             onDiscard={() => {
               setDirty(false);
               setCheck(settings?.availabilityCheck ?? "");
-              setOverrides(settings?.overrideRoleCodes ?? []);
               formRef.current?.reset();
             }}
           />
@@ -428,35 +334,5 @@ function Suffixed({
       aria-invalid={invalid ? true : undefined}
       defaultValue={value ?? ""}
     />
-  );
-}
-
-/// Which roles may proceed past a failed check: the shared Select in multiple mode, which
-/// posts the chosen codes as one newline-joined field.
-function RoleTokens({
-  roles,
-  chosen,
-  onChange,
-}: {
-  roles: { code: string; nameEn: string }[];
-  chosen: string[];
-  onChange: (next: string[]) => void;
-}) {
-  return (
-    <Select
-      multiple
-      id="ctl-overrideRoleCodes"
-      name="overrideRoleCodes"
-      placeholder="Nobody"
-      value={chosen}
-      onValuesChange={onChange}
-      searchable={false}
-    >
-      {roles.map((r) => (
-        <option key={r.code} value={r.code}>
-          {r.nameEn}
-        </option>
-      ))}
-    </Select>
   );
 }

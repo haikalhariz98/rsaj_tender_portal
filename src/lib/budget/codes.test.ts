@@ -7,6 +7,7 @@ import {
   fitsWithin,
   ledgerFor,
   ledgerLines,
+  movementsFor,
   offerableOn,
   percentUsed,
   thresholdState,
@@ -202,6 +203,22 @@ describe("totals across codes", () => {
     expect(formatSen(t.allocated)).toBe("RM4,000.00");
     expect(formatSen(t.available)).toBe("RM3,400.00");
     expect(t.utilisation).toBe(15);
+  });
+
+  it("each code reads only its own movements, in ledger order, however often the same ledger is asked", () => {
+    const movements = [
+      move("ORIGINAL", "1000.00", {}, "b1"),
+      move("ORIGINAL", "3000.00", {}, "b2"),
+      move("TRANSFER_OUT", "200.00", { occurredOn: new Date("2026-03-01") }, "b1"),
+      move("TRANSFER_IN", "200.00", { occurredOn: new Date("2026-03-01") }, "b2"),
+      move("REVISION", "50.00", { occurredOn: new Date("2026-09-01") }, "b1"),
+    ];
+    const plain = (id: string, on: Date) => movements.filter((m) => m.budgetCodeId === id && m.occurredOn <= on);
+    for (const on of [new Date("2026-02-01"), ON, new Date("2026-12-31")]) {
+      for (const id of ["b1", "b2", "b3"]) expect(movementsFor(movements, id, on)).toEqual(plain(id, on));
+    }
+    expect(figuresFor(movements, "b1", ON).allocated).toBe(parseSen("800.00"));
+    expect(figuresFor(movements, "b2", ON).allocated).toBe(parseSen("3200.00"));
   });
 });
 

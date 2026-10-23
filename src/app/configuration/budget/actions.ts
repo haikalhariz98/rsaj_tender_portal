@@ -11,26 +11,6 @@ import * as core from "./core";
  * The few named below are drafts or issues of their own, with their own maker-checker; each asks its permission first.
  */
 
-export async function saveAllocation(prev: FormState, data: FormData): Promise<FormState> {
-  const proposed = await stageEdit("budget.saveAllocation", prev, data);
-  return proposed;
-}
-
-export async function saveCommitment(prev: FormState, data: FormData): Promise<FormState> {
-  const proposed = await stageEdit("budget.saveCommitment", prev, data);
-  return proposed;
-}
-
-export async function releaseCommitment(prev: FormState, data: FormData): Promise<FormState> {
-  const proposed = await stageEdit("budget.releaseCommitment", prev, data);
-  return proposed;
-}
-
-export async function endAllocation(prev: FormState, data: FormData): Promise<FormState> {
-  const proposed = await stageEdit("budget.endAllocation", prev, data);
-  return proposed;
-}
-
 export async function saveBudgetCode(prev: FormState, data: FormData): Promise<FormState> {
   const proposed = await stageEdit("budget.saveBudgetCode", prev, data);
   return proposed;

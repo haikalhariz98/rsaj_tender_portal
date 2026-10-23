@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseSen } from "@/lib/money";
 import { ratioPercentText } from "@/lib/percent-band";
 
-import { applicationOf, ladAmountAt, netOfWaiver, waiverRatio, waiverRecordFaults, type LadAmountInput } from "./waiver";
+import { applicationOf, ladAmountAt, waiverRatio, waiverRecordFaults, type LadAmountInput } from "./waiver";
 
 /**
  * 6.13 Part B run 1b (FR-LAD-008, 009; OD-B7 as ruled, BD-613-75): the waiver's LAD amount, its ratio, and when it
@@ -29,7 +29,6 @@ describe("FR-LAD-009: the ratio is of the LAD amount, never the contract sum", (
     expect(ratioPercentText(waiverRatio(parseSen("3232.56"), parseSen("8081.40")))).toBe("40.00");
     expect(ratioPercentText(waiverRatio(parseSen("2020.35"), parseSen("8081.40")))).toBe("25.00");
   });
-  it("net = rate × units − waived: 8,081.40 − 2,020.35 = 6,061.05", () => expect(netOfWaiver(parseSen("8081.40"), parseSen("2020.35"))).toBe(parseSen("6061.05")));
 });
 
 describe("recording a waiver", () => {

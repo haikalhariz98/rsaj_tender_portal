@@ -40,7 +40,6 @@ export interface BudgetPanelData {
   units: { code: string; nameEn: string }[];
   people: { id: string; name: string; isActive: boolean }[];
   accountCodes: { code: string; nameEn: string }[];
-  roles: { code: string; nameEn: string }[];
   finance: FinanceData;
   periods: Period[];
   rollForwardByYear: Record<number, boolean | null>;
@@ -107,7 +106,6 @@ export function BudgetTabs({
               settings={data.settings}
               codes={data.codes}
               movements={data.movements}
-              roles={data.roles}
               on={data.on}
             />
           ),

@@ -10,7 +10,6 @@ import { defaultYear } from "@/lib/budget/periods";
 import { activeOn } from "@/lib/effective";
 import { formatCompactRM } from "@/lib/format";
 import { loadOrganisationData } from "@/lib/organisation/load";
-import { loadRoster } from "@/lib/people/load";
 import { organisationDay } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
 
@@ -37,12 +36,11 @@ export default async function BudgetPage({
   const zone = await organisationTimeZone(actor.organisationId);
   const orgDay = organisationDay(new Date(), zone);
   const on = orgDay ?? new Date();
-  const [{ tab, year: yearParam }, budget, periods, org, roster, finance] = await Promise.all([
+  const [{ tab, year: yearParam }, budget, periods, org, finance] = await Promise.all([
     searchParams,
     loadBudgetCodes(actor.organisationCode),
     loadBudgetPeriods(actor.organisationCode),
     loadOrganisationData(actor.organisationCode),
-    loadRoster(actor.organisationCode),
     loadFinance(actor.organisationCode),
   ]);
 
@@ -112,7 +110,6 @@ export default async function BudgetPage({
           code: a.code,
           nameEn: a.nameEn,
         }))}
-        roles={roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }))}
         finance={finance}
         periods={periods.periods}
         rollForwardByYear={periods.rollForwardByYear}

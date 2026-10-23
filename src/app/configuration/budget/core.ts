@@ -2,24 +2,19 @@ import { revalidatePath } from "next/cache";
 import { END_DAY_LABEL } from "@/lib/effective-text";
 
 import type { FormState } from "@/components/record-editor";
-import { diffFields, snapshotFields } from "@/lib/audit/diff";
-import { auditedCreate, auditedUpdate, writeAudit, type Tx } from "@/lib/audit/record";
-import { endAllocationOn } from "@/lib/budget/end-allocation";
-import { allocationFor } from "@/lib/budget/availability";
-import { loadBudget } from "@/lib/budget/load";
-import { organisationDay, todayIn } from "@/lib/dates";
+import { snapshotFields } from "@/lib/audit/diff";
+import { auditedCreate, auditedUpdate, writeAudit } from "@/lib/audit/record";
+import { organisationDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { postingRefusal, refusalToClose, refusalToReopen, type Period } from "@/lib/budget/periods";
 import { figuresFor, transferFaults, type Movement } from "@/lib/budget/codes";
 import { syncReadiness } from "@/lib/budget/finance";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
-import { splitValues } from "@/lib/ui/select-logic";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
-const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/budget";
 
 async function organisationId(scope: OrgScope): Promise<string | null> {
@@ -35,206 +30,11 @@ const NO_ORG: FormState = {
   message: "No organisation is configured. Run npm run setup before adding records.",
 };
 
-export async function saveAllocation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
-  const orgId = await organisationId(actor);
-  if (!orgId) return NO_ORG;
-
-  const id = String(data.get("id") ?? "");
-  const r = new FormReader(data);
-
-  const costCentreCode = r.text("costCentreCode", "Cost centre", { required: true });
-  const accountCodeCode = r.text("accountCodeCode", "Account code", { required: true });
-  const amount = r.money("amount", "Amount", { required: true });
-  const effectiveFrom = r.date("effectiveFrom", "In force from", { required: true });
-  const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
-  checkPeriod(r, effectiveFrom, effectiveTo);
-
-  // Two allocations in force for one pair make the balance unanswerable, so the
-  // second is refused rather than saved and flagged.
-  if (costCentreCode && accountCodeCode && effectiveFrom && !r.failed) {
-    const { allocations } = await loadBudget(actor.organisationCode);
-    const others = allocations.filter((a) => a.id !== id);
-    const clash = allocationFor(others, costCentreCode, accountCodeCode, effectiveFrom);
-    if (clash.allocation || clash.ambiguous) {
-      r.reject(
-        "effectiveFrom",
-        "An allocation already covers this cost centre and account code on that date. End it first, or start this one later.",
-      );
-    }
+/// A refusal found inside a transaction: thrown to roll it back, answered as the form's state.
+class Refused extends Error {
+  constructor(readonly state: FormState) {
+    super("refused");
   }
-
-  const v = {
-    costCentreCode,
-    accountCodeCode,
-    periodLabel: r.text("periodLabel", "Period", { required: true, max: 60 }),
-    amount: amount ?? "0",
-    provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
-    notes: r.text("notes", "Notes", { max: 2000 }),
-    sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
-    effectiveFrom: effectiveFrom ?? new Date(),
-    effectiveTo,
-  };
-
-  const parsed = r.finish(v);
-  if (!parsed.ok) return { ok: false, errors: parsed.errors };
-
-  const ctx = {
-    actor: toAuditActor(actor),
-    organisationId: orgId,
-    entity: "BudgetAllocation",
-    entityLabel: `${v.costCentreCode} / ${v.accountCodeCode} — ${v.periodLabel}`,
-    reason: String(data.get("reason") ?? ""),
-  };
-  const write = { ...v, provenance: v.provenance! };
-
-  if (!id) {
-    await auditedCreate(ctx, v, (tx) =>
-      tx.budgetAllocation.create({ data: { organisationId: orgId, ...write } }),
-    );
-  } else {
-    const before = await db.budgetAllocation.findUnique({ where: { id, organisationId: actor.organisationId } });
-    if (!before) return { ok: false, message: "That allocation no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, { ...before, amount: before.amount.toString() }, v, (tx) =>
-      tx.budgetAllocation.update({ where: { id, organisationId: actor.organisationId }, data: write }),
-    );
-  }
-
-  revalidatePath(PATH);
-  return { ok: true };
-}
-
-export async function saveCommitment(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
-  const orgId = await organisationId(actor);
-  if (!orgId) return NO_ORG;
-
-  const r = new FormReader(data);
-  const allocationId = r.text("allocationId", "Allocation", { required: true });
-  const reference = r.text("reference", "Reference", { required: true, max: 120 });
-  const amount = r.money("amount", "Amount", { required: true });
-  const committedOn = r.date("committedOn", "Committed on", { required: true });
-
-  const parsed = r.finish({
-    allocationId,
-    reference,
-    description: r.text("description", "Description", { max: 400 }),
-    amount: amount ?? "0",
-    committedOn: committedOn ?? new Date(),
-  });
-  if (!parsed.ok) return { ok: false, errors: parsed.errors };
-
-  const allocation = await db.budgetAllocation.findFirst({
-    where: { id: allocationId, organisationId: orgId },
-    select: { costCentreCode: true, accountCodeCode: true },
-  });
-  if (!allocation) return { ok: false, message: "That allocation no longer exists." };
-
-  await auditedCreate(
-    {
-      actor: toAuditActor(actor),
-      organisationId: orgId,
-      entity: "BudgetCommitment",
-      entityLabel: `${reference} against ${allocation.costCentreCode}`,
-      reason: String(data.get("reason") ?? ""),
-    },
-    parsed.value,
-    (tx) => tx.budgetCommitment.create({ data: parsed.value }),
-  );
-
-  revalidatePath(PATH);
-  return { ok: true };
-}
-
-/**
- * Releasing a commitment frees the money and keeps the record.
- *
- * The commitment is part of how the balance moved. Deleting it would make the trail
- * show a balance nobody can reconstruct.
- */
-export async function releaseCommitment(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
-  const orgId = await organisationId(actor);
-  if (!orgId) return NO_ORG;
-
-  const id = String(data.get("id") ?? "");
-  const reason = String(data.get("reason") ?? "").trim();
-  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
-
-  const before = await db.budgetCommitment.findUnique({ where: { id, allocation: { organisationId: actor.organisationId } } });
-  if (!before) return { ok: false, message: "That commitment no longer exists." };
-  if (before.releasedOn) return { ok: false, message: "That commitment is already released." };
-
-  const releasedOn = new Date();
-  await auditedUpdate(
-    {
-      actor: toAuditActor(actor),
-      organisationId: orgId,
-      entity: "BudgetCommitment",
-      entityId: id,
-      entityLabel: before.reference,
-      reason,
-    },
-    { releasedOn: null },
-    { releasedOn, releaseNote: reason },
-    (tx) => tx.budgetCommitment.update({ where: { id, allocation: { organisationId: actor.organisationId } }, data: { releasedOn, releaseNote: reason } }),
-  );
-
-  revalidatePath(PATH);
-  return { ok: true };
-}
-
-/// Ending an allocation closes its period on the organisation's today, stored as a day (end day
-/// not included, `effective.ts`; `endAllocationOn`, 66-C1 a); the row stays so a past check still
-/// reads. Judged first for a quick answer, then again on the locked row, inside the transaction
-/// that writes it: an end recorded while this act waited is seen there.
-export async function endAllocation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
-  const orgId = await organisationId(actor);
-  if (!orgId) return NO_ORG;
-
-  const id = String(data.get("id") ?? "");
-  const reason = String(data.get("reason") ?? "").trim();
-  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
-
-  const judge = async (read: typeof db | Tx) => {
-    const row = await read.budgetAllocation.findFirst({ where: { id, organisationId: orgId } });
-    if (!row) return { row: null, result: null } as const;
-    const org = await read.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } });
-    return { row, result: endAllocationOn({ effectiveFrom: row.effectiveFrom, effectiveTo: row.effectiveTo, today: todayIn(new Date(), org.timeZone) }) } as const;
-  };
-
-  const first = await judge(db);
-  if (!first.row) return { ok: false, message: "That allocation no longer exists." };
-  if (!first.result.ok) return { ok: false, message: first.result.message };
-
-  class Refused extends Error {
-    constructor(readonly state: FormState) {
-      super("refused");
-    }
-  }
-  try {
-    await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "BudgetAllocation" WHERE id = ${id} FOR UPDATE`;
-      const locked = await judge(tx);
-      if (!locked.row) throw new Refused({ ok: false, message: "That allocation no longer exists." });
-      if (!locked.result.ok) throw new Refused({ ok: false, message: locked.result.message });
-      const effectiveTo = locked.result.effectiveTo;
-      await tx.budgetAllocation.update({ where: { id, organisationId: actor.organisationId }, data: { effectiveTo } });
-      await writeAudit(
-        tx,
-        { actor: toAuditActor(actor), organisationId: orgId, entity: "BudgetAllocation", entityId: id, entityLabel: `${locked.row.costCentreCode} / ${locked.row.accountCodeCode}`, reason },
-        "UPDATE",
-        diffFields({ effectiveTo: null }, { effectiveTo }),
-      );
-    });
-  } catch (e) {
-    if (e instanceof Refused) return e.state;
-    throw e;
-  }
-
-  revalidatePath(PATH);
-  return { ok: true };
 }
 
 // ------------------------------------------------------------------ budget codes
@@ -528,77 +328,79 @@ export async function transferBetweenCodes(_prev: FormState, data: FormData): Pr
   ]);
   if (!from || !to) return { ok: false, message: "One of those codes no longer exists." };
 
-  const movements = await db.budgetMovement.findMany({ where: { budgetCodeId: fromId } });
-  const available = figuresFor(
-    movements.map((m) => ({
-      id: m.id,
-      budgetCodeId: m.budgetCodeId,
-      kind: m.kind as Movement["kind"],
-      reference: m.reference,
-      description: m.description,
-      amount: m.amount.toString(),
-      occurredOn: m.occurredOn,
-      releasedOn: m.releasedOn,
-      releaseNote: m.releaseNote,
-      counterpartCode: m.counterpartCode,
-    })),
-    fromId,
-    // What is available is judged on the organisation's day, not the UTC one.
-    organisationDay(new Date(), (await db.organisation.findUnique({ where: { id: orgId }, select: { timeZone: true } }))?.timeZone ?? null) ?? new Date(),
-  ).available;
-
-  const faults = transferFaults(fromId, toId, amount!, available);
-  if (faults.length) {
-    const errors: Record<string, string> = {};
-    for (const f of faults) {
-      if (f === "SAME_CODE") errors.toCodeId = "Choose a different code to move it to.";
-      if (f === "NOT_POSITIVE") errors.amount = "Enter what is being moved.";
-      if (f === "MORE_THAN_AVAILABLE") {
-        errors.amount = `${from.code} only has ${formatSen(available)} available. Revise it up first if the money is coming from somewhere else.`;
-      }
-    }
-    return { ok: false, errors };
-  }
-
   const decimal = senToDecimalString(amount!);
   const when = occurredOn!;
 
-  await db.$transaction(async (tx) => {
-    const out = await tx.budgetMovement.create({
-      data: {
-        budgetCodeId: fromId,
-        kind: "TRANSFER_OUT",
-        amount: decimal,
-        occurredOn: when,
-        reference: reference ?? "",
-        counterpartCode: to.code,
-      },
+  // Judged on the locked source, inside the transaction that writes it: a transfer or a commitment that took the
+  // money while this one waited is counted here, so two transfers cannot both spend the same balance.
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "BudgetCode" WHERE id = ${fromId} AND "organisationId" = ${orgId} FOR UPDATE`;
+      const org = await tx.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } });
+      // What is available is judged on the organisation's day, never the UTC one, and not as at a day still to come.
+      const today = organisationDay(new Date(), org.timeZone);
+      if (!today) throw new Refused({ ok: false, message: "The organisation's time zone is not set, so no day can be recorded. Set it under Configuration, Organisation." });
+      if (when > today) throw new Refused({ ok: false, errors: { occurredOn: "A transfer cannot be dated after today." } });
+
+      const movements = await tx.budgetMovement.findMany({ where: { budgetCodeId: fromId } });
+      const available = figuresFor(
+        movements.map((m) => ({ ...m, kind: m.kind as Movement["kind"], amount: m.amount.toString() })),
+        fromId,
+        today,
+      ).available;
+
+      const faults = transferFaults(fromId, toId, amount!, available);
+      if (faults.length) {
+        const errors: Record<string, string> = {};
+        for (const f of faults) {
+          if (f === "SAME_CODE") errors.toCodeId = "Choose a different code to move it to.";
+          if (f === "NOT_POSITIVE") errors.amount = "Enter what is being moved.";
+          if (f === "MORE_THAN_AVAILABLE") {
+            errors.amount = `${from.code} only has ${formatSen(available)} available. Revise it up first if the money is coming from somewhere else.`;
+          }
+        }
+        throw new Refused({ ok: false, errors });
+      }
+
+      const out = await tx.budgetMovement.create({
+        data: {
+          budgetCodeId: fromId,
+          kind: "TRANSFER_OUT",
+          amount: decimal,
+          occurredOn: when,
+          reference: reference ?? "",
+          counterpartCode: to.code,
+        },
+      });
+      await tx.budgetMovement.create({
+        data: {
+          budgetCodeId: toId,
+          kind: "TRANSFER_IN",
+          amount: decimal,
+          occurredOn: when,
+          reference: reference ?? "",
+          counterpartCode: from.code,
+        },
+      });
+      await writeAudit(
+        tx,
+        {
+          actor: toAuditActor(actor),
+          organisationId: orgId,
+          entity: "BudgetMovement",
+          // The pair is one act; the outgoing side identifies it.
+          entityId: out.id,
+          entityLabel: `${from.code} → ${to.code}`,
+          reason: reference ?? "",
+        },
+        "CREATE",
+        snapshotFields({ from: from.code, to: to.code, amount: decimal, reference: reference ?? "" }),
+      );
     });
-    await tx.budgetMovement.create({
-      data: {
-        budgetCodeId: toId,
-        kind: "TRANSFER_IN",
-        amount: decimal,
-        occurredOn: when,
-        reference: reference ?? "",
-        counterpartCode: from.code,
-      },
-    });
-    await writeAudit(
-      tx,
-      {
-        actor: toAuditActor(actor),
-        organisationId: orgId,
-        entity: "BudgetMovement",
-        // The pair is one act; the outgoing side identifies it.
-        entityId: out.id,
-        entityLabel: `${from.code} → ${to.code}`,
-        reason: reference ?? "",
-      },
-      "CREATE",
-      snapshotFields({ from: from.code, to: to.code, amount: decimal, reference: reference ?? "" }),
-    );
-  });
+  } catch (e) {
+    if (e instanceof Refused) return e.state;
+    throw e;
+  }
 
   revalidatePath(PATH);
   return { ok: true };
@@ -625,27 +427,12 @@ export async function saveBudgetControls(_prev: FormState, data: FormData): Prom
     return v;
   };
 
-  const minimum = r.money("minimumInterimCertificate", "Minimum interim certificate");
-
   const v = {
     availabilityCheck: r.optionalText("availabilityCheck"),
     warningThresholdPercent: percent("warningThresholdPercent", "Warning threshold", 100),
-    overCommitmentTolerancePercent: percent(
-      "overCommitmentTolerancePercent",
-      "Over-commitment tolerance",
-      100,
-    ),
     // A switch posts nothing when off, so this one really is two states rather than
     // three — which is right: somebody has looked at the toggle either way.
     commitOnApproval: r.bool("commitOnApproval"),
-    overrideRoleCodes: splitValues(r.optionalText("overrideRoleCodes")),
-    advanceRecoupmentRatePercent: percent(
-      "advanceRecoupmentRatePercent",
-      "Advance recoupment rate",
-      100,
-    ),
-    minimumInterimCertificate: minimum,
-    paymentTargetDays: r.int("paymentTargetDays", "Payment target", { min: 0 }),
   };
 
   const parsed = r.finish(v);
@@ -692,12 +479,7 @@ export async function clearBudgetControls(): Promise<FormState> {
   const cleared = {
     availabilityCheck: null,
     warningThresholdPercent: null,
-    overCommitmentTolerancePercent: null,
     commitOnApproval: null,
-    overrideRoleCodes: [],
-    advanceRecoupmentRatePercent: null,
-    minimumInterimCertificate: null,
-    paymentTargetDays: null,
   };
 
   await auditedUpdate(
