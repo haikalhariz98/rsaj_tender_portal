@@ -5,13 +5,18 @@ import { describe, expect, it } from "vitest";
 
 import GENERIC_PACK from "../../../prisma/packs/generic";
 import RSAJ_PACK from "../../../prisma/rsaj/starter-pack";
+import { CONTRACTS } from "../../../prisma/rsaj/starter-pack/contracts";
+import { SUPPLIERS } from "../../../prisma/rsaj/starter-pack/suppliers";
+import { SYSTEM } from "../../../prisma/rsaj/starter-pack/system";
 import { DAL_FIXTURE } from "@/lib/authority/dal-fixture";
+import { matchesFormat } from "@/lib/integration/award-commitment";
 import { toPosix } from "@/lib/scan/files";
+import { documentTypeFaults } from "@/lib/suppliers/config";
 
 import { columnsOf, planPacks } from "./plan";
 
 /**
- * The RSAJ starter pack, part 1 (plan step 4.4): every entry cites its requirement and its clause, and none is ASSUMED but the three DAL rules
+ * The RSAJ starter pack, parts 1 and 2 (plan steps 4.4 and 4.6): every entry cites its requirement and its clause, and none is ASSUMED but the three DAL rules
  * whose slashed codes are a reading (SP-2a, named one by one); the DAL's figures are the Appendix B fixture's; the DAL and the models are
  * drafts only; nothing outside the pack imports it; and `rsaj,generic` plans clean into a fresh organisation.
  */
@@ -100,6 +105,72 @@ describe("loading rsaj,generic into a fresh organisation", () => {
     const written = new Set(p.writes.map((w) => (w.kind === "ROW" ? w.listLabel : w.kind === "SWITCH_OFF" ? "switch" : w.label)));
     for (const g of RSAJ_PACK.groups) expect(written, g.label).toContain(g.label);
     for (const l of RSAJ_PACK.lists) if (l.rows.length > 0) expect(written, l.label).toContain(l.label);
+  });
+});
+
+describe("part 2: contracts, suppliers and system (plan step 4.6)", () => {
+  const listOf = (model: string) => RSAJ_PACK.lists.filter((l) => l.model === model).flatMap((l) => l.rows);
+  const groupOf = (label: string) => RSAJ_PACK.groups.find((g) => g.label === label)!.values;
+
+  it("carries the figures the specification states", () => {
+    expect(groupOf("Award · indent validity")).toEqual({ indentValidityDays: 14 });
+    expect(groupOf("Award · start of work")).toEqual({ commencementGraceDays: 7 });
+    expect(groupOf("Supervision · in delay")).toEqual({ inDelayProgressPct: "70" });
+    expect(groupOf("Payment · retention released at as-built")).toEqual({ firstReleasePct: "50" });
+    expect({ ...groupOf("Close-out · design guarantee bond rate"), ...groupOf("Close-out · design guarantee bond years") }).toEqual({ designBondPct: "5", designBondYears: 5 });
+    expect(groupOf("Supplier register · expiry bands")).toEqual({ criticalDays: 30, warningDays: 60, upcomingDays: 90 });
+    expect(groupOf("Contract · controlled copy stamp")).toEqual({ controlledCopyStampEn: "Controlled Copy" });
+    // FR-AWD-004: four copies, and SPAN's only for water services works.
+    const copies = listOf("DistributionRecipient");
+    expect(copies.map((r) => [r.values.nameEn, r.values.onlyWhenRegulated ?? false])).toEqual([["Implementing Department", false], ["Accounts & Finance Department", false], ["CIDB (LPIPM)", false], ["LHDN", false], ["SPAN", true]]);
+    expect(listOf("ControlledCopyRecipient").filter((r) => r.values.onlyWithConsultingEngineer).map((r) => r.code)).toEqual(["consulting_engineer"]);
+    expect(listOf("StandingReason").map((r) => r.values.appliesTo)).toEqual(["SUSPEND", "SUSPEND", "SUSPEND", "SUSPEND", "BLACKLIST"]);
+  });
+
+  it("gives each document type only values of a body it names, and leaves 'mandatory at registration' unset (not stated)", () => {
+    const bodies = new Set(listOf("RegistrationBody").map((b) => `RegistrationBody:${b.code}`));
+    const types = listOf("SupplierDocumentType");
+    expect(types).toHaveLength(13);
+    for (const t of types) {
+      const bodyRef = (t.values.bodyId as { ref: string } | undefined)?.ref ?? null;
+      const input = { code: t.code, nameEn: String(t.values.nameEn), bodyId: bodyRef, valueKinds: (t.values.valueKinds as never[] | undefined) ?? [], provenance: RSAJ_PACK.provenance };
+      expect(documentTypeFaults(input, { codeTaken: false, bodyExists: bodyRef == null || bodies.has(bodyRef) }), t.code).toEqual([]);
+      expect(t.values, t.code).toMatchObject({ expires: true, notApplicableAllowed: true });
+      expect(t.values, t.code).not.toHaveProperty("mandatoryAtRegistration");
+    }
+  });
+
+  it("writes each finance system number format so the stated example matches it as the product reads it", () => {
+    const formats = listOf("CodeFormat");
+    expect(formats.map((f) => f.code)).toEqual(["erp_requisition_no", "erp_note_no", "erp_indent_no"]);
+    for (const f of formats) {
+      expect(() => new RegExp(`^(?:${f.values.pattern})$`), f.code).not.toThrow();
+      if (f.values.example) expect(matchesFormat(String(f.values.example), String(f.values.pattern)), f.code).toBe(true);
+    }
+    expect(matchesFormat("PROC2025150424", String(formats[0].values.pattern))).toBe(true);
+    expect(matchesFormat("NM/2026/00412", String(formats[1].values.pattern))).toBe(true);
+    expect(matchesFormat("IN2026395", String(formats[2].values.pattern))).toBe(false);
+  });
+
+  it("holds no Malay text, no legal text, no notification rule, and nothing the documents leave unstated", () => {
+    const part2 = [CONTRACTS, SUPPLIERS, SYSTEM];
+    const set = part2.flatMap((p) => [...p.groups.map((g) => g.values), ...p.lists.flatMap((l) => l.rows.map((r) => r.values))]).flatMap((v) => Object.entries(v).filter(([, x]) => x != null));
+    const columns = set.map(([c]) => c);
+    expect(columns.filter((c) => /Ms$/.test(c))).toEqual([]);
+    for (const c of ["personalDataNoticeEn", "helpEmail", "helpPhone", "verificationNoticeEn"]) expect(columns, c).not.toContain(c);
+    // SP-9 and SP-16; the contract document parts and the letter variants are open questions for RSAJ (contracts.ts).
+    const models = [...RSAJ_PACK.groups, ...RSAJ_PACK.lists].map((x) => x.model);
+    for (const m of ["DeclarationText", "NotificationRule", "ContractDocumentPart", "AppointmentLetterVariant", "DocumentTemplate"]) expect(models, m).not.toContain(m);
+  });
+
+  it("loads RSAJ's contract number series beside the generic pack's, each scoped by its key", () => {
+    const p = planPacks([RSAJ_PACK, GENERIC_PACK], fresh);
+    const series = p.writes.filter((w) => w.kind === "ROW" && w.model === "NumberingSeries").map((w) => (w.kind === "ROW" ? [w.pack, w.values.key, w.values.pattern] : null));
+    expect(series.filter((s) => s![0] === "rsaj")).toEqual([
+      ["rsaj", "contract_tender", "RSAJ/KP/T/{SERIAL}/{YEAR}"],
+      ["rsaj", "contract_consultancy", "RSAJ/KP/P/{SERIAL}/{YEAR}"],
+    ]);
+    expect(series.filter((s) => s![0] === "generic")).toHaveLength(9);
   });
 });
 

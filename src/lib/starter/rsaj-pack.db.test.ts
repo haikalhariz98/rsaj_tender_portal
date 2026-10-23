@@ -102,6 +102,23 @@ describe("loading rsaj,generic", () => {
     expect(await db.windowPolicy.findUniqueOrThrow({ where: { organisationId: orgId } })).toMatchObject({ minAdvertisementDays: 14, purchaseCutoffDays: 2, defaultClosingTime: "14:30", documentSaleMode: "ONLINE", electronicDocumentRelease: true, dateRulesProvenance: "STATED" });
     expect(await db.committee.findFirstOrThrow({ where: { organisationId: orgId, code: "TBC" } })).toMatchObject({ quorum: 3, quorumProvenance: "STATED" });
     expect(await db.methodChecklistItem.count({ where: { sourcingMethod: { organisationId: orgId, code: "selected_tender" } } })).toBe(10);
+
+    // Part 2 (step 4.6): the award clocks, the post-award figures, the register's bands, its bodies and types, and both packs' series side by side.
+    const where = { where: { organisationId: orgId } };
+    expect(await db.awardPolicy.findUniqueOrThrow(where)).toMatchObject({ indentValidityDays: 14, commencementGraceDays: 7, regulatedActivityLabel: "Water Services works", provenance: "STATED" });
+    const post = await db.postAwardPolicy.findUniqueOrThrow(where);
+    expect([post.inDelayProgressPct?.toString(), post.firstReleasePct?.toString(), post.designBondPct?.toString(), post.designBondYears, post.inDelayProvenance, post.designBondYearsProvenance]).toEqual(["70", "50", "5", 5, "STATED", "STATED"]);
+    expect(await db.contractPolicy.findUniqueOrThrow(where)).toMatchObject({ controlledCopyStampEn: "Controlled Copy", legalOfficeCode: null });
+    expect(await db.supplierPolicy.findUniqueOrThrow(where)).toMatchObject({ criticalDays: 30, warningDays: 60, upcomingDays: 90, bandsProvenance: "STATED", verificationNoticeEn: expect.any(String) });
+    const cidb = await db.supplierDocumentType.findFirstOrThrow({ where: { organisationId: orgId, code: "cidb_certificate" }, include: { body: true } });
+    expect(cidb).toMatchObject({ valueKinds: ["GRADE", "CATEGORY", "SPECIALISATION"], expires: true, mandatoryAtRegistration: null, provenance: "STATED", body: { code: "cidb" } });
+    expect(await db.supplierDocumentType.count(where)).toBe(13);
+    expect(await db.distributionRecipient.count({ where: { organisationId: orgId, onlyWhenRegulated: true } })).toBe(1);
+    expect((await db.codeFormat.findMany({ ...where, orderBy: { key: "asc" } })).map((f) => f.key)).toEqual(["erp_indent_no", "erp_note_no", "erp_requisition_no"]);
+    const series = await db.numberingSeries.findMany({ ...where, select: { key: true, pattern: true } });
+    expect(series).toHaveLength(11);
+    expect(series).toContainEqual({ key: "contract_tender", pattern: "RSAJ/KP/T/{SERIAL}/{YEAR}" });
+    expect(series).toContainEqual({ key: "requisition", pattern: "REQ/{YEAR}/{SERIAL}" });
   });
 
   it("writes nothing the second time, and says the drafts already exist", async () => {

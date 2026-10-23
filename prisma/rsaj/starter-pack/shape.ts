@@ -23,6 +23,17 @@ interface Models {
   EvaluationAspect: Prisma.EvaluationAspectUncheckedCreateInput;
   WindowPolicy: Prisma.WindowPolicyUncheckedCreateInput;
   ScopePolicy: Prisma.ScopePolicyUncheckedCreateInput;
+  AwardPolicy: Prisma.AwardPolicyUncheckedCreateInput;
+  DistributionRecipient: Prisma.DistributionRecipientUncheckedCreateInput;
+  ContractPolicy: Prisma.ContractPolicyUncheckedCreateInput;
+  ControlledCopyRecipient: Prisma.ControlledCopyRecipientUncheckedCreateInput;
+  PostAwardPolicy: Prisma.PostAwardPolicyUncheckedCreateInput;
+  CodeFormat: Prisma.CodeFormatUncheckedCreateInput;
+  RegistrationBody: Prisma.RegistrationBodyUncheckedCreateInput;
+  SupplierDocumentType: Prisma.SupplierDocumentTypeUncheckedCreateInput;
+  SupplierPolicy: Prisma.SupplierPolicyUncheckedCreateInput;
+  StandingReason: Prisma.StandingReasonUncheckedCreateInput;
+  NumberingSeries: Prisma.NumberingSeriesUncheckedCreateInput;
 }
 export type Model = keyof Models;
 type Ref = { ref: string };
@@ -45,4 +56,5 @@ export const group = <M extends Model>(model: M, label: string, values: Cols<Mod
   ...cited,
 });
 
-export const list = <M extends Model>(model: M, label: string, rows: Array<{ code: string; label?: string; values: Cols<Models[M]> } & Cited>): PackList => ({ model, label, rows });
+/// `scope` narrows "the list" to some of the table's rows (one numbering series by its key), so a pack fills it beside rows another pack owns.
+export const list = <M extends Model>(model: M, label: string, rows: Array<{ code: string; label?: string; values: Cols<Models[M]> } & Cited>, scope?: Cols<Models[M]>): PackList => ({ model, label, rows, ...(scope ? { scope } : {}) });
