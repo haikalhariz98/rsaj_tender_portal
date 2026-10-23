@@ -3,8 +3,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { SERVICE_UNIT_ASSUMED, SERVICE_UNIT_ASSUMED_NOTE } from "@/lib/portal/projects/labels";
-import { saveClockRule, saveContractorPortalSigning, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveSubmissionServiceLevel, saveVariationPolicy } from "./actions";
+import { saveClockRule, saveContractorPortalSigning, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveVariationPolicy } from "./actions";
 
 /**
  * The Post-award controls drawer. No field carries a default: an unset field is not set, and the screen says
@@ -117,28 +116,6 @@ export function EditClockRule({ clock, label, values }: { clock: string; label: 
       ]}
       values={{ ...values, clock }}
       action={saveClockRule}
-      reason={{ label: "Why it is changed" }}
-      submitLabel="Save"
-      trigger={{ label: "Edit", className: buttonClass("ghost", "sm") }}
-    />
-  );
-}
-
-/// Phase 4e: the service level a contractor's submission of a kind is answered against (calendar days, assumed). Ships unset.
-export function EditSubmissionServiceLevel({ kind, label, values }: { kind: string; label: string; values: Record<string, string | null> }) {
-  return (
-    <RecordEditor
-      title={label}
-      description={`Days to answer, from sending. ${SERVICE_UNIT_ASSUMED_NOTE.en} Empty: not set.`}
-      columns={2}
-      fields={[
-        { kind: "hidden", name: "kind" },
-        { kind: "number", name: "serviceLevelDays", label: SERVICE_UNIT_ASSUMED.en, min: 1 },
-        provenance("provenance", "Where it came from"),
-        { kind: "textarea", name: "notes", label: "Notes" },
-      ]}
-      values={{ ...values, kind }}
-      action={saveSubmissionServiceLevel}
       reason={{ label: "Why it is changed" }}
       submitLabel="Save"
       trigger={{ label: "Edit", className: buttonClass("ghost", "sm") }}

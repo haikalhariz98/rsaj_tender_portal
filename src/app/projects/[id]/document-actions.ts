@@ -11,7 +11,7 @@ import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import { withLockedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf } from "@/lib/dates";
-import { addApprover, addVersion, createDocument, decideVersion, removeApprover, requestDocument, WorkspaceRefused, workspaceRefusalText, type WorkspaceCtx } from "@/lib/project-docs/store";
+import { addApprover, addVersion, createDocument, decideVersion, markVersion, removeApprover, requestDocument, WorkspaceRefused, workspaceRefusalText, type WorkspaceCtx } from "@/lib/project-docs/store";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -24,7 +24,8 @@ import { FormReader } from "@/lib/validate";
  * Files are never posted here: each is staged first through the staff upload route (`/api/documents`, `stagedFor=project-document`), which returns its `versionId`, and
  * the form posts those ids (`stagedVersionId`, repeated). A Server Action body is capped at 1 MB (ADR 0011 D5).
  *
- * The kind of document (the six kinds) and the statutory declaration's password step-up are plan step 6: nothing here reads a kind.
+ * The six kinds (plan step 6): staff never make a document of one, so nothing here reads a kind, and a statutory declaration is never recorded from paper (AC-59). Staff mark
+ * the contractor's version of one: Taken up (Noted, on defects rectified) or Returned with remarks (`markProjectVersion`). Approving and marking ask no password (PW-26).
  */
 
 const GONE: FormState = { ok: false, message: "That contract no longer exists." };
@@ -119,6 +120,17 @@ function readDecision(data: FormData) {
   const documentId = r.text("documentId", "Document", ID);
   const versionId = r.text("versionId", "Version", ID);
   const outcome = r.choice("outcome", "The answer", ["APPROVED", "REJECTED"] as const, { required: true });
+  const remarks = r.text("remarks", "Remarks");
+  if (r.failed || !outcome) return failed(r);
+  return { ok: true as const, value: { contractId, documentId, versionId, outcome, remarks } };
+}
+
+function readMark(data: FormData) {
+  const r = new FormReader(data);
+  const contractId = r.text("contractId", "Contract", ID);
+  const documentId = r.text("documentId", "Document", ID);
+  const versionId = r.text("versionId", "Version", ID);
+  const outcome = r.choice("outcome", "The mark", ["TAKEN_UP", "RETURNED"] as const, { required: true });
   const remarks = r.text("remarks", "Remarks");
   if (r.failed || !outcome) return failed(r);
   return { ok: true as const, value: { contractId, documentId, versionId, outcome, remarks } };
@@ -233,5 +245,23 @@ export async function decideProjectVersion(_prev: FormState, data: FormData): Pr
   return inContract(actor, v.contractId, now, async (c) => {
     await decideVersion(c, { kind: "STAFF", actor }, { documentId: v.documentId, versionId: v.versionId, outcome: v.outcome, remarks: v.remarks }, act);
     return { ok: true, message: v.outcome === "APPROVED" ? "Approved." : "Rejected. The remarks go back with it." };
+  });
+}
+
+/// Mark the contractor's latest version of one of the six kinds: Taken up (Noted, on defects rectified), or Returned with remarks, which go back with it for a new version.
+export async function markProjectVersion(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForAct("TRANSACTION");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  const now = toSecond(new Date());
+  const read = readMark(data);
+  if (!read.ok) return read.state;
+  const v = read.value;
+  const begun = await beginAct(actor, data, "ProjectDocumentDecision.decidedBy", { personField: "decidedByPersonId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return inContract(actor, v.contractId, now, async (c) => {
+    const marked = await markVersion(c, { kind: "STAFF", actor }, { documentId: v.documentId, versionId: v.versionId, outcome: v.outcome, remarks: v.remarks }, act);
+    return { ok: true, message: v.outcome === "RETURNED" ? "Returned. The remarks go back with it." : `${marked.outcomeLabel}.` };
   });
 }

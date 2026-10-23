@@ -217,7 +217,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("ProjectDocumentRequest", "requestedByPerson", "Requested by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#requestProjectDocument"] }),
   slot("ProjectDocumentApprover", "addedBy", "Recorded by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#addProjectApprover"] }),
   slot("ProjectDocumentApprover", "removedBy", "Recorded by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#removeProjectApprover"] }),
-  slot("ProjectDocumentDecision", "decidedBy", "Decided by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#decideProjectVersion"] }),
+  // Plan step 6 (PW-9, PW-24): the mark on a version of one of the six kinds (Taken up, Noted, Returned) is a decision row with no approver, on the same slot, from its own action.
+  slot("ProjectDocumentDecision", "decidedBy", "Decided by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#decideProjectVersion", "src/app/projects/[id]/document-actions.ts#markProjectVersion"] }),
   // Phase 4e (FR-VND-014): the officer who published an announcement to the supplier board, and the one who withdrew it. Each is the signed-in holder's own act, gated by
   // `announcements.publish`; an administrator is refused as at every act outside configuration (taken in the refusing direction; an open item for the product owner).
   slot("Announcement", "publishedBy", "Published by", { holder: "TRANSACTION", entryPoints: ["src/app/suppliers/announcement-actions.ts#publishAnnouncement"] }),
@@ -487,6 +488,10 @@ export const SUPPLIER_ACT_SLOTS: readonly ActSlot[] = [
   slot("OnlineBid", "submittedBy", "Submitted by", { signatureClass: true }),
   // Ruling 20ak: a withdrawal is a signed act too. One password entry signs one act, so the attribution names the submission withdrawn; an alternative withdrawn in the same act carries the same account in its column.
   slot("OnlineBid", "withdrawnBy", "Withdrawn by", { signatureClass: true }),
+  // Plan step 6 (PW-10, AC-30): the statutory declaration moved into the Project workspace keeps its password. Every version of a declaration is signed by the account that sends it,
+  // with the password asked again, and the store attributes it on this slot naming the version as the exact document signed, as it did `ContractorSubmission.submittedBy`. Any
+  // other version is an upload, which signs nothing: the column is its record, and no attribution is written for it (so a screen reads "Signed by" only on a declaration's).
+  slot("ProjectDocumentVersion", "uploadedBySupplierAccount", "Signed by", { signatureClass: true }),
 ];
 
 export const slotOf = (entity: string, field: string): ActSlot | undefined =>

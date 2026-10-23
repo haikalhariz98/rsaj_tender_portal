@@ -57,9 +57,9 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   // N2 step 2 (PDPA right of access, ruling 1875(8)).
   "SupplierDataExport.account": "Which account took an export of the supplier's own data (N2): the column is the record, written with its audit row in the read's transaction. Reading one's own data is not an act and signs nothing.",
   // ADR 0042 D1 (plan step 1): the Project workspace's three contractor columns. An upload, a request and the document they make sign nothing; each is the record, audited with the account.
-  // Step 6 revisits the version's column when the statutory declaration moves in (it keeps the password step-up of `ContractorSubmission.submittedBy`).
+  // Plan step 6 moved `ProjectDocumentVersion.uploadedBySupplierAccount` from this list to `SUPPLIER_ACT_SLOTS`: the statutory declaration moved in, and its every version is signed
+  // with the password (it keeps the step-up of `ContractorSubmission.submittedBy`, PW-10). An ordinary version still signs nothing; no attribution is written for it.
   "ProjectDocument.createdBySupplierAccount": "Who made a Project workspace document from the portal (ADR 0042 D1): the column is the record, with exactly one creator by CHECK, and the act is audited with the account. It signs nothing.",
-  "ProjectDocumentVersion.uploadedBySupplierAccount": "Who uploaded a version from the portal (ADR 0042 D1): the column is the record, with exactly one uploader by CHECK, append-only, and audited with the account. An ordinary upload signs nothing.",
   "ProjectDocumentRequest.requestedBySupplierAccount": "Who asked the organisation for a document from the portal (ADR 0042 D1): the column is the record, with exactly one requester by CHECK, append-only, and audited with the account. It signs nothing.",
 };
 
@@ -105,7 +105,9 @@ describe("every SupplierAccount relation is a supplier act slot or is accounted 
     // the agent's attestation of a diary entry (FR-SUP-007) and the contractor's block on a certificate (FR-VAR-022).
     // Changed for wave 3b (ADR 0036 D5, threat S11, build plan step 10): an online submission is a signed act, with the password asked again.
     // Changed again for ruling 20ak: a withdrawal of an online submission is a signed act too.
-    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy", "ContractorSubmission.submittedBy", "SiteDiaryEntry.agentAttestedBy", "CertificateSignature.signedBySupplierAccount", "OnlineBid.submittedBy", "OnlineBid.withdrawnBy"]);
+    // Changed for plan step 6 (PW-10, AC-30): the statutory declaration moved into the Project workspace keeps its password, so a declaration's version is a signed act on its own slot.
+    // `ContractorSubmission.submittedBy` stays: the earlier records' attributions still resolve (PW-11).
+    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy", "ContractorSubmission.submittedBy", "SiteDiaryEntry.agentAttestedBy", "CertificateSignature.signedBySupplierAccount", "OnlineBid.submittedBy", "OnlineBid.withdrawnBy", "ProjectDocumentVersion.uploadedBySupplierAccount"]);
     expect(slotOf("RegistrationDeclaration", "signedBy")!.signatureClass).toBe(false);
   });
 

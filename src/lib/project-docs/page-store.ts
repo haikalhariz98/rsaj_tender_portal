@@ -13,14 +13,16 @@ import type { StaffActor } from "@/lib/auth/types";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
+import { caseHref } from "@/lib/contract/links";
 import { dayOf, storedDay } from "@/lib/dates";
+import { formatOrgDateTime } from "@/lib/format";
 import { SCAN_LABEL } from "@/lib/documents/labels";
 import { loadStorePolicy } from "@/lib/documents/service";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { loadDocumentFactsMany } from "./facts";
-import { addApproverFaults, createFaults, removeApproverFaults, decideFaults, requestFaults, uploadFaults } from "./faults";
-import { faultText, kindWords, outcomeWords, sideWords, stateWords, versionLabel, waitsOnWords } from "./labels";
+import { addApproverFaults, createFaults, markFaults, removeApproverFaults, decideFaults, requestFaults, uploadFaults } from "./faults";
+import { faultText, kindWords, markActionWords, outcomeWords, sideWords, stateWords, takenUpLink, versionLabel, waitsOnWords } from "./labels";
 import { organisationSideOn } from "./side-store";
 import { mayActForOrganisation } from "./side";
 import { documentState, latestVersion, liveApprovers, type DocumentState } from "./state";
@@ -60,6 +62,8 @@ export interface PageVersion {
   label: string;
   note: string;
   uploadedOn: string;
+  /// The server's moment of the upload on the organisation's clock, "01 Oct 2026 · 04:00": a delay notice is received at it (FR-EOT-001).
+  uploadedAtText: string;
   /// A person's name for the organisation's version; the contractor's name for its own.
   uploadedByName: string;
   /// The version answers a request.
@@ -136,7 +140,14 @@ export interface DocumentPage {
     reject: Gate;
     /// The version approve and reject are about: the latest.
     decideVersionId: string | null;
+    /// One of the six kinds (plan step 6): mark the latest version Taken up (Noted, on defects rectified) or Returned with remarks. Blocked, with why, on an ordinary document.
+    markTakenUp: Gate;
+    markReturned: Gate;
   };
+  /// The buttons' words for the marks, kind-aware ("Mark noted" on defects rectified); null on an ordinary document, which is approved or rejected instead.
+  markWords: { takenUp: string; returned: string } | null;
+  /// Where a taken-up version of this kind is recorded, with the link (PW-24): only where a screen records it (`takenUpWhere`); null otherwise, and then no words and no button.
+  takenUpLink: { words: string; href: string } | null;
   /// The project's class for files is set: where false, nothing can be added and the screen names the setting (`faultText` of CLASS_NOT_SET).
   classSet: boolean;
 }
@@ -199,6 +210,7 @@ export async function loadDocumentPage(client: Tx, l: LoadedContract, viewer: St
           number: true,
           note: true,
           uploadedOn: true,
+          uploadedAt: true,
           noApproversAtUpload: true,
           requestId: true,
           uploadedByPersonId: true,
@@ -263,6 +275,8 @@ export async function loadDocumentPage(client: Tx, l: LoadedContract, viewer: St
 
   const versionWords = (n: number) => versionLabel(n);
   const decideFor = (outcome: "APPROVED" | "REJECTED") => gate(decideFaults({ actor, doc: facts, versionId: latest?.id ?? "", outcome, remarks: "remarks" }), orgName, shut);
+  const markFor = (outcome: "TAKEN_UP" | "RETURNED") => gate(markFaults({ actor, doc: facts, versionId: latest?.id ?? "", outcome, remarks: "remarks" }), orgName, shut);
+  const link = row.kind ? takenUpLink(row.kind) : null;
 
   return {
     id: row.id,
@@ -285,6 +299,7 @@ export async function loadDocumentPage(client: Tx, l: LoadedContract, viewer: St
       label: versionWords(v.number),
       note: v.note,
       uploadedOn: storedDay(v.uploadedOn),
+      uploadedAtText: formatOrgDateTime(v.uploadedAt, l.org.timeZone),
       uploadedByName: v.uploadedByPerson?.name ?? l.award.awardeeName,
       answersRequest: v.requestId !== null,
       files: v.files.map((f) => ({ versionId: f.version.id, name: f.version.originalFilename, bytes: Number(f.version.byteSize), mediaType: f.version.mediaType, scanLabel: SCAN_LABEL[f.version.scanState] })),
@@ -304,7 +319,11 @@ export async function loadDocumentPage(client: Tx, l: LoadedContract, viewer: St
       approve: decideFor("APPROVED"),
       reject: decideFor("REJECTED"),
       decideVersionId: latest?.id ?? null,
+      markTakenUp: markFor("TAKEN_UP"),
+      markReturned: markFor("RETURNED"),
     },
+    markWords: row.kind ? { takenUp: markActionWords("TAKEN_UP", row.kind), returned: markActionWords("RETURNED", row.kind) } : null,
+    takenUpLink: link ? { words: link.words, href: caseHref({ awardId: l.award.id, contractId: l.contract.id }, { stage: link.where.stage, tab: link.where.tab, section: link.where.section }) } : null,
     classSet,
   };
 }

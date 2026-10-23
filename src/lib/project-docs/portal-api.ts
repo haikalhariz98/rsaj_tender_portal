@@ -3,7 +3,12 @@
  * have is held in one place and tested without a server. By hand, as `src/lib/portal/projects/api.ts` does (no schema library is installed).
  *
  * - Unknown fields are refused, each named (400 VALIDATION, with a field-level `errors`).
- * - A posted `kind` is refused 422 (PW-23): the six kinds arrive in step 6, and a route that is sent one must say so, never ignore it. It is judged before anything else.
+ * - The kind (plan step 6; PW-9, PW-23): one of the six is picked with a document's FIRST version, so it is read by the create route (with an upload, never with a request)
+ *   and by the version route (the first version of a document the organisation asked the contractor for). The request route and the staging upload refuse a posted `kind`
+ *   422, judged before anything else: a route never ignores it. An unknown kind is a field error (400).
+ * - The password (PW-10, AC-30): a statutory declaration's every version is signed with the contractor's password, asked again. The create route takes one only with that
+ *   kind (posted with any other, it is refused, so nobody spends a step-up or a lockout count for nothing); the version route takes one when posted, as the route cannot know
+ *   the document's kind before the act reads it, and the store signs with it only a declaration's version. The password is handed to `confirmSupplierPassword` alone.
  * - No supplier, organisation, account, day or time is read from a body: the supplier is the session's and the day is the server's. No approver is accepted from a
  *   contractor: it names none (PW-6 is the organisation's).
  * - The ids named are a contract's, a document's and staged store versions', which the stores read only as the session's supplier may hold them.
@@ -11,13 +16,20 @@
  * The exact bounds of a title, note or file count are the pure faults' (`faults.ts`); here a value is only kept from being absurdly large, so a refusal can say the real bound.
  */
 
+import { isSubmissionKind } from "@/lib/portal/projects/types";
+
 import { PROJECT_FILES_PER_VERSION } from "./bounds";
 import { NOTE_MAX, TITLE_MAX } from "./faults";
+import { SIGNED_KIND } from "./labels";
+import type { DocKind } from "./types";
 
 export type PortalParsed<T> = { ok: true; value: T } | { ok: false; status: 400 | 422; code: "VALIDATION" | "KIND_NOT_AVAILABLE"; message: string; errors: Record<string, string> };
 
 const invalid = (errors: Record<string, string>): PortalParsed<never> => ({ ok: false, status: 400, code: "VALIDATION", message: "Check the fields marked below.", errors });
-const KIND_REFUSED: PortalParsed<never> = { ok: false, status: 422, code: "KIND_NOT_AVAILABLE", message: "Choosing a kind is not available yet. Send the document without one.", errors: { kind: "Not available yet." } };
+/// A kind posted where none is taken: to the request route, or to the staging upload. A kind is picked when the document's first version is sent (plan step 6).
+const KIND_REFUSED: PortalParsed<never> = { ok: false, status: 422, code: "KIND_NOT_AVAILABLE", message: "A kind is picked when the document's first version is sent, not here.", errors: { kind: "Not taken here." } };
+/// The longest password read from a body: far past any rule, so a bound refuses an absurd one before it is hashed.
+const PASSWORD_MAX = 512;
 
 const ID = /^[A-Za-z0-9_-]{8,40}$/;
 const isId = (v: unknown): v is string => typeof v === "string" && ID.test(v);
@@ -62,14 +74,47 @@ export interface CreateBody {
   /// The document's own note.
   note: string;
   first: { upload: { stagedVersionIds: string[]; note: string } } | { request: { note: string } };
+  /// One of the six kinds, picked with the first version; null for an ordinary document.
+  kind: DocKind | null;
 }
 
-const CREATE_FIELDS = ["contractId", "title", "note", "mode", "versionIds", "versionNote", "requestNote"] as const;
+/// What a route reads besides the act's own body: the password, for the route alone (it never reaches a store).
+export interface Signed<T> {
+  body: T;
+  /// The password to ask again, or null where none was posted.
+  password: string | null;
+}
 
-/// `POST /supplier/projects/documents/create`: a document with its first version (`mode: "upload"`, `versionIds`, `versionNote`) or its first request (`mode: "request"`, `requestNote`).
-export function parseCreateBody(b: Readonly<Record<string, unknown>>): PortalParsed<CreateBody> {
-  if (hasKind(b)) return KIND_REFUSED;
+const CREATE_FIELDS = ["contractId", "title", "note", "mode", "versionIds", "versionNote", "requestNote", "kind", "password"] as const;
+
+/// A posted kind: absent, null or empty is none; one of the six is that kind; anything else is a field error.
+function kindOf(b: Readonly<Record<string, unknown>>, errors: Record<string, string>): DocKind | null {
+  const v = b.kind;
+  if (v == null || v === "") return null;
+  if (isSubmissionKind(v)) return v;
+  errors.kind = "Not one of the six kinds.";
+  return null;
+}
+
+/// A posted password: absent or empty is none; text within the bound is the password; anything else is a field error.
+function passwordOf(b: Readonly<Record<string, unknown>>, errors: Record<string, string>): string | null {
+  const v = b.password;
+  if (v == null || v === "") return null;
+  if (typeof v === "string" && v.length <= PASSWORD_MAX) return v;
+  errors.password = "The password is not text.";
+  return null;
+}
+
+/**
+ * `POST /supplier/projects/documents/create`: a document with its first version (`mode: "upload"`, `versionIds`, `versionNote`, and optionally `kind`) or its first request
+ * (`mode: "request"`, `requestNote`). A statutory declaration needs `password`; no other kind takes one.
+ */
+export function parseCreateBody(b: Readonly<Record<string, unknown>>): PortalParsed<Signed<CreateBody>> {
   const errors: Record<string, string> = unknownFields(b, CREATE_FIELDS);
+  const kind = kindOf(b, errors);
+  const password = passwordOf(b, errors);
+  if (kind !== null && b.mode === "request") errors.kind = "A kind goes with a file sent, not with a request.";
+  if (password !== null && kind !== SIGNED_KIND) errors.password = "Only a statutory declaration is signed with your password.";
   if (!isId(b.contractId)) errors.contractId = "Say which contract this is for.";
   const title = text(b.title, TITLE_MAX);
   const note = text(b.note, NOTE_MAX);
@@ -85,7 +130,7 @@ export function parseCreateBody(b: Readonly<Record<string, unknown>>): PortalPar
   if (b.mode === "request" && (versionIds.length > 0 || versionNote)) errors.versionIds = "Files go with a version, not with a request.";
   if (Object.keys(errors).length > 0) return invalid(errors);
   const first = b.mode === "upload" ? { upload: { stagedVersionIds: versionIds, note: versionNote! } } : { request: { note: requestNote! } };
-  return { ok: true, value: { contractId: b.contractId as string, title: title!, note: note!, first } };
+  return { ok: true, value: { body: { contractId: b.contractId as string, title: title!, note: note!, first, kind }, password } };
 }
 
 // ------------------------------------------------------------------ a new version
@@ -95,21 +140,24 @@ export interface VersionBody {
   documentId: string;
   stagedVersionIds: string[];
   note: string;
+  /// One of the six kinds, for the first version of a document the organisation asked for; null otherwise. The store refuses it on any later version (KIND_ALREADY_SET).
+  kind: DocKind | null;
 }
 
-const VERSION_FIELDS = ["contractId", "documentId", "versionIds", "note"] as const;
+const VERSION_FIELDS = ["contractId", "documentId", "versionIds", "note", "kind", "password"] as const;
 
-/// `POST /supplier/projects/documents/version`.
-export function parseVersionBody(b: Readonly<Record<string, unknown>>): PortalParsed<VersionBody> {
-  if (hasKind(b)) return KIND_REFUSED;
+/// `POST /supplier/projects/documents/version`. `password` is taken when posted: a declaration's version needs it, and the store signs no other with it.
+export function parseVersionBody(b: Readonly<Record<string, unknown>>): PortalParsed<Signed<VersionBody>> {
   const errors: Record<string, string> = unknownFields(b, VERSION_FIELDS);
   if (!isId(b.contractId)) errors.contractId = "Say which contract this is for.";
   if (!isId(b.documentId)) errors.documentId = "Say which document this is for.";
   const note = text(b.note, NOTE_MAX);
   if (note == null) errors.note = "The note is not text.";
   const versionIds = idList(b.versionIds, errors, "versionIds");
+  const kind = kindOf(b, errors);
+  const password = passwordOf(b, errors);
   if (Object.keys(errors).length > 0) return invalid(errors);
-  return { ok: true, value: { contractId: b.contractId as string, documentId: b.documentId as string, stagedVersionIds: versionIds, note: note! } };
+  return { ok: true, value: { body: { contractId: b.contractId as string, documentId: b.documentId as string, stagedVersionIds: versionIds, note: note!, kind }, password } };
 }
 
 // ------------------------------------------------------------------ a request

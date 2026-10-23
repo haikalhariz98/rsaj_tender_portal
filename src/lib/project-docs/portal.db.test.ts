@@ -34,6 +34,7 @@ import { POST as versionRoute } from "@/app/supplier/projects/documents/version/
 import { exportSupplierData, readProjectDocuments } from "@/lib/portal/data-export-store";
 
 import { PROJECT_BYTES_PER_WINDOW, PROJECT_FILES_PER_WINDOW } from "./bounds";
+import { kindChoices } from "./labels";
 import { loadPortalDocumentPage, loadPortalRegister, loadPortalStart, loadWaitingForYou } from "./portal-read";
 import { findProjectFile } from "./portal-file";
 import { storeProjectFile, WindowRefused, preflightProjectUpload } from "./portal-upload";
@@ -247,20 +248,26 @@ describe("the contractor's acts, end to end through the routes", () => {
     expect(await db.projectDocument.count({ where: { contractId: closed } })).toBe(0);
   });
 
-  it("a posted kind is refused 422 by every route, and writes nothing (PW-23); an unknown field is 400 with its name", async () => {
+  // Rewritten for plan step 6 (PW-23: the kind picker lands in step 6, and step 5's refusal closes with it). The guarantee kept: a posted kind is never ignored. The create route
+  // takes it with a first version (and the version route with the first version of a document asked for: `kinds.db.test.ts`); the request route and the staging upload still
+  // refuse it 422 and write nothing; a kind that is not one of the six is a field error.
+  it("a posted kind is taken by the create route with a file, refused 422 by the request route and the upload, and 400 when it is not one of the six; an unknown field is 400 with its name", async () => {
     const c = as(await contractor());
     const contractId = await contract(c.supplierId);
     const before = await db.projectDocument.count({ where: { contractId } });
     const staged = await stage({ account: c.accountId });
-    const made = await createDoc({ contractId, title: "Claim 4", mode: "upload", versionIds: [staged], kind: "INTERIM_CLAIM" });
-    expect(made).toMatchObject({ status: 422, body: { ok: false, code: "KIND_NOT_AVAILABLE" } });
-    expect(await postJson(versionRoute, { contractId, documentId: "document_0001", versionIds: [], kind: "WORK_PROGRAMME" })).toMatchObject({ status: 422, body: { code: "KIND_NOT_AVAILABLE" } });
+    const bad = await createDoc({ contractId, title: "Claim 4", mode: "upload", versionIds: [staged], kind: "PAY_ME" });
+    expect(bad).toMatchObject({ status: 400, body: { ok: false, code: "VALIDATION", errors: { kind: expect.any(String) } } });
     expect(await postJson(requestRoute, { contractId, documentId: "document_0001", kind: "DELAY_NOTICE" })).toMatchObject({ status: 422, body: { code: "KIND_NOT_AVAILABLE" } });
     expect(await uploadFile(contractId, { extra: { kind: "INTERIM_CLAIM" } })).toMatchObject({ status: 422, body: { code: "KIND_NOT_AVAILABLE" } });
     expect(await uploadFile(contractId, { query: `?contractId=${contractId}&kind=INTERIM_CLAIM` })).toMatchObject({ status: 422, body: { code: "KIND_NOT_AVAILABLE" } });
     expect(await db.projectDocument.count({ where: { contractId } })).toBe(before);
-    // The staged file was not pinned.
+    // The staged file was not pinned by any of those.
     expect(await db.documentAttachment.count({ where: { versionId: staged } })).toBe(0);
+    // Taken with a file: the document is of that kind.
+    const made = await createDoc({ contractId, title: "Claim 4", mode: "upload", versionIds: [staged], kind: "INTERIM_CLAIM" });
+    expect(made, JSON.stringify(made)).toMatchObject({ status: 201, body: { ok: true } });
+    expect((await db.projectDocument.findUniqueOrThrow({ where: { id: made.body.documentId as string } })).kind).toBe("INTERIM_CLAIM");
 
     const unknown = await createDoc({ contractId, title: "x", mode: "request", approverPersonIds: [p.so] });
     expect(unknown).toMatchObject({ status: 400, body: { code: "VALIDATION", errors: { approverPersonIds: expect.any(String) } } });
@@ -667,7 +674,8 @@ describe("the lists: Waiting for you and the paged register (PW-4, PW-13)", () =
     const c = as(await contractor());
     const open = await contract(c.supplierId);
     const closed = await contract(c.supplierId, "CLOSED");
-    expect(await loadPortalStart(db, c.actor, open)).toEqual({ create: { allowed: true, reasons: [] }, organisationName: ORG_NAME });
+    // Plan step 6 added the kind picker (`kinds`): the six kinds by name, the declaration alone asking the password.
+    expect(await loadPortalStart(db, c.actor, open)).toEqual({ create: { allowed: true, reasons: [] }, kinds: kindChoices(), organisationName: ORG_NAME });
     const shut = await loadPortalStart(db, c.actor, closed);
     expect(shut!.create.allowed).toBe(false);
     expect(shut!.create.reasons[0]).toMatch(/closed/i);

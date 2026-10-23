@@ -5,7 +5,6 @@ export const postAwardOperations = defineOperations("post-award", "Post-award", 
   savePaymentPolicy: { label: "Save the interim payment controls", load: () => import("./core").then((m) => m.savePaymentPolicy) },
   saveKindSetting: { label: "Save the form and routing sheet of a certificate kind", load: () => import("./core").then((m) => m.saveKindSetting) },
   saveClockRule: { label: "Save a contract clock", load: () => import("./core").then((m) => m.saveClockRule) },
-  saveSubmissionServiceLevel: { label: "Save the service level of a kind of submission", load: () => import("./core").then((m) => m.saveSubmissionServiceLevel) },
   saveContractorPortalSigning: { label: "Save whether a contractor's portal account may sign", load: () => import("./core").then((m) => m.saveContractorPortalSigning) },
   saveVariationPolicy: { label: "Save the variation controls", load: () => import("./core").then((m) => m.saveVariationPolicy) },
 });

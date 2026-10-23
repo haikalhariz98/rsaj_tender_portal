@@ -5,6 +5,8 @@ import { formatDate } from "@/lib/format";
 import type { Language } from "@/lib/i18n/language";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 
+import { documentsWaitingCount } from "@/lib/project-docs/waiting-read";
+
 import { serviceState, type ServiceState } from "./submission";
 import type { SubmissionKind, SubmissionOutcome } from "./types";
 import { inOrder } from "@/lib/series";
@@ -40,8 +42,6 @@ export interface ReviewRow {
 /// How many submissions each of the queue's two lists shows on a page.
 export const REVIEW_PAGE = 50;
 
-const KINDS: SubmissionKind[] = ["WORK_PROGRAMME", "INTERIM_CLAIM", "MATERIALS_ON_SITE", "DELAY_NOTICE", "DEFECTS_RECTIFIED", "STATUTORY_DECLARATION"];
-
 /// Which submissions a read covers (AC-16): one contract's, or the whole organisation's. There is no restricted-exercise filter: a submission is on an issued contract, contract stages stay
 /// visible after issue (AC-18, AC-19), and the Superintending Officer who must answer it (FR-SUP-006, 009) is often not named on the exercise (FR-MTD-007 hides the exercise, not its contract).
 export interface ReviewScope {
@@ -53,12 +53,17 @@ const scopeWhere = (organisationId: string, scope: ReviewScope) => ({
   ...(scope.contractId ? { contractId: scope.contractId } : {}),
 });
 
-/// The queue's counts, from the whole register by count queries (never from a page): waiting, and overdue (waiting past its due day, as `serviceState` reads it: due on the day is not
-/// overdue). No day (the time zone not set): nothing is judged overdue.
+/**
+ * The queue's counts, from the whole register (never from a page).
+ * - `waiting` reads BOTH sources (plan step 6; PW-11): the earlier submissions not yet answered, and the Project workspace's documents waiting on the organisation
+ *   (`documentsWaitingCount`), so "Documents waiting" and every counter of it agree.
+ * - `overdue` and `answered` are the earlier records' own, by count queries: overdue is one still unanswered past the due day STORED on it when it was sent (due on the day is
+ *   not overdue; no day, the time zone not set, judges nothing overdue). The new documents have no due day and no overdue (PW-4), and the service-level editor is gone (PW-27).
+ */
 export async function reviewCounts(client: Tx, organisationId: string, today: string | null, scope: ReviewScope = {}): Promise<{ waiting: number; overdue: number; answered: number }> {
   const base = scopeWhere(organisationId, scope);
   const [waiting, overdue, answered] = await inOrder(
-    () => client.contractorSubmission.count({ where: { ...base, outcome: null } }),
+    () => documentsWaitingCount(client, organisationId, scope.contractId),
     () => today ? client.contractorSubmission.count({ where: { ...base, outcome: null, dueOn: { lt: dayToDate(today) } } }) : Promise.resolve(0),
     () => client.contractorSubmission.count({ where: { ...base, outcome: { not: null } } }));
   return { waiting, overdue, answered };
@@ -70,12 +75,12 @@ export interface ReviewQueue {
   /// Answered, the latest sent first, one page.
   answered: { rows: ReviewRow[]; total: number; page: number };
   overdue: number;
-  unsetKinds: SubmissionKind[];
 }
 
 /// The queue as the officers read it: each list paged in the database (4e review fix: it was one capped read, and the counts came from the cap).
 export async function loadReviewQueue(client: Tx, organisationId: string, today: string | null, pages: { waiting?: string; answered?: string } = {}, scope: ReviewScope = {}, lang: Language = "en"): Promise<ReviewQueue> {
-  const [counts, settings] = await inOrder(() => reviewCounts(client, organisationId, today, scope), () => client.contractorSubmissionSetting.findMany({ where: { organisationId }, select: { kind: true, serviceLevelDays: true } }));
+  // The earlier queue pages the earlier records alone: its waiting list is theirs, counted here (the shared `reviewCounts.waiting` reads both sources).
+  const counts = { ...(await reviewCounts(client, organisationId, today, scope)), waiting: await client.contractorSubmission.count({ where: { ...scopeWhere(organisationId, scope), outcome: null } }) };
   const waitingPage = pageOf(pages.waiting, counts.waiting, REVIEW_PAGE);
   const answeredPage = pageOf(pages.answered, counts.answered, REVIEW_PAGE);
   const base = scopeWhere(organisationId, scope);
@@ -83,7 +88,6 @@ export async function loadReviewQueue(client: Tx, organisationId: string, today:
   const [waitingRows, answeredRows] = await inOrder(
     () => client.contractorSubmission.findMany({ where: { ...base, outcome: null }, orderBy: [{ submittedAt: "asc" }, { id: "asc" }], skip: waitingPage * REVIEW_PAGE, take: REVIEW_PAGE, include }),
     () => client.contractorSubmission.findMany({ where: { ...base, outcome: { not: null } }, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], skip: answeredPage * REVIEW_PAGE, take: REVIEW_PAGE, include }));
-  const set = new Set(settings.filter((s) => s.serviceLevelDays != null).map((s) => s.kind as SubmissionKind));
   const view = (r: (typeof waitingRows)[number]): ReviewRow => {
     const sentDay = storedDay(r.submittedOn);
     return {
@@ -112,6 +116,5 @@ export async function loadReviewQueue(client: Tx, organisationId: string, today:
     waiting: { rows: waitingRows.map(view), total: counts.waiting, page: waitingPage },
     answered: { rows: answeredRows.map(view), total: counts.answered, page: answeredPage },
     overdue: counts.overdue,
-    unsetKinds: KINDS.filter((k) => !set.has(k)),
   };
 }

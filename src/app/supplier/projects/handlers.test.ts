@@ -4,12 +4,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * My Projects' three route handlers (Phase 4e), end to end through a bare `Request`: the guards in front of each (the public copy, the Origin guard, the body bound, the signed form token,
  * who is signed in), the password asked again for a signature and nothing done on a wrong one, what each refuses, and what each hands the stores. The stores and the password check behind
  * them are stand-ins; what they are asked is recorded. The database-backed half of the same promises (the rules judged on the locked rows, the attribution) is `src/lib/portal/projects/projects.db.test.ts`.
+ *
+ * REWRITTEN FOR PLAN STEP 6 (PW-11, PW-23): the submit route is closed, and the six kinds are sent from the Documents list. Each guarantee of the old submit tests that still applies keeps a test:
+ * - the guards in front of the submit route still hold, in the same order (the door stays, so a stale page is told the same way as every other post): kept unchanged, below;
+ * - past its guards, the submit route answers 410 "Send it from Documents", reads no body, asks no password and calls no store: new, replacing what it sent;
+ * - a statutory declaration's password, asked before the store and never handed to it, a wrong, locked or throttled one sending nothing: moved to the create and version routes
+ *   (`documents/handlers.test.ts`), where the declaration is now sent;
+ * - a store's 404 has one set of words, a rule's refusal is 422 in words with no code, a bad body is refused before a store is asked: kept, on the diary and the certificate.
  */
 
 const h = vi.hoisted(() => ({
   readSession: vi.fn(),
   confirm: vi.fn(),
-  send: vi.fn(),
   attest: vi.fn(),
   dispute: vi.fn(),
   sign: vi.fn(),
@@ -19,7 +25,6 @@ vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }), headers: async () => new Headers() }));
 vi.mock("@/lib/auth/supplier-session-store", () => ({ readSupplierSession: h.readSession, signOutSupplierToken: vi.fn() }));
 vi.mock("@/lib/auth/supplier-identity", () => ({ confirmSupplierPassword: h.confirm }));
-vi.mock("@/lib/portal/projects/submission-store", () => ({ sendSubmission: h.send }));
 vi.mock("@/lib/portal/projects/diary-store", () => ({ attestDiaryAsAgent: h.attest, disputeDiaryAsAgent: h.dispute }));
 vi.mock("@/lib/portal/projects/certificate-store", () => ({ signContractorBlock: h.sign }));
 
@@ -80,14 +85,13 @@ beforeEach(() => {
   for (const f of Object.values(h)) f.mockReset();
   h.readSession.mockResolvedValue({ ok: true, actor: ACTOR, session: { id: "ses1", createdAt: new Date(), lastSeenAt: new Date(), absoluteExpiresAt: new Date() } });
   h.confirm.mockResolvedValue({ ok: true, at: AT });
-  h.send.mockResolvedValue({ submissionId: "s1", routedTo: "Superintending Officer", dueOn: "2026-10-19" });
   h.attest.mockResolvedValue({ entryId: ENTRY, day: "2026-10-11" });
   h.dispute.mockResolvedValue({ entryId: ENTRY, day: "2026-10-11" });
   h.sign.mockResolvedValue({ certificateId: CERT, blockOrder: 3 });
 });
 
 const nothingDone = () => {
-  for (const f of [h.send, h.attest, h.dispute, h.sign]) expect(f).not.toHaveBeenCalled();
+  for (const f of [h.attest, h.dispute, h.sign]) expect(f).not.toHaveBeenCalled();
 };
 
 describe.each(DOORS)("%s: what a post must pass before anything is read or written", (_name, handler, url, good) => {
@@ -140,8 +144,14 @@ describe.each(DOORS)("%s: what a post must pass before anything is read or writt
 
   it("ignores a supplier, an organisation, an account or a day named in the body: the stores are given the session's", async () => {
     const res = await handler(post(url, { ...good, supplierId: "sup_someone_else", organisationId: "o_other", accountId: "acc_other", supplierAccountId: "acc_other", submittedOn: "2000-01-01", signedOn: "2000-01-01", agentAttestedOn: "2000-01-01" }));
+    // Plan step 6 (PW-11): the closed submit route hands nothing to any store at all, which holds the promise trivially; `the submit route is closed` below says so outright.
+    if (url === "/supplier/projects/submit") {
+      expect(res.status).toBe(410);
+      nothingDone();
+      return;
+    }
     expect([200, 201]).toContain(res.status);
-    const calls = [h.send, h.attest, h.dispute, h.sign].flatMap((f) => f.mock.calls);
+    const calls = [h.attest, h.dispute, h.sign].flatMap((f) => f.mock.calls);
     expect(calls).toHaveLength(1);
     const [actor, input] = calls[0]!;
     expect(actor).toBe(ACTOR);
@@ -149,34 +159,21 @@ describe.each(DOORS)("%s: what a post must pass before anything is read or writt
   });
 });
 
-describe("a signature asks the password again, and a wrong one does nothing", () => {
-  it("a statutory declaration is signed; the other kinds ask no password", async () => {
-    const declaration = { contractId: CON, kind: "STATUTORY_DECLARATION", title: "Declaration", body: "I declare.", password: "pw" };
-    expect((await submit(post("/supplier/projects/submit", declaration))).status).toBe(201);
-    expect(h.confirm).toHaveBeenCalledTimes(1);
-    expect(h.confirm.mock.calls[0]![1]).toBe("pw");
-    expect(h.send).toHaveBeenCalledWith(ACTOR, expect.objectContaining({ kind: "STATUTORY_DECLARATION", stepUpAt: AT }));
-    h.confirm.mockClear();
-    h.send.mockClear();
-    expect((await submit(post("/supplier/projects/submit", GOOD.submit))).status).toBe(201);
-    expect(h.confirm).not.toHaveBeenCalled();
-    expect(h.send).toHaveBeenCalledWith(ACTOR, expect.objectContaining({ kind: "INTERIM_CLAIM", stepUpAt: null }));
-    // The password itself never reaches a store.
-    for (const call of h.send.mock.calls) expect(JSON.stringify(call[1])).not.toContain("pw");
-  });
-
-  it("a declaration with no password is refused before the password is asked; a wrong, locked or throttled one is told so and sends nothing", async () => {
-    const declaration = { contractId: CON, kind: "STATUTORY_DECLARATION", title: "Declaration", body: "I declare." };
-    const none = await submit(post("/supplier/projects/submit", declaration));
-    expect([none.status, (await none.json()).code]).toEqual([422, "VALIDATION"]);
-    expect(h.confirm).not.toHaveBeenCalled();
-    for (const [kind, status, code] of [["WRONG", 403, "WRONG_PASSWORD"], ["LOCKED", 403, "LOCKED"], ["THROTTLED", 429, "THROTTLED"], ["POLICY_NOT_SET", 503, "CLOSED"]] as const) {
-      h.confirm.mockResolvedValue({ ok: false, kind });
-      const res = await submit(post("/supplier/projects/submit", { ...declaration, password: "nope" }));
-      expect([res.status, (await res.json()).code], kind).toEqual([status, code]);
+describe("the submit route is closed (plan step 6; PW-11, PW-23)", () => {
+  it("past its guards it answers 410, saying to send it from Documents, and asks no password and no store, whatever the body says", async () => {
+    for (const body of [GOOD.submit, { contractId: CON, kind: "STATUTORY_DECLARATION", title: "Declaration", body: "I declare.", password: "pw" }, { contractId: "x", kind: "PAY_ME" }, {}]) {
+      const res = await submit(post("/supplier/projects/submit", body));
+      const json = await res.json();
+      expect([res.status, json.code], JSON.stringify(body)).toEqual([410, "GONE"]);
+      expect(json.message).toContain("Send it from Documents");
+      expect(JSON.stringify(json)).not.toMatch(/\b[A-Z]{3,}_[A-Z_]+\b/);
     }
+    expect(h.confirm).not.toHaveBeenCalled();
     nothingDone();
   });
+});
+
+describe("a signature asks the password again, and a wrong one does nothing", () => {
 
   it("attesting a diary entry is signed; a disagreement is not", async () => {
     expect((await diary(post("/supplier/projects/diary", { contractId: CON, entryId: ENTRY, action: "attest", password: "pw" }))).status).toBe(200);
@@ -200,9 +197,10 @@ describe("a signature asks the password again, and a wrong one does nothing", ()
 });
 
 describe("what a store refuses, said in words", () => {
+  // Rewritten for plan step 6 (PW-11): the submit route calls no store, so these are held on the diary and the certificate, whose stores answer the same way.
   it("a thing that is not the contractor's to see is 404 with the same words whether it exists or not", async () => {
-    h.send.mockRejectedValue(new ProjectRefused([{ code: "NOT_FOUND", level: "block" }], 404));
-    const a = await submit(post("/supplier/projects/submit", GOOD.submit));
+    h.sign.mockRejectedValue(new ProjectRefused([{ code: "NOT_FOUND", level: "block" }], 404));
+    const a = await certificate(post("/supplier/projects/certificate", GOOD.certificate));
     h.dispute.mockRejectedValue(new ProjectRefused([{ code: "ENTRY_NOT_FOUND", level: "block" }], 404));
     const b = await diary(post("/supplier/projects/diary", GOOD.diary));
     expect(a.status).toBe(404);
@@ -210,8 +208,8 @@ describe("what a store refuses, said in words", () => {
   });
 
   it("a rule's refusal is 422 with its message, and the codes never reach the answer", async () => {
-    h.send.mockRejectedValue(new ProjectRefused([{ code: "CONTRACT_NOT_ACTIVE", level: "block" }]));
-    const res = await submit(post("/supplier/projects/submit", GOOD.submit));
+    h.dispute.mockRejectedValue(new ProjectRefused([{ code: "CONTRACT_NOT_ACTIVE", level: "block" }]));
+    const res = await diary(post("/supplier/projects/diary", GOOD.diary));
     expect(res.status).toBe(422);
     const body = await res.json();
     expect(body.message).toContain("not being administered");
@@ -219,8 +217,8 @@ describe("what a store refuses, said in words", () => {
   });
 
   it("a body that is not what the handler expects is refused before a store is asked", async () => {
-    for (const bad of [{ ...GOOD.submit, contractId: "x" }, { ...GOOD.submit, kind: "PAY_ME" }, { ...GOOD.submit, lines: "no" }, { contractId: CON }]) {
-      expect((await submit(post("/supplier/projects/submit", bad))).status).toBe(400);
+    for (const bad of [{ ...GOOD.diary, contractId: "x" }, { contractId: CON }]) {
+      expect((await diary(post("/supplier/projects/diary", bad))).status).toBe(400);
     }
     expect((await diary(post("/supplier/projects/diary", { contractId: CON, entryId: ENTRY, action: "sign" }))).status).toBe(400);
     expect((await certificate(post("/supplier/projects/certificate", { contractId: CON, certificateId: CERT, action: "approve", password: "pw" }))).status).toBe(400);

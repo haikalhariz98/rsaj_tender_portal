@@ -9,6 +9,8 @@
 
 import { CASE_SECTION_WORDS, CASE_TAB_WORDS } from "@/lib/contract/case-page-words";
 import { SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
+import { SUBMISSION_KINDS } from "@/lib/portal/projects/types";
+import { projectFaultText } from "@/lib/portal/projects/words";
 
 import type { DocumentReading, DocumentState } from "./state";
 import { takenUpWhere, type TakenUpWhere } from "./taken-up";
@@ -42,6 +44,15 @@ export const markActionWords = (outcome: "TAKEN_UP" | "RETURNED", kind: DocKind 
 
 /// The six kinds' names, as the legacy submissions name them.
 export const kindWords = (kind: DocKind): string => SUBMISSION_KIND_WORDS[kind].en;
+
+/// The kind of document whose every version is signed with the contractor's password (PW-10, AC-30).
+export const SIGNED_KIND: DocKind = "STATUTORY_DECLARATION";
+
+/**
+ * The contractor's kind picker (plan step 6): each of the six kinds by its name, and whether sending it asks the password again. The value is a form's, never shown. No hint
+ * about amounts or days goes with them: a kind carries no figure (PW-10), and the earlier form's hints (`SUBMISSION_KIND_HINT`) describe the figures it took.
+ */
+export const kindChoices = (): { value: DocKind; label: string; asksPassword: boolean }[] => SUBMISSION_KINDS.map((k) => ({ value: k, label: kindWords(k), asksPassword: k === SIGNED_KIND }));
 
 /**
  * The words beside "Taken up", with the tab they link to (PW-24). Null where no screen records the kind: then nothing is said, and no button is shown.
@@ -209,6 +220,12 @@ export function faultText(f: Finding, orgName = "the organisation"): string {
       return `${file} cannot be attached: ${str(d.words)}`;
     case "FILE_NOT_FOR_CONTRACTOR":
       return `${file} is unclassified or SULIT, and the contractor downloads project files. ${AGAIN}`;
+    // Who may bind the contractor with a statutory declaration from the portal (the organisation's switch, then the contact's own mark): the earlier submission's words.
+    case "PORTAL_SIGNING_NOT_SET":
+    case "PORTAL_SIGNING_OFF":
+    case "SIGNER_NOT_AUTHORISED_NOT_SET":
+    case "SIGNER_NOT_AUTHORISED":
+      return projectFaultText({ code: f.code }).en;
     default:
       return "Refused.";
   }

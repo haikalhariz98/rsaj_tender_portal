@@ -43,19 +43,16 @@ export const OUTCOME_WORDS: Readonly<Record<SubmissionOutcome, Words>> = {
 };
 export const OUTCOME_TONE: Readonly<Record<SubmissionOutcome, "ok" | "warn">> = { TAKEN_UP: "ok", RETURNED: "warn" };
 
-/// Decisions log, 2026-10-09, ruling on 1924(B): the unit of a service level is ASSUMED to be calendar days (the three-state honesty of AGENTS.md: stated, observed or assumed). No document the customer holds says calendar or working days, so
-/// working days wait for the customer; until then the editor and the configuration page say the unit is an assumption.
-export const SERVICE_UNIT_ASSUMED = w("Calendar days (assumed)");
-export const SERVICE_UNIT_ASSUMED_NOTE = w("Calendar days: an assumption.");
+/// Decisions log, 2026-10-09, ruling on 1924(B), the unit of a service level ASSUMED to be calendar days, was said on the editor and the configuration page. PW-27 (plan step 6)
+/// took that editor off Configuration: no screen shows or sets a service level any more, and each earlier submission shows only the due day stored on it, a plain date.
 
-export const SERVICE_NOT_SET = w("Service level not set");
 
 export function serviceWords(s: ServiceState, lang: Language = "en"): { text: string; tone: "ok" | "warn" | "err" | "neutral" | "info" } {
   const S = SUBMISSIONS_WORDS;
   const date = (d: Date | string) => formatDate(d, lang);
   switch (s.state) {
     case "NOT_SET":
-      return { text: sayWith(S.svcNotSet, lang, { notSet: say(SERVICE_NOT_SET, lang) }), tone: "neutral" };
+      return { text: say(S.svcNotSet, lang), tone: "neutral" };
     case "DUE":
       return { text: s.daysLeft === 0 ? sayWith(S.svcDueToday, lang, { date: date(s.dueOn) }) : sayWith(s.daysLeft === 1 ? S.svcDueOne : S.svcDueMany, lang, { date: date(s.dueOn), count: String(s.daysLeft) }), tone: s.daysLeft <= 2 ? "warn" : "info" };
     case "OVERDUE":

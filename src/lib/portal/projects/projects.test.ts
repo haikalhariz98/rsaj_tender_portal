@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { parseCertificateBody, parseDiaryBody, parseSubmitBody } from "./api";
 import { boardOrder, publishFaults, withdrawFaults } from "./announcements";
 import { certifiedAgainstPaid, contractorBlock, contractorReadsCertificate, contractorSigningFault, portalSigningFault, signBlockFaults, signerAuthorisationFault } from "./certificates";
-import { SERVICE_NOT_SET, serviceWords, SUBMISSION_KIND_WORDS, OUTCOME_WORDS } from "./labels";
+import { serviceWords, SUBMISSION_KIND_WORDS, OUTCOME_WORDS } from "./labels";
 import { answerFaults, disagreementFaults, dueDayOf, serviceState, submissionFaults, submissionFloodFault, SUBMISSIONS_PER_WINDOW, KIND_SHAPE, type SubmissionInput } from "./submission";
 import { SUBMISSION_KINDS, SUBMISSION_OUTCOMES } from "./types";
 import { supplierHoldsContract } from "./visibility";
@@ -115,10 +115,13 @@ describe("the service level", () => {
     expect(serviceState({ dueOn: "2026-10-12", decidedOn: "2026-10-13", today: "2026-10-20" })).toEqual({ state: "ANSWERED", dueOn: "2026-10-12", onTime: false });
     expect(serviceState({ dueOn: null, decidedOn: "2026-10-13", today: "2026-10-20" })).toEqual({ state: "ANSWERED", dueOn: null, onTime: null });
   });
-  it("says 'not set' in words, never a due day of nothing", () => {
-    expect(serviceWords({ state: "NOT_SET" }).text).toContain(SERVICE_NOT_SET.en);
+  // Rewritten for plan step 6 (PW-27): the service-level editor left Configuration, so a row with no due day stored says that plainly and never points at a setting. The
+  // guarantee kept: never a due day of nothing, and overdue still reads as an error on an earlier record that has a stored due day.
+  it("says 'no due day' in words, never a due day of nothing, and never a setting", () => {
+    expect(serviceWords({ state: "NOT_SET" }).text).toBe("No due day");
     expect(serviceWords({ state: "OVERDUE", dueOn: "2026-10-07", daysOver: 2 }).tone).toBe("err");
-    expect(serviceWords({ state: "ANSWERED", dueOn: null, onTime: null }).text).toContain("no service level");
+    expect(serviceWords({ state: "ANSWERED", dueOn: null, onTime: null }).text).toBe("Answered (no due day)");
+    for (const s of [serviceWords({ state: "NOT_SET" }).text, serviceWords({ state: "ANSWERED", dueOn: null, onTime: null }).text]) expect(s).not.toMatch(/service level|not set|configuration/i);
   });
 });
 

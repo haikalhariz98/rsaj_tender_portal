@@ -699,7 +699,8 @@ describe("configuration saves read under their lock (Phase 0, group E)", () => {
 
 const WORKSPACE_ACTIONS = "src/app/projects/[id]/document-actions.ts";
 const WORKSPACE_STORE = "src/lib/project-docs/store.ts";
-const WORKSPACE_CORES = ["createDocument", "addVersion", "requestDocument", "addApprover", "removeApprover", "decideVersion"];
+// Plan step 6 added the seventh, `markVersion` (Taken up or Returned on a version of one of the six kinds), held to the same properties.
+const WORKSPACE_CORES = ["createDocument", "addVersion", "requestDocument", "addApprover", "removeApprover", "decideVersion", "markVersion"];
 
 describe("the Project workspace: staff actions lock the contract, the store locks the document", () => {
   const actionsSrc = read(WORKSPACE_ACTIONS);
@@ -707,8 +708,8 @@ describe("the Project workspace: staff actions lock the contract, the store lock
   const acts = actions(actionsSrc);
   const cores = actions(storeSrc);
 
-  it("six actions, each reading the clock once before it enters the lock, and begun (the attribution) before it", () => {
-    expect([...acts.keys()].sort()).toEqual(["addProjectApprover", "createProjectDocument", "decideProjectVersion", "removeProjectApprover", "requestProjectDocument", "uploadProjectVersion"]);
+  it("seven actions (plan step 6 added markProjectVersion), each reading the clock once before it enters the lock, and begun (the attribution) before it", () => {
+    expect([...acts.keys()].sort()).toEqual(["addProjectApprover", "createProjectDocument", "decideProjectVersion", "markProjectVersion", "removeProjectApprover", "requestProjectDocument", "uploadProjectVersion"]);
     for (const [name, body] of acts) {
       const entry = body.indexOf("return inContract(");
       expect(entry, name).toBeGreaterThan(-1);
@@ -732,7 +733,7 @@ describe("the Project workspace: staff actions lock the contract, the store lock
     expect(lex(actionsSrc)).not.toMatch(/FOR UPDATE|FOR SHARE|\$transaction|\bdb\./);
   });
 
-  it("the store has the six cores, never locks the contract or uses the global client, and reads the clock never (it is handed in)", () => {
+  it("the store has the seven cores, never locks the contract or uses the global client, and reads the clock never (it is handed in)", () => {
     expect([...cores.keys()].sort()).toEqual([...WORKSPACE_CORES].sort());
     const code = lex(storeSrc);
     expect(code).not.toMatch(/withLockedContract|withLockedAward|inHeldContract|\bdb\./);
@@ -773,6 +774,7 @@ describe("the Project workspace: staff actions lock the contract, the store lock
         expect(body.slice(Math.max(0, m.index! - 20), m.index!), `${name}: written for a portal act too`).toMatch(/if \(act\) await\s*$/);
       }
     }
-    expect(written).toBeGreaterThanOrEqual(9);
+    // Nine in step 4; markVersion's is the tenth (plan step 6).
+    expect(written).toBeGreaterThanOrEqual(10);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { contractorFaultText, contractorReading, contractorRefusalText, WAITING_FOR_YOU } from "./contractor-view";
+import { contractorFaultText, contractorReading, contractorRefusalText, contractorTally, WAITING_FOR_YOU } from "./contractor-view";
 import { faultText } from "./labels";
 import { DAY, story } from "./story.fixture";
 import type { Finding } from "./types";
@@ -113,7 +113,8 @@ describe("an organisation document the contractor has no version of", () => {
     const s = story("ORGANISATION");
     s.addApprover("e");
     s.upload();
-    expect(contractorReading(s.doc, ORG)).toEqual({ shown: "NOT_LISTED", stateLabel: null, waitsOnYou: false, waitsOnLabel: null, visibleVersions: [], latestVisible: null });
+    // Plan step 6 added `waitsOnOrganisation` (the overview's count): an unlisted document is with nobody the contractor may know of.
+    expect(contractorReading(s.doc, ORG)).toEqual({ shown: "NOT_LISTED", stateLabel: null, waitsOnYou: false, waitsOnLabel: null, waitsOnOrganisation: false, visibleVersions: [], latestVisible: null });
   });
 
   it("asked for: Being prepared by the organisation, and nothing of its working", () => {
@@ -157,5 +158,56 @@ describe("a refusal in the contractor's words", () => {
 
   it("a code with no words of its own reads as the plain refusal, never as the code", () => {
     expect(contractorFaultText({ code: "SOMETHING_NEW", level: "block" }, ORG)).not.toContain("SOMETHING_NEW");
+  });
+});
+
+describe("the overview's figures (plan step 6): with the organisation, and returned, read only as the contractor may know them", () => {
+  it("its own document received or waiting for approval is with the organisation; rejected or returned is returned to it; an open request to it is neither", () => {
+    const received = story("CONTRACTOR", "DELAY_NOTICE");
+    received.upload();
+    expect(contractorReading(received.doc, ORG)).toMatchObject({ stateLabel: "Received", waitsOnOrganisation: true, waitsOnLabel: `Waiting on ${ORG}` });
+    const returned = story("CONTRACTOR", "INTERIM_CLAIM");
+    returned.upload();
+    returned.mark("RETURNED", "The valuation is missing its back-up.");
+    expect(contractorReading(returned.doc, ORG)).toMatchObject({ stateLabel: "Returned", waitsOnYou: true, waitsOnOrganisation: false });
+    const rejected = story("CONTRACTOR");
+    rejected.addApprover("e");
+    rejected.upload();
+    rejected.decide("e", "REJECTED", "Redo the levels");
+    const asked = story("CONTRACTOR");
+    asked.request();
+    const taken = story("CONTRACTOR", "WORK_PROGRAMME");
+    taken.upload();
+    taken.mark("TAKEN_UP");
+    expect(contractorTally([received.doc, returned.doc, rejected.doc, asked.doc, taken.doc], ORG)).toEqual({ withOrganisation: 1, returned: 2 });
+  });
+
+  it("an organisation document is with the organisation only where the contractor asked for it; its own working (a version waiting for approval) never counts (PW-28)", () => {
+    const prepared = story("ORGANISATION");
+    prepared.addApprover("e");
+    prepared.request();
+    prepared.upload();
+    expect(contractorReading(prepared.doc, ORG)).toMatchObject({ shown: "BEING_PREPARED", waitsOnOrganisation: true });
+    const working = story("ORGANISATION");
+    working.upload();
+    working.addApprover("e");
+    working.upload();
+    expect(contractorReading(working.doc, ORG)).toMatchObject({ stateLabel: "Shared", waitsOnOrganisation: false });
+    const hidden = story("ORGANISATION");
+    hidden.addApprover("e");
+    hidden.upload();
+    expect(contractorTally([prepared.doc, working.doc, hidden.doc], ORG)).toEqual({ withOrganisation: 1, returned: 0 });
+  });
+});
+
+describe("the kind and the declaration's refusals reach the contractor in its words (plan step 6)", () => {
+  it("passes on the kind's and the signature's faults as they are, never the plain refusal", () => {
+    for (const code of ["DECLARATION_NOT_SIGNED", "KIND_NOT_CONTRACTOR", "KIND_ALREADY_SET", "KIND_WITH_APPROVERS", "PORTAL_SIGNING_NOT_SET", "PORTAL_SIGNING_OFF", "SIGNER_NOT_AUTHORISED_NOT_SET", "SIGNER_NOT_AUTHORISED"]) {
+      const f = { code, level: "block" as const };
+      expect(contractorFaultText(f, ORG), code).toBe(faultText(f, ORG));
+      expect(contractorFaultText(f, ORG), code).not.toBe("That cannot be done on this document now.");
+      expect(contractorFaultText(f, ORG), code).not.toBe("Refused.");
+    }
+    expect(contractorFaultText({ code: "DECLARATION_NOT_SIGNED", level: "block" }, ORG)).toMatch(/password/);
   });
 });

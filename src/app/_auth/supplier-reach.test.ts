@@ -433,12 +433,19 @@ describe("My Projects' handlers and pages (Phase 4e)", () => {
       expect(f.src, f.file).toMatch(/await supplierPost\(request, "projects", \{ maxBytes: PROJECTS_BODY_LIMIT \}\)/);
       expect(body, f.file).toMatch(/^\{\s*const guard =/);
       expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+      // Plan step 6 (PW-11): the closed submit route reads no body past its guard; it answers 410 and nothing else.
+      if (f.file === "app/supplier/projects/submit/route.ts") {
+        expect(body, f.file).not.toMatch(/post\.fields|confirmSupplierPassword|parse/);
+        expect(body, f.file).toMatch(/410\);\s*\}$/);
+        continue;
+      }
       expect(body.indexOf("post.fields"), f.file).toBeGreaterThan(body.indexOf("guard.ok"));
     }
   });
 
   it("a signature asks the password after the body is parsed and before the store is asked, and the password is handed only to confirmSupplierPassword", () => {
-    for (const [file, store] of [["app/supplier/projects/submit/route.ts", "sendSubmission("], ["app/supplier/projects/diary/route.ts", "attestDiaryAsAgent("], ["app/supplier/projects/certificate/route.ts", "signContractorBlock("]] as const) {
+    // Plan step 6 (PW-11, PW-10): the statutory declaration moved from the closed submit route to the Documents routes, which ask its password the same way.
+    for (const [file, store] of [["app/supplier/projects/documents/create/route.ts", "contractorCreate("], ["app/supplier/projects/documents/version/route.ts", "contractorVersion("], ["app/supplier/projects/diary/route.ts", "attestDiaryAsAgent("], ["app/supplier/projects/certificate/route.ts", "signContractorBlock("]] as const) {
       const src = lex(read(file));
       const ask = src.indexOf("confirmSupplierPassword(");
       expect(ask, file).toBeGreaterThan(src.indexOf("parse"));
@@ -446,6 +453,7 @@ describe("My Projects' handlers and pages (Phase 4e)", () => {
     }
     // The password is handed to no store: no store names it in code (strings and comments blanked: a store may say in its reason that one was asked). The body parser reads it only to hand it to the handler.
     for (const file of STORES.filter((f) => !f.endsWith("/api.ts"))) expect(lex(read(file)), file).not.toMatch(/\bpassword\b/i);
+    for (const file of ["lib/project-docs/store.ts", "lib/project-docs/portal-acts.ts"]) expect(lex(read(file)), file).not.toMatch(/\bpassword\b/i);
   });
 
   it("no handler, page or store reads a supplier, an organisation, an account, a day or a time from the request", () => {
@@ -552,8 +560,10 @@ describe("the contractor's Project workspace documents (plan step 5)", () => {
       expect(body, f.file).toMatch(/^\{\s*const guard =/);
       expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
       expect(body.indexOf("post.fields"), f.file).toBeGreaterThan(body.indexOf("guard.ok"));
-      // Parsed once, in one place, and acted on only if it parsed.
-      expect(body.indexOf("(post.fields)"), f.file).toBeLessThan(body.indexOf("(actor, parsed.value)"));
+      // Parsed once, in one place, and acted on only if it parsed (plan step 6: create and version take the parsed body apart, to keep the password for the route).
+      expect(body.indexOf("(post.fields)"), f.file).toBeLessThan(body.indexOf("if (!parsed.ok) return"));
+      expect(body.indexOf("if (!parsed.ok) return"), f.file).toBeLessThan(body.indexOf("parsed.value"));
+      expect(body.indexOf("if (!parsed.ok) return"), f.file).toBeLessThan(body.search(/contractor(?:Create|Version|Request)\(/));
     }
   });
 

@@ -29,6 +29,8 @@ import { DocumentPageView } from "./documents/[documentId]/document-view";
 
 const ORG = "Jabatan Contoh";
 const open: Gate = { allowed: true, reasons: [] };
+/// Plan step 6 (server): the marks of a kind, blocked on an ordinary document, as the loader blocks them.
+const NO_KIND = { allowed: false, reasons: ["Only a document of one of the six kinds is taken up or returned."] };
 const shut = (...reasons: string[]): Gate => ({ allowed: false, reasons });
 const NO_AUTHORITY = faultText({ code: "NO_AUTHORITY", level: "block" }, ORG);
 const CLASS_UNSET = faultText({ code: "CLASS_NOT_SET", level: "block" }, ORG);
@@ -130,6 +132,7 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
       label: "Version 1",
       note: "First issue.",
       uploadedOn: "2026-10-20",
+      uploadedAtText: "20 Oct 2026 · 09:15",
       uploadedByName: "Aminah Binti Razak",
       answersRequest: false,
       files: [{ versionId: "f1", name: "layout-v1.pdf", bytes: 2048, mediaType: "application/pdf", scanLabel: "Not scanned for malware — scanning not built" }],
@@ -141,6 +144,7 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
       label: "Version 2",
       note: "",
       uploadedOn: "2026-10-22",
+      uploadedAtText: "22 Oct 2026 · 14:02",
       uploadedByName: "Aminah Binti Razak",
       answersRequest: false,
       files: [{ versionId: "f2", name: "layout-v2.pdf", bytes: 4096, mediaType: "application/pdf", scanLabel: "Not scanned for malware — scanning not built" }],
@@ -154,8 +158,11 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
   picker: [{ personId: "p3", name: "Zainab Binti Omar", officeLabel: "Representative" }],
   readerMayAct: true,
   workspaceShut: null,
-  actions: { upload: open, request: open, addApprover: open, approve: open, reject: open, decideVersionId: "v2" },
+  actions: { upload: open, request: open, addApprover: open, approve: open, reject: open, decideVersionId: "v2", markTakenUp: NO_KIND, markReturned: NO_KIND },
   classSet: true,
+  // Plan step 6 (server): an ordinary document has no marks and no "Taken up" link; the screen step renders them for a kind.
+  markWords: null,
+  takenUpLink: null,
   ...o,
 });
 const view = (p: DocumentPage) => renderToStaticMarkup(h(DocumentPageView, { page: p, contractNumber: "JKR/2026/01" }));
@@ -189,7 +196,7 @@ describe("a Project document's page", () => {
 
   it("a reader with no authority reads everything, every act is blocked, and the reason is said once", () => {
     const g = shut(NO_AUTHORITY);
-    const html = view(page({ readerMayAct: false, actions: { upload: g, request: g, addApprover: g, approve: g, reject: g, decideVersionId: "v2" }, approvers: [{ ...page().approvers[0]!, remove: g }] }));
+    const html = view(page({ readerMayAct: false, actions: { upload: g, request: g, addApprover: g, approve: g, reject: g, decideVersionId: "v2", markTakenUp: NO_KIND, markReturned: NO_KIND }, approvers: [{ ...page().approvers[0]!, remove: g }] }));
     for (const w of ["Upload a new version", "Ask for it", "Approve", "Reject", "Add approver"]) expect(html).toMatch(new RegExp(`<button[^>]*disabled[^>]*>${w}</button>`));
     expect(html).toMatch(/<button[^>]*disabled[^>]*aria-label="Remove Hassan Bin Ali as an approver"[^>]*>Remove<\/button>|<button[^>]*aria-label="Remove Hassan Bin Ali as an approver"[^>]*disabled[^>]*>Remove<\/button>/);
     // Said under the header and under the approvers, never beside each of the six buttons.
@@ -199,7 +206,7 @@ describe("a Project document's page", () => {
   });
 
   it("acts blocked for different reasons are named with theirs", () => {
-    const html = view(page({ actions: { upload: shut(faultText({ code: "UNDER_REVIEW", level: "block", data: { state: "WAITING_FOR_APPROVAL" } }, ORG)), request: shut("Already asked."), addApprover: open, approve: open, reject: open, decideVersionId: "v2" } }));
+    const html = view(page({ actions: { upload: shut(faultText({ code: "UNDER_REVIEW", level: "block", data: { state: "WAITING_FOR_APPROVAL" } }, ORG)), request: shut("Already asked."), addApprover: open, approve: open, reject: open, decideVersionId: "v2", markTakenUp: NO_KIND, markReturned: NO_KIND } }));
     expect(html).toContain("Upload a new version: Its latest version is waiting for approval.");
     expect(html).toContain("Ask for it: Already asked.");
   });
@@ -218,7 +225,7 @@ describe("a Project document's page", () => {
   });
 
   it("a document that is only asked for shows the request, not an empty list", () => {
-    const html = view(page({ state: "REQUESTED", stateLabel: "Asked for", waitsOn: "CONTRACTOR", waitsOnLabel: "Waiting on the contractor", versions: [], approvers: [], openRequest: { id: "r1", toSide: "CONTRACTOR", toLabel: "The contractor", note: "The section drawings, please.", requestedOn: "2026-10-22", answeredByVersion: null }, actions: { upload: shut("x"), request: shut("y"), addApprover: open, approve: shut("z"), reject: shut("z"), decideVersionId: null } }));
+    const html = view(page({ state: "REQUESTED", stateLabel: "Asked for", waitsOn: "CONTRACTOR", waitsOnLabel: "Waiting on the contractor", versions: [], approvers: [], openRequest: { id: "r1", toSide: "CONTRACTOR", toLabel: "The contractor", note: "The section drawings, please.", requestedOn: "2026-10-22", answeredByVersion: null }, actions: { upload: shut("x"), request: shut("y"), addApprover: open, approve: shut("z"), reject: shut("z"), decideVersionId: null, markTakenUp: NO_KIND, markReturned: NO_KIND } }));
     expect(html).toContain("Asked of the contractor");
     expect(html).toContain("The section drawings, please.");
     expect(html).toContain("22 Oct 2026");
@@ -227,7 +234,7 @@ describe("a Project document's page", () => {
   });
 
   it("with the project class unset the upload is blocked and the setting is named", () => {
-    const html = view(page({ classSet: false, actions: { upload: shut(CLASS_UNSET), request: open, addApprover: open, approve: open, reject: open, decideVersionId: "v2" } }));
+    const html = view(page({ classSet: false, actions: { upload: shut(CLASS_UNSET), request: open, addApprover: open, approve: open, reject: open, decideVersionId: "v2", markTakenUp: NO_KIND, markReturned: NO_KIND } }));
     expect(html).toMatch(/<button[^>]*disabled[^>]*>Upload a new version<\/button>/);
     expect(html).toContain("Configuration › Documents");
   });
@@ -235,7 +242,7 @@ describe("a Project document's page", () => {
   it("a contract that shuts the workspace says so once, whoever reads", () => {
     const words = "This contract is closed, so nothing more is added to it.";
     const g = shut(words);
-    const html = view(page({ workspaceShut: words, actions: { upload: g, request: g, addApprover: g, approve: g, reject: g, decideVersionId: "v2" }, approvers: [{ ...page().approvers[0]!, remove: g }] }));
+    const html = view(page({ workspaceShut: words, actions: { upload: g, request: g, addApprover: g, approve: g, reject: g, decideVersionId: "v2", markTakenUp: NO_KIND, markReturned: NO_KIND }, approvers: [{ ...page().approvers[0]!, remove: g }] }));
     expect(html).toContain(words);
     expect(html).not.toContain("Upload a new version: ");
   });

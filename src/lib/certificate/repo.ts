@@ -179,9 +179,21 @@ export { checksOf, routesOf } from "./sheet-rows";
  * `instructionOnly` is false: increment 1 has no delegation scope (6.13 adds it).
  */
 export async function officeHolders(l: LoadedContract, roleCode: string, day: string, client: Tx = db): Promise<OfficeHolders> {
-  const [roster, delegations, units] = await inOrder(() => loadRoster(l.org.code, client), () => loadDelegations(l.org.code, client), () => client.orgUnit.findMany({ where: { organisationId: l.org.id } }));
-  const unitPath = pathTo(units as unknown as OrgUnit[], l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
-  const h = holdersFor(roleCode, unitPath, roster, delegations, day);
+  const people = await loadOfficePeople(l.org, client);
+  return officeHoldersFrom(people, roleCode, l.req.sectionUnitCode || l.req.requestingUnitCode, day);
+}
+
+/// The organisation's roster, delegations and units, read once, for `officeHoldersFrom` (a reader of many contracts reads them once, not per contract).
+export type OfficePeople = { roster: Awaited<ReturnType<typeof loadRoster>>; delegations: Awaited<ReturnType<typeof loadDelegations>>; units: OrgUnit[] };
+export async function loadOfficePeople(org: { id: string; code: string }, client: Tx = db): Promise<OfficePeople> {
+  const [roster, delegations, units] = await inOrder(() => loadRoster(org.code, client), () => loadDelegations(org.code, client), () => client.orgUnit.findMany({ where: { organisationId: org.id } }));
+  return { roster, delegations, units: units as unknown as OrgUnit[] };
+}
+
+/// `officeHolders` on people already read: the office's holders for a requisition's unit on a day, and the live delegates of the whole office.
+export function officeHoldersFrom(people: OfficePeople, roleCode: string, unitCode: string, day: string): OfficeHolders {
+  const unitPath = pathTo(people.units, unitCode, dayToDate(day)).reverse().map((u) => u.code);
+  const h = holdersFor(roleCode, unitPath, people.roster, people.delegations, day);
   return { holderIds: h.holderIds, delegates: h.delegates.map((d) => ({ personId: d.personId, delegationId: d.delegation.id, instructionOnly: false })) };
 }
 

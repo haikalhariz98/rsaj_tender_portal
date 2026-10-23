@@ -28,6 +28,9 @@ export interface ContractorReading {
   waitsOnYou: boolean;
   /// "Waiting for you", `Waiting on {organisation}`, or null (nobody, or not the contractor's to know).
   waitsOnLabel: string | null;
+  /// With the organisation, as the contractor may know it (plan step 6, the overview's count): its own document waiting on the organisation (received, or waiting for
+  /// approval), an organisation document it asked for and has not yet had (asked for, or being prepared). Never an organisation document's own working (PW-28).
+  waitsOnOrganisation: boolean;
   /// The versions the contractor may see, in number order. Empty unless `shown` is VERSIONS.
   visibleVersions: readonly VersionFacts[];
   /// The latest version the contractor may see.
@@ -41,8 +44,8 @@ export const FROM_YOU = "Yours";
 
 export function contractorReading(doc: DocumentFacts, orgName: string): ContractorReading {
   const view = contractorView(doc);
-  if (view.shown === "NOT_LISTED") return { shown: "NOT_LISTED", stateLabel: null, waitsOnYou: false, waitsOnLabel: null, visibleVersions: [], latestVisible: null };
-  if (view.shown === "BEING_PREPARED") return { shown: "BEING_PREPARED", stateLabel: BEING_PREPARED(orgName), waitsOnYou: false, waitsOnLabel: null, visibleVersions: [], latestVisible: null };
+  if (view.shown === "NOT_LISTED") return { shown: "NOT_LISTED", stateLabel: null, waitsOnYou: false, waitsOnLabel: null, waitsOnOrganisation: false, visibleVersions: [], latestVisible: null };
+  if (view.shown === "BEING_PREPARED") return { shown: "BEING_PREPARED", stateLabel: BEING_PREPARED(orgName), waitsOnYou: false, waitsOnLabel: null, waitsOnOrganisation: true, visibleVersions: [], latestVisible: null };
 
   const ids = new Set(view.versionIds);
   const visibleVersions = [...doc.versions].filter((v) => ids.has(v.id)).sort((a, b) => a.number - b.number);
@@ -51,13 +54,32 @@ export function contractorReading(doc: DocumentFacts, orgName: string): Contract
 
   if (doc.side === "CONTRACTOR") {
     const waitsOnYou = waitingForContractor(doc);
-    return { shown: "VERSIONS", stateLabel: stateWords(raw.state, doc.kind), waitsOnYou, waitsOnLabel: waitsOnYou ? WAITING_FOR_YOU : raw.waitsOn === "ORGANISATION" ? `Waiting on ${orgName}` : null, visibleVersions, latestVisible };
+    const withOrganisation = !waitsOnYou && raw.waitsOn === "ORGANISATION";
+    return { shown: "VERSIONS", stateLabel: stateWords(raw.state, doc.kind), waitsOnYou, waitsOnLabel: waitsOnYou ? WAITING_FOR_YOU : withOrganisation ? `Waiting on ${orgName}` : null, waitsOnOrganisation: withOrganisation, visibleVersions, latestVisible };
   }
 
   // An organisation document. Its own working (approvers, a rejection, a newer pending version) is not the contractor's to know.
-  if (raw.state === "REQUESTED") return { shown: "VERSIONS", stateLabel: stateWords("REQUESTED", null), waitsOnYou: false, waitsOnLabel: `Waiting on ${orgName}`, visibleVersions, latestVisible };
+  if (raw.state === "REQUESTED") return { shown: "VERSIONS", stateLabel: stateWords("REQUESTED", null), waitsOnYou: false, waitsOnLabel: `Waiting on ${orgName}`, waitsOnOrganisation: true, visibleVersions, latestVisible };
   const approvedAndShown = raw.state === "APPROVED" && raw.latest !== null && latestVisible?.id === raw.latest.id;
-  return { shown: "VERSIONS", stateLabel: approvedAndShown ? stateWords("APPROVED", null) : stateWords("SHARED", null), waitsOnYou: false, waitsOnLabel: null, visibleVersions, latestVisible };
+  return { shown: "VERSIONS", stateLabel: approvedAndShown ? stateWords("APPROVED", null) : stateWords("SHARED", null), waitsOnYou: false, waitsOnLabel: null, waitsOnOrganisation: false, visibleVersions, latestVisible };
+}
+
+/**
+ * The overview's two figures of the contractor's documents (plan step 6, the portal's `overviewTab`), read only through `contractorReading`: with the organisation, and
+ * returned to it (its own document rejected or returned, so it sends a new version). An open request to the contractor is neither: it is in "Waiting for you".
+ */
+export function contractorTally(docs: readonly DocumentFacts[], orgName: string): { withOrganisation: number; returned: number } {
+  let withOrganisation = 0;
+  let returned = 0;
+  for (const d of docs) {
+    const r = contractorReading(d, orgName);
+    if (r.waitsOnOrganisation) withOrganisation++;
+    if (d.side === "CONTRACTOR" && r.waitsOnYou) {
+      const s = documentState(d).state;
+      if (s === "REJECTED" || s === "RETURNED") returned++;
+    }
+  }
+  return { withOrganisation, returned };
 }
 
 // ------------------------------------------------------------------ words of a refusal, for the contractor
@@ -86,6 +108,16 @@ const SAFE_CODES: ReadonlySet<string> = new Set([
   "FILE_UNKNOWN",
   "FILE_REFUSED",
   "NOT_FOUND",
+  // Plan step 6: the kind and the statutory declaration's password reach the portal. These say what the contractor did or must do, and nothing of the organisation's working.
+  "DECLARATION_NOT_SIGNED",
+  "KIND_NOT_CONTRACTOR",
+  "KIND_ALREADY_SET",
+  "KIND_WITH_APPROVERS",
+  "KIND_TAKES_NO_APPROVERS",
+  "PORTAL_SIGNING_NOT_SET",
+  "PORTAL_SIGNING_OFF",
+  "SIGNER_NOT_AUTHORISED_NOT_SET",
+  "SIGNER_NOT_AUTHORISED",
 ]);
 
 /**

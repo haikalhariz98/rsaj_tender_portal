@@ -8,9 +8,12 @@
  *   page and its file are, so no act can be used to learn that it exists;
  * - the refusal in the contractor's words (`contractor-view.ts`): never the approvers' working, never a screen only staff have.
  *
- * A supplier actor passes `act: null` (a portal act has no staff attribution; the supplier is named by the session on the audit row).
+ * A supplier actor passes `act: null` (a portal act has no staff attribution; the supplier is named by the session on the audit row). A statutory declaration's version is the
+ * one exception: the route asked the password again, and its moment (`stepUpAt`) is handed to the core, which writes the version's signed attribution (plan step 6). A refusal of
+ * that attribution (a stale or spent password entry) is answered 403, in its own words, as the earlier send route answered it.
  */
 
+import { AttributionRefused } from "@/lib/auth/attribution-store";
 import type { SupplierActor } from "@/lib/auth/types";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
@@ -64,6 +67,7 @@ export async function refusalOutcome(e: unknown, organisationId: string): Promis
     const message = contractorRefusalText(e, name);
     return { status: e.status, body: { ok: false, code: e.status === 409 ? "CHANGED" : "VALIDATION", message, faults: e.faults.filter((f) => f.level === "block").map((f) => ({ message: contractorFaultText(f, name) })) } };
   }
+  if (e instanceof AttributionRefused) return { status: 403, body: { ok: false, code: "SIGNATURE_REFUSED", message: e.faults.map((f) => f.en).join(" ") } };
   if (e instanceof ProjectRefused) {
     if (e.status === 404) return NOT_FOUND_OUTCOME();
     const faults = projectFaultViews(e.faults);
@@ -73,18 +77,20 @@ export async function refusalOutcome(e: unknown, organisationId: string): Promis
   return null;
 }
 
-/// A document with its first version (the staged files) or its first request. No approver: a contractor names none (PW-6).
-export function contractorCreate(actor: SupplierActor, i: CreateBody): Promise<PortalOutcome> {
+/// A document with its first version (the staged files, and optionally one of the six kinds) or its first request. No approver: a contractor names none (PW-6). `stepUpAt`: when
+/// the password was asked again, for a statutory declaration; null otherwise.
+export function contractorCreate(actor: SupplierActor, i: CreateBody, stepUpAt: Date | null = null): Promise<PortalOutcome> {
   return asContractor(actor, i.contractId, null, async (ctx) => {
-    const made = await createDocument(ctx, { kind: "SUPPLIER", actor }, { title: i.title, note: i.note, first: i.first, approverPersonIds: [] }, null);
+    const made = await createDocument(ctx, { kind: "SUPPLIER", actor }, { title: i.title, note: i.note, first: i.first, approverPersonIds: [], kind: i.kind, stepUpAt }, null);
     return { documentId: made.documentId, versionId: made.versionId };
   });
 }
 
-/// A new version of a document the contractor may open, from the staged files.
-export function contractorVersion(actor: SupplierActor, i: VersionBody): Promise<PortalOutcome> {
+/// A new version of a document the contractor may open, from the staged files; the first version of one the organisation asked for may pick one of the six kinds. `stepUpAt`:
+/// when the password was asked again (a statutory declaration's every version is signed); null where none was posted.
+export function contractorVersion(actor: SupplierActor, i: VersionBody, stepUpAt: Date | null = null): Promise<PortalOutcome> {
   return asContractor(actor, i.contractId, i.documentId, async (ctx) => {
-    const made = await addVersion(ctx, { kind: "SUPPLIER", actor }, { documentId: i.documentId, stagedVersionIds: i.stagedVersionIds, note: i.note }, null);
+    const made = await addVersion(ctx, { kind: "SUPPLIER", actor }, { documentId: i.documentId, stagedVersionIds: i.stagedVersionIds, note: i.note, kind: i.kind, stepUpAt }, null);
     return { documentId: i.documentId, versionId: made.versionId, number: made.number };
   });
 }

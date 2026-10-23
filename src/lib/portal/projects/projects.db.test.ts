@@ -1,6 +1,10 @@
+import { createHash } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { loadAttributions } from "@/lib/auth/attribution-read";
 import { AttributionRefused } from "@/lib/auth/attribution-store";
+import { attributeSupplierAct } from "@/lib/auth/supplier-attribution-store";
 import { authenticateSupplier, confirmSupplierPassword } from "@/lib/auth/supplier-identity";
 import { readSupplierSession } from "@/lib/auth/supplier-session-store";
 import type { SupplierActor } from "@/lib/auth/types";
@@ -9,7 +13,12 @@ import { db } from "@/lib/db";
 import { facts, makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 import { contractDocumentFacts } from "@/lib/certificate/register";
 import { dayPlus, dayToDate, todayIn } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
+import { parseCreateBody } from "@/lib/project-docs/portal-api";
+import { contractorCreate, contractorVersion } from "@/lib/project-docs/portal-acts";
+import type { PortalOutcome } from "@/lib/project-docs/portal-upload";
+import { loadPortalRegister } from "@/lib/project-docs/portal-read";
+import { loadRegister } from "@/lib/project-docs/register";
+import { documentsWaitingCount } from "@/lib/project-docs/waiting-read";
 
 import { loadBoard } from "./announcement-store";
 import { signContractorBlock } from "./certificate-store";
@@ -17,21 +26,42 @@ import { loadProjectContext } from "./context-store";
 import { attestDiaryAsAgent, disputeDiaryAsAgent } from "./diary-store";
 import { loadMyContracts } from "./list-store";
 import { loadReviewQueue, reviewCounts } from "./review-store";
-import { SUBMISSIONS_PER_WINDOW } from "./submission";
-import { sendSubmission } from "./submission-store";
 import { ProjectRefused } from "./types";
-import { projectFaultText } from "./words";
 import { certificatesTab, diaryTab, overviewTab, submissionsTab } from "./workspace-store";
 
 /**
- * My Projects against a real database (Phase 4e): a contractor holds only the contracts whose award names it; a submission is written as the session's supplier, routed to the S.O. office in
- * force with its due day from the service level as set (and none where it is not), the office's holders told; a statutory declaration, the agent's attestation and the contractor's block on a
- * certificate are each signed with the password asked again (a stale or missing entry writes nothing); a disagreement escalates the entry; what is not the contractor's reads as not found,
- * alike for an id that exists nowhere; and the announcements board shows the standing announcements in order.
+ * My Projects against a real database (Phase 4e): a contractor holds only the contracts whose award names it; the six kinds are sent from the Documents list as the session's account, the
+ * S.O. office told; a statutory declaration, the agent's attestation and the contractor's block on a certificate are each signed with the password asked again (a stale or missing entry
+ * writes nothing); a disagreement escalates the entry; what is not the contractor's reads as not found, alike for an id that exists nowhere; and the announcements board shows the standing
+ * announcements in order.
+ *
+ * REWRITTEN FOR PLAN STEP 6 (PW-11: the old portal send path closed when the six kinds moved into the Project workspace; PW-23). Every guarantee of the old `sendSubmission` tests that
+ * still applies keeps a test, now on the new path (`contractorCreate` / `contractorVersion`, the store behind `POST /supplier/projects/documents/create` and `/version`, after the route
+ * has asked the password); the earlier rows (`ContractorSubmission`) are seeded directly, read-only, and keep their own tests. Old -> new:
+ * - another organisation's contract is not found                 -> the same, refused 404 by the create act.
+ * - written as the session's supplier with the server's day,      -> a document of one of the six kinds written as the session's account with the server's day AND time (a delay
+ *   routed to the S.O. office, holders told, audited                  notice, FR-EOT-001), the S.O. office told (PROJECT_DOCUMENT_FROM_CONTRACTOR), audited; both lists show it.
+ * - the due day from the service level as set; a claim's amount  -> VOID by PW-4, PW-10, PW-27 (no due day, no figure). Replaced by: a kind takes no figure and no due day, and the
+ *                                                                     old setting is not read even where it is set.
+ * - routed to nobody where the contract has no S.O.               -> received all the same, and nobody is told.
+ * - refused on another's contract, a cancelled one, bad fields    -> the same: 404, the act x status row (PROJECT_WORKSPACE), a blank title, and a figure is a field the body refuses.
+ * - a declaration needs the password; stale writes nothing;       -> the same on the new path: unsigned refused, stale refused 403 with nothing written, signed writes the
+ *   the attribution names the submission                              version's SIGNED attribution naming the version; every later version is signed too.
+ * - the organisation's switch, then the contact's mark; the       -> the same four refusals, the switch asked first, a non-declaration untouched, the designation in the reason.
+ *   designation in the reason
+ * - a barred supplier's standing                                  -> the same, refused in words with nothing written.
+ * - bounded per account (SUBMISSIONS_PER_WINDOW)                   -> PW-32's window bounds the files every kind needs (held in `project-docs/portal.db.test.ts`); here, a kind
+ *                                                                     cannot be sent without a staged file, so it cannot pass the window.
+ * - the queue's counts and scope; what was sent is frozen          -> kept on directly seeded earlier rows; the counts now read both sources (a received kind is waiting too).
+ * Added: an earlier declaration's attribution still resolves (`loadAttributions`), and the earlier rows sit in both Documents lists as earlier records.
  */
 
 let organisationId: string;
 let orgCode: string;
+/// The project class set for this file's run (the Project workspace refuses every upload while it is unset), and what the shared organisation had before, to put back.
+let projectClassId = "";
+let classBefore: string | null | undefined;
+let counter = 0;
 let officerId: string;
 let soRole: string;
 const DAY = 24 * 60 * 60 * 1000;
@@ -104,7 +134,65 @@ beforeAll(async () => {
   // yes; "who may bind the contractor" below clears it and is refused.
   await portalSigning(true);
   void orgCode;
+  // Plan step 6: the six kinds are sent as Project workspace documents, whose files take the organisation's project class.
+  classBefore = (await db.documentStorePolicy.findUnique({ where: { organisationId }, select: { projectDocumentClassId: true } }))?.projectDocumentClassId;
+  projectClassId = (await db.documentClass.create({ data: { organisationId, code: `prj_project_${randomId()}`, nameEn: "Project files", classification: "INTERNAL" } })).id;
+  await db.documentStorePolicy.upsert({ where: { organisationId }, update: { projectDocumentClassId: projectClassId }, create: { organisationId, allowedMediaTypes: ["application/pdf"], maxBytes: BigInt(10_000_000), projectDocumentClassId: projectClassId } });
 });
+
+/// A file staged for a project document by the contractor's account, as the staging upload leaves it.
+async function stage(accountId: string): Promise<string> {
+  const bytes = new TextEncoder().encode(`%PDF-1.4 projects ${randomId()} ${++counter}`);
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  await db.blobContent.createMany({ data: [{ organisationId, sha256: sha, byteSize: BigInt(bytes.length), bytes, storedAt: new Date() }], skipDuplicates: true });
+  const name = `notice-${counter}.pdf`;
+  const doc = await db.document.create({ data: { organisationId, title: name, documentClassId: projectClassId, classificationSnapshot: "INTERNAL", retentionSnapshot: {}, stagedFor: "project-document" } });
+  return (await db.documentVersion.create({ data: { organisationId, documentId: doc.id, versionNo: 1, sha256: sha, byteSize: BigInt(bytes.length), mediaType: "application/pdf", originalFilename: name, recordedBySupplierAccountId: accountId, storedAt: new Date() } })).id;
+}
+
+type Kind = "WORK_PROGRAMME" | "INTERIM_CLAIM" | "MATERIALS_ON_SITE" | "DELAY_NOTICE" | "DEFECTS_RECTIFIED" | "STATUTORY_DECLARATION";
+
+/// The contractor sends one of the six kinds from the Documents list: the create act, after the route asked the password (`stepUpAt`) where it is a declaration.
+async function send(h: Holder, contractId: string, kind: Kind, o: { title?: string; files?: number; stepUpAt?: Date | null } = {}): Promise<PortalOutcome> {
+  const files: string[] = [];
+  for (let n = 0; n < (o.files ?? 1); n++) files.push(await stage(h.accountId));
+  return contractorCreate(h.actor, { contractId, title: o.title ?? "Notice", note: "", first: { upload: { stagedVersionIds: files, note: "" } }, kind }, o.stepUpAt ?? null);
+}
+
+/// A refusal of the new path, as the route answers it: the status, and the words (never a code).
+function refused(out: PortalOutcome, status: number, words: RegExp) {
+  expect(out.status, JSON.stringify(out.body)).toBe(status);
+  expect(out.body.ok).toBe(false);
+  expect(String(out.body.message), JSON.stringify(out.body)).toMatch(words);
+  expect(JSON.stringify(out.body)).not.toMatch(/\b[A-Z]{3,}_[A-Z_]+\b(?<!SIGNATURE_REFUSED|NOT_FOUND)/);
+}
+
+const documentsOf = (accountId: string) => db.projectDocument.count({ where: { organisationId, createdBySupplierAccountId: accountId } });
+
+/// An earlier submission as the closed send path left it, written directly (it is read-only now): `lines` in the same statement, as the trigger requires.
+async function earlier(h: Holder, contractId: string, o: { kind?: Kind; title?: string; dueOn?: string | null; at?: Date; lines?: number; signedAt?: Date } = {}) {
+  const when = o.at ?? new Date();
+  return db.contractorSubmission.create({
+    data: {
+      organisationId,
+      contractId,
+      supplierId: h.supplierId,
+      kind: o.kind ?? "WORK_PROGRAMME",
+      title: o.title ?? "Revision 1",
+      body: "Resequenced.",
+      aboutDay: o.kind === "MATERIALS_ON_SITE" ? D(today) : null,
+      submittedBySupplierAccountId: h.accountId,
+      submittedAt: when,
+      submittedOn: D(today),
+      signedAt: o.signedAt ?? null,
+      routedToRoleCode: soRole,
+      routedToRoleLabel: "Superintending Officer (test)",
+      serviceLevelDays: o.dueOn ? 1 : null,
+      dueOn: o.dueOn ? D(o.dueOn) : null,
+      ...(o.lines ? { lines: { create: Array.from({ length: o.lines }, (_, n) => ({ sortOrder: n + 1, description: "Pipe", quantity: "4 m", location: "Site", value: "100.00" })) } } : {}),
+    },
+  });
+}
 
 const portalSigning = (v: boolean | null) =>
   db.postAwardPolicy.upsert({ where: { organisationId }, update: { contractorPortalSigning: v, contractorPortalSigningProvenance: v == null ? null : "ASSUMED" }, create: { organisationId, contractorPortalSigning: v, contractorPortalSigningProvenance: v == null ? null : "ASSUMED" } });
@@ -114,6 +202,7 @@ afterAll(async () => {
   await db.announcement.deleteMany({ where: { organisationId } });
   await db.contractorSubmissionSetting.deleteMany({ where: { organisationId } });
   await portalSigning(null);
+  if (classBefore !== undefined) await db.documentStorePolicy.update({ where: { organisationId }, data: { projectDocumentClassId: classBefore } });
 });
 
 describe("which contracts a contractor holds", () => {
@@ -141,97 +230,124 @@ describe("which contracts a contractor holds", () => {
     const aw = await db.award.create({ data: { organisationId: other.id, reference: `OTH/AW/${randomId()}`, exerciseId: ex.id, instrumentKind: "WORK_INDENT", awardeeName: "x", awardedValue: "1.00", completionPeriod: 1, completionUnit: "DAYS", status: "ISSUED", vendorId: mine.supplierId } });
     const c = await db.contract.create({ data: { organisationId: other.id, number: `OTH/CON/${randomId()}`, numberSource: "SERIES", numberedOn: D(at(-1)), awardId: aw.id, contractSum: "1.00", status: "ACTIVE" } });
     expect(await loadProjectContext(db, mine.actor, c.id)).toBeNull();
-    await refusedWith(sendSubmission(mine.actor, { contractId: c.id, kind: "WORK_PROGRAMME", title: "x", body: "y", amount: "", aboutDay: "", lines: [], stepUpAt: null }), "NOT_FOUND", 404);
+    // Rewritten for PW-11: the create act that replaced the send path answers the same 404, and writes nothing.
+    refused(await send(mine, c.id, "WORK_PROGRAMME"), 404, /not something you can open/);
+    expect(await documentsOf(mine.accountId)).toBe(0);
   });
 });
 
-describe("a contractor's submission", () => {
-  it("is written as the session's supplier with the server's day, routed to the S.O. office with the holders told, frozen with its lines, and audited; no service level means no due day, said", async () => {
+describe("a contractor's notice of one of the six kinds, sent from the Documents list (rewritten for PW-11)", () => {
+  it("is written as the session's account with the server's day and time (a delay notice, FR-EOT-001), the S.O. office told, audited, and listed on both sides; it carries no due day", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId });
-    const sent = await sendSubmission(h.actor, {
-      contractId: c.id,
-      kind: "MATERIALS_ON_SITE",
-      title: "  Materials on site, September ",
-      body: "Pipes and fittings delivered to chainage 1+200.",
-      amount: "",
-      aboutDay: today,
-      lines: [{ description: "DI pipe 300 mm", quantity: "40 m", location: "Chainage 1+200", value: "18000.00" }],
-      stepUpAt: null,
-    });
-    const row = await db.contractorSubmission.findUniqueOrThrow({ where: { id: sent.submissionId }, include: { lines: true } });
-    expect(row).toMatchObject({ supplierId: h.supplierId, submittedBySupplierAccountId: h.accountId, kind: "MATERIALS_ON_SITE", title: "Materials on site, September", routedToRoleCode: soRole, routedToRoleLabel: "Superintending Officer (test)", serviceLevelDays: null, dueOn: null, outcome: null, signedAt: null, amount: null });
-    expect(row.lines).toHaveLength(1);
-    expect(row.lines[0]!.value.toString()).toBe("18000");
-    expect(sent).toMatchObject({ routedTo: "Superintending Officer (test)", dueOn: null });
-    const audit = await db.auditEntry.findFirstOrThrow({ where: { entity: "ContractorSubmission", entityId: row.id }, orderBy: { at: "desc" } });
+    const before = new Date(Math.floor(Date.now() / 1000) * 1000 - 1000);
+    const sent = await send(h, c.id, "DELAY_NOTICE", { title: "  Delay at the culvert " });
+    const after = new Date(Date.now() + 1000);
+    expect(sent, JSON.stringify(sent)).toMatchObject({ status: 201, body: { ok: true } });
+    const doc = await db.projectDocument.findUniqueOrThrow({ where: { id: sent.body.documentId as string }, include: { versions: true } });
+    expect(doc).toMatchObject({ side: "CONTRACTOR", kind: "DELAY_NOTICE", title: "Delay at the culvert", createdBySupplierAccountId: h.accountId, createdByPersonId: null });
+    const v = doc.versions[0]!;
+    expect(v).toMatchObject({ number: 1, uploadedBySupplierAccountId: h.accountId, uploadedByPersonId: null });
+    // The server's moment, never one the request named, and the organisation's day of it.
+    expect(v.uploadedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect(v.uploadedAt.getTime()).toBeLessThanOrEqual(after.getTime());
+    expect(v.uploadedOn.toISOString().slice(0, 10)).toBe(today);
+    const audit = await db.auditEntry.findFirstOrThrow({ where: { entity: "ProjectDocumentVersion", entityId: v.id } });
     expect(audit).toMatchObject({ action: "CREATE", actorSupplierAccountId: h.accountId });
-    // The S.O. office's holder is told once, in the portal, with no amount; a second identical act would not tell twice (the key).
-    const notices = await db.staffNotice.findMany({ where: { subjectEntity: "ContractorSubmission", subjectId: row.id } });
-    expect(notices.map((n) => [n.recipientPersonId, n.kind])).toEqual([[officerId, "CONTRACTOR_SUBMISSION"]]);
-    expect(notices[0]!.body).toContain("No service level is set");
-    expect(notices[0]!.body).not.toContain("18000");
-    // The contractor reads it back with its state, and the officers' queue shows it waiting with the service level not set.
-    const tab = await submissionsTab(db, h.actor, (await loadProjectContext(db, h.actor, c.id))!);
-    expect(tab.rows.find((r) => r.id === row.id)).toMatchObject({ service: { state: "NOT_SET" }, routedTo: "Superintending Officer (test)", lines: [{ value: formatMoney(18_000_00n) }] });
-    // 4e review fix: the queue pages its two lists in the database, longest waiting first. The test organisation is shared and keeps earlier runs' rows, so this newest
-    // submission is on the last page (a page past the end reads as the last).
-    const queue = await loadReviewQueue(db, organisationId, today, { waiting: "999999" });
-    expect(queue.waiting.rows.find((r) => r.id === row.id)).toMatchObject({ outcome: null, contractor: "A Contractor", service: { state: "NOT_SET" } });
-    expect(queue.unsetKinds).toContain("MATERIALS_ON_SITE");
+    expect(JSON.stringify(audit.changes)).toMatch(/received/i);
+    // The S.O. office's holder is told once, in the inbox, with no figure.
+    const notices = await db.staffNotice.findMany({ where: { organisationId, subjectId: v.id } });
+    expect(notices.map((n) => [n.recipientPersonId, n.kind])).toEqual([[officerId, "PROJECT_DOCUMENT_FROM_CONTRACTOR"]]);
+    // Both lists show it received, waiting on the organisation; the organisation's own list says so in its configured name.
+    const staffList = await loadRegister(db, { organisationId, contractId: c.id, orgName: "Org" });
+    expect(staffList.rows[0]).toMatchObject({ id: doc.id, kindLabel: "Notice of a cause of delay", stateLabel: "Received", waitsOn: "ORGANISATION" });
+    const portalList = (await loadPortalRegister(db, h.actor, c.id))!;
+    expect(portalList.rows[0]).toMatchObject({ id: doc.id, stateLabel: "Received", waitsOnYou: false });
+    expect(JSON.stringify(portalList.rows[0])).not.toMatch(/due|overdue/i);
   });
 
-  it("takes the due day from the kind's service level as it stands when sent (calendar days), and a claim carries its amount", async () => {
+  it("takes no figure and no due day (PW-4, PW-10): an amount or a day is a field the body refuses, and the old service-level setting is not read even where it is set (PW-27)", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId });
+    for (const extra of [{ amount: "12500.50" }, { aboutDay: today }, { lines: [{ description: "Pipe" }] }]) {
+      const parsed = parseCreateBody({ contractId: c.id, title: "Claim 1", mode: "upload", versionIds: ["version_00001"], kind: "INTERIM_CLAIM", ...extra });
+      expect(parsed, JSON.stringify(extra)).toMatchObject({ ok: false, status: 400, errors: { [Object.keys(extra)[0]!]: expect.any(String) } });
+    }
     await db.contractorSubmissionSetting.upsert({ where: { organisationId_kind: { organisationId, kind: "INTERIM_CLAIM" } }, update: { serviceLevelDays: 7, provenance: "ASSUMED" }, create: { organisationId, kind: "INTERIM_CLAIM", serviceLevelDays: 7, provenance: "ASSUMED" } });
-    const sent = await sendSubmission(h.actor, { contractId: c.id, kind: "INTERIM_CLAIM", title: "Claim 1", body: "Work to date.", amount: "12500.50", aboutDay: today, lines: [], stepUpAt: null });
-    expect(sent.dueOn).toBe(dayPlus(today, 7));
-    const row = await db.contractorSubmission.findUniqueOrThrow({ where: { id: sent.submissionId } });
-    expect(row.serviceLevelDays).toBe(7);
-    expect(row.amount?.toString()).toBe("12500.5");
-    expect((await db.staffNotice.findFirst({ where: { subjectEntity: "ContractorSubmission", subjectId: row.id } }))?.body).toContain("due to be answered by");
-    await db.contractorSubmissionSetting.update({ where: { organisationId_kind: { organisationId, kind: "INTERIM_CLAIM" } }, data: { serviceLevelDays: null, provenance: null } });
+    try {
+      const sent = await send(h, c.id, "INTERIM_CLAIM", { title: "Claim 1" });
+      expect(sent.status).toBe(201);
+      const page = (await loadPortalRegister(db, h.actor, c.id))!.rows.find((r) => r.id === sent.body.documentId)!;
+      expect(JSON.stringify(page)).not.toMatch(/due|7 days|overdue/i);
+      const audits = await db.auditEntry.findMany({ where: { organisationId, entityId: { in: [sent.body.documentId as string, sent.body.versionId as string] } } });
+      expect(JSON.stringify(audits.map((a) => a.changes))).not.toMatch(/due|service level/i);
+    } finally {
+      await db.contractorSubmissionSetting.update({ where: { organisationId_kind: { organisationId, kind: "INTERIM_CLAIM" } }, data: { serviceLevelDays: null, provenance: null } });
+    }
   });
 
-  it("is routed to nobody, and says so, where the contract has no Superintending Officer", async () => {
+  it("is received all the same where the contract has no Superintending Officer, and nobody is told", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId, so: false });
-    const sent = await sendSubmission(h.actor, { contractId: c.id, kind: "DEFECTS_RECTIFIED", title: "Defects made good", body: "Items 1 to 4 of the schedule.", amount: "", aboutDay: "", lines: [], stepUpAt: null });
-    expect(sent.routedTo).toBeNull();
-    expect(await db.staffNotice.count({ where: { subjectEntity: "ContractorSubmission", subjectId: sent.submissionId } })).toBe(0);
+    const sent = await send(h, c.id, "DEFECTS_RECTIFIED", { title: "Defects made good" });
+    expect(sent.status).toBe(201);
+    expect(await db.staffNotice.count({ where: { organisationId, subjectId: sent.body.versionId as string } })).toBe(0);
     expect((await overviewTab(db, h.actor, (await loadProjectContext(db, h.actor, c.id))!)).facts.soOffice).toBeNull();
   });
 
-  it("is refused, with nothing written, on another contractor's contract, on a cancelled one, and for fields the kind does not take", async () => {
+  it("is refused, with nothing written, on another contractor's contract, on a cancelled one, with no title, and with no file", async () => {
     const h = await supplier();
     const other = await supplier();
     const theirs = await contract({ vendorId: other.supplierId });
     const cancelled = await contract({ vendorId: h.supplierId, status: "CANCELLED" });
     const mine = await contract({ vendorId: h.supplierId });
-    const base = { kind: "WORK_PROGRAMME" as const, title: "Revision 2", body: "Resequenced.", amount: "", aboutDay: "", lines: [], stepUpAt: null };
-    await refusedWith(sendSubmission(h.actor, { ...base, contractId: theirs.id }), "NOT_FOUND", 404);
-    await refusedWith(sendSubmission(h.actor, { ...base, contractId: cancelled.id }), "CONTRACT_NOT_ACTIVE");
-    await refusedWith(sendSubmission(h.actor, { ...base, contractId: mine.id, title: " " }), "TITLE_REQUIRED");
-    await refusedWith(sendSubmission(h.actor, { ...base, contractId: mine.id, amount: "1.00" }), "AMOUNT_NOT_ON_KIND");
-    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId } })).toBe(0);
+    refused(await send(h, theirs.id, "WORK_PROGRAMME"), 404, /not something you can open/);
+    refused(await send(h, cancelled.id, "WORK_PROGRAMME"), 422, /cancel/i);
+    refused(await send(h, mine.id, "WORK_PROGRAMME", { title: " " }), 422, /title/);
+    // The old per-account bound (SUBMISSIONS_PER_WINDOW) is PW-32's window now, on the files every kind needs (`project-docs/portal.db.test.ts`): no file, no kind.
+    refused(await send(h, mine.id, "WORK_PROGRAMME", { files: 0 }), 422, /at least one file/);
+    expect(await documentsOf(h.accountId)).toBe(0);
+    expect(await db.staffNotice.count({ where: { organisationId, kind: "PROJECT_DOCUMENT_FROM_CONTRACTOR", body: { contains: mine.id } } })).toBe(0);
   });
 
-  it("a statutory declaration is signed with the password asked again: without it nothing is written, with it the attribution names the submission", async () => {
+  it("a statutory declaration is signed with the password asked again: without it nothing is written, a stale one writes nothing, and the attribution names the version signed; every later version is signed too", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId });
-    const declaration = { contractId: c.id, kind: "STATUTORY_DECLARATION" as const, title: "Statutory declaration", body: "I declare that all sums due to sub-contractors have been paid.", amount: "", aboutDay: "", lines: [] };
-    await refusedWith(sendSubmission(h.actor, { ...declaration, stepUpAt: null }), "PASSWORD_REQUIRED");
-    // A stale moment (not the session's) is refused by the attribution and the submission rolls back with it.
-    await expect(sendSubmission(h.actor, { ...declaration, stepUpAt: new Date(Date.now() - 60_000) })).rejects.toBeInstanceOf(AttributionRefused);
-    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId } })).toBe(0);
-    const at = await stepUp(h);
-    const sent = await sendSubmission(h.actor, { ...declaration, stepUpAt: at });
-    const row = await db.contractorSubmission.findUniqueOrThrow({ where: { id: sent.submissionId } });
-    expect(row.signedAt?.getTime()).toBe(at.getTime());
-    const attribution = await db.actAttribution.findFirstOrThrow({ where: { entity: "ContractorSubmission", entityId: row.id, slot: "submittedBy" } });
-    expect(attribution).toMatchObject({ subjectSupplierAccountId: h.accountId, mode: "SIGNED", documentEntity: "ContractorSubmission", documentId: row.id });
-    expect(attribution.stepUpAt?.getTime()).toBe(at.getTime());
+    refused(await send(h, c.id, "STATUTORY_DECLARATION"), 422, /signed with your password/);
+    // A stale moment (not the session's) is refused by the attribution, and the document rolls back with it.
+    refused(await send(h, c.id, "STATUTORY_DECLARATION", { stepUpAt: new Date(Date.now() - 60_000) }), 403, /./);
+    expect(await documentsOf(h.accountId)).toBe(0);
+    const at1 = await stepUp(h);
+    const sent = await send(h, c.id, "STATUTORY_DECLARATION", { title: "Declaration lodged", stepUpAt: at1 });
+    expect(sent, JSON.stringify(sent)).toMatchObject({ status: 201 });
+    const v1 = sent.body.versionId as string;
+    const a1 = await db.actAttribution.findFirstOrThrow({ where: { entity: "ProjectDocumentVersion", entityId: v1, slot: "uploadedBySupplierAccount" } });
+    expect(a1).toMatchObject({ subjectSupplierAccountId: h.accountId, mode: "SIGNED", documentEntity: "ProjectDocumentVersion", documentId: v1 });
+    expect(a1.stepUpAt?.getTime()).toBe(at1.getTime());
+    // One password entry signs one act: the document itself carries no attribution.
+    expect(await db.actAttribution.count({ where: { entity: "ProjectDocument", entityId: sent.body.documentId as string } })).toBe(0);
+    // Version 2 of a declaration is signed too: refused without, signed with.
+    const documentId = sent.body.documentId as string;
+    refused(await contractorVersion(h.actor, { contractId: c.id, documentId, stagedVersionIds: [await stage(h.accountId)], note: "", kind: null }, null), 422, /signed with your password/);
+    const at2 = await stepUp(h);
+    const v2 = await contractorVersion(h.actor, { contractId: c.id, documentId, stagedVersionIds: [await stage(h.accountId)], note: "Corrected.", kind: null }, at2);
+    expect(v2, JSON.stringify(v2)).toMatchObject({ status: 201, body: { number: 2 } });
+    expect((await db.actAttribution.findFirstOrThrow({ where: { entity: "ProjectDocumentVersion", entityId: v2.body.versionId as string } })).stepUpAt?.getTime()).toBe(at2.getTime());
+    // An ordinary kind's version writes no attribution: it is an upload, which signs nothing.
+    const programme = await send(h, c.id, "WORK_PROGRAMME", { title: "Programme" });
+    expect(await db.actAttribution.count({ where: { entity: "ProjectDocumentVersion", entityId: programme.body.versionId as string } })).toBe(0);
+  });
+
+  it("an earlier declaration's signed attribution still resolves (PW-11): the slot stays, and the reader says who signed", async () => {
+    const h = await supplier();
+    const c = await contract({ vendorId: h.supplierId });
+    const at1 = await stepUp(h);
+    const row = await earlier(h, c.id, { kind: "STATUTORY_DECLARATION", title: "Declaration lodged", signedAt: at1 });
+    await attributeSupplierAct(db, { actor: h.actor, entity: "ContractorSubmission", entityId: row.id, slot: "submittedBy", stepUpAt: at1, document: { entity: "ContractorSubmission", id: row.id }, reason: "Signed with the password (earlier record)." });
+    const index = await loadAttributions(db, organisationId, [{ entity: "ContractorSubmission", ids: [row.id], slot: "submittedBy" }]);
+    const read = index.read({ entity: "ContractorSubmission", id: row.id, slot: "submittedBy" }, h.actor.displayName);
+    expect(read.state).toBe("SIGNED");
+    expect(read.en).toContain(h.actor.displayName);
   });
 });
 
@@ -395,48 +511,46 @@ describe("the announcements board", () => {
   });
 });
 
-describe("who may bind the contractor from the portal (4e review fix)", () => {
+describe("who may bind the contractor from the portal (4e review fix; rewritten for PW-11)", () => {
   it("unset, the statutory declaration and the certificate block are refused in words and nothing is written; decided no, the same; the attribution names the signatory's designation", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId });
-    const declaration = { contractId: c.id, kind: "STATUTORY_DECLARATION" as const, title: "Statutory declaration", body: "All sums due to sub-contractors are paid.", amount: "", aboutDay: "", lines: [] };
     try {
       await portalSigning(null);
-      await refusedWith(sendSubmission(h.actor, { ...declaration, stepUpAt: await stepUp(h) }), "PORTAL_SIGNING_NOT_SET");
+      refused(await send(h, c.id, "STATUTORY_DECLARATION", { stepUpAt: await stepUp(h) }), 422, /not yet decided whether a contractor may sign/);
       await portalSigning(false);
-      await refusedWith(sendSubmission(h.actor, { ...declaration, stepUpAt: await stepUp(h) }), "PORTAL_SIGNING_OFF");
-      expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId } })).toBe(0);
-      // A submission that signs nothing is not touched by the switch.
-      await sendSubmission(h.actor, { contractId: c.id, kind: "WORK_PROGRAMME", title: "Revision 2", body: "Resequenced.", amount: "", aboutDay: "", lines: [], stepUpAt: null });
+      refused(await send(h, c.id, "STATUTORY_DECLARATION", { stepUpAt: await stepUp(h) }), 422, /on paper only/);
+      expect(await documentsOf(h.accountId)).toBe(0);
+      // A kind that signs nothing is not touched by the switch.
+      expect((await send(h, c.id, "WORK_PROGRAMME", { title: "Revision 2" })).status).toBe(201);
       const tab = await submissionsTab(db, h.actor, (await loadProjectContext(db, h.actor, c.id))!);
       expect(tab.signing).toMatch(/on paper only/);
     } finally {
       await portalSigning(true);
     }
     await db.supplierContact.update({ where: { id: h.actor.contactId }, data: { designation: "Director" } });
-    const sent = await sendSubmission(h.actor, { ...declaration, stepUpAt: await stepUp(h) });
-    const attribution = await db.actAttribution.findFirstOrThrow({ where: { entity: "ContractorSubmission", entityId: sent.submissionId, slot: "submittedBy" } });
+    const sent = await send(h, c.id, "STATUTORY_DECLARATION", { stepUpAt: await stepUp(h) });
+    const attribution = await db.actAttribution.findFirstOrThrow({ where: { entity: "ProjectDocumentVersion", entityId: sent.body.versionId as string, slot: "uploadedBySupplierAccount" } });
     expect(attribution.reason).toContain(`by ${h.actor.displayName} (Director)`);
   });
 });
 
-describe("who signs for the company (ruling on 1928(3))", () => {
+describe("who signs for the company (ruling on 1928(3); rewritten for PW-11)", () => {
   it("a contact an officer has not marked, or marked no, is refused the declaration notice, naming why; marked yes, it is sent", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId });
-    const notice = { contractId: c.id, kind: "STATUTORY_DECLARATION" as const, title: "Notice", body: "The declaration is lodged.", amount: "", aboutDay: "", lines: [] };
     await db.supplierContact.update({ where: { id: h.actor.contactId }, data: { authorisedToSignForContractor: null } });
-    await refusedWith(sendSubmission(h.actor, { ...notice, stepUpAt: await stepUp(h) }), "SIGNER_NOT_AUTHORISED_NOT_SET");
+    refused(await send(h, c.id, "STATUTORY_DECLARATION", { stepUpAt: await stepUp(h) }), 422, /not recorded that you may sign for your company/);
     await db.supplierContact.update({ where: { id: h.actor.contactId }, data: { authorisedToSignForContractor: false } });
-    await refusedWith(sendSubmission(h.actor, { ...notice, stepUpAt: await stepUp(h) }), "SIGNER_NOT_AUTHORISED");
-    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId } })).toBe(0);
+    refused(await send(h, c.id, "STATUTORY_DECLARATION", { stepUpAt: await stepUp(h) }), 422, /do not sign for your company/);
+    expect(await documentsOf(h.accountId)).toBe(0);
     const tab = await submissionsTab(db, h.actor, (await loadProjectContext(db, h.actor, c.id))!);
     expect(tab.signing).toMatch(/do not sign for your company/);
-    // A submission that signs nothing is not touched by the mark.
-    await sendSubmission(h.actor, { contractId: c.id, kind: "WORK_PROGRAMME", title: "Revision 3", body: "Resequenced.", amount: "", aboutDay: "", lines: [], stepUpAt: null });
+    // A kind that signs nothing is not touched by the mark.
+    expect((await send(h, c.id, "WORK_PROGRAMME", { title: "Revision 3" })).status).toBe(201);
     await db.supplierContact.update({ where: { id: h.actor.contactId }, data: { authorisedToSignForContractor: true } });
-    await sendSubmission(h.actor, { ...notice, stepUpAt: await stepUp(h) });
-    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId, kind: "STATUTORY_DECLARATION" } })).toBe(1);
+    expect((await send(h, c.id, "STATUTORY_DECLARATION", { stepUpAt: await stepUp(h) })).status).toBe(201);
+    expect(await db.projectDocument.count({ where: { organisationId, createdBySupplierAccountId: h.accountId, kind: "STATUTORY_DECLARATION" } })).toBe(1);
   });
 
   it("the organisation's switch is asked first: off, a marked contact is still refused for the switch", async () => {
@@ -444,22 +558,21 @@ describe("who signs for the company (ruling on 1928(3))", () => {
     const c = await contract({ vendorId: h.supplierId });
     try {
       await portalSigning(false);
-      await refusedWith(sendSubmission(h.actor, { contractId: c.id, kind: "STATUTORY_DECLARATION", title: "Notice", body: "Lodged.", amount: "", aboutDay: "", lines: [], stepUpAt: await stepUp(h) }), "PORTAL_SIGNING_OFF");
+      refused(await send(h, c.id, "STATUTORY_DECLARATION", { stepUpAt: await stepUp(h) }), 422, /on paper only/);
     } finally {
       await portalSigning(true);
     }
   });
 });
 
-describe("a supplier whose standing bars it may read and do nothing else (ruling on 1875(3))", () => {
-  const programme = (contractId: string) => ({ contractId, kind: "WORK_PROGRAMME" as const, title: "Revision 4", body: "Resequenced.", amount: "", aboutDay: "", lines: [], stepUpAt: null });
-
-  it("a rejected supplier is refused a submission, in words, with nothing written, and still reads its contract", async () => {
+describe("a supplier whose standing bars it may read and do nothing else (ruling on 1875(3); rewritten for PW-11)", () => {
+  it("a rejected supplier is refused a document, in words, with nothing written, and still reads its contract", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId });
     await db.supplier.update({ where: { id: h.supplierId }, data: { status: "REJECTED" } });
-    await refusedWith(sendSubmission(h.actor, programme(c.id)), "SUPPLIER_STANDING_BARS");
-    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId } })).toBe(0);
+    const out = await send(h, c.id, "WORK_PROGRAMME");
+    expect(out.status).toBe(422);
+    expect(await documentsOf(h.accountId)).toBe(0);
     expect(await loadMyContracts(db, h.actor)).toBeDefined();
   });
 
@@ -468,33 +581,10 @@ describe("a supplier whose standing bars it may read and do nothing else (ruling
     const c = await contract({ vendorId: h.supplierId });
     const reason = await db.standingReason.create({ data: { organisationId, code: `T_${randomId()}`, nameEn: "A test reason", appliesTo: "SUSPEND" } });
     const event = await db.standingEvent.create({ data: { organisationId, supplierId: h.supplierId, kind: "SUSPEND", reasonId: reason.id, reasonSnapshot: "Test", effectiveOn: D(at(-1)), flaggedDocumentIds: [], recordedByPersonId: officerId, recordedAt: new Date() } });
-    const e = await sendSubmission(h.actor, programme(c.id)).then(() => null, (x) => x);
-    expect(e).toBeInstanceOf(ProjectRefused);
-    expect(projectFaultText((e as ProjectRefused).faults[0]).en).toMatch(/suspended/);
+    refused(await send(h, c.id, "WORK_PROGRAMME"), 422, /suspended/);
     await db.standingEvent.create({ data: { organisationId, supplierId: h.supplierId, kind: "REINSTATE", reasonSnapshot: "Test", effectiveOn: D(at(0)), flaggedDocumentIds: [], reinstatesEventId: event.id, recordedByPersonId: officerId, recordedAt: new Date() } });
-    await sendSubmission(h.actor, programme(c.id));
-    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId } })).toBe(1);
-  });
-});
-
-describe("a submission is bounded per account (4e review fix)", () => {
-  it(`past ${SUBMISSIONS_PER_WINDOW} in the window, the next is refused with nothing written and no notice`, async () => {
-    const h = await supplier();
-    const c = await contract({ vendorId: h.supplierId });
-    for (let n = 0; n < SUBMISSIONS_PER_WINDOW; n++) {
-      await db.contractorSubmission.create({ data: { organisationId, contractId: c.id, supplierId: h.supplierId, kind: "WORK_PROGRAMME", title: `Revision ${n}`, body: "x", submittedBySupplierAccountId: h.accountId, submittedAt: new Date(), submittedOn: D(today) } });
-    }
-    const notices = await db.staffNotice.count({ where: { subjectEntity: "ContractorSubmission", recipientPersonId: officerId } });
-    const e = await sendSubmission(h.actor, { contractId: c.id, kind: "WORK_PROGRAMME", title: "One more", body: "x", amount: "", aboutDay: "", lines: [], stepUpAt: null }).then(() => null, (x) => x);
-    expect(e).toBeInstanceOf(ProjectRefused);
-    expect((e as ProjectRefused).faults.map((f) => f.code)).toEqual(["TOO_MANY_SUBMISSIONS"]);
-    expect((e as ProjectRefused).status).toBe(429);
-    expect(await db.contractorSubmission.count({ where: { submittedBySupplierAccountId: h.accountId } })).toBe(SUBMISSIONS_PER_WINDOW);
-    expect(await db.staffNotice.count({ where: { subjectEntity: "ContractorSubmission", recipientPersonId: officerId } })).toBe(notices);
-    // Another account of another supplier is not held back by this one's count.
-    const other = await supplier();
-    const theirs = await contract({ vendorId: other.supplierId });
-    await sendSubmission(other.actor, { contractId: theirs.id, kind: "WORK_PROGRAMME", title: "Revision 1", body: "x", amount: "", aboutDay: "", lines: [], stepUpAt: null });
+    expect((await send(h, c.id, "WORK_PROGRAMME")).status).toBe(201);
+    expect(await documentsOf(h.accountId)).toBe(1);
   });
 });
 
@@ -511,9 +601,16 @@ describe("the review queue's counts are the whole register's (4e review fix)", (
     expect(after.waiting - before.waiting).toBe(3);
     expect(after.overdue - before.overdue).toBe(1);
     expect((await reviewCounts(db, organisationId, null)).overdue).toBe(0);
+    // The earlier queue pages the earlier rows alone; its overdue is theirs.
     const q = await loadReviewQueue(db, organisationId, today);
-    expect(q.waiting.total).toBe(after.waiting);
+    expect(q.waiting.total).toBe(await db.contractorSubmission.count({ where: { organisationId, outcome: null } }));
     expect(q.overdue).toBe(after.overdue);
+    // Plan step 6 (PW-11): waiting reads both sources. A received kind waits on the organisation too, and is never overdue (it has no due day, PW-4).
+    expect((await send(h, c.id, "DELAY_NOTICE")).status).toBe(201);
+    const both = await reviewCounts(db, organisationId, today);
+    expect(both.waiting - after.waiting).toBe(1);
+    expect(both.overdue).toBe(after.overdue);
+    expect(await documentsWaitingCount(db, organisationId)).toBe(both.waiting);
   });
 });
 
@@ -535,6 +632,10 @@ describe("the queue's scope (AC-16, AC-18, AC-19)", () => {
     expect((await reviewCounts(db, organisationId, today, { contractId: restricted.id })).waiting).toBe(1);
     const tab = await loadReviewQueue(db, organisationId, today, {}, { contractId: restricted.id });
     expect(tab.waiting.rows.map((r) => r.contractId)).toEqual([restricted.id]);
+    // Plan step 6: a contract's count reads both sources, its own only.
+    expect((await send(h, mine.id, "WORK_PROGRAMME")).status).toBe(201);
+    expect((await reviewCounts(db, organisationId, today, { contractId: mine.id })).waiting).toBe(2);
+    expect((await reviewCounts(db, organisationId, today, { contractId: restricted.id })).waiting).toBe(1);
   });
 });
 
@@ -553,8 +654,9 @@ describe("what the portal sent or signed is frozen in the database (4e review fi
   it("a submission is never changed or removed, its lines are never added to, changed or removed, and it is answered once, whole", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId });
-    const sent = await sendSubmission(h.actor, { contractId: c.id, kind: "MATERIALS_ON_SITE", title: "Materials", body: "Pipes.", amount: "", aboutDay: today, lines: [{ description: "Pipe", quantity: "4 m", location: "Site", value: "100.00" }], stepUpAt: null });
-    const id = sent.submissionId;
+    // Rewritten for PW-11: the row is seeded as the closed send path left it (the triggers guard every earlier row, however it was written).
+    const sent = await earlier(h, c.id, { kind: "MATERIALS_ON_SITE", title: "Materials", lines: 1 });
+    const id = sent.id;
     await expect(raw(`UPDATE "ContractorSubmission" SET "title" = 'Changed' WHERE id = $1`, id)).rejects.toThrow(/never changes/);
     await expect(raw(`UPDATE "ContractorSubmission" SET "aboutDay" = NULL WHERE id = $1`, id)).rejects.toThrow(/never changes/);
     await expect(raw(`DELETE FROM "ContractorSubmission" WHERE id = $1`, id)).rejects.toThrow(/is kept/);

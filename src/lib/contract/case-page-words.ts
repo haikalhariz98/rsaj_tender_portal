@@ -43,8 +43,9 @@ export const CASE_TAB_WORDS: Readonly<Record<string, Words>> = {
   site: w("Site"),
   payments: w("Payments"),
   variations: w("Variations"),
-  documents: w("Documents"),
-  submissions: w("Submissions"),
+  // Plan step 6 (PW-11): renamed in words only; the tab ids are unchanged (`case-tabs.ts`). The contract's certificates are "Certificates"; the one Documents list is "Documents".
+  documents: w("Certificates"),
+  submissions: w("Documents"),
 };
 
 /** The second level under a tab, keyed `<tab>.<section>`. */
@@ -234,7 +235,8 @@ export const CASES_LIST_WORDS = {
   nReadyToSign: w("{count} ready to sign"),
   commencedPending: w("Commenced pending approval ({count})"),
   securitiesExpiring: w("Securities expiring or not verified ({count})"),
-  submissionsWaiting: w("Submissions waiting ({count})"),
+  // Plan step 6 (PW-11): both sources, the documents waiting on the organisation and the earlier submissions not yet answered.
+  submissionsWaiting: w("Documents waiting ({count})"),
   all: w("All"),
   showCases: w("Show cases"),
   viewChip: w("View"),
@@ -351,16 +353,12 @@ export const EXPIRY_WORDS = {
 
 /** The contractors' submissions view (`?view=submissions`) and the panel it shares with each contract's Submissions tab. */
 export const SUBMISSIONS_WORDS = {
-  nWaiting: w("{count} submissions waiting"),
+  nWaiting: w("{count} waiting"),
   nOverdue: w("{count} past the due day"),
   overdueNotJudged: w("Overdue not judged"),
   nAnswered: w("{count} answered"),
   overdueNotJudgedTitle: w("Time zone not set"),
   overdueNotJudgedBody: w("Overdue is not judged. Set it under Configuration, Organisation."),
-  serviceNotSetFor: w("{notSet} for {kinds}"),
-  everyKind: w("every kind"),
-  serviceNotSetBody: w("No due day, never overdue. Set under "),
-  postAwardControls: w("Configuration › Post-award controls"),
   waitingTitle: w("Submissions waiting"),
   notEmailed: w("Not emailed"),
   waitingSubtitle: w("Longest waiting first{overdue}"),
@@ -390,13 +388,14 @@ export const SUBMISSIONS_WORDS = {
   previous: w("Previous"),
   next: w("Next"),
   // the service level of a submission (`serviceWords`)
-  svcNotSet: w("{notSet}: no due day"),
+  // PW-27 (plan step 6): the service-level editor is gone, so an earlier record with no due day stored says so plainly, with no word of a setting.
+  svcNotSet: w("No due day"),
   svcDueToday: w("Due today, {date}"),
   svcDueOne: w("Due {date}, {count} day left"),
   svcDueMany: w("Due {date}, {count} days left"),
   svcOverdueOne: w("Overdue: was due {date}, {count} day ago"),
   svcOverdueMany: w("Overdue: was due {date}, {count} days ago"),
-  svcAnsweredNoLevel: w("Answered (no service level was set)"),
+  svcAnsweredNoLevel: w("Answered (no due day)"),
   svcAnsweredOnTime: w("Answered by its due day, {date}"),
   svcAnsweredLate: w("Answered after its due day, {date}"),
   // the answer drawer

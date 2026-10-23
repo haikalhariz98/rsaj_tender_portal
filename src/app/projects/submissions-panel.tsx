@@ -6,13 +6,13 @@ import { ClockIcon, InboxIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
-import { Callout, EmptyState } from "@/components/ui/feedback";
+import { EmptyState } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
 import { SUBMISSIONS_WORDS as S } from "@/lib/contract/case-page-words";
 import type { Words } from "@/lib/contract/labels";
-import { OUTCOME_TONE, OUTCOME_WORDS, SERVICE_NOT_SET, serviceWords, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
+import { OUTCOME_TONE, OUTCOME_WORDS, serviceWords, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
 import { REVIEW_PAGE, type ReviewQueue } from "@/lib/portal/projects/review-store";
 
 /**
@@ -42,12 +42,6 @@ export function SubmissionsPanel({ review, judged, hrefOf, withContract, lang = 
   const askedW = w.page ? w.page + 1 : 0;
   return (
     <div className="flex flex-col gap-6">
-      {review.unsetKinds.length > 0 && (
-        <Callout tone="warn" title={sayWith(S.serviceNotSetFor, lang, { notSet: t(SERVICE_NOT_SET), kinds: review.unsetKinds.length === 6 ? t(S.everyKind) : review.unsetKinds.map((k) => t(SUBMISSION_KIND_WORDS[k]).toLowerCase()).join(", ") })}>
-          {t(S.serviceNotSetBody)}
-          <Link href="/configuration/post-award" className="font-semibold">{t(S.postAwardControls)}</Link>.
-        </Callout>
-      )}
       <Card className="overflow-hidden">
         <CardHeader icon={<ClockIcon size={17} />} title={t(S.waitingTitle)} subtitle={<span className="inline-flex flex-wrap items-center gap-1.5">{sayWith(S.waitingSubtitle, lang, { overdue: overdueText })}<InfoChip outline detail={t(S.routingStatement)}>{t(S.notEmailed)}</InfoChip></span>} divided={w.total > 0} />
         {w.total === 0 ? (

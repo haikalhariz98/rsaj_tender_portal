@@ -11,6 +11,9 @@
  *   version's, and the state is the contractor's own (never "Waiting for approval" or "Rejected" on an organisation document);
  * - organisation remarks and decisions are shown to nobody; the remarks on the contractor's own documents are shown, by "the organisation", never by an officer's name.
  * No count, no days waiting, no figure (PW-4): rows carry words and a day.
+ *
+ * Plan step 6 (PW-11): the contractor's earlier submissions on the contract (`ContractorSubmission`, its own supplier's only, read-only) sit in the same list, each marked
+ * "Earlier record" with its stored fields and answer, by the organisation and never an officer. The two tables are interleaved newest first by `walkMerged` (`merge.ts`).
  */
 
 import type { Tx } from "@/lib/audit/record";
@@ -18,18 +21,23 @@ import type { SupplierActor } from "@/lib/auth/types";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import { CONTRACT_STATUSES, type ContractStatus } from "@/lib/contract/types";
 import { dayOf, storedDay } from "@/lib/dates";
+import { formatOrgDateTime } from "@/lib/format";
 import { mediaLabel, SCAN_LABEL } from "@/lib/documents/labels";
 import { loadStorePolicy } from "@/lib/documents/service";
 import { exerciseOrg } from "@/lib/method/repo";
 import { loadProjectContext } from "@/lib/portal/projects/context-store";
 import { STANDING_AWARD } from "@/lib/portal/projects/visibility";
 
-import { contractorFaultText, contractorReading, FROM_YOU, type ContractorReading } from "./contractor-view";
+import { contractorFaultText, contractorReading, contractorTally, FROM_YOU, type ContractorReading } from "./contractor-view";
+import { EARLIER_RECORD } from "./earlier";
+import { earlierLoader, earlierRowReading, portalEarlier, type PortalEarlier } from "./earlier-read";
 import { loadDocumentFactsMany } from "./facts";
 import { createFaults, requestFaults, uploadFaults } from "./faults";
-import { kindWords, outcomeWords, versionLabel } from "./labels";
+import { kindChoices, kindWords, outcomeWords, SIGNED_KIND, versionLabel } from "./labels";
+import type { MergeLoader } from "./merge";
+import { walkMerged } from "./merge";
 import type { Gate } from "./page-store";
-import { decodeRegisterCursor, encodeRegisterCursor, REGISTER_BATCH } from "./register";
+import { documentLoader, REGISTER_BATCH } from "./register";
 import type { DocKind, Finding, Outcome } from "./types";
 import { contractorSeesRemarks } from "./visibility";
 
@@ -38,6 +46,11 @@ export const WAITING_PAGE = 20;
 
 const fileHref = (attachmentId: string) => `/supplier/projects/documents/file/${attachmentId}`;
 const documentHref = (contractId: string, documentId: string) => `/supplier/projects/${contractId}/documents/${documentId}`;
+/// An earlier record has no page: its link is the contract's Documents tab naming it, where its read-only view opens.
+export const portalEarlierHref = (contractId: string, id: string) => `/supplier/projects/${encodeURIComponent(contractId)}?${new URLSearchParams({ tab: "submissions", earlier: id }).toString()}`;
+
+/// A source with no rows: a list that only one table can fill (an earlier record never waits for the contractor).
+const NONE: MergeLoader<never> = { source: "EARLIER", load: async () => [] };
 
 type Holder = Pick<SupplierActor, "supplierId" | "organisationId">;
 
@@ -56,7 +69,10 @@ export interface PortalRow {
   /// "Waiting for you", `Waiting on {organisation}`, or null.
   waitsOnLabel: string | null;
   waitsOnYou: boolean;
+  /// The document's page; an earlier record's is the Documents tab naming it (`earlier=`).
   href: string;
+  /// Present only on an earlier record (PW-11): "Earlier record", and its stored fields and answer.
+  earlier?: { label: string; record: PortalEarlier };
 }
 
 /**
@@ -67,30 +83,37 @@ export async function loadPortalRegister(client: Tx, actor: Holder, contractId: 
   const ctx = await loadProjectContext(client, actor, contractId);
   if (!ctx) return null;
   const take = Math.min(Math.max(i.take ?? PORTAL_PAGE, 1), 200);
-  let from = decodeRegisterCursor(i.after ?? null);
-  const rows: PortalRow[] = [];
-  let last: { createdAt: Date; id: string } | null = null;
-  for (;;) {
-    const batch = await client.projectDocument.findMany({
-      where: { organisationId: actor.organisationId, contractId: ctx.contract.id, ...(from ? { OR: [{ createdAt: { lt: from.createdAt } }, { createdAt: from.createdAt, id: { lt: from.id } }] } : {}) },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: REGISTER_BATCH,
-      select: { id: true, title: true, createdAt: true },
-    });
-    if (batch.length === 0) return { rows, next: null };
-    const facts = await loadDocumentFactsMany(client, batch.map((d) => d.id));
-    for (const d of batch) {
-      last = { createdAt: d.createdAt, id: d.id };
-      const f = facts.get(d.id);
-      if (!f) continue;
-      const r = contractorReading(f, ctx.org.name);
-      if (r.shown === "NOT_LISTED") continue;
-      rows.push({ id: d.id, title: d.title, kindLabel: f.kind ? kindWords(f.kind as DocKind) : null, latestOn: r.latestVisible?.uploadedOn ?? null, stateLabel: r.stateLabel!, shown: r.shown, waitsOnLabel: r.waitsOnLabel, waitsOnYou: r.waitsOnYou, href: documentHref(ctx.contract.id, d.id) });
-      if (rows.length === take) return { rows, next: encodeRegisterCursor(d.createdAt, d.id) };
-    }
-    if (batch.length < REGISTER_BATCH) return { rows, next: null };
-    from = last;
-  }
+  const orgName = ctx.org.name;
+  // The supplier's own earlier records only, as its earlier list read them (`submissionsTab`): never another supplier's on the same contract.
+  return walkMerged(documentLoader(client, { organisationId: actor.organisationId, contractId: ctx.contract.id }), earlierLoader(client, { organisationId: actor.organisationId, contractId: ctx.contract.id, supplierId: actor.supplierId }), {
+    cursor: i.after ?? null,
+    take,
+    batch: REGISTER_BATCH,
+    keep: (m): PortalRow | null => {
+      if (m.source === "EARLIER") {
+        const r = m.row;
+        const reading = earlierRowReading(r);
+        return {
+          id: r.id,
+          title: r.title,
+          kindLabel: kindWords(r.kind),
+          latestOn: storedDay(r.submittedOn),
+          stateLabel: reading.stateLabel,
+          shown: "VERSIONS",
+          waitsOnLabel: reading.waitsOn === "ORGANISATION" ? `Waiting on ${orgName}` : null,
+          waitsOnYou: false,
+          href: portalEarlierHref(ctx.contract.id, r.id),
+          earlier: { label: EARLIER_RECORD, record: portalEarlier(r) },
+        };
+      }
+      const d = m.row;
+      const f = d.facts;
+      if (!f) return null;
+      const r = contractorReading(f, orgName);
+      if (r.shown === "NOT_LISTED") return null;
+      return { id: d.id, title: d.title, kindLabel: f.kind ? kindWords(f.kind as DocKind) : null, latestOn: r.latestVisible?.uploadedOn ?? null, stateLabel: r.stateLabel!, shown: r.shown, waitsOnLabel: r.waitsOnLabel, waitsOnYou: r.waitsOnYou, href: documentHref(ctx.contract.id, d.id) };
+    },
+  });
 }
 
 // ------------------------------------------------------------------ the page
@@ -124,6 +147,8 @@ export interface PortalVersion {
   label: string;
   note: string;
   uploadedOn: string;
+  /// The server's moment of the upload on the organisation's clock, "01 Oct 2026 · 04:00": a delay notice is received at it (FR-EOT-001).
+  uploadedAtText: string;
   /// The organisation's name for its own versions; the contractor's own colleague's name for the contractor's.
   uploadedByName: string;
   answersRequest: boolean;
@@ -160,6 +185,10 @@ export interface PortalDocumentPage {
   versions: PortalVersion[];
   requests: PortalRequest[];
   actions: { upload: Gate; request: Gate };
+  /// A statutory declaration (PW-10): every version is signed, so the upload form asks the password again. The upload gate is judged as if it were given.
+  asksPassword: boolean;
+  /// A contractor document asked for by the organisation with no version yet: its first version may pick one of the six kinds (`PortalStart.kinds`).
+  mayPickKind: boolean;
   /// The contract's own state, when it shuts the workspace.
   workspaceShut: string | null;
   /// Project files have a class set (else nothing can be sent, and the reason says to ask the organisation).
@@ -199,6 +228,7 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
           number: true,
           note: true,
           uploadedOn: true,
+          uploadedAt: true,
           requestId: true,
           uploadedByPersonId: true,
           uploadedBySupplierAccount: { select: { contact: { select: { name: true } } } },
@@ -240,6 +270,7 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
       label: versionLabel(v.number),
       note: v.note,
       uploadedOn: storedDay(v.uploadedOn),
+      uploadedAtText: formatOrgDateTime(v.uploadedAt, ctx.org.timeZone),
       uploadedByName: v.uploadedByPersonId ? orgName : (v.uploadedBySupplierAccount?.contact.name ?? ctx.contract.awardeeName),
       answersRequest: v.requestId !== null,
       files: v.files.map((f) => ({ attachmentId: f.id, name: f.version.originalFilename, bytes: Number(f.version.byteSize), typeLabel: mediaLabel(f.version.mediaType), scanLabel: SCAN_LABEL[f.version.scanState], href: fileHref(f.id) })),
@@ -255,9 +286,12 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
       answeredByVersion: r.answeredBy && seen.has(r.answeredBy.id) ? r.answeredBy.number : null,
     })),
     actions: {
-      upload: gateOf(uploadFaults({ actor: me, classSet, doc: facts, files: 1, note: "", kind: null, signed: false }), orgName, shut),
+      // A declaration's version is signed with the password the form asks, so the gate is judged as signed; the act refuses it unsigned (DECLARATION_NOT_SIGNED).
+      upload: gateOf(uploadFaults({ actor: me, classSet, doc: facts, files: 1, note: "", kind: null, signed: true }), orgName, shut),
       request: gateOf(requestFaults({ actor: me, doc: facts, note: "" }), orgName, shut),
     },
+    asksPassword: head.kind === SIGNED_KIND,
+    mayPickKind: head.side === "CONTRACTOR" && head.kind === null && facts.versions.length === 0,
     workspaceShut: shut,
     classSet,
     organisationName: orgName,
@@ -269,6 +303,8 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
 export interface PortalStart {
   /// Whether "New document" can be used now, and if not, why, in the contractor's words (the same faults as the create act, asked with a sample title and one file).
   create: Gate;
+  /// The kind picker (plan step 6): the six kinds by name, the form's value, and whether sending it asks the password again. Picked with a file sent, never with a request.
+  kinds: { value: DocKind; label: string; asksPassword: boolean }[];
   /// The organisation's configured name, for the page's own words.
   organisationName: string;
 }
@@ -285,7 +321,7 @@ export async function loadPortalStart(client: Tx, actor: Pick<SupplierActor, "su
   const status = actStatusFault("PROJECT_WORKSPACE", ctx.contract.status as ContractStatus);
   const shut = status ? actStatusText(status) : null;
   const faults = createFaults({ actor: { side: "CONTRACTOR", accountId: actor.accountId }, classSet, title: "title", note: "", first: { upload: { files: 1, note: "", kind: null, signed: false } }, approvers: [] });
-  return { create: gateOf(faults, ctx.org.name, shut), organisationName: ctx.org.name };
+  return { create: gateOf(faults, ctx.org.name, shut), kinds: kindChoices(), organisationName: ctx.org.name };
 }
 
 // ------------------------------------------------------------------ "Waiting for you"
@@ -313,33 +349,88 @@ export async function loadWaitingForYou(client: Tx, actor: Holder, i: { contract
   const org = await exerciseOrg(actor.organisationId, client);
   if (!org) return { rows: [], next: null };
   const take = Math.min(Math.max(i.take ?? WAITING_PAGE, 1), 100);
-  let from = decodeRegisterCursor(i.after ?? null);
-  const rows: WaitingRow[] = [];
-  let last: { createdAt: Date; id: string } | null = null;
-  for (;;) {
-    const batch = await client.projectDocument.findMany({
-      where: {
-        organisationId: actor.organisationId,
-        side: "CONTRACTOR",
-        contract: { organisationId: actor.organisationId, ...(i.contractId ? { id: i.contractId } : {}), status: { in: [...OPEN_STATUSES] }, award: { vendorId: actor.supplierId, status: { in: [...STANDING_AWARD] } } },
-        ...(from ? { OR: [{ createdAt: { lt: from.createdAt } }, { createdAt: from.createdAt, id: { lt: from.id } }] } : {}),
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: REGISTER_BATCH,
-      select: { id: true, title: true, createdAt: true, contractId: true, contract: { select: { number: true, award: { select: { exercise: { select: { title: true } } } } } } },
-    });
-    if (batch.length === 0) return { rows, next: null };
-    const facts = await loadDocumentFactsMany(client, batch.map((d) => d.id));
-    for (const d of batch) {
-      last = { createdAt: d.createdAt, id: d.id };
-      const f = facts.get(d.id);
-      if (!f) continue;
+  const where = {
+    organisationId: actor.organisationId,
+    side: "CONTRACTOR" as const,
+    contract: { organisationId: actor.organisationId, ...(i.contractId ? { id: i.contractId } : {}), status: { in: [...OPEN_STATUSES] }, award: { vendorId: actor.supplierId, status: { in: [...STANDING_AWARD] } } },
+  };
+  const page = await walkMerged(documentLoader(client, where), NONE, {
+    cursor: i.after ?? null,
+    take,
+    batch: REGISTER_BATCH,
+    keep: (m) => {
+      if (m.source !== "DOCUMENT" || !m.row.facts) return null;
+      const f = m.row.facts;
       const r = contractorReading(f, org.name);
-      if (!r.waitsOnYou) continue;
-      rows.push({ contractId: d.contractId, contractLabel: `${d.contract.number} · ${d.contract.award.exercise.title}`, documentId: d.id, title: d.title, kindLabel: f.kind ? kindWords(f.kind as DocKind) : null, stateLabel: r.stateLabel!, href: documentHref(d.contractId, d.id) });
-      if (rows.length === take) return { rows, next: encodeRegisterCursor(d.createdAt, d.id) };
-    }
-    if (batch.length < REGISTER_BATCH) return { rows, next: null };
-    from = last;
+      if (!r.waitsOnYou) return null;
+      return { documentId: m.row.id, title: m.row.title, kindLabel: f.kind ? kindWords(f.kind as DocKind) : null, stateLabel: r.stateLabel! };
+    },
+  });
+  // The contract's number and title for each row, read once for the page.
+  const heads = await client.projectDocument.findMany({ where: { id: { in: page.rows.map((k) => k.documentId) }, organisationId: actor.organisationId }, select: { id: true, contractId: true, contract: { select: { number: true, award: { select: { exercise: { select: { title: true } } } } } } } });
+  const byId = new Map(heads.map((h) => [h.id, h]));
+  return {
+    rows: page.rows.map((r) => {
+      const h = byId.get(r.documentId)!;
+      return { contractId: h.contractId, contractLabel: `${h.contract.number} · ${h.contract.award.exercise.title}`, documentId: r.documentId, title: r.title, kindLabel: r.kindLabel, stateLabel: r.stateLabel, href: documentHref(h.contractId, r.documentId) };
+    }),
+    next: page.next,
+  };
+}
+
+// ------------------------------------------------------------------ the overview's figures
+
+/**
+ * The contractor's documents on one contract, tallied as it may know them (`contractorTally`, plan step 6): with the organisation, and returned to it. For the portal overview,
+ * which adds the earlier submissions' own. Every document of the contract is read, in batches; the context is the one `loadProjectContext` returned for this supplier.
+ */
+export async function contractorDocumentTally(client: Tx, actor: Pick<SupplierActor, "organisationId">, ctx: { contract: { id: string }; org: { name: string } }): Promise<{ withOrganisation: number; returned: number }> {
+  const docs = documentLoader(client, { organisationId: actor.organisationId, contractId: ctx.contract.id });
+  const out = { withOrganisation: 0, returned: 0 };
+  let after: Parameters<typeof docs.load>[0] = null;
+  for (;;) {
+    const batch = await docs.load(after, REGISTER_BATCH);
+    const t = contractorTally(batch.flatMap((d) => (d.facts ? [d.facts] : [])), ctx.org.name);
+    out.withOrganisation += t.withOrganisation;
+    out.returned += t.returned;
+    const last = batch[batch.length - 1];
+    if (!last || batch.length < REGISTER_BATCH) return out;
+    after = { kind: "KEYSET", at: last.at, id: last.id };
   }
+}
+
+// ------------------------------------------------------------------ the Payments tab's claims
+
+export interface ClaimDocument {
+  id: string;
+  title: string;
+  kind: "INTERIM_CLAIM" | "MATERIALS_ON_SITE";
+  /// The day of its latest version (YYYY-MM-DD).
+  sentOn: string;
+  /// The mark on its latest version, or null while it is received and not yet marked.
+  outcome: "TAKEN_UP" | "RETURNED" | null;
+  /// When it was first sent, for the list's order.
+  at: Date;
+  href: string;
+}
+
+/**
+ * The contractor's interim claims and materials lists sent as Project workspace documents (plan step 6; PW-11), for the portal Payments tab, which lists them beside its earlier
+ * claims (`paymentsTab`). No figure: the files carry the amount and the day (PW-10); the officer certifies the claim on Payments. Newest first.
+ */
+export async function contractorClaimDocuments(client: Tx, actor: Pick<SupplierActor, "organisationId">, ctx: { contract: { id: string } }): Promise<ClaimDocument[]> {
+  const docs = await client.projectDocument.findMany({
+    where: { organisationId: actor.organisationId, contractId: ctx.contract.id, side: "CONTRACTOR", kind: { in: ["INTERIM_CLAIM", "MATERIALS_ON_SITE"] } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { id: true, title: true, kind: true, createdAt: true },
+  });
+  const facts = await loadDocumentFactsMany(client, docs.map((d) => d.id));
+  return docs.flatMap((d) => {
+    const f = facts.get(d.id);
+    const latest = f ? [...f.versions].sort((a, b) => b.number - a.number)[0] : undefined;
+    if (!f || !latest) return [];
+    const mark = f.decisions.find((x) => x.versionId === latest.id && x.approverId === null);
+    const outcome = mark?.outcome === "TAKEN_UP" || mark?.outcome === "RETURNED" ? mark.outcome : null;
+    return [{ id: d.id, title: d.title, kind: d.kind as ClaimDocument["kind"], sentOn: latest.uploadedOn, outcome, at: d.createdAt, href: documentHref(ctx.contract.id, d.id) }];
+  });
 }

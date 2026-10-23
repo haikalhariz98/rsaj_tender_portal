@@ -170,6 +170,10 @@ export function delegationReceivedNotice(i: {
 
 /// Phase 4e (6.14 OD-6, BD-614-31): a contractor sent a submission from its portal account; the holders of the contract's S.O. office (and those acting in it) are told, once each. Nobody
 /// did the act on the staff side, so nobody is left out. The notice carries the kind and the contract, never the amount claimed.
+///
+/// No act writes it any more: the earlier send path closed in plan step 6 (PW-11), and a contractor's upload of a kind tells the S.O. office through `projectDocumentNotices`
+/// (PROJECT_DOCUMENT_FROM_CONTRACTOR). It stays for the earlier records the demo data seeds (`prisma/demo-my-projects.ts`); the kind stays in `kinds.ts` and the CHECK for the
+/// notices already written.
 export function contractorSubmissionNotices(i: { submissionId: string; contractId: string; contractLabel: string; kindLabel: string; contractorName: string; dueLabel: string; recipients: readonly string[] }): NoticeDraft[] {
   return recipientsOf(i.recipients, null).map((r) => ({
     recipientPersonId: r,

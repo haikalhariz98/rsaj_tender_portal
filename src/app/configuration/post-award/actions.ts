@@ -28,11 +28,6 @@ export async function saveClockRule(prev: FormState, data: FormData): Promise<Fo
   return proposed;
 }
 
-export async function saveSubmissionServiceLevel(prev: FormState, data: FormData): Promise<FormState> {
-  const proposed = await stageEdit("post-award.saveSubmissionServiceLevel", prev, data);
-  return proposed;
-}
-
 export async function saveContractorPortalSigning(prev: FormState, data: FormData): Promise<FormState> {
   const proposed = await stageEdit("post-award.saveContractorPortalSigning", prev, data);
   return proposed;

@@ -22,7 +22,7 @@ const ORG = "Jabatan Contoh";
 const OFFICER = "Hassan Bin Ali";
 const open = { allowed: true, reasons: [] as string[] };
 const shut = (...reasons: string[]) => ({ allowed: false, reasons });
-const start = (o: Partial<PortalStart> = {}): PortalStart => ({ create: open, organisationName: ORG, ...o });
+const start = (o: Partial<PortalStart> = {}): PortalStart => ({ create: open, kinds: [], organisationName: ORG, ...o });
 const row = (o: Partial<PortalRow> = {}): PortalRow => ({ id: "d1", title: "Method statement", kindLabel: null, latestOn: "2026-10-21", stateLabel: "Waiting for approval", shown: "VERSIONS", waitsOnLabel: `Waiting on ${ORG}`, waitsOnYou: false, href: "/supplier/projects/c1/documents/d1", ...o });
 const card = (o: Partial<Parameters<typeof PortalDocumentsCard>[0]> = {}) => renderToStaticMarkup(h(PortalDocumentsCard, { contractId: "c1", rows: [row()], next: null, after: null, start: start(), token: "tok", ...o }));
 
@@ -120,15 +120,19 @@ const page = (o: Partial<PortalDocumentPage> = {}): PortalDocumentPage => ({
       label: "Version 1",
       note: "First issue.",
       uploadedOn: "2026-10-20",
+      uploadedAtText: "20 Oct 2026 · 09:15",
       uploadedByName: "Siti Binti Omar",
       answersRequest: false,
       files: [{ attachmentId: "a1", name: "statement-v1.pdf", bytes: 2048, typeLabel: "PDF", scanLabel: "Not scanned for malware — scanning not built", href: "/supplier/projects/documents/file/a1" }],
       decisions: [{ outcome: "REJECTED", outcomeLabel: "Rejected", remarks: "The levels are wrong.", decidedOn: "2026-10-21", byName: ORG }],
     },
-    { id: "v2", number: 2, label: "Version 2", note: "", uploadedOn: "2026-10-22", uploadedByName: "Siti Binti Omar", answersRequest: false, files: [{ attachmentId: "a2", name: "statement-v2.pdf", bytes: 4096, typeLabel: "PDF", scanLabel: "Not scanned for malware — scanning not built", href: "/supplier/projects/documents/file/a2" }], decisions: [] },
+    { id: "v2", number: 2, label: "Version 2", note: "", uploadedOn: "2026-10-22", uploadedAtText: "22 Oct 2026 · 14:02", uploadedByName: "Siti Binti Omar", answersRequest: false, files: [{ attachmentId: "a2", name: "statement-v2.pdf", bytes: 4096, typeLabel: "PDF", scanLabel: "Not scanned for malware — scanning not built", href: "/supplier/projects/documents/file/a2" }], decisions: [] },
   ],
   requests: [],
   actions: { upload: open, request: shut(`That cannot be done on this document now.`) },
+  // Plan step 6 (server): an ordinary document asks no password and picks no kind; the screen step renders both.
+  asksPassword: false,
+  mayPickKind: false,
   workspaceShut: null,
   classSet: true,
   organisationName: ORG,

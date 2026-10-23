@@ -3,27 +3,43 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SERVICE_UNIT_ASSUMED, SERVICE_UNIT_ASSUMED_NOTE } from "./labels";
+import { OPERATIONS } from "@/app/configuration/_editors/operations";
 
-// Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
+import * as labels from "./labels";
+import { serviceWords } from "./labels";
 
-// Decisions log, 2026-10-09, ruling on 1924(B): the service level's unit is an ASSUMPTION (calendar days), said so on the editor and on the configuration page.
+// Founder, 2026-10-19: English only.
+//
+// Rewritten for plan step 6 (PW-27). This file held the service-level editor to saying its unit (calendar days) was an assumption (decisions log, 2026-10-09, ruling on
+// 1924(B)). PW-27 took that editor off Configuration in the step that moved the six kinds into the Project workspace, which has no due days (PW-4); the table and its rows stay.
+// The guarantee that still applies is the honesty behind 1924(B): no screen states a service level the product no longer sets. So this file now holds that the editor, its
+// operation and its words are gone, that nothing reads the settings to show a live service level or a "not set" prompt, and that an earlier row with no stored due day says so
+// plainly.
 const read = (p: string) => readFileSync(path.join(process.cwd(), p), "utf8");
 
-describe("the service level's unit is shown as assumed", () => {
-  it("is worded as an assumption in both languages", () => {
-    expect(SERVICE_UNIT_ASSUMED.en).toMatch(/assumed/i);
-    expect(SERVICE_UNIT_ASSUMED_NOTE.en).toMatch(/assumption/i);
-  });
-  it("is what the editor and the configuration page say, not a bare 'calendar days'", () => {
-    const editor = read("src/app/configuration/post-award/editors.tsx");
-    const editorFn = editor.slice(editor.indexOf("export function EditSubmissionServiceLevel"), editor.indexOf("export function EditContractorPortalSigning"));
-    expect(editorFn).toContain("SERVICE_UNIT_ASSUMED_NOTE.en");
-    expect(editorFn).toContain("SERVICE_UNIT_ASSUMED.en");
-    expect(editorFn).not.toMatch(/label: "Calendar days"/);
+describe("the service-level editor has left Configuration (PW-27)", () => {
+  it("no editor, no action, no operation a change can carry, and no section on the page", () => {
+    expect(read("src/app/configuration/post-award/editors.tsx")).not.toMatch(/EditSubmissionServiceLevel|serviceLevelDays/);
+    expect(read("src/app/configuration/post-award/actions.ts")).not.toMatch(/saveSubmissionServiceLevel/);
+    expect(read("src/app/configuration/post-award/core.ts")).not.toMatch(/export async function saveSubmissionServiceLevel|contractorSubmissionSetting\./);
+    expect(Object.keys(OPERATIONS)).not.toContain("post-award.saveSubmissionServiceLevel");
     const page = read("src/app/configuration/post-award/page.tsx");
-    expect(page).toContain("SERVICE_UNIT_ASSUMED_NOTE.en");
-    expect(page).toContain("SERVICE_UNIT_ASSUMED.en.toLowerCase()");
-    expect(page).not.toMatch(/\$\{x\.serviceLevelDays\} calendar days/);
+    expect(page).not.toMatch(/contractorSubmissionSetting|serviceLevel|Answer times by kind/);
+    // The words that qualified the unit went with it: no screen states a service level now.
+    expect(Object.keys(labels)).not.toContain("SERVICE_UNIT_ASSUMED");
+    expect(Object.keys(labels)).not.toContain("SERVICE_NOT_SET");
+  });
+
+  it("nothing reads the settings to show a live service level or a 'not set' prompt: the queue and the portal tab read only what each row stored", () => {
+    const readers = ["src/lib/portal/projects/review-store.ts", "src/lib/portal/projects/workspace-store.ts", "src/app/projects/submissions-panel.tsx", "src/app/supplier/projects/[id]/panels.tsx"];
+    for (const f of readers) {
+      const src = read(f);
+      expect(src, f).not.toMatch(/contractorSubmissionSetting|unsetKinds|serviceLevels|SERVICE_NOT_SET|post-award/);
+    }
+  });
+
+  it("a row with no stored due day says 'No due day', never a setting", () => {
+    expect(serviceWords({ state: "NOT_SET" }).text).toBe("No due day");
+    expect(serviceWords({ state: "NOT_SET" }).text).not.toMatch(/service level|not set|configuration/i);
   });
 });

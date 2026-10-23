@@ -10,6 +10,7 @@ import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal, type Sen } from "@/lib/money";
 import { PAID_FIGURE } from "@/lib/payment/finance";
+import { contractorClaimDocuments, contractorDocumentTally } from "@/lib/project-docs/portal-read";
 import { inDelay, type DelayReading } from "@/lib/supervision/delay";
 import { entryState, type EntryState } from "@/lib/supervision/diary";
 import { loadPostAwardPolicy, loadSupervision, revisionsOf } from "@/lib/supervision/load";
@@ -46,6 +47,10 @@ export function actGate(family: Parameters<typeof actStatusFault>[0], status: Co
 
 export interface OverviewView {
   facts: { number: string; title: string; reference: string; awardReference: string; status: ContractStatus; contractSum: string; possessionOn: string | null; dateForCompletion: string | null; soOffice: string | null };
+  /**
+   * `returned` and `waiting` read BOTH sources (plan step 6; PW-11): the supplier's earlier submissions (returned; not yet answered) and its Project workspace documents as it may
+   * know them (`contractorTally`: its own rejected or returned; with the organisation, never an organisation document's own working, PW-28).
+   */
   counts: { toAttest: number; toSign: number; returned: number; waiting: number; missingDays: number };
   /// Why nothing can be sent on the contract now, or null.
   closed: string | null;
@@ -60,6 +65,7 @@ export async function overviewTab(client: Tx, actor: Who, ctx: ProjectContext): 
     () => client.siteDiaryEntry.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId }, select: { day: true, agentAttestedOn: true, officerAttestedOn: true, disagreement: true } }),
     () => client.certificate.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, status: "SIGNING", kind: { in: ["VARIATION", "SUM_ADJUSTMENT"] } }, select: { kind: true, status: true, templateRevision: true, signatures: { select: { blockOrder: true } } } }),
     () => client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId }, select: { outcome: true } }));
+  const documents = await contractorDocumentTally(client, actor, ctx);
   const inForce = today ? baselineFor(baselines.map((b) => ({ ...b, recordedOn: day(b.recordedOn) })), today) : null;
   const so = today ? soOn(assignments.map((a) => ({ ...a, effectiveOn: storedDay(a.effectiveOn) })), today) : null;
   const possessionOn = day(possession?.possessionOn);
@@ -81,8 +87,8 @@ export async function overviewTab(client: Tx, actor: Who, ctx: ProjectContext): 
     counts: {
       toAttest: entries.filter((e) => e.agentAttestedOn == null && !e.disagreement.trim() && (!today || storedDay(e.day) <= today)).length,
       toSign: certs.filter((x) => contractorBlock({ kind: x.kind, status: x.status, blocks: blocksOf(x.templateRevision), signedOrders: x.signatures.map((s) => s.blockOrder) }).state === "READY").length,
-      returned: submissions.filter((s) => s.outcome === "RETURNED").length,
-      waiting: submissions.filter((s) => s.outcome == null).length,
+      returned: submissions.filter((s) => s.outcome === "RETURNED").length + documents.returned,
+      waiting: submissions.filter((s) => s.outcome == null).length + documents.withOrganisation,
       missingDays: missing,
     },
     closed: actGate("SUPERVISION", ctx.contract.status),
@@ -205,7 +211,9 @@ export async function diaryTab(client: Tx, actor: Who, ctx: ProjectContext, aske
 export interface PaymentsView {
   rows: (CertifiedRow & { kind: CertificateKind; kindLabel: string; recommendedText: string | null; paidText: string | null })[];
   summary: CertifiedSummary & { certifiedText: string; paidText: string; outstandingText: string; paidUnfiguredText: string };
-  claims: { id: string; title: string; amount: string | null; upTo: string | null; sentOn: string; outcome: SubmissionOutcome | null; kind: SubmissionKind }[];
+  /// Both sources (plan step 6; PW-11): the earlier claims and materials lists, with their stored figures, and those sent as documents of the two kinds, with none (their files carry
+  /// them, PW-10) and a link to the document (`href`). Newest first.
+  claims: { id: string; title: string; amount: string | null; upTo: string | null; sentOn: string; outcome: SubmissionOutcome | null; kind: SubmissionKind; href?: string }[];
 }
 
 export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<PaymentsView> {
@@ -215,7 +223,8 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
       orderBy: [{ kind: "asc" }, { sequence: "asc" }],
       select: { id: true, kind: true, number: true, sequence: true, certificateDate: true, issueSnapshot: true, financePayment: { select: { paidOn: true, amount: true, batchNo: true } } },
     }),
-    () => client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId, kind: { in: ["INTERIM_CLAIM", "MATERIALS_ON_SITE"] } }, orderBy: { submittedAt: "desc" }, select: { id: true, title: true, amount: true, aboutDay: true, submittedOn: true, outcome: true, kind: true } }));
+    () => client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId, kind: { in: ["INTERIM_CLAIM", "MATERIALS_ON_SITE"] } }, orderBy: { submittedAt: "desc" }, select: { id: true, title: true, amount: true, aboutDay: true, submittedAt: true, submittedOn: true, outcome: true, kind: true } }));
+  const claimDocuments = await contractorClaimDocuments(client, actor, ctx);
   const rows = certs.map((c) => {
     const figure = figureOf(c.issueSnapshot, PAID_FIGURE[c.kind] ?? null);
     const recommended: Sen | null = figure == null ? null : senFromDecimal(figure);
@@ -226,7 +235,12 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
   return {
     rows,
     summary: { ...summary, certifiedText: formatMoney(summary.certified), paidText: formatMoney(summary.paid), outstandingText: formatMoney(summary.outstanding), paidUnfiguredText: formatMoney(summary.paidUnfigured) },
-    claims: claims.map((c) => ({ id: c.id, title: c.title, amount: c.amount == null ? null : formatMoney(senFromDecimal(c.amount)), upTo: dayText(c.aboutDay), sentOn: formatDate(storedDay(c.submittedOn)), outcome: c.outcome as SubmissionOutcome | null, kind: c.kind as SubmissionKind })),
+    claims: [
+      ...claims.map((c) => ({ at: c.submittedAt, row: { id: c.id, title: c.title, amount: c.amount == null ? null : formatMoney(senFromDecimal(c.amount)), upTo: dayText(c.aboutDay), sentOn: formatDate(storedDay(c.submittedOn)), outcome: c.outcome as SubmissionOutcome | null, kind: c.kind as SubmissionKind } })),
+      ...claimDocuments.map((d) => ({ at: d.at, row: { id: d.id, title: d.title, amount: null, upTo: null, sentOn: formatDate(d.sentOn), outcome: d.outcome, kind: d.kind as SubmissionKind, href: d.href } })),
+    ]
+      .sort((a, b) => b.at.getTime() - a.at.getTime())
+      .map((x) => x.row),
   };
 }
 
@@ -329,14 +343,15 @@ export interface SubmissionRow {
 /// How many submissions the tab lists at most, newest first; past it the tab says how many there are in all.
 export const SUBMISSIONS_SHOWN = 200;
 
-export async function submissionsTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<{ rows: SubmissionRow[]; total: number; closed: string | null; signing: string | null; serviceLevels: Record<string, number | null> }> {
+/// The earlier list of the supplier's submissions (Phase 4e). PW-27 (plan step 6): it no longer reads the service-level settings, whose editor is gone; each row's due day is the one
+/// stored on it. The screen step folds these rows into the one Documents list (`loadPortalRegister` reads them as earlier records).
+export async function submissionsTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<{ rows: SubmissionRow[]; total: number; closed: string | null; signing: string | null }> {
   const today = ctx.org.today;
   const where = { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId };
-  const [total, signing, rows, settings] = await inOrder(
+  const [total, signing, rows] = await inOrder(
     () => client.contractorSubmission.count({ where }),
     () => signingClosed(client, actor),
-    () => client.contractorSubmission.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: SUBMISSIONS_SHOWN, include: { lines: { orderBy: { sortOrder: "asc" } } } }),
-    () => client.contractorSubmissionSetting.findMany({ where: { organisationId: actor.organisationId }, select: { kind: true, serviceLevelDays: true } }));
+    () => client.contractorSubmission.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: SUBMISSIONS_SHOWN, include: { lines: { orderBy: { sortOrder: "asc" } } } }));
   return {
     total,
     signing,
@@ -357,6 +372,5 @@ export async function submissionsTab(client: Tx, actor: Who, ctx: ProjectContext
       lines: r.lines.map((l) => ({ description: l.description, quantity: l.quantity, location: l.location, value: formatMoney(senFromDecimal(l.value)) })),
     })),
     closed: actGate("SUPERVISION", ctx.contract.status),
-    serviceLevels: Object.fromEntries(settings.map((s) => [s.kind, s.serviceLevelDays])),
   };
 }

@@ -9,7 +9,7 @@ import { formatDate } from "@/lib/format";
 import { STATUS_WORDS as CERTIFICATE_STATUS_WORDS } from "@/lib/certificate/labels";
 import { db } from "@/lib/db";
 import type { ProjectContext } from "@/lib/portal/projects/context-store";
-import { OUTCOME_TONE, OUTCOME_WORDS, ROUTING_STATEMENT, SERVICE_NOT_SET, serviceWords, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
+import { OUTCOME_TONE, OUTCOME_WORDS, ROUTING_STATEMENT, serviceWords, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
 import type { SubmissionKind } from "@/lib/portal/projects/types";
 import { certificatesTab, DIARY_PAGE, diaryTab, overviewTab, paymentsTab, programmeTab, submissionsTab } from "@/lib/portal/projects/workspace-store";
 import { loadWaitingForYou } from "@/lib/project-docs/portal-read";
@@ -327,7 +327,6 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
 
 export async function SubmissionsPanel({ actor, ctx, token, docsAfter }: Props & { docsAfter: string | null }) {
   const s = await submissionsTab(db, actor, ctx);
-  const unset = Object.entries(s.serviceLevels).filter(([, v]) => v == null).length + (6 - Object.keys(s.serviceLevels).length);
   return (
     <div className="flex flex-col gap-6">
       {/* The Documents list first (the simple Project workspace). The earlier list and its send form stay below it until the six kinds move into Documents. */}
@@ -343,11 +342,6 @@ export async function SubmissionsPanel({ actor, ctx, token, docsAfter }: Props &
         {s.signing && (
           <CardBody pad="tight">
             <p className="text-[12.5px] text-amber-800">{`That notice cannot be signed here. ${s.signing}`}</p>
-          </CardBody>
-        )}
-        {unset > 0 && (
-          <CardBody pad="tight">
-            <p className="text-[12.5px] text-ink-3">{`${SERVICE_NOT_SET.en} for ${unset === 6 ? "any kind" : `${unset} kind${unset === 1 ? "" : "s"}`}: no due day shown.`}</p>
           </CardBody>
         )}
         {s.rows.length === 0 ? (

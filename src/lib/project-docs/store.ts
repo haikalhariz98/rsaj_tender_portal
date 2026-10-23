@@ -14,8 +14,13 @@
  * contractor communication, on the organisation's day. `recorderFaultToday` alone is NOT that check (it lets a person with no office through). It is asked for the actor, for
  * the approver named when one is added, and for the approver when they decide.
  *
- * NOT here (plan step 6): the six kinds and the statutory declaration's password step-up. The cores take no kind and no step-up, and pass `kind: null, signed: false` to the
- * rules, so the kind path cannot be reached; step 6 adds both. A portal route that is posted a kind refuses it (PW-23) before it reaches a core.
+ * The six kinds (plan step 6; PW-9, PW-10, PW-23): the contractor picks one with a document's FIRST version, on create or on the first version of a document the
+ * organisation asked it for; the rules refuse it from staff (KIND_NOT_CONTRACTOR: a kind document is never made by staff, and a statutory declaration is never recorded from
+ * paper, AC-59), on a later version (KIND_ALREADY_SET), and while an approver is live (KIND_WITH_APPROVERS, caught before trigger PA040). A statutory declaration's every
+ * version is signed: the route asked the password again (`confirmSupplierPassword`) and hands in its moment, the organisation's switch and the contact's own mark are asked
+ * (`contractorSigningFaultOf`), and the version's signed attribution names that version as the exact document signed (`attributeSupplierAct`), as the earlier submission did.
+ * One password entry signs one act, so only the version is attributed, never the document. A version of one of the six is then marked by the organisation (`markVersion`):
+ * Taken up (Noted, on defects rectified) or Returned with remarks. It is never approved.
  */
 
 import type { Tx } from "@/lib/audit/record";
@@ -23,6 +28,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import type { PreparedAct } from "@/lib/auth/act-begin";
 import { auditActorOfStaff } from "@/lib/auth/audit-actor";
+import { attributeSupplierAct } from "@/lib/auth/supplier-attribution-store";
 import type { AuditActor, StaffActor, SupplierActor } from "@/lib/auth/types";
 import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
@@ -32,20 +38,21 @@ import { attachFault } from "@/lib/documents/attach";
 import { attached, filed } from "@/lib/documents/audit-view";
 import { lockDocument } from "@/lib/documents/lock";
 import { loadStorePolicy } from "@/lib/documents/service";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { projectDocumentNotices } from "@/lib/inbox/notices";
 import { writeNotices } from "@/lib/inbox/store";
-import { supplierAuditActor } from "@/lib/portal/projects/submission-store";
+import { contractorSigningFaultOf } from "@/lib/portal/projects/signing-store";
+import { signatoryDesignation, supplierAuditActor } from "@/lib/portal/projects/submission-store";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { stagedFileFaults, type StagedFile } from "./bounds";
-import { addApproverFaults, createFaults, decideFaults, removeApproverFaults, requestFaults, uploadFaults } from "./faults";
+import { addApproverFaults, createFaults, decideFaults, markFaults, removeApproverFaults, requestFaults, uploadFaults } from "./faults";
 import { loadDocumentFacts } from "./facts";
-import { refusalText, versionLabel } from "./labels";
+import { kindWords, outcomeWords, refusalText, SIGNED_KIND, stateWords, versionLabel } from "./labels";
 import { noticeTargets, type WorkspaceEvent } from "./notices";
 import { mayActForOrganisation } from "./side";
 import { documentState, latestVersion, liveApprovers, nextVersionNumber } from "./state";
-import type { Actor, DocumentFacts, Finding, Side } from "./types";
+import type { Actor, DocKind, DocumentFacts, Finding, Side } from "./types";
 import { otherSide } from "./types";
 import { contractorMayDownload } from "./visibility";
 
@@ -222,6 +229,32 @@ async function pinFiles(c: WorkspaceCtx, a: WorkspaceActor, labels: Labels, file
 
 const filesWords = (files: readonly PinnableFile[]) => files.map((f) => f.version.originalFilename).join("; ");
 
+/// The server's moment of an upload, on the organisation's clock: a delay notice is received at it (FR-EOT-001), and every version says it.
+const receivedText = (c: WorkspaceCtx) => formatOrgDateTime(c.now, c.l.org.timeZone);
+
+/**
+ * A statutory declaration from the portal binds the company: whether a contractor signs from its portal account at all (the organisation's switch, unset refuses), then whether
+ * this contact is marked as one who signs for it. Read in the act's transaction, as the earlier submission and the certificate block read it. Null: it may sign.
+ */
+async function signingFault(c: WorkspaceCtx, a: WorkspaceActor, kind: DocKind | null): Promise<Finding | null> {
+  if (kind !== SIGNED_KIND || a.kind !== "SUPPLIER") return null;
+  const f = await contractorSigningFaultOf(c.tx, a.actor);
+  return f ? { code: f, level: "block" } : null;
+}
+
+/// The signed attribution of a statutory declaration's version (PW-10, AC-30): the version is the exact document signed, with the moment the password was asked again.
+async function signVersion(c: WorkspaceCtx, a: SupplierWorkspaceActor, versionId: string, label: string, stepUpAt: Date | null): Promise<void> {
+  await attributeSupplierAct(c.tx, {
+    actor: a.actor,
+    entity: "ProjectDocumentVersion",
+    entityId: versionId,
+    slot: "uploadedBySupplierAccount",
+    stepUpAt,
+    document: { entity: "ProjectDocumentVersion", id: versionId },
+    reason: `Signed with the password entered when ${label} of the notice that the statutory declaration is lodged was sent, by ${a.actor.displayName} (${await signatoryDesignation(c.tx, a.actor)})`,
+  });
+}
+
 // ------------------------------------------------------------------ create a document
 
 /**
@@ -231,7 +264,16 @@ const filesWords = (files: readonly PinnableFile[]) => files.map((f) => f.versio
 export async function createDocument(
   c: WorkspaceCtx,
   a: WorkspaceActor,
-  i: { title: string; note: string; first: { upload: { stagedVersionIds: readonly string[]; note: string } } | { request: { note: string } }; approverPersonIds: readonly string[] },
+  i: {
+    title: string;
+    note: string;
+    first: { upload: { stagedVersionIds: readonly string[]; note: string } } | { request: { note: string } };
+    approverPersonIds: readonly string[];
+    /// One of the six kinds, with an upload (plan step 6). Only the contractor picks one; the staff acts never pass it.
+    kind?: DocKind | null;
+    /// When the contractor's password was asked again for a statutory declaration (`confirmSupplierPassword`), or null.
+    stepUpAt?: Date | null;
+  },
   act: PreparedAct | null,
 ): Promise<{ documentId: string; versionId: string | null }> {
   requireAttribution(a, act);
@@ -243,15 +285,21 @@ export async function createDocument(
   const staged = upload ? await stagedFiles(c, a, upload.stagedVersionIds, policy.projectDocumentClassId) : { files: [], faults: [] };
   const names = [...new Set(i.approverPersonIds)];
   const approvers = i.approverPersonIds.map((personId) => ({ personId, authorityToday: side.mayAct(personId) }));
+  const kind = i.kind ?? null;
+  const stepUpAt = i.stepUpAt ?? null;
+  const signing = upload ? await signingFault(c, a, kind) : null;
   const faults = [
     ...createFaults({
       actor,
       classSet: policy.projectDocumentClassId !== null,
       title: i.title,
       note: i.note,
-      first: upload ? { upload: { files: upload.stagedVersionIds.length, note: upload.note, kind: null, signed: false } } : { request: { toSide: otherSide(sideOf(a)), note: "request" in i.first ? i.first.request.note : "" } },
+      // A kind goes only with an upload: a request carries none, and the parser refuses one (a kind with a request is a field error).
+      first: upload ? { upload: { files: upload.stagedVersionIds.length, note: upload.note, kind, signed: stepUpAt !== null } } : { request: { toSide: otherSide(sideOf(a)), note: "request" in i.first ? i.first.request.note : "" } },
       approvers,
     }),
+    ...(!upload && kind !== null ? [{ code: "KIND_ALREADY_SET", level: "block" as const }] : []),
+    ...(signing ? [signing] : []),
     ...staged.faults,
   ];
   if (blocking(faults).length) refuse(faults);
@@ -267,6 +315,7 @@ export async function createDocument(
       title,
       note: i.note.trim(),
       side: docSide,
+      kind: upload ? kind : null,
       createdByPersonId: a.kind === "STAFF" ? a.actor.personId : null,
       createdBySupplierAccountId: a.kind === "SUPPLIER" ? a.actor.accountId : null,
       createdAt: c.now,
@@ -279,7 +328,7 @@ export async function createDocument(
     const row = await c.tx.projectDocumentApprover.create({ data: { organisationId: c.l.org.id, documentId: doc.id, personId, addedByPersonId: staffPerson(a)!, addedAt: c.now }, select: { id: true } });
     approverIds.push({ id: row.id, personId });
   }
-  await audit(c, a, labels, "ProjectDocument", doc.id, "", "CREATE", diffFields(null, { title, note: i.note.trim() || null, from: docSide === "CONTRACTOR" ? "the contractor" : c.l.org.name, createdOn: formatDate(c.today), approvers: approverIds.length || null }));
+  await audit(c, a, labels, "ProjectDocument", doc.id, "", "CREATE", diffFields(null, { title, note: i.note.trim() || null, kind: upload && kind ? kindWords(kind) : null, from: docSide === "CONTRACTOR" ? "the contractor" : c.l.org.name, createdOn: formatDate(c.today), approvers: approverIds.length || null }));
   if (act) await act.write(c.tx, doc.id);
 
   let versionId: string | null = null;
@@ -302,8 +351,9 @@ export async function createDocument(
     });
     versionId = v.id;
     await pinFiles(c, a, labels, staged.files, v.id, 1);
-    await audit(c, a, labels, "ProjectDocumentVersion", v.id, versionLabel(1), "CREATE", diffFields(null, { version: versionLabel(1), note: upload.note.trim() || null, files: filesWords(staged.files), uploadedOn: formatDate(c.today), sharedAtOnce: approverIds.length === 0 ? "yes: no approver" : "no: it waits for its approvers" }));
+    await audit(c, a, labels, "ProjectDocumentVersion", v.id, versionLabel(1), "CREATE", diffFields(null, { version: versionLabel(1), note: upload.note.trim() || null, files: filesWords(staged.files), uploadedOn: formatDate(c.today), received: receivedText(c), signed: kind === SIGNED_KIND ? "Yes, with the password" : null, sharedAtOnce: approverIds.length === 0 ? "yes: no approver" : "no: it waits for its approvers" }));
     if (act) await act.writeAlso(tx, "ProjectDocumentVersion.uploadedByPerson", v.id);
+    if (a.kind === "SUPPLIER" && kind === SIGNED_KIND) await signVersion(c, a, v.id, versionLabel(1), stepUpAt);
     if (a.kind === "SUPPLIER") events.push({ event: "CONTRACTOR_UPLOADED", versionId: v.id, number: 1, ...hearing });
     if (approverIds.length > 0) events.push({ event: "VERSION_WAITS_ON_APPROVERS", versionId: v.id, approverPersonIds: approverIds.map((x) => x.personId), uploadedByPersonId: staffPerson(a), number: 1 });
   } else {
@@ -339,19 +389,42 @@ const nameOf = async (c: WorkspaceCtx, personId: string): Promise<string> => (aw
  * A new version of the document, by the document's side (PW-8). It answers the open request, if there is one. Approvals never carry over (PW-6): a version with live
  * approvers waits on them, and each is told, but never the person who uploaded it. A contractor's version tells the S.O. office too.
  */
-export async function addVersion(c: WorkspaceCtx, a: WorkspaceActor, i: { documentId: string; stagedVersionIds: readonly string[]; note: string }, act: PreparedAct | null): Promise<{ versionId: string; number: number }> {
+export async function addVersion(
+  c: WorkspaceCtx,
+  a: WorkspaceActor,
+  i: {
+    documentId: string;
+    stagedVersionIds: readonly string[];
+    note: string;
+    /// One of the six kinds, with the first version of a contractor document the organisation asked for (plan step 6). The staff acts never pass it.
+    kind?: DocKind | null;
+    /// When the contractor's password was asked again, for a statutory declaration's version; or null.
+    stepUpAt?: Date | null;
+  },
+  act: PreparedAct | null,
+): Promise<{ versionId: string; number: number }> {
   requireAttribution(a, act);
   const side = await sideOn(c);
   const { doc, facts } = await lockedDocument(c, i.documentId);
   const policy = await loadStorePolicy(c.l.org.id, c.tx);
   const staged = await stagedFiles(c, a, i.stagedVersionIds, policy.projectDocumentClassId);
-  const faults = [...uploadFaults({ actor: ruleActor(a, side), classSet: policy.projectDocumentClassId !== null, doc: facts, files: i.stagedVersionIds.length, note: i.note, kind: null, signed: false }), ...staged.faults];
+  const kind = i.kind ?? null;
+  const stepUpAt = i.stepUpAt ?? null;
+  // The kind the version is of: the document's own, or the one picked with this first version.
+  const ofKind = facts.kind ?? kind;
+  const signing = await signingFault(c, a, ofKind);
+  const faults = [...uploadFaults({ actor: ruleActor(a, side), classSet: policy.projectDocumentClassId !== null, doc: facts, files: i.stagedVersionIds.length, note: i.note, kind, signed: stepUpAt !== null }), ...(signing ? [signing] : []), ...staged.faults];
   if (blocking(faults).length) refuse(faults);
 
   const labels: Labels = { contract: contractText(c.l), document: doc.title };
   const number = nextVersionNumber(facts);
   const open = documentState(facts).openRequest;
   const noApprovers = liveApprovers(facts).length === 0;
+  if (kind !== null) {
+    // The kind is set once, from none, with the first version (the ProjectDocument trigger lets no other change through; KIND_WITH_APPROVERS was judged above, before PA040).
+    await c.tx.projectDocument.update({ where: { id: doc.id, organisationId: c.l.org.id }, data: { kind } });
+    await audit(c, a, labels, "ProjectDocument", doc.id, "", "UPDATE", diffFields({ kind: null }, { kind: kindWords(kind) }));
+  }
   const v = await c.tx.projectDocumentVersion.create({
     data: {
       organisationId: c.l.org.id,
@@ -368,8 +441,9 @@ export async function addVersion(c: WorkspaceCtx, a: WorkspaceActor, i: { docume
     select: { id: true },
   });
   await pinFiles(c, a, labels, staged.files, v.id, number);
-  await audit(c, a, labels, "ProjectDocumentVersion", v.id, versionLabel(number), "CREATE", diffFields(null, { version: versionLabel(number), note: i.note.trim() || null, files: filesWords(staged.files), uploadedOn: formatDate(c.today), answersRequest: open ? "yes" : null, sharedAtOnce: noApprovers ? "yes: no approver" : "no: it waits for its approvers" }));
+  await audit(c, a, labels, "ProjectDocumentVersion", v.id, versionLabel(number), "CREATE", diffFields(null, { version: versionLabel(number), note: i.note.trim() || null, files: filesWords(staged.files), uploadedOn: formatDate(c.today), received: receivedText(c), signed: ofKind === SIGNED_KIND ? "Yes, with the password" : null, answersRequest: open ? "yes" : null, sharedAtOnce: noApprovers ? "yes: no approver" : "no: it waits for its approvers" }));
   if (act) await act.write(c.tx, v.id);
+  if (a.kind === "SUPPLIER" && ofKind === SIGNED_KIND) await signVersion(c, a, v.id, versionLabel(number), stepUpAt);
 
   const after: DocumentFacts = { ...facts, versions: [...facts.versions, { id: v.id, number, uploaderPersonId: a.kind === "STAFF" ? a.actor.personId : null, uploaderAccountId: a.kind === "SUPPLIER" ? a.actor.accountId : null, noApproversAtUpload: noApprovers, requestId: open?.id ?? null, uploadedOn: c.today }], requests: facts.requests.map((r) => (open && r.id === open.id ? { ...r, answered: true } : r)) };
   const events: (WorkspaceEvent & { number?: number })[] = [];
@@ -465,4 +539,28 @@ export async function decideVersion(c: WorkspaceCtx, a: StaffWorkspaceActor, i: 
   const labels: Labels = { contract: contractText(c.l), document: doc.title };
   await audit(c, a, labels, "ProjectDocumentDecision", row.id, versionLabel(version.number), "CREATE", diffFields(null, { version: versionLabel(version.number), answer: i.outcome === "APPROVED" ? "Approved" : "Rejected", remarks: i.remarks.trim() || null, decidedOn: formatDate(c.today), documentIsNow: documentState(after).state === "APPROVED" ? "approved by every approver" : documentState(after).state === "REJECTED" ? "rejected: a new version is asked for" : "waiting for the other approvers" }));
   if (act) await act.write(c.tx, row.id);
+}
+
+// ------------------------------------------------------------------ mark a version of one of the six kinds
+
+/**
+ * The organisation's mark on the latest version of one of the six kinds (PW-9, PW-24): Taken up (Noted, on defects rectified: received only, never read as acceptance), remarks
+ * optional; or Returned, remarks required, which asks the contractor for a new version (it then reads "Waiting for you" on the portal). By a person with PW-5 authority today. A
+ * decision row with no approver; a kind is never approved (trigger PA044 and `decideFaults`). It is the officer's own act, not a signature (PW-26). No staff notice: the person who
+ * marks it is the one the contractor's upload told, and the contractor reads its own list (PW-13).
+ */
+export async function markVersion(c: WorkspaceCtx, a: StaffWorkspaceActor, i: { documentId: string; versionId: string; outcome: "TAKEN_UP" | "RETURNED"; remarks: string }, act: PreparedAct): Promise<{ outcomeLabel: string }> {
+  requireAttribution(a, act);
+  const side = await sideOn(c);
+  const { doc, facts } = await lockedDocument(c, i.documentId);
+  const faults = markFaults({ actor: ruleActor(a, side), doc: facts, versionId: i.versionId, outcome: i.outcome, remarks: i.remarks });
+  if (blocking(faults).length) refuse(faults);
+  const version = facts.versions.find((v) => v.id === i.versionId)!;
+  const row = await c.tx.projectDocumentDecision.create({ data: { organisationId: c.l.org.id, versionId: i.versionId, approverId: null, outcome: i.outcome, remarks: i.remarks.trim(), decidedByPersonId: a.actor.personId, decidedAt: c.now, decidedOn: dayToDate(c.today) }, select: { id: true } });
+  const after: DocumentFacts = { ...facts, decisions: [...facts.decisions, { versionId: i.versionId, approverId: null, outcome: i.outcome, remarks: i.remarks.trim() }] };
+  const labels: Labels = { contract: contractText(c.l), document: doc.title };
+  const outcomeLabel = outcomeWords(i.outcome, facts.kind);
+  await audit(c, a, labels, "ProjectDocumentDecision", row.id, versionLabel(version.number), "CREATE", diffFields(null, { version: versionLabel(version.number), mark: outcomeLabel, remarks: i.remarks.trim() || null, markedOn: formatDate(c.today), documentIsNow: stateWords(documentState(after).state, facts.kind) }));
+  if (act) await act.write(c.tx, row.id);
+  return { outcomeLabel };
 }

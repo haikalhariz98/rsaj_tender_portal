@@ -36,6 +36,8 @@ import { db } from "@/lib/db";
 
 import { CaseViewSelect, type ViewGroup } from "./case-view-select";
 import { SecuritiesView } from "./securities-view";
+import { documentsWaitingCount } from "@/lib/project-docs/waiting-read";
+
 import { SubmissionsView } from "./submissions-view";
 
 export const dynamic = "force-dynamic";
@@ -84,7 +86,8 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   // rows for a restricted exercise (AC-45, AC-18, AC-19): a security is listed with the contract's own cells and nothing of the tender.
   const [securitiesCount, submissionsWaiting] = await Promise.all([
     listRegister(actor.organisationId, 0, "attention", true).then((r) => r.counts.attention),
-    db.contractorSubmission.count({ where: { organisationId: actor.organisationId, outcome: null } }),
+    // Plan step 6 (PW-11): "Documents waiting" counts both sources, the documents waiting on the organisation and the earlier submissions not yet answered.
+    documentsWaitingCount(db, actor.organisationId),
   ]);
   // "commenced" is the variations' exposure report above, not a view over cases; every other view is one `listCases` pages.
   const rowView: CaseRowView | undefined = parsed && parsed !== "commenced" && parsed !== "securities" && parsed !== "submissions" ? parsed : undefined;

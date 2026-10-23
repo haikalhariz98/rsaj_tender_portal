@@ -11,8 +11,6 @@ import { CONTRACT_CLOCKS, PAYMENT_ROUTE_FIGURES, WATERFALL_REMAINDERS } from "@/
 import { parsePercent, percentAboveZero } from "@/lib/securities/money";
 import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/labels";
 import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
-import { SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
-import { SUBMISSION_KINDS } from "@/lib/portal/projects/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
@@ -214,43 +212,11 @@ export async function saveClockRule(_prev: FormState, data: FormData): Promise<F
   });
 }
 
-// ------------------------------------------------------------------ Phase 4e: the service level a contractor's submission is answered against
-
-/**
- * The service level per kind of contractor submission (6.14 OD-6, BD-614-31): calendar days from the day it is sent (assumed calendar). Each ships unset: a submission of that kind
- * shows no due day and is never judged overdue, and the review queue says so. Saving an empty field clears it back to unset, which is recorded, with a reason.
- */
-export async function saveSubmissionServiceLevel(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
-  const o = await exerciseOrg(actor.organisationId);
-  if (!o) return NO_ORG;
-  const r = new FormReader(data);
-  const kind = r.choice("kind", "Kind", SUBMISSION_KINDS, { required: true });
-  const days = r.int("serviceLevelDays", "Service level", { min: 1 });
-  const provenance = r.choice("provenance", "Where it came from", PROVENANCE);
-  const notes = r.text("notes", "Notes", { max: 2000 });
-  const reason = r.text("reason", "Reason", { max: 2000 });
-  if (days != null && !provenance) r.reject("provenance", "Say where the figure came from: there is no default.");
-  if (r.failed || !kind) return { ok: false, errors: r.errors };
-  return db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
-    const before = await tx.contractorSubmissionSetting.findUnique({ where: { organisationId_kind: { organisationId: o.id, kind } } });
-    const label = `Post-award controls · service level, ${SUBMISSION_KIND_WORDS[kind].en}`;
-    const text = (d: number | null | undefined) => (d == null ? null : `${d} calendar days`);
-    if (days == null) {
-      if (!before || before.serviceLevelDays == null) return { ok: true };
-      if (!reason.trim()) return { ok: false, errors: { reason: "Say why the service level is removed." } } as FormState;
-      await tx.contractorSubmissionSetting.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { serviceLevelDays: null, provenance: null, notes } });
-      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "ContractorSubmissionSetting", entityId: before.id, entityLabel: label, reason }, "UPDATE", diffFields({ serviceLevel: text(before.serviceLevelDays), provenance: before.provenance, notes: before.notes }, { serviceLevel: null, provenance: null, notes }));
-    } else {
-      const row = await tx.contractorSubmissionSetting.upsert({ where: { organisationId_kind: { organisationId: o.id, kind } }, update: { serviceLevelDays: days, provenance: provenance!, notes }, create: { organisationId: o.id, kind, serviceLevelDays: days, provenance: provenance!, notes } });
-      const changes = diffFields(before ? { serviceLevel: text(before.serviceLevelDays), provenance: before.provenance, notes: before.notes } : null, { serviceLevel: text(days), provenance, notes });
-      if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "ContractorSubmissionSetting", entityId: row.id, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
-    }
-    revalidatePath(PATH);
-    return { ok: true };
-  });
-}
+// ------------------------------------------------------------------ Phase 4e: the service level a contractor's submission was answered against (retired)
+//
+// PW-27 (plan step 6): the service-level editor left Configuration when the six kinds moved into the Project workspace, which has no due days (PW-4). Nothing new reads
+// `ContractorSubmissionSetting`; the table and its rows stay, and each earlier submission keeps the service level and due day stored on it when it was sent. A change proposed
+// before the editor left can no longer be applied, only declined ("its editor is gone", `decideEdit`).
 
 /**
  * Phase 4e review fix: whether a contractor's own portal account may sign for it (its block on a Variation Order Certificate or a Certificate of Adjustment of Contract Sum, and

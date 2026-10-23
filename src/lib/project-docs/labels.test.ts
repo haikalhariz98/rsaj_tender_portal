@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { SUBMISSION_KINDS } from "@/lib/portal/projects/types";
 
-import { BEING_PREPARED, STATE_WORDS, faultText, kindWords, markActionWords, outcomeWords, refusalText, sideWords, stateWords, takenUpLink, versionLabel, waitsOnWords } from "./labels";
+import { BEING_PREPARED, STATE_WORDS, faultText, kindChoices, kindWords, markActionWords, outcomeWords, refusalText, sideWords, stateWords, takenUpLink, versionLabel, waitsOnWords } from "./labels";
 import { DOCUMENT_STATES } from "./state";
 import { takenUpWhere } from "./taken-up";
 import { OUTCOMES, type Finding } from "./types";
@@ -146,5 +146,26 @@ describe("every refusal is worded", () => {
     const src = readFileSync(path.join(__dirname, "labels.ts"), "utf8");
     expect(src).not.toMatch(/RSAJ|Malay|\bms\b:/);
     expect(faultText({ code: "NOT_ORGANISATION", level: "block" })).toBe("Only the organisation can do this.");
+  });
+});
+
+describe("the kind picker and the declaration's signing refusals (plan step 6)", () => {
+  it("offers the six kinds by name, the declaration alone asking the password, with no hint of a figure (PW-10)", () => {
+    const choices = kindChoices();
+    expect(choices.map((c) => c.value)).toEqual([...SUBMISSION_KINDS]);
+    for (const c of choices) {
+      expect(c.label, c.value).toBe(kindWords(c.value));
+      expect(c.label, c.value).not.toMatch(CODE);
+      expect(c.label, c.value).not.toMatch(/amount|RM|day it/i);
+    }
+    expect(choices.filter((c) => c.asksPassword).map((c) => c.value)).toEqual(["STATUTORY_DECLARATION"]);
+  });
+
+  it("the organisation's switch and the contact's mark are worded, as the earlier submission worded them; never the code, never the plain refusal", () => {
+    for (const code of ["PORTAL_SIGNING_NOT_SET", "PORTAL_SIGNING_OFF", "SIGNER_NOT_AUTHORISED_NOT_SET", "SIGNER_NOT_AUTHORISED"]) {
+      const words = faultText({ code, level: "block" }, ORG);
+      expect(words, code).not.toBe("Refused.");
+      expect(words, code).not.toMatch(CODE);
+    }
   });
 });

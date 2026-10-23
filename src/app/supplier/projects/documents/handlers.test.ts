@@ -14,12 +14,14 @@ const h = vi.hoisted(() => ({
   request: vi.fn(),
   preflight: vi.fn(),
   find: vi.fn(),
+  confirm: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }), headers: async () => new Headers() }));
 vi.mock("@/lib/auth/supplier-session-store", () => ({ readSupplierSession: h.readSession, signOutSupplierToken: vi.fn() }));
 vi.mock("@/lib/project-docs/portal-acts", () => ({ contractorCreate: h.create, contractorVersion: h.version, contractorRequest: h.request }));
+vi.mock("@/lib/auth/supplier-identity", () => ({ confirmSupplierPassword: h.confirm }));
 vi.mock("@/lib/project-docs/portal-file", () => ({ findProjectFile: h.find }));
 vi.mock("@/lib/project-docs/portal-upload", async (orig) => ({ ...(await orig<typeof import("@/lib/project-docs/portal-upload")>()), preflightProjectUpload: h.preflight }));
 
@@ -80,7 +82,10 @@ beforeEach(() => {
   for (const f of Object.values(h)) f.mockReset();
   h.readSession.mockResolvedValue({ ok: true, actor: ACTOR, session: { id: "ses1", createdAt: new Date(), lastSeenAt: new Date(), absoluteExpiresAt: new Date() } });
   for (const f of [h.create, h.version, h.request]) f.mockResolvedValue({ status: 201, body: { ok: true } });
+  h.confirm.mockResolvedValue({ ok: true, at: AT });
 });
+
+const AT = new Date("2026-10-23T01:00:00Z");
 
 const nothingDone = () => {
   for (const f of [h.create, h.version, h.request, h.preflight, h.find]) expect(f).not.toHaveBeenCalled();
@@ -127,9 +132,21 @@ describe.each(DOORS)("%s: what a post must pass before anything is read or writt
     nothingDone();
   });
 
-  it("refuses a posted kind 422 and an unknown field 400, with a stable code and the field named, and does nothing", async () => {
+  // Rewritten for plan step 6 (PW-23: the kind picker lands in step 6). The guarantee kept: a posted kind is never ignored. The create and version routes read it (and hand it to the
+  // store, below); the request route still refuses it 422, as the staging upload does; an unknown kind is a field error.
+  it("a posted kind is read where a first version takes one, refused 422 where none is taken, and 400 where it is not one of the six; an unknown field is 400, named; nothing else is done", async () => {
     const kind = await handler(post(url, { ...good, kind: "INTERIM_CLAIM" }));
-    expect([kind.status, (await kind.json()).code]).toEqual([422, "KIND_NOT_AVAILABLE"]);
+    if (url.endsWith("/request")) {
+      expect([kind.status, (await kind.json()).code]).toEqual([422, "KIND_NOT_AVAILABLE"]);
+      expect(store).not.toHaveBeenCalled();
+    } else {
+      expect(kind.status).toBe(201);
+      expect(store.mock.calls[0]![1]).toMatchObject({ kind: "INTERIM_CLAIM" });
+      store.mockClear();
+      const bad = await handler(post(url, { ...good, kind: "PAY_ME" }));
+      expect([bad.status, (await bad.json()).code]).toEqual([400, "VALIDATION"]);
+      expect(store).not.toHaveBeenCalled();
+    }
     const unknown = await handler(post(url, { ...good, supplierId: "sup_someone_else", approverPersonIds: ["p1"] }));
     const body = await unknown.json();
     expect([unknown.status, body.code]).toEqual([400, "VALIDATION"]);
@@ -146,6 +163,54 @@ describe.each(DOORS)("%s: what a post must pass before anything is read or writt
     expect(input).toMatchObject({ contractId: CON });
     store.mockResolvedValue({ status: 404, body: { ok: false, code: "NOT_FOUND", message: "That is not something you can open." } });
     expect((await handler(post(url, good))).status).toBe(404);
+  });
+});
+
+describe("a statutory declaration is signed with the password asked again, and a wrong one does nothing (plan step 6; PW-10, AC-30)", () => {
+  const declaration = { ...GOOD.create, title: "Declaration lodged", kind: "STATUTORY_DECLARATION" };
+
+  it("create: the password is asked after the body is parsed and before the store, which is handed its moment and never the password", async () => {
+    const res = await create(post("/supplier/projects/documents/create", { ...declaration, password: "pw" }));
+    expect(res.status).toBe(201);
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+    expect(h.confirm.mock.calls[0]![0]).toBe(ACTOR);
+    expect(h.confirm.mock.calls[0]![1]).toBe("pw");
+    expect(h.create).toHaveBeenCalledWith(ACTOR, expect.objectContaining({ kind: "STATUTORY_DECLARATION" }), AT);
+    for (const call of h.create.mock.calls) expect(JSON.stringify(call)).not.toContain('"pw"');
+  });
+
+  it("create: a declaration with no password is refused before the password is asked; another kind asks none, and is refused one", async () => {
+    const none = await create(post("/supplier/projects/documents/create", declaration));
+    expect([none.status, (await none.json()).code]).toEqual([422, "VALIDATION"]);
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(h.create).not.toHaveBeenCalled();
+    expect((await create(post("/supplier/projects/documents/create", { ...GOOD.create, kind: "DELAY_NOTICE" }))).status).toBe(201);
+    expect(h.create).toHaveBeenLastCalledWith(ACTOR, expect.objectContaining({ kind: "DELAY_NOTICE" }), null);
+    const extra = await create(post("/supplier/projects/documents/create", { ...GOOD.create, kind: "DELAY_NOTICE", password: "pw" }));
+    expect([extra.status, (await extra.json()).code]).toEqual([400, "VALIDATION"]);
+    expect(h.confirm).not.toHaveBeenCalled();
+  });
+
+  it("version: a posted password is asked first (the route cannot know the kind) and its moment handed on; none posted, none asked", async () => {
+    expect((await version(post("/supplier/projects/documents/version", { ...GOOD.version, password: "pw" }))).status).toBe(201);
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+    expect(h.version).toHaveBeenLastCalledWith(ACTOR, expect.objectContaining({ documentId: DOC }), AT);
+    h.confirm.mockClear();
+    expect((await version(post("/supplier/projects/documents/version", GOOD.version))).status).toBe(201);
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(h.version).toHaveBeenLastCalledWith(ACTOR, expect.objectContaining({ documentId: DOC }), null);
+  });
+
+  it("a wrong, locked or throttled password, or sign-in not set up, is told so and nothing is sent, on both routes", async () => {
+    for (const [kind, status, code] of [["WRONG", 403, "WRONG_PASSWORD"], ["LOCKED", 403, "LOCKED"], ["THROTTLED", 429, "THROTTLED"], ["POLICY_NOT_SET", 503, "CLOSED"]] as const) {
+      h.confirm.mockResolvedValue({ ok: false, kind });
+      const a = await create(post("/supplier/projects/documents/create", { ...declaration, password: "nope" }));
+      expect([a.status, (await a.json()).code], kind).toEqual([status, code]);
+      const b = await version(post("/supplier/projects/documents/version", { ...GOOD.version, password: "nope" }));
+      expect([b.status, (await b.json()).code], kind).toEqual([status, code]);
+    }
+    expect(h.create).not.toHaveBeenCalled();
+    expect(h.version).not.toHaveBeenCalled();
   });
 });
 
