@@ -40,28 +40,19 @@ export type Provenance = "STATED" | "OBSERVED" | "ASSUMED";
 export const REQUISITION_DOMAIN = "requisition";
 export const OVER_BUDGET_COND = "over_budget";
 
-/// The keys two requisitions can be compared on for splitting (FR-REQ-015).
+/// The keys two requisitions were compared on for splitting (FR-REQ-015, removed): History still reads them on old audit rows.
 export const SPLIT_KEYS = ["unit", "costCentre", "accountCode", "budgetCode", "contractType"] as const;
 export type SplitKey = (typeof SPLIT_KEYS)[number];
 
 /// RequisitionPolicy, every field nullable: unset is not zero.
 export interface RequisitionPolicy {
-  splittingWindowDays: number | null;
-  splittingMatchOn: SplitKey[];
-  splittingAggregateAcrossYear: boolean | null;
   budgetRecheckDays: number | null;
   endorsementTiers: OrgUnitKind[];
-  /// The office whose holder may justify a flagged split. Null blocks justification.
-  splitJustifyingRoleCode: string | null;
   provenance: Provenance | null;
 }
 
 export const UNSET_POLICY: RequisitionPolicy = {
-  splittingWindowDays: null,
-  splittingMatchOn: [],
-  splittingAggregateAcrossYear: null,
   budgetRecheckDays: null,
   endorsementTiers: [],
-  splitJustifyingRoleCode: null,
   provenance: null,
 };

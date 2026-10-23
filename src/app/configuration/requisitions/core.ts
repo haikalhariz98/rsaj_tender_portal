@@ -47,7 +47,6 @@ export async function savePolicy(_prev: FormState, data: FormData): Promise<Form
   await db.$transaction(async (tx) => {
     const before = await tx.requisitionPolicy.findUnique({ where: { organisationId: org.id } });
     const row = await tx.requisitionPolicy.upsert({ where: { organisationId: org.id }, update: v, create: { organisationId: org.id, ...v } });
-    // Founder, 2026-10-05: the splitting settings are no longer offered or changed here.
     const flat = (x: typeof v | NonNullable<typeof before>) => ({ budgetRecheckDays: x.budgetRecheckDays, endorsementTiers: x.endorsementTiers.join(", "), provenance: x.provenance, notes: x.notes });
     const changes = diffFields(before ? flat(before) : null, flat(v));
     if (!before || changes.length > 0) {

@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import { toPosix } from "@/lib/scan/files";
+import { fieldLabel } from "@/lib/audit/diff";
 
 /**
  * BD-614-34 as ruled: every entity a History button asks for is on Configuration history's allow-list, so a button
@@ -27,5 +28,14 @@ describe("History buttons ask only for allow-listed entities", () => {
   });
   it("no button names its entity by an expression the scan cannot read", () => {
     expect(asked.filter((a) => a.expr != null).map((a) => `${a.f}: {${a.expr}}`)).toEqual([]);
+  });
+});
+
+describe("old audit rows of dropped settings still read (simplification plan 5.8)", () => {
+  it("names the requisition splitting settings in words, not as column names", () => {
+    expect(fieldLabel("splittingWindowDays")).toBe("Splitting window (days)");
+    expect(fieldLabel("splittingMatchOn")).toBe("Splitting: fields compared");
+    expect(fieldLabel("splittingAggregateAcrossYear")).toBe("Splitting: whole financial year counted");
+    expect(fieldLabel("splitJustifyingRoleCode")).toBe("Office that may justify a possible split");
   });
 });

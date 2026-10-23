@@ -128,6 +128,11 @@ const NAMED_FIELDS: Record<string, string> = {
   bqFirmValue: "Firm value",
   // 6.7 re-review: the commitment written on approval is the department estimate, SULIT (sulit-fields.ts).
   committedEstimate: "Amount committed (the department estimate)",
+  // The requisition splitting settings, dropped with FR-REQ-015 (plan 5.8): old audit rows still name them.
+  splittingWindowDays: "Splitting window (days)",
+  splittingMatchOn: "Splitting: fields compared",
+  splittingAggregateAcrossYear: "Splitting: whole financial year counted",
+  splitJustifyingRoleCode: "Office that may justify a possible split",
   // 6.7 (C-7, review R-7): the bidder an award names, by name.
   awardeeBidder: "Bidder carried to evaluation",
 };

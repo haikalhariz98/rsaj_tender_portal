@@ -37,7 +37,7 @@ export interface RequisitionDraft {
   /// A decimal string.
   estimatedValue: string | null;
   fundingRouteCode: string | null;
-  /// Optional: what is being bought. A splitting key where the policy relates on it.
+  /// Optional: what is being bought.
   contractTypeCode?: string | null;
   lines: DraftLine[];
 }

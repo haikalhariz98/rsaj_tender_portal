@@ -53,7 +53,7 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 
 (none yet)
 
-- **Splitting check leftovers (founder removed FR-REQ-015, 2026-10-05).** `assessSplitting`, `justifierFaults` and `splitApprovalFault` in `src/lib/requisition/splitting.ts` have no caller (only `splitStateLabel` is used, by History). The RequisitionPolicy columns `splittingWindowDays`, `splittingMatchOn`, `splittingAggregateAcrossYear`, `splitJustifyingRoleCode`, and the demo data that writes them, are unused. Drop them with a migration once past split checks no longer need to be read.
+- **DONE 2026-10-24** (simplification plan 5.8, migration `20261128000000_drop_splitting_settings`): the four columns, `AuthorityMatrix.splittingWindowDays`, the three dead functions and the demo values are gone. Past split checks (`RequisitionSplitCheck`, `ApprovalInstance.splitCheckId`/`splitState`) are kept and still read, and History still names the dropped fields on old audit rows. **Splitting check leftovers (founder removed FR-REQ-015, 2026-10-05).** `assessSplitting`, `justifierFaults` and `splitApprovalFault` in `src/lib/requisition/splitting.ts` have no caller (only `splitStateLabel` is used, by History). The RequisitionPolicy columns `splittingWindowDays`, `splittingMatchOn`, `splittingAggregateAcrossYear`, `splitJustifyingRoleCode`, and the demo data that writes them, are unused. Drop them with a migration once past split checks no longer need to be read.
 
 ## Go-live conditions (met before the public copy is exposed, not after)
 

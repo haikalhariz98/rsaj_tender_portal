@@ -221,8 +221,6 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     quotationFloor: quotationFloor ?? "0",
     tenderFloor: tenderFloor ?? "0",
     requisitionBoundary: requisitionBoundary ?? "0",
-    // AuthorityMatrix.splittingWindowDays is deprecated (6.1 ruling OD-9): never read,
-    // edited or shown. The window lives in RequisitionPolicy.
     fundingRouteCode,
     currency: r.text("currency", "Currency", { required: true, max: 8 }),
     boundaryProvenance: boundaryProvenance ?? "ASSUMED",

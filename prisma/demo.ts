@@ -946,9 +946,8 @@ async function loadRequisitions(organisationId: string, from: Date) {
   });
   await db.requisitionPolicy.create({
     data: {
-      id: `${P}rp1`, organisationId, splittingWindowDays: 45, splittingMatchOn: ["unit", "accountCode"],
+      id: `${P}rp1`, organisationId,
       budgetRecheckDays: 14, endorsementTiers: ["SECTION", "DEPARTMENT"], provenance: "ASSUMED",
-      splittingAggregateAcrossYear: false, splitJustifyingRoleCode: "HOD_CP",
       notes: "Invented demo controls.",
     },
   });
@@ -1107,7 +1106,7 @@ async function loadRequisitions(organisationId: string, from: Date) {
     ],
   });
 
-  // Split checks, as the demo policy found them on submission.
+  // Split checks stored before FR-REQ-015 was removed, each with the policy it ran under: history the record still shows.
   const policySnap = { windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: false, policyProvenance: "ASSUMED" as const };
   await db.requisitionSplitCheck.createMany({
     data: [

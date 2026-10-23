@@ -15,7 +15,6 @@ const issue: AuthorityMatrix = {
   quotationFloor: new Prisma.Decimal("50000.00"),
   tenderFloor: new Prisma.Decimal("500000.00"),
   requisitionBoundary: new Prisma.Decimal("500000.00"),
-  splittingWindowDays: 30,
   currency: "MYR",
   noRuleClause: "cl. 1",
   selfApprovalClause: null,

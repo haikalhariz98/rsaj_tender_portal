@@ -155,9 +155,10 @@ const ENTITY_VALUE_LABEL: Record<string, Record<string, Record<string, string>>>
   StaffAccount: { status: ACCOUNT_STATUS_WORDS, uiLanguage: STAFF_LANGUAGE_VALUE_WORDS },
 };
 /// Yes or No where a stored flag is a boolean.
-const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq", "scopeApprovalRequired", "completenessEliminates"]);
+// splittingAggregateAcrossYear and splitJustifyingRoleCode: columns dropped in plan 5.8, kept here so their old audit rows still read.
+const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq", "scopeApprovalRequired", "completenessEliminates", "splittingAggregateAcrossYear"]);
 const DELIVERABLE_VALUE: Record<string, string> = { GOODS_DELIVERED: "Goods delivered", MEASURED_CONSTRUCTION: "Measured construction", TERM_PERFORMANCE: "Performance over a term" };
-const OFFICE_FIELDS = new Set(["secretariatRoleCode", "seatRoleCode", "disposalAuthorityRoleCode"]);
+const OFFICE_FIELDS = new Set(["secretariatRoleCode", "seatRoleCode", "disposalAuthorityRoleCode", "splitJustifyingRoleCode"]);
 
 /// A reader that turns stored codes and ids into what they stand for.
 async function valueReader(scope: OrgScope, entity = ""): Promise<(field: string, value: string | null) => string | null> {

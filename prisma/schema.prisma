@@ -839,11 +839,7 @@ model AuthorityMatrix {
   tenderFloor         Decimal @db.Decimal(18, 2)
   requisitionBoundary Decimal @db.Decimal(18, 2)
 
-  /// Deprecated (6.1 ruling OD-9): never read, edited or shown. The 30 was a guess,
-  /// and the window now lives only in RequisitionPolicy, unset until the customer sets
-  /// it. Kept so existing rows and migrations stay valid.
-  splittingWindowDays Int    @default(30)
-  currency            String @default("MYR")
+  currency String @default("MYR")
 
   /// The clauses the engine cites when it applies a standing rule of its own rather
   /// than a row. Customer text, never shipped: null means "source not recorded", and
@@ -2765,24 +2761,18 @@ model RequisitionSplitCheck {
 }
 
 /// How this customer wants requisitions controlled. One per organisation, every field
-/// unset until the customer sets it: an unset window is not a window of zero.
+/// unset until the customer sets it: unset is not zero. The splitting settings were
+/// dropped with FR-REQ-015 (simplification plan 5.8). Past split checks stay on
+/// RequisitionSplitCheck and ApprovalInstance.
 model RequisitionPolicy {
   id             String       @id @default(cuid())
   organisationId String       @unique
   organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
 
-  splittingWindowDays          Int?
-  /// Which fields make two requisitions related: unit, costCentre, accountCode,
-  /// budgetCode, contractType. Empty means not set.
-  splittingMatchOn             String[]      @default([])
-  splittingAggregateAcrossYear Boolean?
   /// A check older than this many days is re-run on submission. Null: never stale.
-  budgetRecheckDays            Int?
+  budgetRecheckDays Int?
   /// The tiers whose heads endorse before submission. Empty means not set.
-  endorsementTiers             OrgUnitKind[] @default([])
-  /// The office whose holder may justify a flagged split (6.1 ruling Q3), by
-  /// AuthorityRole.code. Null blocks justification.
-  splitJustifyingRoleCode      String?
+  endorsementTiers  OrgUnitKind[] @default([])
 
   provenance Provenance?
   notes      String      @default("")

@@ -19,7 +19,7 @@ import type { FundingRouteRow } from "@/lib/requisition/funding";
 import type { Lookups, RequisitionDraft } from "@/lib/requisition/fields";
 import { sentBackBy } from "@/lib/requisition/sent-back";
 import { gateFinding, gatesFor, gateState, type GateFinding, type GateMatter, type GateRuleRow, type GateState } from "@/lib/requisition/gate";
-import { SPLIT_KEYS, UNSET_POLICY, type Provenance, type RequisitionPolicy, type SplitKey } from "@/lib/requisition/types";
+import { UNSET_POLICY, type Provenance, type RequisitionPolicy } from "@/lib/requisition/types";
 import type { AuditActor } from "@/lib/auth/types";
 import { inOrder } from "@/lib/series";
 
@@ -38,12 +38,8 @@ export async function loadPolicy(organisationId: string, client: Tx = db): Promi
   return {
     id: row.id,
     notes: row.notes,
-    splittingWindowDays: row.splittingWindowDays,
-    splittingMatchOn: row.splittingMatchOn.filter((k): k is SplitKey => (SPLIT_KEYS as readonly string[]).includes(k)),
-    splittingAggregateAcrossYear: row.splittingAggregateAcrossYear,
     budgetRecheckDays: row.budgetRecheckDays,
     endorsementTiers: row.endorsementTiers as OrgUnitKind[],
-    splitJustifyingRoleCode: row.splitJustifyingRoleCode,
     provenance: (row.provenance as Provenance | null) ?? null,
   };
 }

@@ -18,7 +18,6 @@ const COLUMNS = {
   quotationFloor: "carry",
   tenderFloor: "carry",
   requisitionBoundary: "carry",
-  splittingWindowDays: "carry",
   currency: "carry",
   noRuleClause: "carry",
   selfApprovalClause: "carry",
