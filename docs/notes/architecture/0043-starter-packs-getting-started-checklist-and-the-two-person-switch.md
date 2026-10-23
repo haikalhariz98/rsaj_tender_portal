@@ -1,6 +1,8 @@
 # 0043 — Starter packs, the Getting-started checklist, and the two-person switch
 
-- **Status:** accepted 2026-10-23. The founder approved the simplification proposal ("please proceed dont stop unitil it complete").
+- **Status:** proposed 2026-10-23. It becomes accepted when the product owner rules SP-3, SP-4, SP-22 and SP-23 of the
+  plan. The founder approved the direction (working defaults, a checklist, two-person approval off until go-live) on
+  2026-10-23: "please proceed dont stop unitil it complete".
 - **Supersedes in part:** ADR 0034 D15, the clause "Phase 5b moves every remaining Configuration section onto it". Two-person
   approval of configuration becomes an organisation switch (D3 below). Everything else in D15 stands.
 - **Retires:** the "creates the organisation and nothing else" stance in `prisma/seed.ts`, `prisma/demo.ts` and AGENTS.md
@@ -85,7 +87,7 @@
 ### D3. Two-person approval of configuration is an organisation switch
 
 - **The switch.** `SecurityPolicy.twoPersonChanges BOOLEAN NOT NULL DEFAULT true`, added by a new migration.
-  - Existing organisations keep it on. A migration never loosens a control.
+  - Existing organisations keep it on. The migration switches no organisation off.
   - The generic pack sets it off only when it creates the organisation's `SecurityPolicy` row, which happens on a new
     organisation at setup. Setup is before go-live by definition.
   - The development fill turns it off on a demonstration database only, with the founder's instruction as the reason.
@@ -110,8 +112,9 @@
   - **On to off:** a `SECURITY_POLICY` change that a second person decides, like any other change while the switch is on.
     One administrator can never switch the control off and then act alone.
 - **Nothing fakes a second person.** No row names a decider who did not decide.
-  - The changes made by one person are exactly the configuration audit rows inside the periods the switch was off. The
-    switch's own audit rows bound those periods.
+  - The changes made by one person are the audit rows that have a person actor and carry the reason
+    `ONE_PERSON_REASON`. Pack and system rows have no person actor, so they are not in the list. The switch's own audit
+    rows show when it was off.
   - A matrix or draft whose issuer is among its makers was put in force by one person, and History says so.
 - **The go-live rule.** The checklist's "Before go-live" item is done only when the switch is on. While it is off:
   - Settings shows one quiet chip, "Two-person approval off", to holders of `configuration.issue`;
@@ -147,6 +150,10 @@
   - The founder's database can open its registration without a second account.
 - **Harder:**
   - Two security triggers change. The migration is a security-reviewed step.
+  - PA005 becomes conditional on `SecurityPolicy.twoPersonChanges`, a column the app's database role can write. This is
+    a small weakening. Inserting an already-issued matrix was already a path round PA005. While the switch is on, the
+    column changes only through a decided `SECURITY_POLICY` change, and the security review (plan 4.8) checks that no
+    other writer exists.
   - A wrong STATED value now arrives pre-filled. The mitigations:
     - every entry cites its clause;
     - the DAL and the evaluation models arrive only as drafts;

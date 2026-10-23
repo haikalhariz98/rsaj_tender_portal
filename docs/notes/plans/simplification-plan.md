@@ -148,8 +148,9 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
   - `two-person.test.ts`: every kind is classified, and the five are never covered;
   - a `*.db.test.ts` for the trigger: a maker's issue is refused while the switch is on (PA005), accepted while it is off,
     and refused when there is no `SecurityPolicy` row.
-- **Done when:** both migrations apply on a fresh database and on a copy of `perolehan` (`npm run db:deploy`), and the tests
-  pass.
+- **Done when:** both migrations apply, with `npm run db:deploy`, on a **scratch database**: a new database name in
+  `DATABASE_URL`, made with `createdb`. The tests pass. **Never** run `npm run db:reset` or `docker compose down -v`.
+  They destroy the volume that holds `perolehan`.
 
 ### 4.2 Two-person switch in code
 
@@ -244,8 +245,12 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
     - `unsetSettings(policy, "SIGN_IN", …)` is empty;
     - `whatIsMissing` holds only the four deployment items and the customer's texts (§3.2);
     - a second load writes nothing.
-- **Done when:** `npm run setup` on an empty volume gives an organisation where an administrator can be bootstrapped and
-  every generic group is filled, and a re-run writes nothing.
+- **Done when:** `prisma migrate deploy` and `prisma db seed`, run against a **scratch database** (a new database name in
+  `DATABASE_URL`, never the `perolehan` volume, never `db:reset`), give an organisation where an administrator can be
+  bootstrapped and every generic group is filled. A re-run writes nothing.
+- **The CLI warns** when it skips a STATED list or group, for example when the RSAJ numbering patterns are skipped because
+  generic loaded first. An RSAJ deployment sets `STARTER_PACKS=rsaj,generic` **before** its first `npm run setup`. This
+  goes in the README's setup section, which this step owns.
 
 ### 4.4 RSAJ pack, part 1: approvals and purchasing
 
@@ -299,10 +304,12 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
 - **Migration:** no.
 - **Files it owns:**
   - `src/lib/setup/checklist.ts` (pure) and `src/lib/setup/checklist-repo.ts`;
+  - `src/app/configuration/audit/**`, for the one-person filter only;
   - `src/app/configuration/page.tsx`, which **replaces the redirect**;
   - `src/components/setup/checklist.tsx`.
 - **Work:**
-  - The page heads with a `PageHeader` "Getting started" and a `Meter` "n of 15 done".
+  - The page heads with a `PageHeader` "Getting started" and a `Meter` "n of m done", where m counts the visible items
+    (item 13 is hidden until step 7).
   - It lists one card per section, each with its items as rows: a status `Dot`, a label, a "Set" or "Confirm" link, and an
     info popover. The items are in §3.1.
   - A "Before go-live" card holds the switch item.
@@ -310,6 +317,9 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
     section cards (wired in 5.1).
   - The page is read by holders of `configuration.draft`, `configuration.issue` or `audit.read`, and by administrators.
     Anyone else is sent to Home.
+  - **The one-person list (G1).** The existing audit page (`src/app/configuration/audit/**`, owned by this step for the
+    filter only) gains the filter "Made without a second person". It shows the audit rows with a person actor whose
+    reason carries `ONE_PERSON_REASON` (ADR 0043 D3). G1 links to it while the switch is off.
 - **Tests:**
   - `checklist.test.ts`: each item's done rule, from facts;
   - `checklist-repo.db.test.ts`: an empty organisation gives all todo; after generic, the generic-filled items are done; a
@@ -383,7 +393,9 @@ The Suppliers & portal card also shows one status line, "Online registration: op
     - It sets `twoPersonChanges` false with the SYSTEM actor "Development fill (founder's instruction 2026-10-23)" and the
       founder's words as the reason.
     - It then writes the three invented texts and the notice, marked "development wording, invented", ASSUMED.
-    - Where the generic pack skipped them, it sets the upload class and statement class to the demo's classes.
+    - Where the `SupplierPolicy` class group is still null **and** the organisation's class list is not empty (so generic
+      will skip its own classes), it sets the upload class and statement class to the demo's classes. This is checkable
+      before generic runs, and 4.8 runs the development fill first.
 
     This supersedes the scratchpad `open-register-dev.ts`, which was never run.
 - **Tests:**
@@ -428,6 +440,8 @@ The Suppliers & portal card also shows one status line, "Online registration: op
      - Is any record-correction kind covered?
      - Are all three triggers still `ENABLE ALWAYS`?
      - Can a pack load into an organisation that is on?
+     - Can the app's database role change `twoPersonChanges` other than through a decided change (while on) or the
+       editor (while off)?
 
      Must and Should findings are fixed before go-on.
   2. **Rollout to the founder's database** `perolehan` (organisation "Demo Utilities Sdn Bhd"). In PowerShell, from the
@@ -452,7 +466,9 @@ The Suppliers & portal card also shows one status line, "Online registration: op
      - rewrite the "Maker-checker deferred until sign-in" row as "Two-person configuration approval is an organisation
        switch (ADR 0043): off during setup, on before go-live; record corrections always two-person; nothing fakes a
        second person";
-     - in "This is a product…", replace "Every screen handles the unconfigured state" with a line on the packs.
+     - in "This is a product…", replace "Every screen handles the unconfigured state" with a line on the packs;
+     - in "Provenance: the pattern to copy", say that provenance is recorded on every value and shown in History and in
+       `RuleInfo` at the decision point, not as chips on working screens (SP-18).
   4. `prisma/demo.ts` header: replace "`npm run setup` still creates one empty organisation and nothing else" with a
      pointer to ADR 0043.
 - **Done when:**
@@ -493,7 +509,7 @@ section, then the page.
   - `src/app/configuration/records-ui.tsx` and `src/app/configuration/history.ts`. History gains a "Source" line that shows
     `whereItComesFrom` and the governing source in words.
   - `src/components/ui/provenance.tsx`.
-  - `scripts/ui-text-rules.mjs` and `scripts/ui-text-baseline.json`.
+  - `scripts/ui-text-rules.mjs`, `scripts/ui-text-baseline.json` and `scripts/text-snapshot.mjs`.
 - **Work:**
   1. **The rail:** Getting started, then the six sections. A sub-page lights its section through the folder map.
   2. **Each section page:**
@@ -511,10 +527,14 @@ section, then the page.
   4. **The decision-point rule** (NFR-USE-001, FR-APR-019) gets a shared `RuleInfo` popover in
      `src/components/ui/rule-info.tsx`. It shows the rule in one sentence and its clause. Where the source is ASSUMED, it
      adds "Assumed, not from a written rule". Steps 5 and 6 use it beside primary actions.
-  5. **Word rules:** add `BANNED_WORDS` (§6) to `ui-text-rules.mjs` as a rule with the baseline ratchet, so a file may hold
-     fewer, never more. Parallel passes do **not** edit the baseline; 5.9 tightens it.
+  5. **Word rules:** add `BANNED_WORDS` to `ui-text-rules.mjs` as a rule with the baseline ratchet, so a file may hold
+     fewer, never more. It holds only the unambiguous phrases in §6's "Enforced" list. The single words are a review list,
+     because "issue", "case", "act" and "window" also appear in legitimate text. Parallel passes do **not** edit the
+     baseline; 5.9 tightens it.
   6. **Edit buttons** on any Settings page are hidden from a viewer without `configuration.draft` (UX review: an officer
      sees Edit). The page reads `mayDraft` once in the layout and passes it down.
+  7. **Visible words:** add `--visible` to `scripts/text-snapshot.mjs`. It skips text under `.sr-only` or `[hidden]`
+     ancestors. The pass metric (words down by half) counts visible words. The full snapshot proves nothing was lost.
 - **Tests:**
   - `config-nav.test.ts`, rewritten: every folder maps to exactly one section; six sections; each label equals its crumb;
   - `section-page.test.ts`: essentials before Advanced, and the banner hidden when nothing is to do;
@@ -556,7 +576,7 @@ Each pass does the same seven things inside the folders it owns, and nothing out
   - 5.3 adds `accounts-merged.test.ts`: every account action that was reachable is reachable from People.
   - 5.7 adds `approvals-tabs.test.ts`: the queue tab is hidden from a reader without the permission.
 - **Done when:**
-  - the page's words are down by at least half (measured by the text snapshot);
+  - the page's **visible** words are down by at least half (`text-snapshot.mjs --visible`);
   - no field, warning or action has been lost (the diff is reviewed);
   - the sibling pages in the section match.
 
@@ -780,7 +800,23 @@ Each pass does the same seven things inside the folders it owns, and nothing out
   - append "Done" to each step here.
 - **Done when:** the UX review's top 10 are each closed or recorded as an SP decision.
 
-## 6. Word list (enforced by `BANNED_WORDS` from 5.1)
+## 6. Word list
+
+**Enforced by `BANNED_WORDS` (5.1):**
+- (invented)
+- Core routing
+- band famil
+- Boundary ruling
+- SULIT · withheld
+- Gate met
+- "(A)", "(R)" and "(P)" after an action name
+- Changes awaiting a second person
+- Not built
+- Not emailed
+- Recorded by demo loader
+- Where it comes from
+
+**The full list** is applied by review in each pass. "Assumed" stays allowed inside `RuleInfo`.
 
 | Do not write | Write |
 | --- | --- |
