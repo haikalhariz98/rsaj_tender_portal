@@ -8,7 +8,7 @@
  * that is not on the register: a number already on it is the register flag, judged separately.
  */
 
-import { storedDay } from "@/lib/dates";
+import { dayOrNull, storedDay } from "@/lib/dates";
 import type { DeclarationKind } from "@/lib/portal/registration/types";
 import { fileFacts, type FileFacts } from "@/lib/suppliers/review";
 import type { ApplicationStatus, DocumentTypeFacts, VerificationState } from "@/lib/suppliers/types";
@@ -80,10 +80,9 @@ export interface HeldApplicationRows {
 /// `portalFileFacts` on the held rows: the one mapping the officer's acts and the application's page both read (review SHOULD 2), so the page that says what stops sending and the act
 /// that refuses it cannot disagree. Bank details erased on set aside are none.
 export function portalFileFactsOf(rows: HeldApplicationRows, types: readonly DocumentTypeFacts[], policy: { onlineDeclarationReplacesPaper: boolean | null }, today: string): FileFacts {
-  const day = (d: Date | null) => (d ? storedDay(d) : null);
   return portalFileFacts(
     { status: rows.application.status, receivedOn: storedDay(rows.application.receivedOn), routePending: rows.application.routePending },
-    rows.documents.map((d) => ({ id: d.id, typeId: d.typeId, typeLabel: d.typeLabelSnapshot, expiresOn: day(d.expiresOn), notApplicable: d.notApplicable, verification: d.verification as VerificationState, verifiedOn: day(d.verifiedOn) })),
+    rows.documents.map((d) => ({ id: d.id, typeId: d.typeId, typeLabel: d.typeLabelSnapshot, expiresOn: dayOrNull(d.expiresOn), notApplicable: d.notApplicable, verification: d.verification as VerificationState, verifiedOn: dayOrNull(d.verifiedOn) })),
     rows.creditor && !rows.creditor.erasedAt ? { verification: rows.creditor.verification as VerificationState } : null,
     rows.declarations.map((a) => ({ kind: a.kind as DeclarationKind, signedAt: a.signedAt.toISOString() })),
     types,
