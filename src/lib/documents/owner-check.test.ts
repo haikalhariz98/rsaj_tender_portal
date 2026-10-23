@@ -373,6 +373,7 @@ describe("ADR 0042 D1: the Project workspace version is an owner, everywhere at 
   const BEFORE = "20261118000100_portal_application_frozen";
   const OWN = "20261122000000_enum_purpose_project_document_file";
   const REBUILD = "20261122000100_project_workspace";
+  const FIX_ROUND = "20261124000000_project_workspace_fix_round";
 
   it("its key is counted by one_owner and PROJECT_DOCUMENT_FILE pairs with it", () => {
     expect(latestCheck("DocumentAttachment_one_owner")).toMatch(/"projectDocumentVersionId"(, "\w+")*\) = 1/);
@@ -401,10 +402,15 @@ describe("ADR 0042 D1: the Project workspace version is an owner, everywhere at 
     const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes("'PROJECT_DOCUMENT_FILE'"));
     expect(own).toEqual([OWN]);
     expect(used[0]).toBe(REBUILD);
-    for (const u of used) expect(mentionsOutsidePurposeCheck(readFileSync(join(migrationsDir, u, "migration.sql"), "utf8"), "'PROJECT_DOCUMENT_FILE'"), u).toEqual([]);
+    for (const u of used.filter((d) => d !== FIX_ROUND)) expect(mentionsOutsidePurposeCheck(readFileSync(join(migrationsDir, u, "migration.sql"), "utf8"), "'PROJECT_DOCUMENT_FILE'"), u).toEqual([]);
+    // The one ruled exception (PW-33, PW-37, PW-42): the fix round READS the purpose, in exactly four places (two pre-checks, the one-pin index's predicate
+    // and the kept-file trigger), and writes no row. A fifth mention, or any row written there, fails here.
+    const fixRound = readFileSync(join(migrationsDir, FIX_ROUND, "migration.sql"), "utf8");
+    expect(mentionsOutsidePurposeCheck(fixRound, "'PROJECT_DOCUMENT_FILE'")).toHaveLength(4);
+    expect(fixRound).not.toMatch(/^\s*(INSERT|UPDATE|DELETE)\b/m);
     const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
     expect(sql).toHaveLength(1);
     // No semicolon inside a comment (the WASM engine splits on every one).
-    for (const f of [OWN, REBUILD]) for (const line of readFileSync(join(migrationsDir, f, "migration.sql"), "utf8").split("\n").filter((l) => l.trim().startsWith("--"))) expect(line, f).not.toContain(";");
+    for (const f of [OWN, REBUILD, FIX_ROUND]) for (const line of readFileSync(join(migrationsDir, f, "migration.sql"), "utf8").split("\n").filter((l) => l.trim().startsWith("--"))) expect(line, f).not.toContain(";");
   });
 });

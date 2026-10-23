@@ -17,7 +17,7 @@ let contractId: string;
 let so: string;
 let engineer: string;
 let other: string;
-/// The contractor's portal account.
+/// The contractor's portal account, of the awardee (PA041 and PA042 hold a contractor-side account to the contract's Award.vendorId, PW-39).
 let account: string;
 
 function sqlState(error: unknown): string {
@@ -46,13 +46,14 @@ beforeAll(async () => {
   so = (await makePerson(organisationId, `S.O. ${randomId()}`)).id;
   engineer = (await makePerson(organisationId, `Engineer ${randomId()}`)).id;
   other = (await makePerson(organisationId, `Other ${randomId()}`)).id;
-  account = (await makeSupplierAccount(organisationId)).account!.id;
+  const contractor = await makeSupplierAccount(organisationId);
+  account = contractor.account!.id;
   const run = randomId();
   const requisition = await db.requisition.create({
     data: { organisationId, reference: `PWS/RQ/${run}`, requestingUnitCode: "PWS_DEPT", requestingPersonId: so, title: "Workspace requisition", justification: "Tests.", needStatement: "None.", costCentreCode: "PWS_CC", accountCode: "PWS_AC", placeOfDelivery: "Nowhere", dateRequired: DAY, estimatedValue: "100000.00", raisedOn: DAY },
   });
   const exercise = await db.sourcingExercise.create({ data: { organisationId, reference: `PWS/EX/${run}`, requisitionId: requisition.id, title: `Drainage ${run}`, estimatedValue: "100000.00", sourcingMethodCode: "PWS_METHOD", status: "EVALUATED" } });
-  const award = await db.award.create({ data: { organisationId, reference: `PWS/AW/${run}`, exerciseId: exercise.id, instrumentKind: "WORK_INDENT", awardeeName: "A Contractor", awardedValue: "100000.00", completionPeriod: 90, completionUnit: "DAYS", status: "ISSUED" } });
+  const award = await db.award.create({ data: { organisationId, reference: `PWS/AW/${run}`, exerciseId: exercise.id, instrumentKind: "WORK_INDENT", awardeeName: "A Contractor", awardedValue: "100000.00", completionPeriod: 90, completionUnit: "DAYS", status: "ISSUED", vendorId: contractor.supplier.id } });
   contractId = (await db.contract.create({ data: { organisationId, number: `PWS/CON/${run}`, numberSource: "SERIES", numberedOn: DAY, awardId: award.id, contractSum: "100000.00", status: "ACTIVE" } })).id;
 });
 
