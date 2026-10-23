@@ -19,7 +19,7 @@ import type { StarterPack } from "./types";
 
 const WORDS = { STATED: "Stated", ASSUMED: "Assumed" } as const;
 /// Columns kept out of the audit row: keys and the list a row is on (codes never reach a screen; the entity label names the list), and the provenance and source, which it records in words.
-const UNSHOWN = ["code", "key", "list", "provenance", "governingSource"];
+const UNSHOWN = ["code", "key", "list", "domain", "provenance", "governingSource"];
 
 type Writer = { create(a: unknown): Promise<{ id: string }>; update(a: unknown): Promise<{ id: string }> };
 

@@ -15,8 +15,8 @@ import { LOAD_DAY } from "../../src/lib/starter/plan";
 import type { PackGroup, PackList, StarterPack } from "../../src/lib/starter/types";
 
 const SOURCE = "generic starting value";
-/// SP-8. No live copy could be read when this was written: re-check it against the page before go-live.
-const BANK_SOURCE = "Bank Negara Malaysia, list of licensed commercial banks (bnm.gov.my), transcribed 2026-10-23 from a reference copy, not re-checked against the live page";
+/// SP-8. Written from memory: the page could not be read when this was written. Check it against the page before go-live.
+const BANK_SOURCE = "Bank Negara Malaysia, list of licensed commercial banks (bnm.gov.my): transcribed 2026-10-23 without access to the page, unverified; check it against the page before go-live";
 
 /// The columns of each table this pack writes, from the generated client: a misspelt column does not compile.
 interface Models {
