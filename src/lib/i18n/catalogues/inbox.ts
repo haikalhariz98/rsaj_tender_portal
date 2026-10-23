@@ -9,8 +9,6 @@ import { w } from "@/lib/contract/labels";
 
 export const INBOX_WORDS = {
   title: w("Inbox"),
-  notEmailed: w("Not emailed"),
-  notEmailedDetail: w("Notices appear here only. Nothing is sent by email."),
   infoTitle: w("About the inbox"),
   more: w(
     "Steps that arrived, moved or were withdrawn, delegations to you, and not-approved memos. What awaits your decision is on My approvals.",
@@ -23,7 +21,7 @@ export const INBOX_WORDS = {
   subtitleMore: w("Latest {shown} of {total}"),
   subtitleNewest: w("Newest first"),
   markAllRead: w("Mark all as read"),
-  emptyTitle: w("No notices"),
+  emptyTitle: w("No notices yet."),
   searchNotices: w("Search notices"),
   listEmptyTitle: w("Nothing here"),
   unread: w("Unread"),

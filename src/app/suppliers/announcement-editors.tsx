@@ -15,7 +15,7 @@ export function PublishDrawer() {
   return (
     <RecordEditor
       title="Publish an announcement"
-      description="Shown on the portal, not emailed. Cannot be edited: withdraw and republish."
+      description="Shown on the portal. Cannot be edited: withdraw and republish."
       fields={[
         { kind: "select", name: "category", label: "Category", required: true, placeholder: "Choose", options: ANNOUNCEMENT_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_WORDS[c].en })) },
         { kind: "text", name: "title", label: "Title", required: true },

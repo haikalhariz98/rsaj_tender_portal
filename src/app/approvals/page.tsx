@@ -2,12 +2,13 @@ import { requestWorklist } from "@/app/_auth/worklist";
 import { DataList, type Row } from "@/components/data-list";
 import { InboxIcon, RouteIcon } from "@/components/icons";
 import { Tabs } from "@/components/tabs";
-import { actLabel } from "@/components/ui/act";
 import { Card, CardHeader } from "@/components/ui/card";
+import { ButtonLink } from "@/components/ui/button";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { LeadWithMore } from "@/components/ui/more-text";
-import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatusCounts } from "@/components/ui/status-counts";
+import { ACT_LABEL } from "@/lib/labels";
 import { myStepsOf, waitingForCount, WAITING_RULE_TEXT, type QueueItem } from "@/lib/approvals/queue";
 import { ESCALATION_KIND_LABEL } from "@/lib/authority/escalation-labels";
 import { dayToDate } from "@/lib/dates";
@@ -56,7 +57,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     cells: {
       matter: { kind: "link", text: m.item.matterLabel, href: m.item.href, sub: m.item.matterKindLabel },
       office: { kind: "stack", title: m.item.officeLabel, sub: m.via === "DELEGATE" ? "as the delegate of the office" : m.item.escalatedFrom ? `escalated from ${m.item.escalatedFrom}` : "as its holder" },
-      act: { kind: "text", text: actLabel(m.item.act) },
+      act: { kind: "text", text: ACT_LABEL[m.item.act] ?? "Unknown act" },
       waiting: waitingCell(m.item),
       why: {
         kind: "chips",
@@ -76,7 +77,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     cells: {
       matter: { kind: "link", text: i.matterLabel, href: i.href, sub: i.matterKindLabel },
       office: { kind: "stack", title: i.officeLabel, sub: i.escalatedFrom ? `escalated from ${i.escalatedFrom}` : i.committee ? "a committee's decision" : undefined },
-      act: { kind: "text", text: actLabel(i.act) },
+      act: { kind: "text", text: ACT_LABEL[i.act] ?? "Unknown act" },
       waiting: waitingCell(i),
       why: {
         kind: "chips",
@@ -108,7 +109,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         divided={false}
       />
       {mineRows.length === 0 ? (
-        <EmptyState title="Nothing waiting for you" />
+        <EmptyState title="Nothing is waiting for you." action={<ButtonLink href="/approvals?tab=office" size="sm" variant="secondary">See every open approval</ButtonLink>} />
       ) : (
         <DataList
           flat
@@ -139,7 +140,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         divided={false}
       />
       {rows.length === 0 ? (
-        <EmptyState title="No open approvals" />
+        <EmptyState title="No approvals are open." action={<ButtonLink href="/requisitions" size="sm" variant="secondary">Go to requisitions</ButtonLink>} />
       ) : (
         <DataList
           flat
@@ -166,10 +167,17 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         title="My approvals"
         info={{
           title: "My approvals",
-          text: "A step is yours when you hold its office or a delegation of it. Steps you raised are listed, not counted. Committees decide at the sitting. Not emailed: see your inbox.",
+          text: "A step is yours when you hold its office or a delegation of it. Steps you raised are listed, not counted. Committees decide at the sitting. Told in your inbox.",
         }}
-        meta={[`${waiting} for you`, `${all.length} open`, `${escalated} escalated`, `${nobody} need escalating`,
-          <InfoChip key="ne" tone="neutral" detail="Email is not connected. What happens to a step, and who is told, appears in your inbox.">Not emailed</InfoChip>,
+      />
+      <StatusCounts
+        label="Where approvals stand"
+        className="mb-6"
+        items={[
+          { label: "For you", count: waiting, href: "/approvals?tab=mine", tone: "info", active: tab !== "office" && tab !== "changes" },
+          { label: "Open", count: all.length, href: "/approvals?tab=office", active: tab === "office" },
+          { label: "Escalated", count: escalated, href: "/approvals?tab=office", tone: "warn" },
+          { label: "Need escalating", count: nobody, href: "/approvals?tab=office", tone: "err" },
         ]}
       />
       {w && !w.today && (

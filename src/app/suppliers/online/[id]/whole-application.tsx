@@ -78,7 +78,6 @@ export async function WholeApplicationPage({ actor, org, a, flags, cfg, people, 
   const status = STATUS[a.status];
   const waiting = a.status === "RECEIVED";
   const pending = a.routes.some((r) => r.status === "PENDING");
-  const back = <Link href="/suppliers?tab=portal">Suppliers</Link>;
 
   // The file as the approval rules judge it now: what stops sending it.
   const f = today
@@ -375,7 +374,6 @@ export async function WholeApplicationPage({ actor, org, a, flags, cfg, people, 
     <>
       <RecordCrumb label={a.reference} />
       <PageHeader
-        eyebrow={back}
         title={erased ? `Online application ${a.reference}` : a.registeredName}
         badge={<Badge tone={status.tone} dot>{status.text}</Badge>}
         subtitle={erased ? "The applicant's details have been erased." : `Registration number ${a.registrationNo}`}

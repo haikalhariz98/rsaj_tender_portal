@@ -6,7 +6,6 @@ import { InboxIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { Card, CardHeader } from "@/components/ui/card";
-import { InfoChip } from "@/components/ui/info-chip";
 import { PageHeader } from "@/components/ui/page-header";
 import type { Words } from "@/lib/contract/labels";
 import { db } from "@/lib/db";
@@ -20,6 +19,7 @@ import { say, sayWith } from "@/lib/i18n/say";
 import { markNoticesRead, openNoticeAction } from "./actions";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Inbox" };
 
 /**
  * The staff inbox (FR-APR-018, Phase 3c): the notices raised for the person signed in, and nobody else's. Email is not connected (INT-09), so this is where a
@@ -56,7 +56,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       <PageHeader
         title={t(I.title)}
         info={{ title: t(I.infoTitle), text: t(I.more) }}
-        meta={[sayWith(I.unreadCount, lang, { count: String(totals.unread) }), sayWith(totals.total === 1 ? I.noticeCount : I.noticesCount, lang, { count: String(totals.total) }), <InfoChip key="ne" outline detail={t(I.notEmailedDetail)}>{t(I.notEmailed)}</InfoChip>]}
+        meta={[sayWith(I.unreadCount, lang, { count: String(totals.unread) }), sayWith(totals.total === 1 ? I.noticeCount : I.noticesCount, lang, { count: String(totals.total) })] }
       />
       <Card className="overflow-hidden">
         <CardHeader
@@ -76,7 +76,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           divided={false}
         />
         {rows.length === 0 ? (
-          <EmptyState title={t(I.emptyTitle)} />
+          <EmptyState title={t(I.emptyTitle)} action={<ButtonLink href="/approvals" size="sm" variant="secondary">Go to my approvals</ButtonLink>} />
         ) : (
           <DataList
             flat

@@ -79,6 +79,7 @@ import { loadAttributions } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Committee sitting" };
 
 const PROVENANCE_LABEL: Record<string, string> = {
   STATED: "stated",
@@ -187,7 +188,6 @@ export default async function SittingPage({
     <>
       <RecordCrumb label={m.reference} />
       <PageHeader
-        eyebrow={<Link href="/committees">Committee sitting</Link>}
         title={s.committeeName}
         badge={
           <Badge tone={TONE[MEETING_STATUS_TONE[m.status]]} dot>
@@ -552,7 +552,7 @@ async function AgendaPanel({ s, prefill, notLinked, hiddenMatters, matterGates }
           </CardBody>
         )}
         {m.decisions.length === 0 && (
-          <EmptyState size="sm" title={m.status === "CANCELLED" || m.status === "MINUTED" || s.secretariat.code ? "Nothing tabled" : "Nothing tabled. No Secretariat office set."} />
+          <EmptyState size="sm" title={m.status === "CANCELLED" || m.status === "MINUTED" || s.secretariat.code ? "Nothing is tabled." : "Nothing is tabled. No Secretariat office is set."} />
         )}
       </Card>
       {matters}

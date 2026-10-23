@@ -395,7 +395,7 @@ export const WAITING_WORDS = {
   subtitle: {
     en: "Longest waiting first",
   },
-  emptyTitle: { en: "Nothing waiting to be tabled" },
+  emptyTitle: { en: "Nothing is waiting to be tabled." },
   emptyBody: {
     en: "",
   },

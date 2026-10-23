@@ -27,7 +27,7 @@ export function SuspendDrawer({ supplierId, reasons, documents, people, today, b
   return (
     <RecordEditor
       title="Suspend the supplier"
-      description="Reinstating needs each document verified again. Not emailed."
+      description="Reinstating needs each document verified again."
       fields={[
         hidden("supplierId"),
         { kind: "select", name: "reasonId", label: "Reason", required: true, placeholder: "Choose", options: reasons, hint: reasons.length ? undefined : "None configured under Configuration › Supplier register." },

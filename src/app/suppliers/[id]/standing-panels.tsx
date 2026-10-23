@@ -127,7 +127,6 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title="Standing"
-          subtitle="Not emailed"
           actions={
             <span className="flex flex-wrap items-center gap-2">
               {reading.suspension ? <ReinstateDrawer supplierId={s.id} checklist={checklist.map((c) => ({ value: c.documentId, label: `${docLabel(c.documentId)}: ${c.typeLabel} now ${DOCUMENT_STATE_LABEL[c.state].en.toLowerCase()}` }))} people={people} today={today} blocker={reading.standing === "BLACKLISTED" ? supplierFaultText({ code: "BLACKLISTED", level: "block" }) : null} /> : <SuspendDrawer supplierId={s.id} reasons={reasonsFor("SUSPEND")} documents={s.documents.filter((d) => !d.renewedBy).map((d) => ({ value: d.id, label: docLabel(d.id) }))} people={people} today={today} blocker={suspendBlocker} />}

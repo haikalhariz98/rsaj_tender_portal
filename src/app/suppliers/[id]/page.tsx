@@ -46,7 +46,6 @@ import {
   DOCUMENT_STATE_LABEL,
   DOCUMENT_STATE_TONE,
   ERP_NOT_SYNCED,
-  NOT_SENT,
   NOT_VALIDATED,
   OUTCOME_LABEL,
   QUEUE_STATE_LABEL,
@@ -84,6 +83,7 @@ import { CreditorPanel } from "./creditor-panel";
 import { loadAttributions } from "@/lib/auth/attribution-read";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Supplier" };
 
 type Option = { value: string; label: string };
 const notSet = (what = "Not set") => <span className="text-ink-4">{what}</span>;
@@ -139,7 +139,6 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
     <>
       <RecordCrumb label={s.reference} />
       <PageHeader
-        eyebrow={<Link href="/suppliers">Suppliers</Link>}
         title={s.registeredName}
         badge={reading && status === "REGISTERED" ? <Badge tone={standingTone(reading)} dot>{standingWords(reading).en}</Badge> : <Badge tone={SUPPLIER_STATUS_TONE[status]} dot>{SUPPLIER_STATUS_LABEL[status].en}</Badge>}
         meta={[
@@ -352,7 +351,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
               const typeRow = cfg.types.find((t) => t.id === st.type.id)!;
               return (
                 <section key={st.type.id} className="flex flex-col gap-3 px-5 py-4 sm:px-6">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <div className="flex min-w-0 flex-col gap-0.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className="text-[14.5px] font-semibold text-ink">{st.type.label}</span>
@@ -451,8 +450,7 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
   const docs = s.documents.map(documentFacts);
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <InfoChip tone="warn" detail={NOT_SENT.en}>Not emailed</InfoChip>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <OpenApplicationDrawer supplierId={s.id} kinds={kinds} channels={PAPER_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL[c].en }))} people={people} today={today} blocker={openBlocker} />
       </div>
       {s.applications.length === 0 && (

@@ -21,12 +21,13 @@ import { sulitGate } from "@/app/_auth/sulit";
 import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Record an application" };
 
 /// Recording a supplier from its paper application (FR-VND-001, a1). The supplier cannot sign in yet.
 export default async function NewSupplierApplicationPage(props: { searchParams: Promise<{ from?: string }> }) {
   const actor = await requireStaff();
   const { from } = await props.searchParams;
-  const header = <PageHeader eyebrow={<Link href="/suppliers">Suppliers</Link>} title={from ? "Record a supplier from an online application" : "Record a paper application"} subtitle={from ? "Check against the certificate, then record." : "Recorded from the paper application."} />;
+  const header = <PageHeader title={from ? "Record a supplier from an online application" : "Record a paper application"} subtitle={from ? "Check against the certificate, then record." : "Recorded from the paper application."} />;
   const org = await supplierOrg(actor.organisationId);
   if (!org) {
     return (

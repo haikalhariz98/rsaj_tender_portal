@@ -218,7 +218,7 @@ export function ResubmissionDrawer({ applicationId, items, people, blocker }: { 
   return (
     <RecordEditor
       title="Request a resubmission"
-      description="Written as given to the supplier. Shown on the record, not emailed."
+      description="Written as given to the supplier. Shown on the record."
       columns={1}
       fields={[
         hidden("applicationId"),
@@ -242,7 +242,7 @@ export function RejectApplicationDrawer({ applicationId, people, blocker }: { ap
   return (
     <RecordEditor
       title="Reject the application"
-      description="Written as given to the supplier. Shown on the record, not emailed."
+      description="Written as given to the supplier. Shown on the record."
       fields={[hidden("applicationId"), hidden("outcome"), actorField("ApplicationDecision.decidedBy", { name: "personId", people, paper: false })]}
       values={{ applicationId, outcome: "REJECT" }}
       destructive={{ reasonLabel: "The reasons, as written" }}

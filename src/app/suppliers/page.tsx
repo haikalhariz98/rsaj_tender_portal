@@ -7,6 +7,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatusCounts } from "@/components/ui/status-counts";
 import { loadRegisterSettings } from "@/lib/portal/apply-repo";
 import { flagWords } from "@/lib/portal/queue";
 import { loadPortalQueue } from "@/lib/portal/queue-repo";
@@ -30,6 +31,7 @@ import { CATEGORY_TONE, CATEGORY_WORDS } from "@/lib/portal/projects/announcemen
 import { PinDrawer, PublishDrawer, WithdrawDrawer } from "./announcement-editors";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Suppliers" };
 
 const TONE = { ok: "ok", warn: "warn", err: "err", info: "info", neutral: undefined, brand: "brand" } as const;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -228,7 +230,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             selectable={false}
             exportName="suppliers"
             searchPlaceholder="Search by name, reference or registration number"
-            emptyTitle="No supplier recorded yet"
+            emptyTitle="No supplier is recorded yet. Record a paper application to start."
             views={[
               { id: "registered", label: "Registered" },
               { id: "applicants", label: "Applicants" },
@@ -467,10 +469,21 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     <>
       <PageHeader
         title="Suppliers"
-        info={{ title: "Suppliers", text: "Register, applications, documents and standing. Reminders and notices show here and are not emailed. Performance reports are not built." }}
-        meta={[plural(registered, "registered", "registered"), plural(data.queueTotal, "application awaiting a decision", "applications awaiting a decision"), paged ? `${attention} with documents to see to on this page` : plural(attention, "with documents to see to", "with documents to see to"), barredCount == null ? "Suspended or blacklisted: not judged" : plural(barredCount, "suspended or blacklisted", "suspended or blacklisted"), `${unsynced} ${ERP_NOT_SYNCED.en.toLowerCase()}`]}
+        info={{ title: "Suppliers", text: "Register, applications, documents and standing. Reminders and notices show here." }}
         actions={<ButtonLink href="/suppliers/new" size="sm" variant="primary">Record a paper application</ButtonLink>}
       />
+      <StatusCounts
+        label="Where the register stands"
+        className="mb-6"
+        items={[
+          { label: "Registered", count: registered, href: "/suppliers?tab=register" },
+          { label: "Awaiting a decision", count: data.queueTotal, href: "/suppliers?tab=applications", tone: "info" },
+          { label: paged ? "With documents to see to on this page" : "With documents to see to", count: attention, href: "/suppliers?tab=expiring", tone: "warn" },
+          { label: "Suspended or blacklisted", count: barredCount ?? 0, href: "/suppliers?tab=standing", tone: "err" },
+          { label: ERP_NOT_SYNCED.en, count: unsynced, href: "/suppliers?tab=register", tone: "warn" },
+        ]}
+      />
+      {barredCount == null && <Callout tone="warn" className="mb-6" title="Suspended and blacklisted suppliers are not judged." />}
       <Tabs initial={tab} label="Suppliers" tabs={tabs} />
     </>
   );

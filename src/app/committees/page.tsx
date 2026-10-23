@@ -7,6 +7,7 @@ import { DataList, type Row } from "@/components/data-list";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatusCounts } from "@/components/ui/status-counts";
 import { matterCount, MEETING_STATUS_LABEL, MEETING_STATUS_TONE, SCHEDULE_WORDS, WAITING_KIND_WORDS, WAITING_WORDS } from "@/lib/committee/labels";
 import { loadWaiting } from "@/lib/committee/waiting-load";
 import { listSittings, SITTINGS_PAGE } from "@/lib/committee/sittings";
@@ -20,6 +21,7 @@ import { ScheduleSitting, type ProposedItem } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Committee sittings" };
 
 const TONE = { info: "info", brand: "brand", ok: "ok", neutral: undefined } as const;
 
@@ -92,12 +94,17 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
       <PageHeader
         title="Committee sittings"
         info={{ title: "Committee sittings", text: "Registers, tabled matters, votes and minutes. A sitting tables the items waiting for its committee when scheduled." }}
-        meta={[
-          `${upcoming} upcoming`,
-          `${awaiting} awaiting minutes`,
-          `${pending} ${pending === 1 ? "matter" : "matters"} pending`,
-        ]}
         actions={schedulable.length > 0 ? <ScheduleSitting committees={schedulable} numbered={numbered} proposed={proposed} fromRecord={fromRecord} /> : undefined}
+      />
+
+      <StatusCounts
+        label="Where sittings stand"
+        className="mb-6"
+        items={[
+          { label: "Upcoming", count: upcoming, href: "/committees", tone: "info" },
+          { label: "Awaiting minutes", count: awaiting, href: "/committees", tone: "warn" },
+          { label: "Matters pending", count: pending, href: "/committees" },
+        ]}
       />
 
       <WaitingToBeTabled actor={actor} waiting={waiting} />
@@ -106,7 +113,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
         <CardHeader
           icon={<CalendarIcon size={17} />}
           title="Sittings"
-          subtitle={committees.length === 0 ? "No committee set" : undefined}
+          subtitle={committees.length === 0 ? "Set up a committee first." : undefined}
           divided={false}
         />
         <DataList
@@ -114,7 +121,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
           selectable={false}
           exportName="sittings"
           searchPlaceholder="Search sittings"
-          emptyTitle="No sittings recorded"
+          emptyTitle="No sittings yet. Schedule one to table the waiting items."
           views={[
             { id: "upcoming", label: "Upcoming" },
             { id: "awaiting", label: "Awaiting minutes" },

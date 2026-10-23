@@ -24,6 +24,7 @@ import { WholeApplicationPage } from "./whole-application";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Online application" };
 
 const STATUS = { RECEIVED: { text: "Waiting for an officer", tone: "info" }, RECORDED: { text: "Recorded as a supplier", tone: "ok" }, DISCARDED: { text: "Set aside", tone: "neutral" }, APPROVED: { text: "Approved", tone: "ok" }, REJECTED: { text: "Rejected", tone: "err" } } as const;
 
@@ -38,12 +39,11 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
   const actor = await requireStaff();
   const { id } = await props.params;
   const org = await supplierOrg(actor.organisationId);
-  const back = <Link href="/suppliers?tab=portal">Suppliers</Link>;
   const loaded = org ? await loadPortalApplication(org.id, id) : null;
   if (!org || !loaded) {
     return (
       <>
-        <PageHeader eyebrow={back} title="Online application" subtitle="Sent through the supplier portal." />
+        <PageHeader title="Online application" subtitle="Sent through the supplier portal." />
         <Card>
           <EmptyState title="No such online application" action={<Link href="/suppliers?tab=portal">Back to the online applications</Link>} />
         </Card>
@@ -84,7 +84,6 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
     <>
       <RecordCrumb label={a.reference} />
       <PageHeader
-        eyebrow={back}
         title={erased ? `Online application ${a.reference}` : a.registeredName}
         badge={<Badge tone={status.tone} dot>{status.text}</Badge>}
         subtitle={erased ? "The applicant's details have been erased." : `Registration number ${a.registrationNo}`}
