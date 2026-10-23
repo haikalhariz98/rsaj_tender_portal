@@ -4,12 +4,14 @@ import type { ReactNode } from "react";
 
 import { Accordion } from "@/components/accordion";
 import { FileIcon, RouteIcon } from "@/components/icons";
-import { ActBadge, actLabel } from "@/components/ui/act";
+import { ActBadge } from "@/components/ui/act";
+import { actWords } from "./act-words";
 import { Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
+import { RuleInfo } from "@/components/ui/rule-info";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { Stepper, type StepperStep } from "@/components/ui/stepper";
 import type { Sulit } from "@/lib/auth/sulit-access";
@@ -70,14 +72,19 @@ function RouteList({ route, hideCoreNotice = false }: { route: RouteSnap; hideCo
             <li key={i} className="flex min-w-0 items-center gap-2 text-[13.5px]">
               <ActBadge act={s.act} />
               <span className="min-w-0 font-semibold break-words text-ink">{s.role}</span>
-              <span className="text-ink-3">{actLabel(s.act)}</span>
+              <span className="text-ink-3">{actWords(s.act)}</span>
             </li>
           ))}
         </ol>
       ) : (
         <p className="text-[13.5px] text-ink-2">{APPOINTMENT_STATE_TEXT[route.state as keyof typeof APPOINTMENT_STATE_TEXT] ?? "Not resolved"}</p>
       )}
-      {route.ruleLabel && <p className="text-[12.5px] break-words text-ink-3">{`${route.ruleLabel}${route.clause ? ` · ${route.clause}` : ""}${route.overrideLabel ? ` · funder's rule set “${route.overrideLabel}”` : ""}`}</p>}
+      {route.ruleLabel && (
+        <p className="flex items-center gap-1 text-[12.5px] break-words text-ink-3">
+          {route.ruleLabel}
+          <RuleInfo rule={`${route.ruleLabel}${route.overrideLabel ? `, under the funder's rule set “${route.overrideLabel}”` : ""}.`} clause={route.clause} />
+        </p>
+      )}
       {route.warnings.filter((w) => !(hideCoreNotice && isCoreNotCheckedNotice(w))).map((w) => (
         <FindingNote key={w.text} level={w.level}>
           {w.text}
@@ -254,8 +261,8 @@ function RulesUsed({ p }: { p: OverviewProps }) {
 
   return (
     <div className="flex flex-col gap-6 px-5 py-5">
-      <section aria-label="Three band families" className="flex flex-col gap-4">
-        <h4 className="text-[13px] font-bold text-ink">Three band families</h4>
+      <section aria-label="The three bands" className="flex flex-col gap-4">
+        <h4 className="text-[13px] font-bold text-ink">The three bands</h4>
         {bands ? (
           <>
             <p className="text-[12.5px] text-ink-3">{`Determined ${formatDate(ex.determinedAt)} under ${bands.matrixLabel}.`}</p>

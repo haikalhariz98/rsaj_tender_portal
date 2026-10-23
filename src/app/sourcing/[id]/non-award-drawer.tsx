@@ -14,7 +14,7 @@ export function IssueNoticeDrawer({ id, partyId, name, carriesReason, linked }: 
   return (
     <RecordEditor
       title={`Notice of the outcome to ${name}`}
-      description={`States no price, score or rank. Shown in the portal, not emailed.${linked ? "" : " Not linked to a register entry, so the tenderer cannot see it."}`}
+      description={`States no price, score or rank. Shown in the portal only.${linked ? "" : " Not linked to a register entry, so the tenderer cannot see it."}`}
       fields={[
         { kind: "hidden", name: "id" },
         { kind: "hidden", name: "partyId" },

@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 
 import { requireStaff } from "@/app/_auth/actor";
-import { ActBadge, actLabel } from "@/components/ui/act";
+import { ActBadge } from "@/components/ui/act";
+import { actWords } from "./act-words";
 import { Badge } from "@/components/ui/badge";
 import { routeActed } from "@/lib/auth/attribution-read";
 import { escalationText } from "@/lib/authority/escalation-labels";
@@ -72,7 +73,7 @@ export async function RouteSteps<S extends Step = Step>({
               <ActBadge act={s.act} />
               <div className="min-w-0">
                 <div className="font-semibold break-words text-ink">
-                  {s.roleLabel} <span className="font-normal text-ink-3">· {actLabel(s.act)}</span>
+                  {s.roleLabel} <span className="font-normal text-ink-3">· {actWords(s.act)}</span>
                 </div>
                 {stepOriginText(inst, s) && <div className="text-[12.5px] text-ink-3">{stepOriginText(inst, s)}</div>}
                 {s.escalation && (

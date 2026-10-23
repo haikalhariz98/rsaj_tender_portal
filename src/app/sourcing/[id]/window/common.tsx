@@ -31,7 +31,7 @@ export function DeliveryList({ items, caption }: { items: { id: string; who: str
   if (items.length === 0) return null;
   return (
     <div className="flex flex-col">
-      <p className="px-5 py-2 text-[12.5px] text-ink-3 sm:px-6">{caption ?? "Not emailed. Delivery is recorded by the officer."}</p>
+      <p className="px-5 py-2 text-[12.5px] text-ink-3 sm:px-6">{caption ?? "Sent outside the system. The officer records delivery."}</p>
       <ul className="divide-y divide-line/70 border-t border-line">
         {items.map((i) => {
           const sent = i.delivery.sentOn !== NOT_RECORDED;

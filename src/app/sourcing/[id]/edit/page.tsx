@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { notFound } from "next/navigation";
@@ -16,6 +15,7 @@ import { ExerciseForm } from "../../exercise-form";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseValue, sulitGate } from "@/app/_auth/sulit";
 
+export const metadata = { title: "Edit exercise" };
 export const dynamic = "force-dynamic";
 
 export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/edit">) {
@@ -29,7 +29,7 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
   const header = (
     <>
       <RecordCrumb label={ex.reference} />
-      <PageHeader eyebrow={<Link href={`/sourcing/${ex.id}`}>{ex.reference}</Link>} title={`Edit ${ex.title}`}  />
+      <PageHeader title={`Edit ${ex.title}`}  />
     </>
   );
   if (ex.status !== "DRAFT") {

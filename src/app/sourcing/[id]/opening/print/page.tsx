@@ -16,6 +16,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
 import { PRICE_FIELDS } from "../workspace";
 
+export const metadata = { title: "Print opening schedule" };
 export const dynamic = "force-dynamic";
 
 const NOT_FINALISED = "Not finalised";
@@ -40,7 +41,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
     return (
       <>
         <RecordCrumb label={d.reference} />
-        <PageHeader eyebrow={<Link href={back}>Back to the schedule</Link>} title="Nothing to print" meta={[<span key="ref" className="font-mono text-[12.5px]">{d.reference}</span>]} />
+        <PageHeader title="Nothing to print" meta={[<span key="ref" className="font-mono text-[12.5px]">{d.reference}</span>]} />
         <Card>
           <EmptyState title="No opening has started" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the schedule</ButtonLink>} />
         </Card>

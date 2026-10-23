@@ -17,6 +17,7 @@ import { AppendixDrawer, LimitDrawer, RemoveLimitDrawer, RemoveSectionDrawer, Se
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden } from "@/app/_auth/sulit";
 
+export const metadata = { title: "Appendix" };
 export const dynamic = "force-dynamic";
 
 /// A value, or "Not set" as a badge: never a blank and never a zero.
@@ -38,7 +39,6 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
   const back = `/sourcing/${id}?tab=documents`;
   const header = (extra?: { badge?: ReactNode; actions?: ReactNode; note?: ReactNode; subtitle?: string }) => (
     <PageHeader
-      eyebrow={<Link href={back}>Back to the tender documents</Link>}
       title="Appendix to the Conditions of Contract"
       badge={extra?.badge}
       subtitle={extra?.subtitle}

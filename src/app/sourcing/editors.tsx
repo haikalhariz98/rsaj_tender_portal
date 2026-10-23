@@ -1,5 +1,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { MoreItem } from "@/components/ui/more-actions";
+import { moreItemClass } from "@/components/ui/more-item-class";
 import { actorField } from "@/lib/auth/actor-field";
 
 import { Blocked } from "../requisitions/editors";
@@ -32,7 +34,22 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 /// Id of the header note that states why a header action is unavailable.
 export const EXERCISE_NOTE_ID = "exercise-actions-note";
 
-export function MoveToPreparationDrawer({ id, blocker, summary }: { id: string; blocker: string | null; summary: { fixed: [string, string][]; notes: string[] } }) {
+/// Where a header act sits: the header's one primary button, or an entry of its "..." menu (the default).
+export type Slot = "primary" | "menu";
+/// The trigger of a header act in its slot; a destructive act reads red in the menu.
+export const slotTrigger = (label: string, slot: Slot | undefined, danger?: boolean) => ({ label, className: slot === "primary" ? buttonClass("primary", "sm") : moreItemClass(danger) });
+/// An act the rules refuse for now: the primary one is a disabled button under the header's note; a menu entry is disabled with its reason beside it.
+export function BlockedAct({ label, reason, slot, danger }: { label: string; reason: string; slot: Slot | undefined; danger?: boolean }) {
+  if (slot === "primary") return <Blocked label={label} reason={reason} primary noteId={EXERCISE_NOTE_ID} />;
+  return (
+    <>
+      <MoreItem disabled danger={danger} title={reason}>{label}</MoreItem>
+      <span className="px-3 pb-1 text-[12px] text-ink-3">{reason}</span>
+    </>
+  );
+}
+
+export function MoveToPreparationDrawer({ id, blocker, summary, slot }: { slot?: Slot; id: string; blocker: string | null; summary: { fixed: [string, string][]; notes: string[] } }) {
   if (blocker) return <Blocked label="Move to preparation" reason={blocker} primary noteId={EXERCISE_NOTE_ID} />;
   return (
     <RecordEditor
@@ -61,14 +78,14 @@ export function MoveToPreparationDrawer({ id, blocker, summary }: { id: string; 
       }
       action={moveToPreparation}
       submitLabel="Move to preparation"
-      trigger={{ label: "Move to preparation", className: buttonClass("primary", "sm") }}
+      trigger={slotTrigger("Move to preparation", slot)}
       size="md"
     />
   );
 }
 
 export function CancelExerciseDrawer({ id, blocker }: { id: string; blocker?: string | null }) {
-  if (blocker) return <Blocked label="Cancel exercise" reason={blocker} noteId={EXERCISE_NOTE_ID} destructive />;
+  if (blocker) return <BlockedAct label="Cancel exercise" reason={blocker} slot="menu" danger />;
   return (
     <RecordEditor
       title="Cancel this exercise"
@@ -80,14 +97,14 @@ export function CancelExerciseDrawer({ id, blocker }: { id: string; blocker?: st
       destructive={{ reasonLabel: "Why it is cancelled" }}
       submitLabel="Cancel exercise"
       cancelLabel="Keep the exercise"
-      trigger={{ label: "Cancel exercise", className: buttonClass("destructive", "sm") }}
+      trigger={slotTrigger("Cancel exercise", "menu", true)}
       size="sm"
     />
   );
 }
 
-export function SubmitProposalDrawer({ id, blocker }: { id: string; blocker: string | null }) {
-  if (blocker) return <Blocked label="Submit proposal" reason={blocker} noteId={EXERCISE_NOTE_ID} />;
+export function SubmitProposalDrawer({ id, blocker, slot }: { id: string; blocker: string | null; slot?: Slot }) {
+  if (blocker) return <BlockedAct label="Submit proposal" reason={blocker} slot={slot} />;
   return (
     <RecordEditor
       title="Submit the proposal for review"
@@ -96,13 +113,13 @@ export function SubmitProposalDrawer({ id, blocker }: { id: string; blocker: str
       values={{ id }}
       action={submitProposal}
       submitLabel="Submit for review"
-      trigger={{ label: "Submit proposal", className: buttonClass("secondary", "sm") }}
+      trigger={slotTrigger("Submit proposal", slot)}
       size="sm"
     />
   );
 }
 
-export function ReviewProposalDrawer({ id, people, today }: { id: string; people: Option[]; today: string | null }) {
+export function ReviewProposalDrawer({ id, people, today, slot }: { id: string; people: Option[]; today: string | null; slot?: Slot }) {
   return (
     <RecordEditor
       title="Record Contract & Procurement's review"
@@ -127,7 +144,7 @@ export function ReviewProposalDrawer({ id, people, today }: { id: string; people
       values={{ id, reviewedOn: today }}
       action={reviewProposal}
       submitLabel="Record review"
-      trigger={{ label: "Record review", className: buttonClass("secondary", "sm") }}
+      trigger={slotTrigger("Record review", slot)}
       size="md"
     />
   );
@@ -149,7 +166,7 @@ export function ProposalAnswersDrawer({ id, items, answers }: { id: string; item
 }
 
 export function RequestNameApprovalDrawer({ id, blocker }: { id: string; blocker: string | null }) {
-  if (blocker) return <Blocked label="Request name approval" reason={blocker} noteId={EXERCISE_NOTE_ID} />;
+  if (blocker) return <BlockedAct label="Request name approval" reason={blocker} slot="menu" />;
   return (
     <RecordEditor
       title="Send the name for approval"
@@ -159,14 +176,14 @@ export function RequestNameApprovalDrawer({ id, blocker }: { id: string; blocker
       values={{ id }}
       action={requestNameApproval}
       submitLabel="Request approval"
-      trigger={{ label: "Request name approval", className: buttonClass("secondary", "sm") }}
+      trigger={slotTrigger("Request name approval", "menu")}
       size="sm"
     />
   );
 }
 
 export function RecallNameDrawer({ id, blocker }: { id: string; blocker: string | null }) {
-  if (blocker) return <Blocked label="Recall" reason={blocker} noteId={EXERCISE_NOTE_ID} />;
+  if (blocker) return <BlockedAct label="Recall name approval" reason={blocker} slot="menu" />;
   return (
     <RecordEditor
       title="Recall the name approval"
@@ -176,7 +193,7 @@ export function RecallNameDrawer({ id, blocker }: { id: string; blocker: string 
       action={recallNameApproval}
       submitLabel="Recall"
       destructive={{ reasonLabel: "Why is it being recalled?" }}
-      trigger={{ label: "Recall name approval", className: buttonClass("secondary", "sm") }}
+      trigger={slotTrigger("Recall name approval", "menu")}
       size="sm"
     />
   );

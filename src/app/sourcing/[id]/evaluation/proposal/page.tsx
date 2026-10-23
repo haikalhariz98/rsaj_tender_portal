@@ -20,6 +20,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitGate } from "@/app/_auth/sulit";
 
+export const metadata = { title: "Proposal paper" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -41,7 +42,7 @@ export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/eva
     return (
       <>
         <RecordCrumb label={ex.reference} />
-        <PageHeader eyebrow={<Link href={back}>Back to the report</Link>} title="Nothing to print" />
+        <PageHeader title="Nothing to print" />
         <Card>
           <EmptyState title="No proposal paper produced" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>} />
         </Card>

@@ -15,6 +15,7 @@ import { tableDocumentNote } from "@/lib/window/read";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden } from "@/app/_auth/sulit";
 
+export const metadata = { title: "Print tender documents" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -36,7 +37,7 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
     return (
       <>
         <RecordCrumb label={v.exercise.reference} />
-        <PageHeader eyebrow={<Link href={`/sourcing/${id}?tab=documents`}>Back to the tender documents</Link>} title="The Tender Table Document is not available" meta={[<span key="ref" className="font-mono text-[12.5px]">{v.exercise.reference}</span>, v.exercise.title]} />
+        <PageHeader title="The Tender Table Document is not available" meta={[<span key="ref" className="font-mono text-[12.5px]">{v.exercise.reference}</span>, v.exercise.title]} />
         <Card>
           <EmptyState
             title={tableNote.text}
@@ -56,7 +57,7 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
     return (
       <>
         <RecordCrumb label={v.exercise.reference} />
-        <PageHeader eyebrow={<Link href={`/sourcing/${id}?tab=documents`}>Back to the tender documents</Link>} title="Nothing to print" meta={[<span key="ref" className="font-mono text-[12.5px]">{v.exercise.reference}</span>, v.exercise.title]} />
+        <PageHeader title="Nothing to print" meta={[<span key="ref" className="font-mono text-[12.5px]">{v.exercise.reference}</span>, v.exercise.title]} />
         <Card>
           <EmptyState title="No tender documents to print" action={<ButtonLink href={`/sourcing/${id}?tab=documents`} variant="secondary" size="sm">Back to the tender documents</ButtonLink>} />
           <CardBody>{v.why ? <MoreText text={v.why} label="Why" /> : null}</CardBody>

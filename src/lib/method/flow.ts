@@ -103,3 +103,35 @@ export function sourcingFlow(input: SourcingFlowInput): StepperStep[] {
   // The requisition is the step in hand: nothing after it is also "current".
   return out.map((x, i) => (i > 1 && x.state === "current" ? { key: x.key, label: x.label, state: "waiting" } : x));
 }
+
+export type SourcingPhaseKey = "PREPARE" | "PUBLISH" | "BIDS" | "EVALUATE" | "AWARD";
+
+/// The five phases the Overview shows (SP-14), each with the steps of `sourcingFlow` it folds and the role that owns it. The owners are display defaults.
+export const SOURCING_PHASES: readonly { key: SourcingPhaseKey; label: string; owner: string; steps: readonly string[] }[] = [
+  { key: "PREPARE", label: "Prepare", owner: "Secretariat", steps: ["PR_RAISED", "PR_APPROVED", "DRAFT", "SETUP", "DOCUMENTS"] },
+  { key: "PUBLISH", label: "Publish", owner: "Secretariat", steps: ["TENDERING", "PUBLISHED"] },
+  { key: "BIDS", label: "Bids", owner: "Opening committee", steps: ["RECEIVED", "OPENING", "JADUAL"] },
+  { key: "EVALUATE", label: "Evaluate", owner: "Evaluation committee", steps: ["EVALUATION"] },
+  { key: "AWARD", label: "Award", owner: "Tender Board", steps: ["AWARD"] },
+];
+
+/**
+ * `sourcingFlow` folded into five phases (SP-14). It wraps the flow and replaces nothing: the server gates are untouched. A phase is done when all
+ * its steps are, current when any is, and the current one says "Step n of m: <name>". A phase with none of its steps in the flow (a method with no
+ * pack has no window) is left out. A cancelled exercise keeps the phases its records prove, ending on Cancelled; a phase only part proven is not done.
+ */
+export function sourcingPhases(input: SourcingFlowInput, owners: Partial<Record<SourcingPhaseKey, string>> = {}): StepperStep[] {
+  const steps = sourcingFlow(input);
+  const out: StepperStep[] = [];
+  for (const p of SOURCING_PHASES) {
+    const own = steps.filter((x) => p.steps.includes(x.key));
+    if (own.length === 0) continue;
+    const owner = owners[p.key] ?? p.owner;
+    const current = own.find((x) => x.state === "current");
+    if (current) out.push({ key: p.key, label: p.label, owner, sub: `Step ${steps.indexOf(current) + 1} of ${steps.length}: ${current.label}`, state: "current" });
+    else if (own.every((x) => x.state === "done") && (input.status !== "CANCELLED" || own.length === p.steps.length)) out.push({ key: p.key, label: p.label, owner, state: "done" });
+    else out.push({ key: p.key, label: p.label, owner, state: "waiting" });
+  }
+  const stop = steps.find((x) => x.key === "CANCELLED");
+  return stop ? [...out, stop] : out;
+}

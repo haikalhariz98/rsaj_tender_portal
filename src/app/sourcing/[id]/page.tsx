@@ -14,7 +14,8 @@ import { notFound, redirect } from "next/navigation";
 import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
-import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
+import { ActBadge, isMandatoryAct } from "@/components/ui/act";
+import { actWords } from "./act-words";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
 import { committeeStandingOf } from "@/lib/approvals/recall-store";
@@ -27,6 +28,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
+import { MoreActions, MoreItem } from "@/components/ui/more-actions";
 import { MoreText } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
@@ -103,7 +105,8 @@ import { exerciseMatters } from "@/lib/award/repo";
 import { RouteSteps } from "./route-steps";
 import { tenderingRouteLabel, trailLabel } from "@/lib/tender-docs/labels";
 import { DETAILS_LOCKED_TEXT, detailsFault } from "@/lib/method/details";
-import { sourcingFlow } from "@/lib/method/flow";
+import { sourcingPhases } from "@/lib/method/flow";
+import { exercisePrimary } from "@/lib/method/primary-action";
 import { flowShape } from "@/lib/method/lifecycle";
 import { loadOverviewReads } from "@/lib/method/overview-read";
 import { activeTabOf, CLASSIFICATION_ALIAS, classificationRedirectHref, invitationRedirectHref } from "@/lib/method/overview-tab";
@@ -154,6 +157,7 @@ import { blindScopesFor } from "@/lib/evaluation/blind-audit-store";
 import { estimateCustodyForHistory } from "@/lib/opening/read";
 import { namingOthersRefusal } from "@/lib/auth/sulit-store";
 
+export const metadata = { title: "Tender or quotation" };
 export const dynamic = "force-dynamic";
 
 const flagsNeedName = (code: string, methods: { code: string; requiresNameApproval: boolean }[]) => methods.find((m) => m.code === code)?.requiresNameApproval ?? false;
@@ -364,12 +368,14 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const liveAward = exerciseCancelBlockedBy(awards);
   // A published exercise is cancelled on its approval route, asked for under Publishing on Tender documents (FR-ADV-016).
   const cancelBlocker = liveAward ? `Award ${liveAward.reference} stands. Cancel it first.` : published ? "Cancel from Tender documents, under Publishing." : null;
+  // The next step of the flow is the header's one primary action; everything else sits in its "..." menu, each with its own reason.
+  const primary = exercisePrimary({ status: ex.status, windowPhase: published ? windowGateNow.phase : null, requiresProposal: !!method?.requiresProposal, proposalState: ex.proposalState, noPack, liveAward: awards.some((a) => a.status !== "CANCELLED") });
+  // A tab that brings its own acts (publish, open the bids, start the evaluation) is the place the step is done: its acts stand in for the link.
+  const tabActs = inv?.actions ?? bids?.actions ?? evaluation?.actions ?? null;
   const unavailable: [string, string | null][] = [
-    ["Submit proposal", draft && method?.requiresProposal && ex.proposalState === "DRAFT" ? submitBlocker : null],
-    ["Request name approval", canAskName ? nameBlocker : null],
-    ["Move to preparation", draft ? prepBlocker : null],
-    ["Cancel exercise", ex.status !== "CANCELLED" && !(published && inv?.cancel) ? cancelBlocker : null],
-    ...(inv?.notes ?? []).map(([label, why]) => [label, why] as [string, string | null]),
+    ["Submit proposal", primary?.kind === "submit_proposal" ? submitBlocker : null],
+    ["Move to preparation", primary?.kind === "move_to_preparation" ? prepBlocker : null],
+    ...(inv?.notes ?? []).filter(([label]) => label !== "Cancel exercise").map(([label, why]) => [label, why] as [string, string | null]),
     ...(bids?.notes ?? []).map(([label, why]) => [label, why] as [string, string | null]),
     ...(evaluation?.notes ?? []).map(([label, why]) => [label, why] as [string, string | null]),
   ];
@@ -398,20 +404,15 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       </span>
     );
 
+  const hasMenu = ex.status !== "CANCELLED" || draft;
   const actions = (
     <>
-      {draft && (
-        <ButtonLink href={`/sourcing/${ex.id}/edit`} variant="secondary" size="sm">
-          Edit
-        </ButtonLink>
-      )}
-      {draft && method?.requiresProposal && ex.proposalState === "DRAFT" && <SubmitProposalDrawer id={ex.id} blocker={submitBlocker} />}
-      {draft && method?.requiresProposal && ex.proposalState === "SUBMITTED" && <ReviewProposalDrawer id={ex.id} people={activePeople} today={today} />}
-      {canAskName && <RequestNameApprovalDrawer id={ex.id} blocker={nameBlocker} />}
-      {live && openName && <RecallNameDrawer id={ex.id} blocker={nameRecallRule ? RECALL_FAULT_TEXT[nameRecallRule] : null} />}
-      {draft && (
+      {primary?.kind === "submit_proposal" && <SubmitProposalDrawer id={ex.id} blocker={submitBlocker} slot="primary" />}
+      {primary?.kind === "review_proposal" && <ReviewProposalDrawer id={ex.id} people={activePeople} today={today} slot="primary" />}
+      {primary?.kind === "move_to_preparation" && (
         <MoveToPreparationDrawer
           id={ex.id}
+          slot="primary"
           blocker={prepBlocker}
           summary={{
             fixed: [
@@ -431,10 +432,20 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           }}
         />
       )}
-      {inv?.actions}
-      {bids?.actions}
-      {evaluation?.actions}
-      {ex.status !== "CANCELLED" && (published && inv?.cancel ? inv.cancel : <CancelExerciseDrawer id={ex.id} blocker={cancelBlocker} />)}
+      {primary?.kind === "link" && !tabActs && primary.tab !== tab && (
+        <ButtonLink href={`/sourcing/${ex.id}?tab=${primary.tab}${primary.section ? `&section=${primary.section}` : ""}`} variant="primary" size="sm">
+          {primary.label}
+        </ButtonLink>
+      )}
+      {tabActs}
+      {hasMenu && (
+        <MoreActions>
+          {draft && <MoreItem href={`/sourcing/${ex.id}/edit`}>Edit</MoreItem>}
+          {canAskName && <RequestNameApprovalDrawer id={ex.id} blocker={nameBlocker} />}
+          {live && openName && <RecallNameDrawer id={ex.id} blocker={nameRecallRule ? RECALL_FAULT_TEXT[nameRecallRule] : null} />}
+          {ex.status !== "CANCELLED" && (published && inv?.cancel ? inv.cancel : <CancelExerciseDrawer id={ex.id} blocker={cancelBlocker} />)}
+        </MoreActions>
+      )}
     </>
   );
 
@@ -486,7 +497,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           <OverviewPanel
             l={l}
             estimate={estimate}
-            flow={sourcingFlow({
+            flow={sourcingPhases({
               // Ruling 7 (F1): the Overview flow follows section 3 of Sourcing Requirements v2, from the requisition on.
               requisition: { status: req.status, reference: req.reference, statusLabel: STATUS_LABEL[req.status] },
               status: ex.status,
@@ -740,7 +751,6 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     <>
       <RecordCrumb label={ex.reference} />
       <PageHeader
-        eyebrow={<Link href="/sourcing">Sourcing</Link>}
         title={ex.title}
         badge={
           <>
@@ -985,7 +995,7 @@ async function NamePanel({
                     <li key={i} className="flex items-center gap-2 text-[13.5px]">
                       <ActBadge act={s.act} />
                       <span className="font-semibold text-ink">{s.role}</span>
-                      <span className="text-ink-3">{actLabel(s.act)}</span>
+                      <span className="text-ink-3">{actWords(s.act)}</span>
                     </li>
                   ))}
                 </ol>
@@ -1039,7 +1049,7 @@ async function NamePanel({
                       <NameChoiceDrawer
                         id={ex.id}
                         kinds={(inst.rejectionChoices as RejectionKind[]).map((k) => ({ value: k, label: REJECTION_KIND_LABEL[k] }))}
-                        steps={earlierSteps(inst.steps, rejecting.sequence).map((x) => ({ value: String(x.sequence), label: `${x.sequence}. ${x.roleLabel} · ${actLabel(x.act)}` }))}
+                        steps={earlierSteps(inst.steps, rejecting.sequence).map((x) => ({ value: String(x.sequence), label: `${x.sequence}. ${x.roleLabel} · ${actWords(x.act)}` }))}
                         people={people}
                       />
                     }
@@ -1174,7 +1184,7 @@ const FIELD_NAME: Record<string, string> = {
   approvalMatrixIssue: "Approval matrix issue",
   onBoundary: "On the boundary",
   boundaryRuled: "Boundary ruled",
-  boundaryProvenance: "Boundary ruling",
+  boundaryProvenance: "Where the exact-amount rule comes from",
   derivationState: "Derivation",
   contractTypeState: "How the type was reached",
   deliverableKind: "Delivers",

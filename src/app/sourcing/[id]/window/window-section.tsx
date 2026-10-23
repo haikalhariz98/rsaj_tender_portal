@@ -505,7 +505,7 @@ function InviteesCard({ d, c }: { d: WindowTab; c: WindowContext }) {
         )}
         {letters.length > 0 && (
           <p className="border-t border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">
-            Frozen when issued. Not emailed.
+            Frozen when issued.
           </p>
         )}
       </Card>
@@ -575,7 +575,7 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
                 </div>
                 {ch.notices.length > 0 && (
                   <DeliveryList
-                    caption="Purchasers told of the extension. Not emailed."
+                    caption="Purchasers told of the extension."
                     items={ch.notices.map((n) => ({ id: n.id, who: n.recipient, delivery: n, action: <NoticeDeliveryDrawer exerciseId={c.exerciseId} id={n.id} who={n.recipient} what="notice of the extension" values={n.raw} /> }))}
                   />
                 )}
@@ -592,7 +592,7 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
                 </div>
                 {x.notices.length > 0 && (
                   <DeliveryList
-                    caption="Holders told of the cancellation. Not emailed."
+                    caption="Holders told of the cancellation."
                     items={x.notices.map((n) => ({ id: n.id, who: n.recipient, delivery: n, action: <NoticeDeliveryDrawer exerciseId={c.exerciseId} id={n.id} who={n.recipient} what="notice of the cancellation" values={n.raw} /> }))}
                   />
                 )}

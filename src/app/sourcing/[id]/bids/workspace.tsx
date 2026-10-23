@@ -86,7 +86,7 @@ function Statement() {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <InfoChip tone="neutral" detail={REGISTER_STATEMENT.body} label="About the register">Envelopes only</InfoChip>
-      <InfoChip tone="warn" detail={REGISTER_GAPS[0]} label="About alerts">Not emailed</InfoChip>
+      <InfoChip tone="warn" detail={REGISTER_GAPS[0]} label="About alerts">No alerts sent</InfoChip>
       <InfoChip tone="warn" detail={REGISTER_GAPS[1]} label="About the estimate">Estimate unencrypted</InfoChip>
     </div>
   );

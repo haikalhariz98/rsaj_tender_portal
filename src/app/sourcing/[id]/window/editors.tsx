@@ -3,7 +3,7 @@ import { RecordEditor, type Field, type SaveAction } from "@/components/record-e
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 import { Callout } from "@/components/ui/feedback";
-import { EXERCISE_NOTE_ID } from "../../editors";
+import { BlockedAct, EXERCISE_NOTE_ID, slotTrigger } from "../../editors";
 import { Facts } from "../documents/editors";
 
 import { chooseEvaluationModel, recordLetterDelivery, proposeInvitee, publishWindow, recordPublication, removeFeeLine, removeInvitee, removePublication, saveFeeLine, saveWindow, takeSaleMode, takeSubmissionChannel } from "./actions";
@@ -308,7 +308,7 @@ export function DeliveryDrawer({
   return (
     <RecordEditor
       title={`How ${who} was told`}
-      description={`Not emailed. Record how the ${what} reached ${who}.`}
+      description={`Sent outside the system. Record how the ${what} reached ${who}.`}
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -364,8 +364,8 @@ export function RequestChangeDrawer({ exerciseId, kind, allowed, closing, lastDa
   );
 }
 
-export function RequestCancellationDrawer({ exerciseId, allowed, reference, noteId = EXERCISE_NOTE_ID }: { exerciseId: string; allowed: Allowed; reference: string; noteId?: string }) {
-  if (!allowed.allowed) return <Blocked label="Cancel exercise" reason={allowed.reason} noteId={noteId} destructive />;
+export function RequestCancellationDrawer({ exerciseId, allowed, reference }: { exerciseId: string; allowed: Allowed; reference: string }) {
+  if (!allowed.allowed) return <BlockedAct label="Cancel exercise" reason={allowed.reason} slot="menu" danger />;
   return (
     <RecordEditor
       title={`Cancel ${reference}`}
@@ -381,7 +381,7 @@ export function RequestCancellationDrawer({ exerciseId, allowed, reference, note
       cancelLabel={`Keep ${reference}`}
       action={requestCancellation}
       submitLabel={`Ask to cancel ${reference}`}
-      trigger={{ label: "Cancel exercise", className: buttonClass("destructive", "sm") }}
+      trigger={slotTrigger("Cancel exercise", "menu", true)}
       size="md"
     />
   );
@@ -681,7 +681,7 @@ export function IssueAddendumDrawer({ exerciseId, addendumId, label, allowed, re
   return (
     <RecordEditor
       title={`Issue ${label}`}
-      description="Takes the next number. Goes to the register as it stands now. Not emailed."
+      description="Takes the next number. Goes to the register as it stands now."
       more="Its text is frozen from the template. Later purchasers receive it with the documents. Delivery is recorded copy by copy."
       fields={[hidden("exerciseId"), hidden("addendumId")]}
       values={{ exerciseId, addendumId }}

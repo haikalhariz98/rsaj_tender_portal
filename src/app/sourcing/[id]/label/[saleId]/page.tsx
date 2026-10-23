@@ -10,6 +10,7 @@ import { saleRegister } from "@/lib/window/read";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden } from "@/app/_auth/sulit";
 
+export const metadata = { title: "Sale label" };
 export const dynamic = "force-dynamic";
 
 /**

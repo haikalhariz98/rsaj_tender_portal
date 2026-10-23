@@ -3,6 +3,7 @@ import { PlusIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatusCounts } from "@/components/ui/status-counts";
 import { nameRoutesOf } from "@/lib/method/approval";
 import { BOUNDARY_VIEW_ABOUT, boundaryCountNote, boundaryShown } from "@/lib/method/boundary-reading";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_ORDER, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
@@ -18,9 +19,10 @@ import { requireStaff } from "@/app/_auth/actor";
 import { hiddenExercises, sulitExerciseValues } from "@/app/_auth/sulit";
 import type { Sulit } from "@/lib/auth/sulit-access";
 
+export const metadata = { title: "Tenders & quotations" };
 export const dynamic = "force-dynamic";
 
-/// The value column's cell: the figure where the reader may read it, and "SULIT · withheld" with the reason where not.
+/// The value column's cell: the figure where the reader may read it, and "Withheld" with the reason where not.
 const valueCell = (v: Sulit<number> | undefined): Row["cells"][string] => (v && v.state === "GRANTED" ? { kind: "money", value: v.value } : { kind: "withheld", words: v?.state === "WITHHELD" ? v.words.en : "This value is not shown." });
 
 const TONE = { brand: "brand", info: "info", ok: "ok", neutral: undefined } as const;
@@ -59,6 +61,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
     return {
       id: r.id,
       views: [
+        ...(live ? ["published"] : []),
         ...(live && w?.phaseCode === "OPEN_FOR_PURCHASE" ? ["open"] : []),
         ...(live && w && closesSoon({ today, closingDay: w.closingDay, phase: w.phaseCode }) ? ["soon"] : []),
         ...(status === "DRAFT" ? ["drafts"] : []),
@@ -92,21 +95,13 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHeader
-        title="Sourcing"
+        title="Tenders & quotations"
         /* Founder, 2026-10-05: what the screen covers sits behind the information button beside the title,
            not as a notice across the top. Brought up to date: bids, opening and evaluation are recorded here now. */
         info={{
           title: "What is recorded here",
           text: "Exercises are classified here, with their tender documents, window, bids, opening and evaluation.",
         }}
-        meta={[
-          // The state's own label, as the dashboard counts it: one name for one state.
-          ...(["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "ADVERTISED", "INVITED"] as const).map((s) => `${byStatus.get(s) ?? 0} ${EXERCISE_STATUS_LABEL[s].toLowerCase()}`),
-          `${awaitingName} awaiting name approval`,
-          `${boundaryRows} on the boundary`,
-          // Said in words, so that a count of zero is never read as "none are": the rows whose estimate is withheld from this reader are not counted.
-          ...(boundaryCountNote(boundaryLeftOut) ? [boundaryCountNote(boundaryLeftOut)!] : []),
-        ]}
         actions={
           org ? (
             <ButtonLink href="/sourcing/new" variant="primary" size="md" icon={<PlusIcon size={16} />}>
@@ -115,6 +110,21 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           ) : undefined
         }
       />
+
+      <StatusCounts
+        label="Where the exercises stand"
+        className="mb-6"
+        items={[
+          { label: EXERCISE_STATUS_LABEL.DRAFT, count: byStatus.get("DRAFT") ?? 0, href: "/sourcing?view=drafts", active: view === "drafts" },
+          { label: EXERCISE_STATUS_LABEL.DOCUMENTS_IN_PREPARATION, count: byStatus.get("DOCUMENTS_IN_PREPARATION") ?? 0, href: "/sourcing?view=preparing", tone: "info", active: view === "preparing" },
+          { label: EXERCISE_STATUS_LABEL.PENDING_APPROVAL_FOR_TENDERING, count: byStatus.get("PENDING_APPROVAL_FOR_TENDERING") ?? 0, href: "/sourcing?view=approval", tone: "info", active: view === "approval" },
+          { label: "Published", count: (byStatus.get("ADVERTISED") ?? 0) + (byStatus.get("INVITED") ?? 0), href: "/sourcing?view=published", tone: "ok", active: view === "published" },
+          { label: `${TERM.nameApproval} in progress`, count: awaitingName, href: "/sourcing?view=name", tone: "info", active: view === "name" },
+          { label: "On the boundary", count: boundaryRows, href: "/sourcing?view=boundary", tone: "warn", active: view === "boundary" },
+        ]}
+      />
+      {/* Said in words, so that a count of zero is never read as "none are": the rows whose estimate is withheld from this reader are not counted. */}
+      {boundaryCountNote(boundaryLeftOut) && <p className="-mt-3 mb-6 text-[12.5px] text-ink-3">{boundaryCountNote(boundaryLeftOut)}</p>}
 
       <ExerciseList
         flat
@@ -127,6 +137,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           { id: "drafts", label: EXERCISE_STATUS_LABEL.DRAFT },
           { id: "preparing", label: EXERCISE_STATUS_LABEL.DOCUMENTS_IN_PREPARATION },
           { id: "approval", label: EXERCISE_STATUS_LABEL.PENDING_APPROVAL_FOR_TENDERING },
+          { id: "published", label: "Published" },
           { id: "open", label: "Open for purchase" },
           {
             id: "soon",

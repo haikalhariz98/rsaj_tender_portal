@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
 
@@ -27,6 +26,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { hiddenExercises, sulitGate, sulitGates } from "@/app/_auth/sulit";
 import { sulitCell } from "@/components/sulit-cell";
 
+export const metadata = { title: "New exercise" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -42,7 +42,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
     <>
     <RecordCrumb label="New exercise" />
     <PageHeader
-      eyebrow={<Link href="/sourcing">Sourcing</Link>}
+      
       title="New sourcing exercise"
 
     />
@@ -103,7 +103,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       <>
         {header}
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Approved requisitions" divided={false} />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Pick the approved requisition to source" divided={false} />
           <DataList
             flat
             selectable={false}

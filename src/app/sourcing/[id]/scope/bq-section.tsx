@@ -97,7 +97,7 @@ export function BqSection({ d }: { d: Data }) {
                   allowed={d.actions.finalise}
                   summary={[
                     ["Lines", String(v.stats.lines)],
-                    ...(v.totals.state === "GRANTED" ? ([["Total", v.totals.value.total], ["Firm value", v.totals.value.firmValue]] as [string, string][]) : ([["Total", "SULIT · withheld"]] as [string, string][])),
+                    ...(v.totals.state === "GRANTED" ? ([["Total", v.totals.value.total], ["Firm value", v.totals.value.firmValue]] as [string, string][]) : ([["Total", "Withheld (SULIT)"]] as [string, string][])),
                     ["Standard", `${v.header.standard}, followed: ${v.header.followsStandard}`],
                     ["Prepared by", v.header.preparer],
                   ]}

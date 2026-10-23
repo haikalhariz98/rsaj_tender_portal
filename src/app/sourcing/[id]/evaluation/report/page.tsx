@@ -24,6 +24,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitGate } from "@/app/_auth/sulit";
 
+export const metadata = { title: "Evaluation report" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -49,7 +50,7 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
     return (
       <>
         <RecordCrumb label={ex.reference} />
-        <PageHeader eyebrow={<Link href={back}>Back to the report</Link>} title="Nothing to print" />
+        <PageHeader title="Nothing to print" />
         <Card>
           <EmptyState title="No report issued" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>} />
         </Card>
@@ -61,7 +62,7 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
     return (
       <>
         <RecordCrumb label={ex.reference} />
-        <PageHeader eyebrow={<Link href={back}>Back to the report</Link>} title="Evaluation report" />
+        <PageHeader title="Evaluation report" />
         <Card>
           <EmptyState title="Report withheld: SULIT" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>} />
           <CardBody><SulitWithheld words={gate.words.en} compact /></CardBody>

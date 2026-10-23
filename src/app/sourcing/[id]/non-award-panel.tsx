@@ -22,7 +22,7 @@ export async function NonAwardPanel({ actor, award }: { actor: Pick<StaffActor, 
         <CardHeader
           icon={<InboxIcon size={17} />}
           title="Notices to unsuccessful tenderers"
-          subtitle="In the portal, not emailed"
+          subtitle="In the portal only"
           actions={p.setting === "ON" ? <Badge tone="ok">Issued on request</Badge> : p.setting === "OFF" ? <Badge>Decided against</Badge> : <Badge tone="warn">Not decided</Badge>}
         />
         <CardBody className="flex flex-col gap-3">
