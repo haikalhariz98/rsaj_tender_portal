@@ -11,12 +11,14 @@ import {
   SIGNED_IN_LINKS,
   SIGNED_IN_SUBTITLE,
   SIGNED_IN_TITLE,
-  TAKE_PART_STEPS,
   TAKE_PART_SUBTITLE,
   TAKE_PART_TITLE,
+  bidStep,
   homeSubtitle,
+  takePartSteps,
 } from "@/lib/portal/labels";
 import { loadPublicShell } from "@/lib/portal/deployment";
+import { loadPortalFacts } from "@/lib/portal/public-facts";
 
 import { WaitingForYouCard } from "./waiting-card";
 
@@ -25,7 +27,11 @@ const LINK_ICON = { opportunities: GlobeIcon, results: AwardIcon, register: Buil
 const SIGNED_IN_ICON = { bids: InboxIcon, projects: ToolsIcon, company: BuildingIcon, announcements: BellIcon } as const;
 
 export default async function SupplierHomePage() {
-  const { organisation } = await loadPublicShell();
+  const [{ organisation }, { registerOpen, channel }] = await Promise.all([loadPublicShell(), loadPortalFacts()]);
+  // A closed register hides "Apply to register" (and its card); the way to bid follows the configured channel, and is left out while unset.
+  const links = HOME_LINKS.filter((l) => l.key !== "register" || registerOpen);
+  const bid = bidStep(channel);
+  const steps = [...takePartSteps(registerOpen), ...(bid ? [bid] : [])];
 
   return (
     <>
@@ -36,8 +42,8 @@ export default async function SupplierHomePage() {
 
       <WaitingForYouCard />
 
-      <div className="grid gap-5 md:grid-cols-3">
-        {HOME_LINKS.map((link) => {
+      <div className={`grid gap-5 ${links.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+        {links.map((link) => {
           const Ico = LINK_ICON[link.key];
           return (
             <Card key={link.key} className="flex flex-col">
@@ -63,7 +69,7 @@ export default async function SupplierHomePage() {
           <CardHeader title={TAKE_PART_TITLE.en} subtitle={TAKE_PART_SUBTITLE.en} />
           <CardBody>
             <ol className="flex flex-col gap-4">
-              {TAKE_PART_STEPS.map((step, i) => (
+              {steps.map((step, i) => (
                 <li key={step.title.en} className="flex items-start gap-3.5">
                   <span
                     aria-hidden="true"

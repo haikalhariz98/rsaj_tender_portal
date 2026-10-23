@@ -1,5 +1,6 @@
 import type { Tx } from "@/lib/audit/record";
 import { twoPersonOn } from "@/lib/auth/policy-store";
+import { loadRegisterSettings } from "@/lib/portal/apply-repo";
 import { dayOrNull, organisationDay, todayIn } from "@/lib/dates";
 
 import { buildChecklist, type ChecklistFacts, type MatrixFact } from "./checklist";
@@ -13,6 +14,7 @@ export async function loadChecklist(db: Tx, organisationId: string, now = new Da
   const day = organisationDay(now, org.timeZone) ?? now;
   const year = Number(today.slice(0, 4));
   const live = { OR: [{ effectiveTo: null }, { effectiveTo: { gt: day } }] };
+  const register = await loadRegisterSettings(db).catch(() => null); // one reader with the public form; a failure reads as closed
   const [matrices, assignments, committees, fees, window, evalModels, docTypes, texts, supplier, awardPolicy, budget, orgUnits, costCentres, two] = await Promise.all([
     db.authorityMatrix.findMany({ where: { organisationId }, select: { issuedAt: true, effectiveFrom: true, effectiveTo: true, issuedByPerson: { select: { name: true } }, rules: { select: { proposerCode: true, approverCode: true } } } }),
     db.roleAssignment.findMany({ where: { person: { organisationId }, effectiveFrom: { lte: day }, ...live }, select: { roleCode: true } }),
@@ -57,6 +59,7 @@ export async function loadChecklist(db: Tx, organisationId: string, now = new Da
     declarationsFirm: KINDS.filter((k) => texts.some((t) => t.kind === k && t.provenance !== "ASSUMED")).length,
     personalDataNoticeFirm: !!supplier?.personalDataNoticeEn?.trim() && !!supplier.personalDataProvenance && supplier.personalDataProvenance !== "ASSUMED",
     helpContact: !!supplier?.helpEmail?.trim() || !!supplier?.helpPhone?.trim(),
+    registration: { open: register != null && register.missing.length === 0, missing: register?.missing.map((m) => m.en) ?? [] },
     letterSlotsSet: slots.filter(Boolean).length,
     letterSlots: slots.length,
     budgetCheckSet: !!budget?.availabilityCheck?.trim(),

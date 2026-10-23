@@ -29,6 +29,7 @@ export interface ChecklistFacts {
   declarationsFirm: number; // of terms, false-declaration and GIRO: how many have a current text that is not ASSUMED
   personalDataNoticeFirm: boolean;
   helpContact: boolean;
+  registration: { open: boolean; missing: readonly string[] }; // the public register, by the one reader the portal uses
   letterSlotsSet: number;
   letterSlots: number;
   budgetCheckSet: boolean;
@@ -66,6 +67,7 @@ export function buildChecklist(f: ChecklistFacts): ChecklistItem[] {
     { key: "declarations", section: "suppliers-portal", kind: "set", label: "Declaration wording", href: "/configuration/suppliers", state: stateOf(f.declarationsFirm === 3), detail: "Terms, false-declaration and GIRO texts, written by you. Starting wording does not count." },
     { key: "notice", section: "suppliers-portal", kind: "set", label: "Personal data notice", href: "/configuration/suppliers", state: stateOf(f.personalDataNoticeFirm), detail: "Shown to suppliers when they register. Starting wording does not count." },
     { key: "help", section: "suppliers-portal", kind: "set", label: "Supplier help contact", href: "/configuration/suppliers", state: stateOf(f.helpContact), detail: "An email or phone number suppliers can reach." },
+    { key: "registration", section: "suppliers-portal", kind: "set", label: f.registration.open ? "Online registration: open" : "Online registration: closed", href: "/configuration/suppliers", state: stateOf(f.registration.open), detail: f.registration.open ? "Suppliers can apply online." : `Suppliers see "Registration opens soon". Still to set: ${f.registration.missing.slice(0, 3).join(", ") || "the organisation"}${f.registration.missing.length > 3 ? ` and ${f.registration.missing.length - 3} more` : ""}.` },
     { key: "letters", section: "system", kind: "set", label: "Letter templates", href: "/configuration/templates", state: stateOf(f.letterSlots > 0 && f.letterSlotsSet === f.letterSlots), detail: "Every template that notices, invitations and award letters use." },
     { key: "budget", section: "contracts-payments", kind: "set", label: "Budget check source", href: "/configuration/budget?tab=controls", state: stateOf(f.budgetCheckSet), detail: "Where a requisition's budget is checked (FR-REQ-007)." },
     {

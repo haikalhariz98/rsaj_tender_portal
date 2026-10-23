@@ -24,6 +24,7 @@ import {
 import type { OpportunityState } from "@/lib/portal/public";
 import { loadOpportunities } from "@/lib/portal/repo";
 import { loadPublicShell } from "@/lib/portal/deployment";
+import { loadPortalFacts } from "@/lib/portal/public-facts";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ const GROUP: Record<OpportunityState, number> = { OPEN: 0, CLOSED: 1, CANCELLED:
  * An awarded exercise is not listed. Its page stays reachable by its address (My Bids links to it).
  */
 export default async function SupplierOpportunitiesPage() {
-  const [{ organisation }, { ready, opportunities }] = await Promise.all([loadPublicShell(), loadOpportunities()]);
+  const [{ organisation }, { ready, opportunities }, { registerOpen }] = await Promise.all([loadPublicShell(), loadOpportunities(), loadPortalFacts()]);
   const listed = opportunities
     .filter((o) => o.state !== "AWARDED")
     .sort((a, b) => GROUP[a.state] - GROUP[b.state] || (a.state === "OPEN" ? 1 : -1) * (a.closingDay ?? "").localeCompare(b.closingDay ?? ""));
@@ -63,9 +64,11 @@ export default async function SupplierOpportunitiesPage() {
         info={{ title: OPPORTUNITIES_TITLE.en, text: OPPORTUNITIES_INFO.en }}
         meta={ready ? [openCount(open).en] : undefined}
         actions={
-          <ButtonLink href={PORTAL_PATH.register} wholeDocument variant="primary" icon={<BuildingIcon size={16} />}>
-            {HOME_LINKS[2].action.en}
-          </ButtonLink>
+          registerOpen ? (
+            <ButtonLink href={PORTAL_PATH.register} wholeDocument variant="primary" icon={<BuildingIcon size={16} />}>
+              {HOME_LINKS[2].action.en}
+            </ButtonLink>
+          ) : undefined
         }
       />
 

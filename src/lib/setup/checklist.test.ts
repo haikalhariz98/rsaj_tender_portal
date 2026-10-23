@@ -19,6 +19,7 @@ const EMPTY: ChecklistFacts = {
   declarationsFirm: 0,
   personalDataNoticeFirm: false,
   helpContact: false,
+  registration: { open: false, missing: [] },
   letterSlotsSet: 0,
   letterSlots: 6,
   budgetCheckSet: false,
@@ -27,11 +28,11 @@ const state = (f: Partial<ChecklistFacts>, key: string) => buildChecklist({ ...E
 const matrix = (m: Partial<MatrixFact>): MatrixFact => ({ issued: true, effectiveFrom: "2026-01-01", effectiveTo: null, issuedBy: { name: "Aini", at: new Date("2026-02-01") }, offices: ["A"], ...m });
 
 describe("the checklist", () => {
-  it("has the fifteen items, the email sender left out until step 7", () => {
+  it("has the sixteen items, the email sender left out until step 7", () => {
     const items = buildChecklist(EMPTY);
-    expect(items).toHaveLength(15);
+    expect(items).toHaveLength(16);
     expect(items.every((i) => i.state === "todo")).toBe(true);
-    expect(progressOf(items)).toEqual({ done: 0, total: 15 });
+    expect(progressOf(items)).toEqual({ done: 0, total: 16 });
   });
 
   it("organisation: the setup name, or a missing field, is not done", () => {
@@ -103,6 +104,13 @@ describe("the checklist", () => {
     const on = state({ twoPersonOn: true }, "two-person");
     expect(on.state).toBe("done");
     expect(on.also).toBeUndefined();
+  });
+
+  it("online registration: open or closed, with what is missing for staff", () => {
+    expect(state({ registration: { open: true, missing: [] } }, "registration")).toMatchObject({ state: "done", label: "Online registration: open" });
+    const closed = state({ registration: { open: false, missing: ["a", "b", "c", "d"] } }, "registration");
+    expect(closed).toMatchObject({ state: "todo", label: "Online registration: closed" });
+    expect(closed.detail).toContain("a, b, c and 1 more");
   });
 
   it("no label is over six words, except the go-live line, and no code is on screen", () => {

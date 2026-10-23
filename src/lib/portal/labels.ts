@@ -73,12 +73,11 @@ export const TAKE_PART_SUBTITLE = w(
   "The same steps for every opportunity.",
 );
 
-export const TAKE_PART_STEPS: readonly { title: Words; text: Words }[] = [
+/// The first three steps hold whatever the channel. While the register is closed the first step does not send anyone to apply.
+export const takePartSteps = (registerOpen: boolean): readonly { title: Words; text: Words }[] => [
   {
     title: w("Check you qualify"),
-    text: w(
-      "Check the registrations it asks for. Not registered? Apply first.",
-    ),
+    text: w(registerOpen ? "Check the registrations it asks for. Not registered? Apply first." : "Check the registrations it asks for."),
   },
   {
     title: w("Buy the documents"),
@@ -92,13 +91,16 @@ export const TAKE_PART_STEPS: readonly { title: Words; text: Words }[] = [
       "Note any briefing or site visit. Read the addenda.",
     ),
   },
-  {
-    title: w("Submit your bid on paper"),
-    text: w(
-      "Hand in a sealed bid at the stated place before the closing.",
-    ),
-  },
 ];
+
+/// The last step reads the organisation's configured channel; unset, the step is left out rather than guessed.
+export const bidStep = (channel: "PAPER" | "ONLINE" | null): { title: Words; text: Words } | null =>
+  channel === "PAPER"
+    ? { title: w("Submit your bid on paper"), text: w("Hand in a sealed bid at the stated place before the closing.") }
+    : channel === "ONLINE"
+      ? { title: w("Submit your bid online"), text: w("Sign in, open My Bids and send your bid before the closing.") }
+      : null;
+
 // Phase 4e: My Projects and the announcements board are built, so nothing is left arriving with sign-in. The list stays (empty) so the home page and the navigation test keep one source.
 export const SIGN_IN_ITEMS: readonly { href: string; title: Words; text: Words }[] = [];
 
@@ -161,7 +163,7 @@ export const OPEN_ROW_ACTION = w("View");
 export const NOT_SET_UP = {
   title: w("Opportunities are not available yet"),
   body: w(
-    "Not set up in the system. Contact the procurement office.",
+    "Opportunities will be listed here soon. Contact the procurement office.",
   ),
 };
 export const METHOD_NOT_STATED = w("Method not stated");
@@ -267,7 +269,7 @@ export const RESULTS = {
   notSetUp: {
     title: w("Results are not available yet"),
     body: w(
-      "Not set up in the system. Contact the procurement office.",
+      "Results will be listed here soon. Contact the procurement office.",
     ),
   },
 };
@@ -329,12 +331,9 @@ export const APPLY = {
   cantAccept: w("Nothing was sent. Check each field, or contact the procurement office."),
   nothingSent: w("Nothing was sent. Check the fields marked below and send it again."),
   tooLong: (label: string, max: number): Words => w(`${label} must be ${max} characters or fewer.`),
-  closedTitle: w("Online applications are not open yet"),
-  closedBody: w(
-    "Not set up yet. Come back later or ask the office.",
-  ),
-  noOrganisation: w("Not set up in the system. Contact the procurement office."),
-  closedMissing: w("Still to be set up:"),
+  closedTitle: w("Registration opens soon"),
+  /// The public never sees what is missing: only who to ask.
+  closedBody: (contact: string | null): Words => w(contact ? `Contact ${contact}.` : "Contact the procurement office."),
   notOpenOnSubmit: w("Online applications are not open yet, so nothing was sent."),
   tryAgainLater: w("Something went wrong. Nothing was sent. Try again in a few minutes."),
   sentTitle: w("Your application was sent"),
