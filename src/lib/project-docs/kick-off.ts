@@ -163,6 +163,17 @@ export const KICK_OFF_STATE_TONE: Readonly<Record<KickOffState, "neutral" | "inf
   SCHEDULED: "info",
 };
 
+/**
+ * PW-34 (audit L3): who may be ticked as attending for the organisation. Only a person on the organisation's side of the contract on the organisation's today (the S.O.,
+ * those acting in the office, the representatives in force: `organisationSideOn`, read under the contract's lock), which is exactly the list the form offers, so the
+ * portal names only the people PW-16 already names on its Team card. Returns the ids that are not; the act refuses any (ATTENDEE_UNKNOWN), before trigger PA046. A
+ * past attendee who is no longer on the side is typed as another name.
+ */
+export function offSideAttendees(personIds: readonly string[], sidePersonIds: readonly string[]): string[] {
+  const side = new Set(sidePersonIds);
+  return [...new Set(personIds)].filter((id) => !side.has(id));
+}
+
 // ------------------------------------------------------------------ words
 
 const FIELD_WORDS: Readonly<Record<string, string>> = { place: "The place", onlineLink: "The online link", agenda: "The agenda", attendee: "A name" };

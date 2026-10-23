@@ -10,6 +10,8 @@ import { db } from "@/lib/db";
 import { makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS } from "@/lib/test-db/auth-fixtures";
 import type { SupplierActor } from "@/lib/auth/types";
 import { inHeldContract } from "@/lib/portal/projects/submission-store";
+import { hiddenExerciseIds } from "@/lib/auth/sulit-store";
+import { loadInbox } from "@/lib/inbox/store";
 import type { WrittenAttribution } from "@/lib/test-support/staff";
 
 /**
@@ -46,7 +48,7 @@ import { loadDocumentFacts } from "./facts";
 import { loadDocumentPage, loadWorkspaceStart } from "./page-store";
 import { loadRegister } from "./register";
 import { documentState } from "./state";
-import { addVersion, createDocument, requestDocument, WorkspaceRefused, type WorkspaceCtx } from "./store";
+import { addVersion, createDocument, pinConflictRefusal, requestDocument, WorkspaceRefused, workspaceRefusalText, type WorkspaceCtx } from "./store";
 
 const run = randomId();
 const DAY = 24 * 60 * 60 * 1000;
@@ -121,13 +123,13 @@ async function contractor(): Promise<Contractor> {
   return { actor, supplierId: s.supplier.id, accountId: s.account!.id };
 }
 
-/// A contract awarded to the supplier, with its S.O. office.
-async function contract(vendorId: string | null, status: ContractStatus = "ACTIVE") {
+/// A contract awarded to the supplier, with its S.O. office; its exercise restricted to its named people where asked (FR-MTD-007).
+async function contract(vendorId: string | null, status: ContractStatus = "ACTIVE", o: { restricted?: boolean } = {}) {
   const r = randomId();
   const requisition = await db.requisition.create({
     data: { organisationId, reference: `PWS/RQ/${r}`, requestingUnitCode: "PWS_DEPT", requestingPersonId: p.so, title: "Workspace requisition", justification: "Tests.", needStatement: "None.", costCentreCode: "PWS_CC", accountCode: "PWS_AC", placeOfDelivery: "Nowhere", dateRequired: D(at(100)), estimatedValue: "100000.00", raisedOn: D(at(-30)) },
   });
-  const exercise = await db.sourcingExercise.create({ data: { organisationId, reference: `PWS/EX/${r}`, requisitionId: requisition.id, title: `Drainage ${r}`, estimatedValue: "100000.00", sourcingMethodCode: "PWS_METHOD", status: "EVALUATED" } });
+  const exercise = await db.sourcingExercise.create({ data: { organisationId, reference: `PWS/EX/${r}`, requisitionId: requisition.id, title: `Drainage ${r}`, estimatedValue: "100000.00", sourcingMethodCode: "PWS_METHOD", status: "EVALUATED", restricted: o.restricted ?? false } });
   const award = await db.award.create({ data: { organisationId, reference: `PWS/AW/${r}`, exerciseId: exercise.id, instrumentKind: "WORK_INDENT", awardeeName: "A Contractor", awardedValue: "100000.00", completionPeriod: 90, completionUnit: "DAYS", status: "ISSUED", vendorId } });
   const c = await db.contract.create({ data: { organisationId, number: `PWS/CON/${r}`, numberSource: "SERIES", numberedOn: D(at(-20)), awardId: award.id, contractSum: "100000.00", status } });
   await db.contractSoAssignment.create({ data: { organisationId, contractId: c.id, roleCode: soRole, roleLabel: "Superintending Officer (test)", reason: "EXECUTION", matrixLabel: "Test matrix", ruleKey: "so_test", ruleLabel: "S.O. test rule", clause: "7.1", contractValue: "100000.00", warnings: [], effectiveOn: D(at(-20)), recordedAt: at(-20) } });
@@ -461,21 +463,26 @@ describe("the project class, the files, and the contract's state", () => {
     expect(await db.documentAttachment.count({ where: { projectDocumentVersion: { documentId }, purpose: "PROJECT_DOCUMENT_FILE" } })).toBe(21);
   });
 
-  it("a staged file of another person, of another purpose, already pinned, or unknown is refused, and nothing is pinned", async () => {
+  // Rewritten for PW-36 (audit L2): this test asserted that another person's or account's file read "uploaded by someone else" and a file of another purpose "not uploaded for
+  // a project document". Those words told a crafted id apart from an unknown one (an oracle on the store). The read is now narrowed, before any lock, to the actor's own files
+  // staged for a project document, so every other id reads the one "was not found" (FILE_UNKNOWN); NOT_YOURS and NOT_STAGED_FOR_PROJECT stay an internal backstop only.
+  it("a staged file of another person, of another purpose, already pinned, or unknown is refused, and nothing is pinned; another's file reads exactly as an unknown one (PW-36)", async () => {
     const c = await contractor();
     const contractId = await contract(c.supplierId);
     await createStaff(p.so, contractId, { title: "Staged files" });
     const documentId = await documentOf(contractId, "Staged files");
     const upload = (ids: string[]) => as(p.so, () => uploadProjectVersion({ ok: false }, form({ contractId, documentId, note: "", stagedVersionId: ids })));
+    const unknown = await upload(["no-such-version"]);
+    expect(unknown.ok).toBe(false);
+    expect(unknown.message).toMatch(/File 1 was not found/);
     const others = await upload([await stage({ person: p.so2 })]);
     expect(others.ok).toBe(false);
-    expect(others.message).toMatch(/File 1 was uploaded by someone else/);
+    expect(others.message).toBe(unknown.message);
     const theirs = await upload([await stage({ account: c.accountId })]);
-    expect(theirs.message).toMatch(/uploaded by someone else/);
+    expect(theirs.message).toBe(unknown.message);
     const wrongPurpose = await upload([await stage({ person: p.so }, { stagedFor: null })]);
-    expect(wrongPurpose.message).toMatch(/not uploaded for a project document/);
-    const unknown = await upload(["no-such-version"]);
-    expect(unknown.message).toMatch(/was not found/);
+    expect(wrongPurpose.message).toBe(unknown.message);
+    for (const said of [others, theirs, wrongPurpose]) expect(said.message).not.toMatch(/someone else|not uploaded for a project document/);
     const mine = await stage({ person: p.so });
     expect(await upload([mine])).toMatchObject({ ok: true });
     const again = await upload([mine]);
@@ -483,9 +490,42 @@ describe("the project class, the files, and the contract's state", () => {
     const twice = await upload([await stage({ person: p.so }), "no-such-version"]);
     expect(twice.ok).toBe(false);
     expect(await db.projectDocumentVersion.count({ where: { documentId } })).toBe(2);
-    // The contractor pinning a person's file, or another contractor's, is refused the same way.
+    // The contractor pinning a person's file, or another contractor's, is refused the same way: not found.
     const other = await contractor();
-    await refusedWith(asContractor(c, contractId, async (ctx) => addVersion(ctx, { kind: "SUPPLIER", actor: c.actor }, { documentId, stagedVersionIds: [await stage({ account: other.accountId })], note: "" }, null)), "NOT_YOURS");
+    const contractorDoc = (await asContractor(c, contractId, async (ctx) => createDocument(ctx, { kind: "SUPPLIER", actor: c.actor }, { title: "Contractor's own", note: "", first: { upload: { stagedVersionIds: [await stage({ account: c.accountId })], note: "" } }, approverPersonIds: [] }, null))).documentId;
+    for (const foreign of [await stage({ account: other.accountId }), await stage({ person: p.so })]) {
+      const e = await asContractor(c, contractId, async (ctx) => addVersion(ctx, { kind: "SUPPLIER", actor: c.actor }, { documentId: contractorDoc, stagedVersionIds: [foreign], note: "" }, null)).then(() => null, (x) => x);
+      expect(e).toBeInstanceOf(WorkspaceRefused);
+      expect((e as WorkspaceRefused).faults.map((f) => f.code)).toEqual(["FILE_UNKNOWN"]);
+    }
+  });
+
+  it("PW-36: another's staged file is never locked by an act that names it: the act answers not found while the file's store document is held by someone else", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId);
+    await createStaff(p.so, contractId, { title: "No foreign lock" });
+    const documentId = await documentOf(contractId, "No foreign lock");
+    const foreign = await stage({ person: p.so2 });
+    const foreignDoc = (await db.documentVersion.findUniqueOrThrow({ where: { id: foreign }, select: { documentId: true } })).documentId;
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let taken!: () => void;
+    const lockTaken = new Promise<void>((r) => (taken = r));
+    const holder = db.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Document" WHERE id = ${foreignDoc} FOR UPDATE`;
+        taken();
+        await held;
+      },
+      { timeout: 60_000 },
+    );
+    await lockTaken;
+    const act = as(p.so, () => uploadProjectVersion({ ok: false }, form({ contractId, documentId, note: "", stagedVersionId: [foreign] })));
+    const first = await Promise.race([act, new Promise<"BLOCKED">((r) => setTimeout(() => r("BLOCKED"), 5_000))]);
+    release();
+    await holder;
+    expect(first, "the act waited on another's store document").not.toBe("BLOCKED");
+    expect((first as { ok: boolean; message?: string }).message).toMatch(/File 1 was not found/);
   });
 
   it("an act before Executed and on a Closed or Cancelled contract is refused; on a Terminated one it is allowed", async () => {
@@ -668,5 +708,53 @@ describe("what the Documents list needs to offer a new document", () => {
     } finally {
       await db.documentStorePolicy.update({ where: { organisationId }, data: { projectDocumentClassId: projectClassId } });
     }
+  });
+});
+
+describe("the fix round (rulings PW-37, PW-43 T1, PW-45)", () => {
+  it("T1: two acts pinning the same staged file at once, on two contracts (so no contract lock orders them): one succeeds, the other is refused as already attached, and the file is pinned once", async () => {
+    const [first, second] = [await contract(null), await contract(null)];
+    const file = await stage({ person: p.so });
+    const [a, b] = await Promise.all([createStaff(p.so, first, { title: "Race A", files: [file] }), createStaff(p.so, second, { title: "Race B", files: [file] })]);
+    expect([a.ok, b.ok].sort()).toEqual([false, true]);
+    const lost = a.ok ? b : a;
+    expect(lost.message).toBe("Not done: File 1 is already attached to a record. Upload it again from this form.");
+    expect(await db.documentAttachment.count({ where: { versionId: file, purpose: "PROJECT_DOCUMENT_FILE" } })).toBe(1);
+    // Exactly one of the two documents was made: the refused act wrote nothing.
+    expect(await db.projectDocument.count({ where: { contractId: { in: [first, second] }, title: { in: ["Race A", "Race B"] } } })).toBe(1);
+  });
+
+  it("PW-37: the one-pin index is the backstop, and its refusal is said as the locked re-read says it (ALREADY_ATTACHED, 409), never as a raw error", async () => {
+    const contractId = await contract(null);
+    const file = await stage({ person: p.so });
+    expect(await createStaff(p.so, contractId, { title: "Pinned once", files: [file] })).toMatchObject({ ok: true });
+    const version = await db.projectDocumentVersion.findFirstOrThrow({ where: { document: { contractId, title: "Pinned once" } } });
+    // A writer that skips the act's checks (a loader, a later act) meets the index.
+    const e = await db.documentAttachment.create({ data: { organisationId, purpose: "PROJECT_DOCUMENT_FILE", versionId: file, projectDocumentVersionId: version.id } }).then(() => null, (x) => x);
+    expect(e, "the index refused the second pin").not.toBeNull();
+    const said = pinConflictRefusal(e);
+    expect(said).toBeInstanceOf(WorkspaceRefused);
+    expect(said!.status).toBe(409);
+    expect(said!.faults.map((f) => f.code)).toEqual(["ALREADY_ATTACHED"]);
+    expect(workspaceRefusalText(said!, ORG_NAME)).toBe("Not done: A file is already attached to a record. Upload it again from this form.");
+    // Any other error is not the workspace's to word.
+    expect(pinConflictRefusal(new Error("something else"))).toBeNull();
+  });
+
+  it("PW-45: on a restricted exercise, the S.O. who is not named on it is still told of the contractor's upload, and the notice opens the contract's document page", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId, "ACTIVE", { restricted: true });
+    const exerciseId = (await db.contract.findUniqueOrThrow({ where: { id: contractId }, select: { award: { select: { exerciseId: true } } } })).award.exerciseId;
+    const hidden = await hiddenExerciseIds(db, staff(p.so));
+    expect(hidden, "the S.O. is not named on the restricted exercise").toContain(exerciseId);
+    const made = await asContractor(c, contractId, async (ctx) => createDocument(ctx, { kind: "SUPPLIER", actor: c.actor }, { title: "Delay at the culvert", note: "", first: { upload: { stagedVersionIds: [await stage({ account: c.accountId })], note: "" } }, approverPersonIds: [] }, null));
+    const notices = await db.staffNotice.findMany({ where: { organisationId, subjectId: made.versionId! } });
+    expect(notices.map((n) => [n.recipientPersonId, n.exerciseId])).toContainEqual([p.so, null]);
+    const inbox = await loadInbox(db, { organisationId, personId: p.so }, hidden);
+    const mine = inbox.find((n) => n.kind === "PROJECT_DOCUMENT_FROM_CONTRACTOR" && n.href === `/projects/${contractId}/documents/${made.documentId}`);
+    expect(mine, "the notice reaches the S.O. through the inbox").toBeTruthy();
+    // Its link is the contract's document page, which reads for the S.O.
+    const page = await loadDocumentPage(db, (await loadContract(organisationId, contractId))!, staff(p.so), made.documentId);
+    expect(page?.title).toBe("Delay at the culvert");
   });
 });

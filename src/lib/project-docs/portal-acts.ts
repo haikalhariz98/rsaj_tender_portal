@@ -15,18 +15,20 @@
 
 import { AttributionRefused } from "@/lib/auth/attribution-store";
 import type { SupplierActor } from "@/lib/auth/types";
+import { toSecond } from "@/lib/bids/lateness";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { db } from "@/lib/db";
+import { loadProjectContext } from "@/lib/portal/projects/context-store";
 import { inHeldContract } from "@/lib/portal/projects/submission-store";
 import { ProjectRefused } from "@/lib/portal/projects/types";
 import { projectFaultViews } from "@/lib/portal/projects/words";
 
 import { contractorFaultText, contractorRefusalText } from "./contractor-view";
 import { loadDocumentFacts } from "./facts";
-import type { CreateBody, RequestBody, VersionBody } from "./portal-api";
+import { versionTakesPassword, type CreateBody, type RequestBody, type VersionBody } from "./portal-api";
 import { NOT_FOUND_OUTCOME, type PortalOutcome } from "./portal-upload";
-import { addVersion, createDocument, requestDocument, WorkspaceRefused, type WorkspaceCtx } from "./store";
+import { addVersion, createDocument, pinConflictRefusal, requestDocument, WorkspaceRefused, type WorkspaceCtx } from "./store";
 import { contractorMayOpen } from "./visibility";
 
 /// The same 404 for every way a contractor can fail to reach a contract or a document: not its own, not there, another organisation's, not listed to it.
@@ -38,6 +40,8 @@ const notFound = (): never => {
  * Run `fn` as the contractor: in the held contract, the workspace open, and (for a named document) the document one it may open. A refusal comes back as the answer to send.
  */
 async function asContractor(actor: SupplierActor, contractId: string, documentId: string | null, fn: (ctx: WorkspaceCtx) => Promise<Record<string, unknown>>): Promise<PortalOutcome> {
+  // The clock, read once and to the second (PW-55): the organisation's day is derived from this same moment, so a delay notice's day and its moment agree (FR-EOT-001).
+  const now = toSecond(new Date());
   try {
     const done = await inHeldContract(actor, contractId, async (tx, l, today) => {
       const shut = actStatusFault("PROJECT_WORKSPACE", l.contract.status as ContractStatus);
@@ -48,8 +52,8 @@ async function asContractor(actor: SupplierActor, contractId: string, documentId
         if (!doc) return notFound();
         if (!contractorMayOpen(await loadDocumentFacts(tx, doc.id))) return notFound();
       }
-      return fn({ tx, l, now: new Date(), today });
-    });
+      return fn({ tx, l, now, today });
+    }, now);
     return { status: 201, body: { ok: true, ...done } };
   } catch (e) {
     const refused = await refusalOutcome(e, actor.organisationId);
@@ -59,7 +63,9 @@ async function asContractor(actor: SupplierActor, contractId: string, documentId
 }
 
 /// A refusal of a contractor's act as the answer to send, or null where the error is not one of the workspace's.
-export async function refusalOutcome(e: unknown, organisationId: string): Promise<PortalOutcome | null> {
+export async function refusalOutcome(error: unknown, organisationId: string): Promise<PortalOutcome | null> {
+  // PW-37: the one-pin index aborted the transaction; it is said as the locked re-read would say it (ALREADY_ATTACHED).
+  const e = pinConflictRefusal(error) ?? error;
   if (e instanceof WorkspaceRefused) {
     if (e.status === 404) return NOT_FOUND_OUTCOME();
     const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { name: true } });
@@ -93,6 +99,19 @@ export function contractorVersion(actor: SupplierActor, i: VersionBody, stepUpAt
     const made = await addVersion(ctx, { kind: "SUPPLIER", actor }, { documentId: i.documentId, stagedVersionIds: i.stagedVersionIds, note: i.note, kind: i.kind, stepUpAt }, null);
     return { documentId: i.documentId, versionId: made.versionId, number: made.number };
   });
+}
+
+/**
+ * PW-41: whether the version route may ask a posted password: the document is one the contractor may open (the same reach as the act's), and it is a statutory declaration's
+ * version (`versionTakesPassword`). Null where the contractor may not open it: the route answers the act's one 404 and asks nothing. A read, with no lock: the act judges again.
+ */
+export async function versionSigns(actor: SupplierActor, i: Pick<VersionBody, "contractId" | "documentId" | "kind">): Promise<boolean | null> {
+  const ctx = await loadProjectContext(db, actor, i.contractId);
+  if (!ctx) return null;
+  const doc = await db.projectDocument.findFirst({ where: { id: i.documentId, contractId: ctx.contract.id, organisationId: actor.organisationId }, select: { id: true, kind: true } });
+  if (!doc) return null;
+  if (!contractorMayOpen(await loadDocumentFacts(db, doc.id))) return null;
+  return versionTakesPassword(doc.kind, i.kind);
 }
 
 /// A request for a document the contractor may open (PW-30: to the document's side, only while it is Shared).

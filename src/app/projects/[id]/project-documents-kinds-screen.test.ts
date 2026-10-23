@@ -55,8 +55,8 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
   final: false,
   createdOn: "2026-10-20",
   versions: [
-    { id: "v1", number: 1, label: "Version 1", note: "", uploadedOn: "2026-10-20", uploadedAtText: "20 Oct 2026 · 09:15", uploadedByName: "Binaan Maju", answersRequest: false, files: [], decisions: [] },
-    { id: "v2", number: 2, label: "Version 2", note: "", uploadedOn: "2026-10-22", uploadedAtText: "22 Oct 2026 · 14:02", uploadedByName: "Binaan Maju", answersRequest: false, files: [], decisions: [] },
+    { id: "v1", number: 1, label: "Version 1", note: "", uploadedOn: "2026-10-20", uploadedAtText: "20 Oct 2026 · 09:15", uploadedByName: "Binaan Maju", answersRequest: false, signed: false, files: [], decisions: [] },
+    { id: "v2", number: 2, label: "Version 2", note: "", uploadedOn: "2026-10-22", uploadedAtText: "22 Oct 2026 · 14:02", uploadedByName: "Binaan Maju", answersRequest: false, signed: false, files: [], decisions: [] },
   ],
   requests: [],
   openRequest: null,
@@ -187,7 +187,7 @@ describe("an earlier record, read only on the Documents tab (PW-11)", () => {
   it("an earlier row in the list carries its mark beside its kind and links to the tab naming it", () => {
     const rows: RegisterRow[] = [{ id: "e1", title: "Delay at the culvert", kindLabel: "Delay notice", latestOn: "2026-10-15", stateLabel: "Received", state: "RECEIVED", waitsOnLabel: `Waiting on ${ORG}`, waitsOn: "ORGANISATION", href: "/projects/c1?stage=project&tab=submissions&earlier=e1", earlier: { label: "Earlier record", record: record() } }];
     const html = renderToStaticMarkup(
-      h(ProjectDocumentsCard, { contractId: "c1", orgName: ORG, rows, filter: "ALL", next: null, after: null, start: { classSet: true, create: open, picker: [] } }),
+      h(ProjectDocumentsCard, { contractId: "c1", orgName: ORG, rows, filter: "ALL", next: null, after: null, start: { classSet: true, create: open, picker: [], noSoResolved: false } }),
     );
     expect(html).toContain("Earlier record");
     expect(html).toContain('href="/projects/c1?stage=project&amp;tab=submissions&amp;earlier=e1"');

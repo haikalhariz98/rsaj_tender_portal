@@ -7,7 +7,7 @@ import { AttributionRefused } from "@/lib/auth/attribution-store";
 import { attributeSupplierAct } from "@/lib/auth/supplier-attribution-store";
 import { authenticateSupplier, confirmSupplierPassword } from "@/lib/auth/supplier-identity";
 import { readSupplierSession } from "@/lib/auth/supplier-session-store";
-import type { SupplierActor } from "@/lib/auth/types";
+import type { StaffActor, SupplierActor } from "@/lib/auth/types";
 import type { CertificateKind } from "@/lib/certificate/types";
 import { db } from "@/lib/db";
 import { facts, makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
@@ -18,6 +18,8 @@ import { contractorCreate, contractorVersion } from "@/lib/project-docs/portal-a
 import type { PortalOutcome } from "@/lib/project-docs/portal-upload";
 import { loadPortalRegister } from "@/lib/project-docs/portal-read";
 import { loadRegister } from "@/lib/project-docs/register";
+import { loadWorkspaceStart } from "@/lib/project-docs/page-store";
+import { loadContract } from "@/lib/contract/repo";
 import { documentsWaitingCount } from "@/lib/project-docs/waiting-read";
 
 import { loadBoard } from "./announcement-store";
@@ -286,13 +288,18 @@ describe("a contractor's notice of one of the six kinds, sent from the Documents
     }
   });
 
-  it("is received all the same where the contract has no Superintending Officer, and nobody is told", async () => {
+  it("is received all the same where the contract has no Superintending Officer, and nobody is told; the staff Documents card is told so (PW-48)", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId, so: false });
     const sent = await send(h, c.id, "DEFECTS_RECTIFIED", { title: "Defects made good" });
     expect(sent.status).toBe(201);
     expect(await db.staffNotice.count({ where: { organisationId, subjectId: sent.body.versionId as string } })).toBe(0);
     expect((await overviewTab(db, h.actor, (await loadProjectContext(db, h.actor, c.id))!)).facts.soOffice).toBeNull();
+    // PW-48: the fact the staff Documents card shows its warning from: no S.O. resolved today. With one resolved, the fact is false.
+    const viewer = { kind: "STAFF", personId: officerId, organisationId, isAdministrator: false, permissions: new Set() } as unknown as StaffActor;
+    expect((await loadWorkspaceStart(db, (await loadContract(organisationId, c.id))!, viewer)).noSoResolved).toBe(true);
+    const resolved = await contract({ vendorId: h.supplierId });
+    expect((await loadWorkspaceStart(db, (await loadContract(organisationId, resolved.id))!, viewer)).noSoResolved).toBe(false);
   });
 
   it("is refused, with nothing written, on another contractor's contract, on a cancelled one, with no title, and with no file", async () => {
@@ -321,6 +328,8 @@ describe("a contractor's notice of one of the six kinds, sent from the Documents
     const sent = await send(h, c.id, "STATUTORY_DECLARATION", { title: "Declaration lodged", stepUpAt: at1 });
     expect(sent, JSON.stringify(sent)).toMatchObject({ status: 201 });
     const v1 = sent.body.versionId as string;
+    // PW-44 (restored): the version itself carries the moment the password was asked again.
+    expect((await db.projectDocumentVersion.findUniqueOrThrow({ where: { id: v1 } })).signedAt?.getTime()).toBe(at1.getTime());
     const a1 = await db.actAttribution.findFirstOrThrow({ where: { entity: "ProjectDocumentVersion", entityId: v1, slot: "uploadedBySupplierAccount" } });
     expect(a1).toMatchObject({ subjectSupplierAccountId: h.accountId, mode: "SIGNED", documentEntity: "ProjectDocumentVersion", documentId: v1 });
     expect(a1.stepUpAt?.getTime()).toBe(at1.getTime());
@@ -333,9 +342,11 @@ describe("a contractor's notice of one of the six kinds, sent from the Documents
     const v2 = await contractorVersion(h.actor, { contractId: c.id, documentId, stagedVersionIds: [await stage(h.accountId)], note: "Corrected.", kind: null }, at2);
     expect(v2, JSON.stringify(v2)).toMatchObject({ status: 201, body: { number: 2 } });
     expect((await db.actAttribution.findFirstOrThrow({ where: { entity: "ProjectDocumentVersion", entityId: v2.body.versionId as string } })).stepUpAt?.getTime()).toBe(at2.getTime());
-    // An ordinary kind's version writes no attribution: it is an upload, which signs nothing.
+    expect((await db.projectDocumentVersion.findUniqueOrThrow({ where: { id: v2.body.versionId as string } })).signedAt?.getTime()).toBe(at2.getTime());
+    // An ordinary kind's version writes no attribution and no signature moment: it is an upload, which signs nothing.
     const programme = await send(h, c.id, "WORK_PROGRAMME", { title: "Programme" });
     expect(await db.actAttribution.count({ where: { entity: "ProjectDocumentVersion", entityId: programme.body.versionId as string } })).toBe(0);
+    expect((await db.projectDocumentVersion.findUniqueOrThrow({ where: { id: programme.body.versionId as string } })).signedAt).toBeNull();
   });
 
   it("an earlier declaration's signed attribution still resolves (PW-11): the slot stays, and the reader says who signed", async () => {

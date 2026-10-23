@@ -3,7 +3,9 @@
  * (`src/app/supplier/projects/documents/upload/route.ts`) calls in order:
  *
  * 1. `preflightProjectUpload`, BEFORE a byte of the body is read: the contract is the session's supplier's (else not found), the supplier's standing does not bar it, the contract's
- *    state opens the workspace, the document store is set up, the project class is set and open to a contractor, and the file types and size are set.
+ *    state opens the workspace, the document store is set up, the project class is set and open to a contractor, and the file types and size are set. Then the window (PW-38,
+ *    audit L5), read without a lock on the declared length: an account already over it is answered 429 at once, so a full body is never read, sniffed and copied for nothing.
+ *    The locked check in step 2 stays the authority.
  * 2. `storeProjectFile`, with the bytes: the store's own `storeUpload`, with the window judged in its `hooks.before`, on the account's own row, locked.
  *
  * NO CONTRACT LOCK is taken here, and none is held while the bytes are stored: staging takes the `SupplierAccount` row only, never the contract, the `Supplier` row or any
@@ -13,6 +15,7 @@
  * pass it. A refusal names the limit and when to try again; there is no meter. Server-side.
  */
 
+import type { Tx } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
@@ -60,10 +63,12 @@ export interface UploadPreflight {
 }
 
 /**
- * What must hold before the body is read. Returns the facts the rest of the upload judges by, or the answer to send. Reads only (the standing bar, the contract, the settings), and
- * takes no lock.
+ * What must hold before the body is read. Returns the facts the rest of the upload judges by, or the answer to send. Reads only (the standing bar, the contract, the settings, the
+ * account's window), and takes no lock. `declaredBytes` is the request's stated length (null where it stated none: the route refuses that next): the window is judged on it, which
+ * errs towards refusing, as the body is a little longer than its file.
  */
-export async function preflightProjectUpload(actor: SupplierActor, contractId: string, now: Date = new Date()): Promise<{ ok: true; value: UploadPreflight } | { ok: false; outcome: PortalOutcome }> {
+export async function preflightProjectUpload(actor: SupplierActor, contractId: string, o: { declaredBytes?: bigint | null; now?: Date } = {}): Promise<{ ok: true; value: UploadPreflight } | { ok: false; outcome: PortalOutcome }> {
+  const now = o.now ?? new Date();
   const org = await documentOrg(actor.organisationId);
   if (!org) return { ok: false, outcome: out(503, "CLOSED", "The portal is not set up.", { logReason: "NO_ORGANISATION" }) };
   const ctx = await loadProjectContext(db, actor, contractId, now);
@@ -86,6 +91,11 @@ export async function preflightProjectUpload(actor: SupplierActor, contractId: s
   if ("fault" in cap) return { ok: false, outcome: notSetUp(cap.fault) };
   const allowedTypes = supplierAcceptedTypes(policy.allowedMediaTypes);
   if (allowedTypes.length === 0) return { ok: false, outcome: notSetUp("TYPES_NOT_SET") };
+  // PW-38: the window, without a lock, before the body is read. PW-32's words; the locked check in `storeProjectFile` is the authority.
+  if (o.declaredBytes != null) {
+    const faults = windowFaults({ staged: await windowRows(db, actor, now), incomingBytes: o.declaredBytes, now });
+    if (faults.length > 0) return { ok: false, outcome: windowRefusalOutcome(new WindowRefused(faults), ctx.org.name) };
+  }
   return { ok: true, value: { ctx, org, store: s.store, classId: policy.projectDocumentClassId, cap: cap.cap, capFrom: cap.from, allowedTypes } };
 }
 
@@ -103,6 +113,15 @@ export function windowRefusalOutcome(e: WindowRefused, orgName: string): PortalO
   const retry = waits.length > 0 && waits.length === e.faults.length ? Math.max(...waits) : null;
   const message = [...new Set(e.faults.map((f) => contractorFaultText(f, orgName)))].join(" ");
   return out(429, "RATE_LIMITED", message, { headers: retry !== null ? { "Retry-After": String(retry * 60) } : undefined, logReason: e.faults[0]?.code ?? "WINDOW", body: { faults: e.faults.map((f) => ({ message: faultText(f, orgName) })) } });
+}
+
+/// The account's store versions of the last hour (a coarse minute of slack; `windowFaults` filters exactly), attached or not: what PW-32's window counts.
+async function windowRows(client: Tx, actor: SupplierActor, now: Date): Promise<{ at: Date; bytes: bigint }[]> {
+  const rows = await client.documentVersion.findMany({
+    where: { organisationId: actor.organisationId, recordedBySupplierAccountId: actor.accountId, storedAt: { gte: new Date(now.getTime() - (PROJECT_UPLOAD_WINDOW_MINUTES + 1) * 60_000) } },
+    select: { storedAt: true, byteSize: true },
+  });
+  return rows.map((r) => ({ at: r.storedAt, bytes: r.byteSize }));
 }
 
 export interface StoreProjectFileInput {
@@ -143,11 +162,7 @@ export async function storeProjectFile(actor: SupplierActor, i: StoreProjectFile
         before: async (tx) => {
           await tx.$queryRaw`SELECT id FROM "SupplierAccount" WHERE id = ${actor.accountId} AND "organisationId" = ${actor.organisationId} FOR UPDATE`;
           const now = new Date();
-          const rows = await tx.documentVersion.findMany({
-            where: { organisationId: actor.organisationId, recordedBySupplierAccountId: actor.accountId, storedAt: { gte: new Date(now.getTime() - (PROJECT_UPLOAD_WINDOW_MINUTES + 1) * 60_000) } },
-            select: { storedAt: true, byteSize: true },
-          });
-          const faults = windowFaults({ staged: rows.map((r) => ({ at: r.storedAt, bytes: r.byteSize })), incomingBytes: BigInt(i.bytes.byteLength), now });
+          const faults = windowFaults({ staged: await windowRows(tx, actor, now), incomingBytes: BigInt(i.bytes.byteLength), now });
           if (faults.length > 0) throw new WindowRefused(faults);
         },
       },

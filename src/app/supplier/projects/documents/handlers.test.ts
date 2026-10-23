@@ -15,12 +15,13 @@ const h = vi.hoisted(() => ({
   preflight: vi.fn(),
   find: vi.fn(),
   confirm: vi.fn(),
+  signs: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }), headers: async () => new Headers() }));
 vi.mock("@/lib/auth/supplier-session-store", () => ({ readSupplierSession: h.readSession, signOutSupplierToken: vi.fn() }));
-vi.mock("@/lib/project-docs/portal-acts", () => ({ contractorCreate: h.create, contractorVersion: h.version, contractorRequest: h.request }));
+vi.mock("@/lib/project-docs/portal-acts", () => ({ contractorCreate: h.create, contractorVersion: h.version, contractorRequest: h.request, versionSigns: h.signs }));
 vi.mock("@/lib/auth/supplier-identity", () => ({ confirmSupplierPassword: h.confirm }));
 vi.mock("@/lib/project-docs/portal-file", () => ({ findProjectFile: h.find }));
 vi.mock("@/lib/project-docs/portal-upload", async (orig) => ({ ...(await orig<typeof import("@/lib/project-docs/portal-upload")>()), preflightProjectUpload: h.preflight }));
@@ -83,6 +84,7 @@ beforeEach(() => {
   h.readSession.mockResolvedValue({ ok: true, actor: ACTOR, session: { id: "ses1", createdAt: new Date(), lastSeenAt: new Date(), absoluteExpiresAt: new Date() } });
   for (const f of [h.create, h.version, h.request]) f.mockResolvedValue({ status: 201, body: { ok: true } });
   h.confirm.mockResolvedValue({ ok: true, at: AT });
+  h.signs.mockResolvedValue(true);
 });
 
 const AT = new Date("2026-10-23T01:00:00Z");
@@ -191,12 +193,33 @@ describe("a statutory declaration is signed with the password asked again, and a
     expect(h.confirm).not.toHaveBeenCalled();
   });
 
-  it("version: a posted password is asked first (the route cannot know the kind) and its moment handed on; none posted, none asked", async () => {
+  // Rewritten for PW-41 (audit I2): this test asserted that /version asked any posted password because "the route cannot know the kind". The route now reads the document's
+  // kind as the contractor may open it first, and takes a password only for a statutory declaration's version, as /create does. The guarantees kept: a declaration's password is
+  // asked and only its moment reaches the store; none posted, none asked.
+  it("version: a posted password is asked only for a declaration's version, and its moment handed on; with any other document it is refused 400 and never asked; none posted, none asked", async () => {
     expect((await version(post("/supplier/projects/documents/version", { ...GOOD.version, password: "pw" }))).status).toBe(201);
+    expect(h.signs).toHaveBeenLastCalledWith(ACTOR, expect.objectContaining({ contractId: CON, documentId: DOC, kind: null }));
     expect(h.confirm).toHaveBeenCalledTimes(1);
     expect(h.version).toHaveBeenLastCalledWith(ACTOR, expect.objectContaining({ documentId: DOC }), AT);
     h.confirm.mockClear();
+    h.version.mockClear();
+
+    h.signs.mockResolvedValue(false);
+    const other = await version(post("/supplier/projects/documents/version", { ...GOOD.version, password: "pw" }));
+    expect([other.status, (await other.json()).errors]).toEqual([400, { password: "Only a statutory declaration is signed with your password." }]);
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(h.version).not.toHaveBeenCalled();
+
+    // A document the contractor may not open: the act's one 404, and nothing is asked.
+    h.signs.mockResolvedValue(null);
+    const hidden = await version(post("/supplier/projects/documents/version", { ...GOOD.version, password: "pw" }));
+    expect([hidden.status, (await hidden.json()).code]).toEqual([404, "NOT_FOUND"]);
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(h.version).not.toHaveBeenCalled();
+
+    h.signs.mockClear();
     expect((await version(post("/supplier/projects/documents/version", GOOD.version))).status).toBe(201);
+    expect(h.signs).not.toHaveBeenCalled();
     expect(h.confirm).not.toHaveBeenCalled();
     expect(h.version).toHaveBeenLastCalledWith(ACTOR, expect.objectContaining({ documentId: DOC }), null);
   });
@@ -249,7 +272,8 @@ describe("the staging upload", () => {
     h.preflight.mockResolvedValue({ ok: false, outcome: { status: 404, body: { ok: false, code: "NOT_FOUND", message: "That is not something you can open." }, logReason: "NOT_FOUND" } });
     const res = await upload(await multipart(URL_));
     expect([res.status, (await res.json()).code]).toEqual([404, "NOT_FOUND"]);
-    expect(h.preflight).toHaveBeenCalledWith(ACTOR, CON);
+    // PW-38: the preflight is handed the stated length, so the account's window is judged before the body is read.
+    expect(h.preflight).toHaveBeenCalledWith(ACTOR, CON, { declaredBytes: expect.any(BigInt) });
   });
 });
 

@@ -2,10 +2,13 @@ import { createHash } from "node:crypto";
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import type { SupplierActor } from "@/lib/auth/types";
+import type { StaffActor, SupplierActor } from "@/lib/auth/types";
+import { loadContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { db } from "@/lib/db";
 import { makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS } from "@/lib/test-db/auth-fixtures";
+import { dayOf } from "@/lib/dates";
+import { loadProjectContext } from "@/lib/portal/projects/context-store";
 
 /**
  * The contractor's Project workspace routes against a real database (plan step 5, §6; PW-8, PW-14, PW-15, PW-23, PW-28, PW-32): the three JSON acts, the staging upload and the file
@@ -35,7 +38,8 @@ import { exportSupplierData, readProjectDocuments } from "@/lib/portal/data-expo
 
 import { PROJECT_BYTES_PER_WINDOW, PROJECT_FILES_PER_WINDOW } from "./bounds";
 import { kindChoices } from "./labels";
-import { loadPortalDocumentPage, loadPortalRegister, loadPortalStart, loadWaitingForYou } from "./portal-read";
+import { loadDocumentPage } from "./page-store";
+import { contractorDocumentTally, loadPortalDocumentPage, loadPortalRegister, loadPortalStart, loadWaitingForYou } from "./portal-read";
 import { findProjectFile } from "./portal-file";
 import { storeProjectFile, WindowRefused, preflightProjectUpload } from "./portal-upload";
 import { documentOrg } from "@/lib/documents/service";
@@ -315,16 +319,21 @@ describe("another contractor reaches nothing (PW-14: a 404 for every cause)", ()
     expect((await fileHead()).status).toBe(405);
   });
 
-  it("pinning another account's staged file is refused, even from the same company, and the file stays unattached", async () => {
+  // Rewritten for PW-36 (audit L2): this test asserted the words "uploaded by someone else", which told another account's file apart from an id that is nowhere. Another's
+  // file now reads exactly as an unknown one ("was not found"), and no row of it is locked; the guarantee kept: it is refused and stays unattached.
+  it("pinning another account's staged file is refused, even from the same company, in the same words as an unknown file, and the file stays unattached", async () => {
     const c = as(await contractor());
     const colleague = await makeSupplierAccount(organisationId, { supplierId: c.supplierId });
     const contractId = await contract(c.supplierId);
     const theirs = await stage({ account: colleague.account!.id });
     const staff = await stage({ person: p.so });
+    const unknown = await createDoc({ contractId, title: "Borrowed file", mode: "upload", versionIds: ["no-such-version"], versionNote: "" });
+    expect(unknown.body.message).toMatch(/File 1 was not found/);
     for (const staged of [theirs, staff]) {
       const r = await createDoc({ contractId, title: "Borrowed file", mode: "upload", versionIds: [staged], versionNote: "" });
       expect(r.status, JSON.stringify(r.body)).toBe(422);
-      expect(r.body.message).toMatch(/uploaded by someone else/);
+      expect(r.body.message).toBe(unknown.body.message);
+      expect(r.body.message).not.toMatch(/someone else/);
       expect(await db.documentAttachment.count({ where: { versionId: staged } })).toBe(0);
     }
     expect(await db.projectDocument.count({ where: { contractId } })).toBe(0);
@@ -426,6 +435,83 @@ describe("what the contractor may read of an organisation document (PW-8, PW-28)
   });
 });
 
+describe("PW-35 and PW-46: the contractor's reading and its gates are made from its projection, never the organisation's working", () => {
+  it("a request answered only by a hidden version still reads Asked for, waiting on the organisation, on the page, the list, the tally and the export; Ask for it is not offered, and asking again is refused in the plain words", async () => {
+    const c = as(await contractor());
+    const contractId = await contract(c.supplierId);
+    const doc = await mkDoc(contractId, "ORGANISATION", "Bridge drawings", { person: p.so });
+    await mkVersion(doc, 1, { person: p.so }, { noApprovers: true, files: ["bridge-v1.pdf"], daysAgo: 3 });
+    const asked = await mkRequest(doc, "ORGANISATION", { account: c.accountId });
+    await mkApprover(doc, p.so2);
+    await mkVersion(doc, 2, { person: p.so }, { noApprovers: false, files: ["HIDDEN-bridge-v2.pdf"], requestId: asked });
+
+    const page = (await loadPortalDocumentPage(db, c.actor, contractId, doc))!;
+    expect(page).toMatchObject({ stateLabel: "Asked for", waitsOnLabel: `Waiting on ${ORG_NAME}`, waitsOnYou: false });
+    expect(page.requests.map((r) => r.answeredByVersion)).toEqual([null]);
+    expect(page.actions.request.allowed).toBe(false);
+    expect(page.versions.map((v) => v.label)).toEqual(["Version 1"]);
+    expect(JSON.stringify(page)).not.toMatch(/HIDDEN|Waiting for approval/);
+    const row = (await loadPortalRegister(db, c.actor, contractId))!.rows.find((r) => r.id === doc)!;
+    expect(row).toMatchObject({ stateLabel: "Asked for", waitsOnLabel: `Waiting on ${ORG_NAME}` });
+    const ctx = (await loadProjectContext(db, c.actor, contractId))!;
+    expect(await contractorDocumentTally(db, c.actor, ctx)).toEqual({ withOrganisation: 1, returned: 0 });
+    const exported = JSON.stringify((await exportSupplierData(c.actor, "PAGE"))!);
+    expect(exported).toContain("Bridge drawings");
+    expect(exported).not.toMatch(/HIDDEN-bridge/);
+    // The act judges on the real facts (the request is answered): refused in the plain words, never the organisation's working.
+    const again = await postJson(requestRoute, { contractId, documentId: doc, note: "Again, please." });
+    expect(again.status).toBe(422);
+    expect(again.body.message).toBe("Not done: That cannot be done on this document now.");
+  });
+
+  it("a hidden pending version with no request: the page reads Shared and offers Ask for it, as for any Shared document; the act refuses it in the plain words (the accepted LOW residual)", async () => {
+    const c = as(await contractor());
+    const contractId = await contract(c.supplierId);
+    const doc = await mkDoc(contractId, "ORGANISATION", "Traffic plan", { person: p.so });
+    await mkVersion(doc, 1, { person: p.so }, { noApprovers: true, files: ["traffic-v1.pdf"], daysAgo: 3 });
+    await mkApprover(doc, p.so2);
+    await mkVersion(doc, 2, { person: p.so }, { noApprovers: false, files: ["traffic-v2.pdf"] });
+    const page = (await loadPortalDocumentPage(db, c.actor, contractId, doc))!;
+    expect(page).toMatchObject({ stateLabel: "Shared", waitsOnLabel: null });
+    expect(page.actions.request).toEqual({ allowed: true, reasons: [] });
+    const ask = await postJson(requestRoute, { contractId, documentId: doc, note: "" });
+    expect(ask.status).toBe(422);
+    expect(ask.body.message).toBe("Not done: That cannot be done on this document now.");
+    expect(await db.projectDocumentRequest.count({ where: { documentId: doc } })).toBe(0);
+  });
+});
+
+describe("PW-54: the staff document page lists files as the portal and the export do", () => {
+  it("a file whose store version is withdrawn is listed on neither page (PW-33 keeps a pinned one from being withdrawn at all, so only a writer that skips the act can leave one)", async () => {
+    const c = as(await contractor());
+    const contractId = await contract(c.supplierId);
+    const doc = await mkDoc(contractId, "ORGANISATION", "Parity", { person: p.so });
+    const v = await mkVersion(doc, 1, { person: p.so }, { noApprovers: true, files: ["kept.pdf"] });
+    // Withdrawn BEFORE it was pinned (trigger PA047 refuses it after): the act itself refuses to pin a withdrawn file, so this row is a loader's, not an act's.
+    const gone = await stage({ person: p.so }, { name: "withdrawn.pdf" });
+    await db.documentVersion.update({ where: { id: gone }, data: { withdrawnAt: new Date(), withdrawnReason: "Wrong scan" } });
+    await db.documentAttachment.create({ data: { organisationId, purpose: "PROJECT_DOCUMENT_FILE", versionId: gone, projectDocumentVersionId: v.versionId } });
+    const viewer = { kind: "STAFF", personId: p.so, organisationId, isAdministrator: false, permissions: new Set() } as unknown as StaffActor;
+    const staffPage = (await loadDocumentPage(db, (await loadContract(organisationId, contractId))!, viewer, doc))!;
+    expect(staffPage.versions[0]!.files.map((f) => f.name)).toEqual(["kept.pdf"]);
+    const portal = (await loadPortalDocumentPage(db, c.actor, contractId, doc))!;
+    expect(portal.versions[0]!.files.map((f) => f.name)).toEqual(["kept.pdf"]);
+  });
+});
+
+describe("PW-55: a portal act reads the clock once", () => {
+  it("a version's moment is to the second, and its day is the organisation's day of that same moment", async () => {
+    const c = as(await contractor());
+    const contractId = await contract(c.supplierId);
+    const made = await createDoc({ contractId, title: "Clock", mode: "upload", versionIds: [await stage({ account: c.accountId })], versionNote: "" });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    const v = await db.projectDocumentVersion.findUniqueOrThrow({ where: { id: made.body.versionId as string } });
+    expect(v.uploadedAt.getMilliseconds()).toBe(0);
+    expect(v.uploadedOn.toISOString().slice(0, 10)).toBe(dayOf(v.uploadedAt, "Asia/Kuala_Lumpur"));
+    expect((await db.projectDocument.findUniqueOrThrow({ where: { id: made.body.documentId as string } })).createdAt.getTime()).toBe(v.uploadedAt.getTime());
+  });
+});
+
 describe("the download (PW-14)", () => {
   it("every download writes an access event with the supplier's account as the actor, and nobody else; the file is an attachment", async () => {
     const c = as(await contractor());
@@ -509,6 +595,35 @@ describe("staging: the window and the lock (PW-15, PW-32)", () => {
     expect(await db.documentVersion.count({ where: { recordedBySupplierAccountId: c.accountId } })).toBe(PROJECT_FILES_PER_WINDOW);
     const logged = await db.documentAccessEvent.findMany({ where: { organisationId, actorSupplierAccountId: c.accountId, kind: "REFUSED" } });
     expect(logged.map((e) => e.reasonCode)).toEqual(["TOO_MANY_FILES_IN_WINDOW"]);
+  });
+
+  it("PW-38: an account already over its window is answered 429 before the body is read, in PW-32's words, and the refusal is logged", async () => {
+    const c = as(await contractor());
+    const contractId = await contract(c.supplierId);
+    await seedWindow(c.accountId, PROJECT_FILES_PER_WINDOW, { agoMinutes: 20 });
+    // A body that fails if anything reads it (no chunk is pulled until a reader asks: high-water mark 0): the answer must come first.
+    let pulled = false;
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull() {
+          pulled = true;
+          throw new Error("the body was read");
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const res = await uploadRoute(new Request(`http://portal.example/supplier/projects/documents/upload?contractId=${contractId}`, { method: "POST", body, headers: { "content-type": "multipart/form-data; boundary=x", "content-length": "4096" }, duplex: "half" } as RequestInit));
+    expect(res.status).toBe(429);
+    expect(pulled).toBe(false);
+    const said = (await res.json()) as Record<string, unknown>;
+    expect(said).toMatchObject({ ok: false, code: "RATE_LIMITED" });
+    expect(said.message).toMatch(/60 files in the last 60 minutes/);
+    expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(38 * 60);
+    expect((await db.documentAccessEvent.findMany({ where: { organisationId, actorSupplierAccountId: c.accountId, kind: "REFUSED" } })).map((e) => e.reasonCode)).toEqual(["TOO_MANY_FILES_IN_WINDOW"]);
+    // The pre-check reads the declared length; with none stated it judges nothing (the route refuses that next), and the locked check stays the authority.
+    expect((await preflightProjectUpload(c.actor, contractId, { declaredBytes: 10n })).ok).toBe(false);
+    expect((await preflightProjectUpload(c.actor, contractId, { declaredBytes: null })).ok).toBe(true);
+    expect(await db.documentVersion.count({ where: { recordedBySupplierAccountId: c.accountId } })).toBe(PROJECT_FILES_PER_WINDOW);
   });
 
   it("files that have left the hour do not count", async () => {

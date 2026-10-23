@@ -7,8 +7,9 @@
  *   and by the version route (the first version of a document the organisation asked the contractor for). The request route and the staging upload refuse a posted `kind`
  *   422, judged before anything else: a route never ignores it. An unknown kind is a field error (400).
  * - The password (PW-10, AC-30): a statutory declaration's every version is signed with the contractor's password, asked again. The create route takes one only with that
- *   kind (posted with any other, it is refused, so nobody spends a step-up or a lockout count for nothing); the version route takes one when posted, as the route cannot know
- *   the document's kind before the act reads it, and the store signs with it only a declaration's version. The password is handed to `confirmSupplierPassword` alone.
+ *   kind (posted with any other, it is refused, so nobody spends a step-up or a lockout count for nothing). The version route parses one when posted, then reads the
+ *   document's kind as the contractor may open it and refuses the password unless it is a declaration (`versionTakesPassword`, PW-41), as create does. The password is
+ *   handed to `confirmSupplierPassword` alone.
  * - No supplier, organisation, account, day or time is read from a body: the supplier is the session's and the day is the server's. No approver is accepted from a
  *   contractor: it names none (PW-6 is the organisation's).
  * - The ids named are a contract's, a document's and staged store versions', which the stores read only as the session's supplier may hold them.
@@ -85,6 +86,13 @@ export interface Signed<T> {
   password: string | null;
 }
 
+/// A password posted with anything but a statutory declaration (PW-10, PW-41): the same words on both routes.
+export const PASSWORD_ONLY_DECLARATION = "Only a statutory declaration is signed with your password.";
+
+/// PW-41: a posted password is taken by the version route only for a statutory declaration's version: the document's kind, or (on the first version of a document the
+/// organisation asked for, with no kind yet) the kind picked with it. A later version of a declaration still needs it (PW-10).
+export const versionTakesPassword = (documentKind: DocKind | null, postedKind: DocKind | null): boolean => (documentKind ?? postedKind) === SIGNED_KIND;
+
 const CREATE_FIELDS = ["contractId", "title", "note", "mode", "versionIds", "versionNote", "requestNote", "kind", "password"] as const;
 
 /// A posted kind: absent, null or empty is none; one of the six is that kind; anything else is a field error.
@@ -114,7 +122,7 @@ export function parseCreateBody(b: Readonly<Record<string, unknown>>): PortalPar
   const kind = kindOf(b, errors);
   const password = passwordOf(b, errors);
   if (kind !== null && b.mode === "request") errors.kind = "A kind goes with a file sent, not with a request.";
-  if (password !== null && kind !== SIGNED_KIND) errors.password = "Only a statutory declaration is signed with your password.";
+  if (password !== null && kind !== SIGNED_KIND) errors.password = PASSWORD_ONLY_DECLARATION;
   if (!isId(b.contractId)) errors.contractId = "Say which contract this is for.";
   const title = text(b.title, TITLE_MAX);
   const note = text(b.note, NOTE_MAX);
@@ -146,7 +154,7 @@ export interface VersionBody {
 
 const VERSION_FIELDS = ["contractId", "documentId", "versionIds", "note", "kind", "password"] as const;
 
-/// `POST /supplier/projects/documents/version`. `password` is taken when posted: a declaration's version needs it, and the store signs no other with it.
+/// `POST /supplier/projects/documents/version`. `password` is parsed when posted; the route then takes it only for a declaration's version (`versionTakesPassword`).
 export function parseVersionBody(b: Readonly<Record<string, unknown>>): PortalParsed<Signed<VersionBody>> {
   const errors: Record<string, string> = unknownFields(b, VERSION_FIELDS);
   if (!isId(b.contractId)) errors.contractId = "Say which contract this is for.";

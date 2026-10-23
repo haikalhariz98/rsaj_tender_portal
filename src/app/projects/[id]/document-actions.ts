@@ -11,7 +11,7 @@ import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import { withLockedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf } from "@/lib/dates";
-import { addApprover, addVersion, createDocument, decideVersion, markVersion, removeApprover, requestDocument, WorkspaceRefused, workspaceRefusalText, type WorkspaceCtx } from "@/lib/project-docs/store";
+import { addApprover, addVersion, createDocument, decideVersion, markVersion, pinConflictRefusal, removeApprover, requestDocument, WorkspaceRefused, workspaceRefusalText, type WorkspaceCtx } from "@/lib/project-docs/store";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -50,6 +50,9 @@ async function inContract(actor: StaffActor, contractId: string, now: Date, fn: 
     if (e instanceof WorkspaceRefused) return { ok: false, message: workspaceRefusalText(e, orgName) };
     const attribution = attributionRefusalState(e);
     if (attribution) return attribution;
+    // PW-37: the one-pin index, caught here, outside the aborted transaction, and said as the locked re-read would.
+    const pin = pinConflictRefusal(e);
+    if (pin) return { ok: false, message: workspaceRefusalText(pin, orgName) };
     throw e;
   }
   if (result?.ok) {

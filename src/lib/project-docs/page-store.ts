@@ -24,7 +24,7 @@ import { loadDocumentFactsMany } from "./facts";
 import { addApproverFaults, createFaults, markFaults, removeApproverFaults, decideFaults, requestFaults, uploadFaults } from "./faults";
 import { faultText, kindWords, markActionWords, outcomeWords, sideWords, stateWords, takenUpLink, versionLabel, waitsOnWords } from "./labels";
 import { organisationSideOn } from "./side-store";
-import { mayActForOrganisation } from "./side";
+import { mayActForOrganisation, noSoResolved } from "./side";
 import { documentState, latestVersion, liveApprovers, type DocumentState } from "./state";
 import type { Actor, DocKind, Finding, Outcome, Side } from "./types";
 
@@ -68,6 +68,8 @@ export interface PageVersion {
   uploadedByName: string;
   /// The version answers a request.
   answersRequest: boolean;
+  /// A statutory declaration's version signed with the contractor's password (PW-10, PW-44), read from `signedAt`.
+  signed: boolean;
   files: PageFile[];
   decisions: PageDecision[];
 }
@@ -165,6 +167,8 @@ export interface WorkspaceStart {
   create: Gate;
   /// Who the reader may name as an approver: those on the organisation's side who may act today.
   picker: { personId: string; name: string; officeLabel: string }[];
+  /// No S.O. is resolved on the organisation's today (PW-48, `noSoResolved`): the contractor's documents are still received, and nobody is told. The card says so.
+  noSoResolved: boolean;
 }
 
 /**
@@ -186,6 +190,7 @@ export async function loadWorkspaceStart(client: Tx, l: LoadedContract, viewer: 
     classSet,
     create: gate(createFaults({ actor, classSet, title: "title", note: "", first: { upload: { files: 1, note: "", kind: null, signed: false } }, approvers: [] }), orgName, shut),
     picker,
+    noSoResolved: today !== null && noSoResolved(so?.office ?? null),
   };
 }
 
@@ -216,7 +221,9 @@ export async function loadDocumentPage(client: Tx, l: LoadedContract, viewer: St
           uploadedByPersonId: true,
           uploadedBySupplierAccountId: true,
           uploadedByPerson: { select: { name: true } },
-          files: { where: { detachedAt: null }, orderBy: { attachedAt: "asc" }, select: { version: { select: { id: true, originalFilename: true, byteSize: true, mediaType: true, scanState: true } } } },
+          signedAt: true,
+          // As the portal and the export read them (PW-54): a withdrawn store version is no file (PW-33 keeps a project file from being withdrawn at all).
+          files: { where: { detachedAt: null, version: { withdrawnAt: null } }, orderBy: { attachedAt: "asc" }, select: { version: { select: { id: true, originalFilename: true, byteSize: true, mediaType: true, scanState: true } } } },
           decisions: { orderBy: [{ decidedAt: "asc" }, { id: "asc" }], select: { outcome: true, remarks: true, decidedOn: true, decidedBy: { select: { name: true } }, approver: { select: { person: { select: { name: true } } } } } },
         },
       },
@@ -302,6 +309,7 @@ export async function loadDocumentPage(client: Tx, l: LoadedContract, viewer: St
       uploadedAtText: formatOrgDateTime(v.uploadedAt, l.org.timeZone),
       uploadedByName: v.uploadedByPerson?.name ?? l.award.awardeeName,
       answersRequest: v.requestId !== null,
+      signed: v.signedAt !== null,
       files: v.files.map((f) => ({ versionId: f.version.id, name: f.version.originalFilename, bytes: Number(f.version.byteSize), mediaType: f.version.mediaType, scanLabel: SCAN_LABEL[f.version.scanState] })),
       decisions: v.decisions.map((d) => ({ approverName: d.approver?.person.name ?? null, outcome: d.outcome, outcomeLabel: outcomeWords(d.outcome, row.kind), remarks: d.remarks, decidedOn: storedDay(d.decidedOn), decidedByName: d.decidedBy.name })),
     })),

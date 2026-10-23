@@ -39,7 +39,7 @@ import { walkMerged } from "./merge";
 import type { Gate } from "./page-store";
 import { documentLoader, REGISTER_BATCH } from "./register";
 import type { DocKind, Finding, Outcome } from "./types";
-import { contractorSeesRemarks } from "./visibility";
+import { contractorAnswer, contractorFacts, contractorSeesRemarks } from "./visibility";
 
 export const PORTAL_PAGE = 50;
 export const WAITING_PAGE = 20;
@@ -152,6 +152,8 @@ export interface PortalVersion {
   /// The organisation's name for its own versions; the contractor's own colleague's name for the contractor's.
   uploadedByName: string;
   answersRequest: boolean;
+  /// A statutory declaration's version signed with the contractor's password (PW-10, PW-44), read from `signedAt`. No moment is shown.
+  signed: boolean;
   files: PortalFile[];
   /// Only on the contractor's own documents (`contractorSeesRemarks`); empty on an organisation's.
   decisions: PortalDecision[];
@@ -230,6 +232,7 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
           uploadedOn: true,
           uploadedAt: true,
           requestId: true,
+          signedAt: true,
           uploadedByPersonId: true,
           uploadedBySupplierAccount: { select: { contact: { select: { name: true } } } },
           files: { where: { detachedAt: null, version: { withdrawnAt: null } }, orderBy: { attachedAt: "asc" }, select: { id: true, version: { select: { originalFilename: true, byteSize: true, mediaType: true, scanState: true } } } },
@@ -245,12 +248,12 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
 
   const remarksShown = contractorSeesRemarks(facts);
   const onDay = (instant: Date) => dayOf(instant, ctx.org.timeZone) ?? "";
-  const seen = new Set(visibleIds);
   const policy = await loadStorePolicy(actor.organisationId, client);
   const classSet = policy.projectDocumentClassId !== null;
   const status = actStatusFault("PROJECT_WORKSPACE", ctx.contract.status as ContractStatus);
   const shut = status ? actStatusText(status) : null;
   const me = { side: "CONTRACTOR" as const, accountId: actor.accountId };
+  const known = contractorFacts(facts);
 
   return {
     id: head.id,
@@ -273,6 +276,7 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
       uploadedAtText: formatOrgDateTime(v.uploadedAt, ctx.org.timeZone),
       uploadedByName: v.uploadedByPersonId ? orgName : (v.uploadedBySupplierAccount?.contact.name ?? ctx.contract.awardeeName),
       answersRequest: v.requestId !== null,
+      signed: v.signedAt !== null,
       files: v.files.map((f) => ({ attachmentId: f.id, name: f.version.originalFilename, bytes: Number(f.version.byteSize), typeLabel: mediaLabel(f.version.mediaType), scanLabel: SCAN_LABEL[f.version.scanState], href: fileHref(f.id) })),
       decisions: remarksShown ? v.decisions.map((d) => ({ outcome: d.outcome, outcomeLabel: outcomeWords(d.outcome, head.kind as DocKind | null), remarks: d.remarks, decidedOn: storedDay(d.decidedOn), byName: orgName })) : [],
     })),
@@ -282,13 +286,14 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
       byLabel: r.requestedByPersonId ? orgName : (r.requestedBySupplierAccount?.contact.name ?? "You"),
       note: r.note,
       requestedOn: onDay(r.requestedAt),
-      // A request answered by a version the contractor may not see reads as still open: the answer is the organisation's own working.
-      answeredByVersion: r.answeredBy && seen.has(r.answeredBy.id) ? r.answeredBy.number : null,
+      // A request answered by a version the contractor may not see reads as still open (the answer is the organisation's own working), until a version it may see follows.
+      answeredByVersion: contractorAnswer(facts, r.answeredBy?.id ?? null)?.number ?? null,
     })),
     actions: {
-      // A declaration's version is signed with the password the form asks, so the gate is judged as signed; the act refuses it unsigned (DECLARATION_NOT_SIGNED).
-      upload: gateOf(uploadFaults({ actor: me, classSet, doc: facts, files: 1, note: "", kind: null, signed: true }), orgName, shut),
-      request: gateOf(requestFaults({ actor: me, doc: facts, note: "" }), orgName, shut),
+      // Both gates read the contractor's projection (PW-35), never the organisation's own working: a request answered only by a hidden version is still open, so "Ask for
+      // it" is not drawn. A declaration's version is signed with the password the form asks, so the gate is judged as signed; the act refuses it unsigned (DECLARATION_NOT_SIGNED).
+      upload: gateOf(uploadFaults({ actor: me, classSet, doc: known, files: 1, note: "", kind: null, signed: true }), orgName, shut),
+      request: gateOf(requestFaults({ actor: me, doc: known, note: "" }), orgName, shut),
     },
     asksPassword: head.kind === SIGNED_KIND,
     mayPickKind: head.side === "CONTRACTOR" && head.kind === null && facts.versions.length === 0,

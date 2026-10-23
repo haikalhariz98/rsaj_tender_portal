@@ -593,10 +593,16 @@ describe("the contractor's Project workspace documents (plan step 5)", () => {
     expect(lex(store)).not.toMatch(/withLockedContract|inHeldContract|lockSupplierRow|FROM "Contract"|FROM "Supplier"|FROM "ProjectDocument"|withLockedOwner/);
     expect(store).toMatch(/FROM "SupplierAccount" WHERE id = \$\{actor\.accountId\}[^`]*FOR UPDATE/);
     expect(lex(read(UPLOAD))).not.toMatch(/withLockedContract|inHeldContract/);
-    // The window is judged inside the store's own transaction, after the lock, and `now` is taken after it.
-    expect(store.indexOf("const now = new Date()")).toBeGreaterThan(store.indexOf("FOR UPDATE"));
-    expect(store.indexOf("windowFaults(")).toBeGreaterThan(store.indexOf("const now = new Date()"));
+    // The window is judged inside the store's own transaction, after the lock, and `now` is taken after it. PW-38 added a lock-free pre-check in the preflight, so the
+    // locked check is read within the store's hook, where it stays the authority.
+    const hook = store.slice(store.indexOf("hooks: {"));
+    expect(hook.indexOf("const now = new Date()")).toBeGreaterThan(hook.indexOf("FOR UPDATE"));
+    expect(hook.indexOf("windowFaults(")).toBeGreaterThan(hook.indexOf("const now = new Date()"));
     expect(store).toMatch(/hooks: \{\s*before:/);
+    // PW-38: the preflight judges the window too, before the body is read, and locks nothing.
+    const pre = store.slice(store.indexOf("export async function preflightProjectUpload("), store.indexOf("export class WindowRefused"));
+    expect(pre).toContain("windowFaults(");
+    expect(lex(pre)).not.toMatch(/FOR UPDATE|FOR SHARE|\$transaction/);
   });
 
   it("the download is one GET that asks the portal's read guard first, reads the file only through the reach chain, logs after the response is built, and has a HEAD that reads nothing", () => {

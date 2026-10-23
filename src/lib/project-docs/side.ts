@@ -29,6 +29,12 @@ export const mayActForOrganisation = (personId: string, so: SoOffice | null, del
   capacityFor(personId, NEED, so, delegations, day).capacity !== null;
 
 /**
+ * PW-48: no S.O. is resolved for the contract on the day (no S.O. assignment in force, so no office). A contractor's upload or request is still received (refusing it would
+ * lose a delay notice's server moment, FR-EOT-001), but nobody is told of it: the staff Documents card says so, in the supervision words (NO_SO). A fact, not a refusal.
+ */
+export const noSoResolved = (so: SoOffice | null): boolean => so === null;
+
+/**
  * Everyone on the organisation's side on the day, holders first, then acting holders, then representatives, each person once (a holder who is also a
  * representative is listed as the holder). With no S.O. resolved on the day, the representatives in force are still listed, and none may act.
  */

@@ -8,10 +8,11 @@
  *
  * Which rows: a document on a contract whose workspace is open (an act on one that is shut is refused, so listing it would ask for what cannot be done), and every earlier
  * record not yet answered, as the earlier queue listed them. Not filtered by restricted exercise (AC-18, AC-19): a contract stays visible after issue, and the officer who
- * acts is often not named on the exercise. A document can wait on the organisation only if it has a kind, a live approver, or an open request to the organisation, so only
- * those are read; the state is then judged on each, as everywhere (`documentState`).
+ * acts is often not named on the exercise. Only the documents that may wait on the organisation are read (`waitingCandidates`, PW-47: a provable safe superset, so a
+ * final document is never read again), and the state is then judged on each, as everywhere (`documentState`).
  */
 
+import { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
 import { loadOfficePeople, officeHoldersFrom, type OfficePeople } from "@/lib/certificate/repo";
 import { actStatusFault } from "@/lib/contract/act-status";
@@ -22,8 +23,9 @@ import { soOn } from "@/lib/supervision/so";
 import { EARLIER_RECORD } from "./earlier";
 import { earlierLoader, earlierRowReading, staffEarlier, type StaffEarlier } from "./earlier-read";
 import { kindWords, stateWords, waitsOnWords } from "./labels";
-import { walkMerged, type SourceAfter } from "./merge";
-import { documentLoader, earlierHref, REGISTER_BATCH } from "./register";
+import { walkMerged, type MergeLoader, type SourceAfter } from "./merge";
+import { earlierHref, REGISTER_BATCH, type DocHead } from "./register";
+import { loadDocumentFactsMany } from "./facts";
 import { documentState, latestVersion, type DocumentState } from "./state";
 import type { DocKind } from "./types";
 import { waitingForMe } from "./waiting";
@@ -58,13 +60,57 @@ export interface DocumentsWaitingRow {
 /// The contract states in which the workspace is open.
 const OPEN: readonly ContractStatus[] = CONTRACT_STATUSES.filter((s) => actStatusFault("PROJECT_WORKSPACE", s) === null);
 
-/// A document that may wait on the organisation, on a contract whose workspace is open, in the organisation (and on one contract, where scoped).
-const candidateWhere = (organisationId: string, contractId?: string) => ({
-  organisationId,
-  ...(contractId ? { contractId } : {}),
-  contract: { organisationId, status: { in: [...OPEN] } },
-  OR: [{ kind: { not: null } }, { approvers: { some: { removedAt: null } } }, { requests: { some: { toSide: "ORGANISATION" as const, answeredBy: { is: null } } } }],
-});
+/// Where a raw read starts after a position in the merged list (`afterFor`), on `createdAt`: the cursor's instant is passed as text with its zone and read as UTC, as Prisma
+/// stores a DateTime, so the comparison never depends on the session's time zone. Ids compare in the database's collation, as Prisma's own keyset does (`prismaAfter`).
+function sqlAfter(a: SourceAfter | null): Prisma.Sql {
+  if (!a) return Prisma.empty;
+  const at = Prisma.sql`(${a.at.toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
+  if (a.kind === "LT") return Prisma.sql`AND d."createdAt" < ${at}`;
+  if (a.kind === "LTE") return Prisma.sql`AND d."createdAt" <= ${at}`;
+  return Prisma.sql`AND (d."createdAt" < ${at} OR (d."createdAt" = ${at} AND d."id" < ${a.id}))`;
+}
+
+/**
+ * The documents that may wait on the organisation, newest first, on a contract whose workspace is open, in the organisation (and on one contract, where scoped): one
+ * organisation-scoped raw read per batch (PW-47, code review SHOULD-4). It narrows to a provable safe superset of what `documentState` reads as waiting on the
+ * organisation, so neither the list nor its count walks the organisation's final documents; `documentState` is still the judge of every row it returns.
+ * - A kind waits on the organisation only while its latest version has no mark (RECEIVED): kept while ANY version has no mark (a superset). A kind whose every
+ *   version is marked is Taken up (final) or Returned (on the contractor), and is not read.
+ * - A document with approvers waits on them only until every live approver has approved its latest version (then it is APPROVED, final): kept while one live approver
+ *   has not (or there is no version yet). A rejected one is kept (it waits on its side, which the judge reads).
+ * - A request to the organisation that no version answers: as before.
+ */
+export function waitingCandidates(client: Tx, organisationId: string, contractId?: string): MergeLoader<DocHead> {
+  const open = Prisma.join(OPEN.map((s) => Prisma.sql`${s}`));
+  return {
+    source: "DOCUMENT",
+    async load(after: SourceAfter | null, take: number) {
+      const rows = await client.$queryRaw<{ id: string; title: string; at: string }[]>`
+        SELECT d."id", d."title", to_char(d."createdAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "at"
+          FROM "ProjectDocument" d JOIN "Contract" c ON c."id" = d."contractId"
+         WHERE d."organisationId" = ${organisationId} AND c."organisationId" = ${organisationId} AND c."status"::text IN (${open})
+           ${contractId ? Prisma.sql`AND d."contractId" = ${contractId}` : Prisma.empty}
+           ${sqlAfter(after)}
+           AND (
+             (d."kind" IS NOT NULL AND EXISTS (
+                SELECT 1 FROM "ProjectDocumentVersion" v WHERE v."documentId" = d."id"
+                   AND NOT EXISTS (SELECT 1 FROM "ProjectDocumentDecision" x WHERE x."versionId" = v."id" AND x."approverId" IS NULL)))
+             OR EXISTS (
+                SELECT 1 FROM "ProjectDocumentApprover" a WHERE a."documentId" = d."id" AND a."removedAt" IS NULL
+                   AND NOT EXISTS (
+                     SELECT 1 FROM "ProjectDocumentDecision" x WHERE x."approverId" = a."id" AND x."outcome"::text = 'APPROVED'
+                        AND x."versionId" = (SELECT lv."id" FROM "ProjectDocumentVersion" lv WHERE lv."documentId" = d."id" ORDER BY lv."number" DESC LIMIT 1)))
+             OR EXISTS (
+                SELECT 1 FROM "ProjectDocumentRequest" r WHERE r."documentId" = d."id" AND r."toSide"::text = 'ORGANISATION'
+                   AND NOT EXISTS (SELECT 1 FROM "ProjectDocumentVersion" av WHERE av."requestId" = r."id"))
+           )
+         ORDER BY d."createdAt" DESC, d."id" DESC
+         LIMIT ${take}`;
+      const facts = await loadDocumentFactsMany(client, rows.map((r) => r.id));
+      return rows.map((r) => ({ at: new Date(r.at), id: r.id, title: r.title, facts: facts.get(r.id) }));
+    },
+  };
+}
 
 const unansweredWhere = (organisationId: string, contractId?: string) => ({ organisationId, ...(contractId ? { contractId } : {}), outcome: null });
 
@@ -110,7 +156,7 @@ export async function loadDocumentsWaiting(
   const filter = i.filter ?? "ALL";
   const take = Math.min(Math.max(i.take ?? DOCUMENTS_WAITING_PAGE, 1), 200);
   const inSo = soMembership(client, i.org, i.viewerPersonId, i.today);
-  const docs = documentLoader(client, candidateWhere(i.org.id));
+  const docs = waitingCandidates(client, i.org.id);
   // The contract's number and contractor, for each document kept: read with the batch.
   const heads = {
     source: "DOCUMENT" as const,
@@ -175,7 +221,7 @@ export async function loadDocumentsWaiting(
  */
 export async function documentsWaitingCount(client: Tx, organisationId: string, contractId?: string): Promise<number> {
   const earlier = await client.contractorSubmission.count({ where: unansweredWhere(organisationId, contractId) });
-  const docs = documentLoader(client, candidateWhere(organisationId, contractId));
+  const docs = waitingCandidates(client, organisationId, contractId);
   let n = 0;
   let after: SourceAfter | null = null;
   for (;;) {

@@ -207,7 +207,8 @@ export function projectDocumentNotices(i: {
   contractorName: string;
   /// "Version 2", for the two notices about a version; ignored for a request.
   versionLabel: string;
-  /// The contract's exercise where its notices are restricted with it; null as for the contractor's submissions.
+  /// Always null from the workspace (PW-45), as for the contractor's submissions (`contractorSubmissionNotices`): FR-MTD-007 hides a restricted exercise, not its
+  /// contract, and the S.O. office who must answer is often not named on the exercise, so a notice tied to it would never reach them.
   exerciseId: string | null;
   href: string;
 }): NoticeDraft[] {

@@ -36,6 +36,7 @@ vi.mock("@/app/_auth/act", async () => {
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
 import { changeKickOff, recordKickOffHeld, scheduleKickOff } from "@/app/projects/[id]/kick-off-actions";
+import { addProjectApprover, uploadProjectVersion } from "@/app/projects/[id]/document-actions";
 import { sulitGate } from "@/app/_auth/sulit";
 import { changeFaults } from "./kick-off";
 import { CONTACT_NAME_FIELDS, loadKickOffCard, loadPortalKickOff } from "./kick-off-read";
@@ -388,6 +389,52 @@ describe("§8.2 recording it held: one act, through the real action path (PW-29)
     expect(r.ok).toBe(false);
     expect(r.message).toMatch(/not on either side/);
     expect((await meetingOf(contractId))!.heldOn).toBeNull();
+  });
+
+  it("PW-34: an organisation attendee is one the form offers, on the side today: a stranger, or a representative whose letter was revoked yesterday, is refused and nothing is written; a representative for the diary only may be ticked", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId);
+    await schedule(p.so, contractId);
+    const card = await loadKickOffCard(db, await loaded(contractId), staff(p.so), new Date(), namesFor(staff(p.so)));
+    expect(card.choices.organisation.map((x) => x.personId).sort()).toEqual([p.so, p.rep, p.diaryRep].sort());
+    for (const off of [p.stranger, p.gone]) {
+      const r = await hold(p.so, contractId, { people: [p.so, off], files: [await stage(p.so)] });
+      expect(r.ok, off).toBe(false);
+      expect(r.message, off).toMatch(/not on either side/);
+      const m = (await meetingOf(contractId))!;
+      expect(m.heldOn, off).toBeNull();
+      expect(m.minutesDocumentId, off).toBeNull();
+    }
+    expect(await db.projectDocument.count({ where: { contractId } })).toBe(0);
+    // A past attendee no longer on the side is typed as another name; those always go through.
+    const r = await hold(p.so, contractId, { people: [p.so, p.diaryRep], others: [names[p.gone]!], files: [await stage(p.so)] });
+    expect(r, JSON.stringify(r)).toMatchObject({ ok: true });
+    expect((await meetingOf(contractId))!.attendance.map((a) => a.personId ?? a.name).sort()).toEqual([p.so, p.diaryRep, names[p.gone]].sort());
+  });
+
+  it("PW-53: each card shows the files of the latest version its reader may see, never Version 1 alone and never every version; the document page keeps the full history", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId);
+    await schedule(p.so, contractId, { meetsOn: dayPlus(TODAY, -1) });
+    const first = await stage(p.so);
+    expect(await hold(p.so, contractId, { heldOn: dayPlus(TODAY, -1), people: [p.so], files: [first] })).toMatchObject({ ok: true });
+    const documentId = (await meetingOf(contractId))!.minutesDocumentId!;
+    const nameOf = async (versionId: string) => (await db.documentVersion.findUniqueOrThrow({ where: { id: versionId } })).originalFilename;
+    // Version 2, shared at once (no approver).
+    const second = await stage(p.so);
+    expect(await as(p.so, () => uploadProjectVersion({ ok: false }, form({ contractId, documentId, note: "", stagedVersionId: [second] })))).toMatchObject({ ok: true });
+    // An approver, then Version 3: it waits for approval, so the contractor does not see it.
+    expect(await as(p.so, () => addProjectApprover({ ok: false }, form({ contractId, documentId, approverPersonId: p.rep })))).toMatchObject({ ok: true });
+    const third = await stage(p.so);
+    expect(await as(p.so, () => uploadProjectVersion({ ok: false }, form({ contractId, documentId, note: "", stagedVersionId: [third] })))).toMatchObject({ ok: true });
+
+    const staffCard = await loadKickOffCard(db, await loaded(contractId), staff(p.so), new Date(), namesFor(staff(p.so)));
+    expect(staffCard.held!.minutes!.files.map((f) => f.versionId)).toEqual([third]);
+    const ctx = (await loadProjectContext(db, c.actor, contractId))!;
+    const portal = await loadPortalKickOff(db, c.actor, ctx);
+    expect(portal.held!.minutes!.files.map((f) => f.name)).toEqual([await nameOf(second)]);
+    const page = (await loadPortalDocumentPage(db, c.actor, contractId, documentId))!;
+    expect(page.versions.map((v) => v.label)).toEqual(["Version 1", "Version 2"]);
   });
 
   it("refuses a meeting not scheduled", async () => {

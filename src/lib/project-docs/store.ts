@@ -37,11 +37,13 @@ import { documentFaultText, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { attachFault } from "@/lib/documents/attach";
 import { attached, filed } from "@/lib/documents/audit-view";
 import { lockDocument } from "@/lib/documents/lock";
+import { STAGED_FOR_PROJECT_DOCUMENT } from "@/lib/documents/staged-for";
 import { loadStorePolicy } from "@/lib/documents/service";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { projectDocumentNotices } from "@/lib/inbox/notices";
 import { writeNotices } from "@/lib/inbox/store";
 import { contractorSigningFaultOf } from "@/lib/portal/projects/signing-store";
+import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 import { signatoryDesignation, supplierAuditActor } from "@/lib/portal/projects/submission-store";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
@@ -84,6 +86,17 @@ export class WorkspaceRefused extends Error {
     super(faults.map((f) => f.code).join(", "));
     this.name = "WorkspaceRefused";
   }
+}
+
+/// The partial unique index that holds a store version to one project version (PW-37, migration 20261124000000).
+export const PROJECT_FILE_ONE_PIN = "DocumentAttachment_project_file_one_pin";
+
+/**
+ * PW-37's backstop, as a refusal: a second pin of one store version breaks `PROJECT_FILE_ONE_PIN`, which aborts the act's transaction, so the caller catches it
+ * OUTSIDE the transaction and answers as the locked re-read would have (ALREADY_ATTACHED, 409: a change that came first). Null for any other error, which is rethrown.
+ */
+export function pinConflictRefusal(e: unknown): WorkspaceRefused | null {
+  return uniqueViolationIndex(e) === PROJECT_FILE_ONE_PIN ? new WorkspaceRefused([{ code: "ALREADY_ATTACHED", level: "block" }], 409) : null;
 }
 
 /// A refusal in words, for a form. `orgName` is the organisation's configured name.
@@ -137,21 +150,23 @@ function waitsOn(versionId: string, facts: DocumentFacts): WorkspaceEvent {
   return { event: "VERSION_WAITS_ON_APPROVERS", versionId, approverPersonIds: liveApprovers(facts).map((x) => x.personId), uploadedByPersonId: v.uploaderPersonId };
 }
 
-/// The staff notices of an act (PW-13), written in the act's transaction. The person who did it is never told of it.
+/// The staff notices of an act (PW-13), written in the act's transaction. The person who did it is never told of it. Written with no exercise (PW-45), as the
+/// contractor's submissions were: FR-MTD-007 hides the exercise, not its contract, and the S.O. who must answer is often not named on it.
 async function notify(c: WorkspaceCtx, a: WorkspaceActor, doc: { id: string; title: string }, events: readonly (WorkspaceEvent & { number?: number })[]): Promise<void> {
   const by = a.kind === "STAFF" ? a.actor.personId : null;
   const href = `/projects/${c.l.contract.id}/documents/${doc.id}`;
   const drafts = events.flatMap((e) =>
-    projectDocumentNotices({ target: noticeTargets(e), by, contractLabel: contractText(c.l), documentTitle: doc.title, contractorName: c.l.award.awardeeName, versionLabel: versionLabel(e.number ?? 1), exerciseId: c.l.ex.id, href }),
+    projectDocumentNotices({ target: noticeTargets(e), by, contractLabel: contractText(c.l), documentTitle: doc.title, contractorName: c.l.award.awardeeName, versionLabel: versionLabel(e.number ?? 1), exerciseId: null, href }),
   );
   await writeNotices(c.tx, c.l.org.id, by, drafts);
 }
 
 // ------------------------------------------------------------------ the document's lock, and its staged files
 
-/// The ProjectDocument row, locked, then read: the one row lock of the workspace. Not found (or on another contract or organisation) reads as not found.
+/// The ProjectDocument row, locked, then read: the one row lock of the workspace. Not found (or on another contract or organisation) reads as not found. The lock
+/// itself names the contract and the organisation (PW-50), so a crafted id locks no row of another contract or organisation.
 async function lockedDocument(c: WorkspaceCtx, documentId: string) {
-  await c.tx.$queryRaw`SELECT id FROM "ProjectDocument" WHERE id = ${documentId} FOR UPDATE`;
+  await c.tx.$queryRaw`SELECT id FROM "ProjectDocument" WHERE id = ${documentId} AND "contractId" = ${c.l.contract.id} AND "organisationId" = ${c.l.org.id} FOR UPDATE`;
   const doc = await c.tx.projectDocument.findFirst({ where: { id: documentId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, title: true, side: true, kind: true } });
   if (!doc) return NOT_FOUND();
   return { doc, facts: await loadDocumentFacts(c.tx, doc.id) };
@@ -165,16 +180,21 @@ interface PinnableFile {
 /**
  * The staged store versions an act would pin (ADR 0042 D8), locked and judged. Locked in id order, owner first (the contract and the ProjectDocument are held already),
  * then each store document, so a withdrawal that committed while this act waited is seen and nothing is pinned twice. Every fault of every file is returned; the act
- * refuses on any. A version that is not the organisation's reads as not found, with no word of whose it is.
+ * refuses on any.
+ *
+ * PW-36 (audit L2): the read is narrowed BEFORE any lock to the files the actor itself recorded (its portal account, or the staff person) and staged for a project
+ * document. Every other id, whoever's it is and whatever it is, reads one FILE_UNKNOWN, and no foreign row is locked, so the faults are no oracle on the store.
+ * NOT_YOURS and NOT_STAGED_FOR_PROJECT (`stagedFileFaults`) stay as an internal backstop only.
  */
 async function stagedFiles(c: WorkspaceCtx, a: WorkspaceActor, ids: readonly string[], projectClassId: string | null): Promise<{ files: PinnableFile[]; faults: Finding[] }> {
   if (ids.length === 0) return { files: [], faults: [] };
   const faults: Finding[] = [];
   const org = c.l.org.id;
-  const at = await c.tx.documentVersion.findMany({ where: { id: { in: [...ids] }, organisationId: org }, select: { id: true, documentId: true } });
+  const own = { id: { in: [...ids] }, organisationId: org, ...recordedBy(a), document: { stagedFor: STAGED_FOR_PROJECT_DOCUMENT } };
+  const at = await c.tx.documentVersion.findMany({ where: own, select: { id: true, documentId: true } });
   for (const documentId of [...new Set(at.map((v) => v.documentId))].sort()) await lockDocument(c.tx, documentId);
   const rows = await c.tx.documentVersion.findMany({
-    where: { id: { in: [...ids] }, organisationId: org },
+    where: own,
     select: {
       id: true,
       documentId: true,
@@ -209,6 +229,9 @@ async function stagedFiles(c: WorkspaceCtx, a: WorkspaceActor, ids: readonly str
   if (projectClassId !== null) faults.push(...stagedFileFaults(known, a.kind === "STAFF" ? { side: "ORGANISATION", personId: a.actor.personId, authorityToday: true } : { side: "CONTRACTOR", accountId: a.actor.accountId }, projectClassId));
   return { files, faults };
 }
+
+/// The files an actor recorded itself: its own portal account's, or the staff person's (never both).
+const recordedBy = (a: WorkspaceActor) => (a.kind === "STAFF" ? { recordedByPersonId: a.actor.personId, recordedBySupplierAccountId: null } : { recordedBySupplierAccountId: a.actor.accountId, recordedByPersonId: null });
 
 /// Pin each staged file to the version (a `DocumentAttachment`, purpose PROJECT_DOCUMENT_FILE), file its store document, and audit both, as the generic attach act does.
 async function pinFiles(c: WorkspaceCtx, a: WorkspaceActor, labels: Labels, files: readonly PinnableFile[], projectDocumentVersionId: string, versionNumber: number): Promise<void> {
@@ -346,6 +369,8 @@ export async function createDocument(
         uploadedAt: c.now,
         uploadedOn: dayToDate(c.today),
         noApproversAtUpload: approverIds.length === 0,
+        // PW-44: a statutory declaration's contractor version carries the moment the password was asked again (PW-10); every other version, none.
+        signedAt: a.kind === "SUPPLIER" && kind === SIGNED_KIND ? stepUpAt : null,
       },
       select: { id: true },
     });
@@ -437,6 +462,8 @@ export async function addVersion(
       uploadedOn: dayToDate(c.today),
       noApproversAtUpload: noApprovers,
       requestId: open?.id ?? null,
+      // PW-44: as at the first version; every version of a declaration is signed.
+      signedAt: a.kind === "SUPPLIER" && ofKind === SIGNED_KIND ? stepUpAt : null,
     },
     select: { id: true },
   });

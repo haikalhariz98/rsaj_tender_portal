@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { documentFaultText } from "./labels";
 import { receivedOnFault } from "./received";
-import { currentVersion, nextVersionFault, nextVersionNo, withdrawFault } from "./versioning";
+import { currentVersion, heldByProjectFile, nextVersionFault, nextVersionNo, withdrawFault } from "./versioning";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -31,9 +31,23 @@ describe("versions are immutable: a correction is a new version", () => {
     expect(currentVersion([{ versionNo: 1, withdrawnAt: when }])?.versionNo).toBe(1);
   });
   it("a withdrawal is once, with a reason", () => {
-    expect(withdrawFault({ withdrawnAt: null }, "  ")?.code).toBe("REASON_REQUIRED");
-    expect(withdrawFault({ withdrawnAt: when }, "Wrong scan")?.code).toBe("ALREADY_WITHDRAWN");
-    expect(withdrawFault({ withdrawnAt: null }, "Wrong scan")).toBeNull();
+    const loose = { heldByProjectFile: false };
+    expect(withdrawFault({ withdrawnAt: null }, "  ", loose)?.code).toBe("REASON_REQUIRED");
+    expect(withdrawFault({ withdrawnAt: when }, "Wrong scan", loose)?.code).toBe("ALREADY_WITHDRAWN");
+    expect(withdrawFault({ withdrawnAt: null }, "Wrong scan", loose)).toBeNull();
+  });
+  it("a project file is kept (PW-33): a version held by a live project attachment is never withdrawn, whatever the reason; once withdrawn says so first", () => {
+    const kept = { heldByProjectFile: true };
+    expect(withdrawFault({ withdrawnAt: null }, "Personal data uploaded by mistake", kept)?.code).toBe("PROJECT_FILE_KEPT");
+    expect(withdrawFault({ withdrawnAt: null }, "  ", kept)?.code).toBe("PROJECT_FILE_KEPT");
+    expect(withdrawFault({ withdrawnAt: when }, "Wrong scan", kept)?.code).toBe("ALREADY_WITHDRAWN");
+    expect(documentFaultText(withdrawFault({ withdrawnAt: null }, "x", kept)!)).toBe("A project file is kept. Send a new version instead.");
+  });
+  it("only a live project pin holds a version: a detached one, or another purpose, holds nothing", () => {
+    expect(heldByProjectFile([{ purpose: "PROJECT_DOCUMENT_FILE", detachedAt: null }])).toBe(true);
+    expect(heldByProjectFile([{ purpose: "PROJECT_DOCUMENT_FILE", detachedAt: when }])).toBe(false);
+    expect(heldByProjectFile([{ purpose: "PROGRAMME", detachedAt: null }, { purpose: "AS_BUILT", detachedAt: null }])).toBe(false);
+    expect(heldByProjectFile([])).toBe(false);
   });
 });
 

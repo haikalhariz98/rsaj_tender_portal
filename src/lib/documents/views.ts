@@ -13,6 +13,7 @@ import { type AttributionIndex, type SlotQuery } from "@/lib/auth/attribution-re
 
 import { documentClassificationChoices, isLowering } from "./classification";
 import { attachableVersion } from "./targets";
+import { heldByProjectFile } from "./versioning";
 
 import {
   ACCESS_KIND_LABEL,
@@ -255,6 +256,8 @@ export interface DrawerVersionView {
   note: string | null;
   scan: { text: string; tone: Tone };
   withdrawn: { on: string; reason: string } | null;
+  /// Held by a live project file (PW-33): never withdrawn, so no Withdraw is drawn at all.
+  keptAsProjectFile: boolean;
   download: DownloadView;
   attachments: { id: string; label: string; owner: string; href: string; attachedOn: string; takenOff: { on: string; reason: string } | null }[];
   accessEvents: { id: string; kind: string; at: string; reason: string | null; by: string | null }[];
@@ -348,6 +351,7 @@ export function drawerView(d: Drawer, timeZone: string | null, acted: Attributio
       note: v.note || null,
       scan: { text: SCAN_LABEL[v.scanState], tone: scanTone(v.scanState) },
       withdrawn: v.withdrawnAt ? { on: formatOrgDay(v.withdrawnAt, timeZone), reason: v.withdrawnReason ?? "" } : null,
+      keptAsProjectFile: heldByProjectFile(v.attachments),
       download: v.download,
       attachments: v.attachments.map((a) => ({
         id: a.id,

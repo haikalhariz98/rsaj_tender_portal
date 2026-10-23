@@ -39,9 +39,12 @@ written acceptance is a go-live condition (backlog), not a build gate.
   - After each migration is applied, run `npx prisma generate`, then restart the dev server (`npm run dev`). The running server holds
     the old generated client.
   - Run `npm run db:roles` after the migration, so the append-only revokes reach the new tables (`src/lib/auth/db-role.ts`).
-- **Lock order.** Contract (`withLockedContract`), then the `ProjectDocument` row (`SELECT id FROM "ProjectDocument" WHERE id = $1
-  FOR UPDATE`).
-  - No other row lock.
+- **Lock order** (corrected 2026-10-23, PW-56, to what the code does). Contract (`withLockedContract`), then the `ProjectDocument`
+  row (`SELECT id FROM "ProjectDocument" WHERE id = $1 AND "contractId" = $2 AND "organisationId" = $3 FOR UPDATE`, scoped by
+  PW-50), then the store's documents of the files the act pins, in id order (`lockDocument`).
+  - The kick-off meeting's acts: contract, then the `KickOffMeeting` row (`FOR UPDATE`, by its contract), then the store's documents
+    of the minutes' files, in id order.
+  - No path takes them in reverse. There is no other row lock.
   - Staging a file takes no contract lock. `storeUpload` never runs inside `withLockedContract`.
   - The window count at staging takes the portal account's own row (`SupplierAccount`, `FOR UPDATE`), never the `Supplier` row and
     never with the contract lock.

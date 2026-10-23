@@ -7,7 +7,6 @@ import { addProjectApprover, createProjectDocument, decideProjectVersion, markPr
 import { postUpload } from "@/components/attachments/post-upload";
 import { EMPTY_FORM_STATE, RecordEditor, type Field, type FormState, type SaveAction } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
-import { actorField } from "@/lib/auth/actor-field";
 import { STAGED_FOR_PROJECT_DOCUMENT } from "@/lib/documents/staged-for";
 
 /**
@@ -232,7 +231,7 @@ export function RejectDrawer({ contractId, documentId, versionId, title, version
 }
 
 /// Mark the contractor's latest version of one of the six kinds: taken up (noted, on defects rectified), or returned with remarks, which go back with it for a new version. The button's words
-/// are the loader's (`markWords`); no password is asked (PW-26).
+/// are the loader's (`markWords`); no password is asked (PW-26), and no person is picked: marking is the officer's own act (`onBehalf: false`), as approving is (PW-51).
 export function MarkDrawer({ contractId, documentId, versionId, title, outcome, label, tone = "secondary" }: { contractId: string; documentId: string; versionId: string; title: string; outcome: "TAKEN_UP" | "RETURNED"; label: string; tone?: "primary" | "secondary" }) {
   const returned = outcome === "RETURNED";
   return (
@@ -244,7 +243,6 @@ export function MarkDrawer({ contractId, documentId, versionId, title, outcome, 
         hidden("versionId"),
         hidden("outcome"),
         returned ? { kind: "textarea", name: "remarks", label: "Remarks", required: true, hint: "They go back with it." } : { kind: "textarea", name: "remarks", label: "Remarks (optional)" },
-        actorField("ProjectDocumentDecision.decidedBy", { name: "decidedByPersonId" }),
       ]}
       values={{ contractId, documentId, versionId, outcome }}
       danger={returned}

@@ -582,7 +582,9 @@ describe("project documents (PW-19, PW-28)", () => {
     expect(req.value).toBe("Demonstration Authority");
     // Version 2 (the answer) waits for its approver, so the contractor reads the request as still open.
     expect(find(req.rows!, "Answered by")).toBeUndefined();
-    expect(find(row.rows!, "Where it stands")?.value).toBe("Shared");
+    // Rewritten for PW-46 (code review SHOULD-3): this asserted "Shared", the bug the review found: the request read open while the state said Shared. A request answered only
+    // by a hidden version is an open request in the contractor's projection (PW-35), so the state is "Asked for", as the page and the list say.
+    expect(find(row.rows!, "Where it stands")?.value).toBe("Asked for");
   });
 
   it("every cell of the section is words: no kind, side, state or outcome code, and no officer", () => {

@@ -44,6 +44,44 @@ export function contractorView(doc: DocumentFacts): ContractorView {
   return contractorAskedFor(doc) ? { shown: "BEING_PREPARED" } : { shown: "NOT_LISTED" };
 }
 
+/**
+ * The document as the contractor may know it (PW-35, audit L1; enforcing PW-28): the one projection every contractor reading is computed on, so nothing the
+ * contractor is told, and no gate it is offered, can turn on the organisation's own working.
+ * - A CONTRACTOR document is the contractor's own: the facts as they are.
+ * - An ORGANISATION document loses its hidden versions, their decisions, and the request answers they carry: a request answered only by a version the
+ *   contractor may not see is still open to it, until a version it may see follows (`contractorAnswer`). Its approvers are its own working too: they stay only where the contractor sees the approved version (the
+ *   document reads Approved), so the projection's state is the contractor's own, Asked for, Approved or Shared.
+ * The acts still judge on the real facts (`faults.ts`); a refusal the projection did not foresee is said in the generic words (`contractorFaultText`).
+ */
+export function contractorFacts(doc: DocumentFacts): DocumentFacts {
+  if (doc.side === "CONTRACTOR") return doc;
+  const seen = new Set(doc.versions.filter((v) => contractorSeesVersion(doc, v)).map((v) => v.id));
+  const versions = doc.versions.filter((v) => seen.has(v.id));
+  const real = documentState(doc);
+  const approvedShown = real.state === "APPROVED" && real.latest !== null && seen.has(real.latest.id);
+  return {
+    side: doc.side,
+    kind: doc.kind,
+    versions,
+    approvers: approvedShown ? doc.approvers : [],
+    decisions: doc.decisions.filter((x) => seen.has(x.versionId)),
+    requests: doc.requests.map((r) => ({ ...r, answered: contractorAnswer(doc, doc.versions.find((v) => v.requestId === r.id)?.id ?? null) !== null })),
+  };
+}
+
+/**
+ * The version the contractor reads as the answer to a request, given the version that really answered it (`answeredByVersionId`, null while none has): that version
+ * where the contractor may see it; otherwise the first version it may see that came after it (an approved later version is what the contractor was given); otherwise
+ * none, and the request reads as still open (PW-35, PW-46). Never a hidden version.
+ */
+export function contractorAnswer(doc: DocumentFacts, answeredByVersionId: string | null): VersionFacts | null {
+  if (answeredByVersionId === null) return null;
+  const by = doc.versions.find((v) => v.id === answeredByVersionId);
+  if (!by) return null;
+  const seen = [...doc.versions].filter((v) => contractorSeesVersion(doc, v)).sort((a, b) => a.number - b.number);
+  return seen.find((v) => v.number >= by.number) ?? null;
+}
+
 /// A contractor may open the document at all: listed, as versions or as being prepared.
 export const contractorMayOpen = (doc: DocumentFacts): boolean => contractorView(doc).shown !== "NOT_LISTED";
 

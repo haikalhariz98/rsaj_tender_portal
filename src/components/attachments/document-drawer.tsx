@@ -355,7 +355,7 @@ function VersionCard({ v, onDone }: { v: DrawerVersionView; onDone: (n: Notice) 
           </Button>
         )}
         <VerifyButton versionId={v.id} onNotice={onDone} />
-        {!v.withdrawn && (
+        {!v.withdrawn && !v.keptAsProjectFile && (
           <RecordEditor
             title={`Withdraw version ${v.versionNo}`}
             description="Mark this version as withdrawn."

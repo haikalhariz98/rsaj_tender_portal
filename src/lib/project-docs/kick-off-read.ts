@@ -142,7 +142,8 @@ export async function loadKickOffCard(client: Tx, l: LoadedContract, viewer: Sta
     const minutes = m.minutesDocumentId
       ? await client.projectDocument.findFirst({
           where: { id: m.minutesDocumentId, organisationId: l.org.id },
-          select: { id: true, title: true, versions: { orderBy: { number: "asc" }, take: 1, select: { files: { where: { detachedAt: null }, orderBy: { attachedAt: "asc" }, select: { version: { select: { id: true, originalFilename: true } } } } } } },
+          // PW-53: the files of the minutes' LATEST version (staff read every version), never Version 1's alone; the document page keeps the full history.
+          select: { id: true, title: true, versions: { orderBy: { number: "desc" }, take: 1, select: { files: { where: { detachedAt: null }, orderBy: { attachedAt: "asc" }, select: { version: { select: { id: true, originalFilename: true } } } } } } },
         })
       : null;
     // The contractor's attendees by their contact's name, only where the SULIT read is granted (asked once). An account no longer active is still a past attendee, and its
@@ -212,16 +213,17 @@ export async function loadPortalKickOff(client: Tx, actor: Pick<SupplierActor, "
     if (m.minutesDocumentId) {
       const doc = await client.projectDocument.findFirst({
         where: { id: m.minutesDocumentId, contractId: ctx.contract.id, organisationId: actor.organisationId },
-        select: { id: true, title: true, versions: { select: { id: true, files: { where: { detachedAt: null, version: { withdrawnAt: null } }, orderBy: { attachedAt: "asc" }, select: { id: true, version: { select: { originalFilename: true } } } } } } },
+        select: { id: true, title: true, versions: { orderBy: { number: "asc" }, select: { id: true, files: { where: { detachedAt: null, version: { withdrawnAt: null } }, orderBy: { attachedAt: "asc" }, select: { id: true, version: { select: { originalFilename: true } } } } } } },
       });
       const facts = doc ? (await loadDocumentFactsMany(client, [doc.id])).get(doc.id) : undefined;
       const reading = facts ? contractorReading(facts, ctx.org.name) : null;
       if (doc && reading && reading.shown === "VERSIONS") {
-        const visible = new Set(reading.visibleVersions.map((v) => v.id));
+        // PW-53: the files of the latest version the contractor may see (`contractorReading`), never every version flattened; the document page keeps the full history.
+        const latest = reading.latestVisible ? doc.versions.find((v) => v.id === reading.latestVisible!.id) : undefined;
         minutes = {
           title: doc.title,
           href: `/supplier/projects/${ctx.contract.id}/documents/${doc.id}`,
-          files: doc.versions.filter((v) => visible.has(v.id)).flatMap((v) => v.files.map((f) => ({ name: f.version.originalFilename, href: `${SUPPLIER_PROJECT_DOCUMENT_FILE}/${f.id}` }))),
+          files: (latest?.files ?? []).map((f) => ({ name: f.version.originalFilename, href: `${SUPPLIER_PROJECT_DOCUMENT_FILE}/${f.id}` })),
         };
       }
     }

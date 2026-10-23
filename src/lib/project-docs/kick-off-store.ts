@@ -30,8 +30,9 @@ import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
-import { attendanceOf, changeFaults, heldFaults, MINUTES_TITLE, scheduleFaults, type AttendeeRow } from "./kick-off";
+import { attendanceOf, changeFaults, heldFaults, MINUTES_TITLE, offSideAttendees, scheduleFaults, type AttendeeRow } from "./kick-off";
 import { mayActForOrganisation } from "./side";
+import { organisationSideOn } from "./side-store";
 import { createDocument, WorkspaceRefused, type WorkspaceCtx } from "./store";
 import type { Finding } from "./types";
 
@@ -143,12 +144,16 @@ export interface HeldInput {
   stagedVersionIds: readonly string[];
 }
 
-/// The rows ticked, checked against who they may be: a person of the organisation; an account of the awardee (`Award.vendorId`, as trigger PA046 holds).
+/// The rows ticked, checked against who they may be: a person on the organisation's side today, exactly as the form offers them (PW-34, `offSideAttendees`; read
+/// under the contract's lock); an account of the awardee (`Award.vendorId`, as trigger PA046 holds).
 async function attendeeFaults(c: WorkspaceCtx, rows: readonly AttendeeRow[]): Promise<Finding<KickOffStoreFault>[]> {
   const personIds = rows.flatMap((r) => (r.side === "ORGANISATION" ? [r.personId] : []));
   const accountIds = rows.flatMap((r) => (r.side === "CONTRACTOR" ? [r.supplierAccountId] : []));
   const out: Finding<KickOffStoreFault>[] = [];
-  if (personIds.length > 0 && (await c.tx.person.count({ where: { id: { in: personIds }, organisationId: c.l.org.id } })) !== personIds.length) out.push({ code: "ATTENDEE_UNKNOWN", level: "block" });
+  if (personIds.length > 0) {
+    const side = await organisationSideOn(c.l, await loadSupervision(c.l.contract.id, c.tx), c.today, c.tx);
+    if (offSideAttendees(personIds, side.map((m) => m.personId)).length > 0) out.push({ code: "ATTENDEE_UNKNOWN", level: "block" });
+  }
   if (accountIds.length > 0) {
     const vendorId = c.l.award.vendorId;
     if (!vendorId) out.push({ code: "NO_CONTRACTOR", level: "block" });

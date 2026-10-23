@@ -35,7 +35,7 @@ const shut = (...reasons: string[]): Gate => ({ allowed: false, reasons });
 const NO_AUTHORITY = faultText({ code: "NO_AUTHORITY", level: "block" }, ORG);
 const CLASS_UNSET = faultText({ code: "CLASS_NOT_SET", level: "block" }, ORG);
 
-const start = (o: Partial<WorkspaceStart> = {}): WorkspaceStart => ({ classSet: true, create: open, picker: [{ personId: "p1", name: "Aminah Binti Razak", officeLabel: "Superintending Officer" }], ...o });
+const start = (o: Partial<WorkspaceStart> = {}): WorkspaceStart => ({ classSet: true, create: open, picker: [{ personId: "p1", name: "Aminah Binti Razak", officeLabel: "Superintending Officer" }], noSoResolved: false, ...o });
 const row = (o: Partial<RegisterRow> = {}): RegisterRow => ({ id: "d1", title: "Drainage layout", kindLabel: null, latestOn: "2026-10-21", stateLabel: "Waiting for approval", state: "WAITING_FOR_APPROVAL", waitsOnLabel: `Waiting on ${ORG}`, waitsOn: "ORGANISATION", href: "/projects/c1/documents/d1", ...o });
 const card = (o: Partial<Parameters<typeof ProjectDocumentsCard>[0]> = {}) => renderToStaticMarkup(h(ProjectDocumentsCard, { contractId: "c1", orgName: ORG, rows: [row()], filter: "ALL", next: null, after: null, start: start(), ...o }));
 
@@ -70,6 +70,15 @@ describe("the Documents list on the Project stage", () => {
     const html = card({ rows });
     for (const r of rows) expect(html).toContain(r.title);
     expect(html).not.toMatch(/Showing|\b\d+ of \d+\b|Rows per page/i);
+  });
+
+  it("PW-48: with no S.O. resolved, a warning in the supervision words, beside the class one; never with an S.O.", () => {
+    const words = "No S.O. is resolved for this contract yet. Resolve it on the Team tab first.";
+    expect(card({ start: start({ noSoResolved: true }) })).toContain(words);
+    const both = card({ start: start({ noSoResolved: true, classSet: false, create: shut(NO_AUTHORITY, CLASS_UNSET) }) });
+    expect(both).toContain(words);
+    expect(both).toContain("Where it is set");
+    expect(card()).not.toContain(words);
   });
 
   it("an empty list says so, and a filtered empty list says which list is empty", () => {
@@ -135,6 +144,7 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
       uploadedAtText: "20 Oct 2026 · 09:15",
       uploadedByName: "Aminah Binti Razak",
       answersRequest: false,
+      signed: false,
       files: [{ versionId: "f1", name: "layout-v1.pdf", bytes: 2048, mediaType: "application/pdf", scanLabel: "Not scanned for malware — scanning not built" }],
       decisions: [{ approverName: "Hassan Bin Ali", outcome: "REJECTED", outcomeLabel: "Rejected", remarks: "The levels are wrong.", decidedOn: "2026-10-21", decidedByName: "Hassan Bin Ali" }],
     },
@@ -147,6 +157,7 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
       uploadedAtText: "22 Oct 2026 · 14:02",
       uploadedByName: "Aminah Binti Razak",
       answersRequest: false,
+      signed: false,
       files: [{ versionId: "f2", name: "layout-v2.pdf", bytes: 4096, mediaType: "application/pdf", scanLabel: "Not scanned for malware — scanning not built" }],
       decisions: [],
     },
@@ -184,6 +195,13 @@ describe("a Project document's page", () => {
     expect(html).toContain("The levels are wrong.");
     expect(html).toContain("22 Oct 2026");
     expect(html).toContain("Contract JKR/2026/01");
+  });
+
+  it("PW-44: a declaration's version signed with the password says so, from the column, with no moment; an unsigned version says nothing", () => {
+    const base = page();
+    const signed = view(page({ versions: base.versions.map((v) => (v.number === 1 ? { ...v, signed: true } : v)) }));
+    expect(signed.match(/Signed with a password/g)).toHaveLength(1);
+    expect(view(base)).not.toContain("Signed with a password");
   });
 
   it("offers every act the loader allows, the answer as the one primary action", () => {

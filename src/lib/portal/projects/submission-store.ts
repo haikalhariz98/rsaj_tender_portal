@@ -30,14 +30,15 @@ const refuse = (fs: readonly ProjectFinding[], status: 404 | 409 | 422 | 429 = 4
 };
 const NOT_FOUND = () => refuse([{ code: "NOT_FOUND", level: "block" }], 404);
 
-/// The contract, locked, as this supplier holds it, or not found (the same answer for every other case).
-export async function inHeldContract<T>(actor: SupplierActor, contractId: string, fn: (tx: Tx, l: LoadedContract, today: string) => Promise<T>): Promise<T> {
+/// The contract, locked, as this supplier holds it, or not found (the same answer for every other case). `today` is the organisation's day of `now`, the one moment the
+/// caller read the clock at (PW-55: a portal act reads it once, so a delay notice's day and moment never disagree near midnight).
+export async function inHeldContract<T>(actor: SupplierActor, contractId: string, fn: (tx: Tx, l: LoadedContract, today: string) => Promise<T>, now: Date = new Date()): Promise<T> {
   const result = await withLockedContract(actor.organisationId, contractId, async (tx, l) => {
     if (!supplierHoldsContract({ awardVendorId: l.award.vendorId, awardStatus: l.award.status, supplierId: actor.supplierId })) return NOT_FOUND();
     // Decisions log, 2026-10-09, ruling on 1875(3): a supplier whose standing bars it may read its contract and does nothing else here; paper remains a lawful channel for what has a time limit.
     const bar = await portalStandingBarOf(tx, actor, "TRANSACT");
     if (bar) return refuse([standingBarFinding(bar)]);
-    const today = dayOf(new Date(), l.org.timeZone);
+    const today = dayOf(now, l.org.timeZone);
     if (!today) return refuse([{ code: "DAY_NOT_KNOWN", level: "block" }]);
     return fn(tx, l, today);
   });

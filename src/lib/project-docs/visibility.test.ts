@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { documentState } from "./state";
 import { story } from "./story.fixture";
 import type { DocumentFacts } from "./types";
-import { contractorAskedFor, contractorMayDownload, contractorMayOpen, contractorSeesRemarks, contractorSeesVersion, contractorView, waitingForContractor } from "./visibility";
+import { contractorAnswer, contractorAskedFor, contractorFacts, contractorMayDownload, contractorMayOpen, contractorSeesRemarks, contractorSeesVersion, contractorView, waitingForContractor } from "./visibility";
 
 /** What the contractor sees (PW-8 as amended by PW-28): every case of the three views, the download check, and "Waiting for you". */
 
@@ -147,5 +147,74 @@ describe("contractorMayDownload (PW-14, D7)", () => {
     expect(contractorMayDownload({ versionVisible: true, documentClassification: "PUBLIC", classClassification: "SULIT" })).toBe(false);
     expect(contractorMayDownload({ versionVisible: true, documentClassification: null, classClassification: "PUBLIC" })).toBe(false);
     expect(contractorMayDownload({ versionVisible: true, documentClassification: "PUBLIC", classClassification: null })).toBe(false);
+  });
+});
+
+describe("contractorFacts (PW-35): the projection of the facts every contractor reading is made from", () => {
+  it("an organisation document loses its hidden versions, their decisions and the request answers they carry; its approvers stay only once the approved version is shown", () => {
+    const s = story("ORGANISATION");
+    s.upload();
+    s.request();
+    s.addApprover("e");
+    s.upload();
+    s.decide("e", "REJECTED", "Wrong drawing");
+    const p = contractorFacts(s.doc);
+    expect(p.versions.map((v) => v.id)).toEqual(["v1"]);
+    expect(p.decisions).toEqual([]);
+    expect(p.approvers).toEqual([]);
+    expect(p.requests.map((r) => r.answered)).toEqual([false]);
+    expect(documentState(p).state).toBe("REQUESTED");
+    s.upload();
+    s.decide("e", "APPROVED");
+    const approved = contractorFacts(s.doc);
+    expect(approved.versions.map((v) => v.id)).toEqual(["v1", "v3"]);
+    expect(approved.approvers.map((a) => a.personId)).toEqual(["e"]);
+    expect(approved.decisions.map((d) => [d.versionId, d.outcome])).toEqual([["v3", "APPROVED"]]);
+    // The request was answered by the hidden Version 2; the approved Version 3 that followed is what the contractor reads as its answer, so it is not left open for good.
+    expect(approved.requests.map((r) => r.answered)).toEqual([true]);
+    expect(contractorAnswer(s.doc, "v2")?.id).toBe("v3");
+    expect(documentState(approved).state).toBe("APPROVED");
+  });
+
+  it("contractorAnswer: the answering version where it is seen, else the first seen after it, else none; never a hidden one", () => {
+    const s = story("ORGANISATION");
+    s.request();
+    const v1 = s.upload();
+    expect(contractorAnswer(s.doc, v1)?.id).toBe(v1);
+    expect(contractorAnswer(s.doc, null)).toBeNull();
+    expect(contractorAnswer(s.doc, "nowhere")).toBeNull();
+    const t = story("ORGANISATION");
+    t.request();
+    t.addApprover("e");
+    const hidden = t.upload();
+    expect(contractorAnswer(t.doc, hidden)).toBeNull();
+  });
+
+  it("a contractor document is its own: the facts as they are", () => {
+    const s = story("CONTRACTOR");
+    s.addApprover("e");
+    s.upload();
+    s.decide("e", "REJECTED", "Redo");
+    expect(contractorFacts(s.doc)).toBe(s.doc);
+  });
+
+  it("never shows more than contractorView: the projection's versions are exactly the visible ones, whatever the story", () => {
+    const s = story("ORGANISATION");
+    const check = () => {
+      const v = contractorView(s.doc);
+      const ids = v.shown === "VERSIONS" ? v.versionIds : [];
+      expect(contractorFacts(s.doc).versions.map((x) => x.id)).toEqual([...ids]);
+    };
+    s.addApprover("e");
+    s.request();
+    check();
+    s.upload();
+    check();
+    s.decide("e", "REJECTED", "No");
+    check();
+    s.upload();
+    check();
+    s.decide("e", "APPROVED");
+    check();
   });
 });

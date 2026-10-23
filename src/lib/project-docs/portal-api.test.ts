@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCreateBody, parseRequestBody, parseUploadForm, parseUploadQuery, parseVersionBody } from "./portal-api";
+import { parseCreateBody, parseRequestBody, parseUploadForm, parseUploadQuery, parseVersionBody, PASSWORD_ONLY_DECLARATION, versionTakesPassword } from "./portal-api";
 
 const CON = "contract_0001";
 const DOC = "document_0001";
@@ -113,5 +113,17 @@ describe("the staging upload", () => {
     expect(parseUploadForm([], CON)).toMatchObject({ ok: false, status: 400, errors: { file: expect.any(String) } });
     expect(parseUploadForm([["file", file], ["file", file]], CON)).toMatchObject({ ok: false, status: 400, errors: { file: expect.any(String) } });
     expect(parseUploadForm([["file", "not a file"]], CON)).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+describe("PW-41: the version route takes a password only for a statutory declaration's version", () => {
+  it("the document's kind decides; with none yet, the kind picked with this first version; a later version of a declaration still takes it", () => {
+    expect(versionTakesPassword("STATUTORY_DECLARATION", null)).toBe(true);
+    expect(versionTakesPassword(null, "STATUTORY_DECLARATION")).toBe(true);
+    expect(versionTakesPassword(null, null)).toBe(false);
+    expect(versionTakesPassword("DELAY_NOTICE", null)).toBe(false);
+    // A declaration posted with a document that already has another kind is the store's KIND_ALREADY_SET; it never buys a password step.
+    expect(versionTakesPassword("WORK_PROGRAMME", "STATUTORY_DECLARATION")).toBe(false);
+    expect(PASSWORD_ONLY_DECLARATION).toMatch(/statutory declaration/);
   });
 });

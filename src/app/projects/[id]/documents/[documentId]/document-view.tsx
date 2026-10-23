@@ -116,7 +116,7 @@ export function DocumentPageView({ page, contractNumber }: { page: DocumentPage;
               icon={<FileIcon size={17} />}
               title={v.label}
               subtitle={`${v.uploadedAtText} · ${v.uploadedByName}`}
-              actions={v.answersRequest ? <Chip>Answers the request</Chip> : undefined}
+              actions={v.answersRequest || v.signed ? <span className="inline-flex flex-wrap items-center gap-1.5">{v.signed && <Chip tone="ok">Signed with a password</Chip>}{v.answersRequest && <Chip>Answers the request</Chip>}</span> : undefined}
               divided={v.files.length > 0 || v.decisions.length > 0 || !!v.note}
             />
             {v.note && <CardBody pad="tight" className="text-[13.5px] break-words text-ink-2">{v.note}</CardBody>}

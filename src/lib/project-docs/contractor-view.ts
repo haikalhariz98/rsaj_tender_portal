@@ -12,13 +12,16 @@
  * - Anything else is not listed (PW-28): no state, no title, no row.
  *
  * The day shown is the latest VISIBLE version's, never a hidden newer one's. The organisation is named, an officer never. Words are `labels.ts`'s.
+ *
+ * PW-35 (audit L1): every reading here is computed on the contractor's projection of the facts (`contractorFacts`, `visibility.ts`), never on the real facts, so a
+ * request answered only by a hidden version still reads "Asked for", waiting on the organisation (PW-46), and the portal's gates read the same projection.
  * Pure.
  */
 
 import { BEING_PREPARED, faultText, stateWords } from "./labels";
 import { documentState } from "./state";
 import type { DocumentFacts, Finding, VersionFacts } from "./types";
-import { contractorView, waitingForContractor } from "./visibility";
+import { contractorFacts, contractorView, waitingForContractor } from "./visibility";
 
 export interface ContractorReading {
   shown: "VERSIONS" | "BEING_PREPARED" | "NOT_LISTED";
@@ -47,18 +50,20 @@ export function contractorReading(doc: DocumentFacts, orgName: string): Contract
   if (view.shown === "NOT_LISTED") return { shown: "NOT_LISTED", stateLabel: null, waitsOnYou: false, waitsOnLabel: null, waitsOnOrganisation: false, visibleVersions: [], latestVisible: null };
   if (view.shown === "BEING_PREPARED") return { shown: "BEING_PREPARED", stateLabel: BEING_PREPARED(orgName), waitsOnYou: false, waitsOnLabel: null, waitsOnOrganisation: true, visibleVersions: [], latestVisible: null };
 
+  const known = contractorFacts(doc);
   const ids = new Set(view.versionIds);
-  const visibleVersions = [...doc.versions].filter((v) => ids.has(v.id)).sort((a, b) => a.number - b.number);
+  const visibleVersions = [...known.versions].filter((v) => ids.has(v.id)).sort((a, b) => a.number - b.number);
   const latestVisible = visibleVersions[visibleVersions.length - 1] ?? null;
-  const raw = documentState(doc);
+  const raw = documentState(known);
 
   if (doc.side === "CONTRACTOR") {
-    const waitsOnYou = waitingForContractor(doc);
+    const waitsOnYou = waitingForContractor(known);
     const withOrganisation = !waitsOnYou && raw.waitsOn === "ORGANISATION";
     return { shown: "VERSIONS", stateLabel: stateWords(raw.state, doc.kind), waitsOnYou, waitsOnLabel: waitsOnYou ? WAITING_FOR_YOU : withOrganisation ? `Waiting on ${orgName}` : null, waitsOnOrganisation: withOrganisation, visibleVersions, latestVisible };
   }
 
-  // An organisation document. Its own working (approvers, a rejection, a newer pending version) is not the contractor's to know.
+  // An organisation document. Its own working (approvers, a rejection, a newer pending version) is not the contractor's to know: the projection has none of it, so its
+  // state is Asked for (an open request, or one answered only by a hidden version), Approved, or Shared.
   if (raw.state === "REQUESTED") return { shown: "VERSIONS", stateLabel: stateWords("REQUESTED", null), waitsOnYou: false, waitsOnLabel: `Waiting on ${orgName}`, waitsOnOrganisation: true, visibleVersions, latestVisible };
   const approvedAndShown = raw.state === "APPROVED" && raw.latest !== null && latestVisible?.id === raw.latest.id;
   return { shown: "VERSIONS", stateLabel: approvedAndShown ? stateWords("APPROVED", null) : stateWords("SHARED", null), waitsOnYou: false, waitsOnLabel: null, waitsOnOrganisation: false, visibleVersions, latestVisible };
@@ -75,7 +80,7 @@ export function contractorTally(docs: readonly DocumentFacts[], orgName: string)
     const r = contractorReading(d, orgName);
     if (r.waitsOnOrganisation) withOrganisation++;
     if (d.side === "CONTRACTOR" && r.waitsOnYou) {
-      const s = documentState(d).state;
+      const s = documentState(contractorFacts(d)).state;
       if (s === "REJECTED" || s === "RETURNED") returned++;
     }
   }

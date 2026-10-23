@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { contractorFaultText, contractorReading, contractorRefusalText, contractorTally, WAITING_FOR_YOU } from "./contractor-view";
+import { requestFaults, uploadFaults } from "./faults";
 import { faultText } from "./labels";
 import { DAY, story } from "./story.fixture";
 import type { Finding } from "./types";
+import { contractorFacts } from "./visibility";
 
 /** What the contractor is told of a document's state (PW-8, PW-28): never the organisation's own working. */
 
@@ -209,5 +211,72 @@ describe("the kind and the declaration's refusals reach the contractor in its wo
       expect(contractorFaultText(f, ORG), code).not.toBe("Refused.");
     }
     expect(contractorFaultText({ code: "DECLARATION_NOT_SIGNED", level: "block" }, ORG)).toMatch(/password/);
+  });
+});
+
+describe("PW-35 and PW-46: every contractor reading and gate is computed on the contractor's projection, never on the organisation's working", () => {
+  const ME = { side: "CONTRACTOR" as const, accountId: "acc" };
+  const codes = (fs: readonly Finding[]) => fs.map((f) => f.code);
+
+  it("the reviewer's case: Version 1 shared, the contractor asks again, an approver is added and Version 2 answers the request while it waits: still Asked for, waiting on the organisation, and Ask for it is not drawn", () => {
+    const s = story("ORGANISATION");
+    s.upload();
+    s.request();
+    s.addApprover("e");
+    s.upload();
+    // The real facts: the request is answered, and the document waits for its approver.
+    expect(s.doc.requests.every((r) => r.answered)).toBe(true);
+    const r = contractorReading(s.doc, ORG);
+    expect(r).toMatchObject({ shown: "VERSIONS", stateLabel: "Asked for", waitsOnYou: false, waitsOnLabel: `Waiting on ${ORG}`, waitsOnOrganisation: true });
+    expect(r.visibleVersions.map((v) => v.id)).toEqual(["v1"]);
+    // The gate the page offers reads the projection: the request is still open, so asking again is refused, as it is for any open request (no new words).
+    expect(codes(requestFaults({ actor: ME, doc: contractorFacts(s.doc), note: "" }))).toEqual(["ALREADY_WAITING"]);
+    // The overview's tally follows.
+    expect(contractorTally([s.doc], ORG)).toEqual({ withOrganisation: 1, returned: 0 });
+    // Once Version 2 is approved it is shown, and the request reads answered by it.
+    s.decide("e", "APPROVED");
+    expect(contractorReading(s.doc, ORG)).toMatchObject({ stateLabel: "Approved", waitsOnLabel: null, waitsOnOrganisation: false });
+    expect(contractorFacts(s.doc).requests.every((r) => r.answered)).toBe(true);
+  });
+
+  it("a hidden pending version with no request: the gate offers Ask for it, as for any Shared document (the act refuses on the real facts in the generic words: the accepted LOW residual)", () => {
+    const s = story("ORGANISATION");
+    s.upload();
+    s.addApprover("e");
+    s.upload();
+    expect(contractorReading(s.doc, ORG).stateLabel).toBe("Shared");
+    expect(requestFaults({ actor: ME, doc: contractorFacts(s.doc), note: "" })).toEqual([]);
+    // The real facts refuse it, and the contractor is told only the plain refusal.
+    const real = requestFaults({ actor: ME, doc: s.doc, note: "" });
+    expect(codes(real)).toEqual(["ALREADY_WAITING"]);
+    expect(contractorRefusalText({ faults: real, said: null }, ORG)).toBe("Not done: That cannot be done on this document now.");
+    // So too after the hidden version is rejected: nothing tells the two apart.
+    s.decide("e", "REJECTED", "Wrong drawing");
+    expect(requestFaults({ actor: ME, doc: contractorFacts(s.doc), note: "" })).toEqual([]);
+    expect(contractorReading(s.doc, ORG)).toEqual(contractorReading({ ...s.doc, versions: s.doc.versions.slice(0, 1), approvers: [], decisions: [] }, ORG));
+  });
+
+  it("an approver added to a Shared document is the organisation's working too: the gate still offers Ask for it", () => {
+    const s = story("ORGANISATION");
+    s.upload();
+    s.addApprover("e");
+    expect(requestFaults({ actor: ME, doc: contractorFacts(s.doc), note: "" })).toEqual([]);
+  });
+
+  it("an approved document is final to the contractor: Approved, and asking again is refused as final", () => {
+    const s = story("ORGANISATION");
+    s.addApprover("e");
+    s.upload();
+    s.decide("e", "APPROVED");
+    expect(codes(requestFaults({ actor: ME, doc: contractorFacts(s.doc), note: "" }))).toEqual(["FINAL"]);
+  });
+
+  it("the contractor's own document is read as it is: its gates are the real ones", () => {
+    const s = story("CONTRACTOR");
+    s.addApprover("e");
+    s.upload();
+    s.decide("e", "REJECTED", "Redo the levels");
+    expect(contractorFacts(s.doc)).toBe(s.doc);
+    expect(uploadFaults({ actor: ME, classSet: true, doc: contractorFacts(s.doc), files: 1, note: "", kind: null, signed: true })).toEqual(uploadFaults({ actor: ME, classSet: true, doc: s.doc, files: 1, note: "", kind: null, signed: true }));
   });
 });

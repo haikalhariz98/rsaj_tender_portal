@@ -114,7 +114,8 @@ const isKind = (v: unknown): v is DocKind => typeof v === "string" && v in SUBMI
 export function faultText(f: Finding, orgName = "the organisation"): string {
   const d = f.data ?? {};
   const kind = isKind(d.kind) ? d.kind : null;
-  const file = `File ${str(d.file)}`;
+  // A file's place in the list, from 1; "A file" where the refusal cannot say which (the one-pin backstop, PW-37).
+  const file = d.file === undefined ? "A file" : `File ${str(d.file)}`;
   switch (f.code) {
     case "NO_AUTHORITY":
       return `Only ${NO_AUTHORITY_WORDS} can do this today.`;

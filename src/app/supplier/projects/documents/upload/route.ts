@@ -45,9 +45,10 @@ async function upload(actor: SupplierActor, request: Request) {
   if (!query.ok) return send({ status: query.status, body: { ok: false, code: query.code, message: query.message, errors: query.errors } });
   const { contractId } = query.value;
 
-  const pre = await preflightProjectUpload(actor, contractId);
   const declared = request.headers.get("content-length");
   const offered = declared && /^\d{1,20}$/.test(declared.trim()) ? BigInt(declared.trim()) : null;
+  // The account's window is judged here too, without a lock, on the stated length (PW-38): an account over it is answered 429 before the body is read.
+  const pre = await preflightProjectUpload(actor, contractId, { declaredBytes: offered });
   const log = (org: string, reasonCode: string, extra: { filename?: string | null; bytes?: bigint | null } = {}) =>
     logAccess({ organisationId: org, kind: "REFUSED", reasonCode, offeredFilename: extra.filename ?? null, offeredBytes: extra.bytes ?? offered, actor: { organisationId: org, supplierAccountId: actor.accountId, sessionId: actor.sessionId, sourceAddress: actor.sourceAddress } });
   if (!pre.ok) {

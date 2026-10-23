@@ -219,6 +219,8 @@ export async function attachNewVersion(_prev: FormState, data: FormData): Promis
 
 /// Withdraw a version, once, with its reason. Never refused because something relied on
 /// it: a judged record that pinned it learns at its next act (an award's issue refuses).
+/// The one exception is a project file (PW-33): a version held by a live Project workspace
+/// attachment is kept, read under the store document's lock, which the pin also takes.
 export async function withdrawVersion(_prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
@@ -233,7 +235,9 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
   if (!v0) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
   return inDocument(actor, v0.documentId, async (tx, orgId) => {
     const v = await tx.documentVersion.findFirstOrThrow({ where: { id: versionId, organisationId: orgId }, include: { document: { select: { title: true } } } });
-    const f = withdrawFault(v, reason);
+    // Read under the document's lock (`inDocument`): a project pin committed while this act waited is seen (trigger PA047 is the backstop).
+    const heldByProjectFile = (await tx.documentAttachment.count({ where: { versionId: v.id, organisationId: orgId, purpose: "PROJECT_DOCUMENT_FILE", detachedAt: null } })) > 0;
+    const f = withdrawFault(v, reason, { heldByProjectFile });
     if (f) return f.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: documentFaultText(f) } } : refuse([f]);
     await tx.documentVersion.update({ where: { id: v.id, organisationId: actor.organisationId }, data: { withdrawnAt: new Date(), withdrawnReason: reason } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "DocumentVersion", entityId: v.id, entityLabel: `${docLabel(v.document.title)} · version ${v.versionNo}`, reason }, "UPDATE", versionWithdrawn({ versionNo: v.versionNo, reason }));

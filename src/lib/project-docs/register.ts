@@ -61,7 +61,8 @@ const keeps = (f: RegisterFilter, r: { state: DocumentState; waitsOn: Side | nul
 /// The contract's Documents tab naming one earlier record: the list's own address for it.
 export const earlierHref = (contractId: string, id: string) => `/projects/${encodeURIComponent(contractId)}?${new URLSearchParams({ stage: "project", tab: "submissions", earlier: id }).toString()}`;
 
-interface DocHead {
+/// One document of the merged list, with its facts (read for the whole batch at once).
+export interface DocHead {
   at: Date;
   id: string;
   title: string;

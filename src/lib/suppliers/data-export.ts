@@ -19,6 +19,7 @@ import { storedDay } from "@/lib/dates";
 import { bankState } from "@/lib/portal/company/bank";
 import type { StandingView } from "@/lib/portal/company/standing-view";
 import { contractorReading } from "@/lib/project-docs/contractor-view";
+import { contractorAnswer } from "@/lib/project-docs/visibility";
 import { kindWords, outcomeWords, versionLabel } from "@/lib/project-docs/labels";
 import type { DocKind, DocumentFacts, Outcome } from "@/lib/project-docs/types";
 import { contractorSeesRemarks } from "@/lib/project-docs/visibility";
@@ -493,7 +494,7 @@ function bidReceipts(src: SupplierExportSource): ExportRow[] {
  * The Project workspace's documents (PW-19), as the contractor may read them (PW-8, PW-28) and no further. The reader hands over every document on the supplier's contracts; here each is
  * read through `contractorReading`: an organisation document the contractor did not ask for, with no version it may see, is left out whole; of the others only the versions it may see
  * are listed, with their files; remarks and answers appear only on the contractor's own documents (`contractorSeesRemarks`), by "the organisation", never an officer; a request answered
- * by a version the contractor may not see reads as still open. The state is the contractor's own, never the organisation's working.
+ * by a version the contractor may not see reads as still open until one it may see follows (`contractorAnswer`, PW-35). The state is the contractor's own, never the organisation's working.
  */
 function projectDocuments(src: SupplierExportSource): ExportRow[] {
   const org = src.organisationName;
@@ -521,7 +522,7 @@ function projectDocuments(src: SupplierExportSource): ExportRow[] {
       });
     const requests = p.requests.map((raw) => {
       const r = pick("ProjectDocumentRequest", raw.row);
-      const answered = raw.answeredByVersionId ? visible.get(raw.answeredByVersionId) : undefined;
+      const answered = contractorAnswer(p.facts, raw.answeredByVersionId);
       return row("pdRequest", r.toSide === "CONTRACTOR" ? "You" : r.toSide === "ORGANISATION" ? org : null, {
         rows: details([row("pdAskedBy", text(raw.by)), row("pdAskedOn", instant(r.requestedAt)), row("pdNote", text(r.note)), answered ? row("pdAnsweredBy", versionLabel(answered.number)) : null]),
       });

@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { AGENDA_MAX, ATTENDEE_NAME_MAX, attendanceOf, changeFaults, heldFaults, KICK_OFF_STATE_TONE, KICK_OFF_STATE_WORDS, kickOffFaultText, kickOffState, LINK_MAX, PLACE_MAX, scheduleFaults, type KickOffFault, type KickOffState } from "./kick-off";
+import { AGENDA_MAX, ATTENDEE_NAME_MAX, attendanceOf, changeFaults, heldFaults, KICK_OFF_STATE_TONE, KICK_OFF_STATE_WORDS, kickOffFaultText, kickOffState, LINK_MAX, offSideAttendees, PLACE_MAX, scheduleFaults, type KickOffFault, type KickOffState } from "./kick-off";
 import type { Finding } from "./types";
 
 /**
@@ -187,5 +187,16 @@ describe("worked example: KOM/CON/1's kick-off meeting", () => {
     expect(heldFaults({ authorityToday: true, scheduled: true, held: false, heldOn: "2026-11-02", today: "2026-11-03", attendees: who.rows.length, minutesFiles: 1 })).toEqual([]);
     expect(kickOffState({ ...m, held: true }, "2026-11-03", tz)).toBe("HELD");
     expect(codes(heldFaults({ authorityToday: true, scheduled: true, held: false, heldOn: "2026-11-04", today: "2026-11-03", attendees: 3, minutesFiles: 1 }))).toEqual(["HELD_IN_FUTURE"]);
+  });
+});
+
+describe("PW-34: the organisation's attendees are the people on its side today, exactly as the form offers them", () => {
+  it("returns each ticked person not on the side, once; nobody off the side, nothing", () => {
+    const side = ["so", "acting", "rep"];
+    expect(offSideAttendees(["so", "rep"], side)).toEqual([]);
+    expect(offSideAttendees([], side)).toEqual([]);
+    expect(offSideAttendees(["so", "finance", "finance", "procurement"], side)).toEqual(["finance", "procurement"]);
+    // With nobody on the side (no S.O. resolved, no representative in force), nobody may be ticked for the organisation: type them as other names.
+    expect(offSideAttendees(["so"], [])).toEqual(["so"]);
   });
 });

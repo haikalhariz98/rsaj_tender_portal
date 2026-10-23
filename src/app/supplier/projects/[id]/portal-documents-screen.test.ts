@@ -126,10 +126,11 @@ const page = (o: Partial<PortalDocumentPage> = {}): PortalDocumentPage => ({
       uploadedAtText: "20 Oct 2026 · 09:15",
       uploadedByName: "Siti Binti Omar",
       answersRequest: false,
+      signed: false,
       files: [{ attachmentId: "a1", name: "statement-v1.pdf", bytes: 2048, typeLabel: "PDF", scanLabel: "Not scanned for malware — scanning not built", href: "/supplier/projects/documents/file/a1" }],
       decisions: [{ outcome: "REJECTED", outcomeLabel: "Rejected", remarks: "The levels are wrong.", decidedOn: "2026-10-21", byName: ORG }],
     },
-    { id: "v2", number: 2, label: "Version 2", note: "", uploadedOn: "2026-10-22", uploadedAtText: "22 Oct 2026 · 14:02", uploadedByName: "Siti Binti Omar", answersRequest: false, files: [{ attachmentId: "a2", name: "statement-v2.pdf", bytes: 4096, typeLabel: "PDF", scanLabel: "Not scanned for malware — scanning not built", href: "/supplier/projects/documents/file/a2" }], decisions: [] },
+    { id: "v2", number: 2, label: "Version 2", note: "", uploadedOn: "2026-10-22", uploadedAtText: "22 Oct 2026 · 14:02", uploadedByName: "Siti Binti Omar", answersRequest: false, signed: false, files: [{ attachmentId: "a2", name: "statement-v2.pdf", bytes: 4096, typeLabel: "PDF", scanLabel: "Not scanned for malware — scanning not built", href: "/supplier/projects/documents/file/a2" }], decisions: [] },
   ],
   requests: [],
   actions: { upload: open, request: shut(`That cannot be done on this document now.`) },
@@ -160,6 +161,13 @@ describe("a document's page in the portal", () => {
     expect(html).toContain("22 Oct 2026");
     expect(html).toContain("Contract JKR/2026/01");
     expect(html).toContain('href="/supplier/projects/c1?tab=submissions"');
+  });
+
+  it("PW-44: a declaration's version signed with the password says so, from the column, with no moment; an unsigned version says nothing", () => {
+    const base = page();
+    const signed = view(page({ versions: base.versions.map((v) => (v.number === 2 ? { ...v, signed: true } : v)) }));
+    expect(signed.match(/Signed with a password/g)).toHaveLength(1);
+    expect(view(base)).not.toContain("Signed with a password");
   });
 
   it("a file is a plain download link carrying the page's own form key; no key, no link", () => {

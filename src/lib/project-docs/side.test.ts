@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DelegationFacts, SoOffice } from "@/lib/supervision/authority";
 
-import { mayActForOrganisation, organisationSide } from "./side";
+import { mayActForOrganisation, noSoResolved, organisationSide } from "./side";
 
 /** The organisation's side on a day (PW-5, PW-16): holders, acting holders and representatives in force, each once, and who may act. */
 
@@ -53,5 +53,12 @@ describe("organisationSide (PW-16)", () => {
   });
   it("with no S.O. resolved, the representatives in force are listed and none may act", () => {
     expect(organisationSide(null, [rep()], DAY)).toEqual([{ personId: "eng", capacity: "REPRESENTATIVE", officeLabel: "Principal Representative", mayAct: false }]);
+  });
+});
+
+describe("PW-48: no S.O. resolved is a fact the Documents card shows, never a refusal", () => {
+  it("is true only where no S.O. office is resolved on the day", () => {
+    expect(noSoResolved(null)).toBe(true);
+    expect(noSoResolved({ roleLabel: "S.O.", holderIds: ["so"], actingIds: [] })).toBe(false);
   });
 });

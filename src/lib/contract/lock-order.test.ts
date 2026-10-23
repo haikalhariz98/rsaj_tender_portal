@@ -740,11 +740,14 @@ describe("the Project workspace: staff actions lock the contract, the store lock
     expect(code).not.toMatch(/new Date\(\)/);
   });
 
-  it("every core on an existing document takes the ProjectDocument lock before it reads the document's facts, and it is the only raw row lock in the file", () => {
-    expect([...storeSrc.matchAll(/FROM "(\w+)" WHERE id = \$\{\w+\} FOR UPDATE/g)].map((m) => m[1])).toEqual(["ProjectDocument"]);
+  // PW-50 (code review CONSIDER 1): the lock names the contract and the organisation in its own WHERE, so a crafted id locks no other contract's or organisation's row. The
+  // patterns below were tightened in step with it, never loosened: the only raw row lock in the file is that one, whole.
+  it("every core on an existing document takes the ProjectDocument lock, scoped to the contract and the organisation, before it reads the document's facts, and it is the only raw row lock in the file", () => {
+    expect([...storeSrc.matchAll(/FROM "(\w+)" WHERE id = \$\{\w+\} AND "contractId" = \$\{c\.l\.contract\.id\} AND "organisationId" = \$\{c\.l\.org\.id\} FOR UPDATE`/g)].map((m) => m[1])).toEqual(["ProjectDocument"]);
+    expect([...storeSrc.matchAll(/FOR UPDATE`/g)]).toHaveLength(1);
     const at = storeSrc.indexOf("async function lockedDocument(");
     const locker = storeSrc.slice(at, storeSrc.indexOf("\n}\n", at));
-    expect(locker).toMatch(/FROM "ProjectDocument" WHERE id = \$\{documentId\} FOR UPDATE/);
+    expect(locker).toMatch(/SELECT id FROM "ProjectDocument" WHERE id = \$\{documentId\} AND "contractId" = \$\{c\.l\.contract\.id\} AND "organisationId" = \$\{c\.l\.org\.id\} FOR UPDATE`/);
     expect(locker.indexOf("FOR UPDATE")).toBeLessThan(locker.indexOf("loadDocumentFacts("));
     for (const name of WORKSPACE_CORES.filter((n) => n !== "createDocument")) {
       const body = cores.get(name)!;

@@ -28,12 +28,20 @@ export function currentVersion<V extends Pick<VersionFact, "versionNo" | "withdr
   return sorted.find((v) => v.withdrawnAt == null) ?? sorted[0] ?? null;
 }
 
-export type WithdrawFault = "ALREADY_WITHDRAWN" | "REASON_REQUIRED";
+export type WithdrawFault = "ALREADY_WITHDRAWN" | "PROJECT_FILE_KEPT" | "REASON_REQUIRED";
 
-/// Withdrawing a version: once, with a reason. Never refused because something relies
-/// on it — a judged record that pinned it is told instead (issue refuses, naming the way out).
-export function withdrawFault(version: Pick<VersionFact, "withdrawnAt">, reason: string): Finding<WithdrawFault> | null {
+/**
+ * Withdrawing a version: once, with a reason. Never refused because a judged record relies on it — that record is told instead (issue refuses, naming the way
+ * out). The one exception is a project file (ADR 0042; PW-33): a version held by a live Project workspace attachment (purpose PROJECT_DOCUMENT_FILE, not
+ * detached) is kept, and is replaced only by a new version of the project document (PW-7, PW-8). `heldByProjectFile` is that fact, read by the caller under
+ * the store document's lock (the pin takes the same lock, so the two serialise). Trigger PA047 is the backstop.
+ */
+export function withdrawFault(version: Pick<VersionFact, "withdrawnAt">, reason: string, kept: { heldByProjectFile: boolean }): Finding<WithdrawFault> | null {
   if (version.withdrawnAt != null) return { code: "ALREADY_WITHDRAWN", level: "block" };
+  if (kept.heldByProjectFile) return { code: "PROJECT_FILE_KEPT", level: "block" };
   if (!reason.trim()) return { code: "REASON_REQUIRED", level: "block" };
   return null;
 }
+
+/// Whether a version is held by a live project file: an attachment of purpose PROJECT_DOCUMENT_FILE that is not detached. A detached pin holds nothing.
+export const heldByProjectFile = (attachments: readonly { purpose: string; detachedAt: Date | null }[]): boolean => attachments.some((a) => a.purpose === "PROJECT_DOCUMENT_FILE" && a.detachedAt == null);

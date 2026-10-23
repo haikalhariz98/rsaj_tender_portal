@@ -10,11 +10,14 @@ import { formatDate } from "@/lib/format";
 import type { WorkspaceStart } from "@/lib/project-docs/page-store";
 import { REGISTER_FILTERS, registerFilterWords, type RegisterFilter, type RegisterRow } from "@/lib/project-docs/register";
 import { CLASS_NOT_SET_LEAD, faultText } from "@/lib/project-docs/labels";
+import { supervisionFaultWords } from "@/lib/supervision/labels";
 
 import { NewDocumentDrawer } from "./document-editors";
 import { STATE_TONE } from "./document-words";
 
 const NOTE_ID = "documents-note";
+/// PW-48: the supervision words for no S.O. resolved; the contractor's documents are still received, and nobody is told.
+const NO_SO_WORDS = supervisionFaultWords({ code: "NO_SO", level: "block" }).en;
 
 /// The Project stage's own address for this list: the filter and the page's cursor ride in the query beside the tab.
 export const documentsHref = (contractId: string, filter: RegisterFilter, after: string | null = null) => {
@@ -40,10 +43,11 @@ export function ProjectDocumentsCard({ contractId, orgName, rows, filter, next, 
         divided={false}
         actions={blocked ? <Blocked label="New document" reason={start.create.reasons.join(" ")} noteId={NOTE_ID} /> : <NewDocumentDrawer contractId={contractId} picker={start.picker} />}
       />
-      {blocked && (
+      {(blocked || start.noSoResolved) && (
         <div id={NOTE_ID} className="flex flex-col gap-2 px-5 pb-4 sm:px-6">
           {!start.classSet && <Callout tone="warn" title={CLASS_NOT_SET_LEAD} action={<MoreText text={classWords} label="Where it is set" />} />}
-          {others.length > 0 && <p className="text-[12.5px] text-ink-3">{others.join(" ")}</p>}
+          {start.noSoResolved && <Callout tone="warn" title={NO_SO_WORDS} />}
+          {blocked && others.length > 0 && <p className="text-[12.5px] text-ink-3">{others.join(" ")}</p>}
         </div>
       )}
       <DataList
