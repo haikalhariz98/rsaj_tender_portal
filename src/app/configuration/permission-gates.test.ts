@@ -119,7 +119,10 @@ describe("the Getting-started page is read only by those who work on configurati
   it("sends anyone else Home, and names the three permissions and the administrator", () => {
     expect(readFileSync(path.join(CONFIG, "page.tsx"), "utf8")).toContain("requireSettingsReader()");
     expect(page).toContain("export async function SettingsSectionRoute");
-    expect(page.match(/requireSettingsReader\(\)/g)?.length).toBeGreaterThanOrEqual(2);
+    // Each section page asks the gate itself, first (auth-reach), and hands the reader to SettingsSectionRoute.
+    for (const s of ["approvals", "contracts-payments", "people", "purchasing", "suppliers-portal", "system"]) {
+      expect(readFileSync(path.join(CONFIG, s, "page.tsx"), "utf8")).toMatch(/const actor = await requireSettingsReader\(\);/);
+    }
     expect(page).toMatch(/redirect\("\/"\)/);
     for (const key of ["configuration.draft", "configuration.issue", "audit.read"]) expect(page).toContain(`"${key}"`);
     expect(page).toContain("isAdministrator");
